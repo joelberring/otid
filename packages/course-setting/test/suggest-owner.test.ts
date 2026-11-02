@@ -1,5 +1,5 @@
 /**
- * Förslag på kontrollbeskrivning mot ägarens riktiga karta (ADR-0180 beslut 12). Filerna är klubbens och committas inte;
+ * Förslag på kontrollbeskrivning mot ägarens riktiga karta (ADR-0180 beslut 13). Filerna är klubbens och committas inte;
  * testet körs bara när `OTID_REAL_MAP` (kartfilen) och `OTID_REAL_MAP_PPEN` (banor på den kartan) pekar på dem, och hoppas
  * över i CI. Med `OTID_REAL_MAP_FACIT` (JSON: kontrollkod → godtagna D, t.ex. { "41": ["2.4"] }) mäts träffsäkerheten för
  * D; facit ligger utanför repot eftersom banorna är hemliga före tävlingen.

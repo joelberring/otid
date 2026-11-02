@@ -24,7 +24,7 @@ export interface SuggestionsState {
 }
 
 /**
- * ADR-0180 beslut 12: förslagen för vald kontroll och vyns kontroller utan detalj, räknade av kartans Worker en kort
+ * ADR-0180 beslut 13: förslagen för vald kontroll och vyns kontroller utan detalj, räknade av kartans Worker en kort
  * stund efter senaste ändringen. Förslagen skrivs aldrig in av sig själva.
  */
 export function useDescriptionSuggestions(session: MapRenderSession | undefined, document: CourseSettingDocument, view: string,

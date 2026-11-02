@@ -37,7 +37,7 @@ export function DescriptionSvg({ layout, symbols, label, fluid, highlight, activ
   highlight?: { x: number; y: number; width: number; height: number } | undefined;
   active?: { ref: string; box: string } | undefined;
   onHit?: ((hit: HitPrimitive) => void) | undefined; hitLabel?: ((hit: HitPrimitive) => string) | undefined; testId?: string | undefined;
-  /** ADR-0180 beslut 12: kontrollerna vars rad visar ett förslag (ljusare symboler och `previewLabel` i ruta H). */
+  /** ADR-0180 beslut 13: kontrollerna vars rad visar ett förslag (ljusare symboler och `previewLabel` i ruta H). */
   preview?: ReadonlySet<string> | undefined; previewLabel?: string | undefined;
 }) {
   const width = mm(layout.widthMm), height = mm(layout.heightMm);

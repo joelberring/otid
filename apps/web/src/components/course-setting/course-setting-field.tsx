@@ -112,7 +112,7 @@ export interface FieldInput {
   readonly onNote: (input: { target: CourseSettingNoteTarget; at: Point | null; text: string; photo: Photo | null }) => Promise<void>;
   readonly onList: () => void;
   readonly onOffline: () => void;
-  /** ADR-0180 beslut 12: raden "Förslag: sten, norra sidan — Godta" för vald kontroll. */
+  /** ADR-0180 beslut 13: raden "Förslag: sten, norra sidan — Godta" för vald kontroll. */
   readonly suggestion?: ReactNode | undefined;
 }
 

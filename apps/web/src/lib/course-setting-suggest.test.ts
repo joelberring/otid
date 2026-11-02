@@ -7,7 +7,7 @@ import {
 } from "./course-setting-suggest";
 import { testDocument } from "./course-setting-test-document";
 
-/** ADR-0180 beslut 12: förslagen i editorn – vilka kontroller som räknas, godta, förhandsvisning och texten i fältläget. */
+/** ADR-0180 beslut 13: förslagen i editorn – vilka kontroller som räknas, godta, förhandsvisning och texten i fältläget. */
 const stone: DescriptionSuggestion = {
   boxes: [{ box: "D", ref: "2.4" }, { box: "G", ref: "11.1N" }], confidence: 0.9, level: "HIGH", reason: "Sten (ISOM 204) 2 m från centrum",
   features: [{ code: "204.0", name: "Sten", matchedBy: "NUMBER", geometry: "point", distanceMeters: 2, at: { x: 10, y: 0 }, shape: [[{ x: 10, y: 0 }]] }]

@@ -18,7 +18,13 @@ export const NUMBER_DISTANCE = 1.825;
 export const CODE_DISTANCE = 0.325;
 
 export type ItemScaling = "None" | "RelativeToMap" | "RelativeTo15000";
+export const ITEM_SCALINGS: readonly ItemScaling[] = ["None", "RelativeToMap", "RelativeTo15000"];
 
+/**
+ * Banans utseende för hela banläggningen (Purple Pens CourseAppearance): kvoter mot standardens mått för ringarna (och
+ * övriga punktobjekt), linjerna och numren, skalningen, det automatiska avbrottet i sträckor (mm) och om ringavbrotten är
+ * sparade med skalningen (`scale-sizes-circle-gaps`; saknas i filer från äldre Purple Pen).
+ */
 export interface Appearance {
   readonly itemScaling: ItemScaling;
   readonly circleSize: number;
@@ -103,9 +109,11 @@ export function sizesFor(document: CourseSettingDocument, printScale: number): S
     startRadius: standard.startRadius * appearance.circleSize * ratio,
     crossingRadius: standard.crossingRadius * appearance.circleSize * ratio,
     numberHeight: standard.number * appearance.numberSize * ratio,
-    codeHeight: CODE_HEIGHT * ratio,
-    numberDistance: NUMBER_DISTANCE * ratio,
-    codeDistance: CODE_DISTANCE * ratio,
+    // Purple Pen (CourseFormatter.CreateControlNumber och CreateCode): koderna följer nummerstorleken och avståndet till
+    // ringen följer ringstorleken.
+    codeHeight: CODE_HEIGHT * appearance.numberSize * ratio,
+    numberDistance: NUMBER_DISTANCE * appearance.circleSize * ratio,
+    codeDistance: CODE_DISTANCE * appearance.circleSize * ratio,
     autoLegGap: appearance.autoLegGap * ratio,
     sprint: document.event.overprintStandard === "ISSPROM2019"
   };

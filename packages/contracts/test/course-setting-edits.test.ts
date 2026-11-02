@@ -31,4 +31,14 @@ describe("banläggningens åtgärder", () => {
     ok({ type: "DELETE_LAYOUT_TEMPLATE", id: "mina" });
     expect(courseSettingEditSchema.safeParse({ type: "ADD_SPECIAL", special: { kind: "unicorn", points: [{ x: 0, y: 0 }] } }).success).toBe(false);
   });
+
+  it("tar banans utseende och etiketten (ADR-0180 beslut 12)", () => {
+    const parse = (edit: unknown) => courseSettingEditSchema.safeParse(edit).success;
+    expect(parse({ type: "SET_APPEARANCE", changes: { circleSize: 1.12, lineWidth: 1, numberSize: 0.75, itemScaling: "RelativeTo15000",
+      autoLegGap: 0, circleGapsScaled: true } })).toBe(true);
+    expect(parse({ type: "SET_APPEARANCE", changes: {} })).toBe(true);
+    expect(parse({ type: "SET_APPEARANCE", changes: { itemScaling: "Twice" } })).toBe(false);
+    expect(parse({ type: "SET_APPEARANCE", changes: { centerDot: 0.3 } })).toBe(false);
+    expect(parse({ type: "UPDATE_COURSE", course: "3", changes: { labelKind: "SEQUENCE_AND_CODE" } })).toBe(true);
+  });
 });

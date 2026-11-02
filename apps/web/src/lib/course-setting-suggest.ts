@@ -8,7 +8,7 @@ import { ALL_CONTROLS } from "./course-setting-hit";
 import type { SuggestPoint, SuggestionsByControl } from "./course-setting-map-protocol";
 
 /**
- * ADR-0180 beslut 12: förslag på kontrollbeskrivning i editorn. Kartans Worker räknar förslagen (`suggestAt`) för vald
+ * ADR-0180 beslut 13: förslag på kontrollbeskrivning i editorn. Kartans Worker räknar förslagen (`suggestAt`) för vald
  * kontroll och för kontrollerna i vyn som saknar detalj (kolumn D). Inget skrivs in förrän någon godtar: då blir det en
  * vanlig `SET_DESCRIPTION`, så att ångra, sparandet och samarbetet fungerar som för en ruta som väljs för hand.
  */

@@ -1,5 +1,5 @@
 /**
- * Förslag på kontrollbeskrivning (ADR-0180 beslut 12): varje regel provas på en liten syntetisk karta (1:15 000, mm med
+ * Förslag på kontrollbeskrivning (ADR-0180 beslut 13): varje regel provas på en liten syntetisk karta (1:15 000, mm med
  * y uppåt). Ägarens kartor provas i `suggest-owner.test.ts`.
  */
 import type { MapObject, MapSymbol, ParsedMap, Point } from "@o-tid/map-file";

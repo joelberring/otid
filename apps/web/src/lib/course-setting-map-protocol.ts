@@ -14,7 +14,7 @@ export type MapRenderRequest =
       readonly colorAdjust?: Readonly<Record<number, ColorAdjust>> | undefined }
   /** Ringklipp (ADR-0180 beslut 10): detaljgapen för ringarna, räknade på kartfilen som redan är inläst. */
   | { readonly type: "detailGaps"; readonly id: number; readonly circles: readonly DetailCircle[]; readonly sprint: boolean }
-  /** ADR-0180 beslut 12: förslag på kontrollbeskrivning för punkterna (kontrollens id och läge). */
+  /** ADR-0180 beslut 13: förslag på kontrollbeskrivning för punkterna (kontrollens id och läge). */
   | { readonly type: "suggest"; readonly id: number; readonly points: readonly SuggestPoint[]; readonly options: SuggestOptions };
 
 export interface SuggestPoint { readonly id: string; readonly at: Point }

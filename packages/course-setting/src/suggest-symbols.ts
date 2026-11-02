@@ -1,5 +1,5 @@
 /**
- * Förslag på kontrollbeskrivning (ADR-0180 beslut 12): kartsymbol → detalj i kolumn D (IOF Control Descriptions 2018).
+ * Förslag på kontrollbeskrivning (ADR-0180 beslut 13): kartsymbol → detalj i kolumn D (IOF Control Descriptions 2018).
  *
  * Källor:
  * - Kartsymbolerna: ISOM 2017-2 (IOF, revision 6, januari 2024, avsnitt 3.1–3.6) och ISSprOM 2019-2, kontrollerade mot

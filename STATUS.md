@@ -10,11 +10,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-11-02 – Förslag på kontrollbeskrivning ur kartfilen (grenen beskrivningsforslag, ADR-0180 beslut 12)
+### 2026-11-02 – Förslag på kontrollbeskrivning ur kartfilen (grenen beskrivningsforslag, ADR-0180 beslut 13)
 - Paketet: tabell ISOM 2017-2/ISSprOM 2019-2 → IOF 2018 D (namnet som reserv), regler för G (sida, fot/uppe på, kant, hörn in/ut, ände, del, mellan; väderstreck från nordlinjerna), C (flera likadana), E (raserad, djup, sank, stenig), F bara korsning/förgrening; säkerhet, förklaring, högst tre förslag.
 - Webben: kartans Worker räknar; beskrivningspanelen visar förslaget som symboler med Godta, Godta alla tomma och alternativen, markerar objektet på kartan; kontroller utan D förhandsvisas ljusare ("förslag"); fältläget har raden "Förslag: … Godta". Allt via SET_DESCRIPTION.
 - Ägarens filer: SBN26_2.ppen har inga D-rutor, så träffsäkerheten mot ägarens beskrivningar går inte att mäta. Mot min avläsning av kartan: Högdalen D rätt i 24 av 24 entydiga kontroller (8 av 32 oklara), Djurgården 16 av 16 (7 oklara). G kunde inte prövas mot facit.
 - Verifierat: se slutet av grenen (lint, typecheck, test, Playwright banlaggning-beskrivningsforslag). Idé: ägaren provar på en bana med egna beskrivningar och skickar .ppen-filen, så kan D och G mätas på riktigt.
+
+### 2026-11-02 – Banans utseende och etiketten vid kontrollen (grenen utseende, ADR-0180 beslut 12)
+- `SET_APPEARANCE` skriver om `<course-appearance>` som Purple Pen bara när något ändrats; mm på papperet per skala och varningar mot ISOM 2017-2/ISSprOM 2019-2; konfliktnycklar per fält.
+- Inställningar → Utseende: snabbval (standard, förstorat 1:10 000, ISSprOM:s ring, 3,0 mm nummer), fria kvoter, skalning, avbrott vid sträckor, tabell per skala.
+- Banor → Vid kontrollen: Nummer/Kod/Nummer och kod (1, 31, 1-31), poäng bara för poängbanor, samma för alla stafettbanor eller banor; texter som Purple Pen (3/7-31, 31(30)).
+- Verifierat: lint, typecheck, test (Purple Pens 151 filer fram och tillbaka med ändrat utseende), Playwright banlaggning-utseende lokalt (1280/390), CI grönt med test:integration och alla specar. Återstår: ägaren provar en riktig nattbana; centrumpunkt, typsnitt och vit kant runt numren finns inte i O-Tid.
 
 ### 2026-11-02 – Steg 65: PDF för tryck med dekorfärger och övertryck (grenen steg65-pdf, ADR-0184)
 - Paketet `print-pdf` (pdf-lib + fontkit, MIT): arken ur steg 64 som PDF utan omräkning; kartan som vektorer via `drawMap` med en PDF-kontext (`MapDrawingContext`, ingen dubbel geometri), ett Form XObject per utsnitt; Roboto/Roboto Condensed (OFL) inbäddade som delmängd.

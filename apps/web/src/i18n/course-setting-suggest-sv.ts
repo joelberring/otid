@@ -1,4 +1,4 @@
-/** ADR-0180 beslut 12: förslag på kontrollbeskrivning ur kartfilen. */
+/** ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen. */
 export const courseSettingSuggestSv = {
   heading: (label: string) => `Förslag för ${label}`,
   level: { HIGH: "säkert", MEDIUM: "troligt", LOW: "osäkert" } as Record<string, string>,

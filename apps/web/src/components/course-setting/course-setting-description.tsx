@@ -43,7 +43,7 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
   document: CourseSettingDocument; view: string; variant: string | undefined; selection: Selection | undefined;
   settings: DescriptionSettings; onSettings: (settings: DescriptionSettings) => void; onSelect: (selection: Selection) => void;
   onEdit: (edits: readonly CourseSettingEdit[]) => void; onPrint: () => void;
-  /** ADR-0180 beslut 12: förslagen ur kartfilen (förhandsvisas för kontroller utan detalj, godtas här). */
+  /** ADR-0180 beslut 13: förslagen ur kartfilen (förhandsvisas för kontroller utan detalj, godtas här). */
   suggestions?: SuggestionsState | undefined; readOnly?: boolean | undefined;
   onHoverSuggestion?: ((shapes: readonly (readonly Point[])[] | undefined) => void) | undefined;
 }) {

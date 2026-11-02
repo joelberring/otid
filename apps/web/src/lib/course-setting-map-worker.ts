@@ -58,7 +58,7 @@ self.onmessage = (event: MessageEvent<MapRenderRequest>) => {
     return;
   }
   if (request.type === "suggest") {
-    // ADR-0180 beslut 12: förslagen på kartfilen som redan är inläst (indexeras första gången, sparas per karta).
+    // ADR-0180 beslut 13: förslagen på kartfilen som redan är inläst (indexeras första gången, sparas per karta).
     const suggestions: Record<string, DescriptionSuggestion[]> = {};
     try { if (map) for (const point of request.points) suggestions[point.id] = suggestAt(map, point.at, request.options); }
     catch (error) { console.error("Förslagen på kontrollbeskrivning kunde inte räknas", error); }

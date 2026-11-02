@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createRace, openStep, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
 
 /**
- * ADR-0180 beslut 12: förslag på kontrollbeskrivning ur kartfilen. Testkartan (kartfil.omap) har stenar i (42, 61),
+ * ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen. Testkartan (kartfil.omap) har stenar i (42, 61),
  * (76, 52) och (98, 30) mm. En ny kontroll läggs på stenen i (76, 52): beskrivningen visar förslaget (sten) ljusare tills
  * det godtas, panelen ritar det med riktiga symboler, och "Godta" skriver in det som en vanlig ändring (sparat). På
  * telefonen godtas förslaget för kontroll 34 (också en sten) med raden i fältläget.

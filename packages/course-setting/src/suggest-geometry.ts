@@ -1,5 +1,5 @@
 /**
- * Förslag på kontrollbeskrivning (ADR-0180 beslut 12): kartans detaljer som enkla figurer i ett rutnät, en gång per
+ * Förslag på kontrollbeskrivning (ADR-0180 beslut 13): kartans detaljer som enkla figurer i ett rutnät, en gång per
  * `ParsedMap` och standard (sparas i en WeakMap), och geometrin som reglerna i `suggest.ts` frågar efter. Kartans mm,
  * y uppåt.
  */

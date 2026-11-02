@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import type { OverprintPrimitive } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { overprintProbe } from "../../lib/course-setting-appearance";
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
 import { drawHighlightedRoute, drawNoteMarks, drawSuggestion, type SuggestionDrawing } from "../../lib/course-setting-draw-collaboration";
@@ -332,6 +333,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   }, []);
 
   const zoom = (factor: number) => setView(previous => previous ? zoomAt(previous, factor) : previous);
+  // Numrens texter och ringens storlek som attribut (Playwright läser dem; själva ritningen är en canvas).
+  const probe = useMemo(() => overprintProbe(primitives), [primitives]);
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const moves: Record<string, [number, number]> = { ArrowLeft: [PAN_STEP_PX, 0], ArrowRight: [-PAN_STEP_PX, 0], ArrowUp: [0, PAN_STEP_PX],
       ArrowDown: [0, -PAN_STEP_PX] };
@@ -348,7 +351,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       data-heading={position?.heading} data-follow={position?.follow || undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />
-      <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint" />
+      <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint"
+        data-labels={probe.labels} data-ring-mm={probe.ring} />
       <canvas ref={screen} className={`${styles.layer} ${styles.screenOnly}`} aria-hidden="true" data-testid="course-setting-cross"
         data-cross={cross ? `${cross.at.x.toFixed(2)},${cross.at.y.toFixed(2)}${cross.dragging ? ",drag" : ""}` : undefined} />
     </div>

@@ -1,5 +1,5 @@
 /**
- * Förslag på kontrollbeskrivning ur kartfilen (ADR-0180 beslut 12). Ren funktion: kartans objekt i och nära ringen
+ * Förslag på kontrollbeskrivning ur kartfilen (ADR-0180 beslut 13). Ren funktion: kartans objekt i och nära ringen
  * rangordnas (punktobjekt i centrum först, sedan linjers ändar, hörn och korsningar, sedan ytors kanter och hörn) och
  * ger kolumn D, och där geometrin säger det C (vilken), E (utseende eller andra objektet), F (korsning/förgrening, aldrig
  * mått) och G (läget med väderstreck från kartans norr). Varje förslag har säkerhet, förklaring och objekten som matchade

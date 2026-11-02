@@ -58,6 +58,10 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/events": { GET: "COMMENT" },
   // Steg 67: bankontrollanten (läsa och kommentera) bockar kontroller som kollade.
   "admin/races/[raceId]/administrator/course-setting/inspections": { GET: "COMMENT", PUT: "COMMENT" },
+  // Steg 65: PDF för tryck, bara admin.
+  "admin/races/[raceId]/administrator/course-setting/print-jobs": { GET: "ADMIN", POST: "ADMIN" },
+  "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]": { DELETE: "ADMIN" },
+  "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]/pdf": { GET: "ADMIN" },
   "admin/races/[raceId]/administrator/map/source": { GET: "COMMENT" }
 };
 /** Publika routes under api/races (startlistor) har ingen inloggning och ingår inte. */
@@ -108,7 +112,7 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 async function call(route: { file: string; path: string }, method: string): Promise<number> {
   const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
   const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid, noteId: uuid,
-    suggestionId: uuid, version: "1" });
+    suggestionId: uuid, jobId: uuid, version: "1" });
   const write = method !== "GET";
   const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {

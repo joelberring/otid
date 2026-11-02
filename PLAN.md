@@ -1153,12 +1153,19 @@ ADR-0180 beslut 11. Kontraktet: `SpecialObject`, `PrintArea`, `OverprintPrimitiv
 - [x] En karta per löpare ur kartbuntarna (steg 61): bunt- eller startordning, baksida dubbelsidigt eller remsa
   enkelsidigt, lediga och reserver, kontroll av varianter och antal före utskrift.
 
-## [ ] Steg 65 – Tryck med dekorfärger och övertryck
+## [x] Steg 65 – Tryck med dekorfärger och övertryck
 
-- [ ] PDF på servern (låg prioritet) eller via macpurplepen: kartan som vektorer med sina färger, banpåtrycket i egen
-  dekorfärg med övertryck, provtryck hos tryckeriet innan det används skarpt.
-- [ ] Arken ur steg 64 (`Sheet`, ADR-0183) som PDF: utskriftsprofilens kartfärger och dekorfärger med övertryck, banan som
-  dekorfärg, eventuellt PDF/X och ICC; baksidorna per löpare i rätt vändning för dubbelsidigt.
+ADR-0184. Migration 0036.
+
+- [x] PDF på servern (låg prioritet): kartan som vektorer med sina färger, banpåtrycket i egen dekorfärg med övertryck,
+  provtryck hos tryckeriet innan det används skarpt (står i förhandsvisningen och ADR-0184).
+- [x] Arken ur steg 64 (`Sheet`, ADR-0183) som PDF (`@o-tid/print-pdf`, pdf-lib): utskriftsprofilens kartfärger, kartans
+  dekorfärger som `/Separation`/`/DeviceN` med filens övertryck, banan som dekorfärg, kontorsskrivarens CMYK; baksidorna per
+  löpare upprätt i samma format med vändning på långsidan. PDF/X och ICC stöds inte (inte verifierade).
+- [x] Kö (`course_setting_print_job`) och utskriftsarbetaren (`print-worker`, nice 19, egen pool), bara admin, storleksgräns
+  och rensning; förhandskontrollen före "Skapa PDF för tryck"; jobblista och nedladdning i förhandsvisningen.
+- [x] Tester: paketet (struktur, färger, övertryck, DeviceN, typsnitt, baksidor, Ghostscripts separationer när gs finns),
+  integration `steg-65-tryck` (kö, behörighet, rensning, avläsning under ett pågående jobb), Playwright `banlaggning-pdf`.
 
 ## Efter målet (inte nu)
 

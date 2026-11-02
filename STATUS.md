@@ -5,10 +5,17 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 64 (banpåtryck och utskriftslayout, grenen steg64-tryck) och 66–68 är klara; sist 65 (PDF med dekorfärger, ADR-0180). Steg 59–63 är klara. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-02 – Steg 65: PDF för tryck med dekorfärger och övertryck (grenen steg65-pdf, ADR-0184)
+- Paketet `print-pdf` (pdf-lib + fontkit, MIT): arken ur steg 64 som PDF utan omräkning; kartan som vektorer via `drawMap` med en PDF-kontext (`MapDrawingContext`, ingen dubbel geometri), ett Form XObject per utsnitt; Roboto/Roboto Condensed (OFL) inbäddade som delmängd.
+- Färger: kartans dekorfärger som `/Separation`/`/DeviceN` (typ 4) med filens CMYK och övertryck (kartläsarna behåller nu separationerna), banan i profilens dekorfärg ("Purple") med /OP /op /OPM 1, vitt som knockout, skärmarker i `/All`; lägena tryckeri, tryckeri med kartan i CMYK och kontorsskrivare. Baksidor upprätt med /Duplex DuplexFlipLongEdge.
+- Servern: kön `course_setting_print_job` (migration 0036), `print-worker` som egen process (nice 19, CPU-vikt 64, 384 MB, pool 2, SKIP LOCKED, livstecken), bara admin, 3 aktiva per tävling, 2 000 sidor/150 MB, PDF:er 7 dagar och utanför säkerhetskopian. Förhandsvisningen: förhandskontrollen mot PDF:ens förmåga, "Skapa PDF för tryck/kontorsskrivare", jobblista och nedladdning.
+- Verifierat: lint, typecheck, test, test:integration (steg-65-tryck: avläsning på <2 s medan arbetaren skriver 1 800 sidor), Playwright banlaggning-pdf; qpdf --check, poppler och Ghostscript tiffsep: lilan på egen plåt. Högdalen/SBN26_2: 40 sidor 6 s 5 MB; 300 löpare med baksidor 4,8 s, 5,7 MB, 130 MB minne.
+- Inte verifierat: provtryck, PDF/X/ICC (stöds inte), RIP:ar och Acrobats förhandsvisning. Undre lila ritas efter kartan (övertryck gör det lika i plåtarna, inte på kontorsskrivaren).
 
 ### 2026-11-01 – Steg 64: banpåtryck och utskriftslayout (grenen steg64-tryck, ADR-0180 beslut 11)
 - Paketet: Purple Pens 16 specialobjekt tolkade bredvid `raw` (orörda om fälten inte ändrats, annars skrivna som Purple Pen) och ritade enligt CourseObject.cs och ISOM 2017-2/ISSprOM 2019-2 (korsraster 0,2/1,2 mm, gräns 0,7/1,0 mm, undre lila för passage, gräns, första hjälpen, vatten); beskrivningen på kartan med `layoutDescription` (också i spalter); figurerna i Purple Pens målningsordning (WHITE … COURSE). Siffrornas em-höjd nu som Purple Pen (5,57 mm för 4 mm siffror).

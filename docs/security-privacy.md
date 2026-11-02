@@ -150,3 +150,13 @@ transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: 
 - Registreringen avslöjar inte om en adress har ett konto när servern har e-post (ADR-0186 beslut 9: samma svar, lösenordet hashas
   alltid och mejlet skickas efter svaret). Utan e-post på servern loggar registreringen in direkt och en befintlig adress ger
   "finns redan"; det går inte att undvika utan e-post. Driftsätt därför med SMTP.
+
+## Klubbarkivet (ADR-0194)
+
+- Arkivet är bara för klubbens medlemmar (ägare, administratör, läsare) och aldrig publikt eller indexerat. Medlemmar bjuds in med
+  adressen (`club_invitation`) med samma svar med och utan konto; den som inte är medlem får 404.
+- Importen körs på ägarens dator och läser bara kartfiler, .ppen och CourseData; PDF, Word, Excel, bilder och GPS-filer öppnas aldrig
+  och skickas aldrig. Den autentiseras med en importnyckel (hashad i databasen, 12 timmar, bara för klubben, återkallbar) i
+  `Authorization`, inga kakor. Kontrollen av vilka kartor servern redan har svarar bara för klubbens och kontots egna kartor.
+- Ledarnas namn ur mappnamnen är personuppgifter: de tas med bara om ägaren vill (`--utan-ledare` stänger av) och kan ändras eller
+  tas bort i arkivet. Importens rapportfil på datorn innehåller sökvägarna (och ledarna); den lämnar aldrig datorn.

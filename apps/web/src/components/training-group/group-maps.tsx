@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import type { GroupLeaderView, GroupLibraryMap, MapAgreement } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
@@ -70,7 +71,9 @@ export function GroupMaps({ view, onChanged }: { view: GroupLeaderView; onChange
     <ul className={styles.plainList} aria-label={text.sections.maps}>
       {view.maps.map(map => <li key={map.mapId} style={{ display: "grid" }}>
         <div><strong>{map.name}</strong><span>{[map.source ? `${map.source.fileName} · 1:${map.source.scale}` : map.fileName,
-          map.courseSetting ? text.withCourseSetting : ""].filter(Boolean).join(" · ")}</span></div>
+          map.courseSetting ? text.withCourseSetting : ""].filter(Boolean).join(" · ")}</span>
+          {map.clubMap && <span>{text.fromClub(map.clubMap.clubName)}{map.clubMap.latest ? "" : " · "}
+            {!map.clubMap.latest && <Link href={`/organizer/clubs/${map.clubMap.clubId}#maps`}>{text.newerInClub}</Link>}</span>}</div>
         {editing !== map.mapId && <MapAgreementSummary agreement={map} />}
         {editing !== map.mapId && <div className={styles.rowActions}>
           <Button variant="secondary" disabled={busy} onClick={() => { setEditing(map.mapId); setDraft(agreementOf(map)); setDraftName(map.name); }}>

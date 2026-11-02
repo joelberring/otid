@@ -122,6 +122,8 @@ export interface GroupSeries { seriesId: string; weekday: number; startTime: str
 export interface GroupLibraryMap extends MapAgreement {
   mapId: string; name: string; fileName: string; width: number; height: number; georeferenced: boolean;
   source: { fileName: string; format: string; scale: number } | null; courseSetting: boolean; createdAt: string; updatedAt: string;
+  /** ADR-0194 beslut 5: kartan kommer från klubbarkivet; `latest` = biblioteket har klubbens senaste version. */
+  clubMap?: { clubId: string; clubName: string; latest: boolean } | null;
 }
 
 export interface GroupSeasonRow { key: string; givenName: string; familyName: string; attended: number; points: number }

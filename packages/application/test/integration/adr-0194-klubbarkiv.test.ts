@@ -5,13 +5,14 @@ import { createDatabase, migrate } from "@o-tid/database";
 import type { ClubImportBatchRequest, RaceMapSourceMetadata } from "@o-tid/contracts";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { readRaceMapSourceFileAsAdmin } from "../../src/race-map-source";
-import { readRaceMapAgreementAsAdmin } from "../../src/training-group-maps";
+import { listGroupLibraryMaps, readRaceMapAgreementAsAdmin } from "../../src/training-group-maps";
+import { createTrainingGroup } from "../../src/training-groups";
 import { purgeRows } from "../../src/purge";
 import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
 import { createClub, createClubImportToken, inviteClubMember, listMyClubs, readClub, removeClubMember, revokeClubImportToken, setClubMemberRole } from "../../src/clubs";
 import { readClubArchive, readClubArchiveEntry, readClubCourseFile, setClubCourseFileMap, updateClubArchiveEntry } from "../../src/club-archive";
 import { importBatch, importCheck, importMapContent } from "../../src/club-archive-import";
-import { mergeClubMap, moveClubMapVersion, readClubMapVersionHead, saveClubMapVersionToRace, streamMapContentParts, updateClubMap, uploadClubMapVersion } from "../../src/club-maps";
+import { mergeClubMap, moveClubMapVersion, readClubMapVersionHead, saveClubMapToGroupLibrary, saveClubMapVersionToRace, streamMapContentParts, updateClubMap, uploadClubMapVersion } from "../../src/club-maps";
 import { sweepMapContent } from "../../src/map-content";
 import { registerTestAccount, verifyTestAccount } from "./accounts";
 
@@ -136,7 +137,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     expect(await importMapContent(db, { token, clubId, sha256: sha(skogen2), body: chunks(skogen) }, NOW)).toEqual({ status: "problem", problem: "HASH_MISMATCH" });
     const pdf = new TextEncoder().encode("%PDF-1.4 inte en karta");
     expect(await importMapContent(db, { token, clubId, sha256: sha(pdf), body: chunks(pdf) }, NOW)).toEqual({ status: "problem", problem: "INVALID_MAP_FILE" });
-    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content_part")).rows[0].n).toBe(0);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content_part")).rows[0]?.n).toBe(0);
     for (const bytes of [skogen, skogen2]) {
       expect(await importMapContent(db, { token, clubId, sha256: sha(bytes), body: chunks(bytes) }, NOW))
         .toMatchObject({ status: "ok", response: { stored: "new", byteLength: bytes.byteLength } });
@@ -192,7 +193,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
 
     // Arkivets innehåll tas inte bort av underhållet eller när en tävling som använde det tas bort.
     expect(await sweepMapContent(db, new Date(NOW.getTime() + 3 * 3_600_000))).toMatchObject({ contents: 0 });
-    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0].n).toBe(2);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0]?.n).toBe(2);
 
     // En återkallad nyckel fungerar inte; en administratör som blivit läsare kan inte importera med sin gamla nyckel.
     const tokens = await readClub(db, { ...owner.proof, clubId }, NOW);
@@ -240,7 +241,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
         timeZone: "Europe/Stockholm", raceType: "TRAINING" }) }, NOW);
     if (created.status !== "created") throw new Error("Ingen tävling");
     const raceId = created.response.raceId;
-    const contentsBefore = (await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0].n;
+    const contentsBefore = (await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0]?.n ?? 0;
     const metadata: RaceMapSourceMetadata = { formatVersion: 1, format: "OMAP", version: "Mapper v9", scale: 10_000,
       bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 }, georeference: null, render: { pxPerMm: 8, originX: -2, originY: 102 },
       summary: { objectCount: 11, warnings: [], simplifications: [] }, tiePoints: null };
@@ -249,7 +250,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     new DataView(png.buffer).setUint32(16, 992); new DataView(png.buffer).setUint32(20, 832);
     const proof = { ...reader.proof, clubId, versionId: list.status === "ok" ? list.list.maps.find(map => map.name === "Älvsjöskogen")!.latestVersionId! : "" };
     expect(await saveClubMapVersionToRace(db, { ...proof, raceId, image: png, metadata }, NOW)).toEqual({ status: "ok", georeferenced: false });
-    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0].n).toBe(contentsBefore + 1);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0]?.n).toBe(contentsBefore + 1);
     const raceProof = { raceId, sessionToken: reader.proof.sessionToken, csrfCookie: reader.proof.csrfCookie, csrfHeader: reader.proof.csrfHeader };
     const file = await readRaceMapSourceFileAsAdmin(db, raceProof, NOW);
     expect(file.status === "ok" && sha(file.file)).toBe(sha(omap));
@@ -265,6 +266,43 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     await db.transaction(tx => purgeRows(tx, "event", [event!.event_id]));
     const head = await readClubMapVersionHead(db, { ...owner.proof, clubId, versionId: proof.versionId }, NOW);
     expect(head.status).toBe("ok");
-    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content where sha256 = $1", [sha(omap)])).rows[0].n).toBe(1);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content where sha256 = $1", [sha(omap)])).rows[0]?.n).toBe(1);
+  });
+  it("gruppens kartbibliotek pekar på klubbens karta: rättigheterna följer med och en ny version syns", async () => {
+    const { owner, clubId } = await clubWithOwner();
+    const omap = await fixture("maps/kartfil.omap");
+    const uploaded = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: null, newMapName: "Skogen", fileName: "Skogen.omap",
+      versionDate: "2019-04-02", note: null, body: chunks(omap) }, NOW);
+    if (uploaded.status !== "created") throw new Error("Ingen karta");
+    const group = await createTrainingGroup(db, { ...owner.proof, request: { formatVersion: 1, requestId: randomUUID(), name: "Ungdom",
+      code: `ungdom-${randomUUID().slice(0, 6)}` } }, NOW);
+    if (group.status !== "created") throw new Error("Ingen grupp");
+    const groupId = group.group.groupId;
+    const metadata: RaceMapSourceMetadata = { formatVersion: 1, format: "OMAP", version: "Mapper v9", scale: 10_000,
+      bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 }, georeference: null, render: { pxPerMm: 8, originX: -2, originY: 102 },
+      summary: { objectCount: 11, warnings: [], simplifications: [] }, tiePoints: null };
+    const png = new Uint8Array(64);
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(png.buffer).setUint32(16, 992); new DataView(png.buffer).setUint32(20, 832);
+    expect(await saveClubMapToGroupLibrary(db, { ...owner.proof, clubId, versionId: uploaded.versionId, groupId, image: png, metadata }, NOW))
+      .toMatchObject({ status: "saved", updated: false });
+    const library = async () => db.transaction(tx => listGroupLibraryMaps(tx, groupId));
+    expect((await library())[0]).toMatchObject({ name: "Skogen", clubMap: { clubName: "OK Älvsjö-Örby", latest: true }, source: { fileName: "Skogen.omap" } });
+    // Rättigheterna ändras i klubben och följer med till gruppen.
+    await updateClubMap(db, { ...owner.proof, clubId, mapId: uploaded.mapId, request: { formatVersion: 1, name: "Skogen",
+      agreement: { ownership: "EXTERNAL", ownerKind: "MUNICIPALITY", ownerName: "Kommunen", agreement: null, validUntil: null, contact: null,
+        trainingOnly: true, feePerPrint: false, noPublicDisplay: false } } }, NOW);
+    expect((await library())[0]).toMatchObject({ ownership: "EXTERNAL", ownerName: "Kommunen", trainingOnly: true });
+    // En ny version i klubben: gruppens karta är inte längre den senaste, tills den uppdateras.
+    const revised = new TextEncoder().encode(new TextDecoder().decode(omap).replace(/<notes>[^<]*<\/notes>/, "<notes>Reviderad</notes>"));
+    const second = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: uploaded.mapId, newMapName: null, fileName: "Skogen V2.omap",
+      versionDate: "2024-05-01", note: "Reviderad", body: chunks(revised) }, NOW);
+    if (second.status !== "created") throw new Error("Ingen ny version");
+    expect((await library())[0]?.clubMap?.latest).toBe(false);
+    expect(await saveClubMapToGroupLibrary(db, { ...owner.proof, clubId, versionId: second.versionId, groupId, image: png, metadata }, NOW))
+      .toMatchObject({ status: "saved", updated: true });
+    const after = await library();
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ clubMap: { latest: true }, source: { fileName: "Skogen V2.omap" } });
   });
 });

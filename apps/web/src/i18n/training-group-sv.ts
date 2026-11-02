@@ -39,6 +39,8 @@ export const trainingGroupSv = {
     map: "Karta",
     mapFromSource: "Samma som källan",
     withCourseSetting: "Med kartans banläggning",
+    fromClub: (club: string) => `Från klubbarkivet (${club})`,
+    newerInClub: "Det finns en nyare version i klubbarkivet",
     publish: "Publicera direkt (syns på gruppens sida)",
     repeat: "Upprepa varje vecka",
     repeatUntil: "Till och med",

@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Klubbarkivet (grenen klubbarkiv, ADR-0194, migration 0059–0061)
+- Klubb med ägare/administratör/läsare och inbjudan per adress (samma svar med och utan konto); `training_group.club_id` för klubbens grupper senare.
+- Kartorna är logiska med versioner i `map_content` (ADR-0189, en gång per sha256, upp till 100 MB, arkivet räknas i borttagningen); rättigheterna hör till kartan. Slå ihop, flytta version, ny version (strömmad). Gruppens kartbibliotek kan peka på klubbens karta och visar när en nyare version finns.
+- Arkivet: sök och filter (år, karta, tagg, ledare, läge), träningen med banan ritad på kartversionen den gjordes med, originalen, "Använd igen" (Ny träning eller gruppens tillfälle, kartan pekar på arkivets innehåll, .ppen som i banläggningen, CourseData som banfil); senaste versionen förvald och "Flytta banorna" jämför georeferensen (samma, via koordinaterna eller förskjutning för hand).
+- Importen på ägarens dator: `pnpm archive-import <mapp> --dry-run` och med `--server --club` och importnyckeln; zip läses som ström (ZIP64), bara kartor/.ppen/CourseData, dubbletter en gång, .ppen:s karta löses i mappen, på namnet i arkivet eller "karta saknas"; idempotent.
+- Verifierat lokalt: paketets enhetstester (mappnamn, taggar, skip, kartgrupper, .ppen-referenser, zip, provkörning), kontraktet, webbens lib, integration `adr-0194-klubbarkiv` (+ steg-68, adr-0188/0189, aterstallning), Playwright `klubbarkiv` (provkörning, import två gånger, filter, karta, inbjudan, Använd igen) med skärmbilder 1280/390.
+- Kvar: kartor över 60 MB kan inte bli tävlingens kartfil; CourseData flyttas inte till en ny kartversion; grenen bygger på lagring-integritet (ADR-0189).
+
 ### 2026-11-02 – Lagring och integritet efter granskningen (grenen lagring-integritet, ADR-0189, migration 0044–0046)
 - Kartbilder och kartfiler lagras en gång (`map_content`/`map_content_part`, sha256, delar om 1 MiB); tävlingar, kopior, träningstillfällen, biblioteket och återställningar pekar på samma innehåll, som en utlösare tar bort med sista referensen (också purge). Kvot per konto (2048 MB) och server (20480 MB) via env med besked i MB. Säkerhetskopian oförändrad; `otid_print` läser innehållet (migrationen och db-roles.sh).
 - Steg två (gamla rader och dubbletter): `node superadmin.mjs map-content move` när den nya versionen fungerar; kolumnerna image/file tas bort senare.

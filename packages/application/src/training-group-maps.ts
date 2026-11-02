@@ -43,11 +43,20 @@ export async function listGroupLibraryMaps(tx: DbExecutor, groupId: string): Pro
     .map(row => [row.mapId, row]));
   const settings = new Set((await tx.select({ mapId: schema.trainingGroupMapCourseSettings.mapId }).from(schema.trainingGroupMapCourseSettings)
     .where(inArray(schema.trainingGroupMapCourseSettings.mapId, ids))).map(row => row.mapId));
+  // ADR-0194 beslut 5: kartor från klubbarkivet och om klubben har en nyare version än den i biblioteket.
+  const clubMapIds = [...new Set(rows.flatMap(row => row.clubMapId ? [row.clubMapId] : []))];
+  const clubMaps = new Map(clubMapIds.length === 0 ? [] : (await tx.execute<{ map_id: string; club_id: string; club_name: string; latest: string | null }>(sql`
+    select m.id as map_id, c.id as club_id, c.name as club_name,
+      (select v.content_sha256 from club_map_version v where v.map_id = m.id
+        order by v.version_date desc nulls last, v.uploaded_at desc limit 1) as latest
+    from club_map m join club c on c.id = m.club_id where m.id = any(${sql.param(clubMapIds)}::uuid[])`)).rows.map(row => [row.map_id, row]));
   return rows.map(row => {
     const source = sources.get(row.id);
+    const club = row.clubMapId ? clubMaps.get(row.clubMapId) : undefined;
     return { mapId: row.id, name: row.name, fileName: row.fileName, width: row.width, height: row.height, georeferenced: row.transform !== null,
       source: source ? { fileName: source.fileName, format: source.format, scale: source.scale } : null, courseSetting: settings.has(row.id),
-      createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), ...agreementOf(row) };
+      createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), ...agreementOf(row),
+      clubMap: club ? { clubId: club.club_id, clubName: club.club_name, latest: club.latest === (source?.contentSha256 ?? null) } : null };
   });
 }
 

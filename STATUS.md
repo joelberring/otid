@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 12)
+- Objekt i verktygsraden (och bakom "Mer") öppnar en palett i fyra grupper med ikoner ritade av kartans ritare; obligatorisk passage ("Obl. passage", tooltip) skiljs från valfri; kartbyte och bild (uppladdning) läggs därifrån.
+- Vridhandtag för obligatorisk och valfri passage (5°-steg, Skift/andra fingret fritt), "Vrid efter sträckan", en ny passage i en bana vrids efter sträckan; ny ändring `SET_CONTROL_ORIENTATION`.
+- Duplicera bana (`DUPLICATE_COURSE`, med gafflingar, nummer, tryckyta och specialobjekt); båda nya ändringarna i samarbetet, kontraktet och förslagens text.
+- Kontroller utanför banan syns svagt med kod och fångas med ett klick i ringen ("Lägg in 45"; Alt/"Alltid ny" ger ny); "Visa andra banor svagt".
+- Kontrollistan i Banor visar gafflingen som träd (grenar bredvid varandra, klick = arbeta i grenen), "Gaffla här" (2/3/4 grenar, slinga), Nästa gren, bokstäver på kartan, varianter med antal och bild.
+- Ta bort bana frågar om kontrollerna som blir oanvända (ett ångra-steg); oanvända i Alla kontroller ritas grå streckade, filter, antal och "Ta bort alla oanvända".
+- Verifierat: se slutet av passet (lint, typecheck, test, Playwright banlaggning-objekt-gaffling och befintliga banläggningsspecar).
+
 ### 2026-11-02 – Steg 65: PDF för tryck med dekorfärger och övertryck (grenen steg65-pdf, ADR-0184)
 - Paketet `print-pdf` (pdf-lib + fontkit, MIT): arken ur steg 64 som PDF utan omräkning; kartan som vektorer via `drawMap` med en PDF-kontext (`MapDrawingContext`, ingen dubbel geometri), ett Form XObject per utsnitt; Roboto/Roboto Condensed (OFL) inbäddade som delmängd.
 - Färger: kartans dekorfärger som `/Separation`/`/DeviceN` (typ 4) med filens CMYK och övertryck (kartläsarna behåller nu separationerna), banan i profilens dekorfärg ("Purple") med /OP /op /OPM 1, vitt som knockout, skärmarker i `/All`; lägena tryckeri, tryckeri med kartan i CMYK och kontorsskrivare. Baksidor upprätt med /Duplex DuplexFlipLongEdge.

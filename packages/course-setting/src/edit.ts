@@ -13,6 +13,7 @@ import type {
 import { CourseSettingEditError } from "./types";
 import { putObjects } from "./put-objects";
 import { applySpecialEdit } from "./special-edit";
+import { duplicateCourse } from "./course-duplicate";
 import { enumerateCourseControls, findCourse } from "./walk";
 import { el } from "./xml";
 
@@ -396,12 +397,19 @@ function validDescription(current: ControlPoint, boxes: readonly DescriptionBox[
   return out.sort((a, b) => allowed.indexOf(a.box) - allowed.indexOf(b.box));
 }
 
+/** Vinkeln i [0, 360) med en tiondels grad (Purple Pen lagrar float). */
+export function normalizeDegrees(degrees: number): number {
+  const value = Math.round((((degrees % 360) + 360) % 360) * 10) / 10;
+  return value === 360 ? 0 : value;
+}
+
 /** Gör en ändring. */
 export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
   if (edit.type === "PUT_OBJECTS") return { document: putObjects(document, edit) };
   if (edit.type === "ADD_SPECIAL" || edit.type === "MOVE_SPECIAL" || edit.type === "UPDATE_SPECIAL" || edit.type === "DELETE_SPECIAL" ||
     edit.type === "SET_PRINT_AREA" || edit.type === "PUT_PRINT_PROFILE" || edit.type === "DELETE_PRINT_PROFILE" || edit.type === "PUT_LAYOUT_TEMPLATE" ||
     edit.type === "DELETE_LAYOUT_TEMPLATE") return applySpecialEdit(document, edit);
+  if (edit.type === "DUPLICATE_COURSE") return duplicateCourse(document, edit.course, edit.name);
   const draft = draftOf(document);
   let created: string | undefined;
   switch (edit.type) {
@@ -431,6 +439,13 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
     }
     case "DELETE_CONTROL": removeControl(draft, edit.control); break;
     case "SET_CONTROL_CODE": setCode(draft, edit.control, edit.code, false); break;
+    case "SET_CONTROL_ORIENTATION": {
+      const current = control(draft, edit.control);
+      if (current.kind !== "CROSSING_POINT") throw invalidEdit("Bara passager kan vridas");
+      if (!Number.isFinite(edit.orientation)) throw invalidEdit("Vinkeln är inte ett tal");
+      draft.controls[edit.control] = { ...current, orientation: normalizeDegrees(edit.orientation) };
+      break;
+    }
     case "ADD_COURSE": created = addCourse(draft, edit.name, edit.kind ?? "NORMAL"); break;
     case "UPDATE_COURSE": updateCourse(draft, edit.course, edit.changes); break;
     case "DELETE_COURSE": findCourse(asDocument(draft), edit.course); deleteCourse(draft, edit.course); break;

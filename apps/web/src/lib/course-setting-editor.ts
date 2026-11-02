@@ -4,6 +4,7 @@ import {
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { ALL_CONTROLS, bendInsertIndex, type HitTarget } from "./course-setting-hit";
+import { legOrientation } from "./course-setting-rotate";
 
 /**
  * Steg 62 (ADR-0180): banläggningens editor utan React. Varje ändring ger ett nytt dokument via paketets `applyEdit`.
@@ -14,7 +15,9 @@ import { ALL_CONTROLS, bendInsertIndex, type HitTarget } from "./course-setting-
  * ett förslag. Ångra sätter tillbaka bara objekten som steget ändrade (`PUT_OBJECTS` ur `objectPatch`), så att andras
  * ändringar står kvar; i förslagsläget (`suggesting`) tar ångra i stället bort stegets åtgärder ur förslaget.
  */
-export type Tool = "SELECT" | "ADD_CONTROL" | "ADD_START" | "ADD_FINISH" | "ADD_CROSSING" | "INSERT_EXISTING" | "ADD_BEND" | "NOTE" | "SPECIAL";
+export type Tool = "SELECT" | "ADD_CONTROL" | "ADD_START" | "ADD_FINISH" | "ADD_CROSSING" | "INSERT_EXISTING" | "ADD_BEND" | "NOTE" | "SPECIAL"
+  /** ADR-0180 beslut 12: kartbyte från paletten. */
+  | "ADD_MAP_EXCHANGE";
 
 /** En gjord åtgärd som inte är sparad (eller ingår i förslaget), med id som den skapade. */
 export interface LoggedEdit {
@@ -49,10 +52,14 @@ export interface EditorState {
   readonly view: string;
   /** Variantkod för en gafflad bana; saknas = alla grenar. */
   readonly variant?: string | undefined;
+  /** ADR-0180 beslut 12: grenen man arbetar i (banans kontroll som börjar den); nya kontroller läggs in i grenen. */
+  readonly branch?: string | undefined;
   readonly tool: Tool;
   /** Steg 64: slaget som verktyget SPECIAL skapar och punkterna som är utsatta (yta eller linje som ritas). */
   readonly specialKind?: SpecialKind | undefined;
   readonly drawing?: readonly Point[] | undefined;
+  /** ADR-0180 beslut 12: bilden som läggs ut med nästa klick (verktyget SPECIAL med slaget "image"). */
+  readonly specialImage?: { readonly format: string; readonly data: string; readonly aspect: number } | undefined;
   readonly selection?: Selection | undefined;
   /** Dokumentet när en dragning började och dragningens senaste åtgärd. */
   readonly dragBase?: CourseSettingDocument | undefined;
@@ -197,7 +204,16 @@ export function undo(state: EditorState): EditorState { return travel(state, "un
 export function redo(state: EditorState): EditorState { return travel(state, "redo"); }
 
 export function setView(state: EditorState, view: string, variant?: string): EditorState {
-  return { ...state, view, variant, selection: undefined, error: undefined };
+  return { ...state, view, variant, branch: undefined, selection: undefined, error: undefined };
+}
+
+/** Arbeta i grenen som börjar med `start`: nya kontroller läggs in efter `last` (grenens sista banans kontroll). */
+export function workInBranch(state: EditorState, start: string | undefined, last?: string): EditorState {
+  if (!start) return { ...state, branch: undefined };
+  const at = last && state.document.courseControls[last] ? last : start;
+  const item = state.document.courseControls[at];
+  if (!item) return state;
+  return { ...state, branch: start, variant: undefined, selection: { kind: "control", control: item.control, courseControl: at }, error: undefined };
 }
 
 export function setTool(state: EditorState, tool: Tool, specialKind?: SpecialKind): EditorState {
@@ -230,7 +246,8 @@ export function courseChain(document: CourseSettingDocument, courseId: string): 
   return chain;
 }
 
-const KIND_OF_TOOL: Partial<Record<Tool, ControlKind>> = { ADD_CONTROL: "NORMAL", ADD_START: "START", ADD_FINISH: "FINISH", ADD_CROSSING: "CROSSING_POINT" };
+const KIND_OF_TOOL: Partial<Record<Tool, ControlKind>> = { ADD_CONTROL: "NORMAL", ADD_START: "START", ADD_FINISH: "FINISH", ADD_CROSSING: "CROSSING_POINT",
+  ADD_MAP_EXCHANGE: "MAP_EXCHANGE" };
 export const toolControlKind = (tool: Tool) => KIND_OF_TOOL[tool];
 
 /**
@@ -247,17 +264,27 @@ function insertAfter(state: EditorState, kind: ControlKind): string | null | und
  * Klick med ett lägg-till-verktyg: ny kontroll (vanlig får `nextFreeCode`), i en bana inlagd direkt. Den nya blir vald,
  * så att nästa klick lägger nästa kontroll efter den.
  */
-export function addPoint(state: EditorState, tool: Tool, at: Point, apply: Apply, nextCode: (document: CourseSettingDocument) => string): EditorState {
+export function addPoint(state: EditorState, tool: Tool, at: Point, apply: Apply, nextCode: (document: CourseSettingDocument) => string,
+  snap?: string): EditorState {
   const kind = toolControlKind(tool);
   if (!kind) return state;
+  // ADR-0180 beslut 12: ett klick i ringen på en befintlig kontroll lägger in den (som Purple Pens AddControlMode).
+  if (snap !== undefined && state.view !== ALL_CONTROLS && state.document.controls[snap]) return insertExisting(state, snap, apply);
   const inCourse = state.view !== ALL_CONTROLS;
   const after = inCourse ? insertAfter(state, kind) : undefined;
-  let control: string | undefined;
+  let control: string | undefined, courseControl: string | undefined;
   return applySteps(state, [
     { type: "ADD_CONTROL", kind, at, ...(kind === "NORMAL" ? { code: nextCode(state.document) } : {}) },
-    created => { control = created; return inCourse && created ? { type: "INSERT_COURSE_CONTROL", course: state.view, control: created, after } : undefined; }
-  ], apply, (created, document) => control && document.controls[control]
-    ? { kind: "control", control, courseControl: inCourse && created !== control ? created : undefined } : undefined);
+    created => { control = created; return inCourse && created ? { type: "INSERT_COURSE_CONTROL", course: state.view, control: created, after } : undefined; },
+    // En ny obligatorisk passage ställs rätt mot sträckan genom den (Purple Pen ger vinkeln 0, ADR-0180 beslut 12).
+    (created, document) => {
+      courseControl = inCourse && control ? created : undefined;
+      if (kind !== "CROSSING_POINT" || !control || !courseControl) return undefined;
+      const orientation = legOrientation(document, state.view, courseControl);
+      return orientation === undefined ? undefined : { type: "SET_CONTROL_ORIENTATION", control, orientation };
+    }
+  ], apply, (_created, document) => control && document.controls[control]
+    ? { kind: "control", control, courseControl: courseControl && document.courseControls[courseControl] ? courseControl : undefined } : undefined);
 }
 
 /** Klick på en befintlig kontroll med "Lägg in på banan": in efter vald kontroll. */
@@ -284,11 +311,17 @@ export function removeSelected(state: EditorState, apply: Apply, everywhere = st
   return applySteps(state, [{ type: "DELETE_CONTROL", control: selection.control }], apply, () => undefined);
 }
 
-/** Gaffling eller slinga vid vald kontroll på banan. */
+/**
+ * Gaffling eller slinga vid vald kontroll på banan. ADR-0180 beslut 12: editorn står sedan i första grenen (A), så att
+ * nästa kontroll läggs in där (gaffling: efter gaffelkontrollen, slinga: i första slingan).
+ */
 export function addSplit(state: EditorState, kind: "FORK" | "LOOP", branches: number, apply: Apply): EditorState {
   const at = state.selection?.kind === "control" ? state.selection.courseControl : undefined;
   if (!at || state.view === ALL_CONTROLS) return { ...state, error: undefined };
-  return applySteps(state, [{ type: "ADD_SPLIT", course: state.view, at, kind, branches }], apply);
+  const next = applySteps(state, [{ type: "ADD_SPLIT", course: state.view, at, kind, branches }], apply);
+  const split = next.document.courseControls[at]?.split;
+  if (next.error || !split) return next;
+  return workInBranch(next, kind === "LOOP" ? split.branches[1] : split.branches[0]);
 }
 
 export function removeSplit(state: EditorState, apply: Apply): EditorState {

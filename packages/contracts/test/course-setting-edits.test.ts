@@ -31,4 +31,12 @@ describe("banläggningens åtgärder", () => {
     ok({ type: "DELETE_LAYOUT_TEMPLATE", id: "mina" });
     expect(courseSettingEditSchema.safeParse({ type: "ADD_SPECIAL", special: { kind: "unicorn", points: [{ x: 0, y: 0 }] } }).success).toBe(false);
   });
+
+  it("tar passagens vinkel och kopian av en bana (ADR-0180 beslut 12)", () => {
+    const parse = (edit: unknown) => courseSettingEditSchema.safeParse(edit).success;
+    expect(parse({ type: "SET_CONTROL_ORIENTATION", control: "4", orientation: 37.5 })).toBe(true);
+    expect(parse({ type: "SET_CONTROL_ORIENTATION", control: "4", orientation: "37" })).toBe(false);
+    expect(parse({ type: "DUPLICATE_COURSE", course: "2", name: "Lång (kopia)" })).toBe(true);
+    expect(parse({ type: "DUPLICATE_COURSE", course: "2" })).toBe(false);
+  });
 });

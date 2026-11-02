@@ -279,7 +279,14 @@ export type CourseSettingEdit =
   | { readonly type: "MOVE_CONTROL"; readonly control: string; readonly at: Point }
   | { readonly type: "DELETE_CONTROL"; readonly control: string }
   | { readonly type: "SET_CONTROL_CODE"; readonly control: string; readonly code: string }
+  /** Banläggningens UX (ADR-0180 beslut 12): passagens vinkel i grader moturs (bara passager, som Purple Pens Rotate). */
+  | { readonly type: "SET_CONTROL_ORIENTATION"; readonly control: string; readonly orientation: number }
   | { readonly type: "ADD_COURSE"; readonly name: string; readonly kind?: "NORMAL" | "SCORE" | undefined }
+  /**
+   * Ny bana som kopia av `course` (Purple Pens DuplicateCourse): samma kontroller i ordning med gafflingar och slingor,
+   * nummerlägen, tryckyta och inställningar, direkt efter originalet; banans specialobjekt syns också på kopian.
+   */
+  | { readonly type: "DUPLICATE_COURSE"; readonly course: string; readonly name: string }
   | { readonly type: "UPDATE_COURSE"; readonly course: string; readonly changes: Partial<Pick<Course, "name" | "secondaryTitle" | "printScale" | "climbMeters" | "lengthOverrideMeters" | "labelKind" | "order">> }
   | { readonly type: "DELETE_COURSE"; readonly course: string }
   /** Lägg in kontrollen på banan efter `after` (banans kontroll-id); null = först. Utan `after` läggs den före målet. */

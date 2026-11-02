@@ -1,0 +1,81 @@
+/* ADR-0180 beslut 12: paletten med objekt, gafflingens rad, visningsvalen, kontrollistan som träd och varianterna. */
+.popover { position: absolute; top: 10px; left: 92px; z-index: 6; display: grid; gap: 8px; width: min(520px, calc(100% - 110px));
+  max-height: calc(100% - 20px); padding: 10px 12px; overflow-y: auto; border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+.popoverHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.popoverHead h2 { margin: 0; font-size: var(--text-md, 1rem); }
+.group { display: grid; gap: 4px; margin: 0; padding: 0; border: none; }
+.group legend { padding: 0; margin-bottom: 2px; font-size: var(--text-sm); font-weight: 700; color: var(--muted); }
+.items { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px; }
+.item { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 48px; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.item:hover, .item:focus-visible { border-color: var(--ink); background: var(--surface-strong, rgba(0, 0, 0, .05)); }
+.item[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.item strong { display: block; font-size: var(--text-sm); }
+.item span { display: block; color: var(--muted); font-size: 0.75rem; line-height: 1.25; }
+/* Ljus kartbakgrund, så att vit bakgrund och vitt syns. */
+.icon { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 4px; background: #e9f1e1; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.choices button { min-height: 40px; }
+
+/* Raden när man arbetar i en gren och "Alltid ny": i beskedens stapel uppe till höger. */
+.forkBar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; border: 2px solid rgb(0, 110, 220); border-radius: 8px;
+  background: var(--surface); box-shadow: 0 2px 10px rgba(0, 0, 0, .2); font-size: var(--text-sm); }
+.forkBar strong { color: rgb(0, 110, 220); }
+.forceNew { display: flex; align-items: center; justify-self: end; gap: 6px; min-height: 36px; padding: 4px 10px; border: 1px solid var(--line-strong);
+  border-radius: 6px; background: var(--surface); box-shadow: 0 2px 8px rgba(0, 0, 0, .15); font-size: var(--text-sm); }
+
+.viewButton { position: absolute; right: 10px; bottom: 150px; z-index: 4; }
+.viewButton > button { min-height: 40px; box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
+.viewMenu { position: absolute; right: 0; bottom: 46px; display: grid; gap: 6px; width: max-content; max-width: calc(100vw - 32px); padding: 8px 10px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, .2); }
+.viewMenu label { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
+
+/* Kontrollistan: banan som träd, grenarna bredvid varandra. */
+.tree { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); }
+.row { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 2px 6px; border: 1px solid transparent; border-radius: 4px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.row:hover { background: var(--surface-strong, rgba(0, 0, 0, .05)); }
+.row[aria-current="true"] { border-color: rgb(0, 110, 220); background: rgba(0, 110, 220, .08); }
+.ordinal { min-width: 1.6em; color: var(--muted); text-align: right; }
+.fork { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px 0 4px 10px; border-left: 2px solid rgb(150, 0, 150); }
+.branch { display: grid; align-content: start; gap: 2px; min-width: 0; padding: 4px; border: 1px solid var(--line); border-radius: 6px; }
+.branch[data-active] { border: 2px solid rgb(0, 110, 220); background: rgba(0, 110, 220, .05); }
+.branchHead { display: flex; align-items: center; justify-content: center; min-height: 32px; border: none; border-radius: 4px; background: rgb(150, 0, 150);
+  color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.branch[data-active] .branchHead { background: rgb(0, 110, 220); }
+.join { padding-left: 10px; color: var(--muted); font-size: 0.75rem; }
+.empty { color: var(--muted); font-size: 0.75rem; text-align: center; }
+
+/* Varianterna med en liten bild av vägen. */
+.variants { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.variant { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; padding: 4px 6px;
+  border: 1px solid var(--line); border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.variant[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.variant strong { font-size: var(--text-sm); }
+.variant span { display: block; color: var(--muted); font-size: 0.75rem; }
+.preview { width: 56px; height: 40px; background: #fff; border: 1px solid var(--line); }
+
+.unusedList { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.unusedList li { padding: 2px 8px; border: 1px dashed rgb(110, 110, 110); border-radius: 999px; font-size: var(--text-sm); }
+.controlList { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; max-height: 40vh; overflow-y: auto; }
+.tag { margin-left: auto; padding: 0 6px; border: 1px dashed rgb(110, 110, 110); border-radius: 999px; color: rgb(90, 90, 90); font-size: 0.7rem; }
+.dialogActions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.inlineLabel { display: grid; gap: 2px; font-size: var(--text-sm); font-weight: 600; }
+.inlineLabel input { width: 6em; min-height: 36px; padding: 2px 8px; font: inherit; }
+.hint { margin: 0; color: var(--muted); font-size: 0.75rem; }
+.listHeading { margin: 0; font-size: var(--text-md, 1rem); }
+h3.listHeading { font-size: var(--text-sm); }
+.check { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
+
+@media (max-width: 900px) {
+  .popover { top: 8px; bottom: 120px; left: 6px; right: 6px; width: auto; max-height: none; }
+  .viewButton { bottom: 280px; right: 8px; }
+}
+@media (max-width: 699px) {
+  .popover { top: 8px; bottom: 8px; }
+  .items { grid-template-columns: minmax(0, 1fr); }
+  .viewButton { bottom: auto; top: 150px; }
+  .viewMenu { bottom: auto; top: 46px; }
+  .forkBar { padding: 4px 8px; }
+}

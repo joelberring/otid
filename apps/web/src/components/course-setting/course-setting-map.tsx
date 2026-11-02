@@ -21,14 +21,28 @@ import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Det kartan behöver veta om ett tryck: kartpunkten och om det var en dragning. */
+/** ADR-0180 beslut 12: tangenterna och fingrarna vid ett klick eller en dragning. */
+export interface PointerModifiers {
+  readonly alt: boolean;
+  /** Skift eller ett andra finger: fri vinkel när man vrider. */
+  readonly free: boolean;
+  readonly pointerType: string;
+  /** Skärmpixlar per mm i vyn (handtag och fångavstånd räknas i skärmpixlar). */
+  readonly pxPerMm: number;
+}
+
 export interface MapPointerHandlers {
   /** Ett klick (utan att dra). `toleranceMm` är träffytan för fingret eller musen. */
-  readonly onTap: (point: Point, toleranceMm: number) => void;
+  readonly onTap: (point: Point, toleranceMm: number, modifiers: PointerModifiers) => void;
   /** En dragning börjar på `point`. Sant = editorn drar något (kontroll, nummer, brytpunkt); falskt = kartan panoreras. */
   /** `pointerType` "touch": editorn kan kräva att kontrollen redan är vald (skydd mot att flytta av misstag med fingret). */
-  readonly onDragStart: (point: Point, toleranceMm: number, pointerType: string) => boolean;
-  readonly onDragMove: (point: Point) => void;
+  readonly onDragStart: (point: Point, toleranceMm: number, pointerType: string, pxPerMm: number) => boolean;
+  readonly onDragMove: (point: Point, modifiers: PointerModifiers) => void;
   readonly onDragEnd: () => void;
+  /** Pekaren över kartan utan att något dras (musen, eller fingret som just tryckts ned); undefined = utanför. */
+  readonly onHover?: ((point: Point | undefined, modifiers: PointerModifiers) => void) | undefined;
+  /** Ett andra finger under en dragning: sant = dragningen fortsätter (fri vinkel), falskt = kartan zoomas. */
+  readonly onSecondPointer?: (() => boolean) | undefined;
 }
 
 export interface CourseSettingMapHandle {
@@ -55,12 +69,15 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * dra (`cursorAt`), och piltangenterna panorerar när kartan har fokus (+ och − zoomar). Krysset i vald kontrolls mitt i
  * ett eget lager som bara finns på skärmen; en dragning med fingret lyfts ovanför fingret (`liftedPoint`).
  */
-export function CourseSettingMap({ session, mapBounds, primitives, faded, marks, analysis, label, cursor, handlers, handle, noteMarks,
+export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts, others, marks, analysis, label, cursor, handlers, handle, noteMarks,
   selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
   faded: readonly OverprintPrimitive[];
+  /** ADR-0180 beslut 12: kontroller som inte är med i banan (svagt, med kod) och andra banor (svagt). */
+  ghosts?: readonly OverprintPrimitive[] | undefined;
+  others?: readonly OverprintPrimitive[] | undefined;
   marks: Parameters<typeof drawMarks>[2];
   analysis: LegAnalysis | undefined;
   label: string;
@@ -103,7 +120,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
   const [drawnVersion, setDrawnVersion] = useState(0);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ kind: "pending" | "pan" | "drag" | "pinch"; startX: number; startY: number; lastX: number; lastY: number;
-    distance?: number; pointerType: string } | undefined>(undefined);
+    distance?: number; pointerType: string; pointerId?: number; free?: boolean; alt?: boolean; shift?: boolean } | undefined>(undefined);
   const viewRef = useRef<Viewport | undefined>(undefined);
   viewRef.current = view;
 
@@ -198,6 +215,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (highlightRoute) drawHighlightedRoute(ctx, view, highlightRoute);
     if (analysis) drawRouteChoice(ctx, view, analysis);
     const onImage = () => setImageVersion(value => value + 1);
+    if (others?.length) drawOverprint(ctx, view, others, { alpha: 0.22, symbols, onImage });
+    if (ghosts?.length) drawOverprint(ctx, view, ghosts, { alpha: 0.4, symbols, onImage });
     drawOverprint(ctx, view, faded, { faded: true, symbols, onImage });
     drawOverprint(ctx, view, primitives, { symbols, onImage });
     if (suggestion) drawSuggestion(ctx, view, suggestion);
@@ -206,7 +225,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (noteMarks) drawNoteMarks(ctx, view, noteMarks.map(mark => ({ ...mark, selected: mark.id === selectedNote })));
     if (position) drawPosition(ctx, view, position.position, position.heading);
     overlayExtra?.(ctx, view);
-  }, [view, primitives, faded, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position, inspected, symbols, imageVersion, overlayExtra]);
+  }, [view, primitives, faded, ghosts, others, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position, inspected, symbols, imageVersion,
+    overlayExtra]);
   // Skärmlagret: det stora krysset medan man drar (och fingrets linje). Aldrig i banpåtrycket, dolt vid utskrift.
   const crossX = cross?.at.x, crossY = cross?.at.y, crossDragging = cross?.dragging, radiusMm = marks.radiusMm;
   useEffect(() => {
@@ -241,6 +261,11 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     event.currentTarget.setPointerCapture(event.pointerId);
     const at = local(event);
     pointers.current.set(event.pointerId, at);
+    if (pointers.current.size === 2 && gesture.current?.kind === "drag" && handlers.onSecondPointer?.()) {
+      // Ett andra finger medan man vrider: dragningen fortsätter med fri vinkel (ADR-0180 beslut 12).
+      gesture.current.free = true;
+      return;
+    }
     if (pointers.current.size === 2) {
       if (gesture.current?.kind === "drag") handlers.onDragEnd();
       const [a, b] = [...pointers.current.values()];
@@ -250,7 +275,14 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
         pointerType: event.pointerType };
       return;
     }
-    gesture.current = { kind: "pending", startX: at.x, startY: at.y, lastX: at.x, lastY: at.y, pointerType: event.pointerType };
+    gesture.current = { kind: "pending", startX: at.x, startY: at.y, lastX: at.x, lastY: at.y, pointerType: event.pointerType, pointerId: event.pointerId,
+      alt: event.altKey, shift: event.shiftKey };
+    // Fingret har ingen muspekare: markeringen före klicket (t.ex. "Lägg in 45") visas när fingret trycks ned.
+    if (event.pointerType !== "mouse") handlers.onHover?.(toMap(view, at), modifiersOf(event, view));
+  }
+
+  function modifiersOf(event: { altKey: boolean; shiftKey: boolean; pointerType: string }, current: Viewport, free = false): PointerModifiers {
+    return { alt: event.altKey, free: free || event.shiftKey, pointerType: event.pointerType, pxPerMm: current.pxPerMm };
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
@@ -261,7 +293,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       const overNote = noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm));
       setHoverCursor(overNote ? "pointer" : cursorAt(point, tolerance));
     }
+    if (!current && view && event.pointerType === "mouse") handlers.onHover?.(toMap(view, local(event)), modifiersOf(event, view));
     if (!current || !view || !pointers.current.has(event.pointerId)) return;
+    // Under en vridning med två fingrar styr det första fingret.
+    if (current.kind === "drag" && current.pointerId !== undefined && event.pointerId !== current.pointerId) return;
     const at = local(event);
     pointers.current.set(event.pointerId, at);
     if (current.kind === "pinch") {
@@ -282,11 +317,12 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     if (current.kind === "pending") {
       if (Math.hypot(at.x - current.startX, at.y - current.startY) < TAP_SLOP_PX) return;
       const start = toMap(view, { x: current.startX, y: current.startY });
-      current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm, current.pointerType) ? "drag" : "pan";
+      current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm, current.pointerType, view.pxPerMm) ? "drag" : "pan";
+      if (current.kind === "pan") handlers.onHover?.(undefined, modifiersOf(event, view));
       if (current.kind === "pan") { setGrabbing(true); onPan?.(); }
     }
     if (current.kind === "drag") {
-      handlers.onDragMove(toMap(view, liftedPoint(at, current.pointerType)));
+      handlers.onDragMove(toMap(view, liftedPoint(at, current.pointerType)), modifiersOf(event, view, current.free));
       if (current.pointerType === "touch") setFinger(at);
     }
     else {
@@ -303,6 +339,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
     pointers.current.delete(event.pointerId);
     if (!current || !view) return;
     if (current.kind === "pinch") { if (pointers.current.size === 0) gesture.current = undefined; return; }
+    // Det andra fingret släpps under en vridning: dragningen fortsätter med det första.
+    if (current.kind === "drag" && current.pointerId !== undefined && event.pointerId !== current.pointerId) return;
     gesture.current = undefined;
     setGrabbing(false);
     setFinger(undefined);
@@ -311,7 +349,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       const tolerance = tolerancePx(current.pointerType) / view.pxPerMm;
       const note = noteMarks && onNoteTap ? hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)) : undefined;
       if (note) onNoteTap!(note.id);
-      else handlers.onTap(point, tolerance);
+      else handlers.onTap(point, tolerance, { alt: current.alt ?? false, free: current.shift ?? false, pointerType: current.pointerType, pxPerMm: view.pxPerMm });
     } else if (current.kind === "drag") handlers.onDragEnd();
   }
 
@@ -346,7 +384,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, marks,
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
       data-heading={position?.heading} data-follow={position?.follow || undefined}
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+      onPointerLeave={event => { if (event.pointerType === "mouse" && view) handlers.onHover?.(undefined, modifiersOf(event, view)); }}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />
       <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint" />
       <canvas ref={screen} className={`${styles.layer} ${styles.screenOnly}`} aria-hidden="true" data-testid="course-setting-cross"

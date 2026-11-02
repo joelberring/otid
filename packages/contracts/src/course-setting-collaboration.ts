@@ -49,7 +49,10 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("MOVE_CONTROL"), control: id, at: point }).strict(),
   z.object({ type: z.literal("DELETE_CONTROL"), control: id }).strict(),
   z.object({ type: z.literal("SET_CONTROL_CODE"), control: id, code: z.string().max(32) }).strict(),
+  // ADR-0180 beslut 12: passagens vinkel och kopia av bana.
+  z.object({ type: z.literal("SET_CONTROL_ORIENTATION"), control: id, orientation: z.number().finite() }).strict(),
   z.object({ type: z.literal("ADD_COURSE"), name: z.string().max(200), kind: z.enum(["NORMAL", "SCORE"]).optional() }).strict(),
+  z.object({ type: z.literal("DUPLICATE_COURSE"), course: id, name: z.string().max(200) }).strict(),
   z.object({ type: z.literal("UPDATE_COURSE"), course: id, changes: z.object({ name: z.string().max(200).optional(),
     secondaryTitle: z.string().max(400).optional(), printScale: z.number().finite().optional(), climbMeters: z.number().finite().optional(),
     lengthOverrideMeters: z.number().finite().optional(),

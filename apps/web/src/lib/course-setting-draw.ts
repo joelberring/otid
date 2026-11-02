@@ -45,6 +45,8 @@ function path(ctx: Context, view: Viewport, points: readonly Point[], closed: bo
 export interface OverprintDrawOptions {
   /** Tonade (t.ex. andra grenar eller banor). */
   readonly faded?: boolean | undefined;
+  /** Egen styrka (0–1) i stället för `faded` (ADR-0180 beslut 12: befintliga kontroller och andra banor svagt). */
+  readonly alpha?: number | undefined;
   /** Symbolerna för beskrivningen på kartan; saknas = beskrivningen ritas som sin ruta. */
   readonly symbols?: SymbolLookup | undefined;
   /** Anropas när en bild i ett specialobjekt är avkodad (kartan ritas då om). */
@@ -54,7 +56,7 @@ export interface OverprintDrawOptions {
 /** Ritar figurerna i vyn, i den ordning de kommer (`layoutOverprint` ger målningsordningen). */
 export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly OverprintPrimitive[], options: OverprintDrawOptions = {}) {
   const scale = view.pxPerMm;
-  const alpha = options.faded ? 0.35 : 1;
+  const alpha = options.alpha ?? (options.faded ? 0.35 : 1);
   ctx.save();
   ctx.lineCap = "butt";
   ctx.lineJoin = "round";

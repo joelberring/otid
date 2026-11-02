@@ -56,6 +56,8 @@ import { SuggestionDraft, SuggestionsPanel } from "./course-setting-suggestions"
 import { TransferPanel } from "./course-setting-transfer";
 import { Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
+import { ControlList } from "./course-setting-controls";
+import { useCourseSettingUx } from "./use-course-setting-ux";
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
 import styles from "./course-setting.module.css";
 
@@ -68,7 +70,7 @@ function safely<T>(name: string, compute: () => T, fallback: T): T {
   try { return compute(); } catch (error) { console.error(`${name} misslyckades`, error); return fallback; }
 }
 
-type Drag = { kind: "control"; control: string; dx: number; dy: number } | { kind: "number"; courseControl: string }
+type Drag = { kind: "control"; control: string; dx: number; dy: number } | { kind: "number"; courseControl: string } | { kind: "rotate" }
   | { kind: "bend"; from: string; to: string; index: number }
   /** Steg 64: ett specialobjekt (helt eller ett hörn) och tryckytans ram. */
   | { kind: "special"; special: string; start: { x: number; y: number }; index?: number | undefined }
@@ -77,7 +79,7 @@ type LegStatus = "idle" | "waiting" | "analysing" | "failed" | "done";
 type Message = { id: number; tone: "ok" | "error" | "attention"; text: string; list?: readonly string[] | undefined };
 
 const CURSOR: Record<Tool, string> = { SELECT: "grab", ADD_CONTROL: "crosshair", ADD_START: "crosshair", ADD_FINISH: "crosshair",
-  ADD_CROSSING: "crosshair", INSERT_EXISTING: "copy", ADD_BEND: "crosshair", NOTE: "cell", SPECIAL: "crosshair" };
+  ADD_CROSSING: "crosshair", INSERT_EXISTING: "copy", ADD_BEND: "crosshair", NOTE: "cell", SPECIAL: "crosshair", ADD_MAP_EXCHANGE: "crosshair" };
 const EDIT_TOOLS: readonly Tool[] = ["SELECT", "ADD_CONTROL", "ADD_START", "ADD_FINISH", "ADD_CROSSING", "INSERT_EXISTING", "ADD_BEND", "SPECIAL", "NOTE"];
 const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_START", m: "ADD_FINISH", p: "ADD_CROSSING", l: "INSERT_EXISTING",
   b: "ADD_BEND", n: "NOTE", o: "SPECIAL" };
@@ -221,7 +223,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     return () => { closed = true; controller.abort(); session?.close(); routes.current?.close(); routes.current = undefined; };
   }, [raceId, state.mapFile, access.admin]);
 
-  const { document, view, variant, selection } = editor;
+  const { document, view, selection } = editor;
+  const course = document.courses.find(row => row.id === view);
+  const radiusMm = 3 * (course?.printScale ?? document.event.mapScale) / document.event.mapScale;
+  // ADR-0180 beslut 12: paletten, vridningen, befintliga kontroller, gafflingens grenar, kopia och oanvända kontroller.
+  const ux = useCourseSettingUx({ editor, store, apply, edit, readOnly, radiusMm, say, setTab });
+  const variant = ux.variant;
   const cutting = useDetailGaps(mapSession, document);
   const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
@@ -241,14 +248,17 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     return page ? { page, automatic: printAreaOf(document, view).automatic || !printAreaOf(document, view).rect } : undefined;
   }, [tab, document, view, variant, mapBounds]);
   const selectedSpecial = selection?.kind === "special" ? document.specialObjects.find(item => item.id === selection.special) : undefined;
+  const uxDraw = ux.draw;
   const overlayExtra = useMemo(() => (ctx: CanvasRenderingContext2D, mapView: Viewport) => {
     const at = (point: { x: number; y: number }) => toScreen(mapView, point);
     if (printPage) drawPrintFrame(ctx, at, [printPage.page.mapArea], mapView);
     drawSpecialEditing(ctx, at, { drawing: editor.tool === "SPECIAL" ? editor.drawing : undefined, handles: selectedSpecial ? specialHandles(selectedSpecial) : undefined });
-  }, [printPage, editor.tool, editor.drawing, selectedSpecial]);
+    uxDraw(ctx, mapView);
+  }, [printPage, editor.tool, editor.drawing, selectedSpecial, uxDraw]);
   const mapHandle = useRef<CourseSettingMapHandle>(null);
-  const course = document.courses.find(row => row.id === view);
-  const radiusMm = 3 * (course?.printScale ?? document.event.mapScale) / document.event.mapScale;
+  // Oanvända kontroller i Alla kontroller ritas grå och streckade i stället (träffas ändå).
+  const drawnPrimitives = useMemo(() => ux.unusedRefs.size > 0 ? primitives.filter(primitive => !ux.unusedRefs.has(primitive.ref ?? "")) : primitives,
+    [primitives, ux.unusedRefs]);
 
   const marks = useMemo(() => {
     const at = (id: string) => document.controls[id]?.at;
@@ -371,10 +381,11 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const drag = useRef<Drag | undefined>(undefined);
   const hit = (point: { x: number; y: number }, tolerance: number) => hitTest(store.state.document, store.state.view, primitives, point, tolerance);
   const handlers: MapPointerHandlers = {
-    onTap(point, tolerance) {
+    onTap(point, tolerance, modifiers) {
       const current = store.state;
-      const target = hit(point, tolerance);
       setFlagged(undefined);
+      if (!readOnly && ux.tap(point, modifiers)) return;
+      const target = hit(point, tolerance);
       switch (current.tool) {
         case "SELECT":
           apply(next => select(next, target));
@@ -390,9 +401,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         default: edit(next => addPoint(next, current.tool, point, applyEdit, nextFreeCode));
       }
     },
-    onDragStart(point, tolerance, pointerType) {
+    onDragStart(point, tolerance, pointerType, pxPerMm) {
       const current = store.state;
       if (current.tool !== "SELECT" || readOnly) return false;
+      if (ux.startRotate(point, pxPerMm, pointerType)) { drag.current = { kind: "rotate" }; return true; }
       const selected = current.selection;
       if (selected?.kind === "leg") {
         const index = nearestBend(current.document.legs[`${selected.from}-${selected.to}`]?.bends ?? [], point, tolerance);
@@ -427,10 +439,11 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       store.update(next => beginDrag(select(next, target)));
       return true;
     },
-    onDragMove(point) {
+    onDragMove(point, modifiers) {
       const current = drag.current;
       if (!current) return;
-      if (current.kind === "control") store.update(next => dragTo(next, { type: "MOVE_CONTROL", control: current.control,
+      if (current.kind === "rotate") ux.moveRotate(point, modifiers);
+      else if (current.kind === "control") store.update(next => dragTo(next, { type: "MOVE_CONTROL", control: current.control,
         at: { x: point.x + current.dx, y: point.y + current.dy } }, applyEdit));
       else if (current.kind === "number") store.update(next => dragTo(next, { type: "MOVE_NUMBER", course: next.view, courseControl: current.courseControl, at: point }, applyEdit));
       else if (current.kind === "special") store.update(next => {
@@ -451,18 +464,17 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         return dragTo(next, { type: "SET_LEG_BENDS", from: current.from, to: current.to, bends }, applyEdit);
       });
     },
-    onDragEnd() { drag.current = undefined; apply(endDrag); sync.poke(); }
+    onDragEnd() { drag.current = undefined; ux.endRotate(); apply(endDrag); sync.poke(); },
+    onHover: (point, modifiers) => ux.hoverAt(point, modifiers),
+    onSecondPointer: () => drag.current?.kind === "rotate"
   };
   const cursorAt = (point: { x: number; y: number }, tolerance: number) => {
     if (store.state.tool !== "SELECT") return undefined;
     const target = hit(point, tolerance);
     return target ? (readOnly ? "pointer" : target.kind === "leg" ? "pointer" : "move") : "grab";
   };
-  const fork = () => {
-    const at = store.state.selection?.kind === "control" ? store.state.selection.courseControl : undefined;
-    if (!at || store.state.view === ALL_CONTROLS) { say({ tone: "attention", text: text.tools.forkNeedsSelection }); return; }
-    edit(next => addSplit(next, "FORK", 2, applyEdit));
-  };
+  // ADR-0180 beslut 12: "Gaffla här" frågar efter antal grenar eller slinga.
+  const fork = ux.openForkPicker;
 
   // Tangenterna (inte när man skriver i ett fält): verktygen med en bokstav, Delete, Escape, ångra och gör om.
   useEffect(() => {
@@ -478,8 +490,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       else if (mod && key === "y") { event.preventDefault(); edit(redo); }
       else if (!mod && !event.altKey && key === "g") fork();
       else if (!mod && !event.altKey && KEYS[key] && (!readOnly || KEYS[key] === "SELECT" || KEYS[key] === "NOTE")) {
-        if (KEYS[key] === "SPECIAL") setTab("objects");
-        apply(next => setTool(next, KEYS[key]!, KEYS[key] === "SPECIAL" ? next.specialKind ?? "out-of-bounds" : undefined));
+        if (KEYS[key] === "SPECIAL") ux.setPalette(open => !open);
+        else apply(next => setTool(next, KEYS[key]!));
       }
     };
     window.addEventListener("keydown", keydown);
@@ -567,11 +579,16 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
 
   const panel = (() => {
     switch (tab) {
-      case "courses": return <CourseList document={document} summaries={summaries} view={view} variant={variant} readOnly={readOnly}
+      case "courses": return <><CourseList document={document} summaries={summaries} view={view} readOnly={readOnly}
         onView={(next, value) => apply(current => setView(current, next, value))} onAdd={addCourse}
         onRename={(id, name) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
         onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
-        onRemove={id => edit(current => setView(applySteps(current, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />;
+        onRemove={ux.requestDelete} onDuplicate={ux.duplicate} />
+        <ControlList document={document} summaries={summaries} view={view} variant={editor.variant} branch={ux.active?.start} readOnly={readOnly}
+          selected={selection?.kind === "control" ? (view === ALL_CONTROLS ? selection.control : selection.courseControl) : undefined} unused={ux.unused}
+          onSelect={target => { apply(current => select(current, { kind: "control", ...target })); const at = document.controls[target.control]?.at;
+            if (at) mapHandle.current?.reveal([at]); }}
+          onBranch={ux.workIn} onVariant={code => apply(current => setView(current, view, code))} onRemoveUnused={ux.requestRemoveUnused} /></>;
       case "description": return <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
         onSettings={next => {
           setDescriptionKind(next.kind);
@@ -592,7 +609,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
           onRemoveSplit={() => edit(current => removeSplit(current, applyEdit))}
           onResetNumber={() => edit(current => current.selection?.kind === "control" && current.selection.courseControl
             ? applySteps(current, [{ type: "MOVE_NUMBER", course: current.view, courseControl: current.selection.courseControl, at: null }], applyEdit) : current)}
-          onStraighten={() => edit(current => removeSelected(current, applyEdit))} />
+          onStraighten={() => edit(current => removeSelected(current, applyEdit))} extra={ux.rotateControls(ux.rotatable)} />
         <LegPanel legKey={legKey} analysis={analysis} status={legStatus} highlighted={highlighted} onHighlight={setHighlighted} />
       </>;
       case "objects": return <SpecialsPanel document={document} state={editor} readOnly={readOnly}
@@ -600,7 +617,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onCancel={() => apply(current => ({ ...current, drawing: undefined }))}
         onSelect={id => { apply(current => select(current, { kind: "special", special: id })); const found = document.specialObjects.find(item => item.id === id);
           if (found) mapHandle.current?.reveal(found.points); }}
-        onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />;
+        onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} onAlong={ux.along} />;
       case "print": return <PrintPanel document={document} view={view} page={printPage?.page} readOnly={readOnly}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))}
         onPreview={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print?course=${encodeURIComponent(view)}`))} />;
@@ -657,9 +674,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     onList: () => { setTab("inspections"); setReveal(value => value + 1); },
     onOffline: () => setOfflineDialog(true) });
   useLockedPage();
-  const toolBar = <ToolBar tool={editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => {
-    if (tool === "SPECIAL") setTab("objects");
-    apply(current => setTool(current, tool, tool === "SPECIAL" ? current.specialKind ?? "out-of-bounds" : undefined));
+  // ADR-0180 beslut 12: Objekt öppnar paletten (också i telefonens kompakta läge, bakom "Mer").
+  const toolBar = <ToolBar tool={ux.palette ? "SPECIAL" : editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => {
+    if (tool === "SPECIAL") ux.setPalette(open => !open);
+    else { ux.setPalette(false); apply(current => setTool(current, tool)); }
   }}
     onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} />;
 
@@ -680,7 +698,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         verktygsraden och fliken Objekt (Klar och Avbryt). */}
     <div className={styles.stage} data-compact={field.narrow && !field.expanded && editor.tool !== "SPECIAL" ? "true" : undefined}>
       <div className={styles.mapArea}>
-        <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={primitives} faded={faded} marks={marks} analysis={analysis}
+        <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={drawnPrimitives} faded={faded} ghosts={ux.ghosts} others={ux.others}
+          marks={marks} analysis={analysis}
           label={label} cursor={CURSOR[editor.tool]} handlers={handlers} handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote}
           onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={cursorAt} highlightRoute={highlightRoute}
           position={field.position} inspected={inspectedMarks} onPan={field.onPan} symbols={symbols} overlayExtra={overlayExtra} cross={selection?.kind === "control" && document.controls[selection.control]
@@ -690,7 +709,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
           {noteDraft && <div className={styles.cardStatic}><NoteForm target={noteDraft} document={document} onSave={saveNote} onCancel={() => setNoteDraft(undefined)} /></div>}
           <div className={styles.fieldBar} data-testid="course-setting-field">{field.bar}</div>
         </div> : <>{toolBar}<div className={styles.fieldTools}>{field.tools}</div></>}
+        {ux.elements}
         <div className={styles.toasts}>
+          {ux.toasts}
           {mapStatus === "reading" && <p role="status" className={styles.toast}>{text.readingMap}</p>}
           {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
           {suggesting && <p className={styles.toast} data-testid="course-setting-suggesting">{copy.suggestions.drafting}: {copy.suggestions.draftCount(editor.log.length)}
@@ -711,7 +732,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
             onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
             onRemoveFromCourse={() => edit(current => removeSelected(current, applyEdit, false))}
             onDelete={() => edit(current => removeSelected(current, applyEdit, true))}
-            onDescription={() => setTab("description")} onMore={() => setTab("selected")} onClose={() => apply(current => select(current, undefined))} />}
+            onDescription={() => setTab("description")} onMore={() => setTab("selected")} onClose={() => apply(current => select(current, undefined))}
+            extra={ux.rotateControls(ux.rotatable?.kind === "control" ? ux.rotatable : undefined)} />}
       </div>
       <Drawer tab={tab} onTab={setTab} reveal={reveal} counts={{ checks: checks.length, notes: openNotes,
         suggestions: openSuggestions + (suggesting ? editor.log.length : 0) }}>

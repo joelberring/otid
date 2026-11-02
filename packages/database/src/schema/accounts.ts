@@ -29,7 +29,7 @@ export const userAccounts = pgTable("user_account", {
   isSuperadmin: boolean("is_superadmin").notNull().default(false),
   blockedAt: timestamp("blocked_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
-  /** ADR-0185 (migration 0038): när adressen bekräftades. NULL = obekräftad; behörigheter från andra gäller då inte. */
+  /** ADR-0186 (migration 0040): när adressen bekräftades. NULL = obekräftad; behörigheter från andra gäller då inte. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
@@ -102,7 +102,7 @@ export const passwordResetTokens = pgTable("password_reset_token", {
     sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '1 hour'`)
 ]);
 
-/** ADR-0185: bekräftelselänken för e-postadressen. Hash av engångsnyckeln och registreringens lösenord, ett dygn, en gång. */
+/** ADR-0186: bekräftelselänken för e-postadressen. Hash av engångsnyckeln och registreringens lösenord, ett dygn, en gång. */
 export const emailVerificationTokens = pgTable("email_verification_token", {
   id: uuid("id").primaryKey().defaultRandom(),
   accountId: uuid("account_id").notNull().references(() => userAccounts.id),

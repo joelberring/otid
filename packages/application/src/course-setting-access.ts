@@ -52,7 +52,7 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
   if (grant && grant.role !== "FUNCTIONARY") {
     principal = { accountId, displayName: named?.displayName ?? "", raceId: race.id, eventId: race.eventId, level: "EDIT", admin: true };
   } else if (await accountEmailVerified(tx, accountId)) {
-    // ADR-0185: banläggningens behörighet kommer från någon annan och gäller först med bekräftad e-postadress.
+    // ADR-0186: banläggningens behörighet kommer från någon annan och gäller först med bekräftad e-postadress.
     const query = tx.select({ level: schema.courseSettingGrants.level }).from(schema.courseSettingGrants)
       .where(and(eq(schema.courseSettingGrants.raceId, race.id), eq(schema.courseSettingGrants.accountId, accountId)));
     const [row] = lock === "share" ? await query.for("share") : lock === "update" ? await query.for("update") : await query;

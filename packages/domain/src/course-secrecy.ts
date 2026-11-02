@@ -34,7 +34,7 @@ export function courseSecrecy(facts: CourseSecrecyFacts): CourseSecrecy {
 }
 
 /**
- * ADR-0185: före start. Variantens bokstav och kartbilden är ofta hemliga före start; publikt visas de först efter start
+ * ADR-0186: före start. Variantens bokstav och kartbilden är ofta hemliga före start; publikt visas de först efter start
  * (förval) eller, om arrangören valt det under Publicera, alltid (varianten) eller direkt när tävlingen publiceras (kartan).
  * När banorna är publika enligt banhemligheten ovan visas båda.
  */

@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { Database } from "@o-tid/database";
 
 /**
- * ADR-0185: hälsokontrollen (`GET /api/health`, tjänsten monitor). Databasen svarar, och hur länge det äldsta väntande
+ * ADR-0186: hälsokontrollen (`GET /api/health`, tjänsten monitor). Databasen svarar, och hur länge det äldsta väntande
  * utskriftsjobbet har väntat (står utskriftsarbetaren still växer det). Inga personuppgifter, inga id:n.
  */
 export interface HealthReport {

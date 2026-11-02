@@ -87,7 +87,7 @@ export const publicStartListResponseSchema = z.object({
      * ögonblicksbild. `revision` är då tävlingens version och `publishedAt` när listan lästes.
      */
     live: z.boolean().default(false),
-    /** ADR-0185: varianten är borttagen för löpare som inte har startat (visas efter start eller när banorna blir publika). */
+    /** ADR-0186: varianten är borttagen för löpare som inte har startat (visas efter start eller när banorna blir publika). */
     variantsHiddenUntilStart: z.boolean().default(false),
     formatVersion: z.literal(1), revision: positive, publishedAt: instant, content: startListPublicationContentSchema.refine((v) => v.classes.some((x) => x.entries.length > 0))
 }).strict().refine((v) => v.showCardNumbers || v.content.classes.every((x) => x.entries.every((e) => e.cardNumber === undefined)));

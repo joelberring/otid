@@ -203,7 +203,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(logo.headers()["content-type"]).toBe("image/png");
   expect(logo.headers()["x-content-type-options"]).toBe("nosniff");
   const robots = await (await visitor.request.get("/robots.txt")).text();
-  // ADR-0185: hela API:t är stängt för robotar (också festens).
+  // ADR-0186: hela API:t är stängt för robotar (också festens).
   expect(robots).toContain("Disallow: /api/\n");
   expect(robots).toContain("User-Agent: GPTBot");
   await visitor.goto(publicPath!);
@@ -263,7 +263,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(await qr.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).toContain("Poppins");
   await reviewScreenshots(visitor, "fest-qr");
 
-  // ADR-0185: en vanlig tävlings publika sida indexeras inte heller (ägarens beslut 2026-10-24), men saknar festens egna rader.
+  // ADR-0186: en vanlig tävlings publika sida indexeras inte heller (ägarens beslut 2026-10-24), men saknar festens egna rader.
   await owner.goto("/organizer");
   await createRace(owner, `Vanlig ${suffix}`, today(), "Träning");
   await publishRace(owner);

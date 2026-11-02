@@ -1,5 +1,5 @@
 /**
- * Inget publikt innehåll om löpare indexeras (ägarens beslut 2026-10-24, ADR-0185): många tävlingar har barn. Tre lager,
+ * Inget publikt innehåll om löpare indexeras (ägarens beslut 2026-10-24, ADR-0186): många tävlingar har barn. Tre lager,
  * eftersom robotar läser olika saker: robots.txt (`app/robots.ts`), X-Robots-Tag på svaren (`next.config.ts`, också
  * API:t och bilder) och robots-meta på sidorna (layouterna under `/results`, `/starts` och `/t`).
  *

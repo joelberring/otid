@@ -2,7 +2,7 @@
 {$OTID_DOMAIN} {
 	encode zstd gzip
 
-	# HSTS (ADR-0185): webbläsaren använder bara HTTPS mot domänen i ett år. Inte includeSubDomains eller preload, eftersom
+	# HSTS (ADR-0186): webbläsaren använder bara HTTPS mot domänen i ett år. Inte includeSubDomains eller preload, eftersom
 	# OTID_DOMAIN kan vara klubbens egen domän med andra tjänster under sig.
 	header Strict-Transport-Security "max-age=31536000"
 

@@ -13,7 +13,7 @@ import type { DbExecutor } from "./snapshot";
  */
 export interface LoadedCourseSecrecy extends CourseSecrecy {
   readonly revealedAt: Date | null;
-  /** ADR-0185: arrangörens val för varianten och kartan före start. */
+  /** ADR-0186: arrangörens val för varianten och kartan före start. */
   readonly publicTiming?: { readonly variant: "AFTER_START" | "ALWAYS"; readonly map: "AFTER_START" | "ON_PUBLISH" };
 }
 

@@ -60,7 +60,7 @@
 .publicationAddress { display: grid; gap: 6px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
 .publicationAddress .actions { gap: 4px 18px; }
 .publicationAddress .actions > a { display: inline-flex; align-items: center; min-height: var(--control); }
-/* ADR-0185: Publicera → före start, två val med radioknappar. */
+/* ADR-0186: Publicera → före start, två val med radioknappar. */
 .choiceGroup { display: grid; gap: 2px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .choiceGroup > legend { padding: 0; margin-bottom: 4px; font-size: var(--text-sm); font-weight: 600; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

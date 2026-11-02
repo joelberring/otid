@@ -117,11 +117,11 @@ export const races = pgTable("race", {
   startDrawSettings: jsonb("start_draw_settings"),
   /** "Resultaten är klara" (migration 0006): loppets fastställande som gäller som officiellt. NULL = preliminära. */
   officialResultFinalizationId: uuid("official_result_finalization_id"),
-  /** Steg 33 (migration 0011): bricknummer i den publika startlistan. Av för nya tävlingar sedan migration 0038 (ADR-0185). */
+  /** Steg 33 (migration 0011): bricknummer i den publika startlistan. Av för nya tävlingar sedan migration 0040 (ADR-0186). */
   publicStartListCardNumbers: boolean("public_start_list_card_numbers").notNull().default(false),
-  /** ADR-0185 (migration 0038): variantens bokstav publikt efter löparens start (förval) eller alltid. */
+  /** ADR-0186 (migration 0040): variantens bokstav publikt efter löparens start (förval) eller alltid. */
   publicVariantTiming: text("public_variant_timing").$type<"AFTER_START" | "ALWAYS">().notNull().default("AFTER_START"),
-  /** ADR-0185: kartbilden publikt efter tävlingens start (förval) eller direkt när tävlingen publiceras. */
+  /** ADR-0186: kartbilden publikt efter tävlingens start (förval) eller direkt när tävlingen publiceras. */
   publicMapTiming: text("public_map_timing").$type<"AFTER_START" | "ON_PUBLISH">().notNull().default("AFTER_START"),
   /** Steg 33: kort info om tävlingen (fritext, högst 1000 tecken) och första start (HH:MM, bara information). */
   info: text("info"),

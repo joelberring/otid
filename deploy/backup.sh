@@ -1,5 +1,5 @@
 #!/bin/sh
-# Backup med pg_dump (ADR-0168, steg 6; steg 45; ADR-0185: dygnet runt, före migrering, kopia utanför servern, bevakning).
+# Backup med pg_dump (ADR-0168, steg 6; steg 45; ADR-0186: dygnet runt, före migrering, kopia utanför servern, bevakning).
 #
 #   sh /backup.sh                 tjänsten: en dump direkt vid start, sedan var BACKUP_INTERVAL_MINUTES:e minut (förval 60,
 #                                 på hela timmen) dygnet runt.

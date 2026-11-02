@@ -61,7 +61,7 @@ const ROLE_ORDER: Record<EventGrantRole, number> = { OWNER: 0, ADMIN: 1, FUNCTIO
 /**
  * Kontots gällande behörighet på eventet. `roles` begränsar vilka roller som räknas (förval: OWNER och ADMIN).
  * Har kontot flera gäller den starkaste (ägare före administratör före funktionär). Steg 68: en ledare i evenemangets
- * träningsgrupp får ADMIN (id:t är då ledarraden i `training_group_member`). ADR-0185: utan bekräftad e-postadress gäller
+ * träningsgrupp får ADMIN (id:t är då ledarraden i `training_group_member`). ADR-0186: utan bekräftad e-postadress gäller
  * bara ägarskapet (tävlingar kontot självt skapat); administratör, funktionär och ledarskapet kommer från någon annan.
  */
 export async function activeEventAdministrationGrant(

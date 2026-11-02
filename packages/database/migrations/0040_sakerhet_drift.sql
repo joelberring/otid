@@ -1,4 +1,4 @@
--- ADR-0185 (säkerhets- och driftöversynen 2026-11-02).
+-- ADR-0186 (säkerhets- och driftöversynen 2026-11-02).
 --
 -- 1. Publikt före start. Variantens bokstav i de publika listorna och kartbilden visas publikt först när löparen har
 --    startat (kartan: när tävlingen har startat) eller banorna blir publika enligt banhemligheten (ADR-0176). Arrangören

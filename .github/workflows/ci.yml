@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
 
-# ADR-0185: jobben läser bara koden; inget skrivs tillbaka till repot.
+# ADR-0186: jobben läser bara koden; inget skrivs tillbaka till repot.
 permissions:
   contents: read
 
@@ -78,7 +78,7 @@ jobs:
           printf 'OTID_DISK_ALERT_PERCENT=97\n' >> .env
       - run: docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 600
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
-      # ADR-0185: övergången till databasroller på den körande servern, med samma steg som docs/drift.md; webbläsartesterna
+      # ADR-0186: övergången till databasroller på den körande servern, med samma steg som docs/drift.md; webbläsartesterna
       # körs sedan med rollerna (otid_app i webben, otid_print i utskriftsarbetaren, otid_owner för migrering och backup).
       - run: sh deploy/db-roles.sh setup
       - run: sh deploy/db-roles.sh check | tee roles-check.txt && ! grep -q '^FEL' roles-check.txt
@@ -92,7 +92,7 @@ jobs:
       - run: pnpm test:e2e
         env:
           E2E_BASE_URL: https://localhost
-      # ADR-0185: dumpen före migreringen, timdumpen och dagsbackupen; hälsokontrollen en gång.
+      # ADR-0186: dumpen före migreringen, timdumpen och dagsbackupen; hälsokontrollen en gång.
       - run: ls -lR backups && ls backups/hourly/otid-*.dump backups/daily/otid-*.dump backups/fore-migrering/otid-*.dump
       - run: docker compose -f docker-compose.prod.yml exec -T monitor sh /monitor.sh once
       - if: failure()

@@ -136,7 +136,7 @@ export function OrganizerWorkspace() {
       });
       if (!response.ok) throw new Error(response.status === 409 ? copy.emailTaken : response.status === 429 ? copy.registerRateLimited
         : response.status === 400 ? copy.registerInvalid : copy.registerError(response.status));
-      // ADR-0185: med e-post på servern kommer länken med e-post (samma besked oavsett om adressen redan hade ett konto).
+      // ADR-0186: med e-post på servern kommer länken med e-post (samma besked oavsett om adressen redan hade ett konto).
       if (response.status === 202) {
         setMode("login");
         setMessage(copy.checkEmail(email.trim()));

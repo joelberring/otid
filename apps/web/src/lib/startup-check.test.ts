@@ -4,7 +4,7 @@ import { configurationProblems, logConfigurationProblems } from "./startup-check
 const good = { NODE_ENV: "production", DATABASE_URL: "postgresql://otid_app:hemligt@postgres:5432/otid", O_TID_PUBLIC_ORIGIN: "https://otid.berring.se",
   OTID_INSTANCE_ROLE: "competition" };
 
-describe("ADR-0185: fel inställningar syns i loggen vid start", () => {
+describe("ADR-0186: fel inställningar syns i loggen vid start", () => {
   it("godtar en riktig driftmiljö", () => {
     expect(configurationProblems(good)).toEqual([]);
   });

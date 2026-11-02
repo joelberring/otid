@@ -69,7 +69,7 @@ export async function newContext(browser: Browser) {
 }
 
 /**
- * Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. ADR-0185: servern i
+ * Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. ADR-0186: servern i
  * testerna har e-post, så kontot bekräftas med länken i mejlet (den falska SMTP-servern) och lösenordet.
  */
 export async function registerAccount(browser: Browser, email: string, displayName: string): Promise<Page> {
@@ -85,7 +85,7 @@ export async function registerAccount(browser: Browser, email: string, displayNa
   return page;
 }
 
-/** ADR-0185: länken i det senaste bekräftelsemejlet till adressen (väntar tills mejlet har kommit). */
+/** ADR-0186: länken i det senaste bekräftelsemejlet till adressen (väntar tills mejlet har kommit). */
 export async function verificationLink(email: string): Promise<string> {
   let link: string | undefined;
   await expect.poll(() => {
@@ -95,7 +95,7 @@ export async function verificationLink(email: string): Promise<string> {
   return link!;
 }
 
-/** ADR-0185: öppnar bekräftelselänken och skriver lösenordet; kontot är sedan bekräftat och inloggat. */
+/** ADR-0186: öppnar bekräftelselänken och skriver lösenordet; kontot är sedan bekräftat och inloggat. */
 export async function verifyEmail(page: Page, email: string, secret = password): Promise<void> {
   await page.goto(await verificationLink(email));
   await page.getByLabel("Lösenord").fill(secret);

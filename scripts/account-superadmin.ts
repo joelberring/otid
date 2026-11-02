@@ -1,7 +1,7 @@
 /**
  * `pnpm account:superadmin grant|revoke <e-post> [skäl]` – ger eller tar bort superadmin (ADR-0172 beslut 2).
  * Rollen sätts bara här, på servern, aldrig i appen. Åtgärden loggas som "Serverkommando" på superadminsidan.
- * `pnpm account:superadmin verify <e-post>` – bekräftar kontots e-postadress (ADR-0185), t.ex. när servern saknar e-post.
+ * `pnpm account:superadmin verify <e-post>` – bekräftar kontots e-postadress (ADR-0186), t.ex. när servern saknar e-post.
  *
  * I drift finns kommandot paketerat i webbens avbildning:
  *   docker compose -f docker-compose.prod.yml exec web node superadmin.mjs grant anna@klubb.se

@@ -136,7 +136,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
-  // ADR-0185: Publicera → före start (varianten och kartan publikt).
+  // ADR-0186: Publicera → före start (varianten och kartan publikt).
   publicTiming: setPublicTimingAsAdmin,
   // Steg 52: kontrollkartan och löparens bana på kartan.
   controlMap: readControlMapAsAdmin, entryControlMap: readEntryControlMapAsAdmin,

@@ -177,7 +177,7 @@ export async function heartbeatPrintJob(db: Database, id: string, worker: string
 }
 
 /**
- * ADR-0185: jobbet avbröts av arbetaren (tidsgränsen passerades eller barnprocessen dog). FAILED med texten, bara om jobbet
+ * ADR-0186: jobbet avbröts av arbetaren (tidsgränsen passerades eller barnprocessen dog). FAILED med texten, bara om jobbet
  * fortfarande är arbetarens. Kön går vidare med nästa jobb.
  */
 export async function failPrintJob(db: Database, id: string, worker: string, message: string, now = new Date()): Promise<boolean> {

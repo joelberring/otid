@@ -3,7 +3,7 @@
 O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 
 - PostgreSQL 17 (den officiella bilden, fast version `postgres:17.11-trixie`, finns för både x86 och ARM),
-- `backup-before-migrate` och `migrate` (ADR-0185): vid varje `up` tas först en dump och sedan migreras databasen, i var sin
+- `backup-before-migrate` och `migrate` (ADR-0186): vid varje `up` tas först en dump och sedan migreras databasen, i var sin
   engångstjänst; webben startar först när båda har lyckats,
 - webben (Next standalone) i två slags instanser (steg 54, [ADR-0177](adr/ADR-0177-tavlingen-forst.md)):
   - `web` – tävlingen: arbetsytan, avläsningen, funktionärerna, inloggningen och admin-API:t. Hämtar radiostämplingar.
@@ -12,7 +12,7 @@ O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
   Se [Tävlingen först](#tävlingen-först),
 - Caddy (HTTPS med Let's Encrypt och HSTS, skickar publika anrop till `web-public`/`web-public2` och allt annat till `web`),
 - utskriftsarbetaren `print-worker`,
-- en backuptjänst (dump varje timme, valfri krypterad kopia utanför servern) och hälsokontrollen `monitor` (ADR-0185).
+- en backuptjänst (dump varje timme, valfri krypterad kopia utanför servern) och hälsokontrollen `monitor` (ADR-0186).
 
 All data, även kartbilder, kartfiler från OCAD och Mapper (steg 59, högst 60 MB per tävling) och GPS-rutter för vägval
 (PLAN.md steg 16), ligger i PostgreSQL och kommer med i backupen. MinIO behövs inte. Kartfilens uppladdning är den enda
@@ -52,7 +52,7 @@ docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-(eller `git pull && docker compose -f docker-compose.prod.yml up -d --build`). ADR-0185: `up` tar först en dump
+(eller `git pull && docker compose -f docker-compose.prod.yml up -d --build`). ADR-0186: `up` tar först en dump
 (`./backups/fore-migrering/`, de 10 senaste sparas) och kör sedan nya migreringar i tjänsten `migrate`; först därefter
 startas den nya webben. Misslyckas dumpen eller en migrering fortsätter den gamla webben att köra (se
 [Om en migrering misslyckas](#om-en-migrering-misslyckas)); `docker compose -f docker-compose.prod.yml logs backup-before-migrate migrate`
@@ -97,7 +97,7 @@ långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå f
   reserverat minne); swappen räcker till bygget.
 - **Utskrift (steg 65, ADR-0184):** PDF:er för tryck skrivs av `print-worker`, ett jobb i taget ur tabellen
   `course_setting_print_job`. Klara PDF:er sparas 7 dagar (högst 10 per tävling) och tas inte med i säkerhetskopian;
-  raden om jobbet sparas 30 dagar. ADR-0185: varje jobb körs i en barnprocess med tidsgräns (`OTID_PRINT_JOB_TIMEOUT_MS`,
+  raden om jobbet sparas 30 dagar. ADR-0186: varje jobb körs i en barnprocess med tidsgräns (`OTID_PRINT_JOB_TIMEOUT_MS`,
   förval 600000 = 10 minuter); ett jobb som hänger eller tar slut på minnet blir FAILED med en förklaring och kön går vidare.
   Står tjänsten stilla väntar jobben i kön och hälsokontrollen larmar efter 15 minuter;
   `docker compose -f docker-compose.prod.yml logs print-worker` visar vad den gör.
@@ -201,9 +201,9 @@ Ett skäl kan läggas sist (`… grant anna@exempelklubb.se "Driftansvarig"`); d
 
 Med e-post inställd skickar O-Tid en återställningslänk till den som har glömt sitt lösenord. Länken gäller
 en timme och en gång, och alla kontots inloggningar slutar gälla när lösenordet byts. Svaret på sidan är
-detsamma oavsett om adressen har ett konto, och mejlet skickas efter svaret (ADR-0185).
+detsamma oavsett om adressen har ett konto, och mejlet skickas efter svaret (ADR-0186).
 
-ADR-0185: med e-post bekräftar nya konton sin adress med en länk (gäller ett dygn) innan de kan logga in, och registreringen
+ADR-0186: med e-post bekräftar nya konton sin adress med en länk (gäller ett dygn) innan de kan logga in, och registreringen
 svarar likadant oavsett om adressen redan har ett konto. Behörigheter som andra ger ett konto (administratör, funktionär,
 banläggning, gruppledare och gruppmedlem) gäller först när adressen är bekräftad; under Personer med behörighet står
 "väntar på bekräftad e-post". Konton från före 2026-11-02 räknas som bekräftade. **Utan e-post** loggar registreringen in
@@ -255,7 +255,7 @@ sättas i drift.
 ## Backup
 
 Tjänsten `backup` (`deploy/backup.sh`, avbildningen `otid-backup` = `postgres:17.11-trixie` med restic och curl) tar en
-`pg_dump` direkt vid start och sedan varje hel timme **dygnet runt** (ADR-0185; tidigare bara 08–23). Före varje start av
+`pg_dump` direkt vid start och sedan varje hel timme **dygnet runt** (ADR-0186; tidigare bara 08–23). Före varje start av
 webben tar `backup-before-migrate` dessutom en dump (`./backups/fore-migrering/`, de 10 senaste).
 
 - `./backups/hourly/otid-<tid>.dump`: de 48 senaste timdumparna (två dygn).
@@ -345,7 +345,7 @@ rsync -av otid@tid.exempelklubb.se:otid/backups/ ~/otid-backup/
 
 ## Återställa
 
-Provat lokalt 2026-10-03 och 2026-11-02 (dagens schema med migration 0038, dump som ägarrollen `otid_owner`, återställd i en
+Provat lokalt 2026-10-03 och 2026-11-02 (dagens schema med migration 0040, dump som ägarrollen `otid_owner`, återställd i en
 tom databas: samma antal anmälda, konton, avläsningar, resultatrevisioner och tävlingar). Så här gör du på samma server:
 
 ```bash
@@ -389,7 +389,7 @@ Efter övergången till databasroller körs kommandot som `otid_owner` (backuptj
 
 ## Databasroller
 
-ADR-0185: före övergången använder alla tjänster databasens superuser (`otid`, `POSTGRES_USER`). Efter den har varje tjänst
+ADR-0186: före övergången använder alla tjänster databasens superuser (`otid`, `POSTGRES_USER`). Efter den har varje tjänst
 bara det den behöver:
 
 | Roll | Tjänster | Får |
@@ -399,7 +399,7 @@ bara det den behöver:
 | `otid_print` | `print-worker` | utskriftskön, tävlingens namn och kartfilen, inget annat |
 
 Superusern finns kvar för `deploy/db-roles.sh` och underhåll för hand. Ingen data flyttas, bara ägare och rättigheter.
-Provat 2026-11-02 mot en kopia med data (PostgreSQL 16, 1 286 anmälda och 689 konton): övergången, migrering 0038 som
+Provat 2026-11-02 mot en kopia med data (PostgreSQL 16, 1 286 anmälda och 689 konton): övergången, migrering 0040 som
 `otid_owner`, appens vanliga flöden som `otid_app` (registrering, tävling, IOF-import, publicering, borttagning av konto
 med tävling), utskriftsarbetaren som `otid_print`, dump som ägaren och återställning, tillbakagång och övergång igen. CI gör
 övergången på den körande driftmiljön och kör sedan alla webbläsartester med rollerna.
@@ -430,7 +430,7 @@ En framtida migrering som kräver superuser (t.ex. `CREATE EXTENSION`) misslycka
 
 ## Om en migrering misslyckas
 
-Tjänsten `migrate` migrerar databasen innan webben startar (`node migrate.mjs`, ADR-0185; före det gjorde webben det själv).
+Tjänsten `migrate` migrerar databasen innan webben startar (`node migrate.mjs`, ADR-0186; före det gjorde webben det själv).
 Varje migrering körs i en egen transaktion, så en som misslyckas lämnar inga halva ändringar; den nya webben startar inte,
 och den gamla kör vidare om den var igång (annars svarar sidan 502). En dump togs strax före (`./backups/fore-migrering/`).
 

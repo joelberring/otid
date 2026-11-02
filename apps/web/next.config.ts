@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
       // Festens logga och kartan har en egen, striktare CSP (samma som i rutten).
       { source: "/api/public/parties/:raceId/logo", headers: [{ key: "Content-Security-Policy", value: "default-src 'none'; sandbox" }] },
       { source: "/api/public/races/:raceId/map", headers: [{ key: "Content-Security-Policy", value: "default-src 'none'" }] },
-      // Inga publika sidor om löpare och inget API indexeras (ADR-0185, `lib/no-index.ts`; fest steg 40, grupper steg 68).
+      // Inga publika sidor om löpare och inget API indexeras (ADR-0186, `lib/no-index.ts`; fest steg 40, grupper steg 68).
       ...NO_INDEX_HEADER_SOURCES.map((source) => ({ source, headers: [NO_INDEX_HEADER] })),
       // Festens API (namn på gäster) sparas inte heller i någon cache.
       { source: "/api/public/parties/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }] },

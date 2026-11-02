@@ -55,7 +55,7 @@ export const raceTypeSv = {
         COURSE_SUGGEST: "Banläggning: föreslå", COURSE_COMMENT: "Banläggning: läsa och kommentera",
         COURSE_MAP: "Kartritare: bara kartan och kartfelen" },
       you: "du",
-      /** ADR-0185: behörigheten gäller först när personen har bekräftat sin e-postadress. */
+      /** ADR-0186: behörigheten gäller först när personen har bekräftat sin e-postadress. */
       pendingVerification: "väntar på bekräftad e-post",
       remove: "Ta bort",
       removeLabel: (name: string) => `Ta bort behörigheten för ${name}`,

@@ -118,7 +118,7 @@ transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: 
 - Funktionären ser fullt namn och kan ladda ner festens köp som CSV; det är avsiktligt och står i hjälpen och under
   Personer med behörighet.
 
-## Översynen 2026-11-02 (ADR-0185)
+## Översynen 2026-11-02 (ADR-0186)
 
 - Inget publikt om löpare indexeras: `/results`, `/starts`, `/t`, `/fest`, `/g` och hela `/api` har robots.txt-spärr (också för
   kända AI-robotar), `X-Robots-Tag` och robots-meta (`lib/no-index.ts`). HSTS i Caddy. `/_next/image` är avstängd.

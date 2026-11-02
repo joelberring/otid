@@ -36,12 +36,12 @@ export const organizerAccountLoginResponseSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
   superadmin: z.boolean(),
   expiresAt: instant,
-  /** ADR-0185: om e-postadressen är bekräftad. Behörigheter som andra ger kontot gäller först då. Saknas i äldre svar. */
+  /** ADR-0186: om e-postadressen är bekräftad. Behörigheter som andra ger kontot gäller först då. Saknas i äldre svar. */
   emailVerified: z.boolean().optional()
 }).strict();
 
 /**
- * ADR-0185: registrering med e-post inställd. Samma svar oavsett om adressen redan har ett konto; länken kommer med e-post.
+ * ADR-0186: registrering med e-post inställd. Samma svar oavsett om adressen redan har ett konto; länken kommer med e-post.
  * Utan e-post loggar registreringen in direkt (`organizerAccountLoginResponseSchema`, 201).
  */
 export const organizerAccountRegistrationPendingSchema = z.object({
@@ -49,7 +49,7 @@ export const organizerAccountRegistrationPendingSchema = z.object({
   status: z.literal("check-email")
 }).strict();
 
-/** ADR-0185: länken i bekräftelsemejlet och lösenordet från registreringen. */
+/** ADR-0186: länken i bekräftelsemejlet och lösenordet från registreringen. */
 export const emailVerificationRequestSchema = z.object({
   formatVersion: z.literal(1),
   token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),

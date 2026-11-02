@@ -35,7 +35,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
         const result = publicStartListResponseSchema.parse(await response.json());
         if (!stopped) {
           setFailed(false);
-          // ADR-0185: med dolda varianter ändras listan när starttiderna passerar, utan ny revision.
+          // ADR-0186: med dolda varianter ändras listan när starttiderna passerar, utan ny revision.
           setData(previous => !result.live && !previous?.live && previous?.revision === result.revision && previous.iofExportAvailable === result.iofExportAvailable &&
             previous.showCardNumbers === result.showCardNumbers && !result.variantsHiddenUntilStart && !previous.variantsHiddenUntilStart ? previous : result);
         }

@@ -17,7 +17,7 @@ export const courseSecrecySv = {
   revealedNow: "Banorna syns nu publikt.",
   withdrawnNow: "Ditt val är ångrat.",
   failed: "Det gick inte att ändra. Försök igen.",
-  /** ADR-0185: före start. */
+  /** ADR-0186: före start. */
   timing: {
     title: "Före start",
     help: "Variantens bokstav (AC, BD …) och kartan avslöjar ofta banan. Som standard syns de publikt först efter start: varianten när löparen har startat, kartan när tävlingen har startat (första start har passerat eller något har lästs ut). När banorna är publika syns båda.",

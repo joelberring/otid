@@ -2,7 +2,7 @@ import { mailConfiguration } from "./mail";
 import { SecurityConfigurationError, securityPolicy } from "./security-policy";
 
 /**
- * ADR-0185: inställningar som får servern att svara med ett tomt 500 (till exempel fel O_TID_PUBLIC_ORIGIN) skrivs i loggen
+ * ADR-0186: inställningar som får servern att svara med ett tomt 500 (till exempel fel O_TID_PUBLIC_ORIGIN) skrivs i loggen
  * när servern startar, med vad som är fel och hur det rättas – aldrig med lösenord eller andra värden ur miljön.
  */
 export function configurationProblems(environment: Partial<Record<string, string | undefined>> = process.env): string[] {

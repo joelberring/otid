@@ -107,7 +107,7 @@ function CourseSecrecySection({ ws, id }: { ws: Workspace; id: string }) {
 }
 
 /**
- * ADR-0185: före start. Variantens bokstav och kartan publikt efter start (standard) eller direkt. Sparas direkt när ett val
+ * ADR-0186: före start. Variantens bokstav och kartan publikt efter start (standard) eller direkt. Sparas direkt när ett val
  * ändras; inget resultat ändras.
  */
 function PublicTimingSection({ ws, id }: { ws: Workspace; id: string }) {

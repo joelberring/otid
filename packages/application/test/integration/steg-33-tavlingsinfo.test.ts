@@ -21,7 +21,7 @@ afterAll(async () => pool.end());
 async function setup() {
   const [event] = await db.insert(schema.events).values({ name: "Steg 33 Kvällsträning", startsOn: "2026-10-20", timeZone: "Europe/Stockholm" }).returning();
   if (!event) throw Error();
-  // En tävling från före ADR-0185 (bricknumren i den publika startlistan var påslagna som förval).
+  // En tävling från före ADR-0186 (bricknumren i den publika startlistan var påslagna som förval).
   const [race] = await db.insert(schema.races).values({ eventId: event.id, name: "Kvällsträning", raceDate: "2026-10-20", raceType: "TRAINING",
     publicStartListCardNumbers: true }).returning();
   if (!race) throw Error();

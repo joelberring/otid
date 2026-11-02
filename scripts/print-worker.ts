@@ -3,7 +3,7 @@
  * skriver PDF:erna, i en egen process med lägsta prioritet (nice 19) och en egen liten databaspool, så att avläsning och
  * tävlingsarbete aldrig väntar på en utskrift. Rensar gamla PDF:er var tionde minut.
  *
- * ADR-0185: varje jobb skrivs i en egen barnprocess med tidsgräns (`OTID_PRINT_JOB_TIMEOUT_MS`, förval 10 minuter) och eget
+ * ADR-0186: varje jobb skrivs i en egen barnprocess med tidsgräns (`OTID_PRINT_JOB_TIMEOUT_MS`, förval 10 minuter) och eget
  * minnestak (`OTID_PRINT_JOB_MEMORY_MB`, förval 256). Ett jobb som hänger eller tar slut på minnet avbryts och blir FAILED med
  * en förklaring, och kön går vidare med nästa. Huvudprocessen rör filen `/tmp/otid-print-worker-alive` minst var 30:e sekund,
  * så att hälsokontrollen i docker-compose.prod.yml ser att arbetaren lever.

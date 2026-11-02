@@ -227,7 +227,7 @@ describe("steg 68: träningsgrupper", { timeout: 180_000 }, () => {
     const created = await createGroupSessions(db, { ...leader.proof, groupId, request: { ...request, acknowledgeAgreement: true } }, NOW);
     if (created.status !== "created") throw new Error("Träningen skapades inte");
     const winter = created.raceIds[0]!;
-    // ADR-0185: vintern har inte startat; kartan publikt direkt, så att det är avtalet som prövas här.
+    // ADR-0186: vintern har inte startat; kartan publikt direkt, så att det är avtalet som prövas här.
     await pool.query("update race set public_map_timing = 'ON_PUBLISH' where id = $1", [winter]);
     expect((await pool.query<{ n: number }>("select octet_length(image) as n from race_map where race_id = $1", [winter])).rows[0]!.n).toBe(image.byteLength);
     // Kartan är en kopia, och valet att visa publikt följer inte med.

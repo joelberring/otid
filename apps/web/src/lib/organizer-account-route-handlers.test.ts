@@ -202,7 +202,7 @@ describe("ADR-0168 självregistrering", () => {
   });
 });
 
-describe("ADR-0185 registrering med bekräftad e-post", () => {
+describe("ADR-0186 registrering med bekräftad e-post", () => {
   const mail = { ...prod, OTID_SMTP_URL: "smtp://127.0.0.1:2525", OTID_MAIL_FROM: "O-Tid <noreply@klubb.se>" };
   const body = (email: string) => JSON.stringify({ formatVersion: 1, email, displayName: "Ny Arrangör", password: "hemligt-lösen" });
   const registerRequest = (email: string) => req("POST", body(email), { origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json" },

@@ -11,9 +11,9 @@ import {
 } from "./user-account";
 
 /**
- * Bekräftad e-post (ADR-0185). Behörigheter som andra delar ut med e-postadressen (administratör, funktionär, banläggning,
+ * Bekräftad e-post (ADR-0186). Behörigheter som andra delar ut med e-postadressen (administratör, funktionär, banläggning,
  * gruppledare och gruppmedlem) gäller först när kontots adress är bekräftad (`user_account.email_verified_at`). Ägarskapet
- * för tävlingar kontot självt skapar gäller alltid. Befintliga konton räknades som bekräftade (migration 0038).
+ * för tävlingar kontot självt skapar gäller alltid. Befintliga konton räknades som bekräftade (migration 0040).
  *
  * Med e-post inställd (`OTID_SMTP_URL`) ger registreringen samma svar oavsett om adressen redan har ett konto, och arbetet
  * görs efter svaret: ett nytt konto skapas obekräftat och får en länk; ett obekräftat konto får en ny länk; ett bekräftat

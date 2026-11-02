@@ -83,7 +83,7 @@ export async function passwordResetAvailabilityRoute(request: Request, environme
 }
 
 /**
- * Samma svar oavsett om adressen finns. Bara ett befintligt, ospärrat konto får ett mejl. ADR-0185: allt utom formatkontrollen
+ * Samma svar oavsett om adressen finns. Bara ett befintligt, ospärrat konto får ett mejl. ADR-0186: allt utom formatkontrollen
  * görs efter svaret (`background`), så att svarstiden inte heller avslöjar om adressen har ett konto.
  */
 export async function passwordResetRequestRoute(

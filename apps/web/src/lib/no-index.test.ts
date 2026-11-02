@@ -19,7 +19,7 @@ async function headersFor(path: string): Promise<Map<string, string>> {
   return result;
 }
 
-describe("inget publikt om löpare indexeras (ADR-0185)", () => {
+describe("inget publikt om löpare indexeras (ADR-0186)", () => {
   const closed = ["/results/abc", "/results/abc/splits", "/results/abc/participants/x", "/starts/abc", "/t/abcdef", "/t/abcdef/live",
     "/t/abcdef/qr", "/fest/abcdef", "/g/abcdef", "/api/public/races/abc/results", "/api/public/races/abc/map",
     "/api/races/abc/start-list", "/api/races/abc/start-list/iof"];

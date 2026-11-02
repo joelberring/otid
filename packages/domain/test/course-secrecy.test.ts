@@ -23,7 +23,7 @@ describe("steg 52: banhemlighet", () => {
   });
 });
 
-describe("ADR-0185: varianten och kartan publikt före start", () => {
+describe("ADR-0186: varianten och kartan publikt före start", () => {
   const now = new Date("2026-12-09T18:30:00Z");
   const hidden = { timing: "AFTER_START" as const, coursesPublic: false, now };
 

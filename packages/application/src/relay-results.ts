@@ -238,7 +238,7 @@ export async function publicRelayResults(db: Database, raceId: string, now = new
   return db.transaction(async tx => {
     await lockRaceForSnapshot(tx, raceId);
     const { classes } = await loadRelayView(tx, raceId);
-    // ADR-0185: sträckans variant publikt först när sträckan har startat (masstart/omstart passerad, föregående sträcka klar,
+    // ADR-0186: sträckans variant publikt först när sträckan har startat (masstart/omstart passerad, föregående sträcka klar,
     // egen starttid passerad eller ett resultat), när banorna är publika eller när arrangören valt "alltid".
     const policy = await loadPublicVariantPolicy(tx, raceId, now);
     const legVariant = (row: RelayClassView, view: RelayTeamView, leg: RelayTeamView["legs"][number]) => {

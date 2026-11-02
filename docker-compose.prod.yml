@@ -1,7 +1,7 @@
 # Drift på en vanlig VPS (ADR-0168, steg 6). Se docs/drift.md.
 # Kräver en .env bredvid filen med OTID_DOMAIN och POSTGRES_PASSWORD.
 #
-# ADR-0185: databasroller. Utan OTID_DB_*_PASSWORD i .env använder alla tjänster databasens superuser (otid) som förut. Efter
+# ADR-0186: databasroller. Utan OTID_DB_*_PASSWORD i .env använder alla tjänster databasens superuser (otid) som förut. Efter
 # `deploy/db-roles.sh setup` (docs/drift.md, Databasroller) står rollerna och lösenorden i .env, och då använder
 #   - migrate och backup ägarrollen (otid_owner, äger tabellerna, ingen superuser),
 #   - web, web-public och web-public2 applikationsrollen (otid_app, läser och skriver data, kan inte ändra schemat),
@@ -26,7 +26,7 @@ x-backup-environment: &backup-environment
   PGDATABASE: otid
   BACKUP_DIR: /backups
   TZ: Europe/Stockholm
-  # ADR-0185: en dump varje hel timme dygnet runt (tidigare 08–23); de 48 senaste och en dagsbackup i 14 dagar.
+  # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23); de 48 senaste och en dagsbackup i 14 dagar.
   BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
   BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-48}
   BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
@@ -43,7 +43,7 @@ x-backup-environment: &backup-environment
 services:
   postgres:
     logging: *logging
-    # Vanlig PostgreSQL för alla arkitekturer (steg 28), fast version (ADR-0185); samma datakatalog som förut.
+    # Vanlig PostgreSQL för alla arkitekturer (steg 28), fast version (ADR-0186); samma datakatalog som förut.
     image: postgres:17.11-trixie
     restart: unless-stopped
     environment:
@@ -63,7 +63,7 @@ services:
       timeout: 3s
       retries: 30
 
-  # ADR-0185: en dump före varje start av webben (och därmed före en migrering). Misslyckas den startar inget nytt; den
+  # ADR-0186: en dump före varje start av webben (och därmed före en migrering). Misslyckas den startar inget nytt; den
   # gamla webben kör vidare. Hamnar i ./backups/hourly som de andra dumparna.
   backup-before-migrate:
     logging: *logging
@@ -83,7 +83,7 @@ services:
       - ./deploy/backup.sh:/backup.sh:ro
     entrypoint: ["/bin/sh", "/backup.sh", "dump", "fore-migrering"]
 
-  # ADR-0185: migreringen som egen tjänst med ägarrollen; webben själv har bara applikationsrollen.
+  # ADR-0186: migreringen som egen tjänst med ägarrollen; webben själv har bara applikationsrollen.
   migrate:
     logging: *logging
     build: .
@@ -141,7 +141,7 @@ services:
   # eftersom en Node-process bara använder en kärna; Caddy fördelar publiken mellan dem. Lägre CPU-vikt än web och
   # databasen (256 mot 1024): när processorn inte räcker blir resultatredovisningen långsammare, inte avläsningen. Egen
   # liten databaspool med tidsgräns och lastavlastning (äldre lista, glesare uppdatering, sist 503 med Retry-After).
-  # Startar när web är igång, migrerar inte och hämtar inga radiostämplingar. ADR-0185: ingen Eventor-nyckel och ingen
+  # Startar när web är igång, migrerar inte och hämtar inga radiostämplingar. ADR-0186: ingen Eventor-nyckel och ingen
   # e-post (självregistreringen och festen behöver ingen av dem).
   web-public: &web-public
     logging: *logging
@@ -173,7 +173,7 @@ services:
   # Steg 65 (ADR-0184, ADR-0177): utskriftsarbetaren skriver PDF:erna för tryck, ett jobb i taget ur kön i databasen. Lägsta
   # CPU-vikt (64) och prioritet (nice 19 i processen), egen liten databaspool (2) och eget minnestak: avläsningen och
   # arbetsytan i `web` väntar aldrig på en utskrift. Startar när databasen är migrerad; ingen port, inga anrop utifrån.
-  # ADR-0185: varje jobb körs i en egen barnprocess med tidsgräns (OTID_PRINT_JOB_TIMEOUT_MS, förval 10 min); ett jobb som
+  # ADR-0186: varje jobb körs i en egen barnprocess med tidsgräns (OTID_PRINT_JOB_TIMEOUT_MS, förval 10 min); ett jobb som
   # hänger avbryts och kön går vidare. Hälsokontrollen ser att arbetaren lever (filen uppdateras minst var 30:e sekund).
   print-worker:
     logging: *logging
@@ -237,7 +237,7 @@ services:
       - ./deploy/backup-ssh:/root/.ssh:ro
     entrypoint: ["/bin/sh", "/backup.sh"]
 
-  # ADR-0185: hälsokontrollen var 15:e minut – webben och databasen (/api/health), publikens instanser, utskriftskön, disken
+  # ADR-0186: hälsokontrollen var 15:e minut – webben och databasen (/api/health), publikens instanser, utskriftskön, disken
   # (larm över 80 %) och att den senaste dumpen är färsk. Pingar OTID_HEARTBEAT_HEALTH_URL när allt är bra och .../fail med
   # beskrivningen annars; skriver alltid i loggen (`logs monitor`).
   monitor:

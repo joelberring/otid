@@ -29,7 +29,7 @@ export const accountSv = {
     newLink: "Be om en ny länk",
     backToLogin: "Tillbaka till inloggningen"
   },
-  /** ADR-0185: bekräftelselänken. */
+  /** ADR-0186: bekräftelselänken. */
   verify: {
     kicker: "O-Tid · Konto",
     title: "Bekräfta e-postadressen",

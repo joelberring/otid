@@ -59,7 +59,7 @@ describe("ADR-0168 två behörighetsnivåer", () => {
     expect((await accountOnRace(db, { ...helper.proof, raceId })).status).toBe("unauthorized");
     const granted = await grantRacePerson(db, owner.proof, raceId, `hjalp.${suffix}@test.o-tid.se`, "ADMIN");
     expect(granted.status).toBe("granted");
-    // ADR-0185: behörigheten gäller när personens e-postadress är bekräftad.
+    // ADR-0186: behörigheten gäller när personens e-postadress är bekräftad.
     expect((await accountOnRace(db, { ...helper.proof, raceId })).status).toBe("unauthorized");
     await verifyTestAccount(db, helper.result.response.accountId);
 

@@ -21,7 +21,7 @@ export async function groupLeaderGrant(tx: DbExecutor, input: { accountId: strin
 }
 
 /**
- * ADR-0185: ledare och medlemmar läggs till med e-postadressen av någon annan, så rollen gäller först när kontots adress är
+ * ADR-0186: ledare och medlemmar läggs till med e-postadressen av någon annan, så rollen gäller först när kontots adress är
  * bekräftad. Den som skapade gruppen (lade till sig själv) är ledare ändå.
  */
 async function counts(tx: DbExecutor, accountId: string, row: { addedBy: string } | undefined): Promise<boolean> {

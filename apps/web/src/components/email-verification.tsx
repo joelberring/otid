@@ -18,7 +18,7 @@ function takeTokenFromLocation(): string | undefined {
 }
 
 /**
- * ADR-0185: bekräfta e-postadressen. Länken i mejlet (#token=…) och lösenordet som valdes när kontot skapades; sedan är adressen
+ * ADR-0186: bekräfta e-postadressen. Länken i mejlet (#token=…) och lösenordet som valdes när kontot skapades; sedan är adressen
  * bekräftad och kontot inloggat. Lösenordet krävs så att ingen kan låta ägaren av adressen bekräfta ett konto med ett lösenord
  * som någon annan valt.
  */

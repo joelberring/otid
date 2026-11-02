@@ -10,7 +10,7 @@ const post = (email: string) => new Request("https://tid.klubb.se/api/account/pa
   headers: { origin: env.O_TID_PUBLIC_ORIGIN, "content-type": "application/json", "x-forwarded-for": "198.51.100.4" },
   body: JSON.stringify({ formatVersion: 1, email }) });
 
-/** ADR-0185: arbetet efter svaret samlas här och körs när testet vill (som `runInBackground` i drift, fast styrt). */
+/** ADR-0186: arbetet efter svaret samlas här och körs när testet vill (som `runInBackground` i drift, fast styrt). */
 function laterQueue() {
   const tasks: (() => Promise<void>)[] = [];
   const labels: string[] = [];
@@ -39,7 +39,7 @@ describe("ADR-0172 glömt lösenord", () => {
     const unknown = await passwordResetRequestRoute(db, post("okand@klubb.se"), env, send, reset, later.background);
     expect([known.status, unknown.status]).toEqual([202, 202]);
     expect(await known.text()).toBe(await unknown.text());
-    // ADR-0185: svaret ges innan kontot slås upp och mejlet skickas, så svarstiden avslöjar inget.
+    // ADR-0186: svaret ges innan kontot slås upp och mejlet skickas, så svarstiden avslöjar inget.
     expect(reset).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
     await later.run();

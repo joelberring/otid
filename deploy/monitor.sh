@@ -1,5 +1,5 @@
 #!/bin/sh
-# Hälsokontrollen (ADR-0185): tjänsten monitor i docker-compose.prod.yml. Var OTID_HEALTH_INTERVAL_MINUTES:e minut (förval 15):
+# Hälsokontrollen (ADR-0186): tjänsten monitor i docker-compose.prod.yml. Var OTID_HEALTH_INTERVAL_MINUTES:e minut (förval 15):
 #   - webben och databasen: http://web:3000/api/health (frågar databasen och utskriftskön),
 #   - publikens instanser: /om på web-public och web-public2,
 #   - utskriftskön: inget jobb får vänta längre än 15 minuter (då står utskriftsarbetaren still),

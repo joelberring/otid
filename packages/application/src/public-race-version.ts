@@ -11,7 +11,7 @@ import { UUID_PATTERN } from "./serialization";
  * - startlistan publiceras eller dras tillbaka (`start_list_publication`),
  * - tävlingen publiceras om,
  * - steg 68: träningsgruppens inställningar ändras (namnen visas enligt gruppen), eller tävlingen flyttas till eller från en grupp,
- * - ADR-0185: arrangörens val för varianten och kartan före start ändras. Att en starttid passerar ändrar inte nyckeln; listorna
+ * - ADR-0186: arrangörens val för varianten och kartan före start ändras. Att en starttid passerar ändrar inte nyckeln; listorna
  *   räknas ändå om efter cachens maxålder (15 s).
  * Ändringar som inte syns i nyckeln (t.ex. banans längd) täcks av cachens maxålder i webben.
  * Ger null för en okänd tävling.

@@ -19,7 +19,7 @@ describe("personuppgifter och om O-Tid", () => {
 
   it("säger vad som är publikt: bricknummer bara när arrangören slår på det, live och sträcktider, fest utan belopp, inte för sökmotorer", () => {
     const visible = privacy.publicItems.join(" ");
-    // ADR-0185: bricknumren är av för nya tävlingar, varianten och kartan publikt först efter start, inget indexeras.
+    // ADR-0186: bricknumren är av för nya tävlingar, varianten och kartan publikt först efter start, inget indexeras.
     expect(visible).toContain("visar inte bricknummer i nya tävlingar");
     expect(visible).toMatch(/Variantens bokstav .* kartan visas publikt först efter start/);
     expect(privacy.public).toMatch(/stängda för sökmotorer och AI-tjänster/);
@@ -35,7 +35,7 @@ describe("personuppgifter och om O-Tid", () => {
     expect(privacy.howLong).toMatch(/Tills tävlingen \(festen\) eller kontot tas bort/);
     expect(privacy.howLong).toMatch(/två dygn/);
     expect(privacy.howLong).toMatch(/14 dagar/);
-    // ADR-0185: träningsgrupper, banläggningens notiser och foton, utskrifterna och säkerhetskopiorna står också med.
+    // ADR-0186: träningsgrupper, banläggningens notiser och foton, utskrifterna och säkerhetskopiorna står också med.
     expect(privacy.groups).toMatch(/ledare och medlemmar/);
     expect(privacy.courseSetting).toMatch(/foto/);
     expect(privacy.printJobs).toMatch(/30 dagar/);

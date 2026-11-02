@@ -42,7 +42,7 @@ export interface UserAccountPrincipal {
   displayName: string;
   superadmin: boolean;
   expiresAt: string;
-  /** ADR-0185: adressen är bekräftad; behörigheter som andra ger kontot gäller först då. */
+  /** ADR-0186: adressen är bekräftad; behörigheter som andra ger kontot gäller först då. */
   emailVerified: boolean;
 }
 
@@ -59,7 +59,7 @@ export type UserAccountAuthenticationResult =
 
 export type UserAccountLoginResult =
   | { status: "rate-limited" | "blocked" }
-  /** ADR-0185: rätt lösenord men obekräftad adress (med e-post inställd): samma svar, och `verification` att skicka. */
+  /** ADR-0186: rätt lösenord men obekräftad adress (med e-post inställd): samma svar, och `verification` att skicka. */
   | { status: "unauthorized"; verification?: EmailVerificationDelivery }
   | { status: "authenticated"; response: OrganizerAccountLoginResponse; sessionToken: string; csrfToken: string };
 
@@ -72,7 +72,7 @@ export interface UserAccountRuntimeOptions {
   csrfSecretBytes?: Uint8Array;
   /** Klientens adress (inloggningens spärr per IP, steg 46); sparas bara som HMAC. */
   clientKey?: string;
-  /** ADR-0185: med e-post inställd loggas ett obekräftat konto inte in; det får en ny bekräftelselänk i stället. */
+  /** ADR-0186: med e-post inställd loggas ett obekräftat konto inte in; det får en ny bekräftelselänk i stället. */
   requireVerifiedEmail?: boolean;
 }
 
@@ -301,7 +301,7 @@ export async function loginUserAccount(
     await clearUserAccountLoginThrottle(tx, account.email, now);
     // Ett spärrat konto får veta det först när lösenordet stämmer.
     if (account.blockedAt) return { status: "blocked" } as const;
-    // ADR-0185: samma svar som fel lösenord, så att registreringen inte avslöjar om adressen fanns; länken kommer med e-post.
+    // ADR-0186: samma svar som fel lösenord, så att registreringen inte avslöjar om adressen fanns; länken kommer med e-post.
     if (options.requireVerifiedEmail && !account.emailVerifiedAt) {
       const verification = await verificationForUnverifiedLogin(tx, account, verifier, now);
       return verification ? { status: "unauthorized", verification } as const : { status: "unauthorized" } as const;

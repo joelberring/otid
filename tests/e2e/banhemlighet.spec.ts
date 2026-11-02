@@ -33,7 +33,7 @@ test("banorna är hemliga publikt tills arrangören visar dem, och arrangören s
     finishPunchedAt: new Date(start + (variantAd.length + 1) * 120_000).toISOString(),
     punches: variantAd.map((code, index) => ({ code, punchedAt: new Date(start + (index + 1) * 120_000).toISOString() })) });
 
-  // ADR-0185: den publika startlistan visar inte varianten för den som inte har startat (fri start = efter start eller när
+  // ADR-0186: den publika startlistan visar inte varianten för den som inte har startat (fri start = efter start eller när
   // banorna blir publika), också i API:t; arrangören ser den. Valet under Publicera → Före start ändrar det.
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Start");

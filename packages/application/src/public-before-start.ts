@@ -11,7 +11,7 @@ import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import type { DbExecutor } from "./snapshot";
 
 /**
- * ADR-0185: före start. Variantens bokstav (startlistan, stafettlistan och startlistans IOF XML) och kartbilden (vägvalen,
+ * ADR-0186: före start. Variantens bokstav (startlistan, stafettlistan och startlistans IOF XML) och kartbilden (vägvalen,
  * GPS-rutterna och kontrollkartan) är hemliga publikt före start, om inte arrangören valt annat under Publicera. Arrangören
  * och funktionärerna ser alltid allt. Banhemligheten (ADR-0176) gäller som förut ovanpå.
  */

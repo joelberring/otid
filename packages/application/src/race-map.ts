@@ -227,7 +227,7 @@ async function publicRead<T>(db: Database, raceId: string, read: (tx: DatabaseTr
 }
 
 /**
- * Kartbilden är dold publikt: avtalet i träningsgruppen spärrar den (steg 68), eller (ADR-0185) tävlingen har inte startat och
+ * Kartbilden är dold publikt: avtalet i träningsgruppen spärrar den (steg 68), eller (ADR-0186) tävlingen har inte startat och
  * banorna är inte publika, om inte arrangören valt "Visa kartan publikt: direkt" under Publicera.
  */
 async function publicMapHidden(tx: DatabaseTransaction, raceId: string): Promise<boolean> {
@@ -244,7 +244,7 @@ async function georeferencedMap(tx: DatabaseTransaction, raceId: string) {
 
 /**
  * Kartbilden publikt, bara när den är georefererad (annars finns inga vägval att visa). Steg 68 (ADR-0182 beslut 4): inte
- * när kartans avtal har gått ut eller inte tillåter publik visning, om inte admin medvetet valt att visa den ändå. ADR-0185:
+ * när kartans avtal har gått ut eller inte tillåter publik visning, om inte admin medvetet valt att visa den ändå. ADR-0186:
  * inte heller före start (`publicMapHidden`). Den
  * publika vägvalskartan, GPS-rutterna och kontrollkartan ritas alla på den här bilden.
  */

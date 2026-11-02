@@ -10,7 +10,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-11-02 – Säkerhet, integritet och drift efter översynen (grenen sakerhet-drift, ADR-0185, migration 0038)
+### 2026-11-02 – Säkerhet, integritet och drift efter översynen (grenen sakerhet-drift, ADR-0186, migration 0040)
 - Beroenden: next 16.4.3, sharp 0.35.5, fast-xml-parser 5.11.2, nodemailer 10.3.1, drizzle-orm 0.45.4, zod 4.6.7; `images.unoptimized`; Mapper avvisar DOCTYPE. Kvar i `pnpm audit --prod`: playwright 1.55.0 (bara test).
 - Inget publikt om löpare indexeras (robots.txt, X-Robots-Tag, meta); HSTS. Varianten (startlista, IOF XML, stafett) och kartbilden publikt först efter start, val under Publicera → Före start; bricknummer av för nya tävlingar.
 - Behörigheter från andra kräver bekräftad e-post; registrering och glömt lösenord svarar likadant och arbetar efter svaret; `superadmin.mjs verify`.

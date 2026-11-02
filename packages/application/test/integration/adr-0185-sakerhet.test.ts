@@ -19,7 +19,7 @@ import { accountOnRace, grantRacePerson } from "./accounts";
 import { grantRacePersonAsAdmin } from "../../src/race-people";
 
 const base = process.env.TEST_DATABASE_URL;
-if (!base) throw new Error("ADR-0185-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
+if (!base) throw new Error("ADR-0186-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
 const admin = createDatabase(base);
 const databaseName = `otid_adr0185_${randomUUID().replaceAll("-", "")}`;
 const url = new URL(base);
@@ -81,7 +81,7 @@ async function timing(proof: Proof, change: { variant?: "AFTER_START" | "ALWAYS"
   return saved.response.publicTiming;
 }
 
-describe("ADR-0185: varianten publikt först efter start", () => {
+describe("ADR-0186: varianten publikt först efter start", () => {
   it("döljer varianten i den publika startlistan, dess IOF XML och API:t tills löparen har startat eller banorna är publika", async () => {
     const { proof, forked } = await forkedRace();
     const now = new Date();
@@ -163,7 +163,7 @@ describe("ADR-0185: varianten publikt först efter start", () => {
   });
 });
 
-describe("ADR-0185: kartbilden publikt efter start", () => {
+describe("ADR-0186: kartbilden publikt efter start", () => {
   it("lämnar inte ut kartan före start om inte arrangören valt Direkt; efter start, med publika banor eller valet syns den", async () => {
     const proof = await race();
     const image = Buffer.from("inte en riktig bild men bytes");
@@ -195,7 +195,7 @@ describe("ADR-0185: kartbilden publikt efter start", () => {
   });
 });
 
-describe("ADR-0185: behörigheter kräver bekräftad e-post", () => {
+describe("ADR-0186: behörigheter kräver bekräftad e-post", () => {
   it("ger en behörighet från någon annan verkan först när adressen är bekräftad", async () => {
     const proof = await race();
     const target = await registerUserAccount(db, { formatVersion: 1, email: `ny.${randomUUID().slice(0, 8)}@test.o-tid.se`, displayName: "Ny",

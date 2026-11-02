@@ -9,7 +9,7 @@ export const coursePublicReasonSchema = z.enum(["REVEALED", "FINALIZED", "ALL_FI
 export type CoursePublicReasonValue = z.infer<typeof coursePublicReasonSchema>;
 
 /**
- * ADR-0185: före start. Varianten publikt efter löparens start (förval) eller alltid; kartbilden publikt efter tävlingens
+ * ADR-0186: före start. Varianten publikt efter löparens start (förval) eller alltid; kartbilden publikt efter tävlingens
  * start (förval) eller direkt när tävlingen publiceras.
  */
 export const publicVariantTimingSchema = z.enum(["AFTER_START", "ALWAYS"]);
@@ -24,7 +24,7 @@ export const courseSecrecyStateSchema = z.object({
   remaining: z.number().int().min(0).max(100_000),
   /** Arrangörens val "Visa banorna publikt nu". Null = inte valt. */
   revealedAt: z.iso.datetime({ offset: true }).nullable(),
-  /** ADR-0185: arrangörens val för varianten och kartan före start. Saknas i svar från före ADR-0185. */
+  /** ADR-0186: arrangörens val för varianten och kartan före start. Saknas i svar från före ADR-0186. */
   publicTiming: publicTimingSchema.optional()
 }).strict();
 export type CourseSecrecyState = z.infer<typeof courseSecrecyStateSchema>;

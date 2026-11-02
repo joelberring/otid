@@ -14,7 +14,7 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
 export async function handlePublicationRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
   if (action.kind === "course-secrecy" && request.method === "PATCH") {
-    // ADR-0185: före start – varianten (efter start/alltid) och kartan (efter start/direkt) publikt.
+    // ADR-0186: före start – varianten (efter start/alltid) och kartan (efter start/direkt) publikt.
     let body: unknown;
     try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     const result = await dependencies.publicTiming(db, { ...proof, raceId, request: body });

@@ -76,7 +76,7 @@ function requestFailure(status: string): Response {
   }
 }
 
-/** ADR-0185: mejlet med bekräftelselänken, eller att adressen redan har ett konto. */
+/** ADR-0186: mejlet med bekräftelselänken, eller att adressen redan har ett konto. */
 async function sendVerification(mail: Mail, origin: string, delivery: EmailVerificationDelivery, send: Send): Promise<void> {
   if (delivery.kind === "ALREADY_REGISTERED") {
     await send(mail, delivery.email, alreadyRegisteredMessage({ displayName: delivery.displayName, loginLink: `${origin}/organizer`,
@@ -99,7 +99,7 @@ export async function organizerLoginRoute(
   const parsed = organizerAccountLoginRequestSchema.safeParse(body);
   if (!parsed.success) return organizerFailure(400, "INVALID_REQUEST");
   try {
-    // ADR-0185: med e-post loggas ett obekräftat konto inte in (samma svar som fel lösenord); det får en ny länk.
+    // ADR-0186: med e-post loggas ett obekräftat konto inte in (samma svar som fel lösenord); det får en ny länk.
     const mail = mailEnabled(environment);
     const result = await login(db, parsed.data, { clientKey: clientAddress(request), ...(mail ? { requireVerifiedEmail: true } : {}) });
     if (result.status === "unauthorized" && result.verification && mail) {
@@ -124,7 +124,7 @@ export function registrationsPerHour(environment: Environment): number | undefin
 }
 
 /**
- * Öppen registrering (ADR-0172), med spärr per IP. ADR-0185: med e-post inställd blir svaret detsamma oavsett om adressen
+ * Öppen registrering (ADR-0172), med spärr per IP. ADR-0186: med e-post inställd blir svaret detsamma oavsett om adressen
  * redan har ett konto (202, "kolla e-posten"), och allt arbete görs efter svaret; kontot loggas in när länken öppnas. Utan
  * e-post skapas kontot och loggas in direkt som förut (adressen är då obekräftad tills superadmin bekräftar den).
  */
@@ -161,7 +161,7 @@ export async function organizerRegisterRoute(
   } catch { return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
-/** ADR-0185: länken i bekräftelsemejlet med lösenordet från registreringen. Bekräftar adressen och loggar in. */
+/** ADR-0186: länken i bekräftelsemejlet med lösenordet från registreringen. Bekräftar adressen och loggar in. */
 export async function organizerVerifyEmailRoute(
   db: Database, request: Request, verify: Verify = verifyEmailAndLogIn, environment: Environment = process.env
 ): Promise<Response> {

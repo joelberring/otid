@@ -149,7 +149,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   expect(startXml).toContain("<StartTime>");
   expect(startXml).not.toContain("8301003");
 
-  // Publicering: en åtgärd. Den publika listan har samma vyer, men ingen bricka (ADR-0185: av som standard för nya tävlingar).
+  // Publicering: en åtgärd. Den publika listan har samma vyer, men ingen bricka (ADR-0186: av som standard för nya tävlingar).
   await view(toolbar, "Per klass");
   await owner.getByRole("button", { name: "Publicera startlistan" }).click();
   await expect(owner.getByText("Startlistan är publicerad.")).toBeVisible();
@@ -172,7 +172,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   }
   await screenshots(visitor, "publik-start-per-starttid");
   const publicCsv = await download(visitor, publicToolbar, "CSV (Excel)");
-  // ADR-0185: ingen bricka publikt (av som standard för nya tävlingar).
+  // ADR-0186: ingen bricka publikt (av som standard för nya tävlingar).
   expect(publicCsv).toContain("Starttid;Startfålla;Klass;Namn;Klubb\r\n");
   expect(publicCsv).not.toContain("8301001");
   const publicStartXml = await download(visitor, publicToolbar, "IOF XML");

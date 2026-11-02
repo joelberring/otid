@@ -1,5 +1,5 @@
 #!/bin/sh
-# Databasroller (ADR-0185, docs/drift.md "Databasroller"). Körs på servern i repots rot:
+# Databasroller (ADR-0186, docs/drift.md "Databasroller"). Körs på servern i repots rot:
 #
 #   sh deploy/db-roles.sh setup      skapar rollerna (eller byter deras lösenord), lägger lösenorden i .env om de saknas,
 #                                    gör otid_owner till ägare av allt i databasen och ger rättigheterna. Kan köras om.

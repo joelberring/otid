@@ -105,7 +105,7 @@ test("säkerhetshuvuden: publika sidor, admin, avläsningen, festen och API:t", 
   expect((await visitor.request.get(`/api/public/parties/${raceId}/logo`)).headers()["content-security-policy"]).toBe("default-src 'none'; sandbox");
   expect(ownerErrors).toEqual([]);
 
-  // ADR-0185: inget publikt om löpare indexeras (robots.txt, X-Robots-Tag och robots-meta), startsidan och Om gör det.
+  // ADR-0186: inget publikt om löpare indexeras (robots.txt, X-Robots-Tag och robots-meta), startsidan och Om gör det.
   const robots = await (await visitor.request.get("/robots.txt")).text();
   for (const path of ["/results/", "/starts/", "/t/", "/fest/", "/g/", "/api/"]) expect(robots).toContain(`Disallow: ${path}`);
   expect(robots).toContain("User-Agent: GPTBot");

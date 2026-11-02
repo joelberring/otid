@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { normalizeAccountEmail } from "@o-tid/contracts";
 
 /**
- * E-post från servern (ADR-0172 beslut 1): återställningslänkar och (ADR-0185) bekräftelse av e-postadressen. Inställt i serverns miljö:
+ * E-post från servern (ADR-0172 beslut 1): återställningslänkar och (ADR-0186) bekräftelse av e-postadressen. Inställt i serverns miljö:
  * `OTID_SMTP_URL` (smtp://användare:lösen@värd:587 med STARTTLS, eller smtps://…:465) och `OTID_MAIL_FROM`
  * (avsändare, t.ex. "O-Tid <noreply@klubb.se>"). Utan `OTID_SMTP_URL` är e-post avstängd och sidan
  * "Glömt lösenord" hänvisar till den som driver O-Tid. Inga adresser, länkar eller lösenord loggas.
@@ -62,7 +62,7 @@ export function passwordResetMessage(mail: PasswordResetMail): { subject: string
   };
 }
 
-/** ADR-0185: bekräftelselänken efter registreringen (eller en inloggning på ett obekräftat konto). */
+/** ADR-0186: bekräftelselänken efter registreringen (eller en inloggning på ett obekräftat konto). */
 export function emailVerificationMessage(mail: PasswordResetMail): { subject: string; text: string } {
   const time = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
   return {
@@ -83,7 +83,7 @@ export function emailVerificationMessage(mail: PasswordResetMail): { subject: st
   };
 }
 
-/** ADR-0185: registrering med en adress som redan har ett konto. Samma svar på sidan; bara ägaren av adressen får veta. */
+/** ADR-0186: registrering med en adress som redan har ett konto. Samma svar på sidan; bara ägaren av adressen får veta. */
 export function alreadyRegisteredMessage(mail: { displayName: string; loginLink: string; recoverLink: string }): { subject: string; text: string } {
   return {
     subject: "Du har redan ett konto i O-Tid",
@@ -128,7 +128,7 @@ export async function sendMessage(
 }
 
 /**
- * ADR-0185: arbete efter svaret (registrering, glömt lösenord, inloggning på obekräftat konto), så att svarstiden inte avslöjar
+ * ADR-0186: arbete efter svaret (registrering, glömt lösenord, inloggning på obekräftat konto), så att svarstiden inte avslöjar
  * om adressen har ett konto. Fel loggas med en kort beskrivning, aldrig med adress eller länk.
  */
 export type Background = (label: string, task: () => Promise<void>) => void;

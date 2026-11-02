@@ -1,4 +1,4 @@
-# ADR-0185: Säkerhet, integritet och drift efter översynen 2026-11-02
+# ADR-0186: Säkerhet, integritet och drift efter översynen 2026-11-02
 
 Status: beslutad 2026-11-02 (grenen `sakerhet-drift`). Ändrar ADR-0172 beslut 1 (registreringen), ADR-0176 (vad som syns
 publikt före start) och steg 33 (bricknummer som förval).

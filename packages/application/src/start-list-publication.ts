@@ -296,7 +296,7 @@ async function liveStartList(db: Database, raceId: string, showCardNumbers: bool
             throw error;
         }
         if (s.content.classes.every(c => c.entries.length === 0)) return undefined;
-        // ADR-0185: varianten publikt först efter löparens start (eller när banorna är publika / arrangören valt "alltid").
+        // ADR-0186: varianten publikt först efter löparens start (eller när banorna är publika / arrangören valt "alltid").
         const variants = hideUnstartedVariants(startListPublicationContentSchema.parse(showCardNumbers ? s.content : withoutCardNumbers(s.content)),
             await loadPublicVariantPolicy(tx, raceId, now));
         return publicStartListResponseSchema.parse({ iofExportAvailable: false, showCardNumbers, live: true, formatVersion: 1,
@@ -326,7 +326,7 @@ export async function getPublicStartList(db: Database, raceId: string, now = new
         action: schema.startListPublications.action, revision: schema.startListPublications.revision, content: schema.startListPublications.content, decidedAt: schema.startListPublications.decidedAt
     }).from(schema.startListPublications).where(eq(schema.startListPublications.raceId, raceId)).orderBy(desc(schema.startListPublications.revision)).limit(1);
     if (!r || r.action !== "PUBLISH" || !r.content) return { status: "not-found" };
-    // ADR-0185: varianten publikt först efter löparens start; så länge någon är dold ges startlistans IOF XML inte ut publikt.
+    // ADR-0186: varianten publikt först efter löparens start; så länge någon är dold ges startlistans IOF XML inte ut publikt.
     const variants = hideUnstartedVariants(startListPublicationContentSchema.parse(r.showCardNumbers === true ? r.content : withoutCardNumbers(r.content)),
         await loadPublicVariantPolicy(db, raceId, now));
     return {
@@ -349,7 +349,7 @@ function withoutCardNumbers(content: unknown): unknown {
 }
 
 /**
- * Read only the active immutable decision, never today's participants. ADR-0185: the frozen XML names each runner's variant
+ * Read only the active immutable decision, never today's participants. ADR-0186: the frozen XML names each runner's variant
  * (course "Bana-AC"), so while any variant is still hidden publicly the XML is unavailable (409), like the JSON hides it.
  */
 export async function getPublishedStartListXml(db: Database, raceId: string, now = new Date()): Promise<

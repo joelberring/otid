@@ -9,7 +9,7 @@ import { requireRaceRole } from "../../src/race-session";
 export const TEST_PASSWORD = "hemligt-lösen";
 
 /**
- * ADR-0185: kontots e-postadress bekräftad, som för alla konton från före bekräftelsen och för den som öppnat länken. Behörigheter
+ * ADR-0186: kontots e-postadress bekräftad, som för alla konton från före bekräftelsen och för den som öppnat länken. Behörigheter
  * som andra ger kontot gäller först då.
  */
 export async function verifyTestAccount(db: Database, accountId: string, now = new Date()): Promise<void> {

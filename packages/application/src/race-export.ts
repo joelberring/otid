@@ -53,8 +53,11 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
       const binary = columns.filter(column => column.type === "bytea" && !omit.has(column.name));
       const removed = [...omit, ...binary.map(column => column.name)].map(name => ` - '${name}'`).join("");
       const order = primaryKey.length > 0 ? ` order by ${primaryKey.map(name => `t.${quoteIdentifier(name)}`).join(", ")}` : "";
+      // ADR-0189: innehåll i lagret läses ut som fil, precis som innehåll i den gamla kolumnen.
+      const binaryValue = (name: string) => table.stored?.[name]
+        ? `coalesce(t.${quoteIdentifier(name)}, otid_map_content_bytes(t.${quoteIdentifier(table.stored[name])}))` : `t.${quoteIdentifier(name)}`;
       const query = sql.join([sql.raw(`select to_jsonb(t)${removed} as row${binary.map((column, index) =>
-        `, t.${quoteIdentifier(column.name)} as b${index}`).join("")} from ${quoteIdentifier(table.name)} t where `),
+        `, ${binaryValue(column.name)} as b${index}`).join("")} from ${quoteIdentifier(table.name)} t where `),
       table.scope(raceId, eventId), sql.raw(order)]);
       const rows = (await tx.execute<Record<string, unknown> & { row: Row }>(query)).rows.map(result => {
         const row = result.row;

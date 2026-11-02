@@ -1,3 +1,4 @@
+import { mapStorageQuotaProblems } from "@o-tid/application";
 import { mailConfiguration } from "./mail";
 import { SecurityConfigurationError, securityPolicy } from "./security-policy";
 
@@ -24,6 +25,8 @@ export function configurationProblems(environment: Partial<Record<string, string
   if (role && role !== "competition" && role !== "public" && role !== "all") {
     problems.push(`OTID_INSTANCE_ROLE="${role}" är okänd; tillåtet är competition, public eller tom.`);
   }
+  // ADR-0189 beslut 3: kartornas kvot.
+  problems.push(...mapStorageQuotaProblems(environment).map(problem => `${problem}.`));
   return problems;
 }
 

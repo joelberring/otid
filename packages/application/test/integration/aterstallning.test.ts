@@ -128,7 +128,9 @@ describe("ADR-0187: säkerhetskopia och återställning", () => {
     const raw0 = await pool.query("select raw_payload, content_hash, local_sequence from raw_device_message where race_id = $1 order by content_hash", [ids.race]);
     const raw1 = await pool.query("select raw_payload, content_hash, local_sequence from raw_device_message where race_id = $1 order by content_hash", [copy]);
     expect(raw1.rows).toEqual(raw0.rows);
-    expect((await pool.query<{ image: Buffer }>("select image from race_map where race_id = $1", [copy])).rows[0]!.image.toString())
+    // ADR-0189: kartbilden ligger i innehållslagret efter återställningen.
+    expect((await pool.query<{ image: Buffer }>("select otid_map_content_bytes(content_sha256) as image from race_map where race_id = $1 and image is null",
+      [copy])).rows[0]!.image.toString())
       .toBe("kartbild i test, inte en riktig bild");
     expect((await pool.query<{ photo: Buffer }>("select photo from course_setting_note where race_id = $1", [copy])).rows[0]!.photo.toString()).toBe("foto");
 

@@ -16,10 +16,15 @@ import {
 } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
+import type { MapQuotaExceeded } from "@o-tid/application";
 
 
-function problem(error: RaceMapProblem): Response {
-  return json(raceMapProblemSchema.parse({ formatVersion: 1, error }), 422);
+const MB = 1024 * 1024;
+
+/** 422 med felet; vid full kvot också gränsen och vad som används (ADR-0189 beslut 3), i hela MB. */
+function problem(error: RaceMapProblem, quota?: MapQuotaExceeded): Response {
+  return json(raceMapProblemSchema.parse({ formatVersion: 1, error, ...(quota ? { quota: { scope: quota.scope,
+    usedMb: Math.ceil(quota.usedBytes / MB), limitMb: Math.floor(quota.limitBytes / MB), neededMb: Math.ceil(quota.neededBytes / MB) } } : {}) }), 422);
 }
 
 /** Filens namn i en header (URI-kodad); ett trasigt namn ger fallback i stället för fel. */
@@ -72,7 +77,7 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
       if (bytes === "too-large") return problem("IMAGE_TOO_LARGE");
       if (!bytes) return failure(400, "INVALID_REQUEST");
       const result = await dependencies.raceMapSave(db, { ...input, bytes, fileName: headerFileName(request) });
-      if (result.status === "problem") return problem(result.problem);
+      if (result.status === "problem") return problem(result.problem, result.quota);
       return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
     }
     case "race-map-image": {
@@ -148,6 +153,6 @@ async function uploadMapSource(context: RaceAdministratorRouteContext): Promise<
   try { metadata = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)); } catch { return failure(400, "INVALID_REQUEST"); }
   const result = await dependencies.raceMapSourceSave(db, { ...proof, raceId, file: file.bytes, image: image.bytes, metadata,
     fileName: (file.fileName ?? "").slice(0, 200) });
-  if (result.status === "problem") return problem(result.problem);
+  if (result.status === "problem") return problem(result.problem, result.quota);
   return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
 }

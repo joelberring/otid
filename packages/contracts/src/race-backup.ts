@@ -157,7 +157,7 @@ export type RaceRestoreResponse = z.infer<typeof raceRestoreResponseSchema>;
 
 /** Varför en fil avvisades. `detail` är t.ex. formatversionen eller tabellen och kolumnen. */
 export const raceBackupProblemCodes = ["NOT_A_BACKUP", "OLD_EXPORT", "UNKNOWN_FORMAT_VERSION", "TOO_LARGE", "BROKEN_ARCHIVE",
-  "CHECKSUM_MISMATCH", "UNKNOWN_CONTENT", "INVALID_CONTENT", "DATA_REJECTED"] as const;
+  "CHECKSUM_MISMATCH", "UNKNOWN_CONTENT", "INVALID_CONTENT", "DATA_REJECTED", "STORAGE_QUOTA_EXCEEDED"] as const;
 export const raceBackupProblemSchema = z.object({
   formatVersion: z.literal(1),
   error: z.enum(raceBackupProblemCodes),

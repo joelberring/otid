@@ -57,7 +57,14 @@ export const participantRouteUploadResponseSchema = z.object({
 /** Begripliga fel vid uppladdning och georeferens (HTTP 422). */
 export const raceMapProblemSchema = z.object({
   formatVersion: z.literal(1),
-  error: z.enum(["INVALID_IMAGE", "IMAGE_TOO_LARGE", "INVALID_MAP_FILE", "MAP_FILE_TOO_LARGE", "INVALID_GPX", "ROUTE_WITHOUT_TIMES", "INVALID_GEOREFERENCE", "NO_MAP", "NOT_INDIVIDUAL"])
+  error: z.enum(["INVALID_IMAGE", "IMAGE_TOO_LARGE", "INVALID_MAP_FILE", "MAP_FILE_TOO_LARGE", "INVALID_GPX", "ROUTE_WITHOUT_TIMES",
+    "INVALID_GEOREFERENCE", "NO_MAP", "NOT_INDIVIDUAL", "STORAGE_QUOTA_EXCEEDED"]),
+  /**
+   * ADR-0189 beslut 3: vid STORAGE_QUOTA_EXCEEDED vilken gräns (kontots eller installationens), hur mycket som redan används,
+   * gränsen och vad filen behöver, i hela MB.
+   */
+  quota: z.object({ scope: z.enum(["ACCOUNT", "INSTALLATION"]), usedMb: z.number().int().nonnegative(), limitMb: z.number().int().nonnegative(),
+    neededMb: z.number().int().nonnegative() }).strict().optional()
 }).strict();
 
 const pixel = z.tuple([z.number().finite(), z.number().finite()]);
@@ -90,4 +97,5 @@ export type RaceMapGeoreferenceRequest = z.infer<typeof raceMapGeoreferenceReque
 export type AdminRaceMapState = z.infer<typeof adminRaceMapStateSchema>;
 export type ParticipantRouteUploadResponse = z.infer<typeof participantRouteUploadResponseSchema>;
 export type RaceMapProblem = z.infer<typeof raceMapProblemSchema>["error"];
+export type RaceMapQuotaProblem = NonNullable<z.infer<typeof raceMapProblemSchema>["quota"]>;
 export type PublicLegRoutes = z.infer<typeof publicLegRoutesSchema>;

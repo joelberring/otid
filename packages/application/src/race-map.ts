@@ -20,6 +20,10 @@ import { loadPublishedBestRoute, runnerCourseOf } from "./route-choice";
 import { racePublicMapBlocked } from "./training-group-maps";
 import { publicMapAllowedNow } from "./public-before-start";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
+import {
+  contentHead, contentLength, mapStorageQuota, rowContent, storeMapContent, type MapContentInput, type MapQuotaExceeded,
+  type MapStorageQuota
+} from "./map-content";
 
 /**
  * Karta och vägval (ADR-0171, PLAN.md steg 16). Kartbilden och GPX-filerna sparas i PostgreSQL. Bara admin
@@ -29,7 +33,7 @@ import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 type Authentication = RaceSessionProof;
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" };
-type Problem = { status: "problem"; problem: RaceMapProblem };
+type Problem = { status: "problem"; problem: RaceMapProblem; quota?: MapQuotaExceeded };
 const fileName = (value: string, fallback: string) => value.replace(/\p{Cc}/gu, "").trim().slice(0, 200) || fallback;
 const iso = (value: Date) => value.toISOString();
 
@@ -108,9 +112,10 @@ export async function readRaceMapStateAsAdmin(db: Database, input: Authenticatio
 export async function readRaceMapImageAsAdmin(db: Database, input: Authentication, now = new Date())
   : Promise<Failure | { status: "ok"; mediaType: string; image: Buffer }> {
   return adminRead(db, input, now, async tx => {
-    const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, image: schema.raceMaps.image })
+    const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, inline: schema.raceMaps.image, contentSha256: schema.raceMaps.contentSha256 })
       .from(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId));
-    return map ? { status: "ok" as const, mediaType: map.mediaType, image: map.image } : { status: "not-found" as const };
+    const image = map ? await rowContent(tx, map) : undefined;
+    return map && image ? { status: "ok" as const, mediaType: map.mediaType, image } : { status: "not-found" as const };
   });
 }
 
@@ -118,13 +123,18 @@ export async function readRaceMapImageAsAdmin(db: Database, input: Authenticatio
  * Ny eller utbytt kartbild (PNG eller JPEG). En ny bild måste georefereras igen. Steg 59: bilden är inte längre ritad ur
  * kartfilen, så en sparad kartfil tas bort.
  */
-export async function saveRaceMapAsAdmin(db: Database, input: Authentication & { bytes: Uint8Array; fileName: string }, now = new Date())
+export async function saveRaceMapAsAdmin(db: Database,
+  input: Authentication & { bytes: MapContentInput; fileName: string; quota?: MapStorageQuota }, now = new Date())
   : Promise<Failure | Problem | { status: "ok" }> {
-  const image = imageDimensions(input.bytes);
+  const image = imageDimensions(contentHead(input.bytes));
   if (!image) return { status: "problem", problem: "INVALID_IMAGE" };
+  const quota = input.quota ?? mapStorageQuota();
   return adminWrite(db, input, now, async (tx, actorId) => {
-    const values = { fileName: fileName(input.fileName, "karta"), mediaType: image.mediaType, image: Buffer.from(input.bytes),
-      sha256: sha256(input.bytes), byteLength: input.bytes.byteLength, width: image.width, height: image.height,
+    // ADR-0189: bilden lagras en gång; tävlingen pekar på den.
+    const stored = await storeMapContent(tx, input.bytes, actorId, now, quota);
+    if (stored.status === "quota") return { status: "problem" as const, problem: "STORAGE_QUOTA_EXCEEDED" as const, quota: stored.quota };
+    const values = { fileName: fileName(input.fileName, "karta"), mediaType: image.mediaType, image: null, contentSha256: stored.sha256,
+      sha256: stored.sha256, byteLength: contentLength(input.bytes), width: image.width, height: image.height,
       tiePoints: null, transform: null, uploadedAt: now, georeferencedAt: null };
     await tx.insert(schema.raceMaps).values({ raceId: input.raceId, ...values })
       .onConflictDoUpdate({ target: schema.raceMaps.raceId, set: values });
@@ -252,9 +262,12 @@ export async function readPublicRaceMapImage(db: Database, raceId: string)
   : Promise<{ mediaType: string; image: Buffer; sha256: string } | undefined> {
   return publicRead(db, raceId, async tx => {
     if (await publicMapHidden(tx, raceId)) return undefined;
-    const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, image: schema.raceMaps.image, sha256: schema.raceMaps.sha256,
-      transform: schema.raceMaps.transform }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
-    return map?.transform ? { mediaType: map.mediaType, image: map.image, sha256: map.sha256 } : undefined;
+    const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, inline: schema.raceMaps.image,
+      contentSha256: schema.raceMaps.contentSha256, sha256: schema.raceMaps.sha256, transform: schema.raceMaps.transform })
+      .from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
+    if (!map?.transform) return undefined;
+    const image = await rowContent(tx, map);
+    return image ? { mediaType: map.mediaType, image, sha256: map.sha256 } : undefined;
   });
 }
 

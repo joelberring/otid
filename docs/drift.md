@@ -432,7 +432,7 @@ bara det den behöver:
 | --- | --- | --- |
 | `otid_owner` | `migrate`, `backup`, `backup-before-migrate` | äger tabellerna, ändrar schemat, läser allt för dumpen |
 | `otid_app` | `web`, `web-public`, `web-public2` | läsa och skriva data, inte ändra schemat |
-| `otid_print` | `print-worker` | utskriftskön, tävlingens namn och kartfilen, inget annat |
+| `otid_print` | `print-worker` | utskriftskön, tävlingens namn och kartfilen (`race_map_source`, `map_content`, `map_content_part`), inget annat |
 
 Superusern finns kvar för `deploy/db-roles.sh` och underhåll för hand. Ingen data flyttas, bara ägare och rättigheter.
 Provat 2026-11-02 mot en kopia med data (PostgreSQL 16, 1 286 anmälda och 689 konton): övergången, migrering 0040 som
@@ -464,6 +464,38 @@ före övergången (superusern når allt oavsett ägare). Vill du också ta bort
 Index som byggs med `CREATE INDEX CONCURRENTLY` (ADR-0185) bygger ägarrollen, som äger tabellerna (provat 2026-11-02 med
 migration 0038–0040 som `otid_owner` på kopian). En framtida migrering som kräver superuser (t.ex. `CREATE EXTENSION`) misslyckas i `migrate`; kör den då för hand med
 `docker compose -f docker-compose.prod.yml exec postgres psql -U otid -d otid`. Det står i så fall i STATUS.md.
+
+## Kartornas lagring
+
+ADR-0189: kartbilder och kartfiler lagras en gång (`map_content` och `map_content_part`, adresserade med sha256). Tävlingar,
+kopior, träningstillfällen, gruppens bibliotek och återställda tävlingar pekar på samma innehåll, som tas bort när den sista
+tävlingen eller biblioteksraden som pekar på det tas bort. Uppladdningen strömmas till databasen i delar om 1 MiB, så webben
+håller aldrig hela filen i minnet.
+
+**Kvoten** (bara i `web`, i MB): `OTID_MAP_QUOTA_ACCOUNT_MB` (förval 2048) är vad ett konto får ha laddat upp, räknat på nytt
+innehåll som kontot laddade upp först; `OTID_MAP_QUOTA_TOTAL_MB` (förval 20480) är vad hela servern lagrar. `0` stänger av en
+gräns. Samma fil igen, en kopia eller ett träningstillfälle kostar ingenting. Arrangören får ett besked med hur mycket som
+används. Ett ogiltigt värde skrivs som KONFIGURATIONSFEL i loggen och förvalet används. Se läget med
+`docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-content status`.
+
+**Övergången i två steg** (AGENTS.md, migrationsregeln):
+
+1. Migration 0044 lägger till tabellerna och referenserna (bara tillägg). Den nya versionen läser både gamla rader (bilden och
+   filen i `race_map.image`, `race_map_source.file` och bibliotekets kolumner) och nya, och skriver bara nya. Kopior av gamla
+   rader pekar på innehållet direkt; den gamla raden ändras inte. Går något fel kan den förra versionen köras igen, men den
+   kan inte läsa kartor som laddats upp eller kopierats efter uppdateringen (de ser ut att sakna kartbild).
+2. När den nya versionen fungerar (inte på en tävlingsdag): flytta de gamla raderna och ta bort dubbletterna:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-content move
+   ```
+
+   En rad per transaktion (inga långa lås); kommandot kan avbrytas och köras om och säger hur många rader som är kvar.
+   Utrymmet i databasen återanvänds direkt för nya rader; vill du få tillbaka det till disken, kör
+   `VACUUM (FULL) race_map, race_map_source, training_group_map, training_group_map_source` som superuser en lugn dag
+   (låser tabellerna en kort stund).
+
+Kolumnerna `image` och `file` tas bort i en senare migration när `map-content status` säger 0 rader kvar på servern.
 
 ## Om en migrering misslyckas
 

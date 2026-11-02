@@ -12,6 +12,11 @@ export interface BackupTable {
   omit?: readonly string[];
   /** Kolumner vars innehåll följer med orört: id inuti dem byts inte (råa avläsningar och inlästa filer). */
   verbatim?: readonly string[];
+  /**
+   * ADR-0189: binärkolumner vars innehåll kan ligga i `map_content` (referensen i den andra kolumnen, som aldrig skrivs i kopian).
+   * Kopian har alltid innehållet som fil, som förut; återställningen lägger det i lagret igen.
+   */
+  stored?: Readonly<Record<string, string>>;
 }
 
 const byRace = (raceId: string) => sql`t.race_id = ${raceId}`;
@@ -83,8 +88,8 @@ export const RACE_BACKUP_TABLES: readonly BackupTable[] = [
   raceTable("race_radio_link"),
   raceTable("race_radio_control"),
   raceTable("radio_punch"),
-  raceTable("race_map"),
-  raceTable("race_map_source"),
+  raceTable("race_map", { omit: ["content_sha256"], stored: { image: "content_sha256" } }),
+  raceTable("race_map_source", { omit: ["content_sha256"], stored: { file: "content_sha256" } }),
   raceTable("race_map_agreement"),
   raceTable("race_route_choice"),
   raceTable("participant_route"),

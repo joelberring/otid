@@ -9,6 +9,7 @@ import { courseSettingRead, courseSettingWrite, loadRow, type Failure, type Read
 import { layoutTemplateFor, PrintJobError, printProfileFor, renderPrintJob } from "./course-setting-print-render";
 import type { RaceSessionProof } from "./race-session";
 import { sha256Hex } from "./serialization";
+import { rowContent } from "./map-content";
 import type { FontFiles } from "@o-tid/print-pdf";
 import { PDF_CAPABILITIES } from "@o-tid/print-pdf";
 
@@ -203,8 +204,12 @@ export async function runPrintJob(db: Database, job: ClaimedPrintJob, options: P
   const [row] = await db.select({ request: schema.courseSettingPrintJobs.request, document: schema.courseSettingPrintJobs.document })
     .from(schema.courseSettingPrintJobs).where(and(eq(schema.courseSettingPrintJobs.id, job.id), eq(schema.courseSettingPrintJobs.status, "RUNNING")));
   if (!row) return "GONE";
-  const [map] = await db.select({ file: schema.raceMapSources.file, fileName: schema.raceMapSources.fileName, bounds: schema.raceMapSources.bounds })
+  const [source] = await db.select({ inline: schema.raceMapSources.file, contentSha256: schema.raceMapSources.contentSha256,
+    fileName: schema.raceMapSources.fileName, bounds: schema.raceMapSources.bounds })
     .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, job.raceId));
+  // ADR-0189: filen ur innehållslagret (eller den gamla kolumnen); utskriftsrollen läser båda.
+  const sourceFile = source ? await rowContent(db, source) : undefined;
+  const map = source && sourceFile ? { file: sourceFile, fileName: source.fileName, bounds: source.bounds } : undefined;
   const [race] = await db.select({ name: schema.races.name }).from(schema.races).where(eq(schema.races.id, job.raceId));
   const started = performance.now();
   const finish = async (values: Partial<typeof schema.courseSettingPrintJobs.$inferInsert>) => {

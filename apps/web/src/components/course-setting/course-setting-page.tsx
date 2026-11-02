@@ -81,9 +81,11 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
         headers: { "x-otid-csrf": csrf }, body: form });
       // Samma besked som i Karta och vägval: 422 säger vad som är fel med filen, annat är ett fel vid sparandet.
       if (response.status === 422) {
-        const problem = raceMapProblemSchema.safeParse(await response.json()).data?.error;
+        const parsed = raceMapProblemSchema.safeParse(await response.json()).data;
+        const problem = parsed?.error;
         return { tone: "error", text: problem === "MAP_FILE_TOO_LARGE" ? raceMapSv.mapFile.tooLarge
-          : problem === "IMAGE_TOO_LARGE" ? raceMapSv.mapFile.errors.TOO_LARGE : raceMapSv.mapFile.invalid };
+          : problem === "IMAGE_TOO_LARGE" ? raceMapSv.mapFile.errors.TOO_LARGE
+          : problem === "STORAGE_QUOTA_EXCEEDED" ? raceMapSv.quota(parsed?.quota) : raceMapSv.mapFile.invalid };
       }
       if (!response.ok) {
         console.error("Kartfilen sparades inte", response.status, response.headers.get("content-type"));

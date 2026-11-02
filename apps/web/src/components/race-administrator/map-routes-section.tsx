@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { adminRaceMapStateSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, participantRouteUploadResponseSchema, RACE_MAP_MAX_BYTES,
-  raceMapProblemSchema, type AdminRaceMapState, type RaceMapProblem } from "@o-tid/contracts";
+  raceMapProblemSchema, type AdminRaceMapState, type RaceMapProblem, type RaceMapQuotaProblem } from "@o-tid/contracts";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { Button, Field, Notice, Section } from "../ui";
 import { MapFileSummary, MapFileUpload } from "./map-file-upload";
@@ -15,10 +15,10 @@ import type { Workspace } from "./workspace-state";
 
 const text = raceMapSv;
 
-async function problemOf(response: Response): Promise<RaceMapProblem | undefined> {
+async function problemOf(response: Response): Promise<{ error: RaceMapProblem; quota?: RaceMapQuotaProblem | undefined } | undefined> {
   if (response.status !== 422) return undefined;
   const parsed = raceMapProblemSchema.safeParse(await response.json());
-  return parsed.success ? parsed.data.error : undefined;
+  return parsed.success ? parsed.data : undefined;
 }
 
 /**
@@ -73,7 +73,7 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
     try {
       const response = await request(path, op, { ...init, headers: { ...init.headers, "x-otid-csrf": csrf() } });
       const problem = await problemOf(response);
-      if (problem) next = { tone: "error", text: problems[problem] ?? failed };
+      if (problem) next = { tone: "error", text: problem.error === "STORAGE_QUOTA_EXCEEDED" ? text.quota(problem.quota) : problems[problem.error] ?? failed };
       else if (!response.ok) throw new Error("Skrivningen misslyckades");
       else next = await done(response);
     } catch { if (current(op)) next = { tone: "error", text: failed }; } finally { finish(op); }
@@ -106,8 +106,9 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
     try {
       const response = await request("/map/source", op, { method: "POST", headers: { "x-otid-csrf": csrf() }, body: form });
       const problem = await problemOf(response);
-      if (problem) next = { tone: "error", text: problem === "MAP_FILE_TOO_LARGE" ? text.mapFile.tooLarge
-        : problem === "IMAGE_TOO_LARGE" ? text.mapFile.errors.TOO_LARGE : text.mapFile.invalid };
+      if (problem) next = { tone: "error", text: problem.error === "MAP_FILE_TOO_LARGE" ? text.mapFile.tooLarge
+        : problem.error === "IMAGE_TOO_LARGE" ? text.mapFile.errors.TOO_LARGE
+        : problem.error === "STORAGE_QUOTA_EXCEEDED" ? text.quota(problem.quota) : text.mapFile.invalid };
       else if (!response.ok) throw new Error("Kartfilen kunde inte sparas");
       else next = { tone: "ok", text: georeferenced ? text.mapFile.saved : text.mapFile.savedNeedsPoints };
     } catch { if (current(op)) next = { tone: "error", text: text.mapFile.failed }; } finally { finish(op); }

@@ -72,7 +72,9 @@ export const raceBackupSv = {
       UNKNOWN_CONTENT: (detail?: string) => `Säkerhetskopian innehåller något som den här versionen av O-Tid inte känner till` +
         `${detail ? ` (${detail})` : ""}. Den är troligen gjord med en nyare version: uppdatera servern och försök igen.`,
       INVALID_CONTENT: (detail?: string) => `Säkerhetskopian har ett fel${detail ? ` i ${detail}` : ""} och kan inte läsas in.`,
-      DATA_REJECTED: (detail?: string) => `Databasen godtog inte innehållet${detail ? ` (${detail})` : ""}. Inget har sparats.`
+      DATA_REJECTED: (detail?: string) => `Databasen godtog inte innehållet${detail ? ` (${detail})` : ""}. Inget har sparats.`,
+      STORAGE_QUOTA_EXCEEDED: (detail?: string) => `Kartan i säkerhetskopian får inte plats${detail ? ` (${detail})` : ""}. Ta bort kartor i ` +
+        "tävlingar som inte används längre, eller be serverns ägare höja gränsen. Inget har sparats."
     } satisfies Record<RaceBackupProblem["error"], (detail?: string) => string>,
     errors: {
       session: "Du är inte inloggad längre. Logga in och försök igen.",

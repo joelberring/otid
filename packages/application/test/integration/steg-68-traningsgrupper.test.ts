@@ -230,7 +230,9 @@ describe("steg 68: träningsgrupper", { timeout: 180_000 }, () => {
     const winter = created.raceIds[0]!;
     // ADR-0186: vintern har inte startat; kartan publikt direkt, så att det är avtalet som prövas här.
     await pool.query("update race set public_map_timing = 'ON_PUBLISH' where id = $1", [winter]);
-    expect((await pool.query<{ n: number }>("select octet_length(image) as n from race_map where race_id = $1", [winter])).rows[0]!.n).toBe(image.byteLength);
+    // ADR-0189: tillfället pekar på samma innehåll som biblioteket (ingen ny kopia av bilden).
+    expect((await pool.query<{ n: number; refs: number }>(`select c.byte_length as n, (select count(*)::int from map_content) as refs
+      from race_map m join map_content c on c.sha256 = m.content_sha256 where m.race_id = $1`, [winter])).rows[0]).toEqual({ n: image.byteLength, refs: 1 });
     // Kartan är en kopia, och valet att visa publikt följer inte med.
     expect(await readPublicRaceMapImage(db, winter)).toBeUndefined();
     // Avtalet förnyas i biblioteket: tävlingarna som valt kartan följer med.

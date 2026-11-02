@@ -205,7 +205,9 @@ export const raceMaps = pgTable("race_map", {
   raceId: uuid("race_id").primaryKey().references(() => races.id),
   fileName: text("file_name").notNull(),
   mediaType: text("media_type").$type<"image/png" | "image/jpeg">().notNull(),
-  image: bytea("image").notNull(),
+  /** Gamla rader (före migration 0044); nya har `contentSha256` (ADR-0189). Aldrig båda. */
+  image: bytea("image"),
+  contentSha256: text("content_sha256"),
   sha256: text("sha256").notNull(),
   byteLength: integer("byte_length").notNull(),
   width: integer("width").notNull(),
@@ -240,7 +242,9 @@ export const raceMapSources = pgTable("race_map_source", {
   fileName: text("file_name").notNull(),
   format: text("format").$type<"OCD" | "OMAP">().notNull(),
   version: text("version").notNull(),
-  file: bytea("file").notNull(),
+  /** Gamla rader (före migration 0044); nya har `contentSha256` (ADR-0189). Aldrig båda. */
+  file: bytea("file"),
+  contentSha256: text("content_sha256"),
   sha256: text("sha256").notNull(),
   byteLength: integer("byte_length").notNull(),
   scale: integer("scale").notNull(),
@@ -250,6 +254,27 @@ export const raceMapSources = pgTable("race_map_source", {
   summary: jsonb("summary").$type<RaceMapSourceSummary>().notNull(),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull()
 });
+
+/**
+ * ADR-0189 (migration 0044): kartbilder och kartfiler lagras en gång, adresserade med sha256, i delar om högst 1 MiB. Raderna i
+ * `race_map`, `race_map_source` och träningsgruppens bibliotek pekar hit med `content_sha256`. Innehållet tas bort av en
+ * utlösare när den sista referensen försvinner. `uploadedBy` är kontot vars kvot innehållet räknas mot.
+ */
+export const mapContents = pgTable("map_content", {
+  sha256: text("sha256").primaryKey(),
+  contentId: uuid("content_id").notNull(),
+  byteLength: integer("byte_length").notNull(),
+  uploadedBy: uuid("uploaded_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+});
+
+/** Innehållets delar. Skrivs medan uppladdningen strömmar in, innan innehållets rad finns (därför ingen nyckel). */
+export const mapContentParts = pgTable("map_content_part", {
+  contentId: uuid("content_id").notNull(),
+  part: integer("part").notNull(),
+  data: bytea("data").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, (table) => [primaryKey({ columns: [table.contentId, table.part] })]);
 
 /** PLAN.md steg 16 (migration 0098): löparens GPS-rutt. Punkterna är [tid ms, lat, lon] i tidsordning. */
 export const participantRoutes = pgTable("participant_route", {

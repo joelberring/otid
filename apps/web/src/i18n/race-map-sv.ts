@@ -1,5 +1,15 @@
+import type { RaceMapQuotaProblem } from "@o-tid/contracts";
+
 /** Karta och vägval i arbetsytan (PLAN.md steg 16, ADR-0171). */
 export const raceMapSv = {
+  /** ADR-0189 beslut 3: kvoten för kartor är full. */
+  quota: (quota?: RaceMapQuotaProblem) => !quota ? "Det finns inte plats för fler kartor. Ta bort kartor som inte används, eller be serverns ägare höja gränsen."
+    : quota.scope === "ACCOUNT"
+      ? `Kartorna du har laddat upp tar redan ${quota.usedMb} MB av dina ${quota.limitMb} MB, och den här behöver ${quota.neededMb} MB. ` +
+        "Ta bort kartor i tävlingar som inte används längre (kopior och träningstillfällen delar på samma fil och kostar inget), " +
+        "eller be serverns ägare höja gränsen."
+      : `Servern har inte plats för fler kartor (${quota.usedMb} av ${quota.limitMb} MB används, den här behöver ${quota.neededMb} MB). ` +
+        "Be serverns ägare om mer utrymme.",
   title: "Karta och vägval",
   help: "Ladda upp kartan, ange var tre punkter ligger och ladda upp löparnas GPS-rutter (GPX). Vägvalen syns i den publika " +
     "sträcktidsanalysen så fort kartan är georefererad. Rutterna kopplas till sträckorna med stämplingstiderna; bara delen mellan " +

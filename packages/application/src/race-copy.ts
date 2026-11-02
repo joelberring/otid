@@ -177,15 +177,18 @@ export async function copyRaceContent(tx: Transaction, input: ContentInput) {
   }
 
   // Kartbilden kopieras i databasen utan att gå via appen. Rutterna hör till löparna och följer inte med.
-  const map = await tx.execute(sql`insert into race_map (race_id, file_name, media_type, image, sha256, byte_length, width, height,
+  // ADR-0189: bara referensen till innehållet kopieras (en gammal rad får sitt innehåll i lagret först, utan att ändras).
+  const map = await tx.execute(sql`insert into race_map (race_id, file_name, media_type, image, content_sha256, sha256, byte_length, width, height,
       tie_points, transform, uploaded_at, georeferenced_at)
-    select ${raceId}, file_name, media_type, image, sha256, byte_length, width, height, tie_points, transform, ${now},
+    select ${raceId}, file_name, media_type, null, coalesce(content_sha256, otid_map_content_store(image, null)), sha256, byte_length, width,
+      height, tie_points, transform, ${now},
       case when georeferenced_at is null then null else ${now}::timestamptz end
     from race_map where race_id = ${sourceRaceId}`);
   // Steg 59: kartfilen som bilden är ritad ur följer med bilden.
-  await tx.execute(sql`insert into race_map_source (race_id, file_name, format, version, file, sha256, byte_length, scale, bounds,
-      georeference, render, summary, uploaded_at)
-    select ${raceId}, s.file_name, s.format, s.version, s.file, s.sha256, s.byte_length, s.scale, s.bounds, s.georeference, s.render,
+  await tx.execute(sql`insert into race_map_source (race_id, file_name, format, version, file, content_sha256, sha256, byte_length, scale,
+      bounds, georeference, render, summary, uploaded_at)
+    select ${raceId}, s.file_name, s.format, s.version, null, coalesce(s.content_sha256, otid_map_content_store(s.file, null)), s.sha256,
+      s.byte_length, s.scale, s.bounds, s.georeference, s.render,
       s.summary, case when m.georeferenced_at = s.uploaded_at then ${now}::timestamptz else ${now}::timestamptz - interval '1 millisecond' end
     from race_map_source s join race_map m on m.race_id = s.race_id where s.race_id = ${sourceRaceId}`);
   // Steg 68: kartans avtal följer kartan (villkoren gäller kopian också); ett medvetet val att ändå visa kartan publikt gör det inte.

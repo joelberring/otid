@@ -56,8 +56,8 @@ describe("administratörsroutes: kartfilen", () => {
     expect(response.status).toBe(204);
     const input = raceMapSourceSave.mock.calls[0]![1];
     expect(input).toMatchObject({ raceId: id, fileName: "karta.ocd", metadata: { formatVersion: 1 } });
-    expect([...input.file]).toEqual([0xad, 0x0c]);
-    expect([...input.image]).toEqual([0x89, 0x50]);
+    expect([...input.file as Uint8Array]).toEqual([0xad, 0x0c]);
+    expect([...input.image as Uint8Array]).toEqual([0x89, 0x50]);
   });
 
   it("kräver tre delar, multipart, rätt Origin och svarar 422 med begripligt fel", async () => {

@@ -81,6 +81,11 @@ export { synchronizeRelayTeams } from "./relay-sync";
 export * from "./eventor-link";
 export * from "./source-sync";
 export * from "./race-map";
+export {
+  discardStagedMapContent, mapStorageQuota, mapStorageQuotaProblems, mapStorageUsage, moveInlineMapContent, readMapContent,
+  stageMapContent, sweepMapContent, MAP_CONTENT_PART_BYTES
+} from "./map-content";
+export type { MapContentInput, MapQuotaExceeded, MapStorageQuota, StagedMapContent, StageResult } from "./map-content";
 export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin } from "./race-map-source";
 export { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin, saveRouteChoiceSettingsAsAdmin }
   from "./route-choice";

@@ -14,6 +14,7 @@ import { ZipError, ZipReader } from "./race-backup-zip";
 import { sha256Hex } from "./serialization";
 import { authenticateUserAccountSessionForMutation, type UserAccountSessionProof } from "./user-account";
 import type { DbExecutor } from "./snapshot";
+import { mapStorageQuota, mapStorageUsage, storeInlineMapContentForRace, type MapStorageQuota } from "./map-content";
 
 /**
  * "Återställ tävling från säkerhetskopia" (ADR-0187). Filen läses och kontrolleras strikt (zip-arkivets gränser, formatversion,
@@ -284,7 +285,8 @@ async function insertRows(tx: Transaction, backup: OpenedBackup, table: string, 
 }
 
 /** Läser in kopian som en ny tävling. Samma `requestId` ger samma tävling (ett omförsök skapar aldrig två). */
-export async function restoreRaceBackup(db: Database, input: UserAccountSessionProof & { bytes: Uint8Array; options: unknown },
+export async function restoreRaceBackup(db: Database,
+  input: UserAccountSessionProof & { bytes: Uint8Array; options: unknown; quota?: MapStorageQuota },
   now = new Date()): Promise<RaceRestoreResult> {
   const options = raceRestoreOptionsSchema.safeParse(input.options);
   if (!options.success) return { status: "invalid-request" };
@@ -309,6 +311,8 @@ export async function restoreRaceBackup(db: Database, input: UserAccountSessionP
       // resultat inaktuellt. Bara i den här transaktionen.
       await tx.execute(sql`select set_config('otid.restore', 'on', true)`);
       const staleRevisions = new Set(backup.manifest.staleResultRevisions ?? []);
+      // Kartinnehållet före återställningen, för kvoten (ADR-0189 beslut 3).
+      const before = await mapStorageUsage(tx, accountId);
 
       // Nya id för allt; kontonas referenser blir konton med samma e-post här när personerna kopplas.
       const linked = peopleMode === "link" ? await accountsByEmail(tx, backup.people.map(person => person.email)) : new Map<string, string>();
@@ -379,6 +383,19 @@ export async function restoreRaceBackup(db: Database, input: UserAccountSessionP
           if (error instanceof BackupRejected) throw error;
           throw new BackupRejected(problem("DATA_REJECTED", `${table.name}: ${databaseMessage(error)}`));
         }
+      }
+
+      // ADR-0189: kartbilden och kartfilen till innehållslagret (samma innehåll som redan finns lagras inte igen). Nytt innehåll
+      // räknas mot kvoten för den som återställer.
+      const quota: MapStorageQuota = input.quota ?? mapStorageQuota();
+      await storeInlineMapContentForRace(tx, raceId, accountId);
+      const after = await mapStorageUsage(tx, accountId);
+      const MB = 1024 * 1024;
+      if (after.accountBytes > before.accountBytes && quota.accountBytes !== null && after.accountBytes > quota.accountBytes) {
+        throw new BackupRejected(problem("STORAGE_QUOTA_EXCEEDED", `ditt konto: ${Math.ceil(after.accountBytes / MB)} av ${Math.floor(quota.accountBytes / MB)} MB`));
+      }
+      if (after.totalBytes > before.totalBytes && quota.totalBytes !== null && after.totalBytes > quota.totalBytes) {
+        throw new BackupRejected(problem("STORAGE_QUOTA_EXCEEDED", `servern: ${Math.ceil(after.totalBytes / MB)} av ${Math.floor(quota.totalBytes / MB)} MB`));
       }
 
       // Den som återställer blir ägare; personerna i kopian får sina roller igen när de har konto här.

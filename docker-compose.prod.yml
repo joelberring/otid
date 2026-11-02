@@ -126,6 +126,9 @@ services:
       OTID_ROC_BASE_URL: ${OTID_ROC_BASE_URL:-}
       # off = den här instansen hämtar inga radiostämplingar. Tom = hämtar (bara en instans åt gången, PostgreSQL-lås).
       OTID_RADIO_POLLER: ${OTID_RADIO_POLLER:-}
+      # ADR-0189: kartornas kvot i MB (tom = 2048 per konto och 20480 för hela servern; 0 = ingen gräns). Bara i web.
+      OTID_MAP_QUOTA_ACCOUNT_MB: ${OTID_MAP_QUOTA_ACCOUNT_MB:-}
+      OTID_MAP_QUOTA_TOTAL_MB: ${OTID_MAP_QUOTA_TOTAL_MB:-}
       OTID_INSTANCE_ROLE: competition
       NODE_OPTIONS: --max-old-space-size=768
     command: ["node", "apps/web/server.js"]

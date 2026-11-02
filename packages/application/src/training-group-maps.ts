@@ -16,10 +16,10 @@ import { requireGroupLeader, type GroupFailure, type GroupTransaction as Transac
 /**
  * Steg 68 (ADR-0182 beslut 4): gruppens kartbibliotek och kartans avtal.
  *
- * Kartbilden med georeferens, kartfilen och banläggningen KOPIERAS: från en tävling in i biblioteket och från biblioteket
- * till en ny träning (`applyLibraryMapToRace`). Ingen tävling pekar på bibliotekets filer och biblioteket pekar inte på
- * någon tävlings filer, så en borttagen träning, ett evenemang som superadmin tar bort eller en karta som tas bort ur
- * biblioteket påverkar aldrig något annat. Det kostar plats (en kartfil per tillfälle), men är det säkraste mot borttagning.
+ * Kartbildens och kartfilens rader och banläggningen KOPIERAS: från en tävling in i biblioteket och från biblioteket till en
+ * ny träning (`applyLibraryMapToRace`). Raderna pekar på samma innehåll (ADR-0189, `map_content`), som lagras en gång och finns
+ * kvar så länge någon rad pekar på det; en borttagen träning, ett evenemang som superadmin tar bort eller en karta som tas bort
+ * ur biblioteket påverkar därför aldrig något annat, och ett tillfälle kostar ingen ny kartfil.
  *
  * Avtalet följer med som en kopia (`race_map_agreement`); när det ändras i biblioteket uppdateras tävlingarna som valt kartan.
  */
@@ -77,17 +77,19 @@ export async function saveRaceMapToLibrary(db: Database, input: Proof & { groupI
     await lockRaceForMutation(tx, intent.raceId);
     const mapId = randomUUID();
     const inserted = await tx.execute(sql`insert into training_group_map (id, group_id, name, ownership, owner_kind, owner_name, agreement,
-        valid_until, contact, training_only, fee_per_print, no_public_display, file_name, media_type, image, sha256, byte_length, width, height,
-        tie_points, transform, source_race_id, created_at, created_by, updated_at, request_id)
+        valid_until, contact, training_only, fee_per_print, no_public_display, file_name, media_type, image, content_sha256, sha256, byte_length,
+        width, height, tie_points, transform, source_race_id, created_at, created_by, updated_at, request_id)
       select ${mapId}, ${input.groupId}, ${intent.name}, ${agreement.ownership}, ${agreement.ownerKind}, ${agreement.ownerName},
         ${agreement.agreement}, ${agreement.validUntil}, ${agreement.contact}, ${agreement.trainingOnly}, ${agreement.feePerPrint},
-        ${agreement.noPublicDisplay}, file_name, media_type, image, sha256, byte_length, width, height, tie_points, transform, race_id, ${now},
+        ${agreement.noPublicDisplay}, file_name, media_type, null, coalesce(content_sha256, otid_map_content_store(image, null)), sha256,
+        byte_length, width, height, tie_points, transform, race_id, ${now},
         ${leader.accountId}, ${now}, ${intent.requestId}
       from race_map where race_id = ${intent.raceId}`);
     if ((inserted.rowCount ?? 0) === 0) return { status: "not-found" } as const;
-    await tx.execute(sql`insert into training_group_map_source (map_id, file_name, format, version, file, sha256, byte_length, scale, bounds,
-        georeference, render, summary)
-      select ${mapId}, file_name, format, version, file, sha256, byte_length, scale, bounds, georeference, render, summary
+    await tx.execute(sql`insert into training_group_map_source (map_id, file_name, format, version, file, content_sha256, sha256, byte_length,
+        scale, bounds, georeference, render, summary)
+      select ${mapId}, file_name, format, version, null, coalesce(content_sha256, otid_map_content_store(file, null)), sha256, byte_length,
+        scale, bounds, georeference, render, summary
       from race_map_source where race_id = ${intent.raceId}`);
     if (intent.includeCourseSetting) {
       await tx.execute(sql`insert into training_group_map_course_setting (map_id, document, original_ppen, original_file_name)
@@ -165,15 +167,17 @@ export async function applyLibraryMapToRace(tx: DbExecutor, input: { mapId: stri
   const { raceId, now } = input;
   await tx.execute(sql`delete from race_map_source where race_id = ${raceId}`);
   await tx.execute(sql`delete from race_map where race_id = ${raceId}`);
-  await tx.execute(sql`insert into race_map (race_id, file_name, media_type, image, sha256, byte_length, width, height, tie_points, transform,
-      uploaded_at, georeferenced_at)
-    select ${raceId}, file_name, media_type, image, sha256, byte_length, width, height, tie_points, transform, ${now},
+  await tx.execute(sql`insert into race_map (race_id, file_name, media_type, image, content_sha256, sha256, byte_length, width, height,
+      tie_points, transform, uploaded_at, georeferenced_at)
+    select ${raceId}, file_name, media_type, null, coalesce(content_sha256, otid_map_content_store(image, null)), sha256, byte_length, width,
+      height, tie_points, transform, ${now},
       case when transform is null then null else ${now}::timestamptz end
     from training_group_map where id = ${input.mapId}`);
   // Kartfilen räknas som den som bilden är ritad ur (samma uppladdningstid som georeferensen, som i kopieringen).
-  await tx.execute(sql`insert into race_map_source (race_id, file_name, format, version, file, sha256, byte_length, scale, bounds,
-      georeference, render, summary, uploaded_at)
-    select ${raceId}, file_name, format, version, file, sha256, byte_length, scale, bounds, georeference, render, summary, ${now}
+  await tx.execute(sql`insert into race_map_source (race_id, file_name, format, version, file, content_sha256, sha256, byte_length, scale,
+      bounds, georeference, render, summary, uploaded_at)
+    select ${raceId}, file_name, format, version, null, coalesce(content_sha256, otid_map_content_store(file, null)), sha256, byte_length,
+      scale, bounds, georeference, render, summary, ${now}
     from training_group_map_source where map_id = ${input.mapId}`);
   if (input.includeCourseSetting) {
     const [setting] = await tx.select({ mapId: schema.trainingGroupMapCourseSettings.mapId }).from(schema.trainingGroupMapCourseSettings)

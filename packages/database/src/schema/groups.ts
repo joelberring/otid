@@ -74,6 +74,8 @@ export const trainingGroupMaps = pgTable("training_group_map", {
   name: text("name").notNull(),
   ...agreementColumns(),
   fileName: text("file_name").notNull(),
+  /** ADR-0189: bilden i `map_content` (nya rader); gamla rader har den i kolumnen `image`, som läses med SQL. */
+  contentSha256: text("content_sha256"),
   sha256: text("sha256").notNull(),
   byteLength: integer("byte_length").notNull(),
   width: integer("width").notNull(),
@@ -90,7 +92,8 @@ export const trainingGroupMapSources = pgTable("training_group_map_source", {
   mapId: uuid("map_id").primaryKey().references(() => trainingGroupMaps.id),
   fileName: text("file_name").notNull(),
   format: text("format").notNull(),
-  scale: integer("scale").notNull()
+  scale: integer("scale").notNull(),
+  contentSha256: text("content_sha256")
 });
 
 export const trainingGroupMapCourseSettings = pgTable("training_group_map_course_setting", {

@@ -345,7 +345,9 @@ export async function restoreRaceBackup(db: Database,
             break;
           case "race":
             // Opublicerad med ny kort adress (kolumnens förval); superadminens döljning följer med som vid en kopia.
-            rows = rows.map(row => ({ ...row, published_at: null, created_at: now.toISOString() }));
+            // ADR-0191 beslut 5: en kopia från före migration 0047 kan ha FORKED; den återställs som Tävling (STANDARD).
+            rows = rows.map(row => ({ ...row, published_at: null, created_at: now.toISOString(),
+              ...(row.race_type === "FORKED" ? { race_type: "STANDARD" } : {}) }));
             raceId = rows[0]!.id as string;
             break;
           case "class":

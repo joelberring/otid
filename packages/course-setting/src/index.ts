@@ -47,6 +47,14 @@ export { SPECIAL_KIND_LIST, specialPointCount } from "./special-edit";
 export { specialImage } from "./ppen-special";
 export { printScaleOf } from "./overprint";
 export { BARRIER_KINDS, routeBarriers, type RouteBarrierGeometry } from "./barriers";
+// ADR-0180 beslut 12: förslag på kontrollbeskrivning ur kartfilen.
+export {
+  acceptSuggestion, lacksFeature, mapNorthDegrees, SUGGEST_LIMITS, suggestAt, suggestForDocument, suggestOptionsFor, type DescriptionSuggestion,
+  type SuggestedFeature, type SuggestOptions
+} from "./suggest";
+export {
+  FEATURE_KIND, featureRuleFor, ISOM_FEATURES, ISSPROM_FEATURES, NAME_FEATURES, type FeatureKind, type FeatureLookup, type FeatureRule
+} from "./suggest-symbols";
 // Steg 64 (ADR-0183): utskriftsprofil och layoutmall.
 export * from "./print-profile";
 export * from "./layout-template";

@@ -34,15 +34,41 @@ async function downloadPdf(owner: Page, job: Locator): Promise<Buffer> {
   return readFileSync((await file.path()));
 }
 
+const asciiName = (path: string) => (path.split("/").pop() ?? "karta").normalize("NFD").replace(/[^\x20-\x7e]/g, "");
+
 async function uploadFiles(owner: Page, raceId: string, mapPath: string, ppenPath: string): Promise<void> {
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
-  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(mapPath);
-  await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
+  // Hinner filen väljas före hydreringen (utvecklingsservern) ser sidan ingen fil: välj den igen.
+  const notChosen = owner.getByText("Välj en kartfil först.");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    // Som buffert med ASCII-namn: en sökväg med "ö" (Högdalen) lämnade fältet tomt.
+    await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles({ name: asciiName(mapPath),
+      mimeType: "application/octet-stream", buffer: readFileSync(mapPath) });
+    await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
+    await owner.waitForTimeout(1000);
+    if (!(await notChosen.isVisible())) break;
+  }
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 120_000 });
-  await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles(ppenPath);
+  await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles({ name: asciiName(ppenPath), mimeType: "application/xml", buffer: readFileSync(ppenPath) });
   await owner.getByRole("button", { name: "Läs in .ppen" }).click();
   await expect(owner.getByTestId("course-setting-course").first()).toBeVisible({ timeout: 60_000 });
+}
+
+/** En del av sidan i 1280 och 390 px till `E2E_SCREENSHOT_DIR` (för granskning av godkännandet). */
+async function partShots(page: Page, part: Locator, name: string): Promise<void> {
+  const directory = process.env.E2E_SCREENSHOT_DIR;
+  if (!directory) return;
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await part.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await part.screenshot({ path: `${directory}/${name}-${width}.png` });
+    // Inget får gå utanför skärmen i telefonbredd.
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `${name} i ${width} px`).toBeLessThanOrEqual(0);
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
 }
 
 async function chooseBlForest(owner: Page, raceId: string): Promise<void> {
@@ -145,6 +171,19 @@ test("utskrift-bl med ägarens Högdalen (OTID_E2E_SBN_DIR)", async ({ browser }
   const counts = await proposal.getByTestId("bl-row").evaluateAll(items => items.map(item => item.getAttribute("data-confidence")));
   console.info(`Högdalen BL skog: ${JSON.stringify(counts.reduce<Record<string, number>>((all, item) => ({ ...all, [item!]: (all[item!] ?? 0) + 1 }), {}))}`);
   await reviewScreenshots(owner, "hogdalen-bl-fore");
+  // Delarna för granskning: jämförelsen med reglaget, ordningen och en rad av varje slag (med kartbiten där färgen är tänd).
+  await partShots(owner, proposal.locator("section", { has: owner.getByTestId("bl-compare") }), "hogdalen-bl-jamforelse");
+  await partShots(owner, proposal.getByTestId("bl-layers"), "hogdalen-bl-lager");
+  for (const confidence of ["SAFE", "CONFIRM"]) {
+    const row = proposal.locator(`[data-testid=bl-row][data-confidence=${confidence}]`).first();
+    await expect(row.locator("img")).toBeVisible({ timeout: 30_000 });
+    await partShots(owner, row, `hogdalen-bl-rad-${confidence.toLowerCase()}`);
+  }
+  const ambiguous = proposal.locator("[data-testid=bl-row][data-confidence=AMBIGUOUS]").first();
+  await ambiguous.getByTestId("bl-choose").click();
+  await expect(ambiguous.getByTestId("bl-choices")).toBeVisible();
+  await partShots(owner, ambiguous, "hogdalen-bl-rad-tvetydig-valj");
+  await ambiguous.getByTestId("bl-choose").click();
   await proposal.getByTestId("bl-accept-safe").click();
   await expect(proposal.getByTestId("bl-accept-safe")).toBeDisabled({ timeout: 30_000 });
   // De som behöver bekräftas: godta förslaget; de tvetydiga: välj den första raden i listan.

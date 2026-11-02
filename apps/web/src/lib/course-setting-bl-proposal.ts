@@ -185,6 +185,14 @@ export class RenderQueue {
   }
 }
 
+/** Jämförelsens längsta sida i pixlar: rutan är högst 40rem bred, så 1 400 px räcker också på en skärm med dubbel täthet. */
+export const COMPARE_MAX_PX = 1400;
+
+/** Upplösningen för "hela kartan före och efter": högst 220 dpi och högst `COMPARE_MAX_PX` på längsta sidan (en stor karta ritas annars i minuter). */
+export function compareDpi(clip: { readonly width: number; readonly height: number }): number {
+  return Math.min(220, COMPARE_MAX_PX / Math.max(1, clip.width, clip.height) * 25.4);
+}
+
 type FrameLike = Pick<SheetFrame, "clip" | "transform" | "mapArea" | "figures">;
 
 /**

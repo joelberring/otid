@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { MapColorAdjust, PrintProfile, SheetFrame } from "@o-tid/course-setting";
 import type { MapColor } from "@o-tid/map-file";
 import { blProposalSv as text } from "../../i18n/course-setting-bl-proposal-sv";
-import { afterViews, compareFrame, cssOfCmyk, layerStack, type Layer, type ProposalState } from "../../lib/course-setting-bl-proposal";
+import { afterViews, compareDpi, compareFrame, cssOfCmyk, layerStack, type Layer, type ProposalState } from "../../lib/course-setting-bl-proposal";
+
+/** Jämförelsen står överst i förslaget och ritas före kartbitarna (2) och arken (0). */
+const COMPARE_PRIORITY = 3;
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
 import { mapRenderRequest, pageNodes } from "../../lib/course-setting-print";
 import styles from "./course-setting-bl-proposal.module.css";
@@ -31,7 +34,7 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
   // Samma utsnitt efter varje sparning (dokumentet läses om): nyckeln håller bilderna kvar.
   const frameKey = JSON.stringify([sheetFrame.mapArea, sheetFrame.clip, sheetFrame.transform, sheetFrame.figures.length]);
   const frame = useMemo(() => compareFrame(sheetFrame), [frameKey]);
-  const view = useMemo(() => mapRenderRequest(frame, 220), [frame]);
+  const view = useMemo(() => mapRenderRequest(frame, compareDpi(frame.clip)), [frame]);
   const after = useMemo(() => afterViews(profile, state, colors), [profile, state, colors]);
   const afterKey = JSON.stringify(after);
   const [before, setBefore] = useState<string>();
@@ -39,14 +42,14 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
   const [split, setSplit] = useState(50);
   useEffect(() => {
     let live = true;
-    void render(view, 1).then(url => { if (live) setBefore(url); }, error => console.error("Kartbiten kunde inte ritas", error));
+    void render(view, COMPARE_PRIORITY).then(url => { if (live) setBefore(url); }, error => console.error("Kartbiten kunde inte ritas", error));
     return () => { live = false; };
   }, [view, render]);
   useEffect(() => {
     let live = true;
     void (async () => {
-      const under = await render({ ...view, colorAdjust: after.adjust, ...(after.under ? { onlyColors: after.under } : {}) }, 1);
-      const over = after.over && after.over.length > 0 ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.over, background: false }, 1) : undefined;
+      const under = await render({ ...view, colorAdjust: after.adjust, ...(after.under ? { onlyColors: after.under } : {}) }, COMPARE_PRIORITY);
+      const over = after.over && after.over.length > 0 ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.over, background: false }, COMPARE_PRIORITY) : undefined;
       if (live) setImages({ key: afterKey, under, over });
     })().catch(error => console.error("Kartbiten kunde inte ritas", error));
     return () => { live = false; };

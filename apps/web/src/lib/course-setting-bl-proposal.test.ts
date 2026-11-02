@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BUILT_IN_PRINT_PROFILES, parsePrintProfile, type PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import {
-  afterViews, approvalEdits, approvedProfile, compareFrame, cssOfCmyk, decide, isolateAdjust, layerStack, previewProfile, proposalState, RenderQueue, thumbnailView
+  afterViews, approvalEdits, approvedProfile, COMPARE_MAX_PX, compareDpi, compareFrame, cssOfCmyk, decide, isolateAdjust, layerStack, previewProfile, proposalState, RenderQueue, thumbnailView
 } from "./course-setting-bl-proposal";
 import { pdfPreflight } from "./course-setting-print-jobs";
 
@@ -106,5 +106,11 @@ describe("BL-förslaget i förhandsvisningen", () => {
     release();
     expect(await Promise.all([first, sheet, thumb])).toEqual(["a", "b", "c"]);
     expect(order).toEqual(["ark 1", "kartbit", "ark 2"]);
+  });
+
+  it("jämförelsen ritas högst 1 400 px på längsta sidan (Högdalen: hela A4 liggande) och högst 220 dpi", () => {
+    const a4 = compareDpi({ width: 282.7, height: 195.8 });
+    expect(282.7 * a4 / 25.4).toBeCloseTo(COMPARE_MAX_PX, 0);
+    expect(compareDpi({ width: 60, height: 40 })).toBe(220);
   });
 });

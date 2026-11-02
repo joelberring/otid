@@ -425,7 +425,8 @@ registrering) börjar om, eftersom deras hemlighet härleds ur `DATABASE_URL` n�
 och kör `docker compose -f docker-compose.prod.yml up -d`; då använder alla tjänster superusern igen och allt fungerar som
 före övergången (superusern når allt oavsett ägare). Vill du också ta bort rollerna: `sh deploy/db-roles.sh rollback`.
 
-En framtida migrering som kräver superuser (t.ex. `CREATE EXTENSION`) misslyckas i `migrate`; kör den då för hand med
+Index som byggs med `CREATE INDEX CONCURRENTLY` (ADR-0185) bygger ägarrollen, som äger tabellerna (provat 2026-11-02 med
+migration 0038–0040 som `otid_owner` på kopian). En framtida migrering som kräver superuser (t.ex. `CREATE EXTENSION`) misslyckas i `migrate`; kör den då för hand med
 `docker compose -f docker-compose.prod.yml exec postgres psql -U otid -d otid`. Det står i så fall i STATUS.md.
 
 ## Om en migrering misslyckas

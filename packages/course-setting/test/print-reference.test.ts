@@ -105,6 +105,7 @@ describe("förslaget: kartans färger mot BL:s rader", () => {
     // Blå 100 % både som yta och linje: två rader som ger olika sida av banan.
     expect(by("Blå 100%").confidence).toBe("AMBIGUOUS");
     expect(by("Blå 100%").candidates.slice(0, 2).sort()).toEqual(["blue-area", "blue-line-point"]);
+    expect(by("Blå 100%").reasons.join(" ")).toMatch(/samma färg men på olika sidor om banan: ”Blå/);
     // Grön + svart finns inte i skogstabellen: behåll filens, men bekräfta.
     expect(by("Grön 100% + 50% Svart")).toMatchObject({ row: null, confidence: "CONFIRM" });
     expect(by("Alla färgseparationer")).toMatchObject({ row: "all-colors", unused: true });
@@ -195,6 +196,10 @@ describe.skipIf(!realMap || !existsSync(realMap))("ägarens karta (OTID_REAL_MAP
       expect(placement.position).not.toBeNull();
       const brown = proposals.find(item => item.color.usage?.mains.includes(101) && item.row !== null);
       if (brown) expect(placement.above.has(brown.color.ocadId)).toBe(true);
+      // Vita färger utan tydlig sida: samma färg, och skälet säger att skillnaden är sidan av banan.
+      for (const item of proposals.filter(entry => entry.confidence === "AMBIGUOUS" && entry.row === "white")) {
+        expect(item.reasons.join(" ")).toMatch(/samma färg men på olika sidor om banan/);
+      }
     }
   });
 });

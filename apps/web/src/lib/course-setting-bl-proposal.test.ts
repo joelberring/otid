@@ -82,6 +82,10 @@ describe("BL-förslaget i förhandsvisningen", () => {
     expect(adjust[15]).toEqual({});
     expect(adjust[2]).toEqual({ lighten: 0.88 });
     expect(thumbnailView({ x: 10, y: 20 }, 36, 144)).toEqual({ width: 144, height: 144, pxPerMm: 4, origin: { x: -8, y: 38 } });
+    // En vit färg: de andra blir grå i stället för blekta, annars syns inte det vita.
+    const white = isolateAdjust([...colors, color(40, "Vit för blå", 7, [0, 0, 0, 0])], 40);
+    expect(white[40]).toEqual({});
+    expect(white[2]).toEqual({ cmyk: { c: 0, m: 0, y: 0, k: 0.45 } });
   });
 
   it("jämförelsens utsnitt: banan med marginal inom ramens kartyta, i papperets mm", () => {

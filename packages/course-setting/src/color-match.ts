@@ -171,8 +171,11 @@ function proposeOne(table: ReferenceTable, color: MatchColor): ColorProposal {
   const reasons = [...best.reasons];
   if (margin < AMBIGUOUS_MARGIN) {
     confidence = "AMBIGUOUS";
-    const close = scored.filter(item => item.row.cmyk && best.score - item.score < AMBIGUOUS_MARGIN).map(item => `”${item.row.name}”`);
-    reasons.push(`Flera BL-rader passar och ger olika tryck: ${[...new Set(close)].join(", ")}`);
+    const near = scored.filter(item => item.row.cmyk && best.score - item.score < AMBIGUOUS_MARGIN);
+    const close = [...new Set(near.map(item => `”${item.row.name}”`))].join(", ");
+    // Samma CMYK (t.ex. BL:s vita rader): skillnaden är bara vilken sida av banan färgen hamnar på.
+    const sameInk = new Set(near.map(item => JSON.stringify(item.row.cmyk))).size === 1;
+    reasons.push(sameInk ? `Flera BL-rader passar med samma färg men på olika sidor om banan: ${close}` : `Flera BL-rader passar och ger olika tryck: ${close}`);
   } else if (best.percentMismatch) confidence = "CONFIRM";
   else if (best.exactName && margin >= 20) confidence = "SAFE";
   else if (best.score >= SAFE_SCORE && margin >= SAFE_MARGIN && best.signals >= 2) confidence = "SAFE";

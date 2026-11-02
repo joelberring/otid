@@ -134,14 +134,19 @@ export function layerStack(profile: PrintProfile, state: ProposalState): { over:
 export const sideOf = (table: ReferenceTable, row: ReferenceColor) => referenceSide(table, row);
 
 /** Kartans färger med bara en färg tänd: de andra blekta, för den lilla kartbiten. */
-export function isolateAdjust(colors: readonly Pick<MapColor, "id">[], keep: number, base: Readonly<Record<number, MapColorAdjust>> = {}): Record<number, MapColorAdjust> {
+export function isolateAdjust(colors: readonly (Pick<MapColor, "id"> & Partial<Pick<MapColor, "cmyk">>)[], keep: number,
+  base: Readonly<Record<number, MapColorAdjust>> = {}): Record<number, MapColorAdjust> {
+  // En vit färg (vit för blå, vit för gul …) syns inte mot blekta färger: då blir de andra grå, så att det vita sticker ut.
+  const kept = colors.find(color => color.id === keep)?.cmyk;
+  const white = kept !== undefined && Math.max(kept.c, kept.m, kept.y, kept.k) < 0.05;
   const out: Record<number, MapColorAdjust> = {};
-  for (const color of colors) out[color.id] = color.id === keep ? (base[color.id] ?? {}) : { ...(base[color.id] ?? {}), lighten: 0.88 };
+  for (const color of colors) out[color.id] = color.id === keep ? (base[color.id] ?? {})
+    : white ? { ...(base[color.id] ?? {}), cmyk: { c: 0, m: 0, y: 0, k: 0.45 } } : { ...(base[color.id] ?? {}), lighten: 0.88 };
   return out;
 }
 
 /** Utsnittet för en liten kartbit (kvadrat på `sizeMm` mm i kartan kring `center`) i `px` bildpunkter. */
-export function thumbnailView(center: { x: number; y: number }, sizeMm = 36, px = 144): { width: number; height: number; pxPerMm: number; origin: { x: number; y: number } } {
+export function thumbnailView(center: { x: number; y: number }, sizeMm = 24, px = 192): { width: number; height: number; pxPerMm: number; origin: { x: number; y: number } } {
   return { width: px, height: px, pxPerMm: px / sizeMm, origin: { x: center.x - sizeMm / 2, y: center.y + sizeMm / 2 } };
 }
 

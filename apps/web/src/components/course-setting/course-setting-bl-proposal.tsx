@@ -101,9 +101,11 @@ function ProposalItem({ row, state, colors, render, readOnly, act }: {
   }, [sample, colors, color.ocadId, render]);
   const target = row.row;
   const side = target ? sideOf(state.table, target) : undefined;
+  // "Passar bäst": förslagets rader (högst fem); resten av tabellen under en egen rubrik.
   const choices = useMemo(() => {
-    const rest = state.table.rows.filter(item => item.cmyk && item.role !== "REGISTRATION" && !proposal.candidates.includes(item.id));
-    return [...proposal.candidates.map(id => state.table.rows.find(item => item.id === id)!).filter(item => item.cmyk), ...rest];
+    const best = proposal.candidates.map(id => state.table.rows.find(item => item.id === id)!).filter(item => item.cmyk).slice(0, 5);
+    const rest = state.table.rows.filter(item => item.cmyk && item.role !== "REGISTRATION" && !best.includes(item));
+    return { best, rest };
   }, [state.table, proposal.candidates]);
   const name = color.name;
   return <li className={styles.row} data-testid="bl-row" data-color={color.ocadId} data-confidence={proposal.confidence} data-status={row.status}
@@ -135,12 +137,16 @@ function ProposalItem({ row, state, colors, render, readOnly, act }: {
       <Button variant="secondary" onClick={() => act({ kind: "KEEP", ocadId: color.ocadId })} data-testid="bl-keep">{text.keep}</Button>
       <Button variant="quiet" onClick={() => setChoosing(open => !open)} aria-expanded={choosing} data-testid="bl-choose">{choosing ? text.chooseCancel : text.choose}</Button>
     </div>}
-    {choosing && !readOnly && <ul className={styles.choices} aria-label={text.chooseLabel(name)} data-testid="bl-choices">
-      {choices.map(item => <li key={item.id}><button type="button" className={styles.choice} aria-pressed={target?.id === item.id} data-row={item.id}
-        onClick={() => { setChoosing(false); act({ kind: "CHOOSE", ocadId: color.ocadId, row: item.id }); }}>
-        <span className={styles.choiceSwatch} style={{ background: cssOfCmyk(item.cmyk!) }} aria-hidden="true" />
-        <span><strong>{item.name}</strong> <span className={styles.numbers}>{cmykText(item.cmyk!)}{item.comment ? ` · ${item.comment}` : ""}</span></span>
-      </button></li>)}
-    </ul>}
+    {choosing && !readOnly && <div className={styles.choices} role="group" aria-label={text.chooseLabel(name)} data-testid="bl-choices">
+      {([[text.chooseBest, choices.best], [text.chooseRest, choices.rest]] as const).map(([title, items]) => items.length > 0 && <section key={title}>
+        <h4 className={styles.choiceGroup}>{title}</h4>
+        <ul className={styles.choiceList}>{items.map(item => <li key={item.id}><button type="button" className={styles.choice} aria-pressed={target?.id === item.id}
+          data-row={item.id} onClick={() => { setChoosing(false); act({ kind: "CHOOSE", ocadId: color.ocadId, row: item.id }); }}>
+          <span className={styles.choiceSwatch} style={{ background: cssOfCmyk(item.cmyk!) }} aria-hidden="true" />
+          <span><strong>{item.name}</strong>{proposal.row === item.id && <span className={styles.proposed}>{text.chooseProposed}</span>}{" "}
+            <span className={styles.numbers}>{cmykText(item.cmyk!)}{item.comment ? ` · ${item.comment}` : ""}</span></span>
+        </button></li>)}</ul>
+      </section>)}
+    </div>}
   </li>;
 }

@@ -76,6 +76,7 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
         {courseSvg(profile.course.cmyk)}
         {images.over && <img src={images.over} alt="" />}
       </div>}
+      {images && <span className={styles.divider} style={{ left: `${split}%` }} title={text.compareDivider} aria-hidden="true" />}
     </div>
     {!ready && <p role="status" className={styles.muted}>{text.compareWaiting}</p>}
     <input className={styles.slider} type="range" min={0} max={100} value={split} aria-label={text.compareSlider} onChange={event => setSplit(Number(event.target.value))}
@@ -83,11 +84,13 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
   </section>;
 }
 
-function LayerList({ title, layers }: { title: string; layers: readonly Layer[] }) {
+function LayerList({ title, layers, wrong }: { title: string; layers: readonly Layer[]; wrong: ReadonlySet<string> }) {
   if (layers.length === 0) return null;
   return <>
     <li className={styles.group}>{title}</li>
-    {layers.map(layer => <li key={layer.name}><span className={styles.band} style={{ background: layer.css }} aria-hidden="true" />{layer.name}</li>)}
+    {layers.map(layer => <li key={layer.name} data-wrong={wrong.has(layer.name) ? "yes" : undefined}>
+      <span className={styles.band} style={{ background: layer.css }} aria-hidden="true" />{layer.name}
+      {wrong.has(layer.name) && <span className={styles.wrong}>{text.layerWrongSide}</span>}</li>)}
   </>;
 }
 
@@ -104,16 +107,17 @@ export function BlLayers({ profile, state }: { profile: PrintProfile; state: Pro
   const ground = find(all, "yellow-100", find(all, "yellow", "rgb(253, 191, 37)"));
   const ring = <circle cx="90" cy="60" r="26" fill="none" stroke={stack.course.css} strokeWidth="6" />;
   const contour = <path d="M0 60 C40 48 70 72 180 58" fill="none" stroke={brown} strokeWidth="5" />;
+  const wrong = new Set(stack.conflicts);
   return <section aria-labelledby="bl-layers" data-testid="bl-layers" data-on-top={stack.onTop ? "yes" : "no"}>
     <h3 id="bl-layers">{text.layers}</h3>
     <p className={styles.muted}>{text.layersHelp(cmykLabel(profile))}</p>
     {stack.onTop && <p className={styles.muted}>{text.layersOnTop}</p>}
     <div className={styles.layers}>
       <ol className={styles.stack} aria-label={text.layers}>
-        <LayerList title={text.layerOver} layers={stack.over} />
+        <LayerList title={text.layerOver} layers={stack.over} wrong={wrong} />
         <li className={styles.course} data-testid="bl-layer-course"><span className={styles.band} style={{ background: stack.course.css }} aria-hidden="true" />
           {text.layerCourse}: {stack.course.name}</li>
-        <LayerList title={text.layerUnder} layers={stack.under} />
+        <LayerList title={text.layerUnder} layers={stack.under} wrong={wrong} />
       </ol>
       <svg className={styles.figure} viewBox="0 0 180 120" role="img" aria-label={stack.onTop ? text.layersOnTop : text.layersHelp(cmykLabel(profile))}>
         <rect width="180" height="120" fill={ground} />

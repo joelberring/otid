@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Lagring och integritet efter granskningen (grenen lagring-integritet, ADR-0189, migration 0044–0046)
+- Kartbilder och kartfiler lagras en gång (`map_content`/`map_content_part`, sha256, delar om 1 MiB); tävlingar, kopior, träningstillfällen, biblioteket och återställningar pekar på samma innehåll, som en utlösare tar bort med sista referensen (också purge). Kvot per konto (2048 MB) och server (20480 MB) via env med besked i MB. Säkerhetskopian oförändrad; `otid_print` läser innehållet (migrationen och db-roles.sh).
+- Steg två (gamla rader och dubbletter): `node superadmin.mjs map-content move` när den nya versionen fungerar; kolumnerna image/file tas bort senare.
+- Uppladdningen strömmas till databasen (Next 16.4 buffrar inte `/api/`): 60 MB fil + 30 MB bild ökade processens minne ~35 MB (mätt), förut hela bodyn och kopior.
+- "Anonymisera" på deltagarkortet: namn, klubb, Eventor-id och externa id bort ur anmälan, journalerna, publicerade listor, fastställandet och inlästa IOF-filer; resultat och sträcktider kvar som "Anonym deltagare". Brickans nummer stannar i avläsningarna (oföränderliga). Valfri gallring `OTID_RETENTION=anonymize|delete` (förval av, 24 månader) i webbens underhåll en gång i timmen.
+- Säkerhet: inloggningsspärren per adress och IP; nya gruppkoder med slumpad del och 30 missar/timme per IP; gruppens ledare och medlemmar sparas för adressen (samma svar med och utan konto).
+- Verifierat lokalt: typecheck, enhetstester, nya integrationstester (adr-0189-kartinnehall, -anonymisering, -sakerhet) och de berörda (steg-59, -65, -68, -21, -27, -28, -46, aterstallning, adr-0186/0188); db-roles setup/check/rollback mot en egen databas med egna rollnamn.
+- Kvar: registreringen utan SMTP säger att adressen finns (ADR-0186 täcker bara läget med e-post); befintliga gruppkoder behåller sin korta kod; nedladdningen av kartfilen läses i minnet (60 MB) som förut.
+
 ### 2026-11-02 – Användarflöden efter granskningen (grenen ux-flode, ADR-0188, migration 0043)
 - Lottning: "Gemensamt för klasserna" (startsätt, intervall, klassernas första start, vakanser) med Använd för alla/valda, kryssruta för alla, nya lottbara klasser ikryssade; förhandsvisningen en rad per klass med löparna bakom ett klick (10 klasser/300 löpare: 887 px i stället för ~25 000). Första start sätts i Lottning och sparas med lottningen; Inställningar visar den och länkar dit (typer utan lottning skriver den där som förut).
 - Datumet kan ändras efter lottningen: förhandsvisning, bekräftelse och flytt av fasta starttider, lottningar (ny lottningspost) och stafettstarter med samma klockslag i samma transaktion, journal per löpare; avläsning, radiostämpling, incheckning eller resultat stoppar.

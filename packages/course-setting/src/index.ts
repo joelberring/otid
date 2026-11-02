@@ -63,6 +63,8 @@ export {
 } from "./suggest-symbols";
 // Steg 64 (ADR-0183): utskriftsprofil och layoutmall.
 export * from "./print-profile";
+export * from "./print-reference";
+export * from "./color-match";
 export * from "./layout-template";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */

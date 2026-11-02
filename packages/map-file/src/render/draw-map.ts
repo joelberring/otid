@@ -66,6 +66,11 @@ export interface DrawMapOptions {
   readonly maxPatternInstances?: number | undefined;
   /** Fyll bilden med vitt först (förval ja). */
   readonly background?: boolean | undefined;
+  /**
+   * BL-profilerna: rita bara dessa färger (id), i kartans ordning. Banan kan då läggas mitt i färgordningen: färgerna under
+   * banan först, banan, sedan färgerna över (utan bakgrund). Saknas = alla färger.
+   */
+  readonly onlyColors?: ReadonlySet<number> | undefined;
 }
 
 export interface ColorAdjust {
@@ -416,6 +421,7 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   ctx.setTransform(options.pxPerMm, 0, 0, -options.pxPerMm, -options.origin.x * options.pxPerMm, options.origin.y * options.pxPerMm);
   const order = [...map.colors].sort((left, right) => right.rank - left.rank || left.id - right.id);
   for (const color of order) {
+    if (options.onlyColors && !options.onlyColors.has(color.id)) continue;
     const drawers = plan.byColor.get(color.id);
     if (!drawers || drawers.length === 0) continue;
     options.beforeColor?.(colors.get(color.id)!);

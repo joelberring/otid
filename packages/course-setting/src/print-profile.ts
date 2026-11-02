@@ -5,7 +5,10 @@
  * macpurplepens ColorPreflight.cs och de inbyggda BL-profilerna dess PrintProfiles.cs (BSD, Purple Pen Next); reglerna
  * ändrar ingenting, de ger en rapport med information, varningar och blockerande fel.
  */
-import type { MapColor } from "@o-tid/map-file";
+import type { ColorUsage, MapColor } from "@o-tid/map-file";
+import { decisionFor, type ColorDecision } from "./color-match";
+import { referencePreflight } from "./color-preflight-reference";
+import { BL_FOREST_2026_11_02, BL_SPRINT_2026_11_02, referenceRow, type ReferenceColor, type ReferenceTable } from "./print-reference";
 import { CourseSettingEditError } from "./types";
 
 export const PRINT_PROFILE_SCHEMA_VERSION = 1;
@@ -49,8 +52,24 @@ export interface PrintProfile {
   readonly description?: string | undefined;
   /** Varifrån värdena kommer (t.ex. tryckeriets färgtabell och datum). */
   readonly source?: string | undefined;
-  /** Banans färg: CMYK, dekorfärgens namn och övertryck. */
-  readonly course: { readonly cmyk: Cmyk100; readonly spotName: string; readonly overprint: boolean };
+  /** Källans adress och datum då den kontrollerades (BL-profilerna). */
+  readonly sourceUrl?: string | undefined;
+  readonly sourceDate?: string | undefined;
+  /**
+   * Banans färg: CMYK, dekorfärgens namn och övertryck. `process` = banan som CMYK-processfärg i PDF:en i stället för en
+   * egen dekorfärg (BL:s tabeller anger bara CMYK).
+   */
+  readonly course: { readonly cmyk: Cmyk100; readonly spotName: string; readonly overprint: boolean; readonly process?: boolean | undefined };
+  /** Tryckeriets färgtabell (BL-profilerna); kopian i tävlingen behåller tabellen den godkändes mot. */
+  readonly reference?: ReferenceTable | undefined;
+  /** Det godkända förslaget: kartfärg för kartfärg vilken rad i `reference` som gäller (eller filens färg). */
+  readonly colorDecisions?: readonly ColorDecision[] | undefined;
+  /** Banan överst (Purple Pens sätt) eller i färgordningen enligt tabellen (BL: under brunt, svart och 100 % blå). */
+  readonly courseLayer?: "TOP" | "REFERENCE" | undefined;
+  /** PDF:en för tryck i CMYK utan dekorfärger (BL); förval = kartans dekorfärger som i filen. */
+  readonly processColors?: boolean | undefined;
+  /** Den inbyggda profil som kopian bygger på. */
+  readonly basedOn?: string | undefined;
   /** Kartans färger vid utskrift; den första raden som matchar en färg gäller. */
   readonly mapColors: readonly MapColorSetting[];
   readonly rules: readonly PreflightRule[];
@@ -62,6 +81,24 @@ export interface PrintProfile {
 export const PURPLE_PEN_COURSE = { cmyk: { c: 20, m: 100, y: 0, k: 0 }, spotName: "Purple", overprint: true } as const;
 
 const NO_REQUIREMENTS = { pdfX: false, icc: false, trueOverprint: false } as const;
+
+/**
+ * En inbyggd profil ur en tryckeritabell (BL skog, BL sprint): banans violett med tabellens CMYK som processfärg utan
+ * övertryck, banan i tabellens färgordning, kartan i CMYK och tabellen med källa. Kartans färger ändras först när
+ * arrangören godkänt förslaget (`colorDecisions` i tävlingens kopia).
+ */
+export function referencePrintProfile(table: ReferenceTable, name: string): PrintProfile {
+  const course = referenceRow(table, table.courseRow);
+  if (!course?.cmyk) throw new Error(`Tabellen ${table.family} saknar banans färg`);
+  return {
+    schemaVersion: 1, id: `${table.family}-${table.version}`, name,
+    description: `${table.title}, kontrollerad ${table.sourceDate}${table.effectiveFrom ? `, gäller från ${table.effectiveFrom}` : ""}. Godkänn förslaget för kartans färger innan PDF:en skapas.`,
+    source: `${table.title} (${table.sourceDate})`, sourceUrl: table.sourceUrl, sourceDate: table.sourceDate,
+    course: { cmyk: course.cmyk, spotName: course.name, overprint: false, process: true },
+    mapColors: [], rules: [], requirements: NO_REQUIREMENTS,
+    reference: table, courseLayer: "REFERENCE", processColors: true
+  };
+}
 const rule = (id: string, name: string, cmyk: [number, number, number, number], match: ColorMatch, extra: Partial<PreflightRule> = {}): PreflightRule =>
   ({ id, name, match, cmyk: { c: cmyk[0], m: cmyk[1], y: cmyk[2], k: cmyk[3] }, overprint: false, ...extra });
 const named = (name: string, ocadIds: number[] = []) => ({ names: [name], ...(ocadIds.length > 0 ? { ocadIds } : {}) });
@@ -118,8 +155,26 @@ export const BUILT_IN_PRINT_PROFILES: readonly PrintProfile[] = [
       rule("yellow-50", "Gul 50%", [0, 21, 44, 0], named("Gul 50%"))
     ],
     requirements: NO_REQUIREMENTS
-  }
+  },
+  referencePrintProfile(BL_FOREST_2026_11_02, "BL skog"),
+  referencePrintProfile(BL_SPRINT_2026_11_02, "BL sprint")
 ];
+
+/**
+ * Inbyggda profiler som ersatts av en nyare version. De finns kvar oförändrade (en tävling kan ha valt dem) men visas
+ * bara i valet när de redan är valda. En ny BL-tabell = en ny rad här och en ny profil ovan; den gamla ändras aldrig.
+ */
+export const SUPERSEDED_PRINT_PROFILES: Readonly<Record<string, string>> = {
+  "bl-forest-2026-08-27": "bl-forest-2026-11-02",
+  "bl-sprint-2025-05-01": "bl-sprint-2026-11-02"
+};
+
+/** Den senaste inbyggda versionen av en profil (sig själv om den inte ersatts). */
+export function latestPrintProfileId(id: string): string {
+  let current = id;
+  for (let step = 0; step < 20 && SUPERSEDED_PRINT_PROFILES[current]; step += 1) current = SUPERSEDED_PRINT_PROFILES[current]!;
+  return current;
+}
 
 const invalid = (message: string) => new CourseSettingEditError("INVALID", `Utskriftsprofilen: ${message}`);
 const percent = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
@@ -159,7 +214,41 @@ export function validatePrintProfile(value: unknown): PrintProfile {
     checkMatch(item.match, `regeln ${item.id}`);
   }
   if (!profile.requirements || typeof profile.requirements.pdfX !== "boolean") throw invalid("kraven saknas");
+  if (profile.course.process !== undefined && typeof profile.course.process !== "boolean") throw invalid("banans processfärg");
+  if (profile.courseLayer !== undefined && profile.courseLayer !== "TOP" && profile.courseLayer !== "REFERENCE") throw invalid("banans lager är TOP eller REFERENCE");
+  if (profile.processColors !== undefined && typeof profile.processColors !== "boolean") throw invalid("processfärgerna");
+  if (profile.reference !== undefined) checkReference(profile.reference);
+  if (profile.colorDecisions !== undefined) {
+    if (!Array.isArray(profile.colorDecisions) || profile.colorDecisions.length > 500) throw invalid("besluten är inte en lista");
+    for (const decision of profile.colorDecisions as readonly ColorDecision[]) {
+      if (!Number.isInteger(decision.ocadId) || typeof decision.name !== "string" || !isCmyk(decision.cmyk)) throw invalid("ett beslut saknar färg");
+      if (decision.row !== null && (typeof decision.row !== "string" || !profile.reference || !referenceRow(profile.reference, decision.row))) {
+        throw invalid(`beslutet för ${decision.name} pekar på en rad som inte finns`);
+      }
+    }
+  }
+  if (profile.courseLayer === "REFERENCE" && !profile.reference) throw invalid("banan i tabellens ordning kräver en tabell");
   return profile;
+}
+
+function checkReference(table: ReferenceTable): void {
+  // Array.isArray på en typad lista ger `any`; kontrollen görs på värdet som okänt.
+  const list = (value: unknown): boolean => Array.isArray(value);
+  if (typeof table !== "object" || table === null || typeof table.family !== "string" || typeof table.version !== "string" || typeof table.sourceUrl !== "string"
+    || typeof table.sourceDate !== "string" || !list(table.rows) || table.rows.length === 0 || table.rows.length > 200) throw invalid("tabellen saknar källa eller rader");
+  const ids = new Set<string>();
+  const rows: readonly ReferenceColor[] = table.rows;
+  for (const item of rows) {
+    if (typeof item.id !== "string" || ids.has(item.id) || typeof item.name !== "string" || !Number.isInteger(item.row)) throw invalid("en rad i tabellen saknar id, namn eller plats");
+    if (item.cmyk !== null && !isCmyk(item.cmyk)) throw invalid(`raden ${item.name}: CMYK 0–100`);
+    ids.add(item.id);
+  }
+  if (!ids.has(table.courseRow)) throw invalid("tabellen saknar banans rad");
+  const below: readonly string[] = table.courseBelow, above: readonly string[] = table.courseAbove;
+  if (!list(below) || !list(above) || ![...below, ...above].every(id => ids.has(id))) {
+    throw invalid("ordningsreglerna pekar på rader som inte finns");
+  }
+  if (!list(table.notes)) throw invalid("tabellens upplysningar");
 }
 
 /** En profil ur JSON (export/import mellan tävlingar). */
@@ -170,15 +259,20 @@ export function parsePrintProfile(json: string): PrintProfile {
 }
 
 /** Kartans färg som förhandskontrollen ser den: OCAD-id, namn, CMYK i procent, övertryck och ordning (0 = underst). */
-export interface SourceMapColor { readonly ocadId: number; readonly name: string; readonly cmyk: Cmyk100; readonly overprint: boolean; readonly drawOrder: number }
+export interface SourceMapColor { readonly ocadId: number; readonly name: string; readonly cmyk: Cmyk100; readonly overprint: boolean; readonly drawOrder: number;
+  /** Användningen ur kartfilen (`colorUsage`); saknas när den inte är känd eller färgen inte används. */
+  readonly usage?: ColorUsage | undefined }
 
-/** Kartfilens färger i ritordning (underst först, som `drawMap` ritar dem). */
-export function sourceMapColors(colors: readonly Pick<MapColor, "id" | "name" | "rank" | "cmyk" | "spot">[]): SourceMapColor[] {
+/** Kartfilens färger i ritordning (underst först, som `drawMap` ritar dem), med användningen när den är känd. */
+export function sourceMapColors(colors: readonly Pick<MapColor, "id" | "name" | "rank" | "cmyk" | "spot">[],
+  usage?: ReadonlyMap<number, ColorUsage>): SourceMapColor[] {
   const order = [...colors].sort((left, right) => right.rank - left.rank || left.id - right.id);
   const round = (value: number) => Math.round(value * 100_000) / 1000;
-  return order.map((color, drawOrder) => ({ ocadId: color.id, name: color.name,
-    cmyk: { c: round(color.cmyk.c), m: round(color.cmyk.m), y: round(color.cmyk.y), k: round(color.cmyk.k) },
-    overprint: color.spot?.overprint ?? false, drawOrder }));
+  return order.map((color, drawOrder) => {
+    const used = usage?.get(color.id);
+    return { ocadId: color.id, name: color.name, cmyk: { c: round(color.cmyk.c), m: round(color.cmyk.m), y: round(color.cmyk.y), k: round(color.cmyk.k) },
+      overprint: color.spot?.overprint ?? false, drawOrder, ...(used ? { usage: used } : {}) };
+  });
 }
 
 function matches(match: ColorMatch, color: { ocadId: number; name: string }): boolean {
@@ -191,13 +285,21 @@ function matches(match: ColorMatch, color: { ocadId: number; name: string }): bo
 export interface MapColorAdjust { readonly hidden?: boolean; readonly cmyk?: { c: number; m: number; y: number; k: number }; readonly lighten?: number;
   readonly spot?: { readonly name: string; readonly overprint: boolean } }
 
-/** Profilens ändringar av kartans färger; färger som ingen rad gäller är som i filen. */
+/**
+ * Profilens ändringar av kartans färger; färger som ingen rad gäller är som i filen. Ett godkänt förslag (BL) ger
+ * tabellradens CMYK; en egen rad i `mapColors` för samma färg går före.
+ */
 export function mapColorAdjust(profile: PrintProfile | undefined, colors: readonly Pick<MapColor, "id" | "name">[]): Record<number, MapColorAdjust> {
   const out: Record<number, MapColorAdjust> = {};
   if (!profile) return out;
   for (const color of colors) {
     const setting = profile.mapColors.find(item => matches(item.match, { ocadId: color.id, name: color.name }));
-    if (!setting) continue;
+    if (!setting) {
+      const decision = profile.reference ? decisionFor(profile.colorDecisions, { ocadId: color.id, name: color.name }) : undefined;
+      const target = decision?.row ? referenceRow(profile.reference!, decision.row)?.cmyk : undefined;
+      if (target) out[color.id] = { cmyk: { c: target.c / 100, m: target.m / 100, y: target.y / 100, k: target.k / 100 } };
+      continue;
+    }
     out[color.id] = {
       ...(setting.hidden ? { hidden: true } : {}),
       ...(setting.cmyk ? { cmyk: { c: setting.cmyk.c / 100, m: setting.cmyk.m / 100, y: setting.cmyk.y / 100, k: setting.cmyk.k / 100 } } : {}),
@@ -215,7 +317,9 @@ export interface PreflightFinding { readonly severity: PreflightSeverity; readon
 export interface PreflightRuleResult { readonly rule: string; readonly name: string; readonly status: PreflightMatch; readonly candidates: readonly SourceMapColor[];
   readonly confirmed: boolean }
 export interface PreflightReport { readonly profile: string; readonly results: readonly PreflightRuleResult[]; readonly findings: readonly PreflightFinding[];
-  readonly canPrint: boolean }
+  readonly canPrint: boolean;
+  /** Tryckeriprofilerna (BL): kartfärgerna som används men inte har ett godkänt beslut. */
+  readonly unconfirmed?: readonly string[] | undefined }
 
 /** Vad utskriften kan: webbläsarens utkast inget av det; PDF:en (steg 65) äkta övertryck men inte PDF/X och ICC (inte verifierat). */
 export interface PrintCapabilities { readonly pdfX: boolean; readonly icc: boolean; readonly trueOverprint: boolean }
@@ -239,6 +343,11 @@ export function colorPreflight(profile: PrintProfile, colors: readonly SourceMap
   need(profile.requirements.pdfX, capabilities.pdfX, "Profilen kräver PDF/X med OutputIntent, som O-Tid inte kan ge än (inte verifierat).");
   need(profile.requirements.icc, capabilities.icc, "Profilen kräver en inbäddad ICC-profil, som O-Tid inte kan ge än (inte verifierat).");
   need(profile.requirements.trueOverprint, capabilities.trueOverprint, "Profilen kräver äkta övertryck, som bara PDF:en för tryck kan ge (inte webbläsarens utskrift).");
+  if (profile.reference) {
+    const reference = referencePreflight(profile, profile.reference, colors);
+    findings.push(...reference.findings);
+    return { profile: profile.id, results: [], findings, canPrint: !findings.some(finding => finding.severity === "BLOCKING"), unconfirmed: reference.unconfirmed };
+  }
   const results: PreflightRuleResult[] = [];
   for (const item of profile.rules) {
     let candidates = colors.filter(color => matches(item.match, color));

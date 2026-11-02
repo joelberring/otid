@@ -59,6 +59,8 @@ describe("stjärna, linje, keps och kartbitar (ADR-0192 beslut 6–7)", () => {
     expect(ringA?.kind === "circle" ? ringA.gaps?.length ?? 0 : -1).toBe(0);
     expect(ringB?.kind === "circle" ? ringB.gaps?.length ?? 0 : -1).toBe(12);
     expect(a.some(f => f.role === "LEG")).toBe(true);
+    expect(a.find(f => f.ref === "pairs-legend")?.kind === "text").toBe(true);
+    expect(common.some(f => f.ref === "pairs-legend")).toBe(false);
     const bMap = layoutOverprint(b.document, { course, training: { pairMap: "B" } });
     const bRing = ringOf(bMap, controls[1]!);
     expect(bRing?.kind === "circle" ? bRing.gaps?.length ?? 0 : -1).toBe(12);

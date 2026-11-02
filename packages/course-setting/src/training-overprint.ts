@@ -98,6 +98,15 @@ export function withTraining(document: CourseSettingDocument, options: Overprint
   }
   out.push(...attackFigures(document, sequences, sizes, keepLegs));
   if (ct && !view?.section) out.push(...markerFigures(document, ct, sequences, sizes));
+  if (takeIn && pairing) {
+    // Förklaringen på kartan under banan: vem kartan är för och vad ringarna betyder (ADR-0192 beslut 6).
+    const points = [...pairs.labels.keys()].map(id => document.controls[id]!.at);
+    const minX = Math.min(...points.map(p => p.x)), minY = Math.min(...points.map(p => p.y));
+    const height = sizes.numberHeight * 0.7;
+    const legend = `Löpare ${view!.pairMap}: heldragen ring = sätt ut kepsen, streckad = ta in den`;
+    out.push({ kind: "text", role: "TRAINING", color: "COURSE", at: { x: minX, y: minY - sizes.control - height }, text: legend, heightMm: height * 1.39,
+      align: "left", ref: "pairs-legend" });
+  }
   return out;
 }
 

@@ -39,6 +39,20 @@ export const trainingGroupMembers = pgTable("training_group_member", {
   requestId: uuid("request_id").notNull()
 });
 
+/** ADR-0189 (migration 0046): ledare och medlemmar som väntar på att någon loggar in med adressen. */
+export const trainingGroupInvitations = pgTable("training_group_invitation", {
+  id: uuid("id").primaryKey(),
+  requestId: uuid("request_id").notNull(),
+  groupId: uuid("group_id").notNull().references(() => trainingGroups.id),
+  email: text("email").notNull(),
+  role: text("role").$type<TrainingGroupMemberRole>().notNull(),
+  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),
+  revokedAt: timestamp("revoked_at", { withTimezone: true })
+});
+
 export const trainingGroupSeries = pgTable("training_group_series", {
   id: uuid("id").primaryKey(),
   groupId: uuid("group_id").notNull().references(() => trainingGroups.id),

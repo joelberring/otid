@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { readGroupPublicView } from "@o-tid/application";
@@ -6,6 +7,7 @@ import { sv } from "../../../../i18n/sv";
 import { trainingGroupSv } from "../../../../i18n/training-group-sv";
 import { publicDb } from "../../../../lib/db";
 import { accountSessionToken } from "../../../../lib/public-race-gate";
+import { clientAddressFrom } from "../../../../lib/security-policy";
 import { publicOrigin } from "../../../../lib/public-origin";
 import { displayAddress } from "../../../../lib/public-race-format";
 import { QrSheet } from "../../../../components/public-race/qr-sheet";
@@ -17,7 +19,8 @@ export const metadata: Metadata = { title: `${trainingGroupSv.public.qr} – ${s
 
 /** Steg 68: QR-kod till gruppens fasta länk att skriva ut (som tävlingens QR-sida); samma synlighet som gruppsidan. */
 export default async function GroupQrPage({ params }: Params) {
-  const read = await readGroupPublicView(publicDb, { code: (await params).code, sessionToken: await accountSessionToken() });
+  const read = await readGroupPublicView(publicDb, { code: (await params).code, sessionToken: await accountSessionToken(),
+    clientKey: clientAddressFrom(await headers()) });
   if (read.status !== "ok") notFound();
   const path = `/g/${read.view.code}`;
   const origin = await publicOrigin();

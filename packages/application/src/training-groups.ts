@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { randomInt, randomUUID } from "node:crypto";
+import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   groupCreateRequestSchema, groupMemberAddRequestSchema, groupMemberRemoveRequestSchema, groupSettingsRequestSchema,
   raceGroupAttachRequestSchema, type GroupLeaderView, type GroupMember, type GroupSeries, type GroupSession, type GroupSummary
@@ -8,6 +8,7 @@ import { schema, type Database } from "@o-tid/database";
 import { groupParticipantKey, seasonTable, type GroupPointsMode, type SeasonRow } from "@o-tid/domain";
 import { activeEventAdministrationGrant } from "./race-session";
 import { leaderMembership } from "./training-group-access";
+import { acceptGroupInvitations, openGroupInvitations } from "./training-group-invitations";
 import { listGroupLibraryMaps } from "./training-group-maps";
 import { publicResults } from "./results";
 import { UUID_PATTERN } from "./serialization";
@@ -49,6 +50,16 @@ async function summaries(tx: Transaction, accountId: string): Promise<GroupSumma
   return rows.map(row => ({ ...row, sessions: counts.get(row.groupId) ?? 0 }));
 }
 
+const SUFFIX_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
+/** Åtta tecken ur 32 (inga lätt förväxlade): 40 bitar. */
+export function randomGroupCodeSuffix(): string {
+  return Array.from({ length: 8 }, () => SUFFIX_ALPHABET[randomInt(SUFFIX_ALPHABET.length)]).join("");
+}
+/** Kortnamnet utan bindestreck på slutet, högst 31 tecken (koden blir högst 40 med den slumpade delen). */
+export function groupCodeSlug(code: string): string {
+  return code.slice(0, 31).replace(/-+$/, "");
+}
+
 export async function createTrainingGroup(db: Database, input: Proof & { request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "created"; replayed: boolean; group: GroupSummary }> {
   const parsed = groupCreateRequestSchema.safeParse(input.request);
@@ -58,21 +69,25 @@ export async function createTrainingGroup(db: Database, input: Proof & { request
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
     const accountId = auth.principal.accountId;
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"training-group:" + intent.code}, 0))`);
+    // ADR-0189 beslut 8: arrangörens kortnamn och en slumpad del (40 bitar), så att länken (/g/<kod>) inte går att gissa.
+    const slug = groupCodeSlug(intent.code);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"training-group:" + intent.requestId}, 0))`);
     const [prior] = await tx.select().from(schema.trainingGroups).where(eq(schema.trainingGroups.requestId, intent.requestId));
     if (prior) {
-      if (prior.createdBy !== accountId || prior.code !== intent.code) return { status: "conflict" } as const;
+      if (prior.createdBy !== accountId || !prior.code.startsWith(`${slug}-`)) return { status: "conflict" } as const;
       const group = (await summaries(tx, accountId)).find(row => row.groupId === prior.id);
       return group ? { status: "created", replayed: true, group } as const : { status: "conflict" } as const;
     }
-    const [taken] = await tx.select({ id: schema.trainingGroups.id }).from(schema.trainingGroups).where(eq(schema.trainingGroups.code, intent.code));
-    if (taken) return { status: "conflict" } as const;
-    const [group] = await tx.insert(schema.trainingGroups).values({ name: intent.name, code: intent.code, createdAt: now, createdBy: accountId,
+    let code = `${slug}-${randomGroupCodeSuffix()}`;
+    while ((await tx.select({ id: schema.trainingGroups.id }).from(schema.trainingGroups).where(eq(schema.trainingGroups.code, code))).length > 0) {
+      code = `${slug}-${randomGroupCodeSuffix()}`;
+    }
+    const [group] = await tx.insert(schema.trainingGroups).values({ name: intent.name, code, createdAt: now, createdBy: accountId,
       requestId: intent.requestId }).returning({ id: schema.trainingGroups.id });
     if (!group) throw new Error("Gruppen kunde inte skapas");
     await tx.insert(schema.trainingGroupMembers).values({ id: randomUUID(), groupId: group.id, accountId, role: "LEADER", addedAt: now,
       addedBy: accountId, requestId: randomUUID() });
-    return { status: "created", replayed: false, group: { groupId: group.id, name: intent.name, code: intent.code, role: "LEADER", sessions: 0 } } as const;
+    return { status: "created", replayed: false, group: { groupId: group.id, name: intent.name, code, role: "LEADER", sessions: 0 } } as const;
   });
 }
 
@@ -81,6 +96,8 @@ export async function listMyGroups(db: Database, proof: Proof, now = new Date())
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, proof, now);
     if (auth.status !== "authenticated") return auth;
+    // ADR-0189 beslut 9: grupper som väntade på att kontot loggade in.
+    await acceptGroupInvitations(tx, auth.principal.accountId, now);
     return { status: "ok", groups: await summaries(tx, auth.principal.accountId) } as const;
   });
 }
@@ -92,7 +109,11 @@ async function members(tx: Transaction, groupId: string): Promise<GroupMember[]>
     .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, schema.trainingGroupMembers.accountId))
     .where(eq(schema.trainingGroupMembers.groupId, groupId))
     .orderBy(asc(schema.trainingGroupMembers.role), asc(schema.trainingGroupMembers.addedAt)).limit(2000);
-  return rows.map(row => ({ ...row, addedAt: row.addedAt.toISOString() }));
+  // ADR-0189 beslut 9: adresser som väntar på inloggning, sist.
+  const pending = await openGroupInvitations(tx, groupId);
+  return [...rows.map(row => ({ ...row, addedAt: row.addedAt.toISOString(), pending: false })),
+    ...pending.map(row => ({ memberId: row.id, accountId: null, email: row.email, displayName: null, role: row.role,
+      addedAt: row.createdAt.toISOString(), pending: true }))];
 }
 
 /** Gruppens tillfällen (tävlingarna i gruppens evenemang), äldst först. */
@@ -195,23 +216,21 @@ export async function addGroupMember(db: Database, input: Proof & { groupId: str
   return db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
-    const [prior] = await tx.select().from(schema.trainingGroupMembers).where(eq(schema.trainingGroupMembers.requestId, intent.requestId));
+    // ADR-0189 beslut 9: sparas för adressen, samma svar med och utan konto. Personen blir medlem när den loggar in med adressen.
+    const view = (row: typeof schema.trainingGroupInvitations.$inferSelect): GroupMember => ({ memberId: row.id, accountId: null, email: row.email,
+      displayName: null, role: row.role, addedAt: row.createdAt.toISOString(), pending: true });
+    const [prior] = await tx.select().from(schema.trainingGroupInvitations).where(eq(schema.trainingGroupInvitations.requestId, intent.requestId));
     if (prior) {
-      const member = (await members(tx, input.groupId)).find(row => row.memberId === prior.id);
-      if (!member || prior.groupId !== input.groupId || member.email !== intent.email || member.role !== intent.role) return { status: "conflict" } as const;
-      return { status: "added", replayed: true, member } as const;
+      if (prior.groupId !== input.groupId || prior.email !== intent.email || prior.role !== intent.role) return { status: "conflict" } as const;
+      return { status: "added", replayed: true, member: view(prior) } as const;
     }
-    const [target] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.email, intent.email));
-    if (!target || target.blockedAt) return { status: "not-found" } as const;
-    const [existing] = await tx.select({ id: schema.trainingGroupMembers.id }).from(schema.trainingGroupMembers)
-      .where(and(eq(schema.trainingGroupMembers.groupId, input.groupId), eq(schema.trainingGroupMembers.accountId, target.id)));
-    if (existing) return { status: "conflict" } as const;
-    const id = randomUUID();
-    await tx.insert(schema.trainingGroupMembers).values({ id, groupId: input.groupId, accountId: target.id, role: intent.role, addedAt: now,
-      addedBy: leader.accountId, requestId: intent.requestId });
-    const member = (await members(tx, input.groupId)).find(row => row.memberId === id);
-    if (!member) throw new Error("Medlemmen kunde inte sparas");
-    return { status: "added", replayed: false, member } as const;
+    // Redan med (adressen syns redan i listan, så svaret avslöjar inget nytt) eller redan inbjuden.
+    const current = await members(tx, input.groupId);
+    if (current.some(row => row.email === intent.email)) return { status: "conflict" } as const;
+    const [invitation] = await tx.insert(schema.trainingGroupInvitations).values({ id: randomUUID(), requestId: intent.requestId,
+      groupId: input.groupId, email: intent.email, role: intent.role, actorAccountId: leader.accountId, createdAt: now }).returning();
+    if (!invitation) throw new Error("Inbjudan kunde inte sparas");
+    return { status: "added", replayed: false, member: view(invitation) } as const;
   });
 }
 
@@ -225,9 +244,22 @@ export async function removeGroupMember(db: Database, input: Proof & { groupId: 
     // Gruppens alla ledarrader låses, så att två ledare inte tar bort varandra samtidigt.
     const leaders = await tx.select({ id: schema.trainingGroupMembers.id }).from(schema.trainingGroupMembers)
       .where(and(eq(schema.trainingGroupMembers.groupId, input.groupId), eq(schema.trainingGroupMembers.role, "LEADER"))).for("update");
-    const [target] = await tx.select().from(schema.trainingGroupMembers).where(and(eq(schema.trainingGroupMembers.id, parsed.data.memberId),
+    let [target] = await tx.select().from(schema.trainingGroupMembers).where(and(eq(schema.trainingGroupMembers.id, parsed.data.memberId),
       eq(schema.trainingGroupMembers.groupId, input.groupId)));
-    if (!target) return { status: "not-found" } as const;
+    if (!target) {
+      // ADR-0189 beslut 9: id:t är en inbjudan. Väntar den fortfarande tas den bort; är den tagen tas medlemmen bort.
+      const [invitation] = await tx.select().from(schema.trainingGroupInvitations).where(and(
+        eq(schema.trainingGroupInvitations.id, parsed.data.memberId), eq(schema.trainingGroupInvitations.groupId, input.groupId)));
+      if (!invitation || invitation.revokedAt) return { status: "not-found" } as const;
+      if (!invitation.acceptedAccountId) {
+        await tx.update(schema.trainingGroupInvitations).set({ revokedAt: now })
+          .where(and(eq(schema.trainingGroupInvitations.id, invitation.id), isNull(schema.trainingGroupInvitations.acceptedAt)));
+        return { status: "removed" } as const;
+      }
+      [target] = await tx.select().from(schema.trainingGroupMembers).where(and(eq(schema.trainingGroupMembers.groupId, input.groupId),
+        eq(schema.trainingGroupMembers.accountId, invitation.acceptedAccountId)));
+      if (!target) return { status: "not-found" } as const;
+    }
     if (target.role === "LEADER" && leaders.length <= 1) return { status: "conflict" } as const;
     await tx.delete(schema.trainingGroupMembers).where(eq(schema.trainingGroupMembers.id, target.id));
     return { status: "removed" } as const;

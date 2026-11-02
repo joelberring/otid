@@ -104,7 +104,12 @@ export interface GroupSettings {
 
 export interface GroupSummary { groupId: string; name: string; code: string; role: GroupMemberRole; sessions: number }
 
-export interface GroupMember { memberId: string; accountId: string; email: string; displayName: string; role: GroupMemberRole; addedAt: string }
+/**
+ * En ledare eller medlem. ADR-0189 beslut 9: `pending` = sparad för adressen och väntar på att någon loggar in med den (då är
+ * `accountId` och `displayName` null och `memberId` inbjudans id); svaret är detsamma oavsett om adressen har ett konto.
+ */
+export interface GroupMember { memberId: string; accountId: string | null; email: string; displayName: string | null; role: GroupMemberRole;
+  addedAt: string; pending: boolean }
 
 export interface GroupSession {
   raceId: string; eventId: string; eventName: string; raceName: string; raceDate: string; raceType: string; firstStartTime: string | null;

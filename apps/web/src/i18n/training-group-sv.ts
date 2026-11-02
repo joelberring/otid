@@ -9,7 +9,9 @@ export const trainingGroupSv = {
     name: "Gruppens namn",
     namePlaceholder: "t.ex. Ungdom OK ÄÖ",
     code: "Kortnamn i länken",
-    codeHelp: (code: string) => `Gruppens sida: /g/${code || "…"} (3–40 tecken: a–z, 0–9 och bindestreck).`,
+    // ADR-0189 beslut 8: servern lägger till en slumpad del, så att länken inte går att gissa.
+    codeHelp: (code: string) => `Gruppens sida: /g/${code ? code.slice(0, 31) : "…"}-xxxxxxxx (3–31 tecken: a–z, 0–9 och bindestreck; ` +
+      "slutet slumpas så att ingen kan gissa länken).",
     open: "Öppna gruppen",
     publicPage: "Gruppens sida",
     role: { LEADER: "Ledare", MEMBER: "Medlem" } as Record<"LEADER" | "MEMBER", string>,
@@ -69,14 +71,14 @@ export const trainingGroupSv = {
     attachRace: "Tävling",
     attachButton: "Lägg till i gruppen",
     attached: "Tävlingen hör nu till gruppen.",
-    peopleHint: "Ledarna är administratörer på alla gruppens tävlingar. Medlemmar ser gruppens sida när den bara är för inloggade, och närvaron när ni slagit på det. Personen måste ha ett konto i O-Tid.",
+    peopleHint: "Ledarna är administratörer på alla gruppens tävlingar. Medlemmar ser gruppens sida när den bara är för inloggade, och närvaron när ni slagit på det. Personen får behörigheten när den loggar in i O-Tid med adressen (och har bekräftat den); till dess står adressen som ”väntar på inloggning”.",
     email: "E-postadress",
     personRole: "Roll",
     add: "Lägg till",
     remove: "Ta bort",
     lastLeader: "Den sista ledaren kan inte tas bort.",
-    personNotFound: "Det finns inget konto med den adressen.",
-    personExists: "Personen är redan med i gruppen.",
+    pending: "väntar på inloggning",
+    personExists: "Adressen finns redan i gruppen.",
     mapsHint: "Kartor och banläggningar sparas i gruppen som kopior och kan väljas till en ny träning. En borttagen träning tar inte kartan med sig.",
     noMaps: "Inga kartor i biblioteket än. Lägg till kartan från ett av gruppens tillfällen.",
     saveMap: "Spara karta från ett tillfälle",
@@ -166,6 +168,9 @@ export const trainingGroupSv = {
     className: "Klass",
     time: "Tid",
     status: { OK: "", MP: "Felstämplad", DNF: "Utgått", DSQ: "Diskad", DNS: "Ej start", OOC: "Utom tävlan", OVERTIME: "Maxtid", NT: "Utan tid" } as Record<string, string>,
-    notFoundTitle: "Gruppen finns inte"
+    notFoundTitle: "Gruppen finns inte",
+    // ADR-0189 beslut 8.
+    rateLimitedTitle: "För många försök",
+    rateLimited: "Den här adressen har provat många länkar som inte finns. Vänta en timme, eller be gruppens ledare om länken."
   }
 };

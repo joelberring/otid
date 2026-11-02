@@ -55,15 +55,19 @@ describe("steg 46: spärrarnas hash och inloggningen", () => {
     expect((await login(victim.email, TEST_PASSWORD, clientKey, new Date(now.getTime() + 16 * 60_000))).status).toBe("authenticated");
   });
 
-  it("spärren per e-post är tidsbegränsad", async () => {
+  it("ADR-0189: fem fel spärrar adressen bara från den IP-adressen; funktionären loggar in från sin egen, och spärren går ut", async () => {
     const account = await registerTestAccount(db);
     const now = new Date();
-    for (let index = 0; index < 5; index += 1) {
-      await loginUserAccount(db, { formatVersion: 1, email: account.email, password: "fel-lösen-1" }, { now, clientKey: randomUUID() });
-    }
-    expect((await loginUserAccount(db, { formatVersion: 1, email: account.email, password: TEST_PASSWORD }, { now, clientKey: randomUUID() })).status)
-      .toBe("rate-limited");
-    expect((await loginUserAccount(db, { formatVersion: 1, email: account.email, password: TEST_PASSWORD },
-      { now: new Date(now.getTime() + 16 * 60_000), clientKey: randomUUID() })).status).toBe("authenticated");
+    const attacker = `203.0.113.${Math.floor(Math.random() * 250)}`, official = `198.51.100.${Math.floor(Math.random() * 250)}`;
+    const login = (password: string, clientKey: string, at = now) =>
+      loginUserAccount(db, { formatVersion: 1, email: account.email, password }, { now: at, clientKey });
+    for (let index = 0; index < 5; index += 1) expect((await login("fel-lösen-1", attacker)).status).toBe("unauthorized");
+    expect((await login(TEST_PASSWORD, attacker)).status).toBe("rate-limited");
+    // Någon annan kan inte låsa ute funktionären.
+    expect((await login(TEST_PASSWORD, official)).status).toBe("authenticated");
+    // Från många adresser: fem fel per adress räknas var för sig.
+    for (let index = 0; index < 12; index += 1) await login("fel-lösen-1", `${randomUUID()}`);
+    expect((await login(TEST_PASSWORD, official)).status).toBe("authenticated");
+    expect((await login(TEST_PASSWORD, attacker, new Date(now.getTime() + 16 * 60_000))).status).toBe("authenticated");
   });
 });

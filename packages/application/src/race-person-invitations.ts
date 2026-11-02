@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
+import { acceptGroupInvitations } from "./training-group-invitations";
 
 /**
  * ADR-0188 beslut 6: en behörighet som en administratör ger sparas för e-postadressen, oavsett om adressen har ett konto,
@@ -49,10 +50,12 @@ export async function acceptRacePersonInvitations(tx: DbExecutor, accountId: str
   const [account] = await tx.select({ email: schema.userAccounts.email, verifiedAt: schema.userAccounts.emailVerifiedAt,
     blockedAt: schema.userAccounts.blockedAt }).from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId));
   if (!account || !account.verifiedAt || account.blockedAt) return 0;
+  // ADR-0189 beslut 9: träningsgruppernas inbjudningar tas samtidigt (inloggning, bekräftelse, Mina tävlingar, tävlingen; en
+  // ledare i gruppen är administratör på gruppens tävlingar).
+  let accepted = await acceptGroupInvitations(tx, accountId, now);
   const pending = await tx.select({ id: invitations.id }).from(invitations)
     .where(and(eq(invitations.email, account.email), open, raceId ? eq(invitations.raceId, raceId) : undefined))
     .orderBy(asc(invitations.createdAt)).limit(200);
-  let accepted = 0;
   for (const { id } of pending) {
     // Ta raden först: en samtidig begäran som redan tagit den hoppas över.
     const [invitation] = await tx.update(invitations).set({ acceptedAt: now, acceptedAccountId: accountId })

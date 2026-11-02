@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { readGroupPublicView, type GroupPublicResultRead } from "@o-tid/application";
@@ -8,6 +9,7 @@ import { sv } from "../../../i18n/sv";
 import { trainingGroupSv } from "../../../i18n/training-group-sv";
 import { publicDb } from "../../../lib/db";
 import { accountSessionToken } from "../../../lib/public-race-gate";
+import { clientAddressFrom } from "../../../lib/security-policy";
 import { publicOrigin } from "../../../lib/public-origin";
 import { displayAddress, formatRaceDate, raceHubPath } from "../../../lib/public-race-format";
 import { formatDuration } from "../../../lib/clock-time";
@@ -21,12 +23,13 @@ type Params = { params: Promise<{ code: string }> };
 
 /** Sidan och dess metadata delar en läsning per begäran. */
 const load = cache(async (code: string): Promise<GroupPublicResultRead> =>
-  readGroupPublicView(publicDb, { code, sessionToken: await accountSessionToken() }));
+  readGroupPublicView(publicDb, { code, sessionToken: await accountSessionToken(), clientKey: clientAddressFrom(await headers()) }));
 
 /** Steg 68 (ADR-0182 beslut 7): gruppens sidor indexeras aldrig (robots.txt, X-Robots-Tag och här). */
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const read = await load((await params).code);
-  const title = read.status === "ok" ? read.view.name : read.status === "login-required" ? read.name : text.notFoundTitle;
+  const title = read.status === "ok" ? read.view.name : read.status === "login-required" ? read.name
+    : read.status === "rate-limited" ? text.rateLimitedTitle : text.notFoundTitle;
   return { title: `${title} – ${sv.appName}`, robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } } };
 }
 
@@ -48,6 +51,10 @@ function resultsByClass(results: readonly GroupPublicResult[]) {
 export default async function GroupPage({ params }: Params) {
   const read = await load((await params).code);
   if (read.status === "not-found") notFound();
+  // ADR-0189 beslut 8: för många gissade koder från samma adress.
+  if (read.status === "rate-limited") return <main className={styles.public}>
+    <section><p className={styles.kicker}>{text.kicker}</p><h1>{text.rateLimitedTitle}</h1><p>{text.rateLimited}</p></section>
+  </main>;
   if (read.status === "login-required") return <main className={styles.public}>
     <section><p className={styles.kicker}>{text.kicker}</p><h1>{read.name}</h1></section>
     <section aria-labelledby="group-login"><h2 id="group-login">{text.loginTitle}</h2><p>{text.loginHint}</p>

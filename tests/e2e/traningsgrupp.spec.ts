@@ -28,17 +28,22 @@ test("träningsgrupp: ledare, upprepning, gruppsidan med förnamn och kartans av
   await expect(groups.getByText("Du är inte med i någon grupp än.")).toBeVisible();
   await groups.getByText("Ny grupp", { exact: true }).click();
   await groups.getByLabel("Gruppens namn").fill(`Ungdom OK ÄÖ ${suffix}`);
-  const code = `ungdom-ok-ao-${suffix}`;
-  await expect(groups.getByLabel("Kortnamn i länken")).toHaveValue(code);
+  await expect(groups.getByLabel("Kortnamn i länken")).toHaveValue(`ungdom-ok-ao-${suffix}`);
   await groups.getByRole("button", { name: "Skapa grupp" }).click();
   await leader.waitForURL(/\/organizer\/groups\/[0-9a-f-]+$/);
+  // ADR-0189 beslut 8: servern lägger till en slumpad del i länken.
+  const listed = await (await leader.request.get("/api/organizer/groups")).json() as { groups: { name: string; code: string }[] };
+  const code = listed.groups.find(group => group.name === `Ungdom OK ÄÖ ${suffix}`)!.code;
+  expect(code).toMatch(new RegExp(`^ungdom-ok-ao-${suffix}-[a-z2-9]{8}$`));
   await expect(leader.getByRole("heading", { name: `Ungdom OK ÄÖ ${suffix}`, level: 1 })).toBeVisible();
 
   // En andra ledare läggs till med e-post.
   const people = await leaderSection(leader, "Ledare och medlemmar");
   await people.getByLabel("E-postadress").fill(`ledare2.${suffix}@exempel.se`);
   await people.getByRole("button", { name: "Lägg till" }).click();
-  await expect(people.getByText(`ledare2.${suffix}@exempel.se · Ledare`)).toBeVisible();
+  // ADR-0189 beslut 9: adressen väntar på inloggning tills Leo öppnar O-Tid igen (samma svar med och utan konto).
+  await expect(people.getByText("Ledare · väntar på inloggning")).toBeVisible();
+  await second.goto("/organizer");
 
   // Upprepning: i dag och två veckor framåt, 18:00 (den första träningen i gruppen blir en tom träning).
   const form = await leaderSection(leader, "Ny träning");

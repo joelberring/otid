@@ -7,6 +7,8 @@ import { groupMembership } from "./training-group-access";
 import { groupSeason, groupSessions, groupToday } from "./training-groups";
 import { authenticateUserAccountSessionForProtectedRead } from "./user-account";
 import { UUID_PATTERN } from "./serialization";
+import { accountRequestAllowanceExhausted, consumeAccountRequestAllowance } from "./account-throttle";
+import { acceptGroupInvitations } from "./training-group-invitations";
 
 /**
  * Steg 68 (ADR-0182 beslut 2 och 7): gruppsidan (/g/<kod>) och namnen på gruppens tävlingars publika sidor.
@@ -19,7 +21,11 @@ import { UUID_PATTERN } from "./serialization";
  *   arbetsytan som förut.
  * - Närvaro och statistik: bara ledarna (standard; i Mina tävlingar → gruppen) eller också medlemmarna (inloggade) här.
  */
-export type GroupPublicResultRead = { status: "not-found" } | { status: "login-required"; name: string } | { status: "ok"; view: GroupPublicView };
+export type GroupPublicResultRead = { status: "not-found" } | { status: "rate-limited" } | { status: "login-required"; name: string }
+  | { status: "ok"; view: GroupPublicView };
+
+/** ADR-0189 beslut 8: missade gruppkoder per IP-adress och timme innan sidan svarar "för många försök". */
+export const GROUP_CODE_MISSES_PER_HOUR = 30;
 
 /** Namninställningen för en tävlings publika sidor: gruppens, eller fullt namn när tävlingen inte hör till en grupp. */
 export async function raceGroupNameDisplay(db: Database, raceId: string): Promise<GroupNameDisplay> {
@@ -33,17 +39,29 @@ export async function raceGroupNameDisplay(db: Database, raceId: string): Promis
 
 const MAX_RESULTS = 500;
 
-export async function readGroupPublicView(db: Database, input: { code: string; sessionToken: string | null }, now = new Date())
+export async function readGroupPublicView(db: Database, input: { code: string; sessionToken: string | null; clientKey?: string }, now = new Date())
   : Promise<GroupPublicResultRead> {
   const code = input.code.trim().toLowerCase();
-  if (!GROUP_CODE_PATTERN.test(code)) return { status: "not-found" };
+  // ADR-0189 beslut 8: den som gissar koder får "för många försök" efter 30 missar i timmen från samma IP-adress (också för
+  // en riktig kod, så att en träff inte går att skilja från en miss).
+  const throttle = input.clientKey ? { scope: "GROUP_CODE_IP" as const, key: input.clientKey, limit: GROUP_CODE_MISSES_PER_HOUR } : undefined;
+  if (throttle && await accountRequestAllowanceExhausted(db, throttle, now)) return { status: "rate-limited" };
+  const miss = async () => {
+    if (throttle) await db.transaction(tx => consumeAccountRequestAllowance(tx, throttle, now));
+    return { status: "not-found" } as const;
+  };
+  if (!GROUP_CODE_PATTERN.test(code)) return miss();
   const read = await db.transaction(async tx => {
     const [group] = await tx.select().from(schema.trainingGroups).where(eq(schema.trainingGroups.code, code));
     if (!group) return { status: "not-found" } as const;
     let role: "LEADER" | "MEMBER" | undefined;
     if (input.sessionToken) {
       const auth = await authenticateUserAccountSessionForProtectedRead(tx, { sessionToken: input.sessionToken }, now);
-      if (auth.status === "authenticated") role = (await groupMembership(tx, { accountId: auth.principal.accountId, groupId: group.id }))?.role;
+      if (auth.status === "authenticated") {
+        // ADR-0189 beslut 9: en inbjudan till gruppen tas när personen öppnar gruppens sida.
+        await acceptGroupInvitations(tx, auth.principal.accountId, now, group.id);
+        role = (await groupMembership(tx, { accountId: auth.principal.accountId, groupId: group.id }))?.role;
+      }
     }
     if (group.pageVisibility === "MEMBERS" && !role) return { status: "login-required", name: group.name } as const;
     const { today } = await groupToday(tx, group.id, now);
@@ -54,6 +72,7 @@ export async function readGroupPublicView(db: Database, input: { code: string; s
       .limit(1);
     return { status: "ok" as const, group, role, today, sessions, todayRaceId: todayOpen?.raceId };
   }, { isolationLevel: "repeatable read" });
+  if (read.status === "not-found") return miss();
   if (read.status !== "ok") return read;
   const { group, sessions, today } = read;
   const view = (session: (typeof sessions)[number]): GroupPublicSession => ({ raceId: session.raceId, eventName: session.eventName,

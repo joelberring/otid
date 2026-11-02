@@ -76,8 +76,9 @@ bricknummer eller namn. Stämplingarna tas bort med tävlingen.
 ## Konton och superadmin (ADR-0172)
 
 Kontot identifieras med normaliserad e-post. Lösenord lagras som `scrypt`-verifierare (minst 8 tecken).
-Inloggning spärras efter fem fel per e-postadress i 15 minuter, och efter 30 fel från samma IP-adress (oavsett konto) i 15
-minuter; spärrarna går ut av sig själva och är aldrig permanenta (steg 46). Registrering, återställningsförfrågningar och
+Inloggning spärras efter fem fel för en e-postadress från samma IP-adress i 15 minuter (ADR-0189: så att ingen annan kan låsa
+ute kontot), och efter 30 fel från samma IP-adress (oavsett konto) i 15 minuter; spärrarna går ut av sig själva och är aldrig
+permanenta (steg 46). Registrering, återställningsförfrågningar och
 självregistrering räknas per IP-adress (och per e-post eller tävling). Nycklarna sparas bara som HMAC-SHA-256 med serverns
 hemlighet (`OTID_THROTTLE_SECRET`, annars härledd ur `DATABASE_URL`), och rader äldre än två dygn tas bort vid nästa
 skrivning (`application/src/account-throttle.ts`). Glömt lösenord svarar likadant
@@ -143,3 +144,9 @@ transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: 
   deltagaren tas bort. Resultatet och sträcktiderna står kvar som "Anonym deltagare". Brickans nummer finns kvar i brickans koppling
   och avläsningarna (oföränderliga, resultatet räknas ur dem). Journalerna får skrivas över bara med `otid.anonymize` i transaktionen.
 - Valfri gallring (`OTID_RETENTION=anonymize|delete`, `OTID_RETENTION_MONTHS`, förval av och 24 månader), körd av webbens underhåll.
+- Inloggningsspärren gäller adressen per IP-adress. Gruppkoderna har en slumpad del (40 bitar) och missade koder räknas per
+  IP-adress (30 i timmen). Ledare och medlemmar i en träningsgrupp sparas för adressen (`training_group_invitation`) och svaret är
+  detsamma med och utan konto; personen blir medlem vid inloggning, bekräftelse, Mina tävlingar eller gruppens sida.
+- Registreringen avslöjar inte om en adress har ett konto när servern har e-post (ADR-0186 beslut 9: samma svar, lösenordet hashas
+  alltid och mejlet skickas efter svaret). Utan e-post på servern loggar registreringen in direkt och en befintlig adress ger
+  "finns redan"; det går inte att undvika utan e-post. Driftsätt därför med SMTP.

@@ -45,6 +45,7 @@
     { "idx": 40, "version": "7", "when": 1801152000000, "tag": "0042_aterstallning_inaktuella", "breakpoints": true },
     { "idx": 41, "version": "7", "when": 1801238400000, "tag": "0043_behorighet_inbjudan", "breakpoints": true },
     { "idx": 42, "version": "7", "when": 1801324800000, "tag": "0044_kartinnehall", "breakpoints": true },
-    { "idx": 43, "version": "7", "when": 1801411200000, "tag": "0045_anonymisering", "breakpoints": true }
+    { "idx": 43, "version": "7", "when": 1801411200000, "tag": "0045_anonymisering", "breakpoints": true },
+    { "idx": 44, "version": "7", "when": 1801497600000, "tag": "0046_sparrar_och_grupper", "breakpoints": true }
   ]
 }

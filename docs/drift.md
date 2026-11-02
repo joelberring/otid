@@ -183,6 +183,10 @@ docker compose -f docker-compose.prod.yml up -d
 
 Ett byte nollställer bara räknarna. Raderna tas bort efter två dygn.
 
+ADR-0189: fem felaktiga inloggningar spärrar adressen bara från den IP-adressen i 15 minuter (och 30 fel från en IP-adress
+spärrar den IP-adressen), så ingen kan låsa ute en funktionär från en annan adress. Gruppsidan (`/g/<kod>`) svarar "För många
+försök" efter 30 missade koder i timmen från samma IP-adress. Bakom Caddy är IP-adressen klientens (`X-Forwarded-For`).
+
 ## Superadmin
 
 Superadmin ser alla konton och tävlingar på `/superadmin` och kan dölja eller ta bort en tävling,

@@ -253,6 +253,11 @@ export function accountFailure(status: 400 | 401 | 403 | 404 | 409 | 429 | 500 |
  * adress (inkommande värden från klienten litar Caddy inte på), och Next nås bara via Caddy.
  */
 export function clientAddress(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip")?.trim() || "okänd";
+  return clientAddressFrom(request.headers);
+}
+
+/** Samma adress ur en sidas huvuden (`headers()` i en serverkomponent). */
+export function clientAddressFrom(headers: Pick<Headers, "get">): string {
+  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || headers.get("x-real-ip")?.trim() || "okänd";
 }

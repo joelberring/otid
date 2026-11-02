@@ -8,7 +8,8 @@ import type { DbExecutor } from "./snapshot";
  * IP och e-post, räknade i ett fast fönster om en timme. Nyckeln lagras bara som HMAC med en serverhemlighet (steg 46),
  * så att en adress inte kan räknas fram ur databasen eller en backup. Rader äldre än två dygn tas bort vid nästa skrivning.
  */
-export type AccountThrottleScope = "REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL";
+export type AccountThrottleScope = "REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL"
+  | "GROUP_CODE_IP";
 export const ACCOUNT_THROTTLE_WINDOW_MS = 60 * 60 * 1000;
 export const DEFAULT_REGISTRATIONS_PER_HOUR = 10;
 export const RESET_REQUESTS_PER_IP_AND_HOUR = 10;
@@ -47,6 +48,14 @@ export async function purgeStaleThrottles(tx: DbExecutor, now: Date): Promise<vo
     where window_started_at < ${before} limit 200 for update skip locked)`);
   await tx.execute(sql`delete from user_account_login_throttle where ctid in (select ctid from user_account_login_throttle
     where window_started_at < ${before} and (blocked_until is null or blocked_until < ${now}) limit 200 for update skip locked)`);
+}
+
+/** Har nyckeln redan nått gränsen i fönstret? Räknar inget (ADR-0189: gruppkoderna räknar bara missar). */
+export async function accountRequestAllowanceExhausted(tx: DbExecutor,
+  input: { scope: AccountThrottleScope; key: string; limit: number; windowMs?: number }, now: Date): Promise<boolean> {
+  const [row] = await tx.select().from(schema.accountRequestThrottles).where(and(eq(schema.accountRequestThrottles.scope, input.scope),
+    eq(schema.accountRequestThrottles.keyHash, throttleKeyHash(input.scope, input.key))));
+  return !!row && now.getTime() - row.windowStartedAt.getTime() < (input.windowMs ?? ACCOUNT_THROTTLE_WINDOW_MS) && row.attempts >= input.limit;
 }
 
 /** Räknar ett försök och svarar om det ryms inom gränsen (fönstret är en timme om inget annat anges). Körs i anroparens transaktion. */

@@ -17,6 +17,7 @@ import { addGroupMember, createTrainingGroup, readGroupAsLeader, removeGroupMemb
 import { createGroupSessions, removeGroupSession, undoGroupSeries } from "../../src/training-group-sessions";
 import { acknowledgeRaceMapPublicUse, readRaceMapAgreementAsAdmin, saveRaceMapToLibrary, updateLibraryMap } from "../../src/training-group-maps";
 import { raceGroupNameDisplay, readGroupPublicView } from "../../src/training-group-public";
+import { acceptGroupInvitations } from "../../src/training-group-invitations";
 import { registerTestAccount, setRacePublished } from "./accounts";
 import { ingest, NOW, run, seedRace } from "./steg-25-fixtures";
 
@@ -51,6 +52,15 @@ const settings = { formatVersion: 1, name: "Ungdom OK ÄÖ", pageVisibility: "LI
 const agreement = { ownership: "EXTERNAL", ownerKind: "MUNICIPALITY", ownerName: "Stockholms stad", agreement: "Avtal 2026: bara träning",
   validUntil: "2026-12-31", contact: "karta@example.se", trainingOnly: true, feePerPrint: false, noPublicDisplay: true };
 
+/** ADR-0189 beslut 9: personen läggs till med adressen och loggar in med den (som i appen), och blir då medlem. */
+async function addMember(...args: Parameters<typeof addGroupMember>) {
+  const added = await addGroupMember(...args);
+  const email = (args[1].request as { email: string }).email.toLowerCase();
+  const [row] = (await pool.query<{ id: string }>("select id from user_account where email = $1", [email])).rows;
+  if (added.status === "added" && row) await db.transaction(tx => acceptGroupInvitations(tx, row.id, args[2] ?? new Date()));
+  return added;
+}
+
 /** En grupp med ledaren `leader` och den seedade tävlingen (med två resultat) i gruppen, publicerad. */
 async function groupWithRace(leader: Account) {
   const code = `ungdom-${randomUUID().slice(0, 8)}`;
@@ -58,14 +68,14 @@ async function groupWithRace(leader: Account) {
   if (created.status !== "created") throw new Error(`Gruppen skapades inte: ${created.status}`);
   const seed = await seedRace(db, pool);
   // Tävlingen läggs till i gruppen av dess administratör, som också är ledare (setRaceGroup kräver båda).
-  await addGroupMember(db, { ...leader.proof, groupId: created.group.groupId, request: { formatVersion: 1, requestId: randomUUID(),
+  await addMember(db, { ...leader.proof, groupId: created.group.groupId, request: { formatVersion: 1, requestId: randomUUID(),
     email: (await pool.query<{ email: string }>("select email from user_account where id = $1", [seed.admin.accountId])).rows[0]!.email,
     role: "LEADER" } }, NOW);
   const attached = await setRaceGroup(db, { ...seed.admin, raceId: seed.ids.race, request: { formatVersion: 1, groupId: created.group.groupId } }, NOW);
   expect(attached).toEqual({ status: "ok", groupId: created.group.groupId });
   expect(await setRacePublished(db, seed.admin, seed.ids.race, true, NOW)).toMatchObject({ status: "saved" });
   await ingest(db, seed.ids.race, [run(seed.cards.ada, "10:02:00", 30), run(seed.cards.bo, "10:04:00", 35)]);
-  return { groupId: created.group.groupId, code, seed };
+  return { groupId: created.group.groupId, code: created.group.code, seed };
 }
 
 const roleOn = async (raceId: string, who: Account) =>
@@ -81,18 +91,18 @@ describe("steg 68: träningsgrupper", { timeout: 180_000 }, () => {
     expect(ownRow).toBeUndefined();
     expect(await roleOn(seed.ids.race, leader)).toBe("authenticated");
     expect(await roleOn(seed.ids.race, second)).toBe("unauthorized");
-    const addedLeader = await addGroupMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: second.email,
+    const addedLeader = await addMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: second.email,
       role: "LEADER" } }, NOW);
     expect(addedLeader).toMatchObject({ status: "added", member: { role: "LEADER", email: second.email } });
     expect(await roleOn(seed.ids.race, second)).toBe("authenticated");
-    const addedMember = await addGroupMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: member.email,
+    const addedMember = await addMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: member.email,
       role: "MEMBER" } }, NOW);
     expect(addedMember.status).toBe("added");
     expect(await roleOn(seed.ids.race, member)).toBe("unauthorized");
     expect(await roleOn(seed.ids.race, stranger)).toBe("unauthorized");
     // En icke-ledare ser inte ledarnas vy och kan inte lägga till någon.
     expect((await readGroupAsLeader(db, { ...member.proof, groupId }, NOW)).status).toBe("not-found");
-    expect((await addGroupMember(db, { ...stranger.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: stranger.email,
+    expect((await addMember(db, { ...stranger.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: stranger.email,
       role: "LEADER" } }, NOW)).status).toBe("not-found");
     // Borttagen ledare nekas från nästa anrop.
     if (addedLeader.status !== "added") throw new Error("Ledaren lades inte till");
@@ -102,7 +112,7 @@ describe("steg 68: träningsgrupper", { timeout: 180_000 }, () => {
     // Funktionär på evenemanget och ledare i gruppen: ledarskapet ger ADMIN.
     await db.insert(schema.eventAdministrationGrants).values({ eventId: seed.ids.event, accountId: second.accountId, role: "FUNCTIONARY", grantedAt: NOW });
     expect(await roleOn(seed.ids.race, second)).toBe("forbidden");
-    await addGroupMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: second.email, role: "LEADER" } }, NOW);
+    await addMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: second.email, role: "LEADER" } }, NOW);
     expect(await roleOn(seed.ids.race, second)).toBe("authenticated");
     // Den sista ledaren kan inte tas bort: här finns tre ledare (skaparen, seedens admin och second).
     const view = await readGroupAsLeader(db, { ...leader.proof, groupId }, NOW);
@@ -116,7 +126,7 @@ describe("steg 68: träningsgrupper", { timeout: 180_000 }, () => {
     const { groupId, code, seed } = await groupWithRace(leader);
     const raceId = seed.ids.race;
     const member = await account(), stranger = await account();
-    await addGroupMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: member.email, role: "MEMBER" } }, NOW);
+    await addMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: member.email, role: "MEMBER" } }, NOW);
 
     // Standard: alla med länken, förnamn, statistik bara för ledarna.
     const view = await readGroupPublicView(db, { code: code.toUpperCase(), sessionToken: null }, NOW);
@@ -273,7 +283,7 @@ describe("steg 68: träningsgrupper", { timeout: 180_000 }, () => {
     const [other] = await db.select({ id: schema.races.id }).from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.events.trainingGroupId, groupId)).limit(1);
     const onlyLeader = await account();
-    await addGroupMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: onlyLeader.email, role: "LEADER" } }, NOW);
+    await addMember(db, { ...leader.proof, groupId, request: { formatVersion: 1, requestId: randomUUID(), email: onlyLeader.email, role: "LEADER" } }, NOW);
     expect((await setRaceGroup(db, { ...onlyLeader.proof, raceId: other!.id, request: { formatVersion: 1, groupId: null } }, NOW)).status)
       .toBe("forbidden");
   });

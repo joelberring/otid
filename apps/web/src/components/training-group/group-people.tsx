@@ -9,14 +9,17 @@ import styles from "./training-group.module.css";
 
 const text = trainingGroupSv.leader;
 
-/** Steg 68 (ADR-0182 beslut 1): ledare och medlemmar läggs till med e-post (ett befintligt konto), som andra roller. */
+/**
+ * Steg 68 (ADR-0182 beslut 1): ledare och medlemmar läggs till med e-post. ADR-0189 beslut 9: svaret är detsamma med och utan
+ * konto; adressen står som "väntar på inloggning" tills personen loggar in med den.
+ */
 export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChanged: () => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"LEADER" | "MEMBER">("LEADER");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
-  const leaders = view.members.filter(member => member.role === "LEADER").length;
+  const leaders = view.members.filter(member => member.role === "LEADER" && !member.pending).length;
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -24,7 +27,6 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
     try {
       const result = await groupRequest(`/api/organizer/groups/${view.groupId}/members`, "POST", { formatVersion: 1, requestId,
         email: email.trim(), role });
-      if (result.status === 404) { setProblem(text.personNotFound); return; }
       if (result.status === 409) { setProblem(text.personExists); setRequestId(crypto.randomUUID()); return; }
       if (result.status !== 201 && result.status !== 200) { setProblem(groupFailure(result.status)); return; }
       setEmail(""); setRequestId(crypto.randomUUID()); onChanged();
@@ -45,9 +47,11 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
     <p className={styles.muted}>{text.peopleHint}</p>
     <ul className={styles.plainList} aria-label={text.sections.people}>
       {view.members.map(member => <li key={member.memberId}>
-        <div><strong>{member.displayName}</strong><span>{member.email} · {trainingGroupSv.myGroups.role[member.role]}</span></div>
-        {(member.role !== "LEADER" || leaders > 1) && <Button variant="secondary" disabled={busy}
-          aria-label={`${text.remove}: ${member.displayName}`} onClick={() => void remove(member.memberId)}>{text.remove}</Button>}
+        <div><strong>{member.displayName ?? member.email}</strong><span>{member.pending
+          ? `${trainingGroupSv.myGroups.role[member.role]} · ${text.pending}`
+          : `${member.email} · ${trainingGroupSv.myGroups.role[member.role]}`}</span></div>
+        {(member.pending || member.role !== "LEADER" || leaders > 1) && <Button variant="secondary" disabled={busy}
+          aria-label={`${text.remove}: ${member.displayName ?? member.email}`} onClick={() => void remove(member.memberId)}>{text.remove}</Button>}
       </li>)}
     </ul>
     <form className={styles.form} noValidate onSubmit={event => void add(event)}>

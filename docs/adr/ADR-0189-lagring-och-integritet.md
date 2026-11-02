@@ -58,8 +58,24 @@ att gissa, och träningsgruppens medlemslista avslöjade om en adress hade ett k
    evenemang där alla lopp är äldre, med allt som hör till, och loggar det som superadmins borttagning ("Automatisk gallring").
    Underhållet i webbens tävlingsinstans (`maintenance-runner.ts`, som radiopollern) kör det fem minuter efter start och sedan en
    gång i timmen, högst fem tävlingar per varv och en per transaktion med radlås. Integritetssidan säger vad servern gör.
+7. **Inloggningsspärren per adress och IP-adress.** Fem fel spärrar kombinationen e-postadress och IP-adress i 15 minuter (förut
+   adressen oavsett varifrån), och 30 fel från samma IP-adress spärrar den som förut. Den som gissar från en annan adress kan
+   alltså inte låsa ute en funktionär. Ett angrepp från många adresser begränsas av spärren per IP-adress och scrypt; en
+   gemensam spärr för adressen valdes bort eftersom den åter skulle gå att använda för att låsa ute någon.
+8. **Gruppkoderna.** En ny grupp får koden `<kortnamn>-<8 slumpade tecken>` (32 tecken utan förväxlingsbara, 40 bitar);
+   kortnamnet kortas till 31 tecken. Befintliga grupper behåller sin kod (utskrivna QR-koder ska fungera). Gruppsidan räknar
+   missade koder per IP-adress och svarar "För många försök" efter 30 i timmen, också för en riktig kod (migration 0046,
+   spärrens `GROUP_CODE_IP`).
+9. **Träningsgruppens ledare och medlemmar** avslöjar inte konton (som ADR-0188 beslut 6): de sparas för adressen
+   (`training_group_invitation`) och listan visar "väntar på inloggning" tills ett konto med adressen och bekräftad e-post loggar
+   in, bekräftar adressen, öppnar Mina tävlingar, en tävling eller gruppens sida. En adress som redan finns i listan ger 409 (den
+   syns redan). Registreringen och svarstiden: ADR-0186 beslut 9 täcker registrering, glömt lösenord och inloggning när servern
+   har e-post (samma svar, lösenordet hashas alltid, mejlet efter svaret; inloggning mot okänd adress gör en lika lång
+   scrypt-kontroll). Utan e-post säger registreringen fortfarande att adressen finns; det står i docs/security-privacy.md.
 
 ## Följder
 
 - En tillbakagång till versionen före 0044 kan inte läsa kartor som laddats upp eller kopierats efter uppdateringen.
 - Utrymmet i databasen frigörs först när PostgreSQL återanvänder det (eller med `VACUUM FULL`, docs/drift.md).
+- Spärrarnas räknare för inloggning börjar om (nyckeln har ändrats).
+- Brickans nummer i avläsningarna och en gammal grupps korta kod finns kvar; se beslut 5 och 8.

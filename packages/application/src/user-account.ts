@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 import { acceptRacePersonInvitations } from "./race-person-invitations";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import {
   organizerAccountLoginRequestSchema,
   organizerAccountLoginResponseSchema,
@@ -263,7 +263,8 @@ export async function loginUserAccount(
   const parsed = organizerAccountLoginRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "unauthorized" };
   const now = validDate(options.now ?? new Date());
-  const loginKeyHash = loginThrottleKey(parsed.data.email);
+  // ADR-0189 beslut 7: spärren gäller adressen från den här IP-adressen, så att ingen annan kan låsa ute kontot.
+  const loginKeyHash = loginThrottleKey(parsed.data.email, options.clientKey);
   const clientKeyHash = options.clientKey ? throttleHmac(`login-client\u0000${options.clientKey}`) : undefined;
   return db.transaction(async (tx) => {
     await purgeStaleThrottles(tx, now);
@@ -299,7 +300,7 @@ export async function loginUserAccount(
       if (client) await countFailure(client, MAX_FAILED_ATTEMPTS_PER_CLIENT);
       return { status: "unauthorized" } as const;
     }
-    await clearUserAccountLoginThrottle(tx, account.email, now);
+    await clearUserAccountLoginThrottle(tx, account.email, now, options.clientKey);
     // Ett spärrat konto får veta det först när lösenordet stämmer.
     if (account.blockedAt) return { status: "blocked" } as const;
     // ADR-0186: samma svar som fel lösenord, så att registreringen inte avslöjar om adressen fanns; länken kommer med e-post.
@@ -314,14 +315,20 @@ export async function loginUserAccount(
   });
 }
 
-function loginThrottleKey(email: string): string {
-  return throttleHmac(`login\u0000${email}`);
+/**
+ * Nyckeln för inloggningsspärren: adressen tillsammans med klientens IP-adress (ADR-0189 beslut 7), eller bara adressen när
+ * IP-adressen saknas (tester och kommandon). Fem fel spärrar alltså bara den IP-adressen för adressen; samma IP-adress spärras
+ * dessutom efter 30 fel oavsett adress.
+ */
+function loginThrottleKey(email: string, clientKey?: string): string {
+  return clientKey ? throttleHmac(`login\u0000${email}\u0000${clientKey}`) : throttleHmac(`login\u0000${email}`);
 }
 
 /** Nollställer inloggningsspärren för adressen (lyckad inloggning eller nytt lösenord). */
-export async function clearUserAccountLoginThrottle(tx: DbExecutor, email: string, now: Date): Promise<void> {
+export async function clearUserAccountLoginThrottle(tx: DbExecutor, email: string, now: Date, clientKey?: string): Promise<void> {
+  const keys = [loginThrottleKey(email), ...(clientKey ? [loginThrottleKey(email, clientKey)] : [])];
   await tx.update(schema.userAccountLoginThrottles).set({ windowStartedAt: now, failedAttempts: 0, blockedUntil: null })
-    .where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginThrottleKey(email)));
+    .where(inArray(schema.userAccountLoginThrottles.loginKeyHash, keys));
 }
 
 /** Kontots session (och CSRF-paret för en skrivning). Används också av tävlingens rollkontroll (`race-session.ts`). */

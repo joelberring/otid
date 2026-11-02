@@ -30,7 +30,9 @@ export function EmailVerification() {
   const [message, setMessage] = useState<{ tone: "ok" | "error" | "info"; text: string }>();
 
   useEffect(() => {
-    setToken(takeTokenFromLocation());
+    // Bara en hittad nyckel sätts: effekten kan köras två gånger (React strict mode), och andra gången är adressen redan tömd.
+    const found = takeTokenFromLocation();
+    if (found) setToken(found);
     setChecked(true);
     const onHash = () => { const found = takeTokenFromLocation(); if (found) { setToken(found); setMessage(undefined); } };
     window.addEventListener("hashchange", onHash);

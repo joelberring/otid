@@ -59,6 +59,7 @@ import { Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-settin
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
 import { ControlList } from "./course-setting-controls";
 import { CourseProperties } from "./course-setting-course-properties";
+import { RouteLengthPanel, useRouteLength } from "./course-setting-route-length";
 import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
 import { useCourseSettingHistory } from "./use-course-setting-history";
@@ -281,9 +282,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     () => courseControlOrder(document, view, variant), () => [] as readonly string[]), [document, view, variant]);
   const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls, view) : undefined;
   const inputKey = input?.key;
+  const [lengthWanted, setLengthWanted] = useState(false);
   const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
-    wanted: input !== undefined });
+    wanted: input !== undefined || lengthWanted });
   const routes = routeWorker.session, routeReady = routeWorker.ready;
+  // ADR-0190 beslut 6: banans längd längs vägval (samma Worker; en vald sträcka avbryter och sparas i samma tabell).
+  const routeLength = useRouteLength({ document, view, variant, session: routes, ready: routeReady, failed: routeWorker.failed,
+    wanted: lengthWanted, onWanted: () => setLengthWanted(true) });
   useEffect(() => {
     setAnalysis(undefined); setHighlighted(undefined);
     if (!input) { setLegStatus("idle"); return; }
@@ -292,7 +297,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     setLegStatus("analysing");
     const worker = routes.current;
     const timer = setTimeout(() => {
-      worker.analyse([input], (_index, result) => setAnalysis(result), () => setLegStatus("done"), () => setLegStatus("failed"));
+      routeLength.interrupted();
+      worker.analyse([input], (_index, result) => { setAnalysis(result); routeLength.remember(result.key, result.best?.meters, result.straightMeters); },
+        () => setLegStatus("done"), () => setLegStatus("failed"));
     }, 250);
     return () => { clearTimeout(timer); worker.cancel(); };
     // Nyckeln ändras med ändarnas lägen; övriga kontroller räknas med när sträckan räknas.
@@ -585,6 +592,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
           return step ? applySteps(current, [step], applyEdit) : current; })} />
         {course && <CourseProperties course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
+        {course && <RouteLengthPanel state={routeLength} hasMap={Boolean(state.mapFile)} />}
         <ControlList document={document} summaries={summaries} view={view} variant={variant} branch={ux.active?.start} readOnly={readOnly}
           selected={selection?.kind === "control" ? (view === ALL_CONTROLS ? selection.control : selection.courseControl) : undefined} unused={ux.unused}
           onSelect={target => { apply(current => select(current, { kind: "control", ...target })); const at = document.controls[target.control]?.at;

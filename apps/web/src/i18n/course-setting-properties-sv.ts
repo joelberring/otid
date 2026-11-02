@@ -34,6 +34,22 @@ export const coursePropertiesSv = {
       "IOF XML), med kontrollerna på samma kartlägen i mm. Kontrollbeskrivningar, specialobjekt och utskriftsinställningar följer " +
       "inte med; använd .ppen när banorna ska fortsätta i Purple Pen."
   },
+  /** Banans längd längs vägval (extra uppgift, ADR-0190 beslut 6). */
+  routeLength: {
+    heading: "Längd längs vägval",
+    help: "Summan av bästa vägvalen på kartan för varje sträcka, bredvid fågelvägen. Bara en uppgift; banans längd är fågelvägen.",
+    variant: (code: string) => `Variant ${code}.`,
+    count: "Räkna längs vägval",
+    again: "Räkna klart",
+    running: (done: number, total: number) => `Räknar … ${done} av ${total} sträckor`,
+    partial: (done: number, total: number) => `${done} av ${total} sträckor räknade.`,
+    done: (best: number, straight: number, percent: number) => `Längs bästa vägval ${km(best)}, fågelvägen ${km(straight)}` +
+      (percent > 0 ? ` (${percent} % längre).` : "."),
+    noRoute: (legs: number) => `${legs} ${legs === 1 ? "sträcka" : "sträckor"} saknar väg på kartan; längden kan inte räknas.`,
+    noMap: "Längd längs vägval räknas på kartfilen. Ladda upp kartfilen först.",
+    failed: "Vägvalen kunde inte räknas.",
+    noLegs: "Banan har inga sträckor än."
+  },
   /** Ångra efter omladdning. */
   history: {
     restored: (steps: number) => `Ångra fungerar för ${steps} ${steps === 1 ? "ändring" : "ändringar"} från förra gången.`,

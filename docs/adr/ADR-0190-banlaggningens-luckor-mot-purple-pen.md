@@ -43,3 +43,14 @@ som .ppen eller genom "Överför till tävlingen".
    IOF:s XSD finns inte i repot, så testet jämför mot Purple Pens filer; alla 151 testfilers export validerades mot
    `IOF.xsd` (datastandard 3.0) med xmllint utanför repot 2026-11-02. Inget eget OCAD-format: OCAD läser banor i IOF XML
    3.0, vilket står i hjälpen (inte provat med en riktig OCAD).
+6. **Längd längs vägval.** Under banans egenskaper räknar "Räkna längs vägval" varje sträcka med vägvalens Worker (samma
+   indata som en vald sträcka, steg 60) och visar summan av bästa vägvalen bredvid fågelvägen ("Längs bästa vägval 5,2 km,
+   fågelvägen 4,3 km (21 % längre)"). Bara en uppgift i editorn: banans längd, beskrivningen och tävlingen använder
+   fågelvägen som förut. En gafflad bana räknas för vald variant (annars den första), poängbanor inte alls. Sträckorna
+   sparas per indata så att bara flyttade sträckor räknas om; väljs en sträcka under tiden avbryts räkningen och
+   "Räkna klart" tar resten.
+
+## Konsekvenser
+
+Banläggaren kan göra det i O-Tid som tidigare krävde Purple Pen (stigning, fast längd, poängbanor, ordning) och skicka
+banorna till MeOS, OLA och OCAD utan .ppen. Stafettlagens varianter följer fortfarande bara med i .ppen.

@@ -1,5 +1,5 @@
 import { readoutPackageSchema, type ReadoutPackage } from "@o-tid/contracts";
-import type { QueuedReadout, QueuedRegistration, ReadoutStore, NewReadout } from "./store";
+import { groupPendingElsewhere, type QueuedReadout, type QueuedRegistration, type ReadoutStore, type NewReadout } from "./store";
 
 /** Endast för tester: ett litet avläsningspaket med en deltagare och tre kontroller. */
 export const ids = {
@@ -54,6 +54,7 @@ export class MemoryReadoutStore implements ReadoutStore {
     return stored;
   }
   async list(raceId: string) { return this.items.filter((item) => item.raceId === raceId); }
+  async pendingElsewhere(raceId: string) { return groupPendingElsewhere(raceId, this.items, [...this.packages.values()]); }
   async update(item: QueuedReadout) {
     const index = this.items.findIndex((candidate) => candidate.localSequence === item.localSequence);
     this.items[index] = item;

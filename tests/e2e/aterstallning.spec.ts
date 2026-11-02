@@ -26,7 +26,7 @@ async function splitsTable(page: Page, raceId: string): Promise<string> {
 }
 
 test("ladda ner säkerhetskopia och återställ den som en ny tävling med samma resultat", async ({ browser }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(480_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `kopia.${suffix}@exempel.se`, "Sara Säker");
   const raceId = await createRace(owner, `Säker tävling ${suffix}`, today(), "Tävling");
@@ -101,4 +101,28 @@ test("ladda ner säkerhetskopia och återställ den som en ny tävling med samma
   expect(splits).toContain("Ada Snabb");
   expect(await splitsTable(visitor, copyId)).toBe(splits);
   await visitor.close();
+
+  // Avläsningsdatorns kö: en avläsning i den gamla tävlingen som inte når servern ligger kvar i datorn och skickas aldrig till
+  // den återställda (nytt id). Avläsningssidan för den återställda tävlingen säger det och visar brickan; inget tas bort.
+  await owner.goto(`/admin/${raceId}/manage`);
+  await addEntry(owner, { className: "H21", givenName: "Dan", familyName: "Sen", club: "OK Test", card: "7390004" });
+  await owner.route("**/administrator/readouts", route => route.abort("internetdisconnected"));
+  await owner.goto(`/admin/${raceId}/readout`);
+  await owner.waitForURL(`**/readout/index.html#${raceId}`);
+  await owner.getByRole("button", { name: "Starta övningsstation" }).click();
+  await owner.getByLabel("Deltagare").selectOption({ label: "Dan Sen · H21 · 7390004" });
+  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
+  await expect(owner.getByTestId("verdict")).toContainText("Dan Sen");
+  await owner.unroute("**/administrator/readouts");
+  await owner.goto(`/admin/${copyId}/readout`);
+  await owner.waitForURL(`**/readout/index.html#${copyId}`);
+  const queued = owner.getByTestId("other-race-readouts");
+  await expect(queued).toContainText("Avläsningar till en annan tävling har inte skickats");
+  await expect(queued).toContainText(`1 avläsning på den här datorn hör till Säker tävling ${suffix}`);
+  await expect(queued).toContainText("Bricka 7390004");
+  await reviewScreenshots(owner, "aterstallning-ko-annan-tavling");
+  // Den gamla tävlingens kö ligger kvar och skickas när dess avläsningssida öppnas (där servern finns).
+  await queued.getByRole("link", { name: "Öppna den tävlingens avläsning" }).click();
+  await owner.waitForURL(`**/readout/index.html#${raceId}`);
+  await expect(owner.getByTestId("other-race-readouts")).toHaveCount(0);
 });

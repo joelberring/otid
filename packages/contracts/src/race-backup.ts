@@ -59,6 +59,11 @@ export const raceBackupManifestSchema = z.object({
   counts: raceBackupCountsSchema,
   /** Deltagare vars resultat behövde räknas om när kopian togs (ADR-0187: räknas som aktuella i kopian). */
   staleResults: count,
+  /**
+   * Resultatrevisionerna (id i kopian) vars underlag inte längre gällde när kopian togs. De behåller sin hash vid återställningen
+   * och förblir inaktuella (ADR-0187 beslut 5). Saknas i kopior från före 2026-11-03; då räknas alla som aktuella.
+   */
+  staleResultRevisions: z.array(z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)).max(1_000_000).optional(),
   tables: z.array(z.object({ name: z.string().regex(BACKUP_TABLE_NAME), rows: count, sha256: sha256Schema, bytes: count }).strict())
     .max(200),
   people: z.object({ sha256: sha256Schema, bytes: count }).strict(),

@@ -40,7 +40,8 @@ export const raceBackupSv = {
       ...(counts.teams > 0 ? [plural(counts.teams, "lag", "lag")] : []), plural(counts.files, "fil", "filer")
     ].join(" · "),
     map: "Kartan följer med.",
-    stale: (count: number) => `${plural(count, "resultat", "resultat")} behövde räknas om när kopian togs. Räkna om dem efter återställningen.`,
+    stale: (count: number) => `${plural(count, "resultat", "resultat")} behövde räknas om när kopian togs och är markerade så också i den ` +
+      "nya tävlingen. Räkna om dem efter återställningen.",
     eventor: "Eventor-kopplingen följer med utan klubbens nyckel. Klistra in nyckeln under Inställningar → Eventor.",
     radio: "Radiokontrollerna är avstängda tills du slår på dem under Inställningar.",
     unpublished: "Den nya tävlingen är opublicerad och får en egen kort adress. Publicera den när du har kontrollerat den.",

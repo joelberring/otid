@@ -305,6 +305,10 @@ export async function restoreRaceBackup(db: Database, input: UserAccountSessionP
       // Alla främmande nycklar som går att skjuta upp (fastställandet på loppet, avpricknings- och kortbanejournalerna)
       // kontrolleras vid commit; övriga följer tabellernas ordning.
       await tx.execute(sql`set constraints all deferred`);
+      // Utlösaren behåller en medförd hash som skiljer sig från den uträknade (migration 0042): så förblir ett inaktuellt
+      // resultat inaktuellt. Bara i den här transaktionen.
+      await tx.execute(sql`select set_config('otid.restore', 'on', true)`);
+      const staleRevisions = new Set(backup.manifest.staleResultRevisions ?? []);
 
       // Nya id för allt; kontonas referenser blir konton med samma e-post här när personerna kopplas.
       const linked = peopleMode === "link" ? await accountsByEmail(tx, backup.people.map(person => person.email)) : new Map<string, string>();
@@ -321,7 +325,9 @@ export async function restoreRaceBackup(db: Database, input: UserAccountSessionP
         const verbatim = new Set(table.verbatim ?? []);
         const cleared = new Set(RACE_RESTORE_CLEARED[table.name] ?? []);
         const types = new Map(tableCatalog.columns.map(column => [column.name, column.type]));
-        let rows = validRows(backup, table, tableCatalog).map(row => Object.fromEntries(Object.entries(row).map(([name, value]) => {
+        const original = validRows(backup, table, tableCatalog);
+        const originalIds = original.map(row => row.id as string | undefined);
+        let rows = original.map(row => Object.fromEntries(Object.entries(row).map(([name, value]) => {
           if (cleared.has(name) || value === null) return [name, null];
           const type = types.get(name);
           if (type === "uuid") return [name, map.get(value as string)!];
@@ -351,6 +357,11 @@ export async function restoreRaceBackup(db: Database, input: UserAccountSessionP
           case "course_setting_grant":
             // Banläggningens behörigheter gäller bara konton som finns här (och bara när personerna kopplas).
             rows = rows.filter(row => linkedAccounts.has(row.account_id as string) && row.account_id !== accountId);
+            break;
+          case "result_revision":
+            // Underlaget räknas om för den nya tävlingen; bara de revisioner som var inaktuella när kopian togs behåller sin
+            // gamla hash (som aldrig stämmer med de nya id:na) och förblir inaktuella.
+            rows = rows.map((row, index) => staleRevisions.has(originalIds[index]!) ? row : { ...row, basis_hash: null });
             break;
           case "result_finalization":
             // Id i den fastställda XML:en är utbytta; kontrollsumman räknas om så att filen stämmer med sig själv.

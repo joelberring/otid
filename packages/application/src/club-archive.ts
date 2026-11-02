@@ -31,7 +31,9 @@ export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: read
       select version_id, entry_id from club_archive_entry_map m join club_map_version v on v.id = m.version_id where v.club_id = ${clubId}
       union all select map_version_id, entry_id from club_archive_course_file where club_id = ${clubId} and map_version_id is not null) u
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
-  return maps.map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses));
+  // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
+  return [...maps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
+    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses));
 }
 
 function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>): ClubMapView {

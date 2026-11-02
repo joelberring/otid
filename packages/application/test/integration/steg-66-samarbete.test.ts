@@ -250,11 +250,20 @@ describe("steg 66: samarbete i banläggningen", { timeout: 180_000 }, () => {
     expect(json.courseSettingNotes.map(row => row.text).sort()).toEqual(["Notis 0", "Notis 1", "Notis 2", "Notis 3"]);
     expect(json.courseSettingNotes.find(row => row.text === "Notis 1")!.photo_base64!.replace(/\s/g, "")).toBe(jpeg());
     expect(json.courseSettingNoteReplies).toHaveLength(1);
+    // Översynen 2026-11-02: notiserna och banläggningens behörigheter följer bara med personerna (`includePeople`).
+    const count = async (table: string, raceId: string) =>
+      (await pool.query<{ n: number }>(`select count(*)::int as n from ${table} where race_id = $1`, [raceId])).rows[0]!.n;
     const copied = await copyRaceAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Samarbete v2",
-      raceName: "Torsdag", raceDate: "2026-10-15", includePeople: false } });
+      raceName: "Torsdag", raceDate: "2026-10-15", includePeople: true } });
     if (copied.status !== "copied") throw new Error(`Kopian skapades inte: ${copied.status}`);
-    const copiedNotes = await pool.query<{ n: number }>("select count(*)::int as n from course_setting_note where race_id = $1", [copied.response.raceId]);
-    expect(copiedNotes.rows[0]!.n).toBe(4);
+    expect(await count("course_setting_note", copied.response.raceId)).toBe(4);
+    expect(await count("course_setting_grant", copied.response.raceId)).toBe(await count("course_setting_grant", owner.raceId));
+    const alone = await copyRaceAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), eventName: "Samarbete v3",
+      raceName: "Torsdag", raceDate: "2026-10-22", includePeople: false } });
+    if (alone.status !== "copied") throw new Error(`Kopian skapades inte: ${alone.status}`);
+    expect(await count("course_setting_note", alone.response.raceId)).toBe(0);
+    expect(await count("course_setting_grant", alone.response.raceId)).toBe(0);
+    expect(await count("course_setting", alone.response.raceId)).toBe(1);
     await db.transaction(tx => purgeRows(tx, "event", [owner.eventId]));
     for (const table of ["course_setting_note", "course_setting_note_reply", "course_setting_suggestion", "course_setting_change", "course_setting_grant"]) {
       const left = await pool.query<{ n: number }>(`select count(*)::int as n from ${table} where race_id = $1`, [owner.raceId]);

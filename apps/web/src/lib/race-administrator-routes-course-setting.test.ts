@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type * as Application from "@o-tid/application";
-import { courseSettingDocumentSchema, courseSettingSaveRequestSchema } from "@o-tid/contracts";
+import {
+  COURSE_SETTING_EDITS_MAX, COURSE_SETTING_EDITS_MAX_BYTES, courseSettingDocumentSchema, courseSettingSaveRequestSchema
+} from "@o-tid/contracts";
 import { raceAdministratorRoute } from "./race-administrator-route-handlers";
 import { ppenFileName } from "./race-administrator-routes-course-setting";
 import { subscribeCourseSetting, type CourseSettingEvent } from "./course-setting-events";
@@ -139,6 +141,23 @@ describe("administratörsroutes: samarbetet (steg 66)", () => {
       expect((await raceAdministratorRoute(db, request("POST", body), id, { kind: "course-setting-edits" }, services, environment)).status).toBe(403);
       expect((await raceAdministratorRoute(db, get(), id, { kind: "course-setting-edits" }, services, environment)).status).toBe(405);
     } finally { stop(); }
+  });
+
+  it("översynen 2026-11-02: för stor kropp och fler än 5 000 åtgärder ger 413 (dela upp), trasig begäran 400, och tjänsten anropas inte", async () => {
+    const courseSettingEdits = vi.fn<typeof Application.saveCourseSettingEditsAsAdmin>().mockResolvedValue({ status: "ok", response: savedEdits });
+    const services = { ...dependencies(), courseSettingEdits };
+    const post = (body: string, headers: Record<string, string> = {}) =>
+      raceAdministratorRoute(db, request("POST", body, headers), id, { kind: "course-setting-edits" }, services, environment);
+    const many = JSON.stringify({ formatVersion: 1, requestId: id, baseVersion: 3,
+      edits: Array.from({ length: COURSE_SETTING_EDITS_MAX + 1 }, () => ({ type: "DELETE_CONTROL", control: "1" })) });
+    expect((await post(many)).status).toBe(413);
+    const huge = JSON.stringify({ formatVersion: 1, requestId: id, baseVersion: 3, edits: [{ type: "SET_EVENT", changes: { title: "x".repeat(COURSE_SETTING_EDITS_MAX_BYTES) } }] });
+    expect((await post(huge)).status).toBe(413);
+    expect((await post("{}", { "content-length": String(COURSE_SETTING_EDITS_MAX_BYTES + 1) })).status).toBe(413);
+    expect((await post("{inte json")).status).toBe(400);
+    expect(courseSettingEdits).not.toHaveBeenCalled();
+    courseSettingEdits.mockResolvedValueOnce({ status: "too-large" });
+    expect((await post(JSON.stringify({ formatVersion: 1, requestId: id, baseVersion: 3, edits: [{ type: "DELETE_CONTROL", control: "1" }] }))).status).toBe(413);
   });
 
   it("ger notisens foto privat och utan tolkning, och strömmen som text/event-stream", async () => {

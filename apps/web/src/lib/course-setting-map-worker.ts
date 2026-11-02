@@ -52,18 +52,19 @@ self.onmessage = (event: MessageEvent<MapRenderRequest>) => {
   if (request.type === "render") { queued = request; drain(); return; }
   if (request.type === "detailGaps") {
     // Ringklippen (ADR-0180 beslut 10): kartan är redan inläst här; första gången indexeras den (sparas per karta).
-    let gaps = {};
+    let gaps = {}, failed = false;
     try { if (map) gaps = detailCircleGaps(map, request.circles, { sprint: request.sprint }); }
-    catch (error) { console.error("Ringklippen kunde inte räknas", error); }
-    post({ type: "detailGaps", id: request.id, gaps });
+    catch (error) { console.error("Ringklippen kunde inte räknas", error); failed = true; }
+    post({ type: "detailGaps", id: request.id, gaps, failed });
     return;
   }
   if (request.type === "suggest") {
     // ADR-0180 beslut 13: förslagen på kartfilen som redan är inläst (indexeras första gången, sparas per karta).
     const suggestions: Record<string, DescriptionSuggestion[]> = {};
+    let failed = false;
     try { if (map) for (const point of request.points) suggestions[point.id] = suggestAt(map, point.at, request.options); }
-    catch (error) { console.error("Förslagen på kontrollbeskrivning kunde inte räknas", error); }
-    post({ type: "suggestions", id: request.id, suggestions });
+    catch (error) { console.error("Förslagen på kontrollbeskrivning kunde inte räknas", error); failed = true; }
+    post({ type: "suggestions", id: request.id, suggestions, failed });
     return;
   }
   try {

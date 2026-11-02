@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CourseSettingNote } from "@o-tid/contracts";
-import { applyEdit, createdIdsBetween, type CourseSettingEdit } from "@o-tid/course-setting";
+import { applyEdit, createdIdsBetween, type CourseSettingDocument, type CourseSettingEdit } from "@o-tid/course-setting";
 import { ALL_CONTROLS } from "./course-setting-hit";
 import { wireCreated } from "./course-setting-editor";
 import {
@@ -77,6 +77,19 @@ describe("förslagen", () => {
     expect(describeEdit(edits[0]!, base)).toBe("Flytta kontroll 31 36 m");
     expect(describeEdit(edits[2]!, base)).toBe("Ta bort kontroll 32");
     expect(describeEdit({ type: "INSERT_COURSE_CONTROL", course: "k", control: "a" }, base)).toBe("Lägg in kontroll 31 på Lång");
+  });
+
+  it("översynen 2026-11-02: specialobjekt, tryckyta, profiler och mallar beskrivs (inte bara \"Ändring\")", () => {
+    const base = { ...testDocument(), specialObjects: [{ id: "s1", kind: "out-of-bounds", points: [{ x: 0, y: 0 }], courses: [], raw: [] }] } as unknown as CourseSettingDocument;
+    expect(describeEdit({ type: "ADD_SPECIAL", special: { kind: "first-aid", points: [{ x: 1, y: 1 }] } }, base)).toBe("Nytt objekt: första hjälpen");
+    expect(describeEdit({ type: "MOVE_SPECIAL", special: "s1", points: [{ x: 1, y: 1 }] }, base)).toBe("Flytta förbjudet område");
+    expect(describeEdit({ type: "DELETE_SPECIAL", special: "s1" }, base)).toBe("Ta bort förbjudet område");
+    expect(describeEdit({ type: "SET_PRINT_AREA", course: "k", area: null }, base)).toBe("Tryckytan för Lång");
+    expect(describeEdit({ type: "DELETE_LAYOUT_TEMPLATE", id: "x" }, base)).toBe("Ta bort layoutmallen");
+    for (const edit of [{ type: "PUT_PRINT_PROFILE", profile: { name: "Kontor" } }, { type: "PUT_LAYOUT_TEMPLATE", template: { name: "A4" } },
+      { type: "UPDATE_SPECIAL", special: "s1", changes: {} }, { type: "DELETE_PRINT_PROFILE", id: "p" }]) {
+      expect(describeEdit(edit as never, base)).not.toBe("Ändring");
+    }
   });
 });
 

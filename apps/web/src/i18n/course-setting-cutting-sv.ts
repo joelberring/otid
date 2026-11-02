@@ -7,6 +7,7 @@ export const courseSettingCuttingSv = {
   detailsHelp: "Ringen klipps där den täcker stigar, branter, staket, bäckar och små punktobjekt, högst en fjärdedel av ringen.",
   noMap: "Klipp över detaljer kräver kartfilen.",
   computing: "Räknar klippen …",
+  failed: "Klippen över detaljer kunde inte räknas ur kartfilen. Ringarna ritas hela.",
   bake: "Gör klippen fasta (för Purple Pen)",
   bakeHelp: "Klippen över detaljer sparas då i kontrollerna och följer med i .ppen-filen. Överlappsklippen beror på banan och sparas inte.",
   baked: (count: number) => count === 0 ? "Klippen var redan fasta." : `${count} ${count === 1 ? "kontroll" : "kontroller"} fick fasta klipp.`

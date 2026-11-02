@@ -90,3 +90,24 @@ export function arcsFromSamples(blocked: ArrayLike<boolean | number>, step: numb
     return { startDegrees: arc.startDegrees - shift, endDegrees: arc.endDegrees - shift };
   });
 }
+
+/**
+ * Bågarna som ritas mellan ringens avbrott (grader moturs från x-axeln); utan avbrott hela ringen. Samma för skärmen, webbläsarens
+ * utskrift och PDF:en (översynen 2026-11-02: tidigare en kopia i webben och en i print-pdf).
+ */
+export function circleArcs(gaps: readonly { startDegrees: number; endDegrees: number }[] | undefined): [number, number][] {
+  if (!gaps || gaps.length === 0) return [[0, 360]];
+  const normalized = gaps.map(gap => {
+    const start = ((gap.startDegrees % 360) + 360) % 360;
+    let end = ((gap.endDegrees % 360) + 360) % 360;
+    if (end <= start) end += 360;
+    return [start, end] as [number, number];
+  }).sort((left, right) => left[0] - right[0]);
+  const arcs: [number, number][] = [];
+  let cursor = normalized[0]![1];
+  for (const [start, end] of [...normalized.slice(1), [normalized[0]![0] + 360, normalized[0]![1] + 360] as [number, number]]) {
+    if (start > cursor) arcs.push([cursor, start]);
+    cursor = Math.max(cursor, end);
+  }
+  return arcs;
+}

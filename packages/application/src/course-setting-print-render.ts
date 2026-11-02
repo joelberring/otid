@@ -1,6 +1,6 @@
 import type { PrintJobRequest } from "@o-tid/contracts";
 import {
-  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, layoutCoursePage, layoutTemplateSheets, sheetOfPage, sourceMapColors, validateLayoutTemplate,
+  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, printSheetGroups, sourceMapColors, validateLayoutTemplate,
   validatePrintProfile, type CourseSettingDocument, type LayoutTemplate, type MapRect, type PrintProfile, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { colorUsage, readMapFile } from "@o-tid/map-file";
@@ -8,7 +8,7 @@ import { PDF_CAPABILITIES, writeSheetsPdf, type FontFiles, type WritePdfResult }
 
 /**
  * Steg 65 (ADR-0184): ett utskriftsjobb blir en PDF. Ren beräkning utan databas: arken läggs ut som i förhandsvisningen
- * (`layoutCoursePage` eller `layoutTemplateSheets`, en löpare per ark med baksida), förhandskontrollen görs mot kartans
+ * (`printSheetGroups`: `layoutCoursePage` eller `layoutTemplateSheets`, en löpare per ark med baksida), förhandskontrollen görs mot kartans
  * färger och PDF:en skrivs med `@o-tid/print-pdf`. Körs bara i utskriftsarbetaren (låg prioritet), aldrig i webben.
  */
 export class PrintJobError extends Error {}
@@ -32,18 +32,14 @@ export function layoutTemplateFor(document: CourseSettingDocument, template: unk
   return validateLayoutTemplate(template);
 }
 
-/** Arken i samma ordning som förhandsvisningen. */
+/** Arken i samma ordning som förhandsvisningen (`printSheetGroups` i paketet, samma val för båda). */
 export function printJobSheets(document: CourseSettingDocument, request: PrintJobRequest, mapBounds: MapRect | undefined): Sheet[] {
   const items = request.items as readonly SheetItem[];
-  const options = { mapBounds, ...(request.date ? { date: request.date } : {}) };
-  if (request.layout.kind === "TEMPLATE") {
-    const template = layoutTemplateFor(document, request.layout.template);
-    if (request.perRunner) return items.flatMap(item => layoutTemplateSheets(document, template, [item], { ...options, duplexBacks: request.duplex }));
-    return layoutTemplateSheets(document, template, items, { ...options, mode: request.layout.fill });
-  }
-  const header = request.layout.header;
-  return items.flatMap(item => layoutCoursePage(document, { course: item.course, ...(item.variant ? { variant: item.variant } : {}),
-    ...(item.printScale ? { printScale: item.printScale } : {}), ...(item.printArea ? { printArea: item.printArea } : {}), mapBounds, header }).map(sheetOfPage));
+  const layout = request.layout.kind === "TEMPLATE"
+    ? { kind: "TEMPLATE" as const, template: layoutTemplateFor(document, request.layout.template), perRunner: request.perRunner, duplex: request.duplex,
+      fill: request.layout.fill }
+    : { kind: "COURSE" as const, header: request.layout.header };
+  return printSheetGroups(document, layout, items, { mapBounds, ...(request.date ? { date: request.date } : {}) }).flatMap(group => group.sheets);
 }
 
 export interface RenderPrintJobInput {

@@ -59,10 +59,15 @@ export function DescriptionPrintPage({ raceId }: { raceId: string }) {
     try { return symbolLookup(descriptionSymbols(standard)); } catch (error) { console.error("Symbolerna misslyckades", error); return symbolLookup([] as DescriptionSymbol[]); }
   }, [standard]);
   const courses = useMemo(() => [...(document?.courses ?? [])].sort((left, right) => left.order - right.order), [document]);
-  const variants = useMemo(() => Object.fromEntries(courses.map(course => {
-    try { return [course.id, document ? courseVariants(document, course.id).map(row => row.code).filter(Boolean) : []]; }
-    catch { return [course.id, []]; }
-  })), [courses, document]);
+  // Översynen 2026-11-02: en bana vars varianter eller beskrivning inte går att räkna fram sägs ovanför utskriften.
+  const { variants, variantFailures } = useMemo(() => {
+    const failures: string[] = [];
+    const found = Object.fromEntries(courses.map(course => {
+      try { return [course.id, document ? courseVariants(document, course.id).map(row => row.code).filter(Boolean) : []]; }
+      catch (error) { console.error("Varianterna misslyckades", error); failures.push(course.name); return [course.id, []]; }
+    }));
+    return { variants: found, variantFailures: failures };
+  }, [courses, document]);
   const entries = useMemo((): Entry[] => !document ? [] : courses.flatMap(course => (chosen[course.id] ?? []).map(variant => {
     let layout: DescriptionLayout | undefined;
     try {
@@ -75,6 +80,8 @@ export function DescriptionPrintPage({ raceId }: { raceId: string }) {
     ? Array.from({ length: copies }, (_, copy) => ({ key: `${entry.key}|${copy}`, widthMm: entry.layout!.widthMm, heightMm: entry.layout!.heightMm }))
     : [])), [entries, copies]);
   const itemCount = pages.reduce((sum, page) => sum + page.items.length, 0);
+  const missing = [...new Set([...variantFailures, ...entries.filter(entry => !entry.layout)
+    .map(entry => `${entry.name}${entry.variant ? ` ${entry.variant}` : ""}`)])];
   const scaled = pages.some(page => page.items.some(item => item.scale < 1));
 
   const toggleCourse = (course: string, on: boolean) => setChosen(current => {
@@ -123,6 +130,7 @@ export function DescriptionPrintPage({ raceId }: { raceId: string }) {
           {BOX_SIZES_MM.map(value => <option key={value} value={value}>{text.page.boxSize(value)}</option>)}</select></label>
         <label>{text.page.copies}<input type="number" min={1} max={MAX_COPIES} value={copies} onChange={event => setCopies(copiesOf(event.target.value))} /></label>
       </div>
+      {missing.length > 0 && <Notice tone="error" role="alert">{text.page.missing(missing)}</Notice>}
       <div className={styles.row}>
         <Button onClick={() => window.print()} disabled={itemCount === 0}>{text.page.printButton}</Button>
         <span role="status">{itemCount === 0 ? text.page.none : text.page.pages(pages.length, itemCount)}</span>

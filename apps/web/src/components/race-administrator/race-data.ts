@@ -7,6 +7,7 @@ import type { WorkspaceRole } from "../../lib/race-sections";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { MobileNavigation } from "./navigation";
+import { forgetAllCourseSettingCopies } from "../../lib/course-setting-offline-forget";
 
 /** Tävlingens deltagarlista (ögonblicksbilden) och vald deltagares gällande resultat. */
 export function useRaceDataState() {
@@ -74,6 +75,7 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
         signal: op.controller.signal, headers: { "x-otid-csrf": token } });
       assertCurrent(op);
       if (!response.ok && response.status !== 401) throw new Error("Logout failed");
+      await forgetAllCourseSettingCopies().catch(error => console.error("Banläggningen i telefonen kunde inte tas bort", error));
     } catch { if (current(op)) setMessage(`${text.logoutError}${hadPending ? ` ${text.discarded}` : ""}`); }
     finally { finish(op); }
   }

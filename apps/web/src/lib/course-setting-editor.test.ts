@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OverprintPrimitive } from "@o-tid/course-setting";
-import { circleArcs } from "./course-setting-draw";
+import { circleArcs, type OverprintPrimitive } from "@o-tid/course-setting";
 import {
   addBend, addPoint, applySteps, beginDrag, canRedo, canUndo, cancelTool, courseChain, createEditor, dragTo, endDrag, insertExisting, redo,
   removeSelected, select, setView, undo

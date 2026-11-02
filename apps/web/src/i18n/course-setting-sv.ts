@@ -109,6 +109,12 @@ export const courseSettingSv = {
     START: "start", FINISH: "mål", CROSSING_POINT: "passage", MAP_EXCHANGE: "kartbyte", MAP_ISSUE: "kartutdelning",
     control: (code: string | undefined) => code ? `kontroll ${code}` : "kontroll utan kod"
   },
+  /** Översynen 2026-11-02: uträkningar som inte gick (banpåtrycket, ringklippen, förslagen …). */
+  problems: {
+    failed: (names: readonly string[]) => `Det här kunde inte räknas fram: ${names.join(", ")}. Kartan visar det som går. Ångra senaste ändringen eller ladda om sidan.`,
+    circleGaps: "Ringklippen över detaljer (ringarna ritas hela)",
+    suggestions: "Förslagen på kontrollbeskrivning"
+  },
   status: {
     saved: "Sparat",
     saving: "Sparar …",
@@ -116,7 +122,6 @@ export const courseSettingSv = {
     conflict: "Konflikt – någon annan har ändrat",
     failed: "Inte sparat – försöker igen",
     stopped: "Sparas inte – logga in igen",
-    tooLarge: "Banläggningen är för stor för att sparas.",
     reload: "Ladda om",
     conflictHelp: (name: string | null, time: string) =>
       `${name ?? "Någon"} sparade ${time}. Ladda om för att se den versionen; dina senaste ändringar sparas inte.`

@@ -218,8 +218,8 @@ describe("steg 65: PDF för tryck på servern", { timeout: 240_000 }, () => {
   it("rensning: gamla PDF:er tas bort, högst tio per tävling, gamla rader försvinner; ett avbrutet jobb görs om", async () => {
     const owner = await race();
     const doc = await document(owner);
-    // Efter sessionen (en fast tid före den nekas: sessionen vore utfärdad i framtiden).
-    const now = new Date(Date.now() + 60_000);
+    // Nu (inloggningen gäller från nu; en fast tidpunkt slutade fungera när den passerats).
+    const now = new Date();
     const ids: string[] = [];
     for (let index = 0; index < 12; index += 1) {
       const created = await createPrintJobAsAdmin(db, { ...owner, request: request([doc.courses[0]!.id]) }, now);

@@ -106,6 +106,8 @@ export interface FieldInput {
   readonly onView?: ((view: string, variant?: string) => void) | undefined;
   /** Varianterna per bana (koder), för väljaren. */
   readonly variants?: Readonly<Record<string, readonly string[]>> | undefined;
+  /** Varianten som visas (också när editorn står i en gren utan vald variant). */
+  readonly variant?: string | undefined;
   /** Steg 67: vald kontrolls bock och om kontrollen finns på servern (en ny osparad kontroll kan inte bockas än). */
   readonly inspection: Inspection | undefined;
   readonly saved: (control: string) => boolean;
@@ -330,7 +332,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
       <option value={ALL_CONTROLS}>{text.allControls}</option>
       {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
     </select>
-    {variantCodes.length > 0 && <select className={css.select} aria-label={text.variant} value={state.variant ?? ""}
+    {variantCodes.length > 0 && <select className={css.select} aria-label={text.variant} value={input.variant ?? state.variant ?? ""}
       data-testid="course-setting-field-variant" onChange={event => input.onView!(state.view, event.target.value || undefined)}>
       <option value="">{text.allVariants}</option>
       {variantCodes.map(code => <option key={code} value={code}>{code}</option>)}

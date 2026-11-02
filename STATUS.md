@@ -18,6 +18,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Verifierat: se slutrapporten (lint, typecheck, test, test:integration, berörda specar lokalt; CI).
 - Ägaren: SMTP behövs för att nya personer ska få behörigheter utan `verify`; följ docs/drift.md (Databasroller, Kopia utanför servern, Bevakning).
 
+### 2026-11-02 – Banläggningens sparande, utan nät och samarbete (grenen banlaggning-sparande, ADR-0181 beslut 9)
+- Sparandet i omgångar (500 åtgärder/1 MB); 413 halverar, 400 läser om och försöker igen, bara en ensam för stor eller oläslig åtgärd stryks med besked. Routen ger 413.
+- Servern lagrar touches ur skillnaden (`diffTouches`), så strukturändringar krockar; ångra per fält (`eventFields`). Integrationstest med två samtidiga.
+- Kön skickas efter ändringarna med id översatta; servern avvisar notiser/bockar på kontroller som inte finns (409). Posten i två delar, lagringsfel i statusraden, kopian bort vid utloggning och 403.
+- Fel visas i stället för att sväljas (vägvalens spärrar, banpåtrycket, ringklipp, förslag, beskrivningar och varianter i utskriften); ringklippen följer med ny .ppen; describeEdit komplett; fältets variantväljare.
+- Kopia av tävling: banläggningens behörigheter och notiser bara med `includePeople`, aldrig i träningsgruppens tillfällen.
+- Vägvalets Worker startas när en sträcka väljs (Högdalen: kartans Worker 20 MB, vägvalets 48 MB, mätt i Node). `circleArcs` och arkvalet (`printSheetGroups`) i paketet.
+- Verifierat: lint, typecheck, test, test:integration och alla 77 Playwright-specar (ny: banlaggning-sparande) gröna i CI; lokalt lib-, paket- och integrationstesterna för grenen, specen mot dev-servern. steg-65:s rensningstest räknar från nu (dess fasta tidpunkt hade passerats). Återstår: minnet på en riktig telefon.
+
 ### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 14)
 - Objekt i verktygsraden (och bakom "Mer") öppnar en palett i fyra grupper med ikoner ritade av kartans ritare; obligatorisk passage ("Obl. passage", tooltip) skiljs från valfri; kartbyte och bild (uppladdning) läggs därifrån.
 - Vridhandtag för obligatorisk och valfri passage (5°-steg, Skift/andra fingret fritt), "Vrid efter sträckan", en ny passage i en bana vrids efter sträckan; ny ändring `SET_CONTROL_ORIENTATION`.

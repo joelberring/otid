@@ -27,6 +27,7 @@ import { DateInput, Field, focusFirstError } from "./ui";
 import { orderMyEvents } from "../lib/my-events-order";
 import { raceListName } from "../lib/race-list-name";
 import { MyGroups } from "./training-group/my-groups";
+import { forgetAllCourseSettingCopies } from "../lib/course-setting-offline-forget";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string; emailVerified?: boolean | undefined };
@@ -273,6 +274,8 @@ export function OrganizerWorkspace() {
         headers: { "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href)) }
       });
       if (!response.ok && response.status !== 401) throw new Error(copy.logoutError(response.status));
+      // Banhemligheten: telefonens kopior av banläggningen (posten, kön, kartfilen, sidan) tas bort vid utloggning.
+      await forgetAllCourseSettingCopies().catch(error => console.error("Banläggningen i telefonen kunde inte tas bort", error));
       setSession(undefined);
       setEvents([]);
       setEventSearch("");

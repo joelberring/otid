@@ -10,7 +10,7 @@ import {
   printAreaOf, type CourseSettingDocument, type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
-import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
+import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
@@ -30,6 +30,7 @@ import { ALL_CONTROLS, hitTest, nearestBend } from "../../lib/course-setting-hit
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { noteTargetAt } from "../../lib/course-setting-note-marks";
 import { previewSuggestion, suggestionOverlay } from "../../lib/course-setting-suggestion";
+import { failedNames, safely } from "../../lib/course-setting-safely";
 import { CourseSettingSync, EditorStore, type LostEdit, type SyncStatus } from "../../lib/course-setting-sync";
 import { inspectedPoints, inspectionRows, mergeInspections } from "../../lib/course-setting-inspections";
 import type { FieldRecord, QueuedItem } from "../../lib/course-setting-offline";
@@ -40,8 +41,6 @@ import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHan
 import { PrintPanel } from "./course-setting-print-panel";
 import { SpecialsPanel } from "./course-setting-specials";
 import { controlledWorker } from "../../lib/course-setting-worker";
-import { fetchRouteChoice } from "../../lib/route-choice-api";
-import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
 import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
@@ -62,16 +61,12 @@ import { ControlList } from "./course-setting-controls";
 import { useCourseSettingUx } from "./use-course-setting-ux";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
+import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import styles from "./course-setting.module.css";
 
 // Steg 67: styrda av service workern när sidan är sparad för offline (`controlledWorker`).
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
-const createRouteWorker = () => controlledWorker(() => new Worker(new URL("../../lib/route-choice-worker.ts", import.meta.url), { type: "module" }));
 
-/** Paketets uträkningar får inte fälla editorn; ett fel syns i konsolen och vyn visar det som går. */
-function safely<T>(name: string, compute: () => T, fallback: T): T {
-  try { return compute(); } catch (error) { console.error(`${name} misslyckades`, error); return fallback; }
-}
 
 type Drag = { kind: "control"; control: string; dx: number; dy: number } | { kind: "number"; courseControl: string } | { kind: "rotate" }
   | { kind: "bend"; from: string; to: string; index: number }
@@ -88,7 +83,7 @@ const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_STAR
   b: "ADD_BEND", n: "NOTE", o: "SPECIAL" };
 const OK_TOAST_MS = 8_000;
 const STATUS_TEXT: Record<SyncStatus, string> = { saved: text.status.saved, pending: text.status.pending, saving: text.status.saving,
-  failed: text.status.failed, "too-large": text.status.tooLarge, stopped: text.status.stopped };
+  failed: text.status.failed, stopped: text.status.stopped };
 
 /**
  * Steg 62 (ADR-0180) och 66 (ADR-0181): editorn. Logiken finns i `lib/course-setting-*` (editorns tillstånd, sparandet med
@@ -178,6 +173,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Steg 67: kön utan nät (notiser och bockar), åtgärderna i telefonen och "Spara för offline".
   const offline = useCourseSettingOffline({ raceId, state, store, sync, version, status, mapSha256: state.mapFile?.sha256, say,
     notes: collaboration.notes, inspections: collaboration.inspections,
+    onAccessGone: () => { say({ tone: "error", text: offlineSv.accessGone }); onReload(); },
     describe: (item: QueuedItem, code: number) => item.kind !== "inspection" ? rejectedNoteText(item, code)
       : offlineSv.rejectedInspection(store.state.document.controls[item.request.control] ? controlLabel(store.state.document, item.request.control)
         : item.request.control, code),
@@ -190,14 +186,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const apply = (change: (current: EditorState) => EditorState) => { store.update(change); sync.changed(); };
   const edit = (change: (current: EditorState) => EditorState) => { if (!readOnly) apply(change); };
 
-  // Kartfilen: en Worker ritar kartan, en annan räknar vägvalen.
+  // Kartfilen: en Worker ritar kartan; vägvalens Worker startas först när en sträcka väljs (`useRouteChoiceWorker`).
   const [mapSession, setMapSession] = useState<MapRenderSession>();
   const [mapBounds, setMapBounds] = useState<Bounds | undefined>(state.mapFile?.bounds);
   const [mapStatus, setMapStatus] = useState<"none" | "reading" | "ready" | "failed">(state.mapFile ? "reading" : "none");
   const [georeference, setGeoreference] = useState<MapGeoreference | null>();
   const [mapBytes, setMapBytes] = useState<number>();
-  const routes = useRef<RouteChoiceSession | undefined>(undefined);
-  const [routeReady, setRouteReady] = useState(false);
   useEffect(() => {
     if (!state.mapFile) return;
     const controller = new AbortController();
@@ -205,26 +199,21 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     let session: MapRenderSession | undefined;
     void (async () => {
       try {
-        // Vägvalens inställningar är admins; den som bara har banläggningen räknar med standardinställningarna.
-        const [file, settings] = await Promise.all([loadMapFile(raceId, state.mapFile!.sha256, offline.storage, controller.signal, () => say({
-          tone: "attention", text: offlineSv.olderMap })), access.admin
-          ? fetchRouteChoice(raceId, controller.signal).then(value => value.settings as RouteChoiceSettings, () => ({ version: 1 }) as RouteChoiceSettings)
-          : Promise.resolve({ version: 1 } as RouteChoiceSettings)]);
+        const file = await loadMapFile(raceId, state.mapFile!.sha256, offline.storage, controller.signal, () => say({
+          tone: "attention", text: offlineSv.olderMap }));
         if (closed) return;
         setMapBytes(file.bytes.byteLength);
         session = new MapRenderSession(createMapWorker, (bounds, _scale, georef) => {
           if (!closed) { setMapBounds(bounds); setGeoreference(georef); setMapStatus("ready"); }
         },
           () => { if (!closed) setMapStatus("failed"); });
-        session.load(file.bytes.slice(0), file.fileName);
+        // Kartfilen går över till Workern (ingen kopia stannar här).
+        session.load(file.bytes, file.fileName);
         setMapSession(session);
-        const worker = new RouteChoiceSession(createRouteWorker);
-        routes.current = worker;
-        worker.load(file.bytes, file.fileName, settings, () => { if (!closed) setRouteReady(true); }, () => { if (!closed) setRouteReady(false); });
       } catch { if (!closed) setMapStatus("failed"); }
     })();
-    return () => { closed = true; controller.abort(); session?.close(); routes.current?.close(); routes.current = undefined; };
-  }, [raceId, state.mapFile, access.admin]);
+    return () => { closed = true; controller.abort(); session?.close(); };
+  }, [raceId, state.mapFile]);
 
   const { document, view, selection } = editor;
   const course = document.courses.find(row => row.id === view);
@@ -237,20 +226,21 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
   const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
-  const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
+  const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), () => [] as readonly OverprintPrimitive[]),
     [document, view, variant, cutting.options]);
-  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), [] as readonly OverprintPrimitive[]) : [],
+  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), () => [] as readonly OverprintPrimitive[]) : [],
     [document, view, variant, cutting.options]);
-  const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), []), [document]);
+  const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), () => []), [document]);
   // Steg 64: symbolerna för beskrivningen på kartan.
   const standard = document.event.descriptionStandard;
-  const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), [] as readonly DescriptionSymbol[])), [standard]);
-  const checks = useMemo(() => checkRows(document, safely("Kontrollerna", () => checkDocument(document), [])), [document]);
+  const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), () => [] as readonly DescriptionSymbol[])), [standard]);
+  const checked = useMemo(() => safely("Kontrollerna", () => checkDocument(document), () => []), [document]);
+  const checks = useMemo(() => checkRows(document, checked), [document, checked]);
   const [flagged, setFlagged] = useState<CheckRow>();
   // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utskrift).
   const printPage = useMemo(() => {
     if (tab !== "print") return undefined;
-    const page = safely("Utskriftslayouten", () => layoutCoursePage(document, { course: view, ...(variant ? { variant } : {}), mapBounds })[0], undefined);
+    const page = safely("Utskriftslayouten", () => layoutCoursePage(document, { course: view, ...(variant ? { variant } : {}), mapBounds })[0], () => undefined);
     return page ? { page, automatic: printAreaOf(document, view).automatic || !printAreaOf(document, view).rect } : undefined;
   }, [tab, document, view, variant, mapBounds]);
   const selectedSpecial = selection?.kind === "special" ? document.specialObjects.find(item => item.id === selection.special) : undefined;
@@ -282,12 +272,16 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const [legStatus, setLegStatus] = useState<LegStatus>("idle");
   const [highlighted, setHighlighted] = useState<number>();
   const legCourseControls = useMemo(() => view === ALL_CONTROLS ? [] : safely("Banans kontroller",
-    () => courseControlOrder(document, view, variant), [] as readonly string[]), [document, view, variant]);
+    () => courseControlOrder(document, view, variant), () => [] as readonly string[]), [document, view, variant]);
   const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls, view) : undefined;
   const inputKey = input?.key;
+  const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
+    wanted: input !== undefined });
+  const routes = routeWorker.session, routeReady = routeWorker.ready;
   useEffect(() => {
     setAnalysis(undefined); setHighlighted(undefined);
     if (!input) { setLegStatus("idle"); return; }
+    if (routeWorker.failed) { setLegStatus("failed"); return; }
     if (!routeReady || !routes.current) { setLegStatus("waiting"); return; }
     setLegStatus("analysing");
     const worker = routes.current;
@@ -296,7 +290,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     }, 250);
     return () => { clearTimeout(timer); worker.cancel(); };
     // Nyckeln ändras med ändarnas lägen; övriga kontroller räknas med när sträckan räknas.
-  }, [inputKey, routeReady]);
+  }, [inputKey, routeReady, routeWorker.failed]);
   const code = (id: string, end: "S" | "F") => document.controls[id]?.kind === "NORMAL" ? `${document.controls[id].code ?? "?"}.1` : end;
   const legKey = selection?.kind === "leg" && view !== ALL_CONTROLS ? `${code(selection.from, "S")}-${code(selection.to, "F")}` : undefined;
   const routeRows = analysis?.best ? [analysis.best, ...analysis.alternatives] : [];
@@ -324,12 +318,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const [skip, setSkip] = useState<ReadonlySet<number>>(new Set());
   const [decision, setDecision] = useState<{ suggestion: string; decided: CourseSettingSuggestionDecided } | { suggestion: string; failed: true }>();
   const reviewed = collaboration.suggestions.find(row => row.id === reviewing);
-  const preview = useMemo(() => reviewed ? safely("Förslaget", () => previewSuggestion(document, reviewed, skip), undefined) : undefined,
+  const preview = useMemo(() => reviewed ? safely("Förslaget", () => previewSuggestion(document, reviewed, skip), () => undefined) : undefined,
     [reviewed, document, skip]);
   const suggestionDrawing = useMemo(() => {
     if (!preview) return undefined;
     const overlay = suggestionOverlay(document, preview.document);
-    return { ...overlay, primitives: safely("Förslagets banpåtryck", () => layoutOverprint(preview.document, options), [] as readonly OverprintPrimitive[]),
+    return { ...overlay, primitives: safely("Förslagets banpåtryck", () => layoutOverprint(preview.document, options), () => [] as readonly OverprintPrimitive[]),
       radiusMm };
   }, [preview, document, view, variant, radiusMm]);
   const rejectedInPreview = useMemo(() => new Set(preview?.rejected.map(row => row.index) ?? []), [preview]);
@@ -496,7 +490,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       const event = document.event;
       const imported: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
-        ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}) } };
+        ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
+        // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10).
+        ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) } };
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }
@@ -540,7 +536,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     [document, descriptionKind]);
   const selectedControl = selection?.kind === "control" ? selection.control : undefined;
   const describedControl = useMemo(() => selectedControl
-    ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), "") : "",
+    ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), () => "") : "",
   [document, selectedControl, descriptionSettings.language]);
 
   const suggesting = editor.suggesting !== undefined;
@@ -548,6 +544,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Steg 67: utan nät (eller utloggad) säger statusen hur mycket som väntar i telefonen.
   const shownStatus = suggesting ? statusText : offline.statusText ?? statusText;
   const label = text.map(course?.name ?? text.courses.all);
+  // Översynen 2026-11-02: det som inte gick att räkna fram sägs ovanpå kartan (inget sväljs tyst).
+  const problems = failedNames([primitives, faded, summaries, checked, legCourseControls, suggestionDrawing?.primitives],
+    [cutting.failed && text.problems.circleGaps, suggestions.failed && text.problems.suggestions]);
   const others = collaboration.presence.filter(person => person.accountId !== access.accountId).map(person => person.displayName ?? copy.someone);
   const openSuggestions = collaboration.suggestions.filter(row => row.status === "OPEN").length;
   const openNotes = notes.openCount;
@@ -645,7 +644,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Banväljaren finns i fältets rad på telefonen (raden överst har den på bredare skärm).
   const variantsByCourse = useMemo(() => Object.fromEntries(summaries.map(row => [row.course, row.variants.map(item => item.code)])), [summaries]);
   const field = useFieldMode({ raceId, state: editor, apply: edit, georeference, mapBounds, status, statusText: shownStatus, offline: offline.offline,
-    readOnly, onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse,
+    readOnly, onView: (next, code) => apply(current => setView(current, next, code)), variants: variantsByCourse, variant,
     inspection: selectedControl ? inspections.get(selectedControl) : undefined, saved: id => Boolean(sync.document.controls[id]),
     onInspect: (control, checked, position) => void offline.enqueueInspection({ formatVersion: 1, control, checked, at: new Date().toISOString(),
       position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
@@ -671,7 +670,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     data-field={field.narrow ? "" : undefined}>
     <TopBar raceId={raceId} document={document} summaries={summaries} view={view} variant={variant}
       onView={(next, value) => apply(current => setView(current, next, value))}
-      status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : offline.offline ? "failed" : status}
+      status={<p role="status" aria-live="polite" className={styles.status} data-status={suggesting ? "pending" : offline.offline || offline.storageError ? "failed" : status}
         data-testid="course-setting-status">{shownStatus}</p>}
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu} />
@@ -701,6 +700,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
             {" "}<Button variant="quiet" onClick={() => setTab("suggestions")}>{copy.suggestions.send} …</Button></p>}
           {reviewed && <p className={styles.toast}>{copy.suggestions.reviewing}</p>}
           {editor.error && !field.narrow && <p role="alert" className={styles.toast}>{editor.error}</p>}
+          {problems.length > 0 && <div data-testid="course-setting-problems"><Notice tone="error" role="alert">{text.problems.failed(problems)}</Notice></div>}
           {messages.map(message => <div key={message.id} className={styles.toastBox}>
             <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>
               <p>{message.text}</p>
@@ -728,7 +728,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onRestore={onRestore} />
     </Dialog>}
     {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
-      <TransferPanel raceId={raceId} ready={!busy && status !== "too-large"} flush={flush} version={() => sync.version} />
+      <TransferPanel raceId={raceId} ready={!busy} flush={flush} version={() => sync.version} />
     </Dialog>}
     {offlineDialog && <Dialog title={offlineSv.panel.heading} onClose={() => setOfflineDialog(false)}>
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}

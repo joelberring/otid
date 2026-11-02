@@ -61,7 +61,7 @@ const organizerEventRaceSchema = z.object({
   raceDate: z.iso.date(),
   raceType: raceTypeSchema,
   /** Steg 66: behörighet för banläggningen på loppet (utan roll på eventet når kontot bara den). */
-  courseSetting: z.enum(["EDIT", "SUGGEST", "COMMENT"]).optional()
+  courseSetting: z.enum(["EDIT", "SUGGEST", "COMMENT", "MAP"]).optional()
 }).strict();
 
 const organizerEventSchema = z.object({

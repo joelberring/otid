@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { CourseSettingNote, CourseSettingNoteKind, CourseSettingNoteTarget } from "@o-tid/contracts";
+import type { CourseSettingLevel, CourseSettingNote, CourseSettingNoteKind, CourseSettingNoteTarget } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
@@ -37,7 +37,7 @@ export interface NotesInput {
   readonly offline: CourseSettingOffline;
   /** Kontrollen finns på servern (en notis på en ny osparad kontroll fästs vid punkten). */
   readonly saved: (control: string) => boolean;
-  readonly access: { readonly accountId: string; readonly displayName: string | null; readonly level: "EDIT" | "SUGGEST" | "COMMENT" };
+  readonly access: { readonly accountId: string; readonly displayName: string | null; readonly level: CourseSettingLevel };
   readonly say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
   readonly map: React.RefObject<CourseSettingMapHandle | null>;
   readonly readOnlyCourse: boolean;

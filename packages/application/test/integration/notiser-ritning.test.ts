@@ -7,10 +7,18 @@ import { COURSE_SETTING_SKETCH_MAX_POINTS } from "@o-tid/contracts";
 import { layoutOverprint, readPpen, writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
-import { importCourseSettingAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin } from "../../src/course-setting";
+import {
+  importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin,
+  readCourseSettingOriginalAsAdmin, readCourseSettingRevisionAsAdmin, saveCourseSettingAsAdmin
+} from "../../src/course-setting";
+import { listCourseSettingSuggestionsAsAdmin, saveCourseSettingEditsAsAdmin } from "../../src/course-setting-collaboration";
+import { listCourseSettingInspectionsAsAdmin } from "../../src/course-setting-inspections";
+import { readRaceMapSourceFileAsAdmin } from "../../src/race-map-source";
+import { listMyEvents } from "../../src/organizer-events";
+import { listEntryClassesAsAdmin } from "../../src/results";
 import {
   createCourseSettingNoteAsAdmin, deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin, listCourseSettingNotesAsAdmin,
-  readCourseSettingNotePhotoAsAdmin, replyCourseSettingNoteAsAdmin
+  readCourseSettingNotePhotoAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin
 } from "../../src/course-setting-notes";
 import { courseSettingProjection } from "../../src/course-setting-transfer";
 import { exportRaceAsAdmin } from "../../src/race-export";
@@ -62,7 +70,7 @@ async function race(): Promise<Proof & { eventId: string }> {
     csrfHeader: entered.csrfToken };
 }
 
-async function courseSetter(owner: Proof, level: "COURSE_EDIT" | "COURSE_COMMENT") {
+async function courseSetter(owner: Proof, level: "COURSE_EDIT" | "COURSE_COMMENT" | "COURSE_MAP") {
   const account = await registerTestAccount(db);
   const granted = await grantRacePerson(db, owner, owner.raceId, account.email, level as never);
   if (granted.status !== "granted") throw new Error(`Behörigheten gavs inte: ${granted.status}`);
@@ -212,5 +220,64 @@ describe("notiser med ritning, kartfel och borttagning (ADR-0181 beslut 8)", { t
     const copy = await pool.query<{ kind: string; target: string; sketch: unknown }>(
       "select kind, target, sketch from course_setting_note where race_id = $1", [copied.response.raceId]);
     expect(copy.rows).toEqual([{ kind: "MAP_ERROR", target: "SKETCH", sketch: [stig, yta] }]);
+  });
+
+  it("kartritaren ser bara kartfelen (utan bana, kontroller och foto), svarar och markerar klart; aldrig banläggningens dokument", async () => {
+    const owner = await race();
+    const document = await setUp(owner);
+    const mapMaker = await courseSetter(owner, "COURSE_MAP");
+    const { version } = await current(owner);
+    const control = Object.values(document.controls).find(row => row.kind === "NORMAL")!;
+    const course = document.courses[0]!;
+    const sketch = await createCourseSettingNoteAsAdmin(db, { ...owner, request: request({ kind: "SKETCH", shapes: [stig] }, { kind: "MAP_ERROR",
+      text: "Stigen saknas", photo: { mediaType: "image/jpeg", base64: jpeg() } }) });
+    const point = await createCourseSettingNoteAsAdmin(db, { ...owner, request: request({ kind: "POINT", at: { x: 40, y: 40 } }, { kind: "MAP_ERROR",
+      text: "Sten saknas", course: course.id }) });
+    const secret = await createCourseSettingNoteAsAdmin(db, { ...owner, request: request({ kind: "CONTROL", control: control.id },
+      { text: "Flytta kontrollen närmare stenen", course: course.id }) });
+    if (sketch.status !== "ok" || point.status !== "ok" || secret.status !== "ok") throw new Error("Notiserna sparades inte");
+
+    // Banläggningens dokument och allt annat i banläggningen: nej.
+    for (const [name, result] of Object.entries({
+      state: await readCourseSettingAsAdmin(db, mapMaker), revisions: await listCourseSettingRevisionsAsAdmin(db, mapMaker),
+      revision: await readCourseSettingRevisionAsAdmin(db, { ...mapMaker, version }), original: await readCourseSettingOriginalAsAdmin(db, mapMaker),
+      suggestions: await listCourseSettingSuggestionsAsAdmin(db, mapMaker), inspections: await listCourseSettingInspectionsAsAdmin(db, mapMaker),
+      transfer: await previewCourseSettingTransferAsAdmin(db, { ...mapMaker, request: { formatVersion: 1, version } }),
+      save: await saveCourseSettingAsAdmin(db, { ...mapMaker, request: { formatVersion: 1, expectedVersion: version, document } }),
+      edits: await saveCourseSettingEditsAsAdmin(db, { ...mapMaker, request: { formatVersion: 1, requestId: randomUUID(), baseVersion: version,
+        edits: [{ type: "MOVE_CONTROL", control: control.id, at: { x: 1, y: 1 } }] } }),
+      create: await createCourseSettingNoteAsAdmin(db, { ...mapMaker, request: request({ kind: "POINT", at: { x: 1, y: 1 } }, { kind: "MAP_ERROR" }) }),
+      photo: await readCourseSettingNotePhotoAsAdmin(db, { ...mapMaker, noteId: sketch.note.id }),
+      remove: await deleteCourseSettingNoteAsAdmin(db, { ...mapMaker, noteId: sketch.note.id })
+    })) expect(result.status, name).toBe("forbidden");
+    // Resten av tävlingen inte heller.
+    expect((await listEntryClassesAsAdmin(db, mapMaker)).status).toBe("unauthorized");
+    // Kartfilen (för utsnitten) får kartritaren; här finns ingen.
+    expect((await readRaceMapSourceFileAsAdmin(db, mapMaker)).status).toBe("not-found");
+
+    // Kartfelen: bara de två, utan bana och foto; inget om kontroller, sträckor eller banor i svaret.
+    const list = await listCourseSettingNotesAsAdmin(db, mapMaker);
+    if (list.status !== "ok") throw new Error(`Listan saknas: ${list.status}`);
+    expect(list.response.notes.map(note => [note.text, note.course, note.photo])).toEqual([["Stigen saknas", null, null], ["Sten saknas", null, null]]);
+    const text = JSON.stringify(list.response);
+    for (const value of [`"${course.id}"`, course.name, ...Object.values(document.controls).flatMap(row => [`"${row.id}"`, ...(row.code ? [`"${row.code}"`] : [])]),
+      "Flytta kontrollen", "CONTROL", "LEG", "COURSE\""]) expect(text, value).not.toContain(value);
+
+    // Svara och markera klart på ett kartfel; inte på banläggarens notis.
+    const answered = await replyCourseSettingNoteAsAdmin(db, { ...mapMaker, noteId: sketch.note.id, request: { formatVersion: 1, requestId: randomUUID(),
+      text: "Rättat i kartfilen" } });
+    expect(answered).toMatchObject({ status: "ok", note: { course: null, photo: null, replies: [{ text: "Rättat i kartfilen" }] } });
+    expect(await setCourseSettingNoteStatusAsAdmin(db, { ...mapMaker, noteId: sketch.note.id, request: { formatVersion: 1, status: "DONE" } }))
+      .toMatchObject({ status: "ok", note: { status: "DONE", photo: null } });
+    expect((await replyCourseSettingNoteAsAdmin(db, { ...mapMaker, noteId: secret.note.id, request: { formatVersion: 1, requestId: randomUUID(),
+      text: "x" } })).status).toBe("forbidden");
+    expect((await setCourseSettingNoteStatusAsAdmin(db, { ...mapMaker, noteId: secret.note.id, request: { formatVersion: 1, status: "DONE" } })).status)
+      .toBe("forbidden");
+    if (answered.status !== "ok") throw new Error("Svaret saknas");
+    expect((await deleteCourseSettingNoteReplyAsAdmin(db, { ...mapMaker, noteId: sketch.note.id, replyId: answered.note.replies[0]!.id })).status).toBe("ok");
+
+    // Mina tävlingar: loppet med kartritarens behörighet.
+    expect(await listMyEvents(db, mapMaker)).toMatchObject({ status: "ok", response: { events: [{ role: "COURSE_SETTER",
+      races: [{ raceId: owner.raceId, courseSetting: "MAP" }] }] } });
   });
 });

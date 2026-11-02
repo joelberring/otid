@@ -44,6 +44,8 @@ kontroll lite, skriva in stenens höjd, vilken sida flaggan sitter på och likna
    till kontroller eller vem som skrev och när. Utsnittet förskjuts slumpvis från kartfelet, ett kartfel inom ringen
    eller 50 m från en kontroll varnas för och är inte med som förval, fotot är avbockat som förval, och texten visas med
    påminnelsen att den inte får avslöja kontrollplatser. Förhandsvisningen är exakt det som skrivs ut och laddas ned.
+   **Kartritaren** är en egen behörighet (nivå `MAP`, rollen "Kartritare"): kartfilen och kartfelen (utan bana och foto)
+   på samma sida, svara och markera klara; aldrig banläggningens dokument, versioner, förslag eller andra notiser.
 
 **Konsekvenser.** Ingen ny teknik för realtid (som CRDT) behövs, eftersom ändringarna redan är små åtgärder. GPS i skog
 är ofta 5–15 m fel, så GPS-läget visar var man står men ersätter inte kartbilden; finjusteringen avgör.
@@ -53,6 +55,5 @@ kontroll lite, skriva in stenens höjd, vilken sida flaggan sitter på och likna
 - **GPS-noggrannheten** i skog och nära hus. Provas av ägaren i terrängen.
 - **Kartfilen i telefonen:** stora OCAD-filer kan vara tunga att rita. Provas med Högdalen och Djurgården.
 - **Foton** tar plats; storleken begränsas och de tas bort med tävlingen.
-- **Kartritaren som egen roll** (bara kartan och kartfelen, svara och markera klara, aldrig banläggningens dokument) är
-  inte byggd; i dag lämnar arrangören över exporten. Nästa steg om ägaren vill.
+- **Kartritaren** ser alla kartfel; ett kartfel nära en kontroll kan avslöja den (arrangören väljer vem som får rollen).
 - **GeoJSON i OCAD:** QGIS läser `crs`; OCAD:s import av GeoJSON är inte provad med en riktig kartfil.

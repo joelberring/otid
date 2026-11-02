@@ -14,8 +14,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Notiser tas bort (den som skrev eller den med ändra; svar och foto med; genom telefonens kö; andra editorer ser det). Ritning i notisen (`SKETCH`, ≤ 20 delar/1 000 punkter): dra eller klicka, ett finger ritar och två flyttar kartan, färg per slag, "är fel"/"ska vara här"; ritningen är markeringen och väljs på kartan, aldrig i utdata.
 - Slaget kartfel (bara punkt eller ritning), filter öppna/klara/alla och slag i listan och på kartan; "Rita kartfel" under Mer i fältläget.
 - `/course-setting/map-errors`: utskrift/PDF och GeoJSON (georefererad med `crs`, annars kartans mm) utan banor, koder, bannamn eller vem; slumpvis förskjutet utsnitt, varning nära kontroll (inte med som förval), foto av som förval.
-- Verifierat: se slutrapporten (lint, typecheck, test, test:integration, Playwright banlaggning-notiser m.fl.).
-- Återstår: rollen "Kartritare" (bara kartan och kartfelen) är inte byggd; GeoJSON i OCAD inte provad med riktig fil.
+- Rollen Kartritare (`COURSE_MAP`/nivå MAP): bara kartfilen och kartfelen (utan bana och foto) på `/map-errors`, svarar och markerar klart; aldrig dokumentet (integrationstest).
+- Återstår: GeoJSON i OCAD inte provad med riktig fil; ägaren provar ritläget i terrängen.
 
 ### 2026-11-02 – Steg 65: PDF för tryck med dekorfärger och övertryck (grenen steg65-pdf, ADR-0184)
 - Paketet `print-pdf` (pdf-lib + fontkit, MIT): arken ur steg 64 som PDF utan omräkning; kartan som vektorer via `drawMap` med en PDF-kontext (`MapDrawingContext`, ingen dubbel geometri), ett Form XObject per utsnitt; Roboto/Roboto Condensed (OFL) inbäddade som delmängd.

@@ -6,7 +6,9 @@ import type { CourseSettingNote } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
-import { courseSettingNotePhotoUrl, fetchCourseSetting, fetchCourseSettingNotes } from "../../lib/course-setting-api";
+import {
+  courseSettingNotePhotoUrl, fetchCourseSetting, fetchCourseSettingNotes, HttpError, replyCourseSettingNote, setCourseSettingNoteStatus
+} from "../../lib/course-setting-api";
 import { drawPointMark, drawSketchShapes } from "../../lib/course-setting-draw-sketch";
 import { metersPerMm } from "../../lib/course-setting-geo";
 import { MAX_RENDER_SIDE, MapRenderSession } from "../../lib/course-setting-map-protocol";
@@ -58,18 +60,30 @@ async function renderCrop(session: MapRenderSession, note: CourseSettingNote, cr
  * (banhemligheten): välj vilka som följer med och om fotot gör det (förval av), se varningar för kartfel nära en kontroll
  * och påminnelsen om texten, och förhandsvisa exakt det som skrivs ut (PDF via webbläsarens utskrift) och laddas ned
  * (GeoJSON). Allt görs i webbläsaren.
+ *
+ * Kartritaren (behörigheten MAP) får inte banläggningen (403) och ser här bara kartfelen som servern lämnar ut (utan bana
+ * och foto): utsnitten, texten och svaren, svarar, markerar klart och kan skriva ut eller ladda ned samma sak.
  */
 export function MapErrorsPage({ raceId }: { raceId: string }) {
   const [document, setDocument] = useState<CourseSettingDocument | null>();
   const [notes, setNotes] = useState<readonly CourseSettingNote[]>();
   const [failed, setFailed] = useState(false);
   const [hasMap, setHasMap] = useState(false);
+  const [mapMaker, setMapMaker] = useState(false);
+  const reload = () => fetchCourseSettingNotes(raceId).then(list => setNotes(list.notes));
   useEffect(() => {
-    void Promise.all([fetchCourseSetting(raceId), fetchCourseSettingNotes(raceId)]).then(([state, list]) => {
-      setDocument((state.setting?.document ?? null) as unknown as CourseSettingDocument | null);
-      setHasMap(state.mapFile !== null);
-      setNotes(list.notes);
-    }, () => setFailed(true));
+    void (async () => {
+      try {
+        const state = await fetchCourseSetting(raceId).catch((error: unknown) => {
+          if (error instanceof HttpError && error.status === 403) return undefined;
+          throw error;
+        });
+        // Kartritaren: ingen banläggning, kartfilen om den finns.
+        if (!state) { setMapMaker(true); setDocument(null); setHasMap(true); }
+        else { setDocument((state.setting?.document ?? null) as unknown as CourseSettingDocument | null); setHasMap(state.mapFile !== null); }
+        await reload();
+      } catch { setFailed(true); }
+    })();
   }, [raceId]);
 
   // Kartfilen i en Worker (som i förhandsvisningen av utskriften).
@@ -85,7 +99,10 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
       created = new MapRenderSession(createMapWorker, (_bounds, _scale, georef) => { setGeoreference(georef); setSession(created); setMapState("ready"); },
         () => setMapState("failed"));
       created.load(file.bytes, file.fileName);
-    }, () => { if (!controller.signal.aborted) setMapState("failed"); });
+    }, (error: unknown) => {
+      if (controller.signal.aborted) return;
+      if (error instanceof Error && error.message === "404") { setHasMap(false); setMapState("none"); } else setMapState("failed");
+    });
     return () => { controller.abort(); created?.close(); };
   }, [raceId, hasMap]);
 
@@ -98,8 +115,14 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
   }), [notes, status, document, perMm, seed]);
   // Med eller inte: förval med, utom nära en kontroll; fotot förval av (det kan visa en skärm eller flagga).
   const [choice, setChoice] = useState<Readonly<Record<string, { include?: boolean; photo?: boolean }>>>({});
-  const included = candidates.filter(row => choice[row.note.id]?.include ?? row.near === undefined);
+  const included = mapMaker ? candidates : candidates.filter(row => choice[row.note.id]?.include ?? row.near === undefined);
   const withPhoto = (note: CourseSettingNote) => note.photo !== null && choice[note.id]?.photo === true;
+  const [reply, setReply] = useState<Readonly<Record<string, string>>>({});
+  const [actionFailed, setActionFailed] = useState(false);
+  async function act(action: () => Promise<unknown>) {
+    setActionFailed(false);
+    try { await action(); await reload(); } catch (error) { console.error("Kartfelet sparades inte", error); setActionFailed(true); }
+  }
 
   // Utsnitten ritas ett i taget (Workern svarar bara på den senaste beställningen).
   const [images, setImages] = useState<Readonly<Record<string, string>>>({});
@@ -140,13 +163,13 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
     <section className={styles.controls} aria-labelledby="map-errors-title">
       <p><Link href={`/admin/${raceId}/course-setting`}>← {text.back}</Link></p>
       <h1 id="map-errors-title">{text.title}</h1>
-      <p>{text.intro}</p>
+      <p>{mapMaker ? text.mapMakerIntro : text.intro}</p>
       {all.length === 0 ? <p>{text.none}</p> : <>
         <div className={styles.row} role="group" aria-label={text.statusFilter}>
           {(["OPEN", "DONE", "ALL"] as const).map(value => <Button key={value} variant="secondary" aria-pressed={status === value}
             onClick={() => setStatus(value)}>{text.statuses[value]}</Button>)}
         </div>
-        <ol className={styles.choices} data-testid="map-errors-choices">
+        {!mapMaker && <ol className={styles.choices} data-testid="map-errors-choices">
           {candidates.map(row => {
             const include = choice[row.note.id]?.include ?? row.near === undefined;
             return <li key={row.note.id} data-near={row.near !== undefined || undefined}>
@@ -157,10 +180,11 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
                 onChange={event => set(row.note.id, { photo: event.target.checked })} />{text.includePhoto}</label>}
             </li>;
           })}
-        </ol>
-        <p className={styles.reminder} role="note">{text.textReminder}</p>
+        </ol>}
+        {!mapMaker && <p className={styles.reminder} role="note">{text.textReminder}</p>}
         {candidates.some(row => row.note.photo) && <p className={styles.reminder}>{text.photoReminder}</p>}
-        <p role="status">{text.selected(included.length, candidates.length)}</p>
+        {!mapMaker && <p role="status">{text.selected(included.length, candidates.length)}</p>}
+        {actionFailed && <Notice tone="error">{text.actionFailed}</Notice>}
         {!hasMap && <Notice tone="attention">{text.noMap}</Notice>}
         {mapState === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
         <div className={styles.row}>
@@ -173,13 +197,27 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
     </section>
     {included.length > 0 && <article className={styles.sheet} data-testid="map-errors-sheet" aria-label={text.preview}>
       <h1>{text.sheetTitle}</h1>
-      <p className={styles.muted}>{text.scale(document?.event.mapScale ?? 10000)}</p>
+      {document && <p className={styles.muted}>{text.scale(document.event.mapScale)}</p>}
       {included.map((row, index) => <section key={row.note.id} className={styles.item}>
         <h2>{text.number(index + 1)}{row.note.status === "DONE" ? ` · ${text.statusDone}` : ""}</h2>
         {images[row.note.id] ? <img className={styles.crop} src={images[row.note.id]} alt={text.renderAlt(index + 1)}
           style={{ width: `${Math.round((row.crop.maxX - row.crop.minX) * ENLARGE)}mm` }} />
           : hasMap && mapState !== "failed" ? <p className={styles.muted} role="status">{text.loading}</p> : null}
         <p className={styles.text}>{row.note.text}</p>
+        {mapMaker && <div className={styles.thread} data-testid="map-errors-thread">
+          {row.note.replies.length > 0 && <ul>{row.note.replies.map(answer => <li key={answer.id}>{answer.text}</li>)}</ul>}
+          <form className={styles.row} onSubmit={event => {
+            event.preventDefault();
+            const value = reply[row.note.id]?.trim();
+            if (value) void act(async () => { await replyCourseSettingNote(raceId, row.note.id, value); setReply(current => ({ ...current, [row.note.id]: "" })); });
+          }}>
+            <label>{text.reply}<input type="text" maxLength={2000} value={reply[row.note.id] ?? ""}
+              onChange={event => setReply(current => ({ ...current, [row.note.id]: event.target.value }))} /></label>
+            <Button type="submit" variant="secondary" disabled={!reply[row.note.id]?.trim()}>{text.sendReply}</Button>
+            <Button variant="secondary" onClick={() => void act(() => setCourseSettingNoteStatus(raceId, row.note.id, row.note.status === "OPEN" ? "DONE" : "OPEN"))}>
+              {row.note.status === "OPEN" ? text.markDone : text.reopen}</Button>
+          </form>
+        </div>}
         {withPhoto(row.note) && <img className={styles.photo} src={courseSettingNotePhotoUrl(raceId, row.note.id)} alt={text.photoAlt(index + 1)} />}
       </section>)}
     </article>}

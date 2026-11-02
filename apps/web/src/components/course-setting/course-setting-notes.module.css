@@ -21,3 +21,5 @@
 .compact .group, .compact .actions { flex-wrap: nowrap; }
 .compact .group button, .compact .actions button { min-height: 40px; padding: 0 8px; white-space: nowrap; }
 .compact .help { font-size: var(--text-sm); }
+.compact .select { flex: none; }
+.compact .group > [role="status"] { min-width: 0; font-size: var(--text-sm); }

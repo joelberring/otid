@@ -20,3 +20,7 @@ ALTER TABLE course_setting_note ADD CONSTRAINT course_setting_note_sketch_check 
 ALTER TABLE course_setting_note DROP CONSTRAINT IF EXISTS course_setting_note_kind_check;
 ALTER TABLE course_setting_note ADD CONSTRAINT course_setting_note_kind_check CHECK (kind IN ('COURSE_SETTING', 'MAP_ERROR')
   AND (kind = 'COURSE_SETTING' OR target IN ('POINT', 'SKETCH')));
+
+-- Kartritaren (MAP): ser bara kartan och kartfelen, svarar och markerar dem klara; aldrig banläggningens dokument.
+ALTER TABLE course_setting_grant DROP CONSTRAINT IF EXISTS course_setting_grant_level_check;
+ALTER TABLE course_setting_grant ADD CONSTRAINT course_setting_grant_level_check CHECK (level IN ('EDIT', 'SUGGEST', 'COMMENT', 'MAP'));

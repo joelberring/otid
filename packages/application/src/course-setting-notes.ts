@@ -6,7 +6,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { actor, actors, courseSettingRead, courseSettingWrite, type Failure, type ReadProof, type Transaction } from "./course-setting";
-import { courseSettingAllows } from "./course-setting-access";
+import { courseSettingAllows, type CourseSettingPrincipal } from "./course-setting-access";
 import type { RaceSessionProof } from "./race-session";
 
 /**
@@ -15,7 +15,8 @@ import type { RaceSessionProof } from "./race-session";
  * tävlingen läser dem aldrig. Läsa och skriva kräver COMMENT. Fotot (högst 2 MB, förminskat i webbläsaren) hämtas för sig.
  *
  * ADR-0181 beslut 8: en notis kan ha en ritning (target SKETCH) och vara ett kartfel. Den som skrev en notis eller ett
- * svar och den som får ändra (EDIT) kan ta bort den; svaren och fotot försvinner med notisen.
+ * svar och den som får ändra (EDIT) kan ta bort den; svaren och fotot försvinner med notisen. Kartritaren (MAP) ser bara
+ * kartfelen (utan bana och foto, som kan visa en kontrollplats), svarar och markerar dem klara, men skriver inga notiser.
  */
 type NoteRow = typeof schema.courseSettingNotes.$inferSelect;
 const notes = schema.courseSettingNotes;
@@ -53,6 +54,19 @@ const columns = {
   photoMediaType: notes.photoMediaType, requestId: notes.requestId, kind: notes.kind, sketch: notes.sketch
 };
 
+const isMapError = (row: Pick<NoteListRow, "kind" | "target">) => row.kind === "MAP_ERROR" && (row.target === "POINT" || row.target === "SKETCH");
+const mapMaker = (principal: CourseSettingPrincipal) => principal.level === "MAP";
+/** Det kartritaren ser av ett kartfel: ingen bana och inget foto. */
+const forMapMaker = (note: CourseSettingNote): CourseSettingNote => ({ ...note, course: null, photo: null });
+
+/** Notisen finns i tävlingen och den som skriver får nå den (kartritaren bara kartfel). */
+async function reachable(tx: Transaction, raceId: string, noteId: string, principal: CourseSettingPrincipal)
+  : Promise<{ status: "not-found" } | { status: "forbidden" } | { status: "ok" }> {
+  const [note] = await tx.select({ kind: notes.kind, target: notes.target }).from(notes).where(and(eq(notes.id, noteId), eq(notes.raceId, raceId)));
+  if (!note) return { status: "not-found" };
+  return mapMaker(principal) && !isMapError(note) ? { status: "forbidden" } : { status: "ok" };
+}
+
 async function selectNotes(tx: Transaction, raceId: string, id?: string): Promise<NoteListRow[]> {
   return tx.select({ ...columns, photoBytes: sql<number | null>`octet_length(${notes.photo})` }).from(notes)
     .where(and(eq(notes.raceId, raceId), id ? eq(notes.id, id) : undefined)).orderBy(asc(notes.createdAt), asc(notes.id)).limit(5000);
@@ -60,8 +74,11 @@ async function selectNotes(tx: Transaction, raceId: string, id?: string): Promis
 
 export async function listCourseSettingNotesAsAdmin(db: Database, input: ReadProof, now = new Date())
   : Promise<Failure | { status: "ok"; response: CourseSettingNotes }> {
-  return courseSettingRead(db, input, now, async (tx, raceId) => ({ status: "ok" as const,
-    response: courseSettingNotesSchema.parse({ formatVersion: 1, raceId, notes: await noteDtos(tx, await selectNotes(tx, raceId)) }) }));
+  return courseSettingRead(db, input, now, async (tx, raceId, principal) => {
+    const rows = await selectNotes(tx, raceId);
+    const list = mapMaker(principal) ? (await noteDtos(tx, rows.filter(isMapError))).map(forMapMaker) : await noteDtos(tx, rows);
+    return { status: "ok" as const, response: courseSettingNotesSchema.parse({ formatVersion: 1, raceId, notes: list }) };
+  }, "MAP");
 }
 
 /** Bildens första byte stämmer med typen (inget annat sparas som foto). */
@@ -106,14 +123,14 @@ export async function replyCourseSettingNoteAsAdmin(db: Database, input: RaceSes
   : Promise<Failure | { status: "ok"; note: CourseSettingNote }> {
   const parsed = courseSettingNoteReplySchema.safeParse(input.request);
   if (!parsed.success || !/^[0-9a-f-]{36}$/.test(input.noteId)) return { status: "invalid-request" };
-  return courseSettingWrite(db, input, now, "COMMENT", async (tx, raceId, actorId) => {
-    const [note] = await tx.select({ id: notes.id }).from(notes).where(and(eq(notes.id, input.noteId), eq(notes.raceId, raceId)));
-    if (!note) return { status: "not-found" as const };
+  return courseSettingWrite(db, input, now, "MAP", async (tx, raceId, actorId, principal) => {
+    const access = await reachable(tx, raceId, input.noteId, principal);
+    if (access.status !== "ok") return access;
     const [existing] = await tx.select({ id: replies.id }).from(replies).where(eq(replies.requestId, parsed.data.requestId));
-    if (!existing) await tx.insert(replies).values({ id: randomUUID(), noteId: note.id, raceId, text: parsed.data.text, createdAt: now,
+    if (!existing) await tx.insert(replies).values({ id: randomUUID(), noteId: input.noteId, raceId, text: parsed.data.text, createdAt: now,
       createdBy: actorId, requestId: parsed.data.requestId });
-    const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, note.id));
-    return { status: "ok" as const, note: dto! };
+    const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, input.noteId));
+    return { status: "ok" as const, note: mapMaker(principal) ? forMapMaker(dto!) : dto! };
   });
 }
 
@@ -122,13 +139,15 @@ export async function setCourseSettingNoteStatusAsAdmin(db: Database, input: Rac
   : Promise<Failure | { status: "ok"; note: CourseSettingNote }> {
   const parsed = courseSettingNoteStatusSchema.safeParse(input.request);
   if (!parsed.success || !/^[0-9a-f-]{36}$/.test(input.noteId)) return { status: "invalid-request" };
-  return courseSettingWrite(db, input, now, "COMMENT", async (tx, raceId, actorId) => {
+  return courseSettingWrite(db, input, now, "MAP", async (tx, raceId, actorId, principal) => {
+    const access = await reachable(tx, raceId, input.noteId, principal);
+    if (access.status !== "ok") return access;
     const done = parsed.data.status === "DONE";
     const [updated] = await tx.update(notes).set({ status: parsed.data.status, resolvedAt: done ? now : null, resolvedBy: done ? actorId : null })
       .where(and(eq(notes.id, input.noteId), eq(notes.raceId, raceId))).returning({ id: notes.id });
     if (!updated) return { status: "not-found" as const };
     const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, updated.id));
-    return { status: "ok" as const, note: dto! };
+    return { status: "ok" as const, note: mapMaker(principal) ? forMapMaker(dto!) : dto! };
   });
 }
 
@@ -164,13 +183,15 @@ export async function deleteCourseSettingNoteAsAdmin(db: Database, input: RaceSe
 export async function deleteCourseSettingNoteReplyAsAdmin(db: Database, input: RaceSessionProof & { noteId: string; replyId: string },
   now = new Date()): Promise<Failure | { status: "ok"; note: CourseSettingNote }> {
   if (!idPattern.test(input.noteId) || !idPattern.test(input.replyId)) return { status: "invalid-request" };
-  return courseSettingWrite(db, input, now, "COMMENT", async (tx, raceId, actorId, principal) => {
+  return courseSettingWrite(db, input, now, "MAP", async (tx, raceId, actorId, principal) => {
+    const access = await reachable(tx, raceId, input.noteId, principal);
+    if (access.status !== "ok") return access;
     const [row] = await tx.select({ id: replies.id, createdBy: replies.createdBy }).from(replies)
       .where(and(eq(replies.id, input.replyId), eq(replies.noteId, input.noteId), eq(replies.raceId, raceId)));
     if (!row) return { status: "not-found" as const };
     if (row.createdBy !== actorId && !courseSettingAllows(principal, "EDIT")) return { status: "forbidden" as const };
     await tx.delete(replies).where(eq(replies.id, row.id));
     const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, input.noteId));
-    return dto ? { status: "ok" as const, note: dto } : { status: "not-found" as const };
+    return dto ? { status: "ok" as const, note: mapMaker(principal) ? forMapMaker(dto) : dto } : { status: "not-found" as const };
   });
 }

@@ -370,7 +370,7 @@ export const courseSettingGrants = pgTable("course_setting_grant", {
   id: uuid("id").primaryKey(),
   raceId: uuid("race_id").notNull().references(() => races.id),
   accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  level: text("level").$type<"EDIT" | "SUGGEST" | "COMMENT">().notNull(),
+  level: text("level").$type<"EDIT" | "SUGGEST" | "COMMENT" | "MAP">().notNull(),
   grantedAt: timestamp("granted_at", { withTimezone: true }).notNull(),
   grantedBy: uuid("granted_by").notNull(),
   requestId: uuid("request_id").notNull()

@@ -12,6 +12,9 @@
 .reminder { padding: 6px 8px; border-left: 4px solid rgb(200, 120, 0); background: rgba(255, 190, 60, .12); font-weight: 600; }
 .muted { color: var(--muted, #555); font-size: var(--text-sm, .9rem); }
 .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.thread { display: grid; gap: 4px; }
+.thread ul { margin: 0; padding-left: 1.2em; }
+.thread label { display: grid; gap: 2px; flex: 1 1 12em; }
 
 .sheet { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); background: #fff; color: #000; }
 .sheet h1 { margin: 0; font-size: 1.4rem; }
@@ -24,7 +27,7 @@
 @media (max-width: 699px) { .page { padding: 8px; } .sheet { padding: 8px; } }
 
 @media print {
-  .controls, :global(body > header), :global(body > footer) { display: none !important; }
+  .controls, .thread, :global(body > header), :global(body > footer) { display: none !important; }
   :global(body) { background: #fff; }
   .page { display: block; max-width: none; padding: 0; }
   .sheet { border: none; padding: 0; }

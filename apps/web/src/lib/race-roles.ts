@@ -75,13 +75,14 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-transfer": { POST: "ADMIN" },
   "course-setting-edits": { POST: "EDIT" },
   "course-setting-mode": { PUT: "ADMIN" },
-  "course-setting-notes": { GET: "COMMENT", POST: "COMMENT" },
-  "course-setting-note-reply": { POST: "COMMENT" },
-  "course-setting-note-status": { PUT: "COMMENT" },
+  // ADR-0181 beslut 8: kartritaren (MAP) läser kartfelen (tjänsten filtrerar), svarar och markerar dem klara.
+  "course-setting-notes": { GET: "MAP", POST: "COMMENT" },
+  "course-setting-note-reply": { POST: "MAP" },
+  "course-setting-note-status": { PUT: "MAP" },
   "course-setting-note-photo": { GET: "COMMENT" },
   // ADR-0181 beslut 8: den som skrev notisen (svaret) eller den med EDIT; det prövas i tjänsten.
   "course-setting-note": { DELETE: "COMMENT" },
-  "course-setting-note-reply-item": { DELETE: "COMMENT" },
+  "course-setting-note-reply-item": { DELETE: "MAP" },
   "course-setting-suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "course-setting-suggestion-decision": { POST: "EDIT" },
   "course-setting-events": { GET: "COMMENT" },
@@ -91,7 +92,7 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-print-jobs": { GET: "ADMIN", POST: "ADMIN" },
   "course-setting-print-job": { DELETE: "ADMIN" },
   "course-setting-print-job-pdf": { GET: "ADMIN" },
-  "race-map-source": { GET: "COMMENT" }
+  "race-map-source": { GET: "MAP" }
 };
 
 /** Kravet i banläggningen för åtgärden, eller undefined (då gäller rollen på tävlingen). */

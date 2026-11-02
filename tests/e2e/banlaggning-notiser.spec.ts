@@ -83,14 +83,15 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   test.setTimeout(480_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `notiser.${suffix}@exempel.se`, "Bea Banläggare");
-  await owner.setViewportSize({ width: 1280, height: 800 });
   const raceId = await createRace(owner, `Notiser ${suffix}`, today(), "Tävling");
   const admin = await setUp(owner, raceId);
-  const kimEmail = `kim.${suffix}@exempel.se`;
+  const kimEmail = `kim.${suffix}@exempel.se`, miaEmail = `mia.${suffix}@exempel.se`;
   const kim = await registerAccount(browser, kimEmail, "Kim Kontrollant");
+  const mia = await registerAccount(browser, miaEmail, "Mia Kartritare");
   const manage = await owner.context().newPage();
   await manage.goto(`/admin/${raceId}/manage`);
   await addPerson(manage, kimEmail, "Banläggning: läsa och kommentera");
+  await addPerson(manage, miaEmail, "Kartritare: bara kartan och kartfelen");
   await manage.close();
 
   const document = await documentOf(owner, admin);
@@ -153,9 +154,13 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   await form.getByLabel("Text").fill("Flytta närmare stigen");
   await form.getByRole("button", { name: "Spara notisen" }).click();
   await expect(form).toHaveCount(0);
-  const away = freePoint(document, [at, { x: at.x + 12, y: at.y }]);
-  const direction = Math.atan2(away.y - c31.at.y, away.x - c31.at.x);
-  const near = { x: c31.at.x + Math.cos(direction) * 4.8, y: c31.at.y + Math.sin(direction) * 4.8 };
+  // Nära 31 (48 m), åt det håll som ligger längst från andra kontroller och ritningen, men inte upp till höger där
+  // notisens flagga sitter.
+  const others = [...Object.values(document.controls).filter(control => control !== c31).map(control => control.at), at, { x: at.x + 12, y: at.y }];
+  const near = [90, 135, 180, 225, 270, 315].map(degrees => ({ x: c31.at.x + Math.cos(degrees * Math.PI / 180) * 4.8,
+    y: c31.at.y + Math.sin(degrees * Math.PI / 180) * 4.8 }))
+    .map(point => ({ point, distance: Math.min(...others.map(other => Math.hypot(other.x - point.x, other.y - point.y))) }))
+    .sort((a, b) => b.distance - a.distance)[0]!.point;
   const nearScreen = await screenOf(map, near);
   await owner.mouse.click(nearScreen.x, nearScreen.y);
   await expect(form).toContainText("Punkt på kartan");
@@ -200,7 +205,7 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   await owner.setViewportSize({ width: 390, height: 844 });
   await owner.waitForTimeout(300);
   await screenshot(owner, "notiser-export-390");
-  await owner.setViewportSize({ width: 1280, height: 800 });
+  await owner.setViewportSize({ width: 1280, height: 720 });
   const sheetText = await sheet.innerText();
   expect(sheetText).toContain("Stigen går söder om kullen");
   expectNothingSecret(sheetText, document, "utskriften");
@@ -240,6 +245,27 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   await expect.poll(async () => (await notesOf(owner, admin)).map(note => note.text).sort()).toEqual(["Sten saknas",
     "Stigen går söder om kullen, beståndsgränsen ligger fel"]);
   await kim.context().close();
+
+  // 8. Kartritaren: Mina tävlingar leder till kartfelen; inget av banläggningen, svarar och markerar klart.
+  await mia.goto("/organizer");
+  await mia.getByRole("button", { name: "Öppna kartfelen" }).click();
+  await expect(mia.getByRole("heading", { name: "Kartfel till kartritaren" })).toBeVisible({ timeout: 30_000 });
+  expect((await mia.request.get(`${admin}/course-setting`)).status()).toBe(403);
+  expect((await mia.request.get(`${admin}/course-setting/suggestions`)).status()).toBe(403);
+  const miaSheet = mia.getByTestId("map-errors-sheet");
+  await expect(miaSheet).toContainText("Sten saknas");
+  await expect(miaSheet.getByRole("img", { name: "Kartutsnitt för kartfel 1" })).toBeVisible({ timeout: 60_000 });
+  await mia.getByRole("group", { name: "Visa" }).getByRole("button", { name: "Alla" }).click();
+  await expect(miaSheet).toContainText("Stigen går söder om kullen");
+  expectNothingSecret(await mia.locator("main").innerText(), document, "kartritaren");
+  await screenshot(mia, "notiser-kartritare-1280");
+  const stone = miaSheet.locator("section").filter({ hasText: "Sten saknas" });
+  await stone.getByLabel("Svar").fill("Stenen finns, ritad som liten sten");
+  await stone.getByRole("button", { name: "Skicka svaret" }).click();
+  await expect(stone).toContainText("Stenen finns, ritad som liten sten");
+  await stone.getByRole("button", { name: "Klart – rättat" }).click();
+  await expect.poll(async () => (await notesOf(owner, admin)).find(note => note.text === "Sten saknas")?.status).toBe("DONE");
+  await mia.context().close();
 });
 
 async function touchStroke(page: Page, points: readonly Point[]) {
@@ -297,6 +323,7 @@ test("notiser i telefonen: Rita kartfel under Mer, rita med fingret, två fingra
   const start = await screenOf(map, at), scale = Number(await map.getAttribute("data-px-per-mm"));
   await touchStroke(phone, Array.from({ length: 14 }, (_, i) => ({ x: start.x + i * scale, y: start.y + Math.sin(i / 3) * 2 * scale })));
   await expect(phone.getByTestId("course-setting-sketch-count")).toContainText("1 del");
+  await screenshot(phone, "notiser-rita-390");
   const center = (await map.getAttribute("data-center"))!;
 
   // 2. Två fingrar zoomar och ritar inget.
@@ -305,7 +332,6 @@ test("notiser i telefonen: Rita kartfel under Mer, rita med fingret, två fingra
   await expect.poll(async () => Number(await map.getAttribute("data-px-per-mm"))).toBeGreaterThan(scale * 1.2);
   await expect(phone.getByTestId("course-setting-sketch-count")).toContainText("1 del");
   expect(await map.getAttribute("data-center")).not.toBe(center);
-  await screenshot(phone, "notiser-rita-390");
 
   // 3. Klar → text → spara utan nät; kön skickar när nätet kommer.
   await sketch.getByRole("button", { name: "Klar – skriv text" }).click();

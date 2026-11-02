@@ -16,8 +16,11 @@ describe("Personer med behörighet (ADR-0172 beslut 3)", () => {
   it("listar ägare, administratörer och funktionärer men visar aldrig en funktionär som tittare", () => {
     const person = { grantId: id, accountId: id, email: "kim@klubb.se", displayName: "Kim", role: "FUNCTIONARY",
       grantedAt: "2026-10-05T10:00:00.000Z" };
-    const list = { formatVersion: 1, raceId: id, viewer: { accountId: id, role: "OWNER" }, people: [person] };
+    // ADR-0188 beslut 6: väntande behörigheter visas med adressen, utan konto eller namn.
+    const invitation = { invitationId: id, email: "ny@klubb.se", role: "FUNCTIONARY", invitedAt: "2026-10-05T10:00:00.000Z" };
+    const list = { formatVersion: 1, raceId: id, viewer: { accountId: id, role: "OWNER" }, people: [person], invitations: [invitation] };
     expect(racePeopleResponseSchema.parse(list).people[0]?.role).toBe("FUNCTIONARY");
     expect(racePeopleResponseSchema.safeParse({ ...list, viewer: { accountId: id, role: "FUNCTIONARY" } }).success).toBe(false);
+    expect(racePeopleResponseSchema.safeParse({ ...list, invitations: [{ ...invitation, displayName: "Ny" }] }).success).toBe(false);
   });
 });

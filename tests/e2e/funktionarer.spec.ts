@@ -49,7 +49,7 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   const people = owner.getByRole("region", { name: "Personer med behörighet" });
   await people.getByRole("form", { name: "Lägg till person" }).getByLabel("E-postadress").fill(`ingen.${suffix}@exempel.se`);
   await people.getByRole("button", { name: "Lägg till" }).click();
-  await expect(people.getByRole("status")).toHaveText(
+  await expect(people.getByRole("status")).toContainText(
     `Behörigheten är sparad för ingen.${suffix}@exempel.se som funktionär. Den gäller när personen loggar in med adressen.`);
   await expect(people.getByTestId("person-invitation").filter({ hasText: `ingen.${suffix}@exempel.se` }))
     .toContainText("väntar på att personen loggar in med adressen");

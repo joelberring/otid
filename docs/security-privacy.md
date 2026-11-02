@@ -126,6 +126,8 @@ transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: 
   (varianten) eller tävlingen (kartan) har startat eller banorna är publika, om inte arrangören valt "Direkt" under Publicera.
   Bricknummer i den publika startlistan är av för nya tävlingar.
 - Behörigheter som andra ger med e-postadressen gäller först när adressen är bekräftad (`user_account.email_verified_at`).
+  ADR-0188: "Personer med behörighet" svarar likadant oavsett om adressen har ett konto; behörigheten sparas för adressen
+  (`race_person_invitation`) och tas när kontot loggar in, bekräftar adressen eller öppnar tävlingen.
   Med e-post svarar registreringen och glömt lösenord likadant oavsett om adressen finns, och arbetet görs efter svaret.
   Bekräftelselänken kräver lösenordet från samma registrering.
 - Databasen: `otid_app` för webben (ingen superuser, inga schemaändringar), `otid_print` för utskriftsarbetaren (bara kön,

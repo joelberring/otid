@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyEdit } from "@o-tid/course-setting";
-import { routeLengthLegs, routeLengthSummary } from "./course-setting-route-length";
+import { routeLengthLegs, routeLengthSummary, type LegLength } from "./course-setting-route-length";
 import { testDocument } from "./course-setting-test-document";
 
 describe("ADR-0190 beslut 6: längd längs vägval", () => {
@@ -9,7 +9,7 @@ describe("ADR-0190 beslut 6: längd längs vägval", () => {
     const legs = routeLengthLegs(document, "k", undefined)!;
     expect(legs.variant).toBe("");
     expect(legs.legs).toHaveLength(3);
-    const results = new Map(legs.legs.slice(0, 2).map(leg => [leg.key, { best: 150, straight: 100 }]));
+    const results = new Map<string, LegLength>(legs.legs.slice(0, 2).map(leg => [leg.key, { best: 150, straight: 100 }]));
     expect(routeLengthSummary(legs.legs, results)).toEqual({ kind: "partial", done: 2, total: 3 });
     results.set(legs.legs[2]!.key, { best: 150, straight: 100 });
     expect(routeLengthSummary(legs.legs, results)).toEqual({ kind: "done", best: 450, straight: 300, percent: 50 });

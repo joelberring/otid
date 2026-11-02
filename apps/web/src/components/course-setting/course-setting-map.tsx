@@ -408,6 +408,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
       data-heading={position?.heading} data-follow={position?.follow || undefined}
+      // Kartan är ritad skarpt för vyn som visas (specarna väntar på den före skärmbilder).
+      data-drawn={drawnVersion > 0 && drawn.current?.view === view ? "true" : undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
       onPointerLeave={event => { if (event.pointerType === "mouse" && view) handlers.onHover?.(undefined, modifiersOf(event, view)); }}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />

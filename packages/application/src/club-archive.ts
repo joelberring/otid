@@ -5,6 +5,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { clubJournal, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
+import { courseDataPoints } from "./club-archive-import";
 import { leaderGroups } from "./club-maps";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -106,12 +107,16 @@ async function entryView(tx: ClubTransaction, clubId: string, entryId: string): 
     .where(inArray(schema.clubMapVersions.id, versionIds))).map(row => row.mapId))];
   const maps = await clubMapViews(tx, clubId, mapIds);
   const versions = new Map(maps.flatMap(map => map.versions.map(version => [version.versionId, { map, version }] as const)));
+  const courseDataIds = files.filter(file => file.kind === "COURSE_DATA").map(file => file.id);
+  const contents = new Map(courseDataIds.length === 0 ? [] : (await tx.select({ id: schema.clubArchiveCourseFiles.id, content: schema.clubArchiveCourseFiles.content })
+    .from(schema.clubArchiveCourseFiles).where(inArray(schema.clubArchiveCourseFiles.id, courseDataIds))).map(row => [row.id, row.content]));
   const courseFiles: ClubArchiveCourseFileView[] = files.map(file => {
     const found = file.mapVersionId ? versions.get(file.mapVersionId) : undefined;
     return { courseFileId: file.id, kind: file.kind, fileName: file.fileName, byteLength: file.byteLength, courses: [...file.summary.courses],
       scale: file.summary.scale, problem: file.summary.problem ?? null, mapReference: file.mapReference, resolution: file.mapResolution,
       mapVersion: found ? { versionId: found.version.versionId, mapId: found.map.mapId, mapName: found.map.name, fileName: found.version.fileName,
-        versionDate: found.version.versionDate, latest: found.map.latestVersionId === found.version.versionId } : null };
+        versionDate: found.version.versionDate, latest: found.map.latestVersionId === found.version.versionId } : null,
+      courseData: file.kind === "COURSE_DATA" ? courseDataPoints(contents.get(file.id) ?? new Uint8Array()) : null };
   });
   return { formatVersion: 1, clubId, entry: { ...item, notes: entry.notes, sourcePath: entry.sourcePath }, courseFiles, maps,
     folderVersionIds: folder.map(row => row.versionId) };

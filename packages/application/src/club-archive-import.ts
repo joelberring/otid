@@ -114,6 +114,26 @@ export function courseFileSummary(kind: "PPEN" | "COURSE_DATA", bytes: Uint8Arra
   }
 }
 
+/** CourseData: banornas kontroller på kartan (för förhandsvisningen). Tomt när filen saknar lägen på kartan. */
+export function courseDataPoints(bytes: Uint8Array): { name: string; points: { label: string; kind: "START" | "CONTROL" | "FINISH"; x: number; y: number }[] }[] {
+  try {
+    const decoded = decodeIofXml(bytes);
+    if ("issue" in decoded) return [];
+    const parsed = parseIofXml(decoded.xml);
+    if (parsed.kind !== "CourseData") return [];
+    const at = new Map((parsed.controlMapPositions ?? []).map(position => [position.code, position]));
+    return parsed.courses.slice(0, 60).map(course => ({
+      name: course.name.slice(0, 120),
+      points: [
+        ...(course.startMapPosition ? [{ label: "S", kind: "START" as const, x: course.startMapPosition.x, y: course.startMapPosition.y }] : []),
+        ...course.controlCodes.flatMap((code, index) => { const position = at.get(code);
+          return position ? [{ label: String(index + 1), kind: "CONTROL" as const, x: position.x, y: position.y }] : []; }),
+        ...(course.finishMapPosition ? [{ label: "M", kind: "FINISH" as const, x: course.finishMapPosition.x, y: course.finishMapPosition.y }] : [])
+      ]
+    }));
+  } catch { return []; }
+}
+
 async function versionIdsBySha(tx: DbExecutor, clubId: string, shas: readonly string[]): Promise<Map<string, string>> {
   if (shas.length === 0) return new Map();
   const rows = await tx.select({ id: schema.clubMapVersions.id, sha: schema.clubMapVersions.contentSha256 }).from(schema.clubMapVersions)

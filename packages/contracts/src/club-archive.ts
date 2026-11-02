@@ -161,6 +161,8 @@ export interface ClubArchiveCourseFileView {
   courseFileId: string; kind: "PPEN" | "COURSE_DATA"; fileName: string; byteLength: number; courses: ClubCourseSummary[]; scale: number | null;
   problem: string | null; mapReference: string | null; resolution: "FOLDER" | "NAME" | "MANUAL" | "MISSING" | "NONE";
   mapVersion: { versionId: string; mapId: string; mapName: string; fileName: string; versionDate: string | null; latest: boolean } | null;
+  /** CourseData: banornas kontroller på kartan (mm, start först och mål sist) för förhandsvisningen; null för .ppen. */
+  courseData: { name: string; points: { label: string; kind: "START" | "CONTROL" | "FINISH"; x: number; y: number }[] }[] | null;
 }
 
 export interface ClubArchiveEntryView {

@@ -136,7 +136,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     expect(await importMapContent(db, { token, clubId, sha256: sha(skogen2), body: chunks(skogen) }, NOW)).toEqual({ status: "problem", problem: "HASH_MISMATCH" });
     const pdf = new TextEncoder().encode("%PDF-1.4 inte en karta");
     expect(await importMapContent(db, { token, clubId, sha256: sha(pdf), body: chunks(pdf) }, NOW)).toEqual({ status: "problem", problem: "INVALID_MAP_FILE" });
-    expect((await pool.query("select count(*)::int as n from map_content_part")).rows[0].n).toBe(0);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content_part")).rows[0].n).toBe(0);
     for (const bytes of [skogen, skogen2]) {
       expect(await importMapContent(db, { token, clubId, sha256: sha(bytes), body: chunks(bytes) }, NOW))
         .toMatchObject({ status: "ok", response: { stored: "new", byteLength: bytes.byteLength } });
@@ -152,7 +152,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     expect(await importBatch(db, { token, clubId, request: batch }, NOW)).toEqual({ status: "ok", response: { formatVersion: 1,
       maps: { created: 0, versionsAdded: 0 }, entries: { created: 0, existing: 2, courseFilesAdded: 0 }, missingContent: [] } });
     expect((await importCheck(db, { token, clubId, request: { formatVersion: 1, sha256: [sha(skogen), sha(skogen2)] } }, NOW)))
-      .toMatchObject({ response: { known: expect.arrayContaining([sha(skogen), sha(skogen2)]) } });
+      .toMatchObject({ response: { known: expect.arrayContaining([sha(skogen), sha(skogen2)]) as unknown } });
 
     const archive = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
     if (archive.status !== "ok") throw new Error("Inget arkiv");
@@ -192,7 +192,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
 
     // Arkivets innehåll tas inte bort av underhållet eller när en tävling som använde det tas bort.
     expect(await sweepMapContent(db, new Date(NOW.getTime() + 3 * 3_600_000))).toMatchObject({ contents: 0 });
-    expect((await pool.query("select count(*)::int as n from map_content")).rows[0].n).toBe(2);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0].n).toBe(2);
 
     // En återkallad nyckel fungerar inte; en administratör som blivit läsare kan inte importera med sin gamla nyckel.
     const tokens = await readClub(db, { ...owner.proof, clubId }, NOW);
@@ -240,7 +240,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
         timeZone: "Europe/Stockholm", raceType: "TRAINING" }) }, NOW);
     if (created.status !== "created") throw new Error("Ingen tävling");
     const raceId = created.response.raceId;
-    const contentsBefore = (await pool.query("select count(*)::int as n from map_content")).rows[0].n as number;
+    const contentsBefore = (await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0].n;
     const metadata: RaceMapSourceMetadata = { formatVersion: 1, format: "OMAP", version: "Mapper v9", scale: 10_000,
       bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 }, georeference: null, render: { pxPerMm: 8, originX: -2, originY: 102 },
       summary: { objectCount: 11, warnings: [], simplifications: [] }, tiePoints: null };
@@ -249,7 +249,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     new DataView(png.buffer).setUint32(16, 992); new DataView(png.buffer).setUint32(20, 832);
     const proof = { ...reader.proof, clubId, versionId: list.status === "ok" ? list.list.maps.find(map => map.name === "Älvsjöskogen")!.latestVersionId! : "" };
     expect(await saveClubMapVersionToRace(db, { ...proof, raceId, image: png, metadata }, NOW)).toEqual({ status: "ok", georeferenced: false });
-    expect((await pool.query("select count(*)::int as n from map_content")).rows[0].n).toBe(contentsBefore + 1);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0].n).toBe(contentsBefore + 1);
     const raceProof = { raceId, sessionToken: reader.proof.sessionToken, csrfCookie: reader.proof.csrfCookie, csrfHeader: reader.proof.csrfHeader };
     const file = await readRaceMapSourceFileAsAdmin(db, raceProof, NOW);
     expect(file.status === "ok" && sha(file.file)).toBe(sha(omap));
@@ -265,6 +265,6 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     await db.transaction(tx => purgeRows(tx, "event", [event!.event_id]));
     const head = await readClubMapVersionHead(db, { ...owner.proof, clubId, versionId: proof.versionId }, NOW);
     expect(head.status).toBe("ok");
-    expect((await pool.query("select count(*)::int as n from map_content where sha256 = $1", [sha(omap)])).rows[0].n).toBe(1);
+    expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content where sha256 = $1", [sha(omap)])).rows[0].n).toBe(1);
   });
 });

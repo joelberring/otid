@@ -133,3 +133,4 @@ export function describeControl(document: CourseSettingDocument, control: string
 /** Språken som symbolerna har namn och texter på (id och namnet på språket självt). */
 export const DESCRIPTION_LANGUAGES: readonly { readonly id: string; readonly name: string }[] =
   symbolDb().data.languages.map(language => ({ id: language.id, name: language.name }));
+export { controlBounds, moveDocumentPoints } from "./move-points";

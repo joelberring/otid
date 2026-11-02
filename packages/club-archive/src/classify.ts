@@ -49,7 +49,7 @@ export function classifyPath(path: string): Classified {
 
 /** Rotelementets lokala namn i en XML-text (efter deklaration, kommentarer och DOCTYPE), eller null. */
 export function xmlRootName(head: string): string | null {
-  const text = head.replace(/^﻿/, "").replace(/<\?[\s\S]*?\?>/g, "").replace(/<!--[\s\S]*?-->/g, "").replace(/<![^>]*>/g, "");
+  const text = head.replace(/^\uFEFF/, "").replace(/<\?[\s\S]*?\?>/g, "").replace(/<!--[\s\S]*?-->/g, "").replace(/<![^>]*>/g, "");
   const match = /<(?:[A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s>/]/.exec(text);
   return match?.[1] ?? null;
 }

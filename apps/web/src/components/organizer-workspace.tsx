@@ -29,6 +29,7 @@ import { DateInput, Field, focusFirstError } from "./ui";
 import { orderMyEvents } from "../lib/my-events-order";
 import { raceListName } from "../lib/race-list-name";
 import { MyGroups } from "./training-group/my-groups";
+import { MyClubs } from "./club-archive/my-clubs";
 import { forgetAllCourseSettingCopies } from "../lib/course-setting-offline-forget";
 import styles from "./organizer-workspace.module.css";
 
@@ -459,6 +460,7 @@ export function OrganizerWorkspace() {
     </div>}
 
     {session && <MyGroups />}
+    {session && <MyClubs />}
     {session && <p className={styles.message} role="status" aria-live="polite">{message}</p>}
     <RestoreRaceDialog open={restoreOpen} onClose={() => setRestoreOpen(false)}
       onRestored={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />

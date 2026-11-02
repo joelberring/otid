@@ -119,7 +119,7 @@ describe("zip-läsaren och hela provkörningen med syntetiska arkiv", () => {
       client: { check: () => { throw new Error("ingen server i provkörningen"); }, uploadMap: () => { throw new Error("nej"); }, batch: () => { throw new Error("nej"); } } });
     expect(result.uploaded).toBe(0);
     expect(await readFile(reportPath, "utf8")).toContain("importeras inte (--utan-ledare)");
-    expect(JSON.parse(await readFile(join(dir, "rapport.json"), "utf8")).plan.trainings).toHaveLength(4);
+    expect((JSON.parse(await readFile(join(dir, "rapport.json"), "utf8")) as { plan: { trainings: unknown[] } }).plan.trainings).toHaveLength(4);
   });
 
   it("den riktiga körningen laddar upp varje karta en gång och hoppar över det servern har (omkörning)", async () => {

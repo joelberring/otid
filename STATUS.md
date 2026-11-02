@@ -15,7 +15,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Förslaget per kartfärg (namn, OCAD-id, CMYK, användning via `colorUsage`, ordning): säker, bekräfta, tvetydig. Godkännandet i förhandsvisningen: färgrutor före/efter, kartbit per färg, hela kartan före/efter med reglage, lagren som bild; beslut sparas i tävlingens kopia, kartfilen orörd.
 - PDF med BL: CMYK (banan 35/95/0/0 som processfärg), banan i kartans färgordning under brunt, svart och 100 % blå (valbart); förhandskontrollen visar obekräftade färger och stoppar passmärket.
 - Högdalen (BL skog): 20 säkra, 12 att bekräfta, 2 tvetydiga, 8 oanvända; banan hamnar under brun höjdkurva, grön punktsymbol över banan blir varning.
-- Verifierat: lint, typecheck, test (Högdalen via `OTID_REAL_MAP`), Ghostscript-rendering av ordningen, Playwright utskrift-bl (se slutrapporten för CI).
+- Verifierat: lint, typecheck, test (Högdalen via `OTID_REAL_MAP`), test:integration, Ghostscript-rendering av ordningen (Högdalen/SBN26_2 före och efter: samma linjebredd, banan under brunt och svart); CI grönt med Playwright utskrift-bl mot driftbygget. Lokalt föll specen på maskinens last (andra jobb), Högdalen-varianten är inte körd.
 - Återstår: provtryck hos BL; webbläsarens utkast lägger inte banan i färgordningen.
 
 ### 2026-11-02 – Förslag på kontrollbeskrivning ur kartfilen (grenen beskrivningsforslag, ADR-0180 beslut 13)

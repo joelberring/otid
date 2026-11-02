@@ -220,6 +220,8 @@ export interface RogainingScore {
   readonly overtimeMinutes: number;
   /** De räknade kontrollerna i stämplingsordning (varje kontroll en gång). */
   readonly controls: readonly RogainingControl[];
+  /** ADR-0190 beslut 7: koderna som stämplades efter målet; de ger aldrig poäng (saknas = inga). */
+  readonly ignoredAfterFinish?: readonly number[] | undefined;
 }
 
 export interface EvaluationResult {

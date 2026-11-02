@@ -89,6 +89,16 @@ describe("kvitto efter avläsning", () => {
     expect(receipt.rows).toEqual([{ index: "1", code: "33", leg: "3 p", total: "5:00" }, { index: "2", code: "31", leg: "3 p", total: "12:00" }]);
   });
 
+  it("rogaining: stämplingar efter målet ger inga poäng och står som ignorerade (ADR-0190 beslut 7)", () => {
+    const base = clubPackage();
+    const pkg = readoutPackageSchema.parse({ ...base, raceSnapshot: { ...base.raceSnapshot,
+      classes: base.raceSnapshot.classes.map((raceClass) => ({ ...raceClass, rogaining: { timeLimitSeconds: 30 * 60, penaltyPointsPerMinute: 2 } })) } });
+    const receipt = receiptFor(pkg, payload([[33, 5], [31, 25]], 22, String(TEST_CARD)));
+    expect(receipt).toMatchObject({ status: "GODKÄND", result: "3 poäng" });
+    expect(receipt.notes).toContain("Efter målet, inga poäng: 31");
+    expect(receipt.rows).toEqual([{ index: "1", code: "33", leg: "3 p", total: "5:00" }]);
+  });
+
   it("okänd bricka och paket utan länkar: QR-koden leder till tävlingssidan eller resultatlistan", () => {
     const pkg = clubPackage();
     const unknown = receiptFor(pkg, payload([[31, 7]], 30, "7999999"));

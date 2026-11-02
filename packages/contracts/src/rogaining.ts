@@ -40,7 +40,9 @@ export const rogainingScoreSchema = z.object({
   timeLimitMs: safeMilliseconds,
   penaltyPointsPerMinute: rogainingPointsSchema,
   overtimeMinutes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  controls: z.array(z.object({ controlCode, points: rogainingPointsSchema }).strict()).max(1_000)
+  controls: z.array(z.object({ controlCode, points: rogainingPointsSchema }).strict()).max(1_000),
+  // ADR-0190 beslut 7: stämplingar efter målet, som aldrig ger poäng (visas som ignorerade).
+  ignoredAfterFinish: z.array(controlCode).max(1_000).optional()
 }).strict().superRefine((value, context) => {
   if (value.controlPoints !== value.controls.reduce((sum, control) => sum + control.points, 0) ||
       value.total !== Math.max(0, value.controlPoints - value.penalty) ||

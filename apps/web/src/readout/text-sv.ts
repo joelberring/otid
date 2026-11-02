@@ -187,6 +187,8 @@ export const readoutText = {
   rogainingBreakdown: (controlPoints: number, penalty: number) => penalty > 0
     ? `${controlPoints} p kontroller − ${penalty} p straff` : `${controlPoints} p kontroller · inget straff`,
   rogainingTime: (time: string, limit: string) => `Tid ${time} av ${limit}`,
+  /** ADR-0190 beslut 7: mål är mål. */
+  rogainingAfterFinish: (codes: readonly number[]) => `Efter målet, inga poäng: ${codes.join(", ")}`,
   rogainingLate: (minutes: number) => `För sen: ${minutes} ${minutes === 1 ? "påbörjad minut" : "påbörjade minuter"} över tidsgränsen`,
   rogainingControls: "Räknade kontroller",
   rogainingPoints: (points: number) => `${points} p`,

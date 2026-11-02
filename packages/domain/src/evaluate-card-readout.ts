@@ -21,9 +21,10 @@ import { teamSprintEachLegReadout } from "./team-sprint";
  * delföljd, så att extra- och dubbelstämplingar ger godkänt. 0.4.0 (PLAN.md steg 25): fast start utan lottad tid
  * räknas från startstämplingen, och klassens maxtid ger `OVERTIME`. 0.5.0 (PLAN.md steg 31): tävlingens tidsjusteringar
  * per station och kontroller ur funktion, och gamla stämplingar på en oröjd bricka räknas inte (`prepareReadoutForEvaluation`).
- * 0.6.0 (steg 45): vid lika många matchade kontroller väljs stämplingar mellan start och mål.
+ * 0.6.0 (steg 45): vid lika många matchade kontroller väljs stämplingar mellan start och mål. 0.7.0 (ADR-0190 beslut 7):
+ * i rogaining ger en stämpling efter målet aldrig poäng.
  */
-export const RESULT_ENGINE_VERSION = "0.6.0";
+export const RESULT_ENGINE_VERSION = "0.7.0";
 
 function invalid(reason: EvaluationResult["reason"], base: Partial<EvaluationResult> = {}): EvaluationResult {
   return {

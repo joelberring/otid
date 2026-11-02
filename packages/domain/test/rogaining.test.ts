@@ -68,6 +68,20 @@ describe("rogaining", () => {
     expect(result.status).toBe("OK");
   });
 
+  it("ADR-0190 beslut 7: mål är mål – stämplingar efter målstämplingen ger aldrig poäng och visas som ignorerade", () => {
+    // 102 och 99 efter målet (minut 50): inga poäng, inte extra; 31 exakt vid målet räknas.
+    const result = evaluateCardReadout(readout([[45, 10], [31, 50], [102, 51], [99, 52], [45, 53]]), snapshot());
+    expect(result.status).toBe("OK");
+    expect(result.rogaining).toMatchObject({ controlPoints: 7, total: 7, ignoredAfterFinish: [102, 99, 45],
+      controls: [{ controlCode: 45, points: 4 }, { controlCode: 31, points: 3 }] });
+    expect(result.extraPunches).toEqual([]);
+    expect(result.splits.map(split => split.controlCode)).toEqual([45, 31]);
+    // Utan stämplingar efter målet finns inget fält.
+    expect(evaluateCardReadout(readout([[45, 10]]), snapshot()).rogaining).not.toHaveProperty("ignoredAfterFinish");
+    // En rättad måltid räknar bara om straffet (poängen bygger på den avlästa målstämplingen).
+    expect(rescoreRogaining(result.rogaining!, 3_000_000).ignoredAfterFinish).toEqual([102, 99, 45]);
+  });
+
   it("straff per påbörjad minut: exakt på gränsen, en sekund över och 61 sekunder över", () => {
     expect(rogainingPenalty(3_600_000, hour)).toEqual({ overtimeMinutes: 0, penalty: 0 });
     expect(rogainingPenalty(3_601_000, hour)).toEqual({ overtimeMinutes: 1, penalty: 2 });

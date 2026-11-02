@@ -13,6 +13,8 @@ import type { CourseControl, CourseVersion, Punch, RaceSnapshot, RogainingRules,
  *   räknas inte (de visas som extra stämplingar).
  * - Straff: varje påbörjad minut över tidsgränsen (60:00 är inom, 60:01 ger en minut, 61:01 två).
  * - Summan blir aldrig negativ: straffet kan som mest ta bort alla kontrollpoäng.
+ * - Mål är mål (ADR-0190 beslut 7): en stämpling efter målstämplingen ger aldrig poäng, inte heller i rogaining och
+ *   poängorientering. Den visas som ignorerad (`ignoredAfterFinish`), inte som extra stämpling.
  */
 
 /** Förvalda poäng för en kontrollkod: tiotalet (koden delat med tio, avrundat nedåt), som mest 1000. */
@@ -49,8 +51,8 @@ export interface RogainingEvaluation {
 
 /**
  * Poängen för en avläsning med start och mål. Sträcktiderna gäller de räknade kontrollerna i stämplingsordning
- * (första stämplingen). Liksom i den vanliga bedömningen får en stämpling före starten eller efter målet ingen
- * sträcktid men räknas ändå.
+ * (första stämplingen). En stämpling före starten får ingen sträcktid men räknas; en stämpling efter målet räknas
+ * aldrig (ADR-0190 beslut 7). En stämpling utan läsbar tid räknas (den kan inte visas vara efter målet).
  */
 export function scoreRogaining(punches: readonly Punch[], controls: ReadonlyMap<number, number>, rules: RogainingRules,
   window: { readonly startMs: number; readonly finishMs: number }): RogainingEvaluation {
@@ -58,15 +60,17 @@ export function scoreRogaining(punches: readonly Punch[], controls: ReadonlyMap<
   const seen = new Set<number>();
   const extraPunches: number[] = [];
   const splits: SplitTime[] = [];
+  const ignoredAfterFinish: number[] = [];
   let previousMs = window.startMs;
   for (const punch of punches) {
+    const punchMs = Date.parse(punch.punchedAt);
+    if (Number.isFinite(punchMs) && punchMs > window.finishMs) { ignoredAfterFinish.push(punch.code); continue; }
     const points = controls.get(punch.code);
     if (points === undefined) { extraPunches.push(punch.code); continue; }
     if (seen.has(punch.code)) continue;
     seen.add(punch.code);
     counted.push({ controlCode: punch.code, points });
-    const punchMs = Date.parse(punch.punchedAt);
-    if (!Number.isFinite(punchMs) || punchMs < previousMs || punchMs > window.finishMs) continue;
+    if (!Number.isFinite(punchMs) || punchMs < previousMs) continue;
     splits.push({ controlCode: punch.code, occurrence: 1, elapsedMs: punchMs - window.startMs, legMs: punchMs - previousMs });
     previousMs = punchMs;
   }
@@ -74,7 +78,8 @@ export function scoreRogaining(punches: readonly Punch[], controls: ReadonlyMap<
   const { overtimeMinutes, penalty } = rogainingPenalty(window.finishMs - window.startMs, rules);
   return {
     score: { controlPoints, penalty, total: Math.max(0, controlPoints - penalty), timeLimitMs: rules.timeLimitSeconds * 1_000,
-      penaltyPointsPerMinute: rules.penaltyPointsPerMinute, overtimeMinutes, controls: counted },
+      penaltyPointsPerMinute: rules.penaltyPointsPerMinute, overtimeMinutes, controls: counted,
+      ...(ignoredAfterFinish.length > 0 ? { ignoredAfterFinish: ignoredAfterFinish.slice(0, 1_000) } : {}) },
     splits,
     extraPunches
   };

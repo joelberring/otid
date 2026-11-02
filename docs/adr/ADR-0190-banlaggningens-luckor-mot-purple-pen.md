@@ -49,6 +49,12 @@ som .ppen eller genom "Överför till tävlingen".
    fågelvägen som förut. En gafflad bana räknas för vald variant (annars den första), poängbanor inte alls. Sträckorna
    sparas per indata så att bara flyttade sträckor räknas om; väljs en sträcka under tiden avbryts räkningen och
    "Räkna klart" tar resten.
+7. **Mål är mål** (ägarens beslut 2026-11-02). En stämpling efter målstämplingen ger aldrig poäng, inte heller i rogaining
+   och på poängbanor: `scoreRogaining` hoppar över stämplingar med tid efter målet (en stämpling exakt vid målet räknas,
+   en utan läsbar tid räknas eftersom den inte kan visas vara efter). De står i resultatets `ignoredAfterFinish`
+   (valfritt fält; äldre resultat saknar det) och på avläsningskvittot som "Efter målet, inga poäng: …", aldrig som extra
+   stämplingar. Resultatmotorn blir 0.7.0. En rättad måltid räknar bara om straffet som förut (poängen bygger på den
+   avlästa målstämplingen); en ny avläsning bedöms med regeln.
 
 ## Konsekvenser
 

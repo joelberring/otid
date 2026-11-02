@@ -90,6 +90,7 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
     { label: t.time, value: t.timeOfLimit(formatRunningTime(verdict.elapsedMs), formatRunningTime(score.timeLimitMs)) }
   ] : [];
   if (score && score.overtimeMinutes > 0) notes.push(readoutText.rogainingLate(score.overtimeMinutes));
+  if (score?.ignoredAfterFinish?.length) notes.push(readoutText.rogainingAfterFinish(score.ignoredAfterFinish));
 
   return {
     eventName: pkg.event.name,

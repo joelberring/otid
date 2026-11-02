@@ -23,6 +23,8 @@ import { fetchMapBundles } from "../../lib/map-bundles-client";
 import { fetchMapSource } from "../../lib/route-choice-api";
 import { Button, Notice } from "../ui";
 import { PrintProfilePanel } from "./course-setting-print-profile";
+import { PdfPanel } from "./course-setting-pdf-panel";
+import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
 import { LayoutTemplatePanel } from "./course-setting-print-template";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
 import styles from "./course-setting-print-page.module.css";
@@ -65,7 +67,8 @@ function problemText(problem: RunnerPrintProblem): string {
  * Steg 64 (ADR-0180 beslut 11, ADR-0183): `/admin/[raceId]/course-setting/print`. Arken för valda banor (och varianter)
  * eller en karta per löpare ur kartbuntarna, utlagda som i Purple Pen (`layoutCoursePage`) eller i en layoutmall
  * (`layoutTemplateSheets`), med kartan ritad av Workern i utskriftsprofilens färger och banpåtrycket som SVG i papperets
- * mm. Webbläsarens utskrift ger ett utkast; PDF med dekorfärger och övertryck för tryckeriet kommer i steg 65.
+ * mm. Webbläsarens utskrift ger ett utkast; steg 65: "Skapa PDF för tryck" lägger samma ark i serverns kö och ger en PDF med
+ * kartan som vektorer, dekorfärger och övertryck (`PdfPanel`).
  */
 export function CoursePrintPage({ raceId }: { raceId: string }) {
   const [document, setDocument] = useState<CourseSettingDocument | null>();
@@ -166,6 +169,18 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
   const runners = useMemo<RunnerPrint | undefined>(() => document && bundles
     ? runnerPrintItems(document, bundles, clockIn(bundles.timeZone), order) : undefined, [document, bundles, order]);
 
+  // Kartorna i banläget (samma som arken nedan) för PDF:en.
+  const courseItems = useMemo<SheetItem[]>(() => {
+    if (!document) return [];
+    const items: SheetItem[] = [];
+    for (const course of [ALL_CONTROLS, ...courses.map(item => item.id)].filter(id => chosen.includes(id))) {
+      try {
+        for (const variant of printVariants(document, course, eachVariant)) items.push({ course, ...(variant ? { variant } : {}) });
+      } catch (error) { console.error("Varianterna misslyckades", error); }
+    }
+    return items;
+  }, [document, courses, chosen, eachVariant]);
+
   const { sheets, errors } = useMemo(() => {
     const out: Printed[] = [], bad: string[] = [];
     if (!document) return { sheets: out, errors: bad };
@@ -182,12 +197,7 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
       });
       return { sheets: out, errors: bad };
     }
-    const items: SheetItem[] = [];
-    for (const course of [ALL_CONTROLS, ...courses.map(item => item.id)].filter(id => chosen.includes(id))) {
-      try {
-        for (const variant of printVariants(document, course, eachVariant)) items.push({ course, ...(variant ? { variant } : {}) });
-      } catch (error) { console.error("Varianterna misslyckades", error); }
-    }
+    const items = courseItems;
     const nameOf = (course: string) => course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course;
     if (template) {
       try {
@@ -204,7 +214,7 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
       } catch (error) { console.error("Utskriftslayouten misslyckades", error); bad.push(nameOf(item.course)); }
     }
     return { sheets: out, errors: bad };
-  }, [document, courses, chosen, eachVariant, header, mapBounds, mode, template, fill, runners, duplex, bundles]);
+  }, [document, courses, courseItems, header, mapBounds, mode, template, fill, runners, duplex, bundles]);
 
   // Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång).
   const [images, setImages] = useState<Readonly<Record<string, string>>>({});
@@ -276,6 +286,11 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
       </div>
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
+      <PdfPanel raceId={raceId} profile={profile} colors={colors} disabled={sheets.length === 0 || blocked || errors.length > 0}
+        blockedText={blocked ? pdfText.runnerBlocked : undefined}
+        selection={{ items: mode === "RUNNERS" ? runners?.items ?? [] : courseItems, template, templateIsDraft: draftTemplate !== undefined,
+          savedTemplateIds: savedTemplates.map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex,
+          ...(bundles ? { date: bundles.raceDate } : {}) }} />
       {mapState === "failed" && <Notice tone="attention">{text.page.mapFailed}</Notice>}
       {errors.map(name => <Notice key={name} tone="error">{text.page.failedCourse(name)}</Notice>)}
       <LayoutTemplatePanel key={mode} saved={savedTemplates} selectedId={chosenTemplateId} readOnly={!canEdit}

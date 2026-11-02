@@ -1,0 +1,41 @@
+/** Steg 65 (ADR-0184): PDF för tryck i förhandsvisningen. */
+export const printPdfSv = {
+  heading: "PDF för tryck",
+  help: "PDF:en skrivs på servern när tävlingen inte behöver datorn (låg prioritet) och har kartan som vektorer, kartans dekorfärger och banan i egen dekorfärg med övertryck. Kontorsskrivaren får CMYK utan dekorfärger.",
+  honesty: "PDF/X och ICC-profiler stöds inte ännu (de är inte verifierade). Gör alltid ett provtryck hos tryckeriet innan PDF:en används skarpt.",
+  mapColors: "Kartans färger i PDF:en för tryck",
+  mapSpots: "Dekorfärger som i kartfilen",
+  mapProcess: "CMYK (kartfärgernas egna värden)",
+  press: "Skapa PDF för tryck",
+  office: "Skapa PDF för kontorsskrivare",
+  preflight: "Förhandskontroll för PDF:en",
+  preflightOk: "inga hinder",
+  preflightBlocked: "stoppar",
+  noFindings: "Profilens regler stämmer med kartan.",
+  noColors: "Kartfilen är inte läst: förhandskontrollen görs i servern.",
+  confirm: "Bekräfta",
+  confirmWarnings: "Jag har läst varningarna och vill skapa PDF:en ändå",
+  blocked: "Förhandskontrollen stoppar PDF:en för tryck. Rätta profilen eller bekräfta färgerna ovan.",
+  runnerBlocked: "Rätta kontrollen av löparna först.",
+  creating: "Lägger jobbet i kön …",
+  created: "Jobbet ligger i kön. PDF:en syns här när den är klar.",
+  failed: "Jobbet kunde inte skapas.",
+  jobs: "PDF:er",
+  noJobs: "Inga PDF:er än.",
+  keep: (days: number, maxMb: number) => `Klara PDF:er sparas i ${days} dagar (högst ${maxMb} MB per PDF) och är bara synliga för tävlingens administratörer.`,
+  status: {
+    QUEUED: (position: number | null) => position ? `I kön (plats ${position})` : "I kön",
+    RUNNING: () => "Skrivs …",
+    DONE: () => "Klar",
+    FAILED: () => "Misslyckades",
+    EXPIRED: () => "Rensad"
+  },
+  size: (pages: number | null, bytes: number | null) => [pages !== null ? `${pages} sid${pages === 1 ? "a" : "or"}` : "",
+    bytes === null ? "" : bytes < 1e6 ? `${Math.max(1, Math.round(bytes / 1e3))} kB` : `${(bytes / 1e6).toFixed(1).replace(".", ",")} MB`].filter(Boolean).join(", "),
+  plates: (plates: readonly string[], overprint: boolean) => plates.length > 0
+    ? `Dekorfärger: ${plates.join(", ")}${overprint ? "; övertryck" : ""}` : `CMYK utan dekorfärger${overprint ? "; övertryck" : ""}`,
+  notes: "Att känna till",
+  download: "Ladda ned",
+  remove: "Ta bort",
+  version: (version: number) => `banläggningen version ${version}`
+} as const;

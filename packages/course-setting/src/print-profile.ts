@@ -217,9 +217,11 @@ export interface PreflightRuleResult { readonly rule: string; readonly name: str
 export interface PreflightReport { readonly profile: string; readonly results: readonly PreflightRuleResult[]; readonly findings: readonly PreflightFinding[];
   readonly canPrint: boolean }
 
-/** Vad utskriften kan i dag (webbläsarens utkast; steg 65 ska ge övertryck och kanske PDF/X med ICC). */
+/** Vad utskriften kan: webbläsarens utkast inget av det; PDF:en (steg 65) äkta övertryck men inte PDF/X och ICC (inte verifierat). */
 export interface PrintCapabilities { readonly pdfX: boolean; readonly icc: boolean; readonly trueOverprint: boolean }
 export const BROWSER_DRAFT_CAPABILITIES: PrintCapabilities = { pdfX: false, icc: false, trueOverprint: false };
+/** Steg 65 (ADR-0184): PDF:en från `@o-tid/print-pdf`. PDF/X och ICC påstås inte förrän de är verifierade hos ett tryckeri. */
+export const PDF_PRINT_CAPABILITIES: PrintCapabilities = { pdfX: false, icc: false, trueOverprint: true };
 
 const sameCmyk = (a: Cmyk100, b: Cmyk100) => Math.abs(a.c - b.c) <= 0.01 && Math.abs(a.m - b.m) <= 0.01 && Math.abs(a.y - b.y) <= 0.01 && Math.abs(a.k - b.k) <= 0.01;
 const hasInk = (cmyk: Cmyk100) => cmyk.c > 0.01 || cmyk.m > 0.01 || cmyk.y > 0.01 || cmyk.k > 0.01;
@@ -234,9 +236,9 @@ export function colorPreflight(profile: PrintProfile, colors: readonly SourceMap
   confirmed: ReadonlySet<string> = new Set()): PreflightReport {
   const findings: PreflightFinding[] = [];
   const need = (required: boolean, supported: boolean, text: string) => { if (required && !supported) findings.push({ severity: "BLOCKING", text }); };
-  need(profile.requirements.pdfX, capabilities.pdfX, "Profilen kräver PDF/X med OutputIntent, som utskriften inte kan ge än (steg 65).");
-  need(profile.requirements.icc, capabilities.icc, "Profilen kräver en inbäddad ICC-profil, som utskriften inte kan ge än (steg 65).");
-  need(profile.requirements.trueOverprint, capabilities.trueOverprint, "Profilen kräver äkta övertryck, som bara PDF:en i steg 65 kan ge.");
+  need(profile.requirements.pdfX, capabilities.pdfX, "Profilen kräver PDF/X med OutputIntent, som O-Tid inte kan ge än (inte verifierat).");
+  need(profile.requirements.icc, capabilities.icc, "Profilen kräver en inbäddad ICC-profil, som O-Tid inte kan ge än (inte verifierat).");
+  need(profile.requirements.trueOverprint, capabilities.trueOverprint, "Profilen kräver äkta övertryck, som bara PDF:en för tryck kan ge (inte webbläsarens utskrift).");
   const results: PreflightRuleResult[] = [];
   for (const item of profile.rules) {
     let candidates = colors.filter(color => matches(item.match, color));
@@ -284,7 +286,7 @@ export function colorPreflight(profile: PrintProfile, colors: readonly SourceMap
   return { profile: profile.id, results, findings, canPrint: !findings.some(finding => finding.severity === "BLOCKING") };
 }
 
-/** CMYK i procent som skärmfärg (förhandsvisningen; tryckets färger avgörs i steg 65). */
+/** CMYK i procent som skärmfärg (förhandsvisningen; tryckets färger står i PDF:en). */
 export function cmykToCss(cmyk: Cmyk100): string {
   const k = 1 - cmyk.k / 100;
   const channel = (value: number) => Math.round(255 * (1 - value / 100) * k);

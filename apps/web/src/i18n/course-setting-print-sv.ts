@@ -55,7 +55,7 @@ export const coursePrintSv = {
   page: {
     title: "Utskrift av banor",
     back: "← Till banläggningen",
-    draft: "Utkast ur webbläsaren: färgerna är inte tryckkvalitet. PDF med dekorfärger och övertryck för tryckeriet kommer i steg 65.",
+    draft: "Utkast ur webbläsaren: färgerna är inte tryckkvalitet. Till tryckeriet: Skapa PDF för tryck nedan.",
     courses: "Banor",
     all: "Alla",
     variants: "Varianter",

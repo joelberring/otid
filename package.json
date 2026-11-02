@@ -14,6 +14,7 @@
     "db:migrate": "pnpm --filter @o-tid/database migrate",
     "demo": "tsx --env-file-if-exists=.env scripts/demo.ts",
     "account:superadmin": "tsx --env-file-if-exists=.env scripts/account-superadmin.ts",
+    "print:worker": "tsx --env-file-if-exists=.env scripts/print-worker.ts",
     "lasttest:seed": "tsx scripts/lasttest/seed.ts",
     "lasttest:load": "tsx scripts/lasttest/load.ts",
     "si:ports": "tsx apps/si-tools/src/cli.ts ports",

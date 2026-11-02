@@ -84,10 +84,15 @@ långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå f
   den som är inloggad (arrangörer och funktionärer, även speakern och de publika sidorna), går till `web`. Varje instans
   klarar alla sökvägar: lokalt och med `pnpm dev` finns bara en (`OTID_INSTANCE_ROLE` saknas, `all`).
 - **Processortid:** `cpu_shares` i `docker-compose.prod.yml` är 1024 för `postgres`, `web` och Caddy, 256 för var och en av
-  `web-public` och `web-public2` och 128 för backupen. Vikterna gäller bara när processorn inte räcker till alla: då går
+  `web-public` och `web-public2`, 128 för backupen och 64 för utskriftsarbetaren (`print-worker`, steg 65, som dessutom
+  kör med nice 19). Vikterna gäller bara när processorn inte räcker till alla: då går
   tävlingen och databasen före publiken. Annars får publiken all ledig tid.
-- **Minne (CX23, 4 GB):** `postgres` 1 GB, `web` 1 GB (Node 768 MB), `web-public` och `web-public2` 768 MB var (Node
-  512 MB), Caddy och backupen 192 MB var. Summan 3,9 GB; swappen räcker till bygget.
+- **Minne (CX23, 4 GB):** `postgres` 1 GB, `web` 1 GB (Node 768 MB), `web-public` och `web-public2` 640 MB var (Node
+  448 MB), utskriftsarbetaren 384 MB (Node 256 MB; 300 kartor per löpare på Högdalen 2026 tog 130 MB), Caddy och backupen
+  192 MB var. Summan 4,0 GB (taken är gränser, inte reserverat minne); swappen räcker till bygget.
+- **Utskrift (steg 65, ADR-0184):** PDF:er för tryck skrivs av `print-worker`, ett jobb i taget ur tabellen
+  `course_setting_print_job`. Klara PDF:er sparas 7 dagar (högst 10 per tävling) och tas inte med i säkerhetskopian.
+  Står tjänsten stilla väntar jobben i kön; `docker compose -f docker-compose.prod.yml logs print-worker` visar vad den gör.
 - **Databasen:** separata pooler. `web` har tävlingens pool (högst 10 anslutningar, inga tidsgränser) och en liten pool
   för de publika listorna (3). `web-public` och `web-public2` har bara publikens pool (8 var). Publikens frågor avbryts
   efter 5 s (`statement_timeout`), väntar högst 2 s på lås och en transaktion får inte stå öppen i mer än 10 s. Totalt

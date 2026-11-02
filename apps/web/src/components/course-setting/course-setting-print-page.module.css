@@ -34,6 +34,10 @@
 .findings li[data-severity=BLOCKING] strong { color: var(--danger, #b00020); }
 .findings li[data-severity=WARNING] strong { color: var(--attention, #8a5a00); }
 .problems { margin: 0; padding-left: 1.2rem; }
+/* Steg 65: PDF-jobben. */
+.jobs { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.jobs > li { display: grid; gap: 2px; padding: 6px 8px; border: 1px solid var(--line); }
+.jobs > li[data-status=FAILED] { border-color: var(--danger, #b00020); }
 
 @media print {
   .controls, :global(body > header), :global(body > footer) { display: none !important; }

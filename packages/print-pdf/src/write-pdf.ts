@@ -8,7 +8,7 @@
  * PDF/X och ICC skrivs inte (inte verifierade); filen påstår inget av det. Provtryck hos tryckeriet behövs.
  */
 import { Duplex, PDFDocument, PDFName, type PDFRawStream, type PDFRef } from "pdf-lib";
-import { descriptionSymbols, type DescriptionStandard, type OverprintPrimitive, type PrintProfile, type Sheet, type SheetFrame } from "@o-tid/course-setting";
+import { descriptionSymbols, PDF_PRINT_CAPABILITIES, type DescriptionStandard, type OverprintPrimitive, type PrintProfile, type Sheet, type SheetFrame } from "@o-tid/course-setting";
 import { drawMap, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
 import { ColorSpaces, Content, GS_KNOCKOUT, GS_OVERPRINT, num } from "./content";
 import { descriptionOps, figureOps, textOps, type FigureContext, type Matrix } from "./figures";
@@ -24,7 +24,7 @@ export const PDF_MAX_PATTERN_INSTANCES = 250_000;
 const CULL_MARGIN_MM = 20;
 
 /** Vad PDF:en kan (förhandskontrollen, `colorPreflight`): äkta övertryck ja; PDF/X och ICC nej tills de verifierats. */
-export const PDF_CAPABILITIES = { pdfX: false, icc: false, trueOverprint: true } as const;
+export const PDF_CAPABILITIES = PDF_PRINT_CAPABILITIES;
 
 export interface WritePdfInput {
   readonly sheets: readonly Sheet[];

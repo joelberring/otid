@@ -32,7 +32,8 @@ dump() {
   stamp=$(date +%Y-%m-%dT%H%M%S%z)
   name="otid-$stamp.dump"
   partial="$dir/hourly/.$name.partial"
-  if pg_dump --format=custom --file="$partial"; then
+  # Steg 65: utskriftsjobbens PDF:er tas inte med (de kan skapas igen och skulle göra varje dump stor); tabellen gör det.
+  if pg_dump --format=custom --exclude-table-data=course_setting_print_job --file="$partial"; then
     mv "$partial" "$dir/hourly/$name"
     echo "Backup klar: hourly/$name"
     # Dagens senaste dump som dagsbackup: en hård länk (ingen kopia av datan), bytt atomärt.

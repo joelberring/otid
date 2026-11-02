@@ -1,0 +1,98 @@
+/**
+ * Steg 65 (ADR-0184, ADR-0177): utskriftsarbetaren. Tar PDF-jobben ur kön (`course_setting_print_job`) ett i taget och
+ * skriver PDF:erna, i en egen process med lägsta prioritet (nice 19) och en egen liten databaspool, så att avläsning och
+ * tävlingsarbete aldrig väntar på en utskrift. Rensar gamla PDF:er var tionde minut.
+ *
+ * I drift: tjänsten `print-worker` i docker-compose.prod.yml (`node print-worker.mjs`, egen CPU-vikt och minnestak).
+ * Lokalt startar `pnpm dev` den (apps/web/scripts/dev.mjs) om inte OTID_PRINT_WORKER=off.
+ *
+ *   tsx scripts/print-worker.ts           kör tills processen stoppas
+ *   tsx scripts/print-worker.ts --once    tar högst ett jobb och avslutar (tester)
+ */
+import { existsSync, readFileSync } from "node:fs";
+import { hostname, setPriority } from "node:os";
+import { fileURLToPath } from "node:url";
+import { createDatabase } from "../packages/database/src/index.ts";
+import { claimPrintJob, cleanupPrintJobs, heartbeatPrintJob, runPrintJob } from "../packages/application/src/course-setting-print.ts";
+import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "../packages/print-pdf/src/index.ts";
+
+const CLEANUP_MS = 10 * 60_000;
+const HEARTBEAT_MS = 30_000;
+
+/** Typsnitten: OTID_PRINT_FONT_DIR, mappen `fonts` bredvid det paketerade kommandot eller paketets egen mapp. */
+export function loadFonts(environment: NodeJS.ProcessEnv = process.env): FontFiles {
+  const candidates = [environment.OTID_PRINT_FONT_DIR, fileURLToPath(new URL("./fonts/", import.meta.url)),
+    fileURLToPath(new URL("../packages/print-pdf/fonts/", import.meta.url))].filter((dir): dir is string => Boolean(dir));
+  const dir = candidates.find(candidate => existsSync(`${candidate.replace(/\/$/, "")}/${FONT_FILE_NAMES.regular}`));
+  if (!dir) throw new Error(`Typsnitten för PDF:en saknas (sökte i ${candidates.join(", ")})`);
+  return Object.fromEntries(FONT_VARIANTS.map(variant => [variant, new Uint8Array(readFileSync(`${dir.replace(/\/$/, "")}/${FONT_FILE_NAMES[variant]}`))])) as unknown as FontFiles;
+}
+
+const sleep = (ms: number, signal: AbortSignal) => new Promise<void>(resolve => {
+  const timer = setTimeout(resolve, ms);
+  signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+});
+
+async function main(): Promise<void> {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("Sätt DATABASE_URL till databasen.");
+  const once = process.argv.includes("--once");
+  const pollMs = Math.max(200, Number(process.env.OTID_PRINT_POLL_MS ?? 2000) || 2000);
+  // Lägsta prioritet: tävlingens processer får processorn först (ADR-0177). Kräver inga rättigheter.
+  try { setPriority(19); } catch (error) { console.warn("Utskriftsarbetaren kunde inte sänka sin prioritet", error); }
+  const fonts = loadFonts();
+  const { db, pool } = createDatabase(url, { max: 2, applicationName: "otid-print-worker", statementTimeoutMs: 120_000, idleInTransactionTimeoutMs: 30_000 });
+  const worker = `${hostname()}:${process.pid}`;
+  const stop = new AbortController();
+  for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => stop.abort());
+  let cleaned = 0;
+  console.log(`Utskriftsarbetaren startad (${worker})`);
+  try {
+    while (!stop.signal.aborted) {
+      if (Date.now() - cleaned > CLEANUP_MS) {
+        cleaned = Date.now();
+        const result = await cleanupPrintJobs(db).catch((error: unknown) => {
+          console.error("Rensningen av PDF:er misslyckades", error instanceof Error ? error.message : error);
+          cleaned = Date.now() - CLEANUP_MS + 60_000;
+          return undefined;
+        });
+        if (result && (result.expired > 0 || result.deleted > 0)) console.log(`Rensat: ${result.expired} PDF:er, ${result.deleted} gamla jobb`);
+      }
+      let job;
+      try {
+        job = await claimPrintJob(db, worker);
+      } catch (error) {
+        // Databasen nere eller inte migrerad än: försök igen om en stund (jobben väntar i kön).
+        if (once) throw error;
+        console.error("Utskriftsarbetaren når inte kön; försöker igen om 10 s", error instanceof Error ? error.message : error);
+        await sleep(10_000, stop.signal);
+        continue;
+      }
+      if (!job) {
+        if (once) break;
+        await sleep(pollMs, stop.signal);
+        continue;
+      }
+      const heartbeat = setInterval(() => { void heartbeatPrintJob(db, job.id, worker).catch((error: unknown) => console.warn("Livstecknet för utskriftsjobbet misslyckades", error)); }, HEARTBEAT_MS);
+      try {
+        const started = Date.now();
+        const outcome = await runPrintJob(db, job, { fonts, worker });
+        console.log(`Utskriftsjobb ${job.id}: ${outcome} på ${Math.round((Date.now() - started) / 100) / 10} s`);
+      } catch (error) {
+        // Jobbet står kvar som RUNNING och görs om när livstecknen uteblivit (claimPrintJob).
+        if (once) throw error;
+        console.error(`Utskriftsjobb ${job.id} avbröts`, error);
+      } finally { clearInterval(heartbeat); }
+      if (once) break;
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+if (process.argv[1] && /print-worker\.(ts|mjs)$/.test(process.argv[1])) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

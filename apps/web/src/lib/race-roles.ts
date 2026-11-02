@@ -84,6 +84,10 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-events": { GET: "COMMENT" },
   // Steg 67: "kollad" per kontroll (bankontrollanten får bocka).
   "course-setting-inspections": { GET: "COMMENT", PUT: "COMMENT" },
+  // Steg 65: PDF för tryck, bara admin (ägare och administratörer); PDF:erna är aldrig publika.
+  "course-setting-print-jobs": { GET: "ADMIN", POST: "ADMIN" },
+  "course-setting-print-job": { DELETE: "ADMIN" },
+  "course-setting-print-job-pdf": { GET: "ADMIN" },
   "race-map-source": { GET: "COMMENT" }
 };
 

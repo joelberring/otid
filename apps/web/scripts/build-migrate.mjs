@@ -1,17 +1,20 @@
 import process from "node:process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cpSync } from "node:fs";
 import { build } from "esbuild";
 
 /**
  * Paketerar serverkommandona till fristående filer för driftbilden. Se Dockerfile och docs/drift.md:
- * databasmigreringen (`node migrate.mjs`, med MIGRATIONS_DIR satt) och superadmin
- * (`node superadmin.mjs grant <e-post>`, ADR-0172).
+ * databasmigreringen (`node migrate.mjs`, med MIGRATIONS_DIR satt), superadmin
+ * (`node superadmin.mjs grant <e-post>`, ADR-0172) och utskriftsarbetaren (`node print-worker.mjs`, steg 65; typsnitten
+ * kopieras till `fonts/` bredvid den).
  */
 const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const commands = [
   { entry: "../../packages/database/src/migrate.ts", out: ".next/migrate.mjs" },
-  { entry: "../../scripts/account-superadmin.ts", out: ".next/superadmin.mjs" }
+  { entry: "../../scripts/account-superadmin.ts", out: ".next/superadmin.mjs" },
+  { entry: "../../scripts/print-worker.ts", out: ".next/print-worker.mjs" }
 ];
 for (const command of commands) {
   await build({
@@ -24,3 +27,5 @@ for (const command of commands) {
   });
   process.stdout.write(`Serverkommando paketerat: ${command.out}\n`);
 }
+cpSync(resolve(web, "../../packages/print-pdf/fonts"), resolve(web, ".next/fonts"), { recursive: true });
+process.stdout.write("Typsnitten för PDF:en kopierade: .next/fonts\n");

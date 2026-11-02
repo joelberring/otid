@@ -2,7 +2,8 @@ import {
   COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
   courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
   courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
-  courseSettingSuggestionSchema, courseSettingSuggestionsSchema, courseSettingTransferProblemSchema, syncPreviewResponseSchema
+  courseSettingSuggestionSchema, courseSettingSuggestionsSchema, courseSettingTransferProblemSchema, PRINT_JOB_REQUEST_MAX_BYTES, printJobProblemSchema,
+  printJobSchema, printJobsSchema, syncPreviewResponseSchema
 } from "@o-tid/contracts";
 import { createCourseSettingEventStream, publishCourseSettingEvent } from "./course-setting-events";
 import { adminFailure as failure, privateHeaders, privateJson as json, readJsonBody } from "./security-policy";
@@ -18,6 +19,9 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
  * SSE). En lyckad skrivning ger ett besked i strömmen (`course-setting-events.ts`).
  *
  * Steg 67: "kollad" per kontroll (GET och PUT inspections).
+ *
+ * Steg 65: PDF för tryck (bara admin): jobben (GET), nytt jobb (POST, 201; samma requestId igen 200), ta bort (DELETE)
+ * och den färdiga PDF:en (GET, som bilaga, privat och utan cache). PDF:en skrivs av utskriftsarbetaren, aldrig här.
  */
 async function body(request: Request, maxBytes: number): Promise<unknown> {
   try { return await readJsonBody(request, maxBytes); } catch { return undefined; }
@@ -182,6 +186,33 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
       if (result.changed) publishCourseSettingEvent(raceId, { type: "inspections", by });
       return json(response);
+    }
+    case "course-setting-print-jobs": {
+      if (request.method === "GET") {
+        const result = await dependencies.printJobs(db, input);
+        if (result.status !== "ok") return resultFailure(result.status);
+        const response = printJobsSchema.parse(result.response);
+        return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+      }
+      const value = await body(request, PRINT_JOB_REQUEST_MAX_BYTES);
+      if (value === undefined) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.printJobCreate(db, { ...input, request: value });
+      if (result.status === "problem") return json(printJobProblemSchema.parse(result.problem), 422);
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(printJobSchema.parse(result.job), result.created ? 201 : 200);
+    }
+    case "course-setting-print-job": {
+      const result = await dependencies.printJobDelete(db, { ...input, jobId: action.jobId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      return new Response(null, { status: 204, headers: privateHeaders });
+    }
+    case "course-setting-print-job-pdf": {
+      const result = await dependencies.printJobPdf(db, { ...input, jobId: action.jobId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      // Utan kopia (en PDF kan vara stor).
+      return new Response(new Uint8Array(result.pdf.buffer as ArrayBuffer, result.pdf.byteOffset, result.pdf.byteLength), { headers: { ...privateHeaders,
+        "content-type": "application/pdf", "content-length": String(result.pdf.byteLength),
+        "content-disposition": `attachment; filename="${result.fileName}"` } });
     }
     case "course-setting-events": {
       const viewer = context.courseSetting;

@@ -35,6 +35,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
   createCourseSettingNoteAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin, readCourseSettingNotePhotoAsAdmin,
   listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin,
+  listPrintJobsAsAdmin, createPrintJobAsAdmin, readPrintJobPdfAsAdmin, deletePrintJobAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
@@ -127,6 +128,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingSuggestion: createCourseSettingSuggestionAsAdmin, courseSettingSuggestionDecision: decideCourseSettingSuggestionAsAdmin,
   // Steg 67: "kollad" per kontroll.
   courseSettingInspections: listCourseSettingInspectionsAsAdmin, courseSettingInspection: setCourseSettingInspectionAsAdmin,
+  // Steg 65: PDF för tryck (kön; utskriftsarbetaren skriver PDF:en).
+  printJobs: listPrintJobsAsAdmin, printJobCreate: createPrintJobAsAdmin, printJobPdf: readPrintJobPdfAsAdmin, printJobDelete: deletePrintJobAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
@@ -189,6 +192,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-note-reply"; noteId: string } | { kind: "course-setting-note-status"; noteId: string } |
   { kind: "course-setting-note-photo"; noteId: string } | { kind: "course-setting-suggestions" } |
   { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } |
+  { kind: "course-setting-print-jobs" } | { kind: "course-setting-print-job"; jobId: string } | { kind: "course-setting-print-job-pdf"; jobId: string } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |

@@ -38,6 +38,8 @@ Om databasen mot förmodan inte startar (`docker compose logs postgres`): `docke
 (fel om `postgis` kan ignoreras) och `pnpm db:migrate`.
 `pnpm dev` och `pnpm build` bygger först det offlinekapabla
 appskalet för avläsningen (`/readout/`) med `pnpm --filter @o-tid/web build:shells`.
+`pnpm dev` startar också utskriftsarbetaren som skriver PDF:erna för tryck (steg 65, ADR-0184); utan `pnpm dev` körs den
+med `pnpm print:worker`, och `OTID_PRINT_WORKER=off` stänger av den.
 
 ## Prova på fem minuter
 

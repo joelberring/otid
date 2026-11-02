@@ -142,6 +142,9 @@ importers:
       '@o-tid/map-file':
         specifier: workspace:*
         version: link:../map-file
+      '@o-tid/print-pdf':
+        specifier: workspace:*
+        version: link:../print-pdf
       '@o-tid/roc':
         specifier: workspace:*
         version: link:../roc

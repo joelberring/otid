@@ -83,7 +83,7 @@ services:
     image: otid-web
     restart: unless-stopped
     cpu_shares: 256
-    mem_limit: 768m
+    mem_limit: 640m
     depends_on:
       web:
         condition: service_healthy
@@ -91,7 +91,7 @@ services:
       <<: *web-environment
       OTID_RADIO_POLLER: "off"
       OTID_INSTANCE_ROLE: public
-      NODE_OPTIONS: --max-old-space-size=512
+      NODE_OPTIONS: --max-old-space-size=448
     command: ["node", "apps/web/server.js"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -102,6 +102,23 @@ services:
       retries: 60
 
   web-public2: *web-public
+
+  # Steg 65 (ADR-0184, ADR-0177): utskriftsarbetaren skriver PDF:erna för tryck, ett jobb i taget ur kön i databasen. Lägsta
+  # CPU-vikt (64) och prioritet (nice 19 i processen), egen liten databaspool (2) och eget minnestak: avläsningen och
+  # arbetsytan i `web` väntar aldrig på en utskrift. Startar när web har migrerat; ingen port, inga anrop utifrån.
+  print-worker:
+    logging: *logging
+    image: otid-web
+    restart: unless-stopped
+    cpu_shares: 64
+    mem_limit: 384m
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://otid:${POSTGRES_PASSWORD}@postgres:5432/otid
+      NODE_OPTIONS: --max-old-space-size=256
+    command: ["node", "print-worker.mjs"]
 
   caddy:
     logging: *logging

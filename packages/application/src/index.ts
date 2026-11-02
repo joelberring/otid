@@ -95,6 +95,11 @@ export {
   setCourseSettingNoteStatusAsAdmin
 } from "./course-setting-notes";
 export { listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin } from "./course-setting-inspections";
+export {
+  claimPrintJob, cleanupPrintJobs, createPrintJobAsAdmin, deletePrintJobAsAdmin, heartbeatPrintJob, listPrintJobsAsAdmin, PRINT_JOB_LIMITS, readPrintJobPdfAsAdmin,
+  runPrintJob, type ClaimedPrintJob, type PrintWorkerOptions
+} from "./course-setting-print";
+export { printJobSheets, renderPrintJob, PrintJobError } from "./course-setting-print-render";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";

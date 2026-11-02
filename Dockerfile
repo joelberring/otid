@@ -16,6 +16,9 @@ COPY --chown=node:node --from=build /src/apps/web/public ./apps/web/public
 COPY --chown=node:node --from=build /src/apps/web/.next/migrate.mjs ./migrate.mjs
 # Superadmin sätts bara med kommando på servern (ADR-0172): node superadmin.mjs grant <e-post>
 COPY --chown=node:node --from=build /src/apps/web/.next/superadmin.mjs ./superadmin.mjs
+# Steg 65: utskriftsarbetaren (tjänsten print-worker: node print-worker.mjs) och typsnitten för PDF:en (Roboto, OFL 1.1).
+COPY --chown=node:node --from=build /src/apps/web/.next/print-worker.mjs ./print-worker.mjs
+COPY --chown=node:node --from=build /src/apps/web/.next/fonts ./fonts
 COPY --chown=node:node --from=build /src/packages/database/migrations ./migrations
 USER node
 EXPOSE 3000

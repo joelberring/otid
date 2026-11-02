@@ -66,6 +66,7 @@ import { useCourseSettingHistory } from "./use-course-setting-history";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
+import { useCourseSettingTraining } from "./use-course-setting-training";
 import styles from "./course-setting.module.css";
 
 // Steg 67: styrda av service workern när sidan är sparad för offline (`controlledWorker`).
@@ -232,11 +233,14 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen; objektet markeras när man pekar på ett förslag.
   const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
   const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
-  const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
+  // ADR-0192: träningsläget (kartans pass, verktygen och fliken Träning).
+  const training = useCourseSettingTraining({ document, view, variant, session: mapSession, mapReady: mapStatus === "ready", readOnly, say,
+    onEdits: edits => edit(current => applySteps(current, edits, applyEdit)) });
+  const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options, training: training.overprint };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), () => [] as readonly OverprintPrimitive[]),
-    [document, view, variant, cutting.options]);
-  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options }), () => [] as readonly OverprintPrimitive[]) : [],
-    [document, view, variant, cutting.options]);
+    [document, view, variant, cutting.options, training.overprint]);
+  const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options, training: training.overprint }),
+    () => [] as readonly OverprintPrimitive[]) : [], [document, view, variant, cutting.options, training.overprint]);
   const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), () => []), [document]);
   // Steg 64: symbolerna för beskrivningen på kartan.
   const standard = document.event.descriptionStandard;
@@ -251,14 +255,15 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     return page ? { page, automatic: printAreaOf(document, view).automatic || !printAreaOf(document, view).rect } : undefined;
   }, [tab, document, view, variant, mapBounds]);
   const selectedSpecial = selection?.kind === "special" ? document.specialObjects.find(item => item.id === selection.special) : undefined;
-  const uxDraw = ux.draw;
+  const uxDraw = ux.draw, trainingDraw = training.draw;
   const overlayExtra = useMemo(() => (ctx: CanvasRenderingContext2D, mapView: Viewport) => {
     const at = (point: { x: number; y: number }) => toScreen(mapView, point);
     if (printPage) drawPrintFrame(ctx, at, [printPage.page.mapArea], mapView);
     drawSpecialEditing(ctx, at, { drawing: editor.tool === "SPECIAL" ? editor.drawing : undefined, handles: selectedSpecial ? specialHandles(selectedSpecial) : undefined });
     if (suggestionHover) drawSuggestionHighlight(ctx, at, suggestionHover, mapView.pxPerMm);
     uxDraw(ctx, mapView);
-  }, [printPage, editor.tool, editor.drawing, selectedSpecial, suggestionHover, uxDraw]);
+    trainingDraw(ctx, mapView);
+  }, [printPage, editor.tool, editor.drawing, selectedSpecial, suggestionHover, uxDraw, trainingDraw]);
   const mapHandle = useRef<CourseSettingMapHandle>(null);
   // Oanvända kontroller i Alla kontroller ritas grå och streckade i stället (träffas ändå).
   const drawnPrimitives = useMemo(() => ux.unusedRefs.size > 0 ? primitives.filter(primitive => !ux.unusedRefs.has(primitive.ref ?? "")) : primitives,
@@ -369,6 +374,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     onTap(point, tolerance, modifiers) {
       const current = store.state;
       setFlagged(undefined);
+      if (training.tap(point, tolerance)) return;
       if (!readOnly && ux.tap(point, modifiers)) return;
       const target = hit(point, tolerance);
       switch (current.tool) {
@@ -626,6 +632,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
           onStraighten={() => edit(current => removeSelected(current, applyEdit))} extra={ux.rotateControls(ux.rotatable)} />
         <LegPanel legKey={legKey} analysis={analysis} status={legStatus} highlighted={highlighted} onHighlight={setHighlighted} />
       </>;
+      case "training": return training.panel;
       case "objects": return <SpecialsPanel document={document} state={editor} readOnly={readOnly}
         onKind={kind => apply(current => setTool(current, "SPECIAL", kind))} onFinish={() => edit(current => finishDrawing(current, applyEdit))}
         onCancel={() => apply(current => ({ ...current, drawing: undefined }))}
@@ -678,7 +685,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     if (tool === "SPECIAL") ux.setPalette(open => !open);
     else { ux.setPalette(false); apply(current => setTool(current, tool)); }
   }}
-    onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} />;
+    onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} onTraining={() => setTab("training")} trainingOpen={tab === "training"} />;
 
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
     ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
@@ -699,7 +706,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       <div className={styles.mapArea}>
         <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={drawnPrimitives} faded={faded} ghosts={ux.ghosts} others={ux.others}
           marks={marks} analysis={analysis}
-          label={label} cursor={notes.sketching ? "crosshair" : CURSOR[editor.tool]} handlers={notes.sketching ? notes.handlers : handlers}
+          label={label} cursor={notes.sketching || training.drawing ? "crosshair" : CURSOR[editor.tool]} mapPasses={training.passes} handlers={notes.sketching ? notes.handlers : handlers}
           handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote} sketches={notes.sketchLayer}
           onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={notes.sketching ? undefined : cursorAt}
           highlightRoute={highlightRoute}

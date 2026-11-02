@@ -38,7 +38,7 @@ export function printJobSheets(document: CourseSettingDocument, request: PrintJo
   const layout = request.layout.kind === "TEMPLATE"
     ? { kind: "TEMPLATE" as const, template: layoutTemplateFor(document, request.layout.template), perRunner: request.perRunner, duplex: request.duplex,
       fill: request.layout.fill }
-    : { kind: "COURSE" as const, header: request.layout.header };
+    : request.layout.kind === "PIECES" ? { kind: "PIECES" as const } : { kind: "COURSE" as const, header: request.layout.header };
   return printSheetGroups(document, layout, items, { mapBounds, ...(request.date ? { date: request.date } : {}) }).flatMap(group => group.sheets);
 }
 

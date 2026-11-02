@@ -126,6 +126,14 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     case "DELETE_PRINT_PROFILE": return `Ta bort utskriftsprofilen ${profileName(edit.id) ?? ""}`.trim();
     case "PUT_LAYOUT_TEMPLATE": return `Layoutmallen ${edit.template.name}`;
     case "DELETE_LAYOUT_TEMPLATE": return `Ta bort layoutmallen ${templateName(edit.id) ?? ""}`.trim();
+    // ADR-0192: träningsläget.
+    case "PUT_TRAINING": {
+      const courses = Object.keys(edit.courses ?? {}).map(course);
+      if (courses.length > 0) return `Träningen för ${courses.join(", ")}`;
+      if (edit.attackPoints) return "Sista säkra";
+      if (edit.areas) return "Träningens områden";
+      return "Träningen";
+    }
     default: return "Ändring";
   }
 }

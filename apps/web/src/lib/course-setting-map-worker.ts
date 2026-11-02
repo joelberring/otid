@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
-import { detailCircleGaps, suggestAt, type DescriptionSuggestion } from "@o-tid/course-setting";
-import { colorUsage, drawMap, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
+import { detailCircleGaps, drawTrainingMap, suggestAt, symbolCatalog, type DescriptionSuggestion } from "@o-tid/course-setting";
+import { colorUsage, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
 import { MAX_RENDER_SIDE, type MapRenderRequest, type MapRenderResponse } from "./course-setting-map-protocol";
 
 /**
@@ -22,8 +22,9 @@ function render(request: Extract<MapRenderRequest, { type: "render" }>) {
   const canvas = new OffscreenCanvas(width, height);
   const context = canvas.getContext("2d");
   if (!context) { post({ type: "error", code: "NO_CANVAS" }); return; }
-  drawMap(context, map, { pxPerMm: request.pxPerMm, origin: request.origin, ...(request.colorAdjust ? { colorAdjust: request.colorAdjust } : {}),
-    ...(request.onlyColors ? { onlyColors: new Set(request.onlyColors) } : {}), ...(request.background === false ? { background: false } : {}) });
+  // Träningsläget (ADR-0192): passen med klippning och filter; utan pass som vanligt.
+  drawTrainingMap(context, map, { pxPerMm: request.pxPerMm, origin: request.origin, ...(request.colorAdjust ? { colorAdjust: request.colorAdjust } : {}),
+    ...(request.onlyColors ? { onlyColors: new Set(request.onlyColors) } : {}), ...(request.background === false ? { background: false } : {}) }, request.passes);
   const bitmap = canvas.transferToImageBitmap();
   post({ type: "rendered", id: request.id, bitmap }, [bitmap]);
 }
@@ -56,6 +57,10 @@ self.onmessage = (event: MessageEvent<MapRenderRequest>) => {
     try { if (map) gaps = detailCircleGaps(map, request.circles, { sprint: request.sprint }); }
     catch (error) { console.error("Ringklippen kunde inte räknas", error); failed = true; }
     post({ type: "detailGaps", id: request.id, gaps, failed });
+    return;
+  }
+  if (request.type === "symbols") {
+    post({ type: "symbols", id: request.id, symbols: map ? symbolCatalog(map) : [] });
     return;
   }
   if (request.type === "suggest") {

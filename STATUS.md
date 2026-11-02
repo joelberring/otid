@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Träningsläge i banläggningen (grenen traningslage, ADR-0192)
+- Modell `document.training`: avsnitt per bana (från–till) med korridor (kantig/mjuk, bredd per sträcka), bälte med filter (bara kurvbild m.m.), fönster och utan karta; utanför hela/vitt/tonat/filter; ritade områden; sista säkra per sträcka; stjärna, linje, keps (1a/1b, gemensam karta som förval, A/B som val) och kartbitar. `PUT_TRAINING` med touches, ångra och id-översättning; .ppen i `<otid:training>` (egen namnrymd, Purple Pen hoppar över).
+- Symbolfilter efter ISOM 2017-2/ISSprOM 2019-2 (okända nummer efter namnet), förval och val per symbol. Kartan ritas i pass med klippning och dolda symboler (`drawTrainingMap`) i editorns Worker, förhandsvisningen och PDF:en; tonat = lägre andel av samma dekorfärg.
+- Editorn: fliken och knappen "Träning" med formerna som kort, avsnitten i följd med markering vid bytet (text med pil eller tvärstreck), "Visa träningen" för före/efter. Utskrift: stjärnans uddar, kepsens A/B, kontrollantens karta och kartbitar (`PIECES`).
+- Verifierat: lint, typecheck, test (paketen och webbens lib, ny `training*`), PDF med dekorfärger och klippning (fixturen och Högdalen via `OTID_REAL_MAP`: 126 symboler, 1 i Övrigt), Playwright `banlaggning-traning` (1280/390).
+- Ej gjort: spegelvänd/roterad karta (PDF:ens transform saknar rotation), kepsens etiketter i beskrivningen.
+
 ### 2026-11-03 – Loggan och "Banläggning och tidtagning för orientering" (grenen logga)
 - Ägarens logga (variant B): lila ring med "tid" i Poppins Bold som kontur (`scripts/logo/generate.py`, `components/brand/`), före "O-Tid" i det gemensamma sidhuvudet (28 px; tagline dold under 420 px) och på startsidan (40 px). Färgen `--logo` (#a626ff); appen är bara ljus, så #c77dff används bara i `icon.svg` i mörkt läge.
 - Favicon 16/32 och `icon.svg`: ring med punkt. `apple-icon.png` (180, vitt), `manifest.ts` med 192/512 och maskerbar 512 i `public/icons/`.

@@ -31,7 +31,10 @@ export const printJobItemSchema = z.object({
   printArea: z.object({ automatic: z.boolean(), restrictToPageSize: z.boolean(), rect: mapRect.optional(),
     page: z.object({ width: z.number().positive(), height: z.number().positive(), margins: z.number().min(0), landscape: z.boolean() }).strict().optional() })
     .strict().optional(),
-  runner: runnerSchema.optional()
+  runner: runnerSchema.optional(),
+  /** Träningsläget (ADR-0192 beslut 7): kontrollantens karta, kepsens karta och ett avsnitt (stjärnans udd). */
+  training: z.object({ view: z.enum(["RUNNER", "CONTROLLER"]).optional(), pairMap: z.enum(["COMMON", "A", "B"]).optional(),
+    section: z.object({ from: z.number().int().min(0).max(10_000), to: z.number().int().min(0).max(10_000) }).strict().optional() }).strict().optional()
 }).strict();
 export type PrintJobItem = z.infer<typeof printJobItemSchema>;
 
@@ -45,7 +48,9 @@ export const printJobRequestSchema = z.object({
   /** PAGES = Purple Pens en bana per sida (`layoutCoursePage`); TEMPLATE = layoutmallen (`layoutTemplateSheets`). */
   layout: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("PAGES"), header: z.boolean() }).strict(),
-    z.object({ kind: z.literal("TEMPLATE"), template: z.unknown(), fill: z.enum(["FILL", "REPEAT"]) }).strict()
+    z.object({ kind: z.literal("TEMPLATE"), template: z.unknown(), fill: z.enum(["FILL", "REPEAT"]) }).strict(),
+    // Träningsläget: en liten kartbit per sträcka (minnes- och pusselorientering, ADR-0192 beslut 6).
+    z.object({ kind: z.literal("PIECES") }).strict()
   ]),
   /** En karta per löpare: ett ark (och en baksida med `duplex`) per post. */
   perRunner: z.boolean(),

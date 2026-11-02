@@ -24,6 +24,8 @@ export interface PrintJobSelection {
   readonly perRunner: boolean;
   readonly duplex: boolean;
   readonly date?: string | undefined;
+  /** Träningsläget: kartbitar (en liten karta per sträcka) i stället för sidor eller mall. */
+  readonly pieces?: boolean | undefined;
 }
 
 export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind, profileId: string, confirmation: { warnings: boolean; rules: readonly string[] },
@@ -33,10 +35,12 @@ export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind
     && (BUILT_IN_TEMPLATES.some(item => item.id === template.id) || selection.savedTemplateIds.includes(template.id));
   return {
     formatVersion: 1, requestId, kind, profileId,
-    layout: template ? { kind: "TEMPLATE", template: known ? template.id : template, fill: selection.fill } : { kind: "PAGES", header: selection.header },
+    layout: selection.pieces ? { kind: "PIECES" } : template ? { kind: "TEMPLATE", template: known ? template.id : template, fill: selection.fill }
+      : { kind: "PAGES", header: selection.header },
     perRunner: selection.perRunner, duplex: selection.perRunner && selection.duplex,
     items: selection.items.map(item => ({ course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.printScale ? { printScale: item.printScale } : {}),
-      ...(item.printArea ? { printArea: item.printArea } : {}), ...(item.runner ? { runner: { ...item.runner, club: item.runner.club ?? null } } : {}) })),
+      ...(item.printArea ? { printArea: item.printArea } : {}), ...(item.runner ? { runner: { ...item.runner, club: item.runner.club ?? null } } : {}),
+      ...(item.training ? { training: item.training } : {}) })),
     ...(selection.date ? { date: selection.date } : {}),
     warningsConfirmed: confirmation.warnings, confirmedRules: [...confirmation.rules]
   };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import type { OverprintPrimitive } from "@o-tid/course-setting";
+import type { OverprintPrimitive, TrainingMapPass } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
@@ -68,7 +68,7 @@ export interface CourseSettingMapHandle {
 
 const PAN_STEP_PX = 80;
 
-interface Drawn { readonly bitmap: ImageBitmap; readonly view: Viewport }
+interface Drawn { readonly bitmap: ImageBitmap; readonly view: Viewport; readonly passes?: number | undefined }
 
 const TAP_SLOP_PX = 5;
 /** Träffytan i skärmpixlar: större med finger än med mus. */
@@ -84,7 +84,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * ett eget lager som bara finns på skärmen; en dragning med fingret lyfts ovanför fingret (`liftedPoint`).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts, others, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra, sketches }: {
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra, sketches, mapPasses }: {
   session: MapRenderSession | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
@@ -119,6 +119,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   /** Steg 64: ritas ovanpå banpåtrycket (specialobjektets punkter under redigering, tryckytans ram). */
   overlayExtra?: ((ctx: CanvasRenderingContext2D, view: Viewport) => void) | undefined;
   sketches?: SketchLayer | undefined;
+  /** Träningsläget (ADR-0192): kartan i pass med klippning och filter (före och efter syns direkt). */
+  mapPasses?: readonly TrainingMapPass[] | undefined;
 }) {
   const [imageVersion, setImageVersion] = useState(0);
   const [hoverCursor, setHoverCursor] = useState<string>();
@@ -132,6 +134,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   const [view, setView] = useState<Viewport>();
   const drawn = useRef<Drawn | undefined>(undefined);
   const overview = useRef<Drawn | undefined>(undefined);
+  const staleOverview = useRef(false);
   const [drawnVersion, setDrawnVersion] = useState(0);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ kind: "pending" | "pan" | "drag" | "pinch"; startX: number; startY: number; lastX: number; lastY: number;
@@ -182,9 +185,18 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     if (!session || !view) return;
     const timer = setTimeout(() => {
       const ratio = Math.min(window.devicePixelRatio || 1, MAX_RENDER_SIDE / Math.max(view.width, view.height));
-      const request = { width: view.width * ratio, height: view.height * ratio, pxPerMm: view.pxPerMm * ratio, origin: topLeft(view) };
+      const request = { width: view.width * ratio, height: view.height * ratio, pxPerMm: view.pxPerMm * ratio, origin: topLeft(view),
+        ...(mapPasses ? { passes: mapPasses } : {}) };
       session.render(request, (_id, bitmap) => {
-        const next = { bitmap, view };
+        const next = { bitmap, view, passes: mapPasses?.length ?? 0 };
+        if (staleOverview.current) {
+          // Träningen ändrades: den nya bilden blir översikten och de gamla bilderna släpps.
+          staleOverview.current = false;
+          if (overview.current && overview.current !== drawn.current) overview.current.bitmap.close();
+          drawn.current?.bitmap.close();
+          overview.current = undefined;
+          drawn.current = undefined;
+        }
         if (!overview.current) overview.current = next;
         else if (drawn.current && drawn.current !== overview.current) drawn.current.bitmap.close();
         drawn.current = next;
@@ -192,7 +204,14 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       });
     }, 120);
     return () => clearTimeout(timer);
-  }, [session, view]);
+  }, [session, view, mapPasses]);
+  // En ny träning: översiktsbilden gäller inte längre (den ritades med de gamla passen) och byts mot nästa bild.
+  const passesRef = useRef(mapPasses);
+  useEffect(() => {
+    if (passesRef.current === mapPasses) return;
+    passesRef.current = mapPasses;
+    staleOverview.current = true;
+  }, [mapPasses]);
   useEffect(() => () => {
     if (drawn.current && drawn.current !== overview.current) drawn.current.bitmap.close();
     overview.current?.bitmap.close();
@@ -406,6 +425,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       style={{ cursor: grabbing ? "grabbing" : (cursorAt && hoverCursor) || cursor }} data-testid="course-setting-map"
       data-sketching={sketches?.draft ? "true" : undefined}
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
+      data-drawn={drawnVersion} data-passes={drawn.current?.passes ?? ""}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
       data-heading={position?.heading} data-follow={position?.follow || undefined}
       // Kartan är ritad skarpt för vyn som visas (specarna väntar på den före skärmbilder).

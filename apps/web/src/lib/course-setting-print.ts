@@ -1,4 +1,4 @@
-import { circleArcs, toPage, type CoursePage, type OverprintPrimitive } from "@o-tid/course-setting";
+import { circleArcs, toPage, type CoursePage, type OverprintPrimitive, type TrainingMapPass } from "@o-tid/course-setting";
 
 import { cachedDescriptionNodes, screenColor } from "./course-setting-draw-special";
 import type { SvgNode, SymbolLookup } from "./course-setting-description-draw";
@@ -84,11 +84,13 @@ export function pageNodes(page: FrameLike, symbols: SymbolLookup, courseColor?: 
 }
 
 /** Kartbilden för sidan: utsnittet `mapArea` i upplösning `dpi` (högst `MAX_RENDER_SIDE` pixlar på längsta sidan). */
-export function mapRenderRequest(page: Pick<CoursePage, "clip" | "transform" | "mapArea">, dpi = 300): { width: number; height: number; pxPerMm: number; origin: { x: number; y: number } } {
+export function mapRenderRequest(page: Pick<CoursePage, "clip" | "transform" | "mapArea"> & { readonly mapPasses?: readonly TrainingMapPass[] | undefined }, dpi = 300):
+  { width: number; height: number; pxPerMm: number; origin: { x: number; y: number }; passes?: readonly TrainingMapPass[] } {
   const longest = Math.max(page.clip.width, page.clip.height);
   const pxPerPaperMm = Math.min(dpi / 25.4, MAX_RENDER_SIDE / Math.max(1, longest));
+  // Träningsläget (ADR-0192): ramens pass ritas som i PDF:en.
   return { width: Math.round(page.clip.width * pxPerPaperMm), height: Math.round(page.clip.height * pxPerPaperMm),
-    pxPerMm: pxPerPaperMm * page.transform.scale, origin: { x: page.mapArea.minX, y: page.mapArea.maxY } };
+    pxPerMm: pxPerPaperMm * page.transform.scale, origin: { x: page.mapArea.minX, y: page.mapArea.maxY }, ...(page.mapPasses ? { passes: page.mapPasses } : {}) };
 }
 
 /** Namnet på CSS-sidan (`@page`) för papperets storlek, så att varje ark skrivs ut i sin storlek och riktning. */

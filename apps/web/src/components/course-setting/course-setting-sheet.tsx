@@ -1,6 +1,6 @@
 "use client";
 
-import type { Sheet, SheetFrame } from "@o-tid/course-setting";
+import { passesKey, type Sheet, type SheetFrame } from "@o-tid/course-setting";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { DESCRIPTION_FONT, descriptionNodes, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { pageName, pageNodes, type PrintNode } from "../../lib/course-setting-print";
@@ -8,9 +8,9 @@ import { DescriptionShapes } from "./description-svg";
 import styles from "./course-setting-print-page.module.css";
 
 /** Nyckeln för en rams kartbild (samma utsnitt, skala och färger ritas en gång). */
-export function frameImageKey(frame: Pick<SheetFrame, "mapArea" | "clip" | "transform">, colors: string): string {
+export function frameImageKey(frame: Pick<SheetFrame, "mapArea" | "clip" | "transform" | "mapPasses">, colors: string): string {
   return `${frame.mapArea.minX.toFixed(3)},${frame.mapArea.maxY.toFixed(3)},${frame.clip.width.toFixed(2)},${frame.clip.height.toFixed(2)},`
-    + `${frame.transform.scale.toFixed(6)}|${colors}`;
+    + `${frame.transform.scale.toFixed(6)}|${colors}${frame.mapPasses ? `|${passesKey(frame.mapPasses)}` : ""}`;
 }
 
 /**

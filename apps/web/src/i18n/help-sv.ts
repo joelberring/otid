@@ -77,6 +77,22 @@ export const helpArticles: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "traning",
+    title: "Träningsformer i banläggningen",
+    views: ["COURSES"],
+    body: [
+      "I banläggningen öppnar ”Träning” en flik där en bana blir en träning. Formerna gäller avsnitt av banan och kan läggas efter varandra på samma karta, till exempel korridor till 4, bara kurvbild till 8 och fönster till mål.",
+      [
+        "”Korridor”: bara en remsa längs sträckorna syns, kantig eller mjuk. Välj vad som syns ”Utanför avsnitten”: hela kartan, vitt, tonat eller ett filter.",
+        "”Kurvbild”, ”Fönster” och ”Utan karta”: ett filter längs en del av banan, cirklar runt kontrollerna eller sträckor utan karta.",
+        "”Sista säkra”: en mindre ring på sträckan. Den är inte en kontroll och syns inte i beskrivningen, längden eller avläsningen.",
+        "”Område”: rita ett område med eget filter, till exempel bara kurvbild här.",
+        "”Stjärna”, ”Linje”, ”Keps” och ”Kartbitar”: stjärnbana, linjeorientering, kepsorientering i par och en liten karta per sträcka."
+      ],
+      "”Visa träningen på kartan” visar före och efter. Utskriften och PDF:en har samma maskning, i kartans färger. Träningen följer med i .ppen-filen men försvinner om filen sparas i Purple Pen."
+    ]
+  },
+  {
     id: "klasser",
     title: "Klasser",
     views: ["CLASSES", "COURSES"],

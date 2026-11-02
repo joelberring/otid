@@ -85,8 +85,10 @@ const TOOL_ICON: Record<string, string> = { SELECT: "↖", ADD_CONTROL: "○", A
   ADD_BEND: "⌒", NOTE: "✎", FORK: "⑂", SPECIAL: "◇" };
 
 /** Verktygen ovanpå kartan: ikon och kort etikett, tangenten i tooltip, valt läge tydligt markerat. */
-export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool: Tool; tools: readonly Tool[]; onTool: (tool: Tool) => void;
-  onFork?: (() => void) | undefined; inCourse: boolean; help: string }) {
+export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTraining, trainingOpen }: { tool: Tool; tools: readonly Tool[]; onTool: (tool: Tool) => void;
+  onFork?: (() => void) | undefined; inCourse: boolean; help: string;
+  /** ADR-0192: ingången till träningsläget (fliken Träning). */
+  onTraining?: (() => void) | undefined; trainingOpen?: boolean | undefined }) {
   return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help}>
     {tools.map(item => <button key={item} type="button" className={styles.tool} aria-pressed={tool === item} aria-label={text.tools[item]}
       title={text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
@@ -98,11 +100,14 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help }: { tool:
       title={text.tools.withKey(text.tools.forkTool, text.tools.shortcut.FORK!)} onClick={onFork}>
       <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON.FORK}</span><span aria-hidden="true">{text.tools.short.FORK}</span>
       <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut.FORK}</kbd></button>}
+    {onTraining && <button type="button" className={styles.tool} aria-label={copy.drawer.tabs.training} aria-pressed={trainingOpen === true}
+      title={copy.drawer.tabs.training} onClick={onTraining} data-testid="course-setting-training-tool">
+      <span aria-hidden="true" className={styles.toolIcon}>{TAB_ICON.training}</span><span aria-hidden="true">{copy.drawer.tabs.training}</span></button>}
   </div>;
 }
 
-export type DrawerTab = "courses" | "description" | "selected" | "objects" | "print" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
-const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", objects: "◇", print: "⎙", checks: "⚠", notes: "✎",
+export type DrawerTab = "courses" | "description" | "selected" | "objects" | "training" | "print" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
+const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", objects: "◇", training: "✪", print: "⎙", checks: "⚠", notes: "✎",
   inspections: "✓", suggestions: "⇄", settings: "⚙" };
 /**
  * ADR-0188: flikarna har hela namn. På datorn står alla i lådans list; på telefonen (under 700 px) syns de här, vald flik

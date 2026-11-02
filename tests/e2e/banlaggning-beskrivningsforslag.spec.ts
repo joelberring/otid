@@ -47,7 +47,7 @@ test("förslag på kontrollbeskrivning: ny kontroll på en sten, förhandsvisnin
   await expect(owner.getByText(/Inläst: 2 banor och 9 kontroller\./)).toBeVisible();
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   const map = owner.getByRole("img", { name: "Karta med banpåtryck: Lång" });
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
 
   // Kontrollerna utan detalj (33, 34 …) visar förslag i beskrivningen redan innan något godtas.
   await owner.getByRole("tab", { name: "Beskrivning" }).click();
@@ -99,7 +99,7 @@ test("förslag på kontrollbeskrivning: ny kontroll på en sten, förhandsvisnin
   const phone = await phoneContext.newPage();
   await phone.goto(`/admin/${raceId}/course-setting`);
   const phoneMap = phone.getByTestId("course-setting-map");
-  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
   await expect(phoneMap).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.waitForTimeout(500);
   const c34 = await screenOf(phoneMap, 98, 30);

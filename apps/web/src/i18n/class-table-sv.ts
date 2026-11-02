@@ -12,6 +12,8 @@ export const classTableSv = {
   statusNoEntries: "Inga anmälda",
   statusMissingStartTimes: (count: number) => count === 1 ? "1 saknar starttid" : `${count} saknar starttid`,
   statusMissingStartTimesOpen: (name: string, count: number) => `Visa de ${count} i ${name} som saknar starttid`,
+  /** ADR-0187 beslut 4: inte klar så länge någon i en gafflad klass saknar variant. */
+  statusMissingVariants: (count: number) => count === 1 ? "Inte klar: 1 saknar variant" : `Inte klar: ${count} saknar variant`,
   statusAllReadOut: "Alla har läst ut",
   statusWaiting: (count: number) => count === 1 ? "1 har inte läst ut" : `${count} har inte läst ut`,
   statusReady: "Klar för start",

@@ -13,13 +13,15 @@ useRaceDatabase();
 describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
   const usedAt = new Date("2026-08-31T16:02:00.000Z");
 
-  async function emptyRace() {
+  async function emptyRace(raceType?: "SMALL") {
     const created = await createEvent(db, {
       name: `Importtest ${crypto.randomUUID()}`,
       raceName: "Individuellt",
       raceDate: "2026-08-31",
       timeZone: "Europe/Stockholm"
     });
+    // ADR-0187 beslut 4: i en vanlig Tävling får banfilens klasser lottad start; Liten tävling ger fri start.
+    if (raceType) await db.update(schema.races).set({ raceType }).where(eq(schema.races.id, created.race.id));
     return created.race.id;
   }
 
@@ -201,7 +203,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
   });
 
   it("importerar StartList atomärt, versionsstyrt och utan automatisk resultatrevision", async () => {
-    const raceId = await emptyRace();
+    const raceId = await emptyRace("SMALL");
     await importIofXml(db, raceId, courseXml);
     await importIofXml(db, raceId, entryXml);
     await ingestDeviceBatch(db, raceId, batch(crypto.randomUUID(), okPayload));

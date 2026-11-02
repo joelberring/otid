@@ -11,6 +11,7 @@ import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { commitStartDrawAsAdmin } from "../../src/start-draw";
 import { saveRaceSettingsAsAdmin } from "../../src/race-settings";
 import { previewRaceDateMoveAsAdmin } from "../../src/race-date-move";
+import { importIofXml } from "../../src/import-iof";
 import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -153,5 +154,28 @@ describe("ADR-0187: lottningens första start och datumflytt", () => {
     const proof = await race(await account());
     await courseClass(proof, "H21", [31, 32]);
     expect(await settings(proof, "2027-10-14")).toMatchObject({ status: "saved" });
+  });
+
+});
+
+describe("ADR-0187 beslut 4: startsätt för importerade klasser", () => {
+  const courseData = `<?xml version="1.0" encoding="UTF-8"?>
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-10-01T08:00:00Z" creator="O-Tid test">
+  <Event><Name>Påhittad</Name></Event><RaceCourseData>
+  <Control type="Start"><Id>S</Id></Control><Control><Id>31</Id></Control><Control type="Finish"><Id>M</Id></Control>
+  <Course><Id>bana-1</Id><Name>Bana 1</Name><CourseControl type="Start"><Control>S</Control></CourseControl>
+    <CourseControl type="Control"><Control>31</Control></CourseControl><CourseControl type="Finish"><Control>M</Control></CourseControl></Course>
+  <ClassCourseAssignment><ClassId>k1</ClassId><ClassName>H21</ClassName><CourseName>Bana 1</CourseName></ClassCourseAssignment>
+  </RaceCourseData></CourseData>`;
+  const startRule = async (raceId: string) => (await pool.query<{ start_rule: string }>("select start_rule from class where race_id = $1", [raceId]))
+    .rows.map(row => row.start_rule);
+
+  it("ger lottad start i en vanlig Tävling och fri start i en träning", async () => {
+    const competition = await race(await account());
+    await importIofXml(db, competition.raceId, courseData);
+    expect(await startRule(competition.raceId)).toEqual(["FIXED"]);
+    const training = await race(await account(), { raceType: "TRAINING" });
+    await importIofXml(db, training.raceId, courseData);
+    expect(await startRule(training.raceId)).toEqual(["PUNCH"]);
   });
 });

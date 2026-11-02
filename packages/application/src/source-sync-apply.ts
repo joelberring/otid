@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { raceDefaultStartRule } from "./race-start-rule";
 import { and, count, eq, inArray, max, sql } from "drizzle-orm";
 import { syncConsequenceSchema, type SyncConsequence } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
@@ -78,6 +79,8 @@ export async function assessEventor(tx: Transaction, raceId: string, rows: reado
   const moves = new Map<string, string>();
   const cardsAfterReadout: SyncConsequence["cardsAfterReadout"] = [];
   const entryById = new Map(state.entries.map(entry => [entry.id, entry]));
+  // ADR-0187 beslut 4: nya klasser får tävlingstypens startsätt.
+  const startRule = await raceDefaultStartRule(tx, raceId);
   for (const { action } of rows) {
     if (action.type !== "UPDATE_ENTRY") continue;
     const entry = entryById.get(action.entryId)!;
@@ -95,7 +98,7 @@ export async function assessEventor(tx: Transaction, raceId: string, rows: reado
   }
   for (const { action } of rows) {
     if (action.type === "CREATE_CLASS") proposed = withProposedClass(proposed, { id: ids.classes.get(action.eventorId)!, raceId,
-      name: action.name, courseVersionId: placeholder!.versionId, startRule: "PUNCH" });
+      name: action.name, courseVersionId: placeholder!.versionId, startRule: action.legCount > 0 ? "FIXED" : startRule });
   }
   proposed = withProposedEntryClasses(proposed, moves);
   const fromClasses = state.classes.filter(raceClass => [...moves.keys()].some(id => entryById.get(id)!.classId === raceClass.id));
@@ -170,6 +173,7 @@ export async function applyEventor(tx: Transaction, input: ApplyInput, projectio
   const { raceId, state, now } = input;
   const { ids } = assessment;
   assertCards(rows, state);
+  const startRule = await raceDefaultStartRule(tx, raceId);
   for (const link of links) await tx.update(schema.classes).set({ externalSource: "eventor", externalId: link.externalId })
     .where(and(eq(schema.classes.id, link.id), eq(schema.classes.raceId, raceId)));
   const placeholder = ids.placeholder;
@@ -184,7 +188,7 @@ export async function applyEventor(tx: Transaction, input: ApplyInput, projectio
     if (action.type === "CREATE_CLASS") {
       const id = ids.classes.get(action.eventorId)!;
       await tx.insert(schema.classes).values({ id, raceId, name: action.name, courseVersionId: placeholder!.versionId,
-        startRule: action.legCount > 0 ? "FIXED" : "PUNCH", externalSource: "eventor", externalId: action.eventorId });
+        startRule: action.legCount > 0 ? "FIXED" : startRule, externalSource: "eventor", externalId: action.eventorId });
       legCount.set(id, action.legCount);
       if (action.legCount > 0) {
         if (!massStart) throw new SourceSyncConflictError("mass-start");
@@ -343,6 +347,7 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
   assessment: Assessment & { ids: Ids }): Promise<number> {
   const { raceId, state } = input;
   const { ids } = assessment;
+  const startRule = await raceDefaultStartRule(tx, raceId);
   for (const link of links) await tx.update(schema.courses).set({ externalSource: "iof", externalId: link.externalId })
     .where(and(eq(schema.courses.id, link.id), eq(schema.courses.raceId, raceId)));
   for (const { action } of rows) {
@@ -363,7 +368,7 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
   }
   for (const { action } of rows) {
     if (action.type === "CREATE_CLASS") await tx.insert(schema.classes).values({ raceId, name: action.name,
-      courseVersionId: versionOf(action.courseRef, ids, state), startRule: "PUNCH", externalSource: "iof", externalId: action.externalId });
+      courseVersionId: versionOf(action.courseRef, ids, state), startRule, externalSource: "iof", externalId: action.externalId });
     if (action.type === "CHANGE_CLASS_COURSE") await tx.update(schema.classes).set({ courseVersionId: versionOf(action.courseRef, ids, state) })
       .where(and(eq(schema.classes.id, action.classId), eq(schema.classes.raceId, raceId)));
   }

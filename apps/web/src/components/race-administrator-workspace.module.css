@@ -119,6 +119,7 @@
   text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: .18em; }
 .inlineLink:hover:not(:disabled) { background: transparent; text-decoration-color: currentcolor; }
 .attentionLink { color: var(--attention); font-weight: 600; }
+.attentionText { color: var(--attention); font-weight: 600; }
 .courseVariants { display: grid; gap: 6px; }
 .courseVariants summary { font-size: var(--text-xs); text-decoration: underline; text-underline-offset: .18em; }
 

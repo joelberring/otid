@@ -10,6 +10,14 @@ export const raceTypes = ["TRAINING", "SMALL", "STANDARD", "FORKED", "RELAY", "R
 export const raceTypeSchema = z.enum(raceTypes);
 export type RaceType = z.infer<typeof raceTypeSchema>;
 
+/**
+ * ADR-0187 beslut 4: startsättet för klasser som skapas från en banfil eller Eventor. En vanlig Tävling lottas (fast start);
+ * fri start är naturlig för Träning, Liten tävling, Rogaining och Fest. Stafettklasser har egna regler.
+ */
+export function defaultStartRule(raceType: RaceType): "FIXED" | "PUNCH" {
+  return raceType === "STANDARD" || raceType === "FORKED" ? "FIXED" : "PUNCH";
+}
+
 const name = z.string().trim().min(2).max(160);
 
 /**

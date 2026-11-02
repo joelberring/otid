@@ -188,11 +188,13 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     expect(await getSourceSyncStatusAsAdmin(db, proof)).toMatchObject({ status: "ok", response: { courseFile: { fileName: "course-file-1.xml" } } });
 
     // En lokal direktanmälan och tre avläsningar.
-    const classes = (await pool.query<{ id: string; name: string; course_version_id: string }>(
-      "select id, name, course_version_id from class where race_id = $1", [proof.raceId])).rows;
+    // ADR-0187 beslut 4: klasser från Eventor i en vanlig Tävling har lottad start.
+    const classes = (await pool.query<{ id: string; name: string; course_version_id: string; start_rule: "FIXED" | "PUNCH" }>(
+      "select id, name, course_version_id, start_rule from class where race_id = $1", [proof.raceId])).rows;
     const h21 = classes.find(row => row.name === "H21")!;
+    expect(h21.start_rule).toBe("FIXED");
     const local = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {
-      formatVersion: 1, classId: h21.id, expectedCourseVersionId: h21.course_version_id, expectedStartRule: "PUNCH",
+      formatVersion: 1, classId: h21.id, expectedCourseVersionId: h21.course_version_id, expectedStartRule: h21.start_rule,
       givenName: "Hanna", familyName: "Lokal", organisationName: "OK Skogsfalken",
       cardNumber: "2101099", fixedStartTime: null } });
     if (local.status !== "registered") throw new Error("Direktanmälan misslyckades");

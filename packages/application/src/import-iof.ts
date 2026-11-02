@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
+import { raceDefaultStartRule } from "./race-start-rule";
 import {
   IOF_IMPORT_MAX_BYTES,
   IOF_IMPORT_MIN_BYTES,
@@ -75,6 +76,8 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
     await insertCourseVersionControls(tx, raceId, version.id, imported.controlCodes, imported.variants ?? []);
   }
 
+  // ADR-0187 beslut 4: nya klasser får tävlingstypens startsätt (lottad start i en vanlig Tävling).
+  const startRule = await raceDefaultStartRule(tx, raceId);
   for (const assignment of parsed.assignments) {
     const courseVersionId = versionByCourse.get(assignment.courseExternalId);
     if (!courseVersionId) throw new Error(`Klass refererar okänd bana ${assignment.courseExternalId}`);
@@ -104,7 +107,7 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
         raceId,
         name: assignment.className,
         courseVersionId,
-        startRule: assignment.startRule,
+        startRule: startRule ?? assignment.startRule,
         externalSource: "iof",
         externalId: assignment.classExternalId
       });

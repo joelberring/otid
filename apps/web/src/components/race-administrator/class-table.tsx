@@ -101,6 +101,7 @@ function ClassStatus({ row, disabled, onMissingStartTimes }: { row: ClassRow; di
     case "MISSING_START_TIMES": return <button type="button" className={`${styles.inlineLink} ${styles.attentionLink}`} disabled={disabled}
       aria-label={text.statusMissingStartTimesOpen(row.name, status.count)} onClick={onMissingStartTimes}>
       {text.statusMissingStartTimes(status.count)}</button>;
+    case "MISSING_VARIANTS": return <span className={styles.attentionText}>{text.statusMissingVariants(status.count)}</span>;
     case "ALL_READ_OUT": return <>{text.statusAllReadOut}</>;
     case "WAITING": return <>{text.statusWaiting(status.count)}</>;
     case "READY": return <>{text.statusReady}</>;

@@ -44,6 +44,7 @@ import { fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
+import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
@@ -538,11 +539,14 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
 
   const panel = (() => {
     switch (tab) {
-      case "courses": return <CourseList document={document} summaries={summaries} view={view} variant={variant} readOnly={readOnly}
+      case "courses": return <><CourseList document={document} summaries={summaries} view={view} variant={variant} readOnly={readOnly}
         onView={(next, value) => apply(current => setView(current, next, value))} onAdd={addCourse}
         onRename={(id, name) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
         onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
-        onRemove={id => edit(current => setView(applySteps(current, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />;
+        onRemove={id => edit(current => setView(applySteps(current, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />
+        {/* Etiketten vid kontrollen för vald bana (ADR-0180 beslut 12). */}
+        {course && <LabelPanel document={document} course={course} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
+      </>;
       case "description": return <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
         onSettings={next => {
           setDescriptionKind(next.kind);
@@ -592,8 +596,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       case "suggestions": return <SuggestionsPanel suggestions={collaboration.suggestions} document={document} reviewing={reviewing}
         onReview={id => { setReviewing(id); setSkip(new Set()); setDecision(undefined); }} skip={skip} onSkip={setSkip}
         canDecide={access.level === "EDIT"} onDecide={decide} result={decision} rejected={rejectedInPreview} draft={draft} />;
-      // Inställningar: arbetssättet och ringklippen (ADR-0180 beslut 10).
-      case "settings": return <><section className={styles.panel} aria-labelledby="course-setting-mode">
+      // Inställningar: banans utseende (ADR-0180 beslut 12), arbetssättet, utan nät och ringklippen (beslut 10).
+      case "settings": return <>
+      <AppearancePanel document={document} view={view} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />
+      <section className={styles.panel} aria-labelledby="course-setting-mode">
         <h2 id="course-setting-mode">{copy.mode.heading}</h2>
         <label className={styles.stack}>{copy.mode.label}
           <select value={collaboration.mode} disabled={!access.admin} onChange={event => void changeMode(event.target.value === "SHARED" ? "SHARED" : "LEAD")}>

@@ -4,6 +4,7 @@
  * AddVariation, AddStartOrMapIssueToCourse, AddFinishToCourse, DeleteCourse, CreateCourse; BSD, Peter Golde).
  */
 import type { Point } from "@o-tid/map-file";
+import { setAppearance } from "./appearance-edit";
 import { BOX_KINDS, hasImage, symbolDb } from "./description-symbols";
 import { encodeCircleGaps, encodeOldCircleGaps, fromRaw, legKey, nextId, toRaw } from "./ppen-common";
 import { isLegalCode, nextUnusedCode } from "./summary";
@@ -279,6 +280,7 @@ function updateCourse(draft: Draft, courseId: string, changes: CourseChanges): v
   set("climbMeters", climb => Number.isFinite(climb) && climb >= 0);
   set("lengthOverrideMeters", length => Number.isFinite(length) && length > 0);
   set("labelKind", label => course.kind === "SCORE" || !label.includes("SCORE"));
+  if (changes.labelKind?.startsWith("SEQUENCE") && course.kind === "SCORE") course = scoreColumnOutsideA(course);
   if ("order" in changes && changes.order !== undefined) {
     const target = changes.order;
     if (!Number.isInteger(target) || target < 1) throw invalidEdit("Ogiltig ordning");
@@ -292,6 +294,20 @@ function updateCourse(draft: Draft, courseId: string, changes: CourseChanges): v
     return;
   }
   replaceCourse(draft, course);
+}
+
+/**
+ * Nummer på en poängbana står i beskrivningens kolumn A, så poängen kan inte stå där; som Purple Pens dialog (AddCourse)
+ * flyttas den då till kolumn B (`<options score-column>`).
+ */
+function scoreColumnOutsideA(course: Course): Course {
+  const raws = course.raw ?? [];
+  const index = raws.findIndex(raw => raw.xml.startsWith("<options"));
+  const options = index >= 0 ? fromRaw(raws[index]!) : el("options");
+  const column = (options.attrs.find(([name]) => name === "score-column")?.[1] ?? "").trim().toUpperCase();
+  if (column === "B" || column === "H" || column === "NONE") return course;
+  const next = toRaw(el("options", [...options.attrs.filter(([name]) => name !== "score-column"), ["score-column", "B"]], options.children));
+  return { ...course, raw: index >= 0 ? raws.map((raw, i) => (i === index ? next : raw)) : [...raws, next] };
 }
 
 function isVacuous(leg: Leg): boolean {
@@ -399,6 +415,7 @@ function validDescription(current: ControlPoint, boxes: readonly DescriptionBox[
 /** Gör en ändring. */
 export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
   if (edit.type === "PUT_OBJECTS") return { document: putObjects(document, edit) };
+  if (edit.type === "SET_APPEARANCE") return { document: setAppearance(document, edit.changes) };
   if (edit.type === "ADD_SPECIAL" || edit.type === "MOVE_SPECIAL" || edit.type === "UPDATE_SPECIAL" || edit.type === "DELETE_SPECIAL" ||
     edit.type === "SET_PRINT_AREA" || edit.type === "PUT_PRINT_PROFILE" || edit.type === "DELETE_PRINT_PROFILE" || edit.type === "PUT_LAYOUT_TEMPLATE" ||
     edit.type === "DELETE_LAYOUT_TEMPLATE") return applySpecialEdit(document, edit);

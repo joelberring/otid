@@ -96,7 +96,7 @@ export const raceTypeSv = {
     publishLink: "Publiceringen och tävlingssidans adress finns i steget Publicera.",
     publishOpen: "Gå till Publicera",
     import: "Import",
-    importHelp: "Läs in anmälda eller en startlista från en IOF XML-fil. Banfiler läses in under Banor, Eventor ovan.",
+    importHelp: "Läs in anmälda eller en startlista från en IOF XML-fil. Banfiler läses in under Banor och Eventor under Inställningar → Eventor.",
     importLink: "Öppna import"
   }
 } as const;

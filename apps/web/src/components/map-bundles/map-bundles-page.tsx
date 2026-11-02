@@ -96,6 +96,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
       <h1>{text.title}</h1>
       <p>{race}</p>
       <p>{text.pageHelp}</p>
+      <p><Link href={`/admin/${raceId}/course-setting/print?mode=runners`}>{text.printLink}</Link></p>
     </header>
     <div className={`${styles.tabs} ${styles.noPrint}`} role="group" aria-label={text.title}>
       {(["COUNTS", "BUNDLE", "BACKS"] as const).map(id => <button key={id} type="button" aria-pressed={view === id}

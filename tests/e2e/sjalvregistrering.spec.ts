@@ -6,7 +6,7 @@ import { createRace, publishRaceViaApi, registerAccount, reviewScreenshots, toda
  * övningsstationens pinne med ett påhittat namn på fest-sidan, och bardisken (övningsstationen) visar sedan namnet utan
  * namnruta. Samma pinne igen avvisas. Arbetsytan visar gästen som självregistrerad.
  */
-test("självregistrering: gästen kopplar sitt namn till pinnen och bardisken känner igen den", async ({ browser }) => {
+test("självregistrering: gästen kopplar sitt namn till brickan och bardisken känner igen den", async ({ browser }) => {
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `sjalv.${suffix}@exempel.se`, "Sara Själv");
@@ -50,7 +50,7 @@ test("självregistrering: gästen kopplar sitt namn till pinnen och bardisken k�
   await visitor.goto(publicPath!);
   const form = visitor.getByTestId("self-registration");
   // Steg 42: på fest-sidan är formuläret utfällbart under rubriken, stängt från början.
-  const toggle = visitor.getByRole("button", { name: "Registrera din pinne" });
+  const toggle = visitor.getByRole("button", { name: "Registrera din bricka" });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(form).toBeHidden();
   await toggle.click();
@@ -68,16 +68,16 @@ test("självregistrering: gästen kopplar sitt namn till pinnen och bardisken k�
   await form.getByLabel("Klubb (valfri)").fill("Påhittade OK");
   await form.getByLabel("Visningsnamn (valfritt)").fill("Pinnan");
   await form.getByRole("button", { name: "Registrera" }).click();
-  await expect(form.getByRole("status")).toContainText(`Klart! Pinne ${card} är kopplad till Pia Pinnesson. Du visas som Pinnan.`);
+  await expect(form.getByRole("status")).toContainText(`Klart! Bricka ${card} är kopplad till Pia Pinnesson. Du visas som Pinnan.`);
   await reviewScreenshots(visitor, "sjalvregistrering-kvitto");
 
   // Samma pinne igen: avvisas, inget skrivs över.
-  await form.getByRole("button", { name: "Registrera en pinne till" }).click();
+  await form.getByRole("button", { name: "Registrera en bricka till" }).click();
   await form.getByLabel("Bricknummer").fill(card);
   await form.getByLabel("Förnamn").fill("Annan");
   await form.getByLabel("Efternamn").fill("Person");
   await form.getByRole("button", { name: "Registrera" }).click();
-  await expect(form.getByRole("alert")).toHaveText(/Pinnen är redan registrerad\. Kontakta arrangören\./);
+  await expect(form.getByRole("alert")).toHaveText(/Brickan är redan registrerad\. Kontakta arrangören\./);
 
   // Bardisken hämtar festens läge var femte sekund och känner sedan igen pinnen: namnet, ingen namnruta.
   await desk.bringToFront();

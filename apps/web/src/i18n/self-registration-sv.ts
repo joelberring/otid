@@ -1,12 +1,12 @@
 /** Självregistrering på tävlingsdagen (PLAN.md steg 41): det publika formuläret och admins inställning. */
 export const selfRegistrationSv = {
-  title: "Registrera din pinne",
+  title: "Registrera din bricka",
   intro: {
-    party: "Skriv in numret på din pinne (SPORTident-brickan) och ditt namn, så känner baren igen dig.",
+    party: "Skriv in numret på din bricka (SPORTident) och ditt namn, så känner baren igen dig.",
     race: "Skriv in numret på din bricka, ditt namn och välj klass, så är du anmäld."
   },
   cardNumber: "Bricknummer",
-  cardHelp: "Siffrorna på pinnen, till exempel 8123456.",
+  cardHelp: "Siffrorna på brickan, till exempel 8123456.",
   givenName: "Förnamn",
   familyName: "Efternamn",
   club: "Klubb (valfri)",
@@ -20,13 +20,13 @@ export const selfRegistrationSv = {
   /** Steg 46: vad som visas publikt, per slag. */
   privacy: {
     race: "Namn, klubb och klass syns i den publika startlistan och resultatlistan, märkt ”självreg.”.",
-    party: "Namnet kopplas till pinnen och syns för arrangören och i baren. Fest-sidan visar inga namn.",
+    party: "Namnet kopplas till brickan och syns för arrangören och i baren. Fest-sidan visar inga namn.",
     partyNames: "Dina köp visas med ditt visningsnamn på den här sidan. Fullt namn syns bara för arrangören och i baren."
   },
   privacyLink: "Om personuppgifter",
-  receipt: (card: string, name: string) => `Klart! Pinne ${card} är kopplad till ${name}.`,
+  receipt: (card: string, name: string) => `Klart! Bricka ${card} är kopplad till ${name}.`,
   receiptClass: (className: string) => `Du är anmäld i ${className}.`,
-  again: "Registrera en pinne till",
+  again: "Registrera en bricka till",
   trap: "Lämna tomt",
   errors: {
     cardNumber: "Skriv bricknumret med siffror (1–9 999 999).",
@@ -35,9 +35,9 @@ export const selfRegistrationSv = {
     club: "Klubben får vara högst 80 tecken och innehålla bokstäver.",
     classId: "Välj en klass.",
     displayName: "Visningsnamnet får vara högst 40 tecken och innehålla bokstäver.",
-    taken: "Pinnen är redan registrerad. Kontakta arrangören.",
+    taken: "Brickan är redan registrerad. Kontakta arrangören.",
     // Steg 44: en festpinne med köp men utan namn namnges i bardisken.
-    hasPurchases: "Pinnen har redan köp i kväll – gå till bardisken så hjälper personalen dig.",
+    hasPurchases: "Brickan har redan köp i kväll – gå till bardisken så hjälper personalen dig.",
     full: "Klassen är full. Välj en annan klass eller kontakta arrangören.",
     closed: "Självregistreringen är stängd just nu.",
     rateLimited: "För många registreringar på kort tid. Vänta några minuter och försök igen.",
@@ -45,8 +45,8 @@ export const selfRegistrationSv = {
   },
   setting: {
     label: "Tillåt självregistrering på tävlingsdagen",
-    help: "Alla kan registrera en ny pinne med namn på den publika sidan utan att logga in, men bara på tävlingsdagen och när tävlingen är publicerad.",
-    helpParty: "Gästerna kan koppla sitt namn till sin pinne på fest-sidan utan att logga in, på festens dag och natten efter till kl 06, när festen är publicerad.",
+    help: "Alla kan registrera en ny bricka med namn på den publika sidan utan att logga in, men bara på tävlingsdagen och när tävlingen är publicerad.",
+    helpParty: "Gästerna kan koppla sitt namn till sin bricka på fest-sidan utan att logga in, på festens dag och natten efter till kl 06, när festen är publicerad.",
     on: "Självregistreringen är på.",
     off: "Självregistreringen är av.",
     failed: "Inställningen kunde inte sparas."

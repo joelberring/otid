@@ -75,7 +75,7 @@ function problemText(problem: RunnerPrintProblem): string {
  * mm. Webbläsarens utskrift ger ett utkast; steg 65: "Skapa PDF för tryck" lägger samma ark i serverns kö och ger en PDF med
  * kartan som vektorer, dekorfärger och övertryck (`PdfPanel`).
  */
-export function CoursePrintPage({ raceId }: { raceId: string }) {
+export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: string; initialMode?: Mode }) {
   const [document, setDocument] = useState<CourseSettingDocument | null>();
   const [version, setVersion] = useState<number>();
   const [canEdit, setCanEdit] = useState(false);
@@ -85,7 +85,7 @@ export function CoursePrintPage({ raceId }: { raceId: string }) {
   const [chosen, setChosen] = useState<readonly string[]>([]);
   const [eachVariant, setEachVariant] = useState(false);
   const [header, setHeader] = useState(false);
-  const [mode, setMode] = useState<Mode>("COURSES");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [templateId, setTemplateId] = useState("NONE");
   const [draftTemplate, setDraftTemplate] = useState<LayoutTemplate>();
   const [fill, setFill] = useState<"FILL" | "REPEAT">("FILL");

@@ -8,7 +8,7 @@ import styles from "../race-administrator-workspace.module.css";
 import local from "./party.module.css";
 import { partySv as text } from "../../i18n/party-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
-import { Button, Notice, Section, Table, numeric } from "../ui";
+import { Button, Notice, Section, Table, numeric, DateInput } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { PartyThemeForm } from "./party-theme-form";
 import { CENTRUM_PRESET } from "../../lib/party-theme-style";
@@ -242,7 +242,7 @@ function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: b
     <h3>{text.settingsTitle}</h3>
     <p className={styles.workflowHelp}>{text.settingsHelp}</p>
     <div className={local.fields}>
-      <label>{text.date}<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
+      <label>{text.date}<DateInput value={date} onChange={event => setDate(event.target.value)} /></label>
       <label>{text.time}<input type="text" inputMode="numeric" value={clock} aria-invalid={error ? true : undefined}
         onChange={event => setClock(event.target.value)} /></label>
       <label>{text.doublePunch}<input type="text" inputMode="numeric" value={double} onChange={event => setDouble(event.target.value)} /></label>

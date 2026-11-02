@@ -2,7 +2,7 @@
 
 import type { MapAgreement, MapAgreementIssueCode } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
-import { Field } from "../ui";
+import { DateInput, Field } from "../ui";
 import styles from "./training-group.module.css";
 
 const text = trainingGroupSv.agreement;
@@ -58,7 +58,7 @@ export function MapAgreementFields({ value, onChange, disabled }: { value: MapAg
     <Field label={text.text} help={text.textHelp}><textarea value={value.agreement ?? ""} maxLength={2000} disabled={disabled}
       onChange={event => set({ agreement: event.target.value || null })} /></Field>
     <div className={styles.inline}>
-      <Field label={text.validUntil}><input type="date" value={value.validUntil ?? ""} disabled={disabled}
+      <Field label={text.validUntil}><DateInput value={value.validUntil ?? ""} disabled={disabled}
         onChange={event => set({ validUntil: event.target.value || null })} /></Field>
       <Field label={text.contact}><input value={value.contact ?? ""} maxLength={200} disabled={disabled}
         onChange={event => set({ contact: event.target.value || null })} /></Field>

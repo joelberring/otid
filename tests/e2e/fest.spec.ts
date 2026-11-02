@@ -162,7 +162,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
 
   // Steg 44: "Ta bort utcheckning" (här via mål): samma målstämpling räknas inte igen, en senare gör det.
   owner.once("dialog", dialog => void dialog.accept());
-  await owner.getByRole("button", { name: `Ta bort utcheckning för pinne ${festaCard}` }).click();
+  await owner.getByRole("button", { name: `Ta bort utcheckning för bricka ${festaCard}` }).click();
   await expect(owner.getByText("Utcheckningen är borttagen.")).toBeVisible();
   await expect(owner.getByTestId("party-totals")).toContainText("2 incheckade · 0 utcheckade");
   const festaRow = owner.locator("tr[data-card]").filter({ hasText: "Festa Påhittsson" });
@@ -232,7 +232,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(splits).not.toContainText("Tvåsson");
   await expect(splits).not.toContainText(/\d\s?kr\b/);
   // Raden under rubriken: "Registrera din pinne" fälls ut, länken leder till sträcktiderna, så betalar du.
-  const toggle = visitor.getByRole("button", { name: "Registrera din pinne" });
+  const toggle = visitor.getByRole("button", { name: "Registrera din bricka" });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(visitor.getByTestId("self-registration")).toBeHidden();
   await expect(visitor.getByRole("list", { name: "Så betalar du" })).toContainText("Checka in");

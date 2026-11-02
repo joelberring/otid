@@ -5,7 +5,8 @@ import type { GroupLeaderView, MapAgreementIssueCode } from "@o-tid/contracts";
 import { mapAgreementIssues } from "@o-tid/domain";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { groupFailure, groupRequest, repetitionCount, weekdayOf } from "../../lib/training-group-client";
-import { Button, Field, Notice } from "../ui";
+import { Button, DateInput, Field, Notice } from "../ui";
+import { isIsoDate } from "../../lib/form-validation";
 import { MapAgreementSummary } from "./map-agreement";
 import styles from "./training-group.module.css";
 
@@ -37,11 +38,15 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
   const map = view.maps.find(row => row.mapId === mapId);
   const lastUse = repeat && lastDate ? lastDate : raceDate;
   const issues = map ? mapAgreementIssues(map, { date: lastUse, publicUse: publish }) : [];
-  const count = repeat ? repetitionCount(raceDate, lastDate) : 1;
+  // ADR-0187: datumen skrivs som ÅÅÅÅ-MM-DD (samma fält som Skapa tävling); ogiltiga räknas inte.
+  const datesValid = isIsoDate(raceDate) && (!repeat || isIsoDate(lastDate));
+  const count = repeat && datesValid ? repetitionCount(raceDate, lastDate) : 1;
 
   async function submit(event: FormEvent, acknowledgeAgreement = false) {
     event.preventDefault();
-    if (eventName.trim().length < 2 || !raceDate || (repeat && count < 1)) { setProblem(text.errors.invalid); return; }
+    if (eventName.trim().length < 2 || !datesValid || (startTime !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) || (repeat && count < 1)) {
+      setProblem(text.errors.invalid); return;
+    }
     setBusy(true); setProblem("");
     try {
       const result = await groupRequest(`/api/organizer/groups/${view.groupId}/sessions`, "POST", { formatVersion: 1, requestId, source,
@@ -70,8 +75,9 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
     </select></Field>}
     <Field label={text.eventName}><input value={eventName} maxLength={160} disabled={busy} onChange={event => changed(setEventName)(event.target.value)} /></Field>
     <div className={styles.inline}>
-      <Field label={text.date}><input type="date" value={raceDate} disabled={busy} onChange={event => changed(setRaceDate)(event.target.value)} /></Field>
-      <Field label={text.time}><input type="time" value={startTime} disabled={busy} onChange={event => changed(setStartTime)(event.target.value)} /></Field>
+      <Field label={text.date}><DateInput value={raceDate} disabled={busy} onChange={event => changed(setRaceDate)(event.target.value)} /></Field>
+      <Field label={text.time}><input type="text" inputMode="numeric" autoComplete="off" placeholder="TT:MM" maxLength={5} value={startTime}
+        disabled={busy} onChange={event => changed(setStartTime)(event.target.value)} /></Field>
     </div>
     <Field label={text.map}><select value={mapId} disabled={busy} onChange={event => changed(setMapId)(event.target.value)}>
       <option value="">{text.mapFromSource}</option>
@@ -84,8 +90,8 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
       onChange={event => changed(setPublish)(event.target.checked)} />{text.publish}</label>
     <label className={styles.check}><input type="checkbox" checked={repeat} disabled={busy}
       onChange={event => changed(setRepeat)(event.target.checked)} />{text.repeat}</label>
-    {repeat && <Field label={text.repeatUntil} help={raceDate ? text.repeatHelp(text.weekdays[weekdayOf(raceDate) - 1] ?? "") : undefined}>
-      <input type="date" value={lastDate} min={raceDate} disabled={busy} onChange={event => changed(setLastDate)(event.target.value)} /></Field>}
+    {repeat && <Field label={text.repeatUntil} help={isIsoDate(raceDate) ? text.repeatHelp(text.weekdays[weekdayOf(raceDate) - 1] ?? "") : undefined}>
+      <DateInput value={lastDate} disabled={busy} onChange={event => changed(setLastDate)(event.target.value)} /></Field>}
     {agreementIssues && <div role="alert">
       <Notice tone="attention">{text.agreementStop}</Notice>
       {map && <MapAgreementSummary agreement={map} issues={agreementIssues} />}

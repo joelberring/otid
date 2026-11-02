@@ -40,7 +40,7 @@ test("kartor till starten: tryckantal, kartbuntslista, baksidor och fel karta", 
   await owner.addInitScript(() => { window.print = () => { (window as unknown as { otidPrints: number }).otidPrints =
     ((window as unknown as { otidPrints?: number }).otidPrints ?? 0) + 1; }; });
   const date = today();
-  const raceId = await createRace(owner, `Natt ${suffix}`, date, "Tävling med gafflade banor");
+  const raceId = await createRace(owner, `Natt ${suffix}`, date, "Tävling");
   await owner.goto(`/admin/${raceId}/imports`);
   await importFile(owner, "course-data-forked.xml", "2 banor och 2 klasser, 4 varianter");
   await importFile(owner, "entry-list-forked.xml", "7 deltagare");
@@ -69,6 +69,9 @@ test("kartor till starten: tryckantal, kartbuntslista, baksidor och fel karta", 
   await owner.getByRole("link", { name: "Kartor till starten" }).click();
   await owner.waitForURL(`**/admin/${raceId}/maps`);
   await expect(owner.getByRole("heading", { name: "Kartor till starten" })).toBeVisible();
+  // ADR-0188: kartorna skrivs ut per löpare i banläggningen (inte i Purple Pen eller OCAD).
+  await expect(owner.getByText(/Kartorna skrivs ut i banläggningen/)).toBeVisible();
+  await expect(owner.getByRole("link", { name: "Skriv ut en karta per löpare" })).toHaveAttribute("href", `/admin/${raceId}/course-setting/print?mode=runners`);
 
   // Tryckantal: fyra varianter av Lång och en rad för Kort; reserven ställs om till 1 karta per variant.
   const counts = owner.getByRole("table", { name: "Tryckantal per variant" });
@@ -81,7 +84,7 @@ test("kartor till starten: tryckantal, kartbuntslista, baksidor och fel karta", 
   await expect(counts.getByRole("row", { name: /^Totalt/ })).toContainText("14");
 
   // Kartbuntslistan per starttid, med variantkod; utskriften sparas.
-  await owner.getByRole("button", { name: "Kartbuntslista" }).click();
+  await owner.getByRole("button", { name: "Kartor i ordning" }).click();
   const list = owner.getByTestId("map-bundle-list");
   await expect(list.getByRole("row", { name: /Cia Holm/ })).toContainText("AD");
   await expect(list.getByText("Ledig tid")).toHaveCount(2);
@@ -116,7 +119,7 @@ test("kartor till starten: tryckantal, kartbuntslista, baksidor och fel karta", 
   await api(owner, raceId, `entries/${cia.id}/variant`, { formatVersion: 1, requestId: changeId, expectedEntryVersion: cia.version,
     entryId: cia.id, variantCode: "BD", confirmResultChanges: false }, { "idempotency-key": `entry-variant:${changeId}` });
   await owner.reload();
-  await owner.getByRole("button", { name: "Kartbuntslista" }).click();
+  await owner.getByRole("button", { name: "Kartor i ordning" }).click();
   const changes = owner.getByTestId("map-print-changes");
   await expect(changes).toContainText(/1 ändring sedan listan skrevs ut \d\d:\d\d/);
   await expect(changes).toContainText("Cia Holm (H21): AD → BD");

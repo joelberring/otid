@@ -55,7 +55,7 @@ export const coursePrintSv = {
   page: {
     title: "Utskrift av banor",
     back: "← Till banläggningen",
-    draft: "Utkast ur webbläsaren: färgerna är inte tryckkvalitet. Till tryckeriet: Skapa PDF för tryck nedan.",
+    draft: "Utkast ur webbläsaren: färgerna är inte tryckkvalitet. Till tryckeriet: Skapa PDF för tryck längre ned på sidan.",
     courses: "Banor",
     all: "Alla",
     variants: "Varianter",
@@ -76,7 +76,7 @@ export const coursePrintSv = {
     sheets: (count: number) => `${count} ark`,
     mode: "Vad skrivs ut",
     modeCourses: "Banor",
-    modeRunners: "En karta per löpare (kartbuntarna, steg 61)",
+    modeRunners: "En karta per löpare (i samma ordning som Kartor till starten)",
     fill: "Fyll sidan i ordning",
     repeat: "Samma bana i alla ramar",
     order: "Ordning",
@@ -84,17 +84,17 @@ export const coursePrintSv = {
     orderStart: "Startordning",
     duplex: "Dubbelsidigt: baksida med namn, klass, startnummer, starttid och variant",
     singleSided: "Enkelsidigt: remsan i mallen syns när kartan är rullad",
-    runnersLoading: "Läser kartbuntarna …",
-    runnersFailed: "Kartbuntarna kunde inte läsas.",
+    runnersLoading: "Läser löparna och deras varianter …",
+    runnersFailed: "Löparna och deras varianter kunde inte läsas.",
     runnersNone: "Det finns inga anmälda löpare med bana ännu.",
     runnerCounts: "Kartor per variant",
-    runnerOk: "Kontrollen före utskrift: varje löpare har en variant och antalet per variant stämmer med kartbuntslistan.",
+    runnerOk: "Kontrollen före utskrift: varje löpare har en variant och antalet per variant stämmer med Kartor till starten.",
     runnerProblems: "Kontrollen före utskrift hittade fel:",
     problem: {
       MISSING_VARIANT: (name: string, className: string) => `${name} (${className}) har ingen variant.`,
       UNKNOWN_COURSE: (course: string) => `Banan ${course} finns inte i banläggningen.`,
       UNKNOWN_VARIANT: (course: string, variant: string) => `Variant ${variant} finns inte på ${course} i banläggningen.`,
-      COUNT: (course: string, expected: number, actual: number) => `${course}: kartbuntslistan har ${expected} kartor, utskriften ${actual}.`
+      COUNT: (course: string, expected: number, actual: number) => `${course}: Kartor till starten har ${expected} kartor, utskriften ${actual}.`
     },
     bundlesLink: "Kartor till starten",
     noVariant: "utan variant"

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "./ui";
 import { useState } from "react";
 import type { UninterpretedReadoutListResponse } from "@o-tid/contracts";
 import { parseRaceClock } from "@o-tid/domain";
@@ -61,7 +62,7 @@ function UninterpretedRow({ raceId, row, timeZone, onRead }: { raceId: string; r
         <button type="button" disabled={busy} onClick={() => void reread("DEVICE")}>{text.rereadDevice}</button>
       </div>
       <div className={styles.toolbarRow}>
-        <label>{text.givenDate}<input type="date" value={date} disabled={busy} onChange={(event) => setDate(event.target.value)} /></label>
+        <label>{text.givenDate}<DateInput value={date} disabled={busy} onChange={(event) => setDate(event.target.value)} /></label>
         <label>{text.givenTime}<input type="text" inputMode="numeric" placeholder="18:45" value={clock} disabled={busy}
           onChange={(event) => setClock(event.target.value)} /></label>
         <button type="submit" disabled={busy}>{text.rereadGiven}</button>

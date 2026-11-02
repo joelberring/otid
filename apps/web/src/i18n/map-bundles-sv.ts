@@ -6,14 +6,15 @@ const maps = (count: number) => count === 1 ? "1 karta" : `${count} kartor`;
 
 export const mapBundlesSv = {
   title: "Kartor till starten",
-  pageHelp: "Kartorna trycks i Purple Pen eller OCAD. Här står hur många kartor varje variant behöver, i vilken ordning de ska ligga vid starten och vilken löpare som får vilken karta.",
+  pageHelp: "Här står hur många kartor varje variant behöver, i vilken ordning de ska ligga vid starten och vilken löpare som får vilken karta. Kartorna skrivs ut i banläggningen, en karta per löpare i samma ordning, som PDF för tryckeriet eller kontorsskrivaren.",
+  printLink: "Skriv ut en karta per löpare",
   back: "Tillbaka till arbetsytan",
   loading: "Läser in kartorna …",
   loadError: "Kartorna kunde inte läsas in. Försök igen.",
   retry: "Försök igen",
   link: "Kartor till starten",
-  linkHelp: "Tryckantal per variant, kartbuntslistan och baksidor per löpare.",
-  views: { COUNTS: "Tryckantal", BUNDLE: "Kartbuntslista", BACKS: "Baksidor" },
+  linkHelp: "Tryckantal per variant, kartorna i startordning och baksidor per löpare.",
+  views: { COUNTS: "Tryckantal", BUNDLE: "Kartor i ordning", BACKS: "Baksidor" },
   // Tryckantal
   countsTitle: "Tryckantal per variant",
   countsHelp: "Löpare med varianten, lediga starttider (så att efteranmälda får en karta) och reserv.",
@@ -29,7 +30,7 @@ export const mapBundlesSv = {
   missingVariantTitle: (count: number) => count === 1 ? "1 löpare saknar variant och får ingen karta än" : `${count} löpare saknar variant och får ingen karta än`,
   missingVariantHelp: "Fördela gafflingarna under Klasser först.",
   // Kartbuntslistan
-  bundleTitle: "Kartbuntslista",
+  bundleTitle: "Kartor i ordning",
   bundleHelp: "Kartorna i den ordning de ska ligga vid starten.",
   orderLabel: "Ordning",
   order: { TIME: "Per starttid", CLASS: "Per klass och variant (masstart)" },

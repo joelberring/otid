@@ -46,5 +46,5 @@ export const rogainingSv = {
   // Ny bana med klass i en rogainingtävling.
   courseTimeLimit: "Tidsgräns (min)",
   coursePenalty: "Straff per påbörjad minut",
-  courseControlsHelp: "Kontrollkoderna i valfri ordning, med mellanslag eller komma. Poängen ställs in ovan."
+  courseControlsHelp: "Kontrollkoderna i valfri ordning, med mellanslag eller komma. Poängen ställs in under Kontroller & poäng."
 } as const;

@@ -62,4 +62,14 @@ describe("banläggningens åtgärder", () => {
     expect(parse({ type: "PUT_OBJECTS", courseOrder: { "1": 2, "2": 1 } })).toBe(true);
     expect(parse({ type: "PUT_OBJECTS", courseOrder: { "1": 1.5 } })).toBe(false);
   });
+
+  it("tar träningens delar och ångra med träningen (ADR-0192 beslut 11)", () => {
+    const parse = (edit: unknown) => courseSettingEditSchema.safeParse(edit).success;
+    expect(parse({ type: "PUT_TRAINING", courses: { "1": { outside: { kind: "WHITE" }, sections: [] } }, attackStyle: { sizeRatio: 0.6, style: "SOLID" } })).toBe(true);
+    expect(parse({ type: "PUT_TRAINING", areas: { t1: null }, attackPoints: { t2: null }, attackStyle: null })).toBe(true);
+    expect(parse({ type: "PUT_TRAINING", courses: { "1": "korridor" } })).toBe(false);
+    expect(parse({ type: "PUT_TRAINING", other: {} })).toBe(false);
+    expect(parse({ type: "PUT_OBJECTS", training: { courses: { "1": null } } })).toBe(true);
+    expect(parse({ type: "PUT_OBJECTS", training: { lines: {} } })).toBe(false);
+  });
 });

@@ -45,7 +45,7 @@ export function useSettingsState() {
   const [settingsErrors, setSettingsErrors] = useState<FieldErrors<"eventName" | "raceName" | "raceDate" | "info" | "firstStartTime">>({});
   const [startListLiveMessage, setStartListLiveMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [selfRegistrationMessage, setSelfRegistrationMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  /** ADR-0187 beslut 3: vad som händer med starttiderna när datumet ändras, visas innan det sparas. */
+  /** ADR-0188 beslut 3: vad som händer med starttiderna när datumet ändras, visas innan det sparas. */
   const [dateMovePreview, setDateMovePreview] = useState<RaceDateMovePreviewResponse>();
   return { dateMovePreview, setDateMovePreview, selfRegistrationMessage, setSelfRegistrationMessage, startListLiveMessage, setStartListLiveMessage, settingsErrors, setSettingsErrors, settingsForm, setSettingsForm, settingsAttempt, setSettingsAttempt, settingsMessage, setSettingsMessage };
 }
@@ -64,7 +64,7 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
   }
 
   /**
-   * ADR-0187 beslut 3: förhandsvisningen av ett nytt datum. Undefined = inga starttider att flytta (spara direkt), "blocked"
+   * ADR-0188 beslut 3: förhandsvisningen av ett nytt datum. Undefined = inga starttider att flytta (spara direkt), "blocked"
    * = tävlingen har börjat (beskedet visas), annars visas förhandsvisningen och arrangören bekräftar.
    */
   async function readDateMove(raceDate: string, op: ReturnType<typeof begin>) {
@@ -92,7 +92,7 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
       firstStartTime: firstStartTime === undefined ? raceInfoSv.settings.firstStartInvalid : undefined };
     setSettingsErrors(errors);
     if (!settingsAttempt && Object.values(errors).some(Boolean)) return;
-    // Nytt datum: visa först vad som händer med starttiderna (ADR-0187 beslut 3).
+    // Nytt datum: visa först vad som händer med starttiderna (ADR-0188 beslut 3).
     if (!settingsAttempt && !confirmedMove && form.raceDate !== data.raceDate) {
       const op = begin(true);
       try {

@@ -11,7 +11,7 @@ export const raceTypeSchema = z.enum(raceTypes);
 export type RaceType = z.infer<typeof raceTypeSchema>;
 
 /**
- * ADR-0187 beslut 4: startsättet för klasser som skapas från en banfil eller Eventor. En vanlig Tävling lottas (fast start);
+ * ADR-0188 beslut 4: startsättet för klasser som skapas från en banfil eller Eventor. En vanlig Tävling lottas (fast start);
  * fri start är naturlig för Träning, Liten tävling, Rogaining och Fest. Stafettklasser har egna regler.
  */
 export function defaultStartRule(raceType: RaceType): "FIXED" | "PUNCH" {
@@ -47,7 +47,7 @@ export const raceSettingsRequestSchema = z.object({
   /** Steg 41: "Tillåt självregistrering på tävlingsdagen". Saknas = oförändrad. */
   selfRegistration: z.boolean().optional(),
   /**
-   * ADR-0187 beslut 3: nytt datum när det finns starttider. Sant = arrangören har sett förhandsvisningen och starttiderna
+   * ADR-0188 beslut 3: nytt datum när det finns starttider. Sant = arrangören har sett förhandsvisningen och starttiderna
    * flyttas till det nya datumet med samma klockslag. Utan det avvisas ett nytt datum när det finns starttider.
    */
   moveStartTimes: z.boolean().optional()
@@ -68,7 +68,7 @@ export type RaceSettingsRequest = z.infer<typeof raceSettingsRequestSchema>;
 export type RaceSettingsResponse = z.infer<typeof raceSettingsResponseSchema>;
 
 /**
- * ADR-0187 beslut 3: vad som händer om tävlingen flyttas till ett annat datum. Läser bara. `blocked` säger varför det inte
+ * ADR-0188 beslut 3: vad som händer om tävlingen flyttas till ett annat datum. Läser bara. `blocked` säger varför det inte
  * går: avläsningar, radiostämplingar, incheckning vid starten eller resultat.
  */
 export const raceDateMovePreviewRequestSchema = z.object({ formatVersion: z.literal(1), raceDate: z.iso.date() }).strict();

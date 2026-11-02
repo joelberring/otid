@@ -215,7 +215,7 @@
 .drawVacancies { display: grid; grid-template-columns: minmax(3rem, 1fr) minmax(3.5rem, 1fr); gap: 6px; min-width: 9rem; max-width: 13rem; }
 .drawPreview { display: grid; gap: 14px; min-width: 0; padding-top: 14px; border-top: 1px solid var(--line-strong); }
 .drawNote { padding: 4px 10px; border-left: 3px solid var(--line-strong); color: var(--muted); }
-/* ADR-0187 beslut 1: gemensamma inställningar och en rad per klass i förhandsvisningen. */
+/* ADR-0188 beslut 1: gemensamma inställningar och en rad per klass i förhandsvisningen. */
 .drawCommon { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: var(--radius); }
 .drawCommon > legend { padding: 0 6px; font-weight: 600; }
 .drawCommon > p { margin: 0; }
@@ -302,7 +302,7 @@ summary.drawSummaryRow:hover { background: var(--subtle); }
   .drawTable td[data-label]:nth-child(4) { grid-column: 1 / 3; }
   .drawTable td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
   .drawVacancies { min-width: 0; }
-  /* ADR-0187: Banor och Klasser som kort på smal skärm – namnet överst, uppgifterna med etikett, knapparna under. */
+  /* ADR-0188: Banor och Klasser som kort på smal skärm – namnet överst, uppgifterna med etikett, knapparna under. */
   .cardTable, .cardTable tbody { display: block; width: 100%; }
   .cardTable thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .cardTable tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }

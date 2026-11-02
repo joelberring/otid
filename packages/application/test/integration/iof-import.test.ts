@@ -20,7 +20,7 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
       raceDate: "2026-08-31",
       timeZone: "Europe/Stockholm"
     });
-    // ADR-0187 beslut 4: i en vanlig Tävling får banfilens klasser lottad start; Liten tävling ger fri start.
+    // ADR-0188 beslut 4: i en vanlig Tävling får banfilens klasser lottad start; Liten tävling ger fri start.
     if (raceType) await db.update(schema.races).set({ raceType }).where(eq(schema.races.id, created.race.id));
     return created.race.id;
   }

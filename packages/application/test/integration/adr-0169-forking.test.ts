@@ -183,7 +183,7 @@ describe("ADR-0169 gafflingar", () => {
     expect(await effective(proof, ids.Bo!)).toEqual({ status: "OK", current: true });
 
     // Efteranmäld i den gafflade klassen får den minst använda varianten.
-    // ADR-0187 beslut 4: banfilens klass har tävlingstypens startsätt.
+    // ADR-0188 beslut 4: banfilens klass har tävlingstypens startsätt.
     const classRow = (await pool.query<{ id: string; course_version_id: string; start_rule: "FIXED" | "PUNCH" }>(
       "select id, course_version_id, start_rule from class where race_id = $1 and name = 'H21'", [proof.raceId])).rows[0]!;
     const late = await registerEntryAsAdmin(db, { ...proof, idempotencyKey: `entry-registration:${randomUUID()}`, request: {

@@ -8,7 +8,7 @@ export const startDrawSv = {
   help: "Ställ in startsätt, intervall och vakanser en gång för alla klasser och tryck på Använd för alla. Ändra sedan bara de klasser som ska avvika. Klasser vars banor har samma första kontroll startar aldrig samma minut. Vakanser sprids i klassen och efteranmälda får första lediga vakanta tid.",
   load: "Visa klasserna", loading: "Läser klasserna…",
   first: "Första start (klockslag)", firstExample: "10:00",
-  /** ADR-0187 beslut 2: en enda första start för tävlingen; Inställningar visar den och länkar hit. */
+  /** ADR-0188 beslut 2: en enda första start för tävlingen; Inställningar visar den och länkar hit. */
   firstHelp: "Tävlingens första start. Sparas med lottningen och visas för löparna (står också under Inställningar).",
   common: {
     title: "Gemensamt för klasserna",

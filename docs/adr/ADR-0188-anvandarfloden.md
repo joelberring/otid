@@ -1,4 +1,4 @@
-# ADR-0187: Användarflöden efter granskningen 2026-11-02
+# ADR-0188: Användarflöden efter granskningen 2026-11-02
 
 Status: beslutad 2026-11-02 (grenen `ux-flode`). Ändrar ADR-0170 beslut 1 (tävlingstyperna), steg 9/26 (lottningens formulär),
 steg 33 (första start) och ADR-0172 beslut 3 (Personer med behörighet).
@@ -44,6 +44,6 @@ var en egen tävlingstyp och att formuläret för behörigheter avslöjade om en
 
 ## Konsekvenser
 
-- Migration 0041 (endast tillägg): väntande behörigheter per e-postadress.
+- Migration 0042 (endast tillägg): väntande behörigheter per e-postadress.
 - Lottningsspecarna öppnar förhandsvisningens klasser med "Visa alla löpare".
 - `FORKED` kan tas bort ur databasens tillåtna värden när inga rader har det (steg två).

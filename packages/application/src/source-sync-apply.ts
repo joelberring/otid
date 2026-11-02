@@ -79,7 +79,7 @@ export async function assessEventor(tx: Transaction, raceId: string, rows: reado
   const moves = new Map<string, string>();
   const cardsAfterReadout: SyncConsequence["cardsAfterReadout"] = [];
   const entryById = new Map(state.entries.map(entry => [entry.id, entry]));
-  // ADR-0187 beslut 4: nya klasser får tävlingstypens startsätt.
+  // ADR-0188 beslut 4: nya klasser får tävlingstypens startsätt.
   const startRule = await raceDefaultStartRule(tx, raceId);
   for (const { action } of rows) {
     if (action.type !== "UPDATE_ENTRY") continue;

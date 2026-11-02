@@ -7,7 +7,7 @@ const row = (selected: boolean): DrawRow => ({ method: "FREE", interval: "2", va
 const advanced: DrawAdvanced = { groupControls: "1", maxPerMinute: "", maxPerMinutePerPen: "", lastStart: "", seeding: "LAST",
   classOrder: null, laterStarts: { b: { kind: "OFFSET", value: "30" } }, seeds: {} };
 
-describe("lottningens gemensamma inställningar (ADR-0187 beslut 1)", () => {
+describe("lottningens gemensamma inställningar (ADR-0188 beslut 1)", () => {
   it("lägger värdena på alla klasser och kryssar i dem", () => {
     const result = applyDrawCommon({ a: row(false), b: row(true) }, advanced,
       { ...DRAW_COMMON_DEFAULT, interval: " 3 ", vacancies: "2" }, "ALL");

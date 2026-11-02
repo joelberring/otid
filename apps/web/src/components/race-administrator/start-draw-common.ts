@@ -3,7 +3,7 @@ import type { DrawAdvanced } from "./start-draw-advanced";
 import type { DrawRow } from "./start-draw";
 
 /**
- * Gemensamma inställningar i lottningen (ADR-0187 beslut 1): startsätt, intervall, första start och vakanser för alla
+ * Gemensamma inställningar i lottningen (ADR-0188 beslut 1): startsätt, intervall, första start och vakanser för alla
  * eller de ikryssade klasserna på en gång. Raderna i tabellen står kvar för klassvisa avvikelser.
  */
 export type DrawCommon = {

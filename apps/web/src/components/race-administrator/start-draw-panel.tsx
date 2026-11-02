@@ -18,7 +18,7 @@ const forked = (raceClass: { slots: readonly { entry: { variantCode: string | nu
   raceClass.slots.some(slot => slot.entry?.variantCode);
 
 /**
- * Lottning under Start (PLAN.md steg 9 och 26, ADR-0187 beslut 1): första start och klubbseparering, gemensamma
+ * Lottning under Start (PLAN.md steg 9 och 26, ADR-0188 beslut 1): första start och klubbseparering, gemensamma
  * inställningar (startsätt, intervall, första start och vakanser) som läggs på alla eller de ikryssade klasserna, och
  * tabellen per klass för avvikelser; resten under "Avancerat". "Visa lottning" visar en rad per klass (antal, första och
  * sista start) med löparna bakom ett klick; "Spara lottningen" sparar exakt den.
@@ -94,7 +94,7 @@ function SelectAll({ ws, locked }: { ws: Workspace; locked: boolean }) {
     onChange={event => ws.selectAllDrawRows(event.target.checked)} />;
 }
 
-/** ADR-0187 beslut 1: startsätt, intervall, första start och vakanser en gång, för alla eller de ikryssade klasserna. */
+/** ADR-0188 beslut 1: startsätt, intervall, första start och vakanser en gång, för alla eller de ikryssade klasserna. */
 function DrawCommonFields({ ws, locked }: { ws: Workspace; locked: boolean }) {
   const { drawCommon: common, drawCommonApplied, changeDrawCommon, applyDrawCommonTo, drawRows, raceId } = ws;
   const timed = common.method === "MINUTE";

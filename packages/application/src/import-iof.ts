@@ -76,7 +76,7 @@ async function importCourses(tx: DbExecutor, raceId: string, parsed: CourseDataI
     await insertCourseVersionControls(tx, raceId, version.id, imported.controlCodes, imported.variants ?? []);
   }
 
-  // ADR-0187 beslut 4: nya klasser får tävlingstypens startsätt (lottad start i en vanlig Tävling).
+  // ADR-0188 beslut 4: nya klasser får tävlingstypens startsätt (lottad start i en vanlig Tävling).
   const startRule = await raceDefaultStartRule(tx, raceId);
   for (const assignment of parsed.assignments) {
     const courseVersionId = versionByCourse.get(assignment.courseExternalId);

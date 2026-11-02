@@ -11,7 +11,7 @@ import { loadDrawPlans } from "./start-draw-basis";
 import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
- * ADR-0187 beslut 3: tävlingen flyttas till ett annat datum efter lottningen. Alla starttider (löparnas fasta tider,
+ * ADR-0188 beslut 3: tävlingen flyttas till ett annat datum efter lottningen. Alla starttider (löparnas fasta tider,
  * lottningarnas tider och stafettsträckornas masstart och omstart) får samma klockslag på det nya datumet. Det går bara
  * så länge ingen har läst ut, stämplat på en radiokontroll, checkats in vid starten eller fått ett resultat; då hör tiderna
  * till en tävling som redan har börjat. Förhandsvisningen läser bara; flytten görs av Inställningar i samma transaktion som

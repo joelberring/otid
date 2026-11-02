@@ -11,7 +11,7 @@ export function classTableStatus(row: { entryCount: number; readOutCount: number
   missingVariantCount?: number }): ClassTableStatus {
   if (row.entryCount === 0) return { kind: "NO_ENTRIES" };
   if (row.missingStartTimeCount > 0) return { kind: "MISSING_START_TIMES", count: row.missingStartTimeCount };
-  // ADR-0187 beslut 4: en gafflad klass är inte klar för start så länge någon saknar variant.
+  // ADR-0188 beslut 4: en gafflad klass är inte klar för start så länge någon saknar variant.
   if ((row.missingVariantCount ?? 0) > 0 && row.readOutCount < row.entryCount) return { kind: "MISSING_VARIANTS", count: row.missingVariantCount! };
   if (row.readOutCount >= row.entryCount) return { kind: "ALL_READ_OUT" };
   if (row.readOutCount > 0) return { kind: "WAITING", count: row.entryCount - row.readOutCount };

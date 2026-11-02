@@ -11,7 +11,7 @@ async function previewDraw(owner: Page, draw: Locator, className: string) {
   await draw.getByRole("button", { name: "Visa lottning" }).click();
   const preview = owner.getByRole("region", { name: "Så blir startlistan" });
   await expect(preview).toBeVisible();
-  // ADR-0187 beslut 1: en rad per klass; löparna syns efter ett klick.
+  // ADR-0188 beslut 1: en rad per klass; löparna syns efter ett klick.
   await preview.getByRole("button", { name: "Visa alla löpare" }).click();
   return preview;
 }

@@ -15,9 +15,9 @@ import { importIofXml } from "../../src/import-iof";
 import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
-if (!base) throw new Error("ADR-0187-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
+if (!base) throw new Error("ADR-0188-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
 const admin = createDatabase(base);
-const databaseName = `otid_adr0187_${randomUUID().replaceAll("-", "")}`;
+const databaseName = `otid_adr0188_${randomUUID().replaceAll("-", "")}`;
 const url = new URL(base);
 url.pathname = `/${databaseName}`;
 const { db, pool } = createDatabase(url.href);
@@ -28,7 +28,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await pool.end();
-  if (!/^otid_adr0187_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Ogiltig testdatabas för rensning");
+  if (!/^otid_adr0188_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Ogiltig testdatabas för rensning");
   await admin.pool.query(`DROP DATABASE "${databaseName}"`);
   await admin.pool.end();
 });
@@ -91,7 +91,7 @@ const clocks = async (raceId: string) => (await pool.query<{ t: string }>(
   "select to_char(fixed_start_time at time zone 'Europe/Stockholm', 'YYYY-MM-DD HH24:MI') as t from entry where race_id = $1 order by fixed_start_time", [raceId]))
   .rows.map(row => row.t);
 
-describe("ADR-0187: lottningens första start och datumflytt", () => {
+describe("ADR-0188: lottningens första start och datumflytt", () => {
   it("lottningen sätter tävlingens första start (samma värde som Inställningar visar)", async () => {
     const proof = await race(await account());
     const h21 = await courseClass(proof, "H21", [31, 32]);
@@ -158,7 +158,7 @@ describe("ADR-0187: lottningens första start och datumflytt", () => {
 
 });
 
-describe("ADR-0187 beslut 4: startsätt för importerade klasser", () => {
+describe("ADR-0188 beslut 4: startsätt för importerade klasser", () => {
   const courseData = `<?xml version="1.0" encoding="UTF-8"?>
 <CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-10-01T08:00:00Z" creator="O-Tid test">
   <Event><Name>Påhittad</Name></Event><RaceCourseData>

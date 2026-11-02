@@ -10,7 +10,7 @@ describe("klasstabellens status", () => {
     expect(classTableStatus({ entryCount: 3, readOutCount: 3, missingStartTimeCount: 0 })).toEqual({ kind: "ALL_READ_OUT" });
   });
 
-  it("en gafflad klass med löpare utan variant är inte klar för start (ADR-0187 beslut 4)", () => {
+  it("en gafflad klass med löpare utan variant är inte klar för start (ADR-0188 beslut 4)", () => {
     expect(classTableStatus({ entryCount: 60, readOutCount: 0, missingStartTimeCount: 0, missingVariantCount: 60 }))
       .toEqual({ kind: "MISSING_VARIANTS", count: 60 });
     expect(classTableStatus({ entryCount: 60, readOutCount: 0, missingStartTimeCount: 0, missingVariantCount: 0 })).toEqual({ kind: "READY" });

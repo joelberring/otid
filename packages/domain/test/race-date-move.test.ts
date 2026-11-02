@@ -3,7 +3,7 @@ import { moveToRaceDate } from "../src/race-clock";
 
 const zone = "Europe/Stockholm";
 
-describe("starttider till ett nytt datum (ADR-0187 beslut 3)", () => {
+describe("starttider till ett nytt datum (ADR-0188 beslut 3)", () => {
   it("behåller klockslaget en vecka senare", () => {
     expect(moveToRaceDate(new Date("2026-12-02T09:00:00Z"), "2026-12-02", "2026-12-09", zone)?.toISOString()).toBe("2026-12-09T09:00:00.000Z");
   });

@@ -45,7 +45,7 @@ async function importXml(page: Page, name: string, xml: string, summary: string 
 }
 
 /**
- * Användarflödena efter granskningen (ADR-0187). Tio klasser och 300 påhittade löpare läses in från IOF XML. Skärmbilder
+ * Användarflödena efter granskningen (ADR-0188). Tio klasser och 300 påhittade löpare läses in från IOF XML. Skärmbilder
  * i dator och 390 px när E2E_UX_SHOTS pekar på en katalog.
  */
 const shots = process.env.E2E_UX_SHOTS;
@@ -83,7 +83,7 @@ async function raceWithClasses(page: Page, eventName: string, date = daysFromTod
 }
 
 /**
- * ADR-0187 beslut 1–2: tio klasser lottas med de gemensamma inställningarna och en avvikelse; förhandsvisningen har en rad
+ * ADR-0188 beslut 1–2: tio klasser lottas med de gemensamma inställningarna och en avvikelse; förhandsvisningen har en rad
  * per klass och löparna bakom ett klick. Första start finns på ett ställe: Inställningar visar den och länkar till lottningen.
  */
 test("lotta tio klasser med gemensamma inställningar och en kompakt förhandsvisning", async ({ browser }) => {
@@ -144,7 +144,7 @@ test("lotta tio klasser med gemensamma inställningar och en kompakt förhandsvi
   await info.getByRole("button", { name: "Ändra i Lottning" }).click();
   await expect(owner.getByLabel("Första start (klockslag)")).toHaveValue("10:00");
 
-  // ADR-0187 beslut 3: tävlingen skjuts upp en vecka efter lottningen; starttiderna följer med efter en bekräftelse.
+  // ADR-0188 beslut 3: tävlingen skjuts upp en vecka efter lottningen; starttiderna följer med efter en bekräftelse.
   await openStep(owner, "Inställningar");
   const later = daysFromToday(37);
   await owner.getByLabel("Datum", { exact: true }).fill(later);
@@ -166,7 +166,7 @@ async function fitsWidth(page: Page) {
 }
 
 /**
- * ADR-0187: på 390 px blir Banor och Klasser kort (namnet överst, uppgifterna med etikett, knapparna under) och ingen del
+ * ADR-0188: på 390 px blir Banor och Klasser kort (namnet överst, uppgifterna med etikett, knapparna under) och ingen del
  * av arbetsytan går utanför skärmen.
  */
 test("arbetsytan går inte utanför skärmen på 390 px", async ({ browser }) => {

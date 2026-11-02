@@ -54,7 +54,7 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, raceId));
     if (!race) return { status: "not-found" };
-    // ADR-0187 beslut 3: med starttider följer de med till det nya datumet (samma klockslag) när arrangören har sett
+    // ADR-0188 beslut 3: med starttider följer de med till det nya datumet (samma klockslag) när arrangören har sett
     // förhandsvisningen. Har tävlingen börjat (avläsning, stämpling, incheckning eller resultat) ändras inget datum.
     let datePlan: RaceDateMovePlan | undefined;
     if (race.raceDate !== intent.raceDate) {

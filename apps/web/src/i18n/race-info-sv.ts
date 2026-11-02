@@ -7,7 +7,7 @@ export const raceInfoSv = {
     infoTooLong: (max: number) => `Högst ${max} tecken.`,
     firstStart: "Första start",
     firstStartHelp: "Klockslag, t.ex. 18:30. Bara information: ändrar inte starttider, lottning eller tävlingsklocka.",
-    /** ADR-0187 beslut 2: tävlingar med lottning har en första start, den i Start → Lottning. */
+    /** ADR-0188 beslut 2: tävlingar med lottning har en första start, den i Start → Lottning. */
     firstStartUnset: "Inte satt än",
     firstStartFromDraw: "Sätts i Start → Lottning och sparas med lottningen. Samma tid visas för löparna.",
     firstStartOpenDraw: "Ändra i Lottning",

@@ -320,7 +320,7 @@ export async function commitStartDrawAsAdmin(db: Database, input: Authentication
       snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, drawnAt: now.toISOString() });
     const saved = await writeDraw(tx, { raceId, requestId: intent.requestId, computed, settings: intent, seed: intent.seed,
       actorAccountId: auth.principal.accountId, snapshotVersionBefore: race.snapshotVersion, response, now });
-    // ADR-0187 beslut 2: lottningens första start är tävlingens första start (samma värde som Inställningar visar).
+    // ADR-0188 beslut 2: lottningens första start är tävlingens första start (samma värde som Inställningar visar).
     const { timeZone } = await raceMetadata(tx, raceId);
     const firstStartClock = new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
       .format(new Date(intent.firstStartTime));

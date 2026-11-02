@@ -99,7 +99,7 @@ function addDays(date: string, days: number): string {
 }
 
 /**
- * ADR-0187 beslut 3: en starttid flyttad till tävlingens nya datum med samma klockslag i tävlingens tidszon. En tid efter
+ * ADR-0188 beslut 3: en starttid flyttad till tävlingens nya datum med samma klockslag i tävlingens tidszon. En tid efter
  * midnatt (dagen efter tävlingsdagen, ADR-0178) hamnar dagen efter det nya datumet. Sommartid räknas om: 10:00 är 10:00 också
  * när förskjutningen mot UTC är en annan. Ett klockslag som inte finns det nya datumet (övergången till sommartid) flyttas
  * en timme fram, som klockan gör. Null om datumen inte går att läsa.

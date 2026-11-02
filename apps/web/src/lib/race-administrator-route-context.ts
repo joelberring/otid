@@ -70,7 +70,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
       sharedForestWatch(`forest-watch:${raceId}:${raceChangeGeneration(raceId)}`, compute)), publicationPreview: getStartListPublicationPreviewAsAdmin, publication: decideStartListPublicationAsAdmin,
   startListExport: exportCurrentStartListXmlAsAdmin,
   drawSetup: loadStartDrawSetupAsAdmin, drawPreview: previewStartDrawAsAdmin, draw: commitStartDrawAsAdmin,
-  // ADR-0187 beslut 3: vad som händer när tävlingen flyttas till ett annat datum.
+  // ADR-0188 beslut 3: vad som händer när tävlingen flyttas till ett annat datum.
   raceDateMovePreview: previewRaceDateMoveAsAdmin,
   finalizationCandidates: listResultFinalizationCandidatesAsAdmin, finalize: finalizeResultsAsAdmin,
   frozenResults: listFrozenRaceFinalizationsAsAdmin, frozenResult: exportFrozenIofResultListAsAdmin,

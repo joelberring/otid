@@ -188,7 +188,7 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     expect(await getSourceSyncStatusAsAdmin(db, proof)).toMatchObject({ status: "ok", response: { courseFile: { fileName: "course-file-1.xml" } } });
 
     // En lokal direktanmälan och tre avläsningar.
-    // ADR-0187 beslut 4: klasser från Eventor i en vanlig Tävling har lottad start.
+    // ADR-0188 beslut 4: klasser från Eventor i en vanlig Tävling har lottad start.
     const classes = (await pool.query<{ id: string; name: string; course_version_id: string; start_rule: "FIXED" | "PUNCH" }>(
       "select id, name, course_version_id, start_rule from class where race_id = $1", [proof.raceId])).rows;
     const h21 = classes.find(row => row.name === "H21")!;

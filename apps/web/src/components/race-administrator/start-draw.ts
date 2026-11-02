@@ -28,7 +28,7 @@ export function useStartDrawState() {
   const [drawAttempt, setDrawAttempt] = useState<StartDrawAttempt>();
   /** Fältfelet för första start (PLAN.md steg 24). */
   const [drawFirstError, setDrawFirstError] = useState("");
-  /** ADR-0187 beslut 1: de gemensamma inställningarna och beskedet efter "Använd för alla/valda". */
+  /** ADR-0188 beslut 1: de gemensamma inställningarna och beskedet efter "Använd för alla/valda". */
   const [drawCommon, setDrawCommon] = useState<DrawCommon>(DRAW_COMMON_DEFAULT);
   const [drawCommonApplied, setDrawCommonApplied] = useState("");
   return { ...useStartDrawAdvancedState(), drawCommon, setDrawCommon, drawCommonApplied, setDrawCommonApplied, drawFirstError, setDrawFirstError, drawSetup, setDrawSetup, drawRows, setDrawRows, drawFirst, setDrawFirst, drawClubSeparation, setDrawClubSeparation,
@@ -77,11 +77,11 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     if (value.raceId !== raceId) throw new Error("Draw setup scope mismatch");
     setDrawSetup(value);
     // Behåll det arrangören redan valt för klasser som finns kvar. En ny klass med lottad start, anmälda och utan
-    // starttider är ikryssad från början (ADR-0187 beslut 1): en ny tävling lottas med "Visa lottning" direkt.
+    // starttider är ikryssad från början (ADR-0188 beslut 1): en ny tävling lottas med "Visa lottning" direkt.
     setDrawRows(previous => Object.fromEntries(value.classes.map(row => [row.id, previous[row.id] ?? {
       method: row.method, interval: String(row.intervalMinutes), vacancies: String(row.vacancies.value),
       vacancyKind: row.vacancies.kind, selected: row.method !== "FREE" && row.entryCount > 0 && !row.hasStartTimes }])));
-    // ADR-0187 beslut 2: tävlingens första start (samma som under Inställningar), annars den lottade.
+    // ADR-0188 beslut 2: tävlingens första start (samma som under Inställningar), annars den lottade.
     setDrawFirst(previous => previous || ws.data?.firstStartTime ||
       (value.firstStartTime ? formatClockTime(value.firstStartTime, value.timeZone).slice(0, 5) : ""));
     // Avancerat läses in en gång: det som sparades med senaste lottningen (PLAN.md steg 26).
@@ -112,7 +112,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     setDrawCommonApplied("");
     setDrawCommon(previous => ({ ...previous, ...change }));
   }
-  /** "Använd för alla" och "Använd för valda": de gemensamma värdena på klasserna (ADR-0187 beslut 1). */
+  /** "Använd för alla" och "Använd för valda": de gemensamma värdena på klasserna (ADR-0188 beslut 1). */
   function applyDrawCommonTo(scope: DrawCommonScope) {
     setDrawPreview(undefined); setDrawError(""); setDrawSaved("");
     const applied = applyDrawCommon(drawRows, drawAdvanced, drawCommon, scope);

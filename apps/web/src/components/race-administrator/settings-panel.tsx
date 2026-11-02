@@ -23,7 +23,7 @@ import type { Workspace } from "./workspace-state";
 
 const text = raceTypeSv.settings;
 
-/** ADR-0187 beslut 3: vad som händer med starttiderna när datumet ändras, eller varför det inte går. */
+/** ADR-0188 beslut 3: vad som händer med starttiderna när datumet ändras, eller varför det inte går. */
 function DateMoveReview({ ws }: { ws: Workspace }) {
   const preview = ws.dateMovePreview!;
   const move = text.dateMove;
@@ -65,7 +65,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
   if (!shows("SETTINGS") || !data) return null;
   const form = settingsForm ?? settingsFormFrom(data);
   const infoText = raceInfoSv.settings;
-  // ADR-0187 beslut 3: starttider följer med till ett nytt datum; med resultat går datumet inte att ändra (servern kontrollerar
+  // ADR-0188 beslut 3: starttider följer med till ett nytt datum; med resultat går datumet inte att ändra (servern kontrollerar
   // också avläsningar, stämplingar och incheckning).
   const dateLocked = data.entries.some(entry => entry.effectiveResult.state !== "NO_PUBLISHED_RESULT");
   const withStartTimes = data.entries.some(entry => entry.fixedStartTime !== null);
@@ -92,7 +92,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
           <Field label={infoText.info} error={settingsErrors.info} help={infoText.infoHelp(form.info.length, RACE_INFO_MAX)}>
             <textarea value={form.info} rows={4} maxLength={RACE_INFO_MAX} disabled={locked || !!settingsAttempt}
               onChange={event => changeSettings({ info: event.target.value })} /></Field>
-          {/* ADR-0187 beslut 2: med lottning sätts första start i Start → Lottning; här visas den med en länk dit. */}
+          {/* ADR-0188 beslut 2: med lottning sätts första start i Start → Lottning; här visas den med en länk dit. */}
           {drawStart ? <div className={styles.fieldWithHelpBlock}>
             <span className={styles.fieldLabel}>{infoText.firstStart}</span>
             <p><strong>{data.firstStartTime ?? infoText.firstStartUnset}</strong></p>

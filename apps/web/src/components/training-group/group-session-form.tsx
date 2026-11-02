@@ -38,7 +38,7 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
   const map = view.maps.find(row => row.mapId === mapId);
   const lastUse = repeat && lastDate ? lastDate : raceDate;
   const issues = map ? mapAgreementIssues(map, { date: lastUse, publicUse: publish }) : [];
-  // ADR-0187: datumen skrivs som ÅÅÅÅ-MM-DD (samma fält som Skapa tävling); ogiltiga räknas inte.
+  // ADR-0188: datumen skrivs som ÅÅÅÅ-MM-DD (samma fält som Skapa tävling); ogiltiga räknas inte.
   const datesValid = isIsoDate(raceDate) && (!repeat || isIsoDate(lastDate));
   const count = repeat && datesValid ? repetitionCount(raceDate, lastDate) : 1;
 

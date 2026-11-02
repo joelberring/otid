@@ -39,7 +39,7 @@ export const raceTypeSv = {
     raceNameHelp: "Till exempel Etapp 1 eller Torsdag. Lämna tomt om evenemanget bara har ett lopp.",
     raceDate: "Datum",
     raceDateLocked: "Datumet kan inte ändras när någon har läst ut eller har resultat.",
-    /** ADR-0187 beslut 3: datumet flyttas med starttiderna. */
+    /** ADR-0188 beslut 3: datumet flyttas med starttiderna. */
     dateMove: {
       help: "Starttiderna följer med till det nya datumet med samma klockslag. Du ser vad som händer innan det sparas.",
       title: "Flytta tävlingen",

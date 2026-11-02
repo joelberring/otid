@@ -5,15 +5,14 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseVariantForReadout, normalizeSelfRegistrationName, PARTY_DISPLAY_NAME_MAX, partyDisplayName, selfRegistrationDay, withProposedEntryVariants
+  normalizeSelfRegistrationName, PARTY_DISPLAY_NAME_MAX, partyDisplayName, selfRegistrationDay
 } from "@o-tid/domain";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import { lockRaceForMutation } from "./concurrency";
 import { loadPartyState } from "./party";
 import { canAddClassEntry } from "./class-capacity-guard";
-import { latestResultReadAt, latestUnresolvedReadout } from "./readout-registration";
-import { evaluateAndStore, normalizedReadout } from "./result-revisions";
-import { bumpReadoutPackageVersion, loadRaceSnapshot, type DbExecutor } from "./snapshot";
+import { assignCard, linkUnresolvedReadout } from "./card-assignment";
+import { bumpReadoutPackageVersion, type DbExecutor } from "./snapshot";
 import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
@@ -156,23 +155,12 @@ export async function selfRegisterCard(db: Database, input: { raceId: string; cl
     const [entry] = await tx.insert(schema.entries).values({ raceId: race.id, classId: raceClass.id, givenName: givenName!, familyName: familyName!,
       organisationName: clubText, version: 1, selfRegisteredAt: now }).returning({ id: schema.entries.id });
     if (!entry) throw new Error("Deltagaren kunde inte sparas");
-    await tx.insert(schema.cardAssignments).values({ raceId: race.id, entryId: entry.id, cardNumber });
+    await assignCard(tx, { raceId: race.id, entryId: entry.id, cardNumber });
     await bumpReadoutPackageVersion(tx, race.id);
 
-    // Har servern redan brickans avläsning som okänd bedöms den nu (som direktanmälan i avläsningen).
-    let linkedRevision: number | null = null;
-    const readout = await latestUnresolvedReadout(tx, race.id, cardNumber);
-    if (readout && await latestResultReadAt(tx, entry.id) === null) {
-      let snapshot = await loadRaceSnapshot(tx, race.id);
-      const normalized = normalizedReadout(readout);
-      const detected = courseVariantForReadout(normalized, snapshot);
-      if (detected && !detected.assigned) {
-        await tx.update(schema.entries).set({ courseVariantCode: detected.code }).where(eq(schema.entries.id, entry.id));
-        snapshot = withProposedEntryVariants(snapshot, new Map([[entry.id, detected.code]]));
-      }
-      const stored = await evaluateAndStore(tx, snapshot, normalized, "UNKNOWN_READOUT_RESOLUTION", { entryId: entry.id });
-      if (stored.stored) linkedRevision = stored.revision.revision;
-    }
+    // Har servern redan brickans avläsning som okänd bedöms den nu (samma regel som direktanmälan, `card-assignment.ts`).
+    const linked = await linkUnresolvedReadout(tx, { raceId: race.id, entryId: entry.id, cardNumber, actorAccountId: null, detectVariant: true });
+    const linkedRevision = linked?.revision ?? null;
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "entry", entityId: entry.id, actorKind: null, actorId: null,
       action: "ENTRY_SELF_REGISTERED", before: null,
       after: { source: SELF_REGISTRATION_SOURCE, cardNumber, classId: raceClass.id, givenName, familyName, organisationName: clubText,

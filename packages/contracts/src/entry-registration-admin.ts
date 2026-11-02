@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eventTimeZoneSchema, fixedStartTimeSchema } from "./entry-start-time-admin";
-import { newEntryCardNumberSchema } from "./entry-card-admin";
+import { linkedReadoutSchema, newEntryCardNumberSchema } from "./entry-card-admin";
 import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 import { eventorIdSchema } from "./runner-database";
 const version = z.number().int().positive().max(2_147_483_647);
@@ -26,7 +26,9 @@ export const entryRegistrationResponseSchema = z.object({ formatVersion: z.liter
   assignmentId: uuid.nullable(), fixedStartTime: fixedStartTimeSchema.nullable(),
   /** Tiden gavs av appen från klassens lottning. */
   startTimeAssigned: z.boolean(),
-  snapshotVersionBefore: version, snapshotVersionAfter: version, createdAt: z.iso.datetime({ offset: true })
+  snapshotVersionBefore: version, snapshotVersionAfter: version, createdAt: z.iso.datetime({ offset: true }),
+  /** Översynen 2026-11-02: brickan var redan avläst som okänd; avläsningen kopplades och räknades. */
+  linkedReadout: linkedReadoutSchema.optional()
 }).strict().refine((row) => row.snapshotVersionAfter === row.snapshotVersionBefore + 1 &&
   (row.cardNumber === null) === (row.assignmentId === null) && (!row.startTimeAssigned || row.fixedStartTime !== null));
 export { entryClassAdminErrorResponseSchema as entryRegistrationAdminErrorResponseSchema } from "./entry-class-admin";
@@ -43,7 +45,7 @@ export const entryRegistrationCandidateSchema = z.object({
   entryId: uuid, classId: uuid, className: z.string().min(1).max(160),
   givenName: z.string().min(1).max(160), familyName: z.string().min(1).max(160),
   organisationName: z.string().min(1).max(240).nullable(),
-  reasons: z.array(z.enum(["SAME_NAME", "CARD_ALREADY_ASSIGNED"])).min(1).max(2)
+  reasons: z.array(z.enum(["SAME_NAME", "CARD_ALREADY_ASSIGNED", "CARD_PREVIOUSLY_ASSIGNED"])).min(1).max(2)
     .refine((values) => new Set(values).size === values.length)
 }).strict();
 export const entryRegistrationCandidatesResponseSchema = z.object({

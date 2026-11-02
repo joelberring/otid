@@ -86,11 +86,13 @@ describe("TASK030 administrator card change", () => {
     expect((await changeEntryCardAsAdmin(db, { ...input, request: { ...input.request, cardNumber: "54322" } }, now)).status).toBe("conflict");
     expect((await changeEntryCardAsAdmin(db, { ...input, ...reader }, now)).status).toBe("forbidden");
     expect((await changeEntryCardAsAdmin(db, { ...input, csrfHeader: null }, now)).status).toBe("forbidden");
-    const owned = await cardInput(f.administrator, f.entryId, "67890");
-    expect((await changeEntryCardAsAdmin(db, owned, now)).status).toBe("conflict");
     expect(await mutableState(f.raceId)).toBe(stable); expect(await footprint(f.raceId)).toBe(before);
+    // Översynen 2026-11-02 (card-assignment.ts regel 2): en inaktiv koppling hos en annan deltagare är historik och hindrar inte.
+    const owned = await cardInput(f.administrator, f.entryId, "67890");
+    expect((await changeEntryCardAsAdmin(db, owned, now)).status).toBe("changed");
+    expect(await footprint(f.raceId)).toBe(before);
     expect((await pool.query<{ actor_kind: string }>("SELECT actor_kind FROM audit_event WHERE race_id=$1 AND action='ENTRY_CARD_CHANGED_BY_ADMIN' ORDER BY actor_kind::text", [f.raceId])).rows)
-      .toEqual([{ actor_kind: "USER_ACCOUNT" }, { actor_kind: "USER_ACCOUNT" }]);
+      .toEqual([{ actor_kind: "USER_ACCOUNT" }, { actor_kind: "USER_ACCOUNT" }, { actor_kind: "USER_ACCOUNT" }]);
   });
 
   it("projects null/single/multiple active assignments in the same private scope without choosing a conflict", async () => {

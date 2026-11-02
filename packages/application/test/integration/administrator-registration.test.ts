@@ -92,9 +92,9 @@ describe("TASK035 administrator registration", () => {
     await expect(pool.query("UPDATE entry_registration_request SET created_at=created_at WHERE race_id=$1", [f.raceId])).rejects.toThrow();
   });
 
-  it("rejects stale, forbidden, historically owned cards and full classes atomically; honors fixed starts", async () => {
+  it("rejects stale, forbidden, actively owned cards and full classes atomically; honors fixed starts", async () => {
     const f = await fixture(), reader = await auth(f.raceId, "FUNCTIONARY"), input = await inputFor(f.administrator, f.classId);
-    await pool.query("UPDATE card_assignment SET active=false WHERE race_id=$1", [f.raceId]);
+    // Översynen 2026-11-02 (card-assignment.ts): bara en aktiv koppling hindrar; inaktiv historik gör det inte.
     const before = await mutableState(f.raceId);
     expect((await registerEntryAsAdmin(db, { ...input, csrfHeader: null }, now)).status).toBe("forbidden");
     expect((await registerEntryAsAdmin(db, { ...input, ...reader }, now)).status).toBe("forbidden");

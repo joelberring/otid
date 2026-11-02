@@ -93,7 +93,7 @@ describe("TASK143 återanvändning av återlämnad hyrbricka", () => {
     expect((await changeEntryCardAsAdmin(db, { ...f.administrator, entryId: source.id,
       idempotencyKey: `entry-card-change:${randomUUID()}`,
       request: { formatVersion: 1, expectedEntryVersion: source.version, expectedClassId: source.classId,
-        expectedAssignment: null, cardNumber: "12345" } }, now)).status).toBe("conflict");
+        expectedAssignment: null, cardNumber: "12345" } }, now)).status).toBe("card-in-use");
     expect((await pool.query("SELECT count(*)::int AS count FROM entry_card_rental_reuse_request WHERE race_id=$1", [f.raceId])).rows)
       .toEqual([{ count: 1 }]);
   });

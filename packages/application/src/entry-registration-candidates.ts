@@ -35,13 +35,17 @@ export async function listEntryRegistrationCandidatesAsAdmin(db: Database,
     }
     const entries = rows.map(row => ({ ...row, className: row.className! }));
     const entryIds = new Set(entries.map(row => row.entryId));
-    const assignments = request.data.cardNumber === null ? [] : await tx.select({ entryId: schema.cardAssignments.entryId })
+    const assignments = request.data.cardNumber === null ? [] : await tx.select({ entryId: schema.cardAssignments.entryId,
+      active: schema.cardAssignments.active })
       .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id),
         eq(schema.cardAssignments.cardNumber, request.data.cardNumber))).limit(10_001);
     if (assignments.length > 10_000 || assignments.some(row => !entryIds.has(row.entryId))) {
       throw new Error("Brickans historiska koppling ligger utanför giltigt deltagarunderlag");
     }
-    const matches = matchEntryRegistrationCandidates(entries, request.data, new Set(assignments.map(row => row.entryId)));
+    // Översynen 2026-11-02 (`card-assignment.ts`): bara den aktiva kopplingen gör brickan upptagen; tidigare ägare visas.
+    const active = new Set(assignments.filter(row => row.active).map(row => row.entryId));
+    const matches = matchEntryRegistrationCandidates(entries, request.data, active,
+      new Set(assignments.filter(row => !row.active && !active.has(row.entryId)).map(row => row.entryId)));
     return { status: "ok", response: entryRegistrationCandidatesResponseSchema.parse({
       formatVersion: 1, raceId: race.id, snapshotVersion: race.snapshotVersion, ...matches
     }) };

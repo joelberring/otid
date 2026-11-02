@@ -66,7 +66,8 @@ describe("TASK036 administrator registration candidates", () => {
     const result = await listEntryRegistrationCandidatesAsAdmin(db, search(f, "12345"), now);
     if (result.status !== "ok") throw new Error("Candidate read failed");
     expect(result.response.totalMatches).toBe(23); expect(result.response.candidates).toHaveLength(20);
-    expect(result.response.candidates[0]).toMatchObject({ entryId: f.entryId, reasons: ["SAME_NAME", "CARD_ALREADY_ASSIGNED"] });
+    // Översynen 2026-11-02: en inaktiv koppling är historik – den visas först men hindrar inte anmälan.
+    expect(result.response.candidates[0]).toMatchObject({ entryId: f.entryId, reasons: ["SAME_NAME", "CARD_PREVIOUSLY_ASSIGNED"] });
     expect(result.response.candidates.some(row => row.entryId === other.entryId)).toBe(false);
     expect(result.response.candidates.some(row => row.classId === otherClass && row.organisationName === "Other club")).toBe(true);
     const ids = result.response.candidates.slice(1).map(row => row.entryId);

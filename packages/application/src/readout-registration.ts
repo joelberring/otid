@@ -1,16 +1,19 @@
-import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, eq, isNull, sql } from "drizzle-orm";
 import {
   readoutRegistrationIdempotencyKeySchema, readoutRegistrationRequestSchema, readoutRegistrationResponseSchema,
   type ReadoutExistingEntryRequest, type ReadoutRegistrationResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { courseVariantForReadout, withProposedEntryVariants } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import { canAddClassEntry } from "./class-capacity-guard";
-import { bumpReadoutPackageVersion, loadRaceSnapshot, type DbExecutor } from "./snapshot";
-import { evaluateAndStore, normalizedReadout } from "./result-revisions";
+import { bumpReadoutPackageVersion } from "./snapshot";
+import { normalizedReadout } from "./result-revisions";
 import { cardAlreadyReadOutBy } from "./card-reuse";
+import { assignCard, linkUnresolvedReadout } from "./card-assignment";
+import { latestResultReadAt, latestUnresolvedReadout } from "./readout-lookup";
+
+export { latestResultReadAt, latestUnresolvedReadout, readoutsWithResults } from "./readout-lookup";
 
 /**
  * PLAN.md steg 25: direktanmälan av en okänd bricka från avläsningssidan, även offline (köad i webbläsaren).
@@ -29,27 +32,6 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type ReadoutRegistrationResult =
   | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" }
   | { status: "registered"; response: ReadoutRegistrationResponse };
-
-/** Den senaste avläsningen av brickan som togs emot som okänd och ännu inte gett något resultat. */
-export async function latestUnresolvedReadout(tx: DbExecutor, raceId: string, cardNumber: string) {
-  const [row] = await tx.select({ readout: schema.cardReadouts }).from(schema.cardReadouts)
-    .innerJoin(schema.deviceIngestOutcomes, eq(schema.deviceIngestOutcomes.rawMessageId, schema.cardReadouts.rawMessageId))
-    .leftJoin(schema.resultRevisions, eq(schema.resultRevisions.readoutId, schema.cardReadouts.id))
-    .leftJoin(schema.unknownReadoutResolutions, eq(schema.unknownReadoutResolutions.readoutId, schema.cardReadouts.id))
-    .where(and(eq(schema.cardReadouts.raceId, raceId), eq(schema.cardReadouts.cardNumber, cardNumber),
-      sql`${schema.deviceIngestOutcomes.serverResult}->>'status' = 'UNKNOWN_CARD'`, isNull(schema.resultRevisions.id),
-      isNull(schema.unknownReadoutResolutions.requestId)))
-    .orderBy(desc(schema.cardReadouts.readAt), desc(schema.cardReadouts.id)).limit(1);
-  return row?.readout;
-}
-
-/** Läsningstiden för deltagarens senaste avläsning med resultat, eller null. */
-export async function latestResultReadAt(tx: DbExecutor, entryId: string): Promise<Date | null> {
-  const [row] = await tx.select({ readAt: schema.cardReadouts.readAt }).from(schema.resultRevisions)
-    .innerJoin(schema.cardReadouts, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
-    .where(eq(schema.resultRevisions.entryId, entryId)).orderBy(desc(schema.cardReadouts.readAt)).limit(1);
-  return row?.readAt ?? null;
-}
 
 export async function registerReadoutCard(db: Database, input: Authentication & { idempotencyKey: string | null; request: unknown },
   now = new Date()): Promise<ReadoutRegistrationResult> {
@@ -117,31 +99,17 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
         eventorPersonId: intent.eventorPersonId ?? null, eventorOrganisationId: intent.eventorOrganisationId ?? null })
         .returning(entryColumns);
       if (!created) throw new Error("Deltagaren kunde inte sparas");
-      await tx.insert(schema.cardAssignments).values({ raceId, entryId: created.id, cardNumber: intent.cardNumber });
+      await assignCard(tx, { raceId, entryId: created.id, cardNumber: intent.cardNumber });
       entry = created; outcome = "CREATED";
     }
     await bumpReadoutPackageVersion(tx, raceId);
 
-    // Har servern redan brickans avläsning som okänd bedöms den nu, om den är nyare än deltagarens senaste resultat.
-    let linkedResult: { status: "OK" | "OVERTIME" | "MP"; revision: number } | null = null;
-    const readout = await latestUnresolvedReadout(tx, raceId, intent.cardNumber);
-    const latestReadAt = readout ? await latestResultReadAt(tx, entry.id) : null;
+    // Har servern redan brickans avläsning som okänd bedöms den nu, om den är nyare än deltagarens senaste resultat
+    // (samma regel som Byt bricka och Ny deltagare, `card-assignment.ts`).
     const keepsFirst = borrowedFrom !== undefined && entry.id === borrowedFrom && !(sameRunner && intent.borrowedCard);
-    if (readout && !keepsFirst && (latestReadAt === null || latestReadAt < readout.readAt || sameRunner)) {
-      let snapshot = await loadRaceSnapshot(tx, raceId);
-      const normalized = normalizedReadout(readout);
-      // Direktanmäld i en gafflad klass har redan sprungit: den får varianten som stämplingarna passar.
-      const detected = outcome !== "EXISTING" ? courseVariantForReadout(normalized, snapshot) : undefined;
-      if (detected && !detected.assigned) {
-        await tx.update(schema.entries).set({ courseVariantCode: detected.code }).where(eq(schema.entries.id, entry.id));
-        snapshot = withProposedEntryVariants(snapshot, new Map([[entry.id, detected.code]]));
-      }
-      const stored = await evaluateAndStore(tx, snapshot, normalized, "UNKNOWN_READOUT_RESOLUTION",
-        { entryId: entry.id, actorAccountId: auth.principal.accountId });
-      if (stored.stored && stored.evaluation.status !== "UNKNOWN_CARD") {
-        linkedResult = { status: stored.evaluation.status, revision: stored.revision.revision };
-      }
-    }
+    const linked = keepsFirst ? null : await linkUnresolvedReadout(tx, { raceId, entryId: entry.id, cardNumber: intent.cardNumber,
+      actorAccountId: auth.principal.accountId, detectVariant: outcome !== "EXISTING", force: sameRunner });
+    const linkedResult = linked ? { status: linked.status, revision: linked.revision } : null;
     const [className] = outcome !== "CREATED" || !raceClass ? await tx.select({ name: schema.classes.name }).from(schema.classes)
       .where(eq(schema.classes.id, entry.classId)) : [raceClass];
     if (!className) throw new Error("Deltagarens klass saknas");
@@ -175,18 +143,9 @@ async function linkExistingEntry(tx: Transaction, raceId: string, intent: Readou
   if (!target) return { status: "not-found" as const };
   if (target.classId !== intent.expectedClassId || target.teamId !== null || target.version >= 2_147_483_647) return { status: "conflict" as const };
   if (await latestResultReadAt(tx, target.id) !== null) return { status: "conflict" as const };
-  await tx.update(schema.cardAssignments).set({ active: false }).where(and(eq(schema.cardAssignments.raceId, raceId),
-    eq(schema.cardAssignments.entryId, target.id), eq(schema.cardAssignments.active, true)));
-  await tx.insert(schema.cardAssignments).values({ raceId, entryId: target.id, cardNumber: intent.cardNumber });
+  await assignCard(tx, { raceId, entryId: target.id, cardNumber: intent.cardNumber });
   await tx.update(schema.entries).set({ version: target.version + 1 }).where(eq(schema.entries.id, target.id));
   return { status: "linked" as const, entry: { id: target.id, givenName: target.givenName, familyName: target.familyName,
     classId: target.classId, organisationName: target.organisationName } };
 }
 
-/** Avläsningar som redan har ett resultat räknas inte som okända (direktanmälan kopplar utan resolutionsjournal). */
-export async function readoutsWithResults(tx: DbExecutor, readoutIds: readonly string[]): Promise<Set<string>> {
-  if (readoutIds.length === 0) return new Set();
-  const rows = await tx.selectDistinct({ readoutId: schema.resultRevisions.readoutId }).from(schema.resultRevisions)
-    .where(inArray(schema.resultRevisions.readoutId, [...readoutIds])).orderBy(asc(schema.resultRevisions.readoutId));
-  return new Set(rows.flatMap((row) => row.readoutId ? [row.readoutId] : []));
-}

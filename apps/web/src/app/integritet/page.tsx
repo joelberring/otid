@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { accountSv } from "../../i18n/account-sv";
+import { retentionSettings } from "@o-tid/application";
 import { operatorContactEmail } from "../../lib/operator-contact";
 import styles from "../../components/account-pages.module.css";
 
 export const metadata: Metadata = { title: "Personuppgifter – O-Tid" };
-// Kontaktadressen läses ur serverns miljö (OTID_CONTACT_EMAIL, standard otid@berring.se) vid varje visning.
+// Kontaktadressen (OTID_CONTACT_EMAIL, standard otid@berring.se) och gallringen (OTID_RETENTION, ADR-0189) läses ur serverns
+// miljö vid varje visning.
 export const dynamic = "force-dynamic";
 
 const text = accountSv.privacy;
@@ -12,6 +14,7 @@ const text = accountSv.privacy;
 /** Kort text om personuppgifter (ADR-0172, PLAN.md steg 17). */
 export default function PrivacyPage() {
   const contact = operatorContactEmail();
+  const retention = retentionSettings(process.env);
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}><div><p className={styles.kicker}>O-Tid</p><h1>{text.title}</h1></div></header>
     <div className={styles.prose}>
@@ -24,6 +27,9 @@ export default function PrivacyPage() {
       <p>{text.why}</p>
       <h2>{text.howLongTitle}</h2>
       <p>{text.howLong}</p>
+      <p>{text.retention(retention.mode, retention.months)}</p>
+      <h2>{text.oneRunnerTitle}</h2>
+      <p>{text.oneRunner}</p>
       <h2>{text.publicTitle}</h2>
       <p>{text.public}</p>
       <ul className={styles.list}>{text.publicItems.map(item => <li key={item}>{item}</li>)}</ul>

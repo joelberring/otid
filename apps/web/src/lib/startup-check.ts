@@ -1,4 +1,4 @@
-import { mapStorageQuotaProblems } from "@o-tid/application";
+import { mapStorageQuotaProblems, retentionSettingsProblems } from "@o-tid/application";
 import { mailConfiguration } from "./mail";
 import { SecurityConfigurationError, securityPolicy } from "./security-policy";
 
@@ -27,6 +27,8 @@ export function configurationProblems(environment: Partial<Record<string, string
   }
   // ADR-0189 beslut 3: kartornas kvot.
   problems.push(...mapStorageQuotaProblems(environment).map(problem => `${problem}.`));
+  // ADR-0189 beslut 6: gallringen.
+  problems.push(...retentionSettingsProblems(environment).map(problem => `${problem}.`));
   return problems;
 }
 

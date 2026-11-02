@@ -97,6 +97,18 @@ export const accountSv = {
     why: "För att arrangörer ska kunna genomföra tävlingen eller festen, räkna fram resultat och köp och publicera start- och resultatlistor, och för att skydda kontona mot intrång och missbruk. Löpardatabasen används för att föreslå namn, klubb och klass när en okänd bricka läses av eller en ny deltagare anmäls, även utan nät.",
     howLongTitle: "Hur länge",
     howLong: "Tills tävlingen (festen) eller kontot tas bort. Då tas allt som hör till bort, också råa avläsningar, köp och loggar. Arrangören tar bort sin tävling under Inställningar och du tar bort ditt konto under Mitt konto. Strukna deltagare finns kvar i tävlingen men visas inte publikt. Räknarna för spärrarna tas bort efter två dygn. Löpardatabasen ersätts helt varje gång den uppdateras från Eventor och finns kvar tills den uppdateras eller raderas (Inställningar → Eventor → Radera löpardatabasen). Det som tagits bort finns kvar i säkerhetskopiorna tills de skrivs över: efter 14 dagar på servern och, om kopian utanför servern är påslagen, efter upp till 12 månader där.",
+    // ADR-0189 beslut 5–6: en enskild löpare och gallringen.
+    oneRunnerTitle: "Ta bort eller anonymisera en löpare",
+    oneRunner: "Vill du inte finnas med i en tävling: kontakta arrangören. Arrangören kan ta bort en deltagare som inte har läst ut, och " +
+      "anonymisera vem som helst på deltagarkortet (Anmälda → deltagaren → Anonymisera). Då tas namn, klubb, bricknummer, födelseår och " +
+      "Eventors id bort ur tävlingen: ur anmälan, journalen, start- och resultatlistorna och de inlästa filerna, och GPS-rutten tas bort. " +
+      "Resultatet och sträcktiderna står kvar som ”Anonym deltagare”, så att de andras placeringar stämmer. Brickans nummer finns kvar i " +
+      "avläsningen av brickan (den ändras aldrig), men är inte längre kopplat till ett namn.",
+    retention: (mode: "off" | "anonymize" | "delete", months: number) => mode === "off"
+      ? "Den här servern gallrar inte tävlingar automatiskt; de finns kvar tills arrangören eller den som driver servern tar bort dem."
+      : mode === "anonymize"
+        ? `Den här servern anonymiserar automatiskt tävlingar som är äldre än ${months} månader: alla deltagare blir ”Anonym deltagare” och resultaten står kvar.`
+        : `Den här servern tar automatiskt bort tävlingar som är äldre än ${months} månader, med allt som hör till dem.`,
     publicTitle: "Vad som är publikt",
     public: "När arrangören har publicerat tävlingen kan alla läsa startlistor och resultat med namn, klubb och tider utan att logga in. Sidorna med löpare (tävlingssidan, start- och resultatlistor, fester och träningsgrupper) är stängda för sökmotorer och AI-tjänster.",
     publicItems: [

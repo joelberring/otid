@@ -63,4 +63,13 @@ describe("personuppgifter och om O-Tid", () => {
     expect(staff).toMatch(/CSV/);
     expect(raceTypeSv.settings.people.help).toMatch(/fulla namn.*CSV/);
   });
+
+  it("ADR-0189: säger hur en löpare anonymiseras och vad gallringen på servern gör", () => {
+    expect(privacy.oneRunner).toMatch(/Anonymisera/);
+    expect(privacy.oneRunner).toMatch(/Anonym deltagare/);
+    expect(privacy.oneRunner).toMatch(/Brickans nummer finns kvar i avläsningen/);
+    expect(privacy.retention("off", 24)).toMatch(/gallrar inte/);
+    expect(privacy.retention("anonymize", 24)).toMatch(/äldre än 24 månader/);
+    expect(privacy.retention("delete", 36)).toMatch(/tar automatiskt bort tävlingar som är äldre än 36 månader/);
+  });
 });

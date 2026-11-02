@@ -129,6 +129,10 @@ services:
       # ADR-0189: kartornas kvot i MB (tom = 2048 per konto och 20480 för hela servern; 0 = ingen gräns). Bara i web.
       OTID_MAP_QUOTA_ACCOUNT_MB: ${OTID_MAP_QUOTA_ACCOUNT_MB:-}
       OTID_MAP_QUOTA_TOTAL_MB: ${OTID_MAP_QUOTA_TOTAL_MB:-}
+      # ADR-0189: valfri gallring (tom/off = av, anonymize eller delete) av tävlingar äldre än OTID_RETENTION_MONTHS (tom = 24).
+      # Körs av underhållet i web. Integritetssidan (/integritet) säger vad som gäller, så sätt samma värden i web-public.
+      OTID_RETENTION: ${OTID_RETENTION:-}
+      OTID_RETENTION_MONTHS: ${OTID_RETENTION_MONTHS:-}
       OTID_INSTANCE_ROLE: competition
       NODE_OPTIONS: --max-old-space-size=768
     command: ["node", "apps/web/server.js"]
@@ -162,6 +166,9 @@ services:
       OTID_THROTTLE_SECRET: ${OTID_THROTTLE_SECRET:-}
       OTID_REGISTRATION_LIMIT_PER_HOUR: ${OTID_REGISTRATION_LIMIT_PER_HOUR:-}
       OTID_RADIO_POLLER: "off"
+      # ADR-0189: bara för texten på /integritet (gallringen körs i web).
+      OTID_RETENTION: ${OTID_RETENTION:-}
+      OTID_RETENTION_MONTHS: ${OTID_RETENTION_MONTHS:-}
       OTID_INSTANCE_ROLE: public
       NODE_OPTIONS: --max-old-space-size=448
     command: ["node", "apps/web/server.js"]

@@ -7,7 +7,7 @@ import type { CourseEditActions } from "./course-edit";
 
 /** Det som ska tas bort och begäran som skickas (samma id vid ett nytt försök efter nätfel). */
 export type RemovalAttempt =
-  | { kind: "ENTRY"; id: string; name: string; mode: "DELETE" | "STRIKE"; requestId: string; expectedEntryVersion: number }
+  | { kind: "ENTRY"; id: string; name: string; mode: "DELETE" | "STRIKE" | "ANONYMIZE"; requestId: string; expectedEntryVersion: number }
   | { kind: "CLASS" | "COURSE"; id: string; name: string; requestId: string };
 
 /** Beskedet efter ett försök, knutet till det som skulle tas bort. */
@@ -28,13 +28,13 @@ export function createRemovalActions(ws: Base & RaceDataActions & CourseEditActi
   const { raceId, courseList, selected, effectiveResult, removalAttempt, writingRef, pending, requireSession, begin, finish, current,
     request, json, csrf, load, readCourses, setEntryId, setRemovalAttempt, setRemovalMessage, setRemovalUnknown } = ws;
 
-  function prepareEntryRemoval() {
+  function prepareEntryRemoval(anonymize = false) {
     if (writingRef.current || pending.current || !selected) return;
-    // Utan avläsning och utan resultat tas deltagaren bort; annars stryks den (servern avgör till sist).
+    // Utan avläsning och utan resultat tas deltagaren bort; annars stryks den (servern avgör till sist). ADR-0189: eller anonymiseras.
     const result = effectiveResult?.entryId === selected.id ? effectiveResult : undefined;
     const hasResult = !result || result.state !== "NO_PUBLISHED_RESULT" || result.history.length > 0 || !!result.cardPunches;
     setRemovalMessage(undefined); setRemovalUnknown(false);
-    setRemovalAttempt({ kind: "ENTRY", id: selected.id, name: selected.displayName, mode: hasResult ? "STRIKE" : "DELETE",
+    setRemovalAttempt({ kind: "ENTRY", id: selected.id, name: selected.displayName, mode: anonymize ? "ANONYMIZE" : hasResult ? "STRIKE" : "DELETE",
       requestId: crypto.randomUUID(), expectedEntryVersion: selected.version });
   }
   function prepareClassRemoval(classId: string) {
@@ -92,7 +92,8 @@ export function createRemovalActions(ws: Base & RaceDataActions & CourseEditActi
       setRemovalAttempt(undefined); setRemovalUnknown(false);
       const outcome = receipt.result;
       if (outcome.outcome === "BLOCKED") { message("attention", blockedText(outcome)); return; }
-      message("ok", attempt.kind === "ENTRY" ? (outcome.outcome === "STRUCK" ? text.entryStruck(attempt.name) : text.entryDeleted(attempt.name))
+      message("ok", attempt.kind === "ENTRY" ? (outcome.outcome === "STRUCK" ? text.entryStruck(attempt.name)
+        : outcome.outcome === "ANONYMIZED" ? text.entryAnonymized : text.entryDeleted(attempt.name))
         : attempt.kind === "CLASS" ? text.classDeleted(attempt.name) : text.courseDeleted(attempt.name));
       if (attempt.kind === "ENTRY") setEntryId("");
       await load(op, attempt.kind === "ENTRY" ? "" : undefined);

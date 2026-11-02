@@ -497,6 +497,20 @@ används. Ett ogiltigt värde skrivs som KONFIGURATIONSFEL i loggen och förvale
 
 Kolumnerna `image` och `file` tas bort i en senare migration när `map-content status` säger 0 rader kvar på servern.
 
+## Gallring
+
+ADR-0189 beslut 6: av som förval. Sätt i `.env` och kör `docker compose -f docker-compose.prod.yml up -d`:
+
+- `OTID_RETENTION=anonymize`: tävlingar vars datum är äldre än `OTID_RETENTION_MONTHS` månader (tom = 24) anonymiseras; alla
+  deltagare blir "Anonym deltagare", resultaten och sträcktiderna står kvar.
+- `OTID_RETENTION=delete`: evenemang där alla lopp är så gamla tas bort med allt som hör till; det syns i superadmins logg som
+  "Automatisk gallring".
+
+Underhållet i `web` kör gallringen fem minuter efter start och sedan en gång i timmen, högst fem tävlingar per varv. Loggen
+(`logs web`) säger vid start vad som gäller och efter varje varv hur många tävlingar som gallrats (bara antal). Integritetssidan
+visar inställningen; `web-public` får samma värden i `docker-compose.prod.yml`. Tänk på att det som gallrats finns kvar i
+backuperna tills de skrivs över (14 dagar på servern, upp till 12 månader i kopian utanför servern).
+
 ## Om en migrering misslyckas
 
 Tjänsten `migrate` migrerar databasen innan webben startar (`node migrate.mjs`, ADR-0186; före det gjorde webben det själv).

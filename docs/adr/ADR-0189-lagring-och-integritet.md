@@ -37,6 +37,28 @@ att gissa, och träningsgruppens medlemslista avslöjade om en adress hade ett k
    `node superadmin.mjs map-content move`, som serverägaren kör när den nya versionen fungerar: det flyttar de gamla raderna en
    i taget och slår ihop dubbletterna. Kolumnerna tas bort i en senare migration när inga rader finns kvar.
 
+5. **Anonymisera en deltagare** (migration 0045). Deltagarkortet har "Anonymisera" (samma flöde, idempotens och journal som "Ta
+   bort" och "Stryk", läget `ANONYMIZE`; också för strukna och sträcklöpare). Namnet blir "Anonym deltagare" (förnamn "Anonym",
+   efternamn "deltagare", så att alla befintliga format med krav på efternamn fungerar), klubben, Eventors id och externa id tas
+   bort och `entry.anonymized_at` sätts. Resultatrevisionerna, sträcktiderna, avläsningarna och placeringarna är orörda.
+   Personuppgifterna tas också bort ur tävlingens journaler och sparade dokument (`anonymization.ts`): i rader som pekar på
+   deltagaren (t.ex. `audit_event.entity_id`) efter fältens namn och värden, i listor med många deltagare (den publicerade
+   startlistan, fastställandet) bara i deltagarens objekt, i IOF XML (inlästa filer, startlistans och fastställandets XML) i
+   personens block, och hela namnet (också tidigare namn) var det än står. Namnändringarnas journal, GPS-rutten och PDF:er som
+   nämner deltagaren tas bort. Journalposten för anonymiseringen har bara versionen. Journalerna är oföränderliga; migrationen låter
+   dem skrivas över bara när transaktionen har satt `otid.anonymize`, och aldrig råa avläsningar, deras tolkning eller
+   radiostämplingar. **Brickans nummer finns kvar** i brickans koppling och avläsningarna (kolumnerna `card_number`): resultatet
+   räknas ur dem, de bär främmande nycklar och råa avläsningar ändras aldrig (AGENTS.md). Numret är då inte kopplat till ett namn
+   i O-Tid. Ska det bort helt tas tävlingen bort (eller gallras med `delete`). "Ta bort deltagare" anonymiserar journalerna först,
+   så att inget namn blir kvar i journalposter som inte följer med borttagningen, och dess journalpost har inte längre namnet.
+6. **Gallring, av som förval.** `OTID_RETENTION` = `off` (förval), `anonymize` eller `delete`, och `OTID_RETENTION_MONTHS`
+   (förval och förslag **24**: två säsonger, så att förra årets resultat finns kvar till nästa års upplaga av samma tävling, och
+   resultaten finns dessutom i Eventor). `anonymize` anonymiserar alla deltagare i tävlingar vars datum är äldre (som beslut 5) och
+   festens gäster och tar bort GPS-rutterna; `race.personal_data_removed_at` och en journalpost utan namn sparas. `delete` tar bort
+   evenemang där alla lopp är äldre, med allt som hör till, och loggar det som superadmins borttagning ("Automatisk gallring").
+   Underhållet i webbens tävlingsinstans (`maintenance-runner.ts`, som radiopollern) kör det fem minuter efter start och sedan en
+   gång i timmen, högst fem tävlingar per varv och en per transaktion med radlås. Integritetssidan säger vad servern gör.
+
 ## Följder
 
 - En tillbakagång till versionen före 0044 kan inte läsa kartor som laddats upp eller kopierats efter uppdateringen.

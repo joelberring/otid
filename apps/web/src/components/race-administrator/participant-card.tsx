@@ -253,8 +253,12 @@ function EntryRemoval({ ws, result }: { ws: Workspace; result: AdministratorEffe
   return <section className={styles.workspace} aria-label={removalText.entryHeading}>
     {!open && <>
       <p className={styles.workflowHelp}>{strike ? removalText.entryStrikeHelp : removalText.entryDeleteHelp}</p>
-      <div><Button variant="secondary" disabled={disabled} onClick={prepareEntryRemoval}>
-        {strike ? removalText.entryStrike : removalText.entryDelete}</Button></div>
+      <p className={styles.workflowHelp}>{removalText.entryAnonymizeHelp}</p>
+      <div className={styles.actions}>
+        <Button variant="secondary" disabled={disabled} onClick={() => prepareEntryRemoval()}>
+          {strike ? removalText.entryStrike : removalText.entryDelete}</Button>
+        <Button variant="secondary" disabled={disabled} onClick={() => prepareEntryRemoval(true)}>{removalText.entryAnonymize}</Button>
+      </div>
     </>}
     <RemovalReview ws={ws} kind="ENTRY" id={selected.id} />
   </section>;

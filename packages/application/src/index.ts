@@ -86,6 +86,11 @@ export {
   stageMapContent, sweepMapContent, MAP_CONTENT_PART_BYTES
 } from "./map-content";
 export type { MapContentInput, MapQuotaExceeded, MapStorageQuota, StagedMapContent, StageResult } from "./map-content";
+export { ANONYMOUS_FAMILY_NAME, ANONYMOUS_GIVEN_NAME, anonymizeEntries } from "./anonymization";
+export {
+  DEFAULT_RETENTION_MONTHS, anonymizeRace, retentionCutoff, retentionSettings, retentionSettingsProblems, runMaintenance, runRetention
+} from "./retention";
+export type { RetentionRun, RetentionSettings } from "./retention";
 export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin } from "./race-map-source";
 export { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin, saveRouteChoiceSettingsAsAdmin }
   from "./route-choice";

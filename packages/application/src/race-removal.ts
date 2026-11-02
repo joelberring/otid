@@ -8,6 +8,7 @@ import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { PurgeProtectedError, purgeRows } from "./purge";
 import { bumpReadoutPackageVersion, type DbExecutor } from "./snapshot";
+import { anonymizeEntries } from "./anonymization";
 
 /**
  * Ta bort deltagare, klass och bana och stryk deltagare (PLAN.md steg 27). Bara administratören. En borttagning tar
@@ -51,7 +52,8 @@ async function removal<R extends { requestId: string }>(db: Database, input: Inp
         .where(and(eq(schema.auditEvents.raceId, principal.raceId), eq(schema.auditEvents.requestId, request.requestId))).limit(1);
       if (earlier) {
         const outcome = (earlier.after as { outcome?: unknown } | null)?.outcome;
-        if (earlier.entityType !== entityType || earlier.entityId !== entityIdOf(request) || (outcome !== "DELETED" && outcome !== "STRUCK")) {
+        if (earlier.entityType !== entityType || earlier.entityId !== entityIdOf(request)
+          || (outcome !== "DELETED" && outcome !== "STRUCK" && outcome !== "ANONYMIZED")) {
           return { status: "conflict" } as const;
         }
         return { status: "saved", request, result: { outcome }, replayed: true, raceId: principal.raceId } as const;
@@ -93,12 +95,21 @@ export async function removeEntryAsAdmin(db: Database, input: Input, now = new D
     const parsed = entryRemovalRequestSchema.safeParse(value); return parsed.success ? parsed.data : undefined;
   }, "entry", request => request.entryId, async (tx, principal, request) => {
     const [entry] = await tx.select().from(schema.entries)
-      .where(and(eq(schema.entries.id, request.entryId), eq(schema.entries.raceId, principal.raceId), isNull(schema.entries.struckAt)))
+      .where(and(eq(schema.entries.id, request.entryId), eq(schema.entries.raceId, principal.raceId),
+        // En struken deltagare kan också anonymiseras.
+        request.mode === "ANONYMIZE" ? undefined : isNull(schema.entries.struckAt)))
       .for("update");
     if (!entry) throw new NotFound();
     if (entry.version !== request.expectedEntryVersion) throw new Conflict();
+    if (request.mode === "ANONYMIZE") {
+      // ADR-0189 beslut 5: journalposten har inga namn (de är just borttagna), bara versionen. Också sträcklöpare.
+      if (entry.anonymizedAt) return { action: "ENTRY_ANONYMIZED_BY_ADMIN", outcome: { outcome: "ANONYMIZED" }, before: { version: entry.version } };
+      await anonymizeEntries(tx, principal.raceId, [entry.id], now);
+      return { action: "ENTRY_ANONYMIZED_BY_ADMIN", outcome: { outcome: "ANONYMIZED" }, before: { version: entry.version } };
+    }
     if (entry.teamId !== null) throw blocked("RELAY_RUNNER");
-    const before = { givenName: entry.givenName, familyName: entry.familyName, classId: entry.classId, version: entry.version };
+    // ADR-0189: journalposten har inga namn (de finns i deltagarens egna journaler så länge deltagaren finns).
+    const before = { classId: entry.classId, version: entry.version };
     if (request.mode === "STRIKE") {
       // Stryk: dold i alla listor, brickan släpps så att den kan kopplas till någon annan. Revisionerna står kvar.
       await tx.update(schema.entries).set({ struckAt: now, version: entry.version + 1 })
@@ -110,6 +121,8 @@ export async function removeEntryAsAdmin(db: Database, input: Input, now = new D
     if (await hasResult(tx, principal.raceId, entry.id)) throw blocked("HAS_RESULT");
     // Den lottade platsen blir vakant igen: lottningens rad tas med anmälan och läggs tillbaka utan löpare.
     const slots = await tx.select().from(schema.startDrawSlots).where(eq(schema.startDrawSlots.entryId, entry.id));
+    // ADR-0189: namnen i journaler som inte följer med borttagningen (t.ex. registreringens journalpost) tas bort först.
+    await anonymizeEntries(tx, principal.raceId, [entry.id], now);
     await purgeOrBlock(tx, "entry", entry.id, ["team"], () => blocked("HAS_RESULT"));
     if (slots.length > 0) await tx.insert(schema.startDrawSlots).values(slots.map(slot => ({ ...slot, entryId: null })));
     return { action: "ENTRY_DELETED_BY_ADMIN", outcome: { outcome: "DELETED" }, before };

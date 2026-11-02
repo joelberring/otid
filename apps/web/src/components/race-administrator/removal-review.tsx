@@ -7,7 +7,7 @@ import type { RemovalAttempt } from "./removal";
 import type { Workspace } from "./workspace-state";
 
 /**
- * Bekräftelsen och beskedet för "Ta bort" och "Stryk" (PLAN.md steg 27), vid raden eller deltagarkortet som det gäller.
+ * Bekräftelsen och beskedet för "Ta bort", "Stryk" (PLAN.md steg 27) och "Anonymisera" (ADR-0189), vid raden eller deltagarkortet som det gäller.
  * En mening om följden, en knapp som gör det och Avbryt; efter ett nätfel blir knappen "Försök igen" med samma begäran.
  */
 export function RemovalReview({ ws, kind, id }: { ws: Workspace; kind: RemovalAttempt["kind"]; id: string }) {
@@ -16,9 +16,11 @@ export function RemovalReview({ ws, kind, id }: { ws: Workspace; kind: RemovalAt
   const message = removalMessage?.kind === kind && removalMessage.id === id ? removalMessage : undefined;
   if (!attempt) return message ? <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice> : null;
   const consequence = attempt.kind === "ENTRY"
-    ? attempt.mode === "STRIKE" ? text.entryStrikeConsequence(attempt.name) : text.entryDeleteConsequence(attempt.name)
+    ? attempt.mode === "STRIKE" ? text.entryStrikeConsequence(attempt.name)
+      : attempt.mode === "ANONYMIZE" ? text.entryAnonymizeConsequence(attempt.name) : text.entryDeleteConsequence(attempt.name)
     : attempt.kind === "CLASS" ? text.classDeleteConsequence(attempt.name) : text.courseDeleteConsequence(attempt.name);
   const confirm = attempt.kind === "ENTRY" && attempt.mode === "STRIKE" ? text.confirmStrike
+    : attempt.kind === "ENTRY" && attempt.mode === "ANONYMIZE" ? text.confirmAnonymize
     : attempt.kind === "CLASS" ? text.classDelete : attempt.kind === "COURSE" ? text.courseDelete : text.confirmDelete;
   return <section className={styles.review} role="alert" aria-label={confirm} data-testid="removal-review">
     <p><strong>{consequence}</strong></p>

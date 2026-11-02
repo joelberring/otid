@@ -13,6 +13,15 @@ export const removalSv = {
   entryDeleteConsequence: (name: string) => `${name} tas bort ur tävlingen. Brickan och en lottad starttid blir lediga. Det går inte att ångra.`,
   entryStrikeConsequence: (name: string) =>
     `${name} stryks och syns inte längre i någon lista, inte heller publikt. Avläsningen och historiken sparas och brickan blir ledig.`,
+  // ADR-0189 beslut 5: anonymisera en deltagare.
+  entryAnonymize: "Anonymisera",
+  entryAnonymizeHelp: "Anonymisera tar bort namn, klubb, bricka och Eventors id ur tävlingen, journalen och de sparade filerna. " +
+    "Resultatet och sträcktiderna står kvar som ”Anonym deltagare”.",
+  entryAnonymizeConsequence: (name: string) => `${name} blir ”Anonym deltagare”. Namn, klubb, bricka och Eventors id tas bort ur ` +
+    "anmälan, journalen, start- och resultatlistorna och de inlästa filerna; GPS-rutten tas bort. Resultatet och sträcktiderna står kvar. " +
+    "Det går inte att ångra.",
+  confirmAnonymize: "Anonymisera deltagaren",
+  entryAnonymized: "Deltagaren är anonymiserad.",
   confirmDelete: "Ta bort", confirmStrike: "Stryk deltagaren", cancel: "Avbryt", retry: "Försök igen",
   entryDeleted: (name: string) => `${name} är borttagen.`,
   entryStruck: (name: string) => `${name} är struken.`,

@@ -11,7 +11,9 @@ const version = z.number().int().positive().max(2_147_483_647);
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 
 export const entryRemovalRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, entryId: uuid, mode: z.enum(["DELETE", "STRIKE"]), expectedEntryVersion: version
+  formatVersion: z.literal(1), requestId: uuid, entryId: uuid,
+  /** ADR-0189 beslut 5: ANONYMIZE tar bort namn, klubb, bricka och Eventors id men behåller resultatet som "Anonym deltagare". */
+  mode: z.enum(["DELETE", "STRIKE", "ANONYMIZE"]), expectedEntryVersion: version
 }).strict();
 export const classRemovalRequestSchema = z.object({ formatVersion: z.literal(1), requestId: uuid, classId: uuid }).strict();
 export const courseRemovalRequestSchema = z.object({ formatVersion: z.literal(1), requestId: uuid, courseId: uuid }).strict();
@@ -32,7 +34,7 @@ export const removalBlockerSchema = z.enum([
 ]);
 
 const outcome = z.discriminatedUnion("outcome", [
-  z.object({ outcome: z.enum(["DELETED", "STRUCK"]) }).strict(),
+  z.object({ outcome: z.enum(["DELETED", "STRUCK", "ANONYMIZED"]) }).strict(),
   z.object({ outcome: z.literal("BLOCKED"), blocker: removalBlockerSchema, count: z.number().int().nonnegative().max(100_000).optional(),
     names: z.array(z.string().min(1).max(160)).max(1_000).optional() }).strict()
 ]);

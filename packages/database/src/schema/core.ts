@@ -138,6 +138,8 @@ export const races = pgTable("race", {
   mapReserve: jsonb("map_reserve").$type<{ kind: "PERCENT" | "COUNT"; value: number }>(),
   /** ADR-0187 (migration 0041): när arrangörens säkerhetskopia senast laddades ner. NULL = aldrig. */
   lastBackupAt: timestamp("last_backup_at", { withTimezone: true }),
+  /** ADR-0189 (migration 0045): när gallringen anonymiserade tävlingen. NULL = inte gallrad. */
+  personalDataRemovedAt: timestamp("personal_data_removed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   check("race_info_check", sql`${table.info} IS NULL OR char_length(${table.info}) BETWEEN 1 AND 1000`),
@@ -298,6 +300,8 @@ export const entries = pgTable("entry", {
   struckAt: timestamp("struck_at", { withTimezone: true }),
   /** Steg 41 (migration 0018): löparen registrerade sig själv på tävlingssidan. NULL = admin, import eller avläsningen. */
   selfRegisteredAt: timestamp("self_registered_at", { withTimezone: true }),
+  /** ADR-0189 (migration 0045): när deltagaren anonymiserades. NULL = inte anonymiserad. */
+  anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [

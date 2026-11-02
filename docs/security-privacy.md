@@ -133,3 +133,13 @@ transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: 
 - Databasen: `otid_app` för webben (ingen superuser, inga schemaändringar), `otid_print` för utskriftsarbetaren (bara kön,
   tävlingens namn och kartfilen), `otid_owner` för migrering och backup. Eventors masternyckel och SMTP bara i `web`.
 - Alla XML-läsare (IOF, GPX, Eventor och Mapper) avvisar DTD/DOCTYPE/ENTITY.
+
+## Lagring och integritet (ADR-0189)
+
+- Kartbilder och kartfiler lagras en gång (`map_content`, sha256) och tas bort med sista tävlingen som pekar på dem; kvot per konto
+  och server (`OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB`). Uppladdningen strömmas till databasen med gränsen under läsningen.
+- "Anonymisera" på deltagarkortet: namn, klubb, Eventors id och externa id bort ur anmälan, journalerna (före/efter-JSON, begäranden),
+  de publicerade listorna, fastställandet och de inlästa IOF-filerna; GPS-rutten, namnändringarnas journal och PDF:er som nämner
+  deltagaren tas bort. Resultatet och sträcktiderna står kvar som "Anonym deltagare". Brickans nummer finns kvar i brickans koppling
+  och avläsningarna (oföränderliga, resultatet räknas ur dem). Journalerna får skrivas över bara med `otid.anonymize` i transaktionen.
+- Valfri gallring (`OTID_RETENTION=anonymize|delete`, `OTID_RETENTION_MONTHS`, förval av och 24 månader), körd av webbens underhåll.

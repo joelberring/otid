@@ -60,19 +60,25 @@ export function acceptEdit(document: CourseSettingDocument, control: string, sug
   return point ? { type: "SET_DESCRIPTION", control, boxes: acceptSuggestion(point.descriptions, suggestion) } : undefined;
 }
 
-/** "Godta alla tomma": bästa förslaget för varje kontroll i vyn som saknar detalj. */
+/**
+ * Förslag som förhandsvisas och godtas i klump: inte de osäkra (t.ex. bara en kant av tät skog), som bara visas i panelen
+ * för vald kontroll.
+ */
+const sureEnough = (suggestion: DescriptionSuggestion | undefined): suggestion is DescriptionSuggestion => suggestion !== undefined && suggestion.level !== "LOW";
+
+/** "Godta alla tomma": bästa förslaget (utom osäkra) för varje kontroll i vyn som saknar detalj. */
 export function acceptEmptyEdits(document: CourseSettingDocument, view: string, variant: string | undefined,
   suggestions: SuggestionsByControl): CourseSettingEdit[] {
   return controlsInView(document, view, variant).flatMap(id => {
     const best = suggestions[id]?.[0];
-    if (!best || !lacksFeature(document.controls[id]!.descriptions)) return [];
+    if (!sureEnough(best) || !lacksFeature(document.controls[id]!.descriptions)) return [];
     const edit = acceptEdit(document, id, best);
     return edit ? [edit] : [];
   });
 }
 
 /**
- * Beskrivningen med förslagen som förhandsvisning: kontroller utan detalj får bästa förslaget i ett dokument som bara
+ * Beskrivningen med förslagen som förhandsvisning: kontroller utan detalj får bästa förslaget (utom osäkra) i ett dokument som bara
  * ritas (sparas aldrig). `preview` är kontrollerna som visar ett förslag.
  */
 export function previewDocument(document: CourseSettingDocument, suggestions: SuggestionsByControl):
@@ -82,7 +88,7 @@ export function previewDocument(document: CourseSettingDocument, suggestions: Su
   for (const [id, list] of Object.entries(suggestions)) {
     const control = controls[id];
     const best = list[0];
-    if (!control || !best || !lacksFeature(control.descriptions)) continue;
+    if (!control || !sureEnough(best) || !lacksFeature(control.descriptions)) continue;
     controls[id] = { ...control, descriptions: acceptSuggestion(control.descriptions, best) };
     preview.add(id);
   }

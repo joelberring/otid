@@ -51,6 +51,10 @@ describe("förslagen i editorn", () => {
     expect(shown.document.controls.b!.descriptions).toEqual([{ box: "D", ref: "5.2" }]);
     expect(document.controls.a!.descriptions).toEqual([]);
     expect(previewDocument(document, {}).document).toBe(document);
+    // Osäkra förslag visas bara i panelen, inte i beskrivningen och inte i "Godta alla tomma".
+    const unsure = { ...knoll, level: "LOW" as const, confidence: 0.3 };
+    expect(previewDocument(document, { a: [unsure] }).preview.size).toBe(0);
+    expect(acceptEmptyEdits(document, "k", undefined, { a: [unsure] })).toEqual([]);
   });
   it("kort text för fältläget och objekten för markeringen", () => {
     const symbol = (id: string, sv: string): DescriptionSymbol => ({ id, kind: "D", names: { sv, en: sv }, shapes: [] });

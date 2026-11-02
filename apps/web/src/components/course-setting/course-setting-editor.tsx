@@ -44,6 +44,7 @@ import { fetchRouteChoice } from "../../lib/route-choice-api";
 import { RouteChoiceSession } from "../../lib/route-choice-client";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
+import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
@@ -567,11 +568,14 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
 
   const panel = (() => {
     switch (tab) {
-      case "courses": return <CourseList document={document} summaries={summaries} view={view} variant={variant} readOnly={readOnly}
+      case "courses": return <><CourseList document={document} summaries={summaries} view={view} variant={variant} readOnly={readOnly}
         onView={(next, value) => apply(current => setView(current, next, value))} onAdd={addCourse}
         onRename={(id, name) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
         onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
-        onRemove={id => edit(current => setView(applySteps(current, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />;
+        onRemove={id => edit(current => setView(applySteps(current, [{ type: "DELETE_COURSE", course: id }], applyEdit), ALL_CONTROLS))} />
+        {/* Etiketten vid kontrollen för vald bana (ADR-0180 beslut 12). */}
+        {course && <LabelPanel document={document} course={course} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
+      </>;
       case "description": return <DescriptionPanel document={document} view={view} variant={variant} selection={selection} settings={descriptionSettings}
         onSettings={next => {
           setDescriptionKind(next.kind);
@@ -639,6 +643,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       </section>
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry} />
+      <AppearancePanel document={document} view={view} readOnly={readOnly} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />
       {!readOnly && <CircleCuttingPanel document={document} cutting={cutting} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
       </>;
     }

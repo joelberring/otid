@@ -79,6 +79,7 @@ test("förslag på kontrollbeskrivning: ny kontroll på en sten, förhandsvisnin
   await expect(suggestion.getByTestId("description-suggestion-best").locator('[data-box="D"]')).toHaveAttribute("data-symbol", "2.4");
   await expect(suggestion.getByTestId("description-suggestion-reason")).toContainText("Sten (ISOM 206)");
   await expect(suggestion.getByTestId("description-suggestion-level")).toContainText("säkert");
+  await saved(owner);
   const before = await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
   const created = Object.entries(before.setting.document.controls).find(([, control]) => control.code === code)!;
   expect(created[1].descriptions.filter(box => box.box === "D")).toEqual([]);

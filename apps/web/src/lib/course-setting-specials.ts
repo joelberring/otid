@@ -35,7 +35,7 @@ export function specialInput(document: CourseSettingDocument, view: string, kind
   const at = points[0]!;
   switch (kind) {
     case "image": {
-      // ADR-0180 beslut 13: ett klick ger övre vänstra hörnet; bredden 25 mm på papperet och bildens proportioner.
+      // ADR-0180 beslut 14: ett klick ger övre vänstra hörnet; bredden 25 mm på papperet och bildens proportioner.
       if (!image || points.length > 1) return { kind, points: [...points] };
       const width = paperToMap(document, view, IMAGE_WIDTH_PAPER_MM);
       return { kind, points: [at, { x: at.x + width, y: at.y - width * image.aspect }], image: { format: image.format, data: image.data } };

@@ -41,7 +41,7 @@ function writeFlag(key: string, value: boolean): void {
 }
 
 /**
- * ADR-0180 beslut 13: banläggningens nya arbetssätt samlat utanför editorn – paletten med objekt, vridhandtaget,
+ * ADR-0180 beslut 14: banläggningens nya arbetssätt samlat utanför editorn – paletten med objekt, vridhandtaget,
  * befintliga kontroller som syns svagt och snäpper, andra banor svagt, gafflingens grenar, kopia och borttagning av bana
  * och de oanvända kontrollerna. Editorn kopplar in hanterarna för kartan och visar elementen.
  */

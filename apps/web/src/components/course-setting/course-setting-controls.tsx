@@ -11,7 +11,7 @@ import { Button } from "../ui";
 import styles from "./course-setting-ux.module.css";
 
 /**
- * ADR-0180 beslut 13: kontrollistan i fliken Banor. I en bana: kontrollerna som ett träd där gafflingens grenar står
+ * ADR-0180 beslut 14: kontrollistan i fliken Banor. I en bana: kontrollerna som ett träd där gafflingens grenar står
  * bredvid varandra (som Purple Pens topologi), med bokstav överst; ett klick på grenen arbetar i den, ett klick på en
  * kontroll väljer den. Under trädet varianterna med kod, antal kontroller, längd och en liten bild. I Alla kontroller:
  * alla kontroller, filtret "Bara oanvända" och "Ta bort alla oanvända".

@@ -49,6 +49,8 @@ import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutti
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
 import { DescriptionPanel } from "./course-setting-description";
+import { FieldSuggestionLine, useDescriptionSuggestions } from "./course-setting-suggest";
+import { drawSuggestionHighlight } from "../../lib/course-setting-suggest";
 import { InspectionsPanel, OfflinePanel } from "./course-setting-inspections";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
 import { ChecksPanel, CourseList, LegPanel, SelectedPanel, SelectionCard } from "./course-setting-panels";
@@ -227,10 +229,13 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   const { document, view, selection } = editor;
   const course = document.courses.find(row => row.id === view);
   const radiusMm = 3 * (course?.printScale ?? document.event.mapScale) / document.event.mapScale;
-  // ADR-0180 beslut 13: paletten, vridningen, befintliga kontroller, gafflingens grenar, kopia och oanvända kontroller.
+  // ADR-0180 beslut 14: paletten, vridningen, befintliga kontroller, gafflingens grenar, kopia och oanvända kontroller.
   const ux = useCourseSettingUx({ editor, store, apply, edit, readOnly, radiusMm, say, setTab });
   const variant = ux.variant;
   const cutting = useDetailGaps(mapSession, document);
+  // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen; objektet markeras när man pekar på ett förslag.
+  const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
+  const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), [] as readonly OverprintPrimitive[]),
     [document, view, variant, cutting.options]);
@@ -254,8 +259,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     const at = (point: { x: number; y: number }) => toScreen(mapView, point);
     if (printPage) drawPrintFrame(ctx, at, [printPage.page.mapArea], mapView);
     drawSpecialEditing(ctx, at, { drawing: editor.tool === "SPECIAL" ? editor.drawing : undefined, handles: selectedSpecial ? specialHandles(selectedSpecial) : undefined });
+    if (suggestionHover) drawSuggestionHighlight(ctx, at, suggestionHover, mapView.pxPerMm);
     uxDraw(ctx, mapView);
-  }, [printPage, editor.tool, editor.drawing, selectedSpecial, uxDraw]);
+  }, [printPage, editor.tool, editor.drawing, selectedSpecial, suggestionHover, uxDraw]);
   const mapHandle = useRef<CourseSettingMapHandle>(null);
   // Oanvända kontroller i Alla kontroller ritas grå och streckade i stället (träffas ändå).
   const drawnPrimitives = useMemo(() => ux.unusedRefs.size > 0 ? primitives.filter(primitive => !ux.unusedRefs.has(primitive.ref ?? "")) : primitives,
@@ -445,7 +451,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     const target = hit(point, tolerance);
     return target ? (readOnly ? "pointer" : target.kind === "leg" ? "pointer" : "move") : "grab";
   };
-  // ADR-0180 beslut 13: "Gaffla här" frågar efter antal grenar eller slinga.
+  // ADR-0180 beslut 14: "Gaffla här" frågar efter antal grenar eller slinga.
   const fork = ux.openForkPicker;
 
   // Tangenterna (inte när man skriver i ett fält): verktygen med en bokstav, Delete, Escape, ångra och gör om.
@@ -574,7 +580,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         }}
         onSelect={target => apply(current => select(current, target))}
         onEdit={edits => edit(current => applySteps(current, edits, applyEdit))}
-        onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))} />;
+        onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))}
+        suggestions={suggestions} readOnly={readOnly} onHoverSuggestion={setSuggestionHover} />;
       case "selected": return <>
         <SelectedPanel state={editor} described={describedControl} readOnly={readOnly}
           onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
@@ -644,9 +651,11 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       position }).catch(error => console.error("Bocken sparades inte i telefonen", error)),
     onNote: ({ target, at, text: value, photo }) => notes.queueNote(target, at, value, photo), onSketch: () => notes.startSketch("MAP_ERROR"),
     onList: () => { setTab("inspections"); setReveal(value => value + 1); },
-    onOffline: () => setOfflineDialog(true) });
+    onOffline: () => setOfflineDialog(true),
+    suggestion: readOnly ? undefined : <FieldSuggestionLine document={document} control={selectedControl} state={suggestions} symbols={symbols}
+      onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} /> });
   useLockedPage();
-  // ADR-0180 beslut 13: Objekt öppnar paletten (också i telefonens kompakta läge, bakom "Mer").
+  // ADR-0180 beslut 14: Objekt öppnar paletten (också i telefonens kompakta läge, bakom "Mer").
   const toolBar = <ToolBar tool={ux.palette ? "SPECIAL" : editor.tool} tools={tools} inCourse={view !== ALL_CONTROLS} onTool={tool => {
     if (tool === "SPECIAL") ux.setPalette(open => !open);
     else { ux.setPalette(false); apply(current => setTool(current, tool)); }

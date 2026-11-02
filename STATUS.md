@@ -10,14 +10,20 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 13)
+### 2026-11-02 – Banläggningens editor mer som Purple Pen (grenen banlaggning-ux, ADR-0180 beslut 14)
 - Objekt i verktygsraden (och bakom "Mer") öppnar en palett i fyra grupper med ikoner ritade av kartans ritare; obligatorisk passage ("Obl. passage", tooltip) skiljs från valfri; kartbyte och bild (uppladdning) läggs därifrån.
 - Vridhandtag för obligatorisk och valfri passage (5°-steg, Skift/andra fingret fritt), "Vrid efter sträckan", en ny passage i en bana vrids efter sträckan; ny ändring `SET_CONTROL_ORIENTATION`.
 - Duplicera bana (`DUPLICATE_COURSE`, med gafflingar, nummer, tryckyta och specialobjekt); båda nya ändringarna i samarbetet, kontraktet och förslagens text.
 - Kontroller utanför banan syns svagt med kod och fångas med ett klick i ringen ("Lägg in 45"; Alt/"Alltid ny" ger ny); "Visa andra banor svagt".
 - Kontrollistan i Banor visar gafflingen som träd (grenar bredvid varandra, klick = arbeta i grenen), "Gaffla här" (2/3/4 grenar, slinga), Nästa gren, bokstäver på kartan, varianter med antal och bild.
 - Ta bort bana frågar om kontrollerna som blir oanvända (ett ångra-steg); oanvända i Alla kontroller ritas grå streckade, filter, antal och "Ta bort alla oanvända".
-- Verifierat: se slutet av passet (lint, typecheck, test, Playwright banlaggning-objekt-gaffling och befintliga banläggningsspecar).
+- Verifierat: lint, typecheck, test (paketet: kopia, vinkel, uppspelning och rundresa till .ppen; webben: fångst, vridning, grenar, alla 16 specialobjekt); Playwright banlaggning-objekt-gaffling (ny, skärmbilder 1280/390 granskade), banlaggning, -utskrift, -mobil, -samarbete, -falt, -utseende och kontrollbeskrivning gröna lokalt; CI grönt.
+
+### 2026-11-02 – Förslag på kontrollbeskrivning ur kartfilen (grenen beskrivningsforslag, ADR-0180 beslut 13)
+- Paketet: tabell ISOM 2017-2/ISSprOM 2019-2 → IOF 2018 D (namnet som reserv), regler för G (sida, fot/uppe på, kant, hörn in/ut, ände, del, mellan; väderstreck från nordlinjerna), C (flera likadana), E (raserad, djup, sank, stenig), F bara korsning/förgrening; säkerhet, förklaring, högst tre förslag.
+- Webben: kartans Worker räknar; beskrivningspanelen visar förslaget som symboler med Godta, Godta alla tomma och alternativen, markerar objektet på kartan; kontroller utan D förhandsvisas ljusare ("förslag"); fältläget har raden "Förslag: … Godta". Allt via SET_DESCRIPTION.
+- Ägarens filer: SBN26_2.ppen har inga D-rutor, så träffsäkerheten mot ägarens beskrivningar går inte att mäta. Mot min avläsning av kartan: Högdalen D rätt i 24 av 24 entydiga kontroller (8 av 32 oklara), Djurgården 16 av 16 (7 oklara). G kunde inte prövas mot facit.
+- Verifierat: lint, typecheck, test (paketet 26 regeltester, webbens lib), ägartestet med `OTID_REAL_MAP`/`OTID_REAL_MAP_PPEN`/`OTID_REAL_MAP_FACIT`, Playwright banlaggning-beskrivningsforslag, banlaggning, banlaggning-mobil lokalt; CI grönt. Idé: ägaren skickar en .ppen med egna beskrivningar, så kan D och G mätas på riktigt.
 
 ### 2026-11-02 – Notiser: rita, kartfel och ta bort (grenen notiser, ADR-0181 beslut 8, migration 0037)
 - Notiser tas bort (den som skrev eller den med ändra; svar och foto med; genom telefonens kö; andra editorer ser det). Ritning i notisen (`SKETCH`, ≤ 20 delar/1 000 punkter): dra eller klicka, ett finger ritar och två flyttar kartan, färg per slag, "är fel"/"ska vara här"; ritningen är markeringen och väljs på kartan, aldrig i utdata.

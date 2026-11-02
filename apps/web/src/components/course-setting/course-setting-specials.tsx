@@ -21,7 +21,7 @@ export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onC
   document: CourseSettingDocument; state: EditorState; readOnly: boolean;
   onKind: (kind: SpecialKind) => void; onFinish: () => void; onCancel: () => void; onSelect: (id: string) => void;
   onEdits: (edits: readonly CourseSettingEdit[]) => void;
-  /** ADR-0180 beslut 13: "Vrid efter sträckan" för en valfri passage. */
+  /** ADR-0180 beslut 14: "Vrid efter sträckan" för en valfri passage. */
   onAlong?: (() => void) | undefined;
 }) {
   const view = state.view;

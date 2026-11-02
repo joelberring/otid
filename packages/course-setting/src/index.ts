@@ -52,11 +52,19 @@ export { approximateTextWidth, DIGIT_HEIGHT_EM, expandText, specialVisible, TEXT
 export { SPECIAL_KIND_LIST, specialPointCount } from "./special-edit";
 export { specialImage } from "./ppen-special";
 export { printScaleOf } from "./overprint";
-// Banläggningens UX (ADR-0180 beslut 13): kopia av bana, oanvända kontroller, grenarnas bokstäver och vinklar.
+// Banläggningens UX (ADR-0180 beslut 14): kopia av bana, oanvända kontroller, grenarnas bokstäver och vinklar.
 export { controlsOnlyIn, unusedControls } from "./course-duplicate";
 export { legPath, variantLetters, variations, type Variation } from "./walk";
 export { normalizeDegrees } from "./edit";
 export { BARRIER_KINDS, routeBarriers, type RouteBarrierGeometry } from "./barriers";
+// ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen.
+export {
+  acceptSuggestion, lacksFeature, mapNorthDegrees, SUGGEST_LIMITS, suggestAt, suggestForDocument, suggestOptionsFor, type DescriptionSuggestion,
+  type SuggestedFeature, type SuggestOptions
+} from "./suggest";
+export {
+  FEATURE_KIND, featureRuleFor, ISOM_FEATURES, ISSPROM_FEATURES, NAME_FEATURES, type FeatureKind, type FeatureLookup, type FeatureRule
+} from "./suggest-symbols";
 // Steg 64 (ADR-0183): utskriftsprofil och layoutmall.
 export * from "./print-profile";
 export * from "./layout-template";

@@ -113,6 +113,8 @@ export interface FieldInput {
   readonly onNote: (input: { target: CourseSettingNoteTarget; at: Point | null; text: string; photo: Photo | null }) => Promise<void>;
   readonly onList: () => void;
   readonly onOffline: () => void;
+  /** ADR-0180 beslut 13: raden "Förslag: sten, norra sidan — Godta" för vald kontroll. */
+  readonly suggestion?: ReactNode | undefined;
   /** ADR-0181 beslut 8: "Rita kartfel" under Mer (ritläget i editorn). */
   readonly onSketch?: (() => void) | undefined;
 }
@@ -344,6 +346,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
     </div>
     {state.error && <p className={css.line} data-problem="true" role="alert">{state.error}</p>}
     {lines}
+    {selected && input.suggestion}
     <div className={css.compactRow}>
       {picker}
       {positionButton}

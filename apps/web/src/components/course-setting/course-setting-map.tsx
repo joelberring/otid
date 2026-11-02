@@ -24,7 +24,7 @@ import {
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
-/** ADR-0180 beslut 13: tangenterna och fingrarna vid ett klick eller en dragning. */
+/** ADR-0180 beslut 14: tangenterna och fingrarna vid ett klick eller en dragning. */
 export interface PointerModifiers {
   readonly alt: boolean;
   /** Skift eller ett andra finger: fri vinkel när man vrider. */
@@ -89,7 +89,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
   faded: readonly OverprintPrimitive[];
-  /** ADR-0180 beslut 13: kontroller som inte är med i banan (svagt, med kod) och andra banor (svagt). */
+  /** ADR-0180 beslut 14: kontroller som inte är med i banan (svagt, med kod) och andra banor (svagt). */
   ghosts?: readonly OverprintPrimitive[] | undefined;
   others?: readonly OverprintPrimitive[] | undefined;
   marks: Parameters<typeof drawMarks>[2];
@@ -280,7 +280,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const at = local(event);
     pointers.current.set(event.pointerId, at);
     if (pointers.current.size === 2 && gesture.current?.kind === "drag" && handlers.onSecondPointer?.()) {
-      // Ett andra finger medan man vrider: dragningen fortsätter med fri vinkel (ADR-0180 beslut 13).
+      // Ett andra finger medan man vrider: dragningen fortsätter med fri vinkel (ADR-0180 beslut 14).
       gesture.current.free = true;
       return;
     }

@@ -30,13 +30,15 @@ function Shape({ node }: { node: SvgNode }) {
  * En beskrivning som egen SVG. I editorn är raderna och rutorna klickbara (och nåbara med Tab): `onHit` får ytan,
  * `highlight` markerar vald rad och `active` rutan som väljaren är öppen för.
  */
-export function DescriptionSvg({ layout, symbols, label, fluid, highlight, active, onHit, hitLabel, testId }: {
+export function DescriptionSvg({ layout, symbols, label, fluid, highlight, active, onHit, hitLabel, testId, preview, previewLabel }: {
   layout: DescriptionLayout; symbols: SymbolLookup; label: string;
   /** Så bred som behållaren (editorn); annars verklig storlek i mm. */
   fluid?: boolean | undefined;
   highlight?: { x: number; y: number; width: number; height: number } | undefined;
   active?: { ref: string; box: string } | undefined;
   onHit?: ((hit: HitPrimitive) => void) | undefined; hitLabel?: ((hit: HitPrimitive) => string) | undefined; testId?: string | undefined;
+  /** ADR-0180 beslut 13: kontrollerna vars rad visar ett förslag (ljusare symboler och `previewLabel` i ruta H). */
+  preview?: ReadonlySet<string> | undefined; previewLabel?: string | undefined;
 }) {
   const width = mm(layout.widthMm), height = mm(layout.heightMm);
   // Raderna först, så att rutorna ligger ovanpå och tar klicket.
@@ -53,7 +55,11 @@ export function DescriptionSvg({ layout, symbols, label, fluid, highlight, activ
     style={{ display: "block", background: "#fff", ...(fluid ? { height: "auto", maxWidth: `${width * 7}px` } : {}) }}>
     {highlight && <rect x={highlight.x} y={highlight.y} width={highlight.width} height={highlight.height} fill="var(--attention-tint, #fff3c4)" />}
     {box && <rect x={box.x} y={box.y} width={box.width} height={box.height} fill="var(--attention, #f0b400)" fillOpacity={0.35} />}
-    <DescriptionShapes nodes={descriptionNodes(layout, symbols)} />
+    {descriptionNodes(layout, symbols).map((node, index) => node.tag === "symbol" && node.ref && preview?.has(node.ref)
+      ? <g key={index} opacity={0.4} data-preview="true"><DescriptionShapes nodes={[node]} /></g> : <DescriptionShapes key={index} nodes={[node]} />)}
+    {preview && previewLabel && hitAreas(layout).filter(hit => hit.box === "H" && preview.has(hit.ref)).map(hit =>
+      <text key={`p${hit.ref}`} x={hit.x + hit.width / 2} y={hit.y + hit.height * 0.62} fontSize={hit.height * 0.3} textAnchor="middle"
+        fontStyle="italic" fill="#555" data-testid="description-preview-label">{previewLabel}</text>)}
     {hits.map((hit, index) => <rect key={index} x={hit.x} y={hit.y} width={hit.width} height={hit.height} fill="transparent"
       style={{ cursor: "pointer" }} tabIndex={!hit.box || isPickerBox(hit.box) ? 0 : -1} role="button" aria-label={hitLabel?.(hit)}
       data-ref={hit.ref} data-box={hit.box} onClick={() => onHit?.(hit)} onKeyDown={key(hit)} />)}

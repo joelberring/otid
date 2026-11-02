@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
 
 /**
- * ADR-0180 beslut 13 (ägarens synpunkter 2026-11-02): objekten och gafflingen i banläggningens editor. En obligatorisk
+ * ADR-0180 beslut 14 (ägarens synpunkter 2026-11-02): objekten och gafflingen i banläggningens editor. En obligatorisk
  * passage läggs i banan (vriden efter sträckan) och vrids med handtaget; en valfri passage läggs från paletten; banan
  * dupliceras; en befintlig kontroll fångas med ett klick i ringen; en gaffling i två grenar får en kontroll i varje gren;
  * en bana tas bort med sina oanvända kontroller (ett ångra-steg) och de oanvända tas bort i Alla kontroller. Telefonen:

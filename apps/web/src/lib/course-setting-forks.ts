@@ -4,7 +4,7 @@ import { ALL_CONTROLS } from "./course-setting-hit";
 import { controlLabel } from "./course-setting-text";
 
 /**
- * ADR-0180 beslut 13: gafflingarna som i Purple Pens topologi (TopologyFormatter): banan som ett träd där grenarna står
+ * ADR-0180 beslut 14: gafflingarna som i Purple Pens topologi (TopologyFormatter): banan som ett träd där grenarna står
  * bredvid varandra med bokstav och går ihop vid kontrollen där de möts. En gren börjar med en egen banans kontroll för
  * gaffelkontrollen (Purple Pens modell, `CourseControlSplit`); att arbeta i en gren = nya kontroller läggs in efter den
  * sista banans kontrollen i grenen. Varianten som visas kraftigt är den första som går genom grenen.

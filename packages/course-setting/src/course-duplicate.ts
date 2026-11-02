@@ -1,5 +1,5 @@
 /**
- * Banläggningens UX (ADR-0180 beslut 13): duplicera en bana och vilka kontroller som inte används. Följer Purple Pens
+ * Banläggningens UX (ADR-0180 beslut 14): duplicera en bana och vilka kontroller som inte används. Följer Purple Pens
  * ChangeEvent.DuplicateCourse och QueryEvent.ControlsUnusedInCourses (BSD, Peter Golde).
  */
 import { nextId } from "./ppen-common";

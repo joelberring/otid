@@ -280,7 +280,7 @@ export type CourseSettingEdit =
   | { readonly type: "MOVE_CONTROL"; readonly control: string; readonly at: Point }
   | { readonly type: "DELETE_CONTROL"; readonly control: string }
   | { readonly type: "SET_CONTROL_CODE"; readonly control: string; readonly code: string }
-  /** Banläggningens UX (ADR-0180 beslut 13): passagens vinkel i grader moturs (bara passager, som Purple Pens Rotate). */
+  /** Banläggningens UX (ADR-0180 beslut 14): passagens vinkel i grader moturs (bara passager, som Purple Pens Rotate). */
   | { readonly type: "SET_CONTROL_ORIENTATION"; readonly control: string; readonly orientation: number }
   | { readonly type: "ADD_COURSE"; readonly name: string; readonly kind?: "NORMAL" | "SCORE" | undefined }
   /**

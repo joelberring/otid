@@ -1,0 +1,22 @@
+/* ADR-0180 beslut 12: förslag på kontrollbeskrivning. Rutorna ritas som en rad i beskrivningen (C–H). */
+.box { display: grid; gap: 6px; padding: 8px 10px; border: 1px dashed var(--line-strong); border-radius: 6px; background: var(--surface); }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; }
+.head strong { font-size: var(--text-sm); }
+.level { padding: 1px 8px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-xs, .75rem); white-space: nowrap; }
+.level[data-level="HIGH"] { border-color: var(--ink); font-weight: 700; }
+.level[data-level="LOW"] { border-style: dashed; color: var(--muted); }
+.cells { display: inline-grid; grid-template-columns: repeat(6, 34px); border: 1.5px solid #000; background: #fff; width: max-content; }
+.cell { display: grid; place-items: center; width: 34px; height: 34px; border-left: 1px solid #000; }
+.cell:first-child { border-left: none; }
+.cell svg { display: block; }
+.reason { margin: 0; font-size: var(--text-sm); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.alternatives { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.alternative { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px; border: 1px solid transparent; border-radius: 4px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.alternative:hover, .alternative:focus-visible { border-color: var(--line-strong); background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.alternative .cells { grid-template-columns: repeat(6, 24px); }
+.alternative .cell { width: 24px; height: 24px; }
+.alternative span { font-size: var(--text-xs, .75rem); color: var(--muted); }
+.field { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-sm); }
+.field span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

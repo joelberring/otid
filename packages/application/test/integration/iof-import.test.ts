@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { and, asc, count, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
-import { contentHash, createEvent, importIofXml, importIofXmlAsAdmin, ingestDeviceBatch } from "../../src";
+import { contentHash, createEvent, importIofXmlAsAdmin, ingestDeviceBatch } from "../../src";
 import { requireRaceRole } from "../../src/race-session";
 import { logoutUserAccountSession } from "../../src/user-account";
 import { db, courseXml, entryXml, startListXml, readoutPackage, batch, okPayload, useRaceDatabase } from "./race-fixtures";
 import { raceLogin, revokeRaceGrants } from "./accounts";
+import { importIofXml } from "./production-paths";
 
 useRaceDatabase();
 

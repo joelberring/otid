@@ -5,10 +5,11 @@ import { schema } from "@o-tid/database";
 import {
   ingestDeviceBatch, listResultRecalculationCandidatesAsAdmin, listUnknownReadoutResolutionCandidatesAsAdmin, publicResults, registerReadoutCard, resolveUnknownReadoutAsAdmin
 } from "../../src";
-import { recalculateEntry } from "../../src/result-recalculation";
+
 import { raceAuth } from "./accounts";
 import { statusFlow } from "./entry-status-helpers";
 import { batch, db, importedRace, okPayload, useRaceDatabase } from "./race-fixtures";
+import { recalculateEntry } from "./production-paths";
 
 /**
  * Steg 31 (B4): samma bricka hos två löpare. Ada läser ut sin bricka; sedan springer någon annan med den. Den andra
@@ -69,8 +70,9 @@ describe("steg 31: samma bricka hos två löpare", () => {
     expect(await row(raceId, "Ada")).toMatchObject({ status: "OK", elapsedMs: 2_400_000 });
     expect(await row(raceId, "Bo")).toMatchObject({ status: "OK", elapsedMs: 3_000_000 });
 
-    // Omräkning: var och en från sin egen avläsning, även Ada som inte längre har brickan.
-    await recalculateEntry(db, raceId, ada);
+    // Omräkning (ADR-0191 beslut 4: via "Räkna om från avläsningen"): Bo från sin egen avläsning. Ada har ingen bricka
+    // längre och kan inte räknas om; hennes resultat från sin egen avläsning står kvar.
+    await expect(recalculateEntry(db, raceId, ada)).rejects.toThrow("Deltagaren saknar aktiv bricka");
     await recalculateEntry(db, raceId, bo);
     const adaReadout = (await revisions(ada)).at(-1)!.readoutId, boReadout = (await revisions(bo)).at(-1)!.readoutId;
     expect(adaReadout).not.toBe(boReadout);
@@ -132,8 +134,8 @@ describe("steg 45: omräkning tar aldrig någon annans avläsning", () => {
     expect(listed.response.entries.find((entry) => entry.id === bo)).toMatchObject({ readiness: "NO_READOUT", latestReadout: null });
     await expect(recalculateEntry(db, raceId, bo)).rejects.toThrow("Deltagaren saknar avläsning");
     expect(await revisions(bo)).toEqual([]);
-    // Ada räknas fortfarande om från sin egen avläsning.
-    await recalculateEntry(db, raceId, ada);
+    // Ada har ingen bricka längre och räknas inte om; hennes resultat från sin egen avläsning står kvar.
+    await expect(recalculateEntry(db, raceId, ada)).rejects.toThrow("Deltagaren saknar aktiv bricka");
     expect(await row(raceId, "Ada")).toMatchObject({ status: "OK", elapsedMs: 2_400_000 });
   });
 

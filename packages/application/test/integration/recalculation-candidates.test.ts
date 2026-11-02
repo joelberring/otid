@@ -5,10 +5,10 @@ import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import {
   createEvent,
-  importIofXml,
   listResultRecalculationCandidatesAsAdmin
 } from "../../src";
 import { raceAuth } from "./accounts";
+import { importIofXml } from "./production-paths";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");

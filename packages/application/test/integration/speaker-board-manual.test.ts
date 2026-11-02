@@ -5,7 +5,6 @@ import { createDatabase } from "@o-tid/database";
 import {
   contentHash,
   createEvent,
-  importIofXml,
   ingestDeviceBatch,
   listSpeakerBoardAsAdmin,
   listAdministratorForestWatch,
@@ -15,6 +14,7 @@ import {
 import type { EntryStatusDecision } from "@o-tid/contracts";
 import { statusFlow } from "./entry-status-helpers";
 import { raceLogin } from "./accounts";
+import { importIofXml } from "./production-paths";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");

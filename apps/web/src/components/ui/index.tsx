@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes,
+import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type TableHTMLAttributes } from "react";
 import styles from "./ui.module.css";
 
@@ -60,19 +60,6 @@ export function focusWhenEnabled(form: { current: HTMLFormElement | null }, sele
     if (field && !field.disabled) field.focus();
     else if (frames > 0) focusWhenEnabled(form, selector, frames - 1);
   });
-}
-
-/** Val i en lista, med etikett. */
-export function Select({ label, help, error, children, className, ...props }: SelectHTMLAttributes<HTMLSelectElement> &
-  { label: ReactNode; help?: ReactNode; error?: string | undefined }) {
-  return <Field label={label} help={help} error={error} className={className}><select {...props}>{children}</select></Field>;
-}
-
-/** Verktygsrad: filter och åtgärder på en rad. `end` hamnar till höger. */
-export function Toolbar({ children, end, label }: { children?: ReactNode; end?: ReactNode; label?: string }) {
-  return <div className={styles.toolbar} role={label ? "toolbar" : undefined} aria-label={label}>
-    {children}{end && <div className={styles.toolbarEnd}>{end}</div>}
-  </div>;
 }
 
 /** Ett avsnitt med rubrik, kort hjälptext och åtgärder. Avsnitt skiljs åt med luft och en linje. */

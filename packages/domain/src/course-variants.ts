@@ -14,10 +14,6 @@ export function courseVariantsOf(version: CourseVersion): readonly CourseVariant
     (left.code < right.code ? -1 : left.code > right.code ? 1 : 0));
 }
 
-export function isForkedCourseVersion(version: CourseVersion): boolean {
-  return (version.variants?.length ?? 0) > 0;
-}
-
 /** Varianten med koden, om banversionen har den. */
 export function assignedCourseVariant(version: CourseVersion, code: string | undefined | null): CourseVariant | undefined {
   if (code === undefined || code === null) return undefined;

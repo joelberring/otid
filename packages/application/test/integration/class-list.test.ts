@@ -5,11 +5,10 @@ import { migrate } from "@o-tid/database";
 import { createDatabase, schema } from "@o-tid/database";
 import {
   createEvent,
-  changeEntryClass,
-  importIofXml,
   listEntryClassesAsAdmin
 } from "../../src";
 import { raceAuth } from "./accounts";
+import { changeEntryClass, importIofXml } from "./production-paths";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");
@@ -19,7 +18,6 @@ beforeAll(async () => {
   await migrate(db, { migrationsFolder: new URL("../../../database/migrations", import.meta.url).pathname });
 });
 afterAll(async () => { await pool.end(); });
-
 
 async function fixture() {
   const { race } = await createEvent(db, {

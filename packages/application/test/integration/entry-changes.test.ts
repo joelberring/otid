@@ -4,7 +4,7 @@ import { schema } from "@o-tid/database";
 import {
   changeEntryStartTimeAsAdmin, listEntryStartTimesAsAdmin, changeEntryCardAsAdmin, changeEntryIdentityAsAdmin,
   listEntryIdentitiesAsAdmin, listEntryCardsAsAdmin, listEntryRegistrationClassesAsAdmin, registerEntryAsAdmin,
-  importIofXml, importIofXmlAsAdmin, ingestDeviceBatch, finalizeResultsAsAdmin,
+  importIofXmlAsAdmin, ingestDeviceBatch, finalizeResultsAsAdmin,
   listResultFinalizationCandidatesAsAdmin,
   listResultRecalculationCandidatesAsAdmin, publicResults, recalculateEntryAsAdmin
 } from "../../src";
@@ -14,6 +14,7 @@ import {
 import { statusFlow } from "./entry-status-helpers";
 import { db, entryXml, startListXml, readoutPackage, importedRace, trustedRaceFixtureOverview, batch, okPayload, useRaceDatabase } from "./race-fixtures";
 import { raceLogin } from "./accounts";
+import { importIofXml } from "./production-paths";
 
 useRaceDatabase();
 
@@ -584,12 +585,15 @@ describe("TASK026 versionsbunden namn- och klubbrättning PostgreSQL", () => {
     expect(await state(raceId)).toEqual(before);
     await expect(importIofXml(db, raceId, conflictingXml)).rejects.toThrow();
     expect(await state(raceId)).toEqual(before);
-    await importIofXml(db, raceId, entryXml);
-    expect(await state(raceId)).toEqual(before);
+    // Samma innehåll igen är en dubblett: inget i anmälan, loppet eller importfilerna ändras (ADR-0191 beslut 4: via
+    // produktionsvägen journalförs den nya begäran, så journalerna jämförs inte).
+    expect((await importIofXml(db, raceId, entryXml)).duplicate).toBe(true);
+    expect((await state(raceId)).slice(0, 4)).toEqual(before.slice(0, 4));
+    const afterRetry = await state(raceId);
     const matching = entryXml.replace("<Given>Bo</Given>", "<Given>Alva</Given>").replace("<Family>Skog</Family>", "<Family>Rättad</Family>")
       .replace(/(<PersonEntry>\s*<Id>entry-bo<\/Id>[\s\S]*?<Organisation><Name>)Centrum OK/, "$1Ny OK");
     await expect(importIofXml(db, raceId, matching.replace("<Organisation><Name>Ny OK</Name></Organisation>", ""))).rejects.toThrow();
-    expect(await state(raceId)).toEqual(before);
+    expect(await state(raceId)).toEqual(afterRetry);
     await importIofXml(db, raceId, matching);
     const listed = await listEntryIdentitiesAsAdmin(db, authentication, now);
     if (listed.status !== "ok") throw new Error("Namnunderlag saknas efter import");

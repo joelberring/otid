@@ -3,11 +3,12 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import { getAdministratorEffectiveResult, ingestDeviceBatch, publicResults } from "../../src";
-import { recalculateEntry } from "../../src/result-recalculation";
+
 import { raceAuth } from "./accounts";
 import { statusFlow } from "./entry-status-helpers";
 import { contentHash } from "../../src/serialization";
 import { batch, db, importedRace, okPayload, useRaceDatabase } from "./race-fixtures";
+import { recalculateEntry } from "./production-paths";
 
 /** Steg 31 (B): manuell tid, brutit utan avläsning och godkända kontroller för en löpare; besluten ligger kvar. */
 useRaceDatabase();
@@ -54,7 +55,7 @@ describe("steg 31: ange tid manuellt", () => {
     await ingestDeviceBatch(db, raceId, noFinishBatch(randomUUID()));
     await recalculateEntry(db, raceId, ada);
     expect((await revisions(ada)).map((row) => row.cause)).toEqual(["CARD_READOUT", "MANUAL_TIME", "CARD_READOUT",
-      "CLASS_CHANGE_RECALCULATION"]);
+      "EXPLICIT_RECALCULATION"]);
     expect(await publicRow(raceId, "Ada")).toMatchObject({ status: "OK", elapsedMs: 2_700_000, revision: 2 });
     expect(await entryStatus(auth, ada)).toMatchObject({ governingDecision: "MANUAL_TIME", readiness: { WITHDRAW: "READY",
       MANUAL_TIME: "ACTIVE_MANUAL_TIME" } });

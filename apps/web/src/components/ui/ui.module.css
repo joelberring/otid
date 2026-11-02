@@ -16,7 +16,6 @@
 .field :is(input, select, textarea)[aria-invalid="true"] { border-color: var(--mp); }
 
 /* Verktygsrad */
-.toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; min-width: 0; }
 .toolbarEnd { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* Avsnitt: rubrik, kort hjälptext, åtgärder till höger. Avskiljs med luft och en linje. */

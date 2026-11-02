@@ -20,7 +20,7 @@ import {
   type EntryListImport,
   type IofImport
 } from "@o-tid/iof-xml";
-import { contentHash, sha256Hex } from "./serialization";
+import { sha256Hex } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 import { lockRaceForMutation } from "./concurrency";
 import { applyStartListImport, StartListImportConflictError } from "./import-start-list";
@@ -420,36 +420,6 @@ async function applyParsedImport(tx: DbExecutor, raceId: string, parsed: IofImpo
 
 function safeImportResponse(response: IofImportResponse): IofImportResponse {
   return iofImportResponseSchema.parse(response);
-}
-
-export async function importIofXml(db: DbExecutor, raceId: string, xml: string) {
-  const parsed = parseIofXml(xml);
-  const hash = contentHash(xml);
-  return db.transaction(async (tx) => {
-    const race = await lockRaceForMutation(tx, raceId);
-    const [existing] = await tx.select().from(schema.importFiles).where(and(
-      eq(schema.importFiles.raceId, raceId),
-      eq(schema.importFiles.kind, parsed.kind),
-      eq(schema.importFiles.contentHash, hash)
-    ));
-    if (existing) return { duplicate: true, importFileId: existing.id, report: existing.report };
-
-    const applied = await applyParsedImport(tx, raceId, parsed, { actorAccountId: null, snapshotVersionAfter: race.snapshotVersion + 1,
-      now: new Date(), confirmChanges: false });
-    const report = applied.report;
-    const [saved] = await tx.insert(schema.importFiles).values({
-      raceId,
-      kind: parsed.kind,
-      contentHash: hash,
-      originalXml: xml,
-      report
-    }).returning();
-    if (!saved) throw new Error("Importfilen kunde inte sparas");
-    if (applied.snapshotChanged && !applied.bumped) {
-      await bumpReadoutPackageVersion(tx, raceId);
-    }
-    return { duplicate: false, importFileId: saved.id, report };
-  });
 }
 
 export type AuthenticatedIofImportResult =

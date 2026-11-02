@@ -46,4 +46,3 @@ export const db = database.db;
 export const pool = database.pool;
 /** De publika listornas uträkning (steg 54): egen pool med tidsgräns. */
 export const publicDb = publicDatabase.db;
-export const publicPoolOfDatabase = publicDatabase.pool;

@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
-import { ClassCapacityConflictError } from "../../src/class-capacity-guard";
 import { changeClassCapacityAsAdmin } from "../../src/class-capacity";
 import { listEntryTransfersAsAdmin, transferEntryAsAdmin } from "../../src/entry-transfer";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
-import { changeEntryClass, changeEntryClassAsAdmin } from "../../src/results";
-import { importIofXml, importIofXmlAsAdmin } from "../../src/import-iof";
+import { changeEntryClassAsAdmin } from "../../src/results";
+import { importIofXmlAsAdmin } from "../../src/import-iof";
 import { raceLogin } from "./accounts";
+import { changeEntryClass, importIofXml } from "./production-paths";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för en uttryckligen isolerad testdatabas");
@@ -103,7 +103,8 @@ describe("TASK029 shared class capacity guard, real PostgreSQL", () => {
     const before = await footprint(f.raceId);
     expect((await transfer()).status).toBe("conflict"); expect((await registration()).status).toBe("conflict");
     expect((await legacy()).status).toBe("conflict");
-    await expect(changeEntryClass(db, f.raceId, f.entryId, f.targetId)).rejects.toBeInstanceOf(ClassCapacityConflictError);
+    // ADR-0191 beslut 4: via produktionsvägen blir kapacitetsfelet ett 409 (conflict).
+    await expect(changeEntryClass(db, f.raceId, f.entryId, f.targetId)).rejects.toThrow(/^conflict/);
     expect(await footprint(f.raceId)).toBe(before);
     await pool.query("UPDATE class SET max_entries=1 WHERE id=$1", [f.targetId]);
     expect((await transfer()).status).toBe("transferred");
@@ -152,7 +153,7 @@ describe("TASK029 shared class capacity guard, real PostgreSQL", () => {
     await pool.query("UPDATE class SET max_entries=0,capacity_version=2 WHERE id=$1", [f.targetId]);
     const rejected = xml([{ id: "ada", name: "Changed", raceClass: "source" }, { id: "bo", name: "Bo", raceClass: "target", card: "67890" }]);
     const before = await footprint(f.raceId);
-    await expect(importIofXml(db, f.raceId, rejected)).rejects.toBeInstanceOf(ClassCapacityConflictError);
+    await expect(importIofXml(db, f.raceId, rejected)).rejects.toThrow(/^conflict/);
     expect((await importIofXmlAsAdmin(db, { ...f.importer, idempotencyKey: `iof-import:${randomUUID()}`, xmlBytes: Buffer.from(rejected) }, now)).status).toBe("conflict");
     expect(await footprint(f.raceId)).toBe(before);
     await pool.query("UPDATE class SET max_entries=1 WHERE race_id=$1", [f.raceId]);

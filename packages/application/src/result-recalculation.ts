@@ -11,13 +11,12 @@ import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
 import {
   evaluateReadoutForEntry,
-  RESULT_ENGINE_VERSION,
-  snapshotForEntryCard
+  RESULT_ENGINE_VERSION
 } from "@o-tid/domain";
 import { latestResultReadout, latestResultReadouts, readoutClaims, recalculationReadout } from "./card-reuse";
-import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./result-revisions";
+import { appendResultRevision, normalizedReadout } from "./result-revisions";
 import { loadRaceSnapshot } from "./snapshot";
-import { lockEntryForRevision, lockRaceForSnapshot } from "./concurrency";
+import { lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { isResultCurrent, loadResultBasisHashes } from "./result-basis";
 import { UUID_PATTERN } from "./serialization";
@@ -321,36 +320,5 @@ export async function recalculateEntryAsAdmin(
       }
     });
     return { status: "recalculated", response: resultRecalculationResponse(savedRequest, createdResult, false) };
-  });
-}
-
-export async function recalculateEntry(db: Database, raceId: string, entryId: string) {
-  return db.transaction(async (tx) => {
-    await lockRaceForSnapshot(tx, raceId);
-    await lockEntryForRevision(tx, raceId, entryId);
-    const [assignment] = await tx.select().from(schema.cardAssignments).where(and(
-      eq(schema.cardAssignments.entryId, entryId), eq(schema.cardAssignments.active, true)
-    ));
-    const own = await latestResultReadout(tx, entryId);
-    if (!assignment && !own) throw new Error("Deltagaren saknar aktiv bricka");
-    const [byCard] = assignment ? await tx.select().from(schema.cardReadouts).where(and(
-      eq(schema.cardReadouts.raceId, raceId), eq(schema.cardReadouts.cardNumber, assignment.cardNumber)
-    )).orderBy(desc(schema.cardReadouts.readAt)).limit(1) : [];
-    const readout = recalculationReadout(entryId, own, assignment?.cardNumber, byCard, await readoutClaims(tx, raceId, byCard ? [byCard.id] : []));
-    if (!readout) throw new Error("Deltagaren saknar avläsning");
-    const snapshot = await loadRaceSnapshot(tx, raceId);
-    const stored = await evaluateAndStore(tx, snapshotForEntryCard(snapshot, entryId, readout.cardNumber), normalizedReadout(readout),
-      "CLASS_CHANGE_RECALCULATION", { entryId });
-    if (!stored.stored) throw new Error("Avläsningen kan inte kopplas till deltagaren");
-    const { evaluation, revision: created } = stored;
-    const revision = created.revision;
-    await tx.insert(schema.auditEvents).values({
-      raceId,
-      entityType: "result_revision",
-      entityId: created?.id ?? entryId,
-      action: "RESULT_RECALCULATED",
-      after: { entryId, revision, status: evaluation.status, reason: evaluation.reason }
-    });
-    return created;
   });
 }

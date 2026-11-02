@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import { and, asc, count, desc, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import {
-  changeEntryClass, importIofXml, ingestDeviceBatch, listResultRecalculationCandidatesAsAdmin,
+  ingestDeviceBatch, listResultRecalculationCandidatesAsAdmin,
   recalculateEntryAsAdmin
 } from "../../src";
 import { requireRaceRole } from "../../src/race-session";
 import { logoutUserAccountSession } from "../../src/user-account";
 import { db, courseXml, importedRace, batch, okPayload, useRaceDatabase } from "./race-fixtures";
 import { raceLogin, revokeRaceGrants } from "./accounts";
+import { changeEntryClass, importIofXml } from "./production-paths";
 
 useRaceDatabase();
 

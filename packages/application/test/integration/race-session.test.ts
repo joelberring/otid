@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { count, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import {
-  changeEntryClass, changeEntryClassAsAdmin, getRaceOverviewAsAdmin, importIofXml, ingestDeviceBatch,
+  changeEntryClassAsAdmin, getRaceOverviewAsAdmin, ingestDeviceBatch,
   listEntryClassesAsAdmin, logoutUserAccountSession, publicRaceSummary, requireRaceRole
 } from "../../src";
 import { db, courseXml, importedRace, batch, okPayload, useRaceDatabase } from "./race-fixtures";
 import { raceAuth } from "./accounts";
+import { changeEntryClass, importIofXml } from "./production-paths";
 
 useRaceDatabase();
 

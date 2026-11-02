@@ -11,11 +11,12 @@ import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { commitStartDrawAsAdmin } from "../../src/start-draw";
 import { saveRaceSettingsAsAdmin } from "../../src/race-settings";
 import { previewRaceDateMoveAsAdmin } from "../../src/race-date-move";
-import { importIofXml } from "../../src/import-iof";
+
 import { grantRacePersonAsAdmin, listRacePeopleAsAdmin } from "../../src/race-people";
 import { requireRaceRole } from "../../src/race-session";
 import { markEmailVerifiedByCommand } from "../../src/email-verification";
 import { accountOnRace } from "./accounts";
+import { importIofXml } from "./production-paths";
 
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("ADR-0188-testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");

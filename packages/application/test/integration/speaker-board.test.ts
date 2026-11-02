@@ -6,13 +6,13 @@ import { createDatabase, schema } from "@o-tid/database";
 import {
   contentHash,
   createEvent,
-  importIofXml,
   ingestDeviceBatch,
   listSpeakerBoardAsAdmin,
   loginUserAccount,
   requireRaceRole
 } from "../../src";
 import { raceAuth, TEST_PASSWORD } from "./accounts";
+import { importIofXml } from "./production-paths";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs");

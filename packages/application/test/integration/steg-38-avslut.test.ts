@@ -11,11 +11,12 @@ import {
   applyReadoutRereadAsAdmin, exportIofResultListAsAdmin, getAdministratorEffectiveResult, listEntryTransfersAsAdmin,
   previewReadoutRereadAsAdmin, publicResults, setResultsOfficialAsAdmin
 } from "../../src";
-import { recalculateEntry } from "../../src/result-recalculation";
+
 import { raceAuth } from "./accounts";
 import { personResultBody, statusFlow, type Auth } from "./entry-status-helpers";
 import { db, useRaceDatabase } from "./race-fixtures";
 import { addNightRunner, CARDS, nightRace, oldFrames, oldPayload, options, payloadFrom, send, toHex } from "./reread-fixtures";
+import { recalculateEntry } from "./production-paths";
 
 /**
  * Steg 38: avsluta tävlingen. Varje avgjort resultat ska kunna fastställas; bara det som verkligen är oklart stoppar.
@@ -153,7 +154,7 @@ describe("steg 38: avsluta tävlingen", () => {
     await send(ids.race, [changedPayload(CARDS.ada, without(35))]);
     await recalculateEntry(db, ids.race, ids.ada);
     expect((await revisions(ids.ada)).map((row) => row.cause)).toEqual(["CARD_READOUT", "MANUAL_MISPUNCH_CONFIRMATION", "CARD_READOUT",
-      "CLASS_CHANGE_RECALCULATION"]);
+      "EXPLICIT_RECALCULATION"]);
     expect(await flags()).toEqual({ ada: true, bo: false });
 
     // "Ta bort bekräftelsen": att titta på igen, utan omräkning.

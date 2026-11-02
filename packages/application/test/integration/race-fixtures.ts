@@ -2,8 +2,9 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll } from "vitest";
 import { asc, desc, eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
-import { contentHash, createEvent, importIofXml } from "../../src";
+import { contentHash, createEvent } from "../../src";
 import { loadRaceSnapshot, sortRaceSnapshotForPackage } from "../../src/snapshot";
+import { importIofXml } from "./production-paths";
 
 /**
  * Gemensamt underlag för integrationstesterna som delades ut från den gamla `task-001.test.ts` (steg 23):

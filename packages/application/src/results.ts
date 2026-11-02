@@ -29,11 +29,11 @@ import { courseForkingView, loadCourseVersionForking } from "./course-forking";
 import { loadCoursePositions, withPositionLengths } from "./course-positions";
 import { coursesArePublic } from "./course-secrecy";
 import { bumpReadoutPackageVersion } from "./snapshot";
-import { lockEntryForRevision, lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
+import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
-import { canAddClassEntry, ClassCapacityConflictError } from "./class-capacity-guard";
+import { canAddClassEntry } from "./class-capacity-guard";
 import { UUID_PATTERN } from "./serialization";
 
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -88,33 +88,6 @@ async function selectPublishedPublicResultHeads(tx: DatabaseTransaction, raceId:
     .limit(10_001);
   if (rows.length > 10_000) throw new Error("Publikresultatet är för stort");
   return rows;
-}
-
-export async function changeEntryClass(db: Database, raceId: string, entryId: string, classId: string) {
-  return db.transaction(async (tx) => {
-    await lockRaceForMutation(tx, raceId);
-    const entry = await lockEntryForRevision(tx, raceId, entryId);
-    const [raceClass] = await tx.select().from(schema.classes).where(and(
-      eq(schema.classes.id, classId), eq(schema.classes.raceId, raceId)
-    ));
-    if (!raceClass) throw new Error("Klassen finns inte i loppet");
-    if (entry.classId !== classId && (entry.teamId !== null || !await canAddClassEntry(tx, raceId, classId))) {
-      throw new ClassCapacityConflictError("Klassens deltagargräns är nådd");
-    }
-    const [updated] = await tx.update(schema.entries).set({ classId, version: entry.version + 1 })
-      .where(and(eq(schema.entries.id, entryId), eq(schema.entries.version, entry.version))).returning();
-    if (!updated) throw new Error("Deltagaren ändrades samtidigt av en annan operatör");
-    await tx.insert(schema.auditEvents).values({
-      raceId,
-      entityType: "entry",
-      entityId: entryId,
-      action: "CLASS_CHANGED",
-      before: { classId: entry.classId, version: entry.version },
-      after: { classId, version: updated.version }
-    });
-    await bumpReadoutPackageVersion(tx, raceId);
-    return updated;
-  });
 }
 
 export type EntryClassAdminListResult =
@@ -589,10 +562,4 @@ export function publicResultDetailFrom(results: PublicResultListResponse, public
     response: publicResultDetailResponseSchema.parse({ formatVersion: 1, result, ...(classCourse ? { classCourse } : {}),
       ...(controlMap ? { controlMap: true } : {}) })
   };
-}
-
-export async function resultHistory(db: Database, entryId: string) {
-  return db.select().from(schema.resultRevisions)
-    .where(eq(schema.resultRevisions.entryId, entryId))
-    .orderBy(desc(schema.resultRevisions.revision));
 }

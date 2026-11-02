@@ -46,7 +46,17 @@ O-Tid gör i stället för att skriva in en stämpling (rådata ändras aldrig).
 3. **Import på ett ställe.** Importen av anmälda och startlistor (IOF XML) hör till Anmälda, som alltid visar länken
    (inte bara när listan är tom). Inställningar visar bara en hänvisning till Anmälda. Eventor ligger kvar under
    Inställningar (nyckel och koppling) och hänvisas från Anmälda.
-4. **Kod som bara tester anropade** är borttagen eller ersatt av testhjälpare som går via produktionsvägen.
+4. **Kod som bara tester anropade.** `importIofXml`, `changeEntryClass` och `recalculateEntry` (utan behörighet, bara
+   anropade av tester) och `resultHistory`, `isForkedCourseVersion`, `changeEntryClassSchema`, `publicPoolOfDatabase` och
+   UI-komponenterna `Select` och `Toolbar` (inte anropade alls) är borttagna. Integrationstesterna importerar, byter klass och
+   räknar om via produktionsvägen (`test/integration/production-paths.ts`: samma tjänster som routerna, med en
+   administratörs session och CSRF). Det ändrade några förväntningar till det produktionen faktiskt gör: omräkningen har
+   orsaken `EXPLICIT_RECALCULATION` och journalraden `RESULT_RECALCULATED_BY_ADMIN`, ett kapacitetsfel är 409 och en löpare
+   utan aktiv bricka kan inte räknas om (hennes resultat står kvar). Kvar och bara använda av tester som läshjälp:
+   `listEntryCardsAsAdmin`, `listEntryRegistrationClassesAsAdmin`, `listEntryStartTimesAsAdmin`, `getRaceOverviewAsAdmin`,
+   `isRacePubliclyVisible` och `publicResultDetail`; de tas bort när testerna läser samma underlag som arbetsytan
+   (`transfer-candidates`, de publika listorna). Banläggningens paket (`course-setting`, `route-choice`, `map-file`) rördes
+   inte eftersom en annan gren arbetar där.
 5. **`FORKED`, steg två (ADR-0185).** Migration 0047 skriver om `race.race_type = 'FORKED'` till `STANDARD`. Koden har sedan
    ADR-0188 klarat båda och skriver aldrig `FORKED`; återställning från en äldre säkerhetskopia skriver nu också `STANDARD`.
    Värdet tas inte bort ur `race_type_check` i samma release: en kopia av databasen från före migreringen eller en äldre

@@ -5,11 +5,12 @@ import { migrate } from "@o-tid/database";
 import { createDatabase } from "@o-tid/database";
 import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
 import { createManualClassAsAdmin } from "../../src/manual-class";
-import { importIofXml } from "../../src/import-iof";
+
 import { editCourseAsAdmin, listCoursesForEditAsAdmin } from "../../src/course-edit";
 import { readControlMapAsAdmin } from "../../src/control-map";
 import { createRelayClassAsAdmin } from "../../src/relay-admin";
 import { raceLogin } from "./accounts";
+import { importIofXml } from "./production-paths";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL krävs för en uttryckligen isolerad testdatabas");

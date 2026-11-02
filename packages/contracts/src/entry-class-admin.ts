@@ -105,8 +105,6 @@ export const entryClassAdminErrorResponseSchema = z.object({
 // Tillfällig exportkompatibilitet medan den gamla PATCH-routen ersätts. Den
 // pekar på det nya strikta kontraktet och låter därför inte den gamla bodyn
 // `{classId}` mutera något.
-export const changeEntryClassSchema = entryClassChangeRequestSchema;
-
 export type EntryClassAdminListResponse = z.infer<typeof entryClassAdminListResponseSchema>;
 export type EntryClassChangeRequest = z.infer<typeof entryClassChangeRequestSchema>;
 export type EntryClassChangeResponse = z.infer<typeof entryClassChangeResponseSchema>;

@@ -3,10 +3,10 @@ import { count, desc, eq } from "drizzle-orm";
 import { evaluationResultSchema } from "@o-tid/contracts";
 import { schema } from "@o-tid/database";
 import {
-  changeEntryClass, contentHash, importIofXml, ingestDeviceBatch, evaluationHash, publicResults,
-  recalculateEntry
+  contentHash, ingestDeviceBatch, evaluationHash, publicResults
 } from "../../src";
 import { db, courseXml, entryXml, importedRace, trustedRaceFixtureOverview, batch, okPayload, useRaceDatabase } from "./race-fixtures";
+import { changeEntryClass, importIofXml, recalculateEntry } from "./production-paths";
 
 useRaceDatabase();
 
@@ -37,8 +37,8 @@ describe("TASK 001 PostgreSQL", () => {
     const history = await db.select().from(schema.resultRevisions).where(eq(schema.resultRevisions.entryId, ada.id));
     const audits = await db.select().from(schema.auditEvents).where(eq(schema.auditEvents.raceId, raceId));
     expect(history.map((revision) => revision.revision).sort()).toEqual([1, 2]);
-    expect(audits.some((audit) => audit.action === "CLASS_CHANGED")).toBe(true);
-    expect(audits.some((audit) => audit.action === "RESULT_RECALCULATED")).toBe(true);
+    expect(audits.some((audit) => audit.action === "ENTRY_CLASS_CHANGED_BY_ADMIN")).toBe(true);
+    expect(audits.some((audit) => audit.action === "RESULT_RECALCULATED_BY_ADMIN")).toBe(true);
   });
 
   it("ogiltig XML lämnar loppet oförändrat", async () => {

@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { count, desc, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import {
-  changeEntryClass, contentHash, ingestDeviceBatch, exportIofResultListAsAdmin, publicResults, recalculateEntry
+  contentHash, ingestDeviceBatch, exportIofResultListAsAdmin, publicResults
 } from "../../src";
 import { db, importedRace, batch, okPayload, useRaceDatabase } from "./race-fixtures";
 import { raceLogin, revokeRaceGrants } from "./accounts";
+import { changeEntryClass, recalculateEntry } from "./production-paths";
 
 useRaceDatabase();
 

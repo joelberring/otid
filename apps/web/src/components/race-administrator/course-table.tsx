@@ -48,7 +48,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
       {text.courseEmptyHelp}</EmptyState>}
     {ws.removalMessage?.kind === "COURSE" && !courseList?.courses.some(row => row.courseId === ws.removalMessage?.id) &&
       <RemovalReview ws={ws} kind="COURSE" id={ws.removalMessage.id} />}
-    {courseList && courseList.courses.length > 0 && <Table className={styles.courseTable}>
+    {courseList && courseList.courses.length > 0 && <Table className={`${styles.courseTable} ${styles.cardTable}`}>
       <thead><tr>
         <th scope="col">{text.courseEditCourse}</th><th scope="col">{text.courseLengthColumn}</th>
         <th scope="col">{text.courseEditControlsColumn}</th>
@@ -64,15 +64,15 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
         const measured = course.lengthMeters != null || course.climbMeters != null;
         return [<tr key={course.courseId}>
           <th scope="row">{course.name}</th>
-          <td className={styles.courseLength}>{measured ? courseMeasures(course.lengthMeters ?? null, course.climbMeters ?? null)
+          <td className={styles.courseLength} data-label={text.courseLengthColumn}>{measured ? courseMeasures(course.lengthMeters ?? null, course.climbMeters ?? null)
             : <span className={styles.muted}>–</span>}</td>
-          <td className={styles.controlCodes}>{forked && variants ? <span className={styles.muted}>{forking.variantsBelow(course.variants.length)}</span>
+          <td className={styles.controlCodes} data-label={text.courseEditControlsColumn}>{forked && variants ? <span className={styles.muted}>{forking.variantsBelow(course.variants.length)}</span>
             : course.controlCodes.join(" ")}</td>
-          <td>{course.classes.length === 0 ? <span className={styles.muted}>{text.courseEditNoClasses}</span> : course.classes.map(raceClass =>
+          <td data-label={text.courseEditClasses}>{course.classes.length === 0 ? <span className={styles.muted}>{text.courseEditNoClasses}</span> : course.classes.map(raceClass =>
             <button key={raceClass.classId} type="button" className={styles.inlineLink} disabled={workflowLocked}
               onClick={() => openAssignedClass(raceClass.classId)}>{raceClass.name}</button>)}</td>
-          <td className={numeric}>{course.entryCount}</td>
-          <td className={numeric}>{course.readOutCount}</td>
+          <td className={numeric} data-label={text.courseEditEntries}>{course.entryCount}</td>
+          <td className={numeric} data-label={text.courseEditReadOut}>{course.readOutCount}</td>
           <td className={styles.rowAction}>{!editing && !forked && <Button variant="secondary" aria-label={text.courseEditOpenLabel(course.name)}
             disabled={saving || !!editingCourseId} onClick={() => startCourseEdit(course.courseId)}>{text.courseEditOpen}</Button>}
             {/* Steg 49: en bana gafflas i bilden; grundföljden är banans kontroller. */}

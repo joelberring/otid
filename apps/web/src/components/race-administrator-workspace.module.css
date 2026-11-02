@@ -301,6 +301,20 @@ summary.drawSummaryRow:hover { background: var(--subtle); }
   .drawTable td[data-label]:nth-child(4) { grid-column: 1 / 3; }
   .drawTable td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
   .drawVacancies { min-width: 0; }
+  /* ADR-0187: Banor och Klasser som kort på smal skärm – namnet överst, uppgifterna med etikett, knapparna under. */
+  .cardTable, .cardTable tbody { display: block; width: 100%; }
+  .cardTable thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .cardTable tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .cardTable tbody tr:hover > * { background: transparent; }
+  .cardTable tbody :is(th, td) { display: block; height: auto; padding: 0 !important; border: 0 !important; text-align: left !important;
+    white-space: normal; overflow-wrap: anywhere; }
+  .cardTable tbody th[scope="row"] { flex: 1 0 100%; font-size: var(--text-md); }
+  .cardTable tbody td[data-label]::before { content: attr(data-label) " "; color: var(--muted); font-size: var(--text-xs); font-weight: 500; }
+  .cardTable tbody td[colspan], .cardTable tbody td.rowAction { flex: 1 0 100%; width: auto; }
+  .cardTable tbody td.rowAction { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px !important; }
+  .cardTable tbody td.rowAction button { margin: 0; }
+  .cardTable tbody tr.forkingRow, .cardTable tbody tr.editorRow { padding-top: 0; }
+  .courseTable.cardTable :is(thead th, tbody th, .inlineLink) { white-space: normal; }
   .drawCommonFields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drawCommon { padding: 10px; }
   .drawSummaryRow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding-left: 20px; }

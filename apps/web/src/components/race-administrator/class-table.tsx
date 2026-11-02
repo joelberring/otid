@@ -55,7 +55,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
       ? <EmptyState title={adminText.classEmptyTitle} action={<Button onClick={() => navigateStep("COURSES")}>{adminText.manualClassGoCourses}</Button>}>
         {adminText.classEmptyNoCourse}</EmptyState>
       : <EmptyState title={adminText.classEmptyTitle} action={newClass(true)}>{adminText.classEmptyHelp}</EmptyState>)}
-    {courseList && courseList.classes.length > 0 && <Table>
+    {courseList && courseList.classes.length > 0 && <Table className={styles.cardTable}>
       <thead><tr>
         <th scope="col">{text.className}</th><th scope="col">{text.course}</th>{startRuleChoice && <th scope="col">{text.startRule}</th>}
         <th scope="col" className={numeric}>{text.entries}</th><th scope="col">{text.readOut}</th><th scope="col">{text.status}</th>
@@ -66,7 +66,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
         const selected = row.classId === selectedClassId;
         return [<tr key={row.classId} data-selected={selected ? "true" : undefined} aria-current={selected ? "true" : undefined}>
           <th scope="row">{row.name}</th>
-          <td>{(relayLegs.get(row.classId) ? relayCourses(row.classId) : undefined) ?? courseNames.get(row.courseId) ?? "–"}
+          <td data-label={text.course}>{(relayLegs.get(row.classId) ? relayCourses(row.classId) : undefined) ?? courseNames.get(row.courseId) ?? "–"}
             {variants && row.variantCount > 0 && <span className={styles.subLine}>{variantText.forked(row.variantCount)}</span>}
             {variants && row.missingVariantCount > 0 && <>
               <span className={styles.subLine}>{variantText.missingVariants(row.missingVariantCount)}</span>
@@ -74,11 +74,11 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
                 disabled={workflowLocked} onClick={() => void distributeVariants(row.classId)}>
                 {variantText.distribute}</Button>
             </>}</td>
-          {startRuleChoice && <td>{relayLegs.get(row.classId) ? relayText.relayStartRule(relayLegs.get(row.classId)!)
+          {startRuleChoice && <td data-label={text.startRule}>{relayLegs.get(row.classId) ? relayText.relayStartRule(relayLegs.get(row.classId)!)
             : row.startRule === "PUNCH" ? text.free : text.fixed}</td>}
-          <td className={numeric}>{row.entryCount}</td>
-          <td>{text.readOutValue(row.readOutCount, row.resultCount)}</td>
-          <td><ClassStatus row={row} disabled={workflowLocked} onMissingStartTimes={() => openMissingFixedStart(row.classId)} /></td>
+          <td className={numeric} data-label={text.entries}>{row.entryCount}</td>
+          <td data-label={text.readOut}>{text.readOutValue(row.readOutCount, row.resultCount)}</td>
+          <td data-label={text.status}><ClassStatus row={row} disabled={workflowLocked} onMissingStartTimes={() => openMissingFixedStart(row.classId)} /></td>
           <td className={styles.rowAction}>{!editing && <><Button variant="secondary" aria-label={text.openLabel(row.name)}
             disabled={saving || !!editingClassId} onClick={() => startClassEdit(row.classId)}>{text.open}</Button>
             {/* PLAN.md steg 27: ta bort en klass utan anmälda; annars ett besked om vad som måste flyttas. */}

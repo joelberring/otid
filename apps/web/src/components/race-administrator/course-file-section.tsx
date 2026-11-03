@@ -10,6 +10,7 @@ import { importIssues } from "../../lib/import-issues";
 import { SourceReviewPanel } from "./source-review";
 import { useSourceReview, type Message } from "./source-sync-actions";
 import type { Workspace } from "./workspace-state";
+import { CourseDataOffer } from "./course-data-offer";
 
 const text = sourcesSv.courseFile;
 
@@ -31,6 +32,9 @@ export function CourseFileSection({ ws }: { ws: Workspace }) {
   const [message, setMessage] = useState<Message>();
   const [loadFailed, setLoadFailed] = useState(false);
   const file = useRef<HTMLInputElement>(null);
+  // Filen som lästes; när den godkänts erbjuds banorna i banläggningen också (CourseDataOffer).
+  const sent = useRef<{ name: string; bytes: ArrayBuffer }>(undefined);
+  const [applied, setApplied] = useState<{ name: string; bytes: ArrayBuffer }>();
   const review = useSourceReview(ws);
   const timeZone = data?.timeZone ?? "Europe/Stockholm";
 
@@ -45,18 +49,24 @@ export function CourseFileSection({ ws }: { ws: Workspace }) {
       } catch { if (current(op)) setLoadFailed(true); } finally { finish(op); }
     })();
   }, [authenticated, status, loadFailed, busy]);
-  useEffect(() => { if (review.message?.tone === "ok") { setStatus(undefined); if (file.current) file.current.value = ""; } }, [review.message]);
+  useEffect(() => {
+    if (review.message?.tone !== "ok") return;
+    setStatus(undefined); setApplied(sent.current);
+    if (file.current) file.current.value = "";
+  }, [review.message]);
 
   async function read() {
     const chosen = file.current?.files?.[0];
     if (!chosen) { setMessage({ tone: "error", text: text.chooseFile }); return; }
     if (chosen.size > IOF_IMPORT_MAX_BYTES) { setMessage({ tone: "error", text: text.tooLarge }); return; }
     if (writingRef.current || !requireSession()) return;
-    setMessage(undefined); review.setMessage(undefined);
+    setMessage(undefined); review.setMessage(undefined); setApplied(undefined);
     const op = beginRequest();
     try {
+      const bytes = await chosen.arrayBuffer();
+      sent.current = { name: chosen.name, bytes };
       const response = await request("/course-file/preview", op, { method: "POST", headers: { "content-type": IOF_IMPORT_CONTENT_TYPE,
-        "x-otid-csrf": csrf(), "x-otid-file-name": encodeURIComponent(chosen.name.slice(0, 200)) }, body: await chosen.arrayBuffer() });
+        "x-otid-csrf": csrf(), "x-otid-file-name": encodeURIComponent(chosen.name.slice(0, 200)) }, body: bytes.slice(0) });
       if (response.status === 422) { setMessage({ tone: "error", text: `${text.invalid} ${await importIssues(response, "")}`.trim() }); return; }
       if (response.status === 400) { setMessage({ tone: "error", text: text.invalid }); return; }
       if (!response.ok) throw new Error("Preview failed");
@@ -78,6 +88,7 @@ export function CourseFileSection({ ws }: { ws: Workspace }) {
       {message && <Notice tone={message.tone} role="alert">{message.text}</Notice>}
       {review.message && <Notice tone={review.message.tone} role={review.message.tone === "ok" ? "status" : "alert"}>{review.message.text}</Notice>}
       <SourceReviewPanel review={review} busy={busy} sourceName={review.preview?.sourceName ?? text.title} />
+      {applied && !review.preview && !ws.functionary && <CourseDataOffer raceId={raceId} file={applied} />}
     </div>
   </Section>;
 }

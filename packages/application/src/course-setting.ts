@@ -142,13 +142,15 @@ export async function readCourseSettingAsAdmin(db: Database, input: ReadProof, n
   return courseSettingRead(db, input, now, async (tx, raceId, principal) => {
     const row = await loadRow(tx, raceId);
     const map = await loadMapFile(tx, raceId);
+    const [race] = await tx.select({ raceType: schema.races.raceType }).from(schema.races).where(eq(schema.races.id, raceId));
     const names = await actors(tx, row ? [row.updatedBy] : []);
     return { status: "ok" as const, response: courseSettingStateSchema.parse({ formatVersion: 1, raceId,
       access: { accountId: principal.accountId, displayName: principal.displayName || null, level: principal.level, admin: principal.admin },
       setting: row ? { version: row.version, updatedAt: row.updatedAt.toISOString(), updatedBy: actor(names, row.updatedBy), mode: row.mode,
         document: row.document } : null,
       original: row?.originalFileName && row.originalImportedAt ? { fileName: row.originalFileName, importedAt: row.originalImportedAt.toISOString() } : null,
-      mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null } : null }) };
+      mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null } : null,
+      ...(race ? { raceType: race.raceType } : {}) }) };
   });
 }
 

@@ -14,12 +14,12 @@ import { HelpButton } from "../help/help-panel";
 import { shownRaceName } from "@o-tid/domain";
 
 /**
- * Banläggningen som eget mål (ägaren 2026-11-03: "lite gömd"): för den som har banläggningens behörighet på tävlingen, utom
- * fest och rogaining (där kontrollerna med poäng läggs under Kontroller & poäng). Samma flik; osparat stoppar som stegen.
+ * Banläggningen som eget mål (ägaren 2026-11-03: "lite gömd"): för den som har banläggningens behörighet på tävlingen, i alla
+ * tävlingstyper (också fest och rogaining; editorn förklarar vad som skiljer). Samma flik; osparat stoppar som stegen.
  */
 export function courseSettingLink(ws: Workspace): { href: string; label: string; status: string } | undefined {
   const level = ws.courseSetting;
-  if (!level || !ws.data || ws.data.raceType === "PARTY" || ws.profile.features.rogaining) return undefined;
+  if (!level || !ws.data) return undefined;
   return { href: `/admin/${ws.raceId}/${courseSettingPath(level)}`, label: level === "MAP" ? navigationText.mapErrors : navigationText.courseSetting,
     status: navigationText.courseSettingStatus[level] };
 }

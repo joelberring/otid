@@ -20,6 +20,7 @@
     "@o-tid/database": "workspace:*",
     "@o-tid/device-transport": "workspace:*",
     "@o-tid/domain": "workspace:*",
+    "@o-tid/iof-xml": "workspace:*",
     "@o-tid/map-file": "workspace:*",
     "@o-tid/route-choice": "workspace:*",
     "@o-tid/sportident": "workspace:*",

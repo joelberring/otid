@@ -13,6 +13,8 @@ import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { layoutTemplateSv } from "../../i18n/course-setting-print-profile-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { fetchCourseSetting, saveCourseSettingEdits } from "../../lib/course-setting-api";
+import { saveOnLatest, serialSaves } from "../../lib/course-setting-save-latest";
+import { SaveFailed } from "./save-failed";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { mapRenderRequest, pageStyles } from "../../lib/course-setting-print";
@@ -102,7 +104,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const [controllerMaps, setControllerMaps] = useState(false);
   // Senaste versionen för nästa sparande (inte den som fanns när knappen ritades).
   const versionRef = useRef<number>(undefined);
-  const saving = useRef<Promise<unknown>>(Promise.resolve());
+  const serial = useMemo(() => serialSaves(), []);
   const load = useCallback(async (first = false) => {
     setFailed(false);
     try {
@@ -156,28 +158,33 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   }, [mode, bundlesState, raceId]);
 
   /**
-   * Sparar en ändring i taget, alltid på senaste versionen. Ägarens fel 2026-11-03 ("Godkänd" sparades inte): två sparanden i
-   * följd (profilen vald, sedan Godta) gick på samma gamla version och servern avvisade det andra (`rejected`), utan att
-   * sidan märkte det. Avvisat: läs om och försök en gång till; går det ändå inte är det ett fel.
+   * Sparar en ändring i taget, alltid på senaste versionen (`saveOnLatest`). Ägarens fel 2026-11-03 ("Godkänd" sparades inte):
+   * två sparanden i följd (profilen vald, sedan Godta) gick på samma gamla version och servern avvisade det andra. Avvisat:
+   * läs om och försök en gång till, tyst; går det ändå inte är svaret false och den som sparade visar det.
    */
-  const save = useCallback((edits: CourseSettingEdit[]): Promise<boolean> => {
-    const run = saving.current.then(async () => {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const baseVersion = versionRef.current;
-        if (baseVersion === undefined) return false;
-        try {
-          const result = await saveCourseSettingEdits(raceId, { formatVersion: 1, requestId: crypto.randomUUID(), baseVersion,
-            edits: edits as unknown as CourseSettingEditsRequest["edits"] });
-          await load();
-          if (result.rejected.length === 0) return true;
-          console.error("Utskriftsinställningen avvisades", result.rejected);
-        } catch (error) { console.error("Utskriftsinställningen sparades inte", error); return false; }
+  const save = useCallback((edits: CourseSettingEdit[]): Promise<boolean> => serial(async () => {
+    let attempts = 0;
+    const result = await saveOnLatest({
+      // Första försöket på versionen som sidan läste senast; ett nytt försök läser om först.
+      latest: async () => { if (attempts++ > 0 || versionRef.current === undefined) await load(); return versionRef.current; },
+      attempt: async baseVersion => {
+        const result = await saveCourseSettingEdits(raceId, { formatVersion: 1, requestId: crypto.randomUUID(), baseVersion,
+          edits: edits as unknown as CourseSettingEditsRequest["edits"] });
+        await load();
+        if (result.rejected.length === 0) return "saved";
+        console.error("Utskriftsinställningen avvisades", result.rejected);
+        return "conflict";
       }
-      return false;
     });
-    saving.current = run.catch(() => false);
-    return run;
-  }, [raceId, load]);
+    return result.saved;
+  }), [raceId, load, serial]);
+  // Sparanden som ingen panel svarar på (profilen som väljs, beskrivningen som dras på arket): en rad med Försök igen.
+  const [unsaved, setUnsaved] = useState<CourseSettingEdit[]>();
+  const saveShown = useCallback(async (edits: CourseSettingEdit[]) => {
+    const ok = await save(edits);
+    setUnsaved(ok ? undefined : edits);
+    return ok;
+  }, [save]);
 
   // Papperet (ADR-0197): texter, bilder, skalstock, nordpil, klippning och mallar per bana. Medan papperets ändringar sparas
   // visas dokumentet med dem (`view`).
@@ -201,7 +208,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     // En BL-profil som redan godkänts för tävlingen: välj kopian med besluten.
     const id = savedProfiles.find(item => item.basedOn === wanted && item.reference)?.id ?? wanted;
     setProfileId(id);
-    if (canEdit && id !== document?.event.printProfileId) void save([{ type: "SET_EVENT", changes: { printProfileId: id } }]);
+    if (canEdit && id !== document?.event.printProfileId) void saveShown([{ type: "SET_EVENT", changes: { printProfileId: id } }]);
   }
 
   const savedTemplates = useMemo(() => document?.event.layoutTemplates ?? [], [document]);
@@ -308,9 +315,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const placeDescription = useCallback((item: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => {
     if (!document || !item.course) return;
     const settings = document.event.paperLayouts?.[item.course]?.descriptions ?? {};
-    void save([paperDescriptionEdit(document, item.course, { ...settings, show: true, at: paperAnchorOf(rect, frame.clip),
+    void saveShown([paperDescriptionEdit(document, item.course, { ...settings, show: true, at: paperAnchorOf(rect, frame.clip),
       boxMm: Math.max(3, Math.min(10, boxMm)) })]);
-  }, [document, save]);
+  }, [document, saveShown]);
 
   const toggle = (id: string, on: boolean) => setChosen(current => on ? [...current, id] : current.filter(item => item !== id));
   const allIds = [ALL_CONTROLS, ...courses.map(course => course.id)];
@@ -363,6 +370,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           : text.page.pages(sheets.length)}{waiting ? ` – ${text.page.readingMap}` : ""}</span>
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
       </div>
+      {unsaved && <SaveFailed onRetry={() => void saveShown(unsaved)} />}
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
       {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
         readOnly={!canEdit} onSave={save} />}

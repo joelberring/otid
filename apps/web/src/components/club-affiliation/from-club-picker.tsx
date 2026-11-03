@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClubInviteContext, ClubInviteFromClubResponse, ClubPickerResponse } from "@o-tid/contracts";
 import { normalizeClubSearch } from "@o-tid/domain";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Notice } from "../ui";
 import styles from "./club-affiliation.module.css";
 

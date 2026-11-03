@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CLUB_FREE_TEXT_MAX, type AccountClubMembershipView, type AccountClubsResponse, type OrganisationSummary } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Field, Notice, Section } from "../ui";
 import { MembershipList, membershipName } from "./membership-list";
 import { OrganisationPicker } from "./organisation-picker";

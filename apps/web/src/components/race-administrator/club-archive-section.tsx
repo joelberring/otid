@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { OrganisationSummary, RaceClubArchiveView } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { OrganisationPicker } from "../club-affiliation/organisation-picker";
 import { Button, Notice, Section } from "../ui";
 import styles from "../club-affiliation/club-affiliation.module.css";

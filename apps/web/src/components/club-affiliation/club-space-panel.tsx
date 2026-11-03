@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { ClubAffiliationPerson, ClubAffiliationView, ClubAreaAccess } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubFailure } from "../../lib/club-archive-client";
+import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./club-affiliation.module.css";
 
@@ -122,10 +123,13 @@ export function ClubSpacePanel({ clubId }: { clubId: string }) {
   async function decide(person: ClubAffiliationPerson, decision: "CONFIRM" | "DECLINE" | "REMOVE") {
     if (decision === "REMOVE" && !window.confirm(text.removeConfirm(person.displayName))) return;
     setBusy(true); setMessage(undefined);
-    const result = await clubRequest(`${clubBase(clubId)}/affiliation/decisions`, "POST", { formatVersion: 1, membershipId: person.membershipId, decision });
-    setBusy(false);
-    if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
-    setView(result.json as ClubAffiliationView);
+    try {
+      const result = await clubRequest(`${clubBase(clubId)}/affiliation/decisions`, "POST", { formatVersion: 1, membershipId: person.membershipId, decision });
+      if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      setView(result.json as ClubAffiliationView);
+    } catch {
+      setMessage({ tone: "error", text: text.failed });
+    } finally { setBusy(false); }
   }
 
   if (failed) return <Notice tone="error" role="alert">{clubFailure(failed)}</Notice>;

@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { AccountClubsResponse, OrganisationSummary } from "@o-tid/contracts";
 import { CLUB_FREE_TEXT_MAX } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Field, Notice } from "../ui";
 import { MembershipList } from "./membership-list";
 import { OrganisationPicker } from "./organisation-picker";

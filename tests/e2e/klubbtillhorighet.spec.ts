@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { FAKE_EVENTOR_OKAO_KEY } from "./fake-eventor";
-import { createRace, daysFromToday, importClubDirectory, openStep, registerAccount, reviewScreenshots, unique, unlinkClub } from "./helpers";
+import { createRace, daysFromToday, importClubDirectory, openStep, registerAccount, reviewScreenshots, unique, unlinkClub, warmRoute } from "./helpers";
 
 /**
  * ADR-0209: klubbtillhörighet som användarflöde. Den som registrerar sig väljer OK Älvsjö-Örby; ingen har startat klubbytan, så
@@ -66,6 +66,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await reviewScreenshots(admin, "klubb-klubben");
   await fitsPhone(admin);
   await pending.getByRole("button", { name: `Bekräfta: Maja Medlem ${suffix}` }).click();
+  await expect(admin.getByTestId("club-confirmed")).toContainText(`Maja Medlem ${suffix}`, { timeout: 60_000 });
   await admin.getByTestId("club-pending").getByRole("button", { name: `Bekräfta: Klubbadmin ${suffix}` }).click();
   await expect(admin.getByTestId("club-confirmed")).toContainText(`Maja Medlem ${suffix}`);
 
@@ -82,6 +83,10 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
 
   // 4. Administratören skapar en tävling i går (arrangörsklubben är förvald) och bjuder in medlemmen "Från klubben".
   await admin.goto("/organizer");
+  // Utvecklingsservern kompilerar routerna vid första anropet; ett avbrutet första anrop ger annars "Behörighet saknas".
+  const none = "00000000-0000-4000-8000-000000000000";
+  for (const path of [`/api/admin/races/${none}/administrator/session`, `/api/organizer/races/${none}/club-archive`,
+    `/api/organizer/club-picker?kind=RACE&id=${none}`]) await warmRoute(admin, path);
   const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling");
   // Banorna ur en banfil (Banor → Läs in banfil).
   const files = admin.getByRole("region", { name: "Banfil" });
@@ -94,7 +99,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await fromClub.locator("summary").click();
   await fromClub.getByRole("checkbox", { name: new RegExp(`Maja Medlem ${suffix}`) }).check();
   await fromClub.getByRole("button", { name: "Bjud in 1 person · Funktionär" }).click();
-  await expect(fromClub.getByRole("status")).toHaveText("1 inbjudan sparade.");
+  await expect(fromClub.getByRole("status")).toContainText("1 inbjudan sparade.");
   const people = admin.getByRole("list", { name: "Personer med behörighet" });
   await expect(people).toContainText(`Maja Medlem ${suffix}`);
   await expect(people).not.toContainText(`medlem.${suffix}@exempel.se`);

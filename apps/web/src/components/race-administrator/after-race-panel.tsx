@@ -76,7 +76,8 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
         <Link href={`/results/${raceId}`}>{text.publicResultsLink}</Link>
       </nav>} />
     {/* ADR-0209: påminnelsen efter tävlingen (bara när det finns en klubbyta där kontot är administratör). */}
-    <ClubArchiveReminder raceId={raceId} onOpen={() => ws.navigateStep("SETTINGS")} />
+    {/* Hämtas när Resultat visas, så att banor som lästs in under tiden räknas. */}
+    {shows("RESULTS") && <ClubArchiveReminder raceId={raceId} onOpen={() => ws.navigateStep("SETTINGS")} />}
     {data && mispunchedEntries(data).length > 0 && <section className={controlStyles.controlCard} aria-labelledby={`control-mp-${raceId}`}>
       <MispunchedList ws={ws} />
     </section>}

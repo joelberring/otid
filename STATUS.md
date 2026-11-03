@@ -10,6 +10,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-02 – Banläggningens luckor mot Purple Pen (grenen banlaggning-egenskaper, ADR-0190)
+- Banans egenskaper i fliken Banor: vanlig/poängbana (inte med gafflingar), stigning, fast längd (tom = uträknad), poäng per kontroll i poängbanans lista med summa, ordningen med upp/ned och dra. `UPDATE_COURSE` tar `kind` och `null`, ny `SET_POINTS`; `PUT_OBJECTS.courseOrder` gör att ångra av en flytt bara rör ordningen (och ångra av ett namnbyte inte flyttar tillbaka andras flytt).
+- Utskriftens rubrik visar stigningen; beskrivningen och `$(CourseLength)`/`$(CourseClimb)` hade redan längd och stigning. Banfilsjämförelsen: egen rad för ändrad längd eller stigning (`SET_COURSE_MEASURES`, räknar inte om), ny ordning ger inga rader.
+- Ångra efter omladdning: historiken (högst 200 steg) i IndexedDB bredvid offline-posten, per konto; steg som någon annan ändrat sedan dess läggs inte tillbaka; bort vid utloggning, 403 och byte av dokument.
+- "Ladda ned IOF XML (banor)" under Fil: som Purple Pens ExportXmlVersion3 (varianter med CourseFamily, klasser, Position med georeferens); Purple Pens tre förväntade exporter blir likadana utom stafettlagens `TeamCourseAssignment` (inte portad). OCAD förklaras i hjälpen (läser IOF XML), inget eget format.
+- Längd längs vägval bredvid fågelvägen (Workern räknar banans sträckor på begäran).
+- Rogaining och poängbanor: mål är mål, stämplingar efter målstämplingen ger aldrig poäng (`ignoredAfterFinish`, kvittot, resultatmotorn 0.7.0). Ingen migration.
+- Verifierat: lint, typecheck, enhetstester; Playwright `banlaggning-egenskaper` (stigning, fast längd, ordning med ångra, ångra efter omladdning, poängbana med poäng, gafflad bana nekas, IOF XML, längd längs vägval, överföringens rad Stigning, 390 px utan sidledsscroll) lokalt efter ombasering på main (72fe652); skärmbilder 1280 och 390 px granskade.
+- Ej gjort: stafettlagens varianter i IOF-exporten; IOF:s XSD finns inte i repot (exporten av Purple Pens 151 testfiler validerad mot IOF.xsd med xmllint utanför repot); OCAD-importen inte provad i en riktig OCAD; en borttagen stigning nollställs inte i tävlingen.
+
 ### 2026-11-02 – Rätta, klubblistor och städning (grenen ratta-listor, ADR-0191, migration 0047)
 - Rätta: deltagarkortets panel "Rätta" har allt som ändrar en löpares resultat (status, manuell tid, godkända kontroller, omläsning, byt bricka, byt klass, variant; de fyra tidsrättningarna av en stämplad mål-/starttid under Mer, nu för kortets löpare). Avläsning och Resultat har "Rätta en löpare", alla Öppna visar Rätta; Avläsningens verktyg för hela tävlingen under "Mer: verktyg för hela tävlingen". Inventeringen står i ADR-0191.
 - Listorna: klubbfilter i start- och resultatlistor (arbetsytan och publikt, `?klubb=` i adressen, klubben i utskriftens rubrik) och vyn "Klubbar" (startande, fullföljda, ettor–treor, totalt, CSV). Samma publika data, så bricka, varianter före start och noindex som förut.

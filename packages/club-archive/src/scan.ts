@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
-import { baseName, extensionOf, normalizePath } from "./folder-name";
+import { baseName, extensionOf, normalizePath, pathInChosenFolder } from "./folder-name";
 import { scanSourceFiles, type CreateSha256, type ScanResult, type SourceFile, type Sources } from "./scan-core";
 import { ZipFile } from "./zip";
 
@@ -42,8 +42,8 @@ export async function openSources(inputs: readonly string[]): Promise<Sources> {
         }
       } else {
         const size = (await stat(path)).size;
-        const inside = info.isDirectory() ? relative(root, path).split(sep).join("/") : baseName(path);
-        files.push({ source: baseName(root), path: normalizePath(inside), size, open: () => createReadStream(path) as AsyncIterable<Buffer> });
+        const inside = info.isDirectory() ? pathInChosenFolder(baseName(root), relative(root, path).split(sep).join("/")) : normalizePath(baseName(path));
+        files.push({ source: baseName(root), path: inside, size, open: () => createReadStream(path) as AsyncIterable<Buffer> });
         loose++;
       }
     }

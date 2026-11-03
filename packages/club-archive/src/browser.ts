@@ -1,5 +1,5 @@
 import { concatBytes, crc32, streamChunks, toHex } from "./bytes";
-import { baseName, extensionOf, normalizePath } from "./folder-name";
+import { baseName, extensionOf, normalizePath, pathInChosenFolder } from "./folder-name";
 import { scanSourceFiles, type CreateSha256, type ScanOptions, type ScanResult, type SourceFile, type Sources } from "./scan-core";
 import { checkedZipEntry, readZipDirectory, zipEntryDataStart, ZipReadError, type RandomAccess, type ZipEntryInfo } from "./zip-format";
 
@@ -98,8 +98,8 @@ export async function openBrowserSources(roots: readonly BrowserRoot[]): Promise
         }
       } else {
         const file = item.file;
-        const inside = root.kind === "folder" ? item.path : baseName(item.path);
-        files.push({ source: baseName(root.name), path: normalizePath(inside), size: file.size, open: () => streamChunks(file.stream()),
+        const inside = root.kind === "folder" ? pathInChosenFolder(root.name, item.path) : normalizePath(baseName(item.path));
+        files.push({ source: baseName(root.name), path: inside, size: file.size, open: () => streamChunks(file.stream()),
           blob: async () => file });
         loose++;
       }

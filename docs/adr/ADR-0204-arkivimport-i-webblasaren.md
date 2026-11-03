@@ -38,5 +38,11 @@ lämna datorn.
 
 - Kartfilen skickas som Blob (strömmade förfrågningar finns bara i Chrome); en post i en zip-fil packas upp i minnet först.
   Hashningen samlar filen i minnet (WebCrypto räknar inte bit för bit), så en karta tar som mest ungefär dubbla gränsen.
-- Väljer man en årsmapp direkt (inte mappen ovanför) försvinner året ur sökvägen, precis som i kommandot; hjälpen och fältet
-  säger att mappen med årsmapparna ska väljas.
+- Väljer man en årsmapp direkt kommer året med (ändringen nedan).
+
+**Ändring 2026-11-03 (grenen `arkiv-webbimport-2`).** Är den valda mappen själv namngiven som ett år (`2019`, `2019 träningar`,
+samma regel som årsmappen i `trainingFolderOf`) blir den sökvägens första del, så att träningarna behåller året
+(`pathInChosenFolder`). Det gäller både kommandot och webbläsaren; andra mappar börjar som förut under den valda mappen, och
+zip-filernas sökvägar är oförändrade. En redan importerad årsmapp utan året i sökvägen känns inte igen vid en ny import
+(nyckeln är sökvägen), så den blir nya träningar. Förvalet för ledarnas namn är en konstant (`LEADERS_BY_DEFAULT`, tills
+vidare med); kommandot har `--med-ledare` vid sidan av `--utan-ledare` så att förvalet kan bytas på en rad.

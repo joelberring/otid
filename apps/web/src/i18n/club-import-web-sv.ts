@@ -14,7 +14,7 @@ export const clubWebImportSv = {
   chooseFiles: "Välj filer",
   drop: "… eller dra mappar och zip-filer hit.",
   dropActive: "Släpp för att lägga till.",
-  folderHint: "Välj den mapp som har årsmapparna (2018, 2019 …) i sig, så får träningarna rätt år.",
+  folderHint: "Välj mappen med årsmapparna (2018, 2019 …), eller en enda årsmapp. Året följer med i båda fallen.",
   phoneNote: "Importen fungerar bäst på en dator. Där kan du välja hela mappen med klubbens träningar.",
   chosenTitle: "Valt",
   chosenFolder: (name: string, files: number) => `Mappen ${name} (${plural(files, "fil", "filer")})`,

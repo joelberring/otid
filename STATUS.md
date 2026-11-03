@@ -16,6 +16,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Utskriften: en karta per del med delens beskrivning, tryckyta och papper (ärver banans; "Alla sidor" = alla delar); "Dubbelsidigt" lägger del 2 på baksidan, tom baksida vid udda antal, förval när kartan vänds. Överlappet tonat 35 % utan nummer (PDF: dekorfärgen med andel 0,35).
 - Utskriftssidans sparanden går genom `saveOnLatest` (ett tyst nytt försök på senaste versionen); profilvalet och beskrivningen som dras på arket visar "Ändringen sparades inte – försök igen" när det ändå inte gick.
 - Verifierat: enhetstester (`course-parts` mot Purple Pens mapexchange-filer och CourseView-tester), print-pdf `parts-pdf`, hjälptestet, lint; Playwright `banlaggning-kartbyte` (1280/390).
+### 2026-11-03 – Årsmappen följer med (grenen arkiv-webbimport-2, ändring i ADR-0204)
+- Väljs en årsmapp (2019, "2019 träningar") direkt, i kommandot eller i webbläsaren, blir den sökvägens första del och träningarna behåller året (`pathInChosenFolder`). Hjälpen och fältets tips säger att en enda årsmapp går bra.
+- Förvalet för ledarnas namn är konstanten `LEADERS_BY_DEFAULT` (med, som förut); kommandot har också `--med-ledare`.
+- Verifierat: se slutrapporten för grenen.
 
 ### 2026-11-03 – Banfil som banläggning: ägarens svar (grenen iof-foljd)
 - Längden: en banfils längd sparas aldrig som fast längd; den räknas ur lägena så att en flyttad kontroll ändrar den. Skiljer filens längd mer än 50 m sägs det en gång ("Banfilens längd för A var 4,2 km, uppmätt 4,0 km.").

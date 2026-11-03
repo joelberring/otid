@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { buildImportPlan, formatReport, uploadPlan, type ScanResult, type UploadEvent } from "@o-tid/club-archive";
+import { buildImportPlan, formatReport, LEADERS_BY_DEFAULT, uploadPlan, type ScanResult, type UploadEvent } from "@o-tid/club-archive";
 import { openBrowserSources, scanBrowserSources, type BrowserRoot } from "@o-tid/club-archive/browser";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, type ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
@@ -41,7 +41,7 @@ const directoryInput = { webkitdirectory: "", directory: "" } as Record<string, 
  */
 export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: () => Promise<void> }) {
   const [roots, setRoots] = useState<BrowserRoot[]>([]);
-  const [withoutLeaders, setWithoutLeaders] = useState(false);
+  const [withoutLeaders, setWithoutLeaders] = useState(!LEADERS_BY_DEFAULT);
   const [phase, setPhase] = useState<Phase>({ kind: "choose" });
   const [scanned, setScanned] = useState<Scanned>();
   const [server, setServer] = useState<ServerState>();

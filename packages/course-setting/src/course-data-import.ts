@@ -15,7 +15,8 @@
  * - Kontrollbeskrivningar finns inte i CourseData: vanliga kontroller och start får inga, mål och passager samma
  *   riktningsrad som en ny kontroll i editorn (snitslat mål och passage genom förbjudet område ur `specialInstruction`).
  *   Beskrivningsförslaget (ADR-0180 beslut 13) körs inte.
- * - Längden räknas ur lägena; filens längd blir fast längd bara när den skiljer mer än 50 m (Purple Pen avrundar till 100 m).
+ * - Längden räknas alltid ur lägena (ingen fast längd); skiljer filens längd mer än 50 m (Purple Pen avrundar till 100 m)
+ *   sägs det i ett besked.
  */
 import type { Point } from "@o-tid/map-file";
 import { createEmptyDocument } from "./empty";
@@ -54,12 +55,12 @@ export interface CourseDataDocumentOptions {
 }
 
 export interface CourseDataNotice {
-  readonly code: "FORKS_AS_COURSES" | "SCALE_DIFFERS";
+  readonly code: "FORKS_AS_COURSES" | "SCALE_DIFFERS" | "LENGTH_DIFFERS";
   /** En rad på svenska. */
   readonly text: string;
 }
 
-/** Hur långt filens längd får skilja från den uträknade innan den blir fast längd (Purple Pen avrundar till 100 m). */
+/** Hur långt filens längd får skilja från den uppmätta innan det sägs (Purple Pen avrundar till 100 m). */
 export const COURSE_DATA_LENGTH_TOLERANCE_METERS = 50;
 
 const KIND_OF: Readonly<Record<CourseDataLayoutKind | "MAP_EXCHANGE", ControlKind>> = {
@@ -74,6 +75,11 @@ function directive(kind: ControlKind, instruction: string | undefined): Descript
 }
 
 class Fail extends Error {}
+
+/** "850 m", "4,2 km" (en decimal, svensk decimal). */
+function distance(meters: number): string {
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(Math.round(meters / 100) / 10).toFixed(1).replace(".", ",")} km`;
+}
 
 /** Banans kontroller (banans kontroll-id) som skapas medan gafflingarna byggs. */
 class Builder {
@@ -334,19 +340,19 @@ export function courseDataDocument(layout: CourseDataLayout, options: CourseData
     notices.push({ code: "FORKS_AS_COURSES", text: `${asCourses.join(", ")}: varianterna gick inte att göra till gafflingar och är egna banor.` });
   }
 
-  let document: CourseSettingDocument = { ...base, controls, courseControls, courses };
-  // Längden: filens längd som fast längd bara när den inte är den uträknade (avrundad).
+  const document: CourseSettingDocument = { ...base, controls, courseControls, courses };
+  // Längden räknas alltid ur lägena (ägaren 2026-11-03), så att en flyttad kontroll ändrar den. Skiljer filens längd mer än
+  // 50 m från den uppmätta sägs det en gång; ingen fast längd sparas.
   const measured = new Map(summaries(document).map(summary => [summary.course, summary.lengthMeters]));
-  const lengthOf = (course: Course) => {
+  for (const course of document.courses) {
+    if (course.kind !== "NORMAL") continue;
     const members = layout.courses.filter(member => member.name === course.name || member.family === course.name);
     const lengths = members.map(member => member.lengthMeters).filter((value): value is number => value !== undefined);
-    return lengths.length === 0 ? undefined : Math.max(...lengths);
-  };
-  document = { ...document, courses: document.courses.map(course => {
-    const length = lengthOf(course);
-    const computed = measured.get(course.id) ?? 0;
-    return length !== undefined && course.kind === "NORMAL" && Math.abs(length - computed) > COURSE_DATA_LENGTH_TOLERANCE_METERS
-      ? { ...course, lengthOverrideMeters: length } : course;
-  }) };
+    if (lengths.length === 0) continue;
+    const length = Math.max(...lengths), computed = measured.get(course.id) ?? 0;
+    if (Math.abs(length - computed) > COURSE_DATA_LENGTH_TOLERANCE_METERS) {
+      notices.push({ code: "LENGTH_DIFFERS", text: `Banfilens längd för ${course.name} var ${distance(length)}, uppmätt ${distance(computed)}.` });
+    }
+  }
   return { document, notices };
 }

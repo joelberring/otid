@@ -8,7 +8,8 @@ import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { clamp01, rgbFromCmyk, spotName } from "../color";
 import { crsFromEpsg } from "../georef";
 import { boundsOf, normalizeAngle, openRing } from "../geometry";
-import { MapFileError, type MapColor, type MapGeoreference, type MapObject, type MapSymbol, type ParsedMap } from "../model";
+import { MapFileError, type MapColor, type MapGeoreference, type MapObject, type MapSymbol, type ParsedMap, type ReadOptions } from "../model";
+import { sha256OfText } from "../revision/sha256";
 import { WarningCollector } from "../warnings";
 import { coordsToParts, joinParts, parseCoordText } from "./coords";
 import { readOmapSymbols } from "./symbols";
@@ -22,7 +23,7 @@ const FORBIDDEN_DECLARATION = /<!\s*(?:DTD|DOCTYPE|ENTITY)\b/i;
 
 const ARRAY_TAGS = new Set(["color", "component", "symbol", "part", "element", "pattern", "border", "object", "coord", "namedcolor"]);
 
-export function readOmap(textContent: string): ParsedMap {
+export function readOmap(textContent: string, options: ReadOptions = {}): ParsedMap {
   if (FORBIDDEN_DECLARATION.test(textContent)) {
     throw new MapFileError("INVALID", "Mapper-filen innehåller en DOCTYPE- eller ENTITY-deklaration, som inte stöds.");
   }
@@ -39,7 +40,7 @@ export function readOmap(textContent: string): ParsedMap {
   const colors = readColors(child(map, "colors"));
   const barrier = child(map, "barrier") ?? map;
   const { symbols, isArea } = readOmapSymbols(asArray(child(barrier, "symbols")?.symbol), warnings);
-  const objects = partsStart < 0 ? [] : readObjects(textContent, partsStart, partsEnd, symbols, isArea, warnings);
+  const objects = partsStart < 0 ? [] : readObjects(textContent, partsStart, partsEnd, symbols, isArea, warnings, options.sources === true);
   const { scale, georeference } = readGeoreference(child(map, "georeferencing"), warnings);
   return {
     format: "OMAP",
@@ -54,7 +55,7 @@ export function readOmap(textContent: string): ParsedMap {
   };
 }
 
-function findTag(content: string, name: string, from: number): number {
+export function findTag(content: string, name: string, from: number): number {
   for (let index = content.indexOf(name, from); index >= 0; index = content.indexOf(name, index + 1)) {
     const next = content.charCodeAt(index + name.length);
     if (next === 62 || next === 32 || next === 9 || next === 10 || next === 13 || next === 47) return index;
@@ -175,16 +176,26 @@ function describeCrs(projected: XmlNode): string {
   return [id, parameter, spec].filter(Boolean).join(" ");
 }
 
-/** Linjär genomgång av `<object …>…</object>` i `<parts>`. */
+/**
+ * Linjär genomgång av `<object …>…</object>` i `<parts>`. Med `sources` (ADR-0207) får varje objekt sin kartdel, sitt
+ * ordningstal i delen och sitt textintervall med hash.
+ */
 function readObjects(
   content: string, start: number, end: number, symbols: ReadonlyMap<string, MapSymbol>,
-  isArea: (id: string) => boolean, warnings: WarningCollector
+  isArea: (id: string) => boolean, warnings: WarningCollector, sources: boolean
 ): MapObject[] {
   const objects: MapObject[] = [];
   let position = start;
+  let part = -1, ordinal = 0;
+  let nextPart = findTag(content, "<part", start);
   for (;;) {
     const open = findTag(content, "<object", position);
     if (open < 0 || open >= end) break;
+    while (nextPart >= 0 && nextPart < open) {
+      part++;
+      ordinal = 0;
+      nextPart = findTag(content, "<part", nextPart + 5);
+    }
     const tagEnd = content.indexOf(">", open);
     if (tagEnd < 0 || tagEnd > end) throw new MapFileError("TRUNCATED", "Mapper-filen är avkortad mitt i ett objekt.");
     const selfClosing = content.charCodeAt(tagEnd - 1) === 47;
@@ -193,7 +204,11 @@ function readObjects(
     position = selfClosing ? tagEnd + 1 : close + "</object>".length;
     const attributes = tagAttributes(content.slice(open, tagEnd));
     const object = readObject(content, tagEnd + 1, selfClosing ? tagEnd + 1 : close, attributes, symbols, isArea, warnings);
-    if (object) objects.push(object);
+    const index = ordinal++;
+    if (!object) continue;
+    if (!sources) { objects.push(object); continue; }
+    const locator = { format: "OMAP" as const, part: Math.max(part, 0), ordinal: index, start: open, end: position };
+    objects.push({ ...object, source: { locator, objectHash: sha256OfText(content, open, position) } });
   }
   return objects;
 }

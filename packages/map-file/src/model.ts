@@ -223,6 +223,15 @@ export interface ParsedMap {
   readonly warnings: readonly MapFileWarning[];
 }
 
+/** Val för `readMapFile`. */
+export interface ReadOptions {
+  /**
+   * ADR-0207: sätt `source` (plats i filen och objektets sha256) på varje objekt, för kartrevidering. Av som förval: det
+   * kostar en hash per objekt och behövs inte för att rita.
+   */
+  readonly sources?: boolean | undefined;
+}
+
 /** Läsfel som gör filen oanvändbar (inte en orienteringskarta, för gammal version, trunkerad). */
 export class MapFileError extends Error {
   constructor(readonly code: "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | "TRUNCATED" | "INVALID", message: string) {

@@ -4,7 +4,8 @@
  * stället för att hänga eller allokera. Skillnaderna mellan versionerna finns i `OcdVariant` (layout.ts).
  */
 import { boundsOf, normalizeAngle, openRing } from "../geometry";
-import { MapFileError, type MapObject, type MapSymbol, type ParsedMap } from "../model";
+import { MapFileError, type MapObject, type MapSymbol, type ParsedMap, type ReadOptions } from "../model";
+import { sha256Hex } from "../revision/sha256";
 import { WarningCollector } from "../warnings";
 import { Bytes, decode8, indexBlocks } from "./bytes";
 import { coordsToParts, readCoords } from "./coords";
@@ -16,7 +17,7 @@ import { readV8Colors, readV8Georeference } from "./v8";
 /** Övre gräns för punkter i ett objekt (OCAD tillåter långt färre). */
 const MAX_COORDS = 1 << 20;
 
-export function readOcd(data: Uint8Array): ParsedMap {
+export function readOcd(data: Uint8Array, options: ReadOptions = {}): ParsedMap {
   const bytes = new Bytes(data);
   if (!bytes.has(0, HEADER.size)) throw new MapFileError("TRUNCATED", "OCAD-filen är för kort för att ha ett filhuvud.");
   if (bytes.u16(HEADER.mark) !== OCD_MARK) throw new MapFileError("NOT_A_MAP_FILE", "Filen är inte en OCAD-karta.");
@@ -33,7 +34,7 @@ export function readOcd(data: Uint8Array): ParsedMap {
   const strings = readParameterStrings(bytes, bytes.u32(HEADER.firstStringBlock));
   const colors = variant.version === 8 ? readV8Colors(bytes) : readColors(strings);
   const symbols = readOcdSymbols(bytes, bytes.u32(HEADER.firstSymbolBlock), warnings, variant);
-  const objects = readObjects(bytes, bytes.u32(HEADER.firstObjectBlock), symbols, variant, warnings);
+  const objects = readObjects(bytes, bytes.u32(HEADER.firstObjectBlock), symbols, variant, warnings, options.sources === true);
   const { scale, georeference } = variant.version === 8 ? readV8Georeference(bytes, warnings) : readGeoreference(strings, warnings);
   return {
     format: "OCD",
@@ -49,12 +50,14 @@ export function readOcd(data: Uint8Array): ParsedMap {
 }
 
 function readObjects(
-  bytes: Bytes, first: number, symbols: ReadonlyMap<string, MapSymbol>, variant: OcdVariant, warnings: WarningCollector
+  bytes: Bytes, first: number, symbols: ReadonlyMap<string, MapSymbol>, variant: OcdVariant, warnings: WarningCollector, sources: boolean
 ): MapObject[] {
   const objects: MapObject[] = [];
   if (first === 0) return objects;
   const index = variant.index;
-  for (const block of indexBlocks(bytes, first, index.blockSize)) {
+  const blocks = indexBlocks(bytes, first, index.blockSize);
+  for (let b = 0; b < blocks.length; b++) {
+    const block = blocks[b]!;
     for (let k = 0; k < 256; k++) {
       const entry = block + 4 + k * index.entrySize;
       const position = bytes.i32(entry + index.position);
@@ -64,10 +67,25 @@ function readObjects(
       if (index.status === null && bytes.i16(entry + index.symbol) === 0) continue;
       const length = index.lengthInCoords ? variant.object.coords + bytes.u16(entry + index.length) * 8 : bytes.i32(entry + index.length);
       const object = readObject(bytes, position, length, symbols, variant, warnings);
-      if (object) objects.push(object);
+      if (!object) continue;
+      if (!sources) { objects.push(object); continue; }
+      const size = recordLength(bytes, position, length, variant);
+      const locator = { format: "OCD" as const, block: b, slot: k, offset: position, length: size };
+      objects.push({ ...object, source: { locator, objectHash: sha256Hex(bytes.bytes, position, position + size) } });
     }
   }
   return objects;
+}
+
+/**
+ * ADR-0207: postens längd i byte ur indexet (version 9+ i byte, där OCAD ibland lämnar plats efter texten; version 8 i
+ * koordinater, redan omräknad). Saknas den eller går den utanför filen räknas den ur huvudet, punkterna och texten.
+ */
+export function recordLength(bytes: Bytes, at: number, indexLength: number, variant: OcdVariant): number {
+  if (indexLength > 0 && bytes.has(at, indexLength)) return indexLength;
+  const layout = variant.object;
+  const count = layout.coordCount16 ? bytes.u16(at + layout.coordCount) : bytes.u32(at + layout.coordCount);
+  return Math.min(layout.coords + (count + bytes.u16(at + layout.textCount)) * 8, bytes.length - at);
 }
 
 function readObject(

@@ -4,6 +4,13 @@ const meters = (value: number) => value >= 10_000 ? `${(value / 1000).toFixed(1)
 export const courseSettingSv = {
   title: "Banläggning",
   back: "Tillbaka till tävlingen",
+  /** Den som bara har banläggningen (ingen roll på tävlingen) går tillbaka till Mina tävlingar. */
+  backToEvents: "Tillbaka till Mina tävlingar",
+  backShort: "Tävlingen",
+  backShortEvents: "Mina tävlingar",
+  /** Fil-menyn: utskriftens sidor (ägaren 2026-11-03). */
+  printMenu: "Utskrift av banor …",
+  descriptionsMenu: "Kontrollbeskrivningar …",
   link: "Banläggning",
   linkHelp: "Lägg banorna på kartfilen i webbläsaren, eller läs in en .ppen från Purple Pen.",
   loading: "Hämtar banläggningen …",

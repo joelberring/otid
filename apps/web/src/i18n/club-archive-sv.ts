@@ -59,6 +59,7 @@ export const clubArchiveSv = {
     reader: "Ingen har importerat något än."
   },
   entry: {
+    readOnlyHint: "Arkivet visar träningen som den gjordes. Vill du ändra banorna: Använd igen – då öppnas en kopia i banläggningen.",
     courses: "Banor",
     noCourses: "Inga banfiler i den här träningen.",
     courseCount: (count: number) => count === 1 ? "1 bana" : `${count} banor`,

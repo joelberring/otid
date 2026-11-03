@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceSessionStatusSchema,
-  type AdministratorEffectiveResultResponse, type EntryTransferCandidates } from "@o-tid/contracts";
+  type AdministratorEffectiveResultResponse, type CourseSettingLevel, type EntryTransferCandidates } from "@o-tid/contracts";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import type { WorkspaceRole } from "../../lib/race-sections";
@@ -9,6 +9,9 @@ import type { Base } from "./workspace-state";
 import type { MobileNavigation } from "./navigation";
 import { forgetAllCourseSettingCopies } from "../../lib/course-setting-offline-forget";
 
+/** Banläggningens sida för nivån: kartritaren (MAP) har bara kartfelen. */
+export const courseSettingPath = (level: CourseSettingLevel) => level === "MAP" ? "course-setting/map-errors" : "course-setting";
+
 /** Tävlingens deltagarlista (ögonblicksbilden) och vald deltagares gällande resultat. */
 export function useRaceDataState() {
   const [data, setData] = useState<EntryTransferCandidates>();
@@ -16,14 +19,16 @@ export function useRaceDataState() {
   const [effectiveResultError, setEffectiveResultError] = useState(false);
   /** Administratör eller funktionär (ADR-0172 beslut 3), kontots roll på tävlingen. */
   const [role, setRole] = useState<WorkspaceRole>("ADMIN");
-  return { data, setData, effectiveResult, setEffectiveResult, effectiveResultError, setEffectiveResultError, role, setRole };
+  /** Banläggningens behörighet på tävlingen (sidopanelens Banläggning); saknas = ingen. */
+  const [courseSetting, setCourseSetting] = useState<CourseSettingLevel>();
+  return { data, setData, effectiveResult, setEffectiveResult, effectiveResultError, setEffectiveResultError, role, setRole, courseSetting, setCourseSetting };
 }
 
 /** Session och dataladdning: inloggning med kontot, utloggning och ny läsning av ögonblicksbilden. */
 export function createRaceDataActions(ws: Base & MobileNavigation) {
   const { raceId, entryId, pending, sent, writingRef, deadline, base, setEffectiveResult, setEffectiveResultError, setData,
     setEntryChanges, setIdentityCandidates, setSelectedClassId, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
-    setEntryId, setClassId, setPage, setNewCard, setRole, request, json, assertCurrent, current, begin, finish, lock,
+    setEntryId, setClassId, setPage, setNewCard, setRole, setCourseSetting, request, json, assertCurrent, current, begin, finish, lock,
     requireSession, showMobilePanel } = ws;
   async function loadEffectiveResult(id: string, roster: EntryTransferCandidates, op: Operation) {
     setEffectiveResult(undefined); setEffectiveResultError(false);
@@ -57,10 +62,16 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     if (!response.ok) throw new Error("Session unavailable");
     // Kontots session och roll på tävlingen (ADR-0173 beslut 4).
     const value = raceSessionStatusSchema.parse(await json(response, op));
-    if ("authenticated" in value) throw new Error("No race session");
+    if ("authenticated" in value) {
+      // Ägaren 2026-11-03: den som bara har banläggningen hamnar där, inte på en tom arbetsyta.
+      if (value.courseSetting && value.raceId === raceId) {
+        window.location.replace(`/admin/${encodeURIComponent(raceId)}/${courseSettingPath(value.courseSetting)}`);
+      }
+      throw new Error("No race session");
+    }
     if (value.raceId !== raceId || Date.parse(value.expiresAt) <= Date.now()) throw new Error("Invalid session");
     deadline.current = Date.parse(value.expiresAt); setExpiresAt(value.expiresAt);
-    setRole(value.role);
+    setRole(value.role); setCourseSetting(value.courseSetting);
     await load(op); assertCurrent(op); setAuthenticated(true); if (pending.current) setMobilePanel("WORK"); setMessage("");
   }
   async function logout() {

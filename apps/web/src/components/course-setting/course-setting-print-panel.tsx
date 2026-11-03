@@ -1,9 +1,11 @@
 "use client";
 
 import {
-  HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, type CoursePage, type CourseSettingDocument, type CourseSettingEdit, type PaperName, type PrintArea
+  descriptionShown, paperLayoutOf, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, type CoursePage, type CourseSettingDocument, type CourseSettingEdit, type PaperName, type PrintArea
 } from "@o-tid/course-setting";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
+
+const paperText = text.paper;
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
@@ -68,6 +70,16 @@ export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview 
           ...(page ? { rect: page.mapArea } : {}) })} />{text.print.restrict}</label>}
       </fieldset>
       <p className={styles.muted}>{text.print.frameHelp}</p>
+    </fieldset>
+    {/* Papperet (ägaren 2026-11-03): beskrivningen är en del av utskriften, inte av kartan i editorn. */}
+    <fieldset className={styles.stack} disabled={readOnly} data-testid="course-setting-print-description">
+      <label><input type="checkbox" checked={descriptionShown(document, view)} onChange={event => onEdits([{ type: "SET_PAPER_LAYOUT", course: view,
+        layout: { ...paperLayoutOf(document, view), descriptions: { ...paperLayoutOf(document, view).descriptions, show: event.target.checked } } }])} />
+        {paperText.show}</label>
+      {page?.description && <p className={styles.muted}>{paperText.source(page.description.source,
+        page.description.corner ? paperText.corners[page.description.corner] : undefined)}.</p>}
+      {(page?.description?.overlaps ?? 0) > 0 && <p role="note" className={styles.muted}><strong>⚠ {paperText.overlaps(page!.description!.overlaps!)}</strong></p>}
+      <p className={styles.muted}>{paperText.editorHint}</p>
     </fieldset>
     <div className={styles.row}>
       <Button onClick={onPreview}>{text.print.preview}</Button>

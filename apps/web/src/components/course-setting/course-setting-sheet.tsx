@@ -1,6 +1,7 @@
 "use client";
 
-import { passesKey, type Sheet, type SheetFrame } from "@o-tid/course-setting";
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { passesKey, type PaperRect, type Sheet, type SheetDescription, type SheetFrame } from "@o-tid/course-setting";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { DESCRIPTION_FONT, descriptionNodes, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { pageName, pageNodes, type PrintNode } from "../../lib/course-setting-print";
@@ -18,9 +19,11 @@ export function frameImageKey(frame: Pick<SheetFrame, "mapArea" | "clip" | "tran
  * och banpåtrycket klippta till ramen, sedan vita ytor (remsan), logotyper, beskrivningar, texter och skärmarker, och
  * raden om att det är ett utkast. Webbläsarens utskrift ger ett ark per sida (`@page` per pappersstorlek).
  */
-export function SheetView({ sheet, index, symbols, images, colorsKey, courseColor, label }: {
+export function SheetView({ sheet, index, symbols, images, colorsKey, courseColor, label, onPlace }: {
   sheet: Sheet; index: number; symbols: SymbolLookup; images: Readonly<Record<string, string>>; colorsKey: string; courseColor?: string | undefined;
   label: string;
+  /** Papperet (ägaren 2026-11-03): beskrivningen dras och ändras i storlek här; ger rutans nya läge och rutstorlek. */
+  onPlace?: ((description: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => void) | undefined;
 }) {
   const { paper } = sheet;
   const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)]);
@@ -35,9 +38,8 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
       stroke={box.border ? "#000" : undefined} strokeWidth={box.border ? 0.25 : undefined} data-testid="print-strip" />)}
     {sheet.images.map((image, imageIndex) => <image key={imageIndex} href={`data:${image.mediaType};base64,${image.data}`} x={image.x} y={image.y}
       width={image.width} height={image.height} preserveAspectRatio="xMidYMid meet" data-testid="print-logo" />)}
-    {sheet.descriptions.map((item, descriptionIndex) => <g key={descriptionIndex} transform={`translate(${item.x} ${item.y})`} data-testid="print-description"
-      fontFamily={DESCRIPTION_FONT}><rect width={item.layout.widthMm} height={item.layout.heightMm} fill="#fff" />
-      <DescriptionShapes nodes={descriptionNodes(item.layout, symbols)} /></g>)}
+    {sheet.descriptions.map((item, descriptionIndex) => <PaperDescription key={descriptionIndex} item={item} symbols={symbols}
+      frame={sheet.frames[item.frame]} onPlace={onPlace} />)}
     {sheet.texts.map((item, textIndex) => <text key={textIndex} x={item.at.x} y={item.at.y} fontSize={item.heightMm} fontWeight={item.bold ? "bold" : undefined}
       textAnchor={item.align === "left" ? "start" : item.align === "right" ? "end" : "middle"} fill={item.color === "COURSE" ? courseColor ?? "rgb(204, 0, 255)" : "#000"}
       transform={item.rotation ? `rotate(${item.rotation} ${item.at.x} ${item.at.y})` : undefined}
@@ -71,4 +73,77 @@ function Node({ node }: { node: PrintNode }) {
     case "description": return <g transform={`translate(${node.x} ${node.y}) scale(${node.scale})`} data-ref={node.ref} data-role="SPECIAL" data-testid="print-description">
       <DescriptionShapes nodes={node.nodes} /></g>;
   }
+}
+
+const KEY_STEP_MM = 1;
+
+/**
+ * Kontrollbeskrivningen på arket. Med `onPlace`: dra den (mus, finger) eller flytta med piltangenterna (1 mm, Skift 5 mm),
+ * och ändra storleken i handtaget nere till höger. Medan den dras visas den där den hamnar; läget sparas när den släpps.
+ */
+function PaperDescription({ item, symbols, frame, onPlace }: { item: SheetDescription; symbols: SymbolLookup; frame: SheetFrame | undefined;
+  onPlace?: ((description: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => void) | undefined }) {
+  const [drag, setDrag] = useState<{ dx: number; dy: number; scale: number }>();
+  const start = useRef<{ x: number; y: number; mode: "move" | "resize" }>(undefined);
+  const editable = Boolean(onPlace && frame && item.boxMm);
+  const box = item.boxMm ?? 5;
+  const width = item.layout.widthMm, height = item.layout.heightMm;
+  const place = (dx: number, dy: number, scale: number) => {
+    if (!onPlace || !frame) return;
+    onPlace(item, frame, { x: item.x + dx, y: item.y + dy, width: width * scale, height: height * scale }, Math.round(box * scale * 2) / 2);
+  };
+  const paperPoint = (event: PointerEvent<SVGElement>) => {
+    const matrix = event.currentTarget.ownerSVGElement?.getScreenCTM()?.inverse();
+    return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix) : { x: 0, y: 0 };
+  };
+  const down = (mode: "move" | "resize") => (event: PointerEvent<SVGElement>) => {
+    if (!editable) return;
+    event.stopPropagation(); event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const at = paperPoint(event);
+    start.current = { x: at.x, y: at.y, mode };
+    setDrag({ dx: 0, dy: 0, scale: 1 });
+  };
+  const move = (event: PointerEvent<SVGElement>) => {
+    const from = start.current;
+    if (!from) return;
+    const at = paperPoint(event);
+    if (from.mode === "move") setDrag({ dx: at.x - from.x, dy: at.y - from.y, scale: 1 });
+    else {
+      // Storleken följer handtaget; rutan 3–10 mm.
+      const scale = Math.max(3 / box, Math.min(10 / box, (width + at.x - from.x) / width));
+      setDrag({ dx: 0, dy: 0, scale });
+    }
+  };
+  const up = () => {
+    const current = drag;
+    start.current = undefined;
+    setDrag(undefined);
+    if (current && (Math.abs(current.dx) > 0.2 || Math.abs(current.dy) > 0.2 || Math.abs(current.scale - 1) > 0.01)) place(current.dx, current.dy, current.scale);
+  };
+  const key = (event: KeyboardEvent<SVGGElement>) => {
+    const step = event.shiftKey ? 5 * KEY_STEP_MM : KEY_STEP_MM;
+    const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    const delta = moves[event.key];
+    if (!delta) return;
+    event.preventDefault();
+    place(delta[0], delta[1], 1);
+  };
+  const shown = drag ?? { dx: 0, dy: 0, scale: 1 };
+  const warn = (item.overlaps ?? 0) > 0;
+  return <g transform={`translate(${item.x + shown.dx} ${item.y + shown.dy}) scale(${shown.scale})`} data-testid="print-description" data-course={item.course}
+    data-source={item.source} data-overlaps={item.overlaps ?? 0} fontFamily={DESCRIPTION_FONT}
+    {...(editable ? { tabIndex: 0, role: "button", "aria-label": text.paper.dragLabel, onKeyDown: key, className: styles.paperDescription } : {})}>
+    <rect width={width} height={height} fill="#fff" onPointerDown={down("move")} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+      style={editable ? { cursor: drag ? "grabbing" : "grab" } : undefined} />
+    <g pointerEvents="none"><DescriptionShapes nodes={descriptionNodes(item.layout, symbols)} /></g>
+    {editable && <>
+      {/* Ramen visar att rutan går att flytta (bara på skärmen, inte i utskriften). */}
+      <rect className={styles.paperOutline} width={width} height={height} fill="none" stroke={warn ? "#b00020" : "#1d6fd1"} strokeWidth={0.4 / shown.scale}
+        strokeDasharray={`${1.5 / shown.scale} ${1 / shown.scale}`} pointerEvents="none" />
+      <rect className={styles.paperOutline} x={width - 2.5 / shown.scale} y={height - 2.5 / shown.scale} width={4 / shown.scale} height={4 / shown.scale}
+        fill="#1d6fd1" stroke="#fff" strokeWidth={0.3 / shown.scale} style={{ cursor: "nwse-resize" }} data-testid="print-description-resize"
+        onPointerDown={down("resize")} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
+    </>}
+  </g>;
 }

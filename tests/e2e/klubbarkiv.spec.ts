@@ -127,7 +127,9 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await reader.getByTestId("archive-entries").getByRole("link").filter({ hasText: "2019-04-02" }).click();
     await expect(reader.getByRole("heading", { name: "Skogen", level: 1 })).toBeVisible();
     await expect(reader.getByRole("button", { name: "Ändra" })).toHaveCount(0);
-    await reader.getByRole("button", { name: "Använd igen" }).click();
+    // Arkivet visar bara: beskedet och Använd igen direkt under kartan.
+    await expect(reader.getByTestId("archive-read-only")).toContainText("Arkivet visar träningen som den gjordes.");
+    await reader.getByTestId("archive-read-only").getByRole("button", { name: "Använd igen" }).click();
     const dialog = reader.getByRole("dialog", { name: "Använd träningen igen" });
     const version = dialog.getByRole("combobox", { name: "Kartversion" });
     await expect(version.locator("option:checked")).toContainText("(senaste)");

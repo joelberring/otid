@@ -19,9 +19,11 @@ export type TopBarProps = {
   raceId: string; document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; variant: string | undefined;
   onView: (view: string, variant?: string) => void; status: ReactNode; access: ReactNode; presence: string;
   canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; menu: readonly { label: string; onClick: () => void }[];
+  /** Admin har arbetsytan att gå tillbaka till; andra går till Mina tävlingar. */
+  admin: boolean;
 };
 
-export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu }: TopBarProps) {
+export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu, admin }: TopBarProps) {
   const [open, setOpen] = useState(false);
   // Menyn ligger fast i fönstret under knappen, högerjusterad mot knappen så att den aldrig hamnar utanför bild.
   const [menuAt, setMenuAt] = useState<{ top: number; right: number }>();
@@ -41,7 +43,9 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
   const courses = [...document.courses].sort((a, b) => a.order - b.order);
   const variants = summaries.find(row => row.course === view)?.variants ?? [];
   return <header className={styles.topbar}>
-    <Link className={styles.back} href={`/admin/${raceId}/manage`} title={text.back}>← <span className={styles.wide}>{text.title}</span></Link>
+    {/* Tillbaka tydligt (ägaren 2026-11-03): pilen och vart den går, kort på telefonen. */}
+    <Link className={styles.back} href={admin ? `/admin/${raceId}/manage` : "/organizer"} title={admin ? text.back : text.backToEvents}
+      data-testid="course-setting-back">← {admin ? text.backShort : text.backShortEvents}</Link>
     <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.course}</span>
       <select value={view} onChange={event => onView(event.target.value)} data-testid="course-setting-view">
         <option value={ALL_CONTROLS}>{text.courses.all}</option>

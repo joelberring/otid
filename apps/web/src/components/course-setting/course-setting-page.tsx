@@ -118,7 +118,9 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     } catch { setMessage({ tone: "error", text: text.file.failed }); } finally { setBusy(false); }
   }
 
-  const back = <Link className={styles.back} href={`/admin/${raceId}/manage`}>{text.back}</Link>;
+  // Admin tillbaka till arbetsytan; den som bara har banläggningen till Mina tävlingar (arbetsytan är inte deras).
+  const back = <Link className={styles.back} href={state && !state.access.admin ? "/organizer" : `/admin/${raceId}/manage`}>
+    ← {state && !state.access.admin ? text.backToEvents : text.back}</Link>;
   if (failed) return <main className={styles.page}>{back}<Notice tone="error" role="alert"><p>{text.loadFailed}</p>
     {failed === "other" && <div><Button variant="secondary" onClick={() => void load()}>{text.retry}</Button></div>}</Notice></main>;
   if (!state) return <main className={styles.page}>{back}<p role="status">{text.loading}</p></main>;

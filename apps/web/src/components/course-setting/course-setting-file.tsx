@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
-import { CourseSettingEditError, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning } from "@o-tid/course-setting";
+import {
+  CourseSettingEditError, layoutCoursePage, ppenWithPaperLayout, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning
+} from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
@@ -69,7 +71,11 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   }
   function download() {
     const title = document.event.title.trim().replace(/[^\p{L}\p{N} ._-]/gu, "_") || "banlaggning";
-    downloadText(`${title}.ppen`, writePpen(document));
+    // Papperet (kontrollbeskrivningen som banläggaren placerat) skrivs som Purple Pens `descriptions` på motsvarande ställe i kartan.
+    const withPaper = ppenWithPaperLayout(document, course => {
+      try { return layoutCoursePage(document, { course, mapBounds })[0]; } catch (error) { console.error("Banans sida kunde inte läggas ut", error); return undefined; }
+    });
+    downloadText(`${title}.ppen`, writePpen(withPaper));
   }
   function downloadIof() {
     try {

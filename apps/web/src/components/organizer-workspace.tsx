@@ -409,7 +409,10 @@ export function OrganizerWorkspace() {
                 {event.role !== "COURSE_SETTER" && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
                   aria-busy={enteringRaceId === race.raceId} onClick={() => enterRace(race.raceId)}>
                   {enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>}
-                {race.courseSetting && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
+                {/* Ägaren 2026-11-03: banläggningen direkt från listan, för ägare och administratörer och för den som har
+                    banläggningens behörighet (inte fest och rogaining). */}
+                {(race.courseSetting || ((event.role === "OWNER" || event.role === "ADMIN") && race.raceType !== "PARTY" && race.raceType !== "ROGAINING")) &&
+                  <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} data-testid="open-course-setting"
                   onClick={() => enterRace(race.raceId, race.courseSetting === "MAP" ? "course-setting/map-errors" : "course-setting")}>
                   {race.courseSetting === "MAP" ? copy.openMapErrors : copy.openCourseSetting}</button>}
               </div>

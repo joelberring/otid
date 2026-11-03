@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  expandTrainingItems, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
+  expandTrainingItems, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
   type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect,
-  type Sheet, type SheetItem
+  type PaperRect, type Sheet, type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
@@ -32,6 +32,7 @@ import { PdfPanel } from "./course-setting-pdf-panel";
 import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
 import { LayoutTemplatePanel } from "./course-setting-print-template";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
+import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
 import styles from "./course-setting-print-page.module.css";
 
 // Steg 67: styrd av service workern när banläggningen är sparad för offline (`controlledWorker`).
@@ -264,6 +265,19 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   }, [session, sheets, adjust, colorsKey, renderImage]);
   useEffect(() => () => { for (const url of urls.current) if (url.startsWith("blob:")) URL.revokeObjectURL(url); }, []);
 
+  // Papperet: första beskrivningen per bana (panelens status och varning) och dra-och-släpp på arket.
+  const placedDescriptions = useMemo(() => {
+    const out = new Map<string, SheetDescription>();
+    for (const { sheet } of sheets) for (const item of sheet.descriptions) if (item.course && !out.has(item.course)) out.set(item.course, item);
+    return out;
+  }, [sheets]);
+  const placeDescription = useCallback((item: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => {
+    if (!document || !item.course) return;
+    const settings = document.event.paperLayouts?.[item.course]?.descriptions ?? {};
+    void save([paperDescriptionEdit(document, item.course, { ...settings, show: true, at: paperAnchorOf(rect, frame.clip),
+      boxMm: Math.max(3, Math.min(10, boxMm)) })]);
+  }, [document, save]);
+
   const toggle = (id: string, on: boolean) => setChosen(current => on ? [...current, id] : current.filter(item => item !== id));
   const allIds = [ALL_CONTROLS, ...courses.map(course => course.id)];
   const back = <Link className={styles.back} href={`/admin/${raceId}/course-setting`}>{text.page.back}</Link>;
@@ -313,6 +327,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
       </div>
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
+      {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
+        readOnly={!canEdit} onSave={save} />}
       {profile.reference && hasMap && <BlProposalPanel key={profile.basedOn ?? profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
         readOnly={!canEdit} frame={sheets[0]?.sheet.frames[0]} symbols={symbols} render={renderImage}
         onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} />}
@@ -330,7 +346,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     </div>
     <div className={styles.sheets}>
       {sheets.map((item, index) => <SheetView key={item.key} sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
-        courseColor={courseColor} label={item.label} />)}
+        courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} />)}
     </div>
   </main>;
 }

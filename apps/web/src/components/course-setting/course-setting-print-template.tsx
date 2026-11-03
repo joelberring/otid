@@ -14,8 +14,8 @@ const LOGO_MAX_BYTES = 300 * 1024;
 
 /**
  * Steg 64 (ADR-0183): layoutmallen ("paperspace"). Välj en färdig eller sparad mall, kopiera den och ändra papper,
- * kartramar (rader × kolumner), texter med platshållare, logotyp, beskrivningens plats, remsan för rullad karta och
- * skärmarker. Mallen sparas i tävlingens banläggning och kan kopieras.
+ * kartramar (rader × kolumner), texter med platshållare, logotyp, remsan för rullad karta och
+ * skärmarker (kontrollbeskrivningen ställs in per bana, inte i mallen). Mallen sparas i tävlingens banläggning och kan kopieras.
  */
 export function LayoutTemplatePanel({ saved, selectedId, readOnly, onSelect, onDraft, onSave }: {
   saved: readonly LayoutTemplate[]; selectedId: string; readOnly: boolean;
@@ -100,14 +100,9 @@ export function LayoutTemplatePanel({ saved, selectedId, readOnly, onSelect, onD
         <label className={styles.field}>{text.logo}<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={event => void logo(event.target.files?.[0])} /></label>
         {template.images.length > 0 && <Button variant="quiet" onClick={() => edit({ ...template, images: [] })}>{text.removeLogo}</Button>}
       </div>
-      <div className={styles.row}>
-        <label className={styles.check}><input type="checkbox" checked={template.descriptions.length > 0} onChange={event => {
-          const frame = template.frames[0];
-          edit({ ...template, descriptions: event.target.checked && frame ? [{ frame: 0, x: frame.x + 2, y: frame.y + 2, boxMm: 5 }] : [] });
-        }} />{text.description}</label>
-        {template.descriptions[0] && <label className={styles.field}>{text.descriptionBox}<input type="number" min={3} max={8} step={0.5} className={styles.small}
-          value={template.descriptions[0].boxMm} onChange={event => edit({ ...template, descriptions: [{ ...template.descriptions[0]!, boxMm: number(event.target.value, 5) }] })} /></label>}
-      </div>
+      {/* Kontrollbeskrivningen ställs in per bana (Kontrollbeskrivning på kartan); en äldre mall med plats för den används
+          bara för banor som inte har en utplacerad. */}
+      <p className={styles.muted}>{text.descriptionMoved}</p>
       <div className={styles.row}>
         <label className={styles.check}><input type="checkbox" checked={Boolean(strip)} onChange={event => setStrip(event.target.checked ? {} : null)} data-testid="layout-template-strip" />
           {text.strip}</label>

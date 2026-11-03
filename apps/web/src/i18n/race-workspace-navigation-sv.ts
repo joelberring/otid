@@ -1,5 +1,9 @@
 export const raceWorkspaceNavigationSv = {
   backToEvents: "Mina tävlingar",
+  /** Ägaren 2026-11-03: banläggningen som eget mål i arbetsytan (sidopanelen och Meny). */
+  courseSetting: "Banläggning",
+  mapErrors: "Kartfel",
+  courseSettingStatus: { EDIT: "Kartan, banor och utskrift", SUGGEST: "Du föreslår ändringar", COMMENT: "Läsa och kommentera", MAP: "Kartfelen" } as const,
   backLocked: "Avsluta den pågående granskningen eller åtgärden innan du lämnar arbetsytan.",
   checklist: "Checklista",
   steps: { COURSES: "Banor", CLASSES: "Klasser", ENTRIES: "Anmälda", START: "Start", READOUT: "Avläsning", RESULTS: "Resultat" },

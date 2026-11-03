@@ -8,9 +8,21 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { checklistFacts, inForest, sectionStatus, type SectionFacts } from "../../lib/section-status";
 import type { Section } from "../../lib/race-sections";
+import { courseSettingPath } from "./race-data";
 import type { Workspace } from "./workspace-state";
 import { HelpButton } from "../help/help-panel";
 import { shownRaceName } from "@o-tid/domain";
+
+/**
+ * Banläggningen som eget mål (ägaren 2026-11-03: "lite gömd"): för den som har banläggningens behörighet på tävlingen, utom
+ * fest och rogaining (där kontrollerna med poäng läggs under Kontroller & poäng). Samma flik; osparat stoppar som stegen.
+ */
+export function courseSettingLink(ws: Workspace): { href: string; label: string; status: string } | undefined {
+  const level = ws.courseSetting;
+  if (!level || !ws.data || ws.data.raceType === "PARTY" || ws.profile.features.rogaining) return undefined;
+  return { href: `/admin/${ws.raceId}/${courseSettingPath(level)}`, label: level === "MAP" ? navigationText.mapErrors : navigationText.courseSetting,
+    status: navigationText.courseSettingStatus[level] };
+}
 
 function facts(ws: Workspace): SectionFacts | undefined {
   const { courseList, data, forestData, unknownReadoutCandidate } = ws;
@@ -30,7 +42,11 @@ function facts(ws: Workspace): SectionFacts | undefined {
 export function TopBar({ ws }: { ws: Workspace }) {
   const { data, functionary, mayLeave, profile, raceId, refresh, logout, saving, section } = ws;
   const current = facts(ws);
+  const courseSetting = courseSettingLink(ws);
   const shortcuts = (menu: boolean) => <>
+    {/* På smal skärm: banläggningen också i menyn (sidopanelens remsa kan vara utrullad åt sidan). */}
+    {menu && courseSetting && <a href={courseSetting.href} data-testid="menu-course-setting"
+      onClick={event => { if (!mayLeave()) event.preventDefault(); }}>{courseSetting.label}</a>}
     <a href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{data?.raceType === "PARTY" ? typeText.openPartyDesk : typeText.openReadout}
       <span className={styles.hidden}> ({typeText.newTab})</span></a>
     {profile.features.speaker && <a href={`/admin/${raceId}/speaker`} target="_blank" rel="noopener">{typeText.openSpeaker}
@@ -69,7 +85,8 @@ export function TopBar({ ws }: { ws: Workspace }) {
  * På mobil blir den en remsa överst som går att rulla i sidled.
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
-  const { data, navigateStep, profile, raceId, section: active } = ws;
+  const { data, mayLeave, navigateStep, profile, raceId, section: active } = ws;
+  const courseSetting = courseSettingLink(ws);
   const current = facts(ws);
   const activeButton = useRef<HTMLButtonElement | null>(null);
   // Mobil: remsan rullar så att den valda delen syns.
@@ -99,6 +116,15 @@ export function Sidebar({ ws }: { ws: Workspace }) {
       <li className={styles.finish} aria-hidden="true"><svg viewBox="0 0 22 22" width="22" height="22">
         <circle cx="11" cy="11" r="9.5" /><circle cx="11" cy="11" r="5.5" /></svg></li>
     </ol>
-    {profile.settings && <ol className={styles.after}>{item(profile.settings, true)}</ol>}
+    {(courseSetting || profile.settings) && <ol className={styles.after}>
+      {courseSetting && <li className={styles.settingsItem}>
+        <a className={styles.navLink} href={courseSetting.href} data-testid="nav-course-setting" aria-describedby={`section-${raceId}-course-setting`}
+          onClick={event => { if (!mayLeave()) event.preventDefault(); }}>
+          <span className={styles.toolIcon} aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M3 13 3.6 10.2 10.9 2.9a1.3 1.3 0 0 1 1.8 0l.4.4a1.3 1.3 0 0 1 0 1.8L5.8 12.4Z" /></svg></span>
+          <span className={styles.name}>{courseSetting.label}</span>
+          <span className={styles.status} id={`section-${raceId}-course-setting`}>{courseSetting.status}</span>
+        </a></li>}
+      {profile.settings && item(profile.settings, true)}
+    </ol>}
   </nav>;
 }

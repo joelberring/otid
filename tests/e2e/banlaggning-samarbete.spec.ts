@@ -84,7 +84,7 @@ test("banläggning tillsammans: förslag som godkänns, notis som syns direkt oc
   await helper.reload();
   await expect(helper.getByText(`Samarbete ${suffix}`)).toBeVisible();
   await expect(helper.getByRole("button", { name: "Öppna arbetsytan" })).toHaveCount(0);
-  await helper.getByRole("button", { name: "Öppna banläggningen" }).click();
+  await helper.getByRole("button", { name: "Banläggning", exact: true }).click();
   await helper.waitForURL(/course-setting$/);
   await expect(helper.getByText("Du kan föreslå ändringar")).toBeVisible({ timeout: 30_000 });
   expect((await helper.request.get(`/api/admin/races/${raceId}/administrator/participants`)).status()).toBe(401);
@@ -132,7 +132,7 @@ test("banläggning tillsammans: förslag som godkänns, notis som syns direkt oc
 
   // Två med "ändra" flyttar olika kontroller samtidigt (31 och 33): båda ändringarna finns kvar hos båda.
   await erik.reload();
-  await erik.getByRole("button", { name: "Öppna banläggningen" }).click();
+  await erik.getByRole("button", { name: "Banläggning", exact: true }).click();
   await erik.waitForURL(/course-setting$/);
   const erikMap = await openLong(erik);
   const start = await state(owner, raceId);

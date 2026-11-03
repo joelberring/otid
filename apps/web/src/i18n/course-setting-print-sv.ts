@@ -52,6 +52,27 @@ export const coursePrintSv = {
     allControls: "Alla kontroller",
     frameHelp: "Ramen visar vad som kommer med på papperet."
   },
+  /** Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan. */
+  paper: {
+    heading: "Kontrollbeskrivning på kartan",
+    help: "Beskrivningen hör till papperet, inte kartan: den syns här och i utskriften, inte i banläggningen. Den är på för varje bana och läggs i ett hörn där den inte täcker banan. Dra rutan på arket för att flytta den och dra i hörnet nere till höger för att ändra storleken (eller markera rutan och flytta med piltangenterna). Platsen gäller banan i alla utskrifter och skrivs till .ppen som Purple Pens beskrivning.",
+    show: "Kontrollbeskrivning på kartan",
+    showFor: (name: string) => `Kontrollbeskrivning på kartan för ${name}`,
+    columns: "Spalter",
+    box: "Rutans storlek",
+    boxOption: (mm: number) => `${String(mm).replace(".", ",")} mm`,
+    corners: { TOP_LEFT: "övre vänstra hörnet", TOP_RIGHT: "övre högra hörnet", BOTTOM_LEFT: "nedre vänstra hörnet", BOTTOM_RIGHT: "nedre högra hörnet" } as Record<string, string>,
+    source: (source: string | undefined, corner: string | undefined) => source === "AUTO" ? `Automatiskt i ${corner ?? "ett hörn"}`
+      : source === "PLACED" ? "Utplacerad" : source === "FILE" ? "Där Purple Pen-filen har den" : source === "TEMPLATE" ? "Layoutmallens plats" : "",
+    overlaps: (count: number) => `Ligger över ${count} ${count === 1 ? "kontroll, nummer eller sträcka" : "kontroller, nummer eller sträckor"}: dra den till en fri plats.`,
+    automatic: "Automatiskt igen",
+    off: "Ingen beskrivning på kartan.",
+    dragLabel: "Kontrollbeskrivningen: dra för att flytta, piltangenterna flyttar 1 mm",
+    saved: "Sparat.",
+    failed: "Det gick inte att spara. Försök igen.",
+    readOnly: "Du kan se platsen men inte ändra den.",
+    editorHint: "Platsen väljs i förhandsvisningen: dra rutan på arket."
+  },
   page: {
     title: "Utskrift av banor",
     back: "← Till banläggningen",

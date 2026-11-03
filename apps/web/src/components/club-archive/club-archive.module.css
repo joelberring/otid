@@ -118,3 +118,8 @@
   .date { grid-column: 1 / -1; }
   .entryMeta { grid-column: 1 / -1; }
 }
+
+/* Arkivet visar bara (ägaren 2026-11-03): beskedet och Använd igen direkt under kartan. */
+.readOnlyHint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line);
+  border-left: 4px solid var(--accent); background: var(--surface); }
+.readOnlyHint p { margin: 0; flex: 1 1 18rem; }

@@ -136,6 +136,11 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         </div>}
         <CoursePreview version={rendered} document={ppen?.document} courseId={selectedCourse} courseData={courseDataCourse}
           label={`${text.preview}: ${entry.title}`} />
+        {/* Ägaren 2026-11-03 försökte flytta en start här: arkivet visar bara; ändringar görs i en kopia (Använd igen). */}
+        <div className={styles.readOnlyHint} data-testid="archive-read-only">
+          <p>{text.readOnlyHint}</p>
+          <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>
+        </div>
         {entry.tags.length > 0 && <p className={styles.actions}>{entry.tags.map(tag => <span key={tag} className={styles.tag}>{tag}</span>)}</p>}
         {entry.notes && <p>{entry.notes}</p>}
         <dl className={styles.facts}>

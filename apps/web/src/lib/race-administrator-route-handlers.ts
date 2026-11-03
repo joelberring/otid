@@ -100,13 +100,24 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     const role = raceRoleFor(action.kind, request.method);
     const auth = await dependencies.authenticate(db, { ...proof, raceId, role, requireCsrf: write });
     // Frågan "har jag en session?" utan session är ett normalt svar, inte ett fel i webbläsarens konsol (PLAN.md steg 22).
+    // Ägaren 2026-11-03: den som bara har banläggningen på tävlingen skickas dit i stället för till en tom arbetsyta, och
+    // funktionären med banläggning ser den i sidopanelen.
+    const courseLevel = async () => {
+      if (action.kind !== "session") return undefined;
+      const access = await dependencies.authenticateCourseSetting(db, { ...proof, raceId, required: "MAP", requireCsrf: false });
+      return access.status === "authenticated" && access.principal.raceId === raceId ? access.principal.level : undefined;
+    };
     if (action.kind === "session" && auth.status === "unauthorized") {
-      return json(raceSessionAbsentSchema.parse({ formatVersion: 1, raceId, authenticated: false }));
+      const courseSetting = await courseLevel();
+      return json(raceSessionAbsentSchema.parse({ formatVersion: 1, raceId, authenticated: false, ...(courseSetting ? { courseSetting } : {}) }));
     }
     if (auth.status !== "authenticated") return resultFailure(auth.status);
     if (!principalAllows(auth.principal, raceId, role)) return failure(403, "FORBIDDEN");
-    if (action.kind === "session") return json(raceSessionResponseSchema.parse({
-      formatVersion: 1, raceId, role: auth.principal.role, expiresAt: auth.principal.expiresAt }));
+    if (action.kind === "session") {
+      const courseSetting = auth.principal.role === "ADMIN" ? "EDIT" as const : await courseLevel();
+      return json(raceSessionResponseSchema.parse({ formatVersion: 1, raceId, role: auth.principal.role, expiresAt: auth.principal.expiresAt,
+        ...(courseSetting ? { courseSetting } : {}) }));
+    }
     const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
     // Steg 51: en läsning (speakern, kvar i skogen, listorna) som avbröts av en samtidig ändring görs om i stället för 500.
     if (!write) return await retryReadConflicts(() => dispatchRaceAdministratorRoute(context));

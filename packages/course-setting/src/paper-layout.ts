@@ -130,6 +130,9 @@ export interface SheetDescription {
   readonly corner?: PaperCorner | undefined;
   /** Kontroller, nummer och sträckor som rutan ligger över. */
   readonly overlaps?: number | undefined;
+  /** Rutans sida (mm på papperet) och spalterna som den lades ut med. */
+  readonly boxMm?: number | undefined;
+  readonly columns?: number | undefined;
 }
 
 /** Elementets övre vänstra hörn på papperet ur förankringen. */
@@ -230,7 +233,7 @@ export function placeDescription(document: CourseSettingDocument, frame: PaperFr
     language: options.language ?? document.event.descriptionLanguage ?? "sv", boxMm, columns });
   const size = { width: described.widthMm, height: described.heightMm };
   const under = (at: { x: number; y: number }) => courseFiguresUnder(frame.figures, frame.transform, { ...at, ...size });
-  const base = { layout: described, frame: frameIndex, course, ...(frame.variant ? { variant: frame.variant } : {}) };
+  const base = { layout: described, frame: frameIndex, course, ...(frame.variant ? { variant: frame.variant } : {}), boxMm, columns };
   if (settings.at) {
     const at = anchorToPaper(settings.at, size, frame.clip);
     return { ...base, ...at, source: "PLACED", corner: settings.at.corner, overlaps: under(at) };

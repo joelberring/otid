@@ -37,6 +37,26 @@ describe("banläggningens kontrakt", () => {
 });
 
 describe("administratörsroutes: banläggningen", () => {
+  it("sessionen säger banläggningens nivå: admin EDIT, bara banläggare utan roll på tävlingen, funktionär med egen nivå", async () => {
+    const services = dependencies();
+    const session = async () => (await raceAdministratorRoute(db, get(), id, { kind: "session" }, services, environment)).json() as Promise<Record<string, unknown>>;
+    expect(await session()).toMatchObject({ role: "ADMIN", courseSetting: "EDIT" });
+    // Bara banläggningen (ägaren: inte en tom arbetsyta): ingen roll på tävlingen, men nivån så att sidan skickar vidare.
+    services.authenticate.mockResolvedValueOnce({ status: "unauthorized" });
+    services.authenticateCourseSetting.mockResolvedValueOnce({ status: "authenticated", principal: {
+      accountId: id, displayName: "Bo", raceId: id, eventId: id, level: "SUGGEST", admin: false } });
+    expect(await session()).toEqual({ formatVersion: 1, raceId: id, authenticated: false, courseSetting: "SUGGEST" });
+    expect(services.authenticateCourseSetting).toHaveBeenLastCalledWith(db, expect.objectContaining({ required: "MAP", requireCsrf: false }));
+    services.authenticate.mockResolvedValueOnce({ status: "unauthorized" });
+    services.authenticateCourseSetting.mockResolvedValueOnce({ status: "unauthorized" });
+    expect(await session()).toEqual({ formatVersion: 1, raceId: id, authenticated: false });
+    services.authenticate.mockResolvedValueOnce({ status: "authenticated", principal: { accountId: id, raceId: id, eventId: id, grantId: id,
+      grantRole: "FUNCTIONARY", role: "FUNCTIONARY", sessionId: id, expiresAt: "2099-01-01T00:00:00.000Z" } });
+    services.authenticateCourseSetting.mockResolvedValueOnce({ status: "authenticated", principal: {
+      accountId: id, displayName: "Bo", raceId: id, eventId: id, level: "COMMENT", admin: false } });
+    expect(await session()).toMatchObject({ role: "FUNCTIONARY", courseSetting: "COMMENT" });
+  });
+
   it("ger läget och sparar med versionskontroll (409 med aktuell version)", async () => {
     const courseSetting = vi.fn<typeof Application.readCourseSettingAsAdmin>().mockResolvedValue({ status: "ok", response: {
       formatVersion: 1, raceId: id, access: { accountId: id, displayName: "Anna", level: "EDIT", admin: true }, setting: null, original: null,

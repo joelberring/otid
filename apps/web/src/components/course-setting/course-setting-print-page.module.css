@@ -34,6 +34,13 @@
 .findings li[data-severity=BLOCKING] strong { color: var(--danger, #b00020); }
 .findings li[data-severity=WARNING] strong { color: var(--attention, #8a5a00); }
 .problems { margin: 0; padding-left: 1.2rem; }
+/* Papperet: kontrollbeskrivningen på kartan per bana och rutan som dras på arket. */
+.paperRows { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.paperRows > li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 6px 8px; border: 1px solid var(--line); }
+.paperRows > li[data-warning=yes] { border-color: var(--attention, #8a5a00); border-left-width: 5px; }
+.paperWarning { color: var(--attention, #8a5a00); font-weight: 700; }
+.paperDescription { outline: none; }
+.paperDescription:focus-visible .paperOutline { stroke-width: .8; }
 /* Steg 65: PDF-jobben. */
 .jobs { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .jobs > li { display: grid; gap: 2px; padding: 6px 8px; border: 1px solid var(--line); }
@@ -46,4 +53,5 @@
   .sheets { display: block; overflow: visible; }
   .sheet { max-width: none; box-shadow: none; break-after: page; }
   .sheet:last-child { break-after: auto; }
+  .paperOutline { display: none; }
 }

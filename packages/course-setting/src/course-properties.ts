@@ -70,11 +70,14 @@ const MAX_EXCLUDED = 5000;
 /** ADR-0197: de bortvalda varianterna (ersätts helt). Formen kontrolleras; minst en av banans varianter måste användas. */
 function withExcludedVariants(document: CourseSettingDocument, course: Course, value: CourseChanges["excludedVariants"]): Course {
   if (value === undefined || value === null || value.length === 0) return without(course, "excludedVariants");
-  if (!Array.isArray(value) || value.length > MAX_EXCLUDED) throw invalid("Ogiltiga bortvalda varianter");
-  const rows = value.map(row => {
-    if (typeof row?.code !== "string" || row.code.length === 0 || row.code.length > 64 || !Array.isArray(row.controls) || row.controls.length > 1000 ||
-      !row.controls.every((code: unknown) => typeof code === "string" && code.length <= 32)) throw invalid("Ogiltig bortvald variant");
-    return { code: row.code, controls: [...row.controls] };
+  const list: readonly unknown[] = Array.isArray(value) ? value : [];
+  if (list.length === 0 || list.length > MAX_EXCLUDED) throw invalid("Ogiltiga bortvalda varianter");
+  const rows = list.map(item => {
+    const row = item as { code?: unknown; controls?: unknown } | null;
+    const controls: readonly unknown[] = Array.isArray(row?.controls) ? row.controls as unknown[] : [];
+    if (typeof row?.code !== "string" || row.code.length === 0 || row.code.length > 64 || !Array.isArray(row.controls) || controls.length > 1000 ||
+      !controls.every(code => typeof code === "string" && code.length <= 32)) throw invalid("Ogiltig bortvald variant");
+    return { code: row.code, controls: controls as string[] };
   });
   if (course.kind === "SCORE") throw invalid("En poängbana har inga varianter");
   const next = { ...course, excludedVariants: rows };

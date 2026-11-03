@@ -33,6 +33,8 @@ import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
 import { LayoutTemplatePanel } from "./course-setting-print-template";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
 import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
+import { PaperSpacePanel } from "./course-setting-paper-space";
+import { usePaperSpace } from "./use-paper-space";
 import styles from "./course-setting-print-page.module.css";
 
 // Steg 67: styrd av service workern när banläggningen är sparad för offline (`controlledWorker`).
@@ -294,6 +296,10 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       boxMm: Math.max(3, Math.min(10, boxMm)) })]);
   }, [document, save]);
 
+  // Papperet (ADR-0197): texter, bilder, skalstock, nordpil, klippning och mallar per bana.
+  const paperCourseList = useMemo(() => document ? paperCourses(document, chosen) : [], [document, chosen]);
+  const paperSpace = usePaperSpace({ raceId, document, setDocument, save, sheets, canEdit, courses: paperCourseList });
+
   const toggle = (id: string, on: boolean) => setChosen(current => on ? [...current, id] : current.filter(item => item !== id));
   const allIds = [ALL_CONTROLS, ...courses.map(course => course.id)];
   const back = <Link className={styles.back} href={`/admin/${raceId}/course-setting`}>{text.page.back}</Link>;
@@ -345,6 +351,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
       {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
         readOnly={!canEdit} onSave={save} />}
+      {mode === "COURSES" && !pieces && paperSpace.panel && <PaperSpacePanel raceId={raceId} document={document} courses={paperCourseList} readOnly={!canEdit}
+        {...paperSpace.panel} />}
       {profile.reference && hasMap && <BlProposalPanel key={profile.basedOn ?? profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
         readOnly={!canEdit} frame={sheets[0]?.sheet.frames[0]} symbols={symbols} render={renderImage}
         onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} />}
@@ -362,7 +370,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     </div>
     <div className={styles.sheets}>
       {sheets.map((item, index) => <SheetView key={item.key} sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
-        courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} />)}
+        courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} paper={paperSpace.interaction} />)}
     </div>
   </main>;
 }

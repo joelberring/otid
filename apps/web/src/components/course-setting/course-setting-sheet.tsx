@@ -6,6 +6,7 @@ import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { DESCRIPTION_FONT, descriptionNodes, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { pageName, pageNodes, type PrintNode } from "../../lib/course-setting-print";
 import { DescriptionShapes } from "./description-svg";
+import { PaperItemsLayer, type PaperInteraction } from "./course-setting-paper-items";
 import styles from "./course-setting-print-page.module.css";
 
 /** Nyckeln för en rams kartbild (samma utsnitt, skala och färger ritas en gång). */
@@ -19,25 +20,31 @@ export function frameImageKey(frame: Pick<SheetFrame, "mapArea" | "clip" | "tran
  * och banpåtrycket klippta till ramen, sedan vita ytor (remsan), logotyper, beskrivningar, texter och skärmarker, och
  * raden om att det är ett utkast. Webbläsarens utskrift ger ett ark per sida (`@page` per pappersstorlek).
  */
-export function SheetView({ sheet, index, symbols, images, colorsKey, courseColor, label, onPlace }: {
+export function SheetView({ sheet, index, symbols, images, colorsKey, courseColor, label, onPlace, paper }: {
   sheet: Sheet; index: number; symbols: SymbolLookup; images: Readonly<Record<string, string>>; colorsKey: string; courseColor?: string | undefined;
   label: string;
   /** Papperet (ägaren 2026-11-03): beskrivningen dras och ändras i storlek här; ger rutans nya läge och rutstorlek. */
   onPlace?: ((description: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => void) | undefined;
+  /** Papperets element (ADR-0197): markeras, dras och ändras här. */
+  paper?: PaperInteraction | undefined;
 }) {
-  const { paper } = sheet;
+  const sheetPaper = sheet.paper;
   const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)]);
   return <svg className={styles.sheet} role="img" aria-label={label} data-testid="print-sheet" data-back={sheet.back ? "" : undefined}
     data-course={sheet.frames[0]?.course} data-variant={sheet.frames[0]?.variant ?? ""} data-frames={sheet.frames.length}
     data-map={ready ? "ready" : "waiting"} data-scale={sheet.frames[0]?.printScale}
-    width={`${paper.widthMm}mm`} height={`${paper.heightMm}mm`} viewBox={`0 0 ${paper.widthMm} ${paper.heightMm}`} style={{ page: pageName(sheet) }}>
-    <rect width={paper.widthMm} height={paper.heightMm} fill="#fff" />
+    width={`${sheetPaper.widthMm}mm`} height={`${sheetPaper.heightMm}mm`} viewBox={`0 0 ${sheetPaper.widthMm} ${sheetPaper.heightMm}`} style={{ page: pageName(sheet) }}>
+    <rect width={sheetPaper.widthMm} height={sheetPaper.heightMm} fill="#fff" />
     {sheet.frames.map((frame, frameIndex) => <FrameView key={frameIndex} id={`s${index}f${frameIndex}`} frame={frame} symbols={symbols}
       image={images[frameImageKey(frame, colorsKey)]} courseColor={courseColor} />)}
     {sheet.boxes.map((box, boxIndex) => <rect key={boxIndex} x={box.x} y={box.y} width={box.width} height={box.height} fill="#fff"
       stroke={box.border ? "#000" : undefined} strokeWidth={box.border ? 0.25 : undefined} data-testid="print-strip" />)}
     {sheet.images.map((image, imageIndex) => <image key={imageIndex} href={`data:${image.mediaType};base64,${image.data}`} x={image.x} y={image.y}
       width={image.width} height={image.height} preserveAspectRatio="xMidYMid meet" data-testid="print-logo" />)}
+    {/* Klick på tomt papper (kartan räknas som papper här) släpper markeringen. */}
+    {paper?.editable && paper.selected && <rect width={sheetPaper.widthMm} height={sheetPaper.heightMm} fill="transparent" data-testid="paper-empty"
+      onPointerDown={() => paper.onSelect(undefined)} />}
+    <PaperItemsLayer sheet={sheet} interaction={paper} />
     {sheet.descriptions.map((item, descriptionIndex) => <PaperDescription key={descriptionIndex} item={item} symbols={symbols}
       frame={sheet.frames[item.frame]} onPlace={onPlace} />)}
     {sheet.texts.map((item, textIndex) => <text key={textIndex} x={item.at.x} y={item.at.y} fontSize={item.heightMm} fontWeight={item.bold ? "bold" : undefined}
@@ -45,7 +52,7 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
       transform={item.rotation ? `rotate(${item.rotation} ${item.at.x} ${item.at.y})` : undefined}
       fontFamily="Arial, Helvetica, sans-serif" data-testid="print-text">{item.text}</text>)}
     {sheet.cutMarks.map((mark, markIndex) => <line key={markIndex} x1={mark.x1} y1={mark.y1} x2={mark.x2} y2={mark.y2} stroke="#000" strokeWidth={0.15} />)}
-    {!sheet.back && <text x={Math.max(2, paper.marginMm)} y={paper.heightMm - Math.max(1.2, paper.marginMm / 3)} fontSize={2} fill="#777"
+    {!sheet.back && <text x={Math.max(2, sheetPaper.marginMm)} y={sheetPaper.heightMm - Math.max(1.2, sheetPaper.marginMm / 3)} fontSize={2} fill="#777"
       fontFamily="Arial, Helvetica, sans-serif">{text.page.draft}</text>}
   </svg>;
 }

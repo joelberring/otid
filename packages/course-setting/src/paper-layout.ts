@@ -192,13 +192,12 @@ export type PpenPaperFrame = PaperFrame & { readonly page?: PaperRect | undefine
  * Dokumentet för .ppen (ADR-0197): varje bana med utplacerad beskrivning får ett Purple Pen-`descriptions`-objekt på
  * motsvarande ställe i kartan (`frameOf` ger banans första sida, som Purple Pen skriver ut den), och en bana med
  * beskrivningen avslagen tas bort ur filens objekt. Papperets texter blir Purple Pens textobjekt (variablerna som makron)
- * och bilderna bildobjekt (när `images` har bildens data) för banan. Skalstock, nordpil, täckning och klippning har ingen
+ * och bilderna bildobjekt (när `images` har bildens data) för banan. En bana med automatisk plats och utan beskrivning i filen
+ * får också ett `descriptions`-objekt där O-Tid lägger den (`withoutAutomaticDescriptions` känner igen det vid inläsning). Skalstock, nordpil, täckning och klippning har ingen
  * motsvarighet och stannar i O-Tid. Banor utan egen inställning behåller filens objekt orört.
  */
 export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (course: string) => PpenPaperFrame | undefined,
   options: { readonly images?: ReadonlyMap<string, string> | undefined } = {}): CourseSettingDocument {
-  const layouts = document.event.paperLayouts;
-  if (!layouts || Object.keys(layouts).length === 0) return document;
   const allIds = ["0", ...document.courses.map(course => course.id)];
   let specials = [...document.specialObjects];
   const detach = (id: string) => {
@@ -211,17 +210,19 @@ export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (c
     });
   };
   const add = (input: Parameters<typeof newSpecial>[1]) => { specials.push(newSpecial(nextId(specials.map(special => special.id)), input)); };
-  for (const course of Object.keys(layouts)) {
+  for (const course of ["ALL_CONTROLS", ...document.courses.map(item => item.id)]) {
     const id = course === "ALL_CONTROLS" ? "0" : course;
-    if (id !== "0" && !document.courses.some(item => item.id === id)) continue;
     const effective = effectivePaper(document, course);
     const settings = effective.descriptions;
     const items = effective.items.filter(row => row.item.kind === "TEXT" || (row.item.kind === "IMAGE" && options.images?.has(row.item.image)));
     if (settings.show === false) detach(id);
-    if (!settings.at && items.length === 0) continue;
+    // Automatisk plats (samordnaren 2026-11-03): en bana utan beskrivning i filen får den där O-Tid visar den, så att Purple
+    // Pen skriver ut samma sak. En bana med filens beskrivning behåller den.
+    const automatic = descriptionShown(document, course) && !settings.at && !fileDescription(document, course);
+    if (!settings.at && !automatic && items.length === 0) continue;
     const frame = frameOf(course);
     if (!frame) continue;
-    if (settings.show !== false && settings.at) {
+    if (settings.show !== false && (settings.at || automatic)) {
       const placed = placeDescription(document, frame, 0);
       if (placed) {
         const cell = (settings.boxMm ?? PAPER_DESCRIPTION_BOX_MM) / frame.transform.scale;
@@ -244,6 +245,8 @@ export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (c
       }
     }
   }
+  // Inget ändrat: dokumentet som det är (filen skrivs som den lästes).
+  if (specials.length === document.specialObjects.length && specials.every((special, index) => special === document.specialObjects[index])) return document;
   return { ...document, specialObjects: specials };
 }
 
@@ -254,7 +257,8 @@ export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (c
  * sha256 (räknas av den som läser in filen).
  */
 export function keepPaperOnImport(current: CourseSettingDocument, imported: CourseSettingDocument,
-  imageHash: (special: SpecialObject) => string | undefined = () => undefined): CourseSettingDocument {
+  imageHash: (special: SpecialObject) => string | undefined = () => undefined,
+  frameOf?: (document: CourseSettingDocument, course: string) => PaperFrame | undefined): CourseSettingDocument {
   const layouts = current.event.paperLayouts ?? {};
   const kept: Record<string, NonNullable<CourseSettingDocument["event"]["paperLayouts"]>[string]> = {};
   for (const [course, layout] of Object.entries(layouts)) {
@@ -273,5 +277,39 @@ export function keepPaperOnImport(current: CourseSettingDocument, imported: Cour
       ? item.kind === "TEXT" && paperTextForPpen(item.text, current) === special.text
       : item.kind === "IMAGE" && imageHash(special) === item.image);
   };
-  return { ...imported, event, specialObjects: imported.specialObjects.filter(special => !ours(special)) };
+  const kept1: CourseSettingDocument = { ...imported, event, specialObjects: imported.specialObjects.filter(special => !ours(special)) };
+  return frameOf ? withoutAutomaticDescriptions(kept1, frameOf) : kept1;
+}
+
+/**
+ * En beskrivning i filen som står exakt där O-Tid själv skulle lägga den automatiskt (O-Tid skrev den så, `ppenWithPaperLayout`)
+ * tas bort ur filens objekt, så att banan fortsätter med automatisk plats i stället för att få en fast (samordnaren 2026-11-03).
+ * Bara objekt för en enda bana med en spalt och rutan som banan har; 0,05 mm räcker (talen i filen har avrundats).
+ */
+export function withoutAutomaticDescriptions(document: CourseSettingDocument, frameOf: (document: CourseSettingDocument, course: string) => PaperFrame | undefined)
+  : CourseSettingDocument {
+  let out = document;
+  for (const special of document.specialObjects) {
+    if (special.kind !== "descriptions" || special.courses.length !== 1 || special.points.length < 2) continue;
+    const id = special.courses[0]!;
+    const course = id === "0" ? "ALL_CONTROLS" : id;
+    if (course !== "ALL_CONTROLS" && !document.courses.some(item => item.id === course)) continue;
+    const settings = paperDescriptionsOf(out, course);
+    if (settings.at || settings.show === false || (special.columns ?? 1) !== (settings.columns ?? 1)) continue;
+    const without: CourseSettingDocument = { ...out, specialObjects: out.specialObjects.filter(item => item.id !== special.id) };
+    // Alla kontroller har bara beskrivning när filen har en, om den inte satts på i O-Tid: då står filens kvar.
+    if (course === "ALL_CONTROLS" && settings.show !== true) continue;
+    const probe = without;
+    let frame: PaperFrame | undefined;
+    try { frame = frameOf(probe, course); } catch { frame = undefined; }
+    if (!frame) continue;
+    const auto = placeDescription(probe, frame, 0);
+    if (!auto || auto.source !== "AUTO") continue;
+    const topLeft = fromPaper(frame.transform, auto);
+    const cell = (settings.boxMm ?? PAPER_DESCRIPTION_BOX_MM) / frame.transform.scale;
+    const fileCell = Math.hypot(special.points[1]!.x - special.points[0]!.x, special.points[1]!.y - special.points[0]!.y);
+    const near = (a: number, b: number) => Math.abs(a - b) <= 0.05;
+    if (near(topLeft.x, special.points[0]!.x) && near(topLeft.y, special.points[0]!.y) && near(cell, fileCell)) out = without;
+  }
+  return out;
 }

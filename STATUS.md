@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Kartbyten: delar, dubbelsidigt och överlapp (grenen kartbyte-delar, ADR-0203)
+- Delar som Purple Pen (`course-parts.ts`): kartbytet sist i en del och först i nästa, ritat som start; numren fortsätter; eget kartbyte sist döljs; `part-options show-finish`; specialobjekt per del.
+- Fliken Utskrift: "Kartbyten" med "Del" (Hela banan / Del 1 / Del 2 …), egen tryckyta per del (`<print-area part="n">` i .ppen, "Som banans igen") och "Visa överlapp" (Ingen / Sista sträckan / Hela föregående del).
+- Utskriften: en karta per del med delens beskrivning, tryckyta och papper (ärver banans; "Alla sidor" = alla delar); "Dubbelsidigt" lägger del 2 på baksidan, tom baksida vid udda antal, förval när kartan vänds. Överlappet tonat 35 % utan nummer (PDF: dekorfärgen med andel 0,35).
+- Verifierat: enhetstester (`course-parts` mot Purple Pens mapexchange-filer och CourseView-tester), print-pdf `parts-pdf`, hjälptestet, lint; Playwright `banlaggning-kartbyte` (1280/390).
+
 ### 2026-11-03 – Papperet, ägarens svar (grenen pappersrum-2, ADR-0197 punkt 11)
 - Varje element på papperet har "Sidor": "Första sidan" (förval) eller "Alla sidor"; en bana på flera sidor får elementen med "Alla sidor" på varje sida. Beskrivningen bara på första.
 - Klippningen: banan (kontroller, start, mål, sträckor, nummer) står alltid hel; markeringar utanför syns inte (punktsymboler efter sin punkt, områden och linjer klippta vid kanten); "Visa markeringar utanför utsnittet" (förval av). Samma i förhandsvisningen och PDF:en.

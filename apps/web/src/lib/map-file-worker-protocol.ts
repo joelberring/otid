@@ -4,6 +4,8 @@ import type { RaceMapSourceMetadata } from "@o-tid/contracts";
 export interface MapFileWorkerRequest {
   readonly bytes: ArrayBuffer;
   readonly fileName: string;
+  /** ADR-0196: högst så många pixlar på längsta sidan (klubbarkivets bilder behöver inte full upplösning). */
+  readonly maxSide?: number;
 }
 
 export type MapFileWorkerErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | "TRUNCATED" | "INVALID" | "EMPTY" | "NO_CANVAS" |
@@ -12,7 +14,10 @@ export type MapFileWorkerErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | 
 export type MapFileWorkerResponse =
   | { readonly type: "progress"; readonly stage: "reading" | "drawing" }
   | { readonly type: "done"; readonly png: Blob; readonly metadata: RaceMapSourceMetadata; readonly width: number; readonly height: number }
-  | { readonly type: "error"; readonly code: MapFileWorkerErrorCode };
+  | MapFileRenderError;
+
+/** `message` är läsarens besked (t.ex. "OCAD 7 stöds inte. …") när filen inte gick att läsa. */
+export type MapFileRenderError = { readonly type: "error"; readonly code: MapFileWorkerErrorCode; readonly message?: string };
 
 export type MapFileRenderResult = Extract<MapFileWorkerResponse, { type: "done" }>;
 
@@ -21,10 +26,10 @@ export type MapFileRenderResult = Extract<MapFileWorkerResponse, { type: "done" 
  * (eller vid `signal`), så att minnet för en stor karta släpps.
  */
 export function renderMapFile(createWorker: () => Worker, request: MapFileWorkerRequest, onStage: (stage: "reading" | "drawing") => void,
-  signal?: AbortSignal): Promise<MapFileRenderResult | { type: "error"; code: MapFileWorkerErrorCode }> {
+  signal?: AbortSignal): Promise<MapFileRenderResult | MapFileRenderError> {
   return new Promise(resolve => {
     const worker = createWorker();
-    const done = (result: MapFileRenderResult | { type: "error"; code: MapFileWorkerErrorCode }) => { worker.terminate(); resolve(result); };
+    const done = (result: MapFileRenderResult | MapFileRenderError) => { worker.terminate(); resolve(result); };
     signal?.addEventListener("abort", () => done({ type: "error", code: "FAILED" }), { once: true });
     worker.onmessage = (event: MessageEvent<MapFileWorkerResponse>) => {
       const message = event.data;

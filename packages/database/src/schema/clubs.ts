@@ -141,3 +141,34 @@ export const clubArchiveCourseFiles = pgTable("club_archive_course_file", {
   mapResolution: text("map_resolution").$type<ClubMapResolution>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 });
+
+/** ADR-0196 (migration 0062): kontrollen av en kartversion, ritad i webbläsaren. */
+export type ClubMapCheckStatus = "OK" | "UNSUPPORTED_VERSION" | "NOT_A_MAP_FILE" | "TRUNCATED" | "INVALID" | "EMPTY" | "TOO_LARGE" | "FAILED";
+
+export const clubMapVersionChecks = pgTable("club_map_version_check", {
+  versionId: uuid("version_id").primaryKey().references(() => clubMapVersions.id),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  readerVersion: integer("reader_version").notNull(),
+  status: text("status").$type<ClubMapCheckStatus>().notNull(),
+  detail: text("detail"),
+  fileVersion: text("file_version"),
+  thumbnail: bytea("thumbnail"),
+  thumbnailWidth: integer("thumbnail_width"),
+  thumbnailHeight: integer("thumbnail_height"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull()
+});
+
+/** ADR-0196: träningens bild (längsta banan på kartversionen), eller varför kartan inte kunde ritas. */
+export const clubArchiveEntryThumbnails = pgTable("club_archive_entry_thumbnail", {
+  entryId: uuid("entry_id").primaryKey().references(() => clubArchiveEntries.id),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  readerVersion: integer("reader_version").notNull(),
+  status: text("status").$type<"OK" | "MAP_FAILED">().notNull(),
+  detail: text("detail"),
+  mapVersionId: uuid("map_version_id").references(() => clubMapVersions.id),
+  courseName: text("course_name"),
+  image: bytea("image"),
+  width: integer("width"),
+  height: integer("height"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+});

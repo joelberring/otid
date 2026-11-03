@@ -147,3 +147,6 @@ export * from "./clubs";
 export * from "./club-archive";
 export * from "./club-maps";
 export * from "./club-archive-import";
+export {
+  readClubEntryThumbnail, readClubMapVersionThumbnail, refreshClubCourseSummaries, saveClubEntryThumbnail, saveClubMapVersionCheck, type ThumbnailRead
+} from "./club-archive-checks";

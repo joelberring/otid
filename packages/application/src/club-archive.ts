@@ -5,7 +5,8 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { clubJournal, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
-import { courseDataPoints } from "./club-archive-import";
+import { entryThumbnails, forgetEntryThumbnail, mapChecks } from "./club-archive-checks";
+import { courseDataPoints, courseFileSummary } from "./club-archive-import";
 import { leaderGroups } from "./club-maps";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -31,20 +32,37 @@ export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: read
       select version_id, entry_id from club_archive_entry_map m join club_map_version v on v.id = m.version_id where v.club_id = ${clubId}
       union all select map_version_id, entry_id from club_archive_course_file where club_id = ${clubId} and map_version_id is not null) u
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
+  const checks = await mapChecks(tx, versions.map(version => version.id));
   // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
   return [...maps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
-    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses));
+    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses, checks));
 }
 
-function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>): ClubMapView {
+function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>): ClubMapView {
   const views: ClubMapVersionView[] = versions.map(version => ({ versionId: version.id, mapId: version.mapId, fileName: version.fileName,
     format: version.format, byteLength: version.byteLength, versionDate: version.versionDate, note: version.note,
     uploadedAt: version.uploadedAt.toISOString(), sourcePath: version.sourcePath, contentSha256: version.contentSha256,
-    trainings: uses.get(version.id) ?? 0 }));
+    trainings: uses.get(version.id) ?? 0, check: checks.get(version.id) ?? null }));
   return { mapId: map.id, name: map.name, ownership: map.ownership, ownerKind: map.ownerKind, ownerName: map.ownerName, agreement: map.agreement,
     validUntil: map.validUntil, contact: map.contact, trainingOnly: map.trainingOnly, feePerPrint: map.feePerPrint,
     noPublicDisplay: map.noPublicDisplay, versions: views, latestVersionId: views[0]?.versionId ?? null,
     trainings: views.reduce((sum, version) => sum + version.trainings, 0) };
+}
+
+type StoredSummary = typeof schema.clubArchiveCourseFiles.$inferSelect["summary"];
+
+/**
+ * ADR-0196: banfilens sammanfattning räknas ur filen själv och beror aldrig på kartan. En sammanfattning utan banor (sparad
+ * innan läsaren klarade filen, t.ex. IOF XML 2.0.3) räknas om ur innehållet när den visas; "Kontrollera alla kartor igen"
+ * sparar den nya.
+ */
+async function freshSummaries(tx: DbExecutor, files: readonly { id: string; kind: "PPEN" | "COURSE_DATA"; summary: StoredSummary }[])
+  : Promise<Map<string, StoredSummary>> {
+  const stale = files.filter(file => file.summary.courses.length === 0);
+  if (stale.length === 0) return new Map();
+  const rows = await tx.select({ id: schema.clubArchiveCourseFiles.id, kind: schema.clubArchiveCourseFiles.kind, content: schema.clubArchiveCourseFiles.content })
+    .from(schema.clubArchiveCourseFiles).where(inArray(schema.clubArchiveCourseFiles.id, stale.map(file => file.id)));
+  return new Map(rows.map(row => [row.id, courseFileSummary(row.kind, new Uint8Array(row.content))]));
 }
 
 const statusOf = (courseFiles: readonly { mapVersionId: string | null; mapResolution: string }[], folderMaps: number): ClubArchiveEntryStatus =>
@@ -58,16 +76,31 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
     .limit(5000);
   if (entries.length === 0) return [];
   const ids = entries.map(entry => entry.id);
-  const files = await tx.select({ entryId: schema.clubArchiveCourseFiles.entryId, summary: schema.clubArchiveCourseFiles.summary,
+  const stored = await tx.select({ id: schema.clubArchiveCourseFiles.id, kind: schema.clubArchiveCourseFiles.kind,
+    entryId: schema.clubArchiveCourseFiles.entryId, fileName: schema.clubArchiveCourseFiles.fileName, summary: schema.clubArchiveCourseFiles.summary,
     mapVersionId: schema.clubArchiveCourseFiles.mapVersionId, mapResolution: schema.clubArchiveCourseFiles.mapResolution })
     .from(schema.clubArchiveCourseFiles).where(inArray(schema.clubArchiveCourseFiles.entryId, ids));
+  const fresh = await freshSummaries(tx, stored);
+  const files = stored.map(file => ({ ...file, summary: fresh.get(file.id) ?? file.summary }));
   const folder = await tx.select({ entryId: schema.clubArchiveEntryMaps.entryId, versionId: schema.clubArchiveEntryMaps.versionId })
     .from(schema.clubArchiveEntryMaps).where(inArray(schema.clubArchiveEntryMaps.entryId, ids));
   const versionIds = [...new Set([...folder.map(row => row.versionId), ...files.flatMap(file => file.mapVersionId ? [file.mapVersionId] : [])])];
-  const versionMaps = versionIds.length === 0 ? [] : await tx.select({ versionId: schema.clubMapVersions.id, mapId: schema.clubMaps.id, name: schema.clubMaps.name })
+  const versionMaps = versionIds.length === 0 ? [] : await tx.select({ versionId: schema.clubMapVersions.id, mapId: schema.clubMaps.id, name: schema.clubMaps.name,
+    fileName: schema.clubMapVersions.fileName, versionDate: schema.clubMapVersions.versionDate })
     .from(schema.clubMapVersions).innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
     .where(inArray(schema.clubMapVersions.id, versionIds));
   const mapOf = new Map(versionMaps.map(row => [row.versionId, { mapId: row.mapId, name: row.name }]));
+  const versionOf = new Map(versionMaps.map(row => [row.versionId, row]));
+  // ADR-0196: bilden ritas av första banfilen (i namnordning) som har en karta, annars den nyaste kartan i mappen.
+  const sources = new Map(entries.map(entry => {
+    const withMap = files.filter(file => file.entryId === entry.id && file.mapVersionId && versionOf.has(file.mapVersionId))
+      .sort((a, b) => a.fileName.localeCompare(b.fileName, "sv") || a.id.localeCompare(b.id))[0];
+    const inFolder = folder.filter(row => row.entryId === entry.id && versionOf.has(row.versionId)).map(row => versionOf.get(row.versionId)!)
+      .sort((a, b) => (b.versionDate ?? "").localeCompare(a.versionDate ?? "") || a.versionId.localeCompare(b.versionId))[0];
+    const versionId = withMap?.mapVersionId ?? inFolder?.versionId ?? null;
+    return [entry.id, versionId ? { versionId, fileName: versionOf.get(versionId)!.fileName, courseFileId: withMap?.id ?? null } : null] as const;
+  }));
+  const thumbnails = await entryThumbnails(tx, new Map([...sources].map(([entryId, source]) => [entryId, source?.versionId ?? null])));
   return entries.map(entry => {
     const own = files.filter(file => file.entryId === entry.id);
     const folderMaps = folder.filter(row => row.entryId === entry.id);
@@ -78,7 +111,8 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
     }
     return { entryId: entry.id, trainingDate: entry.trainingDate, year: entry.year, place: entry.place, title: entry.title, leader: entry.leader,
       tags: entry.tags, courseNames: own.flatMap(file => file.summary.courses.map(course => course.name)).slice(0, 40), courseFiles: own.length,
-      maps: [...maps.values()], status: statusOf(own, folderMaps.length) };
+      maps: [...maps.values()], status: statusOf(own, folderMaps.length), thumbnail: thumbnails.get(entry.id) ?? null,
+      thumbnailSource: sources.get(entry.id) ?? null };
   });
 }
 
@@ -98,10 +132,12 @@ async function entryView(tx: ClubTransaction, clubId: string, entryId: string): 
   const [item] = await listItems(tx, clubId, [entryId]);
   const [entry] = await tx.select().from(schema.clubArchiveEntries).where(and(eq(schema.clubArchiveEntries.id, entryId), eq(schema.clubArchiveEntries.clubId, clubId)));
   if (!item || !entry) return undefined;
-  const files = await tx.select({ id: schema.clubArchiveCourseFiles.id, kind: schema.clubArchiveCourseFiles.kind, fileName: schema.clubArchiveCourseFiles.fileName,
+  const storedFiles = await tx.select({ id: schema.clubArchiveCourseFiles.id, kind: schema.clubArchiveCourseFiles.kind, fileName: schema.clubArchiveCourseFiles.fileName,
     byteLength: schema.clubArchiveCourseFiles.byteLength, summary: schema.clubArchiveCourseFiles.summary, mapVersionId: schema.clubArchiveCourseFiles.mapVersionId,
     mapReference: schema.clubArchiveCourseFiles.mapReference, mapResolution: schema.clubArchiveCourseFiles.mapResolution })
     .from(schema.clubArchiveCourseFiles).where(eq(schema.clubArchiveCourseFiles.entryId, entryId)).orderBy(asc(schema.clubArchiveCourseFiles.fileName));
+  const fresh = await freshSummaries(tx, storedFiles);
+  const files = storedFiles.map(file => ({ ...file, summary: fresh.get(file.id) ?? file.summary }));
   const folder = await tx.select({ versionId: schema.clubArchiveEntryMaps.versionId }).from(schema.clubArchiveEntryMaps)
     .where(eq(schema.clubArchiveEntryMaps.entryId, entryId));
   const versionIds = [...new Set([...folder.map(row => row.versionId), ...files.flatMap(file => file.mapVersionId ? [file.mapVersionId] : [])])];
@@ -165,6 +201,7 @@ export async function deleteClubArchiveEntry(db: Database, input: ClubProof & { 
     const [entry] = await tx.select({ id: schema.clubArchiveEntries.id, title: schema.clubArchiveEntries.title }).from(schema.clubArchiveEntries)
       .where(and(eq(schema.clubArchiveEntries.id, input.entryId), eq(schema.clubArchiveEntries.clubId, input.clubId))).for("update");
     if (!entry) return { status: "not-found" } as const;
+    await forgetEntryThumbnail(tx, entry.id);
     await tx.delete(schema.clubArchiveCourseFiles).where(eq(schema.clubArchiveCourseFiles.entryId, entry.id));
     await tx.delete(schema.clubArchiveEntryMaps).where(eq(schema.clubArchiveEntryMaps.entryId, entry.id));
     await tx.delete(schema.clubArchiveEntries).where(eq(schema.clubArchiveEntries.id, entry.id));
@@ -203,8 +240,10 @@ export async function setClubCourseFileMap(db: Database, input: ClubProof & { cl
     const [row] = await tx.update(schema.clubArchiveCourseFiles).set({ mapVersionId: parsed.data.mapVersionId,
       mapResolution: parsed.data.mapVersionId ? "MANUAL" : "MISSING" })
       .where(and(eq(schema.clubArchiveCourseFiles.id, input.courseFileId), eq(schema.clubArchiveCourseFiles.clubId, input.clubId)))
-      .returning({ id: schema.clubArchiveCourseFiles.id });
+      .returning({ id: schema.clubArchiveCourseFiles.id, entryId: schema.clubArchiveCourseFiles.entryId });
     if (!row) return { status: "not-found" } as const;
+    // Träningens bild kan ha ritats på den gamla kartan (ADR-0196).
+    await forgetEntryThumbnail(tx, row.entryId);
     await clubJournal(tx, { clubId: input.clubId, action: "CLUB_COURSE_FILE_MAP_SET", actorAccountId: member.accountId,
       details: { courseFileId: row.id, mapVersionId: parsed.data.mapVersionId }, now });
     return { status: "ok" } as const;

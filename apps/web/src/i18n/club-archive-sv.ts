@@ -141,7 +141,7 @@ export const clubArchiveSv = {
       race: "Träningen kunde inte skapas.",
       group: "Träningen skapades men kunde inte läggas i gruppen. Lägg den i gruppen från träningens sida.",
       map: "Träningen skapades men kartan kunde inte sparas. Ladda upp kartfilen på träningens sida.",
-      mapTooLarge: "Träningen skapades, men kartfilen är större än 60 MB och kan inte bli tävlingens karta än. Banorna finns där.",
+      mapTooLarge: "Träningen skapades, men kartfilen är större än 75 MB och kan inte bli tävlingens karta än. Banorna finns där.",
       courses: "Träningen och kartan skapades men banorna kunde inte läsas in. Läs in banfilen i banläggningen."
     },
     openRace: "Öppna träningen"
@@ -181,7 +181,7 @@ export const clubArchiveSv = {
     moveButton: "Flytta",
     upload: "Ladda upp ny version",
     uploadNew: "Ny karta",
-    uploadHelp: "OCAD (.ocd) eller Mapper (.omap, .xmap), högst 100 MB. Den nya versionen blir den senaste.",
+    uploadHelp: "OCAD (.ocd) eller Mapper (.omap, .xmap), högst 75 MB. Den nya versionen blir den senaste.",
     file: "Kartfil",
     versionDate: "Versionens datum",
     note: "Anteckning",
@@ -190,7 +190,7 @@ export const clubArchiveSv = {
     uploading: "Laddar upp …",
     uploaded: "Den nya versionen är sparad.",
     duplicate: "Den filen finns redan i arkivet.",
-    tooLarge: "Kartfilen är större än 100 MB.",
+    tooLarge: "Kartfilen är större än 75 MB.",
     invalid: "Filen ser inte ut som en OCAD- eller Mapper-karta.",
     quota: (used: number, limit: number) => `Lagringen är full (${used} av ${limit} MB). Ta bort gamla kartor eller be serverns ägare höja gränsen.`,
     editVersion: "Datum och anteckning",

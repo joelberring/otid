@@ -31,7 +31,7 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
 
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
-  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
+  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(fixture("maps/kartfil.omap"));
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
   await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles(fixture("course-setting/kartfil.ppen"));
@@ -160,7 +160,7 @@ test("banläggning-utskrift med ägarens Stockholm by Night (OTID_E2E_SBN_DIR)",
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
-  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(`${sbnDir}/${mapFile}`);
+  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(`${sbnDir}/${mapFile}`);
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 120_000 });
   await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles(`${sbnDir}/SBN26_2.ppen`);

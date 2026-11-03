@@ -14,9 +14,9 @@ O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
 - utskriftsarbetaren `print-worker`,
 - en backuptjänst (dump varje timme, valfri krypterad kopia utanför servern) och hälsokontrollen `monitor` (ADR-0186).
 
-All data, även kartbilder, kartfiler från OCAD och Mapper (steg 59, högst 60 MB per tävling) och GPS-rutter för vägval
+All data, även kartbilder, kartfiler från OCAD och Mapper (steg 59, högst 75 MB per tävling) och GPS-rutter för vägval
 (PLAN.md steg 16), ligger i PostgreSQL och kommer med i backupen. MinIO behövs inte. Kartfilens uppladdning är den enda
-stora bodyn; `deploy/Caddyfile` tillåter 100 MB för just den sökvägen.
+stora bodyn; `deploy/Caddyfile` tillåter 110 MB för just den sökvägen.
 
 ## Starta
 

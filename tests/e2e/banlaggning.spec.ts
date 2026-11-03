@@ -45,7 +45,7 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
 
   // Utan kartfil: ladda upp den här.
   await expect(owner.getByText("Banläggningen ritas på kartfilen (OCAD eller Mapper). Ladda upp kartfilen först.")).toBeVisible();
-  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
+  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(fixture("maps/kartfil.omap"));
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
 

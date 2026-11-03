@@ -77,3 +77,9 @@ inte via Claude eller någon tredje part.
   klubbens karta). Bara tillägg och ett vidgat villkor.
 - Kartor över 60 MB kan arkiveras och laddas ner men inte bli tävlingens kartfil förrän den gränsen höjs.
 - Gruppbibliotekets uppdatering till klubbens nya version är ett val i gruppen (beslut 5); inget byts automatiskt i en tävling.
+
+
+**Ändring 2026-11-03 (ägarens beslut).** Gränsen är tills vidare 75 MB för både tävlingens kartfil (RACE_MAP_SOURCE_MAX_BYTES) och
+arkivets kartfiler (CLUB_ARCHIVE_MAP_MAX_BYTES), så att en ofärdig Mapper-fil på 72 MB kan användas. Så stora kartor är
+inte målet: gränsen är tillfällig och kan sänkas igen. `map_content` behåller villkoret från migration 0061 (100 MB), så
+ingen ny migration behövs; Caddy tillåter 110 MB för tävlingens uppladdning (kartfil och bild) och 80 MB för arkivet.

@@ -71,7 +71,7 @@ test("vägvalsanalys: kartfilen räknas i webbläsaren, en vägvalssträcka, ins
   await expect(section).toBeVisible();
 
   // Kartfilen med sjön.
-  await section.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/vagval.omap"));
+  await section.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(fixture("maps/vagval.omap"));
   await section.getByRole("button", { name: /Ladda upp kartfil \(OCAD eller Mapper\)|Byt kartfil/ }).click();
   await expect(section.getByText("Kartan är ritad och sparad.")).toBeVisible({ timeout: 60_000 });
 

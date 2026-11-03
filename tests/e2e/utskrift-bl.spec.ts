@@ -43,7 +43,7 @@ async function uploadFiles(owner: Page, raceId: string, mapPath: string, ppenPat
   const notChosen = owner.getByText("Välj en kartfil först.");
   for (let attempt = 0; attempt < 5; attempt += 1) {
     // Som buffert med ASCII-namn: en sökväg med "ö" (Högdalen) lämnade fältet tomt.
-    await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles({ name: asciiName(mapPath),
+    await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles({ name: asciiName(mapPath),
       mimeType: "application/octet-stream", buffer: readFileSync(mapPath) });
     await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
     await owner.waitForTimeout(1000);

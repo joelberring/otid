@@ -10,7 +10,7 @@ import { mapAgreementSchema, type MapAgreement } from "./training-group";
 const optionalText = (max: number) => z.string().trim().max(max).transform(value => value === "" ? null : value).nullable();
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 
-export const CLUB_ARCHIVE_MAP_MAX_BYTES = 100 * 1024 * 1024;
+export const CLUB_ARCHIVE_MAP_MAX_BYTES = 75 * 1024 * 1024;
 export const CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES = 5 * 1024 * 1024;
 /** Importens JSON-anrop (träningar med banfiler i base64) får vara högst så här stora. */
 export const CLUB_IMPORT_BATCH_MAX_BYTES = 8 * 1024 * 1024;

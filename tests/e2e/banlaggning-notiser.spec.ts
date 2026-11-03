@@ -36,7 +36,7 @@ async function setUp(owner: Page, raceId: string) {
   await owner.request.fetch(`${admin}/course-setting/notes/${id}`, { method: "DELETE", failOnStatusCode: false, timeout: 120_000 });
   await owner.request.fetch(`${admin}/course-setting/notes/${id}/replies/${id}`, { method: "DELETE", failOnStatusCode: false, timeout: 120_000 });
   await owner.goto(`/admin/${raceId}/course-setting`);
-  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
+  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(fixture("maps/kartfil.omap"));
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
   await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles(fixture("course-setting/kartfil.ppen"));

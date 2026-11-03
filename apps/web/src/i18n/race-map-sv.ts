@@ -38,10 +38,10 @@ export const raceMapSv = {
   mapFile: {
     upload: "Ladda upp kartfil (OCAD eller Mapper)",
     replace: "Byt kartfil",
-    file: "Kartfil (.ocd, .omap eller .xmap, högst 60 MB)",
+    file: "Kartfil (.ocd, .omap eller .xmap, högst 75 MB)",
     fileHelp: "Kartan ritas i din webbläsare. Är kartan georefererad i filen hamnar den rätt direkt, annars sätter du tre punkter nedan.",
     chooseFile: "Välj en kartfil först.",
-    tooLarge: "Kartfilen är större än 60 MB.",
+    tooLarge: "Kartfilen är större än 75 MB.",
     reading: "Läser kartfilen …",
     drawing: "Ritar kartan …",
     saving: "Sparar kartan …",

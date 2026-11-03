@@ -94,7 +94,7 @@ async function runJob(clubId: string, job: Job, signal: AbortSignal): Promise<bo
   try {
     const ready = { rendered, bitmap };
     if (job.check) await saveMapCheck(clubId, job.versionId, { readerVersion: MAP_READER_VERSION, status: "OK", detail: null,
-      fileVersion: rendered.metadata.version.slice(0, 60) || null, thumbnail: await mapImage(ready) });
+      fileVersion: rendered.metadata.version.slice(0, 60) || null, thumbnail: await mapImage(ready), fingerprint: rendered.fingerprint ?? null });
     for (const entry of job.entries) {
       if (signal.aborted) return true;
       const { image, courseName } = await entryImage(clubId, entry, ready);

@@ -42,7 +42,8 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
 5. **Roller och Vem ser vad.** Klubbytans roller är Medlem (`READER`: bekräftad eller inbjuden), Ledare (`LEADER`, ny, sätts av
    administratörer i listan eller vid inbjudan), Administratör och Ägare. Klubben väljer under "Vem ser vad": träningsarkivet
    (träningar, småbilder, banfiler) för alla medlemmar (förval) eller ledare och admin; kartbanken (kartfiler, Använd igen,
-   nedladdning) för ledare och admin (förval) eller alla medlemmar (`requireClubArea`). **Ägare och administratörer ser och
+   nedladdning) för ledare och admin (förval) eller alla medlemmar (`requireClubArea`; "Välj karta från klubbarkivet" och
+   Använd igen frågar `mayUseClubMap` i ADR-0210, som har samma regel). **Ägare och administratörer ser och
    använder alltid allt**: arkivet, kartbanken, alla kartversioner och medlemslistan, oavsett inställningarna och kartans egna
    rättigheter. För medlemmar och ledare gäller kartans rättigheter (ADR-0196) ovanpå; den strängaste vinner. Klubbytor från före
    migrationen får en rad med kartbanken för alla medlemmar, så att de uttryckligen inbjudna läsarna behåller det de hade.

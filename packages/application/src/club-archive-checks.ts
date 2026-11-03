@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   clubEntryThumbnailRequestSchema, clubMapVersionCheckRequestSchema, CLUB_THUMBNAIL_MAX_BYTES, type ClubArchiveSummariesResponse,
   type ClubEntryThumbnailView, type ClubMapCheckView
@@ -34,10 +34,11 @@ export async function mapChecks(tx: DbExecutor, versionIds: readonly string[]): 
   if (versionIds.length === 0) return new Map();
   const rows = await tx.select({ versionId: schema.clubMapVersionChecks.versionId, status: schema.clubMapVersionChecks.status,
     detail: schema.clubMapVersionChecks.detail, fileVersion: schema.clubMapVersionChecks.fileVersion, readerVersion: schema.clubMapVersionChecks.readerVersion,
-    checkedAt: schema.clubMapVersionChecks.checkedAt, width: schema.clubMapVersionChecks.thumbnailWidth })
+    checkedAt: schema.clubMapVersionChecks.checkedAt, width: schema.clubMapVersionChecks.thumbnailWidth,
+    fingerprint: sql<boolean>`${schema.clubMapVersionChecks.fingerprint} is not null` })
     .from(schema.clubMapVersionChecks).where(inArray(schema.clubMapVersionChecks.versionId, [...versionIds]));
   return new Map(rows.map(row => [row.versionId, { status: row.status, detail: row.detail, fileVersion: row.fileVersion, readerVersion: row.readerVersion,
-    checkedAt: row.checkedAt.toISOString(), thumbnail: row.width !== null }]));
+    checkedAt: row.checkedAt.toISOString(), thumbnail: row.width !== null, fingerprint: row.fingerprint }]));
 }
 
 /** Träningarnas bilder; `stale` när bilden ritades på en annan version än den träningen nu ritas av. */
@@ -66,7 +67,8 @@ export async function saveClubMapVersionCheck(db: Database, input: ClubProof & {
       .where(and(eq(schema.clubMapVersions.id, input.versionId), eq(schema.clubMapVersions.clubId, input.clubId)));
     if (!version) return { status: "not-found" } as const;
     const values = { readerVersion: check.readerVersion, status: check.status, detail: check.detail, fileVersion: check.fileVersion,
-      thumbnail, thumbnailWidth: check.thumbnail?.width ?? null, thumbnailHeight: check.thumbnail?.height ?? null, checkedAt: now };
+      thumbnail, thumbnailWidth: check.thumbnail?.width ?? null, thumbnailHeight: check.thumbnail?.height ?? null, checkedAt: now,
+      fingerprint: check.fingerprint ?? null };
     await tx.insert(schema.clubMapVersionChecks).values({ versionId: version.id, clubId: input.clubId, ...values })
       .onConflictDoUpdate({ target: schema.clubMapVersionChecks.versionId, set: values });
     return { status: "ok" } as const;

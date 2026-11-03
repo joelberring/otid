@@ -7,8 +7,12 @@ import { clubBase, clubFailure, clubRequest, renderMapVersion, sendRenderedMap, 
 import { Button, DateInput, EmptyState, Field, Notice } from "../ui";
 import { MapAgreementSummary } from "../training-group/map-agreement";
 import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
+import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
 import { MapCheckChip, MapThumbnail } from "./map-check";
+import { defaultKeep, DuplicatesCard, MergeChooser } from "./map-duplicates";
 import { MapRightsEditor } from "./map-rights-editor";
+import { MapMakerToVersions, MergeHistory, VersionDetails } from "./map-versions";
+import duplicates from "./map-duplicates.module.css";
 import type { useArchiveChecks } from "./use-archive-checks";
 import checks from "./archive-checks.module.css";
 import styles from "./club-archive.module.css";
@@ -62,11 +66,12 @@ function UploadForm({ clubId, mapId, onDone, onMessage }: { clubId: string; mapI
   </form>;
 }
 
-function MapCard({ clubId, map, maps, admin, mapBank, groups, onChanged, onMessage }: { clubId: string; map: ClubMapView; maps: readonly ClubMapView[]; admin: boolean;
-  mapBank: boolean;
-  groups: readonly GroupSummary[]; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
+function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect, onChanged, onMessage }: { clubId: string; map: ClubMapView;
+  maps: readonly ClubMapView[]; admin: boolean; mapBank: boolean; groups: readonly GroupSummary[]; selected: boolean; onSelect: (selected: boolean) => void;
+  onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
   const [name, setName] = useState(map.name);
-  const [mergeTarget, setMergeTarget] = useState("");
+  const [description, setDescription] = useState(map.description ?? "");
+  const [maker, setMaker] = useState(map.maker ?? "");
   const [busy, setBusy] = useState("");
   const others = maps.filter(other => other.mapId !== map.mapId);
 
@@ -98,16 +103,22 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, onChanged, onMessa
       <MapThumbnail clubId={clubId} version={latest} name={map.name} />
       <div className={checks.rights}>
         <h3>{map.name}</h3>
-        <p className={styles.small}>{text.versions(map.versions.length)} · {text.trainings(map.trainings)}</p>
+        <p className={styles.small} data-testid="map-summary">{clubMapDuplicatesSv.versions.summary(map.versions.length, map.years)} · {text.trainings(map.trainings)}</p>
+        {map.description && <p className={styles.small}>{map.description}</p>}
+        {map.maker && <p className={styles.small}>{clubMapDuplicatesSv.versions.makerLabel(map.maker)}</p>}
+        {admin && <label className={duplicates.select}><input type="checkbox" checked={selected} onChange={event => onSelect(event.target.checked)} />
+          {clubMapDuplicatesSv.duplicates.selection.select(map.name)}</label>}
         <MapAgreementSummary agreement={agreementOf(map)} />
         {admin && <MapRightsEditor clubId={clubId} map={map} onSaved={onChanged} />}
       </div>
     </div>
     <ul className={styles.versions}>
       {map.versions.map(version => <li key={version.versionId} data-testid="club-map-version">
-        <div><strong>{version.versionDate ?? "–"}</strong> {version.fileName}
+        <div><strong>{version.fileName}</strong>
           {version.versionId === map.latestVersionId && <span className={styles.latest}>{text.latest}</span>}
-          <div className={styles.small}>{clubArchiveSv.mb(version.byteLength)} · {text.trainings(version.trainings)}{version.note ? ` · ${version.note}` : ""}</div>
+          <VersionDetails clubId={clubId} map={map} version={version} admin={admin} onChanged={onChanged} onMessage={onMessage} />
+          <div className={styles.small}>{version.versionDate ? `${version.versionDate} · ` : ""}{clubArchiveSv.mb(version.byteLength)} · {text.trainings(version.trainings)}
+            {version.note ? ` · ${version.note}` : ""}</div>
           <MapCheckChip check={version.check} explain /></div>
         <div className={styles.actions}>
           {mapBank && <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{clubArchiveSv.entry.downloadMap}</a>}
@@ -139,26 +150,21 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, onChanged, onMessa
         <UploadForm clubId={clubId} mapId={map.mapId} onDone={onChanged} onMessage={onMessage} />
       </details>
       <details className={styles.details}>
-        <summary>{clubArchiveChecksSv.renameMap}</summary>
+        <summary>{clubMapDuplicatesSv.mapInfo.title}</summary>
         <form className={styles.form} onSubmit={event => { event.preventDefault(); void act("update", () => clubRequest(`${clubBase(clubId)}/maps/${map.mapId}`,
-          "PUT", { formatVersion: 1, name: name.trim(), agreement: agreementOf(map) }), clubArchiveSv.entry.saved); }}>
+          "PUT", { formatVersion: 1, name: name.trim(), agreement: agreementOf(map), description: description.trim(), maker: maker.trim() }),
+          clubArchiveSv.entry.saved); }}>
           <Field label={text.mapName}><input value={name} maxLength={120} onChange={event => setName(event.target.value)} /></Field>
+          <Field label={clubMapDuplicatesSv.mapInfo.description}><textarea value={description} maxLength={2000}
+            onChange={event => setDescription(event.target.value)} /></Field>
+          <Field label={clubMapDuplicatesSv.mapInfo.maker} help={clubMapDuplicatesSv.mapInfo.makerHelp}><input value={maker} maxLength={200}
+            onChange={event => setMaker(event.target.value)} /></Field>
           <Button type="submit" disabled={busy !== "" || !name.trim()}>{clubArchiveSv.entry.save}</Button>
         </form>
+        <MapMakerToVersions clubId={clubId} map={map} onChanged={onChanged} onMessage={onMessage} />
       </details>
-      {others.length > 0 && <details className={styles.details}>
-        <summary>{text.merge}</summary>
-        <p className={styles.small}>{text.mergeHelp}</p>
-        <div className={styles.inline}>
-          <select aria-label={text.merge} value={mergeTarget} onChange={event => setMergeTarget(event.target.value)}>
-            <option value="">–</option>{others.map(other => <option key={other.mapId} value={other.mapId}>{other.name}</option>)}
-          </select>
-          <Button variant="secondary" disabled={!mergeTarget || busy !== ""} onClick={() => void act("merge", () => clubRequest(
-            `${clubBase(clubId)}/maps/${map.mapId}/merge`, "POST", { formatVersion: 1, targetMapId: mergeTarget }), clubArchiveSv.entry.saved)}>
-            {text.mergeButton}</Button>
-        </div>
-      </details>}
     </>}
+    <MergeHistory clubId={clubId} map={map} admin={admin} onChanged={onChanged} onMessage={onMessage} />
   </article>;
 }
 
@@ -184,6 +190,10 @@ export function ClubMapsPanel({ clubId, maps, admin, mapBank, onChanged, checks:
   onChanged: () => Promise<void>; checks: Checks }) {
   const [message, setMessage] = useState<Message>();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [merging, setMerging] = useState(false);
+  const chosen = maps.filter(map => selected.has(map.mapId));
+  const afterMerge = async () => { setSelected(new Set()); setMerging(false); await onChanged(); };
   useEffect(() => {
     void clubRequest("/api/organizer/groups").then(result => {
       if (result.status === 200) setGroups((result.json as { groups: GroupSummary[] }).groups.filter(group => group.role === "LEADER"));
@@ -196,9 +206,24 @@ export function ClubMapsPanel({ clubId, maps, admin, mapBank, onChanged, checks:
     </div>
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     {admin && maps.length > 0 && <RecheckBox checks={run} />}
+    {admin && maps.length > 1 && <DuplicatesCard clubId={clubId} maps={maps} onChanged={onChanged} onMessage={setMessage} />}
     {maps.length === 0 && <EmptyState title={text.empty} />}
-    {maps.map(map => <MapCard key={`${map.mapId}-${map.versions.length}-${map.name}`} clubId={clubId} map={map} maps={maps} admin={admin} mapBank={mapBank} groups={mapBank ? groups : []}
-      onChanged={onChanged} onMessage={setMessage} />)}
+    {maps.map(map => <MapCard key={`${map.mapId}-${map.versions.length}-${map.name}-${map.description ?? ""}-${map.maker ?? ""}`} clubId={clubId} map={map}
+      maps={maps} admin={admin} mapBank={mapBank} groups={mapBank ? groups : []} selected={selected.has(map.mapId)} onChanged={onChanged} onMessage={setMessage}
+      onSelect={value => setSelected(current => { const next = new Set(current); if (value) next.add(map.mapId); else next.delete(map.mapId); return next; })} />)}
+    {admin && chosen.length > 0 && <div className={duplicates.selectBar} data-testid="merge-selected">
+      {merging && chosen.length >= 2 ? <div className={duplicates.picker}>
+        <p className={duplicates.summary}>{clubMapDuplicatesSv.duplicates.selection.title}</p>
+        <MergeChooser key={chosen.map(map => map.mapId).join()} clubId={clubId} maps={chosen} keepDefault={defaultKeep(chosen)}
+          label={clubMapDuplicatesSv.duplicates.selection.title} onMerged={afterMerge} onMessage={setMessage} />
+      </div> : <>
+        <p className={duplicates.summary}>{clubMapDuplicatesSv.duplicates.selection.count(chosen.length)}</p>
+        <div className={duplicates.buttons}>
+          <Button disabled={chosen.length < 2} onClick={() => setMerging(true)}>{clubMapDuplicatesSv.duplicates.selection.merge}</Button>
+          <Button variant="secondary" onClick={() => { setSelected(new Set()); setMerging(false); }}>{clubMapDuplicatesSv.duplicates.selection.clear}</Button>
+        </div>
+      </>}
+    </div>}
     {admin && <details className={styles.details}>
       <summary>{text.uploadNew}</summary>
       <UploadForm clubId={clubId} mapId={null} onDone={onChanged} onMessage={setMessage} />

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { uuidSchema } from "./ids";
+import { mapFingerprintSchema } from "./club-map-duplicates";
 
 /**
  * ADR-0196: kontrollen av klubbarkivets kartversioner och de små bilderna av kartorna och träningarna. Bilderna ritas i
@@ -32,8 +33,10 @@ export const clubMapVersionCheckRequestSchema = z.object({
   detail: optionalText(300),
   /** T.ex. "OCAD 11.2" eller "Mapper v9". */
   fileVersion: optionalText(60),
-  thumbnail: pngSchema.nullable()
-}).strict().refine(value => value.status === "OK" || value.thumbnail === null);
+  thumbnail: pngSchema.nullable(),
+  /** ADR-0210: kartans fingeravtryck (bara när den fungerar), för förslagen om dubbletter. */
+  fingerprint: mapFingerprintSchema.nullable().optional()
+}).strict().refine(value => value.status === "OK" || (value.thumbnail === null && !value.fingerprint));
 
 /** Träningens bild: längsta banan på kartversionen, eller att kartan inte kunde ritas. */
 export const clubEntryThumbnailRequestSchema = z.object({
@@ -57,6 +60,8 @@ export interface ClubMapCheckView {
   checkedAt: string;
   /** Bilden finns (`/map-versions/{id}/thumbnail`). */
   thumbnail: boolean;
+  /** ADR-0210: fingeravtrycket finns (annars kontrolleras versionen igen). */
+  fingerprint: boolean;
 }
 
 export interface ClubEntryThumbnailView {

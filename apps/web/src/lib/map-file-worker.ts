@@ -2,6 +2,7 @@
 import { RACE_MAP_MAX_BYTES } from "@o-tid/contracts";
 import { drawMap, mapPointToWgs84, MapFileError, preferredPxPerMm, readMapFile, renderSize } from "@o-tid/map-file";
 import { mapFileMetadata } from "./map-file-metadata";
+import { mapFingerprint } from "./map-fingerprint";
 import type { MapFileWorkerRequest, MapFileWorkerResponse } from "./map-file-worker-protocol";
 
 /**
@@ -36,7 +37,7 @@ async function render(request: MapFileWorkerRequest): Promise<MapFileWorkerRespo
     }
     const metadata = mapFileMetadata(map, size, report.simplifications, mapPointToWgs84);
     if (!metadata) return { type: "error", code: "EMPTY" };
-    return { type: "done", png, metadata, width: size.width, height: size.height };
+    return { type: "done", png, metadata, width: size.width, height: size.height, fingerprint: mapFingerprint(map) };
   }
   return { type: "error", code: "TOO_LARGE" };
 }

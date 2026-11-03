@@ -46,6 +46,8 @@ test("banfil utan .ppen: Använd igen öppnar banläggningen, starten flyttas oc
   await owner.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);
   const clubId = /clubs\/([0-9a-f-]+)$/.exec(owner.url())![1]!;
   await owner.getByRole("tab", { name: "Import" }).click();
+  // ADR-0204: kommandot och nyckeln ligger hopfällda under importen i webbläsaren.
+  await owner.getByText("För den som kan Git: kommandoraden").click();
   await owner.getByRole("button", { name: "Skapa importnyckel" }).click();
   const token = (await owner.getByTestId("import-token").textContent())!.trim();
   await importEntry(owner, clubId, token);

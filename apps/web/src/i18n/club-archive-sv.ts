@@ -223,7 +223,6 @@ export const clubArchiveSv = {
     you: "du"
   },
   importer: {
-    title: "Importera från din dator",
     help: "Importen körs på din dator och skickar kartfilerna och banfilerna direkt till den här servern. PDF, Word, Excel, bilder och annat läses aldrig och skickas aldrig.",
     usageTitle: "Arkivets storlek",
     quota: (used: number, limit: number | null) => limit === null ? `Dina uppladdade kartor: ${mb(used)} (ingen gräns).`
@@ -242,8 +241,7 @@ export const clubArchiveSv = {
       `${created} · ${revoked ? "återkallad" : `gäller till ${expires}`}${used ? ` · senast använd ${used}` : ""}`,
     revoke: "Återkalla",
     leaders: "Ledarnas namn i [hakparenteser] är personuppgifter. Lägg till flaggan nedan om de inte ska med:",
-    leadersFlag: "--utan-ledare",
-    adminOnly: "Bara ägare och administratörer importerar."
+    leadersFlag: "--utan-ledare"
   },
   errors: {
     session: "Du är inte inloggad längre. Logga in igen.",

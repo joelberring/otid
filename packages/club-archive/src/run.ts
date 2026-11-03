@@ -1,9 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import { createImportClient, type ImportClient } from "./client";
-import { entryBatches, mapPayload } from "./payload";
 import { buildImportPlan, type ImportPlan } from "./plan";
 import { formatReport, mb } from "./report";
 import { openSources, scanSources } from "./scan";
+import { uploadPlan } from "./upload";
 
 /**
  * ADR-0194 beslut 6: hela importen. Läser källorna, gör planen och rapporten, och (utan `dryRun`) laddar upp varje unik karta
@@ -53,32 +53,14 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
       throw new Error(`Importnyckeln hör till klubben ${club.clubName}, inte till id ${options.clubId}. Ta bort --club eller skapa en nyckel i rätt klubb.`);
     }
     options.log(`Klubb: ${club.clubName}`);
-    const allMaps = plan.maps.flatMap(map => map.versions.map(version => version.sha256));
-    const { known } = await client.check(allMaps);
-    options.log(`Servern har redan ${known.size} av ${allMaps.length} kartfiler.`);
-    let uploaded = 0, skippedUploads = 0, done = 0;
-    for (const map of plan.maps) {
-      for (const version of map.versions) {
-        done++;
-        if (known.has(version.sha256)) { skippedUploads++; continue; }
-        const source = scan.mapSources.get(version.sha256);
-        if (!source) throw new Error(`${version.fileName}: källan saknas`);
-        options.log(`  [${done}/${allMaps.length}] ${version.fileName} (${mb(version.size)}) …`);
-        await client.uploadMap(version.sha256, source);
-        uploaded++;
-      }
-      const result = await client.batch({ formatVersion: 1, maps: [mapPayload(map)], entries: [] });
-      if (result.missingContent.length > 0) throw new Error(`${map.name}: servern saknar ${result.missingContent.length} kartfiler`);
-    }
-    const batches = entryBatches(plan, scan.courseContents);
-    let created = 0, existing = 0, courseFiles = 0;
-    for (const [index, batch] of batches.entries()) {
-      options.log(`  Träningar, omgång ${index + 1}/${batches.length} (${batch.entries.length}) …`);
-      const result = await client.batch(batch);
-      created += result.entries.created; existing += result.entries.existing; courseFiles += result.entries.courseFilesAdded;
-    }
-    options.log(`Klart: ${uploaded} kartfiler uppladdade (${skippedUploads} fanns redan), ${created} nya träningar (${existing} fanns redan), `
-      + `${courseFiles} nya banfiler.`);
+    const result = await uploadPlan({ plan, scan, client, onEvent: event => {
+      if (event.kind === "checked") options.log(`Servern har redan ${event.known} av ${event.total} kartfiler.`);
+      else if (event.kind === "map") options.log(`  [${event.position}/${event.total}] ${event.fileName} (${mb(event.size)}) …`);
+      else if (event.kind === "entries") options.log(`  Träningar, omgång ${event.batch}/${event.batches} (${event.size}) …`);
+    } });
+    const { uploaded, skippedUploads } = result;
+    options.log(`Klart: ${uploaded} kartfiler uppladdade (${skippedUploads} fanns redan), ${result.created} nya träningar (${result.existing} fanns redan), `
+      + `${result.courseFiles} nya banfiler.`);
     return { plan, report, uploaded, skippedUploads };
   } finally {
     await sources.close();

@@ -14,7 +14,7 @@ import { readOrganizerCsrf } from "./organizer-client";
  */
 export const clubBase = (clubId: string) => `/api/organizer/clubs/${encodeURIComponent(clubId)}`;
 
-function csrf(): string | undefined {
+export function csrf(): string | undefined {
   try { return readOrganizerCsrf(document.cookie, new URL(window.location.href)); } catch { return undefined; }
 }
 

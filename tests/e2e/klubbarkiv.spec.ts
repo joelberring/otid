@@ -53,6 +53,8 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
 
     // Importnyckeln (visas en gång) och den riktiga importen.
     await owner.getByRole("tab", { name: "Import" }).click();
+    // ADR-0204: kommandot och nyckeln ligger hopfällda under importen i webbläsaren.
+    await owner.getByText("För den som kan Git: kommandoraden").click();
     // Kommandot kan klistras in som det står: ingen klubb (den följer av nyckeln) och inga <platshållare>.
     await expect(owner.getByTestId("import-command")).toHaveText(`pnpm archive-import ~/Downloads/Klubbträningar --server ${new URL(baseURL!).origin}`);
     await owner.getByRole("button", { name: "Skapa importnyckel" }).click();

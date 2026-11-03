@@ -177,16 +177,21 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
     title: "Importera till klubbarkivet från datorn",
     views: ["ARCHIVE_IMPORT"],
     body: [
-      "Har klubben gamla träningar i mappar på en dator läser importen in kartorna och banfilerna. Den körs på datorn, inte i webbläsaren, och bara ägare och administratörer importerar.",
+      "Har klubben gamla träningar i mappar eller zip-filer på en dator läser du in dem här; bara ägare och administratörer importerar.",
       { steps: [
-        "Hämta O-Tid till datorn och kör pnpm install en gång. Be gärna någon som kan Git om hjälp.",
-        "Provkör med --dry-run: inget skickas, och rapporten visar vilka träningar, kartor och banor som hittas.",
-        "Tryck på ”Skapa importnyckel” och kopiera nyckeln. Den gäller i 12 timmar och visas bara en gång.",
-        "Kör kommandot som står under fliken och klistra in nyckeln när det frågar. Klubben följer av nyckeln.",
-        "Gick något fel: kör samma kommando igen. Det som redan finns hoppas över."
+        "Öppna fliken ”Import” och tryck på ”Välj mapp”. Välj mappen med årsmapparna (2018, 2019 …).",
+        "Zip-filer från Google Drive väljer du med ”Välj filer”. Du kan också dra mappar och zip-filer till rutan.",
+        "Ska ledarnas namn inte med: kryssa i ”Ta inte med ledarens namn ur [hakparenteser]”.",
+        "Tryck på ”Förhandsgranska”. Du ser träningarna, kartorna, vad som är nytt och vilka filer som inte skickas. Inget är skickat än.",
+        "Tryck på ”Importera”. Kartorna skickas först, sedan träningarna. ”Avbryt” stoppar när som helst.",
+        "Avbröts importen eller stängdes fliken: välj samma filer och importera igen. Det som redan finns hoppas över."
       ] },
-      "Bara kartfiler och banfiler skickas; PDF, Word, Excel och bilder läses aldrig. Ledarnas namn i mappnamnen är personuppgifter: lägg till --utan-ledare om de inte ska med.",
-      "”Återkalla” stoppar en nyckel direkt."
+      "Filerna läses på din dator. Bara kartfiler och banfiler (.ocd, .omap, .xmap, .ppen, CourseData) skickas; PDF, Word, Excel, bilder, startlistor och resultat lämnar aldrig datorn.",
+      "En kartfil över 75 MB skickas inte, och förhandsgranskningen säger vilken. ”Ladda ner rapporten” sparar förhandsgranskningen som textfil.",
+      [
+        "Kan du Git: öppna ”För den som kan Git: kommandoraden”, tryck på ”Skapa importnyckel” och kör kommandot som står där.",
+        "Nyckeln gäller i 12 timmar och ”Återkalla” stoppar den. Flaggan --utan-ledare gör samma sak som kryssrutan."
+      ]
     ]
   }
 ];

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  appearanceOf, ITEM_SCALINGS, paperSizesFor, type Appearance, type Course, type CourseSettingDocument, type CourseSettingEdit, type ItemScaling
+  appearanceOf, ITEM_SCALINGS, LEG_CIRCLE_GAP_LIMITS, LEG_CIRCLE_GAP_MM, paperSizesFor, type Appearance, type Course, type CourseSettingDocument, type CourseSettingEdit, type ItemScaling
 } from "@o-tid/course-setting";
 import { appearanceSv as text, labelSv } from "../../i18n/course-setting-appearance-sv";
 import {
@@ -55,6 +55,8 @@ export function AppearancePanel({ document, view, readOnly, onEdits }: {
       </select></label>
     <p className={styles.muted}>{text.scalingHelp[appearance.itemScaling]}</p>
     <GapField document={document} scale={scale} readOnly={readOnly} onSave={value => set({ autoLegGap: value })} />
+    <LegCircleGapField document={document} readOnly={readOnly}
+      onSave={value => onEdits([{ type: "SET_EVENT", changes: { legCircleGapMm: value } }])} />
     <label className={own.check}>
       <input type="checkbox" checked={appearance.circleGapsScaled} disabled={readOnly} onChange={event => set({ circleGapsScaled: event.target.checked })} />
       <span>{text.circleGapsScaled}<small>{text.circleGapsScaledHelp}</small></span>
@@ -140,6 +142,35 @@ function GapField({ document, scale, readOnly, onSave }: {
       <span className={own.paper}>{`${formatMm(paperSizesFor(document, scale).autoLegGap)} mm`}</span>
     </div>
     <p className={styles.muted}>{text.autoLegGapHelp}</p>
+    {error && <p role="alert" className={own.error}>{error}</p>}
+  </>;
+}
+
+/** Mellanrummet mellan sträckans ände och ringen (ADR-0211 beslut 2), mm på papperet; bara O-Tid. */
+function LegCircleGapField({ document, readOnly, onSave }: {
+  document: CourseSettingDocument; readOnly: boolean; onSave: (value: number) => void;
+}) {
+  const value = document.event.legCircleGapMm ?? LEG_CIRCLE_GAP_MM;
+  const [draft, setDraft] = useState<string>();
+  const [error, setError] = useState<string>();
+  const { min, max } = LEG_CIRCLE_GAP_LIMITS;
+  const commit = () => {
+    if (draft === undefined) return;
+    const parsed = parseDecimal(draft);
+    if (parsed === undefined || parsed < min || parsed > max) { setError(text.outside(min, max)); return; }
+    setError(undefined);
+    setDraft(undefined);
+    onSave(parsed);
+  };
+  return <>
+    <div className={own.field}>
+      <span><label htmlFor="appearance-leg-circle-gap">{text.legCircleGap}</label></span>
+      <input id="appearance-leg-circle-gap" type="text" inputMode="decimal" value={draft ?? formatRatio(value)} disabled={readOnly}
+        data-testid="appearance-leg-circle-gap" aria-invalid={error ? true : undefined} onChange={event => setDraft(event.target.value)} onBlur={commit}
+        onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); commit(); } }} />
+      <span className={own.paper}>mm</span>
+    </div>
+    <p className={styles.muted}>{text.legCircleGapHelp}</p>
     {error && <p role="alert" className={own.error}>{error}</p>}
   </>;
 }

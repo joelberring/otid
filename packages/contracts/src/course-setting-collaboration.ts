@@ -91,7 +91,9 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     // Papperets värden för {datum} och {ekvidistans} (ADR-0197).
     paperValues: z.object({ date: z.string().max(40).optional(), contourInterval: z.string().max(20).optional() }).strict().optional(),
     // Ringklippen (ADR-0180 beslut 10).
-    circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional() }).strict() }).strict(),
+    circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional(),
+    // Mellanrummet mellan sträckan och ringen (ADR-0211 beslut 2); gränserna kontrolleras av paketets applyEdit.
+    legCircleGapMm: z.number().finite().optional() }).strict() }).strict(),
   // Banans utseende (ADR-0180 beslut 12); gränserna kontrolleras av paketets applyEdit.
   z.object({ type: z.literal("SET_APPEARANCE"), changes: z.object({ itemScaling: z.enum(["None", "RelativeToMap", "RelativeTo15000"]).optional(),
     circleSize: z.number().finite().optional(), lineWidth: z.number().finite().optional(), numberSize: z.number().finite().optional(),

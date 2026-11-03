@@ -25,7 +25,7 @@ import { CourseSettingEditError } from "./types";
 export * from "./types";
 export * from "./description-types";
 export { CONTROL_DISTANCE_LIMITS } from "./check";
-export { appearanceOf, ITEM_SCALINGS, OVERPRINT_SIZES, type Appearance, type ItemScaling } from "./appearance";
+export { appearanceOf, ITEM_SCALINGS, LEG_CIRCLE_GAP_LIMITS, LEG_CIRCLE_GAP_MM, OVERPRINT_SIZES, type Appearance, type ItemScaling } from "./appearance";
 // Banans utseende och etiketten vid kontrollen (ADR-0180 beslut 12).
 export {
   APPEARANCE_LIMITS, APPEARANCE_TOLERANCE, appearanceWarnings, paperSizesFor, printScalesInUse, standardPaperSizes, type AppearanceWarning,
@@ -76,6 +76,7 @@ export {
 export * from "./print-profile";
 export * from "./print-reference";
 export * from "./color-match";
+export * from "./press-order";
 export * from "./layout-template";
 // ADR-0190: banorna som IOF XML 3.0 CourseData (som Purple Pens export).
 export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";

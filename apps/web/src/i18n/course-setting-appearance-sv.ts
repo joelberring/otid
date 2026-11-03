@@ -36,6 +36,8 @@ export const appearanceSv = {
   },
   autoLegGap: "Automatiskt avbrott vid sträckor",
   autoLegGapHelp: "Där sträckor korsar varandra eller går nära en ring (mm, 0 = inga).",
+  legCircleGap: "Mellanrum mellan linje och ring",
+  legCircleGapHelp: "Sträckorna slutar så här långt (mm på papperet) utanför ringar, start och mål, så att detaljerna vid kontrollen syns (ISOM 2017-2, 705). Purple Pen har inget mellanrum; det följer inte med i .ppen.",
   circleGapsScaled: "Ringavbrotten följer skalningen",
   circleGapsScaledHelp: "Så sparar Purple Pen sedan 2017. Av i äldre filer: avbrotten tas då från den största sparade skalan.",
   table: { scale: "Skala", courses: "Banor", circle: "Ring", line: "Linje", number: "Nummer" },

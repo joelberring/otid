@@ -11,6 +11,14 @@ export const OVERPRINT_SIZES = {
   ISSPROM2019: { line: 0.35, controlOutside: 6.35, finishOutside: 7.35, finishInside: 5.35, startRadius: 4.041, crossingRadius: 2.5, number: 4.0 }
 } as const;
 
+/**
+ * Mellanrummet mellan sträckans ände och ringens (startens, målets, passagens) yttre kant, i mm på papperet (ADR-0211
+ * beslut 2). ISOM 2017-2 705: "There should be gaps between the line and the control circle". Purple Pen har inget sådant
+ * mellanrum (CourseFormatter.GetLegRadius: linjen slutar mitt i ringens linje); O-Tid:s förval är en linjebredd.
+ */
+export const LEG_CIRCLE_GAP_MM = 0.35;
+export const LEG_CIRCLE_GAP_LIMITS = { min: 0, max: 3 } as const;
+
 /** Siffrans höjd för koder i "alla kontroller" (Roboto Condensed, 3 mm). */
 export const CODE_HEIGHT = 3.0;
 /** Avstånd från ringens kant till numret respektive koden. */
@@ -89,6 +97,8 @@ export interface Sizes {
   readonly numberDistance: number;
   readonly codeDistance: number;
   readonly autoLegGap: number;
+  /** Mellanrummet mellan sträckans ände och figurens yttre kant (kartans mm). */
+  readonly legCircleGap: number;
   readonly sprint: boolean;
 }
 
@@ -115,6 +125,7 @@ export function sizesFor(document: CourseSettingDocument, printScale: number): S
     numberDistance: NUMBER_DISTANCE * appearance.circleSize * ratio,
     codeDistance: CODE_DISTANCE * appearance.circleSize * ratio,
     autoLegGap: appearance.autoLegGap * ratio,
+    legCircleGap: (document.event.legCircleGapMm ?? LEG_CIRCLE_GAP_MM) * ratio,
     sprint: document.event.overprintStandard === "ISSPROM2019"
   };
 }

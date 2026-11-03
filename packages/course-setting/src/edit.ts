@@ -5,6 +5,7 @@
  */
 import type { Point } from "@o-tid/map-file";
 import { setAppearance } from "./appearance-edit";
+import { LEG_CIRCLE_GAP_LIMITS } from "./appearance";
 import { BOX_KINDS, hasImage, symbolDb } from "./description-symbols";
 import { encodeCircleGaps, encodeOldCircleGaps, fromRaw, legKey, nextId, toRaw } from "./ppen-common";
 import { allCourseVariantList, isLegalCode, nextUnusedCode } from "./summary";
@@ -512,6 +513,10 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       }
       if (changes.circleCutting !== undefined && !(typeof changes.circleCutting.overlap === "boolean" && typeof changes.circleCutting.details === "boolean")) {
         throw invalidEdit("Ringklippen anges som två val (överlapp och detaljer)");
+      }
+      if (changes.legCircleGapMm !== undefined && !(typeof changes.legCircleGapMm === "number" && Number.isFinite(changes.legCircleGapMm)
+        && changes.legCircleGapMm >= LEG_CIRCLE_GAP_LIMITS.min && changes.legCircleGapMm <= LEG_CIRCLE_GAP_LIMITS.max)) {
+        throw invalidEdit(`Mellanrummet vid ringen ska vara ${LEG_CIRCLE_GAP_LIMITS.min}–${LEG_CIRCLE_GAP_LIMITS.max} mm`);
       }
       if (changes.paperValues !== undefined) {
         const values = changes.paperValues;

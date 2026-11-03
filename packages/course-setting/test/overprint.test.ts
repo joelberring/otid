@@ -1,6 +1,6 @@
 import type { Point } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { OVERPRINT_SIZES, applyEdit, layoutOverprint, readPpen, writePpen, type OverprintPrimitive } from "../src";
+import { LEG_CIRCLE_GAP_MM, OVERPRINT_SIZES, applyEdit, layoutOverprint, readPpen, writePpen, type OverprintPrimitive } from "../src";
 import { lineCourse } from "./build";
 
 type Circle = Extract<OverprintPrimitive, { kind: "circle" }>;
@@ -39,10 +39,40 @@ describe("layoutOverprint", () => {
     // ISOM 2017 med RelativeTo15000 (Purple Pens förval): som 1:15 000, alltså 5 mm i kartan.
     const p2017 = layoutOverprint(b.document, { course });
     expect(circles(p2017).find(c => c.role === "CONTROL")!.diameter).toBeCloseTo(5.0, 6);
-    // Sträckan börjar och slutar vid ringens linje.
+    // Sträckan börjar och slutar ett mellanrum utanför ringens ytterkant (ADR-0211 beslut 2, ISOM 2017-2 705):
+    // radien till linjens mitt 2,5 + halva linjen 0,175 + mellanrummet 0,35.
     const leg = lines(p2017).find(l => l.role === "LEG" && l.ref === `${controls[0]}-${controls[1]}`)!;
-    expect(dist(leg.points[0]!, b.document.controls[controls[0]!]!.at)).toBeCloseTo(2.5, 6);
-    expect(dist(leg.points[leg.points.length - 1]!, b.document.controls[controls[1]!]!.at)).toBeCloseTo(2.5, 6);
+    expect(dist(leg.points[0]!, b.document.controls[controls[0]!]!.at)).toBeCloseTo(2.5 + 0.175 + LEG_CIRCLE_GAP_MM, 6);
+    expect(dist(leg.points[leg.points.length - 1]!, b.document.controls[controls[1]!]!.at)).toBeCloseTo(2.5 + 0.175 + LEG_CIRCLE_GAP_MM, 6);
+  });
+
+  it("mellanrummet vid ringen, starten, målet och passagen följer inställningen och utskriftsskalan (ADR-0211 beslut 2)", () => {
+    const { b, course, controls, start, finish } = lineCourse(2, { mapScale: 15000 });
+    const ends = (document: typeof b.document) => {
+      const legs = lines(layoutOverprint(document, { course })).filter(l => l.role === "LEG");
+      const first = legs.find(l => l.ref === `${start}-${controls[0]}`)!, last = legs.find(l => l.ref === `${controls[1]}-${finish}`)!;
+      return { start: dist(first.points[0]!, document.controls[start]!.at), control: dist(first.points.at(-1)!, document.controls[controls[0]!]!.at),
+        finish: dist(last.points.at(-1)!, document.controls[finish]!.at) };
+    };
+    const sizes = OVERPRINT_SIZES.ISOM2017;
+    const zero = ends(applyEdit(b.document, { type: "SET_EVENT", changes: { legCircleGapMm: 0 } }).document);
+    // Mellanrummet 0: linjen slutar vid ytterkanten (ringen, målets yttre ring) och starttriangelns radie.
+    expect(zero.control).toBeCloseTo(sizes.controlOutside / 2, 6);
+    expect(zero.finish).toBeCloseTo(sizes.finishOutside / 2, 6);
+    expect(zero.start).toBeCloseTo(sizes.startRadius, 6);
+    const one = ends(applyEdit(b.document, { type: "SET_EVENT", changes: { legCircleGapMm: 1 } }).document);
+    expect(one.control - zero.control).toBeCloseTo(1, 6);
+    expect(one.finish - zero.finish).toBeCloseTo(1, 6);
+    expect(one.start - zero.start).toBeCloseTo(1, 6);
+    expect(() => applyEdit(b.document, { type: "SET_EVENT", changes: { legCircleGapMm: 5 } })).toThrow(/Mellanrummet/);
+    // Utan skalning (None) i 1:10 000 på en 1:15 000-karta krymper mellanrummet med kvoten som allt annat.
+    const none = readPpen(withScaleSizes(writePpen(b.document), "None")).document;
+    const scaled = applyEdit(applyEdit(none, { type: "UPDATE_COURSE", course, changes: { printScale: 10000 } }).document,
+      { type: "SET_EVENT", changes: { legCircleGapMm: 1 } }).document;
+    const ratio = 10000 / 15000;
+    const legs = lines(layoutOverprint(scaled, { course })).filter(l => l.role === "LEG");
+    const leg = legs.find(l => l.ref === `${controls[0]}-${controls[1]}`)!;
+    expect(dist(leg.points[0]!, scaled.controls[controls[0]!]!.at)).toBeCloseTo((sizes.controlOutside / 2 + 1) * ratio, 6);
   });
 
   it("ISSprOM 2019 relativt kartan", () => {

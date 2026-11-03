@@ -64,8 +64,15 @@ export interface PrintProfile {
   readonly reference?: ReferenceTable | undefined;
   /** Det godkända förslaget: kartfärg för kartfärg vilken rad i `reference` som gäller (eller filens färg). */
   readonly colorDecisions?: readonly ColorDecision[] | undefined;
-  /** Banan överst (Purple Pens sätt) eller i färgordningen enligt tabellen (BL: under brunt, svart och 100 % blå). */
+  /**
+   * Banan överst (Purple Pens sätt) eller i normens färgordning (`REFERENCE`, ADR-0211 beslut 3: undre lila under 100 %
+   * svart, brunt och blått, övre lila överst). Namnet är kvar från BL-tabellens ordning, som normen nu ersätter.
+   */
   readonly courseLayer?: "TOP" | "REFERENCE" | undefined;
+  /** Normen för färgordningen; saknas = känns igen ur kartan (`detectPressNorm`). */
+  readonly pressNorm?: "ISOM" | "ISSPROM" | undefined;
+  /** "Kontrollnummer och texter överst" i ISOM (i övre lila som i sprint); saknas = på. ISSprOM har dem alltid överst. */
+  readonly numbersOnTop?: boolean | undefined;
   /** PDF:en för tryck i CMYK utan dekorfärger (BL); förval = kartans dekorfärger som i filen. */
   readonly processColors?: boolean | undefined;
   /** Den inbyggda profil som kopian bygger på. */
@@ -217,6 +224,8 @@ export function validatePrintProfile(value: unknown): PrintProfile {
   if (profile.course.process !== undefined && typeof profile.course.process !== "boolean") throw invalid("banans processfärg");
   if (profile.courseLayer !== undefined && profile.courseLayer !== "TOP" && profile.courseLayer !== "REFERENCE") throw invalid("banans lager är TOP eller REFERENCE");
   if (profile.processColors !== undefined && typeof profile.processColors !== "boolean") throw invalid("processfärgerna");
+  if (profile.pressNorm !== undefined && profile.pressNorm !== "ISOM" && profile.pressNorm !== "ISSPROM") throw invalid("normen är ISOM eller ISSPROM");
+  if (profile.numbersOnTop !== undefined && typeof profile.numbersOnTop !== "boolean") throw invalid("nummer överst anges som ja eller nej");
   if (profile.reference !== undefined) checkReference(profile.reference);
   if (profile.colorDecisions !== undefined) {
     if (!Array.isArray(profile.colorDecisions) || profile.colorDecisions.length > 500) throw invalid("besluten är inte en lista");
@@ -227,7 +236,6 @@ export function validatePrintProfile(value: unknown): PrintProfile {
       }
     }
   }
-  if (profile.courseLayer === "REFERENCE" && !profile.reference) throw invalid("banan i tabellens ordning kräver en tabell");
   return profile;
 }
 

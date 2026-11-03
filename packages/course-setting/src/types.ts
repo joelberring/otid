@@ -262,6 +262,11 @@ export interface CourseSettingDocument {
      * viktiga kartdetaljer. Bara O-Tid; skrivs inte till .ppen. Saknas = som Purple Pen.
      */
     readonly circleCutting?: CircleCutting | undefined;
+    /**
+     * Mellanrummet mellan sträckornas ände och ringarna i mm på papperet (ADR-0211 beslut 2, ISOM 2017-2 705). Bara O-Tid;
+     * skrivs inte till .ppen. Saknas = `LEG_CIRCLE_GAP_MM`.
+     */
+    readonly legCircleGapMm?: number | undefined;
     /** Steg 64: Alla kontrollers utskriftsskala (`<all-controls print-scale>`) och tryckyta (`<print-area>` i `<event>`). */
     readonly allControlsPrintScale?: number | undefined;
     readonly printArea?: PrintArea | undefined;
@@ -343,7 +348,7 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "allControlsPrintScale" | "printProfileId" | "paperValues">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "legCircleGapMm" | "allControlsPrintScale" | "printProfileId" | "paperValues">> }
   /** Banans utseende för hela banläggningen (Purple Pens `<course-appearance>`, ADR-0180 beslut 12). */
   | { readonly type: "SET_APPEARANCE"; readonly changes: Partial<Appearance> }
   /** Steg 63: kontrollbeskrivningen. */

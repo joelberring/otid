@@ -75,6 +75,9 @@ describe("PDF med BL-profilen", () => {
     expect(result.overCourse).toHaveLength(3);
     expect(result.notes.join(" ")).toMatch(/vill ha CMYK/);
     expect(result.notes.join(" ")).toMatch(/under 3 kartfärger/);
+    // Färgerna över banan med övertryck (/GOP), färgerna under utan.
+    expect(forms[1]).toMatch(/\/GOP gs/);
+    expect(forms[0]).not.toMatch(/\/GOP gs/);
   });
 
   it("valet i profilen: banan överst som förr (ett utsnitt, banan sist)", async () => {
@@ -86,9 +89,10 @@ describe("PDF med BL-profilen", () => {
     expect(result.overCourse).toEqual([]);
   });
 
-  // Ordningen i trycket: Ghostscript renderar sidan i CMYK (bitcmyk, 8 bitar per plåt). Där höjdkurvan korsar ringen ska
-  // cyanplåten vara tom (BL:s brun 0/75/100/33 ligger över violetten 35/95/0/0); med banan överst syns violettens cyan.
-  it.skipIf(!hasGhostscript())("Ghostscript: höjdkurvan ligger över ringen med BL-profilen, under den med banan överst", async () => {
+  // Ordningen i trycket: Ghostscript renderar sidan i CMYK (bitcmyk, 8 bitar per plåt). Där höjdkurvan korsar ringen ligger
+  // BL:s brun 0/75/100/33 över violetten 35/95/0/0 med övertryck (ADR-0211 beslut 3): violettens cyan finns kvar under det
+  // bruna och brunets gula plåt ligger på; med banan överst (utan övertryck) slår violetten ut brunt.
+  it.skipIf(!hasGhostscript())("Ghostscript: höjdkurvan ligger över ringen med övertryck med BL-profilen, under den med banan överst", async () => {
     const { sheets: list } = sheets();
     const frame = list[0]!.frames[0]!;
     const ring = list[0]!.frames[0]!.figures.find(figure => figure.kind === "circle" && figure.role === "CONTROL");
@@ -102,10 +106,12 @@ describe("PDF med BL-profilen", () => {
     };
     const bl = await sample(approved());
     const top = await sample({ ...approved(), courseLayer: "TOP" });
-    expect(bl.c).toBeLessThan(0.05);
+    expect(bl.c).toBeGreaterThan(0.3);
+    expect(bl.y).toBeGreaterThan(0.9);
     expect(bl.k).toBeGreaterThan(0.25);
     expect(top.c).toBeGreaterThan(0.3);
     expect(top.m).toBeGreaterThan(0.9);
+    expect(top.y).toBeLessThan(0.05);
   });
 });
 

@@ -59,13 +59,18 @@ function apparentRadius(kind: ControlPoint["kind"], sizes: Sizes): number {
   }
 }
 
-/** Var sträckan börjar och slutar vid kontrollen (CourseFormatter.GetLegRadius). */
+/**
+ * Var sträckan börjar och slutar vid kontrollen: utanför figurens yttre kant med mellanrummet `legCircleGap` (ADR-0211
+ * beslut 2, ISOM 2017-2 705). Purple Pen (CourseFormatter.GetLegRadius) slutar i ringens linje; med mellanrummet 0 blir det
+ * likadant utom att linjen slutar vid ringens ytterkant.
+ */
 function legRadius(kind: ControlPoint["kind"], sizes: Sizes): number {
+  const gap = sizes.legCircleGap;
   switch (kind) {
-    case "NORMAL": return sizes.control / 2;
-    case "FINISH": return sizes.finishOuter / 2;
-    case "START": case "MAP_EXCHANGE": return sizes.startRadius;
-    case "CROSSING_POINT": return sizes.crossingRadius;
+    case "NORMAL": return sizes.control / 2 + sizes.line / 2 + gap;
+    case "FINISH": return sizes.finishOuter / 2 + sizes.line / 2 + gap;
+    case "START": case "MAP_EXCHANGE": return sizes.startRadius + gap;
+    case "CROSSING_POINT": return sizes.crossingRadius + gap;
     default: return 0;
   }
 }

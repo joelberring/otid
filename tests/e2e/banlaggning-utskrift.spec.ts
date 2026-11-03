@@ -52,16 +52,15 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await objects.getByRole("button", { name: "Klar" }).click();
   await expect(owner.getByTestId("course-setting-special")).toHaveAttribute("data-kind", "out-of-bounds");
 
-  // Beskrivningen på kartan med ett klick (bara på banan).
-  await objects.getByRole("button", { name: "Beskrivningen på kartan" }).click();
-  await clickMap(owner, map, 56, 44);
-  await expect(owner.getByTestId("course-setting-special")).toHaveAttribute("data-kind", "descriptions");
+  // Kontrollbeskrivningen är inget kartobjekt (ägaren 2026-11-03): den hör till papperet och placeras i förhandsvisningen.
+  await expect(objects.getByRole("button", { name: "Beskrivningen på kartan" })).toHaveCount(0);
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
   await owner.keyboard.press("Escape");
 
   // Fliken Utskrift: A4 liggande, 1:10 000.
   await owner.getByRole("tab", { name: "Utskrift" }).click();
   const print = owner.getByTestId("course-setting-print");
+  await expect(owner.getByTestId("course-setting-print-description").getByRole("checkbox", { name: "Kontrollbeskrivning på kartan" })).toBeChecked();
   await print.getByLabel("Papper").selectOption("A4");
   await print.getByLabel("Riktning").selectOption("landscape");
   await print.getByTestId("course-setting-print-scale").selectOption("10000");
@@ -76,7 +75,7 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   const area = document.specialObjects.find(item => item.kind === "out-of-bounds")!;
   expect(area.points).toHaveLength(3);
   expect(area.courses).toEqual([]);
-  expect(document.specialObjects.find(item => item.kind === "descriptions")!.courses).toEqual([course.id]);
+  expect(document.specialObjects.some(item => item.kind === "descriptions")).toBe(false);
 
   // Förhandsvisningen: en A4 liggande med kartan, området och beskrivningen.
   await print.getByRole("button", { name: "Förhandsvisning och utskrift" }).click();

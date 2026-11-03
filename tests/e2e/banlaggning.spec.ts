@@ -40,7 +40,7 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   // Länken från Banor.
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Banor");
-  await owner.getByRole("link", { name: "Banläggning" }).click();
+  await owner.getByTestId("nav-course-setting").click();
   await expect(owner.getByRole("heading", { name: "Banläggning", level: 1 })).toBeVisible();
 
   // Utan kartfil: ladda upp den här.

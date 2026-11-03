@@ -67,7 +67,8 @@ test("typen byts under Inställningar utan att något försvinner, och navigerin
   await owner.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => owner.evaluate(() => window.scrollY)).toBeGreaterThan(200);
   await expect(owner.getByRole("navigation", { name: "Tävlingens delar" })).toBeInViewport();
-  await expect(sectionButton(owner, "Banor")).toBeInViewport();
+  // Den valda delen syns i sidopanelen (med Banläggning under banan rullar en låg sidopanel till den valda).
+  await expect(sectionButton(owner, "Inställningar")).toBeInViewport();
   await expect(owner.getByRole("heading", { name: `Byt typ ${suffix}` })).toBeInViewport();
 
   // Mobil: delarna blir en remsa överst som också följer med.

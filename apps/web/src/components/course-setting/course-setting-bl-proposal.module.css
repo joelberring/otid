@@ -50,6 +50,8 @@
 .choice { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 4px 8px; text-align: left; background: none;
   border: 1px solid var(--line); cursor: pointer; font: inherit; color: inherit; }
 .choice:hover, .choice:focus-visible { border-color: var(--ink); }
+/* Globala `button:hover:not(:disabled)` (svart) vinner annars: raden blev svart med svart text. */
+.choice:hover:not(:disabled), .choice:focus-visible { background: var(--canvas, #f4f4f4); color: inherit; }
 .choice[aria-pressed=true] { border: 2px solid var(--ink); }
 .choiceSwatch { width: 32px; height: 32px; border: 1px solid rgba(0, 0, 0, .35); border-radius: 3px; flex: none; }
 

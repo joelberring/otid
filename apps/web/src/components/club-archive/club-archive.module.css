@@ -31,6 +31,8 @@
 .tabs button { min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
   color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tabs button[aria-selected="true"] { border-bottom-color: var(--ink); color: var(--ink); }
+/* Globala `button:hover:not(:disabled)` (svart bakgrund) vinner annars över `.tabs button`: fliken blev svart med svart text. */
+.tabs button:hover:not(:disabled), .tabs button:focus-visible { background: none; color: var(--ink); }
 
 .filters { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(5, minmax(0, 1fr)); gap: .5rem .65rem; align-items: end; margin-bottom: 10px; }
 .filters label { display: grid; gap: .15rem; min-width: 0; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }

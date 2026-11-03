@@ -5,6 +5,7 @@ import { courseSettingUxSv as ux } from "../../i18n/course-setting-ux-sv";
 import { drawOverprint } from "../../lib/course-setting-draw";
 import { PALETTE, paletteIcon, paletteKey, type PaletteItem } from "../../lib/course-setting-palette";
 import { Button } from "../ui";
+import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting-ux.module.css";
 
 /** En bild som ska läggas på kartan (base64 utan "data:"-början). */
@@ -85,7 +86,9 @@ export function ObjectPalette({ active, onPick, onClose }: {
 /** "Gaffla här": antal grenar eller slinga. */
 export function ForkPicker({ onFork, onClose }: { onFork: (kind: "FORK" | "LOOP", count: number) => void; onClose: () => void }) {
   return <section className={styles.popover} role="dialog" aria-label={ux.forks.forkHere} data-testid="course-setting-fork-picker">
-    <div className={styles.popoverHead}><h2>{ux.forks.forkHere}</h2><Button variant="quiet" onClick={onClose}>{ux.palette.close}</Button></div>
+    <div className={styles.popoverHead}><h2>{ux.forks.forkHere}</h2>
+      <span><HelpLink article="gaffling" view={["CS_SELECTED", "CS_COURSES", "COURSE_SETTING"]} />
+        <Button variant="quiet" onClick={onClose}>{ux.palette.close}</Button></span></div>
     <div className={styles.choices}>
       {[2, 3, 4].map(count => <Button key={count} variant="secondary" onClick={() => onFork("FORK", count)}>{ux.forks.branches(count)}</Button>)}
       <Button variant="secondary" onClick={() => onFork("LOOP", 1)}>{ux.forks.loop}</Button>

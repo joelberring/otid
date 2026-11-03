@@ -1,19 +1,40 @@
 import type { SectionId } from "../lib/race-sections";
+import { archiveHelpArticles, routeChoiceHelpArticles } from "./help-archive-route-sv";
+import { courseSettingHelpArticles, gettingStartedHelpArticles } from "./help-course-setting-sv";
+import { fieldPrintHelpArticles } from "./help-print-sv";
 
 /**
  * Hjälpen i programmet (PLAN.md steg 37). Enkel svenska och korta meningar. Knappar och vägar står inom ”…” och heter
  * exakt som i UI-texterna; `help-sv.test.ts` slår upp varje citat i i18n-filerna. Skriv inget annat inom ”…”.
+ * En länk till en annan artikel skrivs `[text](#artikel-id)`; testet kontrollerar att artikeln finns.
+ *
+ * Artiklarna om banläggningen, utskriften, vägvalen och klubbarkivet ligger i `help-*-sv.ts` bredvid. En gren som ändrar
+ * en funktion lägger till eller ändrar ett stycke i artikeln om funktionen (en punkt eller ett stycke per sak).
  */
 
-/** Vyn man står i: arbetsytans steg (även Fest), Mina tävlingar eller avläsningssidan. */
-export type HelpView = SectionId | "EVENTS" | "READOUT_PAGE";
+/** Banläggningens flikar, fältläget och sidorna runt editorn. */
+export type CourseSettingHelpView = "COURSE_SETTING" | "CS_START" | "CS_COURSES" | "CS_DESCRIPTION" | "CS_SELECTED" | "CS_OBJECTS"
+  | "CS_TRAINING" | "CS_PRINT" | "CS_CHECKS" | "CS_NOTES" | "CS_INSPECTIONS" | "CS_SUGGESTIONS" | "CS_SETTINGS" | "CS_FIELD"
+  | "CS_PRINT_PAGE" | "CS_DESCRIPTIONS_PAGE";
 
-/** En hjälpartikel. `body`: ett stycke per sträng, en punktlista per lista. */
+/** Klubbarkivets flikar och en träning i arkivet. */
+export type ArchiveHelpView = "ARCHIVE_TRAININGS" | "ARCHIVE_MAPS" | "ARCHIVE_MEMBERS" | "ARCHIVE_IMPORT" | "ARCHIVE_ENTRY";
+
+/**
+ * Vyn man står i: arbetsytans steg (även Fest), Mina tävlingar, avläsningssidan, banläggningens flikar, klubbarkivet,
+ * kontrollkartan och dess läge Vägval.
+ */
+export type HelpView = SectionId | "EVENTS" | "READOUT_PAGE" | CourseSettingHelpView | ArchiveHelpView | "CONTROL_MAP" | "ROUTE_CHOICE";
+
+/** Ett stycke, en punktlista eller en numrerad lista (Kom igång). */
+export type HelpBlock = string | readonly string[] | { readonly steps: readonly string[] };
+
+/** En hjälpartikel. `body`: ett stycke per sträng, en punktlista per lista, en numrerad lista per `steps`. */
 export type HelpArticle = {
   id: string;
   title: string;
   views: readonly HelpView[];
-  body: readonly (string | readonly string[])[];
+  body: readonly HelpBlock[];
 };
 
 export const helpSv = {
@@ -21,18 +42,36 @@ export const helpSv = {
   title: "Hjälp",
   close: "Stäng",
   search: "Sök i hjälpen",
-  searchPlaceholder: "Till exempel lottning eller okänd bricka",
+  searchPlaceholder: "Till exempel lottning, kartdef eller utskrift",
   here: "Hjälp för den här sidan",
   all: "Alla hjälpartiklar",
   more: "Fler hjälpartiklar",
   hits: (count: number) => count === 0 ? "Inga träffar." : count === 1 ? "1 träff" : `${count} träffar`,
   noHits: "Pröva ett annat ord. Hittar du inte svaret: skicka ett mejl.",
   about: "Om O-Tid",
+  film: "Se filmen (1 min)",
   contact: "Frågor om O-Tid:",
-  newTab: "öppnas i ny flik"
+  newTab: "öppnas i ny flik",
+  /** Den lilla "?" vid en knapp eller ruta. */
+  link: (title: string) => `Hjälp: ${title}`
 } as const;
 
-export const helpArticles: readonly HelpArticle[] = [
+/**
+ * Ord som betyder samma sak i sökningen (vikta som texten, se `help-search.ts`). Ett sökord som börjar med en stam i en
+ * grupp träffar också texter med gruppens andra stammar.
+ */
+export const helpSynonyms: readonly (readonly string[])[] = [
+  ["kartdef", "kontrollbeskrivning", "beskrivningen på kartan"],
+  ["ppen", "purple pen", "purplepen"],
+  ["gaffl", "variant", "grenar", "slinga"],
+  ["hänga", "hänger", "utsättning", "sätta ut", "fältläge", "fältet"],
+  ["tryck", "utskrift", "skriv ut", "pdf"],
+  ["offline", "utan nät"],
+  ["vägval", "rutt", "kalibrer"],
+  ["arkiv", "klubbarkiv"]
+];
+
+const raceDayHelpArticles: readonly HelpArticle[] = [
   {
     id: "skapa-tavling",
     title: "Skapa en tävling och välj typ",
@@ -73,24 +112,29 @@ export const helpArticles: readonly HelpArticle[] = [
         "”Ta bort bana”: går när ingen klass springer banan och inga resultat finns.",
         "Banläggningen, Fil: ”Ladda ned IOF XML (banor)” ger en banfil som från Purple Pen. MeOS och OLA läser den.",
         "OCAD: inget eget format från O-Tid. OCAD:s banläggning kan läsa samma IOF XML-fil. Till Purple Pen: ”Ladda ned .ppen”."
-      ]
+      ],
+      "Vill du lägga banorna på kartan i O-Tid: se [Banläggningen: öppna den och läs in kartan](#banlaggning-start)."
     ]
   },
   {
     id: "traning",
     title: "Träningsformer i banläggningen",
-    views: ["COURSES"],
+    views: ["CS_TRAINING", "COURSES"],
     body: [
-      "I banläggningen öppnar ”Träning” en flik där en bana blir en träning. Formerna gäller avsnitt av banan och kan läggas efter varandra på samma karta, till exempel korridor till 4, bara kurvbild till 8 och fönster till mål.",
+      "Fliken ”Träning” (eller knappen ”Träning” bland verktygen) gör vald bana till en träning. Välj banan överst först.",
+      "Formerna gäller avsnitt av banan och kan läggas efter varandra, till exempel korridor till 4, bara kurvbild till 8 och fönster till mål.",
       [
-        "”Korridor”: bara en remsa längs sträckorna syns, kantig eller mjuk. Välj vad som syns ”Utanför avsnitten”: hela kartan, vitt, tonat eller ett filter.",
+        "”Korridor”: bara en remsa längs sträckorna syns, kantig eller mjuk. Bredden kan ändras per sträcka.",
         "”Kurvbild”, ”Fönster” och ”Utan karta”: ett filter längs en del av banan, cirklar runt kontrollerna eller sträckor utan karta.",
+        "”Utanför avsnitten”: vad som syns runt avsnitten – hela kartan, vitt, tonat eller ett filter.",
+        "”Kartan för hela banan”: ett filter som gäller överallt, t.ex. ”Bara kurvbild” eller ”Utan stigar”.",
         "”Sista säkra”: en mindre ring på sträckan. Den är inte en kontroll och syns inte i beskrivningen, längden eller avläsningen.",
-        "”Område”: rita ett område med eget filter, till exempel bara kurvbild här.",
+        "”Område”: rita ett område med eget filter. Det kan gälla ”Den här banan” eller ”Alla banor”.",
         "”Stjärna”, ”Linje”, ”Keps” och ”Kartbitar”: stjärnbana, linjeorientering, kepsorientering i par och en liten karta per sträcka.",
         "”Spegel”: kartan och banan spegelvända i utskriften. Siffrorna går att läsa som vanligt; i banläggningen ritas kartan som vanligt."
       ],
-      "”Visa träningen på kartan” visar före och efter. Utskriften och PDF:en har samma maskning, i kartans färger. Träningen följer med i .ppen-filen men försvinner om filen sparas i Purple Pen."
+      "”Visa träningen på kartan” visar före och efter. Utskriften och PDF:en har samma maskning i kartans färger; se [Utskrift och förhandsvisning](#utskrift).",
+      "Träningen följer med i .ppen-filen men försvinner om filen sparas i Purple Pen. ”Ta bort träningen för banan” gör banan vanlig igen."
     ]
   },
   {
@@ -305,3 +349,6 @@ export const helpArticles: readonly HelpArticle[] = [
     ]
   }
 ];
+
+export const helpArticles: readonly HelpArticle[] = [...raceDayHelpArticles, ...gettingStartedHelpArticles, ...courseSettingHelpArticles,
+  ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles];

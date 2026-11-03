@@ -33,6 +33,7 @@ import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
 import { LayoutTemplatePanel } from "./course-setting-print-template";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
 import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
+import { HelpButton } from "../help/help-panel";
 import { PaperSpacePanel } from "./course-setting-paper-space";
 import { usePaperSpace } from "./use-paper-space";
 import styles from "./course-setting-print-page.module.css";
@@ -315,7 +316,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   return <main className={styles.page}>
     <style>{pageStyles(sheets.map(item => item.sheet))}</style>
     <div className={styles.controls}>
-      {back}
+      <div className={styles.topLine}>{back}<HelpButton view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></div>
       <h1>{text.page.title}</h1>
       <Notice tone="attention"><p data-testid="print-draft">{text.page.draft}</p></Notice>
       <div className={styles.row} role="radiogroup" aria-label={text.page.mode}>

@@ -6,6 +6,8 @@ import { RouteMap } from "../split-analysis/route-map";
 import { paceText, parsePace, RouteChoiceCalibration, RouteChoiceSettingsForm } from "./route-choice-settings";
 
 // Arbetsytans knappar och besked byggs med tsx utan React i omfånget; här räcker enkla element.
+// Hjälpens "?" (HelpLink) byggs också utan React i omfånget; den syns inte i de här testerna.
+vi.mock("../help/help-panel", () => ({ HelpLink: () => null }));
 vi.mock("../ui", () => ({
   Button: ({ children, onClick, disabled }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
     React.createElement("button", { onClick, disabled }, children),

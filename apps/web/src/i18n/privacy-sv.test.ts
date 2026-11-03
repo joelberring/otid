@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { aboutSv } from "./about-sv";
 import { accountSv } from "./account-sv";
 import { helpArticles } from "./help-sv";
+import { helpArticleText } from "../lib/help-search";
 import { raceTypeSv } from "./race-type-sv";
 
 /** Steg 46: /integritet, /om och hjälpen säger det som appen faktiskt gör (genomlysningen, säkerhet #4 och #10). */
@@ -58,7 +59,7 @@ describe("personuppgifter och om O-Tid", () => {
   });
 
   it("hjälpen och Personer med behörighet säger att funktionären ser fullt namn och kan ladda ner CSV", () => {
-    const staff = helpArticles.find(article => article.id === "funktionarer")!.body.flat().join(" ");
+    const staff = helpArticleText(helpArticles.find(article => article.id === "funktionarer")!);
     expect(staff).toMatch(/fulla namn/);
     expect(staff).toMatch(/CSV/);
     expect(raceTypeSv.settings.people.help).toMatch(/fulla namn.*CSV/);

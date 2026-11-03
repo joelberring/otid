@@ -5,8 +5,10 @@ import Link from "next/link";
 import type { CourseSettingDocument, CourseSummary } from "@o-tid/course-setting";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
+import type { HelpView } from "../../i18n/help-sv";
 import type { Tool } from "../../lib/course-setting-editor";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
+import { HelpButton } from "../help/help-panel";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
@@ -21,9 +23,12 @@ export type TopBarProps = {
   canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; menu: readonly { label: string; onClick: () => void }[];
   /** Admin har arbetsytan att gå tillbaka till; andra går till Mina tävlingar. */
   admin: boolean;
+  /** Hjälpens vyer: fältläget, den öppna fliken och banläggningen i stort (`courseSettingHelpViews`). */
+  help: readonly HelpView[];
 };
 
-export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu, admin }: TopBarProps) {
+export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu, admin,
+  help }: TopBarProps) {
   const [open, setOpen] = useState(false);
   // Menyn ligger fast i fönstret under knappen, högerjusterad mot knappen så att den aldrig hamnar utanför bild.
   const [menuAt, setMenuAt] = useState<{ top: number; right: number }>();
@@ -74,6 +79,8 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
         {menu.map(item => <button key={item.label} type="button" role="menuitem" onClick={() => { setOpen(false); item.onClick(); }}>{item.label}</button>)}
       </div>}
     </div>
+    {/* Hjälp (grenen hjalp-banlaggning): flikens artiklar först; bara "?" på smal skärm. */}
+    <HelpButton view={help} compact />
     <Button variant="secondary" title={full ? copy.topbar.exitFullscreen : copy.topbar.fullscreen}
       aria-label={full ? copy.topbar.exitFullscreen : copy.topbar.fullscreen}
       onClick={() => {
@@ -111,6 +118,15 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTrainin
 }
 
 export type DrawerTab = "courses" | "description" | "selected" | "objects" | "training" | "print" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
+
+const TAB_HELP: Record<DrawerTab, HelpView> = { courses: "CS_COURSES", description: "CS_DESCRIPTION", selected: "CS_SELECTED", objects: "CS_OBJECTS",
+  training: "CS_TRAINING", print: "CS_PRINT", checks: "CS_CHECKS", notes: "CS_NOTES", inspections: "CS_INSPECTIONS", suggestions: "CS_SUGGESTIONS",
+  settings: "CS_SETTINGS" };
+
+/** Hjälpens vyer i editorn: fältläget först (telefonen eller positionen på), sedan den öppna fliken och banläggningen i stort. */
+export function courseSettingHelpViews(tab: DrawerTab, field: boolean): readonly HelpView[] {
+  return [...(field ? ["CS_FIELD" as const] : []), TAB_HELP[tab], "COURSE_SETTING"];
+}
 const TAB_ICON: Record<DrawerTab, string> = { courses: "☰", description: "▦", selected: "◉", objects: "◇", training: "✪", print: "⎙", checks: "⚠", notes: "✎",
   inspections: "✓", suggestions: "⇄", settings: "⚙" };
 /**

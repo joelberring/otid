@@ -116,7 +116,10 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
       [
         "Fliken ”Banor”: ”Ny bana”, ”Döp om”, ”Duplicera” och ”Ta bort banan”. Dra banorna för att ändra ordningen.",
         "Fliken ”Vald”: vald kontroll med ”Kod”, ”Ta bort från banan” och ”Ta bort kontrollen”.",
-        "En kontroll som flyttas flyttas i alla banor som har den."
+        "En kontroll som flyttas flyttas i alla banor som har den.",
+        "Drar du en sådan kontroll mer än 50 m i en bana frågar O-Tid: ”Flytta i alla banor”, ”Ny kontroll bara i” banan eller ”Avbryt”.",
+        "En ny kontroll får nästa lediga kod; de andra banorna behåller den gamla. ”Flytta hit” i fältläget frågar likadant.",
+        "”Kom ihåg för den här sessionen” hoppar över frågan. Gränsen och ”Fråga igen” finns under ”Flytta delade kontroller” i ”Inställningar”."
       ],
       "Mer: [Gaffling och slinga](#gaffling), [Passager och specialobjekt](#objekt), [Notiser](#notiser) och [Alla kontroller](#alla-kontroller)."
     ]

@@ -95,6 +95,7 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
       const distance = before ? Math.hypot(edit.at.x - before.x, edit.at.y - before.y) * document.event.mapScale / 1000 : undefined;
       return `Flytta ${label(edit.control)}${distance !== undefined ? ` ${Math.round(distance)} m` : ""}`;
     }
+    case "NEW_CONTROL_IN_COURSE": return `Ny kontroll${edit.code ? ` ${edit.code}` : ""} i stället för ${label(edit.control)} bara på ${course(edit.course)}`;
     case "DELETE_CONTROL": return `Ta bort ${label(edit.control)}`;
     case "SET_CONTROL_CODE": return `Ny kod ${edit.code} för ${label(edit.control)}`;
     case "SET_CONTROL_ORIENTATION": return `Vrid ${label(edit.control)} till ${Math.round(edit.orientation)}°`;

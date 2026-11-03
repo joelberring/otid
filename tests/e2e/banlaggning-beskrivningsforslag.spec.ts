@@ -63,6 +63,8 @@ test("förslag på kontrollbeskrivning: ny kontroll på en sten, förhandsvisnin
   await owner.mouse.move(from.x + 3 * scale, from.y - 4 * scale, { steps: 4 });
   await owner.mouse.move(from.x + 6 * scale, from.y - 8 * scale, { steps: 4 });
   await owner.mouse.up();
+  // 100 m och 33 finns också på Mellan: frågan om delade kontroller.
+  await owner.getByTestId("course-setting-move-all").click();
   await saved(owner);
   await owner.getByRole("button", { name: "Ny kontroll" }).click();
   const stone = await screenOf(map, 76, 52);

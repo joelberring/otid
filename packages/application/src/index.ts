@@ -115,6 +115,9 @@ export {
   runPrintJob, type ClaimedPrintJob, type PrintWorkerOptions
 } from "./course-setting-print";
 export { printJobSheets, renderPrintJob, PrintJobError } from "./course-setting-print-render";
+export {
+  deletePaperLibraryAsAdmin, listPaperLibraryAsAdmin, paperImagesFor, readPaperImageAsAdmin, savePaperLibraryAsAdmin, sniffPaperImage, uploadPaperImageAsAdmin
+} from "./course-setting-paper";
 export * from "./radio-ingest";
 export * from "./radio-settings";
 export * from "./radio-standings";

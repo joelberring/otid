@@ -3,13 +3,14 @@
 import { useRef, useState } from "react";
 import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
 import {
-  CourseSettingEditError, layoutCoursePage, ppenWithPaperLayout, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning
+  CourseSettingEditError, layoutCoursePage, paperImageHashes, ppenWithPaperLayout, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { iofCourseFile } from "../../lib/course-setting-iof";
 import { courseSettingBase, downloadText, fetchCourseSettingRevisions } from "../../lib/course-setting-api";
+import { paperImageBase64 } from "../../lib/course-setting-paper-api";
 import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
 
@@ -69,12 +70,20 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   async function showRevisions() {
     try { setRevisions((await fetchCourseSettingRevisions(raceId)).revisions); } catch { setMessage({ tone: "error", text: text.loadFailed }); }
   }
-  function download() {
+  async function download() {
     const title = document.event.title.trim().replace(/[^\p{L}\p{N} ._-]/gu, "_") || "banlaggning";
-    // Papperet (kontrollbeskrivningen som banläggaren placerat) skrivs som Purple Pens `descriptions` på motsvarande ställe i kartan.
+    // Papperet (ADR-0197): beskrivningen (utplacerad eller automatisk), texterna och bilderna skrivs som Purple Pens
+    // specialobjekt på motsvarande ställe i kartan. Bilderna hämtas ur bildlagret; en som inte går att hämta utelämnas.
+    const images = new Map<string, string>();
+    for (const sha of paperImageHashes(document)) {
+      try { images.set(sha, await paperImageBase64(raceId, sha)); } catch (error) { console.error("Bilden kunde inte hämtas till .ppen", error); }
+    }
     const withPaper = ppenWithPaperLayout(document, course => {
-      try { return layoutCoursePage(document, { course, mapBounds })[0]; } catch (error) { console.error("Banans sida kunde inte läggas ut", error); return undefined; }
-    });
+      try {
+        const page = layoutCoursePage(document, { course, mapBounds })[0];
+        return page ? { ...page, page: { x: 0, y: 0, width: page.paper.widthMm, height: page.paper.heightMm } } : undefined;
+      } catch (error) { console.error("Banans sida kunde inte läggas ut", error); return undefined; }
+    }, { images });
     downloadText(`${title}.ppen`, writePpen(withPaper));
   }
   function downloadIof() {
@@ -91,7 +100,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
     <PpenImport onRead={onImport} busy={busy} />
     <p className={styles.muted}>{text.file.importHelp}</p>
     <div className={styles.row}>
-      <Button variant="secondary" onClick={download}>{text.file.download}</Button>
+      <Button variant="secondary" onClick={() => void download()}>{text.file.download}</Button>
       {original && <a href={`${courseSettingBase(raceId)}/course-setting/original`} download>{text.file.downloadOriginal(original.fileName)}</a>}
     </div>
     <div className={styles.row}>

@@ -19,6 +19,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Hjälpen: artiklarna ”Purple Pen, OCAD och IOF XML”, ”Kom igång: från Purple Pen till tävling” och ”Sparande, versioner och ångra” säger hur banfilen blir banläggning, vad sparbeskedet betyder och vad som gäller för fest och rogaining.
 - Kvar: banfilen flyttas inte till en nyare kartversion vid Använd igen (som förut); Purple Pens kartbyte vid en vanlig kontroll står inte i IOF XML.
 
+### 2026-11-03 – Papperet, ägarens svar (grenen pappersrum-2, ADR-0197 punkt 11)
+- Varje element på papperet har "Sidor": "Första sidan" (förval) eller "Alla sidor"; en bana på flera sidor får elementen med "Alla sidor" på varje sida. Beskrivningen bara på första.
+- Klippningen: banan (kontroller, start, mål, sträckor, nummer) står alltid hel; markeringar utanför syns inte (punktsymboler efter sin punkt, områden och linjer klippta vid kanten); "Visa markeringar utanför utsnittet" (förval av). Samma i förhandsvisningen och PDF:en.
+- Hjälpen ("Papperet", "Mallar för papperet och klippning av kartan") säger båda.
+- Verifierat: enhetstester (`paper-items`, print-pdf `paper-pdf`), hjälptestet, lint, Playwright `banlaggning-pappersrum` utökad (1280/390).
+
 ### 2026-11-03 – Flytta en delad kontroll långt (grenen flytta-kontroll)
 - Som Purple Pen (QueryEvent.ShouldWarnAboutMovingControl, bara beteendet): när en vanlig kontroll dras mer än 50 m i terrängen i en bana och kontrollen finns i någon annan bana frågar editorn "Flytta i alla banor (n)" (banornas namn, förkortat), "Ny kontroll bara i [banan]" eller "Avbryt". Inte i Alla kontroller, inte när kontrollen bara finns i banan, inte för piltangenter/1 m-knapparna och inte för start, mål, passage och kartbyte (ingen kod; samma plats för alla banor, en egen start görs med Ny start). Gränsen räknas i hela meter (precis 50 m frågar inte) och väljs i Inställningar (10–100 m, i webbläsaren).
 - Ny åtgärd `NEW_CONTROL_IN_COURSE` (paketet, kontraktet, samarbetets touches/refs/id-översättning, förslagens text): ny kontroll med nästa lediga kod (upptagen kod vid uppspelning: nästa lediga) ersätter kontrollen i de angivna banans kontrollerna; gaffling, slinga och poäng står kvar, numret får förvalt läge. Beskrivningen kopieras inte (ett nytt läge är ett nytt objekt; tom beskrivning syns i kontrollerna, som i Purple Pen). Ett steg för ångra, gör om och samarbetet.

@@ -75,6 +75,19 @@ Steg 1 (hittbarhet) flyttade kontrollbeskrivningen dit; det här är steg 2.
     också med siffror). På 390 px ligger det markerade elementets fält i ett ark nere på skärmen; siffrorna räcker där.
     Ändringarna visas direkt och sparas en i taget på senaste versionen; Ångra (och Ctrl+Z) sparar det som gällde före.
 
+11. **Tillägg 2026-11-03 (ägarens svar, grenen `pappersrum-2`).**
+    - *Flera sidor:* varje element har "Sidor": "Första sidan" (förval) eller "Alla sidor" (`pages: "ALL"`). En bana som
+      delas på flera sidor (`layoutCoursePage`) får elementen med "Alla sidor" också på de följande sidorna. Beskrivningen står
+      kvar bara på första sidan.
+    - *Klippningen och banan:* banans figurer (kontroller, start, mål, sträckor, nummer) står alltid hela, också utanför
+      klippningen. Banläggningens markeringar (specialobjekten) står bara innanför: en punktsymbol (vätska, sjukvård, passage,
+      förbjuden väg, passmärke) står hel om dess punkt ligger innanför och annars inte alls; övriga (förbjudet område, gräns,
+      linje, text, bild …) ritas klippta till klippningens polygon, så att ett område som ligger delvis innanför syns fram
+      till kanten. `printSheetGroups` tar bort punktsymbolerna och sätter `SheetFrame.markingClip` (polygonen i papperets mm
+      och specialobjektens id); förhandsvisningen klipper med en SVG-`clipPath` och PDF:en med `W n` i målningsordning.
+      "Visa markeringar utanför utsnittet" (`clip.showMarkings`, förval av) visar alla som förut.
+    - *Förvald plats* i ett hörn av kartramen behålls.
+
 ## Följder
 
 - Steg 1:s `PaperDescriptions` och förankringen flyttade till `paper-items.ts` och `paper-anchor.ts`; `paper-layout.ts`

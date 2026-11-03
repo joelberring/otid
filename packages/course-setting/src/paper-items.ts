@@ -19,6 +19,8 @@ interface PaperItemBase {
   readonly at: PaperAnchor;
   /** PAGE = förankrat i arkets hörn i stället för kartramens. */
   readonly relativeTo?: "PAGE" | undefined;
+  /** En bana på flera sidor: ALL = på varje sida; saknas = bara första sidan (som beskrivningen). */
+  readonly pages?: "ALL" | undefined;
 }
 
 /** Text: rutans bredd (raderna justeras i den), storleken (em i mm), fet, justering och vit bakgrund. */
@@ -61,11 +63,14 @@ export type PaperItemKind = PaperItem["kind"];
 
 /**
  * Klippningen av kartan i ramen: en rektangel eller en polygon i ramens mm (origo i ramens övre vänstra hörn). Utanför är
- * papperet vitt eller kartan tonad. Banan klipps inte.
+ * papperet vitt eller kartan tonad. Banan (kontroller, start, mål, sträckor, nummer) står alltid hel; banläggningens
+ * markeringar (specialobjekten: förbjudet område, gränser, vätska …) står bara innanför, klippta vid kanten, om inte
+ * `showMarkings` (ägaren 2026-11-03: "Visa markeringar utanför utsnittet", förval av).
  */
+interface PaperClipBase { readonly outside: "WHITE" | "FADED"; readonly showMarkings?: boolean | undefined }
 export type PaperClip =
-  | { readonly shape: "RECT"; readonly rect: PaperRect; readonly outside: "WHITE" | "FADED" }
-  | { readonly shape: "POLYGON"; readonly points: readonly { readonly x: number; readonly y: number }[]; readonly outside: "WHITE" | "FADED" };
+  | (PaperClipBase & { readonly shape: "RECT"; readonly rect: PaperRect })
+  | (PaperClipBase & { readonly shape: "POLYGON"; readonly points: readonly { readonly x: number; readonly y: number }[] });
 
 /** Kontrollbeskrivningen på kartan (hittbarhet). Saknas `at` placeras den automatiskt (eller där .ppen-filen har den). */
 export interface PaperDescriptions {
@@ -152,8 +157,10 @@ export function validatePaperItem(value: unknown): PaperItem {
   if (typeof value !== "object" || value === null) throw invalid("ett element");
   const item = value as PaperItem;
   if (typeof item.id !== "string" || !ID.test(item.id)) throw invalid("elementets id");
-  const base = { id: item.id, at: validAnchor(item.at, "elementet"), ...(item.relativeTo === "PAGE" ? { relativeTo: "PAGE" as const } : {}) };
+  const base = { id: item.id, at: validAnchor(item.at, "elementet"), ...(item.relativeTo === "PAGE" ? { relativeTo: "PAGE" as const } : {}),
+    ...(item.pages === "ALL" ? { pages: "ALL" as const } : {}) };
   if (item.relativeTo !== undefined && item.relativeTo !== "PAGE") throw invalid("vad elementet står i förhållande till");
+  if (item.pages !== undefined && item.pages !== "ALL") throw invalid("sidorna (första eller alla)");
   const flag = (value: unknown, what: string) => {
     if (value !== undefined && typeof value !== "boolean") throw invalid(what);
     return value === true;
@@ -190,6 +197,8 @@ export function validatePaperClip(value: unknown): PaperClip {
   const clip = value as PaperClip | undefined;
   if (!clip || typeof clip !== "object") throw invalid("klippningen");
   if (clip.outside !== "WHITE" && clip.outside !== "FADED") throw invalid("utanför klippningen (vitt eller tonat)");
+  if (clip.showMarkings !== undefined && typeof clip.showMarkings !== "boolean") throw invalid("markeringarna utanför klippningen");
+  const markings = clip.showMarkings ? { showMarkings: true } : {};
   const point = (p: { x: number; y: number } | undefined) => {
     if (!p || !within(p.x, -2000, 2000) || !within(p.y, -2000, 2000)) throw invalid("klippningens hörn");
     return { x: p.x, y: p.y };
@@ -198,11 +207,11 @@ export function validatePaperClip(value: unknown): PaperClip {
     const r = clip.rect;
     if (!r || !within(r.width, 1, 2000) || !within(r.height, 1, 2000)) throw invalid("klippningens rektangel");
     const corner = point({ x: r.x, y: r.y });
-    return { shape: "RECT", rect: { ...corner, width: r.width, height: r.height }, outside: clip.outside };
+    return { shape: "RECT", rect: { ...corner, width: r.width, height: r.height }, outside: clip.outside, ...markings };
   }
   if (clip.shape === "POLYGON") {
     if (!Array.isArray(clip.points) || clip.points.length < 3 || clip.points.length > PAPER_LIMITS.polygonPoints) throw invalid(`klippningens polygon (3–${PAPER_LIMITS.polygonPoints} hörn)`);
-    return { shape: "POLYGON", points: clip.points.map(point), outside: clip.outside };
+    return { shape: "POLYGON", points: clip.points.map(point), outside: clip.outside, ...markings };
   }
   throw invalid("klippningens form");
 }
@@ -526,9 +535,12 @@ export interface PaperFrameRef extends PaperTextFrame {
  * ramens bana. En text som blir tom efter ifyllningen står inte på arket.
  */
 export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFrameRef, frameIndex: number,
-  options: { readonly page: PaperRect; readonly date?: string | undefined; readonly pageItems?: boolean | undefined }): SheetPaperItem[] {
+  options: { readonly page: PaperRect; readonly date?: string | undefined; readonly pageItems?: boolean | undefined;
+    /** false = en senare sida av en bana på flera sidor: bara elementen med `pages: "ALL"`. */
+    readonly firstPage?: boolean | undefined }): SheetPaperItem[] {
   const out: SheetPaperItem[] = [];
   for (const { item, source } of effectivePaper(document, frame.course).items) {
+    if (options.firstPage === false && item.pages !== "ALL") continue;
     const onPage = item.relativeTo === "PAGE";
     if (onPage && options.pageItems === false) continue;
     const text = item.kind === "TEXT" ? expandPaperText(item.text, document, frame, options.date) : undefined;
@@ -559,6 +571,51 @@ export function paperClipRing(clip: PaperClip, frame: { readonly clip: PaperRect
     const x = (frame.clip.x + p.x - t.translateX) / t.scale, y = -(frame.clip.y + p.y - t.translateY) / t.scale;
     return { x: frame.mirror ? 2 * axis - x : x, y };
   });
+}
+
+/** Specialobjekten som är punktsymboler: står helt eller inte alls (efter sin punkt), klipps aldrig mitt itu. */
+const POINT_MARKINGS = new Set(["first-aid", "water", "optional-crossing-point", "forbidden-route", "registration-mark"]);
+
+function inside(point: { x: number; y: number }, polygon: readonly { x: number; y: number }[]): boolean {
+  let hit = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i]!, b = polygon[j]!;
+    if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) hit = !hit;
+  }
+  return hit;
+}
+
+/** Markeringarnas klippning på ett ark: polygonen i papperets mm och specialobjekten (id) som ritas klippta till den. */
+export interface MarkingClip {
+  readonly polygon: readonly { readonly x: number; readonly y: number }[];
+  readonly refs: readonly string[];
+}
+
+/**
+ * Banläggningens markeringar vid klippningen (ägaren 2026-11-03): banans figurer står kvar hela; en punktsymbol (vätska,
+ * sjukvård, passage …) vars punkt ligger utanför tas bort; övriga specialobjekt (förbjudet område, gräns, text, bild …)
+ * ritas klippta till polygonen (`refs`), så att ett område som delvis ligger innanför syns där. `mirror`: figurerna är
+ * redan speglade kring ramens mitt (träningens spegelvända karta).
+ */
+export function clipMarkings<F extends { readonly role: string; readonly ref?: string | undefined; readonly kind: string }>(document: CourseSettingDocument,
+  frame: { readonly clip: PaperRect; readonly transform: { scale: number; translateX: number; translateY: number }; readonly mapArea: MapRect;
+    readonly figures: readonly F[] }, clip: PaperClip, mirror = false): { figures: F[]; markingClip: MarkingClip } {
+  const polygon = paperClipPoints(clip).map(p => ({ x: frame.clip.x + p.x, y: frame.clip.y + p.y }));
+  const t = frame.transform;
+  const axis = (frame.mapArea.minX + frame.mapArea.maxX) / 2;
+  const specials = new Map(document.specialObjects.map(special => [special.id, special]));
+  const dropped = new Set<string>(), clipped = new Set<string>();
+  for (const figure of frame.figures) {
+    if (figure.role !== "SPECIAL" || figure.ref === undefined || figure.kind === "description") continue;
+    const special = specials.get(figure.ref);
+    if (special && POINT_MARKINGS.has(special.kind) && special.points[0]) {
+      const p = special.points[0];
+      const x = mirror ? 2 * axis - p.x : p.x;
+      if (!inside({ x: t.scale * x + t.translateX, y: -t.scale * p.y + t.translateY }, polygon)) dropped.add(figure.ref);
+    } else clipped.add(figure.ref);
+  }
+  const figures = frame.figures.filter(figure => !(figure.role === "SPECIAL" && figure.ref !== undefined && dropped.has(figure.ref)));
+  return { figures, markingClip: { polygon, refs: [...clipped] } };
 }
 
 /** Tonen utanför klippningen (andel mot vitt), som träningens tonade. */

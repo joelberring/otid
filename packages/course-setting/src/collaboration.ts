@@ -184,6 +184,8 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
     case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
     case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.course}`];
+    case "PUT_PAPER_TEMPLATE": return [`event:paperTemplates:${edit.template.id}`];
+    case "DELETE_PAPER_TEMPLATE": return [`event:paperTemplates:${edit.id}`, "event:paperLayouts"];
     case "PUT_OBJECTS": return [
       ...Object.keys(edit.controls ?? {}).map(id => `control:${id}`),
       ...Object.keys(edit.courseControls ?? {}).map(id => `courseControl:${id}`),

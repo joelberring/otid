@@ -525,6 +525,29 @@ export const courseSettingPrintJobs = pgTable("course_setting_print_job", {
   report: jsonb("report").$type<{ plates: string[]; overprint: boolean; notes: string[]; mapForms: number; milliseconds: number }>()
 }, (table) => [unique("course_setting_print_job_request_unique").on(table.raceId, table.requestId)]);
 
+/**
+ * ADR-0197 (migration 0063): papperets bilder (logotyper, sponsorer), en gång per innehåll (sha256). PNG eller JPEG, högst
+ * 2 MB. Dokumentet pekar på bilden med dess sha256; utskriftsarbetaren läser bilderna för PDF:en.
+ */
+export const courseSettingPaperImages = pgTable("course_setting_paper_image", {
+  sha256: text("sha256").primaryKey(),
+  mediaType: text("media_type").notNull(),
+  image: bytea("image").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  uploadedBy: uuid("uploaded_by").notNull().references(() => userAccounts.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+});
+
+/** ADR-0197: papperets mallar i kontots bibliotek, för andra tävlingar (namnet unikt per konto). */
+export const courseSettingPaperTemplates = pgTable("course_setting_paper_template", {
+  id: uuid("id").primaryKey(),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
+  name: text("name").notNull(),
+  template: jsonb("template").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+}, (table) => [unique("course_setting_paper_template_name_unique").on(table.accountId, table.name)]);
+
 /** Steg 62: tidigare versioner av banläggningen (de senaste 50). */
 export const courseSettingRevisions = pgTable("course_setting_revision", {
   raceId: uuid("race_id").notNull().references(() => races.id),

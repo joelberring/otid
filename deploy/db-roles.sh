@@ -11,7 +11,8 @@
 #   otid_owner  äger tabellerna, kör migreringarna och backupen. Ingen superuser.
 #   otid_app    webben (web, web-public, web-public2): läser och skriver data, kan inte ändra schemat eller skapa tabeller.
 #   otid_print  utskriftsarbetaren: läser tävlingens namn och kartfil (race_map_source och innehållet i map_content och
-#               map_content_part, ADR-0189) och skriver bara i utskriftskön.
+#               map_content_part, ADR-0189), papperets bilder (course_setting_paper_image, ADR-0197) och skriver bara i
+#               utskriftskön.
 # Superusern otid (POSTGRES_USER) finns kvar för det här skriptet och för underhåll för hand; ingen tjänst använder den sedan.
 #
 # Ingen data flyttas eller ändras: bara ägare och rättigheter. Allt sker i en transaktion; går något fel ändras inget.
@@ -94,10 +95,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA public GRANT USAGE, SELECT,
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM :"print";
 GRANT SELECT, UPDATE, DELETE ON course_setting_print_job TO :"print";
 GRANT SELECT ON race, race_map_source TO :"print";
--- ADR-0189: kartfilens innehåll (migration 0044). Tabellerna finns inte före den migreringen.
+-- ADR-0189: kartfilens innehåll (migration 0044); ADR-0197: papperets bilder (migration 0063). Tabellerna finns inte före migreringarna.
 SELECT format('GRANT SELECT ON %s TO %I', string_agg(quote_ident(c.relname), ', '), :'print')
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-  WHERE n.nspname = 'public' AND c.relname IN ('map_content', 'map_content_part') HAVING count(*) > 0 \gexec
+  WHERE n.nspname = 'public' AND c.relname IN ('map_content', 'map_content_part', 'course_setting_paper_image') HAVING count(*) > 0 \gexec
 COMMIT;
 SQL
     echo "Klart: $owner äger databasen, $app och $print har sina rättigheter. Kör nu 'sh deploy/db-roles.sh check' och sedan"

@@ -48,6 +48,8 @@ const adminFiles = [
   "route-choice-sv.ts",
   // Steg 62: banläggningen.
   "course-setting-sv.ts",
+  // Banfil utan .ppen i banläggningen, sparbesked, fest och rogaining.
+  "course-data-sv.ts",
   // Steg 68: träningsgrupperna (kartans avtal på kartsidan).
   "training-group-sv.ts"
 ];

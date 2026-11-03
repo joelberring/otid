@@ -2,7 +2,10 @@
  * Färre gafflingsvarianter (ägaren 2026-11-03, ADR-0198). En fulgaffling med flera gafflingar i följd ger många varianter,
  * och vissa kombinationer blir tydligt längre. Här väljs varianter bort, rent och generellt (banläggningen och tävlingen):
  *
- * - **Längst i alla avseenden** (`dominated`): en variant tas bort när en annan variant inte är längre i något av de mått
+ * - **De längsta** (`longest`, förval 3, ägaren 2026-11-03): högst så många tas bort, de längsta först, men bara bland varianter
+ *   som är längre i alla avseenden än någon variant som blir kvar (som nedan). Ordningen är längs vägval när den finns för
+ *   alla, annars fågelvägen.
+ * - **Längst i alla avseenden** (`dominated`, alla): en variant tas bort när en annan variant inte är längre i något av de mått
  *   som finns för alla varianter (fågelväg, längs vägval när den är räknad, stigning när den finns) och kortare i minst ett.
  *   Lika långa varianter tar aldrig bort varandra.
  * - **Tak** (`maxPercentLonger`, `maxCount`): högst så många procent längre än den kortaste och/eller högst så många
@@ -26,10 +29,12 @@ export interface PrunableVariant {
 }
 
 export type PruningMeasure = "STRAIGHT" | "ROUTE" | "CLIMB";
-export type PruningReason = "DOMINATED" | "OVER_PERCENT" | "OVER_COUNT";
+export type PruningReason = "LONGEST" | "DOMINATED" | "OVER_PERCENT" | "OVER_COUNT";
 
 export interface PruningOptions {
-  readonly dominated: boolean;
+  /** Ta bort högst så många av de längsta (bara de som är längre i alla avseenden än någon som blir kvar). */
+  readonly longest?: number | undefined;
+  readonly dominated?: boolean | undefined;
   readonly maxPercentLonger?: number | undefined;
   readonly maxCount?: number | undefined;
   /** Behåll varianter som behövs för att varje kontroll och sträcka ska springas (förval på). */
@@ -39,7 +44,7 @@ export interface PruningOptions {
 export interface PrunedVariant {
   readonly code: string;
   readonly reason: PruningReason;
-  /** Varianten som är kortare i alla avseenden (DOMINATED). */
+  /** Varianten som är kortare i alla avseenden (LONGEST, DOMINATED). */
   readonly by?: string | undefined;
 }
 
@@ -124,15 +129,27 @@ export function pruneVariants(variants: readonly PrunableVariant[], options: Pru
     return true;
   };
 
+  const dominatorOf = (variant: PrunableVariant) => [...kept].map((code) => byCode.get(code)!)
+    .filter((other) => other.code !== variant.code && dominatesVariant(other, variant, measures))
+    .sort((a, b) => length(a) - length(b) || (a.code < b.code ? -1 : 1))[0];
+  const longest = options.longest;
+  if (known(longest) && longest >= 1) {
+    let removed = 0;
+    while (removed < longest) {
+      // Längsta först bland dem som en kvarvarande variant är kortare än i alla avseenden; skyddade hoppas över.
+      const next = longestFirst.find((variant) => kept.has(variant.code) && !guarded.has(variant.code) && dominatorOf(variant) !== undefined &&
+        tryRemove(variant.code, "LONGEST", dominatorOf(variant)!.code));
+      if (!next) break;
+      removed += 1;
+    }
+  }
   if (options.dominated) {
     let changed = true;
     while (changed) {
       changed = false;
       for (const variant of longestFirst) {
         if (!kept.has(variant.code)) continue;
-        const dominator = [...kept].map((code) => byCode.get(code)!)
-          .filter((other) => other.code !== variant.code && dominatesVariant(other, variant, measures))
-          .sort((a, b) => length(a) - length(b) || (a.code < b.code ? -1 : 1))[0];
+        const dominator = dominatorOf(variant);
         if (dominator && tryRemove(variant.code, "DOMINATED", dominator.code)) changed = true;
       }
     }

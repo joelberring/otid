@@ -63,7 +63,14 @@ export interface ForkingSavePlan {
   /** Gammal kod → ny kod för samma kontrollföljd; null = kontrollföljden försvinner. */
   readonly codeMap: ReadonlyMap<string, string | null>;
   readonly removedCodes: readonly string[];
+  /** ADR-0198: varianter som strukturen ger men som är bortvalda (samma kod och kontroller) och inte sparas. */
+  readonly excludedCodes: readonly string[];
+  /** ADR-0198: bortval som inte längre stämmer med någon variant (strukturen har ändrats); de följer med men gäller inte. */
+  readonly staleExcludedCodes: readonly string[];
 }
+
+/** ADR-0198: en bortvald variant (banläggningen), som den sparas med banversionen. */
+export interface ExcludedCourseVariant { readonly code: string; readonly controlCodes: readonly number[] }
 
 const sequenceKey = (codes: readonly number[]) => codes.join(" ");
 
@@ -72,9 +79,19 @@ const sequenceKey = (codes: readonly number[]) => codes.join(" ");
  * och löparna (under den nya koden), och koder vars kontrollföljd försvinner listas. Undefined när strukturen bryter
  * mot reglerna. En struktur utan gafflingspunkter blir en vanlig bana.
  */
-export function planForkingSave(current: readonly StoredCourseVariant[], forking: CourseForking): ForkingSavePlan | undefined {
+export function planForkingSave(current: readonly StoredCourseVariant[], forking: CourseForking,
+  excluded: readonly ExcludedCourseVariant[] = []): ForkingSavePlan | undefined {
   if (validateCourseForking(forking).length > 0) return undefined;
-  const generated = generateForkingVariants(forking);
+  const all = generateForkingVariants(forking);
+  // ADR-0198: en bortvald variant kommer aldrig tillbaka i tävlingen (samma kod och kontroller). Minst en variant blir kvar.
+  const isExcluded = (variant: { code: string; controlCodes: readonly number[] }) =>
+    excluded.some(row => row.code === variant.code && sequenceKey(row.controlCodes) === sequenceKey(variant.controlCodes));
+  const filtered = all.filter(variant => !isExcluded(variant));
+  const generated = filtered.length > 0 ? filtered : all;
+  const excludedCodes = filtered.length > 0 ? all.filter(isExcluded).map(variant => variant.code) : [];
+  const staleExcludedCodes = forkingPointCount(forking) === 0 ? excluded.map(row => row.code)
+    : excluded.filter(row => !all.some(variant => variant.code === row.code && sequenceKey(variant.controlCodes) === sequenceKey(row.controlCodes)))
+      .map(row => row.code);
   const bySequence = new Map(current.map(variant => [sequenceKey(variant.controlCodes), variant]));
   const kept = new Set(generated.map(variant => sequenceKey(variant.controlCodes)));
   const variants = generated.map(variant => {
@@ -89,5 +106,6 @@ export function planForkingSave(current: readonly StoredCourseVariant[], forking
   const plain = forkingPointCount(forking) === 0;
   return { forking: plain ? null : forking, variants: plain ? [] : variants,
     controlCodes: plain ? forking.items.flatMap(item => item.kind === "CONTROL" ? [item.code] : []) : [],
-    codeMap, removedCodes: current.filter(variant => !kept.has(sequenceKey(variant.controlCodes))).map(variant => variant.code) };
+    codeMap, removedCodes: current.filter(variant => !kept.has(sequenceKey(variant.controlCodes))).map(variant => variant.code),
+    excludedCodes: plain ? [] : excludedCodes, staleExcludedCodes };
 }

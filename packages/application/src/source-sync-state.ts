@@ -14,7 +14,8 @@ export async function loadCurrentState(tx: Transaction, raceId: string): Promise
     externalId: schema.courses.externalId, lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters })
     .from(schema.courses).where(eq(schema.courses.raceId, raceId)).orderBy(asc(schema.courses.name));
   const versions = await tx.selectDistinctOn([schema.courseVersions.courseId], { id: schema.courseVersions.id,
-    courseId: schema.courseVersions.courseId, version: schema.courseVersions.version }).from(schema.courseVersions)
+    courseId: schema.courseVersions.courseId, version: schema.courseVersions.version, excludedVariants: schema.courseVersions.excludedVariants })
+    .from(schema.courseVersions)
     .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId)).where(eq(schema.courses.raceId, raceId))
     .orderBy(asc(schema.courseVersions.courseId), desc(schema.courseVersions.version));
   const versionByCourse = new Map(versions.map(row => [row.courseId, row]));
@@ -26,7 +27,7 @@ export async function loadCurrentState(tx: Transaction, raceId: string): Promise
     const version = versionByCourse.get(course.id);
     return version ? [{ ...course, versionId: version.id, version: version.version,
       controlCodes: controls.filter(row => row.courseVersionId === version.id).map(row => row.code),
-      variants: variants.get(version.id) ?? [] }] : [];
+      variants: variants.get(version.id) ?? [], ...(version.excludedVariants?.length ? { excludedVariants: version.excludedVariants } : {}) }] : [];
   });
   const versionToCourse = new Map<string, string>();
   for (const row of await tx.select({ id: schema.courseVersions.id, courseId: schema.courseVersions.courseId }).from(schema.courseVersions)

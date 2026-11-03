@@ -17,6 +17,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Fest: oförändrat (bara utskrift, ingen överföring).
 - Verifierat: enhetstester (course-setting, application diff och överföring, webbens lib och hjälp), integration `rogaining-poang-overforing`, typecheck och lint.
 
+### 2026-11-03 – Färre varianter, ägarens svar (grenen gaffling-urval-2, tillägg i ADR-0198)
+- "Begränsa varianter" har sätt: förval "Ta bort de längsta" med 3 (1 till alla utom en), bara bland varianter som är längre i alla avseenden än en som blir kvar, längs vägval när den är räknad; "Längst i alla avseenden (alla)" och taken finns kvar. Förhandsgranskningen säger skälet.
+- Tävlingens baneditor: en sparad struktur tar inte med bortvalda varianter och bortvalen följer med till nya banversionen; ett bortval som slutar stämma sägs i förhandsgranskningen och tappas inte. En IOF-banfil utan bortval tar inte heller tillbaka dem.
+- Utskrift per löpare: bortvalda varianter skrivs inte ut (inte heller som reserv) och sägs som problem. Hjälpen Färre varianter uppdaterad.
+- Verifierat: enhetstester (domän, application, webbens variant- och utskriftslogik, hjälpen), integration adr-0198 med baneditorn; Playwright i CI.
+
 ### 2026-11-03 – Varningar som går att godta (grenen varningar, ADR-0199)
 - Nivåer: fel (samma kod, kod saknas, start/mål saknas, kontroll i förbjudet område, sträcka utan laglig väg), varningar och notiser; grupperade per sort med antal, fel först. Fliken räknar bara fel och varningar som inte är godtagna.
 - Förbjudna områden: fågelvägen genom ett område är ingen varning när vägvalet (med spärrarna) går runt – i stället "Fågelvägen korsar ett förbjudet område – vägvalet går runt (+182 m)" i Vald sträcka. Inget vägval = fel; inte räknat = notis. Bara de sträckorna räknas, i vägvalens Worker med gemensam tabell (banans längd, vald sträcka), viker för dem; i telefonen bara med fliken öppen.

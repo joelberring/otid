@@ -82,7 +82,7 @@ async function proposedVariants(tx: Transaction, course: LoadedCourse, request: 
   forking?: CourseForking | undefined }): Promise<EditPlan | undefined> {
   // Steg 49: en ny struktur ersätter banans kontroller och varianter. Samma struktur igen är ingen ändring.
   if (request.forking) {
-    const plan = planForkingSave(course.variants, request.forking);
+    const plan = planForkingSave(course.variants, request.forking, course.version.excludedVariants ?? []);
     if (!plan || (course.forking && JSON.stringify(course.forking) === JSON.stringify(plan.forking))) return undefined;
     if (!plan.forking && sameControlCodes(course.controlCodes, plan.controlCodes) && course.variants.length === 0) return undefined;
     const positions = await loadCoursePositions(tx, course.raceId, course.id, forkingControlSet(request.forking));
@@ -154,7 +154,9 @@ function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: 
   const forking = plan.forking && { variants: plan.forking.variants.map(variant => ({ code: variant.code, controlCodes: [...variant.controlCodes],
     previousCode: variant.previousCode })), removedCodes: [...plan.forking.removedCodes],
     renamedEntryCount: [...entryCodes.values()].filter(code => code !== null).length,
-    reassignedEntryCount: plan.forking.variants.length === 0 ? 0 : [...entryCodes.values()].filter(code => code === null).length };
+    reassignedEntryCount: plan.forking.variants.length === 0 ? 0 : [...entryCodes.values()].filter(code => code === null).length,
+    ...(plan.forking.excludedCodes.length > 0 ? { excludedCodes: [...plan.forking.excludedCodes].slice(0, 1000) } : {}),
+    ...(plan.forking.staleExcludedCodes.length > 0 ? { staleExcludedCodes: [...plan.forking.staleExcludedCodes].slice(0, 1000) } : {}) };
   return courseEditPreviewResponseSchema.parse({ formatVersion: 1, raceId, courseId: course.id, courseName: course.name,
     snapshotVersion, ...(variantCode === undefined ? {} : { variantCode }), currentControlCodes: plan.currentControlCodes,
     controlCodes: plan.forking ? [] : plan.controlCodes, ...(forking ? { forking } : {}),
@@ -345,8 +347,10 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
     const nextVersion = (latestVersion?.version ?? 0) + 1;
     if (nextVersion > 2_147_483_647) return { status: "conflict" };
     // Steg 49: strukturen sparas med banversionen; en ändrad enskild variant tar bort den (varianterna redigeras då var för sig).
+    // ADR-0198: banläggningens bortvalda varianter följer med till nya versionen (också de som inte längre stämmer).
+    const excludedVariants = course.version.excludedVariants ?? null;
     const [courseVersion] = await tx.insert(schema.courseVersions).values({ courseId: course.id, version: nextVersion,
-      forking: plan.forking?.forking ?? null }).returning();
+      forking: plan.forking?.forking ?? null, excludedVariants: excludedVariants && excludedVariants.length > 0 ? excludedVariants : null }).returning();
     if (!courseVersion) throw new Error("Banversionen kunde inte skapas");
     // Gafflad bana: banans egen kontrollföljd är tom och alla varianter följer med till nya versionen.
     await insertCourseVersionControls(tx, raceId, courseVersion.id, plan.variants.length > 0 ? [] : plan.controlCodes, plan.variants);

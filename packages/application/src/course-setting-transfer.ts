@@ -150,7 +150,7 @@ export function courseSettingProjection(document: CourseSettingDocument, options
   }
   const warnings = assignments.length > 0 ? ["Startregel saknas i IOF CourseData 3.0; PUNCH används tills en separat StartList importeras"]
     : ["Inga ClassCourseAssignment hittades"];
-  return { projection: { kind: "COURSE_FILE", data: { courses, assignments, legAssignments: [], personAssignments: [], teamAssignments: [],
+  return { projection: { kind: "COURSE_FILE", data: { fromCourseSetting: true, courses, assignments, legAssignments: [], personAssignments: [], teamAssignments: [],
     controlPositions, ...(controlMapPositions.length > 0 ? { controlMapPositions } : {}), mapScale: Math.round(document.event.mapScale), warnings,
     ...(options.rogaining ? { controlPoints: scoreControlPoints(document) } : {}) } } };
 }

@@ -28,6 +28,8 @@ export interface CourseFileProjection {
   /** Steg 47: `legAssignments` (AllowedOnLeg) och steg 49: `controlPositions` saknas i projektioner sparade före stegen. */
   readonly data: Omit<CourseDataImport, "kind" | "legAssignments" | "controlPositions"> &
     Partial<Pick<CourseDataImport, "legAssignments" | "controlPositions">> & {
+      /** ADR-0198: projektionen kommer från banläggningen, så en bana utan `excludedVariants` har inga bortval. */
+      readonly fromCourseSetting?: true;
       /**
        * Rogaining (ägaren 2026-11-03): kontrollernas poäng ur banläggningen (null = förvalet, kodens tiotal). Bara när
        * banläggningen förs över till en rogaining; en IOF-fil ger dem inte.
@@ -66,6 +68,8 @@ export interface CurrentCourse {
   readonly id: string; readonly name: string; readonly externalSource: string | null; readonly externalId: string | null;
   readonly versionId: string; readonly version: number; readonly controlCodes: readonly number[];
   readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
+  /** ADR-0198: banversionens bortvalda varianter (från banläggningen). */
+  readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
   /** ADR-0190: banans längd och stigning i tävlingen (null = saknas; utelämnat = jämförs inte). */
   readonly lengthMeters?: number | null;
   readonly climbMeters?: number | null;

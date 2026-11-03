@@ -119,7 +119,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
       return json(raceSessionResponseSchema.parse({ formatVersion: 1, raceId, role: auth.principal.role, expiresAt: auth.principal.expiresAt,
         ...(courseSetting ? { courseSetting } : {}) }));
     }
-    const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion };
+    const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion, environment };
     // Steg 51: en läsning (speakern, kvar i skogen, listorna) som avbröts av en samtidig ändring görs om i stället för 500.
     if (!write) return await retryReadConflicts(() => dispatchRaceAdministratorRoute(context));
     // Översynen 2026-11-02: en skrivning som PostgreSQL avbröt (40001, 40P01) görs om i databaspoolen (`createDatabase`).

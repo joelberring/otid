@@ -2,12 +2,13 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   CLUB_IMPORT_TOKEN_HOURS, clubCreateRequestSchema, clubMemberInviteRequestSchema, clubMemberRemoveRequestSchema, clubMemberRoleRequestSchema,
-  type ClubSummary, type ClubUsage, type ClubView
+  type ClubSummary, type ClubUsage, type ClubView, type InvitationMailOutcome
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
   acceptClubInvitations, clubJournal, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubRole, type ClubTransaction
 } from "./club-access";
+import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import { mapStorageQuota, mapStorageUsage } from "./map-content";
 import { UUID_PATTERN } from "./serialization";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
@@ -88,6 +89,7 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     role: schema.clubInvitations.role, createdAt: schema.clubInvitations.createdAt }).from(schema.clubInvitations)
     .where(and(eq(schema.clubInvitations.clubId, clubId), isNull(schema.clubInvitations.acceptedAt), isNull(schema.clubInvitations.revokedAt)))
     .orderBy(asc(schema.clubInvitations.createdAt)).limit(2000) : [];
+  const sent = await invitationSentTimes(tx, "CLUB", invitations.map(row => row.invitationId));
   const tokens = admin ? await tx.select({ tokenId: schema.clubImportTokens.id, createdAt: schema.clubImportTokens.createdAt,
     expiresAt: schema.clubImportTokens.expiresAt, revokedAt: schema.clubImportTokens.revokedAt, lastUsedAt: schema.clubImportTokens.lastUsedAt,
     createdByName: schema.userAccounts.displayName }).from(schema.clubImportTokens)
@@ -99,7 +101,7 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     formatVersion: 1, clubId, name: club.name, viewer,
     // Läsare ser medlemmarnas namn men inte adresserna.
     members: members.map(member => ({ ...member, email: admin ? member.email : "", addedAt: member.addedAt.toISOString() })),
-    invitations: invitations.map(row => ({ ...row, createdAt: row.createdAt.toISOString() })),
+    invitations: invitations.map(row => ({ ...row, createdAt: row.createdAt.toISOString(), sentAt: sent.get(row.invitationId)?.toISOString() ?? null })),
     usage: await clubUsage(tx, clubId),
     tokens: tokens.map(row => ({ ...row, createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt.toISOString(),
       revokedAt: row.revokedAt?.toISOString() ?? null, lastUsedAt: row.lastUsedAt?.toISOString() ?? null })),
@@ -122,12 +124,12 @@ export async function readClub(db: Database, input: ClubProof & { clubId: string
  * med adressen och har bekräftat den. En ägare bjuds bara in av en ägare. En adress som redan är medlem eller inbjuden ger 409
  * (den syns redan i listan).
  */
-export async function inviteClubMember(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
-  : Promise<ClubFailure | { status: "invited"; replayed: boolean; invitationId: string }> {
+export async function inviteClubMember(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date(),
+  mailer?: InvitationMailer): Promise<ClubFailure | { status: "invited"; replayed: boolean; invitationId: string; mail: InvitationMailOutcome }> {
   const parsed = clubMemberInviteRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   const { requestId, email, role } = parsed.data;
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     const actor = await requireClubRole(tx, input, "ADMIN", now, true);
     if (actor.status !== "ok") return actor;
     if (role === "OWNER" && actor.role !== "OWNER") return { status: "forbidden" } as const;
@@ -135,7 +137,7 @@ export async function inviteClubMember(db: Database, input: ClubProof & { clubId
     const [prior] = await tx.select().from(schema.clubInvitations).where(eq(schema.clubInvitations.requestId, requestId));
     if (prior) {
       if (prior.clubId !== input.clubId || prior.email !== email || prior.role !== role) return { status: "conflict" } as const;
-      return { status: "invited", replayed: true, invitationId: prior.id } as const;
+      return { status: "invited", replayed: true, invitationId: prior.id, prepared: undefined } as const;
     }
     const [openInvitation] = await tx.select({ id: schema.clubInvitations.id }).from(schema.clubInvitations)
       .where(and(eq(schema.clubInvitations.clubId, input.clubId), eq(schema.clubInvitations.email, email), isNull(schema.clubInvitations.acceptedAt),
@@ -150,8 +152,15 @@ export async function inviteClubMember(db: Database, input: ClubProof & { clubId
     await clubJournal(tx, { clubId: input.clubId, action: "CLUB_MEMBER_INVITED", actorAccountId: actor.accountId,
       details: { invitationId, role }, now });
     // Den som redan har ett konto med bekräftad adress tar inbjudan nästa gång hen öppnar något; ingenting här säger om kontot finns.
-    return { status: "invited", replayed: false, invitationId } as const;
+    // ADR-0206: mejlet går till adressen i båda fallen.
+    const prepared = await prepareIfMail(tx, mailer, { kind: "CLUB", invitationId }, actor.accountId, now);
+    return { status: "invited", replayed: false, invitationId, prepared } as const;
   });
+  if (result.status !== "invited") return result;
+  const { prepared, ...invited } = result;
+  const mail = invited.replayed ? await replayedOutcome(db, { kind: "CLUB", invitationId: invited.invitationId })
+    : (await deliverPrepared(db, prepared, mailer, now)).outcome;
+  return { ...invited, mail };
 }
 
 /** Ta bort en medlem eller en öppen inbjudan. Den sista ägaren kan inte tas bort; en ägare tas bara bort av en ägare. */

@@ -238,4 +238,6 @@ export type RaceAdministratorRouteContext = {
   proof: ReturnType<typeof sessionProof>; cursor: string | null; beforeVersion: number | undefined;
   /** Steg 66: den inloggade i banläggningen (för banläggningens åtgärder). */
   courseSetting?: CourseSettingPrincipal | undefined;
+  /** ADR-0206: serverns miljö (e-posten för inbjudningar). */
+  environment?: Record<string, string | undefined>;
 };

@@ -7,6 +7,7 @@ import {
 } from "@o-tid/application";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, CLUB_IMPORT_BATCH_MAX_BYTES, RACE_MAP_MAX_BYTES, RACE_MAP_SOURCE_PARTS, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
+import { mailAvailable, routeMailer } from "./invitation-route-handlers";
 import { forEachMultipartPart, MultipartError, multipartBoundary, partBytes } from "./multipart";
 import {
   SecurityConfigurationError, accountFailure, hasExpectedOrigin, hasNoRequestBody, privateHeaders, privateJson, readJsonBody, securityPolicy,
@@ -19,7 +20,7 @@ import { logServerError } from "./server-error-log";
  * CSRF på skrivningar, privata svar utan cache); behörigheten avgörs i tjänsterna. Under /api/club-import/ importkommandot från
  * ägarens dator: nyckeln i `Authorization: Bearer`, inga kakor.
  */
-type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
+type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_SMTP_URL" | "OTID_MAIL_FROM">>;
 const BODY_MAX = 16 * 1024;
 const MB = 1024 * 1024;
 
@@ -130,7 +131,7 @@ export async function clubReadRoute(db: Database, request: Request, clubId: stri
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await readClub(db, { ...input.proof, clubId });
-    return result.status === "ok" ? privateJson(result.view) : failure(result.status);
+    return result.status === "ok" ? privateJson({ ...result.view, mailEnabled: mailAvailable(environment) }) : failure(result.status);
   });
 }
 
@@ -142,10 +143,10 @@ export async function clubMembersRoute(db: Database, request: Request, clubId: s
   return guarded(async () => {
     const args = { ...input.proof, clubId, request: input.body };
     if (request.method === "POST") {
-      const result = await inviteClubMember(db, args);
-      // Samma svar med och utan konto (ADR-0188 beslut 6).
-      return result.status === "invited" ? privateJson({ formatVersion: 1, invitationId: result.invitationId }, result.replayed ? 200 : 201)
-        : failure(result.status);
+      const result = await inviteClubMember(db, args, new Date(), routeMailer(environment));
+      // Samma svar med och utan konto (ADR-0188 beslut 6). ADR-0206: och vad som hände med mejlet.
+      return result.status === "invited" ? privateJson({ formatVersion: 1, invitationId: result.invitationId, mail: result.mail },
+        result.replayed ? 200 : 201) : failure(result.status);
     }
     if (request.method === "PUT") {
       const result = await setClubMemberRole(db, args);

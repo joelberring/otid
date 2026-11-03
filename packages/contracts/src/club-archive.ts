@@ -128,7 +128,8 @@ export type ClubArchiveEntryUpdateRequest = z.infer<typeof clubArchiveEntryUpdat
 export interface ClubSummary { clubId: string; name: string; role: ClubRole; entries: number }
 
 export interface ClubMember { memberId: string; accountId: string; email: string; displayName: string; role: ClubRole; addedAt: string }
-export interface ClubInvitation { invitationId: string; email: string; role: ClubRole; createdAt: string }
+/** ADR-0206: `sentAt` = när inbjudan senast mejlades (null = aldrig). */
+export interface ClubInvitation { invitationId: string; email: string; role: ClubRole; createdAt: string; sentAt: string | null }
 export interface ClubImportTokenView { tokenId: string; createdAt: string; expiresAt: string; revokedAt: string | null; lastUsedAt: string | null;
   createdByName: string }
 
@@ -138,6 +139,8 @@ export interface ClubUsage { mapBytes: number; courseFileBytes: number; maps: nu
 export interface ClubView {
   formatVersion: 1; clubId: string; name: string; viewer: { accountId: string; role: ClubRole };
   members: ClubMember[]; invitations: ClubInvitation[]; usage: ClubUsage; tokens: ClubImportTokenView[];
+  /** ADR-0206: e-post finns på servern ("Skicka igen"); utan den "Kopiera länken". Sätts av webben. */
+  mailEnabled?: boolean;
   /** Kontots kvot för kartinnehåll (ADR-0189 beslut 3), null = ingen gräns. */
   quota: { accountLimitBytes: number | null; accountUsedBytes: number };
 }

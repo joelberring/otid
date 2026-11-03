@@ -2,13 +2,15 @@ import { randomInt, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   groupCreateRequestSchema, groupMemberAddRequestSchema, groupMemberRemoveRequestSchema, groupSettingsRequestSchema,
-  raceGroupAttachRequestSchema, type GroupLeaderView, type GroupMember, type GroupSeries, type GroupSession, type GroupSummary
+  raceGroupAttachRequestSchema, type GroupLeaderView, type GroupMember, type GroupSeries, type GroupSession, type GroupSummary,
+  type InvitationMailOutcome
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { groupParticipantKey, seasonTable, type GroupPointsMode, type SeasonRow } from "@o-tid/domain";
 import { activeEventAdministrationGrant } from "./race-session";
 import { leaderMembership } from "./training-group-access";
 import { acceptGroupInvitations, openGroupInvitations } from "./training-group-invitations";
+import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import { listGroupLibraryMaps } from "./training-group-maps";
 import { publicResults } from "./results";
 import { UUID_PATTERN } from "./serialization";
@@ -111,9 +113,10 @@ async function members(tx: Transaction, groupId: string): Promise<GroupMember[]>
     .orderBy(asc(schema.trainingGroupMembers.role), asc(schema.trainingGroupMembers.addedAt)).limit(2000);
   // ADR-0189 beslut 9: adresser som väntar på inloggning, sist.
   const pending = await openGroupInvitations(tx, groupId);
+  const sent = await invitationSentTimes(tx, "GROUP", pending.map(row => row.id));
   return [...rows.map(row => ({ ...row, addedAt: row.addedAt.toISOString(), pending: false })),
     ...pending.map(row => ({ memberId: row.id, accountId: null, email: row.email, displayName: null, role: row.role,
-      addedAt: row.createdAt.toISOString(), pending: true }))];
+      addedAt: row.createdAt.toISOString(), pending: true, sentAt: sent.get(row.id)?.toISOString() ?? null }))];
 }
 
 /** Gruppens tillfällen (tävlingarna i gruppens evenemang), äldst först. */
@@ -208,21 +211,21 @@ export async function updateGroupSettings(db: Database, input: Proof & { groupId
   });
 }
 
-export async function addGroupMember(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date())
-  : Promise<GroupFailure | { status: "added"; replayed: boolean; member: GroupMember }> {
+export async function addGroupMember(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date(),
+  mailer?: InvitationMailer): Promise<GroupFailure | { status: "added"; replayed: boolean; member: GroupMember; mail: InvitationMailOutcome }> {
   const parsed = groupMemberAddRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   const intent = parsed.data;
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
     // ADR-0189 beslut 9: sparas för adressen, samma svar med och utan konto. Personen blir medlem när den loggar in med adressen.
     const view = (row: typeof schema.trainingGroupInvitations.$inferSelect): GroupMember => ({ memberId: row.id, accountId: null, email: row.email,
-      displayName: null, role: row.role, addedAt: row.createdAt.toISOString(), pending: true });
+      displayName: null, role: row.role, addedAt: row.createdAt.toISOString(), pending: true, sentAt: null });
     const [prior] = await tx.select().from(schema.trainingGroupInvitations).where(eq(schema.trainingGroupInvitations.requestId, intent.requestId));
     if (prior) {
       if (prior.groupId !== input.groupId || prior.email !== intent.email || prior.role !== intent.role) return { status: "conflict" } as const;
-      return { status: "added", replayed: true, member: view(prior) } as const;
+      return { status: "added", replayed: true, member: view(prior), prepared: undefined } as const;
     }
     // Redan med (adressen syns redan i listan, så svaret avslöjar inget nytt) eller redan inbjuden.
     const current = await members(tx, input.groupId);
@@ -230,8 +233,16 @@ export async function addGroupMember(db: Database, input: Proof & { groupId: str
     const [invitation] = await tx.insert(schema.trainingGroupInvitations).values({ id: randomUUID(), requestId: intent.requestId,
       groupId: input.groupId, email: intent.email, role: intent.role, actorAccountId: leader.accountId, createdAt: now }).returning();
     if (!invitation) throw new Error("Inbjudan kunde inte sparas");
-    return { status: "added", replayed: false, member: view(invitation) } as const;
+    // ADR-0206: mejlet går till adressen oavsett om den har ett konto.
+    const prepared = await prepareIfMail(tx, mailer, { kind: "GROUP", invitationId: invitation.id }, leader.accountId, now);
+    return { status: "added", replayed: false, member: view(invitation), prepared } as const;
   });
+  if (result.status !== "added") return result;
+  const { prepared, ...added } = result;
+  const delivered = added.replayed ? { outcome: await replayedOutcome(db, { kind: "GROUP", invitationId: added.member.memberId }) }
+    : await deliverPrepared(db, prepared, mailer, now);
+  const sentAt = "sentAt" in delivered && delivered.sentAt ? delivered.sentAt.toISOString() : null;
+  return { ...added, member: { ...added.member, sentAt }, mail: delivered.outcome };
 }
 
 export async function removeGroupMember(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date())

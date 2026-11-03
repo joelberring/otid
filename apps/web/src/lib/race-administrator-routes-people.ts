@@ -5,6 +5,7 @@ import {
   privateJson as json,
   readJsonBody
 } from "./security-policy";
+import { mailAvailable, routeMailer } from "./invitation-route-handlers";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
 /**
@@ -19,14 +20,15 @@ export async function handlePeopleRoute(context: RaceAdministratorRouteContext):
     if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");
     const result = await dependencies.people(db, { ...proof, raceId });
     if (result.status !== "ok") return resultFailure(result.status);
-    const response = racePeopleResponseSchema.parse(result.response);
+    const response = racePeopleResponseSchema.parse({ ...result.response, mailEnabled: mailAvailable(context.environment) });
     return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
   }
   let body: unknown;
   try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
   const input = { ...proof, raceId, idempotencyKey: request.headers.get("idempotency-key"), readBody: async () => body };
   if (request.method === "POST") {
-    const result = await dependencies.grantPerson(db, input);
+    // ADR-0206: inbjudan mejlas när e-post finns på servern.
+    const result = await dependencies.grantPerson(db, input, new Date(), routeMailer(context.environment));
     if (result.status !== "granted") return resultFailure(result.status);
     return json(racePersonGrantResponseSchema.parse(result.response));
   }

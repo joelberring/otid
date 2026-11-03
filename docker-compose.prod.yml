@@ -238,6 +238,7 @@ services:
       OTID_DOMAIN: ${OTID_DOMAIN}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./media:/srv/media:ro
       - caddy-data:/data
       - caddy-config:/config
 

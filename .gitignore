@@ -16,3 +16,4 @@ captures
 .DS_Store
 backups/
 deploy/backup-ssh/
+media/

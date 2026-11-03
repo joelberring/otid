@@ -108,6 +108,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
   const entry = view.entry;
   const admin = view.viewer.role !== "READER";
   const allVersions = view.maps.flatMap(map => map.versions.map(version => ({ map, version })));
+  const usedVersionIds = new Set([...view.folderVersionIds, ...view.courseFiles.flatMap(courseFile => courseFile.mapVersion ? [courseFile.mapVersion.versionId] : [])]);
   return <main className={styles.page}>
     <header className={styles.header}>
       <div>
@@ -145,8 +146,12 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         <h2 id="entry-courses">{text.courses}</h2>
         {view.courseFiles.length === 0 && <p className={styles.muted}>{text.noCourses}</p>}
         {view.courseFiles.map(courseFile => <div key={courseFile.courseFileId} className={styles.fileCard} data-testid="course-file">
-          <p className={styles.coursePick}><Button variant="secondary" aria-pressed={courseFile.courseFileId === file?.courseFileId}
-            onClick={() => { setFileId(courseFile.courseFileId); setCourseId(undefined); }}>{courseFile.fileName}</Button></p>
+          <div className={styles.fileHead}>
+            <h3>{courseFile.fileName}</h3>
+            {view.courseFiles.length > 1 && <Button variant="secondary" className={styles.showOnMap}
+              aria-pressed={courseFile.courseFileId === file?.courseFileId} aria-label={`${text.showOnMap}: ${courseFile.fileName}`}
+              onClick={() => { setFileId(courseFile.courseFileId); setCourseId(undefined); }}>{text.showOnMap}</Button>}
+          </div>
           <p className={styles.small}>{courseFile.courses.map(course => [course.name, text.controls(course.controls),
             course.lengthM ? text.length(course.lengthM) : ""].filter(Boolean).join(" ")).join(" · ") || "–"}</p>
           {courseFile.problem && <p className={styles.warning}>{text.problem} {courseFile.problem}</p>}
@@ -162,12 +167,17 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
             </select>}
           </div>
         </div>)}
-        <h2>{text.rights}</h2>
+        <h2 className={styles.nextHeading}>{text.rights}</h2>
         {view.maps.map(map => <div key={map.mapId}>
           <MapAgreementSummary agreement={agreementOf(map)} title={map.name} />
-          <ul className={styles.versions} aria-label={`${text.mapVersion}: ${map.name}`}>{map.versions.map(version => <li key={version.versionId}>
-            <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{version.versionDate ?? "–"} {version.fileName}</a>
-            {version.versionId === map.latestVersionId && <span className={styles.small}>{text.latest}</span>}</li>)}</ul>
+          <ul className={styles.versionList} aria-label={`${text.mapVersion}: ${map.name}`}>{map.versions.map(version => <li key={version.versionId}>
+            <span className={styles.versionDate}>{version.versionDate ?? "–"}</span>
+            <span className={styles.versionFile}>
+              <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{version.fileName}</a>
+              {usedVersionIds.has(version.versionId) && <span className={styles.small}>{text.usedHere}</span>}
+            </span>
+            {version.versionId === map.latestVersionId ? <span className={styles.latest}>{clubArchiveSv.maps.latest}</span> : <span />}
+          </li>)}</ul>
         </div>)}
         {admin && <p><Button variant="quiet" onClick={() => void remove()}>{text.remove}</Button></p>}
       </section>

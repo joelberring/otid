@@ -76,6 +76,8 @@ export const clubArchiveSv = {
     noMap: "Ingen karta",
     saveMap: "Spara kartan",
     download: "Ladda ner original",
+    showOnMap: "Visa på kartan",
+    usedHere: "används i träningen",
     downloadMap: "Ladda ner kartfilen",
     source: "Källa",
     leader: "Ledare",

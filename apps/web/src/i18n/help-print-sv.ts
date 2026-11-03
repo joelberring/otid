@@ -54,20 +54,21 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     title: "Utskrift och förhandsvisning",
     views: ["CS_PRINT", "CS_PRINT_PAGE"],
     body: [
-      "Fliken ”Utskrift” ställer in vald bana: ”Papper”, ”Riktning”, ”Utskriftsskala” och ”Tryckyta”. Ramen på kartan visar vad som kommer med.",
+      "Skalan hör till banan: ”Skala för banan” under fliken ”Banor” i banans egenskaper. Välj den tidigt, för ringarnas storlek och numren följer den. Fliken ”Utskrift” visar den och har ”Ändra i banans egenskaper”.",
+      "Fliken ”Utskrift” ställer in ”Papper”, ”Riktning” och ”Tryckyta” för vald bana. ”Förhandsvisning och utskrift” öppnar utskriftssidan:",
       [
-        "”Automatisk (som Purple Pen)”: ramen följer banan. ”Fast ram (dra på kartan)”: du drar ramen dit du vill.",
-        "”Förhandsvisning och utskrift”, eller ”Fil” → ”Utskrift av banor …”, öppnar sidan med alla ark.",
-        "Där väljer du ”Banor” och ”En sida per variant” för gafflade banor. ”Skriv ut” skriver ut från webbläsaren.",
-        "”En karta per löpare (i samma ordning som Kartor till starten)”: en karta per anmäld med rätt variant.",
-        "”Papperet: texter, bilder och klippning”: text, logotyp, skalstock och nordpil per bana. Se [Papperet](#papperet).",
+        "Överst ”Färger för tryck”: färgprofilen på en rad med ”Redigera färger”. Se [Färger för tryck](#bl-farger).",
+        "”Skriv ut”: välj ”Banor” eller ”En karta per löpare (i samma ordning som Kartor till starten)”, och vilka banor.",
+        "”Skriv ut på skrivare”: ett snabbt utkast på din egen skrivare. ”Skapa PDF för tryckeriet”: PDF:en med dekorfärger och övertryck, bredvid.",
+        "Översikten: ett kort per ark med skala, papper, mall och varningar. Klicka på ett kort för att redigera arket.",
+        "Markera kort för ”Skriv ut markerade” eller för att använda en mall på dem.",
         "”Layoutmall”: flera kartor per ark och remsa för rullad karta."
       ],
-      "Utskriften ur webbläsaren är ett utkast. Mer:",
+      "Mer:",
       [
         "Till tryckeriet: [PDF för tryck](#pdf-tryck).",
-        "Beskrivningen på arket: [Kontrollbeskrivningen på kartan](#beskrivning-pa-kartan).",
-        "Kartans färger: [Färger för tryckeriet](#bl-farger)."
+        "Text, logotyp, skalstock och nordpil: [Papperet](#papperet).",
+        "Beskrivningen på arket: [Kontrollbeskrivningen på kartan](#beskrivning-pa-kartan)."
       ]
     ]
   },
@@ -113,7 +114,8 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
       "En mall är papperets element, klippning och beskrivningens plats under ett namn. Banorna ärver mallen.",
       [
         "”Spara banans papper som mall” och välj den under ”Banans mall” på de andra banorna.",
-        "”Använd mallen på alla valda banor” och ”Uppdatera mallen med banans papper”.",
+        "I översikten: markera banorna och använd mallen på dem, eller ”Använd på alla banor”.",
+        "”Uppdatera mallen med banans papper” när du ändrat banan som mallen bygger på.",
         "Ändrar du ett element på en bana gäller det bara den banan (”Ändrad för banan”). ”Som i mallen igen” ångrar.",
         "”Spara mallen i mitt bibliotek”: mallen finns sedan under ”Mitt bibliotek (alla mina tävlingar)”. ”Hämta” tar in den i en annan tävling."
       ],
@@ -129,19 +131,22 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
   },
   {
     id: "bl-farger",
-    title: "Färger för tryckeriet (BL-förslaget)",
+    title: "Färger för tryck",
     views: ["CS_PRINT_PAGE", "CS_PRINT"],
     body: [
-      "Under ”Färger och tryck (utskriftsprofil)” på utskriftssidan väljer du ”Profil”. Med BL skog eller BL sprint matchar O-Tid kartans färger mot tryckeriets tabell.",
-      "Varje färg får ett märke: ”Säker”, ”Bekräfta” eller ”Tvetydig”. Välj för varje färg:",
+      "Under ”Färger för tryck” på utskriftssidan bestäms hur kartans och banans färger trycks. Kartfilen ändras aldrig.",
+      "Raden överst visar ”Färgprofil” och om den är ”Godkänd”. ”Redigera färger” öppnar hela flödet; det är öppet tills profilen är godkänd. ”Ny profil” gör en egen kopia.",
       [
-        "”Godta”: använd BL-raden i förslaget.",
-        "”Behåll filens”: kartfilens färg behålls.",
-        "”Välj BL-rad …”: välj en annan rad i BL:s tabell, t.ex. när färgen är tvetydig.",
-        "”Godta alla säkra” godtar alla säkra på en gång. ”Ångra” tar tillbaka ett val.",
-        "”Hela kartan före och efter”: dra reglaget och jämför."
+        "”Banans färg”: CMYK, ”Dekorfärg” och ”Övertryck”.",
+        "”Lägg banan i normens färgordning”: ringar och linjer under svart och 100 %-färger, över asfalt, byggnadsytor och raster.",
+        "”Norm”: skog (ISOM) eller sprint (ISSprOM), förvalt ur kartan.",
+        "”Kontrollnummer och texter överst”: numren över kartans färger också i skog. I sprint ligger de alltid överst.",
+        "Med BL skog eller BL sprint får varje färg ett kort: ”Säker”, ”Bekräfta” eller ”Tvetydig”.",
+        "”Godta”, ”Behåll filens” eller ”Välj BL-rad …”. ”Godta alla säkra” tar alla säkra på en gång.",
+        "”Justera färger för hand”: samma värden per färg i en tabell. En ändring där syns på kortet som ”Ändrad för hand”.",
+        "”Mer”: ladda ned eller läs in profilen som JSON och tabellens källa."
       ],
-      "Kartfilen ändras aldrig. Valen sparas i tävlingens utskriftsprofil och gäller bara utskriften och PDF:en."
+      "Valen sparas i tävlingens färgprofil och gäller utskriften och PDF:en."
     ]
   },
   {
@@ -149,7 +154,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     title: "PDF för tryck och spegelvänd karta",
     views: ["CS_PRINT_PAGE", "CS_PRINT"],
     body: [
-      "Under ”PDF för tryck” på utskriftssidan skapas PDF:en på servern. Den har kartan som vektorer och banan i egen dekorfärg med övertryck.",
+      "”Skapa PDF för tryckeriet” under ”Skriv ut” på utskriftssidan skapar PDF:en på servern. Den har kartan som vektorer och banan i egen dekorfärg med övertryck.",
       [
         "”Skapa PDF för tryck”: till tryckeriet. ”Kartans färger i PDF:en för tryck”: dekorfärger som i kartfilen eller CMYK.",
         "”Skapa PDF för kontorsskrivare”: CMYK utan dekorfärger.",

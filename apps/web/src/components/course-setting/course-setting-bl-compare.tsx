@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { MapColorAdjust, PrintProfile, SheetFrame } from "@o-tid/course-setting";
+import type { MapColorAdjust, PressNorm, PrintProfile, SheetFrame } from "@o-tid/course-setting";
 import type { MapColor } from "@o-tid/map-file";
 import { blProposalSv as text } from "../../i18n/course-setting-bl-proposal-sv";
 import { afterViews, compareDpi, compareFrame, cssOfCmyk, layerStack, type Layer, type ProposalState } from "../../lib/course-setting-bl-proposal";
@@ -28,14 +28,14 @@ const PURPLE_PEN = { c: 20, m: 100, y: 0, k: 0 };
  * Hela kartan före och efter på ett utsnitt av den riktiga kartan (första arkets ram): före = kartfilens färger med banan
  * överst, efter = BL:s färger med banan i BL:s ordning (kartan under banan, banan, kartan över). Ett reglage visar gränsen.
  */
-export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, render }: {
-  frame: SheetFrame; profile: PrintProfile; state: ProposalState; colors: readonly MapColor[]; symbols: SymbolLookup; render: RenderImage;
+export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, render, norm }: {
+  frame: SheetFrame; profile: PrintProfile; state: ProposalState; colors: readonly MapColor[]; symbols: SymbolLookup; render: RenderImage; norm: PressNorm;
 }) {
   // Samma utsnitt efter varje sparning (dokumentet läses om): nyckeln håller bilderna kvar.
   const frameKey = JSON.stringify([sheetFrame.mapArea, sheetFrame.clip, sheetFrame.transform, sheetFrame.figures.length]);
   const frame = useMemo(() => compareFrame(sheetFrame), [frameKey]);
   const view = useMemo(() => mapRenderRequest(frame, compareDpi(frame.clip)), [frame]);
-  const after = useMemo(() => afterViews(profile, state, colors), [profile, state, colors]);
+  const after = useMemo(() => afterViews(profile, state, colors, norm), [profile, state, colors, norm]);
   const afterKey = JSON.stringify(after);
   const [before, setBefore] = useState<string>();
   const [images, setImages] = useState<{ key: string; under: string; over?: string | undefined }>();
@@ -74,7 +74,8 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
       {images && <div className={styles.after} style={{ clipPath: `inset(0 0 0 ${split}%)` }} data-testid="bl-compare-after">
         <img src={images.under} alt="" />
         {courseSvg(profile.course.cmyk)}
-        {images.over && <img src={images.over} alt="" />}
+        {/* Färgerna över banan med multiplicering: så ser övertrycket ut på tryck (ADR-0211 beslut 3). */}
+        {images.over && <img src={images.over} alt="" style={{ mixBlendMode: "multiply" }} />}
       </div>}
       {images && <span className={styles.divider} style={{ left: `${split}%` }} title={text.compareDivider} aria-hidden="true" />}
     </div>
@@ -98,8 +99,8 @@ function LayerList({ title, layers, wrong }: { title: string; layers: readonly L
  * Ordningen som en enkel bild: lagren uppifrån (det som ritas sist överst) och en liten figur med en ring som korsas av
  * en höjdkurva och en blå sjö, så som trycket blir.
  */
-export function BlLayers({ profile, state }: { profile: PrintProfile; state: ProposalState }) {
-  const stack = useMemo(() => layerStack(profile, state), [profile, state]);
+export function BlLayers({ profile, state, norm }: { profile: PrintProfile; state: ProposalState; norm: PressNorm }) {
+  const stack = useMemo(() => layerStack(profile, state, norm), [profile, state, norm]);
   const find = (layers: readonly Layer[], row: string, fallback: string) => layers.find(layer => layer.row === row)?.css ?? fallback;
   const all = [...stack.over, ...stack.under];
   const brown = find(all, "brown-contours", find(all, "brown", "rgb(183, 92, 34)"));
@@ -110,7 +111,7 @@ export function BlLayers({ profile, state }: { profile: PrintProfile; state: Pro
   const wrong = new Set(stack.conflicts);
   return <section aria-labelledby="bl-layers" data-testid="bl-layers" data-on-top={stack.onTop ? "yes" : "no"}>
     <h3 id="bl-layers">{text.layers}</h3>
-    <p className={styles.muted}>{text.layersHelp(cmykLabel(profile))}</p>
+    <p className={styles.muted}>{text.layersHelp(cmykLabel(profile), norm)}</p>
     {stack.onTop && <p className={styles.muted}>{text.layersOnTop}</p>}
     <div className={styles.layers}>
       <ol className={styles.stack} aria-label={text.layers}>
@@ -119,7 +120,7 @@ export function BlLayers({ profile, state }: { profile: PrintProfile; state: Pro
           {text.layerCourse}: {stack.course.name}</li>
         <LayerList title={text.layerUnder} layers={stack.under} wrong={wrong} />
       </ol>
-      <svg className={styles.figure} viewBox="0 0 180 120" role="img" aria-label={stack.onTop ? text.layersOnTop : text.layersHelp(cmykLabel(profile))}>
+      <svg className={styles.figure} viewBox="0 0 180 120" role="img" aria-label={stack.onTop ? text.layersOnTop : text.layersHelp(cmykLabel(profile), norm)}>
         <rect width="180" height="120" fill={ground} />
         <rect x="100" y="70" width="80" height="50" fill={lake} />
         {stack.onTop ? <>{contour}{ring}</> : <>{ring}{contour}</>}

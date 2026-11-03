@@ -263,7 +263,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), () => [] as readonly DescriptionSymbol[])), [standard]);
   // ADR-0199: varningarna; vägvalen (en gemensam tabell) avgör sträckorna genom förbjudna områden.
   const routeStore = useRouteResults();
-  const forbidden = useForbiddenRoutes({ document, results: routeStore.results, hasMap: Boolean(state.mapFile), tabOpen: tab === "checks" });
+  const forbidden = useForbiddenRoutes({ document, results: routeStore.results, hasMap: Boolean(state.mapFile), tabOpen: tab === "checks",
+    numberObstacles: cutting.obstacles });
   const checks = forbidden.checks, checked = forbidden.checked;
   const [flagged, setFlagged] = useState<CheckRow>();
   // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utskrift).
@@ -634,7 +635,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         onRemove={ux.requestDelete} onDuplicate={ux.duplicate}
         onMove={(id, position) => edit(current => { const step = moveCourseEdit(current.document, id, position);
           return step ? applySteps(current, [step], applyEdit) : current; })} />
-        {course && <CourseProperties course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly}
+        {course && <CourseProperties course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly} mapScale={document.event.mapScale}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         {course && <VariantsPanel document={document} course={course} routeLength={routeLength} hasMap={Boolean(state.mapFile)} readOnly={readOnly}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
@@ -681,6 +682,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
           if (found) mapHandle.current?.reveal(found.points); }}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} onAlong={ux.along} />;
       case "print": return <PrintPanel document={document} view={view} page={printPage?.page} readOnly={readOnly} part={part}
+        onCourseProperties={() => setTab("courses")}
         onPart={next => setPartChoice(next === undefined ? undefined : { view, part: next })}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))}
         onPreview={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print?course=${encodeURIComponent(view)}`))} />;

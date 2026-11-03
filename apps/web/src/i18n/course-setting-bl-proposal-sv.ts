@@ -55,14 +55,16 @@ export const blProposalSv = {
   showBefore: "Före",
   showAfter: "Efter",
   layers: "Ordningen i trycket",
-  layersHelp: (course: string) => `BL vill att banans violett (${course}) ligger under brunt för höjdkurvor, svart och 100 % blå, och över blå 70 % och 50 %. Då syns kartans detaljer genom ringar och linjer. Listan börjar med det som ligger överst i trycket.`,
+  layersHelp: (course: string, norm: "ISOM" | "ISSPROM") => norm === "ISSPROM"
+    ? `Sprint (ISSprOM 2019-2): ringar, linjer, start och mål (${course}) ligger under svart 100 % och grönt för punkter, över allt annat; nummer och markeringar ligger överst. Kartans färger över banan trycks med övertryck. Listan börjar med det som ligger överst.`
+    : `Skog (ISOM 2017-2): ringar, linjer, start och mål (${course}) ligger under svart, brunt 100 % och blått 100 % för linjer och punkter, över asfalt, stora byggnaders fyllning och alla rastrerade färger; nummer och markeringar ligger överst. Kartans färger över banan trycks med övertryck. Listan börjar med det som ligger överst.`,
   layersOnTop: "Banan ritas överst (valt i profilen eller inget godkänt att gå efter).",
   layerOver: "Över banan",
   layerCourse: "Banan",
   layerUnder: "Under banan",
-  layerConflicts: (names: string) => `Ligger på fel sida enligt BL:s tabell (kartfilens ordning ändras inte): ${names}`,
+  byHand: "Ändrad för hand",
+  layerConflicts: (names: string) => `BL:s tabell lägger dessa på andra sidan banan; O-Tid följer normen: ${names}`,
   layerWrongSide: "fel sida",
-  courseLayerToggle: "Lägg banan under brunt, svart och 100 % blå (BL)",
   notes: "BL:s regler och upplysningar",
   interpretation: "O-Tid:s tolkning",
   more: (count: number) => `och ${count} till`

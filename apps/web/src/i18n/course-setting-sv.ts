@@ -146,7 +146,7 @@ export const courseSettingSv = {
       CONTROLS_TOO_CLOSE: "För nära varandra", INVERTIBLE_CODE: "Kod som kan läsas upp och ned",
       SAME_CONTROL_TWICE_IN_ROW: "Samma kontroll två gånger i rad", LEG_THROUGH_CONTROL: "Sträcka genom en annan ring",
       UNUSED_CONTROL: "Oanvända kontroller", LEG_THROUGH_FORBIDDEN: "Fågelvägen korsar förbjudet område",
-      CONTROLS_NEAR: "Nära varandra – ange objekt"
+      CONTROLS_NEAR: "Nära varandra – ange objekt", NUMBER_ON_OBSTACLE: "Nummer på hus eller mörk yta"
     } as Record<string, string>,
     accept: "Godta",
     acceptLabel: (row: string) => `Godta: ${row}`,
@@ -178,7 +178,8 @@ export const courseSettingSv = {
       boundary: "en gräns som inte får passeras", "forbidden-route": "en förbjuden väg" } as Record<string, string>,
     COURSE_WITHOUT_START_OR_FINISH: (course: string) => `${course} saknar start eller mål.`,
     UNUSED_CONTROL: (control: string) => `${control} används inte på någon bana.`,
-    MISSING_CODE: (control: string) => `En kontroll saknar kod (${control}).`
+    MISSING_CODE: (control: string) => `En kontroll saknar kod (${control}).`,
+    NUMBER_ON_OBSTACLE: (number: string, courses: string) => `Nummer ${number} ligger delvis på ett hus (${courses}). Flytta numret eller låt O-Tid placera det.`
   },
   leg: {
     heading: "Vald sträcka",

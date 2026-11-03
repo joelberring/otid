@@ -75,11 +75,12 @@ describe("BL-tabellerna och versionerna (ADR-0183 beslut 7)", () => {
     expect(mapColorAdjust(copy, [{ id: 7, name: "Grönt" }])[7]!.cmyk).toEqual({ c: 0.76, m: 0, y: 0.91, k: 0 });
   });
 
-  it("avvisar beslut som pekar på rader som inte finns och lager utan tabell", () => {
+  it("avvisar beslut som pekar på rader som inte finns; normens ordning kräver ingen tabell (ADR-0211 beslut 3)", () => {
     expect(() => parsePrintProfile(JSON.stringify({ ...forest, colorDecisions: [{ ocadId: 1, name: "x", cmyk: { c: 0, m: 0, y: 0, k: 0 }, row: "finns-inte" }] })))
       .toThrow(/rad som inte finns/);
     const plain = { ...forest, reference: undefined };
-    expect(() => parsePrintProfile(JSON.stringify(plain))).toThrow(/kräver en tabell/);
+    expect(parsePrintProfile(JSON.stringify(plain)).courseLayer).toBe("REFERENCE");
+    expect(() => parsePrintProfile(JSON.stringify({ ...forest, pressNorm: "ORIENTEERING" }))).toThrow(/normen/);
   });
 });
 

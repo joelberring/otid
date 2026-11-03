@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { passesKey, type PaperRect, type Sheet, type SheetDescription, type SheetFrame } from "@o-tid/course-setting";
+import { lowerPurple, passesKey, type PaperRect, type Sheet, type SheetDescription, type SheetFrame } from "@o-tid/course-setting";
+import type { PressLayers } from "../../lib/course-setting-press-layers";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { DESCRIPTION_FONT, descriptionNodes, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { pageName, pageNodes, type PrintNode } from "../../lib/course-setting-print";
@@ -20,23 +21,28 @@ export function frameImageKey(frame: Pick<SheetFrame, "mapArea" | "clip" | "tran
  * och banpåtrycket klippta till ramen, sedan vita ytor (remsan), logotyper, beskrivningar, texter och skärmarker, och
  * raden om att det är ett utkast. Webbläsarens utskrift ger ett ark per sida (`@page` per pappersstorlek).
  */
-export function SheetView({ sheet, index, symbols, images, colorsKey, courseColor, label, onPlace, paper }: {
+export function SheetView({ sheet, index, symbols, images, colorsKey, courseColor, label, onPlace, paper, pressLayers, testId = "print-sheet" }: {
   sheet: Sheet; index: number; symbols: SymbolLookup; images: Readonly<Record<string, string>>; colorsKey: string; courseColor?: string | undefined;
   label: string;
   /** Papperet (ägaren 2026-11-03): beskrivningen dras och ändras i storlek här; ger rutans nya läge och rutstorlek. */
   onPlace?: ((description: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => void) | undefined;
   /** Papperets element (ADR-0197): markeras, dras och ändras här. */
   paper?: PaperInteraction | undefined;
+  /** Normens färgordning (ADR-0211 beslut 3): kartan i två bilder med banans undre lila mellan och övre lila överst. */
+  pressLayers?: PressLayers | undefined;
+  /** Översiktens små bilder har ett eget testid (inte "print-sheet"). */
+  testId?: string | undefined;
 }) {
   const sheetPaper = sheet.paper;
-  const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)]);
-  return <svg className={styles.sheet} role="img" aria-label={label} data-testid="print-sheet" data-back={sheet.back ? "" : undefined}
+  const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)] && (!pressLayers || images[`${frameImageKey(frame, colorsKey)}|OVER`]));
+  return <svg className={styles.sheet} role="img" aria-label={label} data-testid={testId} data-back={sheet.back ? "" : undefined}
     data-course={sheet.frames[0]?.course} data-variant={sheet.frames[0]?.variant ?? ""} data-frames={sheet.frames.length}
     data-map={ready ? "ready" : "waiting"} data-scale={sheet.frames[0]?.printScale}
     width={`${sheetPaper.widthMm}mm`} height={`${sheetPaper.heightMm}mm`} viewBox={`0 0 ${sheetPaper.widthMm} ${sheetPaper.heightMm}`} style={{ page: pageName(sheet) }}>
     <rect width={sheetPaper.widthMm} height={sheetPaper.heightMm} fill="#fff" />
     {sheet.frames.map((frame, frameIndex) => <FrameView key={frameIndex} id={`s${index}f${frameIndex}`} frame={frame} symbols={symbols}
-      image={images[frameImageKey(frame, colorsKey)]} courseColor={courseColor} />)}
+      image={images[frameImageKey(frame, colorsKey)]} overImage={pressLayers ? images[`${frameImageKey(frame, colorsKey)}|OVER`] : undefined}
+      layers={pressLayers} courseColor={courseColor} />)}
     {sheet.boxes.map((box, boxIndex) => <rect key={boxIndex} x={box.x} y={box.y} width={box.width} height={box.height} fill="#fff"
       stroke={box.border ? "#000" : undefined} strokeWidth={box.border ? 0.25 : undefined} data-testid="print-strip" />)}
     {sheet.images.map((image, imageIndex) => <image key={imageIndex} href={`data:${image.mediaType};base64,${image.data}`} x={image.x} y={image.y}
@@ -57,21 +63,30 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
   </svg>;
 }
 
-function FrameView({ id, frame, symbols, image, courseColor }: { id: string; frame: SheetFrame; symbols: SymbolLookup; image: string | undefined;
-  courseColor?: string | undefined }) {
+function FrameView({ id, frame, symbols, image, overImage, layers, courseColor }: { id: string; frame: SheetFrame; symbols: SymbolLookup; image: string | undefined;
+  overImage?: string | undefined; layers?: PressLayers | undefined; courseColor?: string | undefined }) {
   const { clip } = frame;
   const nodes = pageNodes(frame, symbols, courseColor);
+  // Figurerna och noderna står i samma ordning (`pageNodes`): undre lila mellan kartans två bilder, övre lila överst.
+  const lower = layers ? frame.figures.map(figure => lowerPurple(figure, layers.norm, layers.numbersOnTop)) : undefined;
   // Papperets klippning (ADR-0197): specialobjekten i `markingClip.refs` klipps till polygonen; banan står hel.
   const marked = new Set(frame.markingClip?.refs ?? []);
   const isMarking = (node: PrintNode) => node.tag !== "description" && "role" in node && node.role === "SPECIAL" && node.ref !== undefined && marked.has(node.ref);
-  return <g data-testid="print-frame" data-course={frame.course} data-marking-clip={frame.markingClip ? "" : undefined}>
+  const mirror = frame.mirror ? `translate(${2 * clip.x + clip.width} 0) scale(-1 1)` : undefined;
+  const draw = (keep: (index: number) => boolean) => nodes.map((node, index) => !keep(index) ? null : isMarking(node)
+    ? <g key={index} clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node key={index} node={node} />);
+  return <g data-testid="print-frame" data-course={frame.course} data-marking-clip={frame.markingClip ? "" : undefined} data-norm={layers?.norm}>
     <defs><clipPath id={id}><rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} /></clipPath>
       {frame.markingClip && <clipPath id={`${id}m`}><polygon points={frame.markingClip.polygon.map(p => `${p.x},${p.y}`).join(" ")} /></clipPath>}</defs>
     {image && <image href={image} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map"
-      data-mirror={frame.mirror ? "" : undefined}
-      transform={frame.mirror ? `translate(${2 * clip.x + clip.width} 0) scale(-1 1)` : undefined} />}
-    <g clipPath={`url(#${id})`} data-testid="print-overprint">{nodes.map((node, index) => isMarking(node)
-      ? <g key={index} clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node key={index} node={node} />)}</g>
+      data-mirror={frame.mirror ? "" : undefined} transform={mirror} />}
+    {lower ? <>
+      <g clipPath={`url(#${id})`} data-testid="print-overprint" data-layer="lower">{draw(index => lower[index] === true)}</g>
+      {/* Kartans färger över banan multipliceras, som övertryck på tryck: lila syns genom dem. */}
+      {overImage && <image href={overImage} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map-over"
+        style={{ mixBlendMode: "multiply" }} transform={mirror} />}
+      <g clipPath={`url(#${id})`} data-testid="print-overprint-upper" data-layer="upper">{draw(index => lower[index] !== true)}</g>
+    </> : <g clipPath={`url(#${id})`} data-testid="print-overprint">{draw(() => true)}</g>}
   </g>;
 }
 

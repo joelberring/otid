@@ -198,6 +198,7 @@ export interface SheetOptions {
   readonly mode?: "FILL" | "REPEAT" | undefined;
   readonly mapBounds?: MapRect | undefined;
   readonly detailGaps?: OverprintOptions["detailGaps"];
+  readonly numberObstacles?: OverprintOptions["numberObstacles"];
   /** Datumet för {datum} ("2026-12-09"). */
   readonly date?: string | undefined;
   readonly descriptionLanguage?: string | undefined;
@@ -221,7 +222,7 @@ function frameFor(document: CourseSettingDocument, item: SheetItem, rect: Templa
   const ratio = printScale / document.event.mapScale;
   const part = item.part !== undefined && !item.training && countCourseParts(document, course, variant) > 1 ? item.part : undefined;
   const figures: OverprintPrimitive[] = layout(document, { course, ...(variant ? { variant } : {}), printScale, ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}),
-    ...(item.training ? { training: item.training } : {}), ...(part !== undefined ? { part, overlap: paperLayoutOf(document, course).overlap } : {}) });
+    ...(options.numberObstacles ? { numberObstacles: options.numberObstacles } : {}), ...(item.training ? { training: item.training } : {}), ...(part !== undefined ? { part, overlap: paperLayoutOf(document, course).overlap } : {}) });
   const area = item.training?.section ? { automatic: true, restrictToPageSize: true } : item.printArea ?? printAreaOf(document, course, part);
   const mapArea = printRectangle({ ...area, restrictToPageSize: true }, { width: rect.width * ratio, height: rect.height * ratio }, figureBounds(figures), options.mapBounds);
   const scale = 1 / ratio;

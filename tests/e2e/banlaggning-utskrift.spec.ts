@@ -57,13 +57,19 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
   await owner.keyboard.press("Escape");
 
-  // Fliken Utskrift: A4 liggande, 1:10 000.
+  // Skalan hör till banan (ADR-0211 beslut 5): Banor → Egenskaper, "Skala för banan".
+  await owner.getByRole("tab", { name: "Banor" }).click();
+  await owner.getByTestId("course-setting-course-scale").selectOption("10000");
+  await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
+
+  // Fliken Utskrift: A4 liggande; skalan visas och ändras i banans egenskaper.
   await owner.getByRole("tab", { name: "Utskrift" }).click();
   const print = owner.getByTestId("course-setting-print");
   await expect(owner.getByTestId("course-setting-print-description").getByRole("checkbox", { name: "Kontrollbeskrivning på kartan" })).toBeChecked();
   await print.getByLabel("Papper").selectOption("A4");
   await print.getByLabel("Riktning").selectOption("landscape");
-  await print.getByTestId("course-setting-print-scale").selectOption("10000");
+  await expect(print.getByTestId("course-setting-print-scale-value")).toHaveText("1:10 000");
+  await expect(print.getByTestId("course-setting-print-scale-change")).toBeVisible();
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
   await reviewScreenshots(owner, "banlaggning-utskrift-editor");
 
@@ -108,7 +114,11 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await expect(sheet.first().getByTestId("print-frame")).toHaveCount(4);
 
   // Utskriftsprofilen: kartans färger ur filen, Kontorsskrivare (ljusare grönt) väljs för tävlingen och kartan ritas om.
+  // ADR-0211 beslut 6: färgerna som en kompakt rad; "Redigera färger" öppnar flödet, "Justera färger för hand" tabellen.
   const profile = owner.getByTestId("print-profile");
+  await expect(profile.getByTestId("print-profile-status")).toBeVisible();
+  await profile.getByTestId("print-colors-edit").click();
+  await profile.getByTestId("print-colors-manual").locator("summary").click();
   await expect(profile.getByTestId("print-profile-colors").locator("tbody tr").first()).toBeVisible({ timeout: 60_000 });
   await expect(profile.getByTestId("print-preflight")).toBeVisible();
   await profile.getByTestId("print-profile-select").selectOption("office");

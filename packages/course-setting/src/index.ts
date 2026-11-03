@@ -5,6 +5,7 @@
 import { checkCourseSetting } from "./check";
 import { bakeDetailGapEdits, detailCircles } from "./circle-cutting";
 import { computeDetailCircleGaps, type DetailCircle, type DetailGapOptions } from "./detail-gaps";
+import { computeNumberObstacles, type NumberObstacles } from "./number-obstacles";
 import { applyDocumentEdit } from "./edit";
 import { createEmptyDocument } from "./empty";
 import { layout } from "./overprint";
@@ -25,7 +26,7 @@ import { CourseSettingEditError } from "./types";
 export * from "./types";
 export * from "./description-types";
 export { CONTROL_DISTANCE_LIMITS } from "./check";
-export { appearanceOf, ITEM_SCALINGS, LEG_CIRCLE_GAP_LIMITS, LEG_CIRCLE_GAP_MM, OVERPRINT_SIZES, type Appearance, type ItemScaling } from "./appearance";
+export { appearanceOf, COURSE_PRINT_SCALES, ITEM_SCALINGS, LEG_CIRCLE_GAP_LIMITS, LEG_CIRCLE_GAP_MM, OVERPRINT_SIZES, type Appearance, type ItemScaling } from "./appearance";
 // Banans utseende och etiketten vid kontrollen (ADR-0180 beslut 12).
 export {
   APPEARANCE_LIMITS, APPEARANCE_TOLERANCE, appearanceWarnings, paperSizesFor, printScalesInUse, standardPaperSizes, type AppearanceWarning,
@@ -77,6 +78,7 @@ export * from "./print-profile";
 export * from "./print-reference";
 export * from "./color-match";
 export * from "./press-order";
+export * from "./number-obstacles";
 export * from "./layout-template";
 // ADR-0190: banorna som IOF XML 3.0 CourseData (som Purple Pens export).
 export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";
@@ -136,6 +138,14 @@ export function detailCircleCenters(document: CourseSettingDocument): DetailCirc
 export function printDetailGaps(document: CourseSettingDocument, map: ParsedMap): Record<string, CircleArc[]> | undefined {
   if (!document.event.circleCutting?.details) return undefined;
   return computeDetailCircleGaps(map, detailCircles(document), { sprint: document.event.overprintStandard === "ISSPROM2019" });
+}
+/** Kontrollerna vars nummer kan placeras (för `computeNumberObstacles`): alla vanliga kontroller. */
+export function numberObstaclePoints(document: CourseSettingDocument): { id: string; at: { x: number; y: number } }[] {
+  return Object.values(document.controls).filter(control => control.kind === "NORMAL").map(control => ({ id: control.id, at: control.at }));
+}
+/** Kartans hinder för numren i utskriften (ADR-0211 beslut 4), som editorns Worker räknar dem. */
+export function printNumberObstacles(document: CourseSettingDocument, map: ParsedMap): Record<string, NumberObstacles> {
+  return computeNumberObstacles(map, numberObstaclePoints(document));
 }
 /** Ändringarna (`SET_CIRCLE_GAPS`) som gör detaljgapen fasta i kontrollernas ringavbrott, så att de följer med till .ppen. */
 export function bakeDetailGaps(document: CourseSettingDocument, detailGaps: Readonly<Record<string, readonly CircleArc[]>>): CourseSettingEdit[] {

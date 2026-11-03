@@ -41,6 +41,8 @@ export interface CoursePageOptions {
   /** Rubrikrad överst (tävling, bana, längd, skala). */
   readonly header?: boolean | undefined;
   readonly detailGaps?: OverprintOptions["detailGaps"];
+  /** Kartans hinder för numren (ADR-0211 beslut 4). */
+  readonly numberObstacles?: OverprintOptions["numberObstacles"];
   /** Träningsläget (ADR-0192 beslut 7); ett avsnitt ger automatisk tryckyta kring avsnittet. */
   readonly training?: OverprintOptions["training"];
   /** false = ingen kontrollbeskrivning på papperet (t.ex. editorns ram); saknas = som banans papper. */
@@ -210,7 +212,7 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
   const ratio = printScale / mapScale;
   const part = options.part !== undefined && countCourseParts(document, course, variant) > 1 ? options.part : undefined;
   const figures = layout(document, { course, ...(variant !== undefined ? { variant } : {}), printScale,
-    ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.training ? { training: options.training } : {}),
+    ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.numberObstacles ? { numberObstacles: options.numberObstacles } : {}), ...(options.training ? { training: options.training } : {}),
     ...(part !== undefined ? { part, overlap: paperLayoutOf(document, course).overlap } : {}) });
   const area = options.training?.section ? { automatic: true, restrictToPageSize: true } : options.printArea ?? printAreaOf(document, course, part);
   const objects = figureBounds(figures);

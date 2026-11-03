@@ -24,11 +24,13 @@ export function paperName(page: { width: number; height: number }): PaperName | 
  * Steg 64: fliken Utskrift för vald bana (eller Alla kontroller): papper, riktning, marginal, utskriftsskala och tryckyta
  * (automatisk som Purple Pen eller fast ram som dras på kartan). Allt sparas i dokumentet och skrivs till .ppen.
  */
-export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview, part, onPart }: {
+export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview, part, onPart, onCourseProperties }: {
   document: CourseSettingDocument; view: string; page: CoursePage | undefined; readOnly: boolean;
   onEdits: (edits: readonly CourseSettingEdit[]) => void; onPreview: () => void;
   /** Kartbyten (ADR-0203): vald del (undefined = hela banan) och väljaren. */
   part?: number | undefined; onPart?: ((part: number | undefined) => void) | undefined;
+  /** Skalan hör till banan (ADR-0211 beslut 5): öppnar banans egenskaper. */
+  onCourseProperties?: (() => void) | undefined;
 }) {
   const parts = partsForChooser(document, view);
   const partOwnArea = part !== undefined ? document.courses.find(item => item.id === view)?.partPrintAreas?.[String(part)] : undefined;
@@ -79,10 +81,14 @@ export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview,
         <input type="number" min={0} max={30} step={1} defaultValue={Math.round(current.margins * HUNDREDTH_INCH_MM)} key={`${view}-${current.margins}`}
           onChange={event => { const value = Number(event.target.value); if (value >= 0 && value <= 30) withPage({ margins: Math.round(value / HUNDREDTH_INCH_MM) }); }} />
       </label>
-      <label className={styles.stack}>{text.print.scale}
+      {view === ALL_CONTROLS ? <label className={styles.stack}>{text.print.scale}
         <select value={scale} onChange={event => setScale(Number(event.target.value))} data-testid="course-setting-print-scale">
           {scales.map(value => <option key={value} value={value}>{value === document.event.mapScale ? text.print.mapScale(thousands(value)) : `1:${thousands(value)}`}</option>)}
         </select></label>
+        : <div className={styles.stack} data-testid="course-setting-print-scale-readonly">
+          <span>{text.print.scale}: <strong data-testid="course-setting-print-scale-value">1:{thousands(scale)}</strong></span>
+          {onCourseProperties && <Button variant="quiet" onClick={onCourseProperties} data-testid="course-setting-print-scale-change">{text.print.scaleChange}</Button>}
+        </div>}
       <fieldset className={styles.stack}>
         <legend>{text.print.area}</legend>
         <label><input type="radio" name="print-area" checked={!manual} onChange={() => setArea({ automatic: true, restrictToPageSize: true, page: current })} />

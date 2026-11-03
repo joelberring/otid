@@ -5,6 +5,7 @@ import { distance, nearestOnPath } from "./geometry";
 import { courseVariantList, isInvertibleCode } from "./summary";
 import type { CheckOptions, CourseCheck, CourseSettingDocument, DescriptionBox } from "./types";
 import { enumerateCourseControls, enumerateLegs, legPath } from "./walk";
+import { numberObstacleChecks } from "./number-notices";
 
 /** IOF:s riktvärden: under `min` för nära, under `similar` bara med tydligt olika objekt (sprint hälften). */
 export const CONTROL_DISTANCE_LIMITS = {
@@ -99,6 +100,7 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
     }
   }
   checks.push(...forbiddenChecks(document, options));
+  if (options.numberObstacles) checks.push(...numberObstacleChecks(document, options.numberObstacles));
   for (const control of controls) if (!used.has(control.id)) checks.push({ kind: "UNUSED_CONTROL", control: control.id });
   return checks;
 }

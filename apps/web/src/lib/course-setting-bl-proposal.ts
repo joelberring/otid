@@ -1,6 +1,6 @@
 import {
-  acceptSafe, coursePlacement, decisionFor, mapColorAdjust, proposeColorMatches, referenceRow, referenceSide, sourceMapColors, withDecision, type Cmyk100,
-  type ColorDecision, type ColorProposal, type CourseSettingEdit, type MapColorAdjust, type PrintProfile, type ReferenceColor, type ReferenceTable,
+  acceptSafe, decisionFor, pressOrder, mapColorAdjust, proposeColorMatches, referenceRow, referenceSide, sourceMapColors, withDecision, type Cmyk100,
+  type ColorDecision, type ColorProposal, type CourseSettingEdit, type MapColorAdjust, type PressNorm, type PrintProfile, type ReferenceColor, type ReferenceTable,
   type SheetFrame, type SourceMapColor
 } from "@o-tid/course-setting";
 import { rgbFromCmyk, type ColorUsage, type MapColor } from "@o-tid/map-file";
@@ -19,6 +19,8 @@ export interface ProposalRow {
   readonly row: ReferenceColor | null;
   readonly before: string;
   readonly after: string;
+  /** Färgen är ändrad "för hand" (ADR-0211 beslut 6): den egna CMYK:n gäller före BL-raden. */
+  readonly byHand?: boolean | undefined;
   /** Den rad arrangören själv valt bland flera (inte förslagets första). */
   readonly chosen: boolean;
 }
@@ -52,7 +54,8 @@ export function proposalState(profile: PrintProfile, colors: readonly MapColor[]
     const row = id ? referenceRow(table, id) ?? null : null;
     const file = byId.get(proposal.color.ocadId);
     const before = file ? cssOfRgb(file.rgb) : cssOfCmyk(proposal.color.cmyk);
-    const item: ProposalRow = { proposal, row, before, after: row?.cmyk ? cssOfCmyk(row.cmyk) : before,
+    const hand = profile.mapColors.find(item => item.match.ocadIds?.length === 1 && item.match.ocadIds[0] === proposal.color.ocadId);
+    const item: ProposalRow = { proposal, row, before, after: hand?.cmyk ? cssOfCmyk(hand.cmyk) : row?.cmyk ? cssOfCmyk(row.cmyk) : before, ...(hand ? { byHand: true } : {}),
       status: !decision ? "PENDING" : decision.row === null ? "KEPT" : "ACCEPTED", chosen: decision !== undefined && decision.row !== proposal.row };
     if (proposal.unused) { unused.push(item); continue; }
     rows.push(item);
@@ -123,13 +126,13 @@ export function previewProfile(profile: PrintProfile, state: ProposalState): Pri
 export interface Layer { readonly name: string; readonly css: string; readonly row: string | null }
 
 /**
- * Lagren för bilden av ordningen: kartans färger över banan (överst först), banan, färgerna under, ur besluten (eller
- * förslaget). `conflicts` = färger som enligt tabellen borde ligga på andra sidan banan.
+ * Lagren för bilden av ordningen: kartans färger över banan (överst först), banan, färgerna under, enligt normen (ADR-0211
+ * beslut 3). `conflicts` = färger som BL:s tabell lägger på andra sidan banan än normen; O-Tid följer normen.
  */
-export function layerStack(profile: PrintProfile, state: ProposalState): { over: Layer[]; course: Layer; under: Layer[]; conflicts: string[]; onTop: boolean } {
+export function layerStack(profile: PrintProfile, state: ProposalState, norm: PressNorm = "ISOM"): { over: Layer[]; course: Layer; under: Layer[]; conflicts: string[]; onTop: boolean } {
   const preview = previewProfile(profile, state);
   const rowOf = (color: SourceMapColor) => decisionFor(preview.colorDecisions, color)?.row;
-  const placement = coursePlacement(state.table, state.colors.filter(color => color.usage), rowOf);
+  const above = pressOrder(state.colors, norm).over;
   const course: Layer = { name: profile.course.spotName, css: cssOfCmyk(profile.course.cmyk), row: state.table.courseRow };
   const used = state.rows.map(item => item.proposal.color).sort((a, b) => b.drawOrder - a.drawOrder);
   const layer = (color: SourceMapColor): Layer => {
@@ -137,10 +140,17 @@ export function layerStack(profile: PrintProfile, state: ProposalState): { over:
     const id = rowOf(color) ?? null;
     return { name: color.name, css: id && referenceRow(state.table, id)?.cmyk ? cssOfCmyk(referenceRow(state.table, id)!.cmyk!) : item.before, row: id };
   };
-  const onTop = profile.courseLayer !== "REFERENCE" || placement.position === null;
-  const over = onTop ? [] : used.filter(color => placement.above.has(color.ocadId)).map(layer);
-  const under = onTop ? used.map(layer) : used.filter(color => !placement.above.has(color.ocadId)).map(layer);
-  return { over, course, under, onTop, conflicts: placement.conflicts.filter(conflict => conflict.color.usage).map(conflict => conflict.color.name) };
+  const onTop = profile.courseLayer !== "REFERENCE" || above.size === 0;
+  const over = onTop ? [] : used.filter(color => above.has(color.ocadId)).map(layer);
+  const under = onTop ? used.map(layer) : used.filter(color => !above.has(color.ocadId)).map(layer);
+  const conflicts = used.filter(color => {
+    const id = rowOf(color);
+    const row = id ? referenceRow(state.table, id) : undefined;
+    if (!row) return false;
+    const side = referenceSide(state.table, row);
+    return side !== "COURSE" && (side === "OVER") !== above.has(color.ocadId);
+  }).map(color => color.name);
+  return { over, course, under, onTop, conflicts };
 }
 
 /** Tabellens sida för en rad (för texten i raden). */
@@ -163,19 +173,15 @@ export function thumbnailView(center: { x: number; y: number }, sizeMm = 24, px 
   return { width: px, height: px, pxPerMm: px / sizeMm, origin: { x: center.x - sizeMm / 2, y: center.y + sizeMm / 2 } };
 }
 
-/** Mapcolor-justeringen för "efter" (beslut + förslag) och delarna under och över banan. */
-export function afterViews(profile: PrintProfile, state: ProposalState, colors: readonly MapColor[]):
+/** Mapcolor-justeringen för "efter" (beslut + förslag) och delarna under och över banan enligt normen. */
+export function afterViews(profile: PrintProfile, state: ProposalState, colors: readonly MapColor[], norm: PressNorm = "ISOM"):
   { adjust: Record<number, MapColorAdjust>; over: number[] | undefined; under: number[] | undefined } {
   const preview = previewProfile(profile, state);
   const adjust = mapColorAdjust(preview, colors);
-  const stack = layerStack(profile, state);
-  if (stack.onTop) return { adjust, over: undefined, under: undefined };
-  const rowOf = (color: SourceMapColor) => decisionFor(preview.colorDecisions, color)?.row;
-  const above = coursePlacement(state.table, state.colors.filter(color => color.usage), rowOf).above;
-  // Färger utan användning ritas ändå inte; de hamnar på den sida deras plats i ordningen ger.
-  const position = Math.min(...state.colors.filter(color => above.has(color.ocadId)).map(color => color.drawOrder));
-  const overIds = state.colors.filter(color => color.drawOrder >= position).map(color => color.ocadId);
-  return { adjust, over: overIds, under: colors.map(color => color.id).filter(id => !overIds.includes(id)) };
+  if (profile.courseLayer !== "REFERENCE") return { adjust, over: undefined, under: undefined };
+  const above = pressOrder(state.colors, norm).over;
+  if (above.size === 0) return { adjust, over: undefined, under: undefined };
+  return { adjust, over: colors.map(color => color.id).filter(id => above.has(id)), under: colors.map(color => color.id).filter(id => !above.has(id)) };
 }
 
 /**

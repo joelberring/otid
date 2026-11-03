@@ -37,6 +37,8 @@ export interface SheetGroupOptions {
    * (`printDetailGaps` i servern, kartans Worker i förhandsvisningen). Utan dem skrevs ringarna hela på papperet.
    */
   readonly detailGaps?: OverprintOptions["detailGaps"];
+  /** Kartans hinder för numren (ADR-0211 beslut 4), räknade som detaljgapen. */
+  readonly numberObstacles?: OverprintOptions["numberObstacles"];
   /** En grupp som inte gick att lägga ut (felet loggas av den som anropar); utan den kastas felet. */
   readonly onError?: ((failed: { readonly item?: number | undefined; readonly error: unknown }) => void) | undefined;
 }
@@ -88,7 +90,7 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: S
       options.onError({ item, error });
     }
   };
-  const gaps = options.detailGaps ? { detailGaps: options.detailGaps } : {};
+  const gaps = { ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.numberObstacles ? { numberObstacles: options.numberObstacles } : {}) };
   const common = { mapBounds: options.mapBounds, ...(options.date ? { date: options.date } : {}), ...gaps };
   if (layout.kind === "PIECES") {
     items.forEach((item, index) => attempt(index, () => ({ item: index, sheets: trainingPieceSheets(document, item, { mapBounds: options.mapBounds }) })));

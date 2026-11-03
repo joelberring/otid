@@ -43,6 +43,7 @@ export const coursePrintSv = {
     margins: "Marginal (mm)",
     scale: "Utskriftsskala",
     mapScale: (scale: string) => `Kartans (1:${scale})`,
+    scaleChange: "Ändra i banans egenskaper",
     area: "Tryckyta",
     automatic: "Automatisk (som Purple Pen)",
     manual: "Fast ram (dra på kartan)",
@@ -87,7 +88,7 @@ export const coursePrintSv = {
   page: {
     title: "Utskrift av banor",
     back: "← Till banläggningen",
-    draft: "Utkast ur webbläsaren: färgerna är inte tryckkvalitet. Till tryckeriet: Skapa PDF för tryck längre ned på sidan.",
+    draft: "Utkast ur webbläsaren: färgerna är inte tryckkvalitet.",
     courses: "Banor",
     all: "Alla",
     variants: "Varianter",

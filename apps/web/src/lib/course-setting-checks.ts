@@ -39,7 +39,7 @@ export interface CheckGroup {
 
 const GROUP_ORDER = ["LEG_NO_ROUTE", "CONTROL_IN_FORBIDDEN", "DUPLICATE_CODE", "MISSING_CODE", "COURSE_WITHOUT_START_OR_FINISH",
   "CONTROLS_TOO_CLOSE", "LEG_THROUGH_CONTROL", "SAME_CONTROL_TWICE_IN_ROW", "INVERTIBLE_CODE",
-  "LEG_THROUGH_FORBIDDEN", "CONTROLS_NEAR", "UNUSED_CONTROL"];
+  "LEG_THROUGH_FORBIDDEN", "CONTROLS_NEAR", "NUMBER_ON_OBSTACLE", "UNUSED_CONTROL"];
 const LEVELS: readonly CheckLevel[] = ["ERROR", "WARNING", "NOTICE"];
 
 function groupOf(check: CourseCheck, level: CheckLevel): string {
@@ -67,6 +67,7 @@ function rowText(document: CourseSettingDocument, check: CourseCheck, courses: s
     case "COURSE_WITHOUT_START_OR_FINISH": return text.checks.COURSE_WITHOUT_START_OR_FINISH(courses);
     case "UNUSED_CONTROL": return text.checks.UNUSED_CONTROL(label(check.control));
     case "MISSING_CODE": return text.checks.MISSING_CODE(label(check.control));
+    case "NUMBER_ON_OBSTACLE": return text.checks.NUMBER_ON_OBSTACLE(check.text, courses);
   }
 }
 

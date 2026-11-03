@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ColorDecision, CourseSettingEdit, PrintProfile, SheetFrame } from "@o-tid/course-setting";
+import type { ColorDecision, CourseSettingEdit, PressNorm, PrintProfile, SheetFrame } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { blProposalSv as text } from "../../i18n/course-setting-bl-proposal-sv";
 import {
@@ -20,8 +20,10 @@ import styles from "./course-setting-bl-proposal.module.css";
  * står i en liten rad under. Överst hela kartan före och efter med ett reglage och ordningen som en enkel bild. Varje
  * beslut sparas genast i tävlingens kopia av profilen (kartfilen ändras inte).
  */
-export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, frame, symbols, render, onSave }: {
+export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, frame, symbols, render, onSave, norm }: {
   profile: PrintProfile; builtIn: readonly PrintProfile[]; colors: readonly MapColor[]; usage: ReadonlyMap<number, ColorUsage>; readOnly: boolean;
+  /** Normen för färgordningen (ADR-0211 beslut 3). */
+  norm: PressNorm;
   frame: SheetFrame | undefined; symbols: SymbolLookup; render: RenderImage; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
   const [decisions, setDecisions] = useState<readonly ColorDecision[]>(profile.colorDecisions ?? []);
@@ -42,7 +44,9 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
   async function save(next: readonly ColorDecision[], nextLayer = layer, row?: { ocadId: number; done: string }) {
     const previous = decisions, previousLayer = layer;
     setDecisions(next); setLayer(nextLayer); setBusy(true); setMessage(undefined); setFlash(undefined);
-    const copy = { ...approvedProfile(profile, next, builtIn), courseLayer: nextLayer };
+    const approved = { ...approvedProfile(profile, next, builtIn), courseLayer: nextLayer };
+    // Ett beslut på kortet tar bort färgens egna värden "för hand" (ADR-0211 beslut 6), så att korten och tabellen visar samma.
+    const copy = row ? { ...approved, mapColors: approved.mapColors.filter(item => !(item.match.ocadIds?.length === 1 && item.match.ocadIds[0] === row.ocadId)) } : approved;
     const ok = await onSave(approvalEdits(copy));
     setBusy(false);
     // Beskedet står vid raden som ändrades (där man tittar); "Godta alla säkra" och ordningen får det överst.
@@ -85,10 +89,8 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
       </div>
       {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
       {message && <Notice tone={message.tone === "ok" ? "ok" : "error"} role="status"><p>{message.text}</p></Notice>}
-      {frame && <BlCompare frame={frame} profile={working} state={state} colors={colors} symbols={symbols} render={render} />}
-      <BlLayers profile={working} state={state} />
-      {!readOnly && <label className={styles.bar}><input type="checkbox" checked={layer === "REFERENCE"} disabled={busy}
-        onChange={event => void save(decisions, event.target.checked ? "REFERENCE" : "TOP")} data-testid="bl-course-layer" />{text.courseLayerToggle}</label>}
+      {frame && <BlCompare frame={frame} profile={working} state={state} colors={colors} symbols={symbols} render={render} norm={norm} />}
+      <BlLayers profile={working} state={state} norm={norm} />
       <ol className={styles.rows} aria-label={text.heading(baseName(profile, builtIn))}>
         {state.rows.map(row => <ProposalItem key={row.proposal.color.ocadId} row={row} state={state} colors={colors} render={render} readOnly={readOnly}
           busy={busy} act={act} flash={flash?.ocadId === row.proposal.color.ocadId ? flash : undefined} />)}
@@ -154,6 +156,7 @@ function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash }
         {/* Status som märke med ikon (inte en knapp): vad som gäller för färgen just nu. */}
         <span className={styles.state} data-status={row.status} data-testid="bl-status">
           <span aria-hidden="true">{STATUS_ICON[row.status]} </span>{text.status[row.status]}</span>
+        {row.byHand && <span className={styles.state} data-testid="bl-by-hand">{text.byHand}</span>}
       </div>
       <ul className={styles.reasons}>{proposal.reasons.slice(0, 3).map(reason => <li key={reason}>{reason}</li>)}</ul>
       <div className={styles.numbers}>{text.numbers(cmykText(color.cmyk), target?.cmyk ? cmykText(target.cmyk) : undefined, color.ocadId)}

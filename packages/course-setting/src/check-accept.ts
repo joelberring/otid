@@ -29,7 +29,7 @@ export function checkLevel(check: CourseCheck): CheckLevel {
     case "DUPLICATE_CODE": case "MISSING_CODE": case "COURSE_WITHOUT_START_OR_FINISH": case "CONTROL_IN_FORBIDDEN": return "ERROR";
     case "LEG_THROUGH_FORBIDDEN": return check.route === "NO_ROUTE" ? "ERROR" : "NOTICE";
     case "CONTROLS_TOO_CLOSE": return check.feature === "UNKNOWN" ? "NOTICE" : "WARNING";
-    case "UNUSED_CONTROL": return "NOTICE";
+    case "UNUSED_CONTROL": case "NUMBER_ON_OBSTACLE": return "NOTICE";
     case "INVERTIBLE_CODE": case "SAME_CONTROL_TWICE_IN_ROW": case "LEG_THROUGH_CONTROL": return "WARNING";
   }
 }
@@ -56,6 +56,7 @@ export function checkKey(check: CourseCheck): string {
     case "COURSE_WITHOUT_START_OR_FINISH": return `COURSE_WITHOUT_START_OR_FINISH/${check.course}`;
     case "UNUSED_CONTROL": return `UNUSED_CONTROL/${check.control}`;
     case "MISSING_CODE": return `MISSING_CODE/${check.control}`;
+    case "NUMBER_ON_OBSTACLE": return `NUMBER_ON_OBSTACLE/${check.course}/${check.control}`;
   }
 }
 
@@ -70,7 +71,7 @@ export function checkSubjects(document: CourseSettingDocument, check: CourseChec
   const controls: string[] = [], specials: string[] = [];
   switch (check.kind) {
     case "CONTROLS_TOO_CLOSE": case "DUPLICATE_CODE": controls.push(...check.controls); break;
-    case "INVERTIBLE_CODE": case "SAME_CONTROL_TWICE_IN_ROW": case "UNUSED_CONTROL": case "MISSING_CODE": controls.push(check.control); break;
+    case "INVERTIBLE_CODE": case "SAME_CONTROL_TWICE_IN_ROW": case "UNUSED_CONTROL": case "MISSING_CODE": case "NUMBER_ON_OBSTACLE": controls.push(check.control); break;
     case "LEG_THROUGH_CONTROL": controls.push(check.from, check.to, check.control); break;
     case "LEG_THROUGH_FORBIDDEN": controls.push(check.from, check.to); specials.push(...(check.specials ?? [check.special])); break;
     case "CONTROL_IN_FORBIDDEN": controls.push(check.control); specials.push(check.special); break;

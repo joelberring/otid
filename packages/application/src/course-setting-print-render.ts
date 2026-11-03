@@ -1,6 +1,6 @@
 import type { PrintJobRequest } from "@o-tid/contracts";
 import {
-  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, printDetailGaps, printSheetGroups, sourceMapColors, validateLayoutTemplate,
+  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateLayoutTemplate,
   validatePrintProfile, type CourseSettingDocument, type LayoutTemplate, type MapRect, type PrintProfile, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { colorUsage, readMapFile } from "@o-tid/map-file";
@@ -34,13 +34,13 @@ export function layoutTemplateFor(document: CourseSettingDocument, template: unk
 
 /** Arken i samma ordning som förhandsvisningen (`printSheetGroups` i paketet, samma val för båda). */
 export function printJobSheets(document: CourseSettingDocument, request: PrintJobRequest, mapBounds: MapRect | undefined,
-  detailGaps?: ReturnType<typeof printDetailGaps>): Sheet[] {
+  detailGaps?: ReturnType<typeof printDetailGaps>, numberObstacles?: ReturnType<typeof printNumberObstacles>): Sheet[] {
   const items = request.items as readonly SheetItem[];
   const layout = request.layout.kind === "TEMPLATE"
     ? { kind: "TEMPLATE" as const, template: layoutTemplateFor(document, request.layout.template), perRunner: request.perRunner, duplex: request.duplex,
       fill: request.layout.fill }
     : request.layout.kind === "PIECES" ? { kind: "PIECES" as const } : { kind: "COURSE" as const, header: request.layout.header, duplex: request.duplex };
-  return printSheetGroups(document, layout, items, { mapBounds, ...(request.date ? { date: request.date } : {}), ...(detailGaps ? { detailGaps } : {}) })
+  return printSheetGroups(document, layout, items, { mapBounds, ...(request.date ? { date: request.date } : {}), ...(detailGaps ? { detailGaps } : {}), ...(numberObstacles ? { numberObstacles } : {}) })
     .flatMap(group => group.sheets);
 }
 
@@ -71,7 +71,8 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
     preflight.push(...warnings.map(finding => `Förhandskontroll: ${finding.text}`));
   }
   // Ringklippen över detaljer räknas på kartfilen här, som editorns Worker gör (ADR-0211 beslut 1).
-  const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map) : undefined);
+  const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map) : undefined,
+    map ? printNumberObstacles(document, map) : undefined);
   if (sheets.length === 0) throw new PrintJobError("Inget att skriva ut.");
   if (sheets.length > input.maxPages) throw new PrintJobError(`PDF:en skulle få ${sheets.length} sidor; högst ${input.maxPages} går i ett jobb.`);
   const result = await writeSheetsPdf({ sheets, map, profile, mode: request.kind, fonts: input.fonts,

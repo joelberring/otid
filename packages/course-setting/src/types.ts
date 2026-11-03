@@ -494,6 +494,8 @@ export interface CheckOptions {
    * `reachable` = en laglig väg finns; undefined = inte räknat.
    */
   readonly legRoute?: ((course: string, from: string, to: string) => { readonly reachable: boolean } | undefined) | undefined;
+  /** ADR-0211 beslut 4: kartans hinder för numren; med dem kontrolleras de nummer som banläggaren placerat. */
+  readonly numberObstacles?: OverprintOptions["numberObstacles"];
 }
 
 export type CourseCheck =
@@ -518,7 +520,9 @@ export type CourseCheck =
   | { readonly kind: "CONTROL_IN_FORBIDDEN"; readonly course: string; readonly control: string; readonly special: string }
   | { readonly kind: "COURSE_WITHOUT_START_OR_FINISH"; readonly course: string }
   | { readonly kind: "UNUSED_CONTROL"; readonly control: string }
-  | { readonly kind: "MISSING_CODE"; readonly control: string };
+  | { readonly kind: "MISSING_CODE"; readonly control: string }
+  /** ADR-0211 beslut 4: ett nummer som banläggaren placerat ligger delvis på ett hus eller en mörk yta (en notis). */
+  | { readonly kind: "NUMBER_ON_OBSTACLE"; readonly course: string; readonly control: string; readonly text: string };
 
 /**
  * Färg i banpåtrycket (färgroll; dekorfärg och övertryck i steg 65). COURSE = banans övre lila; COURSE_LOWER = undre lila
@@ -562,6 +566,12 @@ export type OverprintPrimitive =
   | { readonly kind: "image"; readonly role: "SPECIAL"; readonly color?: undefined; readonly rect: MapRect; readonly mediaType: string; readonly data: string; readonly ref?: string | undefined }
   | (Paint & { readonly kind: "description"; readonly topLeft: Point; readonly layout: DescriptionLayout });
 
+/** Kartans hinder för en kontrolls nummer (se `number-obstacles.ts`). */
+export interface NumberObstaclesData {
+  readonly areas: readonly (readonly Point[])[];
+  readonly lines: readonly (readonly [Point, Point])[];
+}
+
 export interface OverprintOptions {
   /** Banans id, eller "ALL_CONTROLS" för alla kontroller. */
   readonly course: string;
@@ -577,6 +587,11 @@ export interface OverprintOptions {
   readonly detailGaps?: Readonly<Record<string, readonly { readonly startDegrees: number; readonly endDegrees: number }[]>> | undefined;
   /** Träningsläget (ADR-0192 beslut 7): vy, kepsens karta och avsnitt. */
   readonly training?: OverprintTraining | undefined;
+  /**
+   * Kartans hinder för numren per kontroll (`computeNumberObstacles`, ADR-0211 beslut 4): den automatiska placeringen
+   * undviker hus, mörka ytor och svarta linjer. Banläggarens egna lägen ändras inte.
+   */
+  readonly numberObstacles?: Readonly<Record<string, NumberObstaclesData>> | undefined;
   /** Kartbyten (ADR-0203): en del av banan (0, 1 …); saknas = hela banan. */
   readonly part?: number | undefined;
   /** Delens överlapp mot föregående del: ingen, sista sträckan (förval) eller hela föregående del. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CourseSettingDocument, CourseSettingEdit } from "@o-tid/course-setting";
+import { numberObstaclePoints, type CourseSettingDocument, type CourseSettingEdit, type NumberObstaclesData } from "@o-tid/course-setting";
 import { courseSettingCuttingSv as text } from "../../i18n/course-setting-cutting-sv";
 import {
   bakeEdits, circleCuttingEdit, circleCuttingOf, currentDetailGaps, DETAIL_GAPS_DELAY_MS, detailRequest, type DetailGaps, type DetailResult
@@ -11,42 +11,56 @@ import { Button } from "../ui";
 import own from "./course-setting-circle-cutting.module.css";
 import styles from "./course-setting.module.css";
 
-/** Detaljgapen för editorn: `options` sprids in i `layoutOverprint`s val, `pending` medan Workern räknar. */
+/**
+ * Detaljgapen för editorn och hindren för numren (ADR-0211 beslut 4): `options` sprids in i `layoutOverprint`s val,
+ * `pending` medan Workern räknar.
+ */
 export interface DetailGapsState {
   readonly gaps: DetailGaps | undefined;
-  readonly options: { readonly detailGaps?: DetailGaps };
+  readonly obstacles: Readonly<Record<string, NumberObstaclesData>> | undefined;
+  readonly options: { readonly detailGaps?: DetailGaps; readonly numberObstacles?: Readonly<Record<string, NumberObstaclesData>> };
   readonly pending: boolean;
   readonly available: boolean;
   /** Workern kunde inte räkna gapen (ringarna ritas hela). */
   readonly failed: boolean;
 }
 
+const pointsKey = (points: readonly { id: string; at: { x: number; y: number } }[]) => points.map(point => `${point.id}:${point.at.x.toFixed(2)},${point.at.y.toFixed(2)}`).join("|");
+
 /**
  * Ringklipp (ADR-0180 beslut 10): när "klipp över detaljer" är på räknar kartans Worker gapen för kontrollerna, en kort
- * stund efter senaste ändringen (en dragning ger många). En flyttad kontroll ritas hel tills gapen räknats om.
+ * stund efter senaste ändringen (en dragning ger många). En flyttad kontroll ritas hel tills gapen räknats om. Samma
+ * beställning ger kartans hinder för numren (alltid, när kartan finns), så att numren placeras likadant i editorn,
+ * förhandsvisningen och PDF:en.
  */
 export function useDetailGaps(session: MapRenderSession | undefined, document: CourseSettingDocument | null | undefined): DetailGapsState {
   const on = document ? circleCuttingOf(document).details : false;
   const request = useMemo(() => on && document ? detailRequest(document) : undefined, [document, on]);
+  const points = useMemo(() => document ? numberObstaclePoints(document) : [], [document]);
+  const pointKey = pointsKey(points);
   const latest = useRef(request);
   latest.current = request;
-  const key = request?.key;
-  const [result, setResult] = useState<DetailResult & { key: string; failed?: boolean }>();
+  const latestPoints = useRef(points);
+  latestPoints.current = points;
+  const key = `${request?.key ?? ""}#${pointKey}`;
+  const [result, setResult] = useState<DetailResult & { key: string; failed?: boolean; obstacles: Readonly<Record<string, NumberObstaclesData>>; points: string }>();
   const first = result === undefined;
   useEffect(() => {
-    if (!session || !key) return;
+    if (!session || !document) return;
     const timer = setTimeout(() => {
-      const current = latest.current;
-      if (!current) return;
-      session.detailGaps(current.circles, current.sprint, (gaps, failed) => setResult({ circles: current.circles, gaps, key: current.key, failed }));
+      const current = latest.current, currentPoints = latestPoints.current;
+      session.detailGaps(current?.circles ?? [], current?.sprint ?? false, (gaps, failed, obstacles) =>
+        setResult({ circles: current?.circles ?? [], gaps, key: `${current?.key ?? ""}#${pointsKey(currentPoints)}`, failed, obstacles, points: pointsKey(currentPoints) }), currentPoints);
     }, first ? 0 : DETAIL_GAPS_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [session, key, first]);
+  }, [session, key, first, Boolean(document)]);
   // Nyckeln ändras med ringarna; samma nyckel ger samma gap (och samma objekt, så att banpåtrycket inte räknas om i onödan).
   const gaps = useMemo(() => currentDetailGaps(result, latest.current), [result, key]);
   const shown = on ? gaps : undefined;
-  const options = useMemo(() => shown ? { detailGaps: shown } : {}, [shown]);
-  return { gaps: shown, options, pending: on && session !== undefined && result?.key !== key, available: session !== undefined,
+  // Hindren gäller bara när kontrollerna ligger kvar där de låg när de räknades.
+  const obstacles = result && result.points === pointKey ? result.obstacles : undefined;
+  const options = useMemo(() => ({ ...(shown ? { detailGaps: shown } : {}), ...(obstacles ? { numberObstacles: obstacles } : {}) }), [shown, obstacles]);
+  return { gaps: shown, obstacles, options, pending: on && session !== undefined && result?.key !== key, available: session !== undefined,
     failed: on && result?.failed === true };
 }
 

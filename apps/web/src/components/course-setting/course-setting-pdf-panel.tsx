@@ -5,7 +5,7 @@ import type { PrintJob, PrintJobKind, PrintJobs } from "@o-tid/contracts";
 import type { PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { printPdfSv as text } from "../../i18n/course-setting-print-pdf-sv";
-import { printProfileSv } from "../../i18n/course-setting-print-profile-sv";
+import { printColorsSv } from "../../i18n/course-setting-print-colors-sv";
 import {
   createPrintJob, deletePrintJob, fetchPrintJobs, pdfAllowed, pdfPreflight, printJobPdfUrl, printJobRequest, type PrintJobSelection
 } from "../../lib/course-setting-print-jobs";
@@ -17,9 +17,11 @@ import styles from "./course-setting-print-page.module.css";
  * (ColorPreflight mot det PDF:en kan) visas först: blockerande fel stoppar och varningar måste bekräftas. Jobben skrivs
  * på servern med låg prioritet; listan frågar varannan sekund medan något väntar eller skrivs.
  */
-export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, blockedText }: {
+export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, blockedText, heading, help }: {
   raceId: string; selection: PrintJobSelection; profile: PrintProfile; colors: readonly MapColor[]; usage?: ReadonlyMap<number, ColorUsage> | undefined;
   disabled: boolean; blockedText?: string | undefined;
+  /** Rubriken och raden under (ADR-0211 beslut 7: "Skapa PDF för tryckeriet" bredvid "Skriv ut på skrivare"). */
+  heading?: string | undefined; help?: string | undefined;
 }) {
   const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
   const [warningsConfirmed, setWarningsConfirmed] = useState(false);
@@ -65,8 +67,8 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
   const allowed = pdfAllowed(report, warningsConfirmed);
   const warnings = report?.findings.some(finding => finding.severity === "WARNING") ?? false;
   return <section className={styles.panel} aria-labelledby="print-pdf" data-testid="print-pdf">
-    <h2 id="print-pdf">{text.heading}</h2>
-    <p className={styles.muted}>{text.help}</p>
+    <h3 id="print-pdf">{heading ?? text.heading}</h3>
+    <p className={styles.muted}>{help ?? text.help}</p>
     <Notice tone="attention"><p data-testid="print-pdf-honesty">{text.honesty}</p></Notice>
     {profile.processColors && <p className={styles.muted} data-testid="print-pdf-process">{text.processOnly(profile.name)}</p>}
     {report ? <div className={styles.stack} data-testid="print-pdf-preflight" data-can-print={report.canPrint ? "yes" : "no"}
@@ -76,7 +78,7 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
         : text.unconfirmed(report.unconfirmed.length)}</strong>{report.unconfirmed.length > 0 && <> <a href="#bl-proposal">{text.toProposal}</a></>}</p>}
       {report.findings.length === 0 ? <p className={styles.muted}>{text.noFindings}</p>
         : <ul className={styles.findings}>{report.findings.map((finding, index) => <li key={index} data-severity={finding.severity}>
-          <strong>{printProfileSv.severity[finding.severity]}</strong> {finding.text}
+          <strong>{printColorsSv.severity[finding.severity]}</strong> {finding.text}
           {finding.severity === "BLOCKING" && finding.rule && report.results.find(result => result.rule === finding.rule)?.status === "NEEDS_CONFIRMATION" &&
             <Button variant="quiet" onClick={() => setConfirmed(current => new Set([...current, finding.rule!]))}>{text.confirm}</Button>}
         </li>)}</ul>}

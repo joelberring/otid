@@ -65,3 +65,22 @@
   .paperOutline { display: none; }
   .paperInspector { display: none; }
 }
+
+/* ADR-0211 beslut 6: färgprofilen som en kompakt rad. */
+.colorBar { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem 0.75rem; }
+.colorBarTitle { margin: 0; font-size: 1.1rem; flex-basis: 100%; }
+.statusChip { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; border: 1px solid var(--color-border, #bbb); font-size: 0.85rem; }
+.statusChip[data-status="APPROVED"]::before { content: "✓ "; }
+.statusChip[data-status="PENDING"] { font-weight: 600; }
+.statusChip[data-status="PENDING"]::before { content: "○ "; }
+/* ADR-0211 beslut 7: "Skriv ut på skrivare" och "Skapa PDF för tryckeriet" bredvid varandra; arket som redigeras. */
+.outputs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); align-items: start; width: 100%; }
+.outputs > section { max-width: none; }
+.sectionTitle { margin: 8px 0 0; font-size: var(--text-lg, 1.15rem); }
+.sheetSlot { scroll-margin-top: 12px; }
+.sheetSlot[data-open] .sheet { outline: 3px solid #1d6fd1; }
+@media print {
+  .sheetSlot[data-noprint] { display: none; }
+  .sheetSlot { break-after: page; }
+  .sheetSlot:last-child { break-after: auto; }
+}

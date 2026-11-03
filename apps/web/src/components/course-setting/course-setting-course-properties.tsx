@@ -1,18 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { defaultScorePoints, type Course, type CourseSettingDocument, type CourseSettingEdit, type CourseSummary } from "@o-tid/course-setting";
+import { COURSE_PRINT_SCALES, defaultScorePoints, type Course, type CourseSettingDocument, type CourseSettingEdit, type CourseSummary } from "@o-tid/course-setting";
 import { coursePropertiesSv as text } from "../../i18n/course-setting-properties-sv";
 import { formOf, parsePoints, propertyChanges, type PropertiesForm } from "../../lib/course-setting-properties";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
+const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
+
 /**
  * ADR-0190: banans egenskaper i fliken Banor, som Purple Pens dialog Banans egenskaper: slag (vanlig eller poängbana),
  * stigning och fast längd (tom = uträknad). Spara ger en åtgärd med bara det som ändrats.
  */
-export function CourseProperties({ course, summary, readOnly, onEdits }: {
+export function CourseProperties({ course, summary, readOnly, onEdits, mapScale }: {
   course: Course; summary: CourseSummary | undefined; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
+  /** Kartans skala: förval för banans skala (ADR-0211 beslut 5). */
+  mapScale: number;
 }) {
   const [form, setForm] = useState<PropertiesForm>(() => formOf(course));
   const [error, setError] = useState<"climb" | "length">();
@@ -49,6 +53,14 @@ export function CourseProperties({ course, summary, readOnly, onEdits }: {
         placeholder={score ? "" : measured} aria-invalid={error === "length" || undefined} onChange={event => setForm({ ...form, length: event.target.value })} /></label>
     </div>
     <p className={styles.muted}>{text.climbHelp} {score ? text.lengthHelpScore : text.lengthHelp(measured)}</p>
+    {/* ADR-0211 beslut 5: skalan hör till banan och sparas direkt (som Purple Pens "Utskriftsskala" i banans egenskaper). */}
+    <label className={styles.stack}>{text.scale}
+      <select value={course.printScale ?? mapScale} disabled={readOnly} data-testid="course-setting-course-scale"
+        onChange={event => onEdits([{ type: "UPDATE_COURSE", course: course.id, changes: { printScale: Number(event.target.value) } }])}>
+        {[...new Set([mapScale, ...COURSE_PRINT_SCALES, course.printScale ?? mapScale])].sort((a, b) => b - a).map(value =>
+          <option key={value} value={value}>{value === mapScale ? text.scaleMap(thousands(value)) : `1:${thousands(value)}`}</option>)}
+      </select></label>
+    <p className={styles.muted}>{text.scaleHelp}</p>
     {error && <p role="alert" className={styles.muted}>{text.invalid}</p>}
     {!readOnly && <div className={styles.row}>
       <Button type="submit" variant="secondary">{text.save}</Button>

@@ -6,6 +6,7 @@ import type { Point } from "@o-tid/map-file";
 import { circleGapScale, appearanceOf, sizesFor, type Sizes } from "./appearance";
 import { simplifyGaps } from "./arcs";
 import { scoreOrdinals } from "./description-format";
+import { obstacleCost, type NumberObstacles } from "./number-obstacles";
 import { detailGapKey, detailGapsForView, gapsAtScale, overlapGaps, type OverlapFigure } from "./circle-cutting";
 import {
   alongLine, angleDegrees, bezier, cutPath, distance, nearestOnPath, pathIntersections, pathLength, place, polar
@@ -289,7 +290,8 @@ const boxesOverlap = (a: Box, b: Box) => Math.abs(a.cx - b.cx) * 2 < a.w + b.w &
 /** Läge för numret: närmast 30° från ringen där det inte täcker linjer, ringar eller andra nummer. */
 function placeLabel(
   at: Point, radius: number, gap: number, text: string, height: number,
-  lines: readonly Point[][], circles: readonly { center: Point; radius: number }[], placed: readonly Box[], lineWidth: number, fixedAngle?: number
+  lines: readonly Point[][], circles: readonly { center: Point; radius: number }[], placed: readonly Box[], lineWidth: number, fixedAngle?: number,
+  obstacles?: NumberObstacles
 ): Box {
   const w = textWidth(text, height);
   const h = textHeight(text, height);
@@ -310,6 +312,8 @@ function placeLabel(
     for (const lineChain of lines) for (let i = 1; i < lineChain.length; i++) if (segmentHitsBox(lineChain[i - 1]!, lineChain[i]!, box, lineWidth)) cost += 10;
     for (const circle of circles) if (circleHitsBox(circle.center, circle.radius, box)) cost += 10;
     for (const other of placed) if (boxesOverlap(box, other)) cost += 20;
+    // Kartans hinder (ADR-0211 beslut 4): hus och mörka ytor, svarta linjer.
+    cost += obstacleCost(box, obstacles);
     if (!best || cost < best.cost) best = { box, cost };
     if (cost === 0) break;
   }
@@ -520,7 +524,7 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
       at = cc.numberAt;
     } else {
       const box = placeLabel(object.control.at, apparentRadius("NORMAL", sizes), sizes.numberDistance, text, sizes.numberHeight, legLines,
-        circles.filter(c => c.center !== object.control.at), placed, sizes.line);
+        circles.filter(c => c.center !== object.control.at), placed, sizes.line, undefined, options.numberObstacles?.[object.control.id]);
       placed.push(box);
       at = { x: box.cx, y: box.cy };
     }

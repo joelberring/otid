@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { detailCircleGaps, drawTrainingMap, suggestAt, symbolCatalog, type DescriptionSuggestion } from "@o-tid/course-setting";
+import { computeNumberObstacles, detailCircleGaps, drawTrainingMap, suggestAt, symbolCatalog, type DescriptionSuggestion } from "@o-tid/course-setting";
 import { colorUsage, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
 import { MAX_RENDER_SIDE, type MapRenderRequest, type MapRenderResponse } from "./course-setting-map-protocol";
 
@@ -53,10 +53,13 @@ self.onmessage = (event: MessageEvent<MapRenderRequest>) => {
   if (request.type === "render") { queued = request; drain(); return; }
   if (request.type === "detailGaps") {
     // Ringklippen (ADR-0180 beslut 10): kartan är redan inläst här; första gången indexeras den (sparas per karta).
-    let gaps = {}, failed = false;
-    try { if (map) gaps = detailCircleGaps(map, request.circles, { sprint: request.sprint }); }
+    let gaps = {}, failed = false, obstacles = {};
+    try { if (map && request.circles.length > 0) gaps = detailCircleGaps(map, request.circles, { sprint: request.sprint }); }
     catch (error) { console.error("Ringklippen kunde inte räknas", error); failed = true; }
-    post({ type: "detailGaps", id: request.id, gaps, failed });
+    // Kartans hinder för numren (ADR-0211 beslut 4); fel här gör bara att numren placeras som förut.
+    try { if (map && request.points) obstacles = computeNumberObstacles(map, request.points); }
+    catch (error) { console.error("Hindren för numren kunde inte räknas", error); }
+    post({ type: "detailGaps", id: request.id, gaps, failed, obstacles });
     return;
   }
   if (request.type === "symbols") {

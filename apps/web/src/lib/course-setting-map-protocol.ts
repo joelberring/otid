@@ -1,4 +1,4 @@
-import type { CircleArc, DescriptionSuggestion, DetailCircle, SuggestOptions, SymbolCatalogEntry, TrainingMapPass } from "@o-tid/course-setting";
+import type { CircleArc, DescriptionSuggestion, DetailCircle, NumberObstaclesData, SuggestOptions, SymbolCatalogEntry, TrainingMapPass } from "@o-tid/course-setting";
 import type { ColorAdjust, ColorUsage, MapColor, MapGeoreference, Point } from "@o-tid/map-file";
 import type { Bounds } from "./course-setting-viewport";
 
@@ -20,7 +20,9 @@ export type MapRenderRequest =
   /** Träningsläget: kartans symboler med grupp och antal (symbolfiltrets val per symbol). */
   | { readonly type: "symbols"; readonly id: number }
   /** Ringklipp (ADR-0180 beslut 10): detaljgapen för ringarna, räknade på kartfilen som redan är inläst. */
-  | { readonly type: "detailGaps"; readonly id: number; readonly circles: readonly DetailCircle[]; readonly sprint: boolean }
+  | { readonly type: "detailGaps"; readonly id: number; readonly circles: readonly DetailCircle[]; readonly sprint: boolean;
+      /** ADR-0211 beslut 4: kontrollerna vars nummer placeras; svaret får kartans hinder för numren. */
+      readonly points?: readonly { readonly id: string; readonly at: Point }[] | undefined }
   /** ADR-0180 beslut 13: förslag på kontrollbeskrivning för punkterna (kontrollens id och läge). */
   | { readonly type: "suggest"; readonly id: number; readonly points: readonly SuggestPoint[]; readonly options: SuggestOptions };
 
@@ -37,7 +39,8 @@ export type MapRenderResponse =
       readonly usage?: ReadonlyMap<number, ColorUsage> | undefined }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   /** Tomt när kartan inte är inläst; `failed` när uträkningen misslyckades (ringarna ritas då hela och editorn säger det). */
-  | { readonly type: "detailGaps"; readonly id: number; readonly gaps: Readonly<Record<string, readonly CircleArc[]>>; readonly failed?: boolean }
+  | { readonly type: "detailGaps"; readonly id: number; readonly gaps: Readonly<Record<string, readonly CircleArc[]>>; readonly failed?: boolean;
+      readonly obstacles?: Readonly<Record<string, NumberObstaclesData>> | undefined }
   /** Tomt när kartan inte är inläst; `failed` när uträkningen misslyckades (editorn säger det). */
   | { readonly type: "suggestions"; readonly id: number; readonly suggestions: SuggestionsByControl; readonly failed?: boolean }
   | { readonly type: "symbols"; readonly id: number; readonly symbols: readonly SymbolCatalogEntry[] }
@@ -52,7 +55,7 @@ export class MapRenderSession {
   private latest = 0;
   private onRendered: ((id: number, bitmap: ImageBitmap) => void) | undefined;
   private latestGaps = 0;
-  private onGaps: ((gaps: Readonly<Record<string, readonly CircleArc[]>>, failed: boolean) => void) | undefined;
+  private onGaps: ((gaps: Readonly<Record<string, readonly CircleArc[]>>, failed: boolean, obstacles: Readonly<Record<string, NumberObstaclesData>>) => void) | undefined;
   private latestSuggest = 0;
   private onSuggestions: ((suggestions: SuggestionsByControl, failed: boolean) => void) | undefined;
   private latestSymbols = 0;
@@ -66,7 +69,7 @@ export class MapRenderSession {
       const message = event.data;
       if (message.type === "loaded") this.onLoaded(message.bounds, message.scale, message.georeference, message.colors, message.usage ?? new Map());
       else if (message.type === "error") this.onError(message.code);
-      else if (message.type === "detailGaps") { if (message.id === this.latestGaps) this.onGaps?.(message.gaps, message.failed === true); }
+      else if (message.type === "detailGaps") { if (message.id === this.latestGaps) this.onGaps?.(message.gaps, message.failed === true, message.obstacles ?? {}); }
       else if (message.type === "suggestions") { if (message.id === this.latestSuggest) this.onSuggestions?.(message.suggestions, message.failed === true); }
       else if (message.type === "symbols") { if (message.id === this.latestSymbols) this.onSymbols?.(message.symbols); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
@@ -84,11 +87,13 @@ export class MapRenderSession {
     return id;
   }
 
-  /** Detaljgapen för ringarna; bara svaret på den senaste beställningen används. */
-  detailGaps(circles: readonly DetailCircle[], sprint: boolean, onGaps: (gaps: Readonly<Record<string, readonly CircleArc[]>>, failed: boolean) => void): void {
+  /** Detaljgapen för ringarna och hindren för numren; bara svaret på den senaste beställningen används. */
+  detailGaps(circles: readonly DetailCircle[], sprint: boolean,
+    onGaps: (gaps: Readonly<Record<string, readonly CircleArc[]>>, failed: boolean, obstacles: Readonly<Record<string, NumberObstaclesData>>) => void,
+    points?: readonly { readonly id: string; readonly at: Point }[]): void {
     const id = ++this.latestGaps;
     this.onGaps = onGaps;
-    this.worker.postMessage({ type: "detailGaps", id, circles, sprint } satisfies MapRenderRequest);
+    this.worker.postMessage({ type: "detailGaps", id, circles, sprint, ...(points ? { points } : {}) } satisfies MapRenderRequest);
   }
 
   /** Förslag på kontrollbeskrivning för punkterna; bara svaret på den senaste beställningen används. */

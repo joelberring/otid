@@ -19,6 +19,9 @@ export const OVERPRINT_SIZES = {
 export const LEG_CIRCLE_GAP_MM = 0.35;
 export const LEG_CIRCLE_GAP_LIMITS = { min: 0, max: 3 } as const;
 
+/** Vanliga utskriftsskalor för en bana (ADR-0211 beslut 5); kartans egen skala läggs till i listan. */
+export const COURSE_PRINT_SCALES = [15000, 10000, 7500, 5000, 4000, 3000] as const;
+
 /** Siffrans höjd för koder i "alla kontroller" (Roboto Condensed, 3 mm). */
 export const CODE_HEIGHT = 3.0;
 /** Avstånd från ringens kant till numret respektive koden. */

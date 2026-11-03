@@ -1,36 +1,4 @@
-/** Steg 64 (ADR-0183): utskriftsprofilen och layoutmallen på utskriftssidan. */
-export const printProfileSv = {
-  heading: "Färger och tryck (utskriftsprofil)",
-  help: "Rätta kartans färger för skrivaren eller tryckeriet utan OCAD och utan att spara om kartfilen: dölj, ljusare eller mörkare, ny CMYK och dekorfärg med övertryck. Kartfilen ändras aldrig.",
-  choose: "Profil",
-  name: "Namn",
-  unsaved: "inte sparad",
-  superseded: "äldre version",
-  source: "Källa",
-  save: "Spara profilen",
-  saved: "Profilen är sparad och vald för tävlingen.",
-  saveFailed: "Profilen sparades inte. Ladda om sidan och försök igen.",
-  export: "Ladda ned (JSON)",
-  import: "Läs in (JSON)",
-  course: "Banans färg",
-  spotName: "Dekorfärg",
-  overprint: "Övertryck",
-  noColors: "Kartfilens färger visas när kartan är inläst.",
-  colorsCaption: "Kartans färger, översta först. Ändringarna gäller bara utskriften.",
-  color: "Färg",
-  fileCmyk: "CMYK i filen",
-  visible: "Synlig",
-  lighten: "Ljusare % (− mörkare)",
-  newCmyk: "Ny CMYK",
-  spot: "Dekorfärg, övertryck",
-  preflight: "Förhandskontroll:",
-  preflightOk: "kan skrivas ut",
-  preflightBlocked: "behöver åtgärdas",
-  noFindings: "Inga anmärkningar.",
-  confirm: "Bekräfta",
-  severity: { INFO: "Info:", WARNING: "Varning:", BLOCKING: "Blockerar:" } as Record<string, string>
-} as const;
-
+/** Steg 64 (ADR-0183): layoutmallen på utskriftssidan. */
 export const layoutTemplateSv = {
   heading: "Layoutmall",
   help: "Mallen är papperet med kartramar, texter, logotyp, beskrivningens plats och remsa. Samma mall används för alla valda banor.",

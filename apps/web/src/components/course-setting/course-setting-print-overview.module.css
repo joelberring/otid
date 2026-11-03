@@ -1,0 +1,29 @@
+/* ADR-0211 beslut 7: översikten över arken (kort i ett rutnät; en lista på telefonen). */
+.overview { display: grid; gap: 10px; width: 100%; }
+.head h2 { margin: 0; font-size: var(--text-lg, 1.15rem); }
+.head p { margin: 0; }
+.muted { color: var(--muted); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+.field { display: inline-grid; gap: 2px; font-size: var(--text-sm); }
+.field select { min-height: 32px; max-width: 100%; }
+.check { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+.grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.card { position: relative; display: grid; border: 1px solid var(--line); background: var(--surface, #fff); }
+.card[data-selected] { outline: 3px solid #1d6fd1; outline-offset: -1px; }
+.open { display: grid; gap: 4px; padding: 8px; text-align: left; background: none; border: 0; font: inherit; color: inherit; cursor: pointer; }
+.open:focus-visible { outline: 2px solid #1d6fd1; }
+.thumb { display: block; aspect-ratio: 210 / 297; overflow: hidden; background: #f4f4f4; }
+.thumb svg { width: 100% !important; height: 100% !important; box-shadow: none; }
+.title { font-weight: 700; }
+.facts { font-size: var(--text-sm); color: var(--muted); }
+.badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.badge { font-size: .78rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); }
+.warning { font-size: .78rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--attention, #8a5a00); color: var(--attention, #8a5a00); font-weight: 600; }
+.mark { position: absolute; top: 6px; right: 6px; background: var(--surface, #fff); padding: 2px; }
+.mark input { width: 20px; height: 20px; }
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; gap: 6px; }
+  .open { grid-template-columns: 56px 1fr; align-items: center; column-gap: 10px; }
+  .thumb { grid-row: span 3; width: 56px; }
+}
+@media print { .overview { display: none !important; } }

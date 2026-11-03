@@ -102,9 +102,13 @@ test("banläggning-egenskaper: stigning, fast längd, poängbana, ordning, ångr
     await scoreProperties.getByRole("button", { name: "Spara egenskaperna" }).click();
     const firstPoints = owner.getByTestId("course-setting-points").first();
     await expect(firstPoints).toBeVisible();
+    // Utan satta poäng gäller kodens första siffra (som tävlingens rogaining): platshållaren visar den och summan räknar den.
+    const fallback = Number(await firstPoints.getAttribute("placeholder"));
+    expect(fallback).toBeGreaterThan(0);
+    const before = Number(/^(\d+) poäng/.exec((await owner.getByTestId("course-setting-score-total").textContent()) ?? "")![1]);
     await firstPoints.fill("20");
     await firstPoints.press("Enter");
-    await expect(owner.getByTestId("course-setting-score-total")).toContainText("20 poäng");
+    await expect(owner.getByTestId("course-setting-score-total")).toContainText(`${before - fallback + 20} poäng`);
     await saved(owner);
     const document = await documentNow();
     expect(document.courses.find(course => course.name === "Lång (kopia)")!.kind).toBe("SCORE");

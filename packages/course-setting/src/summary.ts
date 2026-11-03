@@ -1,5 +1,5 @@
 /** Varianter, längder och nästa lediga kod. */
-import type { CourseSettingDocument, CourseSummary, CourseVariant } from "./types";
+import type { Course, CourseSettingDocument, CourseSummary, CourseVariant } from "./types";
 import { CourseSettingEditError } from "./types";
 import { enumerateCourseControls, findCourse, measuredLengthMeters, variations } from "./walk";
 
@@ -13,11 +13,34 @@ function variant(document: CourseSettingDocument, courseId: string, code: string
   return { code, courseControls, controlCodes, lengthMeters: measuredLengthMeters(document, courseId, choices) };
 }
 
-export function courseVariantList(document: CourseSettingDocument, courseId: string): CourseVariant[] {
-  findCourse(document, courseId);
+/** ADR-0197: varianten är bortvald när både koden och kontrollkoderna stämmer med ett bortval. */
+export function isExcludedVariant(course: Course, variant: Pick<CourseVariant, "code" | "controlCodes">): boolean {
+  return (course.excludedVariants ?? []).some(row => row.code === variant.code && row.controls.length === variant.controlCodes.length &&
+    row.controls.every((code, index) => code === variant.controlCodes[index]));
+}
+
+/** Alla varianter (också bortvalda, med `excluded`). */
+export function allCourseVariantList(document: CourseSettingDocument, courseId: string): CourseVariant[] {
+  const course = findCourse(document, courseId);
   const all = variations(document, courseId);
   if (all.length === 0) return [variant(document, courseId, "", null)];
-  return all.map(v => variant(document, courseId, v.code, v.choices));
+  const list = all.map(v => variant(document, courseId, v.code, v.choices));
+  if (!course.excludedVariants?.length) return list;
+  const marked = list.map(row => isExcludedVariant(course, row) ? { ...row, excluded: true } : row);
+  // Minst en variant används alltid (ett bortval som efter en ändring träffar alla gäller inte).
+  return marked.every(row => row.excluded) ? list : marked;
+}
+
+/** Varianterna som används (ADR-0197: utan de bortvalda). */
+export function courseVariantList(document: CourseSettingDocument, courseId: string): CourseVariant[] {
+  return allCourseVariantList(document, courseId).filter(row => !row.excluded);
+}
+
+/** Koderna för banans bortvalda varianter som gäller. */
+export function excludedVariantCodes(document: CourseSettingDocument, courseId: string): Set<string> {
+  const course = document.courses.find(row => row.id === courseId);
+  if (!course?.excludedVariants?.length || course.kind === "SCORE") return new Set();
+  return new Set(allCourseVariantList(document, courseId).filter(row => row.excluded).map(row => row.code));
 }
 
 export function controlOrder(document: CourseSettingDocument, courseId: string, code?: string): string[] {
@@ -32,7 +55,8 @@ export function controlOrder(document: CourseSettingDocument, courseId: string, 
 /** Längd (uträknad eller inskriven), min/max för gafflade banor, flest kontroller i någon variant. */
 export function summaries(document: CourseSettingDocument): CourseSummary[] {
   return [...document.courses].sort((a, b) => a.order - b.order).map(course => {
-    const variants = courseVariantList(document, course.id);
+    const all = allCourseVariantList(document, course.id);
+    const variants = all.filter(row => !row.excluded);
     const lengths = variants.map(v => v.lengthMeters);
     const min = Math.min(...lengths);
     const max = Math.max(...lengths);
@@ -44,7 +68,8 @@ export function summaries(document: CourseSettingDocument): CourseSummary[] {
       ...(variants.length > 1 ? { lengthRangeMeters: override !== undefined ? { min: override, max: override } : { min, max } } : {}),
       ...(course.climbMeters !== undefined ? { climbMeters: course.climbMeters } : {}),
       controlCount: Math.max(...variants.map(v => v.controlCodes.length)),
-      variants
+      variants,
+      excludedCount: all.length - variants.length
     };
   });
 }

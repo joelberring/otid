@@ -10,7 +10,7 @@ import { createEmptyDocument } from "./empty";
 import { layout } from "./overprint";
 import { readPpenDocument } from "./ppen-read";
 import { writePpenDocument } from "./ppen-write";
-import { controlOrder, courseVariantList, nextUnusedCode, summaries } from "./summary";
+import { allCourseVariantList, controlOrder, courseVariantList, nextUnusedCode, summaries } from "./summary";
 import type { ParsedMap } from "@o-tid/map-file";
 import type {
   CheckOptions, CourseCheck, CourseSettingDocument, CourseSettingEdit, CourseSummary, CourseVariant, EditResult,
@@ -32,7 +32,9 @@ export {
   type PaperSizes
 } from "./appearance-edit";
 export { controlLabelText } from "./overprint";
-export { INVERTIBLE_CODES } from "./summary";
+export { excludedVariantCodes, INVERTIBLE_CODES, isExcludedVariant } from "./summary";
+// ADR-0197: bortvalda varianter i .ppen och när en ny .ppen läses in.
+export { carryExcludedVariants, VARIANTS_ELEMENT } from "./variants-ppen";
 // Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).
 export {
   createdIdsBetween, diffTouches, documentChanges, editTouches, EMPTY_ID_MAP, NO_CREATED_IDS, objectPatch, remapEdit, replayEdits, touchedConflict,
@@ -87,8 +89,10 @@ export function emptyDocument(options: { readonly title: string; readonly mapSca
 export function applyEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult { return applyDocumentEdit(document, edit); }
 /** Banans kontroller (banans kontroll-id) i ordning för en variant (eller alla grenar, i ordningen de ritas). */
 export function courseControlOrder(document: CourseSettingDocument, course: string, variant?: string): readonly string[] { return controlOrder(document, course, variant); }
-/** Alla varianter av en bana, med koder som Purple Pen. */
+/** Varianterna som används av en bana, med koder som Purple Pen (ADR-0197: utan de bortvalda). */
 export function courseVariants(document: CourseSettingDocument, course: string): readonly CourseVariant[] { return courseVariantList(document, course); }
+/** Alla varianter av en bana, också de bortvalda (`excluded`). */
+export function allCourseVariants(document: CourseSettingDocument, course: string): readonly CourseVariant[] { return allCourseVariantList(document, course); }
 /** Längd, antal kontroller och varianter per bana (längden i meter med kartans skala). */
 export function courseSummaries(document: CourseSettingDocument): readonly CourseSummary[] { return summaries(document); }
 /** Kontrollerna som banläggaren bör titta på. Gränserna för nära kontroller kan ändras med `options`. */

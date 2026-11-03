@@ -109,6 +109,7 @@ test("banläggning-egenskaper: stigning, fast längd, poängbana, ordning, ångr
     const document = await documentNow();
     expect(document.courses.find(course => course.name === "Lång (kopia)")!.kind).toBe("SCORE");
     expect(document.courses.find(course => course.name === "Mellan")!.kind).toBe("NORMAL");
+    expect(document.courses.find(course => course.name === "Lång")!.kind).toBe("NORMAL");
     expect(Object.values(document.courseControls).some(item => item.points === 20)).toBe(true);
     await mapReady(owner);
     await owner.getByTestId("course-setting-control-list").scrollIntoViewIfNeeded();
@@ -157,6 +158,9 @@ test("banläggning-egenskaper: stigning, fast längd, poängbana, ordning, ångr
     const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },
       hasTouch: true });
     const phone = await phoneContext.newPage();
+    // Fel i webbläsaren syns i testets logg (ett fel i en uträkning visar annars bara att en panel saknas).
+    phone.on("console", message => { if (message.type() === "error") console.log(`[telefonen] ${message.text()}`); });
+    phone.on("pageerror", error => console.log(`[telefonen] ${error.message}`));
     await phone.goto(`/admin/${raceId}/course-setting`);
     await expect(phone.getByTestId("course-setting-field-more")).toBeVisible({ timeout: 60_000 });
     await mapReady(phone);
@@ -170,7 +174,9 @@ test("banläggning-egenskaper: stigning, fast längd, poängbana, ordning, ångr
     if (shots) await phone.screenshot({ path: `${shots}/banlaggning-egenskaper-390.png` });
     await phone.getByTestId("course-setting-properties").scrollIntoViewIfNeeded();
     if (shots) await phone.screenshot({ path: `${shots}/banlaggning-egenskaper-egenskaper-390.png` });
-    await phone.getByTestId("course-setting-route-length").scrollIntoViewIfNeeded();
+    const phoneLength = phone.getByTestId("course-setting-route-length");
+    await expect(phoneLength, `banorna: ${JSON.stringify((await documentNow()).courses.map(row => [row.name, row.kind]))}`).toBeAttached({ timeout: 60_000 });
+    await phoneLength.scrollIntoViewIfNeeded();
     if (shots) await phone.screenshot({ path: `${shots}/banlaggning-egenskaper-vagval-390.png` });
     await phoneContext.close();
   });

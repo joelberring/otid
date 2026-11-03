@@ -8,8 +8,9 @@
  *   skriver `location` rakt av som `MapPosition`, OCAD sina papperskoordinater). Ingen omräkning. Saknas `MapPosition` men
  *   finns `Position` (WGS 84) räknas läget om med kartfilens georeferens (`fromWgs84`).
  * - Varianterna i en familj (`CourseFamily`, eller 2.0.3:s `CourseVariation`) blir en gafflad bana när gafflingarna ger
- *   exakt samma varianter (kontrollerna i samma ordning, varken fler eller färre); annars blir varje variant en egen bana
- *   och det sägs i ett besked.
+ *   exakt samma varianter (kontrollerna i samma ordning). Ger gafflingarna fler varianter än filen väljs de som saknas bort
+ *   (ADR-0198, så blir en banfil med färre varianter, t.ex. ur O-Tid, samma gafflade bana). Går det inte blir varje variant
+ *   en egen bana och det sägs i ett besked.
  * - Klasserna blir banans undertitel ("H21, D21"), som Purple Pen och överföringen till tävlingen läser dem.
  * - Kontrollbeskrivningar finns inte i CourseData: vanliga kontroller och start får inga, mål och passager samma
  *   riktningsrad som en ny kontroll i editorn (snitslat mål och passage genom förbjudet område ur `specialInstruction`).
@@ -78,7 +79,11 @@ class Fail extends Error {}
 class Builder {
   readonly courseControls: Record<string, CourseControl> = {};
   private next = 1;
-  constructor(private readonly points: (control: string, index: number) => number | undefined) {}
+  /**
+   * `relaxed`: grenarna behöver inte kombineras på alla sätt; gafflingarna ger då fler varianter än filen och de som
+   * saknas väljs bort (ADR-0198, t.ex. en banfil som O-Tid skrivit med bortvalda varianter).
+   */
+  constructor(private readonly points: (control: string, index: number) => number | undefined, private readonly relaxed = false) {}
   create(control: string, next: string | undefined, index = -1): string {
     const id = String(this.next++);
     const points = this.points(control, index);
@@ -112,7 +117,7 @@ class Builder {
       for (const id of branches) this.courseControls[id] = { ...this.courseControls[id]!, split: { kind: "LOOP", branches, end: exit } };
       return exit;
     }
-    const split = splitAtMerge(tails);
+    const split = splitAtMerge(tails, this.relaxed);
     const end = this.forks(split.rests, after);
     if (end === undefined) throw new Fail();
     const branches = split.groups.map(group => this.create(first, this.forks(group, end)));
@@ -132,19 +137,26 @@ function uniqueSequences(sequences: readonly (readonly string[])[]): (readonly s
  * Var grenarna möts: den första kontrollen (i den första variantens ordning) som alla varianter passerar, där varje gren
  * kombineras med samma fortsättningar. Grenarna i den ordning de först förekommer (Purple Pen skriver AC, AD, BC, BD).
  */
-function splitAtMerge(tails: readonly (readonly string[])[]): { groups: (readonly string[])[][]; rests: (readonly string[])[] } {
+function splitAtMerge(tails: readonly (readonly string[])[], relaxed: boolean): { groups: (readonly string[])[][]; rests: (readonly string[])[] } {
+  // Utan krav på alla kombinationer: där grenarna först möts (som banläggaren gafflat), annars där alla kombineras.
+  return (relaxed ? mergeAt(tails, false) : mergeAt(tails, true)) ?? (() => { throw new Fail(); })();
+}
+
+function mergeAt(tails: readonly (readonly string[])[], product: boolean): { groups: (readonly string[])[][]; rests: (readonly string[])[] } | undefined {
   for (const merge of new Set(tails[0])) {
     if (!tails.every(tail => tail.includes(merge))) continue;
     const parts = tails.map(tail => ({ part: tail.slice(0, tail.indexOf(merge)), rest: tail.slice(tail.indexOf(merge)) }));
     const rests = uniqueSequences(parts.map(row => row.rest));
     const partKeys = [...new Set(parts.map(row => key(row.part)))];
-    if (parts.length !== partKeys.length * rests.length) continue;
-    const restKeys = new Set(rests.map(key));
-    const combined = partKeys.every(partKey => {
-      const with_ = new Set(parts.filter(row => key(row.part) === partKey).map(row => key(row.rest)));
-      return with_.size === restKeys.size && [...with_].every(restKey => restKeys.has(restKey));
-    });
-    if (!combined) continue;
+    if (product) {
+      if (parts.length !== partKeys.length * rests.length) continue;
+      const restKeys = new Set(rests.map(key));
+      const combined = partKeys.every(partKey => {
+        const with_ = new Set(parts.filter(row => key(row.part) === partKey).map(row => key(row.rest)));
+        return with_.size === restKeys.size && [...with_].every(restKey => restKeys.has(restKey));
+      });
+      if (!combined) continue;
+    }
     const groups = new Map<string, (readonly string[])[]>();
     for (const row of parts) {
       const head = row.part[0] ?? "";
@@ -155,7 +167,7 @@ function splitAtMerge(tails: readonly (readonly string[])[]): { groups: (readonl
     if (groups.size < 2) continue;
     return { groups: [...groups.values()], rests };
   }
-  throw new Fail();
+  return undefined;
 }
 
 /**
@@ -242,14 +254,14 @@ export function courseDataDocument(layout: CourseDataLayout, options: CourseData
   const courses: Course[] = [];
   const asCourses: string[] = [];
   let ccNext = 1;
-  const add = (name: string, members: readonly LayoutCourse[], forked: boolean, classNames: readonly string[]) => {
+  const add = (name: string, members: readonly LayoutCourse[], forked: boolean, classNames: readonly string[], relaxed = false) => {
     const score = members.some(member => member.score);
     const pointsOf = (control: string, index: number) => {
       if (!score || index < 0) return undefined;
       const item = members[0]!.controls[index];
       return item && idOf.get(item.control) === control ? item.score : undefined;
     };
-    const builder = new Builder(pointsOf);
+    const builder = new Builder(pointsOf, relaxed);
     const sequences = members.map(member => member.controls.map(item => idOf.get(item.control)!));
     const first = forked ? builder.forks(sequences, undefined) : builder.chain(sequences[0]!);
     // Banans kontroller får löpnummer i hela dokumentet.
@@ -272,26 +284,49 @@ export function courseDataDocument(layout: CourseDataLayout, options: CourseData
       add(entry.name, entry.members, false, classesOf([entry.name]));
       continue;
     }
-    // Gafflad: bygg gafflingarna och kontrollera att varianterna blir exakt filens.
+    // Gafflad: bygg gafflingarna och kontrollera att varianterna blir exakt filens. Går det inte med alla kombinationer
+    // byggs gafflingarna med fler varianter och de som inte står i filen väljs bort (ADR-0198).
     const before = { courseControls: { ...courseControls }, courses: [...courses], ccNext };
-    let exact = !entry.members.some(member => member.score);
-    if (exact) {
+    const restore = () => {
+      for (const id of Object.keys(courseControls)) if (!(id in before.courseControls)) delete courseControls[id];
+      courses.length = before.courses.length;
+      ccNext = before.ccNext;
+    };
+    const wanted = entry.members.map(member => key(member.controls.map(item => idOf.get(item.control)!)));
+    const tryForks = (relaxed: boolean): boolean => {
       try {
-        add(entry.name, entry.members, true, classesOf([entry.name, ...entry.members.map(member => member.name)]));
+        add(entry.name, entry.members, true, classesOf([entry.name, ...entry.members.map(member => member.name)]), relaxed);
         const added = courses[courses.length - 1]!;
         const draft: CourseSettingDocument = { ...base, controls, courseControls, courses };
-        const built = courseVariantList(draft, added.id).map(variant => key(variant.courseControls.map(id => courseControls[id]!.control)));
-        const wanted = entry.members.map(member => key(member.controls.map(item => idOf.get(item.control)!)));
-        exact = built.length === wanted.length && sameSet(built, wanted);
+        const all = courseVariantList(draft, added.id);
+        const built = all.map(variant => key(variant.courseControls.map(id => courseControls[id]!.control)));
+        if (!relaxed) return built.length === wanted.length && sameSet(built, wanted);
+        const wantedKeys = new Set(wanted);
+        if (new Set(built).size !== built.length || !wanted.every(row => built.includes(row))) return false;
+        const excludedVariants = all.filter((_, index) => !wantedKeys.has(built[index]!))
+          .map(variant => ({ code: variant.code, controls: [...variant.controlCodes] }));
+        courses[courses.length - 1] = { ...added, ...(excludedVariants.length > 0 ? { excludedVariants } : {}) };
+        return true;
       } catch (error) {
         if (!(error instanceof Fail || error instanceof CourseSettingEditError)) throw error;
-        exact = false;
+        return false;
       }
+    };
+    // Filens variantkoder avgör när båda går: samma koder som i filen (t.ex. O-Tid:s eller Purple Pens "AC", "BD") vinner.
+    const fileCodes = entry.members.map(member => member.variantCode ?? "");
+    const codesMatch = () => sameSet(courseVariantList({ ...base, controls, courseControls, courses }, courses[courses.length - 1]!.id)
+      .map(variant => variant.code), fileCodes);
+    const score = entry.members.some(member => member.score);
+    if (score) { restore(); } else {
+      const strict = tryForks(false);
+      if (strict && codesMatch()) continue;
+      restore();
+      const relaxed = tryForks(true);
+      if (relaxed && (codesMatch() || !strict)) continue;
+      restore();
+      if (strict && tryForks(false)) continue;
+      restore();
     }
-    if (exact) continue;
-    for (const id of Object.keys(courseControls)) if (!(id in before.courseControls)) delete courseControls[id];
-    courses.length = before.courses.length;
-    ccNext = before.ccNext;
     for (const member of entry.members) add(member.name, [member], false, classesOf(familyClasses(member)));
     asCourses.push(entry.name);
   }

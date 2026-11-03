@@ -119,6 +119,16 @@ describe("banfil (IOF XML CourseData) till banläggning", () => {
     expect(longBack.climbMeters).toBe(45);
     expect(longBack.lengthOverrideMeters).toBeUndefined();
     expect(back.document.courses.find(course => course.name === "Poäng")!.secondaryTitle).toBe("Öppen");
+
+    // ADR-0198: bortvalda varianter skrivs inte i IOF XML; tillbaka blir det samma gafflingar med samma bortval.
+    const fewer: CourseSettingDocument = { ...document, courses: document.courses.map(course => course.id === long
+      ? { ...course, excludedVariants: [{ code: "AD", controls: ["31", "32", "34", "36"] }, { code: "BC", controls: ["31", "33", "34", "35"] }] } : course) };
+    expect(courseVariants(fewer, long).map(variant => variant.code)).toEqual(["AC", "BD"]);
+    const again = fromXml(writeIofCourseData(fewer), { mapScale: 10000 });
+    expect(again.notices).toEqual([]);
+    expect(exported(again.document)).toEqual(exported(fewer));
+    const longAgain = again.document.courses.find(course => course.name === "Lång")!;
+    expect(longAgain.excludedVariants).toEqual(fewer.courses.find(course => course.id === long)!.excludedVariants);
   });
 
   it("den syntetiska banfilen och .ppen till samma karta ger samma bana, och lägena stämmer med kartfilens georeferens", () => {

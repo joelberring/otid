@@ -47,9 +47,12 @@ export async function loadResultNotes(tx: DbExecutor, raceId: string, entryIds?:
     status: schema.resultRevisions.status }).from(schema.resultRevisions)
     .where(and(eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true), scope(schema.resultRevisions.entryId)))
     .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision))).filter((row) => row.status === "MP");
-  for (const [entryId, wrongMap] of await loadWrongMaps(tx, raceId, mispunched.map((row) => row.entryId))) {
+  const found = await loadWrongMaps(tx, raceId, mispunched.map((row) => row.entryId));
+  for (const [entryId, wrongMap] of found.wrongMaps) {
     notes.set(entryId, { ...notes.get(entryId), wrongMap: { assignedCode: wrongMap.assignedCode, fittingCodes: [...wrongMap.fittingCodes] } });
   }
+  // ADR-0198: stämplingarna passar en variant som banläggningen valt bort.
+  for (const [entryId, codes] of found.excluded) notes.set(entryId, { ...notes.get(entryId), excludedVariant: { codes: [...codes] } });
   return notes;
 }
 
@@ -59,6 +62,7 @@ export function applicableResultNotes(notes: ResultNotes | undefined, status: st
   const timed = status === "OK" || status === "OVERTIME" || status === "MP" || status === "DSQ" || status === "OOC";
   const value: ResultNotes = { ...(timed && notes.startPunch ? { startPunch: notes.startPunch } : {}),
     ...(status === "DSQ" && notes.disqualificationReason ? { disqualificationReason: notes.disqualificationReason } : {}),
-    ...(status === "MP" && notes.wrongMap ? { wrongMap: notes.wrongMap } : {}) };
-  return value.startPunch || value.disqualificationReason || value.wrongMap ? value : undefined;
+    ...(status === "MP" && notes.wrongMap ? { wrongMap: notes.wrongMap } : {}),
+    ...(status === "MP" && notes.excludedVariant ? { excludedVariant: notes.excludedVariant } : {}) };
+  return value.startPunch || value.disqualificationReason || value.wrongMap || value.excludedVariant ? value : undefined;
 }

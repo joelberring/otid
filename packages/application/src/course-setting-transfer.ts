@@ -1,4 +1,4 @@
-import { courseVariants, type ControlPoint, type CourseSettingDocument } from "@o-tid/course-setting";
+import { allCourseVariants, courseVariants, type ControlPoint, type CourseSettingDocument } from "@o-tid/course-setting";
 import { courseVariantCode, type CourseImport, type GeoPosition, type MapPositionImport } from "@o-tid/iof-xml";
 import { isSupportedEpsg, mapPointToWgs84, type MapGeoreference, type Point } from "@o-tid/map-file";
 import type { CourseFileProjection } from "./source-sync-model";
@@ -15,10 +15,15 @@ import type { CourseFileProjection } from "./source-sync-model";
  * - kartlägen (mm, två decimaler), kartans skala och – när kartfilen är georefererad – lägen i WGS 84.
  *
  * Stafettlagens varianter (Purple Pens `relay-teams`) förs inte över än; de läses in med en startlista eller IOF XML.
+ *
+ * ADR-0198: bortvalda varianter blir inte varianter i tävlingen (ingen löpare får dem, de räknas inte och skrivs inte i
+ * tävlingens IOF XML). De följer med banversionen som `excludedVariants` (högst 1000) så att avläsningen känner igen dem.
  */
 export type CourseSettingTransferProblem = { readonly error: "NO_COURSES" | "INVALID_CODES"; readonly controls: readonly string[] };
 
 const CODE = /^[1-9][0-9]{0,5}$/;
+/** ADR-0198: högst så många bortvalda varianter följer med banversionen. */
+const MAX_EXCLUDED = 1000;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const mapPosition = (at: Point): MapPositionImport => ({ x: round2(at.x), y: round2(at.y) });
 
@@ -77,6 +82,10 @@ export function courseSettingProjection(document: CourseSettingDocument, options
       ...(geoPosition(georeference, finish.at) ? { finishPosition: geoPosition(georeference, finish.at)! } : {}) };
     const climbMeters = roundedClimb(course.climbMeters);
     const forked = variants.length > 1 || first.code !== "";
+    const excludedVariants = allCourseVariants(document, course.id).filter(variant => variant.excluded).slice(0, MAX_EXCLUDED).map(variant => ({
+      code: courseVariantCode(course.name, `${course.name} ${variant.code}`),
+      controlCodes: variant.courseControls.map(control).flatMap(point => point?.kind === "NORMAL" && point.code && CODE.test(point.code) ? [Number(point.code)] : [])
+    }));
     let externalId = course.name;
     if (forked) {
       externalId = `family:${course.name}`;
@@ -84,7 +93,8 @@ export function courseSettingProjection(document: CourseSettingDocument, options
       courses.push({ externalId, name: course.name, controlCodes: [], ...ends,
         variants: measured.map(variant => ({ code: courseVariantCode(course.name, `${course.name} ${variant.code}`), controlCodes: variant.controlCodes,
           ...(variant.lengthMeters !== undefined ? { lengthMeters: variant.lengthMeters } : {}) })),
-        ...(longest?.lengthMeters !== undefined ? { lengthMeters: longest.lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}) });
+        ...(longest?.lengthMeters !== undefined ? { lengthMeters: longest.lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}),
+        ...(excludedVariants.length > 0 ? { excludedVariants } : {}) });
     } else {
       courses.push({ externalId, name: course.name, controlCodes: measured[0]!.controlCodes, ...ends,
         ...(measured[0]!.lengthMeters !== undefined ? { lengthMeters: measured[0]!.lengthMeters } : {}),

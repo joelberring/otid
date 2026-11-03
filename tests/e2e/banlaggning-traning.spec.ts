@@ -5,8 +5,8 @@ import { createRace, registerAccount, today, unique, warmCourseSetting, warmRout
 /**
  * ADR-0192: träningsläget i banläggningen. På banan Lång (påhittad karta och .ppen i fixtures) läggs en kantig korridor från
  * start till 32, bara kurvbild därifrån till 34 och fönster till mål, sista säkra på en sträcka och ett ritat område;
- * ångra och gör om; före och efter. Sedan stjärnbana, linjeorientering och kepsorientering, förhandsvisningen med kartbitar
- * och telefonens fliken Träning. Skärmbilderna sparas i E2E_SCREENSHOT_DIR (dator 1280 och telefon 390).
+ * ångra och gör om; före och efter. Sedan linjeorientering och spegelvänd karta på Mellan, kepsorientering (A och B) på Lång,
+ * stjärnbana, telefonens flik Träning och förhandsvisningen (kepsens A- och B-karta, kartbitar, spegel, stjärnans uddar). Skärmbilderna sparas i E2E_SCREENSHOT_DIR (dator 1280 och telefon 390).
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 const shots = process.env.E2E_SCREENSHOT_DIR;
@@ -40,7 +40,7 @@ async function shot(page: Page, name: string) {
 
 type Training = {
   courses: Record<string, { outside: { kind: string }; sections: { form: string; from: string | null; to: string | null }[]; star?: unknown; line?: { points: unknown[] };
-    pairs?: { pairs: unknown[]; print: string } }>;
+    pairs?: { pairs: unknown[]; print: string }; mirror?: boolean }>;
   areas: Record<string, unknown>;
   attackPoints: Record<string, { from: string; to: string }>;
 };
@@ -138,19 +138,33 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   await panel.getByTestId("training-show").check();
   await drawnWith(map, 8);
 
-  // 6. Linjeorientering: linjen längs sträckorna. 7. Keps: par intill varandra, gemensam karta.
+  // 6. Linjeorientering och spegelvänd karta på Mellan: linjen längs sträckorna, kortet Spegel slår på speglingen.
+  await owner.getByTestId("course-setting-view").selectOption({ label: "Mellan" });
   await panel.getByTestId("training-add-LINE").click();
   await panel.getByTestId("training-line-legs").click();
   await saved(owner);
+  await panel.getByTestId("training-add-MIRROR").click();
+  await saved(owner);
+  await expect(panel.getByTestId("training-mirror-on")).toBeChecked();
+  document = await documentNow();
+  expect(document.training!.courses["2"]!.line!.points.length).toBeGreaterThan(2);
+  expect(document.training!.courses["2"]!.mirror).toBe(true);
+  await shot(owner, "08-linje-spegel-1280");
+
+  // 7. Keps på Lång: par intill varandra, gemensam karta; sedan en karta för löpare A och en för B.
+  await owner.getByTestId("course-setting-view").selectOption({ label: "Lång" });
   await panel.getByTestId("training-add-PAIRS").click();
   await panel.getByTestId("training-pairs-make").click();
   await saved(owner);
   document = await documentNow();
-  expect(document.training!.courses["1"]!.line!.points.length).toBeGreaterThan(5);
   expect(document.training!.courses["1"]!.pairs).toMatchObject({ print: "COMMON" });
   expect(document.training!.courses["1"]!.pairs!.pairs).toHaveLength(3);
   await expect(owner.getByTestId("course-setting-overprint")).toHaveAttribute("data-labels", /1a/);
-  await shot(owner, "08-linje-keps-1280");
+  await shot(owner, "09-keps-gemensam-1280");
+  await panel.getByTestId("training-pairs").getByRole("button", { name: "En karta för löpare A och en för B" }).click();
+  await saved(owner);
+  document = await documentNow();
+  expect(document.training!.courses["1"]!.pairs).toMatchObject({ print: "SEPARATE" });
 
   // 8. Stjärna: en ny bana C – udd – C med 31 i mitten, utskrift en karta per udd.
   await panel.getByTestId("training-add-STAR").click();
@@ -162,14 +176,15 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   expect(star).toBeDefined();
   expect(document.training!.courses[star.id]!.star).toMatchObject({ print: "PER_CONTROL" });
   await owner.getByTestId("course-setting-view").selectOption({ label: "Stjärna 31" });
-  await shot(owner, "09-stjarna-1280");
+  await shot(owner, "10-stjarna-1280");
 
   // Telefonen (390 px): fliken Träning bakom Mer, inget utanför skärmen.
   await owner.getByTestId("course-setting-view").selectOption({ label: "Lång" });
   await owner.setViewportSize({ width: 390, height: 844 });
   await owner.reload();
   await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
-  await owner.getByTestId("course-setting-view").selectOption({ label: "Lång" });
+  // På telefonen är banväljaren i fältets rad (överst är den dold under 700 px).
+  await owner.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   const more = owner.getByTestId("course-setting-field-more");
   if (await more.isVisible() && await more.getAttribute("aria-expanded") !== "true") await more.click();
   await owner.getByTestId("course-setting-training-tool").click();
@@ -177,24 +192,39 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   await drawnWith(map, 8);
   const overflow = await owner.evaluate(() => window.document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
-  await shot(owner, "10-telefon-390");
+  await shot(owner, "11-telefon-390");
   await panel.getByTestId("training-section").first().scrollIntoViewIfNeeded();
-  await shot(owner, "11-telefon-avsnitt-390");
+  await shot(owner, "12-telefon-avsnitt-390");
   await owner.setViewportSize({ width: 1280, height: 720 });
 
-  // Förhandsvisningen: Lång med träningen och kartbitar; stjärnan en karta per udd.
+  // Förhandsvisningen: Lång med avsnitten, sista säkra och kepsen som två kartor (A och B); kartbitar; Mellan spegelvänd;
+  // stjärnan en karta per udd.
   await owner.goto(`/admin/${raceId}/course-setting/print`);
   await owner.getByLabel("Lång").check();
+  await expect(owner.getByTestId("print-sheet")).toHaveCount(2, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
-  await shot(owner, "12-utskrift-lang-1280");
+  await expect(owner.getByTestId("print-sheet").nth(1)).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
+  await shot(owner, "13-utskrift-lang-keps-a-1280");
+  await owner.getByTestId("print-sheet").nth(1).scrollIntoViewIfNeeded();
+  await shot(owner, "14-utskrift-lang-keps-b-1280");
   await owner.getByTestId("print-pieces").check();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   expect(Number(await owner.getByTestId("print-sheet").first().getAttribute("data-frames"))).toBeGreaterThan(4);
-  await shot(owner, "13-kartbitar-1280");
+  await shot(owner, "15-kartbitar-1280");
   await owner.getByTestId("print-pieces").uncheck();
   await owner.getByLabel("Lång").uncheck();
+  await owner.getByLabel("Mellan").check();
+  await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
+  await expect(owner.getByTestId("print-sheet").first().getByTestId("print-map")).toHaveAttribute("data-mirror", "");
+  await shot(owner, "16-utskrift-mellan-spegel-1280");
+  await owner.getByLabel("Mellan").uncheck();
   await owner.getByLabel("Stjärna 31").check();
   await expect(owner.getByTestId("print-sheet")).toHaveCount(5, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
-  await shot(owner, "14-stjarna-per-udd-1280");
+  await shot(owner, "17-stjarna-per-udd-1280");
+  await owner.setViewportSize({ width: 390, height: 844 });
+  await owner.getByLabel("Stjärna 31").uncheck();
+  await owner.getByLabel("Lång").check();
+  await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
+  await shot(owner, "18-utskrift-lang-390");
 });

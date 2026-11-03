@@ -103,6 +103,8 @@ export interface CourseTraining {
   readonly line?: LineTraining | undefined;
   readonly pairs?: PairTraining | undefined;
   readonly pieces?: PieceTraining | undefined;
+  /** Spegelorientering: kartan och banan spegelvända i utskriften (texterna vänds inte). Editorn ritar kartan som vanligt. */
+  readonly mirror?: boolean | undefined;
 }
 
 /** Ett ritat område med eget filter (t.ex. bara kurvbild här). */

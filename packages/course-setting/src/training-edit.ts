@@ -122,6 +122,10 @@ export function cleanCourseTraining(value: unknown): CourseTraining {
   }
   if (c.pairs !== undefined) out = { ...out, pairs: cleanPairs(c.pairs) };
   if (c.pieces !== undefined) out = { ...out, pieces: cleanPieces(c.pieces) };
+  if (c.mirror !== undefined) {
+    if (typeof c.mirror !== "boolean") throw invalid("Spegelvänd karta ska vara sant eller falskt");
+    if (c.mirror) out = { ...out, mirror: true };
+  }
   return out;
 }
 

@@ -54,7 +54,9 @@ function FrameView({ id, frame, symbols, image, courseColor }: { id: string; fra
   const nodes = pageNodes(frame, symbols, courseColor);
   return <g data-testid="print-frame" data-course={frame.course}>
     <defs><clipPath id={id}><rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} /></clipPath></defs>
-    {image && <image href={image} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map" />}
+    {image && <image href={image} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map"
+      data-mirror={frame.mirror ? "" : undefined}
+      transform={frame.mirror ? `translate(${2 * clip.x + clip.width} 0) scale(-1 1)` : undefined} />}
     <g clipPath={`url(#${id})`} data-testid="print-overprint">{nodes.map((node, index) => <Node key={index} node={node} />)}</g>
   </g>;
 }

@@ -87,7 +87,8 @@ export const helpArticles: readonly HelpArticle[] = [
         "”Kurvbild”, ”Fönster” och ”Utan karta”: ett filter längs en del av banan, cirklar runt kontrollerna eller sträckor utan karta.",
         "”Sista säkra”: en mindre ring på sträckan. Den är inte en kontroll och syns inte i beskrivningen, längden eller avläsningen.",
         "”Område”: rita ett område med eget filter, till exempel bara kurvbild här.",
-        "”Stjärna”, ”Linje”, ”Keps” och ”Kartbitar”: stjärnbana, linjeorientering, kepsorientering i par och en liten karta per sträcka."
+        "”Stjärna”, ”Linje”, ”Keps” och ”Kartbitar”: stjärnbana, linjeorientering, kepsorientering i par och en liten karta per sträcka.",
+        "”Spegel”: kartan och banan spegelvända i utskriften. Siffrorna går att läsa som vanligt; i banläggningen ritas kartan som vanligt."
       ],
       "”Visa träningen på kartan” visar före och efter. Utskriften och PDF:en har samma maskning, i kartans färger. Träningen följer med i .ppen-filen men försvinner om filen sparas i Purple Pen."
     ]

@@ -95,6 +95,19 @@ kurvbild till 8, fönster till mål, sista säkra på några sträckor.
     behöver ingen id-översättning eftersom id:n är slumpade. Paketet kontrollerar formen (ändliga tal, gränser, högst 64
     avsnitt, 50 områden, 2 000 punkter per polygon och 500 sista säkra).
 
+12. **Spegelvänd karta** (`CourseTraining.mirror`, spegelorientering): kartan och banan vänds höger–vänster i utskriften.
+    `printSheetGroups` speglar ramens banpåtryck kring ramens lodräta mittlinje (`mirrorFigures`: ringar, sträckor, ytor och
+    texternas plats; ringarnas avbrott [s, e] blir [180 − e, 180 − s]) och märker ramen (`SheetFrame.mirror`). Kartbilden
+    ritas som vanligt med passen och vänds när den placeras: förhandsvisningen med en SVG-transform på bilden, PDF:en med
+    matrisen `-1 0 0 1` när kartans Form XObject placeras i ramen. Plåtarna är desamma. Texterna (nummer, kepsens etiketter,
+    markeringar) vänds inte; kartans egna texter blir spegelvända; beskrivningar och bilder på kartan står kvar. Editorn
+    ritar kartan som vanligt (att klicka i en spegelvänd karta vore förvirrande); kortet "Spegel" slår på speglingen.
+    *Relä* (sträckor utan karta, kompass och avståndsbedömning) är avsnittsformen `NO_MAP` i beslut 2.
+13. **Formernas namn som taggar** (`TRAINING_TAGS`, `trainingTags`): Korridor, Kurvbild, Fönster, Utan karta, Sista säkra,
+    Stjärna, Linje, Keps, Minnes, Spegel. Svenska och stabila, samma ord som klubbarkivet (ADR-0194) föreslår ur mapp- och
+    filnamn, så att en träning gjord här och en gammal fil med samma övning får samma tagg. De interna koderna (`CORRIDOR`,
+    `PAIRS` …) är dokumentets format och byts inte heller.
+
 **Konsekvenser.** Inga nya tabeller eller migrationer: träningen ligger i banläggningens jsonb. Purple Pen ser träningsbanorna
 som vanliga banor. Kartan ritas en gång per pass, så en karta med många avsnitt och områden tar längre tid att rita (mätt i
 testerna); PDF:en blir större i samma mån.
@@ -104,5 +117,5 @@ testerna); PDF:en blir större i samma mån.
 - **Purple Pen sparar bort träningen.** Att O-Tid behåller den vid ny inläsning gäller bara banor med samma id.
 - **Okända symbolnummer** grupperas efter namnet; en karta med egna nummer och namn på andra språk hamnar i "Övrigt", där
   banläggaren väljer per symbol.
-- **Spegelvänd och roterad karta** är inte byggda: banpåtryckets texter måste då vridas för sig, och PDF:ens transform har
-  ingen rotation. Idé i STATUS.md.
+- **Roterad karta** är inte byggd: banpåtryckets texter måste då vridas för sig, och PDF:ens transform har ingen rotation.
+  Spegelvänd karta finns (beslut 12) men bara i utskriften, och kartans egna texter blir spegelvända.

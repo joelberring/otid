@@ -66,4 +66,14 @@ describe("träningsformerna i PDF:en (ADR-0192)", () => {
     expect(sheets[0]!.frames[0]!.figures.some(figure => figure.role === "CONTROL")).toBe(false);
     expect(sheets[1]!.frames[0]!.figures.some(figure => figure.role === "CONTROL")).toBe(true);
   });
+
+  it("spegelvänd karta: kartbilden placeras vänd i ramen, plåtarna som förut", async () => {
+    const mirrored = edit(base, [{ type: "PUT_TRAINING", courses: { "1": { outside: { kind: "FULL" }, sections: [], mirror: true } } }]);
+    const plain = await pdf("utan-traning", base, [{ course: "1" }]);
+    const { result, parsed, sheets } = await pdf("spegel", mirrored, [{ course: "1" }]);
+    expect(sheets[0]!.frames[0]!.mirror).toBe(true);
+    expect(result.plates).toEqual(plain.result.plates);
+    expect(parsed.pages[0]!.content).toMatch(/-1 0 0 1 [\d.]+ [\d.]+ cm \/Fm\d+ Do/);
+    expect(plain.parsed.pages[0]!.content).not.toMatch(/-1 0 0 1 [\d.]+ [\d.]+ cm \/Fm\d+ Do/);
+  });
 });

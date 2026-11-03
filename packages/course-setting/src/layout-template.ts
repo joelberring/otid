@@ -99,6 +99,8 @@ export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "tit
   readonly runner?: RunnerInfo | undefined;
   /** Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter; saknas = kartan som vanligt. */
   readonly mapPasses?: readonly TrainingMapPass[] | undefined;
+  /** Spegelorientering (ADR-0192 beslut 12): kartbilden vänds kring ramens lodräta mittlinje; figurerna är redan speglade. */
+  readonly mirror?: boolean | undefined;
 }
 
 /**

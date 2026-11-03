@@ -19,7 +19,8 @@ export const trainingSv = {
     STAR: { title: "Stjärna", line: "Ut och tillbaka till en central punkt." },
     LINE: { title: "Linje", line: "Följ en inritad linje och hitta kontrollerna längs den." },
     PAIRS: { title: "Keps", line: "Par med 1a och 1b: en hänger ut kepsen, den andra tar in den." },
-    PIECES: { title: "Kartbitar", line: "Minne och pussel: varje sträcka på en egen liten karta." }
+    PIECES: { title: "Kartbitar", line: "Minne och pussel: varje sträcka på en egen liten karta." },
+    MIRROR: { title: "Spegel", line: "Kartan och banan spegelvända i utskriften." }
   },
   base: {
     heading: "Kartan för hela banan",
@@ -120,6 +121,11 @@ export const trainingSv = {
     help: "Skrivs ut från förhandsvisningen (Utskrift → Kartbitar): en liten karta per sträcka.",
     size: "Bitens sida (mm)", scale: "Skala 1:", margin: "Marginal (m)", order: "Ordning", course: "Banans ordning", shuffled: "Blandad (pussel)",
     remove: "Inga kartbitar"
+  },
+  mirror: {
+    heading: "Spegelvänd karta",
+    help: "Utskriften (förhandsvisningen och PDF:en) vänder kartan och banan höger–vänster, så att kända områden blir nya. Siffrorna går att läsa som vanligt; kartans egna texter blir spegelvända. Här i editorn ritas kartan som vanligt.",
+    on: "Spegelvänd kartan och banan i utskriften"
   },
   print: {
     pieces: "Kartbitar: en liten karta per sträcka (minne och pussel)",

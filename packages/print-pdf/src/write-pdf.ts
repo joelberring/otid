@@ -255,7 +255,9 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
         if (!form) return;
         content.save();
         content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
-        content.op(`1 0 0 1 ${num(clip.x * PT_PER_MM)} ${num((H - clip.y - clip.height) * PT_PER_MM)} cm /${form.name} Do`);
+        // Spegelorientering (ADR-0192 beslut 12): kartbilden vänds kring ramens mitt; figurerna är redan speglade.
+        const a = frame.mirror ? -1 : 1, x0 = frame.mirror ? clip.x + clip.width : clip.x;
+        content.op(`${a} 0 0 1 ${num(x0 * PT_PER_MM)} ${num((H - clip.y - clip.height) * PT_PER_MM)} cm /${form.name} Do`);
         content.restore();
       };
       // Kartans mm (y uppåt) → sidans mm (y nedåt) → punkter: x = K(s·x + tx), y = K(H − (−s·y + ty)).

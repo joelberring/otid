@@ -181,3 +181,15 @@ export function PiecesBlock({ document, view, readOnly, onEdits }: { document: C
     {training.pieces && !readOnly && <Button variant="quiet" onClick={() => { put(omit(training, "pieces")); }}>{text.pieces.remove}</Button>}
   </section>;
 }
+
+/** Spegelorientering (ADR-0192 beslut 12): kartan och banan spegelvända i utskriften. */
+export function MirrorBlock({ document, view, readOnly, onEdits }: { document: CourseSettingDocument; view: string; readOnly: boolean; onEdits: Edits }) {
+  const training = courseTrainingOf(document, view);
+  return <section className={styles.block} aria-labelledby="training-mirror" data-testid="training-mirror">
+    <h3 id="training-mirror">{text.mirror.heading}</h3>
+    <p className={styles.muted}>{text.mirror.help}</p>
+    <label className={styles.check}><input type="checkbox" checked={training.mirror === true} disabled={readOnly} data-testid="training-mirror-on"
+      onChange={event => onEdits([putCourseTraining(view, event.target.checked ? { ...training, mirror: true } : omit(training, "mirror"))])} />
+      <span>{text.mirror.on}</span></label>
+  </section>;
+}

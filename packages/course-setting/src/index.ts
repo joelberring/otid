@@ -152,3 +152,5 @@ export { TRAINING_LIMITS, cleanCourseTraining, cleanFilter } from "./training-ed
 export { TRAINING_ELEMENT, TRAINING_NAMESPACE } from "./training-ppen";
 export { SECTION_MARKER_TEXT, dashedGaps, pairLabels, sectionMarkerText } from "./training-overprint";
 export { DEFAULT_PIECES, expandTrainingItems, starSpokes, trainingPieceSheets } from "./training-print";
+export { mirrorFigures, mirrorPoint } from "./training-mirror";
+export { TRAINING_TAGS, trainingTags, type TrainingTag } from "./training-tags";

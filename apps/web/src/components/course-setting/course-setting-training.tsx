@@ -11,7 +11,7 @@ import { newSection, omit, putCourseTraining } from "../../lib/course-setting-tr
 import { Button } from "../ui";
 import { SymbolFilterEditor } from "./course-setting-training-filter";
 import { OutsideBlock, SectionsBlock } from "./course-setting-training-sections";
-import { AttackBlock, LineBlock, PairsBlock, PiecesBlock, StarBlock } from "./course-setting-training-extras";
+import { AttackBlock, LineBlock, MirrorBlock, PairsBlock, PiecesBlock, StarBlock } from "./course-setting-training-extras";
 import type { TrainingTool } from "./use-course-setting-training";
 import styles from "./course-setting-training.module.css";
 
@@ -42,6 +42,8 @@ export function FormIcon({ form }: { form: string }): ReactNode {
     case "PIECES": return <svg {...common}><rect x="3" y="3" width="12" height="12" fill="#e0e0e0" /><rect x="18" y="3" width="12" height="12" fill="#e0e0e0" />
       <rect x="33" y="3" width="12" height="12" fill="#e0e0e0" /><rect x="3" y="20" width="12" height="12" fill="#e0e0e0" /><rect x="18" y="20" width="12" height="12" fill="#e0e0e0" />
       <path d="M5 13 L13 5 M20 6 L28 12 M35 12 L43 5" stroke={course} strokeWidth="1.2" /></svg>;
+    case "MIRROR": return <svg {...common}><path d="M24 2 L24 34" stroke="#888" strokeWidth="1" strokeDasharray="2 2" />
+      <path d="M4 28 L12 10 L20 22" stroke={course} strokeWidth="1.5" fill="none" /><path d="M44 28 L36 10 L28 22" stroke={course} strokeWidth="1.5" fill="none" strokeOpacity="0.55" /></svg>;
     default: return null;
   }
 }
@@ -66,7 +68,8 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
   };
   const attacksHere = Object.values(trainingOf(document).attackPoints).length > 0;
   const shown = (form: FormCard) => opened.has(form) || (form === "ATTACK" && attacksHere) || (form === "STAR" && Boolean(training?.star))
-    || (form === "LINE" && Boolean(training?.line)) || (form === "PAIRS" && Boolean(training?.pairs)) || (form === "PIECES" && Boolean(training?.pieces));
+    || (form === "LINE" && Boolean(training?.line)) || (form === "PAIRS" && Boolean(training?.pairs)) || (form === "PIECES" && Boolean(training?.pieces))
+    || (form === "MIRROR" && training?.mirror === true);
   const add = (form: FormCard) => {
     if (form === "AREA") { onTool({ kind: "AREA", points: [] }); return; }
     if (!training) return;
@@ -79,9 +82,10 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
       return;
     }
     if (form === "ATTACK") onTool({ kind: "ATTACK" });
+    if (form === "MIRROR" && !training.mirror) put({ ...training, mirror: true });
     open(form);
   };
-  const cards: FormCard[] = ["CORRIDOR", "ATTACK", "BAND", "WINDOW", "AREA", "STAR", "LINE", "PAIRS", "PIECES", "NO_MAP"];
+  const cards: FormCard[] = ["CORRIDOR", "ATTACK", "BAND", "WINDOW", "AREA", "STAR", "LINE", "PAIRS", "PIECES", "NO_MAP", "MIRROR"];
   return <section className={styles.panel} aria-labelledby="course-setting-training" data-testid="course-setting-training">
     <h2 id="course-setting-training">{text.heading}</h2>
     <p className={styles.muted}>{inCourse ? text.help : text.chooseCourse}</p>
@@ -116,6 +120,7 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
       onEdits={onEdits} /></div>}
     {training && shown("PAIRS") && <div id="training-block-PAIRS"><PairsBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {training && shown("PIECES") && <div id="training-block-PIECES"><PiecesBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
+    {training && shown("MIRROR") && <div id="training-block-MIRROR"><MirrorBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {inCourse && !readOnly && document.training?.courses[view] && <Button variant="quiet" onClick={() => onEdits([putCourseTraining(view, null)])}
       data-testid="training-remove">{text.removeCourse}</Button>}
   </section>;

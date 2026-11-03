@@ -7,6 +7,7 @@
 import { layoutTemplateSheets, sheetOfPage, type LayoutTemplate, type Sheet, type SheetItem } from "./layout-template";
 import { layoutCoursePage, type CoursePage } from "./page-layout";
 import type { MapRect } from "./types";
+import { mirrorFigures } from "./training-mirror";
 import { trainingMapPasses } from "./training-passes";
 import { trainingPieceSheets } from "./training-print";
 
@@ -37,15 +38,22 @@ export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0
   return withMapPasses(document, sheetGroups(document, layout, items, options));
 }
 
-/** Träningsläget (ADR-0192 beslut 9): kartans pass på varje ram, så att förhandsvisningen och PDF:en ritar samma sak. */
+/**
+ * Träningsläget (ADR-0192 beslut 9 och 12): kartans pass på varje ram, så att förhandsvisningen och PDF:en ritar samma sak,
+ * och spegelvänd karta: banpåtrycket speglas kring ramens mitt och ramen märks så att kartbilden vänds.
+ */
 function withMapPasses(document: Parameters<typeof layoutCoursePage>[0], groups: SheetGroup[]): SheetGroup[] {
   if (!document.training) return groups;
+  const training = document.training;
   const cache = new Map<string, ReturnType<typeof trainingMapPasses>>();
   return groups.map(group => ({ ...group, sheets: group.sheets.map(sheet => ({ ...sheet, frames: sheet.frames.map(frame => {
     const key = `${frame.course}|${frame.variant ?? ""}|${JSON.stringify(frame.mapArea)}`;
     if (!cache.has(key)) cache.set(key, trainingMapPasses(document, { course: frame.course, variant: frame.variant, view: frame.mapArea }));
     const passes = cache.get(key);
-    return passes ? { ...frame, mapPasses: passes } : frame;
+    const withPasses = passes ? { ...frame, mapPasses: passes } : frame;
+    if (!training.courses[frame.course]?.mirror) return withPasses;
+    const axis = (frame.mapArea.minX + frame.mapArea.maxX) / 2;
+    return { ...withPasses, mirror: true, figures: mirrorFigures(frame.figures, axis) };
   }) })) }));
 }
 

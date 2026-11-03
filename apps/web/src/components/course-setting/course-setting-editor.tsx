@@ -57,7 +57,7 @@ import { ChecksPanel, CourseList, LegPanel, SelectedPanel, SelectionCard } from 
 import { SuggestionDraft, SuggestionsPanel } from "./course-setting-suggestions";
 import { TransferPanel } from "./course-setting-transfer";
 import { canTransfer, newCourseKind, RaceTypeHint } from "./course-setting-race-type";
-import { Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
+import { courseSettingHelpViews, Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
 import { ControlList } from "./course-setting-controls";
 import { CourseProperties } from "./course-setting-course-properties";
@@ -711,7 +711,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         data-testid="course-setting-status">{shownStatus}</p>}
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu}
-      admin={access.admin} />
+      admin={access.admin} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)} />
     {/* Telefonen: verktygen och flikarna (även Objekt och Utskrift) bakom "Mer"; medan ett specialobjekt ritas syns
         verktygsraden och fliken Objekt (Klar och Avbryt). */}
     <div className={styles.stage} data-compact={field.narrow && !field.expanded && editor.tool !== "SPECIAL" ? "true" : undefined}>

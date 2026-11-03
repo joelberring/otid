@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ClubArchiveList, ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
+import type { HelpView } from "../../i18n/help-sv";
 import { clubBase, clubRequest } from "../../lib/club-archive-client";
 import { Notice } from "../ui";
 import { ArchiveList } from "./archive-list";
@@ -11,11 +12,13 @@ import { ClubImportPanel } from "./club-import-panel";
 import { ClubMapsPanel } from "./club-maps-panel";
 import { ClubMembersPanel } from "./club-members-panel";
 import { useArchiveChecks } from "./use-archive-checks";
+import { HelpButton } from "../help/help-panel";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv;
 type Tab = "trainings" | "maps" | "members" | "import";
 const TABS: readonly Tab[] = ["trainings", "maps", "members", "import"];
+const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", import: "ARCHIVE_IMPORT" };
 
 function initialTab(): Tab {
   if (typeof window === "undefined") return "trainings";
@@ -62,7 +65,11 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
         <p className={styles.kicker}><Link href="/organizer">{text.back}</Link> · {text.title}</p>
         <h1>{list.clubName}</h1>
       </div>
-      <p className={styles.usage} data-testid="club-usage">{usage}</p>
+      <div className={styles.headSide}>
+        <p className={styles.usage} data-testid="club-usage">{usage}</p>
+        {/* Hjälp (grenen hjalp-banlaggning): flikens artiklar först. */}
+        <HelpButton view={[TAB_HELP[tab], "ARCHIVE_TRAININGS"]} />
+      </div>
     </header>
     <div className={styles.tabs} role="tablist" aria-label={text.title}>
       {TABS.map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}

@@ -34,6 +34,8 @@ const adminFiles = [
   "readout-reread-sv.ts",
   // Steg 37: hjälpen och sidfoten.
   "help-sv.ts", "about-sv.ts",
+  // Grenen hjalp-banlaggning: hjälpen för banläggningen, utskriften, vägvalen och klubbarkivet.
+  "help-course-setting-sv.ts", "help-print-sv.ts", "help-archive-route-sv.ts",
   // Steg 40: festen.
   "party-sv.ts",
   // Steg 41: självregistrering.

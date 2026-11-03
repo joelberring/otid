@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { sv } from "../i18n/sv";
 import { SiteFooter } from "../components/about/site-footer";
 import { Logo } from "../components/brand/logo";
+import { introFilmUrl } from "../lib/intro-film";
 import "../components/ui/tokens.css";
 import "./globals.css";
 
@@ -16,7 +17,8 @@ export const metadata: Metadata = { title: sv.appName, applicationName: sv.appNa
  */
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
-  return <html lang="sv"><body>
+  // Hjälppanelen (en klientkomponent) visar "Se filmen (1 min)" när adressen finns; den läses här vid förfrågan.
+  return <html lang="sv"><body data-intro-film={introFilmUrl()}>
     <header className="site-header">
       <Link href="/"><Logo size={28} className="site-header-logo" />{sv.appName}</Link>
       <span className="site-header-tagline"><span aria-hidden="true">·</span> {sv.tagline}</span>

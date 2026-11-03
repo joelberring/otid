@@ -12,6 +12,7 @@ import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import type { EditorState } from "../../lib/course-setting-editor";
 import { controlLabel, minutes, type CheckRow } from "../../lib/course-setting-text";
 import { Button } from "../ui";
+import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting.module.css";
 
 /** Steg 62: banläggningens spalt – banlistan, verktygen, det valda, kontrollerna och vald sträckas vägval. Tunna vyer. */
@@ -171,6 +172,7 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
         <Button variant="secondary" onClick={() => onSplit("FORK", branches)}>{text.tools.fork}</Button>
         <Button variant="secondary" onClick={() => onSplit("LOOP", branches)}>{text.tools.loop}</Button>
         {courseControl.split && <Button variant="quiet" onClick={onRemoveSplit}>{text.tools.removeSplit}</Button>}
+        <HelpLink article="gaffling" view={["CS_SELECTED", "CS_COURSES", "COURSE_SETTING"]} />
         {courseControl.numberAt && <Button variant="quiet" onClick={onResetNumber}>{text.tools.resetNumber}</Button>}
       </div>}
     </>}
@@ -219,7 +221,7 @@ export function LegPanel({ legKey, analysis, status, highlighted, onHighlight }:
       </ol>}
       {analysis.warnings.length > 0 && <ul className={styles.warnings}>
         {analysis.warnings.map((warning, index) => <li key={index}>{warningText(legKey, warning)}</li>)}</ul>}
-      <p className={styles.muted}>{text.leg.legend}</p>
+      <p className={styles.muted}>{text.leg.legend} <HelpLink article="vagval-strackan" view={["CS_SELECTED", "COURSE_SETTING"]} /></p>
     </div>}
   </section>;
 }

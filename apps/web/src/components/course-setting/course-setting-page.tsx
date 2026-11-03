@@ -19,6 +19,7 @@ import { CourseSettingEditor } from "./course-setting-editor";
 import { PpenImport, type ReadFile } from "./course-setting-file";
 import { fieldStore } from "./use-course-setting-offline";
 import { forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
+import { HelpButton } from "../help/help-panel";
 import styles from "./course-setting.module.css";
 import { courseDataSv } from "../../i18n/course-data-sv";
 import { forgetCourseSettingNotice, pendingCourseSettingNotice } from "../../lib/course-setting-notice";
@@ -135,7 +136,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     notice={notice ?? (resume?.fromPhone ? offlineSv.openedFromPhone(resume.record.savedAt) : undefined)} resume={resume?.record}
     onReload={() => { setNotice(undefined); void load(); }} />;
   return <main className={styles.page}>
-    <header className={styles.head}>{back}<h1>{text.title}</h1>{state.mapFile && <p>{state.mapFile.fileName} · 1:{state.mapFile.scale}</p>}</header>
+    <header className={styles.head}>{back}<h1>{text.title}</h1><HelpButton view={["CS_START", "COURSE_SETTING"]} />{state.mapFile && <p>{state.mapFile.fileName} · 1:{state.mapFile.scale}</p>}</header>
     {!state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-map-file">
       <h2 id="course-setting-map-file">{raceMapSv.mapFile.upload}</h2>
       <p>{text.noMapFile}</p>

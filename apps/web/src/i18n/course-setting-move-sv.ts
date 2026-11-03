@@ -1,7 +1,7 @@
 /** Frågan när en delad kontroll flyttas långt i en bana (som i Purple Pen). */
 export const moveSharedSv = {
   heading: (code: string) => `Flytta kontroll ${code}?`,
-  intro: (code: string, meters: number, course: string) => `Du flyttar ${code} ${meters} m på ${course}. Kontrollen finns också på:`,
+  intro: (meters: number, course: string) => `Flytten är ${meters} m på ${course}. Kontrollen finns också på:`,
   /** Knapparna: "Flytta i alla banor (3)" och "Ny kontroll bara i Lång" (hjälpen citerar början). */
   all: "Flytta i alla banor",
   allHelp: "Samma kontroll, nytt läge för alla banor.",

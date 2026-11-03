@@ -27,7 +27,7 @@ function MoveQuestion({ question, onChoose }: { question: SharedMove; onChoose: 
   return <dialog ref={ref} className={styles.dialog} aria-labelledby="move-shared-heading" data-testid="course-setting-move-question"
     onCancel={event => { event.preventDefault(); onChoose("CANCEL", false); }}>
     <h2 id="move-shared-heading">{text.heading(question.code)}</h2>
-    <p>{text.intro(question.code, Math.round(question.meters), question.courseName)}</p>
+    <p>{text.intro(Math.round(question.meters), question.courseName)}</p>
     <p className={styles.courses} data-testid="course-setting-move-courses">{courseNameList(question.otherCourses, 6)}</p>
     {many && <p className={styles.note}>{question.courseControls.length === question.occurrences
       ? text.occurrencesAll(question.occurrences) : text.occurrencesOne(question.occurrences)}</p>}

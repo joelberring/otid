@@ -179,6 +179,10 @@ importers:
       polygon-clipping:
         specifier: 0.15.7
         version: 0.15.7
+    devDependencies:
+      '@o-tid/iof-xml':
+        specifier: workspace:*
+        version: link:../iof-xml
 
   packages/database:
     dependencies:

@@ -15,5 +15,8 @@
   "dependencies": {
     "@o-tid/map-file": "workspace:*",
     "polygon-clipping": "0.15.7"
+  },
+  "devDependencies": {
+    "@o-tid/iof-xml": "workspace:*"
   }
 }

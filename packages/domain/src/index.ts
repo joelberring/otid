@@ -50,5 +50,6 @@ export * from "./course-secrecy";
 export * from "./control-map";
 export * from "./map-bundles";
 export * from "./forking-readiness";
+export * from "./variant-pruning";
 export * from "./race-title";
 export * from "./training-group";

@@ -142,7 +142,30 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "Listan i fliken ”Banor” visar grenarna. Tryck på en grens bokstav för att arbeta i den.",
         "”Varianter” i listan och väljaren överst visar varje variant med antal kontroller och längd."
       ],
-      "Varianterna följer med när banorna förs över till tävlingen. En poängbana kan inte gafflas."
+      "Varianterna följer med när banorna förs över till tävlingen. En poängbana kan inte gafflas.",
+      "Blir det för många varianter, eller vissa för långa? Se [Färre varianter](#varianter)."
+    ]
+  },
+  {
+    id: "varianter",
+    title: "Färre varianter",
+    views: ["CS_COURSES"],
+    body: [
+      "Många gafflingar i följd ger många varianter, och vissa blir längre. Panelen ”Varianter” i fliken ”Banor” visar varianterna av en gafflad bana.",
+      [
+        "Tabellen har fågelväg, längd längs vägval, antal kontroller och skillnaden mot den kortaste i meter och procent.",
+        "”Räkna längs vägval” räknar alla varianters sträckor på kartan. Sedan jämförs också längden längs vägval.",
+        "Bocka ur ”Används” för att välja bort en variant för hand. Raden överst säger hur många som används."
+      ],
+      "”Begränsa varianter” föreslår vilka som ska bort:",
+      [
+        "”Ta bort varianter som är längst i alla avseenden”: en annan variant är kortare i något mått och inte längre i något.",
+        "”Högst % längre än kortaste” och ”Högst antal varianter” behåller de kortaste.",
+        "”Förhandsgranska” visar vad som tas bort och vad som blir kvar. ”Avbryt” låter allt vara.",
+        "Den enda varianten med en viss kontroll eller sträcka blir kvar. ”Använd alla varianter” tar tillbaka alla."
+      ],
+      "Bortvalda varianter förs inte över till tävlingen, lottas inte ut, skrivs inte i IOF XML och skrivs inte ut. Avläsningen säger till om en " +
+        "löpare ändå sprungit en bortvald variant. Använd det för fulgaffling; en utjämnad gaffling eller stafett behöver alla varianter."
     ]
   },
   {

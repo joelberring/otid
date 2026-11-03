@@ -67,7 +67,10 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     climbMeters: z.number().finite().nullable().optional(), lengthOverrideMeters: z.number().finite().nullable().optional(),
     kind: z.enum(["NORMAL", "SCORE"]).optional(),
     labelKind: z.enum(["SEQUENCE", "CODE", "SEQUENCE_AND_CODE", "SCORE", "CODE_AND_SCORE", "SEQUENCE_AND_SCORE"]).optional(),
-    order: z.number().int().min(1).max(10_000).optional() }).strict() }).strict(),
+    order: z.number().int().min(1).max(10_000).optional(),
+    // ADR-0198: de bortvalda varianterna (ersätts helt; null = alla används).
+    excludedVariants: z.array(z.object({ code: z.string().min(1).max(64), controls: z.array(z.string().max(32)).max(1000) }).strict())
+      .max(5000).nullable().optional() }).strict() }).strict(),
   z.object({ type: z.literal("SET_POINTS"), course: id, courseControl: id, points: z.number().int().min(0).max(9999).nullable() }).strict(),
   z.object({ type: z.literal("DELETE_COURSE"), course: id }).strict(),
   z.object({ type: z.literal("INSERT_COURSE_CONTROL"), course: id, control: id, after: id.nullable().optional() }).strict(),

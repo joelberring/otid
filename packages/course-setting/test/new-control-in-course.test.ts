@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyEdit, CourseSettingEditError, courseControlOrder, courseSummaries, createdIdsBetween, editTouches, objectPatch, readPpen, replayEdits,
+  allCourseVariants, applyEdit, CourseSettingEditError, courseControlOrder, courseSummaries, createdIdsBetween, editTouches, objectPatch, readPpen, replayEdits,
   writePpen, type CourseSettingDocument
 } from "../src";
 import { Builder } from "./build";
@@ -121,5 +121,26 @@ describe("ny kontroll bara i en bana (frågan när en delad kontroll flyttas lå
     expect(codes(read, a)).toEqual(["START", "32", "33", "FINISH"]);
     expect(codes(read, bb)).toEqual(["START", "31", "FINISH"]);
     expect(Object.values(read.controls).find(control => control.code === "33")!.at).toEqual({ x: 50, y: 10 });
+  });
+
+  it("bortvalda varianter (ADR-0198) följer med till den nya koden", () => {
+    const b = new Builder();
+    b.control("START", 0, 0); b.control("FINISH", 100, 0);
+    const c32 = b.control("NORMAL", 20, 0, "32"), c31 = b.control("NORMAL", 50, 10, "31"), c35 = b.control("NORMAL", 50, -10, "35");
+    const a = b.course("A"), other = b.course("B");
+    const at = b.insert(a, c32);
+    b.insert(other, c31);
+    b.edit({ type: "ADD_SPLIT", course: a, at, kind: "FORK", branches: 2 });
+    const [first, second] = b.document.courseControls[at]!.split!.branches;
+    const cc31 = b.insert(a, c31, first);
+    b.insert(a, c35, second);
+    const with31 = allCourseVariants(b.document, a).find(row => row.controlCodes.includes("31"))!;
+    b.edit({ type: "UPDATE_COURSE", course: a, changes: { excludedVariants: [{ code: with31.code, controls: [...with31.controlCodes] }] } });
+    expect(allCourseVariants(b.document, a).filter(row => row.excluded).map(row => row.code)).toEqual([with31.code]);
+    const result = applyEdit(b.document, { type: "NEW_CONTROL_IN_COURSE", course: a, control: c31, at: { x: 50, y: 30 }, courseControls: [cc31] });
+    const code = result.document.controls[result.created!]!.code!;
+    const excluded = allCourseVariants(result.document, a).filter(row => row.excluded);
+    expect(excluded.map(row => row.code)).toEqual([with31.code]);
+    expect(excluded[0]!.controlCodes).toContain(code);
   });
 });

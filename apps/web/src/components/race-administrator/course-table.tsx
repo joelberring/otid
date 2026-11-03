@@ -103,8 +103,10 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
 
 /** Steg 61: kontrollen före tävlingen i klartext, en rad per bana. Stoppar aldrig något. */
 function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"]> }) {
+  // ADR-0198: varianter som banläggningen valt bort.
+  const excluded = readiness.excludedCount ? ` · ${variantText.readinessExcluded(readiness.excludedCount)}` : "";
   if (readiness.ok) return <p className={styles.workflowHelp} role="status" data-testid="forking-readiness">
-    {readiness.unusedVariants.length > 0 ? variantText.readinessOkUnused(readiness.unusedVariants) : variantText.readinessOk(readiness.variantCount)}</p>;
+    {readiness.unusedVariants.length > 0 ? variantText.readinessOkUnused(readiness.unusedVariants) : variantText.readinessOk(readiness.variantCount)}{excluded}</p>;
   const problems = [
     ...(readiness.tooManyVariants ? [variantText.readinessTooMany(readiness.variantCount)] : []),
     ...(readiness.tooManyLetters ? [variantText.readinessLetters] : []),
@@ -113,7 +115,7 @@ function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"
     ...readiness.uneven.map(row => variantText.readinessUneven(row.className, row.point, row.counts))
   ];
   return <Notice tone="attention" role="status"><span data-testid="forking-readiness">
-    <strong>{variantText.readinessLabel}:</strong> {problems.join(" · ")}</span></Notice>;
+    <strong>{variantText.readinessLabel}:</strong> {problems.join(" · ")}{excluded}</span></Notice>;
 }
 
 /**

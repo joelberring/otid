@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   courseVariantForReadout, distributeCourseVariants, entryCourseControls, evaluateCardReadout, leastUsedCourseVariant, storedResultCourseVariant,
-  unevenCourseVariantLegs, withProposedCourseVersion, withProposedEntryVariants, wrongMapVariants, type EvaluationReadout, type RaceSnapshot
+  unevenCourseVariantLegs, withProposedCourseVersion, withProposedEntryVariants, wrongMapVariants, excludedVariantsFitting, type EvaluationReadout, type RaceSnapshot
 } from "../src";
 
 const ids = {
@@ -190,5 +190,35 @@ describe("fel karta vid starten (steg 61)", () => {
     const punched = readout(variantCodes("BD").filter((code) => code !== 63));
     const outOfOrder: RaceSnapshot = { ...snapshot("AC"), controlsOutOfOrder: [{ id: "out", controlCode: 63 }] };
     expect(wrongMapVariants(punched, outOfOrder, ids.entry)).toEqual({ assignedCode: "AC", fittingCodes: ["BD"] });
+  });
+});
+
+describe("bortvald variant i avläsningen (ADR-0198)", () => {
+  // Banversionen har bara AC, AD och BC; BD är bortvald i banläggningen.
+  function pruned(variantCode?: string): RaceSnapshot {
+    const base = snapshot(variantCode);
+    const version = base.courses[0]!.versions[0]!;
+    return { ...base, courses: [{ ...base.courses[0]!, versions: [{ ...version, variants: version.variants!.filter((variant) => variant.code !== "BD"),
+      excludedVariants: [{ code: "BD", controlCodes: variantCodes("BD") }] }] }] };
+  }
+
+  it("löparen på AC sprang BD: felstämplad som förut, men beskedet säger att BD är bortvald", () => {
+    const punched = readout(variantCodes("BD"));
+    expect(evaluateCardReadout(punched, pruned("AC")).status).toBe("MP");
+    expect(excludedVariantsFitting(punched, pruned("AC"), ids.entry)).toEqual(["BD"]);
+    expect(wrongMapVariants(punched, pruned("AC"), ids.entry)).toBeUndefined();
+  });
+
+  it("en löpare med en kod som nu är bortvald (eller ingen kod) och som sprang den får beskedet", () => {
+    const punched = readout(variantCodes("BD"));
+    expect(excludedVariantsFitting(punched, pruned("BD"), ids.entry)).toEqual(["BD"]);
+    expect(excludedVariantsFitting(punched, pruned(), ids.entry)).toEqual(["BD"]);
+  });
+
+  it("inget besked när löparen sprang en behållen variant eller inget passar", () => {
+    expect(excludedVariantsFitting(readout(variantCodes("AC")), pruned("AC"), ids.entry)).toBeUndefined();
+    expect(excludedVariantsFitting(readout(variantCodes("AD")), pruned(), ids.entry)).toBeUndefined();
+    expect(excludedVariantsFitting(readout([31, 32]), pruned("AC"), ids.entry)).toBeUndefined();
+    expect(excludedVariantsFitting(readout(variantCodes("BD")), snapshot("AC"), ids.entry)).toBeUndefined();
   });
 });

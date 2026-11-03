@@ -20,6 +20,8 @@ import { PpenImport, type ReadFile } from "./course-setting-file";
 import { fieldStore } from "./use-course-setting-offline";
 import { forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
 import styles from "./course-setting.module.css";
+import { courseDataSv } from "../../i18n/course-data-sv";
+import { takeCourseSettingNotice } from "../../lib/course-data-course-setting";
 
 /**
  * Steg 62 (ADR-0180): sidan `/admin/[raceId]/course-setting`. Hämtar läget; utan kartfil laddas den upp här (samma Worker
@@ -65,6 +67,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other");
     }
   }, [raceId]);
+  // Använd igen med en banfil (IOF XML) säger här vad som kom med och vad som inte gick.
+  useEffect(() => { const pending = takeCourseSettingNotice(raceId); if (pending) setNotice(pending); }, [raceId]);
   useEffect(() => {
     // Ett svar efter att effekten städats (t.ex. Reacts dubbla körning i utvecklingsläget) monterar inte om editorn: ett
     // klick mellan de två svaren gick annars förlorat.
@@ -101,7 +105,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     try {
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: 0, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "too-large") { setMessage({ tone: "error", text: text.file.tooLarge }); return; }
-      setNotice(outcome.kind === "saved" ? [text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
+      // Någon annan hann börja: deras banläggning visas, filen ersätter den inte utan att banläggaren väljer det.
+      setNotice(outcome.kind === "conflict" ? courseDataSv.startConflict : outcome.kind === "saved" ? [text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
         ...file.warnings.map(warning => `${warning.text.replace(/\.$/, "")}.`)].join(" ") : undefined);
       await load();
     } catch { setMessage({ tone: "error", text: text.file.failed }); } finally { setBusy(false); }

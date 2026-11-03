@@ -1,7 +1,9 @@
 import { IOF_IMPORT_CONTENT_TYPE, RACE_MAP_SOURCE_PARTS, type RaceMapSourceMetadata } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
-import { importCourseSetting } from "./course-setting-api";
+import type { MapGeoreference } from "@o-tid/map-file";
+import { courseSettingFromCourseData, rememberCourseSettingNotice } from "./course-data-course-setting";
+import { importCourseSetting, saveCourseSetting } from "./course-setting-api";
 import { renderMapFile, type MapFileRenderError, type MapFileRenderResult } from "./map-file-worker-protocol";
 import { readOrganizerCsrf } from "./organizer-client";
 
@@ -141,9 +143,11 @@ export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseSta
     const attached = await clubRequest(`/api/organizer/races/${raceId}/group`, "PUT", { formatVersion: 1, groupId: input.groupId });
     if (attached.status !== 200) return { kind: "partial", raceId, problem: "group" };
   }
+  let metadata: RaceMapSourceMetadata | undefined;
   if (input.map) {
     const rendered = input.rendered ?? await renderMapVersion(input.clubId, input.map.versionId, input.map.fileName, stage => onStage(stage));
     if (rendered.type === "error") return { kind: "partial", raceId, problem: "map" };
+    metadata = rendered.metadata;
     onStage("map");
     const saved = await sendRenderedMap(input.clubId, input.map.versionId, "race", raceId, rendered);
     if (saved.status !== 200) {
@@ -164,7 +168,25 @@ export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseSta
         headers: { "content-type": IOF_IMPORT_CONTENT_TYPE, "idempotency-key": `iof-import:${crypto.randomUUID()}`, "x-otid-csrf": token },
         body: input.course.bytes });
       if (!response.ok) return { kind: "partial", raceId, problem: "courses" };
+      // Utan .ppen: banfilen blir banläggning på kartan, så att träningen öppnas där och starten och kontrollerna går att flytta.
+      if (metadata) {
+        if (!await courseDataToCourseSetting(raceId, input.course.bytes, input.eventName, metadata)) return { kind: "partial", raceId, problem: "courseSetting" };
+        return { kind: "done", raceId, openCourseSetting: true };
+      }
     }
   }
   return { kind: "done", raceId, openCourseSetting: input.course?.kind === "PPEN" || (input.course === null && input.map !== null) };
+}
+
+/** Banfilen som träningens första banläggning (version 0, träningen är ny). Beskedet visas när editorn öppnas. */
+async function courseDataToCourseSetting(raceId: string, bytes: ArrayBuffer, title: string, metadata: RaceMapSourceMetadata): Promise<boolean> {
+  const converted = courseSettingFromCourseData(new Uint8Array(bytes), { title, mapScale: metadata.scale,
+    georeference: metadata.georeference as MapGeoreference | null });
+  if (converted.kind === "problem") { console.error("Banfilen blev ingen banläggning", converted.text); return false; }
+  try {
+    const saved = await saveCourseSetting(raceId, converted.document, 0);
+    if (saved.kind !== "saved") return false;
+  } catch (error) { console.error("Banläggningen sparades inte", error); return false; }
+  rememberCourseSettingNotice(raceId, converted.notices.join(" "));
+  return true;
 }

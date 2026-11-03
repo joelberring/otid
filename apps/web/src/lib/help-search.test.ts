@@ -36,7 +36,7 @@ describe("sökningen i hjälpen", () => {
     expect(rest.map(row => row.id)).toEqual(["a"]);
     // Banläggningens flik Utskrift: utskriftens artiklar först, sedan det som gäller hela banläggningen.
     const print = listHelpArticles(helpArticles, ["CS_PRINT", "COURSE_SETTING"]).here.map(row => row.id);
-    expect(print.slice(0, 4)).toEqual(["utskrift", "beskrivning-pa-kartan", "bl-farger", "pdf-tryck"]);
+    expect(print.slice(0, 5)).toEqual(["utskrift", "beskrivning-pa-kartan", "papperet", "bl-farger", "pdf-tryck"]);
     expect(print).toContain("sparande");
     expect(print.indexOf("sparande")).toBeGreaterThan(print.indexOf("pdf-tryck"));
   });

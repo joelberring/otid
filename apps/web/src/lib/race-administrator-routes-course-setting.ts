@@ -3,10 +3,10 @@ import {
   courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
   courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
   courseSettingSuggestionSchema, courseSettingSuggestionsSchema, courseSettingTransferProblemSchema, PRINT_JOB_REQUEST_MAX_BYTES, printJobProblemSchema,
-  printJobSchema, printJobsSchema, syncPreviewResponseSchema
+  printJobSchema, printJobsSchema, syncPreviewResponseSchema, PAPER_IMAGE_MAX_BYTES, PAPER_TEMPLATE_MAX_BYTES, paperImageSchema, paperLibrarySchema
 } from "@o-tid/contracts";
 import { createCourseSettingEventStream, publishCourseSettingEvent } from "./course-setting-events";
-import { adminFailure as failure, privateHeaders, privateJson as json, readJsonBody, RequestBodyError } from "./security-policy";
+import { adminFailure as failure, privateHeaders, privateJson as json, readBoundedBytes, readJsonBody, RequestBodyError, validDeclaredLength } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
 /**
@@ -239,6 +239,42 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       return new Response(new Uint8Array(result.pdf.buffer as ArrayBuffer, result.pdf.byteOffset, result.pdf.byteLength), { headers: { ...privateHeaders,
         "content-type": "application/pdf", "content-length": String(result.pdf.byteLength),
         "content-disposition": `attachment; filename="${result.fileName}"` } });
+    }
+    // ADR-0197: papperets bild (PNG eller JPEG, högst 2 MB, typen prövas mot innehållet i tjänsten) och bilden tillbaka.
+    case "course-setting-paper-images": {
+      const mediaType = request.headers.get("content-type") ?? "";
+      if (!["image/png", "image/jpeg"].includes(mediaType) || !validDeclaredLength(request, PAPER_IMAGE_MAX_BYTES)) return failure(400, "INVALID_REQUEST");
+      let image: Uint8Array;
+      try { image = await readBoundedBytes(request, PAPER_IMAGE_MAX_BYTES); }
+      catch (error) { if (error instanceof RequestBodyError) return resultFailure("too-large"); throw error; }
+      const result = await dependencies.paperImageUpload(db, { ...input, mediaType, image });
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(paperImageSchema.parse(result.response));
+    }
+    case "course-setting-paper-image": {
+      const result = await dependencies.paperImage(db, { ...input, sha256: action.sha256 });
+      if (result.status !== "ok") return resultFailure(result.status);
+      // Innehållet ändras aldrig för samma sha256: får sparas privat i webbläsaren.
+      return new Response(new Uint8Array(result.image), { headers: { ...privateHeaders, "cache-control": "private, max-age=86400, immutable",
+        "content-type": result.mediaType, "content-length": String(result.image.byteLength), "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox" } });
+    }
+    case "course-setting-paper-library": {
+      if (request.method === "GET") {
+        const result = await dependencies.paperLibrary(db, input);
+        if (result.status !== "ok") return resultFailure(result.status);
+        return json(paperLibrarySchema.parse(result.response));
+      }
+      const value = await body(request, PAPER_TEMPLATE_MAX_BYTES);
+      if (value === undefined) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.paperLibrarySave(db, { ...input, request: value });
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(paperLibrarySchema.parse(result.response));
+    }
+    case "course-setting-paper-library-item": {
+      const result = await dependencies.paperLibraryDelete(db, { ...input, templateId: action.templateId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(paperLibrarySchema.parse(result.response));
     }
     case "course-setting-events": {
       const viewer = context.courseSetting;

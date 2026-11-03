@@ -43,6 +43,13 @@
 .paperWarning { color: var(--attention, #8a5a00); font-weight: 700; }
 .paperDescription { outline: none; }
 .paperDescription:focus-visible .paperOutline { stroke-width: .8; }
+/* ADR-0197: papperet. Det markerade elementets fält; på telefonen ett ark nere på skärmen (bottom sheet) så att arket syns ovanför. */
+.paperInspector { display: grid; gap: 8px; padding: 8px 10px; border: 2px solid #1d6fd1; background: var(--surface, #fff); }
+.paperInspector textarea { min-height: 3rem; font: inherit; }
+@media (max-width: 640px) {
+  .paperInspector { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; max-height: 48vh; overflow-y: auto; border-width: 2px 0 0;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, .25); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+}
 /* Steg 65: PDF-jobben. */
 .jobs { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .jobs > li { display: grid; gap: 2px; padding: 6px 8px; border: 1px solid var(--line); }
@@ -56,4 +63,5 @@
   .sheet { max-width: none; box-shadow: none; break-after: page; }
   .sheet:last-child { break-after: auto; }
   .paperOutline { display: none; }
+  .paperInspector { display: none; }
 }

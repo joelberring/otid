@@ -60,8 +60,9 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   await expect(panel).toBeVisible();
   await expect(summaries(owner).nth(0)).toHaveText("Utskrift och förhandsvisning");
   await expect(summaries(owner).nth(1)).toHaveText("Kontrollbeskrivningen på kartan");
-  await expect(summaries(owner).nth(2)).toHaveText("Färger för tryckeriet (BL-förslaget)");
-  await expect(summaries(owner).nth(3)).toHaveText("PDF för tryck och spegelvänd karta");
+  await expect(summaries(owner).nth(2)).toHaveText("Papperet: texter, bilder, skalstock och nordpil");
+  await expect(summaries(owner).nth(3)).toHaveText("Färger för tryckeriet (BL-förslaget)");
+  await expect(summaries(owner).nth(4)).toHaveText("PDF för tryck och spegelvänd karta");
   await expect(summaries(owner)).toContainText(["Sparande, versioner och ångra"]);
   await shot(owner, "editor-utskrift");
 
@@ -118,6 +119,14 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   await expect(placement).toHaveAttribute("open", "");
   await expect(summaries(owner).first()).toHaveText("Kontrollbeskrivningen på kartan");
   await shot(owner, "utskriftssidan");
+  await owner.keyboard.press("Escape");
+  // Papperet (texter, bilder, skalstock, nordpil): "?" vid rutan öppnar artikeln, som länkar till mallarna.
+  await owner.getByRole("button", { name: "Hjälp: Papperet: texter, bilder, skalstock och nordpil" }).click();
+  const paper = panel.locator("details[data-help-article='papperet']");
+  await expect(paper).toHaveAttribute("open", "");
+  await expect(paper).toContainText("+ Skalstock");
+  await paper.getByRole("link", { name: "Mallar och klippning av kartan" }).click();
+  await expect(panel.locator("details[data-help-article='papperets-mallar']")).toContainText("Mitt bibliotek (alla mina tävlingar)");
   await owner.keyboard.press("Escape");
   await owner.setViewportSize({ width: 1280, height: 720 });
 

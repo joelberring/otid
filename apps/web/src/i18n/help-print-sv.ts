@@ -1,9 +1,8 @@
 import type { HelpArticle } from "./help-sv";
 
 /**
- * Hjälpen för fältläget i telefonen och utskriften (grenen hjalp-banlaggning). Samma regler som i `help-sv.ts`.
- * Utskriften ändras av grenen pappersrum (texter, logotyper, skalstock, klippning och mallar): lägg då till punkter i
- * `utskrift` och `beskrivning-pa-kartan`.
+ * Hjälpen för fältläget i telefonen, utskriften och papperet (grenen hjalp-banlaggning; papperet efter grenen
+ * pappersrum). Samma regler som i `help-sv.ts`.
  */
 export const fieldPrintHelpArticles: readonly HelpArticle[] = [
   {
@@ -61,7 +60,8 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”Förhandsvisning och utskrift”, eller ”Fil” → ”Utskrift av banor …”, öppnar sidan med alla ark.",
         "Där väljer du ”Banor” och ”En sida per variant” för gafflade banor. ”Skriv ut” skriver ut från webbläsaren.",
         "”En karta per löpare (i samma ordning som Kartor till starten)”: en karta per anmäld med rätt variant.",
-        "”Layoutmall”: flera kartor per ark, texter, logotyp och remsa för rullad karta."
+        "”Papperet: texter, bilder och klippning”: text, logotyp, skalstock och nordpil per bana. Se [Papperet](#papperet).",
+        "”Layoutmall”: flera kartor per ark och remsa för rullad karta."
       ],
       "Utskriften ur webbläsaren är ett utkast. Mer:",
       [
@@ -84,7 +84,40 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”Spalter” och ”Rutans storlek” finns under ”Kontrollbeskrivning på kartan”. ”Automatiskt igen” väljer ett fritt hörn.",
         "Täcker den kontroller eller sträckor står en varning: dra den till en fri plats."
       ],
-      "Platsen gäller banan i alla utskrifter och skrivs till .ppen som Purple Pens beskrivning."
+      "Platsen gäller banan i alla utskrifter. Den skrivs till .ppen som Purple Pens beskrivning, också när den står automatiskt, och följer med tillbaka när filen läses in."
+    ]
+  },
+  {
+    id: "papperet",
+    title: "Papperet: texter, bilder, skalstock och nordpil",
+    views: ["CS_PRINT_PAGE", "CS_PRINT"],
+    body: [
+      "På utskriftssidan finns ”Papperet: texter, bilder och klippning” för vald bana. Det står på papperet, inte på kartan, och syns inte i banläggningen.",
+      [
+        "”+ Text”: skriv texten. ”Infoga variabel” lägger in t.ex. {bana}, {längd} eller {datum}, som fylls i per bana.",
+        "”+ Bild …”: t.ex. klubbens logotyp. PNG, JPG eller SVG, högst 2 MB. ”Täckning (%)” gör den svagare.",
+        "”+ Skalstock” och ”+ Nordpil”: skalstocken räknas ur banans utskriftsskala.",
+        "Dra elementet på arket och dra i hörnet nere till höger för storleken. Pilarna flyttar 1 mm (Skift 5 mm), Delete tar bort.",
+        "”Hörn” och ”I förhållande till”: ”Kartramen” eller ”Arket”. Elementet står kvar i hörnet när papperet ändras.",
+        "”Uppgifter för texterna”: datum och ekvidistans som ska stå i {datum} och {ekvidistans}."
+      ],
+      "I .ppen blir texterna Purple Pens textobjekt och bilderna bildobjekt. Skalstock, nordpil, täckning och klippning stannar i O-Tid. Mallar och klippning: [Mallar och klippning av kartan](#papperets-mallar)."
+    ]
+  },
+  {
+    id: "papperets-mallar",
+    title: "Mallar för papperet och klippning av kartan",
+    views: ["CS_PRINT_PAGE"],
+    body: [
+      "En mall är papperets element, klippning och beskrivningens plats under ett namn. Banorna ärver mallen.",
+      [
+        "”Spara banans papper som mall” och välj den under ”Banans mall” på de andra banorna.",
+        "”Använd mallen på alla valda banor” och ”Uppdatera mallen med banans papper”.",
+        "Ändrar du ett element på en bana gäller det bara den banan (”Ändrad för banan”). ”Som i mallen igen” ångrar.",
+        "”Spara mallen i mitt bibliotek”: mallen finns sedan under ”Mitt bibliotek (alla mina tävlingar)”. ”Hämta” tar in den i en annan tävling."
+      ],
+      "”Klippning av kartan” begränsar hur mycket av kartan som skrivs ut, utan att ändra kartan. Välj ”Rektangel” eller ”Polygon” och dra hörnen på arket.",
+      "”Utanför” visar ”Vitt” eller ”Tonad karta” runt klippningen. Banan skrivs ut som vanligt, och PDF:en klipps likadant."
     ]
   },
   {

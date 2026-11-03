@@ -41,6 +41,8 @@ export interface WritePdfInput {
   readonly title?: string | undefined;
   readonly now?: Date | undefined;
   readonly maxPatternInstances?: number | undefined;
+  /** Papperets bilder (ADR-0197) per sha256: PNG eller JPEG som de laddades upp. */
+  readonly paperImages?: ReadonlyMap<string, { readonly mediaType: string; readonly bytes: Uint8Array }> | undefined;
 }
 
 export interface WritePdfResult {
@@ -119,6 +121,7 @@ function neededFonts(sheets: readonly Sheet[], map: ParsedMap | null): Set<FontV
   };
   for (const sheet of sheets) {
     for (const text of sheet.texts) out.add(text.bold ? "bold" : "regular");
+    for (const item of sheet.paperItems ?? []) for (const part of item.parts) if (part.kind === "text") out.add(part.bold ? "bold" : "regular");
     for (const item of sheet.descriptions) description(item.layout);
     for (const frame of sheet.frames) figures(frame.figures);
   }
@@ -187,7 +190,23 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       images.set(image.data, null);
     }
   }
-  if ([...images.values()].some(Boolean)) notes.add("Bilderna skrivs i RGB som de är; be tryckeriet kontrollera dem.");
+  // Papperets bilder (ADR-0197) ur bildlagret, en gång per bild.
+  const paperImages = new Map<string, { name: string; ref: PDFRef } | null>();
+  for (const sheet of input.sheets) for (const item of sheet.paperItems ?? []) for (const part of item.parts) {
+    if (part.kind !== "image" || paperImages.has(part.image)) continue;
+    const source = input.paperImages?.get(part.image);
+    if (!source) { notes.add("En bild på papperet finns inte i bildlagret och utelämnas."); paperImages.set(part.image, null); continue; }
+    try {
+      const embedded = source.mediaType === "image/png" ? await document.embedPng(source.bytes) : await document.embedJpg(source.bytes);
+      paperImages.set(part.image, { name: `Ip${paperImages.size}`, ref: embedded.ref });
+    } catch {
+      notes.add("En bild på papperet gick inte att läsa och utelämnas.");
+      paperImages.set(part.image, null);
+    }
+  }
+  if ([...images.values(), ...paperImages.values()].some(Boolean)) notes.add("Bilderna skrivs i RGB som de är; be tryckeriet kontrollera dem.");
+  // Täckningen för papperets bilder (en ExtGState per värde).
+  const opacities = new Map<string, number>();
   const imageFor = (_mediaType: string, data: string) => images.get(data) ?? undefined;
 
   const plates = new Plates(notes);
@@ -301,6 +320,43 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       content.op(`${num(w * PT_PER_MM)} 0 0 ${num(h * PT_PER_MM)} ${num(x * PT_PER_MM)} ${num((H - y - h) * PT_PER_MM)} cm /${embedded.name} Do`);
       content.restore();
     }
+    // Papperets element (ADR-0197): vita och svarta ytor, texter och bilder, som förhandsvisningen.
+    for (const item of sheet.paperItems ?? []) for (const part of item.parts) {
+      switch (part.kind) {
+        case "rect": {
+          if (part.fill) { content.fill(part.fill === "BLACK" ? BLACK : WHITE); content.op(`${rect(part.x, part.y, part.width, part.height)} f`); }
+          if (part.stroke) { content.stroke(BLACK); content.lineStyle(part.stroke * PT_PER_MM, 0, 0); content.op(`${rect(part.x, part.y, part.width, part.height)} S`); }
+          break;
+        }
+        case "polygon": {
+          const path = `${part.points.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h`;
+          content.fill(part.fill === "BLACK" ? BLACK : WHITE);
+          content.op(`${path} f`);
+          if (part.stroke) { content.stroke(BLACK); content.lineStyle(part.stroke * PT_PER_MM, 0, 0); content.op(`${path} S`); }
+          break;
+        }
+        case "text": {
+          const ops = textOps(figureContext, paperMatrix, part.text, part.at, part.heightMm, part.bold ? "bold" : "regular", part.align, { yDown: true });
+          if (!ops) break;
+          content.fill(BLACK);
+          content.op(ops);
+          break;
+        }
+        case "image": {
+          const embedded = paperImages.get(part.image);
+          if (!embedded) break;
+          content.save();
+          if (part.opacity < 1) {
+            const name = `GA${Math.round(part.opacity * 100)}`;
+            opacities.set(name, Math.round(part.opacity * 100) / 100);
+            content.op(`/${name} gs`);
+          }
+          content.op(`${num(part.width * PT_PER_MM)} 0 0 ${num(part.height * PT_PER_MM)} ${num(part.x * PT_PER_MM)} ${num((H - part.y - part.height) * PT_PER_MM)} cm /${embedded.name} Do`);
+          content.restore();
+          break;
+        }
+      }
+    }
     for (const item of sheet.descriptions) {
       const local: Matrix = [PT_PER_MM, 0, 0, -PT_PER_MM, item.x * PT_PER_MM, (H - item.y) * PT_PER_MM];
       descriptionOps(figureContext, local, item.layout, BLACK);
@@ -334,7 +390,8 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   }
   const extGState = {
     [GS_OVERPRINT]: context.register(context.obj({ Type: "ExtGState", OP: true, op: true, OPM: 1 })),
-    [GS_KNOCKOUT]: context.register(context.obj({ Type: "ExtGState", OP: false, op: false, OPM: 1 }))
+    [GS_KNOCKOUT]: context.register(context.obj({ Type: "ExtGState", OP: false, op: false, OPM: 1 })),
+    ...Object.fromEntries([...opacities].map(([name, value]) => [name, context.register(context.obj({ Type: "ExtGState", ca: value, CA: value }))]))
   };
   const fontDict = Object.fromEntries(fonts.all().map(font => [font.name, font.font.ref]));
   const shared = { ColorSpace: context.register(context.obj(colorSpaces)), ExtGState: context.register(context.obj(extGState)),
@@ -343,6 +400,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   const xobjects: Record<string, PDFRef> = {};
   for (const form of forms.values()) { form.stream.dict.set(PDFName.of("Resources"), formResources); xobjects[form.name] = form.ref; }
   for (const image of images.values()) if (image) xobjects[image.name] = image.ref;
+  for (const image of paperImages.values()) if (image) xobjects[image.name] = image.ref;
   const pageResources = context.register(context.obj({ ...shared, XObject: context.register(context.obj(xobjects)) }));
   for (const page of pages) page.node.set(PDFName.of("Resources"), pageResources);
 

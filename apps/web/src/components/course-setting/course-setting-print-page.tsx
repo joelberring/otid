@@ -34,6 +34,8 @@ import { LayoutTemplatePanel } from "./course-setting-print-template";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
 import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
 import { HelpButton } from "../help/help-panel";
+import { PaperSpacePanel } from "./course-setting-paper-space";
+import { usePaperSpace } from "./use-paper-space";
 import styles from "./course-setting-print-page.module.css";
 
 // Steg 67: styrd av service workern när banläggningen är sparad för offline (`controlledWorker`).
@@ -80,7 +82,7 @@ function problemText(problem: RunnerPrintProblem): string {
  * kartan som vektorer, dekorfärger och övertryck (`PdfPanel`).
  */
 export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: string; initialMode?: Mode }) {
-  const [document, setDocument] = useState<CourseSettingDocument | null>();
+  const [loaded, setDocument] = useState<CourseSettingDocument | null>();
   const [canEdit, setCanEdit] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapRect>();
   const [hasMap, setHasMap] = useState(false);
@@ -176,6 +178,11 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     saving.current = run.catch(() => false);
     return run;
   }, [raceId, load]);
+
+  // Papperet (ADR-0197): texter, bilder, skalstock, nordpil, klippning och mallar per bana. Medan papperets ändringar sparas
+  // visas dokumentet med dem (`view`).
+  const paperSpace = usePaperSpace({ raceId, document: loaded, save, canEdit, chosen });
+  const document = paperSpace.view ?? loaded;
 
   const standard = document?.event.descriptionStandard ?? "2018";
   const symbols = useMemo(() => {
@@ -302,6 +309,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     <div><Button variant="secondary" onClick={() => void load(true)}>{text.page.retry}</Button></div></Notice></div></main>;
   if (document === undefined) return <main className={styles.page}><div className={styles.controls}>{back}<p role="status">{text.page.loading}</p></div></main>;
   if (document === null) return <main className={styles.page}><div className={styles.controls}>{back}<p>{text.page.noSetting}</p></div></main>;
+  const paperPanel = paperSpace.panel(sheets);
   const frameCount = sheets.reduce((sum, item) => sum + item.sheet.frames.length, 0);
   const waiting = mapState === "reading" || (mapState === "ready" && sheets.some(item => item.sheet.frames.some(frame => !images[frameImageKey(frame, colorsKey)])));
   const blocked = mode === "RUNNERS" && (runners?.problems.length ?? 0) > 0;
@@ -346,6 +354,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
       {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
         readOnly={!canEdit} onSave={save} />}
+      {mode === "COURSES" && !pieces && paperPanel && <PaperSpacePanel raceId={raceId} document={document} readOnly={!canEdit} {...paperPanel} />}
       {profile.reference && hasMap && <BlProposalPanel key={profile.basedOn ?? profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
         readOnly={!canEdit} frame={sheets[0]?.sheet.frames[0]} symbols={symbols} render={renderImage}
         onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} />}
@@ -363,7 +372,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     </div>
     <div className={styles.sheets}>
       {sheets.map((item, index) => <SheetView key={item.key} sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
-        courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} />)}
+        courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} paper={paperSpace.interaction} />)}
     </div>
   </main>;
 }

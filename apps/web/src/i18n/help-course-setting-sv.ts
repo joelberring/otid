@@ -81,9 +81,13 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "Den inlästa filen finns kvar orörd och kan laddas ned igen.",
         "”Ladda ned IOF XML (banor)”: banfilen för MeOS, OLA och OCAD. En gafflad bana blir en bana per variant."
       ],
-      "Läses en ny fil in behålls tävlingens utskriftsprofiler, layoutmallar och ringklipp, och träningen om filen saknar den.",
-      "OCAD: O-Tid skriver inget OCAD-format. Importera banorna i OCAD från IOF XML; kontrollerna hamnar rätt, men beskrivningar och specialobjekt följer inte med.",
-      "Träningsformerna följer med i .ppen men försvinner om filen sparas i Purple Pen."
+      "Att veta om fram och tillbaka:",
+      [
+        "Läses en ny fil in behålls tävlingens utskriftsprofiler, layoutmallar, ringklipp och papper, och träningen om filen saknar den.",
+        "Papperets texter och bilder blir Purple Pens text- och bildobjekt, och beskrivningens plats följer med. Se [Papperet](#papperet).",
+        "Träningsformerna följer med i .ppen men försvinner om filen sparas i Purple Pen."
+      ],
+      "OCAD: O-Tid skriver inget OCAD-format. Importera banorna i OCAD från IOF XML; kontrollerna hamnar rätt, men beskrivningar och specialobjekt följer inte med."
     ]
   },
   {

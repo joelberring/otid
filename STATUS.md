@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Klubbarkivets kartor syns (grenen kartarkiv-kartor, ADR-0196, migration 0062)
+- Kartfilen: OCAD 8, 9, 10 och 11 läses och ritas (`OcdVariant`); OCAD 6–7 säger "OCAD 7 stöds inte. Öppna kartan och spara den i nyare OCAD eller i Mapper." Windows-1252 i äldre filer.
+- IOF XML 2.0.3 CourseData läses till samma modell som 3.0 (längd ur lägena när CourseLength saknas). Banfilens sammanfattning räknas ur filen när den sparade är tom.
+- Kartor-fliken: bild av senaste versionen, "Fungerar · OCAD 11.2" eller skälet per version, "Kontrollera alla kartor igen". Träningarna har en bild med längsta banan. Ritas i en administratörs webbläsare och sparas (högst sex kartversioner per besök automatiskt).
+- "Ändra rättigheter" i kartans kort och på träningens sida. Träningens sida säger varför kartan inte kunde ritas.
+- Verifierat: map-file mot klubbens prov (OCAD 8 ×2, 9 ×2, 10 ×2, 11 ×3 ritade och granskade som PNG), iof-xml mot två 2.0.3-filer, integrationstest adr-0196, Playwright `klubbarkiv-kartor` (1280/390).
+
 ### 2026-11-03 – Färdiga avbildningar, servern bygger inte (grenen snabbare-bygge, ADR-0195)
 - Arbetsflödet `Avbildningar`: efter grön CI för en push till main byggs `ghcr.io/joelberring/otid-web` och `otid-backup` (amd64, taggar sha, kort sha, main; GHA-cache). Andra grenar bygger utan att lägga upp.
 - `docker-compose.prod.yml`: `${OTID_IMAGE:-ghcr.io/joelberring/otid-web}:${OTID_TAG:-main}` (backupen likadant); `build:` kvar som reserv med lokala namn. CI-jobbet production bygger från commiten med lokala namn.

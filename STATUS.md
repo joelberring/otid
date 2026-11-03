@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Kartarkivets dubbletter och versioner, och kartan ur klubbarkivet (grenen kartor-sammanfoga, ADR-0210, migration 0077)
+- "Möjliga dubbletter (n)" i Kartor-fliken (ägare och administratörer): par av kartor jämförs på georeferensens överlapp, namnet (utan accenter, år, datum och ord som ny/rev/version/kopia), kartytan, symbolerna, skalan och gemensamma träningar (`map-duplicates.ts` i domänen); grupperna är "Troligen samma karta" eller "Kanske samma" med skälen. Fingeravtrycket sparas vid kontrollen i webbläsaren; servern läser inga kartfiler.
+- "Slå ihop till en karta" (välj vilken som behåller namnet), "Inte samma karta" (sparas per par), "Slå ihop markerade" och "Ångra sammanslagning" under Historik så länge kartan är oförändrad. Bara metadata: innehållet, kvoten och träningarnas versioner är orörda; journalförs.
+- Varje version har ett år (filnamnet, mappen, årsmappen, datumet, uppladdningen; går att skriva in), nyaste först, "5 versioner, 2014–2023". Kartan har beskrivning och kartritare; "Kopiera till alla versioner" och "Från kartan" med förhandsvisning.
+- "Välj karta från klubbarkivet" i Skapa tävling och i banläggningens start: samma väg som Använd igen (bara bilden skickas, rättigheterna följer med); `mayUseClubMap` är det enda beslutet om vem som får använda kartan.
+- Gränserna provade lokalt mot klubbens riktiga OCAD-filer (inga namn eller filer committade). Verifierat: se slutrapporten för grenen.
+
 ### 2026-11-03 – Kartbyten: delar, dubbelsidigt och överlapp (grenen kartbyte-delar, ADR-0203)
 - Delar som Purple Pen (`course-parts.ts`): kartbytet sist i en del och först i nästa, ritat som start; numren fortsätter; eget kartbyte sist döljs; `part-options show-finish`; specialobjekt per del.
 - Fliken Utskrift: "Kartbyten" med "Del" (Hela banan / Del 1 / Del 2 …), egen tryckyta per del (`<print-area part="n">` i .ppen, "Som banans igen") och "Visa överlapp" (Ingen / Sista sträckan / Hela föregående del).

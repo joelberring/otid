@@ -15,8 +15,9 @@ export interface ClubMapUseFacts {
   readonly clubId: string;
 }
 
-export function mayUseClubMap(member: ClubMapUseFacts | undefined, _map: { readonly mapId: string } & MapAgreement): boolean {
-  return member !== undefined;
+export function mayUseClubMap(member: ClubMapUseFacts | undefined, map: { readonly mapId: string } & MapAgreement): boolean {
+  // Kartans rättigheter stoppar inte i dag (de sägs i listan, `clubMapUseIssues`); kartan måste ha ett id i klubben.
+  return member !== undefined && map.mapId.length > 0;
 }
 
 /** Villkoren att säga till om när kartan väljs (`date` är dagens datum, ÅÅÅÅ-MM-DD). */

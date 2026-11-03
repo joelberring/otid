@@ -89,6 +89,7 @@ async function archive() {
   return { owner, admin: adminAccount, reader, clubId, maps };
 }
 
+const contentCount = async () => Number((await pool.query<{ count: string }>("select count(*) from map_content")).rows[0]!.count);
 const journal = async (clubId: string) => (await pool.query<{ action: string; details: Record<string, unknown> }>(
   "select action, details from club_journal where club_id = $1 order by created_at, id", [clubId])).rows;
 
@@ -122,7 +123,7 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
   it("Slå ihop till en karta flyttar versionerna i årsordning, behåller träningarnas versioner och kan ångras", async () => {
     const { owner, admin: adminAccount, reader, clubId, maps } = await archive();
     const usageBefore = await clubUsage(db, clubId);
-    const contents = Number((await pool.query("select count(*) from map_content")).rows[0].count);
+    const contents = await contentCount();
     const entries = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
     if (entries.status !== "ok") throw new Error("Inget arkiv");
     const entryB = entries.list.entries.find(item => item.title === "Skogen B")!;
@@ -143,8 +144,9 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
       ["Älvsjöskogen rev 2021.omap", 2021, "FILE_NAME"], ["alvsjoskogen_ny.omap", 2020, "YEAR_FOLDER"], ["Älvsjöskogen 2019.omap", 2019, "FILE_NAME"]]);
     expect(kept.years).toEqual({ from: 2019, to: 2021 });
     expect(kept.latestVersionId).toBe(maps.c.versions[0]!.versionId);
-    expect(kept.merges).toEqual([expect.objectContaining({ mergeId: merged.response.mergeId, absorbedNames: expect.arrayContaining(["Älvsjöskogen 2019",
-      "Älvsjöskogen rev 2021"]), versions: 2, undoable: true, undoneAt: null })]);
+    expect(kept.merges).toHaveLength(1);
+    expect(kept.merges[0]).toMatchObject({ mergeId: merged.response.mergeId, versions: 2, undoable: true, undoneAt: null });
+    expect([...kept.merges[0]!.absorbedNames].sort()).toEqual(["Älvsjöskogen 2019", "Älvsjöskogen rev 2021"]);
     // Banfilerna pekar på sina exakta versioner, nu under kartan som behölls.
     const entry = await readClubArchiveEntry(db, { ...reader.proof, clubId, entryId: entryB.entryId }, later(1));
     if (entry.status !== "ok") throw new Error("Ingen träning");
@@ -153,7 +155,7 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
     expect(entryA.status === "ok" && entryA.view.courseFiles[0]!.mapVersion).toMatchObject({ versionId: maps.a.versions[0]!.versionId, mapId: maps.b.mapId,
       latest: false });
     // Innehållet och kvoten är orörda; inga förslag kvar.
-    expect(Number((await pool.query("select count(*) from map_content")).rows[0].count)).toBe(contents);
+    expect(await contentCount()).toBe(contents);
     expect({ ...(await clubUsage(db, clubId)), maps: usageBefore.maps }).toEqual(usageBefore);
     expect((await clubUsage(db, clubId)).maps).toBe(usageBefore.maps - 2);
     const left = await readClubMapDuplicates(db, { ...owner.proof, clubId }, later(1));
@@ -227,8 +229,8 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
     expect(kept!.versions.find(version => version.versionId === v3)!.maker).toBe("Kim K");
     const copied = (await journal(clubId)).filter(row => row.action === "CLUB_MAP_VERSIONS_COPIED");
     expect(copied).toHaveLength(2);
-    expect(copied[0]!.details).toMatchObject({ mapId: maps.b.mapId, from: v1, fields: ["maker"],
-      versions: expect.arrayContaining([{ versionId: v2, before: { maker: null } }]) });
+    expect(copied[0]!.details).toMatchObject({ mapId: maps.b.mapId, from: v1, fields: ["maker"] });
+    expect(copied[0]!.details.versions).toContainEqual({ versionId: v2, before: { maker: null } });
     // Ett år går att gissa igen.
     expect(await updateClubMapVersion(db, { ...owner.proof, clubId, versionId: v1, request: { formatVersion: 1, versionDate: null, note: null,
       versionYear: null } }, later(5))).toEqual({ status: "ok" });

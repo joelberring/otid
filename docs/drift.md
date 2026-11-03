@@ -299,6 +299,10 @@ Adressen för frågor om programmet (sidfoten, Om O-Tid och Hjälp) är fast i `
 "Se vad O-Tid kan (film, 1 min)" längst ned; tom eller osatt = ingen länk. Bara `https://`/`http://`-adresser eller en sökväg
 på samma värd (`/…`) godtas, annars visas ingen länk. Värdet läses när sidan visas (inte när avbildningen byggs), så det räcker
 att ändra `.env` och köra `docker compose -f docker-compose.prod.yml up -d`; `web` och `web-public` får det båda.
+Filmen kan ligga på servern: lägg filen i mappen `media/` bredvid `docker-compose.prod.yml` (`mkdir -p media`, sedan t.ex.
+`scp otid-intro.mp4 root@servern:/root/otid/media/`) och sätt `NEXT_PUBLIC_INTRO_FILM_URL=/media/otid-intro.mp4`. Caddy visar
+`media/` skrivskyddat under `/media/` (med spolning). Mappen är inte med i git eller i säkerhetskopian; den första gången behövs
+`docker compose -f docker-compose.prod.yml up -d caddy` så att mappen monteras.
 `OTID_REGISTRATION_LIMIT_PER_HOUR` (valfri, förval 10) är hur många konton som får skapas per IP-adress och timme.
 
 Endast test: CI pekar `OTID_SMTP_URL` mot en falsk SMTP-server på värden (`tests/e2e/fake-smtp.ts`), på samma

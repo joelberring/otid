@@ -72,6 +72,23 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "kartbyten",
+    title: "Kartbyten: delar, dubbelsidigt och överlapp",
+    views: ["CS_PRINT", "CS_PRINT_PAGE"],
+    body: [
+      "En bana med kartbyte delas i delar som i Purple Pen. Del 2 börjar vid kartbytet, som ritas som en start, och numren fortsätter.",
+      [
+        "”Del” under ”Kartbyten” i fliken ”Utskrift”: ”Hela banan” eller en av delarna (Del 1, Del 2 …). Kartan visar den delen.",
+        "Varje del får en egen tryckyta när du ändrar ramen för delen. ”Som banans igen” tar bort delens egen.",
+        "”Visa överlapp”: ”Ingen”, ”Sista sträckan” eller ”Hela föregående del”, tonat och utan nummer.",
+        "I förhandsvisningen står varje del på ett eget ark med delens kontrollbeskrivning.",
+        "”Dubbelsidigt: del 2 på baksidan av del 1 (kartbyte)”: ordningen som skrivaren behöver, med en tom baksida vid udda antal.",
+        "På papperet står ett element med ”Alla sidor” på varje del. Annars står det bara på del 1."
+      ],
+      "Vänds kartan vid kartbytet (map-flip i Purple Pen) är dubbelsidigt förvalt. Delarnas tryckytor skrivs till .ppen som i Purple Pen."
+    ]
+  },
+  {
     id: "beskrivning-pa-kartan",
     title: "Kontrollbeskrivningen på kartan",
     views: ["CS_PRINT_PAGE", "CS_PRINT", "CS_DESCRIPTION"],

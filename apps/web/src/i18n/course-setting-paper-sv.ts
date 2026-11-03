@@ -32,6 +32,9 @@ export const paperSpaceSv = {
   corners: { TOP_LEFT: "Uppe till vänster", TOP_RIGHT: "Uppe till höger", BOTTOM_LEFT: "Nere till vänster", BOTTOM_RIGHT: "Nere till höger" } as Record<string, string>,
   x: "Från sidan (mm)",
   y: "Från kanten (mm)",
+  pages: "Sidor",
+  pagesOptions: { FIRST: "Första sidan", ALL: "Alla sidor" } as Record<string, string>,
+  pagesHelp: "En bana som delas på flera sidor: elementet på första sidan eller på varje sida.",
   relative: "I förhållande till",
   relatives: { FRAME: "Kartramen", PAGE: "Arket" } as Record<string, string>,
   remove: "Ta bort",
@@ -56,7 +59,9 @@ export const paperSpaceSv = {
     removePoint: "Ta bort hörn",
     fromTemplate: "Klippningen kommer från mallen.",
     vertex: (index: number) => `Klippningens hörn ${index}`,
-    rectFields: "Rektangeln i ramen (mm)"
+    rectFields: "Rektangeln i ramen (mm)",
+    markings: "Visa markeringar utanför utsnittet",
+    markingsHelp: "Banan (kontroller, start, mål, sträckor och nummer) står alltid hel. Förbjudna områden, gränser, vätska och andra markeringar står bara innanför utsnittet om inte rutan är ikryssad."
   },
   templates: {
     heading: "Mallar för papperet",

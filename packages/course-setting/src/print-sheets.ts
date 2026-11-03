@@ -9,7 +9,7 @@ import { layoutCoursePage, type CoursePage } from "./page-layout";
 import type { MapRect } from "./types";
 import { mirrorFigures } from "./training-mirror";
 import { trainingMapPasses } from "./training-passes";
-import { clipMapPasses, effectivePaper, paperClipRing } from "./paper-items";
+import { clipMapPasses, clipMarkings, effectivePaper, paperClipRing } from "./paper-items";
 import { trainingPieceSheets } from "./training-print";
 
 export type SheetLayout =
@@ -57,9 +57,12 @@ function withMapPasses(document: Parameters<typeof layoutCoursePage>[0], groups:
     const clip = clipOf(frame.course);
     const passes = clip ? clipMapPasses(cache.get(key), paperClipRing(clip, { ...frame, mirror }), clip.outside) : cache.get(key);
     const withPasses = passes ? { ...frame, mapPasses: passes } : frame;
-    if (!mirror) return withPasses;
     const axis = (frame.mapArea.minX + frame.mapArea.maxX) / 2;
-    return { ...withPasses, mirror: true, figures: mirrorFigures(frame.figures, axis) };
+    const mirrored = mirror ? { ...withPasses, mirror: true, figures: mirrorFigures(frame.figures, axis) } : withPasses;
+    // Markeringarna utanför klippningen syns inte (om inte "Visa markeringar utanför utsnittet"); banan står hel.
+    if (!clip || clip.showMarkings) return mirrored;
+    const marked = clipMarkings(document, mirrored, clip, mirror);
+    return { ...mirrored, figures: marked.figures, ...(marked.markingClip.refs.length > 0 ? { markingClip: marked.markingClip } : {}) };
   }) })) }));
 }
 

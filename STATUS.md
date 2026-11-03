@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Importen till klubbarkivet i webbläsaren (grenen arkiv-webbimport, ADR-0204, ingen migration)
+- Fliken Import: "Välj mapp" (webkitdirectory), "Välj filer" (zip eller lösa filer) och dra och släpp av mappar/zip; kort besked på telefon. Kommandot och nyckeln hopfällda under "För den som kan Git: kommandoraden".
+- `@o-tid/club-archive` läser en abstrakt källa: samma läsning, plan, rapport och uppladdning för disken (kommandot) och File/Blob (Blob.slice, DecompressionStream, WebCrypto). PDF, startlistor och bilder öppnas aldrig och skickas aldrig; kartor över 75 MB läses inte och sägs i förhandsgranskningen.
+- "Förhandsgranska" = `--dry-run` (nytt/finns redan, kvoten, det som inte skickas, problem, "Ladda ner rapporten"); "Importera" med förlopp ("Karta 3 av 12", "Träning 50 av 212") och "Avbryt"; idempotent omkörning. "Ta inte med ledarens namn ur [hakparenteser]" = `--utan-ledare`.
+- Inloggningen i stället för nyckeln: `/api/organizer/clubs/{id}/import/…` med Origin och CSRF, rollen administratör; samma tjänster som nyckelns väg. Kontrollfrågan tar valfria `importKeys` och svarar `knownEntries`.
+- Verifierat: se slutrapporten för grenen. Hjälpartikeln `arkiv-import` skriven om kring webbläsaren.
+
 ### 2026-11-03 – Färre gafflingsvarianter (grenen gaffling-urval, ADR-0198, migration 0064)
 - Banläggningen: panelen Varianter i fliken Banor (fågelväg, längs vägval på begäran i vägvalens Worker, kontroller, skillnad mot kortaste i m och %), kryssruta per variant och "Begränsa varianter" (längst i alla avseenden, högst X % längre, högst N) med förhandsgranskning; skyddet behåller en variant per kontroll och sträcka. "8 varianter, 4 används (4 bortvalda som längre)".
 - Bortvalen sparas på banan (`UPDATE_COURSE.excludedVariants`: kod och kontrollkoder), så autosparande, ångra och versioner gäller; .ppen kan inte bära dem (Purple Pen har bara `relay-branch`), så de skrivs i `<otid:variants>` och följer med när en fil från Purple Pen läses in om varianterna finns kvar.

@@ -1,10 +1,10 @@
 /**
- * Papperet ("paper space", ägarens önskan 2026-11-03): det som står på arket utanför kartbilden och banpåtrycket, per bana.
- * Kartan med banan är "model space" (kartans mm, editorn); här räknas allt i papperets mm relativt kartramen på arket, så
- * att samma inställning gäller i en sida per bana och i en layoutmalls ramar.
+ * Papperet ("paper space", ägarens önskan 2026-11-03, ADR-0197): det som står på arket utanför kartbilden och banpåtrycket,
+ * per bana. Kartan med banan är "model space" (kartans mm, editorn); här räknas allt i papperets mm relativt kartramen på
+ * arket, så att samma inställning gäller i en sida per bana och i en layoutmalls ramar.
  *
- * Nu: kontrollbeskrivningen på kartan (av, automatiskt i ett fritt hörn, eller utplacerad i förhandsvisningen). Senare
- * element (text, bild/logotyp, teckenförklaring, skalstock, utsnitt) får egna fält i `CoursePaperLayout` med samma
+ * Här: kontrollbeskrivningen på kartan (av, automatiskt i ett fritt hörn, eller utplacerad i förhandsvisningen) och .ppen.
+ * Papperets övriga element (texter, bilder, skalstock, nordpil), klippningen och mallarna står i `paper-items.ts` med samma
  * förankring (`PaperAnchor`): ett hörn av kartramen och avståndet inåt. Ingenting här ritas i editorn.
  *
  * Purple Pens `descriptions`-specialobjekt (kartans mm) tolkas som beskrivningens plats när banan inte har en egen
@@ -14,76 +14,23 @@
 import type { Point } from "@o-tid/map-file";
 import { layout as layoutDescriptionFigures } from "./description-layout";
 import type { DescriptionKind, DescriptionLayout } from "./description-types";
+import { anchorToPaper, PAPER_CORNERS, type PaperCorner, type PaperRect } from "./paper-anchor";
+import { effectivePaper, paperItemSize, paperTextForPpen, type PaperDescriptions } from "./paper-items";
 import { nextId, rawAttribute } from "./ppen-common";
 import { newSpecial } from "./ppen-special";
 import type { CourseSettingDocument, OverprintPrimitive, SpecialObject } from "./types";
-import { CourseSettingEditError } from "./types";
 
-export type PaperCorner = "TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" | "BOTTOM_RIGHT";
-export const PAPER_CORNERS: readonly PaperCorner[] = ["TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT"];
-
-/** En plats på papperet: avståndet (mm, inåt positivt) från ett hörn av kartramen till elementets motsvarande hörn. */
-export interface PaperAnchor {
-  readonly corner: PaperCorner;
-  readonly x: number;
-  readonly y: number;
-}
-
-/** Kontrollbeskrivningen på kartan. Saknas `at` placeras den automatiskt (eller där .ppen-filen har den). */
-export interface PaperDescriptions {
-  /** false = ingen beskrivning på kartan; saknas = på för banor, av för Alla kontroller. */
-  readonly show?: boolean | undefined;
-  readonly at?: PaperAnchor | undefined;
-  /** Rutans sida i mm på papperet; saknas = filens eller 5 mm. */
-  readonly boxMm?: number | undefined;
-  /** Spalter (1–4); saknas = filens eller 1. */
-  readonly columns?: number | undefined;
-}
-
-/** Papperet för en bana (eller "ALL_CONTROLS"). Nya element läggs till som fält här. */
-export interface CoursePaperLayout {
-  readonly descriptions?: PaperDescriptions | undefined;
-}
+export { anchorToPaper, paperAnchorOf, reanchor, PAPER_CORNERS, type PaperAnchor, type PaperCorner, type PaperRect } from "./paper-anchor";
+export {
+  paperLayoutOf, validatePaperLayout, PAPER_DESCRIPTION_LIMITS, type CoursePaperLayout, type PaperDescriptions
+} from "./paper-items";
 
 /** Förvald rutstorlek (mm på papperet) för en beskrivning som O-Tid placerar. */
 export const PAPER_DESCRIPTION_BOX_MM = 5;
-export const PAPER_DESCRIPTION_LIMITS = { minBoxMm: 3, maxBoxMm: 10, maxColumns: 4 } as const;
 
-const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
-const invalid = (message: string) => new CourseSettingEditError("INVALID", `Papperet: ${message}`);
-
-/** Kontrollerar och rensar en banas papper (okända fält tas bort). */
-export function validatePaperLayout(value: CoursePaperLayout): CoursePaperLayout {
-  if (typeof value !== "object" || value === null) throw invalid("ingen inställning");
-  const descriptions = value.descriptions;
-  if (descriptions === undefined) return {};
-  if (typeof descriptions !== "object" || descriptions === null) throw invalid("beskrivningen");
-  const out: { -readonly [K in keyof PaperDescriptions]: PaperDescriptions[K] } = {};
-  if (descriptions.show !== undefined) {
-    if (typeof descriptions.show !== "boolean") throw invalid("på eller av");
-    out.show = descriptions.show;
-  }
-  if (descriptions.at !== undefined) {
-    const at = descriptions.at;
-    if (!PAPER_CORNERS.includes(at.corner) || !finite(at.x) || !finite(at.y) || Math.abs(at.x) > 2000 || Math.abs(at.y) > 2000) throw invalid("platsen");
-    out.at = { corner: at.corner, x: at.x, y: at.y };
-  }
-  if (descriptions.boxMm !== undefined) {
-    if (!finite(descriptions.boxMm) || descriptions.boxMm < PAPER_DESCRIPTION_LIMITS.minBoxMm || descriptions.boxMm > PAPER_DESCRIPTION_LIMITS.maxBoxMm) {
-      throw invalid("rutans storlek");
-    }
-    out.boxMm = descriptions.boxMm;
-  }
-  if (descriptions.columns !== undefined) {
-    if (!Number.isInteger(descriptions.columns) || descriptions.columns < 1 || descriptions.columns > PAPER_DESCRIPTION_LIMITS.maxColumns) throw invalid("spalterna");
-    out.columns = descriptions.columns;
-  }
-  return { descriptions: out };
-}
-
-/** Banans papper (tomt om inget är inställt). */
-export function paperLayoutOf(document: CourseSettingDocument, course: string): CoursePaperLayout {
-  return document.event.paperLayouts?.[course] ?? {};
+/** Kontrollbeskrivningens inställning för banan (banans fält före mallens, `effectivePaper`). */
+export function paperDescriptionsOf(document: CourseSettingDocument, course: string): PaperDescriptions {
+  return effectivePaper(document, course).descriptions;
 }
 
 /** Purple Pens beskrivning på kartan för banan (specialobjektet ur .ppen), om den finns. */
@@ -94,7 +41,7 @@ export function fileDescription(document: CourseSettingDocument, course: string)
 
 /** Om banan får en beskrivning på kartan: inställningen, annars på för banor (och för Alla kontroller bara med filens). */
 export function descriptionShown(document: CourseSettingDocument, course: string): boolean {
-  const show = paperLayoutOf(document, course).descriptions?.show;
+  const show = paperDescriptionsOf(document, course).show;
   if (show !== undefined) return show;
   return course !== "ALL_CONTROLS" || fileDescription(document, course) !== undefined;
 }
@@ -105,7 +52,6 @@ function descriptionKind(document: CourseSettingDocument, course: string): Descr
   return raw === "text" ? "TEXT" : raw === "symbols-and-text" ? "SYMBOLS_AND_TEXT" : "SYMBOLS";
 }
 
-export interface PaperRect { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 type Transform = { readonly scale: number; readonly translateX: number; readonly translateY: number };
 
 /** Ramen som beskrivningen läggs i: banan, varianten, kartramen på arket, transformen och banpåtrycket. */
@@ -133,23 +79,6 @@ export interface SheetDescription {
   /** Rutans sida (mm på papperet) och spalterna som den lades ut med. */
   readonly boxMm?: number | undefined;
   readonly columns?: number | undefined;
-}
-
-/** Elementets övre vänstra hörn på papperet ur förankringen. */
-export function anchorToPaper(anchor: PaperAnchor, size: { width: number; height: number }, clip: PaperRect): { x: number; y: number } {
-  const right = anchor.corner === "TOP_RIGHT" || anchor.corner === "BOTTOM_RIGHT";
-  const bottom = anchor.corner === "BOTTOM_LEFT" || anchor.corner === "BOTTOM_RIGHT";
-  return { x: right ? clip.x + clip.width - anchor.x - size.width : clip.x + anchor.x, y: bottom ? clip.y + clip.height - anchor.y - size.height : clip.y + anchor.y };
-}
-
-/** Förankringen för ett element på papperet: närmaste hörn av kartramen (efter elementets mitt). */
-export function paperAnchorOf(rect: PaperRect, clip: PaperRect): PaperAnchor {
-  const right = rect.x + rect.width / 2 > clip.x + clip.width / 2;
-  const bottom = rect.y + rect.height / 2 > clip.y + clip.height / 2;
-  const corner: PaperCorner = bottom ? (right ? "BOTTOM_RIGHT" : "BOTTOM_LEFT") : right ? "TOP_RIGHT" : "TOP_LEFT";
-  const round = (value: number) => Math.round(value * 10) / 10;
-  return { corner, x: round(right ? clip.x + clip.width - rect.x - rect.width : rect.x - clip.x),
-    y: round(bottom ? clip.y + clip.height - rect.y - rect.height : rect.y - clip.y) };
 }
 
 const toPaper = (t: Transform, p: Point) => ({ x: t.scale * p.x + t.translateX, y: -t.scale * p.y + t.translateY });
@@ -224,7 +153,7 @@ export function placeDescription(document: CourseSettingDocument, frame: PaperFr
 ): SheetDescription | undefined {
   const course = frame.course;
   if (!descriptionShown(document, course)) return undefined;
-  const settings = paperLayoutOf(document, course).descriptions ?? {};
+  const settings = paperDescriptionsOf(document, course);
   const file = settings.at ? undefined : fileDescription(document, course);
   const fileCell = file && file.points.length >= 2 ? Math.hypot(file.points[1]!.x - file.points[0]!.x, file.points[1]!.y - file.points[0]!.y) * frame.transform.scale : undefined;
   const boxMm = settings.boxMm ?? (fileCell && fileCell > 0 ? fileCell : undefined) ?? options.template?.boxMm ?? PAPER_DESCRIPTION_BOX_MM;
@@ -256,12 +185,18 @@ export function placeDescription(document: CourseSettingDocument, frame: PaperFr
   return { ...base, ...best!.at, source: "AUTO", corner: best!.corner, overlaps: best!.overlaps };
 }
 
+/** Banans sida för .ppen: ramen och (för element förankrade i arket) arket. */
+export type PpenPaperFrame = PaperFrame & { readonly page?: PaperRect | undefined };
+
 /**
- * Dokumentet för .ppen: varje bana med egen utplacering får ett Purple Pen-`descriptions`-objekt på motsvarande ställe i
- * kartan (`frameOf` ger banans sida, som Purple Pen skriver ut den), och en bana med beskrivningen avslagen tas bort ur
- * filens objekt. Banor utan egen inställning behåller filens objekt orört.
+ * Dokumentet för .ppen (ADR-0197): varje bana med utplacerad beskrivning får ett Purple Pen-`descriptions`-objekt på
+ * motsvarande ställe i kartan (`frameOf` ger banans första sida, som Purple Pen skriver ut den), och en bana med
+ * beskrivningen avslagen tas bort ur filens objekt. Papperets texter blir Purple Pens textobjekt (variablerna som makron)
+ * och bilderna bildobjekt (när `images` har bildens data) för banan. Skalstock, nordpil, täckning och klippning har ingen
+ * motsvarighet och stannar i O-Tid. Banor utan egen inställning behåller filens objekt orört.
  */
-export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (course: string) => PaperFrame | undefined): CourseSettingDocument {
+export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (course: string) => PpenPaperFrame | undefined,
+  options: { readonly images?: ReadonlyMap<string, string> | undefined } = {}): CourseSettingDocument {
   const layouts = document.event.paperLayouts;
   if (!layouts || Object.keys(layouts).length === 0) return document;
   const allIds = ["0", ...document.courses.map(course => course.id)];
@@ -275,22 +210,68 @@ export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (c
       return rest.length === 0 ? [] : [{ ...special, courses: rest }];
     });
   };
-  for (const [course, layout] of Object.entries(layouts)) {
+  const add = (input: Parameters<typeof newSpecial>[1]) => { specials.push(newSpecial(nextId(specials.map(special => special.id)), input)); };
+  for (const course of Object.keys(layouts)) {
     const id = course === "ALL_CONTROLS" ? "0" : course;
     if (id !== "0" && !document.courses.some(item => item.id === id)) continue;
-    const settings = layout.descriptions;
-    if (!settings) continue;
-    if (settings.show === false) { detach(id); continue; }
-    if (!settings.at) continue;
+    const effective = effectivePaper(document, course);
+    const settings = effective.descriptions;
+    const items = effective.items.filter(row => row.item.kind === "TEXT" || (row.item.kind === "IMAGE" && options.images?.has(row.item.image)));
+    if (settings.show === false) detach(id);
+    if (!settings.at && items.length === 0) continue;
     const frame = frameOf(course);
     if (!frame) continue;
-    const placed = placeDescription(document, frame, 0);
-    if (!placed) continue;
-    const cell = (settings.boxMm ?? PAPER_DESCRIPTION_BOX_MM) / frame.transform.scale;
-    const topLeft = fromPaper(frame.transform, placed);
-    detach(id);
-    specials.push(newSpecial(nextId(specials.map(special => special.id)), { kind: "descriptions", courses: [id],
-      points: [topLeft, { x: topLeft.x + cell, y: topLeft.y }], ...((settings.columns ?? 1) > 1 ? { columns: settings.columns } : {}) }));
+    if (settings.show !== false && settings.at) {
+      const placed = placeDescription(document, frame, 0);
+      if (placed) {
+        const cell = (settings.boxMm ?? PAPER_DESCRIPTION_BOX_MM) / frame.transform.scale;
+        const topLeft = fromPaper(frame.transform, placed);
+        detach(id);
+        add({ kind: "descriptions", courses: [id], points: [topLeft, { x: topLeft.x + cell, y: topLeft.y }],
+          ...((settings.columns ?? 1) > 1 ? { columns: settings.columns } : {}) });
+      }
+    }
+    for (const { item } of items) {
+      const text = item.kind === "TEXT" ? paperTextForPpen(item.text, document) : undefined;
+      const size = paperItemSize(item);
+      const at = anchorToPaper(item.at, size, item.relativeTo === "PAGE" && frame.page ? frame.page : frame.clip);
+      const corners = [fromPaper(frame.transform, at), fromPaper(frame.transform, { x: at.x + size.width, y: at.y + size.height })];
+      if (item.kind === "TEXT") {
+        add({ kind: "text", courses: [id], points: corners, text: text!, color: "black",
+          font: { name: "Arial", bold: item.bold === true, italic: false, height: item.sizeMm / frame.transform.scale } });
+      } else if (item.kind === "IMAGE") {
+        add({ kind: "image", courses: [id], points: corners, image: { format: item.mediaType === "image/png" ? "png" : "jpeg", data: options.images!.get(item.image)! } });
+      }
+    }
   }
   return { ...document, specialObjects: specials };
+}
+
+/**
+ * En ny .ppen läses in i en banläggning som redan har ett papper (ADR-0197): papperet och mallarna följer med (de står inte i
+ * Purple Pens fil), och textobjekt och bildobjekt som O-Tid själv skrev ut för papperets texter och bilder (samma text,
+ * respektive samma bild, för samma enda bana) tas bort ur filen så att de inte står två gånger. `imageHash` ger bildobjektets
+ * sha256 (räknas av den som läser in filen).
+ */
+export function keepPaperOnImport(current: CourseSettingDocument, imported: CourseSettingDocument,
+  imageHash: (special: SpecialObject) => string | undefined = () => undefined): CourseSettingDocument {
+  const layouts = current.event.paperLayouts ?? {};
+  const kept: Record<string, NonNullable<CourseSettingDocument["event"]["paperLayouts"]>[string]> = {};
+  for (const [course, layout] of Object.entries(layouts)) {
+    if (course === "ALL_CONTROLS" || imported.courses.some(item => item.id === course)) kept[course] = layout;
+  }
+  const event = { ...imported.event,
+    ...(Object.keys(kept).length > 0 ? { paperLayouts: kept } : {}),
+    ...(current.event.paperTemplates ? { paperTemplates: current.event.paperTemplates } : {}),
+    ...(current.event.paperValues ? { paperValues: current.event.paperValues } : {}) };
+  const ours = (special: SpecialObject): boolean => {
+    if ((special.kind !== "text" && special.kind !== "image") || special.courses.length !== 1) return false;
+    const id = special.courses[0]!;
+    const course = id === "0" ? "ALL_CONTROLS" : id;
+    if (!kept[course]) return false;
+    return effectivePaper(current, course).items.some(({ item }) => special.kind === "text"
+      ? item.kind === "TEXT" && paperTextForPpen(item.text, current) === special.text
+      : item.kind === "IMAGE" && imageHash(special) === item.image);
+  };
+  return { ...imported, event, specialObjects: imported.specialObjects.filter(special => !ours(special)) };
 }

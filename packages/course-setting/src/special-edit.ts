@@ -5,7 +5,7 @@
 import type { Point } from "@o-tid/map-file";
 import { nextId } from "./ppen-common";
 import { BUILT_IN_TEMPLATES, validateLayoutTemplate } from "./layout-template";
-import { validatePaperLayout } from "./paper-layout";
+import { PAPER_LIMITS, validatePaperLayout, validatePaperTemplate } from "./paper-items";
 import { newSpecial } from "./ppen-special";
 import { BUILT_IN_PRINT_PROFILES, validatePrintProfile } from "./print-profile";
 import type { CourseSettingDocument, EditResult, PrintArea, SpecialEdit, SpecialKind, SpecialObject } from "./types";
@@ -134,9 +134,37 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       const layouts = { ...(document.event.paperLayouts ?? {}) };
       delete layouts[edit.course];
       const layout = edit.layout ? validatePaperLayout(edit.layout) : undefined;
-      if (layout && layout.descriptions && Object.keys(layout.descriptions).length > 0) layouts[edit.course] = layout;
+      if (layout && Object.keys(layout).length > 0) {
+        if (layout.template !== undefined && !(document.event.paperTemplates ?? []).some(item => item.id === layout.template)) {
+          throw new CourseSettingEditError("NOT_FOUND", `Mallen ${layout.template} finns inte`);
+        }
+        layouts[edit.course] = layout;
+      }
       const event = { ...document.event };
       delete event.paperLayouts;
+      return { document: { ...document, event: Object.keys(layouts).length > 0 ? { ...event, paperLayouts: layouts } : event } };
+    }
+    case "PUT_PAPER_TEMPLATE": {
+      const template = validatePaperTemplate(edit.template);
+      const list = document.event.paperTemplates ?? [];
+      const known = list.some(row => row.id === template.id);
+      if (!known && list.length >= PAPER_LIMITS.templates) throw invalid(`Högst ${PAPER_LIMITS.templates} mallar för papperet`);
+      const next = known ? list.map(row => row.id === template.id ? template : row) : [...list, template];
+      return { document: { ...document, event: { ...document.event, paperTemplates: next } } };
+    }
+    case "DELETE_PAPER_TEMPLATE": {
+      const list = document.event.paperTemplates ?? [];
+      if (!list.some(row => row.id === edit.id)) throw new CourseSettingEditError("NOT_FOUND", `Mallen ${edit.id} finns inte`);
+      // Banorna som ärvde av mallen står kvar utan mall (deras egna element och ändringar finns kvar).
+      const layouts = Object.fromEntries(Object.entries(document.event.paperLayouts ?? {}).map(([course, layout]) => {
+        if (layout.template !== edit.id) return [course, layout];
+        const rest = { ...layout };
+        delete rest.template; delete rest.hidden;
+        return [course, rest];
+      }).filter(([, layout]) => Object.keys(layout as object).length > 0));
+      const event = { ...document.event, paperTemplates: list.filter(row => row.id !== edit.id) };
+      delete event.paperLayouts;
+      if (event.paperTemplates.length === 0) delete (event as { paperTemplates?: unknown }).paperTemplates;
       return { document: { ...document, event: Object.keys(layouts).length > 0 ? { ...event, paperLayouts: layouts } : event } };
     }
     case "SET_PRINT_AREA": {

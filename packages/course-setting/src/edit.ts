@@ -387,7 +387,8 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
   if (edit.type === "SET_APPEARANCE") return { document: setAppearance(document, edit.changes) };
   if (edit.type === "ADD_SPECIAL" || edit.type === "MOVE_SPECIAL" || edit.type === "UPDATE_SPECIAL" || edit.type === "DELETE_SPECIAL" ||
     edit.type === "SET_PRINT_AREA" || edit.type === "PUT_PRINT_PROFILE" || edit.type === "DELETE_PRINT_PROFILE" || edit.type === "PUT_LAYOUT_TEMPLATE" ||
-    edit.type === "DELETE_LAYOUT_TEMPLATE" || edit.type === "SET_PAPER_LAYOUT") return applySpecialEdit(document, edit);
+    edit.type === "DELETE_LAYOUT_TEMPLATE" || edit.type === "SET_PAPER_LAYOUT" ||
+    edit.type === "PUT_PAPER_TEMPLATE" || edit.type === "DELETE_PAPER_TEMPLATE") return applySpecialEdit(document, edit);
   if (edit.type === "DUPLICATE_COURSE") return duplicateCourse(document, edit.course, edit.name);
   if (edit.type === "UPDATE_COURSE") return { document: updateCourse(document, edit.course, edit.changes) };
   if (edit.type === "SET_POINTS") return { document: setPoints(document, edit.course, edit.courseControl, edit.points) };
@@ -467,9 +468,23 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       if (changes.circleCutting !== undefined && !(typeof changes.circleCutting.overlap === "boolean" && typeof changes.circleCutting.details === "boolean")) {
         throw invalidEdit("Ringklippen anges som två val (överlapp och detaljer)");
       }
+      if (changes.paperValues !== undefined) {
+        const values = changes.paperValues;
+        const ok = (value: unknown, max: number) => value === undefined || (typeof value === "string" && value.length <= max);
+        if (typeof values !== "object" || values === null || !ok(values.date, 40) || !ok(values.contourInterval, 20)) {
+          throw invalidEdit("Datum (högst 40 tecken) och ekvidistans (högst 20 tecken) för papperet");
+        }
+      }
       const defined: Record<string, unknown> = Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined));
+      if (changes.paperValues) {
+        const values = { ...(changes.paperValues.date ? { date: changes.paperValues.date } : {}),
+          ...(changes.paperValues.contourInterval ? { contourInterval: changes.paperValues.contourInterval } : {}) };
+        if (Object.keys(values).length > 0) defined.paperValues = values;
+        else delete defined.paperValues;
+      }
       if (changes.circleCutting) defined.circleCutting = { overlap: changes.circleCutting.overlap, details: changes.circleCutting.details };
       draft.event = { ...draft.event, ...defined };
+      if (changes.paperValues && !defined.paperValues) delete (draft.event as { paperValues?: unknown }).paperValues;
       break;
     }
     case "SET_DESCRIPTION": {

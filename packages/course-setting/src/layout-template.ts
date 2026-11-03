@@ -6,11 +6,11 @@
  */
 import type { OverprintTraining, TrainingMapPass } from "./training-types";
 import { placeDescription, type SheetDescription } from "./paper-layout";
+import { expandPaperText, sheetPaperItems, type SheetPaperItem } from "./paper-items";
 import { layout, printScaleOf } from "./overprint";
 import { figureBounds, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, printRectangle, type CoursePage, type PaperName } from "./page-layout";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
-import { measuredLengthMeters, variations } from "./walk";
 
 export const LAYOUT_TEMPLATE_SCHEMA_VERSION = 1;
 
@@ -103,7 +103,7 @@ export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "tit
 
 /**
  * Ett ark: papperet, kartramarna och det som står på papperet. `boxes` är vita ytor (remsan) under texterna;
- * `cutMarks` skärmarker i marginalen. Målningsordning: kartor, figurer per ram, vita ytor, bilder, beskrivningar, texter.
+ * `cutMarks` skärmarker i marginalen. Målningsordning: kartor, figurer per ram, vita ytor, bilder, papperets element, beskrivningar, texter.
  */
 export interface Sheet {
   readonly paper: CoursePage["paper"];
@@ -113,6 +113,8 @@ export interface Sheet {
   readonly descriptions: readonly SheetDescription[];
   readonly boxes: readonly (TemplateRect & { readonly border: boolean })[];
   readonly cutMarks: readonly { readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number }[];
+  /** Papperets element per ram (ADR-0197): texter, bilder, skalstock, nordpil; ritas efter bilderna, före beskrivningarna. */
+  readonly paperItems?: readonly SheetPaperItem[] | undefined;
   /** Arket är baksidan till föregående (dubbelsidigt). */
   readonly back?: boolean | undefined;
 }
@@ -198,38 +200,10 @@ export interface SheetOptions {
   readonly duplexBacks?: boolean | undefined;
 }
 
-const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
-
-function lengthMeters(document: CourseSettingDocument, course: string, variant: string | undefined): number | undefined {
-  const found = document.courses.find(item => item.id === course);
-  if (!found) return undefined;
-  if (found.lengthOverrideMeters !== undefined) return found.lengthOverrideMeters;
-  const all = variations(document, course).filter(item => variant === undefined || item.code === variant);
-  return Math.max(...(all.length > 0 ? all.map(item => measuredLengthMeters(document, course, item.choices)) : [measuredLengthMeters(document, course, null)]));
-}
-
-/** Platshållarna i mallens texter för en ram (okända lämnas kvar). */
+/** Platshållarna i mallens texter för en ram (okända lämnas kvar); samma variabler som papperets texter (`expandPaperText`). */
 export function fillPlaceholders(text: string, document: CourseSettingDocument, frame: Pick<SheetFrame, "course" | "variant" | "printScale" | "runner"> | undefined,
   date?: string): string {
-  const course = frame ? document.courses.find(item => item.id === frame.course) : undefined;
-  const meters = frame ? lengthMeters(document, frame.course, frame.variant) : undefined;
-  const runner = frame?.runner;
-  const values: Record<string, string> = {
-    "tävling": document.event.title.replace(/\|/g, " "),
-    bana: frame ? course?.name ?? "Alla kontroller" : "",
-    variant: frame?.variant ?? "",
-    "längd": meters === undefined ? "" : `${(Math.round(meters / 100) / 10).toFixed(1).replace(".", ",")} km`,
-    stigning: course?.climbMeters !== undefined ? `${Math.round(course.climbMeters / 5) * 5} m` : "",
-    skala: frame ? `1:${thousands(frame.printScale)}` : "",
-    datum: date ?? "",
-    klasser: (course?.secondaryTitle ?? "").replace(/\|/g, " "),
-    "löpare": runner?.name ?? (runner?.kind === "VACANT" ? "Ledig" : runner?.kind === "RESERVE" ? "Reserv" : ""),
-    klubb: runner?.club ?? "",
-    klass: runner?.className ?? "",
-    starttid: runner?.startTime ?? "",
-    startnummer: runner?.startNumber !== null && runner?.startNumber !== undefined ? String(runner.startNumber) : ""
-  };
-  return text.replace(/\{([a-zåäö]+)\}/gi, (whole, key: string) => values[key.toLowerCase()] ?? whole).replace(/ {2,}(?=\S)/g, "  ").trim();
+  return expandPaperText(text, document, frame, date).trim();
 }
 
 /** Kartramen för en bana: utsnittet lika stort som ramen i utskriftsskalan, kring banans tryckyta (eller automatiskt). */
@@ -331,8 +305,12 @@ export function layoutTemplateSheets(document: CourseSettingDocument, template: 
         template: template.descriptions.find(item => item.frame === index) });
       return placed ? [placed] : [];
     });
+    // Papperets element per ram; de som står i arkets hörn bara för första ramen.
+    const page = { x: 0, y: 0, width: paper.widthMm, height: paper.heightMm };
+    const items = frames.flatMap((frame, index) => group[index]?.training?.section ? []
+      : sheetPaperItems(document, frame, index, { page, date: options.date, pageItems: index === 0 }));
     const sheet: Sheet = { paper, frames, texts, images: template.images.map(image => ({ ...image })), descriptions, boxes,
-      cutMarks: template.cutMarks ? cutMarksFor(paper, rects, margin) : [] };
+      cutMarks: template.cutMarks ? cutMarksFor(paper, rects, margin) : [], ...(items.length > 0 ? { paperItems: items } : {}) };
     sheets.push(sheet);
     const runner = frames[0]?.runner;
     if (options.duplexBacks && runner) sheets.push(runnerBack(paper, runner, frames[0]!.variant));
@@ -347,6 +325,7 @@ export function sheetOfPage(page: CoursePage): Sheet {
     frames: [{ course: page.course, ...(page.variant ? { variant: page.variant } : {}), title: page.title, mapScale: page.mapScale, printScale: page.printScale,
       mapArea: page.mapArea, clip: page.clip, transform: page.transform, figures: page.figures }],
     texts: page.texts.map(text => ({ text: text.text, at: text.at, heightMm: text.heightMm, bold: text.bold, align: "left", rotation: 0, color: text.color })),
-    images: [], descriptions: page.description ? [page.description] : [], boxes: [], cutMarks: []
+    images: [], descriptions: page.description ? [page.description] : [], boxes: [], cutMarks: [],
+    ...(page.paperItems && page.paperItems.length > 0 ? { paperItems: page.paperItems } : {})
   };
 }

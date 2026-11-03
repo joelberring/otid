@@ -188,6 +188,6 @@ async function courseDataToCourseSetting(raceId: string, bytes: ArrayBuffer, tit
     const saved = await saveCourseSetting(raceId, converted.document, 0);
     if (saved.kind !== "saved") return false;
   } catch (error) { console.error("Banläggningen sparades inte", error); return false; }
-  rememberCourseSettingNotice(raceId, converted.notices.join(" "));
+  rememberCourseSettingNotice(raceId, { text: converted.notices.join(" "), stays: converted.stays });
   return true;
 }

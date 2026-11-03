@@ -104,9 +104,10 @@ const STATUS_TEXT: Record<SyncStatus, string> = { saved: text.status.saved, pend
  * Steg 67 (ADR-0181 beslut 6–7): `resume` är posten i telefonen med åtgärder som väntar (eller hela läget utan nät);
  * editorn öppnas med dem och skickar dem. Kollad, notiser i fältet, kön och "Spara för offline" (`useCourseSettingOffline`).
  */
-export function CourseSettingEditor({ raceId, state, notice, onReload, resume }: {
+export function CourseSettingEditor({ raceId, state, notice, noticeStays, onReload, resume }: {
   raceId: string; state: CourseSettingState & { setting: NonNullable<CourseSettingState["setting"]> };
-  notice?: string | undefined; onReload: () => void; resume?: FieldRecord | undefined;
+  /** Beskedet står kvar tills det stängs (varianter ur banfilen som blev egna banor). */
+  notice?: string | undefined; noticeStays?: boolean | undefined; onReload: () => void; resume?: FieldRecord | undefined;
 }) {
   const access = state.access;
   const readOnly = access.level === "COMMENT";
@@ -119,7 +120,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   }, []);
   const editor = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   const [status, setStatus] = useState<SyncStatus>("saved");
-  const [messages, setMessages] = useState<readonly Message[]>(notice ? [{ id: 0, tone: "ok", text: notice }] : []);
+  const [messages, setMessages] = useState<readonly Message[]>(notice ? [{ id: 0, tone: noticeStays ? "attention" : "ok", text: notice }] : []);
   const dismiss = (id: number) => setMessages(current => current.filter(row => row.id !== id));
   /** Ett besked ovanpå kartan; de som bara bekräftar (ok utan lista) försvinner efter en stund. */
   const say = (message: Omit<Message, "id">) => {
@@ -128,7 +129,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     if (message.tone === "ok" && !message.list?.length) setTimeout(() => dismiss(id), OK_TOAST_MS);
   };
   useEffect(() => {
-    if (!notice) return;
+    if (!notice || noticeStays) return;
     const timer = setTimeout(() => dismiss(0), OK_TOAST_MS);
     return () => clearTimeout(timer);
   }, []);

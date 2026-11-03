@@ -54,3 +54,18 @@ ger åtta varianter, fyra med fyra 256; tävlingen tar högst 100 per bana.
 
 - Stafettlagens varianter ur Purple Pen förs fortfarande inte över (ADR-0190); de bortvalda skulle inte heller ingå där.
 - En banversion som ändras i tävlingens egen baneditor får inga bortvalda (avläsningens besked gäller banläggningens versioner).
+
+## Tillägg 2026-11-03 (grenen gaffling-urval-2, ägarens svar)
+
+9. **Förvalet är "Ta bort de längsta" med 3** (1 till antalet varianter minus 1). Kandidaterna är bara varianter som är
+   längre i alla avseenden än någon variant som blir kvar (beslut 2), de längsta först: längs vägval när den finns för
+   alla, annars fågelvägen. Skyddet gäller som förut; en skyddad variant hoppas över och nästa längsta tas i stället.
+   "Längst i alla avseenden (alla)" och taken (procent, antal) är andra sätt i samma kontroll, med samma förhandsgranskning
+   (vad som tas bort, varför och vad som blir kvar). Ägaren tyckte att 3 av 8 kvar var för få.
+10. **Bortvald är bortvald också i tävlingen.** Sparas en struktur i tävlingens baneditor tas varianter som stämmer med ett
+    bortval (kod och kontroller) inte med, och banversionens bortval följer med till den nya versionen (`planForkingSave`
+    med `excludedVariants`). Ett bortval som inte längre stämmer tappas inte: det följer med men gäller inte, och
+    förhandsgranskningen i baneditorn säger det. En banfil som inte kommer från banläggningen (IOF XML utan bortval) tar
+    inte heller tillbaka dem; från banläggningen gäller banläggningens bortval (`fromCourseSetting` i projektionen).
+11. **Utskrift**: en bortvald variant skrivs aldrig ut, inte heller som reserv; finns den i kartbuntarna (tävlingen inte
+    överförd än) sägs det som problem på utskriftssidan. Avläsningens besked (beslut 6) är oförändrat.

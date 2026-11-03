@@ -173,5 +173,13 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await phone.getByRole("button", { name: /^Visa/ }).click();
   await expect(phone.getByRole("checkbox", { name: "Kollade kontroller" })).not.toBeChecked();
   await shot(phone, "banlaggning-varningar-falt-visa-390");
+
+  // Varningarna i telefonen (fliken bakom "Mer"): grupperna, Godta och Godtagna ryms på 390 px.
+  await phone.getByTestId("course-setting-field-more").click();
+  await phone.getByTestId("course-setting-tab-more").click();
+  await phone.getByRole("menuitem", { name: /Varningar/ }).click();
+  await expect(phone.getByTestId("course-setting-checks").locator('[data-group="ERROR:LEG_NO_ROUTE"]')).toBeVisible({ timeout: 120_000 });
+  await noSideScroll(phone);
+  await shot(phone, "banlaggning-varningar-panel-390");
   await phoneContext.close();
 });

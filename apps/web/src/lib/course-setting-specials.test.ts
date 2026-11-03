@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyEdit, checkDocument, layoutCoursePage, layoutOverprint } from "@o-tid/course-setting";
-import { checkRows, legInput } from "./course-setting-text";
+import { checkRows } from "./course-setting-checks";
+import { legInput } from "./course-setting-text";
 import { withRouteBarriers } from "./route-choice-view";
 import { applySteps, cancelTool, createEditor, removeSelected, select, setTool, undo } from "./course-setting-editor";
 import { hitTest } from "./course-setting-hit";
@@ -78,7 +79,7 @@ describe("spärrarna till vägvalen och varningen (steg 64)", () => {
     const moved = applyEdit(added.document, { type: "MOVE_SPECIAL", special: added.created!, points: [{ x: 13, y: 4 }, { x: 17, y: 4 }, { x: 15, y: 8 }] });
     expect(legInput(moved.document, "a", "b", ["c1", "c2", "c3", "c4"], "k")!.key).not.toBe(after.key);
     const rows = checkRows(added.document, checkDocument(added.document)).filter(row => row.key.startsWith("LEG_THROUGH_FORBIDDEN"));
-    expect(rows.map(row => row.text)).toEqual(["Lång: sträckan kontroll 31–kontroll 32 går genom ett förbjudet område."]);
+    expect(rows.map(row => row.text)).toEqual(["Lång: fågelvägen kontroll 31–kontroll 32 korsar ett förbjudet område; vägvalet är inte räknat."]);
     const planned = withRouteBarriers([{ key: "S-31.1", input: { key: "S-31.1", from: { x: 0, y: 0 }, to: { x: 1, y: 1 } } }, { key: "31.1-F" }],
       after.barriers);
     expect(planned[0]!.input!.barriers?.areas).toHaveLength(1);

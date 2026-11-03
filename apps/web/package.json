@@ -15,6 +15,7 @@
     "@fontsource/barlow-semi-condensed": "5.3.0",
     "@fontsource/poppins": "5.2.7",
     "@o-tid/application": "workspace:*",
+    "@o-tid/club-archive": "workspace:*",
     "@o-tid/contracts": "workspace:*",
     "@o-tid/course-setting": "workspace:*",
     "@o-tid/database": "workspace:*",

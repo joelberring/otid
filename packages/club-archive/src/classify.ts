@@ -5,7 +5,9 @@ import { baseName, extensionOf, normalizePath } from "./folder-name";
  * IOF `CourseData`. Allt annat läses aldrig (bara namnet och storleken räknas i rapporten): PDF, Word och Excel kan ha
  * personuppgifter, bilder och GPS-spår hör inte till arkivet.
  */
-export type SkipCategory = "PDF" | "WORD" | "EXCEL" | "IMAGE" | "WORLD_FILE" | "GPS" | "OTHER_XML" | "SYSTEM" | "BACKUP" | "UNKNOWN_MAP" | "OTHER";
+export type SkipCategory = "PDF" | "WORD" | "EXCEL" | "IMAGE" | "WORLD_FILE" | "GPS" | "OTHER_XML" | "SYSTEM" | "BACKUP" | "UNKNOWN_MAP"
+  /** Bara i webbläsaren: kartfilen är större än serverns gräns och läses inte (ADR-0204). */
+  | "TOO_LARGE_MAP" | "OTHER";
 
 export type Classified =
   | { readonly kind: "MAP"; readonly format: "OCD" | "OMAP" }
@@ -17,7 +19,7 @@ export type Classified =
 export const SKIP_LABELS: Record<SkipCategory, string> = {
   PDF: "PDF", WORD: "Word", EXCEL: "Excel", IMAGE: "bilder", WORLD_FILE: "georeferensfiler (pgw/jgw …)", GPS: "GPS (gpx/kmz/kml)",
   OTHER_XML: "annan XML (inte CourseData)", SYSTEM: "systemfiler", BACKUP: "säkerhetskopior", UNKNOWN_MAP: "kartfiler i okänt format",
-  OTHER: "övrigt"
+  TOO_LARGE_MAP: "kartfiler över storleksgränsen", OTHER: "övrigt"
 };
 
 const SKIP_BY_EXTENSION: Record<string, SkipCategory> = {

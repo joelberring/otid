@@ -7,7 +7,7 @@ import {
 import { courseSummaries, readPpen } from "@o-tid/course-setting";
 import { schema, type ClubCourseFileSummary, type Database } from "@o-tid/database";
 import { decodeIofXml, parseIofXml } from "@o-tid/iof-xml";
-import { clubJournal, clubMembership, clubRoleAtLeast, type ClubTransaction } from "./club-access";
+import { clubJournal, clubMembership, clubRoleAtLeast, requireClubRole, type ClubProof, type ClubTransaction } from "./club-access";
 import { importTokenHash } from "./clubs";
 import { discardStagedMapContent, mapStorageQuota, stageMapContent, storeMapContent, type MapQuotaExceeded, type MapStorageQuota } from "./map-content";
 import { mapFileFormatOf } from "./race-map-source";
@@ -16,11 +16,14 @@ import type { DbExecutor } from "./snapshot";
 
 /**
  * ADR-0194 beslut 6–7: importens anrop från ägarens dator. Nyckeln (inte en inloggning) i `Authorization: Bearer`; kontot som
- * skapade den måste fortfarande vara ägare eller administratör i klubben. Kartfilerna strömmas till kartinnehållet
- * (ADR-0189) och räknas mot kontots kvot; träningarna och banfilerna tas emot som JSON. Allt är idempotent.
+ * skapade den måste fortfarande vara ägare eller administratör i klubben. ADR-0204: samma anrop från webbläsaren med
+ * inloggningen (`session`, CSRF krävs) och samma roll. Kartfilerna strömmas till kartinnehållet (ADR-0189) och räknas mot
+ * kontots kvot; träningarna och banfilerna tas emot som JSON. Allt är idempotent.
  */
-export type ImportFailure = { status: "unauthorized" | "invalid-request" | "not-found" };
+export type ImportFailure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" };
 type Importer = { status: "ok"; accountId: string; clubId: string; clubName: string };
+/** Vem som importerar: importnyckeln (kommandot) eller inloggningen (webbläsaren). */
+export type ImportCaller = { readonly token: string | null; readonly session?: undefined } | { readonly session: ClubProof; readonly token?: undefined };
 
 /** Nyckeln ur `Authorization`, eller null. */
 export function bearerToken(header: string | null): string | null {
@@ -46,6 +49,21 @@ export async function authenticateImportToken(tx: DbExecutor, input: { token: st
   return { status: "ok", accountId: row.accountId, clubId: row.clubId, clubName: row.clubName };
 }
 
+/**
+ * Importören för ett anrop: nyckeln (bunden till en klubb) eller inloggningen med minst rollen administratör i `clubId`
+ * (samma kontroll som arkivets andra skrivningar, `requireClubRole`).
+ */
+export async function authenticateImporter(tx: ClubTransaction, input: ImportCaller & { clubId: string }, now: Date): Promise<ImportFailure | Importer> {
+  if (!input.session) return authenticateImportToken(tx, { token: input.token, clubId: input.clubId }, now);
+  const member = await requireClubRole(tx, { ...input.session, clubId: input.clubId }, "ADMIN", now, true);
+  if (member.status !== "ok") {
+    return { status: member.status === "forbidden" || member.status === "not-found" || member.status === "invalid-request" ? member.status : "unauthorized" };
+  }
+  const [club] = await tx.select({ name: schema.clubs.name }).from(schema.clubs).where(eq(schema.clubs.id, member.clubId));
+  if (!club) return { status: "not-found" };
+  return { status: "ok", accountId: member.accountId, clubId: member.clubId, clubName: club.name };
+}
+
 /** Klubben som nyckeln hör till (id och namn), för importverktyget innan något skickas. */
 export async function importTokenClub(db: Database, input: { token: string | null }, now = new Date())
   : Promise<ImportFailure | { status: "ok"; clubId: string; clubName: string }> {
@@ -59,19 +77,25 @@ export async function importTokenClub(db: Database, input: { token: string | nul
  * Vilka kartfiler servern redan har för klubben (eller som kontot själv har laddat upp). Annat innehåll på servern nämns inte,
  * så att en nyckel inte kan användas för att fråga om andras kartor; en ny uppladdning av samma innehåll kostar ingenting.
  */
-export async function importCheck(db: Database, input: { token: string | null; clubId: string; request: unknown }, now = new Date())
+export async function importCheck(db: Database, input: ImportCaller & { clubId: string; request: unknown }, now = new Date())
   : Promise<ImportFailure | { status: "ok"; response: ClubImportCheckResponse }> {
   const parsed = clubImportCheckRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const importer = await authenticateImportToken(tx, input, now);
+    const importer = await authenticateImporter(tx, input, now);
     if (importer.status !== "ok") return importer;
     const wanted = [...new Set(parsed.data.sha256)];
-    if (wanted.length === 0) return { status: "ok", response: { formatVersion: 1, clubId: importer.clubId, clubName: importer.clubName, known: [] } } as const;
-    const known = (await tx.execute<{ sha256: string }>(sql`select c.sha256 from map_content c where c.sha256 = any(${sql.param(wanted)}::text[])
-      and (c.uploaded_by = ${importer.accountId}::uuid or exists (select 1 from club_map_version v where v.club_id = ${importer.clubId}::uuid
-        and v.content_sha256 = c.sha256))`)).rows.map(row => row.sha256);
-    return { status: "ok", response: { formatVersion: 1, clubId: importer.clubId, clubName: importer.clubName, known } } as const;
+    const known = wanted.length === 0 ? [] : (await tx.execute<{ sha256: string }>(sql`select c.sha256 from map_content c
+      where c.sha256 = any(${sql.param(wanted)}::text[]) and (c.uploaded_by = ${importer.accountId}::uuid or exists (select 1 from club_map_version v
+        where v.club_id = ${importer.clubId}::uuid and v.content_sha256 = c.sha256))`)).rows.map(row => row.sha256);
+    const response: ClubImportCheckResponse = { formatVersion: 1, clubId: importer.clubId, clubName: importer.clubName, known };
+    const keys = [...new Set(parsed.data.importKeys ?? [])];
+    if (parsed.data.importKeys) {
+      response.knownEntries = keys.length === 0 ? [] : (await tx.select({ key: schema.clubArchiveEntries.importKey }).from(schema.clubArchiveEntries)
+        .where(and(eq(schema.clubArchiveEntries.clubId, importer.clubId), inArray(schema.clubArchiveEntries.importKey, keys))))
+        .flatMap(row => row.key === null ? [] : [row.key]);
+    }
+    return { status: "ok", response } as const;
   });
 }
 
@@ -82,10 +106,10 @@ export type ImportContentResult = ImportFailure | { status: "problem"; problem: 
  * En kartfil som ström: delarna skrivs till databasen medan sha256 räknas (ADR-0189 beslut 2), och innehållet sparas först när
  * hashen stämmer med adressen och filen ser ut som OCAD eller Mapper. Nyckeln kontrolleras före och efter strömmen.
  */
-export async function importMapContent(db: Database, input: { token: string | null; clubId: string; sha256: string;
+export async function importMapContent(db: Database, input: ImportCaller & { clubId: string; sha256: string;
   body: AsyncIterable<Uint8Array>; quota?: MapStorageQuota }, now = new Date()): Promise<ImportContentResult> {
   if (!/^[a-f0-9]{64}$/.test(input.sha256)) return { status: "invalid-request" };
-  const first = await db.transaction(tx => authenticateImportToken(tx, input, now));
+  const first = await db.transaction(tx => authenticateImporter(tx, input, now));
   if (first.status !== "ok") return first;
   const staged = await stageMapContent(db, input.body, { maxBytes: CLUB_ARCHIVE_MAP_MAX_BYTES, now });
   if (staged.kind === "too-large") return { status: "problem", problem: "TOO_LARGE" };
@@ -94,7 +118,7 @@ export async function importMapContent(db: Database, input: { token: string | nu
     if (staged.sha256 !== input.sha256) return { status: "problem", problem: "HASH_MISMATCH" };
     if (!mapFileFormatOf(staged.head)) return { status: "problem", problem: "INVALID_MAP_FILE" };
     return await db.transaction(async tx => {
-      const importer = await authenticateImportToken(tx, input, now);
+      const importer = await authenticateImporter(tx, input, now);
       if (importer.status !== "ok") return importer;
       const existed = (await tx.execute(sql`select 1 from map_content where sha256 = ${staged.sha256}`)).rows.length > 0;
       const stored = await storeMapContent(tx, staged, importer.accountId, now, input.quota ?? mapStorageQuota());
@@ -176,13 +200,13 @@ class InvalidBatch extends Error {}
  * och version), en version på innehållet (finns den redan i klubben, kanske flyttad till en annan karta av ägaren, lämnas den),
  * en träning på källans sökväg (en befintlig träning ändras inte, men banfiler och kartor som saknas läggs till).
  */
-export async function importBatch(db: Database, input: { token: string | null; clubId: string; request: unknown }, now = new Date())
+export async function importBatch(db: Database, input: ImportCaller & { clubId: string; request: unknown }, now = new Date())
   : Promise<ImportFailure | { status: "ok"; response: ClubImportBatchResponse }> {
   const parsed = clubImportBatchRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   const batch = parsed.data;
   return db.transaction(async tx => {
-    const importer = await authenticateImportToken(tx, input, now);
+    const importer = await authenticateImporter(tx, input, now);
     if (importer.status !== "ok") return importer;
     const clubId = importer.clubId;
     // Importerna i en klubb körs en i taget (två körningar samtidigt ska inte göra två kartor av samma namn).

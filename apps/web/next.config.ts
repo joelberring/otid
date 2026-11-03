@@ -59,6 +59,7 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: [
     "@o-tid/application",
+    "@o-tid/club-archive",
     "@o-tid/contracts",
     "@o-tid/database",
     "@o-tid/domain",

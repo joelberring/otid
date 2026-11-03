@@ -15,8 +15,8 @@
 	}
 
 	# ADR-0194: klubbarkivets kartfiler (importen från ägarens dator och en ny version i arkivet), högst 75 MB i appen
-	# (CLUB_ARCHIVE_MAP_MAX_BYTES).
-	@clubmaps path /api/club-import/*/content/* /api/organizer/clubs/*/maps /api/organizer/clubs/*/maps/*
+	# (CLUB_ARCHIVE_MAP_MAX_BYTES). ADR-0204: också importen i webbläsaren.
+	@clubmaps path /api/club-import/*/content/* /api/organizer/clubs/*/maps /api/organizer/clubs/*/maps/* /api/organizer/clubs/*/import/content/*
 	request_body @clubmaps {
 		max_size 80MB
 	}

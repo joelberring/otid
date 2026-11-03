@@ -17,6 +17,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Fest: oförändrat (bara utskrift, ingen överföring).
 - Verifierat: enhetstester (course-setting, application diff och överföring, webbens lib och hjälp), integration `rogaining-poang-overforing`, typecheck och lint.
 
+### 2026-11-03 – Importen till klubbarkivet i webbläsaren (grenen arkiv-webbimport, ADR-0204, ingen migration)
+- Fliken Import: "Välj mapp" (webkitdirectory), "Välj filer" (zip eller lösa filer) och dra och släpp av mappar/zip; kort besked på telefon. Kommandot och nyckeln hopfällda under "För den som kan Git: kommandoraden".
+- `@o-tid/club-archive` läser en abstrakt källa: samma läsning, plan, rapport och uppladdning för disken (kommandot) och File/Blob (Blob.slice, DecompressionStream, WebCrypto). PDF, startlistor och bilder öppnas aldrig och skickas aldrig; kartor över 75 MB läses inte och sägs i förhandsgranskningen.
+- "Förhandsgranska" = `--dry-run` (nytt/finns redan, kvoten, det som inte skickas, problem, "Ladda ner rapporten"); "Importera" med förlopp ("Karta 3 av 12", "Träning 50 av 212") och "Avbryt"; idempotent omkörning. "Ta inte med ledarens namn ur [hakparenteser]" = `--utan-ledare`.
+- Inloggningen i stället för nyckeln: `/api/organizer/clubs/{id}/import/…` med Origin och CSRF, rollen administratör; samma tjänster som nyckelns väg. Kontrollfrågan tar valfria `importKeys` och svarar `knownEntries`.
+- Verifierat: se slutrapporten för grenen. Hjälpartikeln `arkiv-import` skriven om kring webbläsaren.
+
 ### 2026-11-03 – Färre varianter, ägarens svar (grenen gaffling-urval-2, tillägg i ADR-0198)
 - "Begränsa varianter" har sätt: förval "Ta bort de längsta" med 3 (1 till alla utom en), bara bland varianter som är längre i alla avseenden än en som blir kvar, längs vägval när den är räknad; "Längst i alla avseenden (alla)" och taken finns kvar. Förhandsgranskningen säger skälet.
 - Tävlingens baneditor: en sparad struktur tar inte med bortvalda varianter och bortvalen följer med till nya banversionen; ett bortval som slutar stämma sägs i förhandsgranskningen och tappas inte. En IOF-banfil utan bortval tar inte heller tillbaka dem.

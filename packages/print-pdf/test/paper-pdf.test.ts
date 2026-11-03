@@ -1,6 +1,6 @@
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { applyEdit, BUILT_IN_PRINT_PROFILES, layoutCoursePage, readPpen, sheetOfPage, type CourseSettingDocument } from "@o-tid/course-setting";
+import { applyEdit, BUILT_IN_PRINT_PROFILES, layoutCoursePage, printSheetGroups, readPpen, sheetOfPage, type CourseSettingDocument } from "@o-tid/course-setting";
 import { writeSheetsPdf } from "../src";
 import { fixture, fontFiles, parsePdf } from "./helpers";
 
@@ -47,5 +47,20 @@ describe("papperet i PDF:en (ADR-0197)", () => {
     // Saknas bilden i lagret står det i notiserna och PDF:en skrivs ändå.
     const missing = await writeSheetsPdf({ sheets, map: null, profile: BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!, mode: "OFFICE", fonts: fontFiles() });
     expect(missing.notes).toContain("En bild på papperet finns inte i bildlagret och utelämnas.");
+  });
+
+  it("klippningen: markeringarna ritas klippta till utsnittet (W n), banan utan den klippningen", async () => {
+    let document: CourseSettingDocument = readPpen(new TextDecoder().decode(fixture("course-setting/kartfil.ppen"))).document;
+    const course = [...document.courses].sort((a, b) => a.order - b.order)[0]!;
+    const area = applyEdit(document, { type: "ADD_SPECIAL", special: { kind: "out-of-bounds", courses: [],
+      points: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 30 }] } });
+    document = applyEdit(area.document, { type: "SET_PAPER_LAYOUT", course: course.id, layout: { clip: { shape: "RECT", rect: { x: 20, y: 20, width: 80, height: 60 }, outside: "WHITE" } } }).document;
+    const sheets = printSheetGroups(document, { kind: "COURSE" }, [{ course: course.id }]).flatMap(group => group.sheets);
+    const frame = sheets[0]!.frames[0]!;
+    expect(frame.markingClip?.refs).toContain(area.created);
+    const result = await writeSheetsPdf({ sheets, map: null, profile: BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!, mode: "OFFICE", fonts: fontFiles() });
+    const content = (await parsePdf(result.bytes)).pages[0]!.content;
+    // Ramen (re W n) och inuti den polygonen för markeringarna (… h W n) före området.
+    expect(content).toMatch(/re W n[\s\S]*l h W n/);
   });
 });

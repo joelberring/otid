@@ -6,7 +6,7 @@
  */
 import type { OverprintTraining, TrainingMapPass } from "./training-types";
 import { placeDescription, type SheetDescription } from "./paper-layout";
-import { expandPaperText, sheetPaperItems, type SheetPaperItem } from "./paper-items";
+import { expandPaperText, sheetPaperItems, type MarkingClip, type SheetPaperItem } from "./paper-items";
 import { layout, printScaleOf } from "./overprint";
 import { figureBounds, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, printRectangle, type CoursePage, type PaperName } from "./page-layout";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
@@ -99,6 +99,8 @@ export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "tit
   readonly mapPasses?: readonly TrainingMapPass[] | undefined;
   /** Spegelorientering (ADR-0192 beslut 12): kartbilden vänds kring ramens lodräta mittlinje; figurerna är redan speglade. */
   readonly mirror?: boolean | undefined;
+  /** Papperets klippning (ADR-0197): specialobjekten i `refs` ritas klippta till polygonen (papperets mm). */
+  readonly markingClip?: MarkingClip | undefined;
 }
 
 /**

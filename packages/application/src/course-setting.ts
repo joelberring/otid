@@ -260,11 +260,12 @@ export async function previewCourseSettingTransferAsAdmin(db: Database, input: R
     if (!row) return { status: "problem" as const, problem: { formatVersion: 1 as const, error: "NO_DOCUMENT" as const, controls: [] } };
     if (row.version !== parsed.data.version) return conflict(row, await actors(tx, [row.updatedBy]));
     const map = await loadMapFile(tx, raceId);
-    return { status: "read" as const, row, georeference: map?.georeference ?? null };
+    const [race] = await tx.select({ raceType: schema.races.raceType }).from(schema.races).where(eq(schema.races.id, raceId));
+    return { status: "read" as const, row, georeference: map?.georeference ?? null, rogaining: race?.raceType === "ROGAINING" };
   });
   if (read.status !== "read") return read;
   const document = read.row.document as unknown as CourseSettingDocument;
-  const built = courseSettingProjection(document, { georeference: read.georeference ?? undefined });
+  const built = courseSettingProjection(document, { georeference: read.georeference ?? undefined, rogaining: read.rogaining });
   if ("problem" in built) return { status: "problem", problem: { formatVersion: 1, ...built.problem, controls: [...built.problem.controls] } };
   const title = document.event.title.trim();
   return previewCourseFileProjectionAsAdmin(db, input, built.projection, { original: writePpen(document),

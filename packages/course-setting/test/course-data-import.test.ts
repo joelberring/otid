@@ -44,7 +44,10 @@ describe("banfil (IOF XML CourseData) till banläggning", () => {
   it("Purple Pens export av marymoor: kontroller, passager, poängbana och ordning som i .ppen", () => {
     const ppen = readPpen(readFileSync(join(exportDir, "marymoor.ppen"), "utf8")).document;
     const { document, notices } = fromXml(readFileSync(join(exportDir, "marymoor_expected_v3.xml"), "utf8"), { mapScale: ppen.event.mapScale });
-    expect(notices).toEqual([]);
+    // Purple Pen mäter längs sträckornas brytpunkter, som IOF XML inte har: längden sägs, inget annat.
+    expect(notices.map(notice => notice.code)).toEqual(["LENGTH_DIFFERS", "LENGTH_DIFFERS"]);
+    expect(notices[0]!.text).toBe("Banfilens längd för Course 1 var 1,6 km, uppmätt 1,5 km.");
+    expect(document.courses.every(course => course.lengthOverrideMeters === undefined)).toBe(true);
     expect(exported(document)).toEqual(exported(ppen));
     expect(document.courses.find(course => course.kind === "SCORE")).toBeDefined();
     expect(Object.values(document.controls).filter(control => control.kind === "CROSSING_POINT")).toHaveLength(3);
@@ -174,16 +177,17 @@ describe("banfil (IOF XML CourseData) till banläggning", () => {
     expect(courseVariants(document, document.courses[0]!.id).map(variant => variant.controlCodes.join("-"))).toEqual(["31-32-34-35", "31-33-34-36"]);
   });
 
-  it("varianter som är alla kombinationer blir en gafflad bana; filens längd blir fast längd bara när den inte stämmer", () => {
+  it("varianter som är alla kombinationer blir en gafflad bana; längden räknas alltid ur lägena, en annan längd i filen sägs", () => {
     const xml = courseDataXml(`
       ${course("Lång A", "Lång", ["31", "32", "34"], 9000)}
       ${course("Lång B", "Lång", ["31", "33", "34"], 9000)}
       ${course("Kort", undefined, ["31", "34"], 1100)}`);
     const { document, notices } = fromXml(xml, { mapScale: 10000 });
-    expect(notices).toEqual([]);
+    // Ägaren 2026-11-03: ingen fast längd, så att en flyttad kontroll ändrar längden; skillnaden sägs en gång.
+    expect(notices).toEqual([{ code: "LENGTH_DIFFERS", text: "Banfilens längd för Lång var 9,0 km, uppmätt 1,2 km." }]);
     const lang = document.courses.find(item => item.name === "Lång")!;
     expect(courseVariants(document, lang.id).map(variant => variant.code)).toEqual(["A", "B"]);
-    expect(lang.lengthOverrideMeters).toBe(9000);
+    expect(lang.lengthOverrideMeters).toBeUndefined();
     const kort = document.courses.find(item => item.name === "Kort")!;
     expect(courseSummaries(document).find(summary => summary.course === kort.id)!.lengthMeters).toBeCloseTo(1051, 0);
     expect(kort.lengthOverrideMeters).toBeUndefined();
@@ -219,7 +223,8 @@ describe("banfil (IOF XML CourseData) till banläggning", () => {
   </Course>
 </CourseData>`;
     const { document, notices } = fromXml(xml, { mapScale: 10000 });
-    expect(notices.map(notice => notice.code)).toEqual(["SCALE_DIFFERS"]);
+    // Filen är gjord för 1:15 000; på 1:10 000-kartan blir sträckorna kortare än filens längd.
+    expect(notices.map(notice => notice.code)).toEqual(["SCALE_DIFFERS", "LENGTH_DIFFERS"]);
     expect(document.event.mapScale).toBe(10000);
     expect(document.courses).toHaveLength(1);
     expect(document.courses[0]!.secondaryTitle).toBe("D12");

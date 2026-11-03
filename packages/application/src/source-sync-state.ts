@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { loadCourseVersionVariants } from "./course-variants";
 import type { CurrentState } from "./source-sync-model";
@@ -62,7 +62,10 @@ export async function loadCurrentState(tx: Transaction, raceId: string): Promise
   const teams = await tx.select({ id: schema.teams.id, classId: schema.teams.classId, name: schema.teams.name,
     organisationName: schema.teams.organisationName, externalSource: schema.teams.externalSource, externalId: schema.teams.externalId })
     .from(schema.teams).where(eq(schema.teams.raceId, raceId)).orderBy(asc(schema.teams.number));
-  return { timeZone: race.timeZone, raceDate: race.raceDate, classes, entries, teams, courses };
+  const pointRows = await tx.select({ code: schema.controls.code, points: schema.controls.points }).from(schema.controls)
+    .where(and(eq(schema.controls.raceId, raceId), isNotNull(schema.controls.points)));
+  const controlPoints = new Map(pointRows.map(row => [row.code, row.points!]));
+  return { timeZone: race.timeZone, raceDate: race.raceDate, classes, entries, teams, courses, controlPoints };
 }
 
 /** Avlästa löpare per klass (för om en ändring av klassens bana påverkar resultat). */

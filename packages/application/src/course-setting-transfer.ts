@@ -1,4 +1,4 @@
-import { allCourseVariants, courseVariants, type ControlPoint, type CourseSettingDocument } from "@o-tid/course-setting";
+import { allCourseVariants, courseVariants, defaultScorePoints, scorePoints, type ControlPoint, type CourseSettingDocument } from "@o-tid/course-setting";
 import { courseVariantCode, type CourseImport, type GeoPosition, type MapPositionImport } from "@o-tid/iof-xml";
 import { isSupportedEpsg, mapPointToWgs84, type MapGeoreference, type Point } from "@o-tid/map-file";
 import type { CourseFileProjection } from "./source-sync-model";
@@ -49,7 +49,31 @@ export function classNamesOf(secondaryTitle: string | undefined): string[] {
   return (secondaryTitle ?? "").split(/[,|]/).map(name => name.trim()).filter(name => name.length > 0);
 }
 
-export function courseSettingProjection(document: CourseSettingDocument, options: { readonly georeference?: MapGeoreference | undefined } = {})
+/**
+ * Rogaining (ägaren 2026-11-03): poängbanornas poäng per kontrollkod, så att arrangören sätter dem på ett ställe. Utan satta
+ * poäng gäller kodens tiotal (samma förval som tävlingen, då blir det null). Finns koden på flera poängbanor gäller den
+ * första banan i listan.
+ */
+export function scoreControlPoints(document: CourseSettingDocument): { code: number; points: number | null }[] {
+  const out = new Map<number, number | null>();
+  const ordered = [...document.courses].sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "sv-SE"));
+  for (const course of ordered) {
+    if (course.kind !== "SCORE") continue;
+    for (const id of courseVariants(document, course.id)[0]?.courseControls ?? []) {
+      const point = document.controls[document.courseControls[id]?.control ?? ""];
+      if (point?.kind !== "NORMAL" || !point.code || !CODE.test(point.code)) continue;
+      const code = Number(point.code);
+      if (out.has(code)) continue;
+      const points = scorePoints(document, id);
+      out.set(code, points === defaultScorePoints(point.code) ? null : points);
+    }
+  }
+  return [...out].sort((left, right) => left[0] - right[0]).map(([code, points]) => ({ code, points }));
+}
+
+export function courseSettingProjection(document: CourseSettingDocument, options: { readonly georeference?: MapGeoreference | undefined;
+  /** Tävlingen är en rogaining: poängen följer med. */
+  readonly rogaining?: boolean | undefined } = {})
   : { readonly projection: CourseFileProjection } | { readonly problem: CourseSettingTransferProblem } {
   const georeference = usableGeoreference(options.georeference);
   const control = (courseControl: string): ControlPoint | undefined => {
@@ -127,5 +151,6 @@ export function courseSettingProjection(document: CourseSettingDocument, options
   const warnings = assignments.length > 0 ? ["Startregel saknas i IOF CourseData 3.0; PUNCH används tills en separat StartList importeras"]
     : ["Inga ClassCourseAssignment hittades"];
   return { projection: { kind: "COURSE_FILE", data: { fromCourseSetting: true, courses, assignments, legAssignments: [], personAssignments: [], teamAssignments: [],
-    controlPositions, ...(controlMapPositions.length > 0 ? { controlMapPositions } : {}), mapScale: Math.round(document.event.mapScale), warnings } } };
+    controlPositions, ...(controlMapPositions.length > 0 ? { controlMapPositions } : {}), mapScale: Math.round(document.event.mapScale), warnings,
+    ...(options.rogaining ? { controlPoints: scoreControlPoints(document) } : {}) } } };
 }

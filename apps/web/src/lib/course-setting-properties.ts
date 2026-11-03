@@ -1,4 +1,4 @@
-import type { Course, CourseChanges, CourseSettingDocument, CourseSettingEdit } from "@o-tid/course-setting";
+import { scorePoints, type Course, type CourseChanges, type CourseSettingDocument, type CourseSettingEdit } from "@o-tid/course-setting";
 
 /**
  * ADR-0190: banans egenskaper i editorn. Formuläret ger bara de fält som ändrats (en åtgärd, ett ångra-steg, och touches
@@ -60,14 +60,14 @@ export function parsePoints(value: string): number | null | undefined {
   return Number(text);
 }
 
-/** Poängbanans summa (vanliga kontroller med poäng) och antalet vanliga kontroller. */
+/** Poängbanans summa (vanliga kontroller; utan satta poäng gäller kodens tiotal, som i tävlingen) och antalet vanliga kontroller. */
 export function scoreTotal(document: CourseSettingDocument, courseControls: readonly string[]): { points: number; controls: number } {
   let points = 0, controls = 0;
   for (const id of courseControls) {
     const item = document.courseControls[id];
     if (!item || document.controls[item.control]?.kind !== "NORMAL") continue;
     controls += 1;
-    points += item.points ?? 0;
+    points += scorePoints(document, id);
   }
   return { points, controls };
 }

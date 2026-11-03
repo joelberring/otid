@@ -87,4 +87,19 @@ describe("skillnader mot en banfil", () => {
     const both = file([{ ...same[0]!, controlCodes: [31, 39], lengthMeters: 2500 }, same[1]!]);
     expect(both.rows.map(planned => [planned.action.type, planned.row.changes.map(change => change.field)])).toEqual([["CHANGE_COURSE", ["CONTROLS", "LENGTH"]]]);
   });
+
+  it("rogaining: poängen ur banläggningen är egna rader; förvalet (kodens tiotal) sparas som inget", () => {
+    const current = { ...state([]), controlPoints: new Map([[32, 7]]) };
+    const course = { externalId: "Bana 1", name: "Bana 1", controlCodes: [31, 32] };
+    const diff = diffCourseFile({ kind: "COURSE_FILE", data: { courses: [course], assignments: [], personAssignments: [], teamAssignments: [],
+      warnings: [], controlPoints: [{ code: 31, points: 5 }, { code: 32, points: null }, { code: 33, points: null }] } }, current, new Map([["class-h21", 1]]));
+    expect(diff.rows.map(planned => [planned.row.subject, planned.row.label, planned.row.readOut, planned.row.changes, planned.action])).toEqual([
+      ["CONTROL", "31", true, [{ field: "POINTS", from: "3", to: "5" }], { type: "SET_CONTROL_POINTS", code: 31, points: 5 }],
+      ["CONTROL", "32", true, [{ field: "POINTS", from: "7", to: "3" }], { type: "SET_CONTROL_POINTS", code: 32, points: null }]]);
+    // 33 har förvalet i både tävlingen och banläggningen; banan själv är oförändrad.
+    expect(diff.unchanged).toBe(2);
+    // En IOF-fil har inga poäng: inga poängrader.
+    expect(diffCourseFile({ kind: "COURSE_FILE", data: { courses: [course], assignments: [], personAssignments: [], teamAssignments: [],
+      warnings: [] } }, current, new Map()).rows).toEqual([]);
+  });
 });

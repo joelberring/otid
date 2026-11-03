@@ -83,6 +83,8 @@ export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } fro
 export * from "./paper-layout";
 export * from "./paper-items";
 export { expandPartItems, printSheetGroups, type SheetGroup, type SheetGroupOptions, type SheetLayout } from "./print-sheets";
+// Poängbanans förval (kodens första siffra, som tävlingens rogaining).
+export { defaultScorePoints, scorePoints } from "./course-properties";
 // En banfil (IOF XML CourseData) utan .ppen som banläggningsdokument.
 export {
   COURSE_DATA_LENGTH_TOLERANCE_METERS, courseDataDocument, type CourseDataDocumentOptions, type CourseDataLayout, type CourseDataLayoutKind,

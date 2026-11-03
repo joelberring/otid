@@ -49,7 +49,8 @@ describe("ADR-0190: banans egenskaper i editorn", () => {
     let state = createEditor(testDocument());
     state = applySteps(state, [{ type: "UPDATE_COURSE", course: "k", changes: { climbMeters: 85, lengthOverrideMeters: 4300, kind: "SCORE" } }], applyEdit);
     state = applySteps(state, [{ type: "SET_POINTS", course: "k", courseControl: "c2", points: 20 }], applyEdit);
-    expect(scoreTotal(state.document, ["c1", "c2", "c3", "c4"])).toEqual({ points: 20, controls: 2 });
+    // Kontrollen utan satta poäng räknas med kodens tiotal (som tävlingens rogaining): 20 + 3.
+    expect(scoreTotal(state.document, ["c1", "c2", "c3", "c4"])).toEqual({ points: 23, controls: 2 });
     state = undo(undo(state));
     expect(state.document.courses[0]).toMatchObject({ kind: "NORMAL", labelKind: "SEQUENCE" });
     expect(state.document.courses[0]!.climbMeters).toBeUndefined();

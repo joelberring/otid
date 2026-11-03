@@ -409,7 +409,8 @@ const PPEN_MACROS: Readonly<Record<string, string>> = {
 export function paperTextForPpen(text: string, document: CourseSettingDocument): string {
   return text.replace(/\{([a-zåäö]+)\}/gi, (whole, key: string) => {
     const name = key.toLowerCase();
-    if (PPEN_MACROS[name]) return PPEN_MACROS[name]!;
+    const macro = PPEN_MACROS[name];
+    if (macro) return macro;
     if (name === "datum") return document.event.paperValues?.date ?? "";
     if (name === "ekvidistans") return document.event.paperValues?.contourInterval ?? "";
     return whole;

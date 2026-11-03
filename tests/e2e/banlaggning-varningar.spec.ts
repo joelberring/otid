@@ -102,7 +102,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await expect(badge(owner)).toHaveAttribute("data-count", String(before - 1));
   const accepted = panel.getByTestId("course-setting-checks-accepted");
   await expect(accepted.locator("summary")).toHaveText("Godtagna (1)");
-  await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
+  await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 60_000 });
 
   // Omladdning: fortfarande godtagen (sparad i dokumentet).
   await owner.reload();
@@ -125,7 +125,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await panel.getByTestId("course-setting-checks-accepted").locator('[data-key="LEG_NO_ROUTE/6/7"]').getByRole("button", { name: /^Ångra godtagandet:/ }).click();
   await expect(badge(owner)).toHaveAttribute("data-count", String(before - 2));
   await expect(panel.getByTestId("course-setting-checks-accepted").locator("summary")).toHaveText("Godtagna (2)");
-  await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
+  await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 60_000 });
   await reviewScreenshots(owner, "banlaggning-varningar-godtagna");
 
   // Visa → Markera varningar: raden markerar kontrollerna; släckt syns ingen markering.

@@ -13,11 +13,6 @@ import styles from "./course-setting.module.css";
 const text = copy.routeLength;
 
 /**
- * ADR-0190 beslut 6: banans längd längs föreslagna vägval. Räknas när banläggaren ber om det (vägvalens Worker startas
- * då, som när en sträcka väljs); sträckorna sparas per indata, så att bara flyttade sträckor räknas om. Väljs en sträcka
- * medan banan räknas avbryts räkningen (Workern räknar en sak i taget); "Räkna klart" tar resten.
- */
-/**
  * ADR-0199: vägvalens svar per indata (`legInput`-nyckeln), gemensamt för banans längd, vald sträcka och varningarna om
  * förbjudna områden, så att en sträcka som redan räknats inte räknas igen.
  */
@@ -33,6 +28,11 @@ export function useRouteResults() {
 
 export type RouteResults = ReturnType<typeof useRouteResults>;
 
+/**
+ * ADR-0190 beslut 6: banans längd längs föreslagna vägval. Räknas när banläggaren ber om det (vägvalens Worker startas
+ * då, som när en sträcka väljs); sträckorna sparas per indata, så att bara flyttade sträckor räknas om. Väljs en sträcka
+ * medan banan räknas avbryts räkningen (Workern räknar en sak i taget); "Räkna klart" tar resten.
+ */
 export function useRouteLength({ document, view, variant, session, ready, failed, wanted, onWanted, store }: {
   document: CourseSettingDocument; view: string; variant: string | undefined; store: RouteResults;
   session: RefObject<RouteChoiceSession | undefined>; ready: boolean; failed: boolean;

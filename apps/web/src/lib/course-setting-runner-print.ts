@@ -1,5 +1,5 @@
 import type { MapBundleResponse } from "@o-tid/contracts";
-import { courseVariants, type CourseSettingDocument, type SheetItem } from "@o-tid/course-setting";
+import { courseVariants, excludedVariantCodes, type CourseSettingDocument, type SheetItem } from "@o-tid/course-setting";
 import { mapBackPages } from "@o-tid/domain";
 
 /**
@@ -12,6 +12,8 @@ export type RunnerPrintProblem =
   | { readonly kind: "MISSING_VARIANT"; readonly name: string; readonly className: string }
   | { readonly kind: "UNKNOWN_COURSE"; readonly courseName: string }
   | { readonly kind: "UNKNOWN_VARIANT"; readonly courseName: string; readonly variantCode: string }
+  /** ADR-0198: varianten är bortvald i banläggningen; inga kartor (inte heller reserver) skrivs ut för den. */
+  | { readonly kind: "EXCLUDED_VARIANT"; readonly courseName: string; readonly variantCode: string; readonly count: number }
   | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly expected: number; readonly actual: number };
 
 export interface RunnerPrint {
@@ -35,6 +37,16 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
   const counts = new Map<string, { courseName: string; variantCode: string | null; count: number }>();
   const known = new Set<string>();
   const instants: (string | null)[] = [];
+  const excludedPages = new Map<string, { kind: "EXCLUDED_VARIANT"; courseName: string; variantCode: string; count: number }>();
+  const excludedCache = new Map<string, ReadonlySet<string>>();
+  const excludedOf = (course: string) => {
+    if (!excludedCache.has(course)) {
+      let codes: ReadonlySet<string> = new Set();
+      try { codes = excludedVariantCodes(document, course); } catch { codes = new Set(); }
+      excludedCache.set(course, codes);
+    }
+    return excludedCache.get(course)!;
+  };
   for (const page of mapBackPages(bundles.groups)) {
     if (page.kind === "DIVIDER") continue;
     const course = document.courses.find(row => row.name === page.courseName);
@@ -45,6 +57,13 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
     }
     const variant = page.variantCode ?? undefined;
     const key = `${page.courseName}|${page.variantCode ?? ""}`;
+    // ADR-0198: en bortvald variant skrivs aldrig ut, inte heller som reserv; löpare med den sägs som problem.
+    if (variant && excludedOf(course.id).has(variant)) {
+      const found = excludedPages.get(key) ?? { kind: "EXCLUDED_VARIANT" as const, courseName: page.courseName, variantCode: variant, count: 0 };
+      if (page.kind !== "RESERVE") found.count += 1;
+      excludedPages.set(key, found);
+      continue;
+    }
     if (variant && !known.has(key)) {
       known.add(key);
       let codes: string[] = [];
@@ -63,7 +82,9 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
     count.count += 1;
     counts.set(key, count);
   }
+  problems.push(...[...excludedPages.values()].filter(row => row.count > 0));
   for (const group of bundles.groups) {
+    if (excludedPages.has(`${group.courseName}|${group.variantCode ?? ""}`)) continue;
     const actual = counts.get(`${group.courseName}|${group.variantCode ?? ""}`)?.count ?? 0;
     if (group.printCount > 0 && actual !== group.printCount && document.courses.some(row => row.name === group.courseName)) {
       problems.push({ kind: "COUNT", courseName: group.courseName, variantCode: group.variantCode, expected: group.printCount, actual });

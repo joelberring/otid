@@ -12,6 +12,9 @@ import base from "./course-setting.module.css";
 import styles from "./course-setting-variants.module.css";
 
 const MAX_RACE_VARIANTS = 100;
+const DEFAULT_LONGEST = 3;
+const PRUNE_MODES = ["LONGEST", "DOMINATED", "CAP"] as const;
+type PruneMode = (typeof PRUNE_MODES)[number];
 
 /**
  * ADR-0198 (ägaren 2026-11-03): varianterna av en gafflad bana med fågelväg, längd längs vägval (räknas på begäran i
@@ -32,7 +35,9 @@ export function VariantsPanel({ document, course, routeLength, hasMap, readOnly,
 function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }: {
   table: VariantTable; course: Course; routeLength: RouteLength; hasMap: boolean; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
-  const [dominated, setDominated] = useState(true);
+  // Ägaren 2026-11-03: förval "Ta bort de längsta" med 3; "längst i alla avseenden (alla)" och taken är andra sätt.
+  const [mode, setMode] = useState<PruneMode>("LONGEST");
+  const [longest, setLongest] = useState(String(Math.min(DEFAULT_LONGEST, Math.max(1, table.rows.length - 1))));
   const [percent, setPercent] = useState("");
   const [count, setCount] = useState("");
   const [invalid, setInvalid] = useState(false);
@@ -54,10 +59,18 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
     save(next);
   };
   const preview = () => {
+    if (mode === "LONGEST") {
+      const value = parseLimit(longest, 1);
+      if (value === undefined || value === "invalid" || value > total - 1) { setInvalid(true); return; }
+      setInvalid(false);
+      setPlan(pruningPlan(table, { longest: value }));
+      return;
+    }
+    if (mode === "DOMINATED") { setInvalid(false); setPlan(pruningPlan(table, { dominated: true })); return; }
     const maxPercentLonger = parseLimit(percent, 0), maxCount = parseLimit(count, 1);
-    if (maxPercentLonger === "invalid" || maxCount === "invalid") { setInvalid(true); return; }
+    if (maxPercentLonger === "invalid" || maxCount === "invalid" || (maxPercentLonger === undefined && maxCount === undefined)) { setInvalid(true); return; }
     setInvalid(false);
-    setPlan(pruningPlan(table, { dominated, maxPercentLonger, maxCount }));
+    setPlan(pruningPlan(table, { maxPercentLonger, maxCount }));
   };
   const reason = (row: ProtectedVariant) => row.control !== undefined ? text.prune.needed(text.prune.control(table.label(row.control)))
     : row.leg !== undefined ? text.prune.needed(text.prune.leg(...(row.leg.split(">").map(table.label) as [string, string])))
@@ -104,16 +117,25 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
     </div>
     {!readOnly && <div className={styles.prune} data-testid="course-setting-variants-prune">
       <h3>{text.prune.heading}</h3>
-      <label className={base.inline}><input type="checkbox" checked={dominated} onChange={event => { setDominated(event.target.checked); setPlan(undefined); }} />
-        {text.prune.dominated}</label>
-      <p className={base.muted}>{text.prune.dominatedHelp(table.routeComplete)}</p>
-      <div className={base.row}>
+      <fieldset className={styles.modes}>
+        <legend className={base.muted}>{text.prune.mode}</legend>
+        {PRUNE_MODES.map(value => <label key={value} className={base.inline}>
+          <input type="radio" name={`${id}-mode`} value={value} checked={mode === value}
+            onChange={() => { setMode(value); setPlan(undefined); setInvalid(false); }} />{text.prune.modes[value]}</label>)}
+      </fieldset>
+      {mode === "LONGEST" && <div className={base.row}>
+        <label>{text.prune.longest(total - 1)}<input type="text" inputMode="numeric" value={longest} aria-invalid={invalid || undefined}
+          data-testid="course-setting-variants-longest" onChange={event => { setLongest(event.target.value); setPlan(undefined); }} /></label>
+      </div>}
+      <p className={base.muted}>{mode === "LONGEST" ? text.prune.longestHelp(table.routeComplete) : mode === "DOMINATED"
+        ? text.prune.dominatedHelp(table.routeComplete) : text.prune.capHelp}</p>
+      {mode === "CAP" && <div className={base.row}>
         <label>{text.prune.percent}<input type="text" inputMode="numeric" value={percent} aria-invalid={invalid || undefined}
           onChange={event => { setPercent(event.target.value); setPlan(undefined); }} /></label>
         <label>{text.prune.count}<input type="text" inputMode="numeric" value={count} aria-invalid={invalid || undefined}
           onChange={event => { setCount(event.target.value); setPlan(undefined); }} /></label>
-      </div>
-      {invalid && <p role="alert" className={base.muted}>{text.prune.invalid}</p>}
+      </div>}
+      {invalid && <p role="alert" className={base.muted}>{mode === "LONGEST" ? text.prune.longestInvalid(total - 1) : text.prune.invalid}</p>}
       <div className={base.row}>
         <Button variant="secondary" onClick={preview}>{text.prune.preview}</Button>
         {excluded.size > 0 && <Button variant="quiet" onClick={() => { setPlan(undefined); save(new Set()); }}>{text.useAll}</Button>}

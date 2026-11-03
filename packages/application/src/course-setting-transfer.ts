@@ -94,7 +94,8 @@ export function courseSettingProjection(document: CourseSettingDocument, options
         variants: measured.map(variant => ({ code: courseVariantCode(course.name, `${course.name} ${variant.code}`), controlCodes: variant.controlCodes,
           ...(variant.lengthMeters !== undefined ? { lengthMeters: variant.lengthMeters } : {}) })),
         ...(longest?.lengthMeters !== undefined ? { lengthMeters: longest.lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}),
-        ...(excludedVariants.length > 0 ? { excludedVariants } : {}) });
+        // Alltid med (tom = inga), så att en överföring utan bortval tar bort tävlingens (ADR-0198).
+        excludedVariants });
     } else {
       courses.push({ externalId, name: course.name, controlCodes: measured[0]!.controlCodes, ...ends,
         ...(measured[0]!.lengthMeters !== undefined ? { lengthMeters: measured[0]!.lengthMeters } : {}),

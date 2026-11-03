@@ -60,6 +60,8 @@ export interface CurrentCourse {
   readonly id: string; readonly name: string; readonly externalSource: string | null; readonly externalId: string | null;
   readonly versionId: string; readonly version: number; readonly controlCodes: readonly number[];
   readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
+  /** ADR-0198: banversionens bortvalda varianter (från banläggningen). */
+  readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
   /** ADR-0190: banans längd och stigning i tävlingen (null = saknas; utelämnat = jämförs inte). */
   readonly lengthMeters?: number | null;
   readonly climbMeters?: number | null;

@@ -69,7 +69,7 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
       const byName = candidates.filter(row => row.externalSource !== "iof" && !used.has(row.id) && normalized(row.name) === normalized(course.name));
       if (byName.length === 1) { local = byName[0]!; links.push({ id: local.id, externalId: course.externalId }); }
     }
-    const variants = course.variants ?? [];
+    let variants = course.variants ?? [];
     if (!local) {
       courseTarget.set(course.externalId, { ref: { newCourse: course.externalId }, name: course.name });
       rows.push({ row: row({ key: `course-new:${course.externalId}`, kind: "NEW", subject: "COURSE", label: course.name, optional: false,
@@ -80,6 +80,13 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
     }
     used.add(local.id);
     courseTarget.set(course.externalId, { ref: { existing: local.id }, name: local.name });
+    // ADR-0198: en banfil som inte kommer från banläggningen (inga bortval i filen) tar inte tillbaka bortvalda varianter;
+    // bortvalen följer med (samma kod och kontroller). Banläggningen anger alltid sina bortval (tom lista = inga).
+    const excludedVariants = course.excludedVariants ?? local.excludedVariants;
+    if (course.excludedVariants === undefined && local.excludedVariants?.length) {
+      const kept = variants.filter(variant => !local.excludedVariants!.some(row => row.code === variant.code && sameCodes(row.controlCodes, variant.controlCodes)));
+      if (kept.length > 0) variants = kept;
+    }
     const changes = variants.length > 0 || local.variants.length > 0 ? variantChanges(local.variants, variants)
       : sameCodes(local.controlCodes, course.controlCodes) ? [] : [{ field: "CONTROLS" as const, from: codes(local.controlCodes), to: codes(course.controlCodes) }];
     const measures = measureChanges(local, course);
@@ -94,7 +101,7 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
       readOut: readOutOnCourse(local.id) > 0, context: state.classes.filter(raceClass => raceClass.courseId === local.id)
         .map(raceClass => raceClass.name).join(", ") || null }),
     action: { type: "CHANGE_COURSE", courseId: local.id, controlCodes: variants.length > 0 ? [] : course.controlCodes, variants,
-      excludedVariants: course.excludedVariants } });
+      excludedVariants } });
   }
   for (const course of candidates) {
     if (course.externalSource === "iof" && !used.has(course.id) && !courses.some(row => row.externalId === course.externalId)) {

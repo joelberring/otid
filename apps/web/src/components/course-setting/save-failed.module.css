@@ -1,0 +1,15 @@
+/* En lugn rad vid det som inte sparades: text i varningsfärg med ett tecken (inte bara färgen), Försök igen bredvid. */
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 6px 0;
+  color: var(--mp);
+  font-size: var(--text-sm);
+}
+
+.line > span::before {
+  content: "! ";
+  font-weight: 700;
+}

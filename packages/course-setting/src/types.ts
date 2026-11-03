@@ -494,8 +494,9 @@ export type CourseCheck =
   | { readonly kind: "LEG_THROUGH_CONTROL"; readonly course: string; readonly from: string; readonly to: string; readonly control: string }
   /**
    * Steg 64, ADR-0199: sträckans fågelväg går genom ett förbjudet område (specialobjektet) eller över en gräns eller förbjuden
-   * väg. UNKNOWN: vägvalet är inte räknat (en notis); NO_ROUTE: vägvalet runt finns inte – kontrollen går inte att nå lagligt
-   * (`specials` = alla spärrar som fågelvägen korsar). Går vägvalet runt blir det ingen kontroll alls.
+   * väg. UNKNOWN: vägvalet är inte räknat (en notis); NO_ROUTE: vägvalet runt finns inte – kontrollen går inte att nå lagligt.
+   * En per sträcka; `special` = den första och `specials` = alla spärrar som fågelvägen korsar. Går vägvalet runt blir det
+   * ingen kontroll alls.
    */
   | { readonly kind: "LEG_THROUGH_FORBIDDEN"; readonly course: string; readonly from: string; readonly to: string; readonly special: string;
       readonly route: "UNKNOWN" | "NO_ROUTE"; readonly specials?: readonly string[] | undefined }

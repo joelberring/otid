@@ -51,7 +51,7 @@ export function checkKey(check: CourseCheck): string {
     case "SAME_CONTROL_TWICE_IN_ROW": return `SAME_CONTROL_TWICE_IN_ROW/${check.course}/${check.control}`;
     case "LEG_THROUGH_CONTROL": return `LEG_THROUGH_CONTROL/${check.from}/${check.to}/${check.control}`;
     case "LEG_THROUGH_FORBIDDEN": return check.route === "NO_ROUTE" ? `LEG_NO_ROUTE/${check.from}/${check.to}`
-      : `LEG_THROUGH_FORBIDDEN/${check.from}/${check.to}/${check.special}`;
+      : `LEG_THROUGH_FORBIDDEN/${check.from}/${check.to}`;
     case "CONTROL_IN_FORBIDDEN": return `CONTROL_IN_FORBIDDEN/${check.control}/${check.special}`;
     case "COURSE_WITHOUT_START_OR_FINISH": return `COURSE_WITHOUT_START_OR_FINISH/${check.course}`;
     case "UNUSED_CONTROL": return `UNUSED_CONTROL/${check.control}`;

@@ -18,7 +18,7 @@ describe("förbjudna områden med och utan vägval (ADR-0199)", () => {
   it("fågelvägen genom området är en notis när vägvalet inte är räknat", () => {
     const { b, course, controls, area } = forbiddenCourse();
     const checks = forbidden(checkDocument(b.document));
-    expect(checks).toEqual([{ kind: "LEG_THROUGH_FORBIDDEN", course, from: controls[1], to: controls[2], special: area, route: "UNKNOWN" }]);
+    expect(checks).toEqual([{ kind: "LEG_THROUGH_FORBIDDEN", course, from: controls[1], to: controls[2], special: area, route: "UNKNOWN", specials: [area] }]);
     expect(checkLevel(checks[0]!)).toBe("NOTICE");
   });
 
@@ -49,7 +49,16 @@ describe("förbjudna områden med och utan vägval (ADR-0199)", () => {
     const checks = forbidden(checkDocument(b.document));
     expect(checks).toHaveLength(2);
     expect(new Set(checks.map(checkKey)).size).toBe(1);
-    expect(checkKey(checks[0]!)).toBe(`LEG_THROUGH_FORBIDDEN/${controls[1]}/${controls[2]}/${checks[0]!.kind === "LEG_THROUGH_FORBIDDEN" && checks[0]!.special}`);
+    expect(checkKey(checks[0]!)).toBe(`LEG_THROUGH_FORBIDDEN/${controls[1]}/${controls[2]}`);
+  });
+
+  it("en sträcka genom två spärrar är en notis, inte två", () => {
+    const { b, controls, area } = forbiddenCourse();
+    const line = b.edit({ type: "ADD_SPECIAL", special: { kind: "boundary", points: [{ x: 26, y: -10 }, { x: 26, y: 10 }] } });
+    const checks = forbidden(checkDocument(b.document));
+    expect(checks).toHaveLength(1);
+    expect(checks[0]).toMatchObject({ from: controls[1], to: controls[2] });
+    expect(checks[0]!.kind === "LEG_THROUGH_FORBIDDEN" ? [...(checks[0]!.specials ?? [])].sort() : []).toEqual([area, line].sort());
   });
 });
 

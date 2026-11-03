@@ -129,7 +129,7 @@ function forbiddenChecks(document: CourseSettingDocument, options: CheckOptions)
       const route = options.legRoute?.(course.id, from, to);
       if (route?.reachable) continue;
       if (route) checks.push({ kind: "LEG_THROUGH_FORBIDDEN", course: course.id, from, to, special: specials[0]!, route: "NO_ROUTE", specials });
-      else for (const special of specials) checks.push({ kind: "LEG_THROUGH_FORBIDDEN", course: course.id, from, to, special, route: "UNKNOWN" });
+      else checks.push({ kind: "LEG_THROUGH_FORBIDDEN", course: course.id, from, to, special: specials[0]!, route: "UNKNOWN", specials });
     }
   }
   return checks;

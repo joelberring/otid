@@ -6,8 +6,8 @@ import type { MapGeoreference } from "../../packages/map-file/src/model";
 import { createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
 
 /**
- * ADR-0199: varningarna i banläggningen. Kartfilen och kartfil.ppen (kontrollernas id: 33 = 4, 34 = 5, 35 = 6, 36 = 7, mål = 9) läses in och
- * fem förbjudna områden läggs ut: ett tvärs över sträckan 33–34 (vägvalet går runt: ingen varning, en rad i Vald sträcka)
+ * ADR-0199: varningarna i banläggningen. Kartfilen och kartfil.ppen (kontrollernas id: 31 = 2, 32 = 3, 33 = 4, 35 = 6, 36 = 7, mål = 9)
+ * läses in och fem förbjudna områden läggs ut: ett tvärs över den raka sträckan 31–32 (vägvalet går runt: ingen varning, en rad i Vald sträcka)
  * och fyra som ramar in kontroll 36 (ingen laglig väg dit: fel). Godta → fliken räknar ned → omladdning → fortfarande
  * godtagen → Ångra. Visa: varningarnas och de kollade kontrollernas markeringar går att släcka och förblir släckta.
  * Fältläget i telefonen utan nät: den valda raden och statusen ryms på 390 px.
@@ -54,7 +54,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   // De förbjudna områdena som åtgärder (som editorn sparar dem).
   const state = await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { version: number } };
   const csrf = (await owner.context().cookies()).find(row => /otid[-_]organizer[-_]csrf$/.test(row.name))?.value ?? "";
-  const areas = [rect(84, 38, 90, 44), rect(44, 12, 46, 24), rect(54, 12, 56, 24), rect(44, 12, 56, 14), rect(44, 22, 56, 24)];
+  const areas = [rect(26, 49, 31, 54), rect(44, 12, 46, 24), rect(54, 12, 56, 24), rect(44, 12, 56, 14), rect(44, 22, 56, 24)];
   const saved = await owner.request.post(`${admin}/course-setting/edits`, {
     headers: { origin: new URL(owner.url()).origin, "x-otid-csrf": csrf, "content-type": "application/json" },
     data: { formatVersion: 1, requestId: randomUUID(), baseVersion: state.setting.version,
@@ -72,23 +72,23 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   // Kontroll 36 är inringad: 35–36 (Lång), 33–36 (Mellan) och 36–mål på båda banorna (en rad).
   await expect(noRoute.getByTestId("course-setting-check")).toHaveCount(3);
   await expect(noRoute.locator('[data-key="LEG_NO_ROUTE/7/9"]')).toHaveText(/^Lång, Mellan: kontroll 36–mål har ingen väg runt ett förbjudet område\./);
-  // 33–34 går runt: ingen rad alls.
-  await expect(panel.locator('[data-key^="LEG_THROUGH_FORBIDDEN/4/5"], [data-key^="LEG_NO_ROUTE/4/5"]')).toHaveCount(0);
+  // 31–32 går runt: ingen rad alls.
+  await expect(panel.locator('[data-key^="LEG_THROUGH_FORBIDDEN/2/3"], [data-key^="LEG_NO_ROUTE/2/3"]')).toHaveCount(0);
   await expect(panel.locator('[data-group$=":LEG_THROUGH_FORBIDDEN"]')).toHaveCount(0);
   const before = Number(await badge(owner).getAttribute("data-count"));
   expect(before).toBeGreaterThanOrEqual(3);
   await reviewScreenshots(owner, "banlaggning-varningar");
 
-  // Sträckan 33–34 på kartan: Vald sträcka säger att vägvalet går runt.
+  // Sträckan 31–32 på kartan: Vald sträcka säger att vägvalet går runt.
   await owner.getByRole("tab", { name: "Banor" }).click();
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   const map = owner.getByTestId("course-setting-map");
   await expect(map).toHaveAttribute("data-center", /,/);
   // Kartan passas in på banan efter bytet: klicka på sträckan när den står still.
   await expect(async () => {
-    const onLeg = await screenOf(map, 81.5, 46.5);
+    const onLeg = await screenOf(map, 21.75, 46.75);
     await owner.mouse.click(onLeg.x, onLeg.y);
-    await expect(owner.getByTestId("course-setting-selected")).toHaveText("Sträckan kontroll 33–kontroll 34", { timeout: 2_000 });
+    await expect(owner.getByTestId("course-setting-selected")).toHaveText("Sträckan kontroll 31–kontroll 32", { timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
   await owner.getByRole("tab", { name: "Vald" }).click();
   await expect(owner.getByTestId("course-setting-leg-forbidden")).toHaveText(/^Fågelvägen korsar ett förbjudet område – vägvalet går runt \(\+\d+ m\)\.$/,

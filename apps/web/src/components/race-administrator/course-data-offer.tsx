@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import type { CourseSettingState } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { courseDataSv } from "../../i18n/course-data-sv";
-import { courseSettingFromCourseData, keepEventSettings, rememberCourseSettingNotice } from "../../lib/course-data-course-setting";
 import { fetchCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import { saveOnLatest } from "../../lib/course-setting-save-latest";
 import { SaveFailed } from "../course-setting/save-failed";
@@ -36,6 +35,8 @@ export function CourseDataOffer({ raceId, file }: { raceId: string; file: { read
 
   async function apply(replace: boolean) {
     setPhase("working"); setProblem(undefined); setConfirming(false);
+    // Banfilens tolkning laddas först när den behövs (arbetsytan klarar sig utan den).
+    const { courseSettingFromCourseData, keepEventSettings, rememberCourseSettingNotice } = await import("../../lib/course-data-course-setting");
     const converted = courseSettingFromCourseData(new Uint8Array(file.bytes), { mapScale });
     if (converted.kind === "problem") { setProblem(converted.text); setPhase("idle"); return; }
     let appeared = false;

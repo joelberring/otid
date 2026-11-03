@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Banfil utan .ppen blir banläggning, sparbesked, fest och rogaining (grenen ppen-fran-iof)
+- IOF XML CourseData (3.0 och 2.0.3) utan .ppen blir banläggningsdokument (`readCourseLayout` i iof-xml, `courseDataDocument` i course-setting): kontroller med koder och lägen, start, mål, passager, kartbyte, poängbanor med poäng, banornas ordning, stigning, klasser som undertitel. Lägena är kartfilens mm rakt av (som .ppen; provat mot klubbens OCAD-kartor, 0,5–0,7 m). Varianter blir gafflingar eller slingor när varianterna blir exakt filens, annars egna banor med en rad i beskedet. Filens längd blir fast längd bara när den skiljer mer än 50 m. Inga beskrivningar (förslaget körs inte).
+- Använd igen med bara banfil öppnar banläggningen med banorna; Banor → Banfil erbjuder banorna i banläggningen när tävlingen har kartfil (en befintlig ersätts efter frågan och blir tidigare version).
+- Sparande utanför editorn: `saveOnLatest` (senaste versionen, ett tyst nytt försök vid konflikt) och en rad "Ändringen sparades inte – försök igen" med Försök igen (`SaveFailed`). Används av Banfil-erbjudandet; startsidans .ppen-inläsning säger nu till vid konflikt. Utskriftssidan (pappersrum) orörd.
+- Banläggning syns för fest och rogaining (sidopanelen, Mina tävlingar, Banor); läget har tävlingstypen (`raceType`), rogaining ger nya poängbanor, festen saknar Överför till tävlingen och förklarar varför.
+- Verifierat: enhetstester (course-setting med Purple Pens exporter marymoor/relay/mapexchange som tur och retur, iof-xml, webbens lib), integration steg-62, typecheck och lint. Playwright `banfil-banlaggning` (Använd igen, dra starten, omladdning, Banfil ersätter efter frågan; rogaining och fest) körs i CI.
+- Kvar: banfilen flyttas inte till en nyare kartversion vid Använd igen (som förut); Purple Pens kartbyte vid en vanlig kontroll står inte i IOF XML.
+
 ### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
 - Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
 - Kontrollbeskrivningen på kartan hör till papperet (`paper-layout.ts`, `event.paperLayouts`, `SET_PAPER_LAYOUT`): på för varje bana, automatiskt i ett fritt hörn med varning när den täcker banan, dras/ändras på arket i förhandsvisningen (piltangenter också). Ritas inte i editorn; Purple Pens `descriptions` tolkas som platsen och skrivs tillbaka vid export. Mallens gamla plats gäller bara utan utplacering.

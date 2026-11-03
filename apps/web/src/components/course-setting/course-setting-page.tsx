@@ -21,7 +21,7 @@ import { fieldStore } from "./use-course-setting-offline";
 import { forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
 import styles from "./course-setting.module.css";
 import { courseDataSv } from "../../i18n/course-data-sv";
-import { takeCourseSettingNotice } from "../../lib/course-data-course-setting";
+import { takeCourseSettingNotice } from "../../lib/course-setting-notice";
 
 /**
  * Steg 62 (ADR-0180): sidan `/admin/[raceId]/course-setting`. Hämtar läget; utan kartfil laddas den upp här (samma Worker

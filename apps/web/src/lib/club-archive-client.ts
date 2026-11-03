@@ -2,7 +2,6 @@ import { IOF_IMPORT_CONTENT_TYPE, RACE_MAP_SOURCE_PARTS, type RaceMapSourceMetad
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { courseSettingFromCourseData, rememberCourseSettingNotice } from "./course-data-course-setting";
 import { importCourseSetting, saveCourseSetting } from "./course-setting-api";
 import { renderMapFile, type MapFileRenderError, type MapFileRenderResult } from "./map-file-worker-protocol";
 import { readOrganizerCsrf } from "./organizer-client";
@@ -180,6 +179,8 @@ export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseSta
 
 /** Banfilen som träningens första banläggning (version 0, träningen är ny). Beskedet visas när editorn öppnas. */
 async function courseDataToCourseSetting(raceId: string, bytes: ArrayBuffer, title: string, metadata: RaceMapSourceMetadata): Promise<boolean> {
+  // Banfilens tolkning laddas först här (bara Använd igen med en banfil behöver den).
+  const { courseSettingFromCourseData, rememberCourseSettingNotice } = await import("./course-data-course-setting");
   const converted = courseSettingFromCourseData(new Uint8Array(bytes), { title, mapScale: metadata.scale,
     georeference: metadata.georeference as MapGeoreference | null });
   if (converted.kind === "problem") { console.error("Banfilen blev ingen banläggning", converted.text); return false; }

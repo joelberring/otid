@@ -132,10 +132,10 @@ export async function inviteFromClub(db: Database, input: ClubProof & { request:
   for (const person of chosen.people) {
     if (person.already) { already += 1; continue; }
     const id = personRequestId(requestId, person.ref);
-    const invitationId = await createInvitation(db, input, context, { requestId: id, email: person.email, role }, now);
-    if (invitationId === "conflict") { already += 1; continue; }
-    if (!invitationId) { failed += 1; continue; }
-    await db.insert(schema.invitationClubSources).values({ id: randomUUID(), kind: KIND[context.kind], invitationId, contextId: context.id,
+    const created = await createInvitation(db, input, context, { requestId: id, email: person.email, role }, now);
+    if (created === "conflict") { already += 1; continue; }
+    if (!created) { failed += 1; continue; }
+    await db.insert(schema.invitationClubSources).values({ id: randomUUID(), kind: KIND[context.kind], invitationId: created.id, contextId: context.id,
       accountId: person.accountId, createdBy: chosen.accountId, createdAt: now }).onConflictDoNothing();
     invited += 1;
   }
@@ -143,19 +143,19 @@ export async function inviteFromClub(db: Database, input: ClubProof & { request:
 }
 
 async function createInvitation(db: Database, proof: ClubProof, context: ClubInviteContext,
-  intent: { requestId: string; email: string; role: string }, now: Date): Promise<string | "conflict" | undefined> {
+  intent: { requestId: string; email: string; role: string }, now: Date): Promise<{ id: string } | "conflict" | undefined> {
   if (context.kind === "RACE") {
     const result = await grantRacePersonAsAdmin(db, { raceId: context.id, sessionToken: proof.sessionToken, csrfCookie: proof.csrfCookie ?? null,
       csrfHeader: proof.csrfHeader ?? null, idempotencyKey: `race-person-grant:${intent.requestId}`,
       readBody: async () => ({ formatVersion: 1, ...intent }) }, now);
-    return result.status === "granted" ? result.response.invitation.invitationId : result.status === "conflict" ? "conflict" : undefined;
+    return result.status === "granted" ? { id: result.response.invitation.invitationId } : result.status === "conflict" ? "conflict" : undefined;
   }
   if (context.kind === "CLUB") {
     const result = await inviteClubMember(db, { ...proof, clubId: context.id, request: { formatVersion: 1, ...intent } }, now);
-    return result.status === "invited" ? result.invitationId : result.status === "conflict" ? "conflict" : undefined;
+    return result.status === "invited" ? { id: result.invitationId } : result.status === "conflict" ? "conflict" : undefined;
   }
   const result = await addGroupMember(db, { ...proof, groupId: context.id, request: { formatVersion: 1, ...intent } }, now);
-  return result.status === "added" ? result.member.memberId : result.status === "conflict" ? "conflict" : undefined;
+  return result.status === "added" ? { id: result.member.memberId } : result.status === "conflict" ? "conflict" : undefined;
 }
 
 /**

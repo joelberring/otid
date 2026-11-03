@@ -401,7 +401,8 @@ describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
     await db.transaction(tx => acceptRacePersonInvitations(tx, clubmate.accountId, NOW, raceId));
     const after = await listRacePeopleAsAdmin(db, { ...inviterAccount.proof, raceId }, NOW);
     expect(JSON.stringify(after)).not.toContain(clubmate.email);
-    expect(after).toMatchObject({ response: { people: expect.arrayContaining([expect.objectContaining({ role: "FUNCTIONARY", email: "", fromClub: true })]) } });
+    if (after.status !== "ok") throw new Error(after.status);
+    expect(after.response.people.find(person => person.accountId === clubmate.accountId)).toMatchObject({ role: "FUNCTIONARY", email: "", fromClub: true });
     // Igen: redan med. En person utanför listan: hela begäran avvisas.
     expect(await inviteFromClub(db, { ...inviterAccount.proof, request: { formatVersion: 1, requestId: randomUUID(), context, refs: [ref],
       role: "FUNCTIONARY" } }, NOW)).toMatchObject({ response: { invited: 0, already: 1 } });

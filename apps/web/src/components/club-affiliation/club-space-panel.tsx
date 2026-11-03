@@ -11,7 +11,7 @@ const text = clubAffiliationSv.space;
 type Message = { tone: "ok" | "error"; text: string } | undefined;
 const problemText = (json: unknown, status: number) => {
   const code = (json as { error?: string } | undefined)?.error;
-  return code && text.problems[code] ? text.problems[code]! : clubFailure(status);
+  return code && text.problems[code] ? text.problems[code] : clubFailure(status);
 };
 const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
 

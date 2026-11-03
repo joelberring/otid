@@ -48,7 +48,7 @@ export function OrganisationPicker({ onPick, exclude = [], label = text.search, 
   function key(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActive(value => Math.min(value + 1, options.length - 1)); }
     else if (event.key === "ArrowUp") { event.preventDefault(); setActive(value => Math.max(value - 1, 0)); }
-    else if (event.key === "Enter" && open && options[active]) { event.preventDefault(); pick(options[active]!); }
+    else if (event.key === "Enter" && open && options[active]) { event.preventDefault(); pick(options[active]); }
     else if (event.key === "Escape") setOpen(false);
   }
 

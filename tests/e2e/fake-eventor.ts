@@ -12,6 +12,14 @@ export const FAKE_EVENTOR_PORT = Number(process.env.E2E_EVENTOR_PORT ?? 4319);
 /** Klubbnyckeln som den falska Eventor godtar (påhittad, används bara mot den här servern). */
 export const FAKE_EVENTOR_API_KEY = "e2e0fake0eventor0club0key0000001";
 
+/**
+ * ADR-0209: en andra klubbnyckel som tillhör OK Älvsjö-Örby (9901) i klubblistan `organisations-directory.xml`, med
+ * medlemslistan `persons-organisation.xml` (påhittade personer).
+ */
+export const FAKE_EVENTOR_OKAO_KEY = "e2e0fake0eventor0okao0key0000002";
+const OKAO_ORGANISATION = `<?xml version="1.0" encoding="utf-8"?><Organisation><OrganisationId>9901</OrganisationId><Name>OK Älvsjö-Örby</Name>
+  <ShortName>OKÄÖ</ShortName><OrganisationTypeId>3</OrganisationTypeId></Organisation>`;
+
 /** Fixturernas tävlingsdatum. Den falska Eventor byter dem vid varje svar mot datum räknade från i dag. */
 const FIXTURE_EVENT_DATE = "2026-10-18";
 const FIXTURE_RELAY_DATE = "2026-11-08";
@@ -34,6 +42,14 @@ export function startFakeEventor(port = FAKE_EVENTOR_PORT): Promise<Server> {
     if (request.method === "POST" && control) {
       entries = control[1]!;
       response.writeHead(204).end();
+      return;
+    }
+    if (request.headers.apikey === FAKE_EVENTOR_OKAO_KEY) {
+      const body = url.pathname === "/api/organisation/apiKey" ? OKAO_ORGANISATION
+        : url.pathname === "/api/persons/organisations/9901" ? fixture("persons-organisation")
+          : url.pathname === "/api/organisations" ? fixture("organisations-directory") : undefined;
+      if (!body) { response.writeHead(404).end(); return; }
+      response.writeHead(200, { "content-type": "text/xml; charset=utf-8" }).end(body);
       return;
     }
     if (request.headers.apikey !== FAKE_EVENTOR_API_KEY) { response.writeHead(401).end(); return; }

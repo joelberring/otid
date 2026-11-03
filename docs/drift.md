@@ -235,6 +235,27 @@ sparade Eventor-nycklarna inte läsas, och administratören klistrar in klubbens
 `OTID_EVENTOR_BASE_URL` används bara för test (pekar O-Tid mot en falsk Eventor) och
 ska inte sättas i drift.
 
+### Klubblistan och klubbytornas koppling (ADR-0209)
+
+Klubblistan (Eventors förbund, distrikt och klubbar) används när man väljer klubb, arrangörsklubb och i klubbytan. Hämta den
+med en klubbs API-nyckel från Eventor (en klubbadministratör skapar den i Eventor; den är hemlig och ska aldrig committas):
+
+```bash
+echo "OTID_EVENTOR_API_KEY=<klubbens nyckel>" >> .env
+docker compose -f docker-compose.prod.yml up -d web
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs clubs refresh
+```
+
+Eventor ber om högst en hämtning per dygn; kommandot vägrar annars (`--force` bara vid behov). Lägg det gärna i cron en gång
+per natt. Utan `OTID_EVENTOR_API_KEY` används en nyckel som ett klubbarkiv har sparat med "Koppla till Eventor". En lista
+hämtad på annat sätt läses in med `clubs import <fil.xml>` (eller `clubs import -` med filen på stdin, t.ex.
+`... exec -T web node superadmin.mjs clubs import - < organisationer.xml`). `OTID_EVENTOR_BASE_URL` gäller också här (bara test).
+
+Klubbytornas koppling ("Koppla till Eventor") och medlemslistorna kräver `OTID_EVENTOR_MASTER_KEY` ovan: klubbens nyckel sparas
+krypterad med den, och e-posthasharna räknas med en nyckel härledd ur den. Byts masternyckeln behöver klubbytorna lägga in sin
+nyckel igen, och nästa hämtning räknar om hasharna. Medlemslistorna hämtas i underhållet en gång per dygn;
+`node superadmin.mjs clubs sync` gör samma sak direkt.
+
 ## Spärrar mot upprepade försök
 
 Inloggning, registrering, återställning av lösenord och självregistrering räknas per IP-adress (och e-post eller tävling).

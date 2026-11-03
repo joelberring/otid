@@ -14,7 +14,7 @@ type Message = { tone: "ok" | "error"; text: string } | undefined;
 const base = (raceId: string) => `/api/admin/races/${encodeURIComponent(raceId)}/administrator/club-archive`;
 const errorText = (json: unknown) => {
   const code = (json as { error?: string } | undefined)?.error;
-  return code && text.errors[code] ? text.errors[code]! : text.failed;
+  return code && text.errors[code] ? text.errors[code] : text.failed;
 };
 
 /** Läget för tävlingen och klubbarkivet (bara tävlingens administratörer får svar). */

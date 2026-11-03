@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Klubbtillhörighet (grenen klubbtillhorighet, ADR-0209, migration 0076)
+- Klubblistan från Eventor (`organisation`, `node superadmin.mjs clubs refresh|import|sync`, högst en gång per dygn), sökning utan accenter med kortnamn och initialer.
+- "Vilken klubb tillhör du?" efter registreringen och Mitt konto → Mina klubbar; en egen anmälan ger ingenting.
+- Klubbytan: fliken Klubben med "Koppla till Eventor" (klubbens nyckel, krypterad), medlemslistan som HMAC av adressen med automatisk bekräftelse, Väntar på bekräftelse, Vem ser vad (arkivet och kartbanken; ägare och admin alltid allt), rollen Ledare.
+- "Från klubben" i tävlingens personer, klubbytans medlemmar och träningsgrupper (namn, aldrig adresser). Byggt utan grenen inbjudan-mejl (den var WIP): mejlavsändaren skickas med när den är med.
+- Tävlingens arrangörsklubb, "Lägg i klubbarkivet"/"Ta ur klubbarkivet" (dubbel administratör, banhemligheten, inga personuppgifter) och påminnelsen i Resultat.
+- Verifierat: enhetstester (domain, eventor, hjälpen), integration `adr-0209-klubbtillhorighet` och `adr-0194`, lint, typecheck; Playwright `klubbtillhorighet` (1280/390). Återstår: provning mot riktiga Eventor (organisationslistans förälder/land och medlemslistans adressfält).
+
 ### 2026-11-03 – Kartbyten: delar, dubbelsidigt och överlapp (grenen kartbyte-delar, ADR-0203)
 - Delar som Purple Pen (`course-parts.ts`): kartbytet sist i en del och först i nästa, ritat som start; numren fortsätter; eget kartbyte sist döljs; `part-options show-finish`; specialobjekt per del.
 - Fliken Utskrift: "Kartbyten" med "Del" (Hela banan / Del 1 / Del 2 …), egen tryckyta per del (`<print-area part="n">` i .ppen, "Som banans igen") och "Visa överlapp" (Ingen / Sista sträckan / Hela föregående del).

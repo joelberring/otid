@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { expect, type Browser, type Page } from "@playwright/test";
@@ -124,6 +125,23 @@ export function grantSuperadmin(email: string): void {
   const database = process.env.E2E_DATABASE_URL;
   if (!database) throw new Error("E2E_DATABASE_URL saknas");
   execFileSync("pnpm", ["-s", "account:superadmin", "grant", email, "Webbläsartest"], { cwd: root, stdio: "pipe",
+    env: { ...process.env, DATABASE_URL: database } });
+}
+
+/**
+ * ADR-0209: klubblistan ur en fil med samma serverkommando som i drift (`clubs import -`, filen på stdin), mot driftmiljön i
+ * webbens avbildning eller `pnpm account:superadmin` mot testdatabasen.
+ */
+export function importClubDirectory(file: string): void {
+  const xml = readFileSync(new URL(`../../fixtures/eventor/${file}`, import.meta.url));
+  if (process.env.E2E_BASE_URL) {
+    execFileSync("docker", ["compose", "-f", "docker-compose.prod.yml", "exec", "-T", "web", "node", "superadmin.mjs", "clubs", "import", "-"],
+      { cwd: root, stdio: ["pipe", "pipe", "pipe"], input: xml });
+    return;
+  }
+  const database = process.env.E2E_DATABASE_URL;
+  if (!database) throw new Error("E2E_DATABASE_URL saknas");
+  execFileSync("pnpm", ["-s", "account:superadmin", "clubs", "import", "-"], { cwd: root, stdio: ["pipe", "pipe", "pipe"], input: xml,
     env: { ...process.env, DATABASE_URL: database } });
 }
 

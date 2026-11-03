@@ -5,7 +5,7 @@ import { syncConsequenceSchema, type SyncConsequence } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
   parseRaceClock, withProposedClass, withProposedClassSetup, withProposedCourse,
-  withProposedCourseVersion, withProposedEntryClasses, type RaceSnapshot
+  withProposedCourseVersion, withProposedEntryClasses, withRogainingSettings, type RaceSnapshot
 } from "@o-tid/domain";
 import { storeControlMapPositions, storeControlPositions, storeCourseEnds } from "./course-positions";
 import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
@@ -287,9 +287,19 @@ function versionOf(ref: CourseRef, ids: Ids, state: CurrentState): string {
 export async function assessCourseFile(tx: Transaction, raceId: string, rows: readonly PlannedRow<CourseFileAction>[], state: CurrentState,
   ids: Ids = prepareCourseFile(rows)): Promise<Assessment & { ids: Ids }> {
   const affected = new Set<string>();
+  const points = new Map<number, number | null>();
   for (const { action } of rows) {
     if (action.type === "CHANGE_COURSE") for (const raceClass of state.classes) if (raceClass.courseId === action.courseId) affected.add(raceClass.id);
     if (action.type === "CHANGE_CLASS_COURSE") affected.add(action.classId);
+    if (action.type === "SET_CONTROL_POINTS") points.set(action.code, action.points);
+  }
+  // Rogaining: ändrade poäng prövas i rogainingklasserna vars bana har kontrollen.
+  if (points.size > 0) {
+    for (const raceClass of state.classes) {
+      const course = state.courses.find(row => row.id === raceClass.courseId);
+      const codes = new Set([...(course?.controlCodes ?? []), ...(course?.variants ?? []).flatMap(variant => variant.controlCodes)]);
+      if ([...points.keys()].some(code => codes.has(code))) affected.add(raceClass.id);
+    }
   }
   const readOut = state.entries.some(entry => entry.readOut && affected.has(entry.classId));
   if (!readOut) return { consequence: consequence([], []), assessed: [], finalClass: new Map(), ids };
@@ -314,6 +324,7 @@ export async function assessCourseFile(tx: Transaction, raceId: string, rows: re
     proposed = withProposedClassSetup(proposed, { classId: raceClass.id, courseVersionId: versionOf(action.courseRef, ids, state),
       startRule: raceClass.startRule });
   }
+  if (points.size > 0) proposed = withRogainingSettings(proposed, { points });
   const assessed = await assessReadOutEntries(tx, raceId, state.classes.filter(raceClass => affected.has(raceClass.id)), snapshot, proposed);
   if (assessed === "too-large") throw new SourceSyncConflictError("too-large");
   return { consequence: consequence(assessed, []), assessed, finalClass: new Map(), ids };
@@ -379,6 +390,12 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
       courseVersionId: versionOf(action.courseRef, ids, state), startRule, externalSource: "iof", externalId: action.externalId });
     if (action.type === "CHANGE_CLASS_COURSE") await tx.update(schema.classes).set({ courseVersionId: versionOf(action.courseRef, ids, state) })
       .where(and(eq(schema.classes.id, action.classId), eq(schema.classes.raceId, raceId)));
+  }
+  // Rogaining: kontrollernas poäng (efter banorna, så att kontrollerna finns; null = förvalet).
+  for (const { action } of rows) {
+    if (action.type !== "SET_CONTROL_POINTS") continue;
+    await tx.insert(schema.controls).values({ raceId, code: action.code, points: action.points })
+      .onConflictDoUpdate({ target: [schema.controls.raceId, schema.controls.code], set: { points: action.points } });
   }
   const measured = new Set(rows.flatMap(({ action }) => action.type === "CHANGE_COURSE" || action.type === "SET_COURSE_MEASURES" ? [action.courseId] : []));
   await storeCourseMeasurements(tx, raceId, projection, state, links, ids, measured);

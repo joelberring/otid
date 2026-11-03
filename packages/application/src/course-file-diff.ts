@@ -1,4 +1,5 @@
 import type { SyncRow } from "@o-tid/contracts";
+import { defaultRogainingPoints } from "@o-tid/domain";
 import {
   normalized, PLACEHOLDER_COURSE, row, sameCodes, type CourseFileAction, type CourseFileProjection, type CourseRef, type CurrentCourse,
   type CurrentState, type PlannedRow, type SourceDiff
@@ -123,6 +124,19 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
       changes: [{ field: "COURSE", from: state.courses.find(course => course.id === local.courseId)?.name ?? null, to: courseName(target.ref) }],
       readOut: (readOutByClass.get(local.id) ?? 0) > 0 }),
     action: { type: "CHANGE_CLASS_COURSE", classId: local.id, courseRef: target.ref } });
+  }
+  // Rogaining: kontrollernas poäng ur banläggningen; ändrade poäng är egna rader (som andra ändringar i banorna).
+  for (const control of projection.data.controlPoints ?? []) {
+    const fallback = defaultRogainingPoints(control.code);
+    const before = state.controlPoints?.get(control.code) ?? fallback;
+    const after = control.points ?? fallback;
+    if (before === after) { unchanged += 1; continue; }
+    const usedBy = state.classes.filter(raceClass => state.courses.find(course => course.id === raceClass.courseId)?.controlCodes.includes(control.code)
+      || state.courses.find(course => course.id === raceClass.courseId)?.variants.some(variant => variant.controlCodes.includes(control.code)));
+    rows.push({ row: row({ key: `control-points:${control.code}`, kind: "CHANGED", subject: "CONTROL", label: String(control.code),
+      changes: [{ field: "POINTS", from: String(before), to: String(after) }],
+      readOut: usedBy.some(raceClass => (readOutByClass.get(raceClass.id) ?? 0) > 0) }),
+    action: { type: "SET_CONTROL_POINTS", code: control.code, points: after === fallback ? null : after } });
   }
   return { rows, links, unchanged };
 }

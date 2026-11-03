@@ -65,6 +65,11 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/print-jobs": { GET: "ADMIN", POST: "ADMIN" },
   "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]": { DELETE: "ADMIN" },
   "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]/pdf": { GET: "ADMIN" },
+  // ADR-0197: papperets bilder (den som ändrar laddar upp, den som läser ser dem) och kontots mallbibliotek.
+  "admin/races/[raceId]/administrator/course-setting/paper-images": { POST: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/paper-images/[sha256]": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/paper-library": { GET: "EDIT", POST: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/paper-library/[templateId]": { DELETE: "EDIT" },
   "admin/races/[raceId]/administrator/map/source": { GET: "MAP" }
 };
 /** Publika routes under api/races (startlistor) har ingen inloggning och ingår inte. */
@@ -116,9 +121,9 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 async function call(route: { file: string; path: string }, method: string): Promise<number> {
   const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
   const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid, noteId: uuid,
-    replyId: uuid, suggestionId: uuid, jobId: uuid, version: "1" });
+    replyId: uuid, suggestionId: uuid, jobId: uuid, templateId: uuid, sha256: "a".repeat(64), version: "1" });
   const write = method !== "GET";
-  const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
+  const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replace("[sha256]", "a".repeat(64)).replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {
       origin, cookie: `otid_organizer_session=otid_user_session_v1.${uuid}.${"s".repeat(43)}; otid_organizer_csrf=${"c".repeat(43)}`,
       "x-otid-csrf": "c".repeat(43), ...(write ? { "content-type": "application/json" } : {})

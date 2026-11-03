@@ -25,6 +25,7 @@
 .page { width: min(100%, 1120px); margin-inline: auto; padding: 20px 16px 48px; }
 .header { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin-bottom: 8px; }
 .header h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; overflow-wrap: anywhere; }
+.headSide { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .kicker { margin: 0 0 2px; color: var(--muted); font-size: var(--text-xs); }
 .kicker a { color: inherit; }
 .tabs { display: flex; gap: 0; margin: 12px 0 16px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }

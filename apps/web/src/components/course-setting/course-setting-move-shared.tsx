@@ -33,9 +33,9 @@ function MoveQuestion({ question, onChoose }: { question: SharedMove; onChoose: 
       ? text.occurrencesAll(question.occurrences) : text.occurrencesOne(question.occurrences)}</p>}
     <div className={styles.choices}>
       <button type="button" className={styles.choice} data-testid="course-setting-move-all" onClick={() => onChoose("ALL", remember)}>
-        <strong>{text.all(question.otherCourses.length + 1)}</strong><span>{text.allHelp}</span></button>
+        <strong>{`${text.all} (${question.otherCourses.length + 1})`}</strong><span>{text.allHelp}</span></button>
       <button type="button" className={styles.choice} data-testid="course-setting-move-new" onClick={() => onChoose("NEW", remember)}>
-        <strong>{text.newOnly(question.courseName)}</strong><span>{text.newHelp(question.newCode, question.code)}</span></button>
+        <strong>{`${text.newOnly} ${question.courseName}`}</strong><span>{text.newHelp(question.newCode, question.code)}</span></button>
       <button type="button" className={`${styles.choice} ${styles.quiet}`} data-testid="course-setting-move-cancel" onClick={() => onChoose("CANCEL", false)}>
         <strong>{text.cancel}</strong><span>{text.cancelHelp}</span></button>
     </div>

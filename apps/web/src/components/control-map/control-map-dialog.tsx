@@ -13,6 +13,7 @@ import { adminDrawing } from "./control-map-drawing";
 import { ControlMapSvg } from "./control-map-svg";
 import { RouteChoicePanel } from "./route-choice-panel";
 import { routeChoiceSv } from "../../i18n/route-choice-sv";
+import { HelpButton } from "../help/help-panel";
 import styles from "./control-map.module.css";
 
 /**
@@ -77,7 +78,11 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
     <div className={styles.panel}>
       <header className={styles.head}>
         <h2 id={titleId}>{text.title}</h2>
-        <Button variant="quiet" onClick={() => dialog.current?.close()}>{text.close}</Button>
+        {/* Hjälp (grenen hjalp-banlaggning): i läget Vägval vägvalens artiklar först. */}
+        <div className={styles.headActions}>
+          <HelpButton view={mode === "ROUTES" ? ["ROUTE_CHOICE", "CONTROL_MAP"] : ["CONTROL_MAP", "ROUTE_CHOICE"]} />
+          <Button variant="quiet" onClick={() => dialog.current?.close()}>{text.close}</Button>
+        </div>
       </header>
       {failed && <Notice tone="error" role="alert"><p>{text.failed}</p><div><Button variant="secondary" onClick={() => void load()}>{text.retry}</Button></div></Notice>}
       {!data && !failed && <p role="status" className={styles.muted}>{text.loading}</p>}

@@ -2,9 +2,10 @@
 export const moveSharedSv = {
   heading: (code: string) => `Flytta kontroll ${code}?`,
   intro: (code: string, meters: number, course: string) => `Du flyttar ${code} ${meters} m på ${course}. Kontrollen finns också på:`,
-  all: (count: number) => `Flytta i alla banor (${count})`,
+  /** Knapparna: "Flytta i alla banor (3)" och "Ny kontroll bara i Lång" (hjälpen citerar början). */
+  all: "Flytta i alla banor",
   allHelp: "Samma kontroll, nytt läge för alla banor.",
-  newOnly: (course: string) => `Ny kontroll bara i ${course}`,
+  newOnly: "Ny kontroll bara i",
   newHelp: (code: string, old: string) => `Kontroll ${code} på det nya läget; ${old} står kvar för de andra banorna. Beskrivningen fylls i på nytt.`,
   cancel: "Avbryt",
   cancelHelp: "Kontrollen går tillbaka.",

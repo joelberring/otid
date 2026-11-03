@@ -12,6 +12,7 @@ import { uploadPaperImage } from "../../lib/course-setting-paper-api";
 import { Button } from "../ui";
 import { CLIP_SELECTION, type PaperSelection } from "./course-setting-paper-items";
 import { PaperTemplatesSection } from "./course-setting-paper-templates";
+import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting-print-page.module.css";
 
 /** Ett element som det står på ett ark (för hörnbyte och klippningens förval). */
@@ -63,7 +64,7 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
   }
   return <section className={styles.panel} aria-labelledby="paper-space" data-testid="paper-space">
     <h2 id="paper-space">{text.heading}</h2>
-    <p className={styles.muted}>{text.help}</p>
+    <p className={styles.muted}>{text.help} <HelpLink article="papperet" view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></p>
     {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
     <div className={styles.row}>
       <label className={styles.field}>{text.course}<select value={course} onChange={event => { onCourse(event.target.value); onSelect(undefined); }}

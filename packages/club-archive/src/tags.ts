@@ -1,6 +1,6 @@
 /**
  * ADR-0194 beslut 6: föreslagna taggar ur mapp- och filnamnen. Orden följer träningsformerna i banläggningens träningsläge
- * (ADR-0192: korridor, fönster, kurvbild, linje, stjärna, keps, kartbitar, sista säkra, utan karta) och klubbens egna ord
+ * (ADR-0192 `TRAINING_TAGS`: korridor, fönster, kurvbild, linje, stjärna, keps, kartbitar, sista säkra, utan karta, spegel) och klubbens egna ord
  * (KepsOL, Rävorientering, Natt …). Taggarna är fri text och går att ändra i arkivet.
  */
 export const TAG_RULES: readonly { readonly tag: string; readonly pattern: RegExp }[] = [
@@ -15,6 +15,7 @@ export const TAG_RULES: readonly { readonly tag: string; readonly pattern: RegEx
   { tag: "Minnes", pattern: /minnes|minne-|pussel|kartbit/ },
   { tag: "Utan karta", pattern: /relä|kompass|utan karta/ },
   { tag: "Sista säkra", pattern: /sista säkra|attackpunkt/ },
+  { tag: "Spegel", pattern: /spegel/ },
   { tag: "Natt", pattern: /natt/ },
   { tag: "Stafett", pattern: /stafett/ },
   { tag: "Intervall", pattern: /intervall/ },

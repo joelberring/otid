@@ -52,6 +52,7 @@ describe("taggar, filernas slag, .ppen:s karta och kartornas namn", () => {
     expect(suggestTags(["Skogen Rävorientering.ppen"])).toEqual(["Rävorientering"]);
     expect(suggestTags(["Nattsprint stjärna KM"])).toEqual(expect.arrayContaining(["Sprint", "Stjärna", "Natt", "Tävling"]));
     expect(suggestTags(["Kurvbildskorridor"])).toEqual(["Korridor", "Kurvbild"]);
+    expect(suggestTags(["Spegelorientering Skogen.ppen"])).toEqual(["Spegel"]);
     expect(suggestTags(["Kmärket"])).toEqual([]);
   });
 

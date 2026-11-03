@@ -20,45 +20,108 @@ stora bodyn; `deploy/Caddyfile` tillåter 110 MB för just den sökvägen.
 
 ## Starta
 
-Krav: en Linux-server (x86 eller ARM) med Docker och Compose (1 vCPU och 1–2 GB minne räcker
-till en klubbträning; att bygga webben på servern kräver omkring 2 GB). Du behöver också ett domännamn vars A/AAAA-post pekar
-på servern (se [Server och domän](#server-och-domän)). Portarna 80 och 443 ska vara öppna.
+Krav: en Linux-server (x86) med Docker och Compose (1 vCPU och 1–2 GB minne räcker till en klubbträning; servern bygger
+inget själv, se [Uppdatera](#uppdatera)). Du behöver också ett domännamn vars A/AAAA-post pekar på servern (se
+[Server och domän](#server-och-domän)). Portarna 80 och 443 ska vara öppna.
 
 ```bash
 git clone https://github.com/joelberring/otid.git && cd otid
 cp deploy/prod.env.example .env      # fyll i OTID_DOMAIN och POSTGRES_PASSWORD
-docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
-```
-
-Bygg först och starta sedan (steg 45): då körs den gamla webben vidare medan den nya byggs, och ett misslyckat bygge
-stoppar ingenting. Bygget behöver omkring 2 GB minne. På en server med 4 GB (Hetzner CX23/CAX11) räcker det oftast, men
-lägg till 2 GB swap så att bygget inte dödas när databasen och webben redan använder minnet:
-
-```bash
-sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-free -h                               # Swap ska visa 2,0Gi
 ```
 
 Öppna `https://<OTID_DOMAIN>/organizer` och skapa det första kontot (e-post, namn och lösenord).
 Gör sedan dig själv till superadmin (se nedan).
 
-**Uppdatera:**
+## Uppdatera
+
+ADR-0195: GitHub Actions bygger webben och backupen när CI är grön för en push till `main` (arbetsflödet `Avbildningar`,
+`.github/workflows/images.yml`) och lägger dem i GitHub Container Registry som publika paket, så servern behöver ingen
+inloggning:
+
+- `ghcr.io/joelberring/otid-web` och `ghcr.io/joelberring/otid-backup`, var och en med taggarna `<sha>` (hela
+  commit-sha:n), `<kort sha>` (7 tecken) och `main` (den senaste gröna på `main`). Bara linux/amd64 (servern är x86).
+- De finns omkring **25 minuter** efter en push till `main`: CI tar 17–19 minuter och bygget av avbildningarna några till.
+  Se Actions → Avbildningar, eller `docker manifest inspect ghcr.io/joelberring/otid-web:<kort sha>` på servern.
+- Inget serverspecifikt byggs in: domänen, lösenorden och `NEXT_PUBLIC_INTRO_FILM_URL` läses från `.env` när tjänsterna
+  startar, så samma avbildning fungerar på alla servrar.
+- Paketen ska vara publika. Ett nytt paket på ghcr.io är privat; efter den första publiceringen ändrar repots ägare det en
+  gång för vart och ett av `otid-web` och `otid-backup`: GitHub → profilen → Packages → paketet → Package settings → Change
+  visibility → Public. (`docker compose ... pull` svarar annars `unauthorized` eller `denied`.)
 
 ```bash
+git pull && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+```
+
+`git pull` behövs fortfarande: compose-filen, `deploy/Caddyfile` och skripten i `deploy/` kommer från repot, och de ska höra
+ihop med avbildningen. Med förvalet (`OTID_TAG` tom eller `main`) hämtar `pull` den senaste gröna avbildningen från `main`;
+kör alltså uppdateringen först när arbetsflödet `Avbildningar` för den commit du drog ned är klart, annars får du förra
+versionens avbildning med den nya compose-filen. `pull` krävs: `up -d` ensam byter inte en avbildning som redan finns på
+servern.
+
+ADR-0186: `up` tar först en dump (`./backups/fore-migrering/`, de 10 senaste sparas) och kör sedan nya migreringar i tjänsten
+`migrate`; först därefter startas den nya webben. Misslyckas dumpen eller en migrering fortsätter den gamla webben att köra
+(se [Om en migrering misslyckas](#om-en-migrering-misslyckas)); `docker compose -f docker-compose.prod.yml logs backup-before-migrate migrate`
+visar varför. Det gäller likadant med hämtade avbildningar.
+
+**Låsa versionen (inför en tävling):** sätt den commit som ska köras i `.env`, så ändrar inget `pull` den förrän du ändrar
+raden. Ingen driftsättning på en tävlingsdag (AGENTS.md, ADR-0178):
+
+```bash
+git log --oneline -1                  # t.ex. a1b2c3d
+echo "OTID_TAG=a1b2c3d" >> .env       # kort eller hel sha; en sha som Avbildningar har publicerat
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+```
+
+Ta bort raden (eller sätt `OTID_TAG=main`) efter tävlingen för att följa `main` igen.
+
+**Tillbaka till förra versionen:** sätt `OTID_TAG=<förra sha>` i `.env` (`git log --oneline -5` visar dem) och kör
+`docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`. Repot behöver inte
+backas så länge `docker-compose.prod.yml`, `deploy/Caddyfile` och `deploy/*.sh` inte ändrats mellan versionerna
+(`git diff --stat <förra sha> HEAD -- docker-compose.prod.yml deploy` visar det); annars även `git checkout <förra sha>`, men
+aldrig till en commit före ADR-0195 (den compose-filen använder inte `OTID_TAG`). En äldre version kan inte ta bort en
+migrering som redan har körts; den fungerar så länge migreringarna bara lagt till (AGENTS.md, ADR-0185). Se
+[Om en migrering misslyckas](#om-en-migrering-misslyckas). Tillbaka till `main`: ta bort raden (och `git checkout main`)
+och uppdatera.
+
+### Bygga på servern (reserv)
+
+Om GitHub Actions eller ghcr.io inte fungerar kan servern bygga själv som förut. Sätt lokala namn i `.env`, så används
+inget från ghcr.io och `build` taggar avbildningarna med de namnen (kör inte `pull` då):
+
+```bash
+printf 'OTID_IMAGE=otid-web\nOTID_BACKUP_IMAGE=otid-backup\nOTID_TAG=local\n' >> .env
 git pull
 docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-(eller `git pull && docker compose -f docker-compose.prod.yml up -d --build`). ADR-0186: `up` tar först en dump
-(`./backups/fore-migrering/`, de 10 senaste sparas) och kör sedan nya migreringar i tjänsten `migrate`; först därefter
-startas den nya webben. Misslyckas dumpen eller en migrering fortsätter den gamla webben att köra (se
-[Om en migrering misslyckas](#om-en-migrering-misslyckas)); `docker compose -f docker-compose.prod.yml logs backup-before-migrate migrate`
-visar varför.
+Bygg först och starta sedan (steg 45): då körs den gamla webben vidare medan den nya byggs, och ett misslyckat bygge stoppar
+ingenting. Ta bort de tre raderna för att gå tillbaka till de färdiga avbildningarna. Docker-bygget hoppar över
+typkontrollen (CI gör den; `OTID_SKIP_BUILD_CHECKS` i `Dockerfile`) och sparar pnpm:s paket och Nexts byggcache mellan
+byggen (BuildKit-cache, försvinner med `docker builder prune`). Uppmätt 2026-11-03 (2 vCPU, bara `next build`): första
+bygget tar omkring 1,5 minut med en topp på 2,7 GB under några sekunder i slutet av kompileringen (förut 2,5 minuter och
+dessutom 2,2–2,3 GB i en minut medan typerna kontrollerades); nästa bygge med cachen 15 sekunder och 1,2 GB. På en server
+med 4 GB där databasen och webben redan använder 1–1,5 GB räcker det inte utan swap; lägg till 3 GB:
+
+```bash
+sudo fallocate -l 3G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h                               # Swap ska visa 3,0Gi
+```
+
+Samma sätt gäller en ARM-server (CAX11, Oracle): de färdiga avbildningarna finns bara för x86.
+
+## Loggar och äldre övergångar
 
 Loggarna begränsas till fem filer på 10 MB per tjänst (`logging` i `docker-compose.prod.yml`), så de fyller inte disken.
+
+**Färdiga avbildningar (ADR-0195, 2026-11):** första gången efter att ändringen kommit till `main` och arbetsflödet
+`Avbildningar` är klart: `git pull`, kontrollera att `.env` inte har `OTID_IMAGE`/`OTID_TAG`, kör sedan `pull` och `up -d` som
+i [Uppdatera](#uppdatera). Webbens tjänster startas om på den hämtade avbildningen (med dump och migrering först, som vanligt).
+När allt fungerar kan de gamla lokala avbildningarna och byggcachen tas bort: `docker image rm otid-web otid-backup` och
+`docker builder prune`.
 
 **Baslinjen i steg 23 (2026-10-18):** de 106 gamla migrationerna (och borttagningen av tolv döda
 tabeller) är ihopslagna till `0000_baseline.sql` (ADR-0173; det fanns ingen produktionsdata). En databas som skapats med de gamla
@@ -94,7 +157,8 @@ långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå f
 - **Minne (CX23, 4 GB):** `postgres` 1 GB, `web` 1 GB (Node 768 MB), `web-public` och `web-public2` 640 MB var (Node
   448 MB), utskriftsarbetaren 384 MB (huvudprocessen 96 MB, varje jobb i en barnprocess med 256 MB; 300 kartor per löpare
   på Högdalen 2026 tog 130 MB), Caddy och backupen 192 MB var, hälsokontrollen 64 MB. Summan 4,1 GB (taken är gränser, inte
-  reserverat minne); swappen räcker till bygget.
+  reserverat minne). Servern bygger inget (ADR-0195); bygger den ändå (reserv) behövs swap, se
+  [Bygga på servern](#bygga-på-servern-reserv).
 - **Utskrift (steg 65, ADR-0184):** PDF:er för tryck skrivs av `print-worker`, ett jobb i taget ur tabellen
   `course_setting_print_job`. Klara PDF:er sparas 7 dagar (högst 10 per tävling) och tas inte med i säkerhetskopian;
   raden om jobbet sparas 30 dagar. ADR-0186: varje jobb körs i en barnprocess med tidsgräns (`OTID_PRINT_JOB_TIMEOUT_MS`,
@@ -128,8 +192,9 @@ docker compose -f docker-compose.prod.yml exec postgres psql -U otid -c \
 
 ## Server och domän
 
-O-Tid behöver en liten Linux-server med Docker. Alla bilder (webben, `postgres:17`, Caddy) finns för både x86 och
-ARM sedan steg 28, så ARM-servrar fungerar också (bygget är inte provat på en ARM-server ännu). Priserna är ungefärliga
+O-Tid behöver en liten Linux-server med Docker. De färdiga avbildningarna för webben och backupen (ADR-0195) finns för
+x86; `postgres:17` och Caddy finns för både x86 och ARM, så en ARM-server fungerar om den bygger webben själv
+([reserv](#bygga-på-servern-reserv); inte provat på en ARM-server ännu). Priserna är ungefärliga
 (oktober 2026):
 
 | Alternativ | Vad | Att tänka på |
@@ -137,7 +202,7 @@ ARM sedan steg 28, så ARM-servrar fungerar också (bygget är inte provat på e
 | Hetzner CX23 | 2 vCPU (x86), 4 GB, ≈6 €/mån | Betalas per timme: skapa servern före tävlingen och radera den efteråt (spara `backups/` först). |
 | Hetzner CAX11 | 2 vCPU (ARM), 4 GB, ungefär samma pris | Som CX23, men ARM. |
 | Oracle Cloud Always Free | ARM (Ampere), upp till 4 vCPU och 24 GB, gratis | Region Stockholm finns. Registreringen kan nekas, och ledig ARM-kapacitet saknas ibland. |
-| Google Cloud e2-micro | 2 delade vCPU, 1 GB, gratis | Bara amerikanska regioner. 1 GB räcker inte för att bygga på servern: bygg bilden på en annan dator eller lägg till swap. |
+| Google Cloud e2-micro | 2 delade vCPU, 1 GB, gratis | Bara amerikanska regioner. Räcker med de färdiga avbildningarna; för att bygga på servern räcker 1 GB inte. |
 | Lokalt med Cloudflare Tunnel | Din egen dator, gratis | `cloudflared` ger en HTTPS-adress utan öppna portar (domänen måste ligga hos Cloudflare). Datorn måste vara på och ha nät hela tävlingen. Inte provat med O-Tid; Caddy behövs inte då. |
 
 **DNS:** lägg en A-post (och gärna AAAA för IPv6) för ett namn under klubbens domän som pekar på serverns adress,
@@ -451,7 +516,7 @@ med tävling), utskriftsarbetaren som `otid_print`, dump som ägaren och återst
 **Övergången** (på servern, i repots katalog, gärna inte under en tävling):
 
 ```bash
-git pull && docker compose -f docker-compose.prod.yml up -d --build      # den nya versionen, fortfarande som superuser
+git pull && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d   # ny version, superuser
 docker compose -f docker-compose.prod.yml exec backup sh /backup.sh dump  # en dump för säkerhets skull
 sh deploy/db-roles.sh setup     # skapar rollerna, lägger OTID_DB_*-raderna i .env, ger ägarskap och rättigheter
 sh deploy/db-roles.sh check     # sex rader som börjar med OK
@@ -530,14 +595,18 @@ och den gamla kör vidare om den var igång (annars svarar sidan 502). En dump t
 
    ```bash
    git log --oneline -5                  # hitta förra versionen
-   git checkout <förra-commit>
-   docker compose -f docker-compose.prod.yml build
+   echo "OTID_TAG=<förra-commit>" >> .env  # ADR-0195: förra versionens avbildning (kort sha)
+   docker compose -f docker-compose.prod.yml pull
    docker compose -f docker-compose.prod.yml up -d
    ```
 
+   (Se [Tillbaka till förra versionen](#uppdatera) om compose-filen också ändrats. Bygger servern själv,
+   [reserv](#bygga-på-servern-reserv): `git checkout <förra-commit>` och `build` i stället för `pull`.)
+
 3. Startar den inte heller (en tidigare migrering i samma uppdatering hann köras): återställ dumpen i
    `./backups/fore-migrering/` enligt [Återställa](#återställa), med förra versionen igång.
-4. Skicka felet till den som driver O-Tid. När det är rättat: `git checkout main`, `git pull`, bygg och starta igen.
+4. Skicka felet till den som driver O-Tid. När det är rättat: `git checkout main`, ta bort raden `OTID_TAG`, och
+   [uppdatera](#uppdatera) när rättelsens avbildning finns.
 
 ## Prova driftuppsättningen lokalt
 

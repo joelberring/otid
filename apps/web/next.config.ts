@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
   // O-Tid använder inte next/image. Utan optimering svarar /_next/image 404, så bildoptimeringens angreppsyta (SSRF,
   // GHSA för Image Optimization) finns inte alls. Playwright sakerhetshuvuden kontrollerar det.
   images: { unoptimized: true },
+  // ADR-0195: Docker-bygget (Dockerfile sätter OTID_SKIP_BUILD_CHECKS=1) hoppar över typkontrollen, som tog mest minne och
+  // tid på servern. CI kör `pnpm typecheck` och `pnpm build` med kontrollen vid varje push; lokalt `pnpm build` kontrollerar.
+  // Next 16 kör ingen ESLint i `next build`, så det finns inget att stänga av för lint.
+  typescript: { ignoreBuildErrors: process.env.OTID_SKIP_BUILD_CHECKS === "1" },
   async headers() {
     const privateAdminHeaders = [
       { key: "Cache-Control", value: "private, no-store" },

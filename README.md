@@ -85,8 +85,9 @@ och `cu.debug-console` är inte stationen. Steg för steg i `docs/sportident.md`
 
 ## Drift
 
-`docker compose -f docker-compose.prod.yml build` och sedan `up -d`, med PostgreSQL, webb (två instanser), Caddy (HTTPS)
-och backup varje timme kl. 08–23. Se [docs/drift.md](docs/drift.md). Hur stora tävlingar en liten server klarar och hur
+`docker compose -f docker-compose.prod.yml pull` och sedan `up -d` (färdiga avbildningar från ghcr.io som GitHub Actions
+bygger efter grön CI på `main`, ADR-0195; att bygga på servern finns kvar som reserv), med PostgreSQL, webb (två instanser),
+Caddy (HTTPS) och backup varje timme. Se [docs/drift.md](docs/drift.md). Hur stora tävlingar en liten server klarar och hur
 lasttestet körs om (`pnpm lasttest:seed`, `pnpm lasttest:load`): [docs/lasttest.md](docs/lasttest.md).
 
 ## Struktur

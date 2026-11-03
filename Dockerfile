@@ -1,11 +1,21 @@
 # Webben för drift (ADR-0168, steg 6): Next standalone + paketerad migrering.
+# ADR-0195: samma avbildning för alla servrar (inget serverspecifikt byggs in; allt läses från miljön när den startar). GitHub
+# Actions bygger den efter grön CI på main och lägger den i ghcr.io/joelberring/otid-web; servern hämtar den (docs/drift.md).
 FROM node:24-bookworm-slim AS build
-ENV CI=1 NEXT_TELEMETRY_DISABLED=1
+# OTID_SKIP_BUILD_CHECKS=1: next build hoppar över typkontrollen (CI kör den vid varje push). Halverar byggtiden och tar bort
+# en minut med drygt 2 GB i minnet. --build-arg OTID_SKIP_BUILD_CHECKS=0 kontrollerar typerna även här.
+ARG OTID_SKIP_BUILD_CHECKS=1
+# Taket gäller Nodes egen heap (Turbopack är Rust och räknas inte); bygget klarar sig med 1 GB, 1,5 GB ger marginal på 4 GB.
+ENV CI=1 NEXT_TELEMETRY_DISABLED=1 OTID_SKIP_BUILD_CHECKS=${OTID_SKIP_BUILD_CHECKS} NODE_OPTIONS=--max-old-space-size=1536
 RUN corepack enable
 WORKDIR /src
 COPY . .
-RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @o-tid/web build
+# BuildKit-cacher (finns bara på byggdatorn, inte i avbildningen): pnpm:s paketlager och Nexts byggcache (Turbopack). Ett nytt
+# bygge på samma dator laddar inte ner paketen igen och kompilerar bara det som ändrats.
+RUN --mount=type=cache,id=otid-pnpm-store,target=/pnpm-store,sharing=locked \
+  pnpm install --frozen-lockfile --store-dir /pnpm-store
+RUN --mount=type=cache,id=otid-next-cache,target=/src/apps/web/.next/cache,sharing=locked \
+  pnpm --filter @o-tid/web build
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 MIGRATIONS_DIR=/app/migrations

@@ -6,6 +6,7 @@
  */
 import { layout, printScaleOf } from "./overprint";
 import { placeDescription, type SheetDescription } from "./paper-layout";
+import { sheetPaperItems, type SheetPaperItem } from "./paper-items";
 import { measuredLengthMeters, variations } from "./walk";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
@@ -42,6 +43,8 @@ export interface CoursePageOptions {
   readonly training?: OverprintOptions["training"];
   /** false = ingen kontrollbeskrivning på papperet (t.ex. editorns ram); saknas = som banans papper. */
   readonly descriptions?: boolean | undefined;
+  /** Datumet för papperets {datum} (annars tävlingens värde i dokumentet). */
+  readonly date?: string | undefined;
 }
 
 /** En text på sidan (mm, y nedåt): `at` = vänsterkant och baslinje, `heightMm` = em-höjden. */
@@ -76,6 +79,8 @@ export interface CoursePage {
   readonly sheets: number;
   /** Kontrollbeskrivningen på papperet (bara första sidan), om banan har den (`paper-layout.ts`). */
   readonly description?: SheetDescription | undefined;
+  /** Papperets element (ADR-0197), bara första sidan. */
+  readonly paperItems?: readonly SheetPaperItem[] | undefined;
 }
 
 /** Ytan som figurerna täcker (ungefär: text som en ruta, beskrivningen som sin ruta). */
@@ -225,10 +230,14 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
     const transform = { scale, translateX: clip.x - mapArea.minX * scale, translateY: clip.y + mapArea.maxY * scale };
     const description = pages.length === 0 && !options.training?.section && options.descriptions !== false
       ? placeDescription(document, { course, ...(variant !== undefined ? { variant } : {}), clip, transform, figures }, 0) : undefined;
+    const paperItems = pages.length === 0 && !options.training?.section && options.descriptions !== false
+      ? sheetPaperItems(document, { course, ...(variant !== undefined ? { variant } : {}), printScale, clip }, 0,
+        { page: { x: 0, y: 0, width: widthMm, height: heightMm }, date: options.date }) : [];
     pages.push({
       course, ...(variant !== undefined ? { variant } : {}), title,
       paper: { widthMm, heightMm, landscape: page.landscape, marginMm }, mapScale, printScale, mapArea, clip, transform,
-      figures, texts, sheet: pages.length + 1, sheets: rows.length * columns.length, ...(description ? { description } : {})
+      figures, texts, sheet: pages.length + 1, sheets: rows.length * columns.length, ...(description ? { description } : {}),
+      ...(paperItems.length > 0 ? { paperItems } : {})
     });
   }
   return pages;

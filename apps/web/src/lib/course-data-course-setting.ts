@@ -1,4 +1,4 @@
-import { courseDataDocument, CourseSettingEditError, type CourseSettingDocument } from "@o-tid/course-setting";
+import { courseDataDocument, CourseSettingEditError, keepPaperOnImport, type CourseSettingDocument } from "@o-tid/course-setting";
 import { decodeIofXml, IofValidationError, readCourseLayout } from "@o-tid/iof-xml";
 import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
 import { courseDataSv as text } from "../i18n/course-data-sv";
@@ -32,13 +32,15 @@ export function courseSettingFromCourseData(bytes: Uint8Array, options: { readon
 }
 
 /**
- * Det som tar över en banläggning behåller tävlingens utskriftsprofiler, layoutmallar, ringklipp och träning (de står inte
- * i banfilen), som när en .ppen läses in i editorn.
+ * Det som tar över en banläggning behåller tävlingens utskriftsprofiler, layoutmallar, papperets mallar, ringklipp och
+ * träning (de står inte i banfilen), som när en .ppen läses in i editorn.
  */
 export function keepEventSettings(next: CourseSettingDocument, current: CourseSettingDocument | undefined): CourseSettingDocument {
   if (!current) return next;
   const event = current.event;
-  return { ...next, event: { ...next.event,
+  // ADR-0197: papperets mallar och värden följer med, liksom papperet för banor som finns kvar (samma som en .ppen i editorn).
+  const papered = keepPaperOnImport(current, next);
+  return { ...papered, event: { ...papered.event,
     ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
     ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}), ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) },
   ...(current.training ? { training: current.training } : {}) };

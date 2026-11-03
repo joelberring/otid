@@ -13,10 +13,19 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 ### 2026-11-03 – Banfil utan .ppen blir banläggning, sparbesked, fest och rogaining (grenen ppen-fran-iof)
 - IOF XML CourseData (3.0 och 2.0.3) utan .ppen blir banläggningsdokument (`readCourseLayout` i iof-xml, `courseDataDocument` i course-setting): kontroller med koder och lägen, start, mål, passager, kartbyte, poängbanor med poäng, banornas ordning, stigning, klasser som undertitel. Lägena är kartfilens mm rakt av (som .ppen; provat mot klubbens OCAD-kartor, 0,5–0,7 m). Varianter blir gafflingar eller slingor när varianterna blir exakt filens, annars egna banor med en rad i beskedet. Filens längd blir fast längd bara när den skiljer mer än 50 m. Inga beskrivningar (förslaget körs inte).
 - Använd igen med bara banfil öppnar banläggningen med banorna; Banor → Banfil erbjuder banorna i banläggningen när tävlingen har kartfil (en befintlig ersätts efter frågan och blir tidigare version).
-- Sparande utanför editorn: `saveOnLatest` (senaste versionen, ett tyst nytt försök vid konflikt) och en rad "Ändringen sparades inte – försök igen" med Försök igen (`SaveFailed`). Används av Banfil-erbjudandet; startsidans .ppen-inläsning säger nu till vid konflikt. Utskriftssidan (pappersrum) orörd.
+- Sparande utanför editorn: `saveOnLatest` (senaste versionen, ett tyst nytt försök vid konflikt) och en rad "Ändringen sparades inte – försök igen" med Försök igen (`SaveFailed`). Används av Banfil-erbjudandet; startsidans .ppen-inläsning säger nu till vid konflikt. Utskriftssidan (pappersrum) orörd. En ersatt banläggning behåller utskriftsprofiler, mallar, papperets mallar (ADR-0197), ringklipp och träning.
 - Banläggning syns för fest och rogaining (sidopanelen, Mina tävlingar, Banor); läget har tävlingstypen (`raceType`), rogaining ger nya poängbanor, festen saknar Överför till tävlingen och förklarar varför.
-- Verifierat: enhetstester (course-setting med Purple Pens exporter marymoor/relay/mapexchange som tur och retur, iof-xml, webbens lib), integration steg-62, typecheck och lint. Playwright `banfil-banlaggning` (Använd igen, dra starten, omladdning, Banfil ersätter efter frågan; rogaining och fest) körs i CI.
+- Verifierat: enhetstester (course-setting med Purple Pens exporter marymoor/relay/mapexchange som tur och retur, iof-xml, webbens lib), integration steg-62, typecheck och lint. Playwright `banfil-banlaggning` (Använd igen, dra starten, omladdning, Banfil ersätter efter frågan; rogaining och fest), skärmbilder 1280/390.
 - Kvar: banfilen flyttas inte till en nyare kartversion vid Använd igen (som förut); Purple Pens kartbyte vid en vanlig kontroll står inte i IOF XML.
+
+### 2026-11-03 – Papperet ("paper space"), steg 2 (grenen pappersrum, ADR-0197, migration 0063)
+- Förhandsvisningen har "Papperet: texter, bilder och klippning" per bana: text med variabler ({bana} {klass} {längd} {stigning} {tävling} {datum} {skala} {ekvidistans} {variant}), storlek, fet, justering, vit bakgrund; bild (PNG/JPG/SVG→PNG, högst 2 MB, en gång per sha256 i `course_setting_paper_image`) med låsta proportioner och täckning; skalstock ur banans utskriftsskala; nordpil. Allt förankrat i ramens eller arkets hörn (`paper-items.ts`, `event.paperLayouts`).
+- På arket: markera, dra, handtag för storleken, pilar 1 mm (Skift 5 mm), Delete, Escape/klick på tomt papper, Ångra och Ctrl+Z. 390 px: fälten i ett ark nere på skärmen. Ändringarna visas direkt och sparas en i taget.
+- Klippning (rektangel eller polygon, utanför vitt eller tonat) läggs på kartans pass (träningens ritning), så förhandsvisningen och PDF:en ritar den; banan klipps inte. Editorn visar inget av papperet.
+- Mallar för papperet (`event.paperTemplates`, `PUT/DELETE_PAPER_TEMPLATE`): banor ärver, ändringar per bana (`OVERRIDE`), dolda mallelement, på alla valda banor; kontots bibliotek (`course_setting_paper_template`) för andra tävlingar.
+- PDF:en ritar elementen som vektorer (bilderna med ExtGState för täckningen). .ppen: texter → textobjekt med Purple Pens makron, bilder → bildobjekt, beskrivningen även på automatisk plats; vid inläsning följer papperet med och O-Tid:s egna objekt (och en beskrivning exakt på automatisk plats) tas bort.
+- Verifierat: lint, typecheck, enhetstester (course-setting `paper-items`, print-pdf `paper-pdf`), integration `adr-0197-pappersrum`, Playwright `banlaggning-pappersrum` (1280/390) och de befintliga utskriftsspecarna.
+- Kvar: klubbarnas mallar (klubbarkivet har ingen plats för delade inställningar), SVG som vektor i PDF:en, bilderna i säkerhetskopian, dra på telefonen (siffrorna räcker).
 
 ### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
 - Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
@@ -949,6 +958,14 @@ brickor till steg 7.
 
 - Vägval: justera tidsförskjutning mellan GPS-klocka och stationer per rutt; georeferens från KMZ eller världsfil (OCAD) i stället för tre punkter;
   kontrollernas lägen från banfilens koordinater; sträcktidsanalys för stafett (per sträcka); uppladdning av flera GPX-filer matchade på namn.
+
+- Rekning (ägaren 2026-11-03, väntar tills det befintliga är klart): flera ritare rekar samma kartversion i fält, utan nät och med synk,
+  i stället för att flytta Mapper-filer för hand. Ändringar per objekt mot grundfilens sha256 (krock bara när samma objekt ändrats);
+  bara befintliga symboler. Tillbakaskrivning till OCAD och Mapper som sista steg: lappa filen (Mapper: byt bara ändrade `<object>`;
+  OCAD: ny post sist, indexposten ompekad, den gamla markerad borttagen), skriv aldrig om hela filen och skriv aldrig över originalet;
+  har grundfilen ändrats exporteras ändringarna som en liten egen fil. Ändrar ADR-0179 beslut 1. Bygger på fältlägets kö (steg 67),
+  kartfelens ritning och rollen Kartritare. Förberedelse: läsarna i `packages/map-file` sparar varifrån varje objekt kom
+  (indexpost och byteposition i OCAD, textintervall i XML).
 
 - Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). Det fastställda resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 

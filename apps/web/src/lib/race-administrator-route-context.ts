@@ -37,6 +37,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin,
   listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin,
   listPrintJobsAsAdmin, createPrintJobAsAdmin, readPrintJobPdfAsAdmin, deletePrintJobAsAdmin,
+  uploadPaperImageAsAdmin, readPaperImageAsAdmin, listPaperLibraryAsAdmin, savePaperLibraryAsAdmin, deletePaperLibraryAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
@@ -137,6 +138,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingInspections: listCourseSettingInspectionsAsAdmin, courseSettingInspection: setCourseSettingInspectionAsAdmin,
   // Steg 65: PDF för tryck (kön; utskriftsarbetaren skriver PDF:en).
   printJobs: listPrintJobsAsAdmin, printJobCreate: createPrintJobAsAdmin, printJobPdf: readPrintJobPdfAsAdmin, printJobDelete: deletePrintJobAsAdmin,
+  // ADR-0197: papperets bilder och mallbibliotek.
+  paperImageUpload: uploadPaperImageAsAdmin, paperImage: readPaperImageAsAdmin, paperLibrary: listPaperLibraryAsAdmin,
+  paperLibrarySave: savePaperLibraryAsAdmin, paperLibraryDelete: deletePaperLibraryAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
@@ -203,6 +207,8 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-note"; noteId: string } | { kind: "course-setting-note-reply-item"; noteId: string; replyId: string } |
   { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } |
   { kind: "course-setting-print-jobs" } | { kind: "course-setting-print-job"; jobId: string } | { kind: "course-setting-print-job-pdf"; jobId: string } |
+  { kind: "course-setting-paper-images" } | { kind: "course-setting-paper-image"; sha256: string } | { kind: "course-setting-paper-library" } |
+  { kind: "course-setting-paper-library-item"; templateId: string } |
   { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |

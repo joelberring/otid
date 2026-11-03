@@ -3,13 +3,14 @@ import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import {
   printJobRequestSchema, printJobSchema, printJobsSchema, type PrintJob, type PrintJobProblem, type PrintJobRequest, type PrintJobs
 } from "@o-tid/contracts";
-import { type CourseSettingDocument } from "@o-tid/course-setting";
+import { paperImageHashes, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import { courseSettingRead, courseSettingWrite, loadRow, type Failure, type ReadProof } from "./course-setting";
 import { layoutTemplateFor, PrintJobError, printProfileFor, renderPrintJob } from "./course-setting-print-render";
 import type { RaceSessionProof } from "./race-session";
 import { sha256Hex } from "./serialization";
 import { rowContent } from "./map-content";
+import { paperImagesFor } from "./course-setting-paper";
 import type { FontFiles } from "@o-tid/print-pdf";
 import { PDF_CAPABILITIES } from "@o-tid/print-pdf";
 
@@ -221,7 +222,8 @@ export async function runPrintJob(db: Database, job: ClaimedPrintJob, options: P
   try {
     const request = printJobRequestSchema.parse(row.request);
     const document = row.document as unknown as CourseSettingDocument;
-    const result = await renderPrintJob({ document, request, fonts: options.fonts, maxPages: PRINT_JOB_LIMITS.maxPages,
+    const paperImages = await paperImagesFor(db, paperImageHashes(document));
+    const result = await renderPrintJob({ paperImages, document, request, fonts: options.fonts, maxPages: PRINT_JOB_LIMITS.maxPages,
       title: [race?.name, document.event.title.replace(/\|/g, " ")].filter(Boolean).join(" – ") || "O-Tid banor", now: clock(),
       map: map ? { bytes: new Uint8Array(map.file), fileName: map.fileName, bounds: map.bounds } : null });
     const maxBytes = options.maxBytes ?? PRINT_JOB_LIMITS.maxBytes;

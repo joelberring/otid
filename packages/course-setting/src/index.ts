@@ -75,6 +75,7 @@ export * from "./layout-template";
 export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";
 // Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan; senare fler element på arket.
 export * from "./paper-layout";
+export * from "./paper-items";
 export { printSheetGroups, type SheetGroup, type SheetGroupOptions, type SheetLayout } from "./print-sheets";
 // En banfil (IOF XML CourseData) utan .ppen som banläggningsdokument.
 export {

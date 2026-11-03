@@ -131,7 +131,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   // Visa → Markera varningar: raden markerar kontrollerna; släckt syns ingen markering.
   await panel.locator('[data-key="LEG_NO_ROUTE/6/7"]').getByRole("button", { name: /^Lång: kontroll 35–kontroll 36/ }).click();
   await expect(marks(owner)).toHaveAttribute("data-marks", /flagged:2/);
-  await owner.getByRole("button", { name: /^Visa/ }).click();
+  await owner.getByRole("button", { name: "Visa ▾" }).click();
   await owner.getByRole("checkbox", { name: "Markera varningar" }).uncheck();
   await expect(marks(owner)).toHaveAttribute("data-marks", /flagged:0/);
   await owner.getByRole("checkbox", { name: "Markera varningar" }).check();
@@ -167,7 +167,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await expect(phone.getByTestId("course-setting-field-status")).toHaveText("Sparat", { timeout: 30_000 });
   await expect(marks(phone)).toHaveAttribute("data-marks", /inspected:1/, { timeout: 15_000 });
 
-  await phone.getByRole("button", { name: /^Visa/ }).click();
+  await phone.getByRole("button", { name: "Visa ▾" }).click();
   const inspected = phone.getByRole("checkbox", { name: "Kollade kontroller" });
   await expect(inspected).toBeChecked();
   await inspected.uncheck();
@@ -175,7 +175,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await phone.reload();
   await expect(phone.getByTestId("course-setting-field")).toBeVisible({ timeout: 30_000 });
   await expect(marks(phone)).toHaveAttribute("data-marks", /inspected:0/, { timeout: 30_000 });
-  await phone.getByRole("button", { name: /^Visa/ }).click();
+  await phone.getByRole("button", { name: "Visa ▾" }).click();
   await expect(phone.getByRole("checkbox", { name: "Kollade kontroller" })).not.toBeChecked();
   await shot(phone, "banlaggning-varningar-falt-visa-390");
 

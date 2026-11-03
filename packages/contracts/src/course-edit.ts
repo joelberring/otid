@@ -91,7 +91,11 @@ export const courseEditPreviewResponseSchema = z.object({
    */
   forking: z.object({
     variants: z.array(z.object({ code: courseVariantCodeSchema, controlCodes, previousCode: courseVariantCodeSchema.nullable() }).strict()).max(100),
-    removedCodes: z.array(courseVariantCodeSchema).max(100), renamedEntryCount: count, reassignedEntryCount: count
+    removedCodes: z.array(courseVariantCodeSchema).max(100), renamedEntryCount: count, reassignedEntryCount: count,
+    /** ADR-0198: varianter som strukturen ger men som är bortvalda i banläggningen (sparas inte). */
+    excludedCodes: z.array(courseVariantCodeSchema).max(1000).optional(),
+    /** ADR-0198: bortval som inte längre stämmer med någon variant; de följer med banversionen men gäller inte. */
+    staleExcludedCodes: z.array(courseVariantCodeSchema).max(1000).optional()
   }).strict().optional(),
   readOutCount: count, becomesOkCount: count, becomesMispunchedCount: count, unchangedCount: count,
   notRecalculatedCount: count, changes: z.array(courseEditChangeSchema).max(10_000), requiresConfirmation: z.boolean(),

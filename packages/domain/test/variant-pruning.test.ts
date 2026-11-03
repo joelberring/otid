@@ -72,6 +72,40 @@ describe("färre varianter: längst i alla avseenden (ADR-0198)", () => {
   });
 });
 
+describe("färre varianter: de längsta (förval, ägaren 2026-11-03)", () => {
+  it("tar bort de tre längsta, längsta först, med skälet och den kortare varianten", () => {
+    const result = pruneVariants(eight, { longest: 3 });
+    expect(result.kept).toEqual(["ACE", "ACF", "ADE", "BCE", "BDE"]);
+    expect(result.excluded).toEqual([{ code: "ADF", reason: "LONGEST", by: "ACE" }, { code: "BCF", reason: "LONGEST", by: "ACE" },
+      { code: "BDF", reason: "LONGEST", by: "ACE" }]);
+    expect(result.protected).toEqual([]);
+  });
+
+  it("bara bland dem som är längre i alla avseenden än en som blir kvar", () => {
+    // ADF är längst fågelvägen men kortast längs vägval: ingen annan är kortare i båda, så den blir kvar.
+    const routes: Record<string, number> = { ACE: 3500, ACF: 3900, ADE: 3600, ADF: 3300, BCE: 3800, BCF: 4200, BDE: 3900, BDF: 4300 };
+    const result = pruneVariants(codes.map(code => variant(code, routes[code])), { longest: 2 });
+    expect(result.lengthMeasure).toBe("ROUTE");
+    // Längs vägval: BDF 4300 och BCF 4200 tas bort.
+    expect(result.excluded.map(row => row.code)).toEqual(["BCF", "BDF"]);
+    expect(pruneVariants(codes.map(code => variant(code, routes[code])), { longest: 7 }).kept).toContain("ADF");
+  });
+
+  it("skyddet: den enda med en kontroll hoppas över och nästa längsta tas i stället", () => {
+    // Bara ACE, ACF och BDF: F (46) finns i ACF och BDF, B (42) och D (44) bara i BDF.
+    const three = ["ACE", "ACF", "BDF"].map(code => variant(code));
+    const result = pruneVariants(three, { longest: 1 });
+    expect(result.excluded.map(row => row.code)).toEqual(["ACF"]);
+    expect(result.protected).toEqual([{ code: "BDF", reason: "LONGEST", control: "42" }]);
+  });
+
+  it("aldrig fler än som finns; lika långa tas inte bort", () => {
+    expect(pruneVariants(eight, { longest: 10 }).kept).toEqual(["ACE", "ACF", "ADE", "BCE"]);
+    const tie = [variant("ACE"), { ...variant("ACF"), straightMeters: 3000 }];
+    expect(pruneVariants(tie, { longest: 1 }).excluded).toEqual([]);
+  });
+});
+
 describe("färre varianter: tak (ADR-0198)", () => {
   it("högst 5 % längre än den kortaste; skyddet behåller den enda med 42 och 46", () => {
     const result = pruneVariants(eight, { dominated: false, maxPercentLonger: 5 });

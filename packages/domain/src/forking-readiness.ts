@@ -9,6 +9,9 @@ import { forkingLetters, MAX_FORKING_VARIANTS, type CourseForking, type ForkingC
  * - Fördelningen per gafflingspunkt inom varje klass: antal löpare per alternativ (enkel gaffling) eller per
  *   slingordning (fjäril). Ojämn när det skiljer mer än en löpare mellan alternativen.
  * - Antal varianter (högst 100) och bokstäver (högst 26).
+ *
+ * ADR-0198: bortvalda varianter (`excludedVariantCodes`) räknas inte. De är inte giltiga för löparna, antalet och
+ * bokstäverna räknas bara på de behållna, och en löpare med en bortvald kod saknar variant.
  */
 export interface ForkingReadinessClass {
   readonly name: string;
@@ -19,7 +22,10 @@ export interface ForkingReadinessClass {
 export interface ForkingPointCount { readonly letters: string; readonly count: number }
 
 export interface ForkingReadiness {
+  /** Behållna varianter. */
   readonly variantCount: number;
+  /** Bortvalda varianter (ADR-0198). */
+  readonly excludedCount: number;
   readonly tooManyVariants: boolean;
   readonly tooManyLetters: boolean;
   readonly unusedVariants: readonly string[];
@@ -46,26 +52,44 @@ function pointOptions(letters: readonly string[], item: CourseForking["items"][n
   return walk(letters);
 }
 
+/**
+ * Bokstäverna som behövs: alla alternativ och slingor, eller (med bortval) bara de alternativ som någon behållen variant
+ * väljer. En fjäril behåller alla sina slingor (alla springs).
+ */
+function usedLetterCount(forking: CourseForking, keptCodes: readonly string[] | null,
+  choices: ReadonlyMap<string, readonly ForkingChoice[]> | undefined): number {
+  return forking.items.reduce((sum, item, index) => {
+    if (item.kind === "LOOP") return sum + item.loops.length;
+    if (item.kind !== "FORK") return sum;
+    if (!keptCodes || !choices) return sum + item.branches.length;
+    const used = new Set(keptCodes.map((code) => choices.get(code)?.[index]).filter((choice): choice is number => typeof choice === "number"));
+    return sum + (used.size > 0 ? used.size : item.branches.length);
+  }, 0);
+}
+
 export function forkingReadiness(input: {
   readonly variantCodes: readonly string[];
   readonly forking?: CourseForking | null;
   /** Varje variants val per gafflingspunkt (sparad eller härledd struktur). */
   readonly choices?: ReadonlyMap<string, readonly ForkingChoice[]>;
   readonly classes: readonly ForkingReadinessClass[];
+  /** ADR-0198: varianterna som är bortvalda (räknas inte). */
+  readonly excludedVariantCodes?: readonly string[];
 }): ForkingReadiness {
-  const valid = new Set(input.variantCodes);
+  const excluded = new Set(input.excludedVariantCodes ?? []);
+  const variantCodes = input.variantCodes.filter((code) => !excluded.has(code));
+  const valid = new Set(variantCodes);
   const runners = input.classes.flatMap((row) => row.runnerVariants);
   const used = new Set(runners.filter((code): code is string => code !== null && valid.has(code)));
-  const unusedVariants = input.variantCodes.filter((code) => !used.has(code));
-  const unusedExpected = runners.length < input.variantCodes.length;
+  const unusedVariants = variantCodes.filter((code) => !used.has(code));
+  const unusedExpected = runners.length < variantCodes.length;
   const missingVariant = input.classes.flatMap((row) => {
     const count = row.runnerVariants.filter((code) => code === null || !valid.has(code)).length;
     return count > 0 ? [{ className: row.name, count }] : [];
   });
   const forking = input.forking ?? null;
   const letters = forking ? forkingLetters(forking) : [];
-  const letterCount = forking ? forking.items.reduce((sum, item) => sum + (item.kind === "FORK" ? item.branches.length
-    : item.kind === "LOOP" ? item.loops.length : 0), 0) : 0;
+  const letterCount = forking ? usedLetterCount(forking, excluded.size > 0 ? variantCodes : null, input.choices) : 0;
   const uneven: { className: string; point: number; counts: ForkingPointCount[] }[] = [];
   if (forking && input.choices) {
     for (const raceClass of input.classes) {
@@ -90,8 +114,8 @@ export function forkingReadiness(input: {
       });
     }
   }
-  const tooManyVariants = input.variantCodes.length > MAX_FORKING_VARIANTS;
+  const tooManyVariants = variantCodes.length > MAX_FORKING_VARIANTS;
   const tooManyLetters = letterCount > 26;
-  return { variantCount: input.variantCodes.length, tooManyVariants, tooManyLetters, unusedVariants, unusedExpected, missingVariant, uneven,
+  return { variantCount: variantCodes.length, excludedCount: input.variantCodes.length - variantCodes.length, tooManyVariants, tooManyLetters, unusedVariants, unusedExpected, missingVariant, uneven,
     ok: !tooManyVariants && !tooManyLetters && missingVariant.length === 0 && uneven.length === 0 && (unusedVariants.length === 0 || unusedExpected) };
 }

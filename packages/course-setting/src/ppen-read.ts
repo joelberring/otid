@@ -15,6 +15,7 @@ import type {
 import { rawPrintArea, readSpecialFields } from "./ppen-special";
 import { enumerateCourseControls } from "./walk";
 import { readTrainingElement, TRAINING_ELEMENT } from "./training-ppen";
+import { readVariantsElement, VARIANTS_ELEMENT } from "./variants-ppen";
 import { attr, childElements, parseXml, textOf, type XmlElement } from "./xml";
 
 class Warnings {
@@ -59,6 +60,7 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
   const legs: Record<string, Leg> = {};
   const specialObjects: SpecialObject[] = [];
   let trainingXml: XmlElement | undefined;
+  let variantsXml: XmlElement | undefined;
   const seen = new Map<string, Set<string>>();
   const unique = (kind: string, id: string) => {
     const ids = seen.get(kind) ?? new Set<string>();
@@ -111,6 +113,10 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
         // Träningsläget (ADR-0192 beslut 10) läses när banorna finns; ett andra element sparas orört.
         if (trainingXml) raw.push(toRaw(child)); else trainingXml = child;
         break;
+      case VARIANTS_ELEMENT:
+        // Bortvalda varianter (ADR-0198) läses när banorna finns; ett andra element sparas orört.
+        if (variantsXml) raw.push(toRaw(child)); else variantsXml = child;
+        break;
       default:
         raw.push(toRaw(child));
         warnings.add("UNKNOWN_ELEMENT", "Element som O-Tid inte känner till sparas orörda");
@@ -146,6 +152,13 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
     catch {
       document = { ...document, raw: [...raw, toRaw(trainingXml)] };
       warnings.add("TRAINING_UNREADABLE", "Träningen i filen gick inte att läsa och sparas orörd");
+    }
+  }
+  if (variantsXml) {
+    try { document = readVariantsElement(variantsXml, document); }
+    catch {
+      document = { ...document, raw: [...document.raw, toRaw(variantsXml)] };
+      warnings.add("VARIANTS_UNREADABLE", "De bortvalda varianterna i filen gick inte att läsa och sparas orörda");
     }
   }
   const used = new Set<string>();

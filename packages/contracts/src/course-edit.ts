@@ -44,7 +44,7 @@ export const courseEditListResponseSchema = z.object({
       shortestMeters: z.number().int().min(1).max(1_000_000).nullable(), longestMeters: z.number().int().min(1).max(1_000_000).nullable()
     }).strict().optional(),
     /** Steg 61: kontrollen före tävlingen (domänens `forkingReadiness`). Saknas för ogafflade banor och stafettbanor. */
-    readiness: z.object({ ok: z.boolean(), variantCount: count, tooManyVariants: z.boolean(), tooManyLetters: z.boolean(),
+    readiness: z.object({ ok: z.boolean(), variantCount: count, excludedCount: count.optional(), tooManyVariants: z.boolean(), tooManyLetters: z.boolean(),
       unusedVariants: z.array(courseVariantCodeSchema).max(1000), unusedExpected: z.boolean(),
       missingVariant: z.array(z.object({ className: name, count }).strict()).max(1000),
       uneven: z.array(z.object({ className: name, point: z.number().int().min(1).max(1000),

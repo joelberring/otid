@@ -11,7 +11,8 @@
 import { fromRaw, toRaw } from "./ppen-common";
 import type { Course, CourseChanges, CourseSettingDocument } from "./types";
 import { CourseSettingEditError } from "./types";
-import { enumerateCourseControls, findCourse } from "./walk";
+import { isExcludedVariant } from "./summary";
+import { enumerateCourseControls, findCourse, variations } from "./walk";
 import { el } from "./xml";
 
 const invalid = (message: string) => new CourseSettingEditError("INVALID", message);
@@ -64,6 +65,34 @@ function scoreColumnOutsideA(course: Course): Course {
 const hasSplit = (document: CourseSettingDocument, courseId: string) =>
   enumerateCourseControls(document, courseId).some(id => document.courseControls[id]?.split !== undefined);
 
+const MAX_EXCLUDED = 5000;
+
+/** ADR-0198: de bortvalda varianterna (ersätts helt). Formen kontrolleras; minst en av banans varianter måste användas. */
+function withExcludedVariants(document: CourseSettingDocument, course: Course, value: CourseChanges["excludedVariants"]): Course {
+  if (value === undefined || value === null || value.length === 0) return without(course, "excludedVariants");
+  const list: readonly unknown[] = Array.isArray(value) ? value : [];
+  if (list.length === 0 || list.length > MAX_EXCLUDED) throw invalid("Ogiltiga bortvalda varianter");
+  const rows = list.map(item => {
+    const row = item as { code?: unknown; controls?: unknown } | null;
+    const controls: readonly unknown[] = Array.isArray(row?.controls) ? row.controls as unknown[] : [];
+    if (typeof row?.code !== "string" || row.code.length === 0 || row.code.length > 64 || !Array.isArray(row.controls) || controls.length > 1000 ||
+      !controls.every(code => typeof code === "string" && code.length <= 32)) throw invalid("Ogiltig bortvald variant");
+    return { code: row.code, controls: controls as string[] };
+  });
+  if (course.kind === "SCORE") throw invalid("En poängbana har inga varianter");
+  const next = { ...course, excludedVariants: rows };
+  const changed = { ...document, courses: document.courses.map(existing => existing.id === course.id ? next : existing) };
+  const all = variations(changed, course.id);
+  if (all.length > 0 && all.every(variation => {
+    const controls = enumerateCourseControls(changed, course.id, variation.choices).flatMap(id => {
+      const control = changed.controls[changed.courseControls[id]?.control ?? ""];
+      return control?.kind === "NORMAL" && control.code !== undefined ? [control.code] : [];
+    });
+    return isExcludedVariant(next, { code: variation.code, controlCodes: controls });
+  })) throw invalid("Minst en variant måste användas");
+  return next;
+}
+
 /** `UPDATE_COURSE`: ändrar banan; `order` flyttar den i listan. */
 export function updateCourse(document: CourseSettingDocument, courseId: string, changes: CourseChanges): CourseSettingDocument {
   let course = findCourse(document, courseId);
@@ -89,6 +118,7 @@ export function updateCourse(document: CourseSettingDocument, courseId: string, 
     }
     course = { ...course, kind: changes.kind, labelKind: labelForKind(course.labelKind, changes.kind) };
   }
+  if ("excludedVariants" in changes) course = withExcludedVariants(document, course, changes.excludedVariants);
   if ("labelKind" in changes) {
     const label = changes.labelKind;
     if (label === undefined) throw invalid("labelKind måste ha ett värde");

@@ -11,6 +11,7 @@ import {
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
 import { Button, Notice } from "../ui";
 import { BlCompare, BlLayers, type RenderImage } from "./course-setting-bl-compare";
+import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting-bl-proposal.module.css";
 
 /**
@@ -72,7 +73,7 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
     <div className={styles.head}>
       <h2 id="bl-proposal">{text.heading(baseName(profile, builtIn))}</h2>
       <p className={styles.muted}>{text.source(table.sourceDate, table.effectiveFrom)} · <a href={table.sourceUrl} target="_blank" rel="noreferrer">{text.sourceLink}</a></p>
-      <p>{text.intro}</p>
+      <p>{text.intro} <HelpLink article="bl-farger" view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></p>
     </div>
     {!state ? <p role="status" className={styles.muted}>{text.noColors}</p> : <>
       <div className={styles.bar}>

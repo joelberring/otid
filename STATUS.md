@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Hjälp för banläggning, vägval och klubbarkiv (grenen hjalp-banlaggning, bygger på steg 37)
+- Hjälp i banläggningens rad överst (bara "?" under 900 px), på sidan före editorn, utskriftssidan, kontrollbeskrivningarna, klubbarkivet (flikarna och en träning) och i kontrollkartan. Panelen visar först den öppna flikens artiklar (fältläget först på telefonen), sedan banläggningen i stort; i kontrollkartans läge Vägval vägvalens.
+- 37 nya artiklar i `help-course-setting-sv.ts`, `help-print-sv.ts` och `help-archive-route-sv.ts` (Kom igång ×2 som numrerade steg, kartfil och .ppen, verktygen, gaffling, objekt, egenskaper, beskrivning och förslag, varningar, notiser, fältläget, utan nät, kollat, utskrift, beskrivningen på kartan, BL, PDF, samarbete, versioner, förslag, utseende, överföring, vägval ×6, kontrollkartan, arkivet ×6); Träning utökad.
+- Artiklarna länkar till varandra (`[text](#id)`); sökningen har synonymer (kartdef, ppen, gafflingar, hänga/utsättning, tryck/utskrift/pdf, offline) och ställer rubrikträffar först; "tryck på" räknas inte som tryck.
+- Små "?" (`HelpLink`) vid kalibreringen av farterna, BL-förslaget, gafflingen (Gaffla här och Vald), beskrivningens plats på arket, importen till arkivet och vägvalen för vald sträcka.
+- "Se filmen (1 min)" i hjälpens fot och på /om när `NEXT_PUBLIC_INTRO_FILM_URL` är satt (layouten lägger adressen på body vid förfrågan).
+- Tester: `help-sv` (varje citat finns som UI-text, länkarna går till artiklar, varje flik i editorn och arkivet har artiklar, Kom igång 5–8 steg), `help-search` (synonymer, vyernas ordning, efterfrågad artikel först), Playwright `hjalp-banlaggning` (1280/390).
+- Återstår när grenarna pappersrum, ppen-fran-iof, gaffling-urval, varningar och flytta-kontroll slås ihop: lägg till stycken i artiklarna `utskrift`, `purple-pen`, `gaffling`, `varningar` och `kontroller-banor`.
+
 ### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
 - Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
 - Kontrollbeskrivningen på kartan hör till papperet (`paper-layout.ts`, `event.paperLayouts`, `SET_PAPER_LAYOUT`): på för varje bana, automatiskt i ett fritt hörn med varning när den täcker banan, dras/ändras på arket i förhandsvisningen (piltangenter också). Ritas inte i editorn; Purple Pens `descriptions` tolkas som platsen och skrivs tillbaka vid export. Mallens gamla plats gäller bara utan utplacering.

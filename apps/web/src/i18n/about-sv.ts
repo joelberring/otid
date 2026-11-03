@@ -7,6 +7,8 @@ export const aboutSv = {
   intro: "O-Tid är banläggning och tidtagning för orientering i webbläsaren. Det är gjort för klubbtävlingar och träningar.",
   introMore: "Du lägger in banor, klasser och anmälda på webben. I mål läser du av brickorna med en SPORTident-station. " +
     "Löparna ser start- och resultatlistor på mobilen utan att logga in.",
+  /** Bara när NEXT_PUBLIC_INTRO_FILM_URL är satt. */
+  film: "Se filmen (1 min)",
   betaTitle: "Beta – fritt att använda",
   beta: "O-Tid är i beta. Det är öppet och gratis att använda. Det fungerar, men det kan finnas fel. " +
     "Hör gärna av dig om något krånglar.",

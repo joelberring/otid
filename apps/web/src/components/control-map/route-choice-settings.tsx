@@ -6,6 +6,7 @@ import type { CostModel } from "@o-tid/route-choice";
 import { routeChoiceSv as text } from "../../i18n/route-choice-sv";
 import type { CalibrationResult, SpeedFactors } from "../../lib/route-choice-worker-protocol";
 import { Button, Notice } from "../ui";
+import { HelpLink } from "../help/help-panel";
 import styles from "./route-choice.module.css";
 
 type SpeedClass = (typeof ROUTE_CHOICE_SPEED_CLASSES)[number];
@@ -107,8 +108,8 @@ export function RouteChoiceCalibration({ runners, onCalibrate, onSave }: {
   return <details className={styles.details}>
     <summary>{text.calibration.heading}</summary>
     <div className={styles.form}>
-      {runners === 0 ? <p className={styles.muted}>{text.calibration.none}</p> : <>
-        <p className={styles.muted}>{text.calibration.help(runners)}</p>
+      {runners === 0 ? <p className={styles.muted}>{text.calibration.none} <HelpLink article="vagval-kalibrering" view={["ROUTE_CHOICE"]} /></p> : <>
+        <p className={styles.muted}>{text.calibration.help(runners)} <HelpLink article="vagval-kalibrering" view={["ROUTE_CHOICE"]} /></p>
         <div className={styles.actions}><Button variant="secondary" onClick={() => void calibrate()} disabled={state === "running"}>
           {text.calibration.button}</Button></div>
         {state === "running" && <p role="status" className={styles.status}>{text.calibration.running}</p>}

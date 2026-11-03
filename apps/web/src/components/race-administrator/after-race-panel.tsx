@@ -29,6 +29,7 @@ import { ResultsOfficialSection } from "./results-official-section";
 import { resultsOfficialSv as officialText } from "../../i18n/results-official-sv";
 import { decisionReviewSv as reviewText } from "../../i18n/decision-review-sv";
 import { DecisionReviewList } from "./decision-review";
+import { ClubArchiveReminder } from "./club-archive-section";
 import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
 /**
@@ -74,6 +75,8 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
       actions={!workflowLocked && <nav className={styles.contextLinks} aria-label={text.resultsLinks}>
         <Link href={`/results/${raceId}`}>{text.publicResultsLink}</Link>
       </nav>} />
+    {/* ADR-0209: påminnelsen efter tävlingen (bara när det finns en klubbyta där kontot är administratör). */}
+    <ClubArchiveReminder raceId={raceId} onOpen={() => ws.navigateStep("SETTINGS")} />
     {data && mispunchedEntries(data).length > 0 && <section className={controlStyles.controlCard} aria-labelledby={`control-mp-${raceId}`}>
       <MispunchedList ws={ws} />
     </section>}

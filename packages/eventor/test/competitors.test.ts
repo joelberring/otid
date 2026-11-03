@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
-  EventorAdapterError, eventorClient, parseEventorCompetitorList, parseEventorCompetitorStream, parseEventorOrganisations
+  EventorAdapterError, eventorClient, normalizeMemberEmail, parseEventorCompetitorList, parseEventorCompetitorStream, parseEventorMemberStream,
+  parseEventorOrganisations
 } from "../src/index";
+import { textChunks } from "../src/stream";
 
 /**
  * PLAN.md steg 29: löpardatabasen. `competitors.xml` har samma struktur som Eventors riktiga svar (provat 2026-10-19 med
@@ -172,5 +174,36 @@ describe("eventorClient: löpardatabasen", () => {
     const client = (status: number) => eventorClient({ apiKey: KEY, fetch: (async () => new Response("", { status })) as unknown as typeof fetch });
     expect(await code(() => client(401).competitors({ wholeCountry: true }))).toBe("REJECTED");
     expect(await code(() => client(503).organisations())).toBe("UPSTREAM_UNAVAILABLE");
+  });
+});
+
+describe("ADR-0209: klubbens medlemslista (bara id och hash av adressen)", () => {
+  const hash = (email: string) => `h(${email})`;
+
+  it("ger person-id och hashen av den normaliserade adressen; personer utan adress hoppas över", async () => {
+    const members = await parseEventorMemberStream(textChunks(fixture("persons-organisation.xml")), hash);
+    expect(members).toEqual([{ personId: "700001", emailHashes: ["h(maja.medlem@exempel.se)"] },
+      { personId: "700002", emailHashes: ["h(anders.annan@exempel.se)"] }]);
+    const text = JSON.stringify(members);
+    for (const secret of ["Medlemsson", "1985", "Påhittad", "070-0000001", "Maja"]) expect(text).not.toContain(secret);
+  });
+
+  it("läser också IOF 3.0 Contact och ignorerar ogiltiga adresser", async () => {
+    const xml = `<PersonList><Person><Id>9</Id><Contact type="EmailAddress"> A@B.SE </Contact><Contact type="PhoneNumber">1</Contact>
+      <EMail>inte-en-adress</EMail></Person></PersonList>`;
+    expect(await parseEventorMemberStream(textChunks(xml), hash)).toEqual([{ personId: "9", emailHashes: ["h(a@b.se)"] }]);
+    expect(normalizeMemberEmail(" X@Y.se ")).toBe("x@y.se");
+  });
+
+  it("frågar med klubbens id och includeContactDetails, nyckeln bara i headern", async () => {
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://eventor.orientering.se/api/persons/organisations/9901?includeContactDetails=true");
+      expect(init?.headers).toMatchObject({ ApiKey: KEY });
+      return response(fixture("persons-organisation.xml"));
+    });
+    const members = await eventorClient({ apiKey: KEY, fetch: fetch as unknown as typeof globalThis.fetch }).organisationMembers("9901", hash);
+    expect(members).toHaveLength(2);
+    expect(await code(() => eventorClient({ apiKey: KEY, fetch: fetch as unknown as typeof globalThis.fetch }).organisationMembers("../x", hash)))
+      .toBe("INVALID_INPUT");
   });
 });

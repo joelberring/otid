@@ -8,6 +8,8 @@ import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-clien
 import { Button, DateInput, Field, Notice } from "../ui";
 import { MapAgreementSummary } from "../training-group/map-agreement";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
+import { MapCheckChip } from "./map-check";
+import { MapRightsEditor } from "./map-rights-editor";
 import { ReuseDialog } from "./reuse-dialog";
 import { usePpen } from "./use-ppen";
 import styles from "./club-archive.module.css";
@@ -170,11 +172,13 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         <h2 className={styles.nextHeading}>{text.rights}</h2>
         {view.maps.map(map => <div key={map.mapId}>
           <MapAgreementSummary agreement={agreementOf(map)} title={map.name} />
+          {admin && <MapRightsEditor clubId={clubId} map={map} onSaved={load} />}
           <ul className={styles.versionList} aria-label={`${text.mapVersion}: ${map.name}`}>{map.versions.map(version => <li key={version.versionId}>
             <span className={styles.versionDate}>{version.versionDate ?? "–"}</span>
             <span className={styles.versionFile}>
               <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{version.fileName}</a>
               {usedVersionIds.has(version.versionId) && <span className={styles.small}>{text.usedHere}</span>}
+              <MapCheckChip check={version.check} />
             </span>
             {version.versionId === map.latestVersionId ? <span className={styles.latest}>{clubArchiveSv.maps.latest}</span> : <span />}
           </li>)}</ul>

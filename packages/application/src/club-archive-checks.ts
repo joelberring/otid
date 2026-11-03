@@ -141,7 +141,7 @@ export async function refreshClubCourseSummaries(db: Database, input: ClubProof 
         summary: schema.clubArchiveCourseFiles.summary }).from(schema.clubArchiveCourseFiles).where(eq(schema.clubArchiveCourseFiles.id, id));
       if (!row) continue;
       const summary = courseFileSummary(row.kind, new Uint8Array(row.content));
-      if (JSON.stringify(summary) === JSON.stringify(row.summary)) continue;
+      if (canonical(summary) === canonical(row.summary)) continue;
       await tx.update(schema.clubArchiveCourseFiles).set({ summary }).where(eq(schema.clubArchiveCourseFiles.id, id));
       updated++;
     }
@@ -149,6 +149,16 @@ export async function refreshClubCourseSummaries(db: Database, input: ClubProof 
       details: { courseFiles: ids.length, updated }, now });
     return { status: "ok", response: { formatVersion: 1, courseFiles: ids.length, updated } } as const;
   });
+}
+
+/** JSON med sorterade nycklar (jsonb sparar nycklarna i en egen ordning). */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${Object.entries(value).filter(([, item]) => item !== undefined).sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 /** Träningens bild ritas om när dess underlag ändras (banfilens karta byts, träningen tas bort). */

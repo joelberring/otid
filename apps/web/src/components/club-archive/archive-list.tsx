@@ -6,6 +6,8 @@ import type { ClubArchiveEntryStatus, ClubArchiveList } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { archiveFacets, EMPTY_FILTER, filterArchive, type ArchiveFilter } from "../../lib/club-archive-filter";
 import { Button, EmptyState } from "../ui";
+import { EntryThumbnail } from "./map-check";
+import checks from "./archive-checks.module.css";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv;
@@ -51,11 +53,12 @@ export function ArchiveList({ clubId, list, admin }: { clubId: string; list: Clu
     </div>
     {shown.length === 0 ? <p className={styles.muted}>{f.none}</p> : <ul className={styles.entries} data-testid="archive-entries">
       {shown.map(entry => <li key={entry.entryId}>
-        <Link href={`/organizer/clubs/${clubId}/arkiv/${entry.entryId}`}>
-          <span className={styles.date}>{entry.trainingDate ?? entry.year ?? "–"}</span>
+        <Link href={`/organizer/clubs/${clubId}/arkiv/${entry.entryId}`} className={checks.withThumb}>
+          <EntryThumbnail clubId={clubId} entry={entry} />
+          <span className={`${styles.date} ${checks.dateCell}`}>{entry.trainingDate ?? entry.year ?? "–"}</span>
           <span className={styles.entryTitle}>{entry.title}</span>
           <span className={styles.status} data-status={entry.status}>{text.status[entry.status]}</span>
-          <span className={styles.entryMeta}>
+          <span className={`${styles.entryMeta} ${checks.metaShift}`}>
             {entry.leader && <span>{entry.leader}</span>}
             {entry.maps.length > 0 && <span>{entry.maps.map(map => map.name).join(", ")}</span>}
             {entry.courseNames.length > 0 && <span>{text.entry.courseCount(entry.courseNames.length)}</span>}

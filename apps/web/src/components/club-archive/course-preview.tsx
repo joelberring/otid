@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ClubArchiveCourseFileView } from "@o-tid/contracts";
-import { controlBounds, layoutOverprint, type CourseSettingDocument } from "@o-tid/course-setting";
+import { controlBounds, layoutOverprint, type CourseSettingDocument, type OverprintPrimitive } from "@o-tid/course-setting";
+import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { renderMapVersion } from "../../lib/club-archive-client";
+import { renderFailureReason } from "../../lib/club-archive-thumbnails";
 import { COURSE_PURPLE, drawOverprint } from "../../lib/course-setting-draw";
 import { fitBounds, toScreen, type Bounds, type Viewport } from "../../lib/course-setting-viewport";
 import type { MapFileRenderResult } from "../../lib/map-file-worker-protocol";
@@ -12,7 +14,9 @@ import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv.entry;
 
-export type RenderedVersion = { state: "loading" } | { state: "failed" } | { state: "ready"; rendered: MapFileRenderResult; bitmap: ImageBitmap };
+/** `reason` är skälet på svenska när kartan inte kunde ritas (ADR-0196), t.ex. "OCAD 7 stöds inte. …". */
+export type RenderedVersion = { state: "loading" } | { state: "failed"; reason: string }
+  | { state: "ready"; rendered: MapFileRenderResult; bitmap: ImageBitmap };
 
 /** Kartversionen ritad i kartfilens Worker (en gång per version och sida). */
 export function useRenderedVersion(clubId: string, version: { versionId: string; fileName: string } | null): RenderedVersion | null {
@@ -26,11 +30,14 @@ export function useRenderedVersion(clubId: string, version: { versionId: string;
       try {
         const rendered = await renderMapVersion(clubId, versionId, fileName, () => undefined, controller.signal);
         if (controller.signal.aborted) return;
-        if (rendered.type === "error") { setResult({ state: "failed" }); return; }
+        if (rendered.type === "error") { setResult({ state: "failed", reason: renderFailureReason(rendered.code, rendered.message) }); return; }
         const bitmap = await createImageBitmap(rendered.png);
         if (!controller.signal.aborted) setResult({ state: "ready", rendered, bitmap });
       } catch (error) {
-        if (!controller.signal.aborted) { console.error("Kartan kunde inte ritas", error); setResult({ state: "failed" }); }
+        if (!controller.signal.aborted) {
+          console.error("Kartan kunde inte ritas", error);
+          setResult({ state: "failed", reason: renderFailureReason("FAILED") });
+        }
       }
     })();
     return () => controller.abort();
@@ -38,7 +45,7 @@ export function useRenderedVersion(clubId: string, version: { versionId: string;
   return result;
 }
 
-type CourseData = NonNullable<ClubArchiveCourseFileView["courseData"]>[number];
+export type CourseData = NonNullable<ClubArchiveCourseFileView["courseData"]>[number];
 
 /** CourseData: ringar, starttriangel, mål och linjer i banans färg (ingen banläggning finns att rita ur). */
 function drawCourseData(ctx: CanvasRenderingContext2D, view: Viewport, course: CourseData, scale: number) {
@@ -74,6 +81,30 @@ function drawCourseData(ctx: CanvasRenderingContext2D, view: Viewport, course: C
 }
 
 /**
+ * Kartbilden med banan, inpassad på banan med 15 mm marginal (hela kartan utan bana). Används av förhandsvisningen och av
+ * träningarnas bilder i arkivet (ADR-0196). `primitives` är banpåtrycket för .ppen, `courseData` ringarna för CourseData.
+ */
+export function paintCourseOnMap(ctx: CanvasRenderingContext2D, size: { width: number; height: number },
+  version: { rendered: MapFileRenderResult; bitmap: ImageBitmap },
+  course: { document?: CourseSettingDocument | undefined; primitives: readonly OverprintPrimitive[]; courseData?: CourseData | undefined }): void {
+  const { rendered, bitmap } = version;
+  const { document, primitives, courseData } = course;
+  const map = rendered.metadata.bounds;
+  const bounds: Bounds | null = document ? controlBounds(document)
+    : courseData && courseData.points.length > 0 ? { minX: Math.min(...courseData.points.map(p => p.x)), minY: Math.min(...courseData.points.map(p => p.y)),
+      maxX: Math.max(...courseData.points.map(p => p.x)), maxY: Math.max(...courseData.points.map(p => p.y)) } : null;
+  const area = bounds ? { minX: bounds.minX - 15, minY: bounds.minY - 15, maxX: bounds.maxX + 15, maxY: bounds.maxY + 15 } : map;
+  const view = fitBounds(area, size.width, size.height, 8);
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, size.width, size.height);
+  const corner = toScreen(view, { x: rendered.metadata.render.originX, y: rendered.metadata.render.originY });
+  const factor = view.pxPerMm / rendered.metadata.render.pxPerMm;
+  ctx.drawImage(bitmap, corner.x, corner.y, bitmap.width * factor, bitmap.height * factor);
+  if (primitives.length > 0) drawOverprint(ctx, view, primitives);
+  if (courseData) drawCourseData(ctx, view, courseData, rendered.metadata.scale);
+}
+
+/**
  * ADR-0194: banan på kartan i arkivet och i "Använd igen". Kartan är ritad ur arkivets fil i webbläsaren och banan med
  * banläggningens banpåtryck (.ppen) eller som ringar och linjer (CourseData). Vyn visar banan med lite marginal.
  */
@@ -103,30 +134,19 @@ export function CoursePreview({ version, document, courseId, courseData, label }
   useEffect(() => {
     const element = canvas.current;
     if (!element || version?.state !== "ready" || size.width === 0) return;
-    const { rendered, bitmap } = version;
     const ratio = window.devicePixelRatio || 1;
     element.width = Math.round(size.width * ratio); element.height = Math.round(size.height * ratio);
     const ctx = element.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const map = rendered.metadata.bounds;
-    const course: Bounds | null = document ? controlBounds(document)
-      : courseData && courseData.points.length > 0 ? { minX: Math.min(...courseData.points.map(p => p.x)), minY: Math.min(...courseData.points.map(p => p.y)),
-        maxX: Math.max(...courseData.points.map(p => p.x)), maxY: Math.max(...courseData.points.map(p => p.y)) } : null;
-    const area = course ? { minX: course.minX - 15, minY: course.minY - 15, maxX: course.maxX + 15, maxY: course.maxY + 15 } : map;
-    const view = fitBounds(area, size.width, size.height, 8);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, size.width, size.height);
-    const corner = toScreen(view, { x: rendered.metadata.render.originX, y: rendered.metadata.render.originY });
-    const factor = view.pxPerMm / rendered.metadata.render.pxPerMm;
-    ctx.drawImage(bitmap, corner.x, corner.y, bitmap.width * factor, bitmap.height * factor);
-    if (primitives.length > 0) drawOverprint(ctx, view, primitives);
-    if (courseData) drawCourseData(ctx, view, courseData, rendered.metadata.scale);
+    paintCourseOnMap(ctx, size, version, { document, primitives, courseData });
   }, [version, size, primitives, courseData, document]);
 
-  const status = !version ? text.previewNoMap : version.state === "loading" ? text.previewLoading : version.state === "failed" ? text.previewFailed : null;
+  const status = !version ? text.previewNoMap : version.state === "loading" ? text.previewLoading : null;
   return <div className={styles.preview}>
     <canvas ref={canvas} role="img" aria-label={label} data-testid="course-preview" data-ready={version?.state === "ready" ? "true" : "false"} />
     {status && <p className={styles.previewStatus} role="status">{status}</p>}
+    {version?.state === "failed" && <p className={styles.previewStatus} role="status" data-testid="preview-failed">
+      {clubArchiveChecksSv.previewFailed(version.reason)} {clubArchiveChecksSv.previewDownload}</p>}
   </div>;
 }

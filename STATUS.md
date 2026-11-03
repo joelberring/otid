@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Banfil som banläggning: ägarens svar (grenen iof-foljd)
+- Längden: en banfils längd sparas aldrig som fast längd; den räknas ur lägena så att en flyttad kontroll ändrar den. Skiljer filens längd mer än 50 m sägs det en gång ("Banfilens längd för A var 4,2 km, uppmätt 4,0 km.").
+- Beskedet om varianter som blev egna banor står kvar tills det stängs (övriga besked försvinner som förut).
+- Rogaining: ett tomt poängfält på en poängbana betyder kodens första siffra (tiotalet, som tävlingens `defaultRogainingPoints` och IRF:s regel C9); summan räknar så. "Överför till tävlingen" i en rogaining tar med poängen per kod (`controlPoints`, null = förvalet); ändrade poäng är egna rader (Kontroll, Poäng) och prövas mot avlästa löpare; Kontroller & poäng kan ändra efteråt. Hjälpen: ny artikel Rogaining, editorns rad.
+- Fest: oförändrat (bara utskrift, ingen överföring).
+- Verifierat: enhetstester (course-setting, application diff och överföring, webbens lib och hjälp), integration `rogaining-poang-overforing`, typecheck och lint.
+
 ### 2026-11-03 – Banfil utan .ppen blir banläggning, sparbesked, fest och rogaining (grenen ppen-fran-iof)
 - IOF XML CourseData (3.0 och 2.0.3) utan .ppen blir banläggningsdokument (`readCourseLayout` i iof-xml, `courseDataDocument` i course-setting): kontroller med koder och lägen, start, mål, passager, kartbyte, poängbanor med poäng, banornas ordning, stigning, klasser som undertitel. Lägena är kartfilens mm rakt av (som .ppen; provat mot klubbens OCAD-kartor, 0,5–0,7 m). Varianter blir gafflingar eller slingor när varianterna blir exakt filens; ger gafflingarna fler varianter väljs de som saknas bort (ADR-0198, så en banfil ur O-Tid med bortvalda varianter blir samma bana); annars egna banor med en rad i beskedet. Filens längd blir fast längd bara när den skiljer mer än 50 m. Inga beskrivningar (förslaget körs inte).
 - Använd igen med bara banfil öppnar banläggningen med banorna; Banor → Banfil erbjuder banorna i banläggningen när tävlingen har kartfil (en befintlig ersätts efter frågan och blir tidigare version).

@@ -81,7 +81,7 @@ function problemText(problem: RunnerPrintProblem): string {
  * kartan som vektorer, dekorfärger och övertryck (`PdfPanel`).
  */
 export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: string; initialMode?: Mode }) {
-  const [document, setDocument] = useState<CourseSettingDocument | null>();
+  const [loaded, setDocument] = useState<CourseSettingDocument | null>();
   const [canEdit, setCanEdit] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapRect>();
   const [hasMap, setHasMap] = useState(false);
@@ -177,6 +177,11 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     saving.current = run.catch(() => false);
     return run;
   }, [raceId, load]);
+
+  // Papperet (ADR-0197): texter, bilder, skalstock, nordpil, klippning och mallar per bana. Medan papperets ändringar sparas
+  // visas dokumentet med dem (`view`).
+  const paperSpace = usePaperSpace({ raceId, document: loaded, save, canEdit, chosen });
+  const document = paperSpace.view ?? loaded;
 
   const standard = document?.event.descriptionStandard ?? "2018";
   const symbols = useMemo(() => {
@@ -296,10 +301,6 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       boxMm: Math.max(3, Math.min(10, boxMm)) })]);
   }, [document, save]);
 
-  // Papperet (ADR-0197): texter, bilder, skalstock, nordpil, klippning och mallar per bana.
-  const paperCourseList = useMemo(() => document ? paperCourses(document, chosen) : [], [document, chosen]);
-  const paperSpace = usePaperSpace({ raceId, document, setDocument, save, sheets, canEdit, courses: paperCourseList });
-
   const toggle = (id: string, on: boolean) => setChosen(current => on ? [...current, id] : current.filter(item => item !== id));
   const allIds = [ALL_CONTROLS, ...courses.map(course => course.id)];
   const back = <Link className={styles.back} href={`/admin/${raceId}/course-setting`}>{text.page.back}</Link>;
@@ -307,6 +308,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     <div><Button variant="secondary" onClick={() => void load(true)}>{text.page.retry}</Button></div></Notice></div></main>;
   if (document === undefined) return <main className={styles.page}><div className={styles.controls}>{back}<p role="status">{text.page.loading}</p></div></main>;
   if (document === null) return <main className={styles.page}><div className={styles.controls}>{back}<p>{text.page.noSetting}</p></div></main>;
+  const paperPanel = paperSpace.panel(sheets);
   const frameCount = sheets.reduce((sum, item) => sum + item.sheet.frames.length, 0);
   const waiting = mapState === "reading" || (mapState === "ready" && sheets.some(item => item.sheet.frames.some(frame => !images[frameImageKey(frame, colorsKey)])));
   const blocked = mode === "RUNNERS" && (runners?.problems.length ?? 0) > 0;
@@ -351,8 +353,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
       {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
         readOnly={!canEdit} onSave={save} />}
-      {mode === "COURSES" && !pieces && paperSpace.panel && <PaperSpacePanel raceId={raceId} document={document} courses={paperCourseList} readOnly={!canEdit}
-        {...paperSpace.panel} />}
+      {mode === "COURSES" && !pieces && paperPanel && <PaperSpacePanel raceId={raceId} document={document} readOnly={!canEdit} {...paperPanel} />}
       {profile.reference && hasMap && <BlProposalPanel key={profile.basedOn ?? profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
         readOnly={!canEdit} frame={sheets[0]?.sheet.frames[0]} symbols={symbols} render={renderImage}
         onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} />}

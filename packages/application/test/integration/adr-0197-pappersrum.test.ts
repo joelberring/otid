@@ -100,6 +100,14 @@ describe("ADR-0197: papperets bilder och mallbibliotek", { timeout: 180_000 }, (
       edits: [{ type: "SET_PAPER_LAYOUT", course, layout: { items: [{ id: "logo", kind: "IMAGE", at: { corner: "TOP_RIGHT", x: 3, y: 3 }, image: sha,
         mediaType: "image/png", aspect: 2, widthMm: 20 }] } }] } });
     expect(saved).toMatchObject({ status: "ok", response: { applied: 1 } });
+    // Mallen och banans papper i samma omgång (som "Spara banans papper som mall").
+    const mid = await current(owner);
+    const template = await saveCourseSettingEditsAsAdmin(db, { ...owner, request: { formatVersion: 1, requestId: randomUUID(), baseVersion: mid.version,
+      edits: [{ type: "PUT_PAPER_TEMPLATE", template: { schemaVersion: 1, id: "tmall", name: "Klubbens träningsmall", items: [{ id: "logo", kind: "IMAGE",
+        at: { corner: "TOP_RIGHT", x: 3, y: 3 }, image: sha, mediaType: "image/png", aspect: 2, widthMm: 20 }],
+        clip: { shape: "RECT", rect: { x: 10, y: 10, width: 100, height: 100 }, outside: "FADED" } } },
+      { type: "SET_PAPER_LAYOUT", course, layout: { template: "tmall", items: [] } }] } });
+    expect(template).toMatchObject({ status: "ok", response: { applied: 2 } });
     const read = await readPaperImageAsAdmin(db, { ...third, sha256: sha });
     expect(read.status).toBe("ok");
     if (read.status === "ok") expect(new Uint8Array(read.image)).toEqual(image);

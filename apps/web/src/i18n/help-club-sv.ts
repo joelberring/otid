@@ -30,7 +30,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "O-Tid frågar Eventor vilken klubb nyckeln hör till och hämtar medlemslistan. Medlemmar med samma adress i O-Tid blir bekräftade.",
         "Listan hämtas igen en gång per dygn. Vill du hämta den direkt: ”Hämta medlemmar nu”. Se också [Bekräfta medlemmar](#bekrafta-medlemmar)."
       ] },
-      "Nyckeln sparas krypterad och visas aldrig igen, bara de sista fyra tecknen. Av medlemslistan sparas bara Eventors person-id och en hash av e-postadressen, inga namn eller andra uppgifter. Med ”Byt nyckel” lägger du in en ny nyckel och med ”Ta bort kopplingen” tas nyckeln och listan bort.",
+      "Nyckeln sparas krypterad och visas aldrig igen, bara de sista fyra tecknen. Av medlemslistan sparas bara Eventors person-id och ett oläsbart avtryck av e-postadressen, inga namn eller andra uppgifter. Med ”Byt nyckel” lägger du in en ny nyckel och med ”Ta bort kopplingen” tas nyckeln och listan bort.",
       "En klubb i Eventor kan bara kopplas till en klubbyta. Är den redan kopplad: kontakta ägaren av den klubbytan."
     ]
   },

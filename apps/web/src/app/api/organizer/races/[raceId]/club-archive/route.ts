@@ -1,5 +1,5 @@
-import { db } from "../../../../../../../lib/db";
-import { raceClubArchiveRoute } from "../../../../../../../lib/club-affiliation-route-handlers";
+import { db } from "../../../../../../lib/db";
+import { raceClubArchiveRoute } from "../../../../../../lib/club-affiliation-route-handlers";
 
 type Context = { params: Promise<{ raceId: string }> };
 

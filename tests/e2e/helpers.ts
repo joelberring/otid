@@ -133,16 +133,23 @@ export function grantSuperadmin(email: string): void {
  * webbens avbildning eller `pnpm account:superadmin` mot testdatabasen.
  */
 export function importClubDirectory(file: string): void {
-  const xml = readFileSync(new URL(`../../fixtures/eventor/${file}`, import.meta.url));
+  clubsCommand(["import", "-"], readFileSync(new URL(`../../fixtures/eventor/${file}`, import.meta.url)));
+}
+
+/** ADR-0209: `clubs unlink <eventor-id>` – klubben fri att kopplas igen (en tidigare körning av testet kan ha kopplat den). */
+export function unlinkClub(eventorId: string): void {
+  clubsCommand(["unlink", eventorId]);
+}
+
+function clubsCommand(args: readonly string[], input?: Buffer): void {
+  const options = { cwd: root, stdio: ["pipe", "pipe", "pipe"] as ("pipe")[], ...(input ? { input } : {}) };
   if (process.env.E2E_BASE_URL) {
-    execFileSync("docker", ["compose", "-f", "docker-compose.prod.yml", "exec", "-T", "web", "node", "superadmin.mjs", "clubs", "import", "-"],
-      { cwd: root, stdio: ["pipe", "pipe", "pipe"], input: xml });
+    execFileSync("docker", ["compose", "-f", "docker-compose.prod.yml", "exec", "-T", "web", "node", "superadmin.mjs", "clubs", ...args], options);
     return;
   }
   const database = process.env.E2E_DATABASE_URL;
   if (!database) throw new Error("E2E_DATABASE_URL saknas");
-  execFileSync("pnpm", ["-s", "account:superadmin", "clubs", "import", "-"], { cwd: root, stdio: ["pipe", "pipe", "pipe"], input: xml,
-    env: { ...process.env, DATABASE_URL: database } });
+  execFileSync("pnpm", ["-s", "account:superadmin", "clubs", ...args], { ...options, env: { ...process.env, DATABASE_URL: database } });
 }
 
 /** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */

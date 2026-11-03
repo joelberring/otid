@@ -9,6 +9,7 @@
  *   klubbnyckel som ett klubbarkiv har sparat), högst en gång per dygn (Eventors villkor; `--force` bara vid behov).
  *   `OTID_EVENTOR_BASE_URL` pekar på en annan Eventor (test). Nyckeln skrivs aldrig ut.
  * `pnpm account:superadmin clubs import <fil.xml|->` – samma lista ur en fil (eller stdin), t.ex. hämtad på en annan dator.
+ * `pnpm account:superadmin clubs unlink <eventor-id>` – tar bort en klubbytas koppling till klubben (fel klubbyta kopplad).
  * `pnpm account:superadmin clubs sync` – klubbarnas medlemslistor från Eventor som är äldre än ett dygn (görs också i underhållet).
  *
  * I drift finns kommandot paketerat i webbens avbildning:
@@ -20,7 +21,7 @@ import { createDatabase } from "../packages/database/src/index.ts";
 import {
   importOrganisationsFromXml, refreshOrganisationsFromEventor, type OrganisationRefreshResult
 } from "../packages/application/src/organisations.ts";
-import { anyStoredClubEventorKey, syncDueClubEventorMembers } from "../packages/application/src/club-eventor.ts";
+import { anyStoredClubEventorKey, syncDueClubEventorMembers, unlinkOrganisationByCommand } from "../packages/application/src/club-eventor.ts";
 import { EventorAdapterError } from "../packages/eventor/src/index.ts";
 import { setSuperadmin } from "../packages/application/src/superadmin.ts";
 import { markEmailVerifiedByCommand } from "../packages/application/src/email-verification.ts";
@@ -29,7 +30,7 @@ import {
 } from "../packages/application/src/map-content.ts";
 
 const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl] | verify <e-postadress> | map-content status|move" +
-  " | clubs refresh [--force] | clubs import <fil.xml|-> | clubs sync";
+  " | clubs refresh [--force] | clubs import <fil.xml|-> | clubs unlink <eventor-id> | clubs sync";
 
 function refreshReport(result: OrganisationRefreshResult): string {
   if (result.status === "too-soon") return `Ingen hämtning: listan hämtades ${result.lastAt.toISOString()} och Eventor ber om högst en gång per dygn. ` +
@@ -51,6 +52,12 @@ async function clubsCommand(url: string, args: readonly string[]): Promise<void>
     if (args[0] === "import" && args[1]) {
       const xml = args[1] === "-" ? await readStdin() : await readFile(args[1], "utf8");
       process.stdout.write(refreshReport(await importOrganisationsFromXml(db, xml)));
+      return;
+    }
+    if (args[0] === "unlink" && args[1]) {
+      process.stdout.write(await unlinkOrganisationByCommand(db, args[1]) === "unlinked"
+        ? "Klart: klubben är inte längre kopplad till någon klubbyta. En klubbyta kan nu kopplas med klubbens nyckel.\n"
+        : "Ingen ändring: ingen klubbyta är kopplad till klubben.\n");
       return;
     }
     if (args[0] === "sync") {

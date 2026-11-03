@@ -108,6 +108,24 @@ export async function unlinkClubFromEventor(db: Database, input: ClubProof & { c
   });
 }
 
+/**
+ * Superadmin (`node superadmin.mjs clubs unlink <eventor-id>`): kopplingen tas bort från klubbytan som har klubben, t.ex. när
+ * fel klubbyta har kopplats och dess ägare inte svarar. Samma följder som "Ta bort kopplingen"; journalförs utan konto.
+ */
+export async function unlinkOrganisationByCommand(db: Database, eventorId: string, now = new Date()): Promise<"unlinked" | "not-linked"> {
+  return db.transaction(async tx => {
+    const [row] = await tx.select({ clubId: schema.clubSettings.clubId }).from(schema.clubSettings)
+      .innerJoin(schema.organisations, eq(schema.organisations.id, schema.clubSettings.organisationId))
+      .where(eq(schema.organisations.eventorId, eventorId)).for("update");
+    if (!row) return "not-linked" as const;
+    await tx.update(schema.clubSettings).set({ organisationId: null, eventorKeyId: null, eventorKeyIv: null, eventorKeyTag: null,
+      eventorKeyCiphertext: null, eventorKeyHint: null, linkedBy: null, linkedAt: null, updatedAt: now }).where(eq(schema.clubSettings.clubId, row.clubId));
+    await forgetEventorMembers(tx, row.clubId, now);
+    await clubJournal(tx, { clubId: row.clubId, action: "CLUB_EVENTOR_UNLINKED_BY_COMMAND", actorAccountId: null, details: { eventorId }, now });
+    return "unlinked" as const;
+  });
+}
+
 async function forgetEventorMembers(tx: DbExecutor, clubId: string, now: Date): Promise<void> {
   await tx.delete(schema.clubEventorMembers).where(eq(schema.clubEventorMembers.clubId, clubId));
   await tx.delete(schema.clubEventorSyncs).where(eq(schema.clubEventorSyncs.clubId, clubId));

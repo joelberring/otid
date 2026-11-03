@@ -254,7 +254,8 @@ hämtad på annat sätt läses in med `clubs import <fil.xml>` (eller `clubs imp
 Klubbytornas koppling ("Koppla till Eventor") och medlemslistorna kräver `OTID_EVENTOR_MASTER_KEY` ovan: klubbens nyckel sparas
 krypterad med den, och e-posthasharna räknas med en nyckel härledd ur den. Byts masternyckeln behöver klubbytorna lägga in sin
 nyckel igen, och nästa hämtning räknar om hasharna. Medlemslistorna hämtas i underhållet en gång per dygn;
-`node superadmin.mjs clubs sync` gör samma sak direkt.
+`node superadmin.mjs clubs sync` gör samma sak direkt. Har fel klubbyta kopplats till en klubb och dess ägare inte svarar:
+`node superadmin.mjs clubs unlink <Eventors organisations-id>` tar bort kopplingen, så att rätt klubbyta kan koppla med nyckeln.
 
 ## Spärrar mot upprepade försök
 

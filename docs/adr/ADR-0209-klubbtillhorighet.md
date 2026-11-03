@@ -28,7 +28,7 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
    `GET /api/organisation/apiKey` och får klubben som nyckeln tillhör; det är den bevisade kopplingen (`club_setting`). Nyckeln
    sparas krypterad med `OTID_EVENTOR_MASTER_KEY` (som tävlingarnas, bunden till klubbytan), loggas aldrig och skickas aldrig till
    webbläsaren; bara "nyckel …abcd" visas. "Byt nyckel" och "Ta bort kopplingen". En klubb kopplas till högst en klubbyta; annars
-   "kontakta ägaren av den klubbytan". En klubbyta utan nyckel visar "Inte kopplad till Eventor". Den som skapar en klubbyta är
+   "kontakta ägaren av den klubbytan"; superadmin kan frigöra klubben (`clubs unlink <eventor-id>`). En klubbyta utan nyckel visar "Inte kopplad till Eventor". Den som skapar en klubbyta är
    ägare som förut; ingen blir administratör av att vara först (ägarens förslag om de fem första byggs inte).
 4. **Medlemmarna ur Eventor.** Med nyckeln hämtas `GET /api/persons/organisations/{id}?includeContactDetails=true` en gång per dygn
    (underhållet i webben) och med "Hämta medlemmar nu" (högst en gång i timmen). Bara Eventors person-id och HMAC-SHA256 av den

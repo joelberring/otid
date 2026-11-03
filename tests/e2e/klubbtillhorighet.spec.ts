@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { FAKE_EVENTOR_OKAO_KEY } from "./fake-eventor";
-import { createRace, daysFromToday, importClubDirectory, openStep, registerAccount, reviewScreenshots, unique } from "./helpers";
+import { createRace, daysFromToday, importClubDirectory, openStep, registerAccount, reviewScreenshots, unique, unlinkClub } from "./helpers";
 
 /**
  * ADR-0209: klubbtillhörighet som användarflöde. Den som registrerar sig väljer OK Älvsjö-Örby; ingen har startat klubbytan, så
@@ -28,6 +28,7 @@ async function fitsPhone(page: Page) {
 test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in från klubben och lägg tävlingen i klubbarkivet", async ({ browser }) => {
   test.setTimeout(240_000);
   importClubDirectory("organisations-directory.xml");
+  unlinkClub("9901");
   const suffix = unique();
 
   // 1. Administratören registrerar sig och väljer OK Älvsjö-Örby (sökt med förkortningen). Ingen klubbyta finns än.

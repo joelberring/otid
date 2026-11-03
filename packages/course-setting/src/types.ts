@@ -309,6 +309,13 @@ export interface PpenReadWarning {
 export type CourseSettingEdit =
   | { readonly type: "ADD_CONTROL"; readonly kind: ControlKind; readonly at: Point; readonly code?: string | undefined }
   | { readonly type: "MOVE_CONTROL"; readonly control: string; readonly at: Point }
+  /**
+   * Flytta en delad kontroll bara i en bana (som Purple Pens fråga när en kontroll flyttas långt): en ny vanlig kontroll vid
+   * `at` med `code` (upptagen eller saknas: nästa lediga) ersätter `control` i banans kontroller `courseControls`; de andra
+   * banorna behåller den gamla. Beskrivningen kopieras inte och numret får sitt förvalda läge.
+   */
+  | { readonly type: "NEW_CONTROL_IN_COURSE"; readonly course: string; readonly control: string; readonly at: Point;
+      readonly courseControls: readonly string[]; readonly code?: string | undefined }
   | { readonly type: "DELETE_CONTROL"; readonly control: string }
   | { readonly type: "SET_CONTROL_CODE"; readonly control: string; readonly code: string }
   /** Banläggningens UX (ADR-0180 beslut 14): passagens vinkel i grader moturs (bara passager, som Purple Pens Rotate). */

@@ -52,6 +52,9 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ADD_CONTROL"), kind: z.enum(["START", "NORMAL", "FINISH", "CROSSING_POINT", "MAP_EXCHANGE", "MAP_ISSUE"]),
     at: point, code: z.string().max(32).optional() }).strict(),
   z.object({ type: z.literal("MOVE_CONTROL"), control: id, at: point }).strict(),
+  // En delad kontroll flyttad bara i en bana: ny kontroll i banans kontroller (frågan när en kontroll flyttas långt).
+  z.object({ type: z.literal("NEW_CONTROL_IN_COURSE"), course: id, control: id, at: point, courseControls: z.array(id).min(1).max(100),
+    code: z.string().max(32).optional() }).strict(),
   z.object({ type: z.literal("DELETE_CONTROL"), control: id }).strict(),
   z.object({ type: z.literal("SET_CONTROL_CODE"), control: id, code: z.string().max(32) }).strict(),
   // ADR-0180 beslut 14: passagens vinkel och kopia av bana.

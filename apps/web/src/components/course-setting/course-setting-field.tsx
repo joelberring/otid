@@ -119,6 +119,11 @@ export interface FieldInput {
   readonly suggestion?: ReactNode | undefined;
   /** ADR-0181 beslut 8: "Rita kartfel" under Mer (ritläget i editorn). */
   readonly onSketch?: (() => void) | undefined;
+  /**
+   * "Flytta hit" för en kontroll som finns i flera banor: frågan (flytta i alla banor eller ny kontroll bara i banan).
+   * `done` med valet; utan den flyttas kontrollen direkt.
+   */
+  readonly onMoveHere?: ((control: string, at: Point, done: (outcome: "ALL" | "NEW" | "CANCEL", message?: string) => void) => void) | undefined;
 }
 
 export interface FieldMode {
@@ -207,9 +212,15 @@ export function useFieldMode(input: FieldInput): FieldMode {
       stopMeasuring();
       if (!averaged) { setNote({ tone: "error", text: text.noFix }); return; }
       if (mapBounds && !insideBounds(averaged.at, mapBounds)) { setNote({ tone: "error", text: text.outside }); return; }
-      apply(current => applySteps(current, [{ type: "MOVE_CONTROL", control, at: averaged.at }], applyEdit));
       const meters = Math.max(1, Math.round(averaged.accuracyM));
-      setNote(averaged.accuracyM > POOR_ACCURACY_M ? { tone: "warning", text: copy.movedPoor(meters) } : { tone: "ok", text: text.moved(meters) });
+      const moved = (outcome: "ALL" | "NEW" | "CANCEL", message?: string) => {
+        if (outcome === "CANCEL") { setNote(undefined); return; }
+        const accuracy = averaged.accuracyM > POOR_ACCURACY_M ? copy.movedPoor(meters) : text.moved(meters);
+        setNote({ tone: averaged.accuracyM > POOR_ACCURACY_M ? "warning" : "ok", text: message ? `${message} ${accuracy}` : accuracy });
+      };
+      if (input.onMoveHere) { input.onMoveHere(control, averaged.at, moved); return; }
+      apply(current => applySteps(current, [{ type: "MOVE_CONTROL", control, at: averaged.at }], applyEdit));
+      moved("ALL");
     }, 1000);
   }
 

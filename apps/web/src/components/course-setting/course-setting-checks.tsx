@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, type RefObject } from "react";
-import type { CourseSettingDocument } from "@o-tid/course-setting";
+import { checkDocument, type CourseSettingDocument } from "@o-tid/course-setting";
 import type { LegInput } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { forbiddenRouteLegs, legRouteLookup, type CheckGroup, type CheckRow } from "../../lib/course-setting-checks";
+import { checkGroups, checkRows, forbiddenRouteLegs, legRouteLookup, type CheckGroup, type CheckRow } from "../../lib/course-setting-checks";
 import type { LegLength } from "../../lib/course-setting-route-length";
 import { safely } from "../../lib/course-setting-safely";
 import type { RouteChoiceSession } from "../../lib/route-choice-client";
@@ -15,7 +15,7 @@ import styles from "./course-setting.module.css";
 const copy = text.checks;
 
 /**
- * ADR-0199: sträckorna vars fågelväg korsar ett förbjudet område och deras vägval. Vägvalen räknas i vägvalens Worker
+ * ADR-0199: kontrollerna i fliken Varningar, och sträckorna vars fågelväg korsar ett förbjudet område med deras vägval. Vägvalen räknas i vägvalens Worker
  * (samma svar som banans längd och vald sträcka) när fliken Varningar är öppen, och på datorn utan att den är det. I
  * telefonen startas Workern bara med fliken, eftersom den är det tyngsta i editorn.
  */
@@ -29,7 +29,10 @@ export function useForbiddenRoutes({ document, results, hasMap, tabOpen }: {
   // Kontrollerna räknas om bara när en av de här sträckorna fått ett svar (inte för varje sträcka i banans längd).
   const signature = candidates.map(leg => { const result = results.get(leg.key); return result ? result.best === undefined ? "x" : "o" : "?"; }).join("");
   const legRoute = useMemo(() => legRouteLookup(document, results), [document, signature]);
-  return { candidates, missing, legRoute, wanted: hasMap && missing.length > 0 && (tabOpen || !narrow) };
+  // Kontrollerna med vägvalen, som rader i grupper (godtagna räknas inte i fliken).
+  const checked = useMemo(() => safely("Kontrollerna", () => checkDocument(document, { legRoute }), () => []), [document, legRoute]);
+  const checks = useMemo(() => checkGroups(checkRows(document, checked)), [document, checked]);
+  return { candidates, missing, checked, checks, wanted: hasMap && missing.length > 0 && (tabOpen || !narrow) };
 }
 
 /**

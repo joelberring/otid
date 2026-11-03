@@ -17,7 +17,7 @@ const text = copy.routeLength;
  * medan banan räknas avbryts räkningen (Workern räknar en sak i taget); "Räkna klart" tar resten.
  */
 /**
- * ADR-0197: vägvalens svar per indata (`legInput`-nyckeln), gemensamt för banans längd, vald sträcka och varningarna om
+ * ADR-0199: vägvalens svar per indata (`legInput`-nyckeln), gemensamt för banans längd, vald sträcka och varningarna om
  * förbjudna områden, så att en sträcka som redan räknats inte räknas igen.
  */
 export function useRouteResults() {

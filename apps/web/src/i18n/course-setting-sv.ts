@@ -137,7 +137,7 @@ export const courseSettingSv = {
     heading: "Kontroller att titta på",
     none: "Inget att anmärka.",
     show: "Visa på kartan",
-    /** ADR-0197: nivåerna (inte bara färg) och grupperna per sort. */
+    /** ADR-0199: nivåerna (inte bara färg) och grupperna per sort. */
     levels: { ERROR: "Fel", WARNING: "Varning", NOTICE: "Notis" } as Record<"ERROR" | "WARNING" | "NOTICE", string>,
     groups: {
       DUPLICATE_CODE: "Samma kod på flera kontroller", MISSING_CODE: "Kod saknas", COURSE_WITHOUT_START_OR_FINISH: "Start eller mål saknas",
@@ -189,7 +189,7 @@ export const courseSettingSv = {
     best: (length: number, climb: number, minutes: string) => `Bästa väg ${meters(length)}, ${Math.round(climb)} m stigning, ca ${minutes}`,
     choices: (count: number) => count === 1 ? "Ett tydligt vägval" : `${count} vägval`,
     noRoute: "Ingen väg hittades mellan kontrollerna.",
-    /** ADR-0197: fågelvägen korsar ett förbjudet område men vägvalet går runt (information, ingen varning). */
+    /** ADR-0199: fågelvägen korsar ett förbjudet område men vägvalet går runt (information, ingen varning). */
     aroundForbidden: (what: string, extra: number) => `Fågelvägen korsar ${what} – vägvalet går runt (+${meters(Math.max(0, extra))}).`,
     noRouteForbidden: (what: string) => `Ingen laglig väg runt ${what}.`,
     routes: "Vägvalen",

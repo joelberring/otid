@@ -10,7 +10,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-11-03 – Varningar som går att godta (grenen varningar, ADR-0197)
+### 2026-11-03 – Varningar som går att godta (grenen varningar, ADR-0199)
 - Nivåer: fel (samma kod, kod saknas, start/mål saknas, kontroll i förbjudet område, sträcka utan laglig väg), varningar och notiser; grupperade per sort med antal, fel först. Fliken räknar bara fel och varningar som inte är godtagna.
 - Förbjudna områden: fågelvägen genom ett område är ingen varning när vägvalet (med spärrarna) går runt – i stället "Fågelvägen korsar ett förbjudet område – vägvalet går runt (+182 m)" i Vald sträcka. Inget vägval = fel; inte räknat = notis. Bara de sträckorna räknas, i vägvalens Worker med gemensam tabell (banans längd, vald sträcka), viker för dem; i telefonen bara med fliken öppen.
 - Samma sträcka på flera banor/varianter = en rad ("A, B, C: …"). Godta, "Godta alla n" per sort, "Godtagna (n)" med Ångra; sparas i `event.acceptedChecks` (`SET_ACCEPTED_CHECKS`, ångra och versioner), gäller tills något byts ut eller flyttas mer än 25 m. Följer med vid ny .ppen. Fel som stoppar tidtagningen går inte att godta.

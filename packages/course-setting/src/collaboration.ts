@@ -183,7 +183,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
     case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
     case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.course}`];
-    // ADR-0197: per varning, så att två som godtar olika varningar samtidigt inte krockar.
+    // ADR-0199: per varning, så att två som godtar olika varningar samtidigt inte krockar.
     case "SET_ACCEPTED_CHECKS": return Object.keys(edit.checks).sort().map(key => `event:acceptedChecks:${key}`);
     case "PUT_OBJECTS": return [
       ...Object.keys(edit.controls ?? {}).map(id => `control:${id}`),

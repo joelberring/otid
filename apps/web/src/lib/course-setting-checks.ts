@@ -7,7 +7,7 @@ import type { LegLength } from "./course-setting-route-length";
 import { controlLabel, legInput } from "./course-setting-text";
 
 /**
- * ADR-0197: fliken Varningar som rader. Samma fysiska sträcka eller kontroll på flera banor och varianter blir en rad
+ * ADR-0199: fliken Varningar som rader. Samma fysiska sträcka eller kontroll på flera banor och varianter blir en rad
  * ("A, B, C: sträckan …") med samma nyckel; godta gäller då alla. Raderna grupperas per sort med fel först, sedan
  * varningar och notiser. Fliken räknar bara fel och varningar som inte är godtagna. Ren logik.
  */

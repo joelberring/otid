@@ -104,7 +104,7 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
 }
 
 /**
- * Steg 64 och ADR-0197: förbjudna områden och spärrar (gräns, förbjuden väg). En kontroll i ett förbjudet område tvingar
+ * Steg 64 och ADR-0199: förbjudna områden och spärrar (gräns, förbjuden väg). En kontroll i ett förbjudet område tvingar
  * löparen in i det. En fågelväg som korsar området är vanligt när det finns en väg runt: med vägvalet räknat (med
  * spärrarna) blir det bara något när ingen laglig väg finns; inte räknat blir det en notis (UNKNOWN).
  */

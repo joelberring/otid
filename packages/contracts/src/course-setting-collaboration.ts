@@ -114,7 +114,7 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     training: z.object(trainingPatch).strict().optional()
   }).strict(),
   z.object({ type: z.literal("PUT_TRAINING"), ...trainingPatch }).strict(),
-  // ADR-0197: godtagna varningar per nyckel (null = ångra); nyckeln och lägena kontrolleras av paketet.
+  // ADR-0199: godtagna varningar per nyckel (null = ångra); nyckeln och lägena kontrolleras av paketet.
   z.object({ type: z.literal("SET_ACCEPTED_CHECKS"), checks: z.record(z.string().min(1).max(400),
     z.object({ at: z.record(z.string().min(1).max(80), point).refine(record => Object.keys(record).length <= 20) }).strict().nullable())
     .refine(record => Object.keys(record).length <= 5000) }).strict()

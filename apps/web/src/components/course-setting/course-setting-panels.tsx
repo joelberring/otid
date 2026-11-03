@@ -188,7 +188,7 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
  */
 export function LegPanel({ legKey, analysis, status, highlighted, onHighlight, notice }: { legKey: string | undefined; analysis: LegAnalysis | undefined;
   status: "idle" | "waiting" | "analysing" | "failed" | "done"; highlighted?: number | undefined; onHighlight?: (index: number | undefined) => void;
-  /** ADR-0197: fågelvägen korsar ett förbjudet område (vägvalet går runt, eller ingen laglig väg). */
+  /** ADR-0199: fågelvägen korsar ett förbjudet område (vägvalet går runt, eller ingen laglig väg). */
   notice?: string | undefined }) {
   const rows = analysis?.best ? [{ ...analysis.best, timeRatio: 1 }, ...analysis.alternatives] : [];
   return <section className={styles.panel} aria-labelledby="course-setting-leg" data-testid="course-setting-leg">

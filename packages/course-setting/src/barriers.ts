@@ -138,7 +138,7 @@ export function forbiddenLegs(document: CourseSettingDocument, course: string): 
   return out;
 }
 
-/** ADR-0197: banans kontroller som ligger i ett förbjudet område som syns på banan (kontrollen CONTROL_IN_FORBIDDEN). */
+/** ADR-0199: banans kontroller som ligger i ett förbjudet område som syns på banan (kontrollen CONTROL_IN_FORBIDDEN). */
 export function controlsInForbidden(document: CourseSettingDocument, course: string): { control: string; special: string }[] {
   const areas = blockingSpecials(document, course).filter(special => AREA_KINDS.has(special.kind));
   if (areas.length === 0) return [];

@@ -14,7 +14,7 @@ function forbiddenCourse() {
 
 const forbidden = (checks: readonly CourseCheck[]) => checks.filter(check => check.kind === "LEG_THROUGH_FORBIDDEN" || check.kind === "CONTROL_IN_FORBIDDEN");
 
-describe("förbjudna områden med och utan vägval (ADR-0197)", () => {
+describe("förbjudna områden med och utan vägval (ADR-0199)", () => {
   it("fågelvägen genom området är en notis när vägvalet inte är räknat", () => {
     const { b, course, controls, area } = forbiddenCourse();
     const checks = forbidden(checkDocument(b.document));
@@ -53,7 +53,7 @@ describe("förbjudna områden med och utan vägval (ADR-0197)", () => {
   });
 });
 
-describe("godtagna varningar (ADR-0197)", () => {
+describe("godtagna varningar (ADR-0199)", () => {
   function closeControls() {
     const { b, course, controls } = lineCourse(2);
     // 25 m från kontroll 1 (1:10 000): under riktvärdet 30 m.

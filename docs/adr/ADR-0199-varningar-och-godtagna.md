@@ -1,4 +1,4 @@
-# ADR-0197: Banläggningens varningar – nivåer, förbjudna områden med vägval och godtagna varningar
+# ADR-0199: Banläggningens varningar – nivåer, förbjudna områden med vägval och godtagna varningar
 
 Status: beslutad 2026-11-03 (grenen `varningar`, ägarens önskemål samma dag). Bygger på ADR-0180 beslut 9 (kontrollerna
 under arbetet), steg 64 (förbjudna områden och spärrar) och ADR-0179 (vägvalen i webbläsaren). Ändrar dokumentet: nytt fält

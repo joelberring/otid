@@ -247,7 +247,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Steg 64: symbolerna för beskrivningen på kartan.
   const standard = document.event.descriptionStandard;
   const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), () => [] as readonly DescriptionSymbol[])), [standard]);
-  // ADR-0197: vägvalen (en gemensam tabell) avgör sträckorna genom förbjudna områden; godtagna varningar räknas inte.
+  // ADR-0199: vägvalen (en gemensam tabell) avgör sträckorna genom förbjudna områden; godtagna varningar räknas inte.
   const routeStore = useRouteResults();
   const forbidden = useForbiddenRoutes({ document, results: routeStore.results, hasMap: Boolean(state.mapFile), tabOpen: tab === "checks" });
   const checked = useMemo(() => safely("Kontrollerna", () => checkDocument(document, { legRoute: forbidden.legRoute }), () => []), [document, forbidden.legRoute]);
@@ -517,7 +517,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       const imported: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
         ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
-        // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10), inte heller de godtagna varningarna (ADR-0197).
+        // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10), inte heller de godtagna varningarna (ADR-0199).
         ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}),
         ...((accepted => accepted ? { acceptedChecks: accepted } : {})(keepAcceptedChecks(event.acceptedChecks, file.document))) },
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.

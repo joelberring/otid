@@ -15,7 +15,7 @@ function threeCourses(): CourseSettingDocument {
   return applyEdit(document, { type: "ADD_SPECIAL", special: { kind: "out-of-bounds", points: [{ x: 13, y: 3 }, { x: 17, y: 3 }, { x: 15, y: 8 }] } }).document;
 }
 
-describe("fliken Varningar (ADR-0197)", () => {
+describe("fliken Varningar (ADR-0199)", () => {
   it("samma sträcka på tre banor blir en rad med banorna i ordning; notisen räknas inte", () => {
     const document = threeCourses();
     const rows = checkRows(document, checkDocument(document)).filter(row => row.group === "LEG_THROUGH_FORBIDDEN");

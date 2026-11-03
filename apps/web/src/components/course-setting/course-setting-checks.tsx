@@ -15,7 +15,7 @@ import styles from "./course-setting.module.css";
 const copy = text.checks;
 
 /**
- * ADR-0197: sträckorna vars fågelväg korsar ett förbjudet område och deras vägval. Vägvalen räknas i vägvalens Worker
+ * ADR-0199: sträckorna vars fågelväg korsar ett förbjudet område och deras vägval. Vägvalen räknas i vägvalens Worker
  * (samma svar som banans längd och vald sträcka) när fliken Varningar är öppen, och på datorn utan att den är det. I
  * telefonen startas Workern bara med fliken, eftersom den är det tyngsta i editorn.
  */

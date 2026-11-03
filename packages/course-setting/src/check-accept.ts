@@ -1,5 +1,5 @@
 /**
- * ADR-0197: varningarnas nivå och godtagna varningar. Varje kontroll (`CourseCheck`) har en nivå (fel, varning, notis), en
+ * ADR-0199: varningarnas nivå och godtagna varningar. Varje kontroll (`CourseCheck`) har en nivå (fel, varning, notis), en
  * nyckel som inte beror på banan när samma fysiska sträcka eller kontroll gäller flera banor, och lägena för det den gäller.
  * En godtagen varning gäller så länge samma kontroller och objekt finns (id i nyckeln) och inget av dem flyttats mer än
  * `ACCEPT_MOVE_METERS`. Fel som stoppar tidtagningen eller överföringen (dubbla koder, kod saknas, bana utan start eller

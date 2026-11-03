@@ -12,10 +12,8 @@ import styles from "./course-setting-print-page.module.css";
 const BOXES = [4, 5, 5.5, 6, 7];
 
 /** Ändringen som sätter banans beskrivning (resten av banans papper står kvar). */
-export function paperDescriptionEdit(document: CourseSettingDocument, course: string, change: PaperDescriptions | null): CourseSettingEdit {
-  const layout = paperLayoutOf(document, course);
-  return { type: "SET_PAPER_LAYOUT", course, layout: change === null ? (Object.keys(layout).filter(key => key !== "descriptions").length > 0
-    ? { ...layout, descriptions: undefined } : null) : { ...layout, descriptions: change } };
+export function paperDescriptionEdit(document: CourseSettingDocument, course: string, change: PaperDescriptions): CourseSettingEdit {
+  return { type: "SET_PAPER_LAYOUT", course, layout: { ...paperLayoutOf(document, course), descriptions: change } };
 }
 
 /**
@@ -29,7 +27,7 @@ export function PaperDescriptionsPanel({ document, courses, placed, readOnly, on
   readOnly: boolean; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
   const [message, setMessage] = useState<{ course: string; ok: boolean }>();
-  async function save(course: string, change: PaperDescriptions | null) {
+  async function save(course: string, change: PaperDescriptions) {
     const ok = await onSave([paperDescriptionEdit(document, course, change)]);
     setMessage({ course, ok });
   }

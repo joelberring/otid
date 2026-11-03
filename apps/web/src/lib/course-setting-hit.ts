@@ -26,6 +26,8 @@ function distanceToSegment(point: Point, from: Point, to: Point): number {
 }
 
 /** Avståndet från punkten till figuren (0 inuti en ring, yta eller textruta). */
+const CONTROL_SYMBOL_ROLES = new Set(["START", "CONTROL", "FINISH", "CROSSING_POINT", "MAP_EXCHANGE"]);
+
 export function primitiveDistance(primitive: OverprintPrimitive, point: Point): number {
   switch (primitive.kind) {
     case "circle": {
@@ -33,6 +35,9 @@ export function primitiveDistance(primitive: OverprintPrimitive, point: Point): 
       return Math.max(0, Math.hypot(point.x - primitive.center.x, point.y - primitive.center.y) - outer);
     }
     case "polyline": {
+      // Ägarens fel 2026-11-03: startens triangel (och kartbytets) är bara en kontur, så ett grepp mitt i starten träffade inte
+      // och dragningen panorerade kartan (eller tog sträckan). Inuti en sluten kontrollsymbol räknas som träff, som i ringarna.
+      if (primitive.closed && CONTROL_SYMBOL_ROLES.has(primitive.role) && primitive.points.length > 2 && inside(primitive.points, point)) return 0;
       const points = primitive.closed && primitive.points.length > 2 ? [...primitive.points, primitive.points[0]!] : primitive.points;
       let best = Infinity;
       for (let index = 1; index < points.length; index += 1) best = Math.min(best, distanceToSegment(point, points[index - 1]!, points[index]!));

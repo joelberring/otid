@@ -24,12 +24,10 @@ async function shot(page: Page, name: string, part?: Locator) {
 
 const saved = (page: Page) => expect(page.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
 
-async function printOnly(page: Page, raceId: string, name: string) {
-  await page.goto(`/admin/${raceId}/course-setting/print`);
-  const all = page.getByRole("checkbox", { name: "Alla", exact: true });
-  await expect(all).toBeVisible({ timeout: 60_000 });
-  await all.uncheck();
-  await page.getByRole("checkbox", { name, exact: true }).check();
+/** Förhandsvisningen med bara en bana (`?course=` väljer den, som länken från editorns Utskrift). */
+async function printOnly(page: Page, raceId: string, course: string) {
+  await page.goto(`/admin/${raceId}/course-setting/print?course=${course}`);
+  await expect(page.getByRole("checkbox", { name: "Alla", exact: true })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
 }
 
@@ -96,7 +94,7 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await expect(owner.getByRole("button", { name: "Banläggning", exact: true })).toBeVisible({ timeout: 30_000 });
 
   // 2. Kontrollbeskrivningen på papperet: på från början, automatiskt i ett fritt hörn, dras och sparas.
-  await printOnly(owner, raceId, "Lång");
+  await printOnly(owner, raceId, "1");
   const sheet = owner.getByTestId("print-sheet").first();
   const description = sheet.getByTestId("print-description");
   await expect(description).toHaveCount(1);
@@ -105,6 +103,7 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await expect(row.getByRole("checkbox", { name: "Kontrollbeskrivning på kartan för Lång" })).toBeChecked();
   await expect(row.getByTestId("paper-description-source")).toContainText("Automatiskt i");
   await shot(owner, "03-utskrift-beskrivning-auto", sheet);
+  await description.scrollIntoViewIfNeeded();
   const box = (await description.locator("rect").first().boundingBox())!;
   await owner.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await owner.mouse.down();
@@ -116,19 +115,27 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
     paperLayouts?: Record<string, { descriptions?: { at?: { corner: string; x: number; y: number } } }> } } } };
   const at = placed.setting.document.event.paperLayouts?.["1"]?.descriptions?.at;
   expect(at).toBeDefined();
-  const movedBox = (await description.locator("rect").first().boundingBox())!;
-  expect(movedBox.x - box.x).toBeGreaterThan(40);
+  // Läget på arket (relativt arket, sidan kan vara skrollad olika).
+  const onSheet = async () => {
+    const [item, page] = [(await description.locator("rect").first().boundingBox())!, (await sheet.boundingBox())!];
+    return { x: item.x - page.x, y: item.y - page.y };
+  };
+  const moved = await onSheet();
+  expect(moved.x - (box.x - (await sheet.boundingBox())!.x)).toBeGreaterThan(40);
   // Efter omladdning står den kvar där den släpptes.
-  await printOnly(owner, raceId, "Lång");
+  await printOnly(owner, raceId, "1");
   await expect(description).toHaveAttribute("data-source", "PLACED");
-  const reloadedBox = (await description.locator("rect").first().boundingBox())!;
-  expect(Math.abs(reloadedBox.x - movedBox.x)).toBeLessThan(3);
-  expect(Math.abs(reloadedBox.y - movedBox.y)).toBeLessThan(3);
+  const reloaded = await onSheet();
+  expect(Math.abs(reloaded.x - moved.x)).toBeLessThan(3);
+  expect(Math.abs(reloaded.y - moved.y)).toBeLessThan(3);
   await shot(owner, "04-utskrift-beskrivning-utplacerad", sheet);
   // Av och på igen; "Automatiskt igen" tar bort platsen.
-  await row.getByRole("checkbox", { name: "Kontrollbeskrivning på kartan för Lång" }).uncheck();
+  // Rutan sparas först (kryssrutan visar det som är sparat), därför klick och sedan vänta.
+  const toggleShown = row.getByRole("checkbox", { name: "Kontrollbeskrivning på kartan för Lång" });
+  await toggleShown.click();
   await expect(description).toHaveCount(0, { timeout: 15_000 });
-  await row.getByRole("checkbox", { name: "Kontrollbeskrivning på kartan för Lång" }).check();
+  await expect(toggleShown).not.toBeChecked();
+  await toggleShown.click();
   await expect(description).toHaveAttribute("data-source", "PLACED", { timeout: 15_000 });
   await row.getByRole("button", { name: "Automatiskt igen" }).click();
   await expect(description).toHaveAttribute("data-source", "AUTO", { timeout: 15_000 });
@@ -174,7 +181,7 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await saved(owner);
   await panel.getByTestId("training-pairs").getByRole("button", { name: "En karta för löpare A och en för B" }).click();
   await saved(owner);
-  await printOnly(owner, raceId, "Lång");
+  await printOnly(owner, raceId, "1");
   await expect(owner.getByTestId("print-sheet")).toHaveCount(2, { timeout: 30_000 });
   for (const index of [0, 1]) {
     const keps = owner.getByTestId("print-sheet").nth(index);

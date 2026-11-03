@@ -21,7 +21,7 @@ function archiveImport(args: readonly string[], env: Record<string, string> = {}
 }
 
 test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd igen", async ({ browser, baseURL }) => {
-  test.setTimeout(480_000);
+  test.setTimeout(720_000);
   const suffix = unique();
   const dir = mkdtempSync(join(tmpdir(), "otid-klubbarkiv-"));
   try {
@@ -145,6 +145,47 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
       mapFile: { fileName: string } | null; setting: { document: { courses: unknown[] } } | null };
     expect(state.mapFile?.fileName).toBe("Skogen 2020-08-15 V2.omap");
     expect(state.setting?.document.courses.length).toBeGreaterThan(0);
+
+    // Ägarens fel 2026-11-03: starten gick inte att flytta i kopian. Dra starten med Välj; efter omladdning står den kvar.
+    type Controls = Record<string, { kind: string; at: { x: number; y: number } }>;
+    const controlsNow = async () => ((await (await reader.request.get(`/api/admin/races/${raceId}/administrator/course-setting`)).json()) as
+      { setting: { document: { controls: Controls } } }).setting.document.controls;
+    const [startId, start] = Object.entries(await controlsNow()).find(([, control]) => control.kind === "START")!;
+    // Var starten står på skärmen, och att inget verktyg ligger över den (orsaken: kartan passades in under verktygsraden).
+    const startOnScreen = async (course?: string) => {
+      await reader.reload();
+      // Telefonen visar Alla kontroller (banvalet ligger bakom Mer); starten finns där också.
+      if (course) await reader.getByTestId("course-setting-view").selectOption({ label: course });
+      const map = reader.getByRole("img", { name: `Karta med banpåtryck: ${course ?? "Alla kontroller"}` });
+      await expect(map).toBeVisible({ timeout: 30_000 });
+      await expect(reader.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+      const mapBox = (await map.boundingBox())!;
+      const [centerX, centerY] = (await map.getAttribute("data-center"))!.split(",").map(Number) as [number, number];
+      const pxPerMm = Number(await map.getAttribute("data-px-per-mm"));
+      const at = (await controlsNow())[startId]!.at;
+      const point = { x: mapBox.x + mapBox.width / 2 + (at.x - centerX) * pxPerMm, y: mapBox.y + mapBox.height / 2 - (at.y - centerY) * pxPerMm };
+      const covered = await reader.evaluate(({ x, y }) => [...document.querySelectorAll("[data-map-overlay]")].some(element => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      }), point);
+      expect(covered, "starten under verktygen").toBe(false);
+      return { point, pxPerMm, x: at.x };
+    };
+    // Telefonen (390 px): starten syns bredvid verktygen.
+    await reader.setViewportSize({ width: 390, height: 844 });
+    await startOnScreen();
+    if (process.env.E2E_SCREENSHOT_DIR) await reader.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/klubbarkiv-kopian-start-390.png` });
+    await reader.setViewportSize({ width: 1280, height: 720 });
+    const { point: from, pxPerMm } = await startOnScreen("Lång");
+    await reader.mouse.move(from.x, from.y);
+    await reader.mouse.down();
+    await reader.mouse.move(from.x + 3 * pxPerMm, from.y, { steps: 4 });
+    await reader.mouse.move(from.x + 6 * pxPerMm, from.y, { steps: 4 });
+    await reader.mouse.up();
+    if (process.env.E2E_SCREENSHOT_DIR) await reader.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/klubbarkiv-kopian-start-flyttad-1280.png` });
+    await expect.poll(async () => (await controlsNow())[startId]!.at.x, { timeout: 15_000 }).toBeCloseTo(start.at.x + 6, 0);
+    // Omladdad: starten står kvar där den släpptes.
+    expect((await startOnScreen("Lång")).x).toBeCloseTo(start.at.x + 6, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

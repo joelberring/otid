@@ -80,7 +80,6 @@ function problemText(problem: RunnerPrintProblem): string {
  */
 export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: string; initialMode?: Mode }) {
   const [document, setDocument] = useState<CourseSettingDocument | null>();
-  const [version, setVersion] = useState<number>();
   const [canEdit, setCanEdit] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapRect>();
   const [hasMap, setHasMap] = useState(false);
@@ -98,13 +97,16 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   // Träningsläget (ADR-0192): kartbitar och kontrollantens karta i linjeorienteringen.
   const [pieces, setPieces] = useState(false);
   const [controllerMaps, setControllerMaps] = useState(false);
+  // Senaste versionen för nästa sparande (inte den som fanns när knappen ritades).
+  const versionRef = useRef<number>(undefined);
+  const saving = useRef<Promise<unknown>>(Promise.resolve());
   const load = useCallback(async (first = false) => {
     setFailed(false);
     try {
       const state = await fetchCourseSetting(raceId);
       const next = (state.setting?.document ?? null) as unknown as CourseSettingDocument | null;
       setDocument(next);
-      setVersion(state.setting?.version);
+      versionRef.current = state.setting?.version;
       setCanEdit(state.access.level === "EDIT");
       setHasMap(state.mapFile !== null);
       if (state.mapFile?.bounds) setMapBounds(state.mapFile.bounds);
@@ -150,15 +152,29 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     fetchMapBundles(raceId).then(data => { setBundles(data); setBundlesState("ready"); }, () => setBundlesState("failed"));
   }, [mode, bundlesState, raceId]);
 
-  const save = useCallback(async (edits: CourseSettingEdit[]) => {
-    if (version === undefined) return false;
-    try {
-      await saveCourseSettingEdits(raceId, { formatVersion: 1, requestId: crypto.randomUUID(), baseVersion: version,
-        edits: edits as unknown as CourseSettingEditsRequest["edits"] });
-      await load();
-      return true;
-    } catch (error) { console.error("Utskriftsinställningen sparades inte", error); return false; }
-  }, [raceId, version, load]);
+  /**
+   * Sparar en ändring i taget, alltid på senaste versionen. Ägarens fel 2026-11-03 ("Godkänd" sparades inte): två sparanden i
+   * följd (profilen vald, sedan Godta) gick på samma gamla version och servern avvisade det andra (`rejected`), utan att
+   * sidan märkte det. Avvisat: läs om och försök en gång till; går det ändå inte är det ett fel.
+   */
+  const save = useCallback((edits: CourseSettingEdit[]): Promise<boolean> => {
+    const run = saving.current.then(async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const baseVersion = versionRef.current;
+        if (baseVersion === undefined) return false;
+        try {
+          const result = await saveCourseSettingEdits(raceId, { formatVersion: 1, requestId: crypto.randomUUID(), baseVersion,
+            edits: edits as unknown as CourseSettingEditsRequest["edits"] });
+          await load();
+          if (result.rejected.length === 0) return true;
+          console.error("Utskriftsinställningen avvisades", result.rejected);
+        } catch (error) { console.error("Utskriftsinställningen sparades inte", error); return false; }
+      }
+      return false;
+    });
+    saving.current = run.catch(() => false);
+    return run;
+  }, [raceId, load]);
 
   const standard = document?.event.descriptionStandard ?? "2018";
   const symbols = useMemo(() => {

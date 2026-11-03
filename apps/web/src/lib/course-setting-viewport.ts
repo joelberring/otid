@@ -39,10 +39,23 @@ export function visibleBounds(view: Viewport): Bounds {
 }
 
 /** Hela ytan i vyn med marginal (px) på alla sidor. */
-export function fitBounds(bounds: Bounds, width: number, height: number, margin = 16): Viewport {
+/** Det som ligger ovanpå kartan vid kanterna (verktygsraden, telefonens rader), i px. */
+export interface Insets { readonly left: number; readonly right: number; readonly top: number; readonly bottom: number }
+export const NO_INSETS: Insets = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/**
+ * Hela ytan i bild, i den del av rutan som inte täcks av `insets` (ägarens fel 2026-11-03: starten låg under verktygsraden
+ * och gick inte att ta tag i).
+ */
+export function fitBounds(bounds: Bounds, width: number, height: number, margin = 16, insets: Insets = NO_INSETS): Viewport {
   const spanX = Math.max(1, bounds.maxX - bounds.minX), spanY = Math.max(1, bounds.maxY - bounds.minY);
-  const pxPerMm = clamp(Math.min(Math.max(1, width - 2 * margin) / spanX, Math.max(1, height - 2 * margin) / spanY));
-  return { centerX: (bounds.minX + bounds.maxX) / 2, centerY: (bounds.minY + bounds.maxY) / 2, pxPerMm, width, height };
+  const free = { width: width - insets.left - insets.right, height: height - insets.top - insets.bottom };
+  // Lämnar överliggande delar för lite plats: hela rutan som förut.
+  const use = free.width >= width * 0.4 && free.height >= height * 0.4 ? insets : NO_INSETS;
+  const usableWidth = width - use.left - use.right, usableHeight = height - use.top - use.bottom;
+  const pxPerMm = clamp(Math.min(Math.max(1, usableWidth - 2 * margin) / spanX, Math.max(1, usableHeight - 2 * margin) / spanY));
+  return { centerX: (bounds.minX + bounds.maxX) / 2 - (use.left - use.right) / 2 / pxPerMm,
+    centerY: (bounds.minY + bounds.maxY) / 2 + (use.top - use.bottom) / 2 / pxPerMm, pxPerMm, width, height };
 }
 
 /** Zoomar med `factor` kring en skärmpunkt (standard: mitten); kartpunkten där står still. */

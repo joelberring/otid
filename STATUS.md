@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
+- Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
+- Kontrollbeskrivningen på kartan hör till papperet (`paper-layout.ts`, `event.paperLayouts`, `SET_PAPER_LAYOUT`): på för varje bana, automatiskt i ett fritt hörn med varning när den täcker banan, dras/ändras på arket i förhandsvisningen (piltangenter också). Ritas inte i editorn; Purple Pens `descriptions` tolkas som platsen och skrivs tillbaka vid export. Mallens gamla plats gäller bara utan utplacering.
+- BL-förslaget: status som märke, valt som nedtryckt knapp ("✓ Godtagen"), Ångra, besked vid raden; panelen monteras inte om när kopian skapas (beskedet försvann).
+- Kepsens förklaring står under hela banan; poängbanans fasta längd visar inte "0,0 km".
+- Klubbarkivet: Ny klubb med fältfel (tomt, för långt, finns redan `NAME_TAKEN`); importen hämtar klubben ur nyckeln (`GET /api/club-import/token`), `--club` valfritt och kontrollerat, svenska fel för 401/404, dold nyckel vid frågan; träningssidan säger att arkivet bara visar och har Använd igen under kartan.
+- Verifierat: lint, typecheck, enhetstester (paketen, webben), integration klubbarkiv, Playwright `hittbarhet` (1280/390).
+
 ### 2026-11-02 – Träningsläge i banläggningen (grenen traningslage, ADR-0192)
 - Modell `document.training`: avsnitt per bana (från–till) med korridor (kantig/mjuk, bredd per sträcka), bälte med filter (bara kurvbild m.m.), fönster och utan karta; utanför hela/vitt/tonat/filter; ritade områden; sista säkra per sträcka; stjärna, linje, keps (1a/1b, gemensam karta som förval, A/B som val) och kartbitar. `PUT_TRAINING` med touches, ångra och id-översättning; .ppen i `<otid:training>` (egen namnrymd, Purple Pen hoppar över).
 - Symbolfilter efter ISOM 2017-2/ISSprOM 2019-2 (okända nummer efter namnet), förval och val per symbol. Kartan ritas i pass med klippning och dolda symboler (`drawTrainingMap`) i editorns Worker, förhandsvisningen och PDF:en; tonat = lägre andel av samma dekorfärg.

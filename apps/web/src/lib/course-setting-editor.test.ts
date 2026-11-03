@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { circleArcs, type OverprintPrimitive } from "@o-tid/course-setting";
+import { circleArcs, layoutOverprint, type OverprintPrimitive } from "@o-tid/course-setting";
 import {
   addBend, addPoint, applySteps, beginDrag, canRedo, canUndo, cancelTool, courseChain, createEditor, dragTo, endDrag, insertExisting, redo,
   removeSelected, select, setView, undo
@@ -43,6 +43,10 @@ describe("kartvyn", () => {
   it("visar hela kartan och flyttar en gammal bild till den nya vyn", () => {
     const fitted = fitBounds({ minX: 0, minY: 0, maxX: 100, maxY: 50 }, 532, 300, 16);
     expect(fitted).toMatchObject({ centerX: 50, centerY: 25, pxPerMm: 5 });
+    // Verktygsraden täcker 100 px till vänster: kartan ryms i resten och hela kartans vänsterkant hamnar till höger om raden.
+    const beside = fitBounds({ minX: 0, minY: 0, maxX: 100, maxY: 50 }, 632, 300, 16, { left: 100, right: 0, top: 0, bottom: 0 });
+    expect(beside.pxPerMm).toBe(5);
+    expect(toScreen(beside, { x: 0, y: 25 }).x).toBeCloseTo(100 + 16, 6);
     expect(bitmapPlacement(view, zoomAt(view, 2))).toEqual({ x: -200, y: -150, width: 800, height: 600 });
   });
 });
@@ -60,6 +64,14 @@ describe("träff-testet", () => {
   it("träffar ringen även inuti och avståndet är 0 där", () => {
     expect(primitiveDistance(primitives[0]!, { x: 11, y: 1 })).toBe(0);
     expect(primitiveDistance(primitives[0]!, { x: 15, y: 0 })).toBeCloseTo(15 - 10 - 3.175);
+  });
+
+  it("träffar starten mitt i triangeln, inte sträckan ut från den (ägarens fel: starten gick inte att flytta)", () => {
+    const course = layoutOverprint(document, { course: "k" });
+    const start = course.find(figure => figure.role === "START")!;
+    expect(primitiveDistance(start, { x: 0, y: 0 })).toBe(0);
+    // Med musens lilla träffyta (0,5 mm) mitt i starten: starten, inte sträckan som börjar vid triangelns kant.
+    expect(hitTest(document, "k", course, { x: 0, y: 0 }, 0.5)).toMatchObject({ kind: "control", control: "s" });
   });
 
   it("ger banans kontroll i en bana, kontrollen i Alla kontroller, sträckan och numret först", () => {

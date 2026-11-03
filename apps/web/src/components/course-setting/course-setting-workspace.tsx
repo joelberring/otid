@@ -93,7 +93,7 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTrainin
   onFork?: (() => void) | undefined; inCourse: boolean; help: string;
   /** ADR-0192: ingången till träningsläget (fliken Träning). */
   onTraining?: (() => void) | undefined; trainingOpen?: boolean | undefined }) {
-  return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help}>
+  return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help} data-map-overlay="">
     {tools.map(item => <button key={item} type="button" className={styles.tool} aria-pressed={tool === item} aria-label={text.tools[item]}
       title={text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
       disabled={(item === "INSERT_EXISTING" || item === "ADD_BEND") && !inCourse} onClick={() => onTool(item)}>

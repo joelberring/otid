@@ -19,7 +19,7 @@ import { hitSketch } from "../../lib/course-setting-sketch";
 import type { CourseSettingSketchShape } from "@o-tid/contracts";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
-  bitmapPlacement, fitBounds, panBy, resize, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Viewport
+  bitmapPlacement, fitBounds, NO_INSETS, panBy, resize, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Insets, type Viewport
 } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
@@ -142,6 +142,25 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   const viewRef = useRef<Viewport | undefined>(undefined);
   viewRef.current = view;
 
+  /**
+   * Det som ligger ovanpå kartan (verktygsraden till vänster, telefonens rader nedtill; märkta `data-map-overlay`), så att
+   * hela kartan visas där den går att ta på.
+   */
+  const insets = (): Insets => {
+    const element = box.current;
+    // Kartans ram ligger i samma yta som verktygen (editorns `mapArea`).
+    const parent = element?.parentElement?.parentElement;
+    if (!element || !parent) return NO_INSETS;
+    const area = element.getBoundingClientRect();
+    let left = 0, bottom = 0;
+    for (const overlay of parent.querySelectorAll<HTMLElement>("[data-map-overlay]")) {
+      const rect = overlay.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.left - area.left < 40 && rect.height > rect.width) left = Math.max(left, rect.right - area.left);
+      else if (area.bottom - rect.bottom < 80 && rect.width > rect.height) bottom = Math.max(bottom, area.bottom - rect.top);
+    }
+    return { left, right: 0, top: 0, bottom };
+  };
   // Storleken följer rutan; första gången visas hela kartan.
   useEffect(() => {
     const element = box.current;
@@ -149,7 +168,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const observer = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
       if (width < 1 || height < 1) return;
-      setView(current => current ? resize(current, width, height) : mapBounds ? fitBounds(mapBounds, width, height) : current);
+      setView(current => current ? resize(current, width, height) : mapBounds ? fitBounds(mapBounds, width, height, undefined, insets()) : current);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -158,7 +177,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const element = box.current;
     if (!mapBounds || !element || view) return;
     const { width, height } = element.getBoundingClientRect();
-    if (width > 0 && height > 0) setView(fitBounds(mapBounds, width, height));
+    if (width > 0 && height > 0) setView(fitBounds(mapBounds, width, height, undefined, insets()));
   }, [mapBounds, view]);
 
   useImperativeHandle(handle, () => ({
@@ -172,7 +191,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
         area.maxY <= corner.y && area.minY >= corner.y - current.height / current.pxPerMm;
       if (visible) return;
       const pad = 40 / current.pxPerMm;
-      const fitted = fitBounds({ minX: area.minX - pad, maxX: area.maxX + pad, minY: area.minY - pad, maxY: area.maxY + pad }, current.width, current.height);
+      const fitted = fitBounds({ minX: area.minX - pad, maxX: area.maxX + pad, minY: area.minY - pad, maxY: area.maxY + pad }, current.width, current.height,
+        undefined, insets());
       setView({ ...fitted, pxPerMm: Math.min(fitted.pxPerMm, Math.max(current.pxPerMm, 2)) });
     },
     focus(point) {
@@ -442,7 +462,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       <Button variant="secondary" aria-label={text.zoomIn} title={text.zoomIn} onClick={() => zoom(1.5)}>+</Button>
       <Button variant="secondary" aria-label={text.zoomOut} title={text.zoomOut} onClick={() => zoom(1 / 1.5)}>−</Button>
       <Button variant="secondary" aria-label={text.fit} title={text.fit} disabled={!mapBounds}
-        onClick={() => setView(previous => previous && mapBounds ? fitBounds(mapBounds, previous.width, previous.height) : previous)}>⤢</Button>
+        onClick={() => setView(previous => previous && mapBounds ? fitBounds(mapBounds, previous.width, previous.height, undefined, insets()) : previous)}>⤢</Button>
     </div>
   </div>;
 }

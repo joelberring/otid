@@ -718,7 +718,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
           highlightRoute={highlightRoute}
           position={field.position} inspected={inspectedMarks} onPan={field.onPan} symbols={symbols} overlayExtra={overlayExtra} cross={selection?.kind === "control" && document.controls[selection.control]
             ? { at: document.controls[selection.control]!.at, dragging: editor.dragBase !== undefined } : undefined} />
-        {field.narrow ? <div className={styles.bottomStack}>
+        {field.narrow ? <div className={styles.bottomStack} data-map-overlay="">
           {toolBar}
           {notes.card && <div className={styles.cardStatic}>{notes.card}</div>}
           {!notes.sketching && <div className={styles.fieldBar} data-testid="course-setting-field">{field.bar}</div>}

@@ -321,7 +321,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
       ],
       "Fest och rogaining har också ”Banläggning”:",
       [
-        "Rogaining: nya banor blir poängbanor. Poängen i resultatet sätts under ”Kontroller & poäng” i tävlingen.",
+        "Rogaining: nya banor blir poängbanor. Tomt poängfält = kontrollkodens första siffra, och poängen följer med till tävlingen. Se [Rogaining](#rogaining).",
         "Fest: banläggningen ger kartor att skriva ut. ”Överför till tävlingen …” finns inte, festen har inga banor."
       ],
       "Se också [Flera banläggare samtidigt](#samarbete)."

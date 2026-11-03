@@ -17,6 +17,8 @@ export const coursePropertiesSv = {
   invalid: "Skriv ett heltal i meter (eller lämna tomt).",
   scoreTotal: (points: number, controls: number) => `${points} poäng på ${controls} ${controls === 1 ? "kontroll" : "kontroller"}`,
   points: (code: string) => `Poäng för ${code}`,
+  /** Tomt fält: kodens första siffra (tiotalet) ger poängen, som i tävlingens rogaining. */
+  pointsDefault: (code: string, points: number) => `Poäng för ${code}. Tomt = ${points} (kodens första siffra).`,
   pointsShort: "Poäng",
   order: {
     up: "Flytta upp",

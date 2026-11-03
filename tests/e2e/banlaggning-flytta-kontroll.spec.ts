@@ -8,8 +8,8 @@ import { createRace, registerAccount, today, unique, warmCourseSetting } from ".
  * Frågan när en delad kontroll flyttas långt i en bana (som Purple Pen): Lång och Mellan har båda 31, 32, 33 och 36
  * (fixturen, 1:10 000, 1 mm = 10 m). En kort flytt och en kontroll som bara finns i Lång frågar inte. 31 dras långt:
  * "Ny kontroll bara i Lång" ger 38 i Lång, Mellan har 31 kvar på sin plats; ångra och gör om; sparat efter omladdning.
- * 32: "Flytta i alla banor" med "Kom ihåg", så att 33 flyttas utan fråga; "Fråga igen" i Inställningar och Avbryt för 36.
- * Fältläget på telefonen (390 px): "Flytta hit" ställer samma fråga.
+ * 32: "Flytta i alla banor" med "Kom ihåg", så att 33 flyttas utan fråga; "Fråga igen" i Inställningar och Avbryt för 32.
+ * Fältläget på telefonen (390 px): "Flytta hit" för 33 ställer samma fråga; Ny kontroll bara i Lång.
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 const georeference: MapGeoreference = { scale: 10000, crs: { kind: "EPSG", code: 3006 }, refPoint: { easting: 675000, northing: 6580000 },
@@ -147,7 +147,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   expect(byCode(current, "33")!.at.y).toBeCloseTo(44, 0);
   expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "33", "36", "·"]);
 
-  // Inställningar: valet syns och "Fråga igen"; gränsen går att välja. Sedan frågar 36 igen, och Avbryt lämnar den.
+  // Inställningar: valet syns och "Fråga igen"; gränsen går att välja. Sedan frågar 32 igen, och Avbryt lämnar den.
   await owner.getByRole("tab", { name: "Inställningar" }).click();
   const settings = owner.getByTestId("course-setting-move-settings");
   await expect(settings.getByTestId("course-setting-move-remembered")).toHaveText("Sparat för sessionen: flytta i alla banor.");
@@ -156,15 +156,17 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await screenshot(owner, "flytta-kontroll-installningar-1280");
   await settings.getByTestId("course-setting-move-forget").click();
   await expect(settings.getByTestId("course-setting-move-remembered")).toHaveText("Inget val sparat: frågan visas.");
-  const before36 = byCode(await documentNow(), "36")!.at;
-  await drag(owner, map, 50, 18, -8);
+  await owner.getByRole("tab", { name: "Banor" }).click();
+  const before32 = byCode(await documentNow(), "32")!.at;
+  await drag(owner, map, before32.x, before32.y, -8);
   await expect(question).toBeVisible();
+  await expect(question).toContainText("Flytta kontroll 32?");
   await owner.getByTestId("course-setting-move-cancel").click();
   await expect(question).toHaveCount(0);
   await saved(owner);
-  expect(byCode(await documentNow(), "36")!.at).toEqual(before36);
+  expect(byCode(await documentNow(), "32")!.at).toEqual(before32);
 
-  // Fältläget på telefonen: position vid (60, 50) mm, 36 väljs och "Flytta hit" frågar.
+  // Fältläget på telefonen: position vid (60, 50) mm, 33 väljs och "Flytta hit" frågar.
   const wgs = mapPointToWgs84(georeference, { x: 60, y: 50 });
   const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },
     hasTouch: true, isMobile: true, geolocation: { latitude: wgs.latitude, longitude: wgs.longitude, accuracy: 5 }, permissions: ["geolocation"] });
@@ -177,29 +179,30 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
   await phone.waitForTimeout(400);
-  const at36 = await screenOf(phoneMap, before36.x, before36.y);
-  await phone.touchscreen.tap(at36.x, at36.y);
-  await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 36");
+  const before33 = byCode(await documentNow(), "33")!.at;
+  const at33 = await screenOf(phoneMap, before33.x, before33.y);
+  await phone.touchscreen.tap(at33.x, at33.y);
+  await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 33");
   await phone.getByRole("button", { name: "Min position" }).click();
   await expect(phone.getByText("Position ±5 m")).toBeVisible({ timeout: 15_000 });
   await phone.getByTestId("course-setting-move-here").click();
   const phoneQuestion = phone.getByTestId("course-setting-move-question");
   await expect(phoneQuestion).toBeVisible({ timeout: 15_000 });
-  await expect(phoneQuestion).toContainText("Flytta kontroll 36?");
+  await expect(phoneQuestion).toContainText("Flytta kontroll 33?");
   expect(await phone.evaluate(() => document.scrollingElement!.scrollWidth <= window.innerWidth)).toBe(true);
   const dialogBox = (await phoneQuestion.boundingBox())!;
   expect(dialogBox.x).toBeGreaterThanOrEqual(0);
   expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(390);
   await screenshot(phone, "flytta-kontroll-fraga-390");
   await phone.getByTestId("course-setting-move-new").click();
-  await expect(phone.getByTestId("course-setting-field-note")).toHaveText("Ny kontroll 39 i Lång; 36 står kvar i de andra banorna. Flyttad, noggrannhet ±5 m");
+  await expect(phone.getByTestId("course-setting-field-note")).toHaveText("Ny kontroll 39 i Lång; 33 står kvar i de andra banorna. Flyttad, noggrannhet ±5 m");
   await expect(phone.getByTestId("course-setting-field-status")).toHaveText("Sparat", { timeout: 15_000 });
   await screenshot(phone, "flytta-kontroll-ny-390");
   current = await documentNow(phone);
-  expect(codes(current, "Lång")).toEqual(["·", "38", "32", "33", "34", "35", "39", "·"]);
+  expect(codes(current, "Lång")).toEqual(["·", "38", "32", "39", "34", "35", "36", "·"]);
   expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "33", "36", "·"]);
   expect(byCode(current, "39")!.at.x).toBeCloseTo(60, 0);
   expect(byCode(current, "39")!.at.y).toBeCloseTo(50, 0);
-  expect(byCode(current, "36")!.at).toEqual(before36);
+  expect(byCode(current, "33")!.at).toEqual(before33);
   await phoneContext.close();
 });

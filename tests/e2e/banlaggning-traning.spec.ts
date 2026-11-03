@@ -38,6 +38,14 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: `${shots}/${name}.png` });
 }
 
+/** Ett ark i förhandsvisningen (hela arket, inte bara det som syns i fönstret). */
+async function sheetShot(sheet: Locator, name: string) {
+  if (!shots) return;
+  await sheet.scrollIntoViewIfNeeded();
+  await sheet.page().waitForTimeout(400);
+  await sheet.screenshot({ path: `${shots}/${name}.png` });
+}
+
 type Training = {
   courses: Record<string, { outside: { kind: string }; sections: { form: string; from: string | null; to: string | null }[]; star?: unknown; line?: { points: unknown[] };
     pairs?: { pairs: unknown[]; print: string }; mirror?: boolean }>;
@@ -59,7 +67,7 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   await warmCourseSetting(owner, raceId);
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
-  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
+  await owner.getByLabel(/^Kartfil \(/).setInputFiles(fixture("maps/kartfil.omap"));
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
   await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles(fixture("course-setting/kartfil.ppen"));
@@ -211,27 +219,28 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   await expect(owner.getByTestId("print-sheet")).toHaveCount(2, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await expect(owner.getByTestId("print-sheet").nth(1)).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
-  await shot(owner, "13-utskrift-lang-keps-a-1280");
-  await owner.getByTestId("print-sheet").nth(1).scrollIntoViewIfNeeded();
-  await shot(owner, "14-utskrift-lang-keps-b-1280");
+  await shot(owner, "13-utskrift-1280");
+  await sheetShot(owner.getByTestId("print-sheet").first(), "14-utskrift-lang-keps-a-1280");
+  await sheetShot(owner.getByTestId("print-sheet").nth(1), "15-utskrift-lang-keps-b-1280");
   await owner.getByTestId("print-pieces").check();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   expect(Number(await owner.getByTestId("print-sheet").first().getAttribute("data-frames"))).toBeGreaterThan(4);
-  await shot(owner, "15-kartbitar-1280");
+  await sheetShot(owner.getByTestId("print-sheet").first(), "16-kartbitar-1280");
   await owner.getByTestId("print-pieces").uncheck();
   await course("Lång").uncheck();
   await course("Mellan").check();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await expect(owner.getByTestId("print-sheet").first().getByTestId("print-map")).toHaveAttribute("data-mirror", "");
-  await shot(owner, "16-utskrift-mellan-spegel-1280");
+  await sheetShot(owner.getByTestId("print-sheet").first(), "17-utskrift-mellan-spegel-1280");
   await course("Mellan").uncheck();
   await course("Stjärna 31").check();
   await expect(owner.getByTestId("print-sheet")).toHaveCount(5, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
-  await shot(owner, "17-stjarna-per-udd-1280");
+  await sheetShot(owner.getByTestId("print-sheet").first(), "18-stjarna-udd-1-1280");
   await owner.setViewportSize({ width: 390, height: 844 });
   await course("Stjärna 31").uncheck();
   await course("Lång").check();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
-  await shot(owner, "18-utskrift-lang-390");
+  await shot(owner, "19-utskrift-390");
+  await sheetShot(owner.getByTestId("print-sheet").first(), "20-utskrift-lang-ark-390");
 });

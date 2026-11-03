@@ -7,7 +7,7 @@
 import { layoutTemplateSheets, sheetOfPage, type LayoutTemplate, type Sheet, type SheetItem } from "./layout-template";
 import { countCourseParts } from "./course-parts";
 import { layoutCoursePage, type CoursePage } from "./page-layout";
-import type { MapRect } from "./types";
+import type { MapRect, OverprintOptions } from "./types";
 import { mirrorFigures } from "./training-mirror";
 import { trainingMapPasses } from "./training-passes";
 import { clipMapPasses, clipMarkings, effectivePaper, paperClipRing } from "./paper-items";
@@ -32,6 +32,11 @@ export interface SheetGroup {
 export interface SheetGroupOptions {
   readonly mapBounds?: MapRect | undefined;
   readonly date?: string | undefined;
+  /**
+   * Ringklippen över kartdetaljer (ADR-0180 beslut 10, ADR-0211 beslut 1): samma gap som editorn ritar, räknade på kartfilen
+   * (`printDetailGaps` i servern, kartans Worker i förhandsvisningen). Utan dem skrevs ringarna hela på papperet.
+   */
+  readonly detailGaps?: OverprintOptions["detailGaps"];
   /** En grupp som inte gick att lägga ut (felet loggas av den som anropar); utan den kastas felet. */
   readonly onError?: ((failed: { readonly item?: number | undefined; readonly error: unknown }) => void) | undefined;
 }
@@ -83,7 +88,8 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: S
       options.onError({ item, error });
     }
   };
-  const common = { mapBounds: options.mapBounds, ...(options.date ? { date: options.date } : {}) };
+  const gaps = options.detailGaps ? { detailGaps: options.detailGaps } : {};
+  const common = { mapBounds: options.mapBounds, ...(options.date ? { date: options.date } : {}), ...gaps };
   if (layout.kind === "PIECES") {
     items.forEach((item, index) => attempt(index, () => ({ item: index, sheets: trainingPieceSheets(document, item, { mapBounds: options.mapBounds }) })));
     return groups;
@@ -100,7 +106,7 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: S
   items.forEach((item, index) => attempt(index, () => {
     const pages = layoutCoursePage(document, { course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.part !== undefined ? { part: item.part } : {}),
       ...(item.printScale ? { printScale: item.printScale } : {}), ...(item.printArea ? { printArea: item.printArea } : {}),
-      mapBounds: options.mapBounds, header: layout.header, ...(item.training ? { training: item.training } : {}), ...(options.date ? { date: options.date } : {}) });
+      mapBounds: options.mapBounds, header: layout.header, ...gaps, ...(item.training ? { training: item.training } : {}), ...(options.date ? { date: options.date } : {}) });
     return { item: index, sheets: pages.map(sheetOfPage), pages };
   }));
   return layout.duplex ? duplexParts(groups, items) : groups;

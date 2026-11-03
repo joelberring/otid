@@ -25,9 +25,9 @@ export interface DetailGapsState {
  * Ringklipp (ADR-0180 beslut 10): när "klipp över detaljer" är på räknar kartans Worker gapen för kontrollerna, en kort
  * stund efter senaste ändringen (en dragning ger många). En flyttad kontroll ritas hel tills gapen räknats om.
  */
-export function useDetailGaps(session: MapRenderSession | undefined, document: CourseSettingDocument): DetailGapsState {
-  const on = circleCuttingOf(document).details;
-  const request = useMemo(() => on ? detailRequest(document) : undefined, [document, on]);
+export function useDetailGaps(session: MapRenderSession | undefined, document: CourseSettingDocument | null | undefined): DetailGapsState {
+  const on = document ? circleCuttingOf(document).details : false;
+  const request = useMemo(() => on && document ? detailRequest(document) : undefined, [document, on]);
   const latest = useRef(request);
   latest.current = request;
   const key = request?.key;

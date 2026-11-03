@@ -128,6 +128,14 @@ export function detailCircleGaps(map: ParsedMap, centers: readonly DetailCircle[
  * `detailGapKey(kontroll, radie)`), med sträckornas vinklar på alla banor.
  */
 export function detailCircleCenters(document: CourseSettingDocument): DetailCircle[] { return detailCircles(document); }
+/**
+ * Detaljgapen för utskriften (ADR-0211 beslut 1): när "klipp över detaljer" är på, samma gap som editorns Worker räknar,
+ * för alla ringar i banornas och alla kontrollers skalor. Ges till `printSheetGroups` som `detailGaps`; av = undefined.
+ */
+export function printDetailGaps(document: CourseSettingDocument, map: ParsedMap): Record<string, CircleArc[]> | undefined {
+  if (!document.event.circleCutting?.details) return undefined;
+  return computeDetailCircleGaps(map, detailCircles(document), { sprint: document.event.overprintStandard === "ISSPROM2019" });
+}
 /** Ändringarna (`SET_CIRCLE_GAPS`) som gör detaljgapen fasta i kontrollernas ringavbrott, så att de följer med till .ppen. */
 export function bakeDetailGaps(document: CourseSettingDocument, detailGaps: Readonly<Record<string, readonly CircleArc[]>>): CourseSettingEdit[] {
   return bakeDetailGapEdits(document, detailGaps);

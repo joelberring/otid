@@ -37,6 +37,7 @@ import { frameImageKey, SheetView } from "./course-setting-sheet";
 import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
 import { HelpButton } from "../help/help-panel";
 import { PaperSpacePanel } from "./course-setting-paper-space";
+import { useDetailGaps } from "./course-setting-circle-cutting";
 import { usePaperSpace } from "./use-paper-space";
 import styles from "./course-setting-print-page.module.css";
 
@@ -192,6 +193,10 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const paperSpace = usePaperSpace({ raceId, document: loaded, save, canEdit, chosen });
   const document = paperSpace.view ?? loaded;
 
+  // Ringklippen över detaljer (ADR-0211 beslut 1): samma gap som i editorn, räknade av kartans Worker. Saknades förut, så
+  // förhandsvisningen och PDF:en ritade hela ringar där editorn visade avbrott.
+  const detailGaps = useDetailGaps(session, document).gaps;
+
   const standard = document?.event.descriptionStandard ?? "2018";
   const symbols = useMemo(() => {
     try { return symbolLookup(descriptionSymbols(standard)); } catch (error) { console.error("Symbolerna misslyckades", error); return symbolLookup([] as DescriptionSymbol[]); }
@@ -260,7 +265,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     const nameOf = (course: string) => course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course;
     const layout = !runnerMode && pieces ? { kind: "PIECES" as const }
       : template ? { kind: "TEMPLATE" as const, template, perRunner: runnerMode, duplex, fill } : { kind: "COURSE" as const, header, duplex: partsDuplex };
-    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}),
+    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...(detailGaps ? { detailGaps } : {}),
       onError: ({ item, error }) => {
         console.error("Utskriftslayouten misslyckades", error);
         const row = item === undefined ? undefined : items[item];
@@ -279,7 +284,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       });
     }
     return { sheets: out, errors: bad };
-  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, duplex, bundles, pieces, partsDuplex]);
+  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, duplex, bundles, pieces, partsDuplex, detailGaps]);
 
   // Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång).
   const [images, setImages] = useState<Readonly<Record<string, string>>>({});

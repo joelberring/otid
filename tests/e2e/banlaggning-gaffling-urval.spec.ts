@@ -6,7 +6,7 @@ import { createRace, registerAccount, today, unique, warmCourseSetting } from ".
 /**
  * ADR-0198 (ägaren 2026-11-03): färre gafflingsvarianter. "Natt" har tre fulgafflingar i följd (åtta varianter). Panelen
  * Varianter visar dem med fågelväg och längd längs vägval; "Begränsa varianter" förhandsgranskas och tar bort de som är längst
- * i alla avseenden (skyddet behåller en variant per kontroll). Efter omladdning är antalet lägre, en variant bockas ur och
+ * i alla avseenden: förvalet tar bort de 3 längsta (ägaren), "alla" provas och avbryts. Efter omladdning är antalet lägre, en variant bockas ur och
  * ångras, och IOF XML har bara de behållna. Telefonen: tabellen på 390 px utan att sidan rullar i sidled.
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
@@ -57,22 +57,34 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
   await panel.getByTestId("course-setting-variants-route").click();
   await expect(panel.getByText(/Längden längs vägval är räknad för alla varianter|\d+ av \d+ sträckor räknade/)).toBeVisible({ timeout: 120_000 });
 
-  // Förhandsgranska "längst i alla avseenden": fyra tas bort, fyra behålls (tre för att deras kontroll annars inte används).
+  // "Längst i alla avseenden (alla)" tar bort många (skyddet behåller en per kontroll); Avbryt låter allt vara.
   const prune = panel.getByTestId("course-setting-variants-prune");
-  await expect(prune.getByLabel("Ta bort varianter som är längst i alla avseenden")).toBeChecked();
-  await prune.getByRole("button", { name: "Förhandsgranska" }).click();
   const preview = panel.getByTestId("course-setting-variants-preview");
-  await expect(preview).toContainText("Tas bort (4):");
-  await expect(preview).toContainText("Behålls (4):");
-  await expect(preview).toContainText(/behövs för kontroll 4[246]/);
-  await expect(panel.locator("tr[data-preview='goes']")).toHaveCount(4);
+  await prune.getByLabel("Längst i alla avseenden (alla)").check();
+  await prune.getByRole("button", { name: "Förhandsgranska" }).click();
+  await expect(preview).toContainText(/Tas bort \([1-7]\):/);
+  await preview.getByRole("button", { name: "Avbryt" }).click();
+  await expect(preview).toHaveCount(0);
+
+  // Förvalet (ägaren): "Ta bort de längsta" med 3. Tre tas bort med skälet, fem blir kvar.
+  await prune.getByLabel("Ta bort de längsta").check();
+  await expect(prune.getByTestId("course-setting-variants-longest")).toHaveValue("3");
+  await prune.getByTestId("course-setting-variants-longest").fill("8");
+  await prune.getByRole("button", { name: "Förhandsgranska" }).click();
+  await expect(prune.getByText("Skriv ett heltal från 1 till 7.")).toBeVisible();
+  await prune.getByTestId("course-setting-variants-longest").fill("3");
+  await prune.getByRole("button", { name: "Förhandsgranska" }).click();
+  await expect(preview).toContainText("Tas bort (3):");
+  await expect(preview).toContainText("Behålls (5):");
+  await expect(preview).toContainText(/längre än [A-F]{3}/);
+  await expect(panel.locator("tr[data-preview='goes']")).toHaveCount(3);
   await panel.scrollIntoViewIfNeeded();
   if (shots) await owner.screenshot({ path: `${shots}/banlaggning-gaffling-urval-forhand-1280.png`, fullPage: true });
-  await preview.getByRole("button", { name: "Ta bort 4 varianter" }).click();
-  await expect(summary).toHaveText("8 varianter, 4 används (4 bortvalda som längre)");
+  await preview.getByRole("button", { name: "Ta bort 3 varianter" }).click();
+  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
   await saved(owner);
   let natt = (await documentNow()).courses.find(course => course.name === "Natt")!;
-  expect(natt.excludedVariants).toHaveLength(4);
+  expect(natt.excludedVariants).toHaveLength(3);
   const excludedCodes = natt.excludedVariants!.map(row => row.code).sort();
   expect(excludedCodes).not.toContain("ACE");
 
@@ -80,8 +92,8 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
   await owner.reload();
   await mapReady(owner);
   await courseRow(owner, "Natt").click();
-  await expect(summary).toHaveText("8 varianter, 4 används (4 bortvalda som längre)");
-  await expect(courseRow(owner, "Natt")).toContainText("4 varianter (4 bortvalda)");
+  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
+  await expect(courseRow(owner, "Natt")).toContainText("5 varianter (3 bortvalda)");
   if (shots) {
     await panel.scrollIntoViewIfNeeded();
     await owner.screenshot({ path: `${shots}/banlaggning-gaffling-urval-tabell-1280.png` });
@@ -89,10 +101,10 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
 
   // För hand: bocka ur ACE (den kortaste); en kontroll kan bli oanvänd och sägs då. Ångra tar tillbaka den.
   await panel.getByLabel("Använd variant ACE").uncheck();
-  await expect(summary).toHaveText("8 varianter, 3 används (5 bortvalda som längre)");
+  await expect(summary).toHaveText("8 varianter, 4 används (4 bortvalda som längre)");
   await saved(owner);
   await owner.getByRole("button", { name: "Ångra" }).click();
-  await expect(summary).toHaveText("8 varianter, 4 används (4 bortvalda som längre)");
+  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
   await saved(owner);
   natt = (await documentNow()).courses.find(course => course.name === "Natt")!;
   expect(natt.excludedVariants!.map(row => row.code).sort()).toEqual(excludedCodes);
@@ -104,7 +116,7 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
   await owner.getByTestId("course-setting-iof").click();
   const xml = await readFile(await (await downloadPromise).path(), "utf8");
   const names = [...xml.matchAll(/<Name>Natt (\w+)<\/Name>/g)].map(match => match[1]!).sort();
-  expect(names).toHaveLength(4);
+  expect(names).toHaveLength(5);
   expect(names).toContain("ACE");
   for (const code of excludedCodes) expect(names).not.toContain(code);
   await owner.keyboard.press("Escape");
@@ -120,7 +132,7 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
   await phone.getByRole("tab", { name: "Banor" }).click();
   await courseRow(phone, "Natt").click();
   const phonePanel = phone.getByTestId("course-setting-variants");
-  await expect(phone.getByTestId("course-setting-variants-summary")).toHaveText("8 varianter, 4 används (4 bortvalda som längre)");
+  await expect(phone.getByTestId("course-setting-variants-summary")).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
   await phonePanel.scrollIntoViewIfNeeded();
   expect(await phone.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   if (shots) await phone.screenshot({ path: `${shots}/banlaggning-gaffling-urval-tabell-390.png` });

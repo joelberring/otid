@@ -251,7 +251,7 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
     const stranger = await registerTestAccount(db, undefined, NOW);
     const none = await listUsableClubMaps(db, stranger.proof, NOW);
     expect(none.status === "ok" && none.response.maps).toEqual([]);
-    expect(mayUseClubMap(undefined, { mapId: maps.a.mapId, ...maps.a })).toBe(false);
-    expect(mayUseClubMap({ role: "READER", clubId }, { mapId: maps.a.mapId, ...maps.a })).toBe(true);
+    expect(mayUseClubMap(undefined, maps.a)).toBe(false);
+    expect(mayUseClubMap({ role: "READER", clubId }, maps.a)).toBe(true);
   });
 });

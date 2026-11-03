@@ -104,7 +104,8 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await expect(accepted.locator("summary")).toHaveText("Godtagna (1)");
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 60_000 });
 
-  // Omladdning: fortfarande godtagen (sparad i dokumentet).
+  // Omladdning: fortfarande godtagen (sparad i dokumentet). Ångra-historiken skrivs i webbläsaren strax efter ändringen.
+  await owner.waitForTimeout(800);
   await owner.reload();
   await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
   await badge(owner).click();

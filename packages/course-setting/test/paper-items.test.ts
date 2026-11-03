@@ -208,3 +208,52 @@ describe("papperet: .ppen", () => {
     expect(imported.specialObjects.some(special => special.kind === "image")).toBe(false);
   });
 });
+
+describe("papperet steg 3: flera sidor och markeringar vid klippningen (ägaren 2026-11-03)", () => {
+  it("en bana på flera sidor: elementen på första sidan, med \"Alla sidor\" på varje sida; beskrivningen bara på första", () => {
+    const { b, course: id } = lineCourse(12);
+    // Tryckytan bredare än A4: banan delas på flera sidor.
+    b.edit({ type: "SET_PRINT_AREA", course: id, area: { automatic: false, restrictToPageSize: false,
+      rect: { minX: -30, minY: -60, maxX: 600, maxY: 60 }, page: { ...A4, margins: 28, landscape: false } } });
+    b.edit({ type: "SET_PAPER_LAYOUT", course: id, layout: { items: [title,
+      { id: "n", kind: "NORTH_ARROW", at: { corner: "TOP_RIGHT", x: 2, y: 2 }, sizeMm: 10, pages: "ALL" }] } });
+    const pages = layoutCoursePage(b.document, { course: id });
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pages[0]!.paperItems!.map(item => item.id)).toEqual(["t1", "n"]);
+    for (const later of pages.slice(1)) {
+      expect(later.paperItems!.map(item => item.id)).toEqual(["n"]);
+      expect(later.description).toBeUndefined();
+    }
+    expect(validatePaperLayout({ items: [{ ...title, pages: "ALL" }] }).items![0]!.pages).toBe("ALL");
+    expect(() => validatePaperLayout({ items: [{ ...title, pages: "SOME" as never }] })).toThrow(/sidorna/);
+  });
+
+  it("banan står hel; markeringar utanför tas bort, delvis innanför klipps; rutan visar alla", () => {
+    const { b, course: id } = course(3);
+    const inside = b.edit({ type: "ADD_SPECIAL", special: { kind: "water", points: [{ x: -20, y: 40 }] } });
+    const outside = b.edit({ type: "ADD_SPECIAL", special: { kind: "first-aid", points: [{ x: 60, y: 40 }] } });
+    const area = b.edit({ type: "ADD_SPECIAL", special: { kind: "out-of-bounds", points: [{ x: 0, y: 20 }, { x: 50, y: 20 }, { x: 50, y: 40 }, { x: 0, y: 40 }] } });
+    const full = printSheetGroups(b.document, { kind: "COURSE" }, [{ course: id }])[0]!.sheets[0]!.frames[0]!;
+    // Klippningen: ramens vänstra halva (kartans x < 20).
+    const clip = { shape: "RECT" as const, rect: { x: 0, y: 0, width: full.clip.width / 2, height: full.clip.height }, outside: "WHITE" as const };
+    b.edit({ type: "SET_PAPER_LAYOUT", course: id, layout: { clip } });
+    const frame = printSheetGroups(b.document, { kind: "COURSE" }, [{ course: id }])[0]!.sheets[0]!.frames[0]!;
+    const refs = (frame_: typeof frame, role: string) => frame_.figures.filter(figure => figure.role === role).map(figure => figure.ref);
+    // Banans figurer (kontroller, start, mål, sträckor, nummer) är desamma som utan klippning.
+    for (const role of ["START", "CONTROL", "FINISH", "LEG", "NUMBER"]) expect(refs(frame, role)).toEqual(refs(full, role));
+    // Punktsymbolen utanför tas bort, den innanför står kvar; området ritas klippt.
+    const specials = new Set(refs(frame, "SPECIAL"));
+    expect(specials.has(outside)).toBe(false);
+    expect(specials.has(inside)).toBe(true);
+    expect(specials.has(area)).toBe(true);
+    expect(frame.markingClip!.refs).toContain(area);
+    expect(frame.markingClip!.refs).not.toContain(inside);
+    expect(frame.markingClip!.polygon[0]).toEqual({ x: frame.clip.x, y: frame.clip.y });
+    // "Visa markeringar utanför utsnittet": allt som förut, ingen klippning av markeringarna.
+    b.edit({ type: "SET_PAPER_LAYOUT", course: id, layout: { clip: { ...clip, showMarkings: true } } });
+    const shown = printSheetGroups(b.document, { kind: "COURSE" }, [{ course: id }])[0]!.sheets[0]!.frames[0]!;
+    expect(shown.markingClip).toBeUndefined();
+    expect(new Set(refs(shown, "SPECIAL")).has(outside)).toBe(true);
+    expect(validatePaperLayout({ clip: { ...clip, showMarkings: true } }).clip).toMatchObject({ showMarkings: true });
+  });
+});

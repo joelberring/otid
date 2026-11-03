@@ -230,9 +230,10 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
     const transform = { scale, translateX: clip.x - mapArea.minX * scale, translateY: clip.y + mapArea.maxY * scale };
     const description = pages.length === 0 && !options.training?.section && options.descriptions !== false
       ? placeDescription(document, { course, ...(variant !== undefined ? { variant } : {}), clip, transform, figures }, 0) : undefined;
-    const paperItems = pages.length === 0 && !options.training?.section && options.descriptions !== false
+    // Papperets element: första sidan, och de med "Alla sidor" på de följande (ägaren 2026-11-03).
+    const paperItems = !options.training?.section && options.descriptions !== false
       ? sheetPaperItems(document, { course, ...(variant !== undefined ? { variant } : {}), printScale, clip }, 0,
-        { page: { x: 0, y: 0, width: widthMm, height: heightMm }, date: options.date }) : [];
+        { page: { x: 0, y: 0, width: widthMm, height: heightMm }, date: options.date, firstPage: pages.length === 0 }) : [];
     pages.push({
       course, ...(variant !== undefined ? { variant } : {}), title,
       paper: { widthMm, heightMm, landscape: page.landscape, marginMm }, mapScale, printScale, mapArea, clip, transform,

@@ -38,7 +38,7 @@ function png(width: number, height: number): Buffer {
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40" viewBox="0 0 120 40"><rect width="120" height="40" fill="#0a5"/>
 <text x="60" y="27" font-size="20" text-anchor="middle" fill="#fff" font-family="Arial">OK</text></svg>`;
 
-type Item = { id: string; kind: string; at: { corner: string; x: number; y: number }; text?: string; opacity?: number };
+type Item = { id: string; kind: string; at: { corner: string; x: number; y: number }; text?: string; opacity?: number; pages?: string };
 type Layout = { template?: string; items?: Item[]; hidden?: string[]; clip?: { shape: string; outside: string } | "NONE" };
 type Doc = { courses: { id: string; name: string }[]; event: { paperLayouts?: Record<string, Layout>; paperTemplates?: { id: string; name: string; items: Item[] }[];
   paperValues?: { date?: string; contourInterval?: string } } };
@@ -172,6 +172,44 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await expect.poll(async () => (await doc()).event.paperLayouts!["1"]!.clip).toMatchObject({ shape: "RECT", outside: "FADED" });
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   await shot(owner, "04-papperet-klippning", sheet);
+
+  // 4b. Ägaren 2026-11-03: markeringar (förbjudet område, vätska) utanför utsnittet syns inte, ett område som delvis ligger
+  // innanför klipps vid kanten; banan står hel. "Visa markeringar utanför utsnittet" visar allt.
+  const state = await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { version: number } };
+  const csrf = (await owner.context().cookies()).find(row => /otid[-_]organizer[-_]csrf$/.test(row.name))?.value ?? "";
+  const added = await owner.request.post(`${admin}/course-setting/edits`, { headers: { origin: new URL(owner.url()).origin, "x-otid-csrf": csrf },
+    data: { formatVersion: 1, requestId: crypto.randomUUID(), baseVersion: state.setting.version, edits: [
+      { type: "ADD_SPECIAL", special: { kind: "out-of-bounds", points: [{ x: 40, y: 10 }, { x: 95, y: 10 }, { x: 95, y: 45 }, { x: 40, y: 45 }] } },
+      { type: "ADD_SPECIAL", special: { kind: "water", points: [{ x: 90, y: 40 }] } }] } });
+  expect(added.status()).toBe(200);
+  await owner.reload();
+  await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
+  // Utsnittet mindre: 80 × 60 mm uppe till vänster i ramen.
+  for (const [key, value] of [["width", "80"], ["height", "60"]] as const) {
+    await panel.getByTestId(`paper-clip-${key}`).fill(value);
+    await panel.getByTestId(`paper-clip-${key}`).press("Enter");
+  }
+  await expect.poll(async () => (await doc()).event.paperLayouts!["1"]!.clip).toMatchObject({ rect: { width: 80, height: 60 } });
+  const frame = sheet.getByTestId("print-frame").first();
+  await expect(frame).toHaveAttribute("data-marking-clip", "", { timeout: 15_000 });
+  await expect(frame.getByTestId("print-marking-clipped").first()).toBeAttached();
+  const courseParts = await frame.locator("[data-role=CONTROL], [data-role=START], [data-role=FINISH], [data-role=LEG]").count();
+  expect(courseParts).toBeGreaterThan(3);
+  await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
+  await shot(owner, "06-papperet-markeringar-dolda", sheet);
+  await panel.getByTestId("paper-clip-markings").check();
+  await expect(frame).not.toHaveAttribute("data-marking-clip", "", { timeout: 15_000 });
+  await expect(frame.getByTestId("print-marking-clipped")).toHaveCount(0);
+  expect(await frame.locator("[data-role=CONTROL], [data-role=START], [data-role=FINISH], [data-role=LEG]").count()).toBe(courseParts);
+  await shot(owner, "06-papperet-markeringar-visas", sheet);
+  await panel.getByTestId("paper-clip-markings").uncheck();
+  await expect(frame).toHaveAttribute("data-marking-clip", "", { timeout: 15_000 });
+  // Flera sidor: texten på alla sidor.
+  await text.click();
+  await owner.getByTestId("paper-inspector").getByTestId("paper-pages").selectOption("ALL");
+  await expect.poll(async () => (await doc()).event.paperLayouts!["1"]!.items!.find(item => item.kind === "TEXT")!.pages).toBe("ALL");
+  await shot(owner, "06-papperet-alla-sidor", owner.getByTestId("paper-inspector"));
+  await sheet.getByTestId("paper-empty").click({ position: { x: 5, y: 5 } });
 
   // 5. Mall: banans papper som "Klubbens träningsmall", på alla valda banor; biblioteket.
   await panel.getByTestId("paper-clip-edit").uncheck();

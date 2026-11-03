@@ -175,6 +175,9 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
       {item.kind === "NORTH_ARROW" && <NumberField label={text.height} value={item.sizeMm} min={5} max={100} step={1} disabled={readOnly}
         onCommit={sizeMm => onChange({ ...item, sizeMm })} testId="paper-arrow-size" />}
       <div className={styles.row}>
+        <Field label={text.pages}><select value={item.pages ?? "FIRST"} data-testid="paper-pages" title={text.pagesHelp}
+          onChange={event => onChange({ ...item, pages: event.target.value === "ALL" ? "ALL" : undefined })}>
+          <option value="FIRST">{text.pagesOptions.FIRST}</option><option value="ALL">{text.pagesOptions.ALL}</option></select></Field>
         <Field label={text.relative}><select value={item.relativeTo ?? "FRAME"} onChange={event => setRelative(event.target.value === "PAGE")} data-testid="paper-relative">
           <option value="FRAME">{text.relatives.FRAME}</option><option value="PAGE">{text.relatives.PAGE}</option></select></Field>
         <Field label={text.corner}><select value={item.at.corner} onChange={event => setCorner(event.target.value as PaperCorner)} data-testid="paper-corner">
@@ -232,6 +235,8 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
         <Field label={text.clip.outside}><select value={clip.outside} data-testid="paper-clip-outside"
           onChange={event => void setClip({ ...clip, outside: event.target.value as "WHITE" | "FADED" })}>
           <option value="WHITE">{text.clip.white}</option><option value="FADED">{text.clip.faded}</option></select></Field>
+        <label className={styles.check}><input type="checkbox" checked={clip.showMarkings === true} data-testid="paper-clip-markings"
+          onChange={event => void setClip({ ...clip, showMarkings: event.target.checked || undefined })} />{text.clip.markings}</label>
         <label className={styles.check}><input type="checkbox" checked={editing} onChange={event => onSelect(event.target.checked ? { course, id: CLIP_SELECTION } : undefined)}
           data-testid="paper-clip-edit" />{text.clip.edit}</label>
         {clip.shape === "POLYGON" && <>
@@ -246,6 +251,7 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
           <Button variant="quiet" disabled={clip.points.length <= 3} onClick={() => void setClip({ ...clip, points: clip.points.slice(0, -1) })}>{text.clip.removePoint}</Button>
         </>}
       </div>
+      <p className={styles.muted}>{text.clip.markingsHelp}</p>
       {effective.clipSource === "TEMPLATE" && <p className={styles.muted}>{text.clip.fromTemplate}</p>}
       {clip.shape === "RECT" && <div className={styles.row} aria-label={text.clip.rectFields} role="group">
         {(["x", "y", "width", "height"] as const).map(key => <NumberField key={key} label={key === "x" ? "X" : key === "y" ? "Y" : key === "width" ? text.width : text.height}

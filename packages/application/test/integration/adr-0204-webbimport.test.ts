@@ -62,7 +62,7 @@ describe("ADR-0204: importen med inloggningen", { timeout: 120_000 }, () => {
       await listMyClubs(db, account.proof, NOW);
     }
     const stranger = await registerTestAccount(db, undefined, NOW);
-    const check = (session: typeof owner.proof) => importCheck(db, { session, clubId, request: { formatVersion: 1, sha256: [] } }, NOW);
+    const check = (session: { sessionToken: string | null; csrfCookie: string | null; csrfHeader: string | null }) => importCheck(db, { session, clubId, request: { formatVersion: 1, sha256: [] } }, NOW);
 
     expect(await check(owner.proof)).toMatchObject({ status: "ok", response: { clubId, clubName: "OK Webbimport", known: [] } });
     expect((await check(adminAccount.proof)).status).toBe("ok");

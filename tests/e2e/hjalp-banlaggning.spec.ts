@@ -30,6 +30,9 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   test.setTimeout(600_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `hjalpbana.${suffix}@exempel.se`, "Hanna Hjälp");
+  // Utvecklingsservern kompilerar sidorna vid första besöket.
+  await warmRoute(owner, "/admin/00000000-0000-4000-8000-000000000000/manage");
+  await warmRoute(owner, "/api/admin/races/00000000-0000-4000-8000-000000000000/administrator/session");
   const raceId = await createRace(owner, `Hjälpbanan ${suffix}`, today(), "Tävling");
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);

@@ -39,8 +39,12 @@ import {
 } from "./xml";
 import { readCourseData, type CourseDataImport } from "./course-data";
 import { isCourseDataV2, readCourseDataV2 } from "./course-data-v2";
+import { readCourseLayoutXml, type CourseLayoutImport } from "./course-layout";
 
 export { IofValidationError, decodeIofXml } from "./xml";
+export type {
+  CourseLayoutClass, CourseLayoutControl, CourseLayoutCourse, CourseLayoutCourseControl, CourseLayoutImport, CourseLayoutKind
+} from "./course-layout";
 /** Steg 62: variantkoden ur familjens och banans namn (banläggningens överföring gör som inläsningen). */
 export { courseVariantCode } from "./course-data";
 export type {
@@ -331,6 +335,16 @@ export function parseIofXml(xml: string): IofImport {
     if (error instanceof IofValidationError) throw new IofValidationError(withLines(xml, error.issues));
     throw error;
   }
+}
+
+/**
+ * En banfil (IOF XML 3.0 eller 2.0.3 CourseData) som kontroller och banor på kartan, för banläggningen. Samma kontroll
+ * och samma fel som `parseIofXml`; en fil som inte är CourseData ger `IofValidationError`.
+ */
+export function readCourseLayout(xml: string): CourseLayoutImport {
+  const parsed = parseIofXml(xml);
+  if (parsed.kind !== "CourseData") throw new IofValidationError(["Filen är ingen banfil (CourseData)"]);
+  return readCourseLayoutXml(xml);
 }
 
 function parseIofXmlStrict(xml: string): IofImport {

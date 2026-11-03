@@ -57,6 +57,7 @@ import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers 
 import { ChecksPanel, CourseList, LegPanel, SelectedPanel, SelectionCard } from "./course-setting-panels";
 import { SuggestionDraft, SuggestionsPanel } from "./course-setting-suggestions";
 import { TransferPanel } from "./course-setting-transfer";
+import { canTransfer, newCourseKind, RaceTypeHint } from "./course-setting-race-type";
 import { courseSettingHelpViews, Dialog, Drawer, ToolBar, TopBar, type DrawerTab } from "./course-setting-workspace";
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
 import { ControlList } from "./course-setting-controls";
@@ -555,7 +556,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
 
   function addCourse(name: string) {
     edit(current => {
-      const next = applySteps(current, [{ type: "ADD_COURSE", name }], applyEdit);
+      const next = applySteps(current, [{ type: "ADD_COURSE", name, kind: newCourseKind(state.raceType) }], applyEdit);
       const created = next.document.courses.find(row => !current.document.courses.some(old => old.id === row.id));
       return created ? setView(next, created.id) : next;
     });
@@ -610,7 +611,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} /> });
   const panel = (() => {
     switch (tab) {
-      case "courses": return <><CourseList document={document} summaries={summaries} view={view} readOnly={readOnly}
+      case "courses": return <><RaceTypeHint raceType={state.raceType} /><CourseList document={document} summaries={summaries} view={view} readOnly={readOnly}
         onView={(next, value) => apply(current => setView(current, next, value))} onAdd={addCourse}
         onRename={(id, name) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { name } }], applyEdit))}
         onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
@@ -712,7 +713,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} onTraining={() => { setTab("training"); setReveal(value => value + 1); }} trainingOpen={tab === "training"} />;
 
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
-    ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
+    ...(access.admin && canTransfer(state.raceType) ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
     { label: copy.topbar.settings, onClick: () => setTab("settings") },
     // Utskriftens sidor direkt från Fil (ägaren 2026-11-03), efter att det osparade skickats.
     { label: text.printMenu, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print${view !== ALL_CONTROLS ? `?course=${encodeURIComponent(view)}` : ""}`)) },

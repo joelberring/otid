@@ -81,6 +81,9 @@ importers:
       '@o-tid/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@o-tid/iof-xml':
+        specifier: workspace:*
+        version: link:../../packages/iof-xml
       '@o-tid/map-file':
         specifier: workspace:*
         version: link:../../packages/map-file
@@ -182,6 +185,10 @@ importers:
       polygon-clipping:
         specifier: 0.15.7
         version: 0.15.7
+    devDependencies:
+      '@o-tid/iof-xml':
+        specifier: workspace:*
+        version: link:../iof-xml
 
   packages/database:
     dependencies:

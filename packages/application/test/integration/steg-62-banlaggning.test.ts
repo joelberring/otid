@@ -99,7 +99,8 @@ describe("steg 62: banläggningen", { timeout: 120_000 }, () => {
   it("sparar med versionskontroll så att två flikar inte skriver över varandra, bara för admin", async () => {
     const proof = await race();
     const before = await readCourseSettingAsAdmin(db, proof);
-    expect(before).toMatchObject({ status: "ok", response: { setting: null, original: null, mapFile: null } });
+    // Tävlingens typ följer med (rogaining och fest förklaras i editorn).
+    expect(before).toMatchObject({ status: "ok", response: { setting: null, original: null, mapFile: null, raceType: "STANDARD" } });
     expect(await save(proof, empty(), 0)).toMatchObject({ status: "ok", response: { version: 1 } });
     // Den andra fliken läste innan det fanns något dokument.
     const clash = await save(proof, empty(), 0);

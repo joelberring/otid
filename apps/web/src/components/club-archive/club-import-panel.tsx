@@ -5,6 +5,7 @@ import type { ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
 import { Button, Notice } from "../ui";
+import { HelpLink } from "../help/help-panel";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv.importer;
@@ -52,7 +53,7 @@ export function ClubImportPanel({ club, onChanged }: { club: ClubView; onChanged
     </div>
     <div className={styles.card}>
       <h2>{text.title}</h2>
-      <p>{text.help}</p>
+      <p>{text.help} <HelpLink article="arkiv-import" /></p>
       {!admin ? <p className={styles.muted}>{text.adminOnly}</p> : <>
         <p>{text.step1}</p>
         <p>{text.step2}</p>

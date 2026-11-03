@@ -55,3 +55,6 @@
 .codes { font-family: var(--font-dense); overflow-wrap: anywhere; margin: 0; }
 .runner { display: grid; gap: 8px; min-width: 0; }
 .legTabs { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Hjälp och Stäng i dialogens huvud. */
+.headActions { display: flex; align-items: center; gap: 8px; }

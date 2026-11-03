@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent 
 import { buildImportPlan, formatReport, uploadPlan, type ScanResult, type UploadEvent } from "@o-tid/club-archive";
 import { openBrowserSources, scanBrowserSources, type BrowserRoot } from "@o-tid/club-archive/browser";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, type ClubView } from "@o-tid/contracts";
+import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubWebImportSv } from "../../i18n/club-import-web-sv";
 import { rootSize, rootsFromDrop, rootsFromFileInput, rootsFromFolderInput } from "../../lib/club-import-files";
 import { createWebImportClient, WebImportError } from "../../lib/club-web-import-client";
@@ -185,7 +186,7 @@ export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: 
         <input type="checkbox" checked={withoutLeaders} disabled={phase.kind === "uploading"} onChange={event => setWithoutLeaders(event.target.checked)} />
         {text.leaders}
       </label>
-      <p className={styles.small}>{text.leadersHint}</p>
+      <p className={styles.small}>{text.leadersHint} <code>{clubArchiveSv.importer.leadersFlag}</code>.</p>
       <div className={styles.actions}>
         {(phase.kind === "choose" || (phase.kind === "stopped" && !scanned)) &&
           <Button disabled={fileCount === 0} onClick={() => void preview()}>{text.preview}</Button>}

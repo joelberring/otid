@@ -21,7 +21,7 @@ export const clubWebImportSv = {
   chosenFile: (name: string, bytes: number) => `${name} (${mb(bytes)})`,
   clear: "Rensa",
   leaders: "Ta inte med ledarens namn ur [hakparenteser]",
-  leadersHint: "Ledarnas namn i mappnamnen är personuppgifter. Samma val som --utan-ledare i kommandot.",
+  leadersHint: "Ledarnas namn i mappnamnen är personuppgifter. I kommandot heter samma val",
   preview: "Förhandsgranska",
   scanning: (done: number, total: number) => `Läser ${done} av ${total} filer …`,
   opening: "Öppnar filerna …",

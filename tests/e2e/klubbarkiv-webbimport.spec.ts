@@ -14,7 +14,8 @@ test("klubbarkiv: importen i webbläsaren – välj mapp, förhandsgranska, impo
   test.setTimeout(360_000);
   const suffix = unique();
   const dir = mkdtempSync(join(tmpdir(), "otid-webbimport-"));
-  const root = join(dir, "Klubbträningar");
+  // ASCII i mappens namn: Playwrights uppladdning av en mapp fastnar på "ä" i rotmappens namn (webbläsaren klarar det).
+  const root = join(dir, "Klubbtraningar");
   const pdfMarker = `påhittad resultatlista ${suffix}`;
   const files: Record<string, Uint8Array> = {
     "2021/03-14 Skogen [Kim]/Skogen.omap": syntheticMap(0),
@@ -50,7 +51,7 @@ test("klubbarkiv: importen i webbläsaren – välj mapp, förhandsgranska, impo
     await expect(owner.getByRole("button", { name: "Skapa importnyckel" })).toBeHidden();
 
     await owner.getByLabel("Välj mapp").setInputFiles(root);
-    await expect(owner.getByTestId("import-chosen")).toHaveText("Mappen Klubbträningar (4 filer)");
+    await expect(owner.getByTestId("import-chosen")).toHaveText("Mappen Klubbtraningar (4 filer)");
     await owner.getByRole("button", { name: "Förhandsgranska" }).click();
     const preview = owner.getByTestId("import-preview");
     await expect(preview).toContainText("Förhandsgranskning – inget är skickat än");

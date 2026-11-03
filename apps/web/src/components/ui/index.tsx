@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
+import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes,
   type TableHTMLAttributes } from "react";
 import styles from "./ui.module.css";
 
@@ -60,6 +60,12 @@ export function focusWhenEnabled(form: { current: HTMLFormElement | null }, sele
     if (field && !field.disabled) field.focus();
     else if (frames > 0) focusWhenEnabled(form, selector, frames - 1);
   });
+}
+
+/** Val i en lista, med etikett (används av klubbarkivet, ADR-0194). */
+export function Select({ label, help, error, children, className, ...props }: SelectHTMLAttributes<HTMLSelectElement> &
+  { label: ReactNode; help?: ReactNode; error?: string | undefined }) {
+  return <Field label={label} help={help} error={error} className={className}><select {...props}>{children}</select></Field>;
 }
 
 /** Ett avsnitt med rubrik, kort hjälptext och åtgärder. Avsnitt skiljs åt med luft och en linje. */

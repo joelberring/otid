@@ -48,7 +48,8 @@ O-Tid gör i stället för att skriva in en stämpling (rådata ändras aldrig).
    Inställningar (nyckel och koppling) och hänvisas från Anmälda.
 4. **Kod som bara tester anropade.** `importIofXml`, `changeEntryClass` och `recalculateEntry` (utan behörighet, bara
    anropade av tester) och `resultHistory`, `isForkedCourseVersion`, `changeEntryClassSchema`, `publicPoolOfDatabase` och
-   UI-komponenterna `Select` och `Toolbar` (inte anropade alls) är borttagna. Integrationstesterna importerar, byter klass och
+   UI-komponenten `Toolbar` (inte anropade alls) är borttagna; `Select` står kvar eftersom klubbarkivet (ADR-0194) använder
+   den. Integrationstesterna importerar, byter klass och
    räknar om via produktionsvägen (`test/integration/production-paths.ts`: samma tjänster som routerna, med en
    administratörs session och CSRF). Det ändrade några förväntningar till det produktionen faktiskt gör: omräkningen har
    orsaken `EXPLICIT_RECALCULATION` och journalraden `RESULT_RECALCULATED_BY_ADMIN`, ett kapacitetsfel är 409 och en löpare

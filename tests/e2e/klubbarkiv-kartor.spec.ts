@@ -129,10 +129,11 @@ test("klubbarkivets kartor: OCAD 11 fungerar, OCAD 7 säger varför, bilder, ban
   await skogenCard.getByRole("button", { name: "Ändra rättigheter: Skogen" }).click();
   const rights = owner.getByRole("form", { name: "Kartans rättigheter: Skogen" });
   await rights.getByLabel("Extern", { exact: true }).check();
+  await rights.getByRole("combobox", { name: "Ägare", exact: true }).selectOption({ label: "Kommun" });
   await rights.getByLabel("Ägarens namn").fill("Stockholms stad");
   await rights.getByLabel("Avtal", { exact: true }).fill("Avtal om träningskartor 2024–2027");
   await rights.getByRole("button", { name: "Spara rättigheterna" }).click();
-  await expect(skogenCard.getByTestId("map-agreement")).toContainText("Stockholms stad");
+  await expect(skogenCard.getByTestId("map-agreement")).toContainText("Extern karta – Kommun: Stockholms stad");
   await expect(skogenCard.getByTestId("map-agreement")).toContainText("Avtal om träningskartor 2024–2027");
   await reviewScreenshots(owner, "kartarkiv-kartor");
 

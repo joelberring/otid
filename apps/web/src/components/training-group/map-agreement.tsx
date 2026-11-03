@@ -44,7 +44,7 @@ export function MapAgreementFields({ value, onChange, disabled }: { value: MapAg
       <legend>{text.ownership}</legend>
       {(["CLUB", "EXTERNAL"] as const).map(option => <label key={option} className={styles.check}>
         <input type="radio" name="ownership" checked={value.ownership === option} disabled={disabled}
-          onChange={() => set({ ownership: option, ...(option === "CLUB" ? { ownerKind: null } : {}) })} />{text.ownershipOptions[option]}</label>)}
+          onChange={() => set({ ownership: option, ...(option !== value.ownership ? { ownerKind: null } : {}) })} />{text.ownershipOptions[option]}</label>)}
     </fieldset>
     {external && <div className={styles.inline}>
       <Field label={text.ownerKind}><select value={value.ownerKind ?? ""} disabled={disabled}

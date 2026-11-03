@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { coursePropertiesSv as copy } from "../../i18n/course-setting-properties-sv";
 import { safely } from "../../lib/course-setting-safely";
@@ -13,19 +13,35 @@ import styles from "./course-setting.module.css";
 const text = copy.routeLength;
 
 /**
+ * ADR-0199: vägvalens svar per indata (`legInput`-nyckeln), gemensamt för banans längd, vald sträcka och varningarna om
+ * förbjudna områden, så att en sträcka som redan räknats inte räknas igen.
+ */
+export function useRouteResults() {
+  const [results, setResults] = useState<ReadonlyMap<string, LegLength>>(new Map());
+  const record = useCallback((key: string, best: number | undefined, straight: number) => setResults(current => {
+    if (current.has(key)) return current;
+    const next = new Map(current.size > 2000 ? [] : current);
+    return next.set(key, { best, straight });
+  }), []);
+  return { results, record };
+}
+
+export type RouteResults = ReturnType<typeof useRouteResults>;
+
+/**
  * ADR-0190 beslut 6: banans längd längs föreslagna vägval. Räknas när banläggaren ber om det (vägvalens Worker startas
  * då, som när en sträcka väljs); sträckorna sparas per indata, så att bara flyttade sträckor räknas om. Väljs en sträcka
  * medan banan räknas avbryts räkningen (Workern räknar en sak i taget); "Räkna klart" tar resten.
  */
-export function useRouteLength({ document, view, variant, session, ready, failed, wanted, onWanted }: {
-  document: CourseSettingDocument; view: string; variant: string | undefined;
+export function useRouteLength({ document, view, variant, session, ready, failed, wanted, onWanted, store }: {
+  document: CourseSettingDocument; view: string; variant: string | undefined; store: RouteResults;
   session: RefObject<RouteChoiceSession | undefined>; ready: boolean; failed: boolean;
   /** Vägvalens Worker behövs (startas av `useRouteChoiceWorker`). */
   wanted: boolean; onWanted: () => void;
 }) {
   const legs = useMemo(() => safely("Vägvalens sträckor", () => routeLengthLegs(document, view, variant), () => undefined),
     [document, view, variant]);
-  const [results, setResults] = useState<ReadonlyMap<string, LegLength>>(new Map());
+  const { results, record } = store;
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(false);
   const pending = useRef<readonly LegInput[] | undefined>(undefined);
@@ -35,11 +51,8 @@ export function useRouteLength({ document, view, variant, session, ready, failed
     const missing = list.filter(leg => !results.has(leg.key));
     if (missing.length === 0) return;
     setRunning(true); setError(false);
-    session.current.analyse(missing, (_index, analysis) => setResults(current => {
-      const next = new Map(current.size > 2000 ? [] : current);
-      next.set(analysis.key, { best: analysis.best?.meters, straight: analysis.straightMeters });
-      return next;
-    }), () => setRunning(false), () => { setRunning(false); setError(true); });
+    session.current.analyse(missing, (_index, analysis) => record(analysis.key, analysis.best?.meters, analysis.straightMeters),
+      () => setRunning(false), () => { setRunning(false); setError(true); });
   };
   // Workern blev klar efter att banläggaren bad om längden.
   useEffect(() => { if (ready && pending.current) { const list = pending.current; pending.current = undefined; run(list); } }, [ready]);
@@ -57,8 +70,7 @@ export function useRouteLength({ document, view, variant, session, ready, failed
     /** Vägvalens Worker fick en annan körning (vald sträcka): den här är avbruten. */
     interrupted: () => { pending.current = undefined; setRunning(false); },
     /** En vald sträcka som räknats (samma indata) räknas inte igen. */
-    remember: (key: string, best: number | undefined, straight: number) => setResults(current => current.has(key) ? current
-      : new Map(current).set(key, { best, straight }))
+    remember: record
   };
 }
 

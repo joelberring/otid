@@ -6,9 +6,9 @@ import type {
   CourseSettingMode, CourseSettingState, CourseSettingSuggestionDecided
 } from "@o-tid/contracts";
 import {
-  applyEdit, carryExcludedVariants, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, keepPaperOnImport, layoutCoursePage,
-  layoutOverprint, nextFreeCode,
-  printAreaOf, type CourseSettingDocument, type DescriptionSymbol, type MapRect, type OverprintPrimitive
+  acceptChecksEdit, applyEdit, carryExcludedVariants, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
+  keepAcceptedChecks, keepPaperOnImport, layoutCoursePage, layoutOverprint, nextFreeCode, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
+  type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
@@ -35,7 +35,8 @@ import { failedNames, safely } from "../../lib/course-setting-safely";
 import { CourseSettingSync, EditorStore, type LostEdit, type SyncStatus } from "../../lib/course-setting-sync";
 import { inspectedPoints, inspectionRows, mergeInspections } from "../../lib/course-setting-inspections";
 import type { FieldRecord, QueuedItem } from "../../lib/course-setting-offline";
-import { checkRows, controlLabel, legInput, type CheckRow } from "../../lib/course-setting-text";
+import { controlLabel, legInput } from "../../lib/course-setting-text";
+import { legForbiddenNotice, showCheckRow, type CheckRow } from "../../lib/course-setting-checks";
 import { toScreen, type Bounds, type Viewport } from "../../lib/course-setting-viewport";
 import { drawPrintFrame, drawSpecialEditing } from "../../lib/course-setting-draw-special";
 import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHandles } from "../../lib/course-setting-specials";
@@ -54,7 +55,8 @@ import { FieldSuggestionLine, useDescriptionSuggestions } from "./course-setting
 import { drawSuggestionHighlight } from "../../lib/course-setting-suggest";
 import { InspectionsPanel, OfflinePanel } from "./course-setting-inspections";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "./course-setting-map";
-import { ChecksPanel, CourseList, LegPanel, SelectedPanel, SelectionCard } from "./course-setting-panels";
+import { CourseList, LegPanel, SelectedPanel, SelectionCard } from "./course-setting-panels";
+import { ChecksPanel, useForbiddenRouteRunner, useForbiddenRoutes } from "./course-setting-checks";
 import { SuggestionDraft, SuggestionsPanel } from "./course-setting-suggestions";
 import { TransferPanel } from "./course-setting-transfer";
 import { canTransfer, newCourseKind, RaceTypeHint } from "./course-setting-race-type";
@@ -62,7 +64,7 @@ import { courseSettingHelpViews, Dialog, Drawer, ToolBar, TopBar, type DrawerTab
 import { useCourseSettingCollaboration } from "./use-course-setting-collaboration";
 import { ControlList } from "./course-setting-controls";
 import { CourseProperties } from "./course-setting-course-properties";
-import { RouteLengthPanel, useRouteLength } from "./course-setting-route-length";
+import { RouteLengthPanel, useRouteLength, useRouteResults } from "./course-setting-route-length";
 import { VariantsPanel } from "./course-setting-variants";
 import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
@@ -253,8 +255,10 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   // Steg 64: symbolerna för beskrivningen på kartan.
   const standard = document.event.descriptionStandard;
   const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), () => [] as readonly DescriptionSymbol[])), [standard]);
-  const checked = useMemo(() => safely("Kontrollerna", () => checkDocument(document), () => []), [document]);
-  const checks = useMemo(() => checkRows(document, checked), [document, checked]);
+  // ADR-0199: varningarna; vägvalen (en gemensam tabell) avgör sträckorna genom förbjudna områden.
+  const routeStore = useRouteResults();
+  const forbidden = useForbiddenRoutes({ document, results: routeStore.results, hasMap: Boolean(state.mapFile), tabOpen: tab === "checks" });
+  const checks = forbidden.checks, checked = forbidden.checked;
   const [flagged, setFlagged] = useState<CheckRow>();
   // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utskrift).
   const printPage = useMemo(() => {
@@ -284,8 +288,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     const selectedLine = selection?.kind === "leg" && at(selection.from) && at(selection.to)
       ? [at(selection.from)!, ...(leg?.bends ?? []), at(selection.to)!] : undefined;
     return { selected, selectedLine, bends: leg?.bends ?? [], radiusMm,
-      flagged: (flagged?.controls ?? []).flatMap(id => at(id) ? [at(id)!] : []) };
-  }, [document, selection, flagged, radiusMm]);
+      flagged: ux.marks.warnings ? (flagged?.controls ?? []).flatMap(id => at(id) ? [at(id)!] : []) : [] };
+  }, [document, selection, flagged, radiusMm, ux.marks.warnings]);
 
   // Vald sträcka: vägvalen räknas om (bara den sträckan) en kort stund efter senaste ändringen; en ny ändring avbryter.
   const [analysis, setAnalysis] = useState<LegAnalysis>();
@@ -297,11 +301,11 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const inputKey = input?.key;
   const [lengthWanted, setLengthWanted] = useState(false);
   const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
-    wanted: input !== undefined || lengthWanted });
+    wanted: input !== undefined || lengthWanted || forbidden.wanted });
   const routes = routeWorker.session, routeReady = routeWorker.ready;
   // ADR-0190 beslut 6: banans längd längs vägval (samma Worker; en vald sträcka avbryter och sparas i samma tabell).
   const routeLength = useRouteLength({ document, view, variant, session: routes, ready: routeReady, failed: routeWorker.failed,
-    wanted: lengthWanted, onWanted: () => setLengthWanted(true) });
+    wanted: lengthWanted, onWanted: () => setLengthWanted(true), store: routeStore });
   useEffect(() => {
     setAnalysis(undefined); setHighlighted(undefined);
     if (!input) { setLegStatus("idle"); return; }
@@ -317,6 +321,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     return () => { clearTimeout(timer); worker.cancel(); };
     // Nyckeln ändras med ändarnas lägen; övriga kontroller räknas med när sträckan räknas.
   }, [inputKey, routeReady, routeWorker.failed]);
+  const forbiddenRun = useForbiddenRouteRunner({ legs: forbidden.missing, wanted: forbidden.wanted, session: routes, ready: routeReady,
+    failed: routeWorker.failed, busy: legStatus === "analysing" || routeLength.running, record: routeStore.record });
   const code = (id: string, end: "S" | "F") => document.controls[id]?.kind === "NORMAL" ? `${document.controls[id].code ?? "?"}.1` : end;
   const legKey = selection?.kind === "leg" && view !== ALL_CONTROLS ? `${code(selection.from, "S")}-${code(selection.to, "F")}` : undefined;
   const routeRows = analysis?.best ? [analysis.best, ...analysis.alternatives] : [];
@@ -523,8 +529,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       let carried: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
         ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
-        // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10).
-        ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) },
+        // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10), inte heller de godtagna varningarna (ADR-0199).
+        ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}),
+        ...((accepted => accepted ? { acceptedChecks: accepted } : {})(keepAcceptedChecks(event.acceptedChecks, file.document))) },
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
         ...(!file.document.training && document.training ? { training: document.training } : {}) };
       // ADR-0198: bortvalda varianter följer med när filen saknar dem och varianterna finns kvar.
@@ -655,7 +662,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
           onResetNumber={() => edit(current => current.selection?.kind === "control" && current.selection.courseControl
             ? applySteps(current, [{ type: "MOVE_NUMBER", course: current.view, courseControl: current.selection.courseControl, at: null }], applyEdit) : current)}
           onStraighten={() => edit(current => removeSelected(current, applyEdit))} extra={ux.rotateControls(ux.rotatable)} />
-        <LegPanel legKey={legKey} analysis={analysis} status={legStatus} highlighted={highlighted} onHighlight={setHighlighted} />
+        <LegPanel legKey={legKey} analysis={analysis} status={legStatus} highlighted={highlighted} onHighlight={setHighlighted}
+          notice={selection?.kind === "leg" && legStatus === "done" ? legForbiddenNotice(document, view, selection.from, selection.to, analysis) : undefined} />
       </>;
       case "training": return training.panel;
       case "objects": return <SpecialsPanel document={document} state={editor} readOnly={readOnly}
@@ -667,12 +675,12 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       case "print": return <PrintPanel document={document} view={view} page={printPage?.page} readOnly={readOnly}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))}
         onPreview={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print?course=${encodeURIComponent(view)}`))} />;
-      case "checks": return <ChecksPanel rows={checks} onShow={row => {
-        setFlagged(row);
-        if (row.course && document.courses.some(item => item.id === row.course)) apply(current => setView(current, row.course!));
-        if (row.controls.length === 1) apply(current => select(current, { kind: "control", control: row.controls[0]! }));
-        mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : []));
-      }} />;
+      case "checks": return <ChecksPanel groups={checks.groups} accepted={checks.accepted} readOnly={readOnly}
+        routes={{ pending: forbidden.missing.length, running: forbiddenRun.running, failed: forbiddenRun.failed }}
+        onAccept={rows => edit(current => applySteps(current, [(_created, doc) => acceptChecksEdit(doc, rows.flatMap(row => row.checks))], applyEdit))}
+        onUnaccept={rows => edit(current => applySteps(current, [() => unacceptChecksEdit(rows.map(row => row.key))], applyEdit))}
+        onShow={row => { setFlagged(row); apply(current => showCheckRow(current, row));
+          mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : [])); }} />;
       case "notes": return notes.panel;
       case "inspections": return <InspectionsPanel rows={inspectionList} selected={selection?.kind === "control" ? selection.control : undefined}
         offline={offline.offline} action={field.inspect}
@@ -737,10 +745,10 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         <CourseSettingMap session={mapSession} mapBounds={mapBounds} primitives={drawnPrimitives} faded={faded} ghosts={ux.ghosts} others={ux.others}
           marks={marks} analysis={analysis}
           label={label} cursor={notes.sketching || training.drawing ? "crosshair" : CURSOR[editor.tool]} mapPasses={training.passes} handlers={notes.sketching ? notes.handlers : handlers}
-          handle={mapHandle} noteMarks={mapNotes} selectedNote={selectedNote} sketches={notes.sketchLayer}
+          handle={mapHandle} noteMarks={ux.marks.notes ? mapNotes : undefined} selectedNote={selectedNote} sketches={notes.sketchLayer}
           onNoteTap={id => { setSelectedNote(id); setTab("notes"); }} suggestion={suggestionDrawing} cursorAt={notes.sketching ? undefined : cursorAt}
           highlightRoute={highlightRoute}
-          position={field.position} inspected={inspectedMarks} onPan={field.onPan} symbols={symbols} overlayExtra={overlayExtra} cross={selection?.kind === "control" && document.controls[selection.control]
+          position={field.position} inspected={ux.marks.inspected ? inspectedMarks : undefined} onPan={field.onPan} symbols={symbols} overlayExtra={overlayExtra} cross={selection?.kind === "control" && document.controls[selection.control]
             ? { at: document.controls[selection.control]!.at, dragging: editor.dragBase !== undefined } : undefined} />
         {field.narrow ? <div className={styles.bottomStack} data-map-overlay="">
           {toolBar}
@@ -774,7 +782,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
             onDescription={() => setTab("description")} onMore={() => setTab("selected")} onClose={() => apply(current => select(current, undefined))}
             extra={ux.rotateControls(ux.rotatable?.kind === "control" ? ux.rotatable : undefined)} />}
       </div>
-      <Drawer tab={tab} onTab={setTab} reveal={reveal} counts={{ checks: checks.length, notes: openNotes,
+      <Drawer tab={tab} onTab={setTab} reveal={reveal} counts={{ checks: checks.count, notes: openNotes,
         suggestions: openSuggestions + (suggesting ? editor.log.length : 0) }}>
         {panel}
       </Drawer>

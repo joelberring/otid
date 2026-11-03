@@ -129,7 +129,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await reviewScreenshots(owner, "banlaggning-varningar-godtagna");
 
   // Visa → Markera varningar: raden markerar kontrollerna; släckt syns ingen markering.
-  await panel.locator('[data-key="LEG_NO_ROUTE/6/7"]').getByRole("button", { name: /kontroll 35–kontroll 36/ }).click();
+  await panel.locator('[data-key="LEG_NO_ROUTE/6/7"]').getByRole("button", { name: /^Lång: kontroll 35–kontroll 36/ }).click();
   await expect(marks(owner)).toHaveAttribute("data-marks", /flagged:2/);
   await owner.getByRole("button", { name: /^Visa/ }).click();
   await owner.getByRole("checkbox", { name: "Markera varningar" }).uncheck();

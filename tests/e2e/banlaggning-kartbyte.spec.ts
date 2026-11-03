@@ -69,7 +69,7 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   await parts.getByTestId("course-setting-overlap").selectOption("PREVIOUS_PART");
   await expect.poll(async () => (await doc()).event.paperLayouts?.["1"]?.overlap).toBe("PREVIOUS_PART");
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
-  await shot(owner, "07-kartbyte-editor", print);
+  await shot(owner, "07-kartbyte-editor");
   await reviewScreenshots(owner, "07-kartbyte-editor-hela");
 
   // 2. Förhandsvisningen: en karta per del, dubbelsidigt förvalt (kartan vänds), del 2 på baksidan med överlappet.
@@ -107,8 +107,8 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   await duplex.check();
   // Alla banor: Mellan (en del) får en tom baksida efter sig när dubbelsidigt är på.
   await owner.getByRole("checkbox", { name: "Alla", exact: true }).uncheck();
-  await owner.getByRole("checkbox", { name: "Lång" }).check();
-  await owner.getByRole("checkbox", { name: "Mellan" }).check();
+  await owner.getByRole("checkbox", { name: "Lång", exact: true }).check();
+  await owner.getByRole("checkbox", { name: "Mellan", exact: true }).check();
   await expect(sheets).toHaveCount(4, { timeout: 30_000 });
   await expect(sheets.nth(3)).toHaveAttribute("aria-label", "Baksida (tom)");
   await reviewScreenshots(owner, "07-kartbyte-forhandsvisning");

@@ -10,7 +10,7 @@
 .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
 .map { display: grid; gap: .25rem; align-content: start; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
 .map[data-kept] { border-color: var(--ink); }
-.map img, .map > div:first-child { width: 100%; max-height: 9rem; object-fit: cover; }
+.map img, .map > div:first-child { width: 100%; max-height: 9rem; aspect-ratio: 3 / 2; object-fit: contain; }
 .keep, .include { display: flex; align-items: center; gap: .45rem; min-height: 44px; overflow-wrap: anywhere; }
 .keep input, .include input { flex: none; width: 22px; height: 22px; }
 .include { font-size: var(--text-sm); color: var(--muted); }
@@ -42,6 +42,6 @@
   background: var(--surface); min-width: 0; }
 .pickerItem h4 { margin: 0; font-size: var(--text-md); font-weight: 600; overflow-wrap: anywhere; }
 .pickerItem select { width: 100%; min-height: 44px; }
-.pickerItem img, .pickerItem > div:first-child { width: 100%; max-height: 9rem; object-fit: cover; }
+.pickerItem img, .pickerItem > div:first-child { width: 100%; max-height: 9rem; aspect-ratio: 3 / 2; object-fit: contain; }
 .issue { color: var(--warn, #b45309); font-size: var(--text-sm); font-weight: 600; }
 .search { width: 100%; max-width: 24rem; min-height: 44px; }

@@ -146,6 +146,8 @@ test("dubbletter i kartarkivet: förslaget, slå ihop med år, kopiera till alla
   await picker.getByRole("button", { name: "Välj karta från klubbarkivet" }).click();
   const choice = picker.getByTestId("club-map-choice").filter({ has: owner.getByRole("heading", { name: "Skogsbacken rev 2021" }) });
   await expect(choice.getByTestId("club-map-choice-summary")).toHaveText("1 version, 2021");
+  await choice.scrollIntoViewIfNeeded();
+  await expect.poll(() => choice.getByTestId("map-thumbnail").evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(100);
   await reviewScreenshots(owner, "dubbletter-valj-karta");
   await choice.getByRole("button", { name: "Använd kartan Skogsbacken rev 2021" }).click();
   await expect(owner.getByTestId("club-map-chosen")).toContainText("Vald karta: Skogsbacken rev 2021 (2021)");

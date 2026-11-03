@@ -16,6 +16,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Samma sträcka på flera banor/varianter = en rad ("A, B, C: …"). Godta, "Godta alla n" per sort, "Godtagna (n)" med Ångra; sparas i `event.acceptedChecks` (`SET_ACCEPTED_CHECKS`, ångra och versioner), gäller tills något byts ut eller flyttas mer än 25 m. Följer med vid ny .ppen. Fel som stoppar tidtagningen går inte att godta.
 - Visa: "Kollade kontroller", "Notiser" och "Markera varningar" (per webbläsare, på som förval, också i fältläget). Fältraden i telefonen: vald kontroll och "Kollad av …" kortas, statusen går ned under raden på 390 px.
 - Verifierat: lint, typecheck, enhetstester (paketet `check-accept`, webbens `course-setting-checks`), Playwright `banlaggning-varningar` (se slutrapporten).
+### 2026-11-03 – Papperet ("paper space"), steg 2 (grenen pappersrum, ADR-0197, migration 0063)
+- Förhandsvisningen har "Papperet: texter, bilder och klippning" per bana: text med variabler ({bana} {klass} {längd} {stigning} {tävling} {datum} {skala} {ekvidistans} {variant}), storlek, fet, justering, vit bakgrund; bild (PNG/JPG/SVG→PNG, högst 2 MB, en gång per sha256 i `course_setting_paper_image`) med låsta proportioner och täckning; skalstock ur banans utskriftsskala; nordpil. Allt förankrat i ramens eller arkets hörn (`paper-items.ts`, `event.paperLayouts`).
+- På arket: markera, dra, handtag för storleken, pilar 1 mm (Skift 5 mm), Delete, Escape/klick på tomt papper, Ångra och Ctrl+Z. 390 px: fälten i ett ark nere på skärmen. Ändringarna visas direkt och sparas en i taget.
+- Klippning (rektangel eller polygon, utanför vitt eller tonat) läggs på kartans pass (träningens ritning), så förhandsvisningen och PDF:en ritar den; banan klipps inte. Editorn visar inget av papperet.
+- Mallar för papperet (`event.paperTemplates`, `PUT/DELETE_PAPER_TEMPLATE`): banor ärver, ändringar per bana (`OVERRIDE`), dolda mallelement, på alla valda banor; kontots bibliotek (`course_setting_paper_template`) för andra tävlingar.
+- PDF:en ritar elementen som vektorer (bilderna med ExtGState för täckningen). .ppen: texter → textobjekt med Purple Pens makron, bilder → bildobjekt, beskrivningen även på automatisk plats; vid inläsning följer papperet med och O-Tid:s egna objekt (och en beskrivning exakt på automatisk plats) tas bort.
+- Verifierat: lint, typecheck, enhetstester (course-setting `paper-items`, print-pdf `paper-pdf`), integration `adr-0197-pappersrum`, Playwright `banlaggning-pappersrum` (1280/390) och de befintliga utskriftsspecarna.
+- Kvar: klubbarnas mallar (klubbarkivet har ingen plats för delade inställningar), SVG som vektor i PDF:en, bilderna i säkerhetskopian, dra på telefonen (siffrorna räcker).
 
 ### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
 - Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
@@ -948,6 +956,14 @@ brickor till steg 7.
 
 - Vägval: justera tidsförskjutning mellan GPS-klocka och stationer per rutt; georeferens från KMZ eller världsfil (OCAD) i stället för tre punkter;
   kontrollernas lägen från banfilens koordinater; sträcktidsanalys för stafett (per sträcka); uppladdning av flera GPX-filer matchade på namn.
+
+- Rekning (ägaren 2026-11-03, väntar tills det befintliga är klart): flera ritare rekar samma kartversion i fält, utan nät och med synk,
+  i stället för att flytta Mapper-filer för hand. Ändringar per objekt mot grundfilens sha256 (krock bara när samma objekt ändrats);
+  bara befintliga symboler. Tillbakaskrivning till OCAD och Mapper som sista steg: lappa filen (Mapper: byt bara ändrade `<object>`;
+  OCAD: ny post sist, indexposten ompekad, den gamla markerad borttagen), skriv aldrig om hela filen och skriv aldrig över originalet;
+  har grundfilen ändrats exporteras ändringarna som en liten egen fil. Ändrar ADR-0179 beslut 1. Bygger på fältlägets kö (steg 67),
+  kartfelens ritning och rollen Kartritare. Förberedelse: läsarna i `packages/map-file` sparar varifrån varje objekt kom
+  (indexpost och byteposition i OCAD, textintervall i XML).
 
 - Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). Det fastställda resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 

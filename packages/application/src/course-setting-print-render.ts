@@ -50,6 +50,8 @@ export interface RenderPrintJobInput {
   readonly maxPages: number;
   readonly title: string;
   readonly now?: Date | undefined;
+  /** Papperets bilder (ADR-0197) per sha256. */
+  readonly paperImages?: ReadonlyMap<string, { readonly mediaType: string; readonly bytes: Uint8Array }> | undefined;
 }
 
 export async function renderPrintJob(input: RenderPrintJobInput): Promise<WritePdfResult & { preflight: string[] }> {
@@ -70,6 +72,6 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
   if (sheets.length === 0) throw new PrintJobError("Inget att skriva ut.");
   if (sheets.length > input.maxPages) throw new PrintJobError(`PDF:en skulle få ${sheets.length} sidor; högst ${input.maxPages} går i ett jobb.`);
   const result = await writeSheetsPdf({ sheets, map, profile, mode: request.kind, fonts: input.fonts,
-    descriptionStandard: document.event.descriptionStandard, title: input.title, now: input.now });
+    descriptionStandard: document.event.descriptionStandard, title: input.title, now: input.now, paperImages: input.paperImages });
   return { ...result, preflight };
 }

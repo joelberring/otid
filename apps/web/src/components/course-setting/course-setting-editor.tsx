@@ -6,8 +6,9 @@ import type {
   CourseSettingMode, CourseSettingState, CourseSettingSuggestionDecided
 } from "@o-tid/contracts";
 import {
-  acceptChecksEdit, applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, keepAcceptedChecks, layoutCoursePage,
-  layoutOverprint, nextFreeCode, printAreaOf, unacceptChecksEdit, type CourseSettingDocument, type DescriptionSymbol, type MapRect, type OverprintPrimitive
+  acceptChecksEdit, applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, keepAcceptedChecks, keepPaperOnImport,
+  layoutCoursePage, layoutOverprint, nextFreeCode, printAreaOf, unacceptChecksEdit, type CourseSettingDocument, type DescriptionSymbol, type MapRect,
+  type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
@@ -48,6 +49,7 @@ import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
+import { importedImageHashes } from "../../lib/course-setting-paper-api";
 import { DescriptionPanel } from "./course-setting-description";
 import { FieldSuggestionLine, useDescriptionSuggestions } from "./course-setting-suggest";
 import { drawSuggestionHighlight } from "../../lib/course-setting-suggest";
@@ -514,7 +516,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       await sync.flush();
       // Steg 64 (ADR-0183): tävlingens utskriftsprofiler och layoutmallar står inte i .ppen-filen och följer med.
       const event = document.event;
-      const imported: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
+      const carried: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
         ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
         // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10), inte heller de godtagna varningarna (ADR-0199).
@@ -522,6 +524,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         ...((accepted => accepted ? { acceptedChecks: accepted } : {})(keepAcceptedChecks(event.acceptedChecks, file.document))) },
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
         ...(!file.document.training && document.training ? { training: document.training } : {}) };
+      // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
+      // i filen står inte två gånger (`keepPaperOnImport`).
+      const imported = keepPaperOnImport(document, carried, await importedImageHashes(carried),
+        (doc, course) => layoutCoursePage(doc, { course, mapBounds })[0]);
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }

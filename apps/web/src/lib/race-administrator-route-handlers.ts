@@ -62,7 +62,8 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     ("classId" in action && !uuid.test(action.classId)) ||
     ("courseId" in action && !uuid.test(action.courseId)) ||
     ("noteId" in action && !uuid.test(action.noteId)) || ("suggestionId" in action && !uuid.test(action.suggestionId)) ||
-    ("jobId" in action && !uuid.test(action.jobId)) ||
+    ("jobId" in action && !uuid.test(action.jobId)) || ("templateId" in action && !uuid.test(action.templateId)) ||
+    ("sha256" in action && !/^[0-9a-f]{64}$/.test(action.sha256)) ||
     (url.search && !validHistoryQuery && !validCheckinQuery)) {
     return failure(400, "INVALID_REQUEST");
   }
@@ -162,6 +163,8 @@ function allowedMethods(action: Action): string[] {
     action.kind === "course-setting-inspections" ? ["GET", "PUT"] :
     action.kind === "course-setting-print-jobs" ? ["GET", "POST"] : action.kind === "course-setting-print-job" ? ["DELETE"] :
     action.kind === "course-setting-print-job-pdf" ? ["GET"] :
+    action.kind === "course-setting-paper-images" ? ["POST"] : action.kind === "course-setting-paper-image" ? ["GET"] :
+    action.kind === "course-setting-paper-library" ? ["GET", "POST"] : action.kind === "course-setting-paper-library-item" ? ["DELETE"] :
     action.kind === "course-setting-note" || action.kind === "course-setting-note-reply-item" ? ["DELETE"] :
     action.kind === "course-setting-note-photo" || action.kind === "course-setting-events" ? ["GET"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :

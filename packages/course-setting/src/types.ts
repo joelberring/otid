@@ -12,7 +12,7 @@ import type { Point } from "@o-tid/map-file";
 import type { Appearance } from "./appearance";
 import type { DescriptionEdit, DescriptionLayout } from "./description-types";
 import type { LayoutTemplate } from "./layout-template";
-import type { CoursePaperLayout } from "./paper-layout";
+import type { CoursePaperLayout, PaperTemplate, PaperValues } from "./paper-items";
 import type { PrintProfile } from "./print-profile";
 import type { OverprintTraining, TrainingPatch, TrainingSettings } from "./training-types";
 
@@ -266,6 +266,9 @@ export interface CourseSettingDocument {
      * .ppen och följer med när en ny .ppen läses in (de vars kontroller och objekt finns kvar).
      */
     readonly acceptedChecks?: Readonly<Record<string, AcceptedCheck>> | undefined;
+    /** Papperets mallar (ADR-0197) som banorna ärver av, och värdena för {datum} och {ekvidistans}. Bara O-Tid. */
+    readonly paperTemplates?: readonly PaperTemplate[] | undefined;
+    readonly paperValues?: PaperValues | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -317,7 +320,7 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "allControlsPrintScale" | "printProfileId">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "allControlsPrintScale" | "printProfileId" | "paperValues">> }
   /** Banans utseende för hela banläggningen (Purple Pens `<course-appearance>`, ADR-0180 beslut 12). */
   | { readonly type: "SET_APPEARANCE"; readonly changes: Partial<Appearance> }
   /** Steg 63: kontrollbeskrivningen. */
@@ -372,7 +375,10 @@ export type SpecialEdit =
   | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: LayoutTemplate }
   | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string }
   /** Papperet för en bana (eller "ALL_CONTROLS"): ersätts helt; null = som förval. */
-  | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null };
+  | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null }
+  /** Papperets mall (ADR-0197): lägg till eller ersätt per id, ta bort (banorna som ärver av den står kvar utan mall). */
+  | { readonly type: "PUT_PAPER_TEMPLATE"; readonly template: PaperTemplate }
+  | { readonly type: "DELETE_PAPER_TEMPLATE"; readonly id: string };
 
 /**
  * ADR-0199: en godtagen varning. `at` = lägena (kartans mm) för det varningen gäller när den godtogs: kontroller som

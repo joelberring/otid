@@ -82,6 +82,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     numbering: z.object({ start: z.number().int(), disallowInvertible: z.boolean() }).strict().optional(),
     descriptionLanguage: z.string().max(16).optional(), allControlsPrintScale: z.number().finite().optional(),
     printProfileId: id.optional(),
+    // Papperets värden för {datum} och {ekvidistans} (ADR-0197).
+    paperValues: z.object({ date: z.string().max(40).optional(), contourInterval: z.string().max(20).optional() }).strict().optional(),
     // Ringklippen (ADR-0180 beslut 10).
     circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional() }).strict() }).strict(),
   // Banans utseende (ADR-0180 beslut 12); gränserna kontrolleras av paketets applyEdit.
@@ -103,7 +105,11 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("PUT_LAYOUT_TEMPLATE"), template: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
   z.object({ type: z.literal("DELETE_LAYOUT_TEMPLATE"), id }).strict(),
   // Papperet per bana (kontrollbeskrivningen på kartan); formen kontrolleras av paketet (validatePaperLayout).
-  z.object({ type: z.literal("SET_PAPER_LAYOUT"), course: id, layout: z.object({ descriptions: z.object({}).loose().optional() }).loose().nullable() }).strict(),
+  z.object({ type: z.literal("SET_PAPER_LAYOUT"), course: id, layout: z.object({ descriptions: z.object({}).loose().optional(),
+    items: z.array(z.object({}).loose()).max(40).optional() }).loose().nullable() }).strict(),
+  // Papperets mallar (ADR-0197); formen kontrolleras av paketet (validatePaperTemplate).
+  z.object({ type: z.literal("PUT_PAPER_TEMPLATE"), template: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
+  z.object({ type: z.literal("DELETE_PAPER_TEMPLATE"), id }).strict(),
   z.object({ type: z.literal("PUT_OBJECTS"), controls: nullableRecord(id, part.control).optional(),
     courseControls: nullableRecord(id, part.courseControl).optional(), courses: nullableRecord(id, part.course).optional(),
     courseOrder: z.record(id, z.number().int().min(-1_000_000).max(1_000_000)).refine(record => Object.keys(record).length <= 10_000).optional(),

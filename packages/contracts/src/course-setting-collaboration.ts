@@ -102,6 +102,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("DELETE_PRINT_PROFILE"), id }).strict(),
   z.object({ type: z.literal("PUT_LAYOUT_TEMPLATE"), template: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
   z.object({ type: z.literal("DELETE_LAYOUT_TEMPLATE"), id }).strict(),
+  // Papperet per bana (kontrollbeskrivningen på kartan); formen kontrolleras av paketet (validatePaperLayout).
+  z.object({ type: z.literal("SET_PAPER_LAYOUT"), course: id, layout: z.object({ descriptions: z.object({}).loose().optional() }).loose().nullable() }).strict(),
   z.object({ type: z.literal("PUT_OBJECTS"), controls: nullableRecord(id, part.control).optional(),
     courseControls: nullableRecord(id, part.courseControl).optional(), courses: nullableRecord(id, part.course).optional(),
     courseOrder: z.record(id, z.number().int().min(-1_000_000).max(1_000_000)).refine(record => Object.keys(record).length <= 10_000).optional(),

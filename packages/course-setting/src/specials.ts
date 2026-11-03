@@ -7,14 +7,12 @@
  * förbjudet område och farligt område (709, 710) som korsraster 0,2 mm med 1,2 mm mellan linjerna (ändrat 2022, tidigare
  * 0,25/0,8), gräns 0,7 mm (ISSprOM 1,0 mm), tillfällig konstruktion 50 % lila med kant 0,1 mm, förbjuden väg som kryss
  * 0,35 mm, första hjälpen och vatten enligt ISOM 2017. Punktobjekten och rastren skalas med utskriftsskalan som
- * banpåtrycket; text, linje, rektangel, ellips, bild och beskrivning är i kartans mm (som Purple Pen).
+ * banpåtrycket; text, linje, rektangel, ellips och bild är i kartans mm (som Purple Pen).
+ * Beskrivningen (`descriptions`) hör till papperet (`paper-layout.ts`) och ritas inte här.
  */
 import type { Point } from "@o-tid/map-file";
 import { appearanceOf, type Sizes } from "./appearance";
-import { layout as layoutDescriptionFigures } from "./description-layout";
-import type { DescriptionKind } from "./description-types";
-import { distance, place } from "./geometry";
-import { rawAttribute } from "./ppen-common";
+import { place } from "./geometry";
 import { specialImage } from "./ppen-special";
 import { ellipsePoints, hatchLines, offsetLine, rectOf, roundedRectPoints, symPath } from "./special-shapes";
 import type { CourseSettingDocument, OverprintColor, OverprintPrimitive, SpecialLine, SpecialObject } from "./types";
@@ -166,32 +164,6 @@ function textPrimitives(context: SpecialContext, special: SpecialObject, ref: st
   }]);
 }
 
-/** Beskrivningens visningssätt för banan (Purple Pens description-kind på banan eller Alla kontroller). */
-function descriptionKind(document: CourseSettingDocument, course: string): DescriptionKind {
-  const raw = course === "ALL_CONTROLS" ? rawAttribute(document.event.raw, "all-controls", "description-kind")
-    : rawAttribute(document.courses.find(item => item.id === course)?.raw, "options", "description-kind");
-  return raw === "text" ? "TEXT" : raw === "symbols-and-text" ? "SYMBOLS_AND_TEXT" : "SYMBOLS";
-}
-
-/** Beskrivningen på kartan (DescriptionCourseObj): rutans sida = avståndet mellan punkterna, vit bakgrund under. */
-function descriptionPrimitives(context: SpecialContext, special: SpecialObject, ref: string): OverprintPrimitive[] {
-  const { document, course } = context;
-  const topLeft = special.points[0]!;
-  const cell = distance(special.points[0]!, special.points[1]!);
-  if (!(cell > 0)) return [];
-  const layout = layoutDescriptionFigures(document, {
-    course, ...(context.variant ? { variant: context.variant } : {}), kind: descriptionKind(document, course),
-    language: document.event.descriptionLanguage ?? "sv", boxMm: cell, columns: special.columns ?? 1
-  });
-  const purple = rawAttribute(document.event.raw, "descriptions", "color") === "purple";
-  const ring = [topLeft, { x: topLeft.x + layout.widthMm, y: topLeft.y }, { x: topLeft.x + layout.widthMm, y: topLeft.y - layout.heightMm },
-    { x: topLeft.x, y: topLeft.y - layout.heightMm }];
-  return [
-    { kind: "polygon", role: "SPECIAL", color: "WHITE", rings: [ring], ref },
-    { kind: "description", role: "SPECIAL", color: purple ? "COURSE" : "BLACK", topLeft, layout, ref }
-  ];
-}
-
 /** Figurerna för ett specialobjekt. */
 export function specialPrimitives(context: SpecialContext, special: SpecialObject): OverprintPrimitive[] {
   const { sizes } = context;
@@ -223,7 +195,6 @@ export function specialPrimitives(context: SpecialContext, special: SpecialObjec
       ];
     case "white-out": return [{ kind: "polygon", role: "SPECIAL", color: "WHITE", rings: [area], ref }];
     case "text": return textPrimitives(context, special, ref);
-    case "descriptions": return descriptionPrimitives(context, special, ref);
     case "image": {
       const image = specialImage(special);
       if (!image) return [];

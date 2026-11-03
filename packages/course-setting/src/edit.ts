@@ -387,7 +387,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
   if (edit.type === "SET_APPEARANCE") return { document: setAppearance(document, edit.changes) };
   if (edit.type === "ADD_SPECIAL" || edit.type === "MOVE_SPECIAL" || edit.type === "UPDATE_SPECIAL" || edit.type === "DELETE_SPECIAL" ||
     edit.type === "SET_PRINT_AREA" || edit.type === "PUT_PRINT_PROFILE" || edit.type === "DELETE_PRINT_PROFILE" || edit.type === "PUT_LAYOUT_TEMPLATE" ||
-    edit.type === "DELETE_LAYOUT_TEMPLATE") return applySpecialEdit(document, edit);
+    edit.type === "DELETE_LAYOUT_TEMPLATE" || edit.type === "SET_PAPER_LAYOUT") return applySpecialEdit(document, edit);
   if (edit.type === "DUPLICATE_COURSE") return duplicateCourse(document, edit.course, edit.name);
   if (edit.type === "UPDATE_COURSE") return { document: updateCourse(document, edit.course, edit.changes) };
   if (edit.type === "SET_POINTS") return { document: setPoints(document, edit.course, edit.courseControl, edit.points) };

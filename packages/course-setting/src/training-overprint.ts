@@ -99,15 +99,33 @@ export function withTraining(document: CourseSettingDocument, options: Overprint
   out.push(...attackFigures(document, sequences, sizes, keepLegs));
   if (ct && !view?.section) out.push(...markerFigures(document, ct, sequences, sizes));
   if (takeIn && pairing) {
-    // Förklaringen på kartan under banan: vem kartan är för och vad ringarna betyder (ADR-0192 beslut 6).
-    const points = [...pairs.labels.keys()].map(id => document.controls[id]!.at);
-    const minX = Math.min(...points.map(p => p.x)), minY = Math.min(...points.map(p => p.y));
+    // Förklaringen på kartan: vem kartan är för och vad ringarna betyder (ADR-0192 beslut 6). Den står under hela banan
+    // (start, kontroller, nummer, sträckor och mål), så att den aldrig ligger över banans symboler (ägaren 2026-11-03: raden
+    // gick över målet när den stod under kepsens kontroller).
     const height = sizes.numberHeight * 0.7;
     const legend = `Löpare ${view!.pairMap}: heldragen ring = sätt ut kepsen, streckad = ta in den`;
-    out.push({ kind: "text", role: "TRAINING", color: "COURSE", at: { x: minX, y: minY - sizes.control - height }, text: legend, heightMm: height * 1.39,
-      align: "left", ref: "pairs-legend" });
+    const below = courseExtent(out);
+    if (below) {
+      out.push({ kind: "text", role: "TRAINING", color: "COURSE", at: { x: below.minX, y: below.minY - sizes.line * 4 - height * 0.7 }, text: legend,
+        heightMm: height * 1.39, align: "left", ref: "pairs-legend" });
+    }
   }
   return out;
+}
+
+const COURSE_ROLES = new Set([...POINT_ROLES, ...LEG_ROLES, "TRAINING"]);
+
+/** Ytan som banans figurer täcker (kartans mm): ringar med radie, linjer, texter ungefär. */
+function courseExtent(figures: readonly OverprintPrimitive[]): { minX: number; minY: number } | undefined {
+  let minX = Infinity, minY = Infinity;
+  for (const figure of figures) {
+    if (!COURSE_ROLES.has(figure.role)) continue;
+    if (figure.kind === "circle") { minX = Math.min(minX, figure.center.x - figure.diameter / 2); minY = Math.min(minY, figure.center.y - figure.diameter / 2 - figure.lineWidth); }
+    else if (figure.kind === "polyline") for (const p of figure.points) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y - figure.width); }
+    else if (figure.kind === "polygon") for (const ring of figure.rings) for (const p of ring) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); }
+    else if (figure.kind === "text") { minX = Math.min(minX, figure.align === "left" ? figure.at.x : figure.at.x - figure.heightMm); minY = Math.min(minY, figure.at.y - figure.heightMm / 2); }
+  }
+  return Number.isFinite(minX) ? { minX, minY } : undefined;
 }
 
 function attackFigures(document: CourseSettingDocument, sequences: readonly (readonly string[])[], sizes: Sizes, keepLegs: Set<string> | undefined): OverprintPrimitive[] {

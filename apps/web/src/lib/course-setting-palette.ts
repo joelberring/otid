@@ -10,7 +10,7 @@ import { specialInput } from "./course-setting-specials";
  * ADR-0180 beslut 14: paletten med objekt. Varje slag har en ikon som räknas fram med paketets banpåtryck
  * (`layoutOverprint`) på ett litet dokument med bara det objektet, och ritas med kartans ritare (`drawOverprint`), så
  * att ikonen ser ut som objektet gör på kartan. Obligatorisk passage och kartbyte är kontroller på banan (verktyg),
- * resten är Purple Pens specialobjekt.
+ * resten är Purple Pens specialobjekt. Kontrollbeskrivningen är inget kartobjekt: den placeras på papperet i utskriften.
  */
 export type PaletteItem =
   | { readonly kind: "tool"; readonly tool: Extract<Tool, "ADD_CROSSING" | "ADD_MAP_EXCHANGE"> }
@@ -24,7 +24,7 @@ export const PALETTE: readonly { readonly group: PaletteGroup; readonly items: r
   { group: "barriers", items: (["out-of-bounds", "forbidden-route", "boundary", "dangerous-area", "temporary-construction"] as const)
     .map(special => ({ kind: "special", special })) },
   { group: "service", items: (["water", "first-aid"] as const).map(special => ({ kind: "special", special })) },
-  { group: "graphics", items: (["text", "image", "line", "rectangle", "ellipse", "white-out", "descriptions", "registration-mark"] as const)
+  { group: "graphics", items: (["text", "image", "line", "rectangle", "ellipse", "white-out", "registration-mark"] as const)
     .map(special => ({ kind: "special", special })) }
 ];
 
@@ -44,7 +44,6 @@ function iconPoints(kind: SpecialKind) {
     case "boundary": case "line": return [{ x: -5, y: -2 }, { x: 0, y: 1.5 }, { x: 5, y: -1 }];
     case "forbidden-route": case "water": case "first-aid": case "optional-crossing-point": case "registration-mark": return [{ x: 0, y: 0 }];
     case "rectangle": case "ellipse": case "image": return [{ x: -4, y: 3 }, { x: 4, y: -3 }];
-    case "descriptions": return [{ x: -4, y: 4 }];
     default: return AREA;
   }
 }

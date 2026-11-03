@@ -5,11 +5,9 @@
  * eller löpare. Allt är data i papperets mm (y nedåt) som förhandsvisningen och steg 65:s PDF ritar likadant.
  */
 import type { OverprintTraining, TrainingMapPass } from "./training-types";
-import { layout as layoutDescriptionFigures } from "./description-layout";
-import type { DescriptionKind, DescriptionLayout } from "./description-types";
+import { placeDescription, type SheetDescription } from "./paper-layout";
 import { layout, printScaleOf } from "./overprint";
 import { figureBounds, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, printRectangle, type CoursePage, type PaperName } from "./page-layout";
-import { rawAttribute } from "./ppen-common";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
 import { measuredLengthMeters, variations } from "./walk";
@@ -112,7 +110,7 @@ export interface Sheet {
   readonly frames: readonly SheetFrame[];
   readonly texts: readonly SheetText[];
   readonly images: readonly (TemplateRect & { readonly mediaType: string; readonly data: string })[];
-  readonly descriptions: readonly { readonly x: number; readonly y: number; readonly layout: DescriptionLayout; readonly frame: number }[];
+  readonly descriptions: readonly SheetDescription[];
   readonly boxes: readonly (TemplateRect & { readonly border: boolean })[];
   readonly cutMarks: readonly { readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number }[];
   /** Arket är baksidan till föregående (dubbelsidigt). */
@@ -234,12 +232,6 @@ export function fillPlaceholders(text: string, document: CourseSettingDocument, 
   return text.replace(/\{([a-zåäö]+)\}/gi, (whole, key: string) => values[key.toLowerCase()] ?? whole).replace(/ {2,}(?=\S)/g, "  ").trim();
 }
 
-function descriptionKind(document: CourseSettingDocument, course: string): DescriptionKind {
-  const raw = course === "ALL_CONTROLS" ? rawAttribute(document.event.raw, "all-controls", "description-kind")
-    : rawAttribute(document.courses.find(item => item.id === course)?.raw, "options", "description-kind");
-  return raw === "text" ? "TEXT" : raw === "symbols-and-text" ? "SYMBOLS_AND_TEXT" : "SYMBOLS";
-}
-
 /** Kartramen för en bana: utsnittet lika stort som ramen i utskriftsskalan, kring banans tryckyta (eller automatiskt). */
 function frameFor(document: CourseSettingDocument, item: SheetItem, rect: TemplateRect, options: SheetOptions): SheetFrame {
   const course = item.course;
@@ -331,12 +323,13 @@ export function layoutTemplateSheets(document: CourseSettingDocument, template: 
       boxes.push({ ...parts.box, border: true });
       if (parts.text.text !== "") texts.push(parts.text);
     }
-    const descriptions = template.descriptions.flatMap(item => {
-      const frame = frames[item.frame];
-      if (!frame) return [];
-      const described = layoutDescriptionFigures(document, { course: frame.course, ...(frame.variant ? { variant: frame.variant } : {}),
-        kind: descriptionKind(document, frame.course), language: options.descriptionLanguage ?? document.event.descriptionLanguage ?? "sv", boxMm: item.boxMm });
-      return [{ x: item.x, y: item.y, layout: described, frame: item.frame }];
+    // Kontrollbeskrivningen per ram ur banans papper (`paper-layout.ts`); mallens egen plats gäller bara när banan inte har
+    // någon utplacerad (äldre mallar).
+    const descriptions = frames.flatMap((frame, index) => {
+      if (group[index]?.training?.section) return [];
+      const placed = placeDescription(document, frame, index, { language: options.descriptionLanguage,
+        template: template.descriptions.find(item => item.frame === index) });
+      return placed ? [placed] : [];
     });
     const sheet: Sheet = { paper, frames, texts, images: template.images.map(image => ({ ...image })), descriptions, boxes,
       cutMarks: template.cutMarks ? cutMarksFor(paper, rects, margin) : [] };
@@ -354,6 +347,6 @@ export function sheetOfPage(page: CoursePage): Sheet {
     frames: [{ course: page.course, ...(page.variant ? { variant: page.variant } : {}), title: page.title, mapScale: page.mapScale, printScale: page.printScale,
       mapArea: page.mapArea, clip: page.clip, transform: page.transform, figures: page.figures }],
     texts: page.texts.map(text => ({ text: text.text, at: text.at, heightMm: text.heightMm, bold: text.bold, align: "left", rotation: 0, color: text.color })),
-    images: [], descriptions: [], boxes: [], cutMarks: []
+    images: [], descriptions: page.description ? [page.description] : [], boxes: [], cutMarks: []
   };
 }

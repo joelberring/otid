@@ -313,7 +313,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
       </div>
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
-      {profile.reference && hasMap && <BlProposalPanel key={profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
+      {profile.reference && hasMap && <BlProposalPanel key={profile.basedOn ?? profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
         readOnly={!canEdit} frame={sheets[0]?.sheet.frames[0]} symbols={symbols} render={renderImage}
         onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} />}
       <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}

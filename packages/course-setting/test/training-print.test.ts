@@ -61,6 +61,17 @@ describe("stjärna, linje, keps och kartbitar (ADR-0192 beslut 6–7)", () => {
     expect(a.some(f => f.role === "LEG")).toBe(true);
     expect(a.find(f => f.ref === "pairs-legend")?.kind === "text").toBe(true);
     expect(common.some(f => f.ref === "pairs-legend")).toBe(false);
+    // Förklaringen ligger under hela banan: ingen ring, inget mål, inget nummer och ingen sträcka under texten (ägaren: den gick
+    // över målet).
+    const legend = a.find(f => f.ref === "pairs-legend")!;
+    if (legend.kind !== "text") throw new Error("ingen text");
+    const top = legend.at.y + legend.heightMm / 2;
+    for (const figure of a) {
+      if (figure === legend || !["START", "CONTROL", "FINISH", "NUMBER", "LEG"].includes(figure.role)) continue;
+      const low = figure.kind === "circle" ? figure.center.y - figure.diameter / 2 : figure.kind === "polyline" ? Math.min(...figure.points.map(p => p.y))
+        : figure.kind === "text" ? figure.at.y - figure.heightMm / 2 : figure.kind === "polygon" ? Math.min(...figure.rings.flat().map(p => p.y)) : Infinity;
+      expect(low, `${figure.role} ${figure.ref}`).toBeGreaterThan(top);
+    }
     const bMap = layoutOverprint(b.document, { course, training: { pairMap: "B" } });
     const bRing = ringOf(bMap, controls[1]!);
     expect(bRing?.kind === "circle" ? bRing.gaps?.length ?? 0 : -1).toBe(12);

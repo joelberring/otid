@@ -11,8 +11,8 @@ const text = clubArchiveSv.importer;
 const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 
 /**
- * ADR-0194 beslut 6–8: importen från ägarens dator. Visar arkivets storlek och kvoten, kommandona med klubbens id och den här
- * serverns adress, och importnyckeln (visas en gång, 12 timmar, går att återkalla). Filerna går aldrig via webbläsaren.
+ * ADR-0194 beslut 6–8: importen från ägarens dator. Visar arkivets storlek och kvoten, kommandona med den här serverns adress
+ * (klubben följer av nyckeln), och importnyckeln (visas en gång, 12 timmar, går att återkalla). Filerna går aldrig via webbläsaren.
  */
 export function ClubImportPanel({ club, onChanged }: { club: ClubView; onChanged: () => Promise<void> }) {
   const [token, setToken] = useState<string>();
@@ -58,10 +58,11 @@ export function ClubImportPanel({ club, onChanged }: { club: ClubView; onChanged
         <p>{text.step2}</p>
         <code className={styles.code}>{`pnpm archive-import ${folder} --dry-run`}</code>
         <p>{text.step3}</p>
-        <code className={styles.code} data-testid="import-command">{`pnpm archive-import ${folder} --server ${origin} --club ${club.clubId}`}</code>
+        {/* Klubben följer av importnyckeln: inget id och inga platshållare i kommandot (det klistras in som det står). */}
+        <code className={styles.code} data-testid="import-command">{`pnpm archive-import ${folder} --server ${origin}`}</code>
+        <p className={styles.small}>{text.tokenPrompt}</p>
         <p className={styles.small}>{text.leaders} <code>{text.leadersFlag}</code></p>
         <p>{text.step4}</p>
-        <dl className={styles.facts}><dt>{text.clubId}</dt><dd><code>{club.clubId}</code></dd></dl>
         <div className={styles.actions}><Button disabled={busy} onClick={() => void create()}>{text.createToken}</Button></div>
         {token && <div>
           <p><strong>{text.tokenShown}</strong></p>

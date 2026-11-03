@@ -73,6 +73,8 @@ export * from "./color-match";
 export * from "./layout-template";
 // ADR-0190: banorna som IOF XML 3.0 CourseData (som Purple Pens export).
 export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";
+// Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan; senare fler element på arket.
+export * from "./paper-layout";
 export { printSheetGroups, type SheetGroup, type SheetGroupOptions, type SheetLayout } from "./print-sheets";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */

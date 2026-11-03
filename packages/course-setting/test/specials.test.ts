@@ -42,7 +42,8 @@ describe("specialobjekten (steg 64)", () => {
     const { b, ids } = withAll();
     expect(Object.keys(INPUTS).sort()).toEqual([...SPECIAL_KIND_LIST].sort());
     const figures = layoutOverprint(b.document, { course: "ALL_CONTROLS", printScale: 15000 });
-    for (const kind of SPECIAL_KIND_LIST) expect(byRef(figures, ids[kind]!).length, kind).toBeGreaterThan(0);
+    // Beskrivningen hör till papperet (paper-layout.ts) och ritas inte i kartan.
+    for (const kind of SPECIAL_KIND_LIST) expect(byRef(figures, ids[kind]!).length, kind)[kind === "descriptions" ? "toBe" : "toBeGreaterThan"](0);
     const colors = (kind: string) => [...new Set(byRef(figures, ids[kind]!).map(figure => figure.color ?? "IMAGE"))].sort();
     expect(colors("first-aid")).toEqual(["COURSE_LOWER"]);
     expect(colors("water")).toEqual(["COURSE_LOWER"]);
@@ -51,7 +52,6 @@ describe("specialobjekten (steg 64)", () => {
     expect(colors("forbidden-route")).toEqual(["COURSE"]);
     expect(colors("out-of-bounds")).toEqual(["COURSE"]);
     expect(colors("white-out")).toEqual(["WHITE"]);
-    expect(colors("descriptions")).toEqual(["BLACK", "WHITE"]);
     expect(colors("text")).toEqual(["BLACK"]);
     expect(colors("image")).toEqual(["IMAGE"]);
     expect(colors("line")).toEqual(["COURSE_LOWER"]);
@@ -80,8 +80,6 @@ describe("specialobjekten (steg 64)", () => {
     const image = byRef(figures, ids.image!)[0]!;
     expect(image.kind === "image" && image.mediaType).toBe("image/png");
     expect(image.kind === "image" && image.rect).toEqual({ minX: 60, minY: 80, maxX: 70, maxY: 90 });
-    const description = byRef(figures, ids.descriptions!).find(figure => figure.kind === "description")!;
-    expect(description.kind === "description" && description.layout.widthMm).toBeCloseTo(8 * 4 + 0.2, 6);
   });
 
   it("ritar i målningsordning: vitt underst och banans lila överst", () => {

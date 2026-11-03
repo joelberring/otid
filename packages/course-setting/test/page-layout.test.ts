@@ -111,8 +111,12 @@ describe.skipIf(!(ppenPath && existsSync(ppenPath)))("ägarens SBN26_2.ppen (OTI
     const kinds = (view: string) => new Set(layoutOverprint(document, { course: view }).filter(f => f.role === "SPECIAL")
       .map(f => document.specialObjects.find(s => s.id === f.ref)!.kind));
     expect([...kinds("ALL_CONTROLS")].sort()).toEqual(["optional-crossing-point", "out-of-bounds", "white-out"]);
+    // Beskrivningen ur filen hamnar på papperet (paper-layout.ts), inte i kartan.
     for (const special of document.specialObjects.filter(s => s.kind === "descriptions")) {
-      for (const course of special.courses) expect(kinds(course).has("descriptions"), course).toBe(true);
+      for (const course of special.courses.filter(id => id !== "0")) {
+        expect(kinds(course).has("descriptions"), course).toBe(false);
+        expect(layoutCoursePage(document, { course })[0]!.description?.source, course).toBe("FILE");
+      }
     }
     for (const course of document.courses) {
       expect(kinds(course.id).has("out-of-bounds"), course.name).toBe(document.specialObjects.some(s => s.kind === "out-of-bounds"

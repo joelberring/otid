@@ -53,14 +53,19 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
 
     // Importnyckeln (visas en gång) och den riktiga importen.
     await owner.getByRole("tab", { name: "Import" }).click();
-    await expect(owner.getByTestId("import-command")).toContainText(`--club ${clubId}`);
+    // Kommandot kan klistras in som det står: ingen klubb (den följer av nyckeln) och inga <platshållare>.
+    await expect(owner.getByTestId("import-command")).toHaveText(`pnpm archive-import ~/Downloads/Klubbträningar --server ${new URL(baseURL!).origin}`);
     await owner.getByRole("button", { name: "Skapa importnyckel" }).click();
     const token = (await owner.getByTestId("import-token").textContent())!.trim();
     expect(token).toMatch(/^otid-imp-/);
     await reviewScreenshots(owner, "klubbarkiv-import");
     const tls = baseURL?.startsWith("https://") ? { NODE_TLS_REJECT_UNAUTHORIZED: "0" } : {};
-    const imported = archiveImport([dir, "--server", baseURL!, "--club", clubId, "--rapport", join(dir, "import.txt")],
+    // Fel klubb i --club: tydligt besked med klubbens namn, inget skickat.
+    expect(() => archiveImport([dir, "--server", baseURL!, "--club", "00000000-0000-4000-8000-000000000000", "--rapport", join(dir, "fel.txt")],
+      { OTID_IMPORT_TOKEN: token, ...tls })).toThrow(`Importnyckeln hör till klubben OK Älvsjö-Örby ${suffix}, inte till id 00000000-0000-4000-8000-000000000000`);
+    const imported = archiveImport([dir, "--server", baseURL!, "--rapport", join(dir, "import.txt")],
       { OTID_IMPORT_TOKEN: token, ...tls });
+    expect(imported).toContain(`Klubb: OK Älvsjö-Örby ${suffix}`);
     expect(imported).toContain("Klart: 3 kartfiler uppladdade (0 fanns redan), 4 nya träningar");
     // Omkörning: inget laddas upp igen, inga dubbletter.
     const again = archiveImport([dir, "--server", baseURL!, "--club", clubId, "--rapport", join(dir, "import2.txt")], { OTID_IMPORT_TOKEN: token, ...tls });

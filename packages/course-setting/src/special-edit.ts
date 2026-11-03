@@ -5,6 +5,7 @@
 import type { Point } from "@o-tid/map-file";
 import { nextId } from "./ppen-common";
 import { BUILT_IN_TEMPLATES, validateLayoutTemplate } from "./layout-template";
+import { validatePaperLayout } from "./paper-layout";
 import { newSpecial } from "./ppen-special";
 import { BUILT_IN_PRINT_PROFILES, validatePrintProfile } from "./print-profile";
 import type { CourseSettingDocument, EditResult, PrintArea, SpecialEdit, SpecialKind, SpecialObject } from "./types";
@@ -125,6 +126,18 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       const event = { ...document.event, [key]: list.filter(row => row.id !== edit.id) };
       if (key === "printProfiles" && event.printProfileId === edit.id) delete (event as { printProfileId?: string }).printProfileId;
       return { document: { ...document, event } };
+    }
+    case "SET_PAPER_LAYOUT": {
+      if (edit.course !== "ALL_CONTROLS" && !document.courses.some(item => item.id === edit.course)) {
+        throw new CourseSettingEditError("NOT_FOUND", `Banan ${edit.course} finns inte`);
+      }
+      const layouts = { ...(document.event.paperLayouts ?? {}) };
+      delete layouts[edit.course];
+      const layout = edit.layout ? validatePaperLayout(edit.layout) : undefined;
+      if (layout && layout.descriptions && Object.keys(layout.descriptions).length > 0) layouts[edit.course] = layout;
+      const event = { ...document.event };
+      delete event.paperLayouts;
+      return { document: { ...document, event: Object.keys(layouts).length > 0 ? { ...event, paperLayouts: layouts } : event } };
     }
     case "SET_PRINT_AREA": {
       if (edit.area) checkPrintArea(edit.area);

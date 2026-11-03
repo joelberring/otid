@@ -13,7 +13,7 @@ import styles from "./course-setting.module.css";
 const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
 
 /**
- * Steg 64: fliken Objekt. Slaget att rita (förbjudet område, vit bakgrund, valfri passage, beskrivningen, text …), ytan
+ * Steg 64: fliken Objekt. Slaget att rita (förbjudet område, vit bakgrund, valfri passage, text …), ytan
  * som ritas (Klar/Avbryt), objekten som syns i vald bana och valt objekts egenskaper: vilka banor det syns på, text,
  * storlek, färg, spalter och vinkel. Ändringarna går som åtgärder (`UPDATE_SPECIAL`, `DELETE_SPECIAL`).
  */
@@ -25,7 +25,8 @@ export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onC
   onAlong?: (() => void) | undefined;
 }) {
   const view = state.view;
-  const shown = document.specialObjects.filter(special => specialVisible(special, view));
+  // Kontrollbeskrivningen (Purple Pens `descriptions`) är inget kartobjekt här; den placeras i utskriften.
+  const shown = document.specialObjects.filter(special => special.kind !== "descriptions" && specialVisible(special, view));
   const selected = state.selection?.kind === "special" ? document.specialObjects.find(special => state.selection?.kind === "special" && special.id === state.selection.special) : undefined;
   const drawing = state.tool === "SPECIAL" ? state.drawing ?? [] : [];
   return <section className={styles.panel} aria-labelledby="course-setting-specials" data-testid="course-setting-specials">
@@ -76,8 +77,8 @@ function SpecialEditor({ document, view, special, readOnly, onEdits, onAlong }: 
     <h3>{text.objects.selected}: {name}</h3>
     <fieldset className={styles.stack} disabled={readOnly}>
       <legend>{text.objects.courses}</legend>
-      {special.kind !== "descriptions" && <label><input type="checkbox" checked={everywhere} onChange={event => update({ courses: event.target.checked ? []
-        : [view === ALL_CONTROLS ? "0" : view] })} />{text.objects.allCourses}</label>}
+      <label><input type="checkbox" checked={everywhere} onChange={event => update({ courses: event.target.checked ? []
+        : [view === ALL_CONTROLS ? "0" : view] })} />{text.objects.allCourses}</label>
       <label><input type="checkbox" checked={visibleOn("0")} onChange={event => toggle("0", event.target.checked)} />{text.objects.allControls}</label>
       {courses.map(course => <label key={course.id}><input type="checkbox" checked={visibleOn(course.id)}
         onChange={event => toggle(course.id, event.target.checked)} />{course.name}</label>)}
@@ -105,21 +106,6 @@ function SpecialEditor({ document, view, special, readOnly, onEdits, onAlong }: 
     {special.line && <label className={styles.stack}>{text.objects.lineWidth}
       <input type="number" min={0.05} max={5} step={0.05} disabled={readOnly} defaultValue={special.line.width}
         onChange={event => { const value = Number(event.target.value); if (value > 0) update({ line: { ...special.line!, width: value } }); }} /></label>}
-    {special.kind === "descriptions" && <>
-      <label className={styles.stack}>{text.objects.columns}
-        <select value={special.columns ?? 1} disabled={readOnly} onChange={event => update({ columns: Number(event.target.value) })}>
-          {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-      <label className={styles.stack}>{text.objects.cellSize}
-        <select value={round(toPaper(Math.hypot(special.points[1]!.x - special.points[0]!.x, special.points[1]!.y - special.points[0]!.y)), 1)} disabled={readOnly}
-          onChange={event => {
-            const cell = paperToMap(document, view, Number(event.target.value));
-            const at = special.points[0]!;
-            onEdits([{ type: "MOVE_SPECIAL", special: special.id, points: [at, { x: at.x + cell, y: at.y }] }]);
-          }}>
-          {[...new Set([4, 5, 5.5, 6, 6.5, 7, round(toPaper(Math.hypot(special.points[1]!.x - special.points[0]!.x, special.points[1]!.y - special.points[0]!.y)), 1)])]
-            .sort((a, b) => a - b).map(value => <option key={value} value={value}>{String(value).replace(".", ",")}</option>)}
-        </select></label>
-    </>}
     {special.kind === "optional-crossing-point" && <RotateControls orientation={special.orientation ?? 0} readOnly={readOnly}
       onSet={value => update({ orientation: value })} onAlong={onAlong} />}
     {!readOnly && <div className={styles.row}><Button variant="secondary" onClick={() => onEdits([{ type: "DELETE_SPECIAL", special: special.id }])}>

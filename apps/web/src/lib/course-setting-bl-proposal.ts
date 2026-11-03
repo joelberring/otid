@@ -79,7 +79,18 @@ export function approvedProfile(profile: PrintProfile, decisions: readonly Color
 export const approvalEdits = (copy: PrintProfile): CourseSettingEdit[] =>
   [{ type: "PUT_PRINT_PROFILE", profile: copy }, { type: "SET_EVENT", changes: { printProfileId: copy.id } }];
 
-export type Action = { kind: "ACCEPT_SAFE" } | { kind: "ACCEPT"; ocadId: number } | { kind: "KEEP"; ocadId: number } | { kind: "CHOOSE"; ocadId: number; row: string };
+export type Action = { kind: "ACCEPT_SAFE" } | { kind: "ACCEPT"; ocadId: number } | { kind: "KEEP"; ocadId: number } | { kind: "CHOOSE"; ocadId: number; row: string }
+  | { kind: "UNDO"; ocadId: number };
+
+/**
+ * Vilket val som gäller för raden (knappen som visas nedtryckt): förslagets rad godtagen, filens färg behållen, en egen
+ * vald BL-rad, eller inget beslut.
+ */
+export function activeChoice(row: Pick<ProposalRow, "status" | "chosen">): "ACCEPT" | "KEEP" | "CHOOSE" | undefined {
+  if (row.status === "KEPT") return "KEEP";
+  if (row.status === "ACCEPTED") return row.chosen ? "CHOOSE" : "ACCEPT";
+  return undefined;
+}
 
 /** Besluten efter en knapp ("Godta alla säkra", "Godta", "Behåll filens", "Välj BL-rad …"). */
 export function decide(state: ProposalState, decisions: readonly ColorDecision[] | undefined, action: Action): ColorDecision[] {
@@ -87,6 +98,8 @@ export function decide(state: ProposalState, decisions: readonly ColorDecision[]
   const item = state.rows.find(row => row.proposal.color.ocadId === action.ocadId) ?? state.unused.find(row => row.proposal.color.ocadId === action.ocadId);
   if (!item) return [...(decisions ?? [])];
   const color = item.proposal.color;
+  // Ångra: tillbaka till Inte godkänd (beslutet tas bort).
+  if (action.kind === "UNDO") return (decisions ?? []).filter(decision => decision.ocadId !== color.ocadId);
   if (action.kind === "KEEP") return withDecision(decisions, color, null);
   if (action.kind === "CHOOSE") {
     if (!referenceRow(state.table, action.row)?.cmyk) throw new Error(`Raden ${action.row} har inga värden`);

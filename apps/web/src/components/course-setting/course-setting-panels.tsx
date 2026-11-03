@@ -39,7 +39,8 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
         <strong>{text.courses.all}</strong><span>{text.courses.allSummary(Object.keys(document.controls).length)}</span></button></li>
       {courses.map((course, index) => {
         const row = summary.get(course.id);
-        const length = row ? text.courses.length(row.lengthRangeMeters?.min ?? row.lengthMeters, row.lengthRangeMeters?.max ?? row.lengthMeters) : "–";
+        // En poängbana utan fast längd har ingen längd att visa (inte "0,0 km").
+        const length = course.kind === "SCORE" && course.lengthOverrideMeters === undefined ? "–" : row ? text.courses.length(row.lengthRangeMeters?.min ?? row.lengthMeters, row.lengthRangeMeters?.max ?? row.lengthMeters) : "–";
         // Dra en bana till en annan plats (datorn); upp och ned för vald bana (tangentbord och telefon).
         return <li key={course.id} className={styles.courseRow} draggable={!readOnly} data-dragging={dragging === course.id || undefined}
           data-drop={dragging !== undefined && dropAt === index + 1 && dragging !== course.id || undefined}

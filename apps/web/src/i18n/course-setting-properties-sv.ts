@@ -10,6 +10,7 @@ export const coursePropertiesSv = {
   climbHelp: "Tom = ingen stigning i beskrivningen och på kartan.",
   length: "Fast längd (m)",
   lengthHelp: (measured: string) => `Tom = uträknad längd (${measured}). En fast längd står i beskrivningen, på kartan och i tävlingen.`,
+  lengthHelpScore: "En poängbana har ingen uträknad längd. Skriv en fast längd om en längd ska stå i beskrivningen och på kartan.",
   measured: (min: number, max: number) => min === max ? km(min) : `${km(min)}–${km(max)}`,
   save: "Spara egenskaperna",
   saved: "Sparat",

@@ -189,7 +189,7 @@ describe("paletten och bilden", () => {
       expect(icon.primitives.length, JSON.stringify(item)).toBeGreaterThan(0);
       expect(icon.bounds.maxX).toBeGreaterThan(icon.bounds.minX);
     }
-    expect(PALETTE.flatMap(group => group.items)).toHaveLength(18);
+    expect(PALETTE.flatMap(group => group.items)).toHaveLength(17);
   });
 
   it("en vald bild läggs ut med ett klick med bildens proportioner", () => {

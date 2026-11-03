@@ -121,6 +121,7 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     case "MOVE_SPECIAL": return `Flytta ${special(edit.special)}`;
     case "UPDATE_SPECIAL": return `Ändra ${special(edit.special)}`;
     case "DELETE_SPECIAL": return `Ta bort ${special(edit.special)}`;
+    case "SET_PAPER_LAYOUT": return `Kontrollbeskrivningen på kartan för ${edit.course === "ALL_CONTROLS" ? "Alla kontroller" : course(edit.course)}`;
     case "SET_PRINT_AREA": return `Tryckytan för ${edit.course === "ALL_CONTROLS" ? "Alla kontroller" : course(edit.course)}`;
     case "PUT_PRINT_PROFILE": return `Utskriftsprofilen ${edit.profile.name}`;
     case "DELETE_PRINT_PROFILE": return `Ta bort utskriftsprofilen ${profileName(edit.id) ?? ""}`.trim();

@@ -3,15 +3,15 @@ import {
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { applySteps, type Apply, type EditorState } from "./course-setting-editor";
-import { ALL_CONTROLS } from "./course-setting-hit";
 
 /**
  * Steg 64: specialobjekten i editorn utan React. Verktyget SPECIAL skapar `specialKind`: punktobjekt, text och beskrivningen
  * med ett klick, ytor och linjer med ett klick per hörn (avslutas med Enter, "Klar" eller ett klick på första punkten),
- * rektangel och ellips med två klick. Som i Purple Pen syns nya objekt på alla banor; beskrivningen bara på banan.
+ * rektangel och ellips med två klick. Som i Purple Pen syns nya objekt på alla banor. Kontrollbeskrivningen är inget
+ * kartobjekt här: den placeras på papperet i utskriften (`paper-layout.ts` i paketet).
  */
 export const SPECIAL_TOOL_KINDS: readonly SpecialKind[] = [
-  "out-of-bounds", "white-out", "optional-crossing-point", "descriptions", "text", "forbidden-route", "dangerous-area", "temporary-construction",
+  "out-of-bounds", "white-out", "optional-crossing-point", "text", "forbidden-route", "dangerous-area", "temporary-construction",
   "boundary", "line", "rectangle", "ellipse", "first-aid", "water", "registration-mark", "image"
 ];
 
@@ -21,12 +21,6 @@ export const IMAGE_WIDTH_PAPER_MM = 25;
 /** Mått på papperet (mm) som kartans mm vid banans utskriftsskala. */
 export function paperToMap(document: CourseSettingDocument, view: string, paperMm: number): number {
   return paperMm * printScaleOf(document, view) / document.event.mapScale;
-}
-
-/** Beskrivningen på kartan för banan (eller Alla kontroller), om den finns. */
-export function descriptionOn(document: CourseSettingDocument, view: string): SpecialObject | undefined {
-  const course = view === ALL_CONTROLS ? "0" : view;
-  return document.specialObjects.find(special => special.kind === "descriptions" && (special.courses.length === 0 || special.courses.includes(course)));
 }
 
 /** Ett nytt objekt med Purple Pens förval (text 4 mm siffhöjd på papperet, beskrivning 6 mm rutor). */
@@ -45,10 +39,6 @@ export function specialInput(document: CourseSettingDocument, view: string, kind
       return { kind, points: [at, { x: at.x + 12 * height, y: at.y - 1.5 * height }], text: "Text", font: { name: "Arial", bold: false, italic: false, height },
         color: "purple" };
     }
-    case "descriptions": {
-      const cell = paperToMap(document, view, 6);
-      return { kind, points: [at, { x: at.x + cell, y: at.y }], courses: [view === ALL_CONTROLS ? "0" : view] };
-    }
     case "optional-crossing-point": return { kind, points: [at], orientation: 0 };
     case "line": case "rectangle": case "ellipse":
       return { kind, points: [...points], color: "purple", line: { kind: "single", width: 0.35, gapSize: 0, dashSize: 0, ...(kind === "rectangle" ? { cornerRadius: 0 } : {}) } };
@@ -58,24 +48,16 @@ export function specialInput(document: CourseSettingDocument, view: string, kind
 
 /** Antal klick som slaget tar (Infinity = tills det avslutas). */
 export function clicksFor(kind: SpecialKind, image?: unknown): number {
-  if (kind === "text" || kind === "descriptions" || (kind === "image" && image)) return 1;
+  if (kind === "text" || (kind === "image" && image)) return 1;
   const { min, max } = specialPointCount(kind);
   return min === max ? max : Infinity;
 }
 
 function create(state: EditorState, points: readonly Point[], apply: Apply): EditorState {
   const kind = state.specialKind!;
-  const existing = kind === "descriptions" ? descriptionOn(state.document, state.view) : undefined;
-  // En bana har en beskrivning på kartan: finns den flyttas den hit.
-  const edit: CourseSettingEdit = existing
-    ? { type: "MOVE_SPECIAL", special: existing.id, points: [points[0]!, { x: points[0]!.x + (existing.points[1]!.x - existing.points[0]!.x),
-      y: points[0]!.y + (existing.points[1]!.y - existing.points[0]!.y) }] }
-    : { type: "ADD_SPECIAL", special: specialInput(state.document, state.view, kind, points, state.specialImage) };
+  const edit: CourseSettingEdit = { type: "ADD_SPECIAL", special: specialInput(state.document, state.view, kind, points, state.specialImage) };
   const next = applySteps({ ...state, drawing: undefined, ...(kind === "image" ? { specialImage: undefined } : {}) }, [edit], apply,
-    (created, document) => {
-      const id = existing?.id ?? created;
-      return id && document.specialObjects.some(special => special.id === id) ? { kind: "special", special: id } : undefined;
-    });
+    (created, document) => created && document.specialObjects.some(special => special.id === created) ? { kind: "special", special: created } : undefined);
   return next.error ? { ...next, drawing: undefined } : next;
 }
 
@@ -120,12 +102,6 @@ export function nearestHandle(special: SpecialObject, point: Point, toleranceMm:
 /** Objektet flyttat `dx`, `dy` (hela) eller med ett hörn på `at`. */
 export function moveSpecialEdit(special: SpecialObject, move: { dx: number; dy: number } | { index: number; at: Point }): CourseSettingEdit {
   if ("index" in move) {
-    // Beskrivningens andra punkt är rutans sida: den följer med när hörnet flyttas.
-    if (special.kind === "descriptions") {
-      const side = { x: special.points[1]!.x - special.points[0]!.x, y: special.points[1]!.y - special.points[0]!.y };
-      return { type: "MOVE_SPECIAL", special: special.id, points: move.index === 0 ? [move.at, { x: move.at.x + side.x, y: move.at.y + side.y }]
-        : [special.points[0]!, { x: special.points[0]!.x + Math.max(0.5, Math.hypot(move.at.x - special.points[0]!.x, move.at.y - special.points[0]!.y)), y: special.points[0]!.y }] };
-    }
     return { type: "MOVE_SPECIAL", special: special.id, points: special.points.map((p, i) => i === move.index ? move.at : p) };
   }
   return { type: "MOVE_SPECIAL", special: special.id, points: special.points.map(p => ({ x: p.x + move.dx, y: p.y + move.dy })) };

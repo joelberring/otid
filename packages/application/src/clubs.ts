@@ -31,6 +31,11 @@ export async function createClub(db: Database, input: ClubProof & { request: unk
       if (prior.createdBy !== accountId || prior.name !== parsed.data.name) return { status: "conflict" } as const;
       return { status: "created", replayed: true, club: { clubId: prior.id, name: prior.name, role: "OWNER", entries: 0 } } as const;
     }
+    // Ägarens 2026-11-03: samma namn två gånger är nästan alltid ett misstag (en klubb man redan är med i).
+    const [same] = await tx.select({ id: schema.clubs.id }).from(schema.clubs)
+      .innerJoin(schema.clubMembers, eq(schema.clubMembers.clubId, schema.clubs.id))
+      .where(and(eq(schema.clubMembers.accountId, accountId), sql`lower(${schema.clubs.name}) = lower(${parsed.data.name})`)).limit(1);
+    if (same) return { status: "name-taken" } as const;
     const clubId = randomUUID();
     await tx.insert(schema.clubs).values({ id: clubId, name: parsed.data.name, createdAt: now, createdBy: accountId, requestId: parsed.data.requestId });
     await tx.insert(schema.clubMembers).values({ id: randomUUID(), clubId, accountId, role: "OWNER", addedAt: now, addedBy: accountId,

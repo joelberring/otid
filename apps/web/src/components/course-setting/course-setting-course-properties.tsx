@@ -21,7 +21,9 @@ export function CourseProperties({ course, summary, readOnly, onEdits }: {
   useEffect(() => { setForm(formOf(course)); setError(undefined); }, [course.id, course.kind, course.climbMeters, course.lengthOverrideMeters]);
   const variants = summary?.variants ?? [];
   const lengths = variants.map(variant => variant.lengthMeters);
-  const measured = lengths.length > 0 ? text.measured(Math.min(...lengths), Math.max(...lengths)) : "–";
+  // En poängbana har ingen uträknad längd (ordningen är fri): fältet visar inget i stället för "0,0 km".
+  const score = course.kind === "SCORE" || form.kind === "SCORE";
+  const measured = !score && lengths.length > 0 ? text.measured(Math.min(...lengths), Math.max(...lengths)) : "–";
   const id = `course-properties-${course.id}`;
   return <form className={styles.panel} aria-labelledby={id} data-testid="course-setting-properties" onSubmit={event => {
     event.preventDefault();
@@ -44,9 +46,9 @@ export function CourseProperties({ course, summary, readOnly, onEdits }: {
       <label>{text.climb}<input type="text" inputMode="numeric" size={6} value={form.climb} disabled={readOnly} data-testid="course-setting-climb"
         aria-invalid={error === "climb" || undefined} onChange={event => setForm({ ...form, climb: event.target.value })} /></label>
       <label>{text.length}<input type="text" inputMode="numeric" size={7} value={form.length} disabled={readOnly} data-testid="course-setting-length"
-        placeholder={measured} aria-invalid={error === "length" || undefined} onChange={event => setForm({ ...form, length: event.target.value })} /></label>
+        placeholder={score ? "" : measured} aria-invalid={error === "length" || undefined} onChange={event => setForm({ ...form, length: event.target.value })} /></label>
     </div>
-    <p className={styles.muted}>{text.climbHelp} {text.lengthHelp(measured)}</p>
+    <p className={styles.muted}>{text.climbHelp} {score ? text.lengthHelpScore : text.lengthHelp(measured)}</p>
     {error && <p role="alert" className={styles.muted}>{text.invalid}</p>}
     {!readOnly && <div className={styles.row}>
       <Button type="submit" variant="secondary">{text.save}</Button>

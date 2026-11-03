@@ -7,6 +7,9 @@ import { buildImportPlan, type ScannedFile } from "../src/plan";
 import { entryBatches } from "../src/payload";
 import { formatReport } from "../src/report";
 import { runImport } from "../src/run";
+import { createImportClient, importErrorText } from "../src/client";
+
+const CLUB = "11111111-1111-4111-8111-111111111111";
 import { openSources, scanSources } from "../src/scan";
 import { decodeZipName, ZipFile } from "../src/zip";
 import { buildZip, syntheticYearZips } from "./synthetic-archive";
@@ -116,7 +119,7 @@ describe("zip-läsaren och hela provkörningen med syntetiska arkiv", () => {
     const lines: string[] = [];
     const result = await runImport({ inputs: [join(dir, "2019-20261102T210604Z-1-001.zip"), join(dir, "2020-20261102T210604Z-1-001.zip")],
       dryRun: true, withLeaders: false, reportPath, log: line => lines.push(line),
-      client: { check: () => { throw new Error("ingen server i provkörningen"); }, uploadMap: () => { throw new Error("nej"); }, batch: () => { throw new Error("nej"); } } });
+      client: { club: () => { throw new Error("ingen server i provkörningen"); }, check: () => { throw new Error("ingen server i provkörningen"); }, uploadMap: () => { throw new Error("nej"); }, batch: () => { throw new Error("nej"); } } });
     expect(result.uploaded).toBe(0);
     expect(await readFile(reportPath, "utf8")).toContain("importeras inte (--utan-ledare)");
     expect((JSON.parse(await readFile(join(dir, "rapport.json"), "utf8")) as { plan: { trainings: unknown[] } }).plan.trainings).toHaveLength(4);
@@ -127,6 +130,7 @@ describe("zip-läsaren och hela provkörningen med syntetiska arkiv", () => {
     const uploads: string[] = [];
     const batches: unknown[] = [];
     const client = {
+      club: async () => ({ clubId: CLUB, clubName: "OK Test" }),
       check: async () => ({ clubName: "OK Test", known: new Set(known) }),
       uploadMap: async (sha256: string, file: { open: () => AsyncIterable<Uint8Array> }) => {
         const hash = createHash("sha256");
@@ -141,7 +145,34 @@ describe("zip-läsaren och hela provkörningen med syntetiska arkiv", () => {
     await runImport({ inputs, dryRun: false, withLeaders: true, reportPath: join(dir, "r2.txt"), log: () => undefined, client });
     expect(uploads).toHaveLength(3);
     expect(batches).toHaveLength(3);
-    await runImport({ inputs, dryRun: false, withLeaders: true, reportPath: join(dir, "r3.txt"), log: () => undefined, client });
+    const lines: string[] = [];
+    await runImport({ inputs, dryRun: false, withLeaders: true, reportPath: join(dir, "r3.txt"), log: line => lines.push(line), client, clubId: CLUB });
     expect(uploads).toHaveLength(3);
+    // Klubbens namn ur nyckeln visas innan något skickas.
+    expect(lines).toContain("Klubb: OK Test");
+    // Ett --club som inte är nyckelns klubb stoppar importen med ett tydligt besked, innan något skickas.
+    const before = uploads.length;
+    await expect(runImport({ inputs, dryRun: false, withLeaders: true, reportPath: join(dir, "r4.txt"), log: () => undefined, client,
+      clubId: "00000000-0000-4000-8000-000000000000" })).rejects.toThrow("Importnyckeln hör till klubben OK Test, inte till id 00000000-0000-4000-8000-000000000000");
+    expect(uploads).toHaveLength(before);
+  });
+
+  it("klienten hämtar klubben ur nyckeln och säger vad serverns fel betyder", async () => {
+    const calls: string[] = [];
+    const fake = (async (input: URL | string) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith("/api/club-import/token")) return new Response(JSON.stringify({ formatVersion: 1, clubId: CLUB, clubName: "OK Test" }), { status: 200 });
+      return new Response(JSON.stringify({ formatVersion: 1, clubId: CLUB, clubName: "OK Test", known: [] }), { status: 200 });
+    }) as typeof fetch;
+    const client = createImportClient({ server: "https://tid.klubb.se", token: "otid-imp-x", fetch: fake });
+    expect(await client.club()).toEqual({ clubId: CLUB, clubName: "OK Test" });
+    await client.check([]);
+    expect(calls).toEqual(["https://tid.klubb.se/api/club-import/token", `https://tid.klubb.se/api/club-import/${CLUB}/check`]);
+    expect(importErrorText(401, "{\"error\":\"UNAUTHORIZED\"}")).toBe("Importnyckeln är fel, har gått ut eller är återkallad. Skapa en ny under Klubbarkiv → Import.");
+    expect(importErrorText(404, "")).toBe("Klubben finns inte.");
+    const denied = createImportClient({ server: "https://tid.klubb.se", token: "otid-imp-x",
+      fetch: (async () => new Response(JSON.stringify({ formatVersion: 1, error: "UNAUTHORIZED" }), { status: 401 })) as typeof fetch });
+    await expect(denied.club()).rejects.toThrow(/Importnyckeln är fel/);
   });
 });

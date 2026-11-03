@@ -15,7 +15,7 @@ import {
 export type { ClubRole } from "./club-invitations";
 import type { ClubRole } from "./club-invitations";
 export type ClubTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-export type ClubFailure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" };
+export type ClubFailure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "name-taken" };
 export type ClubProof = UserAccountSessionProof;
 
 export const CLUB_ROLE_RANK: Record<ClubRole, number> = { READER: 0, ADMIN: 1, OWNER: 2 };

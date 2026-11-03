@@ -5,10 +5,24 @@ import type { SourceFile } from "./scan";
  * (ingen kopia i minnet); banfilerna och träningarna som JSON i omgångar.
  */
 export class ImportHttpError extends Error {
-  constructor(readonly status: number, readonly body: string) { super(`Servern svarade ${status}: ${body.slice(0, 300)}`); }
+  constructor(readonly status: number, readonly body: string) { super(importErrorText(status, body)); }
+}
+
+/** Serverns svar som besked på svenska (ägarens 2026-11-03: "401 UNAUTHORIZED" sa inget). */
+export function importErrorText(status: number, body: string): string {
+  if (status === 401) return "Importnyckeln är fel, har gått ut eller är återkallad. Skapa en ny under Klubbarkiv → Import.";
+  if (status === 404) return "Klubben finns inte.";
+  if (status === 403) return "Servern tog inte emot anropet (403). Kontrollera adressen till servern.";
+  if (status === 413) return "Filen är för stor för servern.";
+  let code = "";
+  try { code = (JSON.parse(body) as { error?: string }).error ?? ""; } catch { code = body.slice(0, 200); }
+  if (code === "STORAGE_QUOTA_EXCEEDED") return "Ditt utrymme för kartor på servern är fullt.";
+  return `Servern svarade ${status}${code ? ` (${code})` : ""}. Försök igen om en stund.`;
 }
 
 export interface ImportClient {
+  /** Klubben som nyckeln hör till; anropen därefter går till den klubben. */
+  club(): Promise<{ clubId: string; clubName: string }>;
   check(sha256: readonly string[]): Promise<{ clubName: string; known: Set<string> }>;
   uploadMap(sha256: string, file: SourceFile): Promise<{ stored: "new" | "existing" }>;
   batch(body: unknown): Promise<{ maps: { created: number; versionsAdded: number }; entries: { created: number; existing: number; courseFilesAdded: number };
@@ -23,10 +37,15 @@ export function checkServerUrl(server: string): URL {
   return url;
 }
 
-export function createImportClient(options: { server: string; clubId: string; token: string; fetch?: typeof fetch }): ImportClient {
+export function createImportClient(options: { server: string; token: string; fetch?: typeof fetch }): ImportClient {
   const base = checkServerUrl(options.server);
   const doFetch = options.fetch ?? fetch;
-  const url = (path: string) => new URL(`/api/club-import/${encodeURIComponent(options.clubId)}/${path}`, base);
+  // Klubben ur nyckeln (ADR-0194: nyckeln hör till en klubb); `club()` anropas först.
+  let clubId: string | undefined;
+  const url = (path: string) => {
+    if (!clubId) throw new Error("Klubben är inte hämtad (club() först)");
+    return new URL(`/api/club-import/${encodeURIComponent(clubId)}/${path}`, base);
+  };
   const headers = { authorization: `Bearer ${options.token}` };
 
   async function json<T>(response: Response): Promise<T> {
@@ -36,6 +55,11 @@ export function createImportClient(options: { server: string; clubId: string; to
   }
 
   return {
+    async club() {
+      const body = await json<{ clubId: string; clubName: string }>(await doFetch(new URL("/api/club-import/token", base), { headers }));
+      clubId = body.clubId;
+      return { clubId: body.clubId, clubName: body.clubName };
+    },
     async check(sha256) {
       const response = await doFetch(url("check"), { method: "POST", headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ formatVersion: 1, sha256 }) });

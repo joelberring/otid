@@ -5,7 +5,7 @@ import { withRouteBarriers } from "./route-choice-view";
 import { applySteps, cancelTool, createEditor, removeSelected, select, setTool, undo } from "./course-setting-editor";
 import { hitTest } from "./course-setting-hit";
 import { mapRenderRequest, pageNodes, pageStyles } from "./course-setting-print";
-import { clickSpecial, descriptionOn, finishDrawing, moveSpecialEdit, nearestHandle, paperToMap } from "./course-setting-specials";
+import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, paperToMap, SPECIAL_TOOL_KINDS } from "./course-setting-specials";
 import { symbolLookup } from "./course-setting-description-draw";
 import { testDocument } from "./course-setting-test-document";
 
@@ -37,19 +37,15 @@ describe("specialobjekten i editorn (steg 64)", () => {
     expect(cancelTool(state).drawing).toBeUndefined();
   });
 
-  it("text, valfri passage och beskrivningen med ett klick; beskrivningen flyttas om banan redan har en", () => {
+  it("text och valfri passage med ett klick; kontrollbeskrivningen är inget kartobjekt (den hör till utskriften)", () => {
     let state = clickSpecial(drawingTool("text"), { x: 1, y: 2 }, applyEdit, 1);
     expect(state.document.specialObjects[0]).toMatchObject({ kind: "text", text: "Text", font: { height: paperToMap(state.document, "k", 4) } });
     state = clickSpecial(setTool(state, "SPECIAL", "optional-crossing-point"), { x: 3, y: 3 }, applyEdit, 1);
     expect(state.document.specialObjects[1]).toMatchObject({ kind: "optional-crossing-point", orientation: 0 });
-    state = clickSpecial(setTool(state, "SPECIAL", "descriptions"), { x: 30, y: 30 }, applyEdit, 1);
-    const description = descriptionOn(state.document, "k")!;
-    expect(description).toMatchObject({ courses: ["k"], points: [{ x: 30, y: 30 }, { x: 36, y: 30 }] });
-    state = clickSpecial(state, { x: 50, y: 40 }, applyEdit, 1);
-    expect(state.document.specialObjects.filter(item => item.kind === "descriptions")).toHaveLength(1);
-    expect(descriptionOn(state.document, "k")!.points[0]).toEqual({ x: 50, y: 40 });
-    const figures = layoutOverprint(state.document, { course: "k" });
-    expect(figures.some(figure => figure.kind === "description")).toBe(true);
+    expect(SPECIAL_TOOL_KINDS).not.toContain("descriptions");
+    // En beskrivning ur en .ppen-fil ritas inte i editorn.
+    state = applySteps(state, [{ type: "ADD_SPECIAL", special: { kind: "descriptions", points: [{ x: 30, y: 30 }, { x: 36, y: 30 }], courses: ["k"] } }], applyEdit);
+    expect(layoutOverprint(state.document, { course: "k" }).some(figure => figure.kind === "description")).toBe(false);
   });
 
   it("väljs med ett klick inuti ytan, flyttas hela eller i ett hörn och tas bort", () => {

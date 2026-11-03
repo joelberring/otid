@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BUILT_IN_PRINT_PROFILES, parsePrintProfile, type PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import {
-  afterViews, approvalEdits, approvedProfile, COMPARE_MAX_PX, compareDpi, compareFrame, cssOfCmyk, decide, isolateAdjust, layerStack, previewProfile, proposalState, RenderQueue, thumbnailView
+  afterViews, approvalEdits, approvedProfile, COMPARE_MAX_PX, compareDpi, compareFrame, activeChoice, cssOfCmyk, decide, isolateAdjust, layerStack, previewProfile, proposalState, RenderQueue, thumbnailView
 } from "./course-setting-bl-proposal";
 import { pdfPreflight } from "./course-setting-print-jobs";
 
@@ -52,6 +52,12 @@ describe("BL-förslaget i förhandsvisningen", () => {
     expect(state.rows.find(row => row.proposal.color.ocadId === 16)).toMatchObject({ status: "ACCEPTED", chosen: true, row: { id: "blue-area" } });
     expect(state.rows.find(row => row.proposal.color.ocadId === 27)).toMatchObject({ status: "KEPT", row: null });
     expect(state.counts).toMatchObject({ decided: 6, pending: 0 });
+    // Det valda visas som nedtryckt knapp: godtagen, egen rad, behållen; Ångra går tillbaka till Inte godkänd.
+    expect(state.rows.map(row => activeChoice(row))).toEqual(["ACCEPT", "ACCEPT", "CHOOSE", "ACCEPT", "KEEP", "ACCEPT"]);
+    const undone = proposalState({ ...profile, colorDecisions: decide(state, profile.colorDecisions, { kind: "UNDO", ocadId: 16 }) }, colors, usage)!;
+    expect(undone.rows.find(row => row.proposal.color.ocadId === 16)).toMatchObject({ status: "PENDING", row: { id: "blue-line-point" } });
+    expect(activeChoice(undone.rows.find(row => row.proposal.color.ocadId === 16)!)).toBeUndefined();
+    expect(undone.counts).toMatchObject({ decided: 5, pending: 1 });
     // Förhandskontrollen före PDF:en: inga obekräftade kvar, passmärket oanvänt.
     const report = pdfPreflight(profile, colors, new Set(), usage);
     expect(report.unconfirmed).toEqual([]);

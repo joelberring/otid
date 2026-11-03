@@ -12,6 +12,7 @@ import type { Point } from "@o-tid/map-file";
 import type { Appearance } from "./appearance";
 import type { DescriptionEdit, DescriptionLayout } from "./description-types";
 import type { LayoutTemplate } from "./layout-template";
+import type { CoursePaperLayout } from "./paper-layout";
 import type { PrintProfile } from "./print-profile";
 import type { OverprintTraining, TrainingPatch, TrainingSettings } from "./training-types";
 
@@ -255,6 +256,11 @@ export interface CourseSettingDocument {
     readonly printProfiles?: readonly PrintProfile[] | undefined;
     readonly printProfileId?: string | undefined;
     readonly layoutTemplates?: readonly LayoutTemplate[] | undefined;
+    /**
+     * Papperet per bana (nyckel = banans id eller "ALL_CONTROLS"): kontrollbeskrivningen på kartan och senare andra element
+     * på arket (`paper-layout.ts`). Bara O-Tid; en utplacerad beskrivning skrivs till .ppen som Purple Pens `descriptions`.
+     */
+    readonly paperLayouts?: Readonly<Record<string, CoursePaperLayout>> | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -357,7 +363,9 @@ export type SpecialEdit =
   | { readonly type: "PUT_PRINT_PROFILE"; readonly profile: PrintProfile }
   | { readonly type: "DELETE_PRINT_PROFILE"; readonly id: string }
   | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: LayoutTemplate }
-  | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string };
+  | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string }
+  /** Papperet för en bana (eller "ALL_CONTROLS"): ersätts helt; null = som förval. */
+  | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null };
 
 /**
  * Steg 66 (ADR-0181 beslut 4): objekten som de ska vara efter ändringen, per id (null = finns inte). Ångra i en editor där

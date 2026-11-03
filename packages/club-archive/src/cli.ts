@@ -1,25 +1,43 @@
 import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
+import { Writable } from "node:stream";
 import { resolve } from "node:path";
 import { runImport } from "./run";
 
 /**
- * ADR-0194 beslut 6: `pnpm archive-import <mapp med zip-filer eller mappar> [--dry-run] --server https://… --club <id>`.
+ * ADR-0194 beslut 6: `pnpm archive-import <mapp med zip-filer eller mappar> [--dry-run] --server https://…`. Klubben följer av
+ * importnyckeln (`--club` är valfritt och kontrolleras mot nyckeln).
  * Körs på ägarens dator; filerna går direkt därifrån till servern. Nyckeln läses från `OTID_IMPORT_TOKEN`, `--nyckel-fil` eller
  * frågas efter (aldrig som argument, så att den inte hamnar i skalets historik).
  */
 const HELP = `Användning:
   pnpm archive-import <mapp> [<mapp eller zip> …] --dry-run
-  pnpm archive-import <mapp> --server https://otid.example.se --club <klubbens id>
+  pnpm archive-import <mapp> --server https://otid.example.se
 
   --dry-run          Läs och skriv rapporten, skicka inget.
   --server <url>     Din O-Tid-server (https).
-  --club <id>        Klubbens id (står i Klubbarkiv → Import).
+  --club <id>        Valfritt: klubbens id. Klubben följer av importnyckeln; anges id ska det stämma.
   --utan-ledare      Ta inte med ledarens namn ur [hakparenteser].
   --rapport <fil>    Rapportens fil (förval arkivimport-rapport-<tid>.txt här).
   --nyckel-fil <fil> Läs importnyckeln ur en fil (annars OTID_IMPORT_TOKEN eller en fråga).
 
 Bara .ocd, .omap, .xmap, .ppen och IOF CourseData (.xml) läses och skickas. Allt annat hoppas över.`;
+
+/** Frågar efter nyckeln utan att visa det som klistras in (inget eko, inte heller stjärnor). */
+async function askHidden(question: string): Promise<string> {
+  process.stdout.write(question);
+  let muted = true;
+  const output = new Writable({ write(chunk: Uint8Array | string, _encoding: BufferEncoding, callback: () => void) {
+    if (!muted) process.stdout.write(chunk);
+    callback();
+  } });
+  const prompt = createInterface({ input: process.stdin, output, terminal: process.stdin.isTTY === true });
+  try { return await prompt.question(""); } finally {
+    muted = false;
+    prompt.close();
+    process.stdout.write("\n");
+  }
+}
 
 function parse(argv: readonly string[]) {
   const inputs: string[] = [];
@@ -50,14 +68,10 @@ async function main() {
   const reportPath = resolve(base, typeof flags.rapport === "string" ? flags.rapport : `arkivimport-rapport-${stamp}.txt`);
   let token: string | undefined;
   if (!dryRun) {
-    if (typeof flags.server !== "string" || typeof flags.club !== "string") throw new Error("--server och --club behövs (eller --dry-run)");
+    if (typeof flags.server !== "string") throw new Error("--server behövs (eller --dry-run)");
     token = process.env.OTID_IMPORT_TOKEN?.trim();
     if (!token && typeof flags["nyckel-fil"] === "string") token = (await readFile(resolve(base, flags["nyckel-fil"]), "utf8")).trim();
-    if (!token) {
-      const prompt = createInterface({ input: process.stdin, output: process.stdout });
-      token = (await prompt.question("Importnyckel (från Klubbarkiv → Import): ")).trim();
-      prompt.close();
-    }
+    if (!token) token = (await askHidden("Importnyckel (från Klubbarkiv → Import): ")).trim();
     if (!/^otid-imp-[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Nyckeln ser inte ut som en importnyckel från O-Tid");
   }
   await runImport({ inputs: inputs.map(input => resolve(base, input)), dryRun, withLeaders: flags["utan-ledare"] !== true, reportPath, server: flags.server as string | undefined,

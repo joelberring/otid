@@ -28,18 +28,31 @@ export function bearerToken(header: string | null): string | null {
   return match && CLUB_IMPORT_TOKEN_PATTERN.test(match[1]!) ? match[1]! : null;
 }
 
-export async function authenticateImportToken(tx: DbExecutor, input: { token: string | null; clubId: string }, now: Date)
+/**
+ * Nyckeln är bunden till en klubb: `clubId` saknas = klubben ur nyckeln (importverktyget frågar först vilken klubb nyckeln
+ * hör till, så att `--club` inte behövs). Med `clubId` måste den stämma.
+ */
+export async function authenticateImportToken(tx: DbExecutor, input: { token: string | null; clubId?: string | undefined }, now: Date)
   : Promise<ImportFailure | Importer> {
-  if (!input.token || !UUID_PATTERN.test(input.clubId)) return { status: "unauthorized" };
+  if (!input.token || (input.clubId !== undefined && !UUID_PATTERN.test(input.clubId))) return { status: "unauthorized" };
   const [row] = await tx.select({ id: schema.clubImportTokens.id, clubId: schema.clubImportTokens.clubId, accountId: schema.clubImportTokens.accountId,
     clubName: schema.clubs.name }).from(schema.clubImportTokens).innerJoin(schema.clubs, eq(schema.clubs.id, schema.clubImportTokens.clubId))
     .where(and(eq(schema.clubImportTokens.tokenSha256, importTokenHash(input.token)), isNull(schema.clubImportTokens.revokedAt),
       gt(schema.clubImportTokens.expiresAt, now)));
-  if (!row || row.clubId !== input.clubId) return { status: "unauthorized" };
+  if (!row || (input.clubId !== undefined && row.clubId !== input.clubId)) return { status: "unauthorized" };
   const member = await clubMembership(tx, { accountId: row.accountId, clubId: row.clubId }, "share");
   if (!member || !clubRoleAtLeast(member.role, "ADMIN")) return { status: "unauthorized" };
   await tx.update(schema.clubImportTokens).set({ lastUsedAt: now }).where(eq(schema.clubImportTokens.id, row.id));
   return { status: "ok", accountId: row.accountId, clubId: row.clubId, clubName: row.clubName };
+}
+
+/** Klubben som nyckeln hör till (id och namn), för importverktyget innan något skickas. */
+export async function importTokenClub(db: Database, input: { token: string | null }, now = new Date())
+  : Promise<ImportFailure | { status: "ok"; clubId: string; clubName: string }> {
+  return db.transaction(async tx => {
+    const importer = await authenticateImportToken(tx, { token: input.token }, now);
+    return importer.status === "ok" ? { status: "ok", clubId: importer.clubId, clubName: importer.clubName } as const : importer;
+  });
 }
 
 /**

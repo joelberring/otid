@@ -16,6 +16,7 @@ export interface RunOptions {
   readonly withLeaders: boolean;
   readonly reportPath: string;
   readonly server?: string | undefined;
+  /** Valfritt: klubben som nyckeln måste höra till (annars klubben ur nyckeln). */
   readonly clubId?: string | undefined;
   readonly token?: string | undefined;
   readonly log: (line: string) => void;
@@ -44,11 +45,17 @@ export async function runImport(options: RunOptions): Promise<RunResult> {
     options.log(`Rapporten: ${options.reportPath}`);
     if (options.dryRun) return { plan, report, uploaded: 0, skippedUploads: 0 };
 
-    if (!options.client && (!options.server || !options.clubId || !options.token)) throw new Error("--server, --club och nyckeln behövs");
-    const client = options.client ?? createImportClient({ server: options.server!, clubId: options.clubId!, token: options.token! });
+    if (!options.client && (!options.server || !options.token)) throw new Error("--server och nyckeln behövs");
+    const client = options.client ?? createImportClient({ server: options.server!, token: options.token! });
+    // Nyckeln hör till en klubb: den visas innan något skickas, och ett --club som inte stämmer stoppar importen.
+    const club = await client.club();
+    if (options.clubId && options.clubId !== club.clubId) {
+      throw new Error(`Importnyckeln hör till klubben ${club.clubName}, inte till id ${options.clubId}. Ta bort --club eller skapa en nyckel i rätt klubb.`);
+    }
+    options.log(`Klubb: ${club.clubName}`);
     const allMaps = plan.maps.flatMap(map => map.versions.map(version => version.sha256));
-    const { clubName, known } = await client.check(allMaps);
-    options.log(`Klubb: ${clubName}. Servern har redan ${known.size} av ${allMaps.length} kartfiler.`);
+    const { known } = await client.check(allMaps);
+    options.log(`Servern har redan ${known.size} av ${allMaps.length} kartfiler.`);
     let uploaded = 0, skippedUploads = 0, done = 0;
     for (const map of plan.maps) {
       for (const version of map.versions) {

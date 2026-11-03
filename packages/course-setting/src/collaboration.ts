@@ -182,6 +182,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "SET_PRINT_AREA": return [edit.course === "ALL_CONTROLS" ? "event:printArea" : `course:${edit.course}:printArea`];
     case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
     case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
+    case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.course}`];
     case "PUT_OBJECTS": return [
       ...Object.keys(edit.controls ?? {}).map(id => `control:${id}`),
       ...Object.keys(edit.courseControls ?? {}).map(id => `courseControl:${id}`),
@@ -255,7 +256,7 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "ADD_SPECIAL": return courseRefs(edit.special.courses);
     case "MOVE_SPECIAL": case "DELETE_SPECIAL": return [["specialObjects", edit.special]];
     case "UPDATE_SPECIAL": return [["specialObjects", edit.special], ...courseRefs(edit.changes.courses)];
-    case "SET_PRINT_AREA": return edit.course === "ALL_CONTROLS" ? [] : [["courses", edit.course]];
+    case "SET_PRINT_AREA": case "SET_PAPER_LAYOUT": return edit.course === "ALL_CONTROLS" ? [] : [["courses", edit.course]];
     case "PUT_OBJECTS": {
       const refs: [Kind, string][] = [];
       for (const [id, control] of Object.entries(edit.controls ?? {})) { refs.push(["controls", id]); if (control) refs.push(["controls", control.id]); }
@@ -342,7 +343,7 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
     case "MOVE_SPECIAL": case "DELETE_SPECIAL": return { ...edit, special: map("specialObjects", edit.special) };
     case "UPDATE_SPECIAL": return { ...edit, special: map("specialObjects", edit.special),
       changes: edit.changes.courses ? { ...edit.changes, courses: edit.changes.courses.map(co) } : edit.changes };
-    case "SET_PRINT_AREA": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
+    case "SET_PRINT_AREA": case "SET_PAPER_LAYOUT": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
     case "PUT_TRAINING": return { ...remapTrainingPatch(edit, { control: c, courseControl: cc, course: co }), type: "PUT_TRAINING" };
     default: return edit;
   }

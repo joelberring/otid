@@ -35,7 +35,9 @@ const newPassword = z.string().min(ACCOUNT_PASSWORD_MIN_LENGTH).max(1024);
 
 export const accountErrorCodeSchema = z.enum([
   "INVALID_REQUEST", "UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "CONFLICT", "RATE_LIMITED",
-  "ACCOUNT_BLOCKED", "MAIL_DISABLED", "CONFIRMATION_MISMATCH", "INTERNAL_ERROR"
+  "ACCOUNT_BLOCKED", "MAIL_DISABLED", "CONFIRMATION_MISMATCH", "INTERNAL_ERROR",
+  /** Mina klubbar: kontot har redan en klubb med samma namn. */
+  "NAME_TAKEN"
 ]);
 export const accountErrorResponseSchema = z.object({
   formatVersion: z.literal(1),

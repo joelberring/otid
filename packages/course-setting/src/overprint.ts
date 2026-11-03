@@ -347,7 +347,8 @@ export function layout(document: CourseSettingDocument, options: OverprintOption
   const printScale = printScaleOf(document, options.course, options.printScale);
   const course = options.course === "ALL_CONTROLS" ? allControls(document, printScale, options) : layoutCourse(document, options, printScale);
   const context = { document, course: options.course, variant: options.variant, printScale, sizes: sizesFor(document, printScale) };
-  const specials = document.specialObjects.filter(special => specialVisible(special, options.course))
+  // Kontrollbeskrivningen hör till papperet (`paper-layout.ts`), inte kartan: Purple Pens `descriptions` ritas inte här.
+  const specials = document.specialObjects.filter(special => special.kind !== "descriptions" && specialVisible(special, options.course))
     .flatMap(special => specialPrimitives(context, special));
   // Träningsläget (ADR-0192 beslut 7): sista säkra, markeringar, kepsens etiketter, linjen och avsnittet.
   return withTraining(document, options, inPaintOrder([...specials, ...course]), printScale);

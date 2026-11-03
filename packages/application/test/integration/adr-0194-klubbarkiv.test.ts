@@ -81,6 +81,17 @@ function batchFor(maps: { skogen: Uint8Array; skogen2: Uint8Array }, ppen: Uint8
 }
 
 describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
+  it("ny klubb: tomt namn är fel, samma namn som en egen klubb finns redan (oavsett stora bokstäver)", async () => {
+    const { owner } = await clubWithOwner();
+    const create = (name: string) => createClub(db, { ...owner.proof, request: { formatVersion: 1, requestId: randomUUID(), name } }, NOW);
+    expect((await create("   ")).status).toBe("invalid-request");
+    expect((await create("x".repeat(121))).status).toBe("invalid-request");
+    expect((await create("ok älvsjö-örby")).status).toBe("name-taken");
+    // En annan person får ha en klubb med samma namn.
+    const other = await registerTestAccount(db, undefined, NOW);
+    expect((await createClub(db, { ...other.proof, request: { formatVersion: 1, requestId: randomUUID(), name: "OK Älvsjö-Örby" } }, NOW)).status).toBe("created");
+  });
+
   it("roller och inbjudningar per adress: samma svar med och utan konto, läsaren ser men ändrar inte, sista ägaren står kvar", async () => {
     const { owner, clubId } = await clubWithOwner();
     const reader = await registerTestAccount(db, undefined, NOW);

@@ -1,5 +1,5 @@
 import {
-  bearerToken, createClub, createClubImportToken, deleteClubArchiveEntry, discardStagedMapContent, importBatch, importCheck, importMapContent,
+  bearerToken, createClub, createClubImportToken, deleteClubArchiveEntry, discardStagedMapContent, importBatch, importCheck, importMapContent, importTokenClub,
   inviteClubMember, listMyClubs, mergeClubMap, moveClubMapVersion, readClub, readClubArchive, readClubArchiveEntry, readClubCourseFile,
   readClubMapVersionHead, removeClubMember, revokeClubImportToken, saveClubMapToGroupLibrary, saveClubMapVersionToRace, setClubCourseFileMap,
   setClubMemberRole, stageMapContent, streamMapContentParts, updateClubArchiveEntry, updateClubMap, updateClubMapVersion, uploadClubMapVersion,
@@ -38,6 +38,7 @@ function failure(status: string): Response {
     case "invalid-request": return accountFailure(400, "INVALID_REQUEST");
     case "not-found": return accountFailure(404, "NOT_FOUND");
     case "conflict": return accountFailure(409, "CONFLICT");
+    case "name-taken": return accountFailure(409, "NAME_TAKEN");
     default: return accountFailure(500, "INTERNAL_ERROR");
   }
 }
@@ -409,6 +410,16 @@ const importFailure = (status: string) => status === "unauthorized" ? privateJso
 async function importJson(request: Request): Promise<unknown> {
   if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) throw new Error("content-type");
   return readJsonBody(request, CLUB_IMPORT_BATCH_MAX_BYTES);
+}
+
+/** GET: klubben som nyckeln hör till (importverktyget visar namnet innan något skickas). */
+export async function clubImportTokenRoute(db: Database, request: Request): Promise<Response> {
+  const token = bearerToken(request.headers.get("authorization"));
+  if (!token) return importFailure("unauthorized");
+  return guarded(async () => {
+    const result = await importTokenClub(db, { token });
+    return result.status === "ok" ? privateJson({ formatVersion: 1, clubId: result.clubId, clubName: result.clubName }) : importFailure(result.status);
+  });
 }
 
 export async function clubImportCheckRoute(db: Database, request: Request, clubId: string): Promise<Response> {

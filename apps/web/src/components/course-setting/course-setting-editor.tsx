@@ -8,7 +8,7 @@ import type {
 import {
   applyEdit, carryExcludedVariants, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, keepPaperOnImport, layoutCoursePage,
   layoutOverprint, nextFreeCode,
-  printAreaOf, type CourseSettingDocument, type DescriptionSymbol, type MapRect, type OverprintPrimitive
+  paperLayoutOf, printAreaOf, type CourseSettingDocument, type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
@@ -242,9 +242,15 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // ADR-0192: träningsläget (kartans pass, verktygen och fliken Träning).
   const training = useCourseSettingTraining({ document, view, variant, session: mapSession, mapReady: mapStatus === "ready", readOnly, say,
     onEdits: edits => edit(current => applySteps(current, edits, applyEdit)) });
-  const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options, training: training.overprint };
+  // Kartbyten (ADR-0203): vald del i fliken Utskrift (kartan visar delen med överlappet); en annan bana visar hela banan.
+  const [partChoice, setPartChoice] = useState<{ view: string; part: number }>();
+  const part = partChoice?.view === view ? partChoice.part : undefined;
+  const partRef = useRef(part);
+  partRef.current = part;
+  const options = { course: view, ...(variant ? { variant } : {}), ...cutting.options, training: training.overprint,
+    ...(part !== undefined ? { part, overlap: paperLayoutOf(document, view).overlap } : {}) };
   const primitives = useMemo(() => safely("Banpåtrycket", () => layoutOverprint(document, options), () => [] as readonly OverprintPrimitive[]),
-    [document, view, variant, cutting.options, training.overprint]);
+    [document, view, variant, cutting.options, training.overprint, part]);
   const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options, training: training.overprint }),
     () => [] as readonly OverprintPrimitive[]) : [], [document, view, variant, cutting.options, training.overprint]);
   const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), () => []), [document]);
@@ -257,9 +263,10 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utskrift).
   const printPage = useMemo(() => {
     if (tab !== "print") return undefined;
-    const page = safely("Utskriftslayouten", () => layoutCoursePage(document, { course: view, ...(variant ? { variant } : {}), mapBounds })[0], () => undefined);
-    return page ? { page, automatic: printAreaOf(document, view).automatic || !printAreaOf(document, view).rect } : undefined;
-  }, [tab, document, view, variant, mapBounds]);
+    const page = safely("Utskriftslayouten", () => layoutCoursePage(document, { course: view, ...(variant ? { variant } : {}), ...(part !== undefined ? { part } : {}), mapBounds })[0],
+      () => undefined);
+    return page ? { page, automatic: printAreaOf(document, view, part).automatic || !printAreaOf(document, view, part).rect } : undefined;
+  }, [tab, document, view, variant, mapBounds, part]);
   const selectedSpecial = selection?.kind === "special" ? document.specialObjects.find(item => item.id === selection.special) : undefined;
   const uxDraw = ux.draw, trainingDraw = training.draw;
   const overlayExtra = useMemo(() => (ctx: CanvasRenderingContext2D, mapView: Viewport) => {
@@ -451,8 +458,9 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       });
       else if (current.kind === "frame") store.update(next => {
         const dx = point.x - current.start.x, dy = point.y - current.start.y, rect = current.rect;
-        const area = printAreaOf(next.dragBase ?? next.document, next.view);
-        return dragTo(next, { type: "SET_PRINT_AREA", course: next.view, area: { ...area, automatic: false,
+        const framePart = partRef.current;
+        const area = printAreaOf(next.dragBase ?? next.document, next.view, framePart);
+        return dragTo(next, { type: "SET_PRINT_AREA", course: next.view, ...(framePart !== undefined ? { part: framePart } : {}), area: { ...area, automatic: false,
           rect: { minX: rect.minX + dx, maxX: rect.maxX + dx, minY: rect.minY + dy, maxY: rect.maxY + dy } } }, applyEdit);
       });
       else store.update(next => {
@@ -662,7 +670,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onSelect={id => { apply(current => select(current, { kind: "special", special: id })); const found = document.specialObjects.find(item => item.id === id);
           if (found) mapHandle.current?.reveal(found.points); }}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} onAlong={ux.along} />;
-      case "print": return <PrintPanel document={document} view={view} page={printPage?.page} readOnly={readOnly}
+      case "print": return <PrintPanel document={document} view={view} page={printPage?.page} readOnly={readOnly} part={part}
+        onPart={next => setPartChoice(next === undefined ? undefined : { view, part: next })}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))}
         onPreview={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print?course=${encodeURIComponent(view)}`))} />;
       case "checks": return <ChecksPanel rows={checks} onShow={row => {

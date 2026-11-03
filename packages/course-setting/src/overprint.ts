@@ -18,6 +18,7 @@ import { CourseSettingEditError } from "./types";
 import { inPaintOrder, specialPrimitives, specialVisible } from "./specials";
 import { enumerateCourseControls, enumerateLegs, findCourse, variations } from "./walk";
 import { withTraining } from "./training-overprint";
+import { courseParts, partShowsFinish } from "./course-parts";
 
 type Gap = { startDegrees: number; endDegrees: number };
 
@@ -348,11 +349,14 @@ export function layout(document: CourseSettingDocument, options: OverprintOption
   const course = options.course === "ALL_CONTROLS" ? allControls(document, printScale, options) : layoutCourse(document, options, printScale);
   const context = { document, course: options.course, variant: options.variant, printScale, sizes: sizesFor(document, printScale) };
   // Kontrollbeskrivningen hör till papperet (`paper-layout.ts`), inte kartan: Purple Pens `descriptions` ritas inte här.
-  const specials = document.specialObjects.filter(special => special.kind !== "descriptions" && specialVisible(special, options.course))
+  const specials = document.specialObjects.filter(special => special.kind !== "descriptions" && specialVisible(special, options.course, options.part))
     .flatMap(special => specialPrimitives(context, special));
   // Träningsläget (ADR-0192 beslut 7): sista säkra, markeringar, kepsens etiketter, linjen och avsnittet.
   return withTraining(document, options, inPaintOrder([...specials, ...course]), printScale);
 }
+
+/** Överlappets andel av banans färg vid ett kartbyte (ADR-0203). */
+export const OVERLAP_FADE = 0.35;
 
 function layoutCourse(document: CourseSettingDocument, options: OverprintOptions, printScale: number): OverprintPrimitive[] {
   const course = findCourse(document, options.course);
@@ -364,9 +368,25 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
     if (!found && !(all.length === 0 && options.variant === "")) throw new CourseSettingEditError("NOT_FOUND", `Varianten ${options.variant} finns inte`);
     choices = found?.choices ?? null;
   }
-  const ccIds = enumerateCourseControls(document, course.id, choices);
-  const legPairs = enumerateLegs(document, course.id, choices);
   const controlOf = (ccId: string) => document.controls[document.courseControls[ccId]!.control]!;
+  // Kartbyten (ADR-0203): en del av banan, som Purple Pens CourseView för en del.
+  const parts = options.part !== undefined ? courseParts(document, course.id, options.variant) : [];
+  const part = options.part !== undefined && parts.length > 1 ? Math.min(Math.max(0, options.part), parts.length - 1) : undefined;
+  const partList = part !== undefined ? parts[part]! : undefined;
+  let ccIds = partList ? [...partList] : enumerateCourseControls(document, course.id, choices);
+  const legPairs: [string, string][] = partList
+    ? (course.kind === "SCORE" ? [] : partList.slice(1).map((ccId, index) => [partList[index]!, ccId] as [string, string]))
+    : enumerateLegs(document, course.id, choices);
+  // Målet också på en del som inte är den sista (Purple Pens part-options show-finish).
+  if (partList && part! < parts.length - 1 && partShowsFinish(document, course.id, part!)) {
+    const last = parts[parts.length - 1]!;
+    const finish = last[last.length - 1];
+    if (finish && controlOf(finish).kind === "FINISH") ccIds = [...ccIds, finish];
+  }
+  // Kartbytet sist i en del (inte den sista) ritas inte om det är ett eget kartbyte; först i en del är det delens start.
+  const partEnd = partList && part! < parts.length - 1 ? partList[partList.length - 1] : undefined;
+  const partStart = partList && part! > 0 ? partList[0] : undefined;
+  if (partEnd && controlOf(partEnd).kind === "MAP_EXCHANGE") ccIds = ccIds.filter(ccId => ccId !== partEnd);
 
   // En figur per kontroll (gaffelkontrollen finns på flera av banans kontroller).
   const objects = new Map<string, PointObject>();
@@ -379,7 +399,7 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
       const target = document.legs[legKey(control.id, controlOf(next).id)]?.bends[0] ?? controlOf(next).at;
       if (distance(control.at, target) > 0) angleOut = angleDegrees(control.at, target);
     }
-    const exchange = rawAttribute(document.courseControls[ccId]!.raw, "course-control", "map-exchange")?.toLowerCase() === "true";
+    const exchange = partList ? ccId === partStart : rawAttribute(document.courseControls[ccId]!.raw, "course-control", "map-exchange")?.toLowerCase() === "true";
     objects.set(control.id, { control, ref: ccId, angleOut, exchange, gaps: fileGaps(document, control, printScale) });
   }
   const points = [...objects.values()];
@@ -441,6 +461,25 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
     }
   }
   for (const object of points) out.push(...pointPrimitives(object, sizes));
+  // Överlappet (ADR-0203): föregående dels sista sträcka (eller hela delen) tonad, utan nummer.
+  if (part !== undefined && part > 0 && (options.overlap ?? "LAST_LEG") !== "NONE") {
+    const previous = parts[part - 1]!;
+    const shown = options.overlap === "PREVIOUS_PART" ? previous : previous.slice(-2);
+    for (let i = 1; i < shown.length; i++) {
+      const from = controlOf(shown[i - 1]!), to = controlOf(shown[i]!);
+      if (from.id === to.id) continue;
+      const geometry = legGeometry(document, from, to, sizes);
+      if (geometry) out.push({ kind: "polyline", role: "OVERLAP", color: "COURSE", points: geometry.path, width: sizes.line, fade: OVERLAP_FADE,
+        ref: legKey(from.id, to.id) });
+    }
+    for (const ccId of shown.slice(0, -1)) {
+      const control = controlOf(ccId);
+      if (objects.has(control.id)) continue;
+      for (const figure of pointPrimitives({ control, ref: ccId, angleOut: undefined, exchange: false, gaps: [] }, sizes)) {
+        out.push({ ...figure, role: "OVERLAP", fade: OVERLAP_FADE } as OverprintPrimitive);
+      }
+    }
+  }
 
   // Numren: samma kontroll två gånger får "3/7".
   const ordinals = new Map<string, number[]>();

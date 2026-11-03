@@ -137,6 +137,8 @@ export interface Course {
   readonly relay?: CourseRelayOptions | undefined;
   /** Steg 64: tryckytan (Purple Pens `<print-area>` utan `part`); saknas = automatisk. */
   readonly printArea?: PrintArea | undefined;
+  /** Kartbyten (ADR-0203): delarnas tryckytor (Purple Pens `<print-area part="n">`), per del "0", "1" …; saknas = banans. */
+  readonly partPrintAreas?: Readonly<Record<string, PrintArea>> | undefined;
   /**
    * ADR-0198: varianter som inte används (färre gafflingsvarianter). De förs inte över till tävlingen, skrivs inte i IOF XML
    * och skrivs inte ut. Bara O-Tid; i .ppen i O-Tid:s namnrymd (`<otid:variants>`).
@@ -384,14 +386,14 @@ export type SpecialEdit =
   | { readonly type: "MOVE_SPECIAL"; readonly special: string; readonly points: readonly Point[] }
   | { readonly type: "UPDATE_SPECIAL"; readonly special: string; readonly changes: SpecialFields & { readonly courses?: readonly string[] | undefined } }
   | { readonly type: "DELETE_SPECIAL"; readonly special: string }
-  | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null }
+  | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null; readonly part?: number | undefined }
   /** Utskriftsprofil och layoutmall (ADR-0183): lägg till eller ersätt per id, ta bort. */
   | { readonly type: "PUT_PRINT_PROFILE"; readonly profile: PrintProfile }
   | { readonly type: "DELETE_PRINT_PROFILE"; readonly id: string }
   | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: LayoutTemplate }
   | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string }
   /** Papperet för en bana (eller "ALL_CONTROLS"): ersätts helt; null = som förval. */
-  | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null }
+  | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null; readonly part?: number | undefined }
   /** Papperets mall (ADR-0197): lägg till eller ersätt per id, ta bort (banorna som ärver av den står kvar utan mall). */
   | { readonly type: "PUT_PAPER_TEMPLATE"; readonly template: PaperTemplate }
   | { readonly type: "DELETE_PAPER_TEMPLATE"; readonly id: string };
@@ -495,10 +497,14 @@ export type OverprintColor = "COURSE" | "COURSE_LOWER" | "WHITE" | "BLACK" | "CU
 export type OverprintRole =
   | "START" | "CONTROL" | "FINISH" | "CROSSING_POINT" | "MAP_EXCHANGE" | "LEG" | "NUMBER" | "FLAGGING" | "SPECIAL"
   /** Träningsläget (ADR-0192): sista säkra, markeringar vid avsnitten, linjen i linjeorientering. */
-  | "TRAINING";
+  | "TRAINING"
+  /** Kartbyten (ADR-0203): grannens sträckor och kontroller närmast kartbytet, tonade och utan nummer. */
+  | "OVERLAP";
 
 type Cmyk = readonly [number, number, number, number];
-interface Paint { readonly role: OverprintRole; readonly color: OverprintColor; readonly cmyk?: Cmyk | undefined; readonly ref?: string | undefined }
+interface Paint { readonly role: OverprintRole; readonly color: OverprintColor; readonly cmyk?: Cmyk | undefined; readonly ref?: string | undefined;
+  /** Tonad (0–1): andelen av färgen, t.ex. överlappet vid ett kartbyte (ADR-0203, 0,35). */
+  readonly fade?: number | undefined }
 
 /**
  * Banpåtrycket som enkla figurer i kartans mm, samma för skärm (canvas) och tryck (PDF, steg 65). Storlekarna följer
@@ -538,4 +544,11 @@ export interface OverprintOptions {
   readonly detailGaps?: Readonly<Record<string, readonly { readonly startDegrees: number; readonly endDegrees: number }[]>> | undefined;
   /** Träningsläget (ADR-0192 beslut 7): vy, kepsens karta och avsnitt. */
   readonly training?: OverprintTraining | undefined;
+  /** Kartbyten (ADR-0203): en del av banan (0, 1 …); saknas = hela banan. */
+  readonly part?: number | undefined;
+  /** Delens överlapp mot föregående del: ingen, sista sträckan (förval) eller hela föregående del. */
+  readonly overlap?: PartOverlap | undefined;
 }
+
+/** "Visa överlapp" vid kartbyten (ADR-0203). */
+export type PartOverlap = "NONE" | "LAST_LEG" | "PREVIOUS_PART";

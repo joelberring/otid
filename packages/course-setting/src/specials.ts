@@ -14,6 +14,8 @@ import type { Point } from "@o-tid/map-file";
 import { appearanceOf, type Sizes } from "./appearance";
 import { place } from "./geometry";
 import { specialImage } from "./ppen-special";
+import { fromRaw } from "./ppen-common";
+import { attr, childElements } from "./xml";
 import { ellipsePoints, hatchLines, offsetLine, rectOf, roundedRectPoints, symPath } from "./special-shapes";
 import type { CourseSettingDocument, OverprintColor, OverprintPrimitive, SpecialLine, SpecialObject } from "./types";
 import { measuredLengthMeters, variations } from "./walk";
@@ -31,9 +33,31 @@ export function specialPaint(color: string | undefined): Paint {
 }
 
 /** Syns specialobjektet på banan ("ALL_CONTROLS" = Alla kontroller, i filen bana 0)? */
-export function specialVisible(special: SpecialObject, course: string): boolean {
+export function specialVisible(special: SpecialObject, course: string, part?: number): boolean {
   if (special.courses.length === 0) return true;
-  return special.courses.includes(course === "ALL_CONTROLS" ? "0" : course);
+  const id = course === "ALL_CONTROLS" ? "0" : course;
+  if (!special.courses.includes(id)) return false;
+  // Kartbyten (ADR-0203): Purple Pens `<course course="2" part="1">` gäller bara den delen (och hela banan).
+  if (part === undefined) return true;
+  const parts = specialParts(special).get(id);
+  return !parts || parts.includes(part);
+}
+
+const partCache = new WeakMap<SpecialObject, Map<string, number[] | undefined>>();
+/** Delarna per bana ur `<courses>` (saknas = alla delar). */
+function specialParts(special: SpecialObject): Map<string, number[] | undefined> {
+  const known = partCache.get(special);
+  if (known) return known;
+  const out = new Map<string, number[] | undefined>();
+  const courses = childElements(fromRaw(special.raw)).find(child => child.name === "courses");
+  for (const entry of courses ? childElements(courses) : []) {
+    const course = attr(entry, "course"), part = attr(entry, "part");
+    if (course === undefined) continue;
+    if (part === undefined) out.set(course, undefined);
+    else if (!out.has(course) || out.get(course) !== undefined) out.set(course, [...(out.get(course) ?? []), Number(part)]);
+  }
+  partCache.set(special, out);
+  return out;
 }
 
 export interface SpecialContext {

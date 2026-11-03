@@ -6,7 +6,8 @@
  */
 import type { OverprintTraining, TrainingMapPass } from "./training-types";
 import { placeDescription, type SheetDescription } from "./paper-layout";
-import { expandPaperText, sheetPaperItems, type MarkingClip, type SheetPaperItem } from "./paper-items";
+import { expandPaperText, paperLayoutOf, sheetPaperItems, type MarkingClip, type SheetPaperItem } from "./paper-items";
+import { countCourseParts } from "./course-parts";
 import { layout, printScaleOf } from "./overprint";
 import { figureBounds, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, printRectangle, type CoursePage, type PaperName } from "./page-layout";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
@@ -75,6 +76,8 @@ export interface RunnerInfo {
 export interface SheetItem {
   readonly course: string;
   readonly variant?: string | undefined;
+  /** Kartbyten (ADR-0203): en del av banan; saknas = hela banan. */
+  readonly part?: number | undefined;
   readonly printScale?: number | undefined;
   readonly printArea?: PrintArea | undefined;
   readonly runner?: RunnerInfo | undefined;
@@ -93,7 +96,7 @@ export interface SheetText {
 }
 
 /** En kartram på arket: kartans utsnitt, transformen till papperet och banpåtrycket (som `CoursePage`). */
-export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "title" | "mapScale" | "printScale" | "mapArea" | "clip" | "transform" | "figures"> {
+export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "part" | "title" | "mapScale" | "printScale" | "mapArea" | "clip" | "transform" | "figures"> {
   readonly runner?: RunnerInfo | undefined;
   /** Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter; saknas = kartan som vanligt. */
   readonly mapPasses?: readonly TrainingMapPass[] | undefined;
@@ -216,13 +219,16 @@ function frameFor(document: CourseSettingDocument, item: SheetItem, rect: Templa
   const variant = item.variant || undefined;
   const printScale = printScaleOf(document, course, item.printScale);
   const ratio = printScale / document.event.mapScale;
+  const part = item.part !== undefined && !item.training && countCourseParts(document, course, variant) > 1 ? item.part : undefined;
   const figures: OverprintPrimitive[] = layout(document, { course, ...(variant ? { variant } : {}), printScale, ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}),
-    ...(item.training ? { training: item.training } : {}) });
-  const area = item.training?.section ? { automatic: true, restrictToPageSize: true } : item.printArea ?? printAreaOf(document, course);
+    ...(item.training ? { training: item.training } : {}), ...(part !== undefined ? { part, overlap: paperLayoutOf(document, course).overlap } : {}) });
+  const area = item.training?.section ? { automatic: true, restrictToPageSize: true } : item.printArea ?? printAreaOf(document, course, part);
   const mapArea = printRectangle({ ...area, restrictToPageSize: true }, { width: rect.width * ratio, height: rect.height * ratio }, figureBounds(figures), options.mapBounds);
   const scale = 1 / ratio;
   const name = found?.name ?? "Alla kontroller";
-  return { course, ...(variant ? { variant } : {}), title: variant ? `${name} – ${variant}` : name, mapScale: document.event.mapScale, printScale, mapArea,
+  const base = variant ? `${name} – ${variant}` : name;
+  return { course, ...(variant ? { variant } : {}), ...(part !== undefined ? { part } : {}), title: part !== undefined ? `${base} – del ${part + 1}` : base,
+    mapScale: document.event.mapScale, printScale, mapArea,
     clip: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     transform: { scale, translateX: rect.x - mapArea.minX * scale, translateY: rect.y + mapArea.maxY * scale }, figures,
     ...(item.runner ? { runner: item.runner } : {}) };
@@ -324,7 +330,7 @@ export function layoutTemplateSheets(document: CourseSettingDocument, template: 
 export function sheetOfPage(page: CoursePage): Sheet {
   return {
     paper: page.paper,
-    frames: [{ course: page.course, ...(page.variant ? { variant: page.variant } : {}), title: page.title, mapScale: page.mapScale, printScale: page.printScale,
+    frames: [{ course: page.course, ...(page.variant ? { variant: page.variant } : {}), ...(page.part !== undefined ? { part: page.part } : {}), title: page.title, mapScale: page.mapScale, printScale: page.printScale,
       mapArea: page.mapArea, clip: page.clip, transform: page.transform, figures: page.figures }],
     texts: page.texts.map(text => ({ text: text.text, at: text.at, heightMm: text.heightMm, bold: text.bold, align: "left", rotation: 0, color: text.color })),
     images: [], descriptions: page.description ? [page.description] : [], boxes: [], cutMarks: [],

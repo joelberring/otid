@@ -14,7 +14,7 @@ export type PrintNode =
       readonly role: string }
   | { readonly tag: "text"; readonly x: number; readonly y: number; readonly text: string; readonly size: number; readonly fill: string;
       readonly anchor: "start" | "middle"; readonly family: string; readonly bold: boolean; readonly italic: boolean; readonly ref?: string | undefined;
-      readonly role: string }
+      readonly role: string; readonly opacity?: number | undefined }
   | { readonly tag: "image"; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly href: string;
       readonly ref?: string | undefined }
   /** Beskrivningen: noderna i kartans mm (y nedåt) flyttade och skalade till sidan. */
@@ -62,13 +62,14 @@ export function pageNodes(page: FrameLike, symbols: SymbolLookup, courseColor?: 
         height: r3((primitive.rect.maxY - primitive.rect.minY) * s), href: `data:${primitive.mediaType};base64,${primitive.data}`, ref: primitive.ref };
     }
     const color = courseColor && (primitive.color === "COURSE" || primitive.color === "COURSE_LOWER") ? courseColor : screenColor(primitive);
-    const base = { ref: primitive.ref, role: primitive.role };
+    // Tonad figur (överlappet vid ett kartbyte, ADR-0203).
+    const base = { ref: primitive.ref, role: primitive.role, ...(primitive.fade !== undefined && primitive.fade < 1 ? { opacity: primitive.fade } : {}) };
     switch (primitive.kind) {
       case "circle": return { tag: "path", d: circlePath(page, primitive), stroke: color, width: r3(primitive.lineWidth * s), ...base };
       case "polyline": return { tag: "path", d: pathOf(page, primitive.points, primitive.closed === true), stroke: color, width: r3(primitive.width * s),
         ...(primitive.dash ? { dash: primitive.dash.map(value => r3(value * s)).join(" ") } : {}), cap: primitive.cap ?? "butt", ...base };
-      case "polygon": return { tag: "path", d: primitive.rings.map(ring => pathOf(page, ring, true)).join(" "), fill: color,
-        ...(primitive.tint !== undefined ? { opacity: primitive.tint } : {}), ...base };
+      case "polygon": return { tag: "path", d: primitive.rings.map(ring => pathOf(page, ring, true)).join(" "), fill: color, ...base,
+        ...(primitive.tint !== undefined ? { opacity: primitive.tint * (primitive.fade ?? 1) } : {}) };
       case "text": {
         const at = toPage(page, primitive.at);
         return { tag: "text", x: r3(at.x), y: r3(at.y), text: primitive.text, size: r3(primitive.heightMm * s), fill: color, anchor: primitive.align === "left" ? "start" : "middle",

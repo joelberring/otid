@@ -50,7 +50,18 @@ export const coursePrintSv = {
     reset: "Automatisk igen",
     preview: "Förhandsvisning och utskrift",
     allControls: "Alla kontroller",
-    frameHelp: "Ramen visar vad som kommer med på papperet."
+    frameHelp: "Ramen visar vad som kommer med på papperet.",
+    parts: "Kartbyten",
+    part: "Del",
+    wholeCourse: "Hela banan",
+    partName: (n: number) => `Del ${n}`,
+    partInherits: "Delen har banans tryckyta tills du ändrar den här.",
+    partOwnArea: "Delen har en egen tryckyta.",
+    partReset: "Som banans igen",
+    overlap: "Visa överlapp",
+    overlapNone: "Ingen",
+    overlapLastLeg: "Sista sträckan",
+    overlapPrevious: "Hela föregående del"
   },
   /** Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan. */
   paper: {
@@ -104,6 +115,8 @@ export const coursePrintSv = {
     orderBundle: "Buntordning (per variant)",
     orderStart: "Startordning",
     duplex: "Dubbelsidigt: baksida med namn, klass, startnummer, starttid och variant",
+    partsDuplex: "Dubbelsidigt: del 2 på baksidan av del 1 (kartbyte)",
+    blankBack: "Baksida (tom)",
     singleSided: "Enkelsidigt: remsan i mallen syns när kartan är rullad",
     runnersLoading: "Läser löparna och deras varianter …",
     runnersFailed: "Löparna och deras varianter kunde inte läsas.",

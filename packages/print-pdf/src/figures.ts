@@ -177,7 +177,9 @@ export function figureOps(context: FigureContext, m: Matrix, figures: readonly O
       content.restore();
       continue;
     }
-    const paint = paintOf(context, primitive);
+    // Tonad figur (överlappet vid ett kartbyte, ADR-0203): samma dekorfärg med lägre andel.
+    const own = paintOf(context, primitive);
+    const paint = primitive.fade !== undefined && primitive.fade < 1 ? tinted(own, primitive.fade) : own;
     switch (primitive.kind) {
       case "circle": {
         const r = primitive.diameter / 2;

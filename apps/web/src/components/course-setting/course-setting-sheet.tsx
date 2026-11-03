@@ -79,7 +79,7 @@ function Node({ node }: { node: PrintNode }) {
   switch (node.tag) {
     case "path": return <path d={node.d} fill={node.fill ?? "none"} fillRule="evenodd" stroke={node.stroke} strokeWidth={node.width} strokeDasharray={node.dash}
       strokeLinecap={node.cap} strokeLinejoin="round" opacity={node.opacity} data-ref={node.ref} data-role={node.role} />;
-    case "text": return <text x={node.x} y={node.y} fontSize={node.size} fill={node.fill} textAnchor={node.anchor} dominantBaseline="middle"
+    case "text": return <text x={node.x} y={node.y} fontSize={node.size} fill={node.fill} textAnchor={node.anchor} dominantBaseline="middle" opacity={node.opacity}
       fontFamily={node.family} fontWeight={node.bold ? "bold" : undefined} fontStyle={node.italic ? "italic" : undefined} data-ref={node.ref} data-role={node.role}>{node.text}</text>;
     case "image": return <image href={node.href} x={node.x} y={node.y} width={node.width} height={node.height} preserveAspectRatio="none" data-ref={node.ref} />;
     case "description": return <g transform={`translate(${node.x} ${node.y}) scale(${node.scale})`} data-ref={node.ref} data-role="SPECIAL" data-testid="print-description">

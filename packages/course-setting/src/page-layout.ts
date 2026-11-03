@@ -6,7 +6,8 @@
  */
 import { layout, printScaleOf } from "./overprint";
 import { placeDescription, type SheetDescription } from "./paper-layout";
-import { sheetPaperItems, type SheetPaperItem } from "./paper-items";
+import { paperLayoutOf, sheetPaperItems, type SheetPaperItem } from "./paper-items";
+import { countCourseParts } from "./course-parts";
 import { excludedVariantCodes } from "./summary";
 import { measuredLengthMeters, variations } from "./walk";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
@@ -46,6 +47,8 @@ export interface CoursePageOptions {
   readonly descriptions?: boolean | undefined;
   /** Datumet för papperets {datum} (annars tävlingens värde i dokumentet). */
   readonly date?: string | undefined;
+  /** Kartbyten (ADR-0203): en del av banan (0, 1 …) med delens tryckyta, beskrivning och papper; saknas = hela banan. */
+  readonly part?: number | undefined;
 }
 
 /** En text på sidan (mm, y nedåt): `at` = vänsterkant och baslinje, `heightMm` = em-höjden. */
@@ -65,8 +68,10 @@ export interface PageText {
 export interface CoursePage {
   readonly course: string;
   readonly variant?: string | undefined;
-  /** "Bana A", "Bana A – AC" …; "Alla kontroller". */
+  /** "Bana A", "Bana A – AC" …; "Alla kontroller"; en del "Bana A – del 2". */
   readonly title: string;
+  /** Kartbyten (ADR-0203): delen av banan. */
+  readonly part?: number | undefined;
   readonly paper: { readonly widthMm: number; readonly heightMm: number; readonly landscape: boolean; readonly marginMm: number };
   readonly mapScale: number;
   readonly printScale: number;
@@ -172,8 +177,11 @@ export function pageDimension(mapStart: number, mapLength: number, printStart: n
 }
 
 /** Tryckytan för banan: den sparade, annars automatisk med fast storlek (Purple Pens förval). */
-export function printAreaOf(document: CourseSettingDocument, course: string): PrintArea {
-  const saved = course === "ALL_CONTROLS" ? document.event.printArea : document.courses.find(item => item.id === course)?.printArea;
+export function printAreaOf(document: CourseSettingDocument, course: string, part?: number): PrintArea {
+  const found = course === "ALL_CONTROLS" ? undefined : document.courses.find(item => item.id === course);
+  // Kartbyten (ADR-0203): delens tryckyta, annars banans (Purple Pens QueryEvent.GetPrintArea).
+  const partArea = part !== undefined ? found?.partPrintAreas?.[String(part)] : undefined;
+  const saved = course === "ALL_CONTROLS" ? document.event.printArea : partArea ?? found?.printArea;
   return saved ?? { automatic: true, restrictToPageSize: true };
 }
 
@@ -200,9 +208,11 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
   if (!(printScale > 0)) throw new CourseSettingEditError("INVALID", "Utskriftsskalan måste vara positiv");
   const mapScale = document.event.mapScale;
   const ratio = printScale / mapScale;
+  const part = options.part !== undefined && countCourseParts(document, course, variant) > 1 ? options.part : undefined;
   const figures = layout(document, { course, ...(variant !== undefined ? { variant } : {}), printScale,
-    ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.training ? { training: options.training } : {}) });
-  const area = options.training?.section ? { automatic: true, restrictToPageSize: true } : options.printArea ?? printAreaOf(document, course);
+    ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.training ? { training: options.training } : {}),
+    ...(part !== undefined ? { part, overlap: paperLayoutOf(document, course).overlap } : {}) });
+  const area = options.training?.section ? { automatic: true, restrictToPageSize: true } : options.printArea ?? printAreaOf(document, course, part);
   const objects = figureBounds(figures);
   const page = area.page ?? defaultPage(area.automatic || !area.rect ? options.mapBounds ?? objects : area.rect, ratio);
   const widthMm = (page.landscape ? page.height : page.width) * HUNDREDTH_INCH_MM;
@@ -217,7 +227,8 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
   // Uppifrån och ned: första sidan har kartans övre del.
   const rows = pageDimension(-rect.maxY, rect.maxY - rect.minY, printable.y, printable.height, ratio);
   const name = found?.name ?? "Alla kontroller";
-  const title = variant ? `${name} – ${variant}` : name;
+  const base = variant ? `${name} – ${variant}` : name;
+  const title = part !== undefined ? `${base} – del ${part + 1}` : base;
   const texts: PageText[] = header ? [{
     text: [document.event.title.replace(/\|/g, " "), title, found ? lengthText(document, course, variant) : "",
       `1:${Math.round(printScale).toLocaleString("sv-SE").replace(/\s/g, " ")}`].filter(Boolean).join("  ·  "),
@@ -230,13 +241,13 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
     const scale = 1 / ratio;
     const transform = { scale, translateX: clip.x - mapArea.minX * scale, translateY: clip.y + mapArea.maxY * scale };
     const description = pages.length === 0 && !options.training?.section && options.descriptions !== false
-      ? placeDescription(document, { course, ...(variant !== undefined ? { variant } : {}), clip, transform, figures }, 0) : undefined;
+      ? placeDescription(document, { course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}), clip, transform, figures }, 0) : undefined;
     // Papperets element: första sidan, och de med "Alla sidor" på de följande (ägaren 2026-11-03).
     const paperItems = !options.training?.section && options.descriptions !== false
-      ? sheetPaperItems(document, { course, ...(variant !== undefined ? { variant } : {}), printScale, clip }, 0,
+      ? sheetPaperItems(document, { course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}), printScale, clip }, 0,
         { page: { x: 0, y: 0, width: widthMm, height: heightMm }, date: options.date, firstPage: pages.length === 0 }) : [];
     pages.push({
-      course, ...(variant !== undefined ? { variant } : {}), title,
+      course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}), title,
       paper: { widthMm, heightMm, landscape: page.landscape, marginMm }, mapScale, printScale, mapArea, clip, transform,
       figures, texts, sheet: pages.length + 1, sheets: rows.length * columns.length, ...(description ? { description } : {}),
       ...(paperItems.length > 0 ? { paperItems } : {})

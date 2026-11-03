@@ -44,7 +44,9 @@ export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly
   ctx.lineCap = "butt";
   ctx.lineJoin = "round";
   for (const primitive of primitives) {
-    ctx.globalAlpha = alpha;
+    // Tonad figur (överlappet vid ett kartbyte, ADR-0203).
+    const fadedAlpha = alpha * (primitive.kind !== "image" ? primitive.fade ?? 1 : 1);
+    ctx.globalAlpha = fadedAlpha;
     if (primitive.kind === "image") {
       const bitmap = specialImage(primitive, options.onImage);
       const corner = toScreen(view, { x: primitive.rect.minX, y: primitive.rect.maxY });
@@ -75,7 +77,7 @@ export function drawOverprint(ctx: Context, view: Viewport, primitives: readonly
         ctx.lineCap = "butt";
         break;
       case "polygon":
-        ctx.globalAlpha = alpha * (primitive.tint ?? 1);
+        ctx.globalAlpha = fadedAlpha * (primitive.tint ?? 1);
         ctx.beginPath();
         for (const ring of primitive.rings) {
           ring.forEach((point, index) => {

@@ -28,6 +28,8 @@ const mapRect = z.object({ minX: z.number().finite(), minY: z.number().finite(),
 /** En karta: bana (eller ALL_CONTROLS), variant, skala och tryckyta som i förhandsvisningen, och löparen. */
 export const printJobItemSchema = z.object({
   course: text(64).min(1), variant: text(64).optional(), printScale: z.number().positive().max(1_000_000).optional(),
+  /** Kartbyten (ADR-0203): en del av banan (0, 1 …). */
+  part: z.number().int().min(0).max(50).optional(),
   printArea: z.object({ automatic: z.boolean(), restrictToPageSize: z.boolean(), rect: mapRect.optional(),
     page: z.object({ width: z.number().positive(), height: z.number().positive(), margins: z.number().min(0), landscape: z.boolean() }).strict().optional() })
     .strict().optional(),

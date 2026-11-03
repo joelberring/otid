@@ -5,7 +5,7 @@
 import type { Point } from "@o-tid/map-file";
 import { nextId } from "./ppen-common";
 import { BUILT_IN_TEMPLATES, validateLayoutTemplate } from "./layout-template";
-import { PAPER_LIMITS, validatePaperLayout, validatePaperTemplate, type CoursePaperLayout } from "./paper-items";
+import { PAPER_LIMITS, paperPartKey, validatePaperLayout, validatePaperTemplate, type CoursePaperLayout } from "./paper-items";
 import { newSpecial } from "./ppen-special";
 import { BUILT_IN_PRINT_PROFILES, validatePrintProfile } from "./print-profile";
 import type { CourseSettingDocument, EditResult, PrintArea, SpecialEdit, SpecialKind, SpecialObject } from "./types";
@@ -131,14 +131,17 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       if (edit.course !== "ALL_CONTROLS" && !document.courses.some(item => item.id === edit.course)) {
         throw new CourseSettingEditError("NOT_FOUND", `Banan ${edit.course} finns inte`);
       }
+      if (edit.part !== undefined && (!Number.isInteger(edit.part) || edit.part < 0 || edit.part > 50)) throw invalid("Delen 0–50");
+      // Kartbyten (ADR-0203): en dels papper under "<bana>#<del>"; null = som banans.
+      const key = edit.part !== undefined ? paperPartKey(edit.course, edit.part) : edit.course;
       const layouts = { ...(document.event.paperLayouts ?? {}) };
-      delete layouts[edit.course];
+      delete layouts[key];
       const layout = edit.layout ? validatePaperLayout(edit.layout) : undefined;
       if (layout && Object.keys(layout).length > 0) {
         if (layout.template !== undefined && !(document.event.paperTemplates ?? []).some(item => item.id === layout.template)) {
           throw new CourseSettingEditError("NOT_FOUND", `Mallen ${layout.template} finns inte`);
         }
-        layouts[edit.course] = layout;
+        layouts[key] = layout;
       }
       const event = { ...document.event };
       delete event.paperLayouts;
@@ -178,6 +181,17 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       }
       const course = document.courses.find(item => item.id === edit.course);
       if (!course) throw new CourseSettingEditError("NOT_FOUND", `Banan ${edit.course} finns inte`);
+      if (edit.part !== undefined) {
+        // Kartbyten (ADR-0203): delens tryckyta; null = som banans.
+        if (!Number.isInteger(edit.part) || edit.part < 0 || edit.part > 50) throw invalid("Delen 0–50");
+        const areas = { ...(course.partPrintAreas ?? {}) };
+        delete areas[String(edit.part)];
+        if (area) areas[String(edit.part)] = area;
+        const without = { ...course };
+        delete without.partPrintAreas;
+        const updated = Object.keys(areas).length > 0 ? { ...without, partPrintAreas: areas } : without;
+        return { document: { ...document, courses: document.courses.map(item => item.id === course.id ? updated : item) } };
+      }
       const rest = { ...course };
       delete rest.printArea;
       const next = area ? { ...rest, printArea: area } : rest;

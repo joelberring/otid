@@ -193,6 +193,38 @@ export function rawPrintArea(raws: readonly RawXml[] | undefined): PrintArea | u
   return undefined;
 }
 
+/** Delarnas tryckytor (`<print-area part="n">`, ADR-0203) ur de råa elementen, per del ("0", "1" …). */
+export function rawPartPrintAreas(raws: readonly RawXml[] | undefined): Record<string, PrintArea> {
+  const out: Record<string, PrintArea> = {};
+  for (const raw of raws ?? []) {
+    if (!raw.xml.startsWith("<print-area")) continue;
+    const element = fromRaw(raw);
+    const part = attr(element, "part");
+    if (part !== undefined && /^\d+$/.test(part)) out[part] = readPrintArea(element);
+  }
+  return out;
+}
+
+/** De råa elementen med delarnas tryckytor som modellen har dem (orörda om de är desamma, borttagna om de saknas). */
+export function withPartPrintAreas(raws: readonly RawXml[] | undefined, areas: Readonly<Record<string, PrintArea>> | undefined): RawXml[] {
+  const list: RawXml[] = [];
+  const done = new Set<string>();
+  for (const raw of raws ?? []) {
+    const element = raw.xml.startsWith("<print-area") ? fromRaw(raw) : undefined;
+    const part = element ? attr(element, "part") : undefined;
+    if (!element || part === undefined) { list.push(raw); continue; }
+    const area = areas?.[part];
+    if (!area) continue;
+    done.add(part);
+    list.push(sameFields(readPrintArea(element), area) ? raw : toRaw(printAreaElement(area, element)));
+  }
+  for (const [part, area] of Object.entries(areas ?? {})) {
+    if (done.has(part)) continue;
+    list.push(toRaw(printAreaElement(area, el("print-area", [["part", part]]))));
+  }
+  return list;
+}
+
 /** De råa elementen med tryckytan som modellen har den (orörd om den är densamma). */
 export function withPrintArea(raws: readonly RawXml[] | undefined, area: PrintArea | undefined): RawXml[] {
   const list = [...(raws ?? [])];

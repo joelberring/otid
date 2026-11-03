@@ -1,7 +1,8 @@
 "use client";
 
 import {
-  descriptionShown, paperLayoutOf, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, type CoursePage, type CourseSettingDocument, type CourseSettingEdit, type PaperName, type PrintArea
+  descriptionShown, paperLayoutOf, partsForChooser, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, type CoursePage, type CourseSettingDocument, type CourseSettingEdit,
+  type PaperName, type PartOverlap, type PrintArea
 } from "@o-tid/course-setting";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 
@@ -23,15 +24,20 @@ export function paperName(page: { width: number; height: number }): PaperName | 
  * Steg 64: fliken Utskrift för vald bana (eller Alla kontroller): papper, riktning, marginal, utskriftsskala och tryckyta
  * (automatisk som Purple Pen eller fast ram som dras på kartan). Allt sparas i dokumentet och skrivs till .ppen.
  */
-export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview }: {
+export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview, part, onPart }: {
   document: CourseSettingDocument; view: string; page: CoursePage | undefined; readOnly: boolean;
   onEdits: (edits: readonly CourseSettingEdit[]) => void; onPreview: () => void;
+  /** Kartbyten (ADR-0203): vald del (undefined = hela banan) och väljaren. */
+  part?: number | undefined; onPart?: ((part: number | undefined) => void) | undefined;
 }) {
-  const area = printAreaOf(document, view);
+  const parts = partsForChooser(document, view);
+  const partOwnArea = part !== undefined ? document.courses.find(item => item.id === view)?.partPrintAreas?.[String(part)] : undefined;
+  const area = printAreaOf(document, view, part);
   const current = area.page ?? (page ? { width: Math.round((page.paper.landscape ? page.paper.heightMm : page.paper.widthMm) / HUNDREDTH_INCH_MM),
     height: Math.round((page.paper.landscape ? page.paper.widthMm : page.paper.heightMm) / HUNDREDTH_INCH_MM),
     margins: Math.round(page.paper.marginMm / HUNDREDTH_INCH_MM), landscape: page.paper.landscape } : { ...PAPER_SIZES.A4, margins: 28, landscape: false });
-  const setArea = (next: PrintArea | null) => onEdits([{ type: "SET_PRINT_AREA", course: view, area: next }]);
+  const setArea = (next: PrintArea | null) => onEdits([{ type: "SET_PRINT_AREA", course: view, area: next, ...(part !== undefined ? { part } : {}) }]);
+  const overlap: PartOverlap = paperLayoutOf(document, view).overlap ?? "LAST_LEG";
   const withPage = (changes: Partial<NonNullable<PrintArea["page"]>>) => setArea({ ...area, page: { ...current, ...changes } });
   const course = document.courses.find(item => item.id === view);
   const scale = view === ALL_CONTROLS ? document.event.allControlsPrintScale ?? document.event.mapScale : course?.printScale ?? document.event.mapScale;
@@ -42,6 +48,23 @@ export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview 
   return <section className={styles.panel} aria-labelledby="course-setting-print" data-testid="course-setting-print">
     <h2 id="course-setting-print">{text.print.heading}: {course?.name ?? text.print.allControls}</h2>
     <p className={styles.muted}>{text.print.help}</p>
+    {parts > 1 && <fieldset className={styles.stack} data-testid="course-setting-parts">
+      <legend>{text.print.parts}</legend>
+      <label className={styles.stack}>{text.print.part}
+        <select value={part === undefined ? "" : String(part)} data-testid="course-setting-part"
+          onChange={event => onPart?.(event.target.value === "" ? undefined : Number(event.target.value))}>
+          <option value="">{text.print.wholeCourse}</option>
+          {Array.from({ length: parts }, (_, index) => <option key={index} value={index}>{text.print.partName(index + 1)}</option>)}
+        </select></label>
+      {part !== undefined && <p className={styles.muted} data-testid="course-setting-part-area">{partOwnArea ? text.print.partOwnArea : text.print.partInherits}</p>}
+      <label className={styles.stack}>{text.print.overlap}
+        <select value={overlap} disabled={readOnly} data-testid="course-setting-overlap" onChange={event => onEdits([{ type: "SET_PAPER_LAYOUT", course: view,
+          layout: { ...paperLayoutOf(document, view), overlap: event.target.value as PartOverlap } }])}>
+          <option value="NONE">{text.print.overlapNone}</option>
+          <option value="LAST_LEG">{text.print.overlapLastLeg}</option>
+          <option value="PREVIOUS_PART">{text.print.overlapPrevious}</option>
+        </select></label>
+    </fieldset>}
     <fieldset className={styles.stack} disabled={readOnly}>
       <label className={styles.stack}>{text.print.paper}
         <select value={paperName(current) ?? ""} onChange={event => withPage({ ...PAPER_SIZES[event.target.value as PaperName] })}>
@@ -83,7 +106,8 @@ export function PrintPanel({ document, view, page, readOnly, onEdits, onPreview 
     </fieldset>
     <div className={styles.row}>
       <Button onClick={onPreview}>{text.print.preview}</Button>
-      {!readOnly && (area.page || manual) && <Button variant="secondary" onClick={() => setArea(null)}>{text.print.reset}</Button>}
+      {!readOnly && (part !== undefined ? partOwnArea !== undefined : area.page || manual) && <Button variant="secondary" onClick={() => setArea(null)}
+        data-testid="course-setting-print-reset">{part !== undefined ? text.print.partReset : text.print.reset}</Button>}
     </div>
   </section>;
 }

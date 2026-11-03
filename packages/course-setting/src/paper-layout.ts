@@ -18,6 +18,7 @@ import { anchorToPaper, PAPER_CORNERS, type PaperCorner, type PaperRect } from "
 import { effectivePaper, paperItemSize, paperTextForPpen, type PaperDescriptions } from "./paper-items";
 import { nextId, rawAttribute } from "./ppen-common";
 import { newSpecial } from "./ppen-special";
+import { specialVisible } from "./specials";
 import type { CourseSettingDocument, OverprintPrimitive, SpecialObject } from "./types";
 
 export { anchorToPaper, paperAnchorOf, reanchor, PAPER_CORNERS, type PaperAnchor, type PaperCorner, type PaperRect } from "./paper-anchor";
@@ -29,19 +30,19 @@ export {
 export const PAPER_DESCRIPTION_BOX_MM = 5;
 
 /** Kontrollbeskrivningens inställning för banan (banans fält före mallens, `effectivePaper`). */
-export function paperDescriptionsOf(document: CourseSettingDocument, course: string): PaperDescriptions {
-  return effectivePaper(document, course).descriptions;
+export function paperDescriptionsOf(document: CourseSettingDocument, course: string, part?: number): PaperDescriptions {
+  return effectivePaper(document, course, part).descriptions;
 }
 
 /** Purple Pens beskrivning på kartan för banan (specialobjektet ur .ppen), om den finns. */
-export function fileDescription(document: CourseSettingDocument, course: string): SpecialObject | undefined {
-  const id = course === "ALL_CONTROLS" ? "0" : course;
-  return document.specialObjects.find(special => special.kind === "descriptions" && (special.courses.length === 0 || special.courses.includes(id)));
+export function fileDescription(document: CourseSettingDocument, course: string, part?: number): SpecialObject | undefined {
+  // Kartbyten (ADR-0203): Purple Pens beskrivning för en del (`<course course part>`) eller för alla delar.
+  return document.specialObjects.find(special => special.kind === "descriptions" && specialVisible(special, course, part));
 }
 
 /** Om banan får en beskrivning på kartan: inställningen, annars på för banor (och för Alla kontroller bara med filens). */
-export function descriptionShown(document: CourseSettingDocument, course: string): boolean {
-  const show = paperDescriptionsOf(document, course).show;
+export function descriptionShown(document: CourseSettingDocument, course: string, part?: number): boolean {
+  const show = paperDescriptionsOf(document, course, part).show;
   if (show !== undefined) return show;
   return course !== "ALL_CONTROLS" || fileDescription(document, course) !== undefined;
 }
@@ -58,6 +59,8 @@ type Transform = { readonly scale: number; readonly translateX: number; readonly
 export interface PaperFrame {
   readonly course: string;
   readonly variant?: string | undefined;
+  /** Kartbyten (ADR-0203): delen av banan. */
+  readonly part?: number | undefined;
   readonly clip: PaperRect;
   readonly transform: Transform;
   readonly figures: readonly OverprintPrimitive[];
@@ -71,6 +74,8 @@ export interface SheetDescription {
   readonly frame: number;
   readonly course?: string | undefined;
   readonly variant?: string | undefined;
+  /** Kartbyten (ADR-0203): delen av banan. */
+  readonly part?: number | undefined;
   /** PLACED = utplacerad i förhandsvisningen, FILE = .ppen-filens, TEMPLATE = layoutmallens, AUTO = ett fritt hörn. */
   readonly source?: "PLACED" | "FILE" | "TEMPLATE" | "AUTO" | undefined;
   readonly corner?: PaperCorner | undefined;
@@ -152,17 +157,17 @@ export function placeDescription(document: CourseSettingDocument, frame: PaperFr
   options: { readonly language?: string | undefined; readonly template?: { readonly x: number; readonly y: number; readonly boxMm: number } | undefined } = {}
 ): SheetDescription | undefined {
   const course = frame.course;
-  if (!descriptionShown(document, course)) return undefined;
-  const settings = paperDescriptionsOf(document, course);
-  const file = settings.at ? undefined : fileDescription(document, course);
+  if (!descriptionShown(document, course, frame.part)) return undefined;
+  const settings = paperDescriptionsOf(document, course, frame.part);
+  const file = settings.at ? undefined : fileDescription(document, course, frame.part);
   const fileCell = file && file.points.length >= 2 ? Math.hypot(file.points[1]!.x - file.points[0]!.x, file.points[1]!.y - file.points[0]!.y) * frame.transform.scale : undefined;
   const boxMm = settings.boxMm ?? (fileCell && fileCell > 0 ? fileCell : undefined) ?? options.template?.boxMm ?? PAPER_DESCRIPTION_BOX_MM;
   const columns = settings.columns ?? file?.columns ?? 1;
   const described = layoutDescriptionFigures(document, { course, ...(frame.variant ? { variant: frame.variant } : {}), kind: descriptionKind(document, course),
-    language: options.language ?? document.event.descriptionLanguage ?? "sv", boxMm, columns });
+    language: options.language ?? document.event.descriptionLanguage ?? "sv", boxMm, columns, ...(frame.part !== undefined ? { part: frame.part } : {}) });
   const size = { width: described.widthMm, height: described.heightMm };
   const under = (at: { x: number; y: number }) => courseFiguresUnder(frame.figures, frame.transform, { ...at, ...size });
-  const base = { layout: described, frame: frameIndex, course, ...(frame.variant ? { variant: frame.variant } : {}), boxMm, columns };
+  const base = { layout: described, frame: frameIndex, course, ...(frame.variant ? { variant: frame.variant } : {}), ...(frame.part !== undefined ? { part: frame.part } : {}), boxMm, columns };
   if (settings.at) {
     const at = anchorToPaper(settings.at, size, frame.clip);
     return { ...base, ...at, source: "PLACED", corner: settings.at.corner, overlaps: under(at) };

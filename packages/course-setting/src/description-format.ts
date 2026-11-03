@@ -10,6 +10,7 @@ import { descriptionContext, formatDecimal, format, symbolIds, columnFText, Text
 import type { ControlKind, ControlPoint, Course, CourseControl, CourseSettingDocument } from "./types";
 import { CourseSettingEditError } from "./types";
 import { enumerateCourseControls, findCourse, legPath, pathLength, variations } from "./walk";
+import { courseParts } from "./course-parts";
 
 export type DescriptionLineKind = "TITLE" | "SECONDARY_TITLE" | "HEADER_3" | "HEADER_2" | "NORMAL" | "DIRECTIVE" | "TEXT" | "KEY";
 export type TextLineKind = "BEFORE_CONTROL" | "BEFORE_COURSE_CONTROL" | "AFTER_CONTROL" | "AFTER_COURSE_CONTROL";
@@ -119,9 +120,13 @@ function firstOrdinal(course: Course): number {
   return Number.isInteger(value) && value > 0 ? value : 1;
 }
 
-function standardView(document: CourseSettingDocument, course: Course, choices: readonly string[] | null, variantCode: string): CourseView {
-  const ids = enumerateCourseControls(document, course.id, choices);
+function standardView(document: CourseSettingDocument, course: Course, choices: readonly string[] | null, variantCode: string,
+  part?: { readonly index: number; readonly ids: readonly string[] }): CourseView {
+  const all = enumerateCourseControls(document, course.id, choices);
+  // Kartbyten (ADR-0203): delens kontroller; numren fortsätter från delarna före (CourseView.CreateCourseView).
+  const ids = part ? [...part.ids] : all;
   let ordinal = firstOrdinal(course);
+  if (part) for (const id of all.slice(0, Math.max(0, all.indexOf(part.ids[0]!)))) if (controlOf(document, cc(document, id).control).kind === "NORMAL") ordinal++;
   const views: ControlView[] = [];
   const targets: (string | undefined)[][] = [];
   ids.forEach((id, index) => {
@@ -131,7 +136,8 @@ function standardView(document: CourseSettingDocument, course: Course, choices: 
     targets.push(index < ids.length - 1 ? [ids[index + 1]] : []);
   });
   finishViews(document, views, targets);
-  return { kind: "NORMAL", course, fullName: variantCode === "" ? course.name : `${course.name} ${variantCode}`, views, scoreColumn: -1 };
+  const name = variantCode === "" ? course.name : `${course.name} ${variantCode}`;
+  return { kind: "NORMAL", course, fullName: part ? `${name}-${part.index + 1}` : name, views, scoreColumn: -1 };
 }
 
 function allVariationsView(document: CourseSettingDocument, course: Course): CourseView {
@@ -188,11 +194,18 @@ export function scoreOrdinals(document: CourseSettingDocument, course: Course): 
   return out;
 }
 
-function courseView(document: CourseSettingDocument, courseId: string, variant: string | undefined): CourseView {
+function courseView(document: CourseSettingDocument, courseId: string, variant: string | undefined, part?: number): CourseView {
   if (courseId === "ALL_CONTROLS") return allControlsView(document);
   const course = findCourse(document, courseId);
   if (course.kind === "SCORE") return scoreView(document, course);
   const all = variations(document, courseId);
+  if (part !== undefined) {
+    const parts = courseParts(document, courseId, variant);
+    if (parts.length > 1 && part >= 0 && part < parts.length) {
+      const found = all.find(candidate => candidate.code === variant);
+      return standardView(document, course, found?.choices ?? null, found?.code ?? "", { index: part, ids: parts[part]! });
+    }
+  }
   if (all.length === 0 || variant === undefined) {
     if (all.length > 0) return allVariationsView(document, course);
     if (variant !== undefined && variant !== "") throw new CourseSettingEditError("NOT_FOUND", `Varianten ${variant} finns inte`);
@@ -446,10 +459,12 @@ class Formatter {
 /** Beskrivningens rader för banan ("ALL_CONTROLS" för alla kontroller); `createKey` ger nyckel för egna symboltexter. */
 export function formatDescription(
   document: CourseSettingDocument,
-  options: { course: string; variant?: string | undefined; language: string; createKey: boolean; context?: DescriptionContext | undefined }
+  options: { course: string; variant?: string | undefined; language: string; createKey: boolean; context?: DescriptionContext | undefined;
+    /** Kartbyten (ADR-0203): en del av banan. */
+    part?: number | undefined }
 ): { lines: DescriptionLine[]; scoreColumn: number } {
   const context = options.context ?? descriptionContext(document, options.language);
-  const view = courseView(document, options.course, options.variant);
+  const view = courseView(document, options.course, options.variant, options.part);
   return { lines: new Formatter(document, view, context, options.variant).lines(options.createKey), scoreColumn: view.scoreColumn };
 }
 

@@ -313,7 +313,8 @@ export function layout(document: CourseSettingDocument, options: DescriptionLayo
   const boxMm = options.boxMm ?? 6;
   if (!(Number.isFinite(boxMm) && boxMm > 0)) throw new RangeError("Rutans storlek måste vara positiv");
   const { lines, scoreColumn } = formatDescription(document, {
-    course: options.course, variant: options.variant, language: options.language, createKey: options.kind === "SYMBOLS"
+    course: options.course, variant: options.variant, language: options.language, createKey: options.kind === "SYMBOLS",
+    ...(options.part !== undefined ? { part: options.part } : {})
   });
   return renderDescription(lines, options.kind, boxMm, options.kind === "TEXT" && scoreColumn === 7, options.columns ?? 1);
 }

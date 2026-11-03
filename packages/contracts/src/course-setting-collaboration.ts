@@ -104,7 +104,7 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("MOVE_SPECIAL"), special: id, points: z.array(point).min(1).max(10_000) }).strict(),
   z.object({ type: z.literal("UPDATE_SPECIAL"), special: id, changes: specialFields.extend({ courses: z.array(id).max(1000).optional() }).strict() }).strict(),
   z.object({ type: z.literal("DELETE_SPECIAL"), special: id }).strict(),
-  z.object({ type: z.literal("SET_PRINT_AREA"), course: id, area: printArea.nullable() }).strict(),
+  z.object({ type: z.literal("SET_PRINT_AREA"), course: id, area: printArea.nullable(), part: z.number().int().min(0).max(50).optional() }).strict(),
   // Utskriftsprofil och layoutmall (ADR-0183); formen kontrolleras av paketet (validatePrintProfile, validateLayoutTemplate).
   z.object({ type: z.literal("PUT_PRINT_PROFILE"), profile: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
   z.object({ type: z.literal("DELETE_PRINT_PROFILE"), id }).strict(),
@@ -112,7 +112,7 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("DELETE_LAYOUT_TEMPLATE"), id }).strict(),
   // Papperet per bana (kontrollbeskrivningen på kartan); formen kontrolleras av paketet (validatePaperLayout).
   z.object({ type: z.literal("SET_PAPER_LAYOUT"), course: id, layout: z.object({ descriptions: z.object({}).loose().optional(),
-    items: z.array(z.object({}).loose()).max(40).optional() }).loose().nullable() }).strict(),
+    items: z.array(z.object({}).loose()).max(40).optional() }).loose().nullable(), part: z.number().int().min(0).max(50).optional() }).strict(),
   // Papperets mallar (ADR-0197); formen kontrolleras av paketet (validatePaperTemplate).
   z.object({ type: z.literal("PUT_PAPER_TEMPLATE"), template: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
   z.object({ type: z.literal("DELETE_PAPER_TEMPLATE"), id }).strict(),

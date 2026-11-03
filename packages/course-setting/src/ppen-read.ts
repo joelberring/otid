@@ -12,7 +12,7 @@ import type {
   CircleGap, ControlPoint, Course, CourseControl, CourseRelayOptions, CourseSettingDocument, DescriptionBox, Leg,
   PpenReadWarning, PrintArea, RawXml, SpecialObject
 } from "./types";
-import { rawPrintArea, readSpecialFields } from "./ppen-special";
+import { rawPartPrintAreas, rawPrintArea, readSpecialFields } from "./ppen-special";
 import { enumerateCourseControls } from "./walk";
 import { readTrainingElement, TRAINING_ELEMENT } from "./training-ppen";
 import { readVariantsElement, VARIANTS_ELEMENT } from "./variants-ppen";
@@ -172,6 +172,12 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
 function printAreaField(raw: readonly RawXml[]): { printArea?: PrintArea } {
   const area = rawPrintArea(raw);
   return area ? { printArea: area } : {};
+}
+
+/** Kartbyten (ADR-0203): delarnas tryckytor bredvid de råa `<print-area part="n">`. */
+function partPrintAreaField(raw: readonly RawXml[]): { partPrintAreas?: Record<string, PrintArea> } {
+  const areas = rawPartPrintAreas(raw);
+  return Object.keys(areas).length > 0 ? { partPrintAreas: areas } : {};
 }
 
 function parseIdText(id: string | undefined, element: string): string {
@@ -447,6 +453,7 @@ function readCourse(element: XmlElement): Course {
     ...(lengthOverrideMeters !== undefined ? { lengthOverrideMeters } : {}),
     ...(relayOptions ? { relay: relayOptions } : {}),
     ...printAreaField(raw),
+    ...partPrintAreaField(raw),
     ...(raw.length > 0 ? { raw: sortChildren("course", raw, rawName) } : {})
   };
 }

@@ -180,10 +180,11 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "MOVE_SPECIAL": return [`specialObject:${edit.special}:points`];
     case "UPDATE_SPECIAL": return Object.keys(edit.changes).sort().map(key => `specialObject:${edit.special}:${key}`);
     case "DELETE_SPECIAL": return [`specialObject:${edit.special}`];
-    case "SET_PRINT_AREA": return [edit.course === "ALL_CONTROLS" ? "event:printArea" : `course:${edit.course}:printArea`];
+    case "SET_PRINT_AREA": return [edit.course === "ALL_CONTROLS" ? "event:printArea"
+      : edit.part !== undefined ? `course:${edit.course}:partPrintAreas:${edit.part}` : `course:${edit.course}:printArea`];
     case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
     case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
-    case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.course}`];
+    case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.part !== undefined ? `${edit.course}#${edit.part}` : edit.course}`];
     case "PUT_PAPER_TEMPLATE": return [`event:paperTemplates:${edit.template.id}`];
     case "DELETE_PAPER_TEMPLATE": return [`event:paperTemplates:${edit.id}`, "event:paperLayouts"];
     case "PUT_OBJECTS": return [

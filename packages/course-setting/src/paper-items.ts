@@ -7,7 +7,7 @@
 import type { Point } from "@o-tid/map-file";
 import { anchorToPaper, PAPER_CORNERS, type PaperAnchor, type PaperRect } from "./paper-anchor";
 import type { TrainingMapPass } from "./training-types";
-import type { CourseSettingDocument, MapRect } from "./types";
+import type { CourseSettingDocument, MapRect, PartOverlap } from "./types";
 import { CourseSettingEditError } from "./types";
 import { measuredLengthMeters, variations } from "./walk";
 
@@ -94,6 +94,8 @@ export interface CoursePaperLayout {
   readonly items?: readonly PaperItem[] | undefined;
   readonly hidden?: readonly string[] | undefined;
   readonly clip?: PaperClip | "NONE" | undefined;
+  /** Kartbyten (ADR-0203): "Visa överlapp" mot föregående del; saknas = sista sträckan. Gäller banan (inte en del). */
+  readonly overlap?: PartOverlap | undefined;
 }
 
 /** En namngiven mall för papperet ("Klubbens träningsmall"): element, klippning och beskrivningens inställning. */
@@ -244,6 +246,10 @@ export function validatePaperLayout(value: CoursePaperLayout): CoursePaperLayout
     if (value.hidden.length > 0) out.hidden = [...new Set(value.hidden)];
   }
   if (value.clip !== undefined) out.clip = value.clip === "NONE" ? "NONE" : validatePaperClip(value.clip);
+  if (value.overlap !== undefined) {
+    if (!["NONE", "LAST_LEG", "PREVIOUS_PART"].includes(value.overlap)) throw invalid("överlappet vid kartbytet");
+    if (value.overlap !== "LAST_LEG") out.overlap = value.overlap;
+  }
   return out;
 }
 
@@ -260,9 +266,25 @@ export function validatePaperTemplate(value: unknown): PaperTemplate {
     ...(descriptions && Object.keys(descriptions).length > 0 ? { descriptions } : {}) };
 }
 
-/** Banans papper (tomt om inget är inställt). */
-export function paperLayoutOf(document: CourseSettingDocument, course: string): CoursePaperLayout {
-  return document.event.paperLayouts?.[course] ?? {};
+/** Nyckeln för en dels papper i `event.paperLayouts` (ADR-0203): "1#0", "1#1" … */
+export const paperPartKey = (course: string, part: number) => `${course}#${part}`;
+
+/**
+ * Banans papper (tomt om inget är inställt). Med `part` (kartbyten, ADR-0203): delens fält före banans, beskrivningen fält
+ * för fält; en del utan eget papper ärver banans.
+ */
+export function paperLayoutOf(document: CourseSettingDocument, course: string, part?: number): CoursePaperLayout {
+  const whole = document.event.paperLayouts?.[course] ?? {};
+  if (part === undefined) return whole;
+  const own = document.event.paperLayouts?.[paperPartKey(course, part)];
+  if (!own) return whole;
+  const descriptions = whole.descriptions || own.descriptions ? { ...(whole.descriptions ?? {}), ...(own.descriptions ?? {}) } : undefined;
+  return { ...whole, ...own, ...(descriptions ? { descriptions } : {}) };
+}
+
+/** Delens eget papper (utan banans), för ändringar av en del. */
+export function ownPartLayout(document: CourseSettingDocument, course: string, part: number): CoursePaperLayout {
+  return document.event.paperLayouts?.[paperPartKey(course, part)] ?? {};
 }
 
 export function paperTemplateOf(document: CourseSettingDocument, id: string | undefined): PaperTemplate | undefined {
@@ -284,8 +306,8 @@ export interface EffectivePaper {
  * Det som gäller för banan: mallens element (utom de dolda, och med banans ändringar), sedan banans egna; banans klippning
  * annars mallens; beskrivningens inställning fält för fält, banans före mallens.
  */
-export function effectivePaper(document: CourseSettingDocument, course: string): EffectivePaper {
-  const layout = paperLayoutOf(document, course);
+export function effectivePaper(document: CourseSettingDocument, course: string, part?: number): EffectivePaper {
+  const layout = paperLayoutOf(document, course, part);
   const template = paperTemplateOf(document, layout.template);
   const own = layout.items ?? [];
   const hidden = new Set(layout.hidden ?? []);
@@ -308,8 +330,8 @@ export function effectivePaper(document: CourseSettingDocument, course: string):
  * Banans papper efter att ett element ändrats (ny, flyttad, ändrad): ett mallelement blir en ändring för banan, ett eget
  * ersätts. `null` = elementet tas bort (ett mallelement döljs för banan).
  */
-export function withPaperItem(document: CourseSettingDocument, course: string, id: string, item: PaperItem | null): CoursePaperLayout {
-  const layout = paperLayoutOf(document, course);
+export function withPaperItem(document: CourseSettingDocument, course: string, id: string, item: PaperItem | null, part?: number): CoursePaperLayout {
+  const layout = paperLayoutOf(document, course, part);
   const template = paperTemplateOf(document, layout.template);
   const fromTemplate = template?.items.some(row => row.id === id) ?? false;
   const own = (layout.items ?? []).filter(row => row.id !== id);
@@ -319,22 +341,22 @@ export function withPaperItem(document: CourseSettingDocument, course: string, i
 }
 
 /** Banans ändring av ett mallelement tas bort (mallens gäller igen). */
-export function resetPaperItem(document: CourseSettingDocument, course: string, id: string): CoursePaperLayout {
-  const layout = paperLayoutOf(document, course);
+export function resetPaperItem(document: CourseSettingDocument, course: string, id: string, part?: number): CoursePaperLayout {
+  const layout = paperLayoutOf(document, course, part);
   return { ...layout, items: (layout.items ?? []).filter(row => row.id !== id), hidden: (layout.hidden ?? []).filter(row => row !== id) };
 }
 
 /** En mall av det som gäller för banan nu (element, klippning och beskrivningens plats). */
-export function paperTemplateFromCourse(document: CourseSettingDocument, course: string, id: string, name: string): PaperTemplate {
-  const effective = effectivePaper(document, course);
+export function paperTemplateFromCourse(document: CourseSettingDocument, course: string, id: string, name: string, part?: number): PaperTemplate {
+  const effective = effectivePaper(document, course, part);
   const descriptions = effective.descriptions;
   return validatePaperTemplate({ schemaVersion: 1, id, name, items: effective.items.map(row => row.item),
     ...(effective.clip ? { clip: effective.clip } : {}), ...(Object.keys(descriptions).length > 0 ? { descriptions } : {}) });
 }
 
 /** Banans papper när mallen används: mallen och beskrivningen ur mallen; banans egna element står kvar, ändringar av mallens tas bort. */
-export function applyPaperTemplate(document: CourseSettingDocument, course: string, template: PaperTemplate | undefined): CoursePaperLayout {
-  const layout = paperLayoutOf(document, course);
+export function applyPaperTemplate(document: CourseSettingDocument, course: string, template: PaperTemplate | undefined, part?: number): CoursePaperLayout {
+  const layout = paperLayoutOf(document, course, part);
   if (!template) {
     const rest: { -readonly [K in keyof CoursePaperLayout]: CoursePaperLayout[K] } = { ...layout };
     delete rest.template; delete rest.hidden;
@@ -347,8 +369,10 @@ export function applyPaperTemplate(document: CourseSettingDocument, course: stri
 }
 
 /** Ett nytt id för ett element (`p1`, `p2` …) som inte finns i banan eller mallen. */
-export function newPaperItemId(document: CourseSettingDocument, course: string): string {
-  const used = new Set([...effectivePaper(document, course).items.map(row => row.item.id), ...(paperLayoutOf(document, course).hidden ?? [])]);
+export function newPaperItemId(document: CourseSettingDocument, course: string, part?: number): string {
+  const used = new Set([...effectivePaper(document, course, part).items.map(row => row.item.id), ...(paperLayoutOf(document, course, part).hidden ?? [])]);
+  // Delarnas egna element också (samma id i en del ändrar banans).
+  for (const [key, layout] of Object.entries(document.event.paperLayouts ?? {})) if (key.startsWith(`${course}#`)) for (const item of layout.items ?? []) used.add(item.id);
   for (const template of document.event.paperTemplates ?? []) for (const item of template.items) used.add(item.id);
   let n = 1;
   while (used.has(`p${n}`)) n += 1;
@@ -361,6 +385,8 @@ export function newPaperItemId(document: CourseSettingDocument, course: string):
 export interface PaperTextFrame {
   readonly course: string;
   readonly variant?: string | undefined;
+  /** Kartbyten (ADR-0203): delen av banan. */
+  readonly part?: number | undefined;
   readonly printScale: number;
   readonly runner?: { readonly kind: "RUNNER" | "VACANT" | "RESERVE"; readonly name: string | null; readonly club?: string | null | undefined;
     readonly className: string | null; readonly startTime: string | null; readonly startNumber: number | null } | undefined;
@@ -539,8 +565,11 @@ export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFra
     /** false = en senare sida av en bana på flera sidor: bara elementen med `pages: "ALL"`. */
     readonly firstPage?: boolean | undefined }): SheetPaperItem[] {
   const out: SheetPaperItem[] = [];
-  for (const { item, source } of effectivePaper(document, frame.course).items) {
+  const partOwn = new Set(frame.part !== undefined ? (ownPartLayout(document, frame.course, frame.part).items ?? []).map(item => item.id) : []);
+  for (const { item, source } of effectivePaper(document, frame.course, frame.part).items) {
     if (options.firstPage === false && item.pages !== "ALL") continue;
+    // Kartbyten (ADR-0203): "Alla sidor" är alla delar; en senare del har annars bara sina egna element.
+    if (frame.part !== undefined && frame.part > 0 && item.pages !== "ALL" && !partOwn.has(item.id)) continue;
     const onPage = item.relativeTo === "PAGE";
     if (onPage && options.pageItems === false) continue;
     const text = item.kind === "TEXT" ? expandPaperText(item.text, document, frame, options.date) : undefined;

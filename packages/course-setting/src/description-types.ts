@@ -70,6 +70,8 @@ export interface DescriptionLayoutOptions {
   readonly boxMm?: number | undefined;
   /** Steg 64: antal spalter (beskrivningen på kartan, Purple Pens `<appearance columns>`); saknas = 1. */
   readonly columns?: number | undefined;
+  /** Kartbyten (ADR-0203): en del av banan; saknas = hela banan. */
+  readonly part?: number | undefined;
 }
 
 export interface DescriptionLayout {

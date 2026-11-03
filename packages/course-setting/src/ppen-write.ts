@@ -7,7 +7,7 @@ import {
   invertRecord, nextId, toRaw, CONTROL_KINDS, FLAGGING_KINDS, LABEL_KINDS
 } from "./ppen-common";
 import { specialCourses } from "./ppen-read";
-import { buildSpecialElement, fieldsOf, readSpecialFields, sameFields, withPrintArea } from "./ppen-special";
+import { buildSpecialElement, fieldsOf, readSpecialFields, sameFields, withPartPrintAreas, withPrintArea } from "./ppen-special";
 import type { CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocument, Leg, RawXml, SpecialObject } from "./types";
 import { attr, childElements, el, serializeXml, textOf, type XmlElement, type XmlNode } from "./xml";
 import { trainingElement } from "./training-ppen";
@@ -181,7 +181,7 @@ function courseElement(course: Course): XmlElement {
   for (const [leg, branches] of Object.entries(course.relay?.fixedBranches ?? {})) {
     for (const branch of branches) canonical.push(el("relay-branch", [["branch", branch], ["leg", leg]]));
   }
-  const { attrs, children: kids } = children("course", withPrintArea(course.raw, course.printArea), canonical, parts);
+  const { attrs, children: kids } = children("course", withPartPrintAreas(withPrintArea(course.raw, course.printArea), course.partPrintAreas), canonical, parts);
   return merge("course", el("course", attrs), [
     ["id", course.id], ["kind", course.kind === "SCORE" ? "score" : "normal"], ["order", String(course.order)]
   ], kids);
@@ -205,7 +205,9 @@ function courseControlElement(cc: CourseControl, control: ControlPoint | undefin
     ["id", cc.id], ["control", cc.control],
     ["variation", cc.split ? (cc.split.kind === "LOOP" ? "loop" : "fork") : undefined],
     ["variation-end", cc.split?.end],
-    ["points", cc.points === undefined || cc.points === 0 ? undefined : String(cc.points)]
+    ["points", cc.points === undefined || cc.points === 0 ? undefined : String(cc.points)],
+    // Purple Pen kräver map-exchange på ett eget kartbyte (CourseControl.Validate).
+    ["map-exchange", control?.kind === "MAP_EXCHANGE" ? "true" : undefined]
   ], ordered);
 }
 

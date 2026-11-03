@@ -148,6 +148,9 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
     {preview && <section className={styles.review} role="status" aria-live="polite">
       {preview.forking && <p>{forking.previewForking(preview.forking.variants.length, preview.forking.removedCodes.length,
         preview.forking.renamedEntryCount, preview.forking.reassignedEntryCount)}</p>}
+      {preview.forking?.excludedCodes && <p data-testid="forking-excluded">{forking.previewExcluded(preview.forking.excludedCodes)}</p>}
+      {preview.forking?.staleExcludedCodes && <Notice tone="attention" role="status"><span data-testid="forking-stale-excluded">
+        {forking.previewStaleExcluded(preview.forking.staleExcludedCodes)}</span></Notice>}
       {preview.readOutCount === 0 ? <p>{text.courseEditNobodyReadOut}</p> : <p><strong>{text.courseEditSummary(
         preview.readOutCount, preview.becomesOkCount, preview.becomesMispunchedCount, preview.unchangedCount,
         preview.changes.filter(row => row.after === "OVERTIME").length)}</strong></p>}

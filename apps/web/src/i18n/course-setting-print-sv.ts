@@ -128,6 +128,8 @@ export const coursePrintSv = {
       MISSING_VARIANT: (name: string, className: string) => `${name} (${className}) har ingen variant.`,
       UNKNOWN_COURSE: (course: string) => `Banan ${course} finns inte i banläggningen.`,
       UNKNOWN_VARIANT: (course: string, variant: string) => `Variant ${variant} finns inte på ${course} i banläggningen.`,
+      EXCLUDED_VARIANT: (course: string, variant: string, runners: number) => `Variant ${variant} på ${course} är bortvald i banläggningen och skrivs ` +
+        `inte ut, inte heller som reserv. ${runners} ${runners === 1 ? "löpare har" : "löpare har"} den: för över banorna och fördela om.`,
       COUNT: (course: string, expected: number, actual: number) => `${course}: Kartor till starten har ${expected} kartor, utskriften ${actual}.`
     },
     bundlesLink: "Kartor till starten",

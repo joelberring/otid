@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { applyEdit, readPpen } from "@o-tid/course-setting";
 import type { LegLength } from "./course-setting-route-length";
 import { excludedRows, parseLimit, pruningPlan, variantTable } from "./course-setting-variants";
+import { runnerPrintItems } from "./course-setting-runner-print";
 
 /** ADR-0198: tabellen över varianterna och förslaget i banläggningen (fixturen med tre gafflingar). */
 const document = readPpen(readFileSync(fileURLToPath(new URL("../../../../fixtures/course-setting/gaffling-urval.ppen", import.meta.url)), "utf8")).document;
@@ -46,10 +47,36 @@ describe("varianterna i banläggningen (ADR-0198)", () => {
     expect(after.label(after.prunable[0]!.controls[0]!)).toBe("start");
   });
 
+  it("förslaget utgår från dem som används och lägger till; redan bortvalda står kvar", () => {
+    const table = variantTable(document, natt, new Map())!;
+    const first = pruningPlan(table, { longest: 3 });
+    expect(first.excluded).toHaveLength(3);
+    const again = pruningPlan(table, { longest: 3 }, new Set(first.excluded.map(row => row.code)));
+    expect(again.excluded.map(row => row.code).some(code => first.excluded.some(row => row.code === code))).toBe(false);
+    expect(again.kept.length + again.excluded.length).toBe(5);
+    expect(again.excluded.length).toBeGreaterThan(0);
+  });
+
   it("taken i fälten", () => {
     expect(parseLimit("", 0)).toBeUndefined();
     expect(parseLimit(" 10 ", 0)).toBe(10);
     expect(parseLimit("0", 1)).toBe("invalid");
     expect(parseLimit("5,5", 0)).toBe("invalid");
+  });
+});
+
+describe("utskrift per löpare: bortvalda varianter (ADR-0198)", () => {
+  type Bundles = Parameters<typeof runnerPrintItems>[1];
+  const group = (variantCode: string) => ({ courseVersionId: "00000000-0000-4000-8000-000000000001", courseName: "Natt", variantCode,
+    runnerCount: 1, vacancyCount: 0, reserveCount: 1, printCount: 2,
+    items: [{ kind: "RUNNER", number: 101, entryId: "00000000-0000-4000-8000-000000000002", name: "Anna Andersson", club: "OK Ravinen",
+      className: "H21", startTime: "2026-12-09T18:32:00.000Z" }] });
+
+  it("en bortvald variant skrivs inte ut, inte heller som reserv, och sägs som problem", () => {
+    const table = variantTable(document, natt, new Map())!;
+    const pruned = applyEdit(document, { type: "UPDATE_COURSE", course: natt, changes: { excludedVariants: excludedRows(table, new Set(["BDF"])) } }).document;
+    const result = runnerPrintItems(pruned, { missingVariant: [], groups: [group("ACE"), group("BDF")] } as unknown as Bundles, instant => instant ?? "");
+    expect(result.items.map(item => [item.variant, item.runner?.kind])).toEqual([["ACE", "RUNNER"], ["ACE", "RESERVE"]]);
+    expect(result.problems).toEqual([{ kind: "EXCLUDED_VARIANT", courseName: "Natt", variantCode: "BDF", count: 1 }]);
   });
 });

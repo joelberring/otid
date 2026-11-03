@@ -167,15 +167,18 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "”Räkna längs vägval” räknar alla varianters sträckor på kartan. Sedan jämförs också längden längs vägval.",
         "Bocka ur ”Används” för att välja bort en variant för hand. Raden överst säger hur många som används."
       ],
-      "”Begränsa varianter” föreslår vilka som ska bort:",
+      "”Begränsa varianter” föreslår vilka som ska bort. Välj sätt:",
       [
-        "”Ta bort varianter som är längst i alla avseenden”: en annan variant är kortare i något mått och inte längre i något.",
-        "”Högst % längre än kortaste” och ”Högst antal varianter” behåller de kortaste.",
-        "”Förhandsgranska” visar vad som tas bort och vad som blir kvar. ”Avbryt” låter allt vara.",
+        "”Ta bort de längsta” (förval): de 3 längsta av dem som används tas bort. Redan bortvalda förblir bortvalda.",
+        "Bara varianter som är längre i alla avseenden än en som blir kvar kan tas bort. Ordningen är längs vägval när den är räknad.",
+        "”Längst i alla avseenden (alla)” tar bort alla sådana; med bara fågelvägen blir få kvar.",
+        "”Tak: procent eller antal” med ”Högst % längre än kortaste” och ”Högst antal varianter” behåller de kortaste.",
+        "”Förhandsgranska” visar vad som tas bort och varför. ”Avbryt” låter allt vara.",
         "Den enda varianten med en viss kontroll eller sträcka blir kvar. ”Använd alla varianter” tar tillbaka alla."
       ],
-      "Bortvalda varianter förs inte över till tävlingen, lottas inte ut, skrivs inte i IOF XML och skrivs inte ut. Avläsningen säger till om en " +
-        "löpare ändå sprungit en bortvald variant. Använd det för fulgaffling; en utjämnad gaffling eller stafett behöver alla varianter."
+      "Bortvalda varianter förs inte över till tävlingen, lottas inte ut, skrivs inte i IOF XML och skrivs inte ut, inte heller som reserv. " +
+        "Ändras banan i tävlingens baneditor kommer de inte tillbaka, och ett bortval som slutar stämma sägs där. " +
+        "Avläsningen säger till om en löpare ändå sprungit en bortvald variant. Använd det för fulgaffling; en utjämnad gaffling eller stafett behöver alla varianter."
     ]
   },
   {

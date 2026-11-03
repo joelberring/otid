@@ -74,6 +74,12 @@ export const forkingSv = {
     renamed > 0 ? `${renamed} ${renamed === 1 ? "löpare behåller" : "löpare behåller"} sin kontrollföljd under en ny kod.` : "",
     reassigned > 0 ? `${reassigned} ${reassigned === 1 ? "löpare får" : "löpare får"} en ny variant genom fördelningen.` : ""
   ].filter(Boolean).join(" "),
+  // ADR-0198: bortvalda varianter ur banläggningen.
+  previewExcluded: (codes: readonly string[]) =>
+    `${codes.length === 1 ? "Varianten" : "Varianterna"} ${codes.join(", ")} är bortvald${codes.length === 1 ? "" : "a"} i banläggningen och kommer inte med.`,
+  previewStaleExcluded: (codes: readonly string[]) =>
+    `Bortval i banläggningen som inte längre stämmer med någon variant: ${codes.join(", ")}. De gäller inte efter ändringen; ` +
+    "välj bort på nytt i banläggningen om det behövs.",
   saved: (recalculated: number) => recalculated === 0 ? "Gafflingarna är sparade." : `Gafflingarna är sparade. ${recalculated} ${recalculated === 1 ? "resultat räknades" : "resultat räknades"} om.`,
   problem: (problem: ForkingProblem) => {
     switch (problem.kind) {

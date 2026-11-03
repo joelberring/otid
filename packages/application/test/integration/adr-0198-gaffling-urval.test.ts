@@ -9,6 +9,7 @@ import { registerUserAccount } from "../../src/user-account";
 import { applySyncAsAdmin } from "../../src/source-sync";
 import { importCourseSettingAsAdmin, previewCourseSettingTransferAsAdmin } from "../../src/course-setting";
 import { loadRaceSnapshot } from "../../src/snapshot";
+import { editCourseAsAdmin, previewCourseEditAsAdmin } from "../../src/course-edit";
 import { accountOnRace } from "./accounts";
 
 /**
@@ -100,5 +101,36 @@ describe("ADR-0198: bortvalda varianter i tävlingen", () => {
     expect(() => raceSnapshotSchema.parse(snapshot)).not.toThrow();
     const kort = snapshot.courses.find(course => course.name === "Kort")!.versions.at(-1)!;
     expect(kort.excludedVariants).toBeUndefined();
-  }, 120_000);
+
+    // Tävlingens baneditor: strukturen sparas; de bortvalda kommer inte tillbaka och följer med till nya banversionen.
+    const courseId = (await pool.query<{ id: string }>("select id from course where race_id = $1 and name = 'Natt'", [proof.raceId])).rows[0]!.id;
+    const control = (code: number) => ({ kind: "CONTROL" as const, code });
+    const structure = (f: number) => ({ items: [control(31), { kind: "FORK" as const, branches: [[41], [42]] }, control(32),
+      { kind: "FORK" as const, branches: [[43], [44]] }, control(33), { kind: "FORK" as const, branches: [[45], [f]] }, control(34)] });
+    const edit = async (forking: ReturnType<typeof structure>) => {
+      const requestId = randomUUID();
+      const result = await editCourseAsAdmin(db, { ...proof, idempotencyKey: `course-edit:${requestId}`, request: { formatVersion: 1, requestId,
+        courseId, forking, confirmResultChanges: true } });
+      expect(result.status).toBe("edited");
+    };
+    const same = await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1, forking: structure(46) } });
+    if (same.status !== "ok") throw new Error(`Beskedet saknas: ${same.status}`);
+    expect(same.response.forking!.variants.map(variant => variant.code)).toEqual(["ACE", "ACF", "ADE", "BCE"]);
+    expect(same.response.forking!.excludedCodes).toEqual(["ADF", "BCF", "BDE", "BDF"]);
+    expect(same.response.forking!.staleExcludedCodes).toBeUndefined();
+    await edit(structure(46));
+    rows = await variantsOf();
+    expect(rows.map(row => [row.version, row.code])).toEqual([[3, "ACE"], [3, "ACF"], [3, "ADE"], [3, "BCE"]]);
+    expect((rows[0]!.excluded as { code: string }[]).map(row => row.code)).toEqual(["ADF", "BCF", "BDE", "BDF"]);
+
+    // F byter kontroll (46 → 47): bortvalen med F stämmer inte längre och sägs; BDE är fortfarande bortvald. Inget tappas.
+    const changed = await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1, forking: structure(47) } });
+    if (changed.status !== "ok") throw new Error(`Beskedet saknas: ${changed.status}`);
+    expect(changed.response.forking!.excludedCodes).toEqual(["BDE"]);
+    expect(changed.response.forking!.staleExcludedCodes).toEqual(["ADF", "BCF", "BDF"]);
+    await edit(structure(47));
+    rows = await variantsOf();
+    expect(rows.map(row => row.code)).toEqual(["ACE", "ACF", "ADE", "ADF", "BCE", "BCF", "BDF"]);
+    expect((rows[0]!.excluded as { code: string }[]).map(row => row.code)).toEqual(["ADF", "BCF", "BDE", "BDF"]);
+  }, 180_000);
 });

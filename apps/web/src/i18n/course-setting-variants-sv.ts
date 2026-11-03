@@ -5,7 +5,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 export const courseVariantsSv = {
   heading: "Varianter",
   summary: (total: number, kept: number) => kept === total ? `${plural(total, "variant", "varianter")}, alla används`
-    : `${plural(total, "variant", "varianter")}, ${kept} används (${total - kept} bortvald${total - kept === 1 ? "" : "a"} som längre)`,
+    : `${plural(total, "variant", "varianter")}, ${kept} används (${total - kept} bortvald${total - kept === 1 ? "" : "a"})`,
   help: "Bortvalda varianter förs inte över till tävlingen, lottas inte ut, skrivs inte i IOF XML och skrivs inte ut. " +
     "Avläsningen känner ändå igen en löpare som sprungit en bortvald variant.",
   table: {
@@ -36,10 +36,16 @@ export const courseVariantsSv = {
   },
   prune: {
     heading: "Begränsa varianter",
-    dominated: "Ta bort varianter som är längst i alla avseenden",
+    mode: "Sätt",
+    modes: { LONGEST: "Ta bort de längsta", DOMINATED: "Längst i alla avseenden (alla)", CAP: "Tak: procent eller antal" } as Record<"LONGEST" | "DOMINATED" | "CAP", string>,
+    longest: (max: number) => `Antal att ta bort (1–${max})`,
+    longestHelp: (route: boolean) => `De längsta ${route ? "längs vägval" : "fågelvägen"} tas bort först, men bara de som är längre i alla ` +
+      "avseenden än en variant som blir kvar.",
+    longestInvalid: (max: number) => `Skriv ett heltal från 1 till ${max}.`,
     dominatedHelp: (route: boolean) => route
-      ? "En variant tas bort när en annan inte är längre fågelvägen eller längs vägval och är kortare i något av dem."
-      : "Bara fågelvägen jämförs (räkna längs vägval för att jämföra det också): då blir de kortaste kvar.",
+      ? "Alla varianter som en annan inte är längre än fågelvägen eller längs vägval, och kortare i något av dem, tas bort."
+      : "Bara fågelvägen jämförs (räkna längs vägval för att jämföra det också): då blir bara de kortaste kvar.",
+    capHelp: "De kortaste behålls. Fyll i det ena eller båda.",
     percent: "Högst % längre än kortaste",
     count: "Högst antal varianter",
     preview: "Förhandsgranska",
@@ -49,6 +55,7 @@ export const courseVariantsSv = {
     goes: (count: number) => `Tas bort (${count}):`,
     stays: (count: number) => `Behålls (${count}):`,
     reasons: {
+      LONGEST: (by: string | undefined) => by ? `längre än ${by}` : "längre",
       DOMINATED: (by: string | undefined) => by ? `längre än ${by}` : "längre",
       OVER_PERCENT: () => "över procentgränsen",
       OVER_COUNT: () => "över antalet"

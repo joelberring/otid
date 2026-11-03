@@ -72,6 +72,7 @@ function problemText(problem: RunnerPrintProblem): string {
     case "MISSING_VARIANT": return text.page.problem.MISSING_VARIANT(problem.name, problem.className);
     case "UNKNOWN_COURSE": return text.page.problem.UNKNOWN_COURSE(problem.courseName);
     case "UNKNOWN_VARIANT": return text.page.problem.UNKNOWN_VARIANT(problem.courseName, problem.variantCode);
+    case "EXCLUDED_VARIANT": return text.page.problem.EXCLUDED_VARIANT(problem.courseName, problem.variantCode, problem.count);
     case "COUNT": return text.page.problem.COUNT(problem.variantCode ? `${problem.courseName} ${problem.variantCode}` : problem.courseName, problem.expected, problem.actual);
   }
 }

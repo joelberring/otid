@@ -687,7 +687,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     if (tool === "SPECIAL") ux.setPalette(open => !open);
     else { ux.setPalette(false); apply(current => setTool(current, tool)); }
   }}
-    onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} onTraining={() => setTab("training")} trainingOpen={tab === "training"} />;
+    onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} onTraining={() => { setTab("training"); setReveal(value => value + 1); }} trainingOpen={tab === "training"} />;
 
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
     ...(access.admin ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),

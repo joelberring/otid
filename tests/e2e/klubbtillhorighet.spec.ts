@@ -25,11 +25,21 @@ async function fitsPhone(page: Page) {
   await page.setViewportSize({ width: 1280, height: 720 });
 }
 
+const none = "00000000-0000-4000-8000-000000000000";
+
 test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in från klubben och lägg tävlingen i klubbarkivet", async ({ browser }) => {
   test.setTimeout(240_000);
   importClubDirectory("organisations-directory.xml");
   unlinkClub("9901");
   const suffix = unique();
+
+  // Utvecklingsservern kompilerar routerna vid första anropet; ett avbrutet första anrop ger annars ett fel i testet.
+  const warm = await (await browser.newContext()).newPage();
+  for (const [path, method] of [[`/api/organizer/organisations?q=ok`, "GET"], ["/api/account/clubs", "GET"], ["/api/account/clubs/step", "POST"],
+    [`/api/organizer/clubs/${none}/affiliation`, "GET"], [`/api/organizer/clubs/${none}/affiliation/decisions`, "POST"],
+    [`/api/organizer/clubs/${none}/eventor`, "PUT"], [`/api/organizer/races/${none}/club-archive`, "GET"],
+    [`/api/organizer/club-picker?kind=RACE&id=${none}`, "GET"], ["/api/organizer/club-picker", "POST"]] as const) await warmRoute(warm, path, method);
+  await warm.context().close();
 
   // 1. Administratören registrerar sig och väljer OK Älvsjö-Örby (sökt med förkortningen). Ingen klubbyta finns än.
   const admin = await registerAccount(browser, `klubbadmin.${suffix}@exempel.se`, `Klubbadmin ${suffix}`);
@@ -83,10 +93,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
 
   // 4. Administratören skapar en tävling i går (arrangörsklubben är förvald) och bjuder in medlemmen "Från klubben".
   await admin.goto("/organizer");
-  // Utvecklingsservern kompilerar routerna vid första anropet; ett avbrutet första anrop ger annars "Behörighet saknas".
-  const none = "00000000-0000-4000-8000-000000000000";
-  for (const path of [`/api/admin/races/${none}/administrator/session`, `/api/organizer/races/${none}/club-archive`,
-    `/api/organizer/club-picker?kind=RACE&id=${none}`]) await warmRoute(admin, path);
+  await warmRoute(admin, `/api/admin/races/${none}/administrator/session`);
   const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling");
   // Banorna ur en banfil (Banor → Läs in banfil).
   const files = admin.getByRole("region", { name: "Banfil" });
@@ -112,7 +119,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   const section = admin.getByTestId("race-club-archive");
   await expect(section.getByTestId("race-organiser")).toHaveText("OK Älvsjö-Örby");
   await section.getByRole("button", { name: "Lägg i klubbarkivet" }).click();
-  await expect(section.getByRole("status")).toContainText("Tävlingen ligger i klubbarkivet.");
+  await expect(section.getByRole("status")).toContainText("Tävlingen ligger i klubbarkivet.", { timeout: 60_000 });
   await reviewScreenshots(admin, "klubb-tavling-i-arkivet");
   await fitsPhone(admin);
 

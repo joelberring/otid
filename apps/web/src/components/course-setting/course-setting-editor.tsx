@@ -67,13 +67,14 @@ import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-no
 import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import { useCourseSettingTraining } from "./use-course-setting-training";
+import { useMoveShared } from "./course-setting-move-shared";
 import styles from "./course-setting.module.css";
 
 // Steg 67: styrda av service workern när sidan är sparad för offline (`controlledWorker`).
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
 
-type Drag = { kind: "control"; control: string; dx: number; dy: number } | { kind: "number"; courseControl: string } | { kind: "rotate" }
+type Drag = { kind: "control"; control: string; dx: number; dy: number; courseControl?: string | undefined } | { kind: "number"; courseControl: string } | { kind: "rotate" }
   | { kind: "bend"; from: string; to: string; index: number }
   /** Steg 64: ett specialobjekt (helt eller ett hörn) och tryckytans ram. */
   | { kind: "special"; special: string; start: { x: number; y: number }; index?: number | undefined }
@@ -229,6 +230,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
   // ADR-0180 beslut 14: paletten, vridningen, befintliga kontroller, gafflingens grenar, kopia och oanvända kontroller.
   const ux = useCourseSettingUx({ editor, store, apply, edit, readOnly, radiusMm, say, setTab });
   const variant = ux.variant;
+  // En delad kontroll flyttad långt i en bana: flytta i alla banor eller ny kontroll bara här (som Purple Pen).
+  const moveShared = useMoveShared({ raceId, store, apply, edit, poke: () => sync.poke(), say });
   const cutting = useDetailGaps(mapSession, document);
   // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen; objektet markeras när man pekar på ett förslag.
   const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
@@ -425,7 +428,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       if (target.kind === "number" && target.courseControl && current.view !== ALL_CONTROLS) drag.current = { kind: "number", courseControl: target.courseControl };
       else {
         const at = current.document.controls[target.control]!.at;
-        drag.current = { kind: "control", control: target.control, dx: at.x - point.x, dy: at.y - point.y };
+        drag.current = { kind: "control", control: target.control, dx: at.x - point.x, dy: at.y - point.y, courseControl: target.courseControl };
       }
       store.update(next => beginDrag(select(next, target)));
       return true;
@@ -455,7 +458,12 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         return dragTo(next, { type: "SET_LEG_BENDS", from: current.from, to: current.to, bends }, applyEdit);
       });
     },
-    onDragEnd() { drag.current = undefined; ux.endRotate(); apply(endDrag); sync.poke(); },
+    onDragEnd() {
+      const ended = drag.current;
+      drag.current = undefined; ux.endRotate();
+      if (ended?.kind === "control" && moveShared.dragEnded(ended.courseControl, variant)) return;
+      apply(endDrag); sync.poke();
+    },
     onHover: (point, modifiers) => ux.hoverAt(point, modifiers),
     onSecondPointer: () => drag.current?.kind === "rotate"
   };
@@ -587,6 +595,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     onNote: ({ target, at, text: value, photo }) => notes.queueNote(target, at, value, photo), onSketch: () => notes.startSketch("MAP_ERROR"),
     onList: () => { setTab("inspections"); setReveal(value => value + 1); },
     onOffline: () => setOfflineDialog(true),
+    onMoveHere: (control, at, done) => moveShared.moveTo(control, at,
+      selection?.kind === "control" && selection.control === control ? selection.courseControl : undefined, variant, done),
     suggestion: readOnly ? undefined : <FieldSuggestionLine document={document} control={selectedControl} state={suggestions} symbols={symbols}
       onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} /> });
   const panel = (() => {
@@ -676,6 +686,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       </section>
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry} />
+      {!readOnly && moveShared.settings(document.event.mapScale)}
       {!readOnly && <CircleCuttingPanel document={document} cutting={cutting} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
       </>;
     }
@@ -762,6 +773,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
     {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
       <TransferPanel raceId={raceId} ready={!busy} flush={flush} version={() => sync.version} />
     </Dialog>}
+    {moveShared.dialog}
     {offlineDialog && <Dialog title={offlineSv.panel.heading} onClose={() => setOfflineDialog(false)}>
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry}

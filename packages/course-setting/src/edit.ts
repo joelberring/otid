@@ -340,6 +340,29 @@ function setCode(draft: Draft, controlId: string, code: string, allowSame: boole
   draft.controls[controlId] = { ...current, code };
 }
 
+/**
+ * En delad kontroll flyttad bara i en bana (Purple Pens AddControlPoint + ReplaceControlInCourse): ny vanlig kontroll vid
+ * läget med nästa lediga kod (eller författarens, om den är ledig), insatt i de angivna banans kontroller. Beskrivningen
+ * följer inte med (ett nytt läge är ett nytt objekt; den tomma beskrivningen syns i kontrollerna), och numret får sitt
+ * förvalda läge. Gafflingar, poäng och resten av banans kontroll står kvar.
+ */
+function newControlInCourse(draft: Draft, edit: Extract<CourseSettingEdit, { type: "NEW_CONTROL_IN_COURSE" }>): string {
+  assertPoint(edit.at, "Läget");
+  const current = control(draft, edit.control);
+  if (current.kind !== "NORMAL") throw invalidEdit("Bara vanliga kontroller kan bli en ny kontroll i en bana");
+  if (edit.courseControls.length === 0) throw invalidEdit("Ingen av banans kontroller är vald");
+  const inCourse = new Set(ordered(draft, edit.course));
+  for (const id of edit.courseControls) {
+    if (!inCourse.has(id) || cc(draft, id).control !== edit.control) throw notFound(`Kontrollen ${current.code ?? edit.control} på banan`);
+  }
+  const id = nextId(Object.keys(draft.controls));
+  draft.controls[id] = { id, kind: "NORMAL", at: edit.at, descriptions: [] };
+  const wanted = edit.code !== undefined && isLegalCode(edit.code) && !Object.values(draft.controls).some(other => other.code === edit.code);
+  setCode(draft, id, wanted ? edit.code : nextUnusedCode(asDocument(draft)), false);
+  for (const ccId of new Set(edit.courseControls)) draft.courseControls[ccId] = without({ ...cc(draft, ccId), control: id }, "numberAt");
+  return id;
+}
+
 /** Symbolen som en ny kontroll av slaget får, som i Purple Pens AddControlMode (navigera till mål, passage, kartutdelning). */
 const DEFAULT_DIRECTIVE: Partial<Record<ControlPoint["kind"], string>> = { FINISH: "14.3", CROSSING_POINT: "13.3", MAP_ISSUE: "13.6" };
 
@@ -419,6 +442,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       }
       break;
     }
+    case "NEW_CONTROL_IN_COURSE": created = newControlInCourse(draft, edit); break;
     case "DELETE_CONTROL": removeControl(draft, edit.control); break;
     case "SET_CONTROL_CODE": setCode(draft, edit.control, edit.code, false); break;
     case "SET_CONTROL_ORIENTATION": {

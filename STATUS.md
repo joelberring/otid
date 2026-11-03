@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Flytta en delad kontroll långt (grenen flytta-kontroll)
+- Som Purple Pen (QueryEvent.ShouldWarnAboutMovingControl, bara beteendet): när en vanlig kontroll dras mer än 50 m i terrängen i en bana och kontrollen finns i någon annan bana frågar editorn "Flytta i alla banor (n)" (banornas namn, förkortat), "Ny kontroll bara i [banan]" eller "Avbryt". Inte i Alla kontroller, inte när kontrollen bara finns i banan, inte för piltangenter/1 m-knapparna och inte för start, mål, passage och kartbyte (ingen kod; samma plats för alla banor, en egen start görs med Ny start). Gränsen räknas i hela meter (precis 50 m frågar inte) och väljs i Inställningar (10–100 m, i webbläsaren).
+- Ny åtgärd `NEW_CONTROL_IN_COURSE` (paketet, kontraktet, samarbetets touches/refs/id-översättning, förslagens text): ny kontroll med nästa lediga kod (upptagen kod vid uppspelning: nästa lediga) ersätter kontrollen i de angivna banans kontrollerna; gaffling, slinga och poäng står kvar, numret får förvalt läge. Beskrivningen kopieras inte (ett nytt läge är ett nytt objekt; tom beskrivning syns i kontrollerna, som i Purple Pen). Ett steg för ångra, gör om och samarbetet.
+- Fjäril (samma kontroll flera gånger i följd eller slingans mitt) ritas som en ring: alla förekomster i banan byts och frågan säger det. I en gafflad banas variant där bara en förekomst syns byts bara den.
+- Fältläget: "Flytta hit" ställer samma fråga (dialog som ryms i 390 px). "Kom ihåg för den här sessionen" (sessionStorage per tävling) hoppar över frågan med senaste valet; "Fråga igen" i Inställningar.
+- Överförda tävlingar: oförändrat – banläggningen förs över för hand med banfilens granskning, där den nya koden syns som en ändring i banan.
+- Verifierat: enhetstester (paketet `new-control-in-course`, webben `course-setting-move-shared`), Playwright `banlaggning-flytta-kontroll` (1280/390); `banlaggning-mobil` och `banlaggning-beskrivningsforslag` svarar nu på frågan där de flyttar långt.
+
 ### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
 - Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
 - Kontrollbeskrivningen på kartan hör till papperet (`paper-layout.ts`, `event.paperLayouts`, `SET_PAPER_LAYOUT`): på för varje bana, automatiskt i ett fritt hörn med varning när den täcker banan, dras/ändras på arket i förhandsvisningen (piltangenter också). Ritas inte i editorn; Purple Pens `descriptions` tolkas som platsen och skrivs tillbaka vid export. Mallens gamla plats gäller bara utan utplacering.

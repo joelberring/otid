@@ -136,6 +136,8 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
     await screenshot(phone, "banlaggning-mobil-dra");
   });
   expect(await scrolled(phone)).toEqual([0, 0, 0]);
+  // 31 finns också på Mellan och flyttades långt: frågan, flytta i alla banor.
+  await phone.getByTestId("course-setting-move-all").click();
   await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 31");
   await expect(phone.getByTestId("course-setting-field-status")).toHaveText("Sparat", { timeout: 15_000 });
   const dragged = await (await phone.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
@@ -158,6 +160,7 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await screenshot(phone, "banlaggning-mobil-position");
   await phone.getByTestId("course-setting-move-here").click();
   await expect(phone.getByTestId("course-setting-move-here")).toContainText("Mäter");
+  await phone.getByTestId("course-setting-move-all").click({ timeout: 15_000 });
   await expect(phone.getByTestId("course-setting-field-note")).toHaveText("Flyttad, noggrannhet ±5 m", { timeout: 15_000 });
   await expect(phone.getByTestId("course-setting-field-status")).toHaveText("Sparat", { timeout: 15_000 });
   await screenshot(phone, "banlaggning-mobil-flyttad");

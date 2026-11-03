@@ -160,6 +160,7 @@ export function diffTouches(before: CourseSettingDocument, after: CourseSettingD
 export function editTouches(edit: CourseSettingEdit): string[] {
   switch (edit.type) {
     case "MOVE_CONTROL": return [`control:${edit.control}:at`];
+    case "NEW_CONTROL_IN_COURSE": return [...new Set(edit.courseControls)].sort().map(id => `courseControl:${id}:control`);
     case "DELETE_CONTROL": return [`control:${edit.control}`];
     case "SET_CONTROL_CODE": return [`control:${edit.control}:code`];
     case "SET_CONTROL_ORIENTATION": return [`control:${edit.control}:orientation`];
@@ -249,6 +250,8 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "INSERT_COURSE_CONTROL": return [["courses", edit.course], ["controls", edit.control],
       ...(typeof edit.after === "string" ? [["courseControls", edit.after] as [Kind, string]] : [])];
     case "REMOVE_COURSE_CONTROL": return [["courses", edit.course], ["courseControls", edit.courseControl]];
+    case "NEW_CONTROL_IN_COURSE": return [["courses", edit.course], ["controls", edit.control],
+      ...edit.courseControls.map((id): [Kind, string] => ["courseControls", id])];
     case "ADD_SPLIT": case "REMOVE_SPLIT": return [["courses", edit.course], ["courseControls", edit.at]];
     case "MOVE_NUMBER": case "SET_POINTS": return [["courses", edit.course], ["courseControls", edit.courseControl]];
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return [["controls", edit.from], ["controls", edit.to]];
@@ -335,6 +338,7 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
     case "INSERT_COURSE_CONTROL": return { ...edit, course: co(edit.course), control: c(edit.control),
       ...(typeof edit.after === "string" ? { after: cc(edit.after) } : {}) };
     case "REMOVE_COURSE_CONTROL": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
+    case "NEW_CONTROL_IN_COURSE": return { ...edit, course: co(edit.course), control: c(edit.control), courseControls: edit.courseControls.map(cc) };
     case "ADD_SPLIT": case "REMOVE_SPLIT": return { ...edit, course: co(edit.course), at: cc(edit.at) };
     case "MOVE_NUMBER": case "SET_POINTS": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return { ...edit, from: c(edit.from), to: c(edit.to) };

@@ -51,7 +51,11 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await warmRoute(owner, "/api/admin/races/00000000-0000-4000-8000-000000000000/administrator/session");
   const raceId = await createRace(owner, `Pappersrum ${suffix}`, today(), "Tävling");
   const admin = `/api/admin/races/${raceId}/administrator`;
-  const doc = async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: Doc } }).setting.document;
+  // Utvecklingsservern stänger ibland en återanvänd anslutning (ECONNRESET): läs om en gång.
+  const doc = async (): Promise<Doc> => {
+    const read = async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: Doc } }).setting.document;
+    try { return await read(); } catch { return await read(); }
+  };
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
   await warmRoute(owner, `${admin}/course-setting/paper-library`);
@@ -209,8 +213,7 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await owner.getByTestId("paper-inspector").getByTestId("paper-pages").selectOption("ALL");
   await expect.poll(async () => (await doc()).event.paperLayouts!["1"]!.items!.find(item => item.kind === "TEXT")!.pages).toBe("ALL");
   await shot(owner, "06-papperet-alla-sidor", owner.getByTestId("paper-inspector"));
-  const empty = (await sheet.boundingBox())!;
-  await owner.mouse.click(empty.x + empty.width * 0.5, empty.y + empty.height * 0.5);
+  await owner.getByTestId("paper-deselect").click();
   await expect(owner.getByTestId("paper-inspector")).toHaveCount(0);
 
   // 5. Mall: banans papper som "Klubbens träningsmall", på alla valda banor; biblioteket.

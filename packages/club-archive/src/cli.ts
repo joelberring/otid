@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { Writable } from "node:stream";
 import { resolve } from "node:path";
+import { LEADERS_BY_DEFAULT } from "./plan";
 import { runImport } from "./run";
 
 /**
@@ -18,6 +19,7 @@ const HELP = `Användning:
   --server <url>     Din O-Tid-server (https).
   --club <id>        Valfritt: klubbens id. Klubben följer av importnyckeln; anges id ska det stämma.
   --utan-ledare      Ta inte med ledarens namn ur [hakparenteser].
+  --med-ledare       Ta med ledarens namn ur [hakparenteser].
   --rapport <fil>    Rapportens fil (förval arkivimport-rapport-<tid>.txt här).
   --nyckel-fil <fil> Läs importnyckeln ur en fil (annars OTID_IMPORT_TOKEN eller en fråga).
 
@@ -47,7 +49,7 @@ function parse(argv: readonly string[]) {
     if (arg === "--") continue;
     if (arg.startsWith("--")) {
       const name = arg.slice(2);
-      if (["dry-run", "utan-ledare", "hjalp", "help"].includes(name)) flags[name] = true;
+      if (["dry-run", "utan-ledare", "med-ledare", "hjalp", "help"].includes(name)) flags[name] = true;
       else {
         const value = argv[++index];
         if (value === undefined) throw new Error(`${arg} behöver ett värde`);
@@ -74,7 +76,7 @@ async function main() {
     if (!token) token = (await askHidden("Importnyckel (från Klubbarkiv → Import): ")).trim();
     if (!/^otid-imp-[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Nyckeln ser inte ut som en importnyckel från O-Tid");
   }
-  await runImport({ inputs: inputs.map(input => resolve(base, input)), dryRun, withLeaders: flags["utan-ledare"] !== true, reportPath, server: flags.server as string | undefined,
+  await runImport({ inputs: inputs.map(input => resolve(base, input)), dryRun, withLeaders: flags["utan-ledare"] === true ? false : flags["med-ledare"] === true || LEADERS_BY_DEFAULT, reportPath, server: flags.server as string | undefined,
     clubId: flags.club as string | undefined, token, log: line => console.log(line) });
 }
 

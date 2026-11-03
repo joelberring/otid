@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifyPath, isCourseDataXml, mapFormatOfHead, xmlRootName } from "../src/classify";
-import { normalizePath, parseFolderName, trainingFolderOf } from "../src/folder-name";
+import { normalizePath, parseFolderName, pathInChosenFolder, trainingFolderOf } from "../src/folder-name";
 import { mapIdentity } from "../src/map-groups";
 import { ppenMapReference, referenceFileName } from "../src/ppen-reference";
 import { suggestTags } from "../src/tags";
@@ -99,5 +99,17 @@ describe("taggar, filernas slag, .ppen:s karta och kartornas namn", () => {
     expect(mapIdentity("Solberga sprint ver 3.omap")).toMatchObject({ key: "solberga sprint", name: "Solberga sprint" });
     expect(mapIdentity("Vinterviken.xmap").key).toBe("vinterviken");
     expect(mapIdentity("2019.ocd").key).toBe("2019");
+  });
+});
+
+describe("den valda mappen (ADR-0204, ändring 2026-11-03)", () => {
+  it("en årsmapp blir sökvägens första del, annars börjar sökvägen under mappen", () => {
+    expect(pathInChosenFolder("2019", "04-02 Skogen [Anna]/Skogen.ocd")).toBe("2019/04-02 Skogen [Anna]/Skogen.ocd");
+    expect(pathInChosenFolder("2019 träningar ", "04-02 Skogen/x.ppen")).toBe("2019 träningar/04-02 Skogen/x.ppen");
+    expect(pathInChosenFolder("Klubbträningar", "2019/04-02 Skogen/x.ppen")).toBe("2019/04-02 Skogen/x.ppen");
+    // Ett datum är inte ett år, inte heller ett år utan mellanslag efter.
+    expect(pathInChosenFolder("2019-04-02 Skogen", "x.ppen")).toBe("x.ppen");
+    expect(pathInChosenFolder("20190402", "x.ppen")).toBe("x.ppen");
+    expect(trainingFolderOf(pathInChosenFolder("2019", "04-02 Skogen [Anna]/Skogen.ocd"))).toMatchObject({ date: "2019-04-02", year: 2019 });
   });
 });

@@ -104,6 +104,34 @@ describe("samma plan ur disken och ur webbläsarens filer (ADR-0204)", () => {
     await node.close();
   });
 
+  it("en vald årsmapp följer med i sökvägen, så att träningarna behåller året (disken och webbläsaren lika)", async () => {
+    for (const name of ["2021", "2021 träningar"]) {
+      const yearDir = join(dir, name);
+      const inside = [
+        { path: "03-14 Skogen [Kim]/Skogen.omap", data: syntheticMap(0) },
+        { path: "03-14 Skogen [Kim]/Skogen.ppen", data: syntheticPpen("C:\\OL\\Skogen.omap", "Mars") },
+        { path: "03-14 Skogen [Kim]/Resultat.pdf", data: pdf }
+      ];
+      for (const file of inside) {
+        await mkdir(dirname(join(yearDir, file.path)), { recursive: true });
+        await writeFile(join(yearDir, file.path), file.data);
+      }
+      const node = await openSources([yearDir]);
+      const browser = await openBrowserSources([{ kind: "folder", name, files: inside.map(file => ({ path: file.path, file: new Blob([part(file.data)]) })) }]);
+      expect(node.files.map(file => file.path)).toEqual(inside.map(file => `${name}/${file.path}`).sort());
+      expect(browser.files.map(file => [file.source, file.path])).toEqual(node.files.map(file => [file.source, file.path]));
+      const [a, b] = [await scanSources(node.files), await scanBrowserSources(browser.files)];
+      await node.close();
+      const plan = buildImportPlan(b.scanned, { withLeaders: true });
+      expect(plan).toEqual(buildImportPlan(a.scanned, { withLeaders: true }));
+      expect(plan.trainings.map(training => [training.path, training.date, training.year, training.status]))
+        .toEqual([[`${name}/03-14 Skogen [Kim]`, "2021-03-14", 2021, "COMPLETE"]]);
+    }
+    // En mapp som inte är ett år börjar som förut under mappen.
+    const other = await openBrowserSources([{ kind: "folder", name: "Kartor 2021", files: [{ path: "2021/a.ppen", file: new Blob([part(pdf)]) }] }]);
+    expect(other.files.map(file => file.path)).toEqual(["2021/a.ppen"]);
+  });
+
   it("en kartfil över gränsen läses inte och får ett tydligt besked; en trasig zip-fil blir ett problem", async () => {
     const map = syntheticMap(0);
     const browser = await openBrowserSources([{ kind: "folder", name: "Kartor", files: [

@@ -30,6 +30,19 @@ export const stemOf = (path: string): string => {
 /** Årsmappen: "2019" eller "2019 träningar" (men inte en träning som "2019-04-02 Skogen"). */
 const YEAR = /^((?:19|20)\d{2})(?:$|\s)/;
 
+/** Mappens namn ser ut som ett år ("2019", "2019 träningar"). */
+export const isYearFolderName = (name: string): boolean => YEAR.test(normalizePath(name));
+
+/**
+ * Sökvägen i arkivet för en fil i en vald mapp (kommandots mapp eller webbläsarens "Välj mapp"), relativt mappen. Är den valda
+ * mappen själv en årsmapp tas den med först, så att träningarna behåller året (ADR-0204, ändring 2026-11-03); annars börjar
+ * sökvägen under mappen.
+ */
+export function pathInChosenFolder(folderName: string, relativePath: string): string {
+  const inside = normalizePath(relativePath);
+  return isYearFolderName(folderName) ? normalizePath(`${baseName(folderName)}/${inside}`) : inside;
+}
+
 /** Ett giltigt datum ÅÅÅÅ-MM-DD, annars null. */
 export function isoDate(year: number, month: number, day: number): string | null {
   if (!Number.isInteger(year) || year < 1950 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) return null;

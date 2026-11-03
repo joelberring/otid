@@ -54,6 +54,12 @@ export interface ImportPlan {
   };
 }
 
+/**
+ * Förvalet för ledarnas namn ur `[…]` (personuppgift), i kommandot och i webbläsaren. Ägaren har inte bestämt sig: byt här om
+ * namnen inte ska med som förval (kommandot har `--utan-ledare` och `--med-ledare`).
+ */
+export const LEADERS_BY_DEFAULT = true;
+
 export interface PlanOptions {
   /** Ledarens namn ur `[…]` (personuppgift; `--utan-ledare` stänger av). */
   readonly withLeaders: boolean;

@@ -179,7 +179,7 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
     body: [
       "Har klubben gamla träningar i mappar eller zip-filer på en dator läser du in dem här; bara ägare och administratörer importerar.",
       { steps: [
-        "Öppna fliken ”Import” och tryck på ”Välj mapp”. Välj mappen med årsmapparna (2018, 2019 …).",
+        "Öppna fliken ”Import” och tryck på ”Välj mapp”. Välj mappen med årsmapparna (2018, 2019 …) eller en enda årsmapp.",
         "Zip-filer från Google Drive väljer du med ”Välj filer”. Du kan också dra mappar och zip-filer till rutan.",
         "Ska ledarnas namn inte med: kryssa i ”Ta inte med ledarens namn ur [hakparenteser]”.",
         "Tryck på ”Förhandsgranska”. Du ser träningarna, kartorna, vad som är nytt och vilka filer som inte skickas. Inget är skickat än.",

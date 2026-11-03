@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Årsmappen följer med (grenen arkiv-webbimport-2, ändring i ADR-0204)
+- Väljs en årsmapp (2019, "2019 träningar") direkt, i kommandot eller i webbläsaren, blir den sökvägens första del och träningarna behåller året (`pathInChosenFolder`). Hjälpen och fältets tips säger att en enda årsmapp går bra.
+- Förvalet för ledarnas namn är konstanten `LEADERS_BY_DEFAULT` (med, som förut); kommandot har också `--med-ledare`.
+- Verifierat: se slutrapporten för grenen.
+
 ### 2026-11-03 – Importen till klubbarkivet i webbläsaren (grenen arkiv-webbimport, ADR-0204, ingen migration)
 - Fliken Import: "Välj mapp" (webkitdirectory), "Välj filer" (zip eller lösa filer) och dra och släpp av mappar/zip; kort besked på telefon. Kommandot och nyckeln hopfällda under "För den som kan Git: kommandoraden".
 - `@o-tid/club-archive` läser en abstrakt källa: samma läsning, plan, rapport och uppladdning för disken (kommandot) och File/Blob (Blob.slice, DecompressionStream, WebCrypto). PDF, startlistor och bilder öppnas aldrig och skickas aldrig; kartor över 75 MB läses inte och sägs i förhandsgranskningen.

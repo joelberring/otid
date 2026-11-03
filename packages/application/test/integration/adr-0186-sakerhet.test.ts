@@ -13,7 +13,7 @@ import { readPublicRaceMapImage } from "../../src/race-map";
 import { listRacePeopleAsAdmin } from "../../src/race-people";
 import { requireRaceRole } from "../../src/race-session";
 import { requireCourseSettingAccess } from "../../src/course-setting-access";
-import { markEmailVerifiedByCommand, registerUserAccountWithVerification, verifyEmailAndLogIn } from "../../src/email-verification";
+import { checkEmailVerificationToken, markEmailVerifiedByCommand, registerUserAccountWithVerification, verifyEmailAndLogIn } from "../../src/email-verification";
 import { completePasswordReset, createPasswordResetToken } from "../../src/password-reset";
 import { accountOnRace, grantRacePerson } from "./accounts";
 import { grantRacePersonAsAdmin } from "../../src/race-people";
@@ -226,7 +226,7 @@ describe("ADR-0186: behörigheter kräver bekräftad e-post", () => {
     expect(await requireCourseSettingAccess(db, { ...targetProof, required: "EDIT" })).toMatchObject({ status: "authenticated" });
   }, 30_000);
 
-  it("registrering med bekräftelse: samma utfall för ny och befintlig adress, länken kräver registreringens lösenord", async () => {
+  it("registrering med bekräftelse: samma utfall för ny och befintlig adress, lösenordet väljs på länkens sida", async () => {
     const email = `bekrafta.${randomUUID().slice(0, 8)}@test.o-tid.se`;
     const first = await registerUserAccountWithVerification(db, { formatVersion: 1, email, displayName: "Bekräfta", password: PASSWORD });
     expect(first).toMatchObject({ status: "accepted", delivery: { kind: "VERIFY", email } });
@@ -236,14 +236,16 @@ describe("ADR-0186: behörigheter kräver bekräftad e-post", () => {
     const wrong = await loginUserAccount(db, { formatVersion: 1, email, password: "fel-lösenord" }, { requireVerifiedEmail: true });
     expect(wrong).toEqual({ status: "unauthorized" });
 
-    // Någon annan registrerar samma adress med ett annat lösenord: en ny länk till adressen, men den kräver det andra lösenordet.
+    // Någon annan registrerar samma adress med ett annat lösenord: en ny länk till adressen. ADR-0205: den som har länken
+    // väljer lösenordet; den andras lösenord gäller aldrig efter bekräftelsen.
     const second = await registerUserAccountWithVerification(db, { formatVersion: 1, email, displayName: "Någon annan", password: "annat-lösen-9" });
     if (second.delivery?.kind !== "VERIFY" || first.delivery?.kind !== "VERIFY") throw new Error("Länken saknas");
-    expect(await verifyEmailAndLogIn(db, { formatVersion: 1, token: second.delivery.token, password: PASSWORD })).toEqual({ status: "invalid-token" });
+    expect(await checkEmailVerificationToken(db, { formatVersion: 1, token: second.delivery.token })).toEqual({ status: "checked", state: "valid" });
     const verified = await verifyEmailAndLogIn(db, { formatVersion: 1, token: first.delivery.token, password: PASSWORD });
     expect(verified).toMatchObject({ status: "authenticated", response: { email, emailVerified: true, displayName: "Bekräfta" } });
-    // Alla länkar är förbrukade; den andras lösenord gäller aldrig.
-    expect(await verifyEmailAndLogIn(db, { formatVersion: 1, token: second.delivery.token, password: "annat-lösen-9" })).toEqual({ status: "invalid-token" });
+    // Alla länkar är förbrukade och adressen är bekräftad; den andras lösenord gäller aldrig.
+    expect(await verifyEmailAndLogIn(db, { formatVersion: 1, token: second.delivery.token, password: "annat-lösen-9" })).toEqual({ status: "already-verified" });
+    expect(await checkEmailVerificationToken(db, { formatVersion: 1, token: second.delivery.token })).toEqual({ status: "checked", state: "already-verified" });
     expect((await loginUserAccount(db, { formatVersion: 1, email, password: "annat-lösen-9" })).status).toBe("unauthorized");
     expect((await loginUserAccount(db, { formatVersion: 1, email, password: PASSWORD }, { requireVerifiedEmail: true })).status).toBe("authenticated");
 
@@ -268,7 +270,8 @@ describe("ADR-0186: behörigheter kräver bekräftad e-post", () => {
     if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
     expect(account.response.emailVerified).toBe(false);
     const { token } = await db.transaction(tx => createPasswordResetToken(tx, { accountId: account.response.accountId, bySuperadmin: false }, new Date()));
-    expect(await completePasswordReset(db, { formatVersion: 1, token, password: "nytt-lösen-2" })).toEqual({ status: "reset" });
+    expect(await completePasswordReset(db, { formatVersion: 1, token, password: "nytt-lösen-2" }))
+      .toMatchObject({ status: "authenticated", response: { emailVerified: true } });
     const login = await loginUserAccount(db, { formatVersion: 1, email: account.response.email, password: "nytt-lösen-2" }, { requireVerifiedEmail: true });
     expect(login).toMatchObject({ status: "authenticated", response: { emailVerified: true } });
   }, 30_000);

@@ -26,7 +26,8 @@ const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * Inloggningsspärren: 5 fel för en e-postadress inom 15 minuter spärrar adressen i 15 minuter (tidsbegränsat, aldrig för
  * alltid). Steg 46: dessutom spärras en klientadress (IP) i 15 minuter efter 30 fel inom 15 minuter, oavsett e-postadress,
- * så att en angripare inte kan prova många konton. En lyckad inloggning nollställer bara e-postadressens räknare.
+ * så att en angripare inte kan prova många konton. En lyckad inloggning nollställer bara e-postadressens räknare. ADR-0205:
+ * ett nytt lösenord (återställning eller bekräftelse) efter att felen började räknas häver spärren för adressen.
  */
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 export const MAX_FAILED_ATTEMPTS = 5;
@@ -279,9 +280,18 @@ export async function loginUserAccount(
     const blocked = (row: { blockedUntil: Date | null }) => !!row.blockedUntil && row.blockedUntil.getTime() > now.getTime();
     // Klientens rad låses före e-postadressens, alltid i samma ordning.
     const client = clientKeyHash ? await lockThrottle(clientKeyHash) : undefined;
-    if (client && blocked(client)) return { status: "rate-limited" } as const;
-    const throttle = await lockThrottle(loginKeyHash);
-    if (blocked(throttle)) return { status: "rate-limited" } as const;
+    let throttle = await lockThrottle(loginKeyHash);
+    if ((client && blocked(client)) || blocked(throttle)) {
+      // ADR-0205 beslut 3: ett lösenord som byttes (återställning, bekräftelse) efter att felen började räknas häver spärren
+      // för adressen, också spärren per IP-adress för det här försöket. Den som har bytt lösenord via e-posten gissar inte.
+      const changed = await passwordChangedSince(tx, parsed.data.email,
+        [client && blocked(client) ? client.windowStartedAt : undefined, blocked(throttle) ? throttle.windowStartedAt : undefined]);
+      if (!changed) return { status: "rate-limited" } as const;
+      if (blocked(throttle)) {
+        [throttle] = await tx.update(schema.userAccountLoginThrottles).set({ windowStartedAt: now, failedAttempts: 0, blockedUntil: null })
+          .where(eq(schema.userAccountLoginThrottles.loginKeyHash, loginKeyHash)).returning() as [typeof throttle];
+      }
+    }
     const countFailure = async (row: typeof throttle, limit: number) => {
       const inWindow = now.getTime() - row.windowStartedAt.getTime() < LOGIN_WINDOW_MS;
       const failedAttempts = inWindow ? row.failedAttempts + 1 : 1;
@@ -297,7 +307,7 @@ export async function loginUserAccount(
     const passwordMatches = await userAccountPasswordMatches(verifier, parsed.data.password);
     if (!account || !verifier || !passwordMatches) {
       await countFailure(throttle, MAX_FAILED_ATTEMPTS);
-      if (client) await countFailure(client, MAX_FAILED_ATTEMPTS_PER_CLIENT);
+      if (client && !blocked(client)) await countFailure(client, MAX_FAILED_ATTEMPTS_PER_CLIENT);
       return { status: "unauthorized" } as const;
     }
     await clearUserAccountLoginThrottle(tx, account.email, now, options.clientKey);
@@ -313,6 +323,17 @@ export async function loginUserAccount(
     await acceptRacePersonInvitations(tx, account.id, now);
     return issueUserAccountSession(tx, account, verifier.version, now, options);
   });
+}
+
+/**
+ * ADR-0205 beslut 3: har kontot med adressen fått ett nytt lösenord efter var och en av tidpunkterna (de spärrar som är satta)?
+ * Ett konto som saknas har aldrig bytt lösenord.
+ */
+async function passwordChangedSince(tx: DbExecutor, email: string, since: readonly (Date | undefined)[]): Promise<boolean> {
+  const [account] = await tx.select({ id: schema.userAccounts.id }).from(schema.userAccounts).where(eq(schema.userAccounts.email, email));
+  const verifier = account ? await currentUserAccountVerifier(tx, account.id) : undefined;
+  if (!verifier) return false;
+  return since.every(time => !time || verifier.createdAt.getTime() > time.getTime());
 }
 
 /**

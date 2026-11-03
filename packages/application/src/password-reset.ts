@@ -13,8 +13,13 @@ import {
   appendUserAccountPasswordVerifier,
   clearUserAccountLoginThrottle,
   currentUserAccountVerifier,
-  revokeAllUserAccountSessions
+  issueUserAccountSession,
+  revokeAllUserAccountSessions,
+  type UserAccountLoginResult,
+  type UserAccountRuntimeOptions
 } from "./user-account";
+import { consumeEmailVerificationTokens } from "./email-verification";
+import { acceptRacePersonInvitations } from "./race-person-invitations";
 import { sha256Hex as sha256 } from "./serialization";
 
 /**
@@ -75,14 +80,20 @@ export async function requestPasswordReset(
   });
 }
 
-/** Sätter nytt lösenord med en giltig länk. Alla länkar för kontot förbrukas och alla sessioner spärras. */
+/**
+ * Sätter nytt lösenord med en giltig länk och loggar in på enheten där länken öppnades (ADR-0205). Alla länkar för kontot
+ * förbrukas (också bekräftelselänkarna) och alla andra sessioner spärras. Länken kom till adressen (eller från superadmin,
+ * som lämnat den till personen), så adressen blir bekräftad och öppna inbjudningar tas, också för ett obekräftat konto.
+ * Inloggningsspärren för adressen nollställs (och ett nytt lösenord häver den även från andra IP-adresser, `loginUserAccount`).
+ */
 export async function completePasswordReset(
   db: Database,
   request: unknown,
-  now = new Date()
-): Promise<{ status: "invalid-request" | "invalid-token" | "reset" }> {
+  options: UserAccountRuntimeOptions = {}
+): Promise<{ status: "invalid-request" | "invalid-token" } | Extract<UserAccountLoginResult, { status: "authenticated" }>> {
   const parsed = passwordResetCompleteRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "invalid-request" };
+  const now = options.now ?? new Date();
   return db.transaction(async (tx) => {
     const [reset] = await tx.select().from(schema.passwordResetTokens)
       .where(eq(schema.passwordResetTokens.tokenHash, sha256(parsed.data.token))).for("update");
@@ -91,15 +102,19 @@ export async function completePasswordReset(
       .where(eq(schema.userAccounts.id, reset.accountId)).for("update");
     const verifier = account ? await currentUserAccountVerifier(tx, account.id) : undefined;
     if (!account || account.blockedAt || !verifier) return { status: "invalid-token" } as const;
-    await appendUserAccountPasswordVerifier(tx, {
+    const version = await appendUserAccountPasswordVerifier(tx, {
       accountId: account.id, password: parsed.data.password, previousVersion: verifier.version
-    }, now);
-    // ADR-0186: länken kom till adressen (eller från superadmin, som lämnat den till personen): adressen är bekräftad.
-    if (!account.emailVerifiedAt) await tx.update(schema.userAccounts).set({ emailVerifiedAt: now }).where(eq(schema.userAccounts.id, account.id));
+    }, now, options.saltBytes);
+    // ADR-0186: länken kom till adressen: adressen är bekräftad.
+    const [updated] = await tx.update(schema.userAccounts)
+      .set({ emailVerifiedAt: account.emailVerifiedAt ?? now, lastLoginAt: now })
+      .where(eq(schema.userAccounts.id, account.id)).returning();
     await tx.update(schema.passwordResetTokens).set({ usedAt: now })
       .where(and(eq(schema.passwordResetTokens.accountId, account.id), isNull(schema.passwordResetTokens.usedAt)));
+    await consumeEmailVerificationTokens(tx, account.id, now);
     await revokeAllUserAccountSessions(tx, account.id, now, "PASSWORD_RESET");
-    await clearUserAccountLoginThrottle(tx, account.email, now);
-    return { status: "reset" } as const;
+    await clearUserAccountLoginThrottle(tx, account.email, now, options.clientKey);
+    await acceptRacePersonInvitations(tx, account.id, now);
+    return issueUserAccountSession(tx, updated!, version, now, options);
   });
 }

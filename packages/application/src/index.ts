@@ -3,6 +3,8 @@ export * from "./user-account";
 export * from "./account-throttle";
 export * from "./password-reset";
 export * from "./email-verification";
+export * from "./google-oidc";
+export * from "./google-login";
 export * from "./health";
 export * from "./account-self-service";
 export * from "./organizer-events";

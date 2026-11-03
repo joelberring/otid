@@ -7,7 +7,7 @@ import type { Point } from "@o-tid/map-file";
 import { setAppearance } from "./appearance-edit";
 import { BOX_KINDS, hasImage, symbolDb } from "./description-symbols";
 import { encodeCircleGaps, encodeOldCircleGaps, fromRaw, legKey, nextId, toRaw } from "./ppen-common";
-import { isLegalCode, nextUnusedCode } from "./summary";
+import { allCourseVariantList, isLegalCode, nextUnusedCode } from "./summary";
 import type {
   CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocument, CourseSettingEdit, DescriptionBox, EditResult, Leg, RawXml
 } from "./types";
@@ -340,6 +340,48 @@ function setCode(draft: Draft, controlId: string, code: string, allowSame: boole
   draft.controls[controlId] = { ...current, code };
 }
 
+/**
+ * En delad kontroll flyttad bara i en bana (Purple Pens AddControlPoint + ReplaceControlInCourse): ny vanlig kontroll vid
+ * läget med nästa lediga kod (eller författarens, om den är ledig), insatt i de angivna banans kontroller. Beskrivningen
+ * följer inte med (ett nytt läge är ett nytt objekt; den tomma beskrivningen syns i kontrollerna), och numret får sitt
+ * förvalda läge. Gafflingar, poäng och resten av banans kontroll står kvar.
+ */
+function newControlInCourse(draft: Draft, edit: Extract<CourseSettingEdit, { type: "NEW_CONTROL_IN_COURSE" }>): string {
+  assertPoint(edit.at, "Läget");
+  const current = control(draft, edit.control);
+  if (current.kind !== "NORMAL") throw invalidEdit("Bara vanliga kontroller kan bli en ny kontroll i en bana");
+  if (edit.courseControls.length === 0) throw invalidEdit("Ingen av banans kontroller är vald");
+  const inCourse = new Set(ordered(draft, edit.course));
+  for (const id of edit.courseControls) {
+    if (!inCourse.has(id) || cc(draft, id).control !== edit.control) throw notFound(`Kontrollen ${current.code ?? edit.control} på banan`);
+  }
+  const id = nextId(Object.keys(draft.controls));
+  draft.controls[id] = { id, kind: "NORMAL", at: edit.at, descriptions: [] };
+  const wanted = edit.code !== undefined && isLegalCode(edit.code) && !Object.values(draft.controls).some(other => other.code === edit.code);
+  setCode(draft, id, wanted ? edit.code : nextUnusedCode(asDocument(draft)), false);
+  const before = findCourse(asDocument(draft), edit.course).excludedVariants?.length ? allCourseVariantList(asDocument(draft), edit.course) : [];
+  for (const ccId of new Set(edit.courseControls)) draft.courseControls[ccId] = without({ ...cc(draft, ccId), control: id }, "numberAt");
+  keepExclusions(draft, edit.course, before);
+  return id;
+}
+
+/**
+ * ADR-0198: en bortvald variant känns igen på kontrollkoderna. När en kontroll byts mot en ny kod i banan följer bortvalen
+ * med (samma variantkod, de nya koderna), så att en bortvald variant inte tyst kommer tillbaka.
+ */
+function keepExclusions(draft: Draft, courseId: string, before: readonly { code: string; controlCodes: readonly string[]; excluded?: boolean | undefined }[]): void {
+  const course = findCourse(asDocument(draft), courseId);
+  if (!course.excludedVariants?.length || before.length === 0) return;
+  const after = new Map(allCourseVariantList(asDocument(draft), courseId).map(row => [row.code, row.controlCodes]));
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((code, index) => code === b[index]);
+  const excludedVariants = course.excludedVariants.map(row => {
+    const active = before.some(old => old.excluded && old.code === row.code && same(old.controlCodes, row.controls));
+    const controls = active ? after.get(row.code) : undefined;
+    return controls ? { code: row.code, controls: [...controls] } : row;
+  });
+  replaceCourse(draft, { ...course, excludedVariants });
+}
+
 /** Symbolen som en ny kontroll av slaget får, som i Purple Pens AddControlMode (navigera till mål, passage, kartutdelning). */
 const DEFAULT_DIRECTIVE: Partial<Record<ControlPoint["kind"], string>> = { FINISH: "14.3", CROSSING_POINT: "13.3", MAP_ISSUE: "13.6" };
 
@@ -420,6 +462,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       }
       break;
     }
+    case "NEW_CONTROL_IN_COURSE": created = newControlInCourse(draft, edit); break;
     case "DELETE_CONTROL": removeControl(draft, edit.control); break;
     case "SET_CONTROL_CODE": setCode(draft, edit.control, edit.code, false); break;
     case "SET_CONTROL_ORIENTATION": {

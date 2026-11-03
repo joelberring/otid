@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Loggan och "Banläggning och tidtagning för orientering" (grenen logga)
+- Ägarens logga (variant B): lila ring med "tid" i Poppins Bold som kontur (`scripts/logo/generate.py`, `components/brand/`), före "O-Tid" i det gemensamma sidhuvudet (28 px; tagline dold under 420 px) och på startsidan (40 px). Färgen `--logo` (#a626ff); appen är bara ljus, så #c77dff används bara i `icon.svg` i mörkt läge.
+- Favicon 16/32 och `icon.svg`: ring med punkt. `apple-icon.png` (180, vitt), `manifest.ts` med 192/512 och maskerbar 512 i `public/icons/`.
+- Startsidan: länken "Se vad O-Tid kan (film, 1 min)" bara med `NEXT_PUBLIC_INTRO_FILM_URL` (läses vid förfrågan, docs/drift.md).
+- Verifierat: enhetstest för adressen, publikt och hjalp i Playwright, skärmbilder 1280/390 ljust och mörkt.
+
 ### 2026-11-02 – Banläggningens luckor mot Purple Pen (grenen banlaggning-egenskaper, ADR-0190)
 - Banans egenskaper i fliken Banor: vanlig/poängbana (inte med gafflingar), stigning, fast längd (tom = uträknad), poäng per kontroll i poängbanans lista med summa, ordningen med upp/ned och dra. `UPDATE_COURSE` tar `kind` och `null`, ny `SET_POINTS`; `PUT_OBJECTS.courseOrder` gör att ångra av en flytt bara rör ordningen (och ångra av ett namnbyte inte flyttar tillbaka andras flytt).
 - Utskriftens rubrik visar stigningen; beskrivningen och `$(CourseLength)`/`$(CourseClimb)` hade redan längd och stigning. Banfilsjämförelsen: egen rad för ändrad längd eller stigning (`SET_COURSE_MEASURES`, räknar inte om), ny ordning ger inga rader.

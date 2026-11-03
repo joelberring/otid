@@ -16,6 +16,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Editorn: fliken och knappen "Träning" med formerna som kort, avsnitten i följd med markering vid bytet (text med pil eller tvärstreck), "Visa träningen" för före/efter. Utskrift: stjärnans uddar, kepsens A/B, kontrollantens karta och kartbitar (`PIECES`).
 - Verifierat: lint, typecheck, test (paketen och webbens lib, ny `training*`), PDF med dekorfärger och klippning (fixturen och Högdalen via `OTID_REAL_MAP`: 126 symboler, 1 i Övrigt), Playwright `banlaggning-traning` (1280/390).
 - Spegelvänd karta (kortet Spegel, ADR-0192 beslut 12) i förhandsvisningen och PDF:en; formernas svenska taggar `TRAINING_TAGS` (beslut 13) för klubbarkivet.
+- Rättat: ändringar som gick genom utkastet (ny bana, flytta kontroll …) tappade `document.training`; knappen Träning fäller upp panelen på telefonen.
 - Ej gjort: roterad karta (PDF:ens transform saknar rotation), kepsens etiketter i beskrivningen.
 
 ### 2026-11-03 – Loggan och "Banläggning och tidtagning för orientering" (grenen logga)

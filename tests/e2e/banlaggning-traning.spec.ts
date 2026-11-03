@@ -175,6 +175,9 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   const star = document.courses.find(course => course.name === "Stjärna 31")!;
   expect(star).toBeDefined();
   expect(document.training!.courses[star.id]!.star).toMatchObject({ print: "PER_CONTROL" });
+  // En ny bana tar inte bort de andra banornas träning.
+  expect(document.training!.courses["1"]!.sections).toHaveLength(3);
+  expect(document.training!.courses["2"]!.mirror).toBe(true);
   await owner.getByTestId("course-setting-view").selectOption({ label: "Stjärna 31" });
   await shot(owner, "10-stjarna-1280");
 

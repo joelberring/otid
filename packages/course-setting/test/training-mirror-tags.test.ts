@@ -54,3 +54,21 @@ describe("träningsformernas taggar (ADR-0192 beslut 13)", () => {
     expect(trainingTags(b.document, course)).toEqual(["Kurvbild", "Fönster", "Sista säkra", "Keps", "Spegel"]);
   });
 });
+
+describe("träningen följer med vanliga ändringar (ADR-0192 beslut 1)", () => {
+  it("ny bana, flyttad och ny kontroll, ändrad bana och kopierad bana behåller träningen; borttagen bana tar med sin", () => {
+    const { b, course, controls } = lineCourse();
+    b.edit({ type: "PUT_TRAINING", courses: { [course]: training({ mirror: true }) },
+      attackPoints: { t1: { id: "t1", from: controls[1]!, to: controls[2]!, at: { x: 15, y: 5 } } } });
+    const other = b.course("Kort");
+    b.edit({ type: "PUT_TRAINING", courses: { [other]: training() } });
+    b.edit({ type: "MOVE_CONTROL", control: controls[2]!, at: { x: 21, y: 11 } });
+    b.edit({ type: "ADD_CONTROL", kind: "NORMAL", at: { x: 50, y: 50 } });
+    b.edit({ type: "UPDATE_COURSE", course, changes: { name: "Träning 2" } });
+    b.edit({ type: "DUPLICATE_COURSE", course, name: "Kopia" });
+    expect(b.document.training?.courses[course]?.mirror).toBe(true);
+    expect(Object.keys(b.document.training!.attackPoints)).toEqual(["t1"]);
+    b.edit({ type: "DELETE_COURSE", course: other });
+    expect(Object.keys(b.document.training!.courses)).toEqual([course]);
+  });
+});

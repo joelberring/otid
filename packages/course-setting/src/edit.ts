@@ -28,6 +28,8 @@ interface Draft {
   legs: Record<string, Leg>;
   specialObjects: CourseSettingDocument["specialObjects"];
   raw: CourseSettingDocument["raw"];
+  /** Träningsläget (ADR-0192) följer med orört genom banornas och kontrollernas ändringar. */
+  training: CourseSettingDocument["training"];
 }
 
 const notFound = (what: string) => new CourseSettingEditError("NOT_FOUND", `${what} finns inte`);
@@ -36,11 +38,20 @@ const invalidEdit = (message: string) => new CourseSettingEditError("INVALID", m
 function draftOf(document: CourseSettingDocument): Draft {
   return {
     event: document.event, controls: { ...document.controls }, courseControls: { ...document.courseControls },
-    courses: [...document.courses], legs: { ...document.legs }, specialObjects: [...document.specialObjects], raw: document.raw
+    courses: [...document.courses], legs: { ...document.legs }, specialObjects: [...document.specialObjects], raw: document.raw,
+    training: document.training
   };
 }
 
-const asDocument = (draft: Draft): CourseSettingDocument => ({ version: 1, ...draft });
+/** Dokumentet ur utkastet; en borttagen banas träning tas bort med banan (ADR-0192 beslut 1). */
+function asDocument(draft: Draft): CourseSettingDocument {
+  const { training, ...rest } = draft;
+  if (!training) return { version: 1, ...rest };
+  const ids = new Set(rest.courses.map(course => course.id));
+  const gone = Object.keys(training.courses).filter(id => !ids.has(id));
+  if (gone.length === 0) return { version: 1, ...rest, training };
+  return { version: 1, ...rest, training: { ...training, courses: Object.fromEntries(Object.entries(training.courses).filter(([id]) => ids.has(id))) } };
+}
 
 function control(draft: Draft, id: string): ControlPoint {
   const found = draft.controls[id];

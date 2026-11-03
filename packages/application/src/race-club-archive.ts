@@ -84,8 +84,7 @@ async function view(tx: DbExecutor, raceId: string, accountId: string, now: Date
   const [map] = await tx.select({ fileName: schema.raceMapSources.fileName, sha: schema.raceMapSources.contentSha256 }).from(schema.raceMapSources)
     .where(eq(schema.raceMapSources.raceId, raceId));
   const [setting] = await tx.select({ raceId: schema.courseSettings.raceId }).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
-  const [courseFile] = await tx.select({ id: schema.importFiles.id }).from(schema.importFiles)
-    .where(and(eq(schema.importFiles.raceId, raceId), eq(schema.importFiles.kind, "CourseData"))).limit(1);
+  const courseFile = await latestCourseFile(tx, raceId);
   return { formatVersion: 1, raceId, raceDate: facts.race.raceDate, organiser: organisation ? organisationSummary(organisation) : null,
     suggestion: suggested ? organisationSummary(suggested) : null, space: space ? "ADMIN" : "NONE", spaceName: space?.name ?? null,
     finished: raceFinishedForArchive({ raceDate: facts.race.raceDate, today: localRaceDate(now, facts.event.timeZone), coursesPublic }),
@@ -128,6 +127,21 @@ export async function setRaceOrganiserAsAdmin(db: Database, input: RaceSessionPr
 }
 
 export type RaceClubArchiveResult = Failure | { status: "no-space" | "secret" | "already" | "not-lifted" } | { status: "ok"; view: RaceClubArchiveView };
+
+/**
+ * Den senast inlästa banfilen (IOF CourseData): "Läs in banfil" (en godkänd banfil, `source_snapshot` med källan COURSE_FILE),
+ * annars importen av IOF XML. Eventors ögonblicksbilder (med anmälda) används aldrig.
+ */
+async function latestCourseFile(tx: DbExecutor, raceId: string): Promise<{ xml: string; fileName: string | null } | undefined> {
+  const [snapshot] = await tx.select({ xml: schema.sourceSnapshots.originalXml, fileName: schema.sourceSnapshots.fileName, at: schema.sourceSnapshots.appliedAt })
+    .from(schema.sourceSnapshots).where(and(eq(schema.sourceSnapshots.raceId, raceId), eq(schema.sourceSnapshots.source, "COURSE_FILE"),
+      sql`${schema.sourceSnapshots.appliedAt} is not null`, sql`${schema.sourceSnapshots.originalXml} is not null`))
+    .orderBy(desc(schema.sourceSnapshots.appliedAt)).limit(1);
+  const [imported] = await tx.select({ xml: schema.importFiles.originalXml, at: schema.importFiles.createdAt }).from(schema.importFiles)
+    .where(and(eq(schema.importFiles.raceId, raceId), eq(schema.importFiles.kind, "CourseData"))).orderBy(desc(schema.importFiles.createdAt)).limit(1);
+  if (snapshot?.xml && (!imported || snapshot.at! >= imported.at)) return { xml: snapshot.xml, fileName: snapshot.fileName?.slice(0, 200) ?? null };
+  return imported ? { xml: imported.xml, fileName: null } : undefined;
+}
 
 const stem = (fileName: string) => fileName.replace(/\.[A-Za-z0-9]{1,6}$/u, "").trim();
 const safeName = (value: string) => value.replace(/[^\p{L}\p{N} ._()-]/gu, "_").trim().slice(0, 120) || "banor";
@@ -205,9 +219,8 @@ export async function liftRaceToClubArchive(db: Database, input: RaceSessionProo
       files.push({ kind: "COURSE_DATA", fileName: `${safeName(title)} IOF.xml`, bytes: Buffer.from(writeIofCourseData(document,
         { mapBounds: source?.bounds, createTime: now }), "utf8") });
     } else {
-      const [imported] = await tx.select({ xml: schema.importFiles.originalXml }).from(schema.importFiles)
-        .where(and(eq(schema.importFiles.raceId, raceId), eq(schema.importFiles.kind, "CourseData"))).orderBy(desc(schema.importFiles.createdAt)).limit(1);
-      if (imported) files.push({ kind: "COURSE_DATA", fileName: `${safeName(title)} banor.xml`, bytes: Buffer.from(imported.xml, "utf8") });
+      const imported = await latestCourseFile(tx, raceId);
+      if (imported) files.push({ kind: "COURSE_DATA", fileName: imported.fileName ?? `${safeName(title)} banor.xml`, bytes: Buffer.from(imported.xml, "utf8") });
     }
 
     const entryId = randomUUID();

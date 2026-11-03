@@ -82,9 +82,12 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   // 4. Administratören skapar en tävling i går (arrangörsklubben är förvald) och bjuder in medlemmen "Från klubben".
   await admin.goto("/organizer");
   const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling");
-  await admin.getByLabel("IOF XML 3.0").setInputFiles(fixture("course-data-forked.xml"));
-  await admin.getByRole("button", { name: "Importera", exact: true }).click();
-  await expect(admin.getByRole("status").filter({ hasText: "Filen är inläst" })).toBeVisible();
+  // Banorna ur en banfil (Banor → Läs in banfil).
+  const files = admin.getByRole("region", { name: "Banfil" });
+  await files.getByLabel("Banfil (IOF XML)").setInputFiles(fixture("course-file-1.xml"));
+  await files.getByRole("button", { name: "Läs in banfil" }).click();
+  await files.getByRole("region", { name: "Skillnader mot course-file-1.xml" }).getByRole("button", { name: /^Godkänn \d+ ändringar$/ }).click();
+  await expect(files.getByText(/ändringar har sparats/)).toBeVisible();
   await openStep(admin, "Inställningar");
   const fromClub = admin.getByTestId("from-club");
   await fromClub.locator("summary").click();

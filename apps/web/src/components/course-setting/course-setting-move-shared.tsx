@@ -4,10 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { applyEdit } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { moveSharedSv as text } from "../../i18n/course-setting-move-sv";
-import { browserStorage } from "../../lib/course-setting-description";
 import { applySteps, cancelDrag, endDrag, type EditorState } from "../../lib/course-setting-editor";
 import {
-  courseNameList, MOVE_THRESHOLD_CHOICES, newControlEdit, readMoveThreshold, readRememberedChoice, sessionStore, sharedMoveQuestion,
+  courseNameList, localStore, MOVE_THRESHOLD_CHOICES, newControlEdit, readMoveThreshold, readRememberedChoice, sessionStore, sharedMoveQuestion,
   writeMoveThreshold, writeRememberedChoice, type MoveChoice, type SharedMove
 } from "../../lib/course-setting-move-shared";
 import type { EditorStore } from "../../lib/course-setting-sync";
@@ -54,7 +53,7 @@ export function useMoveShared({ raceId, store, apply, edit, poke, say }: {
   say: (message: { tone: "ok" | "attention"; text: string }) => void;
 }) {
   const [pending, setPending] = useState<{ question: SharedMove; source: Source }>();
-  const [threshold, setThreshold] = useState(() => readMoveThreshold(browserStorage()));
+  const [threshold, setThreshold] = useState(() => readMoveThreshold(localStore()));
   const [remembered, setRemembered] = useState(() => readRememberedChoice(sessionStore(), raceId));
 
   function finish(outcome: MoveOutcome, question: SharedMove, source: Source, fromMemory: boolean) {
@@ -123,7 +122,7 @@ export function useMoveShared({ raceId, store, apply, edit, poke, say }: {
       <label className={main.stack}>{text.settings.threshold}
         <select value={threshold} data-testid="course-setting-move-threshold" onChange={event => {
           const value = Number(event.target.value);
-          setThreshold(value); writeMoveThreshold(browserStorage(), value);
+          setThreshold(value); writeMoveThreshold(localStore(), value);
         }}>{choices.map(value => <option key={value} value={value}>{text.settings.meters(value)}</option>)}</select></label>
       <p className={main.muted}>{text.settings.help(mm, mapScale)}</p>
       <div className={main.row}>

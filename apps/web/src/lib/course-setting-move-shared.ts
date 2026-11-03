@@ -122,6 +122,11 @@ export function writeRememberedChoice(storage: Storage | undefined, raceId: stri
   } catch (error) { console.info("Valet för flyttade kontroller sparades inte i webbläsaren", error); }
 }
 
+/** Flikens session ("Kom ihåg") och webbläsarens lagring (gränsen); saknas eller blockerad = undefined. */
 export function sessionStore(): Storage | undefined {
   try { return typeof window === "undefined" ? undefined : window.sessionStorage; } catch { return undefined; }
+}
+
+export function localStore(): Storage | undefined {
+  try { return typeof window === "undefined" ? undefined : window.localStorage; } catch { return undefined; }
 }

@@ -5,44 +5,62 @@ import type { WarningCollector } from "../warnings";
 import { indexBlocks, type Bytes } from "./bytes";
 import { coordsToParts, readCoords } from "./coords";
 import {
-  AREA, ELEMENT, ELEMENT_TYPE, LINE, LINE_SYMBOL_FLAG, POINT, RECTANGLE, SYMBOL, SYMBOL_BLOCK_SIZE, SYMBOL_TYPE, TEXT, UNIT
+  AREA, ELEMENT, ELEMENT_TYPE, LINE, LINE_SYMBOL_FLAG, POINT, RECTANGLE, SYMBOL, SYMBOL_BLOCK_SIZE, SYMBOL_TYPE, TEXT, UNIT,
+  VARIANT_V12, type OcdVariant
 } from "./layout";
 
 const MAX_SYMBOLS = 100_000;
 const MAX_SYMBOL_BYTES = 1 << 20;
 const POINT_PER_PT = 25.4 / 72;
+/** Fälten i `LINE`, `AREA` … räknas från denna position (version 12). */
+const BODY_V12 = 796;
 
-export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCollector): Map<string, MapSymbol> {
+/** OCAD 8 sparar 101.2 som 1012; modellen använder version 9:s 101002. */
+export function v8SymbolNumber(number: number): number {
+  return Math.floor(number / 10) * 1000 + (number % 10);
+}
+
+interface SymbolHead { readonly size: number; readonly number: number; readonly type: number }
+
+function readHead(bytes: Bytes, position: number, variant: OcdVariant): SymbolHead {
+  if (variant.symbolHeader === "V8") {
+    bytes.check(position, 6, "symbol");
+    return { size: bytes.i16(position), number: v8SymbolNumber(bytes.i16(position + 2)), type: bytes.i16(position + 4) };
+  }
+  return { size: bytes.i32(position + SYMBOL.size), number: bytes.i32(position + SYMBOL.number), type: bytes.u8(position + SYMBOL.type) };
+}
+
+export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCollector, variant: OcdVariant = VARIANT_V12): Map<string, MapSymbol> {
   const symbols = new Map<string, MapSymbol>();
   const borders = new Map<string, number>();
   if (first === 0) return symbols;
+  // Typdelens fält läses från `position + shift + LINE.…` så att samma konstanter gäller alla versioner.
+  const shift = variant.symbolBody - BODY_V12;
+  const headerEnd = variant.symbolBody;
   for (const block of indexBlocks(bytes, first, SYMBOL_BLOCK_SIZE)) {
     for (let index = 0; index < 256; index++) {
       const position = bytes.i32(block + 4 + index * 4);
       if (position <= 0) continue;
       if (symbols.size >= MAX_SYMBOLS) break;
-      const size = bytes.i32(position + SYMBOL.size);
-      if (size < SYMBOL.end || size > MAX_SYMBOL_BYTES) { warnings.add("BROKEN_SYMBOL"); continue; }
+      const { size, number, type } = readHead(bytes, position, variant);
+      if (size < headerEnd || size > MAX_SYMBOL_BYTES) { warnings.add("BROKEN_SYMBOL"); continue; }
       bytes.check(position, size, "symbol");
-      const number = bytes.i32(position + SYMBOL.number);
-      const type = bytes.u8(position + SYMBOL.type);
       const id = String(number);
-      const base = {
-        id,
-        code: ocdSymbolCode(number),
-        name: bytes.utf16(position + SYMBOL.description, SYMBOL.descriptionBytes),
-        hidden: (bytes.u8(position + SYMBOL.status) & 2) !== 0
-      };
+      const description = variant.description.kind === "UTF16"
+        ? bytes.utf16(position + variant.description.at, SYMBOL.descriptionBytes)
+        : bytes.pascal(position + variant.description.at, 31);
+      const base = { id, code: ocdSymbolCode(number), name: description, hidden: (bytes.u8(position + SYMBOL.status) & 2) !== 0 };
       // Symbolen ryms i filen (kontrollerat ovan). Är den kortare än typens fasta fält ritas den inte, men objekten behålls.
-      const minimum = MIN_SIZE[type];
+      const minimum = minimumSize(type, variant);
+      const at = position + shift;
       let symbol: MapSymbol | null;
       if (minimum === undefined) symbol = null;
-      else if (size < minimum) { warnings.add("BROKEN_SYMBOL"); symbol = emptySymbol(type, base); }
-      else symbol = convert(bytes, position, position + size, type, base, warnings);
+      else if (size - shift < minimum) { warnings.add("BROKEN_SYMBOL"); symbol = emptySymbol(type, base); }
+      else symbol = convert(bytes, at, position + size, type, base, variant, warnings);
       if (!symbol) { warnings.add("UNKNOWN_SYMBOL_TYPE"); continue; }
       symbols.set(id, symbol);
-      if (type === SYMBOL_TYPE.area && bytes.u8(position + AREA.borderOn) !== 0) {
-        const border = bytes.i32(position + AREA.borderSymbol);
+      if (type === SYMBOL_TYPE.area && !variant.areaV8 && bytes.u8(at + AREA.borderOn) !== 0) {
+        const border = bytes.i32(at + AREA.borderSymbol);
         if (border > 0) borders.set(id, border);
       }
     }
@@ -56,15 +74,18 @@ export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCol
   return symbols;
 }
 
-/** Minsta storlek per symboltyp för att de fasta fälten ska rymmas. */
-const MIN_SIZE: Readonly<Record<number, number>> = {
-  [SYMBOL_TYPE.point]: POINT.elements,
-  [SYMBOL_TYPE.line]: LINE.elements,
-  [SYMBOL_TYPE.area]: AREA.elements,
-  [SYMBOL_TYPE.text]: TEXT.italic + 2,
-  [SYMBOL_TYPE.lineText]: TEXT.italic + 2,
-  [SYMBOL_TYPE.rectangle]: RECTANGLE.width + 2
-};
+/** Minsta storlek per symboltyp (räknat som i version 12) för att de fasta fälten ska rymmas. */
+function minimumSize(type: number, variant: OcdVariant): number | undefined {
+  switch (type) {
+    case SYMBOL_TYPE.point: return POINT.elements;
+    case SYMBOL_TYPE.line: return LINE.elements;
+    case SYMBOL_TYPE.area: return variant.areaData.elements;
+    case SYMBOL_TYPE.text:
+    case SYMBOL_TYPE.lineText: return TEXT.italic + 2;
+    case SYMBOL_TYPE.rectangle: return RECTANGLE.width + 2;
+    default: return undefined;
+  }
+}
 
 type Base = Pick<MapSymbol, "id" | "code" | "name" | "hidden">;
 
@@ -80,14 +101,16 @@ function emptySymbol(type: number, base: Base): MapSymbol | null {
   }
 }
 
-function convert(bytes: Bytes, at: number, end: number, type: number, base: Base, warnings: WarningCollector): MapSymbol | null {
+function convert(
+  bytes: Bytes, at: number, end: number, type: number, base: Base, variant: OcdVariant, warnings: WarningCollector
+): MapSymbol | null {
   switch (type) {
     case SYMBOL_TYPE.point: {
       const words = bytes.u16(at + POINT.dataSize);
       return { ...base, kind: "POINT", elements: readElements(bytes, at + POINT.elements, words, end, warnings) };
     }
-    case SYMBOL_TYPE.line: return { ...base, kind: "LINE", ...lineSymbol(bytes, at, end, warnings) };
-    case SYMBOL_TYPE.area: return { ...base, kind: "AREA", ...areaSymbol(bytes, at, end, warnings) };
+    case SYMBOL_TYPE.line: return { ...base, kind: "LINE", ...lineSymbol(bytes, at, end, variant, warnings) };
+    case SYMBOL_TYPE.area: return { ...base, kind: "AREA", ...areaSymbol(bytes, at, end, variant, warnings) };
     case SYMBOL_TYPE.text:
     case SYMBOL_TYPE.lineText: return { ...base, kind: "TEXT", ...textSymbol(bytes, at) };
     case SYMBOL_TYPE.rectangle: {
@@ -148,7 +171,7 @@ function styleOf(style: number): Pick<StrokeStyle, "cap" | "join"> {
 }
 
 function lineSymbol(
-  bytes: Bytes, at: number, end: number, warnings: WarningCollector
+  bytes: Bytes, at: number, end: number, variant: OcdVariant, warnings: WarningCollector
 ): Pick<LineSymbol, "strokes" | "repeated" | "between" | "corner" | "start" | "end"> {
   const strokes: StrokeStyle[] = [];
   const style = styleOf(bytes.u16(at + LINE.style));
@@ -183,7 +206,7 @@ function lineSymbol(
     strokes.push({ color: bytes.u16(at + LINE.color), width, ...style, dash });
   }
 
-  return { strokes, ...lineDecorations(bytes, at, end, warnings) };
+  return { strokes, ...lineDecorations(bytes, at, end, variant, warnings) };
 }
 
 /**
@@ -193,8 +216,11 @@ function lineSymbol(
  * Primärsymbolen ligger i mitten av streckens mellanrum (eller med strecklängdens avstånd när linjen inte är streckad),
  * första och sista slutlängden in från ändarna; `symbolCount` symboler per ställe med `symbolDistance` emellan.
  */
-function lineDecorations(bytes: Bytes, at: number, end: number, warnings: WarningCollector): Pick<LineSymbol, "repeated" | "between" | "corner" | "start" | "end"> {
-  const flags = bytes.u8(at + LINE.useSymbolFlags);
+function lineDecorations(
+  bytes: Bytes, at: number, end: number, variant: OcdVariant, warnings: WarningCollector
+): Pick<LineSymbol, "repeated" | "between" | "corner" | "start" | "end"> {
+  // Före version 11 finns inga flaggor: en punktsymbol med ritdata används.
+  const flags = variant.lineSymbolFlags ? bytes.u8(at + LINE.useSymbolFlags) : 0xff;
   const sizes = [LINE.primaryDataSize, LINE.secondaryDataSize, LINE.cornerDataSize, LINE.startDataSize, LINE.endDataSize]
     .map(offset => bytes.u16(at + offset));
   let position = at + LINE.elements;
@@ -226,8 +252,17 @@ function lineDecorations(bytes: Bytes, at: number, end: number, warnings: Warnin
   };
 }
 
-function areaSymbol(bytes: Bytes, at: number, end: number, warnings: WarningCollector): Pick<AreaSymbol, "fill" | "hatches" | "pattern"> {
-  const fill = bytes.u8(at + AREA.fillOn) !== 0 ? bytes.u16(at + AREA.fillColor) : undefined;
+/**
+ * Version 8 har ingen kantlinje: de fyra första byten är AreaFlags och FillOn (16 bit, vid 798) i stället för kantlinjens
+ * nummer. Fyllningens färg, rastret och mönstret ligger på samma ställe i alla versioner.
+ */
+const AREA_V8_FILL_ON = 798;
+
+function areaSymbol(
+  bytes: Bytes, at: number, end: number, variant: OcdVariant, warnings: WarningCollector
+): Pick<AreaSymbol, "fill" | "hatches" | "pattern"> {
+  const fillOn = variant.areaV8 ? bytes.u16(at + AREA_V8_FILL_ON) !== 0 : bytes.u8(at + AREA.fillOn) !== 0;
+  const fill = fillOn ? bytes.u16(at + AREA.fillColor) : undefined;
   const hatches: HatchStyle[] = [];
   const hatchMode = bytes.u16(at + AREA.hatchMode);
   if (hatchMode === 1 || hatchMode === 2) {
@@ -244,7 +279,7 @@ function areaSymbol(bytes: Bytes, at: number, end: number, warnings: WarningColl
   if (structureMode === 1 || structureMode === 2) {
     const dx = bytes.u16(at + AREA.structureWidth) * UNIT;
     const dy = bytes.u16(at + AREA.structureHeight) * UNIT;
-    const elements = readElements(bytes, at + AREA.elements, bytes.u16(at + AREA.dataSize), end, warnings);
+    const elements = readElements(bytes, at + variant.areaData.elements, bytes.u16(at + variant.areaData.dataSize), end, warnings);
     const angle = normalizeAngle(bytes.i16(at + AREA.structureAngle) / 10);
     if (elements.length > 0 && dx > 0 && dy > 0) {
       pattern = structureMode === 1

@@ -32,18 +32,32 @@ export class Bytes {
     return new TextDecoder("utf-16le").decode(this.bytes.subarray(offset, end));
   }
 
-  /** UTF-8 fram till första nolltecknet, högst `maxBytes`. */
+  /**
+   * 8-bitarstext fram till första nolltecknet, högst `maxBytes`: UTF-8 (OCAD 12 och senare) eller, när bytesen inte är giltig
+   * UTF-8, Windows-1252 (OCAD 8–11 skrev ofta så, t.ex. "Täckande vitt").
+   */
   utf8(offset: number, maxBytes: number): string {
     this.check(offset, maxBytes, "text");
     let end = offset;
     while (end < offset + maxBytes && this.bytes[end]! !== 0) end++;
-    return new TextDecoder("utf-8").decode(this.bytes.subarray(offset, end));
+    return decode8(this.bytes.subarray(offset, end));
   }
 
-  /** Pascalsträng: en längdbyte följd av högst `capacity` tecken (UTF-8 i OCAD 12 och senare). */
+  /** Pascalsträng: en längdbyte följd av högst `capacity` tecken. */
   pascal(offset: number, capacity: number): string {
     const length = Math.min(this.u8(offset), capacity);
     return this.utf8(offset + 1, length);
+  }
+}
+
+const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true });
+const WINDOWS_1252 = new TextDecoder("windows-1252");
+
+export function decode8(data: Uint8Array): string {
+  try {
+    return STRICT_UTF8.decode(data);
+  } catch {
+    return WINDOWS_1252.decode(data);
   }
 }
 

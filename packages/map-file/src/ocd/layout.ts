@@ -1,10 +1,11 @@
 /**
- * Positioner i OCAD:s binärformat, version 12 och senare (OCAD 12, 2018, 2019 …). Egen sammanställning ur OCAD:s
- * formatbeskrivning och kontrollerad mot ägarens filer (Djurgården 2025, OCAD 2018.8). Alla tal är little-endian.
+ * Positioner i OCAD:s binärformat. Konstanterna nedan gäller version 12 och senare (OCAD 12, 2018, 2019 …); äldre
+ * versioner beskrivs av `OcdVariant`. Egen sammanställning ur OCAD:s formatbeskrivningar och kontrollerad mot ägarens
+ * filer (Djurgården 2025, OCAD 2018.8, och klubbarkivets OCAD 8–11). Alla tal är little-endian.
  */
 
 export const OCD_MARK = 0x0cad;
-export const MIN_VERSION = 12;
+export const MIN_VERSION = 8;
 
 export const HEADER = {
   mark: 0, fileType: 2, version: 4, subversion: 6, subsubversion: 7,
@@ -70,3 +71,86 @@ export const COORD_FLAG = {
 
 /** 0,01 mm → mm. */
 export const UNIT = 1 / 100;
+
+/**
+ * Skillnaderna mellan versionerna (ADR-0196). Symbolernas typdelar (linje, yta, punkt, text, rektangel) har samma
+ * inbördes ordning i version 8–2020; bara den gemensamma början är olika lång. Fälten i `LINE`, `AREA` … räknas därför från
+ * 796 och flyttas med `symbolBody - 796`.
+ *
+ * - Version 8: 348 byte symbolhuvud (storlek, nummer och typ som 16-bitarstal, beskrivningen som Pascalsträng), färgerna i
+ *   ett eget huvud efter filhuvudet, skalan och georeferensen i inställningsposten, objektindex om 24 byte och objekthuvud
+ *   om 32 byte. Symbolnumret är tio gånger ISOM-numret plus undernumret (1012 = 101.2).
+ * - Version 9 och 10: 572 byte symbolhuvud (beskrivningen som Pascalsträng), objekthuvud om 40 byte.
+ * - Version 11: 796 byte symbolhuvud (beskrivningen i UTF-16) som version 12, objekthuvud om 40 byte.
+ * - Version 9–11: ytsymbolens ritdata börjar 4 byte tidigare än i version 12. Strängarna är ofta Windows-1252.
+ */
+export interface OcdVariant {
+  readonly version: number;
+  /** Var symbolens typdel börjar. */
+  readonly symbolBody: number;
+  /** Symbolhuvudets form: v8 (16-bitars fält) eller v9+ (32-bitars storlek och nummer). */
+  readonly symbolHeader: "V8" | "V9";
+  /** Beskrivningen: Pascalsträng (v8 vid 52, v9–10 vid 56) eller UTF-16 (v11+ vid 56). */
+  readonly description: { readonly at: number; readonly kind: "PASCAL" | "UTF16" };
+  /** Ytsymbolens datastorlek och ritdata, i samma räkning som `AREA` (från 796). */
+  readonly areaData: { readonly dataSize: number; readonly elements: number };
+  /** Ytsymbolens fält före mönstret i v8: AreaFlags, FillOn (16 bit), FillColor, sedan raster. Saknar kantlinje. */
+  readonly areaV8: boolean;
+  /** Linjesymbolens flaggor för sekundär-, hörn-, start- och slutsymbol finns (v11+). Annars används de som har data. */
+  readonly lineSymbolFlags: boolean;
+  readonly index: {
+    readonly blockSize: number; readonly entrySize: number; readonly position: number;
+    /** Längden i byte (v9+) eller i koordinater (v8, 16 bit). */
+    readonly length: number; readonly lengthInCoords: boolean; readonly symbol: number; readonly symbol16: boolean;
+    /** Status (1 = normal) finns inte i v8; där är ett borttaget objekt symbol 0. */
+    readonly status: number | null;
+  };
+  readonly object: {
+    readonly symbol16: boolean; readonly type: number; readonly angle: number;
+    readonly coordCount: number; readonly coordCount16: boolean; readonly textCount: number; readonly coords: number;
+    /** v8: byte som säger om texten är UTF-16 (1) eller Windows-1252 (0). */
+    readonly unicodeFlag: number | null;
+  };
+}
+
+const INDEX_V9 = {
+  blockSize: OBJECT_BLOCK_SIZE, entrySize: 40, position: 16, length: 20, lengthInCoords: false, symbol: 24, symbol16: false, status: 30
+} as const;
+const OBJECT_V9 = { symbol16: false, type: 4, angle: 6, coordCount: 8, coordCount16: false, textCount: 12, coords: 40, unicodeFlag: null } as const;
+
+export const VARIANT_V12: OcdVariant = {
+  version: 12, symbolBody: 796, symbolHeader: "V9", description: { at: 56, kind: "UTF16" },
+  areaData: { dataSize: 830, elements: 832 }, areaV8: false, lineSymbolFlags: true,
+  index: INDEX_V9,
+  object: { symbol16: false, type: 4, angle: 6, coordCount: 44, coordCount16: false, textCount: 48, coords: 56, unicodeFlag: null }
+};
+
+export const VARIANT_V11: OcdVariant = {
+  ...VARIANT_V12, version: 11, areaData: { dataSize: 826, elements: 828 }, object: OBJECT_V9
+};
+
+export const VARIANT_V9: OcdVariant = {
+  ...VARIANT_V11, version: 9, symbolBody: 572, description: { at: 56, kind: "PASCAL" }, lineSymbolFlags: false
+};
+
+export const VARIANT_V8: OcdVariant = {
+  version: 8, symbolBody: 348, symbolHeader: "V8", description: { at: 52, kind: "PASCAL" },
+  areaData: { dataSize: 826, elements: 828 }, areaV8: true, lineSymbolFlags: false,
+  index: { blockSize: 4 + 256 * 24, entrySize: 24, position: 16, length: 20, lengthInCoords: true, symbol: 22, symbol16: true, status: null },
+  object: { symbol16: true, type: 2, angle: 8, coordCount: 4, coordCount16: true, textCount: 6, coords: 32, unicodeFlag: 3 }
+};
+
+export function variantFor(version: number): OcdVariant | null {
+  if (version >= 12) return VARIANT_V12;
+  if (version === 11) return VARIANT_V11;
+  if (version === 9 || version === 10) return { ...VARIANT_V9, version };
+  if (version === 8) return VARIANT_V8;
+  return null;
+}
+
+/** Version 8: färgtabellen efter filhuvudet och inställningsposten (skala och georeferens). */
+export const V8 = {
+  colorCount: 48, separationCount: 50, colors: 72, colorSize: 72, maxColors: 256, separations: 72 + 256 * 72, separationSize: 24,
+  maxSeparations: 32, setupPosition: 16, setupSize: 20,
+  setup: { scale: 24, realWorldX: 32, realWorldY: 40, realWorldAngle: 48 }
+} as const;

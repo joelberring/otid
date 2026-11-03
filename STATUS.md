@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Färre gafflingsvarianter (grenen gaffling-urval, ADR-0197, migration 0063)
+- Banläggningen: panelen Varianter i fliken Banor (fågelväg, längs vägval på begäran i vägvalens Worker, kontroller, skillnad mot kortaste i m och %), kryssruta per variant och "Begränsa varianter" (längst i alla avseenden, högst X % längre, högst N) med förhandsgranskning; skyddet behåller en variant per kontroll och sträcka. "8 varianter, 4 används (4 bortvalda som längre)".
+- Bortvalen sparas på banan (`UPDATE_COURSE.excludedVariants`: kod och kontrollkoder), så autosparande, ångra och versioner gäller; .ppen kan inte bära dem (Purple Pen har bara `relay-branch`), så de skrivs i `<otid:variants>` och följer med när en fil från Purple Pen läses in om varianterna finns kvar.
+- Bortvalda räknas inte i sammanfattning, kontroll, IOF XML eller utskrift och förs inte över; tävlingen får bara de behållna (lottning, fördelning, stafett och exporter oförändrade). `forkingReadiness` räknar bara behållna; arbetsytan visar antalet bortvalda.
+- Avläsningen: banversionen bär de bortvalda (`course_version.excluded_variants`); `excludedVariantsFitting` ger beskedet "passar BDF, som är bortvald" i avläsningen, kvittot, deltagarkortet och listan. Inget byts och ingen döms ut tyst.
+- Utjämnad bana och utjämnad stafett: varnar (panelen vid stafettlag, tävlingens rättvisekontroller), stoppar inte.
+- Verifierat: se slutrapporten för grenen.
+
 ### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
 - Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
 - Kontrollbeskrivningen på kartan hör till papperet (`paper-layout.ts`, `event.paperLayouts`, `SET_PAPER_LAYOUT`): på för varje bana, automatiskt i ett fritt hörn med varning när den täcker banan, dras/ändras på arket i förhandsvisningen (piltangenter också). Ritas inte i editorn; Purple Pens `descriptions` tolkas som platsen och skrivs tillbaka vid export. Mallens gamla plats gäller bara utan utplacering.

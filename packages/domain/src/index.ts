@@ -53,3 +53,4 @@ export * from "./forking-readiness";
 export * from "./variant-pruning";
 export * from "./race-title";
 export * from "./training-group";
+export * from "./club-affiliation";

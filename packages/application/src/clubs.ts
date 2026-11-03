@@ -8,6 +8,7 @@ import { schema, type Database } from "@o-tid/database";
 import {
   acceptClubInvitations, clubJournal, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubRole, type ClubTransaction
 } from "./club-access";
+import { withDerivedClubs } from "./club-affiliation-access";
 import { mapStorageQuota, mapStorageUsage } from "./map-content";
 import { UUID_PATTERN } from "./serialization";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
@@ -54,6 +55,8 @@ export async function listMyClubs(db: Database, proof: ClubProof, now = new Date
     const rows = await tx.select({ clubId: schema.clubs.id, name: schema.clubs.name, role: schema.clubMembers.role, addedBy: schema.clubMembers.addedBy })
       .from(schema.clubMembers).innerJoin(schema.clubs, eq(schema.clubs.id, schema.clubMembers.clubId))
       .where(eq(schema.clubMembers.accountId, auth.principal.accountId)).orderBy(asc(schema.clubs.name)).limit(200);
+    // ADR-0209 beslut 3: arkiven som kontot läser som bekräftad medlem.
+    await withDerivedClubs(tx, auth.principal.accountId, rows);
     if (rows.length === 0) return { status: "ok", clubs: [] } as const;
     const entries = new Map((await tx.select({ clubId: schema.clubArchiveEntries.clubId, value: count() }).from(schema.clubArchiveEntries)
       .where(inArray(schema.clubArchiveEntries.clubId, rows.map(row => row.clubId))).groupBy(schema.clubArchiveEntries.clubId))
@@ -95,8 +98,10 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     .where(eq(schema.clubImportTokens.clubId, clubId)).orderBy(desc(schema.clubImportTokens.createdAt)).limit(20) : [];
   const quota = mapStorageQuota();
   const used = await mapStorageUsage(tx, viewer.accountId);
+  const [linked] = await tx.select({ name: schema.organisations.name }).from(schema.clubSettings)
+    .innerJoin(schema.organisations, eq(schema.organisations.id, schema.clubSettings.organisationId)).where(eq(schema.clubSettings.clubId, clubId));
   return {
-    formatVersion: 1, clubId, name: club.name, viewer,
+    formatVersion: 1, clubId, name: club.name, viewer, eventorClub: linked?.name ?? null,
     // Läsare ser medlemmarnas namn men inte adresserna.
     members: members.map(member => ({ ...member, email: admin ? member.email : "", addedAt: member.addedAt.toISOString() })),
     invitations: invitations.map(row => ({ ...row, createdAt: row.createdAt.toISOString() })),

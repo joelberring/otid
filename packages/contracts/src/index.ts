@@ -307,3 +307,4 @@ export * from "./training-group";
 export * from "./club-archive";
 export * from "./club-archive-checks";
 export * from "./race-backup";
+export * from "./club-affiliation";

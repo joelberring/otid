@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ADR-0209: syntetisk klubblista (GET /api/organisations, Eventors äldre format). Påhittade klubbar utom namnet
+     OK Älvsjö-Örby; id:n, distrikt och adresser är påhittade. Strukturen är inte provad mot riktiga Eventor. -->
+<OrganisationList>
+  <Organisation>
+    <OrganisationId>1</OrganisationId>
+    <Name>Svenska Orienteringsförbundet</Name>
+    <ShortName>SOFT</ShortName>
+    <OrganisationTypeId>1</OrganisationTypeId>
+    <CountryId value="752" />
+  </Organisation>
+  <Organisation>
+    <OrganisationId>18</OrganisationId>
+    <Name>Stockholms Orienteringsförbund</Name>
+    <ShortName>Stockholm</ShortName>
+    <OrganisationTypeId>2</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>1</OrganisationId></ParentOrganisation>
+    <Country><CountryId value="752" /><Alpha2 value="SE" /><Alpha3 value="SWE" /><Name languageId="sv">Sverige</Name></Country>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9901</OrganisationId>
+    <Name>OK Älvsjö-Örby</Name>
+    <ShortName>OKÄÖ</ShortName>
+    <MediaName>OK Älvsjö-Örby</MediaName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>18</OrganisationId></ParentOrganisation>
+    <Country><Alpha3 value="SWE" /></Country>
+    <Address careOf="" street="Påhittad väg 1" city="Stockholm" zipCode="12345" type="postal" />
+    <ModifyDate><Date>2025-01-10</Date><Clock>09:00:00</Clock></ModifyDate>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9902</OrganisationId>
+    <Name>Skogsfalkens SOK</Name>
+    <ShortName>Skogsfalken</ShortName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>18</OrganisationId></ParentOrganisation>
+    <Country><Alpha3 value="SWE" /></Country>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9903</OrganisationId>
+    <Name>Mossbergets OK</Name>
+    <ShortName>Mossberget</ShortName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>18</OrganisationId></ParentOrganisation>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9904</OrganisationId>
+    <Name>IK Ängsgården</Name>
+    <ShortName>Ängsgården</ShortName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>18</OrganisationId></ParentOrganisation>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9905</OrganisationId>
+    <Name>Älvsjö Friluftsklubb</Name>
+    <ShortName>Älvsjö FK</ShortName>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>18</OrganisationId></ParentOrganisation>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9906</OrganisationId>
+    <Name>Fjällräven Orienteringsklubb</Name>
+    <OrganisationTypeId>3</OrganisationTypeId>
+    <ParentOrganisation><OrganisationId>18</OrganisationId></ParentOrganisation>
+  </Organisation>
+  <Organisation>
+    <OrganisationId>9907</OrganisationId>
+    <Name></Name>
+    <OrganisationTypeId>3</OrganisationTypeId>
+  </Organisation>
+</OrganisationList>

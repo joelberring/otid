@@ -8,6 +8,7 @@ import { fail, MAX_XML_BYTES } from "./xml";
 import {
   parseEventorCompetitorStream, parseEventorOrganisationStream, type EventorCompetitorList, type EventorOrganisationSummary
 } from "./competitors";
+import { parseEventorMemberStream, type EventorMemberHash } from "./members";
 
 /** Eventor Sverige. Andra adresser används bara när driften uttryckligen anger en (t.ex. en testserver). */
 export const EVENTOR_BASE_URL = "https://eventor.orientering.se";
@@ -215,6 +216,13 @@ export function eventorClient(options: EventorClientOptions) {
       return stream(`/api/export/cachedcompetitors?${query}includePreselectedClasses=false`,
         whole ? { maxBytes: MAX_COUNTRY_BYTES, timeoutMs: countryTimeoutMs } : { maxBytes: MAX_CLUB_BYTES, timeoutMs: timeoutMs * 4 },
         parseEventorCompetitorStream);
+    },
+    /**
+     * ADR-0209: klubbens medlemmar som person-id och hash av e-postadressen (`hashEmail`); inget annat lämnar tolkningen.
+     */
+    async organisationMembers(organisationId: string, hashEmail: (email: string) => string): Promise<readonly EventorMemberHash[]> {
+      return stream(`/api/persons/organisations/${id(organisationId)}?includeContactDetails=true`,
+        { maxBytes: MAX_CLUB_BYTES, timeoutMs: timeoutMs * 4 }, (chunks) => parseEventorMemberStream(chunks, hashEmail));
     },
     /** Alla organisationer i Eventor (förbund, distrikt och klubbar). */
     async organisations(): Promise<readonly EventorOrganisationSummary[]> {

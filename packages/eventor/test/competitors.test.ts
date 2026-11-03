@@ -90,6 +90,40 @@ describe("löpardatabasen: organisationer (Eventors äldre format)", () => {
   });
 });
 
+describe("ADR-0209: klubblistan med distrikt och land", () => {
+  it("läser organisationen ovanför och landet; adresser följer inte med", async () => {
+    const organisations = await parseEventorOrganisations(fixture("organisations-directory.xml"));
+    expect(organisations).toHaveLength(8);
+    expect(organisations.find(row => row.id === "9901")).toEqual({ id: "9901", name: "OK Älvsjö-Örby", shortName: "OKÄÖ", type: "CLUB",
+      parentId: "18", country: "SWE" });
+    expect(organisations.find(row => row.id === "18")).toMatchObject({ type: "DISTRICT", parentId: "1", country: "SWE" });
+    expect(organisations.find(row => row.id === "1")).toEqual({ id: "1", name: "Svenska Orienteringsförbundet", shortName: "SOFT",
+      type: "FEDERATION", country: "752" });
+    expect(organisations.find(row => row.id === "9906")).toEqual({ id: "9906", name: "Fjällräven Orienteringsklubb", type: "CLUB", parentId: "18" });
+    expect(JSON.stringify(organisations)).not.toContain("Påhittad väg");
+  });
+
+  it("IOF 3.0: ParentOrganisationId och Country code; ett ogiltigt föräldra-id hoppas över", async () => {
+    const xml = `<OrganisationList><Organisation type="Club"><Id>5</Id><Name>OK Ek</Name><ParentOrganisationId>6</ParentOrganisationId>
+      <Country code="nor">Norge</Country></Organisation><Organisation type="Club"><Id>7</Id><Name>OK Ask</Name>
+      <ParentOrganisationId>../x</ParentOrganisationId></Organisation></OrganisationList>`;
+    expect(await parseEventorOrganisations(xml)).toEqual([{ id: "5", name: "OK Ek", type: "CLUB", parentId: "6", country: "NOR" },
+      { id: "7", name: "OK Ask", type: "CLUB" }]);
+  });
+
+  it("hämtar klubblistan med nyckeln i headern (fetch-attrapp)", async () => {
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://eventor.orientering.se/api/organisations");
+      expect(init?.headers).toMatchObject({ ApiKey: KEY });
+      expect(url).not.toContain(KEY);
+      return response(fixture("organisations-directory.xml"));
+    });
+    const organisations = await eventorClient({ apiKey: KEY, fetch: fetch as unknown as typeof globalThis.fetch }).organisations();
+    expect(organisations.map(row => row.name)).toContain("OK Älvsjö-Örby");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 function response(body: string) {
   return new Response(body, { headers: { "content-type": "text/xml; charset=utf-8" } });
 }

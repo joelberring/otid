@@ -4,7 +4,7 @@ import {
   type ClubEntryThumbnailView, type ClubMapCheckView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { clubJournal, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
 import { courseFileSummary } from "./club-archive-import";
 import { imageDimensions } from "./image-dimensions";
 import { UUID_PATTERN } from "./serialization";
@@ -102,7 +102,7 @@ export async function readClubMapVersionThumbnail(db: Database, input: ClubProof
   : Promise<ThumbnailRead> {
   if (!validId(input.versionId)) return { status: "not-found" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
     const [row] = await tx.select({ png: schema.clubMapVersionChecks.thumbnail, checkedAt: schema.clubMapVersionChecks.checkedAt })
       .from(schema.clubMapVersionChecks)
@@ -114,7 +114,7 @@ export async function readClubMapVersionThumbnail(db: Database, input: ClubProof
 export async function readClubEntryThumbnail(db: Database, input: ClubProof & { clubId: string; entryId: string }, now = new Date()): Promise<ThumbnailRead> {
   if (!validId(input.entryId)) return { status: "not-found" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
     const [row] = await tx.select({ png: schema.clubArchiveEntryThumbnails.image, createdAt: schema.clubArchiveEntryThumbnails.createdAt })
       .from(schema.clubArchiveEntryThumbnails)

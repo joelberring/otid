@@ -13,3 +13,4 @@ export {
   EVENTOR_BASE_URL, eventorClient, isPlausibleEventorApiKey, normalizeEventorBaseUrl,
   type EventorClassesAndEntries, type EventorClient, type EventorClientOptions
 } from "./client";
+export { MAX_MEMBERS, normalizeMemberEmail, parseEventorMemberStream, type EventorMemberHash } from "./members";

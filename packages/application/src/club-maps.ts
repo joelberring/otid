@@ -6,7 +6,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { deriveRasterGeoreference, RasterGeoreferenceError } from "@o-tid/domain";
-import { clubJournal, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
+import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
 import { lockRaceForMutation } from "./concurrency";
 import { imageDimensions } from "./image-dimensions";
 import {
@@ -195,7 +195,7 @@ export async function readClubMapVersionHead(db: Database, input: ClubProof & { 
   : Promise<ClubFailure | { status: "ok"; fileName: string; format: "OCD" | "OMAP"; byteLength: number; contentId: string; sha256: string }> {
   if (!validId(input.versionId)) return { status: "not-found" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "MAP_BANK", now, false);
     if (member.status !== "ok") return member;
     const [row] = await tx.select({ fileName: schema.clubMapVersions.fileName, format: schema.clubMapVersions.format,
       byteLength: schema.clubMapVersions.byteLength, contentId: schema.mapContents.contentId, sha256: schema.clubMapVersions.contentSha256 })
@@ -247,7 +247,7 @@ export async function saveClubMapVersionToRace(db: Database, input: ClubProof & 
   image: MapContentInput; metadata: unknown }, now = new Date()): Promise<ClubMapToRaceResult> {
   if (!validId(input.versionId) || !validId(input.raceId)) return { status: "invalid-request" };
   const found = await db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "MAP_BANK", now, false);
     if (member.status !== "ok") return member;
     const row = await versionWithMap(tx, input.clubId, input.versionId);
     if (!row) return { status: "not-found" } as const;
@@ -295,7 +295,7 @@ export async function saveClubMapToGroupLibrary(db: Database, input: ClubProof &
     }
   }
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, true);
+    const member = await requireClubArea(tx, input, "MAP_BANK", now, true);
     if (member.status !== "ok") return member;
     if (!await leaderMembership(tx, { accountId: member.accountId, groupId: input.groupId }, "update")) return { status: "not-found" } as const;
     const row = await versionWithMap(tx, input.clubId, input.versionId);

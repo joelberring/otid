@@ -942,6 +942,14 @@ brickor till steg 7.
 - Vägval: justera tidsförskjutning mellan GPS-klocka och stationer per rutt; georeferens från KMZ eller världsfil (OCAD) i stället för tre punkter;
   kontrollernas lägen från banfilens koordinater; sträcktidsanalys för stafett (per sträcka); uppladdning av flera GPX-filer matchade på namn.
 
+- Rekning (ägaren 2026-11-03, väntar tills det befintliga är klart): flera ritare rekar samma kartversion i fält, utan nät och med synk,
+  i stället för att flytta Mapper-filer för hand. Ändringar per objekt mot grundfilens sha256 (krock bara när samma objekt ändrats);
+  bara befintliga symboler. Tillbakaskrivning till OCAD och Mapper som sista steg: lappa filen (Mapper: byt bara ändrade `<object>`;
+  OCAD: ny post sist, indexposten ompekad, den gamla markerad borttagen), skriv aldrig om hela filen och skriv aldrig över originalet;
+  har grundfilen ändrats exporteras ändringarna som en liten egen fil. Ändrar ADR-0179 beslut 1. Bygger på fältlägets kö (steg 67),
+  kartfelens ritning och rollen Kartritare. Förberedelse: läsarna i `packages/map-file` sparar varifrån varje objekt kom
+  (indexpost och byteposition i OCAD, textintervall i XML).
+
 - Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). Det fastställda resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 
 - Gafflingar: en klass som byter till en gafflad bana (Redigera klass) får inga varianter automatiskt; "Fördela gafflingar" gör det. (Rättat steg 61: IOF StartList och ResultList skriver varianten som bana, "Lång-AC".)

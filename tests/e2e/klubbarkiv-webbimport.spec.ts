@@ -8,7 +8,8 @@ import { registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers
 /**
  * ADR-0204: importen till klubbarkivet i webbläsaren. Ägaren väljer en mapp (syntetisk: en påhittad karta, en .ppen, en
  * CourseData och en påhittad PDF), förhandsgranskar (PDF:en står bland det som inte skickas och skickas aldrig), importerar,
- * och en omkörning importerar inget nytt. Mappen byggs när testet körs ur repots påhittade testfiler.
+ * en omkörning importerar inget nytt, och årsmappen vald för sig ger samma träning. Mappen byggs när testet körs ur repots
+ * påhittade testfiler.
  */
 test("klubbarkiv: importen i webbläsaren – välj mapp, förhandsgranska, importera, kör igen", async ({ browser }) => {
   test.setTimeout(360_000);
@@ -77,6 +78,14 @@ test("klubbarkiv: importen i webbläsaren – välj mapp, förhandsgranska, impo
     await owner.getByRole("button", { name: "Importera igen" }).click();
     await expect(owner.getByText("Klart: 0 kartfiler uppladdade (1 fanns redan), 0 nya träningar (1 fanns redan), 0 nya banfiler.")).toBeVisible({ timeout: 60_000 });
     expect(bodies.some(body => body.includes(pdfMarker))).toBe(false);
+
+    // Årsmappen själv kan väljas (ADR-0204, ändring): året följer med, så det är samma träning och inget nytt.
+    await owner.getByRole("button", { name: "Välj andra filer" }).click();
+    await owner.getByLabel("Välj mapp").setInputFiles(join(root, "2021"));
+    await expect(owner.getByTestId("import-chosen")).toHaveText("Mappen 2021 (4 filer)");
+    await owner.getByRole("button", { name: "Förhandsgranska" }).click();
+    await expect(preview).toContainText("1 träning hittades. 0 nya, 1 finns redan i arkivet.");
+    await expect(preview).toContainText("Det finns inget nytt att importera.");
 
     await owner.getByRole("tab", { name: "Träningar" }).click();
     const entries = owner.getByTestId("archive-entries").getByRole("listitem");

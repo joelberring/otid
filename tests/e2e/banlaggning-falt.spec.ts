@@ -51,7 +51,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmCourseSetting(owner, raceId);
   await owner.goto(`/admin/${raceId}/course-setting`);
-  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(fixture("maps/kartfil.omap"));
+  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(fixture("maps/kartfil.omap"));
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
   await owner.getByLabel("Purple Pen-fil (.ppen)").setInputFiles(fixture("course-setting/kartfil.ppen"));

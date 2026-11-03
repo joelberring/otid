@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
-import type { RaceMapSourceMetadata } from "@o-tid/contracts";
+import { RACE_MAP_SOURCE_MAX_BYTES, type RaceMapSourceMetadata } from "@o-tid/contracts";
 import { mapPointToWgs84 } from "@o-tid/map-file";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
@@ -118,7 +118,7 @@ describe("steg 59: kartfilen", () => {
       .toEqual({ status: "invalid-request" });
     expect(await saveRaceMapSourceAsAdmin(db, { ...proof, file: omap, fileName: "kartfil.omap", image, metadata: { formatVersion: 2 } }))
       .toEqual({ status: "invalid-request" });
-    expect(await saveRaceMapSourceAsAdmin(db, { ...proof, file: new Uint8Array(60 * 1024 * 1024 + 1), fileName: "stor.ocd", image,
+    expect(await saveRaceMapSourceAsAdmin(db, { ...proof, file: new Uint8Array(RACE_MAP_SOURCE_MAX_BYTES + 1), fileName: "stor.ocd", image,
       metadata: metadata({ format: "OCD" }) })).toEqual({ status: "problem", problem: "MAP_FILE_TOO_LARGE" });
     expect((await pool.query("select 1 from race_map where race_id = $1 union all select 1 from race_map_source where race_id = $1",
       [proof.raceId])).rowCount).toBe(0);

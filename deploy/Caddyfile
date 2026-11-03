@@ -6,19 +6,19 @@
 	# OTID_DOMAIN kan vara klubbens egen domän med andra tjänster under sig.
 	header Strict-Transport-Security "max-age=31536000"
 
-	# Steg 59: kartfilens uppladdning (OCAD eller Mapper, högst 60 MB, plus bilden på högst 30 MB) är den enda stora bodyn.
+	# Steg 59: kartfilens uppladdning (OCAD eller Mapper, högst 75 MB, plus bilden på högst 30 MB) är den enda stora bodyn.
 	# Caddy har ingen gräns som standard; här står den uttryckligen så att den inte sänks av misstag. Appen kontrollerar
 	# storleken igen innan något sparas (RACE_MAP_SOURCE_UPLOAD_MAX_BYTES).
 	@mapsource path /api/admin/races/*/administrator/map/source
 	request_body @mapsource {
-		max_size 100MB
+		max_size 110MB
 	}
 
-	# ADR-0194: klubbarkivets kartfiler (importen från ägarens dator och en ny version i arkivet), högst 100 MB i appen
+	# ADR-0194: klubbarkivets kartfiler (importen från ägarens dator och en ny version i arkivet), högst 75 MB i appen
 	# (CLUB_ARCHIVE_MAP_MAX_BYTES).
 	@clubmaps path /api/club-import/*/content/* /api/organizer/clubs/*/maps /api/organizer/clubs/*/maps/*
 	request_body @clubmaps {
-		max_size 105MB
+		max_size 80MB
 	}
 
 	# ADR-0187: säkerhetskopian av en tävling (förhandsvisning och återställning), högst 200 MB i appen (RACE_BACKUP_MAX_BYTES).

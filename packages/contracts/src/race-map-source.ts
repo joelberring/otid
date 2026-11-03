@@ -4,7 +4,7 @@ import { z } from "zod";
  * Steg 59 (ADR-0179): banläggarens kartfil (OCAD .ocd eller Mapper .omap/.xmap). Webbläsaren läser och ritar filen och
  * skickar originalet, bilden (PNG) och det den räknat fram i en enda uppladdning (multipart). Servern sparar bara.
  */
-export const RACE_MAP_SOURCE_MAX_BYTES = 60 * 1024 * 1024;
+export const RACE_MAP_SOURCE_MAX_BYTES = 75 * 1024 * 1024;
 /** Hela uppladdningen: kartfilen, bilden (högst 30 MB) och metadata med marginal för multipart. */
 export const RACE_MAP_SOURCE_UPLOAD_MAX_BYTES = RACE_MAP_SOURCE_MAX_BYTES + 30 * 1024 * 1024 + 1024 * 1024;
 export const RACE_MAP_SOURCE_FORMATS = ["OCD", "OMAP"] as const;

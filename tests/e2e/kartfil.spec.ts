@@ -19,7 +19,7 @@ async function importCourses(owner: Page, raceId: string) {
 
 async function uploadMapFile(owner: Page, path: string) {
   const section = owner.getByRole("region", { name: "Karta och vägval" });
-  await section.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 60 MB)").setInputFiles(path);
+  await section.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(path);
   await section.getByRole("button", { name: /Ladda upp kartfil \(OCAD eller Mapper\)|Byt kartfil/ }).click();
   await expect(section.getByText("Kartan är ritad och sparad.")).toBeVisible({ timeout: 60_000 });
   return section;

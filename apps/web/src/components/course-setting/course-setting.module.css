@@ -142,6 +142,8 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
 .checkRow > :last-child:not(.checkText) { flex: none; }
 .checkText { flex: 1; min-width: 0; padding: 4px 6px; border: none; border-left: 3px solid var(--line-strong); background: var(--subtle);
   color: inherit; font: inherit; font-size: var(--text-sm); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+/* Den globala knappens svarta hover gäller inte raderna (svart text på svart). */
+.checkText:hover:not(:disabled) { background: var(--line); color: var(--ink); text-decoration: underline; }
 .checkRow[data-level="ERROR"] .checkText { border-left-color: var(--mp); background: var(--mp-tint); }
 .checkRow[data-level="WARNING"] .checkText { border-left-color: var(--attention); background: var(--attention-tint); }
 .checkGroup { display: grid; gap: 4px; margin: 0 0 10px; }

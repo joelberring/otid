@@ -144,7 +144,8 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   await owner.getByRole("tab", { name: "Import" }).click();
   await owner.getByRole("button", { name: "Hjälp", exact: true }).click();
   await expect(summaries(owner).first()).toHaveText("Importera till klubbarkivet från datorn");
-  await expect(panel.locator("details[data-help-article='arkiv-import'] ol > li")).toHaveCount(5);
+  // ADR-0204: importen i webbläsaren i sex steg.
+  await expect(panel.locator("details[data-help-article='arkiv-import'] ol > li")).toHaveCount(6);
   await owner.keyboard.press("Escape");
   await owner.getByRole("button", { name: "Hjälp: Importera till klubbarkivet från datorn" }).click();
   await expect(panel.locator("details[data-help-article='arkiv-import']")).toHaveAttribute("open", "");

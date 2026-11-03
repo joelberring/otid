@@ -8,6 +8,7 @@ import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubWebImportSv } from "../../i18n/club-import-web-sv";
 import { rootSize, rootsFromDrop, rootsFromFileInput, rootsFromFolderInput } from "../../lib/club-import-files";
 import { createWebImportClient, WebImportError } from "../../lib/club-web-import-client";
+import { HelpLink } from "../help/help-panel";
 import { Button, Notice } from "../ui";
 import { ClubImportPreview, type ServerState } from "./club-import-preview";
 import styles from "./club-archive.module.css";
@@ -158,7 +159,7 @@ export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: 
 
   const fileCount = roots.reduce((sum, root) => sum + (root.kind === "folder" ? root.files.length : 1), 0);
   return <div className={styles.webImport}>
-    <p>{text.intro}</p>
+    <p>{text.intro} <HelpLink article="arkiv-import" /></p>
     <p className={styles.small}>{text.privacy}</p>
     <div className={styles.phoneNote}><Notice tone="info">{text.phoneNote}</Notice></div>
     <div className={styles.dropZone} data-active={dragging} data-testid="import-drop"

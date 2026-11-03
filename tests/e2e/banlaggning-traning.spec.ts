@@ -203,7 +203,11 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   // Förhandsvisningen: Lång med avsnitten, sista säkra och kepsen som två kartor (A och B); kartbitar; Mellan spegelvänd;
   // stjärnan en karta per udd.
   await owner.goto(`/admin/${raceId}/course-setting/print`);
-  await owner.getByLabel("Lång").check();
+  // Alla banor är valda från början: bara Lång.
+  const course = (name: string) => owner.getByRole("checkbox", { name, exact: true });
+  await course("Mellan").uncheck();
+  await course("Stjärna 31").uncheck();
+  await course("Lång").check();
   await expect(owner.getByTestId("print-sheet")).toHaveCount(2, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await expect(owner.getByTestId("print-sheet").nth(1)).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
@@ -215,19 +219,19 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   expect(Number(await owner.getByTestId("print-sheet").first().getAttribute("data-frames"))).toBeGreaterThan(4);
   await shot(owner, "15-kartbitar-1280");
   await owner.getByTestId("print-pieces").uncheck();
-  await owner.getByLabel("Lång").uncheck();
-  await owner.getByLabel("Mellan").check();
+  await course("Lång").uncheck();
+  await course("Mellan").check();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await expect(owner.getByTestId("print-sheet").first().getByTestId("print-map")).toHaveAttribute("data-mirror", "");
   await shot(owner, "16-utskrift-mellan-spegel-1280");
-  await owner.getByLabel("Mellan").uncheck();
-  await owner.getByLabel("Stjärna 31").check();
+  await course("Mellan").uncheck();
+  await course("Stjärna 31").check();
   await expect(owner.getByTestId("print-sheet")).toHaveCount(5, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await shot(owner, "17-stjarna-per-udd-1280");
   await owner.setViewportSize({ width: 390, height: 844 });
-  await owner.getByLabel("Stjärna 31").uncheck();
-  await owner.getByLabel("Lång").check();
+  await course("Stjärna 31").uncheck();
+  await course("Lång").check();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await shot(owner, "18-utskrift-lang-390");
 });

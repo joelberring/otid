@@ -34,7 +34,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
       { steps: [
         "Skapa en tävling av typen ”Tävling” på ”Mina tävlingar”.",
         "Öppna ”Banläggning” och ladda upp samma kartfil som i Purple Pen. Se [Banläggningen och kartfilen](#banlaggning-start).",
-        "Tryck på ”Läs in .ppen” och välj filen. Se [Purple Pen, OCAD och IOF XML](#purple-pen).",
+        "Tryck på ”Läs in .ppen”. Bara IOF XML: ”Banor” → ”Läs in banfil”. Se [Purple Pen, OCAD och IOF XML](#purple-pen).",
         "Gå igenom fliken ”Varningar” och fliken ”Beskrivning”. Se [Varningar](#varningar).",
         "”Fil” → ”Utskrift av banor …”: förhandsvisning, BL-färger och PDF. Se [PDF för tryck](#pdf-tryck) och [BL-färger](#bl-farger).",
         "”Fil” → ”Överför till tävlingen …”: banorna och varianterna blir tävlingens. Se [Överför banorna](#overfor).",
@@ -87,7 +87,16 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "Papperets texter och bilder blir Purple Pens text- och bildobjekt, och beskrivningens plats följer med. Se [Papperet](#papperet).",
         "Träningsformerna följer med i .ppen men försvinner om filen sparas i Purple Pen."
       ],
-      "OCAD: O-Tid skriver inget OCAD-format. Importera banorna i OCAD från IOF XML; kontrollerna hamnar rätt, men beskrivningar och specialobjekt följer inte med."
+      "OCAD: O-Tid skriver inget OCAD-format. Importera banorna i OCAD från IOF XML; kontrollerna hamnar rätt, men beskrivningar och specialobjekt följer inte med.",
+      "En banfil i IOF XML (3.0 eller äldre 2.0.3 från OCAD och Condes) utan .ppen kan också bli banläggning:",
+      [
+        "”Banor” → ”Läs in banfil”: har tävlingen en kartfil erbjuds ”Lägg banorna i banläggningen”.",
+        "Finns redan banor: ”Ersätt banläggningens banor …” och ”Ja, ersätt”. Den gamla banläggningen sparas som en tidigare version.",
+        "”Använd igen” i klubbarkivet på en träning med bara banfil öppnar banläggningen med banorna direkt.",
+        "Kontrollerna hamnar på samma ställe på kartfilen som i programmet som skrev filen. Start, mål, passager, poängbanor och klasser följer med.",
+        "Varianter blir gafflingar eller slingor när det går exakt; annars blir varje variant en egen bana och beskedet säger det.",
+        "Banfilen har inga kontrollbeskrivningar. Fyll i dem under fliken ”Beskrivning”."
+      ]
     ]
   },
   {
@@ -322,6 +331,16 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "”Återställ” tar tillbaka en version. Den nuvarande sparas först som en tidigare version, så inget försvinner.",
         "Versionen före en inläsning av .ppen sparas alltid.",
         "”Sparas inte – logga in igen”: logga in i en ny flik. Ändringarna väntar under tiden."
+      ],
+      "Sparande utanför kartan, till exempel när banfilens banor läggs i banläggningen:",
+      [
+        "Hann någon annan spara försöker O-Tid en gång till på den nya versionen, utan besked.",
+        "Går det ändå inte står ”Ändringen sparades inte – försök igen.” vid det som inte sparades, med ”Försök igen”."
+      ],
+      "Fest och rogaining har också ”Banläggning”:",
+      [
+        "Rogaining: nya banor blir poängbanor. Poängen i resultatet sätts under ”Kontroller & poäng” i tävlingen.",
+        "Fest: banläggningen ger kartor att skriva ut. ”Överför till tävlingen …” finns inte, festen har inga banor."
       ],
       "Se också [Flera banläggare samtidigt](#samarbete)."
     ]

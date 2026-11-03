@@ -83,6 +83,11 @@ export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } fro
 export * from "./paper-layout";
 export * from "./paper-items";
 export { printSheetGroups, type SheetGroup, type SheetGroupOptions, type SheetLayout } from "./print-sheets";
+// En banfil (IOF XML CourseData) utan .ppen som banläggningsdokument.
+export {
+  COURSE_DATA_LENGTH_TOLERANCE_METERS, courseDataDocument, type CourseDataDocumentOptions, type CourseDataLayout, type CourseDataLayoutKind,
+  type CourseDataNotice
+} from "./course-data-import";
 
 /** Läs en Purple Pen-fil (.ppen, XML). Kastar `CourseSettingEditError("INVALID")` om filen inte är en .ppen. */
 export function readPpen(xml: string): { readonly document: CourseSettingDocument; readonly warnings: readonly PpenReadWarning[] } { return readPpenDocument(xml); }

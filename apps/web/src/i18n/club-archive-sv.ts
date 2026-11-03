@@ -146,7 +146,9 @@ export const clubArchiveSv = {
       group: "Träningen skapades men kunde inte läggas i gruppen. Lägg den i gruppen från träningens sida.",
       map: "Träningen skapades men kartan kunde inte sparas. Ladda upp kartfilen på träningens sida.",
       mapTooLarge: "Träningen skapades, men kartfilen är större än 75 MB och kan inte bli tävlingens karta än. Banorna finns där.",
-      courses: "Träningen och kartan skapades men banorna kunde inte läsas in. Läs in banfilen i banläggningen."
+      courses: "Träningen och kartan skapades men banorna kunde inte läsas in. Läs in banfilen i banläggningen.",
+      /** Banfilen (IOF XML) lästes in i träningen men kunde inte bli banläggning (t.ex. kontroller utan läge på kartan). */
+      courseSetting: "Träningen, kartan och banorna skapades, men banorna kunde inte läggas på kartan i banläggningen."
     },
     openRace: "Öppna träningen"
   },

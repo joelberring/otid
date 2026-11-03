@@ -1,5 +1,5 @@
 /**
- * ADR-0197: de bortvalda varianterna i .ppen. Purple Pens format har inget för bortvalda varianter (bara stafettens fasta
+ * ADR-0198: de bortvalda varianterna i .ppen. Purple Pens format har inget för bortvalda varianter (bara stafettens fasta
  * grenar per sträcka, `relay-branch`), så de skrivs som träningen (ADR-0192 beslut 10): ett eget element sist i filen i
  * O-Tid:s namnrymd med JSON. Purple Pen hoppar över elementet när filen öppnas och skriver inte tillbaka det; en fil som
  * sparats i Purple Pen saknar det, och då följer bortvalen med från banläggningen när filen läses in

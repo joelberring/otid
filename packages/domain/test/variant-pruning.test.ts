@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { forkingReadiness, pruneVariants, unusedAfterExclusion, type CourseForking, type PrunableVariant } from "../src";
 
 /**
- * ADR-0197: tre gafflingar i följd (A/B, C/D, E/F) ger åtta varianter. B, D och F är längre (+200, +100, +300 m) med var
+ * ADR-0198: tre gafflingar i följd (A/B, C/D, E/F) ger åtta varianter. B, D och F är längre (+200, +100, +300 m) med var
  * sin egen kontroll (42, 44, 46). ACE är kortast (3000 m), BDF längst (3600 m).
  */
 const extra: Record<string, number> = { A: 0, B: 200, C: 0, D: 100, E: 0, F: 300 };
@@ -17,7 +17,7 @@ function variant(code: string, route?: number, climb?: number): PrunableVariant 
 }
 const eight = codes.map(code => variant(code));
 
-describe("färre varianter: längst i alla avseenden (ADR-0197)", () => {
+describe("färre varianter: längst i alla avseenden (ADR-0198)", () => {
   it("med bara fågelvägen tas de längre bort tills varje kontroll bara har en variant kvar (skyddet)", () => {
     const result = pruneVariants(eight, { dominated: true });
     expect(result.measures).toEqual(["STRAIGHT"]);
@@ -72,7 +72,7 @@ describe("färre varianter: längst i alla avseenden (ADR-0197)", () => {
   });
 });
 
-describe("färre varianter: tak (ADR-0197)", () => {
+describe("färre varianter: tak (ADR-0198)", () => {
   it("högst 5 % längre än den kortaste; skyddet behåller den enda med 42 och 46", () => {
     const result = pruneVariants(eight, { dominated: false, maxPercentLonger: 5 });
     expect(result.kept).toEqual(["ACE", "ACF", "ADE", "BCE"]);
@@ -102,7 +102,7 @@ describe("färre varianter: tak (ADR-0197)", () => {
   });
 });
 
-describe("kontrollen före tävlingen med bortvalda varianter (ADR-0197)", () => {
+describe("kontrollen före tävlingen med bortvalda varianter (ADR-0198)", () => {
   const forking: CourseForking = { items: [{ kind: "CONTROL", code: 31 }, { kind: "FORK", branches: [[41], [42]] },
     { kind: "FORK", branches: [[43], [44]] }, { kind: "CONTROL", code: 32 }] };
   const choices = new Map([["AC", [null, 0, 0, null]], ["AD", [null, 0, 1, null]], ["BC", [null, 1, 0, null]], ["BD", [null, 1, 1, null]]]);

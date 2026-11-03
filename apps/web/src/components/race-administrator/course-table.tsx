@@ -103,7 +103,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
 
 /** Steg 61: kontrollen före tävlingen i klartext, en rad per bana. Stoppar aldrig något. */
 function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"]> }) {
-  // ADR-0197: varianter som banläggningen valt bort.
+  // ADR-0198: varianter som banläggningen valt bort.
   const excluded = readiness.excludedCount ? ` · ${variantText.readinessExcluded(readiness.excludedCount)}` : "";
   if (readiness.ok) return <p className={styles.workflowHelp} role="status" data-testid="forking-readiness">
     {readiness.unusedVariants.length > 0 ? variantText.readinessOkUnused(readiness.unusedVariants) : variantText.readinessOk(readiness.variantCount)}{excluded}</p>;

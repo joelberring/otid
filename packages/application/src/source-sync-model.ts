@@ -96,11 +96,11 @@ export type EventorAction =
 export type CourseFileAction =
   | { readonly type: "CREATE_COURSE"; readonly externalId: string; readonly name: string; readonly controlCodes: readonly number[];
       readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
-      /** ADR-0197: bortvalda varianter ur banläggningen. */
+      /** ADR-0198: bortvalda varianter ur banläggningen. */
       readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] | undefined }
   | { readonly type: "CHANGE_COURSE"; readonly courseId: string; readonly controlCodes: readonly number[];
       readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
-      /** ADR-0197: bortvalda varianter ur banläggningen. */
+      /** ADR-0198: bortvalda varianter ur banläggningen. */
       readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] | undefined }
   /** ADR-0190: bara längden eller stigningen ändrad (inga resultat räknas om). */
   | { readonly type: "SET_COURSE_MEASURES"; readonly courseId: string }

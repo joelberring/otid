@@ -51,7 +51,7 @@ export async function loadResultNotes(tx: DbExecutor, raceId: string, entryIds?:
   for (const [entryId, wrongMap] of found.wrongMaps) {
     notes.set(entryId, { ...notes.get(entryId), wrongMap: { assignedCode: wrongMap.assignedCode, fittingCodes: [...wrongMap.fittingCodes] } });
   }
-  // ADR-0197: stämplingarna passar en variant som banläggningen valt bort.
+  // ADR-0198: stämplingarna passar en variant som banläggningen valt bort.
   for (const [entryId, codes] of found.excluded) notes.set(entryId, { ...notes.get(entryId), excludedVariant: { codes: [...codes] } });
   return notes;
 }

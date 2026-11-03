@@ -13,7 +13,7 @@ function variant(document: CourseSettingDocument, courseId: string, code: string
   return { code, courseControls, controlCodes, lengthMeters: measuredLengthMeters(document, courseId, choices) };
 }
 
-/** ADR-0197: varianten är bortvald när både koden och kontrollkoderna stämmer med ett bortval. */
+/** ADR-0198: varianten är bortvald när både koden och kontrollkoderna stämmer med ett bortval. */
 export function isExcludedVariant(course: Course, variant: Pick<CourseVariant, "code" | "controlCodes">): boolean {
   return (course.excludedVariants ?? []).some(row => row.code === variant.code && row.controls.length === variant.controlCodes.length &&
     row.controls.every((code, index) => code === variant.controlCodes[index]));
@@ -31,7 +31,7 @@ export function allCourseVariantList(document: CourseSettingDocument, courseId: 
   return marked.every(row => row.excluded) ? list : marked;
 }
 
-/** Varianterna som används (ADR-0197: utan de bortvalda). */
+/** Varianterna som används (ADR-0198: utan de bortvalda). */
 export function courseVariantList(document: CourseSettingDocument, courseId: string): CourseVariant[] {
   return allCourseVariantList(document, courseId).filter(row => !row.excluded);
 }

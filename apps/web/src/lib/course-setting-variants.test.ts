@@ -5,12 +5,12 @@ import { applyEdit, readPpen } from "@o-tid/course-setting";
 import type { LegLength } from "./course-setting-route-length";
 import { excludedRows, parseLimit, pruningPlan, variantTable } from "./course-setting-variants";
 
-/** ADR-0197: tabellen över varianterna och förslaget i banläggningen (fixturen med tre gafflingar). */
+/** ADR-0198: tabellen över varianterna och förslaget i banläggningen (fixturen med tre gafflingar). */
 const document = readPpen(readFileSync(fileURLToPath(new URL("../../../../fixtures/course-setting/gaffling-urval.ppen", import.meta.url)), "utf8")).document;
 const natt = document.courses.find(course => course.name === "Natt")!.id;
 const kort = document.courses.find(course => course.name === "Kort")!.id;
 
-describe("varianterna i banläggningen (ADR-0197)", () => {
+describe("varianterna i banläggningen (ADR-0198)", () => {
   it("åtta rader, ACE kortast, sträckorna utan dubbletter; ogafflad bana ingen tabell", () => {
     const table = variantTable(document, natt, new Map())!;
     expect(table.rows.map(row => row.code)).toEqual(["ACE", "ACF", "ADE", "ADF", "BCE", "BCF", "BDE", "BDF"]);

@@ -111,7 +111,7 @@ export interface CourseRelayOptions {
 }
 
 /**
- * ADR-0197: en bortvald variant av en gafflad bana. Koden och kontrollkoderna i ordning måste båda stämma; ändras banan så
+ * ADR-0198: en bortvald variant av en gafflad bana. Koden och kontrollkoderna i ordning måste båda stämma; ändras banan så
  * att varianten får andra kontroller eller en annan kod gäller bortvalet inte längre (varianten kommer tillbaka).
  */
 export interface ExcludedVariant {
@@ -138,7 +138,7 @@ export interface Course {
   /** Steg 64: tryckytan (Purple Pens `<print-area>` utan `part`); saknas = automatisk. */
   readonly printArea?: PrintArea | undefined;
   /**
-   * ADR-0197: varianter som inte används (färre gafflingsvarianter). De förs inte över till tävlingen, skrivs inte i IOF XML
+   * ADR-0198: varianter som inte används (färre gafflingsvarianter). De förs inte över till tävlingen, skrivs inte i IOF XML
    * och skrivs inte ut. Bara O-Tid; i .ppen i O-Tid:s namnrymd (`<otid:variants>`).
    */
   readonly excludedVariants?: readonly ExcludedVariant[] | undefined;
@@ -349,7 +349,7 @@ export interface CourseChanges {
   readonly printScale?: number | null | undefined;
   readonly climbMeters?: number | null | undefined;
   readonly lengthOverrideMeters?: number | null | undefined;
-  /** ADR-0197: de bortvalda varianterna (ersätts helt); null eller tom = alla används. */
+  /** ADR-0198: de bortvalda varianterna (ersätts helt); null eller tom = alla används. */
   readonly excludedVariants?: readonly ExcludedVariant[] | null | undefined;
 }
 
@@ -429,7 +429,7 @@ export interface CourseVariant {
   /** Kodsiffrorna i ordning, utan start och mål. */
   readonly controlCodes: readonly string[];
   readonly lengthMeters: number;
-  /** ADR-0197: bortvald (bara i `allCourseVariants`). */
+  /** ADR-0198: bortvald (bara i `allCourseVariants`). */
   readonly excluded?: boolean | undefined;
 }
 
@@ -442,9 +442,9 @@ export interface CourseSummary {
   readonly lengthRangeMeters?: { readonly min: number; readonly max: number } | undefined;
   readonly climbMeters?: number | undefined;
   readonly controlCount: number;
-  /** De varianter som används (ADR-0197: utan de bortvalda). */
+  /** De varianter som används (ADR-0198: utan de bortvalda). */
   readonly variants: readonly CourseVariant[];
-  /** ADR-0197: antal bortvalda varianter som gäller (0 = alla används). */
+  /** ADR-0198: antal bortvalda varianter som gäller (0 = alla används). */
   readonly excludedCount: number;
 }
 

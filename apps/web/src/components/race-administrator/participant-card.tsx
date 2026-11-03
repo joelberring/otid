@@ -111,7 +111,7 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
             {result.notes.startPunch.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(result.notes.startPunch, result.timeZone)}</p>}
           {/* Steg 61: fel karta vid starten. Inget byts förrän arrangören väljer "Godkänn på …". */}
           {result.notes?.wrongMap && <WrongMap ws={ws} wrongMap={result.notes.wrongMap} />}
-          {/* ADR-0197: stämplingarna passar en variant som banläggningen valt bort; inget byts. */}
+          {/* ADR-0198: stämplingarna passar en variant som banläggningen valt bort; inget byts. */}
           {result.notes?.excludedVariant && <p className={styles.warning} role="note" data-testid="excluded-variant">
             {variantText.excludedVariant(result.notes.excludedVariant.codes)}</p>}
           {!result.resultCurrent && <>

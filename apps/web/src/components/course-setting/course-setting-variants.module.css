@@ -1,4 +1,4 @@
-/* ADR-0197: varianterna av en gafflad bana. Tabellen rullar inom sin ruta på telefonen, aldrig sidan. */
+/* ADR-0198: varianterna av en gafflad bana. Tabellen rullar inom sin ruta på telefonen, aldrig sidan. */
 .scroll { overflow-x: auto; max-width: 100%; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
 .table caption { text-align: left; }

@@ -318,7 +318,7 @@ export function wrongMapVariants(readout: EvaluationReadout, snapshot: RaceSnaps
 }
 
 /**
- * ADR-0197: stämplingarna passar en variant som banläggningen valt bort. Löparen är felstämplad mot sin variant (eller mot
+ * ADR-0198: stämplingarna passar en variant som banläggningen valt bort. Löparen är felstämplad mot sin variant (eller mot
  * alla behållna varianter när löparen saknar en giltig), men passar utan fel en bortvald variant av samma bana. Bara ett
  * besked, som fel karta: inget byts och resultatet är oförändrat (ingen döms ut tyst på grund av bortvalet). Ger de
  * bortvalda varianternas koder i banans ordning, annars undefined.

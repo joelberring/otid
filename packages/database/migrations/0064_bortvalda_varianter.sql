@@ -1,4 +1,4 @@
--- ADR-0197: färre gafflingsvarianter. Banläggningen kan välja bort varianter av en fulgafflad bana; bara de behållna förs
+-- ADR-0198: färre gafflingsvarianter. Banläggningen kan välja bort varianter av en fulgafflad bana; bara de behållna förs
 -- över som varianter (course_variant). De bortvalda sparas här med banversionen ([{ "code": "BDF", "controlCodes": [31, …] }])
 -- så att avläsningen kan säga att en löpare sprungit en bortvald variant i stället för att bara visa felstämplat.
 -- Bara en ny kolumn; NULL = inga bortvalda.

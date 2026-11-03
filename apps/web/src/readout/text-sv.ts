@@ -157,7 +157,7 @@ export const readoutText = {
   // Steg 61: fel karta vid starten.
   wrongMap: (assigned: string, fitting: readonly string[]) =>
     `Felstämplad mot ${assigned}, men stämplingarna passar ${fitting.join(" och ")}. Fick löparen fel karta?`,
-  // ADR-0197: en bortvald variant.
+  // ADR-0198: en bortvald variant.
   excludedVariant: (codes: readonly string[]) =>
     `Stämplingarna passar ${codes.join(" och ")}, som är bortvald i banläggningen. Fick löparen fel karta? Rätta i deltagarkortet.`,
   // Stafett (ADR-0169 beslut 3).

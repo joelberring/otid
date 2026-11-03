@@ -1,6 +1,6 @@
-# ADR-0197: Färre gafflingsvarianter – välj bort de längsta
+# ADR-0198: Färre gafflingsvarianter – välj bort de längsta
 
-Status: beslutad 2026-11-03 (grenen `gaffling-urval`, migration 0063, ägarens önskemål samma dag inför Stockholm by Night 9 dec).
+Status: beslutad 2026-11-03 (grenen `gaffling-urval`, migration 0064, ägarens önskemål samma dag inför Stockholm by Night 9 dec).
 Bygger på ADR-0175 (gafflingsstruktur), ADR-0180 (banläggningen), ADR-0190 beslut 6 (längd längs vägval) och steg 61 (fel karta).
 
 ## Bakgrund
@@ -32,7 +32,7 @@ ger åtta varianter, fyra med fyra 256; tävlingen tar högst 100 per bana.
    kartor och beskrivningar, och förs inte över till tävlingen. I tävlingen finns bara de behållna som varianter, så lottning,
    "Fördela gafflingar", efteranmälan, stafettens fördelning och tävlingens IOF-exporter använder dem utan ändring.
    `forkingReadiness` räknar antalet och bokstäverna på de behållna (`excludedVariantCodes`) och arbetsytan visar antalet bortvalda.
-6. **Avläsningen** (migration 0063, `course_version.excluded_variants`, högst 1000): de bortvalda följer med banversionen och
+6. **Avläsningen** (migration 0064, `course_version.excluded_variants`, högst 1000): de bortvalda följer med banversionen och
    ögonblicksbilden. `excludedVariantsFitting` säger när en felstämplad löpare (mot sin variant, eller mot alla behållna när
    löparen saknar giltig variant) passar en bortvald variant utan fel: beskedet "Stämplingarna passar BDF, som är bortvald i
    banläggningen. Fick löparen fel karta?" i avläsningen, på kvittot, i deltagarkortet och i deltagarlistan. Bara ett besked som

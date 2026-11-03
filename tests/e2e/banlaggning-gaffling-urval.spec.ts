@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createRace, registerAccount, today, unique, warmCourseSetting } from "./helpers";
 
 /**
- * ADR-0197 (ägaren 2026-11-03): färre gafflingsvarianter. "Natt" har tre fulgafflingar i följd (åtta varianter). Panelen
+ * ADR-0198 (ägaren 2026-11-03): färre gafflingsvarianter. "Natt" har tre fulgafflingar i följd (åtta varianter). Panelen
  * Varianter visar dem med fågelväg och längd längs vägval; "Begränsa varianter" förhandsgranskas och tar bort de som är längst
  * i alla avseenden (skyddet behåller en variant per kontroll). Efter omladdning är antalet lägre, en variant bockas ur och
  * ångras, och IOF XML har bara de behållna. Telefonen: tabellen på 390 px utan att sidan rullar i sidled.

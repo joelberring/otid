@@ -12,14 +12,14 @@ import { loadRaceSnapshot } from "../../src/snapshot";
 import { accountOnRace } from "./accounts";
 
 /**
- * ADR-0197 (migration 0063): bortvalda varianter förs inte över som varianter; de följer med banversionen i
+ * ADR-0198 (migration 0064): bortvalda varianter förs inte över som varianter; de följer med banversionen i
  * `course_version.excluded_variants` och ögonblicksbilden (avläsningens besked). En ny överföring med andra bortval ger en
  * ny banversion med bara de behållna.
  */
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("Testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
 const admin = createDatabase(base);
-const databaseName = `otid_adr0197_${randomUUID().replaceAll("-", "")}`;
+const databaseName = `otid_adr0198_${randomUUID().replaceAll("-", "")}`;
 const url = new URL(base);
 url.pathname = `/${databaseName}`;
 const { db, pool } = createDatabase(url.href);
@@ -31,7 +31,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => {
   await pool.end();
-  if (!/^otid_adr0197_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Ogiltig testdatabas för rensning");
+  if (!/^otid_adr0198_[a-f0-9]{32}$/.test(databaseName)) throw new Error("Ogiltig testdatabas för rensning");
   await admin.pool.query(`DROP DATABASE "${databaseName}"`);
   await admin.pool.end();
 });
@@ -62,7 +62,7 @@ async function transfer(proof: Proof, version: number) {
   expect(applied.status).toBe("saved");
 }
 
-describe("ADR-0197: bortvalda varianter i tävlingen", () => {
+describe("ADR-0198: bortvalda varianter i tävlingen", () => {
   it("bara behållna blir varianter; de bortvalda följer med banversionen och ögonblicksbilden", async () => {
     const proof = await race();
     const ppen = await readFile(fixture, "utf8");

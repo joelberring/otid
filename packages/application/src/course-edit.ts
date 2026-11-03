@@ -212,7 +212,7 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
       const fairness = course.variants.length === 0 ? undefined : courseForkingFairness({ mode: course.forkingMode, variants: course.variants,
         forking: course.forking ?? null });
       // Steg 61: kontrollen före tävlingen, per klass på banan (stafettbanor kontrolleras per lag i lagvyn).
-      // ADR-0197: bortvalda varianter (ur banläggningen) räknas inte men visas som antal.
+      // ADR-0198: bortvalda varianter (ur banläggningen) räknas inte men visas som antal.
       const excludedCodes = (course.version.excludedVariants ?? []).map(variant => variant.code);
       const readiness = course.variants.length === 0 || relayOnly ? undefined : forkingReadiness({
         variantCodes: [...course.variants.map(variant => variant.code), ...excludedCodes], excludedVariantCodes: excludedCodes,

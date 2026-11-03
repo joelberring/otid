@@ -17,7 +17,7 @@ export interface LocalVerdict {
   readonly variant?: { readonly code: string; readonly assigned: boolean };
   /** Steg 61: felstämplad mot den tilldelade varianten, men stämplingarna passar en annan variant av samma bana ("fel karta?"). */
   readonly wrongMap?: { readonly assignedCode: string; readonly fittingCodes: readonly string[] };
-  /** ADR-0197: stämplingarna passar en variant som banläggningen valt bort (bara ett besked). */
+  /** ADR-0198: stämplingarna passar en variant som banläggningen valt bort (bara ett besked). */
   readonly excludedVariant?: readonly string[];
   readonly elapsedMs?: number;
   readonly missingControls: readonly number[];

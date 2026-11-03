@@ -10,7 +10,7 @@ import { forkingLetters, MAX_FORKING_VARIANTS, type CourseForking, type ForkingC
  *   slingordning (fjäril). Ojämn när det skiljer mer än en löpare mellan alternativen.
  * - Antal varianter (högst 100) och bokstäver (högst 26).
  *
- * ADR-0197: bortvalda varianter (`excludedVariantCodes`) räknas inte. De är inte giltiga för löparna, antalet och
+ * ADR-0198: bortvalda varianter (`excludedVariantCodes`) räknas inte. De är inte giltiga för löparna, antalet och
  * bokstäverna räknas bara på de behållna, och en löpare med en bortvald kod saknar variant.
  */
 export interface ForkingReadinessClass {
@@ -24,7 +24,7 @@ export interface ForkingPointCount { readonly letters: string; readonly count: n
 export interface ForkingReadiness {
   /** Behållna varianter. */
   readonly variantCount: number;
-  /** Bortvalda varianter (ADR-0197). */
+  /** Bortvalda varianter (ADR-0198). */
   readonly excludedCount: number;
   readonly tooManyVariants: boolean;
   readonly tooManyLetters: boolean;
@@ -73,7 +73,7 @@ export function forkingReadiness(input: {
   /** Varje variants val per gafflingspunkt (sparad eller härledd struktur). */
   readonly choices?: ReadonlyMap<string, readonly ForkingChoice[]>;
   readonly classes: readonly ForkingReadinessClass[];
-  /** ADR-0197: varianterna som är bortvalda (räknas inte). */
+  /** ADR-0198: varianterna som är bortvalda (räknas inte). */
   readonly excludedVariantCodes?: readonly string[];
 }): ForkingReadiness {
   const excluded = new Set(input.excludedVariantCodes ?? []);

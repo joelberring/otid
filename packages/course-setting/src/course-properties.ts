@@ -67,7 +67,7 @@ const hasSplit = (document: CourseSettingDocument, courseId: string) =>
 
 const MAX_EXCLUDED = 5000;
 
-/** ADR-0197: de bortvalda varianterna (ersätts helt). Formen kontrolleras; minst en av banans varianter måste användas. */
+/** ADR-0198: de bortvalda varianterna (ersätts helt). Formen kontrolleras; minst en av banans varianter måste användas. */
 function withExcludedVariants(document: CourseSettingDocument, course: Course, value: CourseChanges["excludedVariants"]): Course {
   if (value === undefined || value === null || value.length === 0) return without(course, "excludedVariants");
   const list: readonly unknown[] = Array.isArray(value) ? value : [];

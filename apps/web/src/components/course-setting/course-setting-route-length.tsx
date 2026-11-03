@@ -29,7 +29,7 @@ export function useRouteLength({ document, view, variant, session, ready, failed
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(false);
   const pending = useRef<readonly LegInput[] | undefined>(undefined);
-  /** ADR-0197: sträckorna som räknas (banans eller alla varianters); samma tabell, så en sträcka räknas en gång. */
+  /** ADR-0198: sträckorna som räknas (banans eller alla varianters); samma tabell, så en sträcka räknas en gång. */
   const run = (list: readonly LegInput[] | undefined = legs?.legs) => {
     if (!list || !session.current) return;
     const missing = list.filter(leg => !results.has(leg.key));
@@ -52,7 +52,7 @@ export function useRouteLength({ document, view, variant, session, ready, failed
   return {
     legs, results, running, error, wanted, ready,
     start: () => startWith(legs?.legs),
-    /** ADR-0197: räkna de här sträckorna (alla varianters). */
+    /** ADR-0198: räkna de här sträckorna (alla varianters). */
     startLegs: (list: readonly LegInput[]) => startWith(list),
     /** Vägvalens Worker fick en annan körning (vald sträcka): den här är avbruten. */
     interrupted: () => { pending.current = undefined; setRunning(false); },

@@ -193,7 +193,7 @@ describe("fel karta vid starten (steg 61)", () => {
   });
 });
 
-describe("bortvald variant i avläsningen (ADR-0197)", () => {
+describe("bortvald variant i avläsningen (ADR-0198)", () => {
   // Banversionen har bara AC, AD och BC; BD är bortvald i banläggningen.
   function pruned(variantCode?: string): RaceSnapshot {
     const base = snapshot(variantCode);

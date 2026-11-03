@@ -4,7 +4,7 @@ import type { LegInput } from "@o-tid/route-choice";
 import { routeLengthLegs, type LegLength } from "./course-setting-route-length";
 
 /**
- * ADR-0197: tabellen över en gafflad banas varianter i banläggningen (fågelväg, längs vägval när den är räknad, antal
+ * ADR-0198: tabellen över en gafflad banas varianter i banläggningen (fågelväg, längs vägval när den är räknad, antal
  * kontroller, skillnad mot den kortaste) och underlaget till domänens `pruneVariants`. Ren logik; webbens panel visar den.
  */
 export interface VariantRow {

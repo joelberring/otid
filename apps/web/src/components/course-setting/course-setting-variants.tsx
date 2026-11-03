@@ -14,7 +14,7 @@ import styles from "./course-setting-variants.module.css";
 const MAX_RACE_VARIANTS = 100;
 
 /**
- * ADR-0197 (ägaren 2026-11-03): varianterna av en gafflad bana med fågelväg, längd längs vägval (räknas på begäran i
+ * ADR-0198 (ägaren 2026-11-03): varianterna av en gafflad bana med fågelväg, längd längs vägval (räknas på begäran i
  * vägvalens Worker, samma tabell som banans längd), antal kontroller och skillnad mot den kortaste. Bocka ur en variant för
  * att välja bort den, eller "Begränsa varianter" med förhandsgranskning. Bortvalen sparas på banan (`UPDATE_COURSE`), så
  * att de följer med autosparande, ångra och versioner.

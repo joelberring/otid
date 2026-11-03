@@ -33,7 +33,7 @@ export {
 } from "./appearance-edit";
 export { controlLabelText } from "./overprint";
 export { excludedVariantCodes, INVERTIBLE_CODES, isExcludedVariant } from "./summary";
-// ADR-0197: bortvalda varianter i .ppen och när en ny .ppen läses in.
+// ADR-0198: bortvalda varianter i .ppen och när en ny .ppen läses in.
 export { carryExcludedVariants, VARIANTS_ELEMENT } from "./variants-ppen";
 // Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).
 export {
@@ -89,7 +89,7 @@ export function emptyDocument(options: { readonly title: string; readonly mapSca
 export function applyEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult { return applyDocumentEdit(document, edit); }
 /** Banans kontroller (banans kontroll-id) i ordning för en variant (eller alla grenar, i ordningen de ritas). */
 export function courseControlOrder(document: CourseSettingDocument, course: string, variant?: string): readonly string[] { return controlOrder(document, course, variant); }
-/** Varianterna som används av en bana, med koder som Purple Pen (ADR-0197: utan de bortvalda). */
+/** Varianterna som används av en bana, med koder som Purple Pen (ADR-0198: utan de bortvalda). */
 export function courseVariants(document: CourseSettingDocument, course: string): readonly CourseVariant[] { return courseVariantList(document, course); }
 /** Alla varianter av en bana, också de bortvalda (`excluded`). */
 export function allCourseVariants(document: CourseSettingDocument, course: string): readonly CourseVariant[] { return allCourseVariantList(document, course); }

@@ -280,7 +280,7 @@ export function writePpenDocument(document: CourseSettingDocument): string {
   // Träningsläget sist, i O-Tid:s namnrymd (ADR-0192 beslut 10).
   const training = trainingElement(document);
   if (training) kids.push(training);
-  // Bortvalda varianter (ADR-0197), också i O-Tid:s namnrymd.
+  // Bortvalda varianter (ADR-0198), också i O-Tid:s namnrymd.
   const variants = variantsElement(document);
   if (variants) kids.push(variants);
   return `${serializeXml(el(ROOT, rootStub?.attrs ?? [], kids), "")}\n`;

@@ -240,7 +240,7 @@ export function toPage(page: Pick<CoursePage, "transform">, point: { x: number; 
   return { x: page.transform.scale * point.x + page.transform.translateX, y: -page.transform.scale * point.y + page.transform.translateY };
 }
 
-/** Varianterna att skriva ut för banan: en sida per variant eller alla grenar på en (""). Bortvalda skrivs inte ut (ADR-0197). */
+/** Varianterna att skriva ut för banan: en sida per variant eller alla grenar på en (""). Bortvalda skrivs inte ut (ADR-0198). */
 export function printVariants(document: CourseSettingDocument, course: string, each: boolean): string[] {
   if (course === "ALL_CONTROLS" || !each) return [""];
   const excluded = excludedVariantCodes(document, course);

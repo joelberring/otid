@@ -10,13 +10,13 @@ import { normalizedReadout } from "./result-revisions";
  * ögonblicksbilden för löparna. Arbetsytans lista och deltagarkortet visar beskedet; inget byts.
  */
 export type WrongMap = { readonly assignedCode: string; readonly fittingCodes: readonly string[] };
-/** ADR-0197: stämplingarna passar en bortvald variant (`excludedVariantsFitting`). */
+/** ADR-0198: stämplingarna passar en bortvald variant (`excludedVariantsFitting`). */
 export type WrongMaps = { readonly wrongMaps: Map<string, WrongMap>; readonly excluded: Map<string, readonly string[]> };
 
 export async function loadWrongMaps(tx: DbExecutor, raceId: string, entryIds: readonly string[]): Promise<WrongMaps> {
   const result: WrongMaps = { wrongMaps: new Map(), excluded: new Map() };
   if (entryIds.length === 0) return result;
-  // ADR-0197: en löpare utan variant (eller med en bortvald kod) kan också ha sprungit en bortvald variant, så alla
+  // ADR-0198: en löpare utan variant (eller med en bortvald kod) kan också ha sprungit en bortvald variant, så alla
   // felstämplade på banversioner med bortvalda varianter läses; annars bara de med variant.
   const rows = await tx.select({ id: schema.entries.id, code: schema.entries.courseVariantCode }).from(schema.entries)
     .where(and(eq(schema.entries.raceId, raceId), inArray(schema.entries.id, [...entryIds])));

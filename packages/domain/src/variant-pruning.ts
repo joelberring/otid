@@ -1,5 +1,5 @@
 /**
- * Färre gafflingsvarianter (ägaren 2026-11-03, ADR-0197). En fulgaffling med flera gafflingar i följd ger många varianter,
+ * Färre gafflingsvarianter (ägaren 2026-11-03, ADR-0198). En fulgaffling med flera gafflingar i följd ger många varianter,
  * och vissa kombinationer blir tydligt längre. Här väljs varianter bort, rent och generellt (banläggningen och tävlingen):
  *
  * - **Längst i alla avseenden** (`dominated`): en variant tas bort när en annan variant inte är längre i något av de mått

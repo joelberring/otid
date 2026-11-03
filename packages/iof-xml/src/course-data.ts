@@ -47,7 +47,7 @@ export interface CourseImport {
   /** Tom för en gafflad bana; kontrollerna finns då i varianterna. */
   readonly controlCodes: readonly number[];
   readonly variants?: readonly CourseVariantImport[];
-  /** ADR-0197: varianter som banläggningen valt bort (bara från banläggningen, aldrig ur en IOF-fil). */
+  /** ADR-0198: varianter som banläggningen valt bort (bara från banläggningen, aldrig ur en IOF-fil). */
   readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
   /** Banans längd och stigning i hela meter (IOF Length/Climb). En gafflad bana får den längsta variantens värden. */
   readonly lengthMeters?: number;

@@ -1,4 +1,4 @@
-/** ADR-0197: varianterna av en gafflad bana och färre gafflingsvarianter i banläggningen. */
+/** ADR-0198: varianterna av en gafflad bana och färre gafflingsvarianter i banläggningen. */
 const km = (meters: number) => `${(meters / 1000).toFixed(2).replace(".", ",")} km`;
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 

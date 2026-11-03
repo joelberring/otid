@@ -114,7 +114,7 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
         if (trainingXml) raw.push(toRaw(child)); else trainingXml = child;
         break;
       case VARIANTS_ELEMENT:
-        // Bortvalda varianter (ADR-0197) läses när banorna finns; ett andra element sparas orört.
+        // Bortvalda varianter (ADR-0198) läses när banorna finns; ett andra element sparas orört.
         if (variantsXml) raw.push(toRaw(child)); else variantsXml = child;
         break;
       default:

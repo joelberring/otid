@@ -229,7 +229,7 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
           controls: courseControlRows.filter((control) => control.courseVersionId === version.id)
             .map(({ points, ...control }) => points === null ? control : { ...control, points }),
           ...(variants.length > 0 ? { variants } : {}),
-          // ADR-0197: bortvalda varianter för avläsningens besked.
+          // ADR-0198: bortvalda varianter för avläsningens besked.
           ...(version.excludedVariants && version.excludedVariants.length > 0 ? { excludedVariants: version.excludedVariants } : {})
         };
       })

@@ -6,7 +6,7 @@ import {
   writeIofCourseData, writePpen, type CourseSettingDocument
 } from "../src";
 
-/** ADR-0197: bortvalda varianter i dokumentet, sammanfattningen, IOF XML, utskriften och .ppen. */
+/** ADR-0198: bortvalda varianter i dokumentet, sammanfattningen, IOF XML, utskriften och .ppen. */
 const xml = readFileSync(fileURLToPath(new URL("../../../fixtures/course-setting/gaffling-urval.ppen", import.meta.url)), "utf8");
 const base = readPpen(xml).document;
 const natt = base.courses.find(course => course.name === "Natt")!.id;
@@ -17,7 +17,7 @@ function exclude(document: CourseSettingDocument, codes: readonly string[]): Cou
   return applyEdit(document, { type: "UPDATE_COURSE", course: natt, changes: { excludedVariants: rows } }).document;
 }
 
-describe("bortvalda varianter (ADR-0197)", () => {
+describe("bortvalda varianter (ADR-0198)", () => {
   it("fixturen ger åtta varianter, ACE kortast och BDF längst", () => {
     const all = allCourseVariants(base, natt);
     expect(all.map(row => row.code)).toEqual(["ACE", "ACF", "ADE", "ADF", "BCE", "BCF", "BDE", "BDF"]);

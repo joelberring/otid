@@ -342,7 +342,7 @@ async function storeCourseMeasurements(tx: Transaction, raceId: string, projecti
   }
 }
 
-/** ADR-0197: bortvalda varianter till banversionen (NULL = inga). */
+/** ADR-0198: bortvalda varianter till banversionen (NULL = inga). */
 function excludedColumn(rows: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] | undefined) {
   return rows && rows.length > 0 ? { excludedVariants: rows.map(row => ({ code: row.code, controlCodes: [...row.controlCodes] })) } : {};
 }

@@ -515,7 +515,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) },
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
         ...(!file.document.training && document.training ? { training: document.training } : {}) };
-      // ADR-0197: bortvalda varianter följer med när filen saknar dem och varianterna finns kvar.
+      // ADR-0198: bortvalda varianter följer med när filen saknar dem och varianterna finns kvar.
       imported = carryExcludedVariants(document, imported);
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });

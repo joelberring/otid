@@ -179,7 +179,7 @@ export const courseVersions = pgTable("course_version", {
   version: integer("version").notNull(),
   /** Steg 49 (migration 0023): gafflingsstrukturen som varianterna genererades ur. NULL = ingen struktur. */
   forking: jsonb("forking"),
-  /** ADR-0197 (migration 0063): bortvalda varianter ur banläggningen ({ code, controlCodes }[]). NULL = inga. */
+  /** ADR-0198 (migration 0064): bortvalda varianter ur banläggningen ({ code, controlCodes }[]). NULL = inga. */
   excludedVariants: jsonb("excluded_variants").$type<{ code: string; controlCodes: number[] }[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [uniqueIndex("course_version_uidx").on(table.courseId, table.version), uniqueIndex("course_version_id_course_uidx").on(table.id, table.courseId)]);

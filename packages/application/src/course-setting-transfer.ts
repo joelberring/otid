@@ -16,13 +16,13 @@ import type { CourseFileProjection } from "./source-sync-model";
  *
  * Stafettlagens varianter (Purple Pens `relay-teams`) förs inte över än; de läses in med en startlista eller IOF XML.
  *
- * ADR-0197: bortvalda varianter blir inte varianter i tävlingen (ingen löpare får dem, de räknas inte och skrivs inte i
+ * ADR-0198: bortvalda varianter blir inte varianter i tävlingen (ingen löpare får dem, de räknas inte och skrivs inte i
  * tävlingens IOF XML). De följer med banversionen som `excludedVariants` (högst 1000) så att avläsningen känner igen dem.
  */
 export type CourseSettingTransferProblem = { readonly error: "NO_COURSES" | "INVALID_CODES"; readonly controls: readonly string[] };
 
 const CODE = /^[1-9][0-9]{0,5}$/;
-/** ADR-0197: högst så många bortvalda varianter följer med banversionen. */
+/** ADR-0198: högst så många bortvalda varianter följer med banversionen. */
 const MAX_EXCLUDED = 1000;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const mapPosition = (at: Point): MapPositionImport => ({ x: round2(at.x), y: round2(at.y) });

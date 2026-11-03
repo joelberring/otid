@@ -1,6 +1,6 @@
 /** Kontrollerna under arbetet (ADR-0180 beslut 9). */
 import { sizesFor } from "./appearance";
-import { forbiddenLegs } from "./barriers";
+import { controlsInForbidden, forbiddenLegs } from "./barriers";
 import { distance, nearestOnPath } from "./geometry";
 import { courseVariantList, isInvertibleCode } from "./summary";
 import type { CheckOptions, CourseCheck, CourseSettingDocument, DescriptionBox } from "./types";
@@ -98,12 +98,40 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
       }
     }
   }
-  // Steg 64: sträckor genom banläggningens förbjudna områden eller över en spärr (gräns, förbjuden väg).
-  for (const course of document.courses) {
-    if (course.kind === "SCORE") continue;
-    for (const hit of forbiddenLegs(document, course.id)) checks.push({ kind: "LEG_THROUGH_FORBIDDEN", course: course.id, ...hit });
-  }
+  checks.push(...forbiddenChecks(document, options));
   for (const control of controls) if (!used.has(control.id)) checks.push({ kind: "UNUSED_CONTROL", control: control.id });
+  return checks;
+}
+
+/**
+ * Steg 64 och ADR-0199: förbjudna områden och spärrar (gräns, förbjuden väg). En kontroll i ett förbjudet område tvingar
+ * löparen in i det. En fågelväg som korsar området är vanligt när det finns en väg runt: med vägvalet räknat (med
+ * spärrarna) blir det bara något när ingen laglig väg finns; inte räknat blir det en notis (UNKNOWN).
+ */
+function forbiddenChecks(document: CourseSettingDocument, options: CheckOptions): CourseCheck[] {
+  const checks: CourseCheck[] = [];
+  const inside = new Set<string>();
+  for (const course of document.courses) {
+    for (const hit of controlsInForbidden(document, course.id)) {
+      if (inside.has(`${hit.control}-${hit.special}`)) continue;
+      inside.add(`${hit.control}-${hit.special}`);
+      checks.push({ kind: "CONTROL_IN_FORBIDDEN", course: course.id, ...hit });
+    }
+    if (course.kind === "SCORE") continue;
+    const byLeg = new Map<string, { from: string; to: string; specials: string[] }>();
+    for (const hit of forbiddenLegs(document, course.id)) {
+      const key = `${hit.from}-${hit.to}`;
+      const leg = byLeg.get(key) ?? { from: hit.from, to: hit.to, specials: [] };
+      leg.specials.push(hit.special);
+      byLeg.set(key, leg);
+    }
+    for (const { from, to, specials } of byLeg.values()) {
+      const route = options.legRoute?.(course.id, from, to);
+      if (route?.reachable) continue;
+      if (route) checks.push({ kind: "LEG_THROUGH_FORBIDDEN", course: course.id, from, to, special: specials[0]!, route: "NO_ROUTE", specials });
+      else checks.push({ kind: "LEG_THROUGH_FORBIDDEN", course: course.id, from, to, special: specials[0]!, route: "UNKNOWN", specials });
+    }
+  }
   return checks;
 }
 

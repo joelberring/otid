@@ -277,6 +277,11 @@ export interface CourseSettingDocument {
      * på arket (`paper-layout.ts`). Bara O-Tid; en utplacerad beskrivning skrivs till .ppen som Purple Pens `descriptions`.
      */
     readonly paperLayouts?: Readonly<Record<string, CoursePaperLayout>> | undefined;
+    /**
+     * ADR-0199: varningar som banläggaren godtagit ("Det är meningen"), per nyckel (`checkKey`). Bara O-Tid; skrivs inte till
+     * .ppen och följer med när en ny .ppen läses in (de vars kontroller och objekt finns kvar).
+     */
+    readonly acceptedChecks?: Readonly<Record<string, AcceptedCheck>> | undefined;
     /** Papperets mallar (ADR-0197) som banorna ärver av, och värdena för {datum} och {ekvidistans}. Bara O-Tid. */
     readonly paperTemplates?: readonly PaperTemplate[] | undefined;
     readonly paperValues?: PaperValues | undefined;
@@ -348,7 +353,9 @@ export type CourseSettingEdit =
   /** Steg 64: specialobjekt och tryckyta. */
   | SpecialEdit
   /** Träningsläget (ADR-0192 beslut 11): hela delar per id, null = tas bort. */
-  | ({ readonly type: "PUT_TRAINING" } & TrainingPatch);
+  | ({ readonly type: "PUT_TRAINING" } & TrainingPatch)
+  /** ADR-0199: godta (värdet) eller ångra (null) varningar per nyckel; övriga godtagna står kvar. */
+  | { readonly type: "SET_ACCEPTED_CHECKS"; readonly checks: Readonly<Record<string, AcceptedCheck | null>> };
 
 /** Ändringarna i `UPDATE_COURSE`. */
 export interface CourseChanges {
@@ -397,6 +404,14 @@ export type SpecialEdit =
   /** Papperets mall (ADR-0197): lägg till eller ersätt per id, ta bort (banorna som ärver av den står kvar utan mall). */
   | { readonly type: "PUT_PAPER_TEMPLATE"; readonly template: PaperTemplate }
   | { readonly type: "DELETE_PAPER_TEMPLATE"; readonly id: string };
+
+/**
+ * ADR-0199: en godtagen varning. `at` = lägena (kartans mm) för det varningen gäller när den godtogs: kontroller som
+ * "c:<id>", specialobjekt (mittpunkten) som "s:<id>". Flyttas något mer än `ACCEPT_MOVE_METERS` gäller godtagandet inte.
+ */
+export interface AcceptedCheck {
+  readonly at: Readonly<Record<string, Point>>;
+}
 
 /**
  * Steg 66 (ADR-0181 beslut 4): objekten som de ska vara efter ändringen, per id (null = finns inte). Ångra i en editor där
@@ -469,6 +484,11 @@ export interface CheckOptions {
   readonly minMeters?: number | undefined;
   /** Under detta avstånd (m) ska kontrollerna ha tydligt olika objekt; rapporteras för granskning. */
   readonly similarMeters?: number | undefined;
+  /**
+   * ADR-0199: vägvalet (räknat med banläggningens spärrar) för en sträcka vars fågelväg korsar ett förbjudet område.
+   * `reachable` = en laglig väg finns; undefined = inte räknat.
+   */
+  readonly legRoute?: ((course: string, from: string, to: string) => { readonly reachable: boolean } | undefined) | undefined;
 }
 
 export type CourseCheck =
@@ -481,8 +501,16 @@ export type CourseCheck =
   | { readonly kind: "INVERTIBLE_CODE"; readonly code: string; readonly control: string }
   | { readonly kind: "SAME_CONTROL_TWICE_IN_ROW"; readonly course: string; readonly control: string }
   | { readonly kind: "LEG_THROUGH_CONTROL"; readonly course: string; readonly from: string; readonly to: string; readonly control: string }
-  /** Steg 64: sträckans linje går genom ett förbjudet område (specialobjektet) eller över en gräns eller förbjuden väg. */
-  | { readonly kind: "LEG_THROUGH_FORBIDDEN"; readonly course: string; readonly from: string; readonly to: string; readonly special: string }
+  /**
+   * Steg 64, ADR-0199: sträckans fågelväg går genom ett förbjudet område (specialobjektet) eller över en gräns eller förbjuden
+   * väg. UNKNOWN: vägvalet är inte räknat (en notis); NO_ROUTE: vägvalet runt finns inte – kontrollen går inte att nå lagligt.
+   * En per sträcka; `special` = den första och `specials` = alla spärrar som fågelvägen korsar. Går vägvalet runt blir det
+   * ingen kontroll alls.
+   */
+  | { readonly kind: "LEG_THROUGH_FORBIDDEN"; readonly course: string; readonly from: string; readonly to: string; readonly special: string;
+      readonly route: "UNKNOWN" | "NO_ROUTE"; readonly specials?: readonly string[] | undefined }
+  /** ADR-0199: kontrollen ligger i ett förbjudet område (löparen måste in i det). */
+  | { readonly kind: "CONTROL_IN_FORBIDDEN"; readonly course: string; readonly control: string; readonly special: string }
   | { readonly kind: "COURSE_WITHOUT_START_OR_FINISH"; readonly course: string }
   | { readonly kind: "UNUSED_CONTROL"; readonly control: string }
   | { readonly kind: "MISSING_CODE"; readonly control: string };

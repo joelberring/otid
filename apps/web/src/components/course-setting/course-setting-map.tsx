@@ -454,7 +454,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       onPointerLeave={event => { if (event.pointerType === "mouse" && view) handlers.onHover?.(undefined, modifiersOf(event, view)); }}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />
       <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint"
-        data-labels={probe.labels} data-ring-mm={probe.ring} />
+        data-labels={probe.labels} data-ring-mm={probe.ring}
+        data-marks={`inspected:${inspected?.length ?? 0},notes:${noteMarks?.length ?? 0},flagged:${marks.flagged.length}`} />
       <canvas ref={screen} className={`${styles.layer} ${styles.screenOnly}`} aria-hidden="true" data-testid="course-setting-cross"
         data-cross={cross ? `${cross.at.x.toFixed(2)},${cross.at.y.toFixed(2)}${cross.dragging ? ",drag" : ""}` : undefined} />
     </div>

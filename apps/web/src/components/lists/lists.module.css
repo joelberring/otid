@@ -185,7 +185,12 @@
 /* ADR-0191 beslut 2: sammanställningen per klubb; totalraden står sist med linje över. */
 .summaryTable tfoot :is(th, td) { border-top: 1.5px solid var(--ink); font-weight: 700; }
 .summaryTable .num { width: 5.5rem; }
-@media (max-width: 760px) { .summaryTable .num { width: 3.2rem; } }
+@media (max-width: 760px) {
+  .summaryTable .num { width: 3.2rem; }
+  /* "Startande" och "Fullföljda" bryts hellre än att gå ihop på 390 px. */
+  .summaryTable thead .num { white-space: normal; overflow-wrap: anywhere; font-size: var(--text-xs); vertical-align: bottom; }
+  .summaryTable :is(th, td):is(:nth-child(2), :nth-child(3)) { width: 4.8rem; }
+}
 @media print { .summaryTable tfoot :is(th, td) { border-top: 1pt solid #000; } }
 /* Steg 49: "Visa gafflingar" och den lilla banbilden under löparens namn. */
 .toggle { min-height: 32px; padding: 0 10px; border-color: var(--line-strong); background: var(--surface); color: var(--ink); font-size: var(--text-xs); }

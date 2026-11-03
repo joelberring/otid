@@ -87,7 +87,8 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Stafett”: lag och sträckor.",
         "”Rogaining”: kontroller med poäng och tidsgräns."
       ],
-      "Tryck på ”Skapa tävling”, så öppnas arbetsytan. Typen kan bytas under ”Inställningar” utan att något tas bort."
+      "Tryck på ”Skapa tävling”, så öppnas arbetsytan. Typen kan bytas under ”Inställningar” utan att något tas bort.",
+      "Har klubben ett klubbarkiv kan du ta kartan med ”Välj karta från klubbarkivet” innan du trycker på ”Skapa tävling”; då öppnas banläggningen med kartan."
     ]
   },
   {

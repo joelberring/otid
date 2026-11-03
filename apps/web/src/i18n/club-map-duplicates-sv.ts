@@ -110,8 +110,7 @@ export const clubMapDuplicatesSv = {
     saved: (name: string) => `${name} är tävlingens karta.`,
     failed: "Kartan kunde inte sparas i tävlingen. Försök igen eller ladda upp kartfilen.",
     tooLarge: "Kartfilen är större än tävlingens gräns och kan inte bli tävlingens karta än.",
-    createLabel: "Karta (valfritt)",
-    createHelp: "Välj en karta ur klubbarkivet så öppnas banläggningen med kartan när tävlingen är skapad."
+    createLabel: "Karta (valfritt)"
   }
 } as const;
 

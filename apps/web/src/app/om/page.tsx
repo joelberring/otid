@@ -2,17 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { aboutSv as text } from "../../i18n/about-sv";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
+import { introFilmUrl } from "../../lib/intro-film";
 import styles from "../../components/account-pages.module.css";
 
 export const metadata: Metadata = { title: `${text.metaTitle} – O-Tid`, description: text.metaDescription };
 
 /** Om O-Tid (PLAN.md steg 37): vad det är, beta, hur det är gjort, tekniska funktioner, hur stora tävlingar (steg 54) och kontakt. Utan inloggning. */
 export default function AboutPage() {
+  // Introfilmen bara när NEXT_PUBLIC_INTRO_FILM_URL är satt (läses vid förfrågan, docs/drift.md).
+  const film = introFilmUrl();
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}><div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div></header>
     <div className={styles.prose}>
       <p>{text.intro}</p>
       <p>{text.introMore}</p>
+      {film && <p><a href={film}>{text.film}</a></p>}
       <h2>{text.betaTitle}</h2>
       <p>{text.beta}</p>
       <h2>{text.madeTitle}</h2>

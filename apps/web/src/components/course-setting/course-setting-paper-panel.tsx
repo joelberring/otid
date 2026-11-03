@@ -7,6 +7,7 @@ import {
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { Button } from "../ui";
+import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting-print-page.module.css";
 
 const BOXES = [4, 5, 5.5, 6, 7];
@@ -33,7 +34,7 @@ export function PaperDescriptionsPanel({ document, courses, placed, readOnly, on
   }
   return <section className={styles.panel} aria-labelledby="paper-descriptions" data-testid="paper-descriptions">
     <h2 id="paper-descriptions">{text.paper.heading}</h2>
-    <p className={styles.muted}>{text.paper.help}</p>
+    <p className={styles.muted}>{text.paper.help} <HelpLink article="beskrivning-pa-kartan" view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></p>
     {readOnly && <p className={styles.muted}>{text.paper.readOnly}</p>}
     <ul className={styles.paperRows}>{courses.map(course => {
       const settings = paperLayoutOf(document, course.id).descriptions ?? {};

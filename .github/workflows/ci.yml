@@ -76,6 +76,8 @@ jobs:
           printf 'OTID_ROC_BASE_URL=http://host.docker.internal:4331\n' >> .env
           # Hälsokontrollen: CI-maskinens disk är ofta fullare än 80 %.
           printf 'OTID_DISK_ALERT_PERCENT=97\n' >> .env
+          # ADR-0195: CI bygger avbildningarna från den här commiten (lokala namn), hämtar aldrig ghcr.io/…:main.
+          printf 'OTID_IMAGE=otid-web\nOTID_BACKUP_IMAGE=otid-backup\nOTID_TAG=ci\n' >> .env
       - run: docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 600
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
       # ADR-0186: övergången till databasroller på den körande servern, med samma steg som docs/drift.md; webbläsartesterna

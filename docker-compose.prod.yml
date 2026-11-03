@@ -8,7 +8,15 @@
 #   - print-worker utskriftsrollen (otid_print, bara utskriftskön, tävlingens namn och kartfilen).
 # Hemligheter ges bara till tjänster som behöver dem: Eventors masternyckel och e-posten bara till web, inte till publikens
 # instanser eller utskriftsarbetaren.
+#
+# ADR-0195: avbildningarna byggs av GitHub Actions efter grön CI på main och hämtas med `docker compose ... pull`
+# (docs/drift.md, Uppdatera). OTID_TAG i .env väljer version (förval main; en commit-sha låser versionen, t.ex. inför en
+# tävling). Bygga på servern i stället (reserv): OTID_IMAGE=otid-web, OTID_BACKUP_IMAGE=otid-backup och OTID_TAG=local i .env,
+# sedan `build` och `up -d` som förut.
 name: otid
+
+x-web-image: &web-image ${OTID_IMAGE:-ghcr.io/joelberring/otid-web}:${OTID_TAG:-main}
+x-backup-image: &backup-image ${OTID_BACKUP_IMAGE:-ghcr.io/joelberring/otid-backup}:${OTID_TAG:-main}
 
 # Steg 45: loggarna får inte fylla disken (högst 5 × 10 MB per tjänst).
 x-logging: &logging
@@ -70,7 +78,7 @@ services:
     build:
       context: ./deploy
       dockerfile: backup.Dockerfile
-    image: otid-backup
+    image: *backup-image
     restart: "no"
     cpu_shares: 128
     mem_limit: 192m
@@ -87,7 +95,7 @@ services:
   migrate:
     logging: *logging
     build: .
-    image: otid-web
+    image: *web-image
     restart: "no"
     depends_on:
       backup-before-migrate:
@@ -100,7 +108,7 @@ services:
   # databasen är migrerad och hämtar radiostämplingar. Caddy skickar hit allt utom publika sidor för besökare utan inloggning.
   web:
     logging: *logging
-    image: otid-web
+    image: *web-image
     restart: unless-stopped
     cpu_shares: 1024
     mem_limit: 1g
@@ -154,7 +162,7 @@ services:
   # e-post (självregistreringen och festen behöver ingen av dem).
   web-public: &web-public
     logging: *logging
-    image: otid-web
+    image: *web-image
     restart: unless-stopped
     cpu_shares: 256
     mem_limit: 640m
@@ -190,7 +198,7 @@ services:
   # hänger avbryts och kön går vidare. Hälsokontrollen ser att arbetaren lever (filen uppdateras minst var 30:e sekund).
   print-worker:
     logging: *logging
-    image: otid-web
+    image: *web-image
     restart: unless-stopped
     cpu_shares: 64
     mem_limit: 384m
@@ -235,7 +243,7 @@ services:
 
   backup:
     logging: *logging
-    image: otid-backup
+    image: *backup-image
     restart: unless-stopped
     cpu_shares: 128
     mem_limit: 192m
@@ -255,7 +263,7 @@ services:
   # beskrivningen annars; skriver alltid i loggen (`logs monitor`).
   monitor:
     logging: *logging
-    image: otid-backup
+    image: *backup-image
     restart: unless-stopped
     cpu_shares: 64
     mem_limit: 64m

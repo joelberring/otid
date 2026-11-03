@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Färdiga avbildningar, servern bygger inte (grenen snabbare-bygge, ADR-0195)
+- Arbetsflödet `Avbildningar`: efter grön CI för en push till main byggs `ghcr.io/joelberring/otid-web` och `otid-backup` (amd64, taggar sha, kort sha, main; GHA-cache). Andra grenar bygger utan att lägga upp.
+- `docker-compose.prod.yml`: `${OTID_IMAGE:-ghcr.io/joelberring/otid-web}:${OTID_TAG:-main}` (backupen likadant); `build:` kvar som reserv med lokala namn. CI-jobbet production bygger från commiten med lokala namn.
+- Docker-bygget hoppar över typkontrollen (`OTID_SKIP_BUILD_CHECKS=1` → `typescript.ignoreBuildErrors`), Nodes heap 1,5 GB, BuildKit-cache för pnpm-lagret och `.next/cache`. Lokalt `pnpm build` och CI verify kontrollerar typerna som förut.
+- Uppmätt (`next build`, 2 vCPU, processträdets RSS): förut 153–162 s, topp 2,7 GB och 2,2–2,3 GB i en minut under typkontrollen; nu 90 s med samma korta topp i slutet av kompileringen; med varm cache 11–14 s och 1,2 GB.
+- docs/drift.md: Uppdatera (pull i stället för build, låsa `OTID_TAG` inför tävlingen, tillbakagång), reserven med 3 GB swap. Ägaren gör paketen publika efter första publiceringen.
+- Ej provat här: Docker-bygget lokalt (Docker Hub nås inte från den här miljön); bygget provas av CI-jobben production och Avbildningar på grenen. Publiceringen körs först när arbetsflödet finns på main.
+
 ### 2026-11-02 – Träningsläge i banläggningen (grenen traningslage, ADR-0192)
 - Modell `document.training`: avsnitt per bana (från–till) med korridor (kantig/mjuk, bredd per sträcka), bälte med filter (bara kurvbild m.m.), fönster och utan karta; utanför hela/vitt/tonat/filter; ritade områden; sista säkra per sträcka; stjärna, linje, keps (1a/1b, gemensam karta som förval, A/B som val) och kartbitar. `PUT_TRAINING` med touches, ångra och id-översättning; .ppen i `<otid:training>` (egen namnrymd, Purple Pen hoppar över).
 - Symbolfilter efter ISOM 2017-2/ISSprOM 2019-2 (okända nummer efter namnet), förval och val per symbol. Kartan ritas i pass med klippning och dolda symboler (`drawTrainingMap`) i editorns Worker, förhandsvisningen och PDF:en; tonat = lägre andel av samma dekorfärg.

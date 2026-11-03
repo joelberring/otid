@@ -334,6 +334,22 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "rogaining",
+    title: "Rogaining: kontroller med poäng",
+    views: ["COURSES", "CS_COURSES"],
+    body: [
+      "I rogaining stämplar löparen valfria kontroller inom tidsgränsen. Resultatet är summan av kontrollernas poäng minus straffet för tid över gränsen.",
+      [
+        "Poängen följer kontrollkodens första siffra: 31 ger 3 poäng, 52 ger 5 och 102 ger 10. Så föredrar IRF:s regel C9 det.",
+        "Lägg banorna i ”Banläggning”: nya banor blir poängbanor. Ett tomt poängfält betyder kodens första siffra.",
+        "Skriv en annan poäng i fältet för kontroller som ska ge mer eller mindre.",
+        "”Överför till tävlingen …” tar med poängen. Ändrade poäng står som egna rader innan du godkänner.",
+        "Under ”Kontroller & poäng” går poängen att ändra efteråt, och där sätts klassernas tidsgräns och straff."
+      ],
+      "Har någon redan läst ut visar O-Tid vilka resultat som ändras innan poängen sparas."
+    ]
+  },
+  {
     id: "sjalvregistrering",
     title: "Självregistrering på tävlingsdagen",
     views: ["PARTY", "SETTINGS", "PUBLISH"],

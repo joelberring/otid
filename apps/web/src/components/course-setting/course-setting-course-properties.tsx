@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Course, CourseSettingDocument, CourseSettingEdit, CourseSummary } from "@o-tid/course-setting";
+import { defaultScorePoints, type Course, type CourseSettingDocument, type CourseSettingEdit, type CourseSummary } from "@o-tid/course-setting";
 import { coursePropertiesSv as text } from "../../i18n/course-setting-properties-sv";
 import { formOf, parsePoints, propertyChanges, type PropertiesForm } from "../../lib/course-setting-properties";
 import { Button } from "../ui";
@@ -63,6 +63,8 @@ export function PointsField({ document, course, courseControl, label, readOnly, 
   onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
   const current = document.courseControls[courseControl]?.points;
+  // Tomt fält = förvalet (kodens tiotal, som tävlingens rogaining); det visas som platshållare.
+  const fallback = defaultScorePoints(document.controls[document.courseControls[courseControl]?.control ?? ""]?.code);
   const [value, setValue] = useState(current ? String(current) : "");
   const [invalid, setInvalid] = useState(false);
   useEffect(() => { setValue(current ? String(current) : ""); setInvalid(false); }, [current]);
@@ -73,7 +75,8 @@ export function PointsField({ document, course, courseControl, label, readOnly, 
     if ((points ?? undefined) !== current) onEdits([{ type: "SET_POINTS", course, courseControl, points }]);
   };
   return <input type="text" inputMode="numeric" size={3} maxLength={4} className={styles.points} value={value} disabled={readOnly}
-    aria-label={text.points(label)} title={text.points(label)} aria-invalid={invalid || undefined} data-testid="course-setting-points"
+    aria-label={text.points(label)} title={text.pointsDefault(label, fallback)} placeholder={String(fallback)} aria-invalid={invalid || undefined}
+    data-testid="course-setting-points"
     onChange={event => setValue(event.target.value)} onBlur={commit}
     onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); commit(); } }} />;
 }

@@ -4,7 +4,8 @@ import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
 import { courseDataSv as text } from "../i18n/course-data-sv";
 
 export type CourseDataConversion =
-  | { readonly kind: "ok"; readonly document: CourseSettingDocument; readonly notices: readonly string[] }
+  /** `stays`: beskedet står kvar tills det stängs (varianter som blev egna banor). */
+  | { readonly kind: "ok"; readonly document: CourseSettingDocument; readonly notices: readonly string[]; readonly stays: boolean }
   | { readonly kind: "problem"; readonly text: string };
 
 /**
@@ -23,7 +24,7 @@ export function courseSettingFromCourseData(bytes: Uint8Array, options: { readon
         try { return wgs84ToMapPoint(georeference, position); } catch { return undefined; }
       } : undefined });
     return { kind: "ok", document, notices: [text.fromCourseData(document.courses.length, Object.keys(document.controls).length),
-      ...notices.map(notice => notice.text)] };
+      ...notices.map(notice => notice.text)], stays: notices.some(notice => notice.code === "FORKS_AS_COURSES") };
   } catch (error) {
     if (error instanceof IofValidationError) return { kind: "problem", text: text.problems.invalid };
     if (error instanceof CourseSettingEditError) return { kind: "problem", text: text.problems.notPlaced(error.message) };

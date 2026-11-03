@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyEdit, CourseSettingEditError, courseSummaries, expandText, layoutCoursePage, createdIdsBetween, documentChanges, editTouches, layoutDescription, objectPatch, readPpen,
+  applyEdit, CourseSettingEditError, defaultScorePoints, emptyDocument, scorePoints, courseSummaries, expandText, layoutCoursePage, createdIdsBetween, documentChanges, editTouches, layoutDescription, objectPatch, readPpen,
   replayEdits, touchedConflict, writePpen, type CourseSettingDocument, type CourseSettingEdit
 } from "../src";
 import { lineCourse } from "./build";
@@ -135,5 +135,25 @@ describe("ADR-0190: banans egenskaper", () => {
       { created: [createdIdsBetween(base, local), { controls: [], courseControls: [], courses: [] }], conflict: documentChanges(base, remote) });
     expect(replayed.rejected).toEqual([]);
     expect(names(replayed.document)[0]).toBe("Ny");
+  });
+});
+
+describe("poängbanans förval (som tävlingens rogaining)", () => {
+  it("kodens tiotal, som mest 1000; samma tal som domänens defaultRogainingPoints", () => {
+    // Samma fall som packages/domain/test/rogaining.test.ts.
+    expect(["31", "39", "45", "100", "102", "109", "110", "255", "99999"].map(defaultScorePoints)).toEqual([3, 3, 4, 10, 10, 10, 11, 25, 1_000]);
+    expect([undefined, "", "S1", "3a"].map(defaultScorePoints)).toEqual([0, 0, 0, 0]);
+  });
+
+  it("banläggarens poäng gäller, annars förvalet", () => {
+    let document = emptyDocument({ title: "Poäng", mapScale: 10000 });
+    const step = (edit: Parameters<typeof applyEdit>[1]) => { const result = applyEdit(document, edit); document = result.document; return result.created!; };
+    const c47 = step({ type: "ADD_CONTROL", kind: "NORMAL", at: { x: 1, y: 1 }, code: "47" });
+    const c52 = step({ type: "ADD_CONTROL", kind: "NORMAL", at: { x: 2, y: 2 }, code: "52" });
+    const course = step({ type: "ADD_COURSE", name: "Rogaining", kind: "SCORE" });
+    const a = step({ type: "INSERT_COURSE_CONTROL", course, control: c47 });
+    const b = step({ type: "INSERT_COURSE_CONTROL", course, control: c52 });
+    step({ type: "SET_POINTS", course, courseControl: b, points: 9 });
+    expect([scorePoints(document, a), scorePoints(document, b)]).toEqual([4, 9]);
   });
 });

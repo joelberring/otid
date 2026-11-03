@@ -13,6 +13,23 @@ describe("banfilen i banläggningen (Använd igen och Banor → Banfil)", () => 
     expect(result.document.event.title).toBe("Kväll");
     expect(result.document.courses.map(course => course.name)).toEqual(["Lång"]);
     expect(result.notices[0]).toBe("Banorna kommer från banfilen (1 bana, 9 kontroller). Kontrollbeskrivningarna är tomma.");
+    // Filens längd (3 900 m) är inte den uppmätta: sägs en gång, ingen fast längd.
+    expect(result.notices[1]).toBe("Banfilens längd för Lång var 3,9 km, uppmätt 2,4 km.");
+    expect(result.document.courses[0]!.lengthOverrideMeters).toBeUndefined();
+    expect(result.stays).toBe(false);
+  });
+
+  it("varianter som blev egna banor: beskedet står kvar tills det stängs", () => {
+    const xml = fixture.toString("utf8").replace("<Course>\n      <Name>Lång</Name>",
+      "<Course>\n      <Name>Lång A</Name><CourseFamily>Lång</CourseFamily>")
+      .replace("</RaceCourseData>", `<Course><Name>Lång B</Name><CourseFamily>Lång</CourseFamily>
+        <CourseControl type="Start"><Control>31</Control></CourseControl><CourseControl><Control>32</Control></CourseControl>
+        <CourseControl type="Finish"><Control>F1</Control></CourseControl></Course></RaceCourseData>`);
+    const result = courseSettingFromCourseData(new TextEncoder().encode(xml), { mapScale: 10000 });
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") return;
+    expect(result.stays).toBe(true);
+    expect(result.notices).toContain("Lång: varianterna gick inte att göra till gafflingar och är egna banor.");
   });
 
   it("en fil som inte är en banfil, och kontroller utan läge, ger ett besked", () => {

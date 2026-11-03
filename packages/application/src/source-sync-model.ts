@@ -30,6 +30,11 @@ export interface CourseFileProjection {
     Partial<Pick<CourseDataImport, "legAssignments" | "controlPositions">> & {
       /** ADR-0198: projektionen kommer från banläggningen, så en bana utan `excludedVariants` har inga bortval. */
       readonly fromCourseSetting?: true;
+      /**
+       * Rogaining (ägaren 2026-11-03): kontrollernas poäng ur banläggningen (null = förvalet, kodens tiotal). Bara när
+       * banläggningen förs över till en rogaining; en IOF-fil ger dem inte.
+       */
+      readonly controlPoints?: readonly { readonly code: number; readonly points: number | null }[];
     };
 }
 
@@ -70,6 +75,8 @@ export interface CurrentCourse {
   readonly climbMeters?: number | null;
 }
 export interface CurrentState {
+  /** Kontrollernas sparade poäng (rogaining), kod → poäng; saknas en kod gäller förvalet. */
+  readonly controlPoints?: ReadonlyMap<number, number> | undefined;
   readonly timeZone: string;
   readonly raceDate: string;
   readonly classes: readonly CurrentClass[];
@@ -109,6 +116,8 @@ export type CourseFileAction =
       readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] | undefined }
   /** ADR-0190: bara längden eller stigningen ändrad (inga resultat räknas om). */
   | { readonly type: "SET_COURSE_MEASURES"; readonly courseId: string }
+  /** Rogaining: kontrollens poäng ur banläggningen (null = förvalet). */
+  | { readonly type: "SET_CONTROL_POINTS"; readonly code: number; readonly points: number | null }
   | { readonly type: "CREATE_CLASS"; readonly externalId: string; readonly name: string; readonly courseRef: CourseRef }
   | { readonly type: "CHANGE_CLASS_COURSE"; readonly classId: string; readonly courseRef: CourseRef }
   | { readonly type: "NONE" };

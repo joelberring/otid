@@ -150,3 +150,20 @@ export function setPoints(document: CourseSettingDocument, courseId: string, cou
   if (updated.points === item.points) return document;
   return { ...document, courseControls: { ...document.courseControls, [courseControlId]: updated } };
 }
+
+/**
+ * Poängen som gäller för en kontroll på en poängbana när banläggaren inte satt någon: kodens första siffra (tiotalet, koden
+ * delat med tio avrundat nedåt, som mest 1000), samma förval som tävlingens rogaining (`defaultRogainingPoints` i domänen)
+ * och IRF:s regel C9 (poängen efter kontrollkodens första siffra). En kod som inte är ett tal ger 0.
+ */
+export function defaultScorePoints(code: string | undefined): number {
+  const value = Number(code);
+  return code !== undefined && /^\d+$/.test(code) && Number.isSafeInteger(value) ? Math.min(Math.floor(value / 10), 1_000) : 0;
+}
+
+/** Poängen för banans kontroll: banläggarens om den finns, annars förvalet ur koden. */
+export function scorePoints(document: CourseSettingDocument, courseControlId: string): number {
+  const item = document.courseControls[courseControlId];
+  if (!item) return 0;
+  return item.points !== undefined && item.points > 0 ? item.points : defaultScorePoints(document.controls[item.control]?.code);
+}

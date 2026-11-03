@@ -142,7 +142,7 @@ test("Banläggning i rogaining och fest: syns i arbetsytan och Mina tävlingar, 
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `typer.${suffix}@exempel.se`, "Tove Typer");
-  for (const [type, hint] of [["Rogaining", "Rogaining: nya banor blir poängbanor."], ["Fest", "Fest: banläggningen ger kartor att skriva ut."]] as const) {
+  for (const [type, hint] of [["Rogaining", "Utan satta poäng ger kontrollkodens första siffra poängen (IRF:s regel C9)."], ["Fest", "Fest: banläggningen ger kartor att skriva ut."]] as const) {
     await owner.goto("/organizer");
     const raceId = await createRace(owner, `${type} ${suffix}`, undefined, type);
     await expect(owner.getByTestId("nav-course-setting")).toBeVisible();

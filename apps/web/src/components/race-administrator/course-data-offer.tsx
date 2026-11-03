@@ -55,7 +55,7 @@ export function CourseDataOffer({ raceId, file }: { raceId: string; file: { read
     });
     if (appeared && current) { setState(current); setPhase("idle"); return; }
     if (!result.saved) { setPhase("failed"); return; }
-    rememberCourseSettingNotice(raceId, converted.notices.join(" "));
+    rememberCourseSettingNotice(raceId, { text: converted.notices.join(" "), stays: converted.stays });
     setNotices(converted.notices.slice(1));
     setPhase("done");
   }

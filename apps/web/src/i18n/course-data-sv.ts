@@ -30,6 +30,6 @@ export const courseDataSv = {
 
 /** Banläggningen i rogaining och fest (ägaren 2026-11-03: Banläggning syns för alla tävlingstyper). */
 export const courseSettingRaceTypeSv = {
-  ROGAINING: "Rogaining: nya banor blir poängbanor. Poängen i resultatet sätts under Kontroller & poäng i tävlingen; Överför till tävlingen ger banornas kontroller.",
+  ROGAINING: "Rogaining: nya banor blir poängbanor. Utan satta poäng ger kontrollkodens första siffra poängen (IRF:s regel C9). Poängen följer med när du överför till tävlingen.",
   PARTY: "Fest: banläggningen ger kartor att skriva ut. Festen har inga banor i tävlingen, så Överför till tävlingen finns inte här."
 } as const;

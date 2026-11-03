@@ -42,7 +42,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const [failed, setFailed] = useState<"login" | "other">();
   const [message, setMessage] = useState<Message>();
   // Använd igen med en banfil (IOF XML) säger i editorn vad som kom med och vad som inte gick (läst innan editorn monteras).
-  const [notice, setNotice] = useState<string | undefined>(() => typeof window === "undefined" ? undefined : pendingCourseSettingNotice(raceId));
+  const [pending] = useState(() => typeof window === "undefined" ? undefined : pendingCourseSettingNotice(raceId));
+  const [notice, setNotice] = useState<string | undefined>(pending?.text);
   const [busy, setBusy] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [resume, setResume] = useState<{ record: FieldRecord; fromPhone: boolean }>();
@@ -133,7 +134,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const setting = state.setting;
   // Steg 66: editorn fyller fönstret (egen rad överst med bakåtlänken).
   if (state.mapFile && setting) return <CourseSettingEditor key={`${generation}-${setting.version}`} raceId={raceId} state={{ ...state, setting }}
-    notice={notice ?? (resume?.fromPhone ? offlineSv.openedFromPhone(resume.record.savedAt) : undefined)} resume={resume?.record}
+    notice={notice ?? (resume?.fromPhone ? offlineSv.openedFromPhone(resume.record.savedAt) : undefined)}
+    noticeStays={notice !== undefined && notice === pending?.text && pending.stays} resume={resume?.record}
     onReload={() => { setNotice(undefined); void load(); }} />;
   return <main className={styles.page}>
     <header className={styles.head}>{back}<h1>{text.title}</h1><HelpButton view={["CS_START", "COURSE_SETTING"]} />{state.mapFile && <p>{state.mapFile.fileName} · 1:{state.mapFile.scale}</p>}</header>

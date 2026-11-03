@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { applyEdit, readPpen, writeIofCourseData } from "@o-tid/course-setting";
 import { parseIofXml } from "@o-tid/iof-xml";
-import { classNamesOf, courseSettingProjection } from "../src/course-setting-transfer";
+import { classNamesOf, courseSettingProjection, scoreControlPoints } from "../src/course-setting-transfer";
 
 /**
  * Steg 62 (ADR-0180 beslut 1, 6): "Överför till tävlingen" ska ge samma banfil som om banläggaren exporterat IOF XML 3.0
@@ -103,5 +103,23 @@ describe("banläggningen som banfil", () => {
     expect(parsed.assignments).toEqual(built.projection.data.assignments);
     expect(parsed.controlMapPositions).toEqual(built.projection.data.controlMapPositions);
     expect(parsed.mapScale).toBe(built.projection.data.mapScale);
+  });
+
+  it("rogaining: poängbanornas poäng följer med per kod (förvalet som null), bara till en rogaining", async () => {
+    const ppen = await readFile(new URL("../../../fixtures/course-setting/kartfil.ppen", import.meta.url), "utf8");
+    let document = readPpen(ppen).document;
+    const step = (edit: Parameters<typeof applyEdit>[1]) => { const result = applyEdit(document, edit); document = result.document; return result.created!; };
+    const course = step({ type: "ADD_COURSE", name: "Poäng", kind: "SCORE" });
+    const byCode = (code: string) => Object.values(document.controls).find(control => control.code === code)!.id;
+    const c33 = step({ type: "INSERT_COURSE_CONTROL", course, control: byCode("33") });
+    step({ type: "INSERT_COURSE_CONTROL", course, control: byCode("35") });
+    step({ type: "SET_POINTS", course, courseControl: c33, points: 8 });
+    expect(scoreControlPoints(document)).toEqual([{ code: 33, points: 8 }, { code: 35, points: null }]);
+    const rogaining = courseSettingProjection(document, { rogaining: true });
+    if (!("projection" in rogaining)) throw new Error(rogaining.problem.error);
+    expect(rogaining.projection.data.controlPoints).toEqual([{ code: 33, points: 8 }, { code: 35, points: null }]);
+    const other = courseSettingProjection(document);
+    if (!("projection" in other)) throw new Error(other.problem.error);
+    expect(other.projection.data.controlPoints).toBeUndefined();
   });
 });

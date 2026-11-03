@@ -53,7 +53,7 @@ export const eventorEventChoiceResponseSchema = z.object({
 }).strict();
 
 export const sourceKindSchema = z.enum(["EVENTOR", "COURSE_FILE"]);
-export const syncFieldSchema = z.enum(["NAME", "CLUB", "CLASS", "CARD", "COURSE", "CONTROLS", "VARIANTS", "TEAM_NAME", "CLASS_NAME", "LEGS", "LENGTH", "CLIMB"]);
+export const syncFieldSchema = z.enum(["NAME", "CLUB", "CLASS", "CARD", "COURSE", "CONTROLS", "VARIANTS", "TEAM_NAME", "CLASS_NAME", "LEGS", "LENGTH", "CLIMB", "POINTS"]);
 /** Varför en rad inte kan godkännas här, eller vad den innebär. Texterna finns i i18n. */
 export const syncNoteSchema = z.enum([
   "WITHDRAWN_READ_OUT", "WITHDRAWN_HAS_RESULT", "CARD_IN_USE", "CARD_AFTER_READOUT", "TEAM_CLASS_CHANGED", "RELAY_CLASS_MISMATCH",
@@ -64,7 +64,8 @@ export const syncRowSchema = z.object({
   /** Kort, stabilt id för raden (samma källa och samma läge ger samma id). */
   id: z.string().regex(/^r[a-f0-9]{12}$/),
   kind: z.enum(["NEW", "CHANGED", "WITHDRAWN", "CONFLICT"]),
-  subject: z.enum(["CLASS", "ENTRY", "TEAM", "COURSE"]),
+  /** CONTROL: rogainingkontrollens poäng (banläggningens överföring). */
+  subject: z.enum(["CLASS", "ENTRY", "TEAM", "COURSE", "CONTROL"]),
   label: text,
   context: z.string().max(400).nullable(),
   changes: z.array(z.object({ field: syncFieldSchema, from: z.string().max(4_000).nullable(), to: z.string().max(4_000).nullable() }).strict()).max(20),

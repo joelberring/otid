@@ -5,8 +5,15 @@ import type { ClubMapView, GroupSummary, MapAgreement } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubBase, clubFailure, clubRequest, renderMapVersion, sendRenderedMap, uploadMapVersion } from "../../lib/club-archive-client";
 import { Button, DateInput, EmptyState, Field, Notice } from "../ui";
-import { MapAgreementFields, MapAgreementSummary } from "../training-group/map-agreement";
+import { MapAgreementSummary } from "../training-group/map-agreement";
+import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
+import { MapCheckChip, MapThumbnail } from "./map-check";
+import { MapRightsEditor } from "./map-rights-editor";
+import type { useArchiveChecks } from "./use-archive-checks";
+import checks from "./archive-checks.module.css";
 import styles from "./club-archive.module.css";
+
+type Checks = ReturnType<typeof useArchiveChecks>;
 
 const text = clubArchiveSv.maps;
 type Message = { tone: "ok" | "error"; text: string };
@@ -58,7 +65,6 @@ function UploadForm({ clubId, mapId, onDone, onMessage }: { clubId: string; mapI
 function MapCard({ clubId, map, maps, admin, groups, onChanged, onMessage }: { clubId: string; map: ClubMapView; maps: readonly ClubMapView[]; admin: boolean;
   groups: readonly GroupSummary[]; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
   const [name, setName] = useState(map.name);
-  const [agreement, setAgreement] = useState<MapAgreement>(agreementOf(map));
   const [mergeTarget, setMergeTarget] = useState("");
   const [busy, setBusy] = useState("");
   const others = maps.filter(other => other.mapId !== map.mapId);
@@ -85,15 +91,23 @@ function MapCard({ clubId, map, maps, admin, groups, onChanged, onMessage }: { c
     } finally { setBusy(""); }
   }
 
+  const latest = map.versions.find(version => version.versionId === map.latestVersionId);
   return <article className={styles.card} data-testid="club-map">
-    <h3>{map.name}</h3>
-    <p className={styles.small}>{text.versions(map.versions.length)} · {text.trainings(map.trainings)}</p>
-    <MapAgreementSummary agreement={agreementOf(map)} />
+    <div className={checks.mapCard}>
+      <MapThumbnail clubId={clubId} version={latest} name={map.name} />
+      <div className={checks.rights}>
+        <h3>{map.name}</h3>
+        <p className={styles.small}>{text.versions(map.versions.length)} · {text.trainings(map.trainings)}</p>
+        <MapAgreementSummary agreement={agreementOf(map)} />
+        {admin && <MapRightsEditor clubId={clubId} map={map} onSaved={onChanged} />}
+      </div>
+    </div>
     <ul className={styles.versions}>
-      {map.versions.map(version => <li key={version.versionId}>
+      {map.versions.map(version => <li key={version.versionId} data-testid="club-map-version">
         <div><strong>{version.versionDate ?? "–"}</strong> {version.fileName}
           {version.versionId === map.latestVersionId && <span className={styles.latest}>{text.latest}</span>}
-          <div className={styles.small}>{clubArchiveSv.mb(version.byteLength)} · {text.trainings(version.trainings)}{version.note ? ` · ${version.note}` : ""}</div></div>
+          <div className={styles.small}>{clubArchiveSv.mb(version.byteLength)} · {text.trainings(version.trainings)}{version.note ? ` · ${version.note}` : ""}</div>
+          <MapCheckChip check={version.check} explain /></div>
         <div className={styles.actions}>
           <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{clubArchiveSv.entry.downloadMap}</a>
           {admin && <select aria-label={`${text.move} ${version.fileName}`} value="" disabled={busy !== ""}
@@ -124,11 +138,10 @@ function MapCard({ clubId, map, maps, admin, groups, onChanged, onMessage }: { c
         <UploadForm clubId={clubId} mapId={map.mapId} onDone={onChanged} onMessage={onMessage} />
       </details>
       <details className={styles.details}>
-        <summary>{text.rename}</summary>
+        <summary>{clubArchiveChecksSv.renameMap}</summary>
         <form className={styles.form} onSubmit={event => { event.preventDefault(); void act("update", () => clubRequest(`${clubBase(clubId)}/maps/${map.mapId}`,
-          "PUT", { formatVersion: 1, name: name.trim(), agreement }), clubArchiveSv.entry.saved); }}>
+          "PUT", { formatVersion: 1, name: name.trim(), agreement: agreementOf(map) }), clubArchiveSv.entry.saved); }}>
           <Field label={text.mapName}><input value={name} maxLength={120} onChange={event => setName(event.target.value)} /></Field>
-          <MapAgreementFields value={agreement} onChange={setAgreement} disabled={busy !== ""} />
           <Button type="submit" disabled={busy !== "" || !name.trim()}>{clubArchiveSv.entry.save}</Button>
         </form>
       </details>
@@ -148,9 +161,25 @@ function MapCard({ clubId, map, maps, admin, groups, onChanged, onMessage }: { c
   </article>;
 }
 
+/** ADR-0196: "Kontrollera alla kartor igen" med hur långt kontrollen har kommit. */
+function RecheckBox({ checks: run }: { checks: Checks }) {
+  const state = run.state;
+  const t = clubArchiveChecksSv;
+  return <div className={checks.recheck} data-testid="recheck">
+    <p className={styles.small}>{t.recheckHelp}</p>
+    <div className={checks.buttons}>
+      <Button variant="secondary" onClick={run.recheckAll} disabled={state.running && state.forced}>{t.recheckAll}</Button>
+      {state.running && <Button variant="quiet" onClick={run.stop}>{clubArchiveChecksSv.rights.cancel}</Button>}
+    </div>
+    {state.running && <p className={checks.progress} role="status" aria-live="polite">
+      {state.forced ? t.progress(state.done, state.total, state.label) : t.progressAuto(state.done, state.total)}</p>}
+    {!state.running && state.message && <Notice tone={state.message.tone} role={state.message.tone === "ok" ? "status" : "alert"}>{state.message.text}</Notice>}
+  </div>;
+}
+
 /** ADR-0194 beslut 2 och 5: klubbens kartor med versioner, rättigheter, slå ihop och dela, ny version och gruppens bibliotek. */
-export function ClubMapsPanel({ clubId, maps, admin, onChanged }: { clubId: string; maps: readonly ClubMapView[]; admin: boolean;
-  onChanged: () => Promise<void> }) {
+export function ClubMapsPanel({ clubId, maps, admin, onChanged, checks: run }: { clubId: string; maps: readonly ClubMapView[]; admin: boolean;
+  onChanged: () => Promise<void>; checks: Checks }) {
   const [message, setMessage] = useState<Message>();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   useEffect(() => {
@@ -164,6 +193,7 @@ export function ClubMapsPanel({ clubId, maps, admin, onChanged }: { clubId: stri
       <p className={styles.muted}>{text.help}</p>
     </div>
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+    {admin && maps.length > 0 && <RecheckBox checks={run} />}
     {maps.length === 0 && <EmptyState title={text.empty} />}
     {maps.map(map => <MapCard key={`${map.mapId}-${map.versions.length}-${map.name}`} clubId={clubId} map={map} maps={maps} admin={admin} groups={groups}
       onChanged={onChanged} onMessage={setMessage} />)}

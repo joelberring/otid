@@ -10,6 +10,7 @@ import { ArchiveList } from "./archive-list";
 import { ClubImportPanel } from "./club-import-panel";
 import { ClubMapsPanel } from "./club-maps-panel";
 import { ClubMembersPanel } from "./club-members-panel";
+import { useArchiveChecks } from "./use-archive-checks";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv;
@@ -47,6 +48,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     try { window.history.replaceState(null, "", `#${next}`); } catch { /* adressen är bara en bekvämlighet */ }
   };
   const admin = club ? club.viewer.role !== "READER" : false;
+  // ADR-0196: kartornas kontroll och bilderna ritas i bakgrunden när en administratör har arkivet öppet.
+  const checks = useArchiveChecks(clubId, list, admin, load);
   const usage = useMemo(() => club ? text.usage(club.usage.mapBytes + club.usage.courseFileBytes, club.usage.maps, club.usage.versions,
     club.usage.entries) : "", [club]);
 
@@ -67,7 +70,7 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     </div>
     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
       {tab === "trainings" && <ArchiveList clubId={clubId} list={list} admin={admin} />}
-      {tab === "maps" && <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} onChanged={load} />}
+      {tab === "maps" && <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} onChanged={load} checks={checks} />}
       {tab === "members" && <ClubMembersPanel club={club} onChanged={load} />}
       {tab === "import" && <ClubImportPanel club={club} onChanged={load} />}
     </div>

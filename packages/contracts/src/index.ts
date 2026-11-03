@@ -304,4 +304,5 @@ export * from "./course-setting-collaboration";
 export * from "./course-setting-print";
 export * from "./training-group";
 export * from "./club-archive";
+export * from "./club-archive-checks";
 export * from "./race-backup";

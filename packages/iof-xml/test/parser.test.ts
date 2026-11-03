@@ -346,3 +346,65 @@ describe("parseIofXml", () => {
       .toThrow(/stöds inte/);
   });
 });
+
+describe("IOF XML 2.0.3 CourseData (ADR-0196)", () => {
+  const v2 = (courses: string, extra = "") => `<?xml version="1.0" encoding="utf-8"?>
+<CourseData>
+  <IOFVersion version="2.0.3" />
+  <Map><Scale>15000</Scale><MapPosition x="-126.79" y="31.37" /></Map>
+  <StartPoint><StartPointCode>STA1</StartPointCode><ControlPosition x="666890" y="6573208" /><MapPosition x="59.36" y="-52.77" /></StartPoint>
+  <Control><ControlCode>31</ControlCode><ControlPosition x="666808" y="6573162" /><MapPosition x="53.86" y="-55.84" /></Control>
+  <Control><ControlCode>32</ControlCode><MapPosition x="40" y="-60" /></Control>
+  <Control><ControlCode>33</ControlCode><MapPosition x="45.5" y="-40" /></Control>
+  <FinishPoint><FinishPointCode>FIN1</FinishPointCode><MapPosition x="60" y="-50" /></FinishPoint>
+  ${courses}${extra}
+</CourseData>`;
+  const variation = (id: string, controls: number[], length: number, name = "") => `<CourseVariation><CourseVariationId>${id}</CourseVariationId>
+    ${name ? `<Name>${name}</Name>` : ""}<CourseLength>${length}</CourseLength><StartPointCode>STA1</StartPointCode>
+    ${controls.map((code, index) => `<CourseControl><Sequence>${index + 1}</Sequence><ControlCode>${code}</ControlCode><LegLength>94</LegLength></CourseControl>`).join("")}
+    <FinishPointCode>FIN1</FinishPointCode><DistanceToFinish>171</DistanceToFinish></CourseVariation>`;
+
+  it("läser banor, kontroller, längd, skala och lägen på kartan till samma modell som 3.0", () => {
+    const parsed = parseIofXml(v2(`<Course><CourseName>grön</CourseName><CourseId>0</CourseId>${variation("0", [31, 32, 33], 1700)}</Course>
+      <Course><CourseName>Blå</CourseName><CourseId>0</CourseId><ClassShortName>H21</ClassShortName>${variation("0", [33, 31], 2400)}</Course>`));
+    if (parsed.kind !== "CourseData") throw new Error("Fel typ");
+    expect(parsed.mapScale).toBe(15000);
+    expect(parsed.courses).toEqual([
+      { externalId: "grön", name: "grön", controlCodes: [31, 32, 33], lengthMeters: 1700, startMapPosition: { x: 59.36, y: -52.77 },
+        finishMapPosition: { x: 60, y: -50 } },
+      { externalId: "Blå", name: "Blå", controlCodes: [33, 31], lengthMeters: 2400, startMapPosition: { x: 59.36, y: -52.77 },
+        finishMapPosition: { x: 60, y: -50 } }
+    ]);
+    expect(parsed.controlMapPositions).toEqual([{ code: 31, x: 53.86, y: -55.84 }, { code: 32, x: 40, y: -60 }, { code: 33, x: 45.5, y: -40 }]);
+    expect(parsed.controlPositions).toEqual([]);
+    expect(parsed.assignments).toEqual([{ classExternalId: "H21", className: "H21", courseExternalId: "Blå", startRule: "PUNCH" }]);
+    expect(parsed.warnings.some(warning => warning.includes("2.0.3"))).toBe(true);
+  });
+
+  it("sorterar kontrollerna efter Sequence och gör flera CourseVariation till en gafflad bana", () => {
+    const shuffled = `<Course><CourseName>Lång</CourseName><CourseVariation><CourseVariationId>0</CourseVariationId><CourseLength>3100</CourseLength>
+      <CourseControl><Sequence>2</Sequence><ControlCode>32</ControlCode></CourseControl><CourseControl><Sequence>1</Sequence><ControlCode>31</ControlCode></CourseControl>
+      </CourseVariation>${variation("1", [33, 32, 31], 3300, "Lång-B")}</Course>`;
+    const parsed = parseIofXml(v2(shuffled));
+    if (parsed.kind !== "CourseData") throw new Error("Fel typ");
+    expect(parsed.courses[0]).toMatchObject({ externalId: "family:Lång", name: "Lång", controlCodes: [], lengthMeters: 3300,
+      variants: [{ code: "0", controlCodes: [31, 32], lengthMeters: 3100 }, { code: "B", controlCodes: [33, 32, 31], lengthMeters: 3300 }] });
+  });
+
+  it("räknar längden ur lägena på kartan och skalan när CourseLength saknas", () => {
+    const parsed = parseIofXml(v2(`<Course><CourseName>Kort</CourseName>${variation("0", [32], 0).replace("<CourseLength>0</CourseLength>", "")}</Course>`));
+    if (parsed.kind !== "CourseData") throw new Error("Fel typ");
+    // Start (59.36, −52.77) → 32 (40, −60) → mål (60, −50) på 1:15 000.
+    const mm = Math.hypot(40 - 59.36, -60 + 52.77) + Math.hypot(60 - 40, -50 + 60);
+    expect(parsed.courses[0]!.lengthMeters).toBe(Math.round(mm * 15));
+  });
+
+  it("säger vad som är fel i en trasig 2.0.3-fil", () => {
+    expect(() => parseIofXml(v2(`<Course><CourseName>X</CourseName>${variation("0", [99], 100)}</Course>`))).toThrow(/okänd kontroll 99/);
+    expect(() => parseIofXml(v2(""))).toThrow(/Course saknas/);
+  });
+
+  it("kräver fortfarande namnrymden för CourseData 3.0", () => {
+    expect(() => parseIofXml(`<CourseData iofVersion="3.0"><Event><Name>x</Name></Event><RaceCourseData/></CourseData>`)).toThrow(/namnrymden/);
+  });
+});

@@ -18,6 +18,10 @@ async function render(request: MapFileWorkerRequest): Promise<MapFileWorkerRespo
   if (!map.bounds || map.objects.length === 0) return { type: "error", code: "EMPTY" };
   post({ type: "progress", stage: "drawing" });
   let pxPerMm = preferredPxPerMm(map.scale);
+  if (request.maxSide && request.maxSide > 0) {
+    const side = Math.max(map.bounds.maxX - map.bounds.minX, map.bounds.maxY - map.bounds.minY, 1);
+    pxPerMm = Math.min(pxPerMm, request.maxSide / side);
+  }
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const size = renderSize(map, pxPerMm);
     if (!size) return { type: "error", code: "EMPTY" };
@@ -40,7 +44,7 @@ async function render(request: MapFileWorkerRequest): Promise<MapFileWorkerRespo
 self.onmessage = (event: MessageEvent<MapFileWorkerRequest>) => {
   render(event.data).then(post, (error: unknown) => {
     // Ett läsfel är ett begripligt besked till arrangören; allt annat loggas i webbläsarens konsol.
-    if (error instanceof MapFileError) post({ type: "error", code: error.code });
+    if (error instanceof MapFileError) post({ type: "error", code: error.code, message: error.message.slice(0, 300) });
     else { console.error("Kartfilen kunde inte ritas", error); post({ type: "error", code: "FAILED" }); }
   });
 };

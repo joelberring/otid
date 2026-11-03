@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema } from "./account";
 import { uuidSchema } from "./ids";
+import type { ClubEntryThumbnailSource, ClubEntryThumbnailView, ClubMapCheckView } from "./club-archive-checks";
 import { mapAgreementSchema, type MapAgreement } from "./training-group";
 
 /**
@@ -141,11 +142,15 @@ export type ClubArchiveEntryStatus = "COMPLETE" | "COURSES_ONLY" | "MAP_MISSING"
 export interface ClubArchiveListItem {
   entryId: string; trainingDate: string | null; year: number | null; place: string; title: string; leader: string | null; tags: string[];
   courseNames: string[]; courseFiles: number; maps: { mapId: string; name: string }[]; status: ClubArchiveEntryStatus;
+  /** ADR-0196: träningens bild (null = inte ritad än) och vad den ritas av (null = ingen karta). */
+  thumbnail: ClubEntryThumbnailView | null; thumbnailSource: ClubEntryThumbnailSource | null;
 }
 
 export interface ClubMapVersionView {
   versionId: string; mapId: string; fileName: string; format: "OCD" | "OMAP"; byteLength: number; versionDate: string | null; note: string | null;
   uploadedAt: string; sourcePath: string | null; contentSha256: string; trainings: number;
+  /** ADR-0196: senaste kontrollen (null = inte kontrollerad än). */
+  check: ClubMapCheckView | null;
 }
 
 export interface ClubMapView extends MapAgreement {

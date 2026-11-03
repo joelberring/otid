@@ -38,6 +38,7 @@ import {
   array, count, IofValidationError, record, rejectUnexpectedKeys, requireText, text, withLines, type XmlRecord
 } from "./xml";
 import { readCourseData, type CourseDataImport } from "./course-data";
+import { isCourseDataV2, readCourseDataV2 } from "./course-data-v2";
 
 export { IofValidationError, decodeIofXml } from "./xml";
 /** Steg 62: variantkoden ur familjens och banans namn (banläggningens överföring gör som inläsningen). */
@@ -350,6 +351,8 @@ function parseIofXmlStrict(xml: string): IofImport {
         : undefined;
   if (!rootName) throw new IofValidationError(["Roten måste vara CourseData, EntryList eller StartList"]);
   const root = record(document[rootName]);
+  // ADR-0196: banfiler i IOF XML 2.0.3 (äldre OCAD och Condes) läses till samma modell.
+  if (rootName === "CourseData" && isCourseDataV2(root)) return readCourseDataV2(root);
   const namespace = text(root["@_xmlns"]);
   if (namespace !== IOF_NAMESPACE) {
     throw new IofValidationError([`XML-namnrymden måste vara ${IOF_NAMESPACE}`]);

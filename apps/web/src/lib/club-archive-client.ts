@@ -2,7 +2,7 @@ import { IOF_IMPORT_CONTENT_TYPE, RACE_MAP_SOURCE_PARTS, type RaceMapSourceMetad
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
 import { importCourseSetting } from "./course-setting-api";
-import { renderMapFile, type MapFileRenderResult, type MapFileWorkerErrorCode } from "./map-file-worker-protocol";
+import { renderMapFile, type MapFileRenderError, type MapFileRenderResult } from "./map-file-worker-protocol";
 import { readOrganizerCsrf } from "./organizer-client";
 
 /**
@@ -66,11 +66,11 @@ export async function fetchCourseFileBytes(clubId: string, courseFileId: string)
 
 const createWorker = () => new Worker(new URL("./map-file-worker.ts", import.meta.url), { type: "module" });
 
-/** Ritar kartversionen i kartfilens Worker (samma som vid uppladdning av en kartfil). */
+/** Ritar kartversionen i kartfilens Worker (samma som vid uppladdning av en kartfil); `maxSide` begränsar upplösningen. */
 export async function renderMapVersion(clubId: string, versionId: string, fileName: string, onStage: (stage: "reading" | "drawing") => void = () => undefined,
-  signal?: AbortSignal): Promise<MapFileRenderResult | { type: "error"; code: MapFileWorkerErrorCode }> {
+  signal?: AbortSignal, maxSide?: number): Promise<MapFileRenderResult | MapFileRenderError> {
   const bytes = await fetchMapVersion(clubId, versionId, signal);
-  return renderMapFile(createWorker, { bytes, fileName }, onStage, signal);
+  return renderMapFile(createWorker, { bytes, fileName, ...(maxSide ? { maxSide } : {}) }, onStage, signal);
 }
 
 /** Bilden och metadata som multipart till kartversionens mål ("race" eller "group"). */

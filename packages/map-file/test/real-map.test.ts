@@ -191,3 +191,21 @@ describe.skipIf(!sbnDirectory)("Högdalen 2026 (OTID_SBN_DIR)", () => {
     expect(rgb255(map!, "Svart 100%")).toEqual([0, 0, 0]);
   });
 });
+
+/**
+ * ADR-0196: klubbarkivets äldre OCAD-filer (version 8–11). Med OTID_OLD_OCD_DIR läses varje .ocd i mappen; ingen får kasta
+ * och var och en ska ha objekt och färger. Filerna är klubbens och committas inte.
+ */
+const oldDirectory = process.env.OTID_OLD_OCD_DIR;
+describe.skipIf(!oldDirectory)("Klubbarkivets OCAD 8–11", () => {
+  it("läser alla filer i mappen", () => {
+    const files = readdirSync(oldDirectory!).filter(name => name.toLowerCase().endsWith(".ocd"));
+    expect(files.length).toBeGreaterThan(0);
+    for (const name of files) {
+      const { map } = timedRead(join(oldDirectory!, name));
+      expect(map.objects.length, name).toBeGreaterThan(0);
+      expect(map.colors.length, name).toBeGreaterThan(0);
+      expect(map.warnings.filter(warning => warning.code === "BROKEN_SYMBOL" || warning.code === "BROKEN_OBJECT"), name).toEqual([]);
+    }
+  });
+});

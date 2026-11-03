@@ -31,7 +31,7 @@ function policy(environment: Environment): { value: SecurityPolicy } | { respons
   }
 }
 
-function failure(status: string): Response {
+export function failure(status: string): Response {
   switch (status) {
     case "unauthorized": return accountFailure(401, "UNAUTHORIZED");
     case "forbidden": return accountFailure(403, "FORBIDDEN");
@@ -50,27 +50,28 @@ function problem(error: string, quota?: MapQuotaExceeded): Response {
 }
 
 type Proof = ReturnType<typeof sessionProof>;
+export type ClubEnvironment = Environment;
 
-async function mutation(request: Request, environment: Environment, body: "json" | "none" | "stream" = "json")
+export async function mutation(request: Request, environment: Environment, body: "json" | "none" | "stream" = "json", maxBytes = BODY_MAX)
   : Promise<{ response: Response } | { body: unknown; proof: Proof }> {
   const configured = policy(environment);
   if ("response" in configured) return configured;
   if (!hasExpectedOrigin(request, configured.value)) return { response: accountFailure(403, "FORBIDDEN") };
   let parsed: unknown = undefined;
   if (body === "json") {
-    try { parsed = await readJsonBody(request, BODY_MAX); } catch { return { response: accountFailure(400, "INVALID_REQUEST") }; }
+    try { parsed = await readJsonBody(request, maxBytes); } catch { return { response: accountFailure(400, "INVALID_REQUEST") }; }
   } else if (body === "none" && !await hasNoRequestBody(request)) return { response: accountFailure(400, "INVALID_REQUEST") };
   return { body: parsed, proof: sessionProof(request, configured.value, true) };
 }
 
-async function readProof(request: Request, environment: Environment): Promise<{ response: Response } | { proof: Proof }> {
+export async function readProof(request: Request, environment: Environment): Promise<{ response: Response } | { proof: Proof }> {
   const configured = policy(environment);
   if ("response" in configured) return configured;
   if (!await hasNoRequestBody(request)) return { response: accountFailure(400, "INVALID_REQUEST") };
   return { proof: sessionProof(request, configured.value, false) };
 }
 
-async function guarded(run: () => Promise<Response>): Promise<Response> {
+export async function guarded(run: () => Promise<Response>): Promise<Response> {
   try { return await run(); }
   catch (error) {
     logServerError("club", "route", error);

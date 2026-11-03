@@ -49,9 +49,10 @@ describe("kartversionerna jämförs", () => {
 describe("arkivets sökning och filter", () => {
   const entries = [
     { entryId: "a", trainingDate: "2019-04-02", year: 2019, place: "Älvsjöskogen", title: "Älvsjöskogen räv", leader: "Anna", tags: ["Rävorientering"],
-      courseNames: ["Lång"], courseFiles: 1, maps: [{ mapId: "m1", name: "Älvsjöskogen" }], status: "COMPLETE" as const },
+      courseNames: ["Lång"], courseFiles: 1, maps: [{ mapId: "m1", name: "Älvsjöskogen" }], status: "COMPLETE" as const,
+      thumbnail: null, thumbnailSource: null },
     { entryId: "b", trainingDate: null, year: 2020, place: "Parken", title: "Sprint", leader: null, tags: ["Sprint"], courseNames: [], courseFiles: 0,
-      maps: [], status: "MAP_ONLY" as const }
+      maps: [], status: "MAP_ONLY" as const, thumbnail: null, thumbnailSource: null }
   ];
   it("söker utan accenter och versaler, filtrerar på år, karta, tagg, ledare och läge", () => {
     expect(filterArchive(entries, { ...EMPTY_FILTER, text: "alvsjo rav" }).map(entry => entry.entryId)).toEqual(["a"]);

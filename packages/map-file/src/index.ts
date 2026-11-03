@@ -1,6 +1,7 @@
 export * from "./model";
 export * from "./render";
 export { readMapFile } from "./read";
+export { MAP_READER_VERSION } from "./version";
 export {
   crsFromEpsg, geodeticToGrid, gridToGeodetic, isSupportedEpsg, mapPointToProjected, mapPointToWgs84, projectedToMapPoint,
   projectedToWgs84, transverseMercatorFor, wgs84ToMapPoint, wgs84ToProjected

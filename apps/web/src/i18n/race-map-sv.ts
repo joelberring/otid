@@ -49,7 +49,7 @@ export const raceMapSv = {
     savedNeedsPoints: "Kartan är ritad och sparad. Filen saknar en georeferens som O-Tid kan använda, så ange tre punkter nedan.",
     errors: {
       NOT_A_MAP_FILE: "Filen är ingen kartfil från OCAD eller Mapper.",
-      UNSUPPORTED_VERSION: "Kartfilen är från en OCAD-version som inte stöds. Spara den i OCAD 12 eller senare, eller i Mapper.",
+      UNSUPPORTED_VERSION: "Kartfilen är från en OCAD-version som inte stöds (äldre än OCAD 8). Öppna och spara den i nyare OCAD eller i Mapper.",
       TRUNCATED: "Kartfilen är avkortad eller trasig.",
       INVALID: "Kartfilen går inte att läsa.",
       EMPTY: "Kartfilen innehåller inga objekt att rita.",

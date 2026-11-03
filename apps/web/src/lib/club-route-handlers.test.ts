@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Database } from "@o-tid/database";
-import { clubCreateRoute, clubImportBatchRoute, clubImportContentRoute, clubMapVersionTargetRoute } from "./club-route-handlers";
+import {
+  clubCreateRoute, clubImportBatchRoute, clubImportContentRoute, clubMapVersionTargetRoute, clubWebImportBatchRoute, clubWebImportCheckRoute,
+  clubWebImportContentRoute
+} from "./club-route-handlers";
 
 /**
  * ADR-0194: anropen avvisas innan databasen används – fel Origin på arrangörens skrivningar, importen utan nyckel eller med
@@ -37,5 +40,25 @@ describe("klubbarkivets anrop", () => {
     const batch = await clubImportBatchRoute(db, new Request(`https://tid.klubb.se/api/club-import/${club}/batch`, { method: "POST",
       headers: { ...bearer, "content-type": "text/plain" }, body: "{}" }), club);
     expect(batch.status).toBe(400);
+  });
+
+  it("importen i webbläsaren (ADR-0204): rätt Origin krävs, ingen importnyckel tas emot, en för stor fil 422 – innan något läses", async () => {
+    const url = `https://tid.klubb.se/api/organizer/clubs/${club}/import`;
+    const json = { "content-type": "application/json" };
+    for (const route of [clubWebImportCheckRoute, clubWebImportBatchRoute]) {
+      expect((await route(db, new Request(`${url}/check`, { method: "POST", headers: { ...json, origin: "https://annan.se" }, body: "{}" }), club, env)).status)
+        .toBe(403);
+      // Importnyckeln utan Origin räcker inte här (den hör till /api/club-import/).
+      expect((await route(db, new Request(`${url}/check`, { method: "POST", headers: { ...json, authorization: `Bearer otid-imp-${"A".repeat(43)}` },
+        body: "{}" }), club, env)).status).toBe(403);
+    }
+    const put = (headers: Record<string, string>) => new Request(`${url}/content/${"a".repeat(64)}`,
+      { method: "PUT", headers: { origin: env.O_TID_PUBLIC_ORIGIN, ...headers }, body: "x" });
+    expect((await clubWebImportContentRoute(db, put({ "content-type": "text/plain" }), club, "a".repeat(64), env)).status).toBe(400);
+    const large = await clubWebImportContentRoute(db, put({ "content-type": "application/octet-stream", "content-length": String(200 * 1024 * 1024) }),
+      club, "a".repeat(64), env);
+    expect(large.status).toBe(422);
+    expect(await large.json()).toEqual({ formatVersion: 1, error: "MAP_FILE_TOO_LARGE" });
+    expect((await clubWebImportContentRoute(db, put({ "content-type": "application/octet-stream" }), "inte-ett-id", "a".repeat(64), env)).status).toBe(404);
   });
 });

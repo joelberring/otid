@@ -66,8 +66,13 @@ export const clubCourseFileMapRequestSchema = z.object({ formatVersion: z.litera
 
 // --- Importen (ADR-0194 beslut 6–7) ---------------------------------------------------------------------------------------
 
-export const clubImportCheckRequestSchema = z.object({ formatVersion: z.literal(1), sha256: z.array(sha256Schema).max(1000) }).strict();
-export interface ClubImportCheckResponse { formatVersion: 1; clubId: string; clubName: string; known: string[] }
+/**
+ * `importKeys` (valfritt, ADR-0204): träningarnas nycklar, så att förhandsgranskningen i webbläsaren kan säga vilka träningar
+ * som redan finns (`knownEntries`). Kommandot skickar dem inte och får samma svar som förut.
+ */
+export const clubImportCheckRequestSchema = z.object({ formatVersion: z.literal(1), sha256: z.array(sha256Schema).max(1000),
+  importKeys: z.array(z.string().min(1).max(500)).max(5000).optional() }).strict();
+export interface ClubImportCheckResponse { formatVersion: 1; clubId: string; clubName: string; known: string[]; knownEntries?: string[] }
 
 const importPathSchema = z.string().min(1).max(500);
 export const clubImportMapVersionSchema = z.object({

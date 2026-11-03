@@ -456,3 +456,45 @@ export async function clubImportBatchRoute(db: Database, request: Request, clubI
     return result.status === "ok" ? privateJson(result.response) : importFailure(result.status);
   });
 }
+
+// --- Importen från webbläsaren (ADR-0204) -------------------------------------------------------------------------------
+// Samma tjänster som importnyckelns anrop ovan, men med inloggningen: exakt Origin och CSRF som arrangörens andra skrivningar,
+// och rollen administratör i klubben (`requireClubRole`). Importnyckeln behövs inte och tas inte emot här.
+
+export async function clubWebImportCheckRoute(db: Database, request: Request, clubId: string, environment: Environment = process.env)
+  : Promise<Response> {
+  if (!validId(clubId)) return failure("not-found");
+  const input = await mutation(request, environment, "json", CLUB_IMPORT_BATCH_MAX_BYTES);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await importCheck(db, { session: input.proof, clubId, request: input.body });
+    return result.status === "ok" ? privateJson(result.response) : failure(result.status);
+  });
+}
+
+export async function clubWebImportContentRoute(db: Database, request: Request, clubId: string, sha256: string,
+  environment: Environment = process.env): Promise<Response> {
+  if (!validId(clubId)) return failure("not-found");
+  const input = await mutation(request, environment, "stream");
+  if ("response" in input) return input.response;
+  if (request.headers.get("content-type") !== "application/octet-stream" || !request.body) return failure("invalid-request");
+  if (!validDeclaredLength(request, CLUB_ARCHIVE_MAP_MAX_BYTES)) return problem("MAP_FILE_TOO_LARGE");
+  const body = request.body;
+  return guarded(async () => {
+    const result = await importMapContent(db, { session: input.proof, clubId, sha256, body: streamChunks(body) });
+    if (result.status === "problem") return problem(result.problem === "TOO_LARGE" ? "MAP_FILE_TOO_LARGE" : result.problem);
+    if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED", result.quota);
+    return result.status === "ok" ? privateJson(result.response) : failure(result.status);
+  });
+}
+
+export async function clubWebImportBatchRoute(db: Database, request: Request, clubId: string, environment: Environment = process.env)
+  : Promise<Response> {
+  if (!validId(clubId)) return failure("not-found");
+  const input = await mutation(request, environment, "json", CLUB_IMPORT_BATCH_MAX_BYTES);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await importBatch(db, { session: input.proof, clubId, request: input.body });
+    return result.status === "ok" ? privateJson(result.response) : failure(result.status);
+  });
+}

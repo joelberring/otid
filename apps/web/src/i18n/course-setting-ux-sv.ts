@@ -55,7 +55,10 @@ export const courseSettingUxSv = {
     button: "Visa",
     heading: "Visa på kartan",
     otherCourses: "Visa andra banor svagt",
-    unused: (count: number) => `Markera oanvända kontroller (${count})`
+    unused: (count: number) => `Markera oanvända kontroller (${count})`,
+    inspected: "Kollade kontroller",
+    notes: "Notiser",
+    warnings: "Markera varningar"
   },
   courses: {
     duplicate: "Duplicera",

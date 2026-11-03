@@ -196,7 +196,7 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
         const count = counts[item] ?? 0;
         const label = copy.drawer.tabs[item];
         return <button key={item} type="button" role="tab" id={`course-setting-tab-${item}`} aria-selected={tab === item}
-          aria-controls="course-setting-tabpanel" title={copy.drawer.count(label, count)} className={styles.tab}
+          aria-controls="course-setting-tabpanel" title={copy.drawer.count(label, count)} className={styles.tab} data-count={count}
           data-phone-more={PHONE_TABS.includes(item) ? undefined : "true"}
           onClick={() => { onTab(item); setCollapsed(false); setSheetOpen(true); }}>
           <span aria-hidden="true" className={styles.tabIcon}>{TAB_ICON[item]}</span>

@@ -133,6 +133,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
       "I en bana syns kontroller som inte är med svagt. Klicka i ringen med ”Kontroll” eller ”Lägg in” för att ta med den.",
       [
         "”Visa” på kartan: ”Visa andra banor svagt” och markera oanvända kontroller.",
+        "Under ”Visa” släcks också ”Kollade kontroller” (gröna rutan), ”Notiser” och ”Markera varningar”, per webbläsare.",
         "”Bara oanvända” i listan visar kontroller som inte finns på någon bana.",
         "”Ta bort alla oanvända” städar bort dem efter en fråga."
       ]
@@ -197,7 +198,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
       [
         "En yta eller linje: klicka i hörnen och avsluta med Enter, ”Klar” eller ett klick på första punkten.",
         "Fliken ”Objekt” listar objekten. Under ”Syns på” väljer du alla banor eller bara vissa.",
-        "Spärrarna räknas med i vägvalen och i varningarna: en sträcka genom ett förbjudet område varnas."
+        "Spärrarna räknas med i vägvalen och i varningarna: en kontroll som går att nå runt ett förbjudet område varnas inte; se [Varningar](#varningar)."
       ]
     ]
   },
@@ -260,15 +261,32 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
     title: "Varningar",
     views: ["CS_CHECKS"],
     body: [
-      "Fliken ”Varningar” räknas om efter varje ändring. ”Visa på kartan” visar kontrollerna det gäller. Det här kontrolleras:",
+      "Fliken ”Varningar” räknas om efter varje ändring. Det här kontrolleras:",
       [
         "Kontroller för nära varandra. Är objektet (kolumn D) ifyllt avgörs det om objekten är lika eller olika.",
         "Samma kod på flera kontroller, och koder som kan läsas upp och ned.",
         "Samma kontroll två gånger i rad, och en sträcka genom en annan kontrolls ring.",
-        "En sträcka genom förbjudet eller farligt område, tillfällig konstruktion, gräns eller förbjuden väg.",
+        "En kontroll i ett förbjudet eller farligt område eller en tillfällig konstruktion är fel.",
+        "Korsar fågelvägen en spärr räknas vägvalet runt. Finns en väg runt är det ingen varning; ”Vald” visar omvägen.",
+        "Finns ingen laglig väg runt spärren är det fel.",
         "Bana utan start eller mål, kontroll utan kod och kontroller som inte används på någon bana."
       ],
-      "Varningarna stoppar ingenting. Gå igenom dem innan du skriver ut och för över banorna.",
+      "Så läser du listan:",
+      [
+        "Fel först, sedan varningar och notiser, i grupper per sort med antal.",
+        "Siffran på fliken räknar fel och varningar som inte är godtagna.",
+        "Samma sträcka på flera banor eller varianter står på en rad med banornas namn först.",
+        "Ett klick på en rad visar den på kartan; en sträcka väljs på banan."
+      ],
+      "Är det meningen? Tryck på ”Godta”.",
+      [
+        "Raden flyttas till de godtagna längst ned. ”Ångra” tar tillbaka den.",
+        "Gruppens knapp godtar alla av samma sort.",
+        "Det sparas i banläggningen med ångra och versioner, och följer med när en ny .ppen läses in.",
+        "Det gäller tills kontrollen eller området byts ut eller flyttas mer än 25 m.",
+        "Samma kod, kod som saknas och bana utan start eller mål går inte att godta."
+      ],
+      "Varningarna stoppar ingenting.",
       "Ringarnas och linjernas mått mot standarden står under ”Inställningar” → ”Utseende”; se [Banans utseende](#utseende)."
     ]
   },

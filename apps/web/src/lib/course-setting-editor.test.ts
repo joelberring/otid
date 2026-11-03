@@ -5,7 +5,8 @@ import {
   removeSelected, select, setView, undo
 } from "./course-setting-editor";
 import { ALL_CONTROLS, bendInsertIndex, hitTest, nearestBend, primitiveDistance } from "./course-setting-hit";
-import { checkRows, controlLabel, legInput, minutes } from "./course-setting-text";
+import { checkRows } from "./course-setting-checks";
+import { controlLabel, legInput, minutes } from "./course-setting-text";
 import { applyEdit as apply } from "@o-tid/course-setting";
 import { testDocument } from "./course-setting-test-document";
 import { bitmapPlacement, fitBounds, panBy, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt } from "./course-setting-viewport";

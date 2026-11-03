@@ -149,6 +149,10 @@ export { acceptClubInvitations, clubMembership, requireClubRole, type ClubFailur
 export * from "./clubs";
 export * from "./club-archive";
 export * from "./club-maps";
+export { mergeClubMaps, undoClubMapMerge } from "./club-map-merge";
+export { copyClubMapVersionFields, dismissClubMapDuplicates, readClubMapDuplicates } from "./club-map-duplicates";
+export { clubMapUseIssues, mayUseClubMap } from "./club-map-use";
+export { listUsableClubMaps } from "./club-map-picker";
 export * from "./club-archive-import";
 export {
   readClubEntryThumbnail, readClubMapVersionThumbnail, refreshClubCourseSummaries, saveClubEntryThumbnail, saveClubMapVersionCheck, type ThumbnailRead

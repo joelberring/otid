@@ -7,6 +7,8 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { deriveRasterGeoreference, RasterGeoreferenceError } from "@o-tid/domain";
 import { clubJournal, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
+import { mergeClubMapInto } from "./club-map-merge";
+import { mayUseClubMap } from "./club-map-use";
 import { lockRaceForMutation } from "./concurrency";
 import { imageDimensions } from "./image-dimensions";
 import {
@@ -44,7 +46,9 @@ export async function updateClubMap(db: Database, input: ClubProof & { clubId: s
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
-    const [row] = await tx.update(schema.clubMaps).set({ name: parsed.data.name, ...agreement, updatedAt: now })
+    const texts = { ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {}),
+      ...(parsed.data.maker !== undefined ? { maker: parsed.data.maker } : {}) };
+    const [row] = await tx.update(schema.clubMaps).set({ name: parsed.data.name, ...agreement, ...texts, updatedAt: now })
       .where(and(eq(schema.clubMaps.id, input.mapId), eq(schema.clubMaps.clubId, input.clubId))).returning({ id: schema.clubMaps.id });
     if (!row) return { status: "not-found" } as const;
     await propagateAgreement(tx, row.id, agreement, now);
@@ -66,23 +70,13 @@ async function removeIfEmpty(tx: ClubTransaction, mapId: string, replacement: st
   await tx.delete(schema.clubMaps).where(eq(schema.clubMaps.id, mapId));
 }
 
-/** "Slå ihop med …": alla versioner flyttas till målet, kartan tas bort. Målets rättigheter gäller. */
+/** "Slå ihop med …" (ADR-0194): samma journalförda sammanslagning som "Slå ihop till en karta" (ADR-0210); målet behålls. */
 export async function mergeClubMap(db: Database, input: ClubProof & { clubId: string; mapId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; mapId: string }> {
   const parsed = clubMapMergeRequestSchema.safeParse(input.request);
   if (!parsed.success || !validId(input.mapId) || parsed.data.targetMapId === input.mapId) return { status: "invalid-request" };
-  return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "ADMIN", now, true);
-    if (member.status !== "ok") return member;
-    const source = await clubMap(tx, input.clubId, input.mapId);
-    const target = await clubMap(tx, input.clubId, parsed.data.targetMapId);
-    if (!source || !target) return { status: "not-found" } as const;
-    await tx.update(schema.clubMapVersions).set({ mapId: target.id }).where(eq(schema.clubMapVersions.mapId, source.id));
-    await removeIfEmpty(tx, source.id, target.id);
-    await clubJournal(tx, { clubId: input.clubId, action: "CLUB_MAP_MERGED", actorAccountId: member.accountId,
-      details: { from: source.id, fromName: source.name, into: target.id }, now });
-    return { status: "ok", mapId: target.id } as const;
-  });
+  const result = await mergeClubMapInto(db, { ...input, targetMapId: parsed.data.targetMapId }, now);
+  return result.status === "ok" ? { status: "ok", mapId: result.response.mapId } : result;
 }
 
 /** "Flytta till …" eller "Ny karta": versionen byter karta (dela upp en gissning som blev fel). */
@@ -123,7 +117,9 @@ export async function updateClubMapVersion(db: Database, input: ClubProof & { cl
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
-    const [row] = await tx.update(schema.clubMapVersions).set({ versionDate: parsed.data.versionDate, note: parsed.data.note })
+    const extra = { ...(parsed.data.versionYear !== undefined ? { versionYear: parsed.data.versionYear } : {}),
+      ...(parsed.data.maker !== undefined ? { maker: parsed.data.maker } : {}) };
+    const [row] = await tx.update(schema.clubMapVersions).set({ versionDate: parsed.data.versionDate, note: parsed.data.note, ...extra })
       .where(and(eq(schema.clubMapVersions.id, input.versionId), eq(schema.clubMapVersions.clubId, input.clubId))).returning({ id: schema.clubMapVersions.id });
     if (!row) return { status: "not-found" } as const;
     await clubJournal(tx, { clubId: input.clubId, action: "CLUB_MAP_VERSION_UPDATED", actorAccountId: member.accountId, details: { versionId: row.id }, now });
@@ -251,6 +247,8 @@ export async function saveClubMapVersionToRace(db: Database, input: ClubProof & 
     if (member.status !== "ok") return member;
     const row = await versionWithMap(tx, input.clubId, input.versionId);
     if (!row) return { status: "not-found" } as const;
+    // ADR-0210 beslut 7: samma beslut som "Välj karta från klubbarkivet".
+    if (!mayUseClubMap({ role: member.role, clubId: input.clubId }, { mapId: row.map.id, ...agreementOf(row.map) })) return { status: "forbidden" } as const;
     const file = await existingContent(tx, row.version.contentSha256);
     return file ? { status: "ok", row, file } as const : { status: "not-found" } as const;
   });

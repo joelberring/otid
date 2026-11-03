@@ -1,4 +1,4 @@
-import type { RaceMapSourceMetadata } from "@o-tid/contracts";
+import type { MapFingerprintPayload, RaceMapSourceMetadata } from "@o-tid/contracts";
 
 /** Steg 59: meddelandena mellan arbetsytan och kartfilens Worker. */
 export interface MapFileWorkerRequest {
@@ -13,7 +13,9 @@ export type MapFileWorkerErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | 
 
 export type MapFileWorkerResponse =
   | { readonly type: "progress"; readonly stage: "reading" | "drawing" }
-  | { readonly type: "done"; readonly png: Blob; readonly metadata: RaceMapSourceMetadata; readonly width: number; readonly height: number }
+  | { readonly type: "done"; readonly png: Blob; readonly metadata: RaceMapSourceMetadata; readonly width: number; readonly height: number;
+      /** ADR-0210: kartans fingeravtryck (klubbarkivets kontroll sparar det). */
+      readonly fingerprint?: MapFingerprintPayload | null }
   | MapFileRenderError;
 
 /** `message` är läsarens besked (t.ex. "OCAD 7 stöds inte. …") när filen inte gick att läsa. */

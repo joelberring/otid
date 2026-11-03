@@ -1,3 +1,4 @@
+import type { MapFingerprintPayload } from "@o-tid/contracts";
 import { symbolSetHash, type MapExtent, type MapFingerprint } from "@o-tid/domain";
 import { mapPointToProjected, type ParsedMap } from "@o-tid/map-file";
 
@@ -29,7 +30,7 @@ const roundExtent = (extent: MapExtent, decimals: number): MapExtent => {
 };
 
 /** Fingeravtrycket, eller null för en karta utan objekt eller skala. */
-export function mapFingerprint(map: ParsedMap): MapFingerprint | null {
+export function mapFingerprint(map: ParsedMap): MapFingerprintPayload | null {
   if (!map.bounds || !(map.scale >= 100 && map.scale <= 1_000_000)) return null;
   const codes = new Set<string>();
   for (const object of map.objects) {

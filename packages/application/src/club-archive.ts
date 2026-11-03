@@ -4,10 +4,12 @@ import {
   type ClubArchiveEntryView, type ClubArchiveList, type ClubArchiveListItem, type ClubMapVersionView, type ClubMapView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
+import { guessVersionYear, versionYearSpan } from "@o-tid/domain";
 import { clubJournal, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
 import { entryThumbnails, forgetEntryThumbnail, mapChecks } from "./club-archive-checks";
 import { courseDataPoints, courseFileSummary } from "./club-archive-import";
 import { leaderGroups } from "./club-maps";
+import { mapMergeHistory } from "./club-map-merge";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
@@ -18,8 +20,13 @@ import type { DbExecutor } from "./snapshot";
 type MapRow = typeof schema.clubMaps.$inferSelect;
 type VersionRow = typeof schema.clubMapVersions.$inferSelect;
 
-const versionOrder = (a: VersionRow, b: VersionRow) => (b.versionDate ?? "").localeCompare(a.versionDate ?? "")
-  || b.uploadedAt.getTime() - a.uploadedAt.getTime() || a.fileName.localeCompare(b.fileName);
+/** ADR-0210: versionens år, inskrivet eller gissat (filnamnet, mapparna, årsmappen, datumet, uppladdningen). */
+export const versionYearOf = (version: VersionRow) => guessVersionYear({ fileName: version.fileName, sourcePath: version.sourcePath,
+  versionDate: version.versionDate, uploadedAt: version.uploadedAt, manualYear: version.versionYear });
+
+/** Nyaste först: året, sedan datumet och uppladdningen. */
+const versionOrder = (a: VersionRow, b: VersionRow) => versionYearOf(b).year - versionYearOf(a).year
+  || (b.versionDate ?? "").localeCompare(a.versionDate ?? "") || b.uploadedAt.getTime() - a.uploadedAt.getTime() || a.fileName.localeCompare(b.fileName);
 
 /** Kartorna med versionerna (senaste först) och hur många träningar som använder varje version. */
 export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: readonly string[]): Promise<ClubMapView[]> {
@@ -33,20 +40,26 @@ export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: read
       union all select map_version_id, entry_id from club_archive_course_file where club_id = ${clubId} and map_version_id is not null) u
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
   const checks = await mapChecks(tx, versions.map(version => version.id));
+  const merges = await mapMergeHistory(tx, clubId, maps, versions);
   // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
   return [...maps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
-    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses, checks));
+    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses, checks, merges.get(map.id) ?? []));
 }
 
-function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>): ClubMapView {
-  const views: ClubMapVersionView[] = versions.map(version => ({ versionId: version.id, mapId: version.mapId, fileName: version.fileName,
-    format: version.format, byteLength: version.byteLength, versionDate: version.versionDate, note: version.note,
-    uploadedAt: version.uploadedAt.toISOString(), sourcePath: version.sourcePath, contentSha256: version.contentSha256,
-    trainings: uses.get(version.id) ?? 0, check: checks.get(version.id) ?? null }));
+function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>,
+  merges: ClubMapView["merges"]): ClubMapView {
+  const views: ClubMapVersionView[] = versions.map(version => {
+    const year = versionYearOf(version);
+    return { versionId: version.id, mapId: version.mapId, fileName: version.fileName,
+      format: version.format, byteLength: version.byteLength, versionDate: version.versionDate, note: version.note,
+      uploadedAt: version.uploadedAt.toISOString(), sourcePath: version.sourcePath, contentSha256: version.contentSha256,
+      trainings: uses.get(version.id) ?? 0, check: checks.get(version.id) ?? null, year: year.year, yearSource: year.source, maker: version.maker };
+  });
   return { mapId: map.id, name: map.name, ownership: map.ownership, ownerKind: map.ownerKind, ownerName: map.ownerName, agreement: map.agreement,
     validUntil: map.validUntil, contact: map.contact, trainingOnly: map.trainingOnly, feePerPrint: map.feePerPrint,
     noPublicDisplay: map.noPublicDisplay, versions: views, latestVersionId: views[0]?.versionId ?? null,
-    trainings: views.reduce((sum, version) => sum + version.trainings, 0) };
+    trainings: views.reduce((sum, version) => sum + version.trainings, 0), description: map.description, maker: map.maker,
+    years: versionYearSpan(views.map(version => version.year)), merges };
 }
 
 type StoredSummary = typeof schema.clubArchiveCourseFiles.$inferSelect["summary"];

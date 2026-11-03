@@ -2,6 +2,7 @@ import { z } from "zod";
 import { accountEmailSchema } from "./account";
 import { uuidSchema } from "./ids";
 import type { ClubEntryThumbnailSource, ClubEntryThumbnailView, ClubMapCheckView } from "./club-archive-checks";
+import type { ClubMapMergeView } from "./club-map-duplicates";
 import { mapAgreementSchema, type MapAgreement } from "./training-group";
 
 /**
@@ -45,8 +46,10 @@ export const clubArchiveEntryUpdateRequestSchema = z.object({
   notes: optionalText(4000)
 }).strict();
 
+/** ADR-0210: `description` och `maker` (valfria; utelämnade = oförändrade) sätts en gång på kartan. */
 export const clubMapUpdateRequestSchema = z.object({
-  formatVersion: z.literal(1), name: clubNameSchema, agreement: mapAgreementSchema
+  formatVersion: z.literal(1), name: clubNameSchema, agreement: mapAgreementSchema, description: optionalText(2000).optional(),
+  maker: optionalText(200).optional()
 }).strict();
 
 /** Slå ihop kartan med en annan (alla versioner flyttas dit och kartan tas bort). */
@@ -57,8 +60,10 @@ export const clubMapVersionMoveRequestSchema = z.object({
   formatVersion: z.literal(1), targetMapId: uuidSchema.nullable(), newMapName: clubNameSchema.nullable()
 }).strict().refine(value => (value.targetMapId === null) !== (value.newMapName === null));
 
+/** ADR-0210: `versionYear` (null = gissa igen) och `maker` är valfria; utelämnade är oförändrade. */
 export const clubMapVersionUpdateRequestSchema = z.object({
-  formatVersion: z.literal(1), versionDate: z.iso.date().nullable(), note: optionalText(500)
+  formatVersion: z.literal(1), versionDate: z.iso.date().nullable(), note: optionalText(500),
+  versionYear: z.number().int().min(1950).max(2100).nullable().optional(), maker: optionalText(200).optional()
 }).strict();
 
 /** Banfilens karta vald för hand (eller ingen). */
@@ -156,10 +161,16 @@ export interface ClubMapVersionView {
   uploadedAt: string; sourcePath: string | null; contentSha256: string; trainings: number;
   /** ADR-0196: senaste kontrollen (null = inte kontrollerad än). */
   check: ClubMapCheckView | null;
+  /** ADR-0210: versionens år (inskrivet eller gissat, och varifrån) och kartritare. */
+  year: number; yearSource: ClubMapVersionYearSource; maker: string | null;
 }
+
+export type ClubMapVersionYearSource = "MANUAL" | "FILE_NAME" | "FOLDER" | "YEAR_FOLDER" | "DATE" | "UPLOAD";
 
 export interface ClubMapView extends MapAgreement {
   mapId: string; name: string; versions: ClubMapVersionView[]; latestVersionId: string | null; trainings: number;
+  /** ADR-0210: beskrivning och kartritare, första och sista versionens år, och sammanslagningarna in i kartan. */
+  description: string | null; maker: string | null; years: { from: number; to: number } | null; merges: ClubMapMergeView[];
 }
 
 export interface ClubArchiveList { formatVersion: 1; clubId: string; clubName: string; viewer: { role: ClubRole }; entries: ClubArchiveListItem[];

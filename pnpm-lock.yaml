@@ -231,6 +231,12 @@ importers:
         specifier: 5.11.2
         version: 5.11.2
 
+  packages/map-revision:
+    dependencies:
+      '@o-tid/map-file':
+        specifier: workspace:*
+        version: link:../map-file
+
   packages/print-pdf:
     dependencies:
       '@o-tid/course-setting':

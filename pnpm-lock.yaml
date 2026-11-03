@@ -63,6 +63,9 @@ importers:
       '@o-tid/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@o-tid/club-archive':
+        specifier: workspace:*
+        version: link:../../packages/club-archive
       '@o-tid/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

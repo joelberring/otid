@@ -16,7 +16,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - BL-förslaget: status som märke, valt som nedtryckt knapp ("✓ Godtagen"), Ångra, besked vid raden; panelen monteras inte om när kopian skapas (beskedet försvann).
 - Kepsens förklaring står under hela banan; poängbanans fasta längd visar inte "0,0 km".
 - Klubbarkivet: Ny klubb med fältfel (tomt, för långt, finns redan `NAME_TAKEN`); importen hämtar klubben ur nyckeln (`GET /api/club-import/token`), `--club` valfritt och kontrollerat, svenska fel för 401/404, dold nyckel vid frågan; träningssidan säger att arkivet bara visar och har Använd igen under kartan.
-- Verifierat: lint, typecheck, enhetstester (paketen, webben), integration klubbarkiv, Playwright `hittbarhet` (1280/390).
+- Rättat: starten gick inte att ta i en kopia ur arkivet – kartan passades in under verktygsraden (nu bredvid den, `fitBounds` med `insets`) och bara triangelns kontur träffade (nu inuti också). BL-godkännandet sparades på en gammal version och avvisades tyst (utskriftssidan sparar nu en sak i taget på senaste versionen).
+- Verifierat: lint, typecheck, enhetstester (paketen, webben), integration klubbarkiv, Playwright `hittbarhet` och `klubbarkiv` (1280/390).
+
 ### 2026-11-03 – Färdiga avbildningar, servern bygger inte (grenen snabbare-bygge, ADR-0195)
 - Arbetsflödet `Avbildningar`: efter grön CI för en push till main byggs `ghcr.io/joelberring/otid-web` och `otid-backup` (amd64, taggar sha, kort sha, main; GHA-cache). Andra grenar bygger utan att lägga upp.
 - `docker-compose.prod.yml`: `${OTID_IMAGE:-ghcr.io/joelberring/otid-web}:${OTID_TAG:-main}` (backupen likadant); `build:` kvar som reserv med lokala namn. CI-jobbet production bygger från commiten med lokala namn.

@@ -6,7 +6,8 @@ import type {
   CourseSettingMode, CourseSettingState, CourseSettingSuggestionDecided
 } from "@o-tid/contracts";
 import {
-  applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, keepPaperOnImport, layoutCoursePage, layoutOverprint, nextFreeCode,
+  applyEdit, carryExcludedVariants, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, keepPaperOnImport, layoutCoursePage,
+  layoutOverprint, nextFreeCode,
   printAreaOf, type CourseSettingDocument, type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
@@ -61,6 +62,7 @@ import { useCourseSettingCollaboration } from "./use-course-setting-collaboratio
 import { ControlList } from "./course-setting-controls";
 import { CourseProperties } from "./course-setting-course-properties";
 import { RouteLengthPanel, useRouteLength } from "./course-setting-route-length";
+import { VariantsPanel } from "./course-setting-variants";
 import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
 import { useCourseSettingHistory } from "./use-course-setting-history";
@@ -508,13 +510,15 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       await sync.flush();
       // Steg 64 (ADR-0183): tävlingens utskriftsprofiler och layoutmallar står inte i .ppen-filen och följer med.
       const event = document.event;
-      const carried: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
+      let carried: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
         ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
         // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10).
         ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) },
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
         ...(!file.document.training && document.training ? { training: document.training } : {}) };
+      // ADR-0198: bortvalda varianter följer med när filen saknar dem och varianterna finns kvar.
+      carried = carryExcludedVariants(document, carried);
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
       const imported = keepPaperOnImport(document, carried, await importedImageHashes(carried),
@@ -604,6 +608,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         onMove={(id, position) => edit(current => { const step = moveCourseEdit(current.document, id, position);
           return step ? applySteps(current, [step], applyEdit) : current; })} />
         {course && <CourseProperties course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly}
+          onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
+        {course && <VariantsPanel document={document} course={course} routeLength={routeLength} hasMap={Boolean(state.mapFile)} readOnly={readOnly}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         {course && <RouteLengthPanel state={routeLength} hasMap={Boolean(state.mapFile)} />}
         <ControlList document={document} summaries={summaries} view={view} variant={variant} branch={ux.active?.start} readOnly={readOnly}

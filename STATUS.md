@@ -16,6 +16,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Hjälpen ("Papperet", "Mallar för papperet och klippning av kartan") säger båda.
 - Verifierat: enhetstester (`paper-items`, print-pdf `paper-pdf`), hjälptestet, lint, Playwright `banlaggning-pappersrum` utökad (1280/390).
 
+### 2026-11-03 – Färre gafflingsvarianter (grenen gaffling-urval, ADR-0198, migration 0064)
+- Banläggningen: panelen Varianter i fliken Banor (fågelväg, längs vägval på begäran i vägvalens Worker, kontroller, skillnad mot kortaste i m och %), kryssruta per variant och "Begränsa varianter" (längst i alla avseenden, högst X % längre, högst N) med förhandsgranskning; skyddet behåller en variant per kontroll och sträcka. "8 varianter, 4 används (4 bortvalda som längre)".
+- Bortvalen sparas på banan (`UPDATE_COURSE.excludedVariants`: kod och kontrollkoder), så autosparande, ångra och versioner gäller; .ppen kan inte bära dem (Purple Pen har bara `relay-branch`), så de skrivs i `<otid:variants>` och följer med när en fil från Purple Pen läses in om varianterna finns kvar.
+- Bortvalda räknas inte i sammanfattning, kontroll, IOF XML eller utskrift och förs inte över; tävlingen får bara de behållna (lottning, fördelning, stafett och exporter oförändrade). `forkingReadiness` räknar bara behållna; arbetsytan visar antalet bortvalda.
+- Avläsningen: banversionen bär de bortvalda (`course_version.excluded_variants`); `excludedVariantsFitting` ger beskedet "passar BDF, som är bortvald" i avläsningen, kvittot, deltagarkortet och listan. Inget byts och ingen döms ut tyst.
+- Utjämnad bana och utjämnad stafett: varnar (panelen vid stafettlag, tävlingens rättvisekontroller), stoppar inte.
+- Verifierat: se slutrapporten för grenen.
+
 ### 2026-11-03 – Hjälp för banläggning, vägval och klubbarkiv (grenen hjalp-banlaggning, bygger på steg 37)
 - Hjälp i banläggningens rad överst (bara "?" under 900 px), på sidan före editorn, utskriftssidan, kontrollbeskrivningarna, klubbarkivet (flikarna och en träning) och i kontrollkartan. Panelen visar först den öppna flikens artiklar (fältläget först på telefonen), sedan banläggningen i stort; i kontrollkartans läge Vägval vägvalens.
 - 39 nya artiklar i `help-course-setting-sv.ts`, `help-print-sv.ts` och `help-archive-route-sv.ts` (Kom igång ×2 som numrerade steg, kartfil och .ppen, verktygen, gaffling, objekt, egenskaper, beskrivning och förslag, varningar, notiser, fältläget, utan nät, kollat, utskrift, beskrivningen på kartan, papperet och dess mallar/klippning (efter pappersrum), BL, PDF, samarbete, versioner, förslag, utseende, överföring, vägval ×6, kontrollkartan, arkivet ×6); Träning utökad.

@@ -109,6 +109,7 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     id: schema.courseVersions.id,
     courseId: schema.courseVersions.courseId,
     version: schema.courseVersions.version,
+    excludedVariants: schema.courseVersions.excludedVariants,
     createdAt: schema.courseVersions.createdAt
   }).from(schema.courseVersions)
     .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
@@ -227,7 +228,9 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
           // Ändrade rogainingpoäng följer med; NULL betyder förvalet.
           controls: courseControlRows.filter((control) => control.courseVersionId === version.id)
             .map(({ points, ...control }) => points === null ? control : { ...control, points }),
-          ...(variants.length > 0 ? { variants } : {})
+          ...(variants.length > 0 ? { variants } : {}),
+          // ADR-0198: bortvalda varianter för avläsningens besked.
+          ...(version.excludedVariants && version.excludedVariants.length > 0 ? { excludedVariants: version.excludedVariants } : {})
         };
       })
     })),

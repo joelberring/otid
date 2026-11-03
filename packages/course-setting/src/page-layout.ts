@@ -7,6 +7,7 @@
 import { layout, printScaleOf } from "./overprint";
 import { placeDescription, type SheetDescription } from "./paper-layout";
 import { sheetPaperItems, type SheetPaperItem } from "./paper-items";
+import { excludedVariantCodes } from "./summary";
 import { measuredLengthMeters, variations } from "./walk";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
@@ -249,9 +250,10 @@ export function toPage(page: Pick<CoursePage, "transform">, point: { x: number; 
   return { x: page.transform.scale * point.x + page.transform.translateX, y: -page.transform.scale * point.y + page.transform.translateY };
 }
 
-/** Varianterna att skriva ut för banan: en sida per variant eller alla grenar på en (""). */
+/** Varianterna att skriva ut för banan: en sida per variant eller alla grenar på en (""). Bortvalda skrivs inte ut (ADR-0198). */
 export function printVariants(document: CourseSettingDocument, course: string, each: boolean): string[] {
   if (course === "ALL_CONTROLS" || !each) return [""];
-  const all = variations(document, course).map(item => item.code);
+  const excluded = excludedVariantCodes(document, course);
+  const all = variations(document, course).map(item => item.code).filter(code => !excluded.has(code));
   return all.length > 0 ? all : [""];
 }

@@ -61,12 +61,17 @@ function FrameView({ id, frame, symbols, image, courseColor }: { id: string; fra
   courseColor?: string | undefined }) {
   const { clip } = frame;
   const nodes = pageNodes(frame, symbols, courseColor);
-  return <g data-testid="print-frame" data-course={frame.course}>
-    <defs><clipPath id={id}><rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} /></clipPath></defs>
+  // Papperets klippning (ADR-0197): specialobjekten i `markingClip.refs` klipps till polygonen; banan står hel.
+  const marked = new Set(frame.markingClip?.refs ?? []);
+  const isMarking = (node: PrintNode) => node.tag !== "description" && "role" in node && node.role === "SPECIAL" && node.ref !== undefined && marked.has(node.ref);
+  return <g data-testid="print-frame" data-course={frame.course} data-marking-clip={frame.markingClip ? "" : undefined}>
+    <defs><clipPath id={id}><rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} /></clipPath>
+      {frame.markingClip && <clipPath id={`${id}m`}><polygon points={frame.markingClip.polygon.map(p => `${p.x},${p.y}`).join(" ")} /></clipPath>}</defs>
     {image && <image href={image} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map"
       data-mirror={frame.mirror ? "" : undefined}
       transform={frame.mirror ? `translate(${2 * clip.x + clip.width} 0) scale(-1 1)` : undefined} />}
-    <g clipPath={`url(#${id})`} data-testid="print-overprint">{nodes.map((node, index) => <Node key={index} node={node} />)}</g>
+    <g clipPath={`url(#${id})`} data-testid="print-overprint">{nodes.map((node, index) => isMarking(node)
+      ? <g key={index} clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node key={index} node={node} />)}</g>
   </g>;
 }
 

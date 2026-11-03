@@ -282,11 +282,31 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       // Kartans mm (y uppåt) → sidans mm (y nedåt) → punkter: x = K(s·x + tx), y = K(H − (−s·y + ty)).
       const s = frame.transform.scale;
       const mapMatrix: Matrix = [PT_PER_MM * s, 0, 0, PT_PER_MM * s, PT_PER_MM * frame.transform.translateX, PT_PER_MM * (H - frame.transform.translateY)];
+      // Papperets klippning (ADR-0197): specialobjekten i `markingClip.refs` ritas klippta till polygonen, i målningsordning.
+      const marked = new Set(frame.markingClip?.refs ?? []);
+      const isMarking = (figure: OverprintPrimitive) => figure.role === "SPECIAL" && figure.kind !== "description" && figure.ref !== undefined && marked.has(figure.ref);
+      const markingPath = frame.markingClip
+        ? `${frame.markingClip.polygon.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h W n` : "";
       const figures = (list: readonly OverprintPrimitive[]) => {
         if (list.length === 0) return;
         content.save();
         content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
-        figureOps(figureContext, mapMatrix, list);
+        if (marked.size === 0) figureOps(figureContext, mapMatrix, list);
+        else {
+          let run: OverprintPrimitive[] = [], runMarked = false;
+          const flush = () => {
+            if (run.length === 0) return;
+            if (runMarked) { content.save(); content.op(markingPath); figureOps(figureContext, mapMatrix, run); content.restore(); }
+            else figureOps(figureContext, mapMatrix, run);
+            run = [];
+          };
+          for (const figure of list) {
+            const m = isMarking(figure);
+            if (m !== runMarked) { flush(); runMarked = m; }
+            run.push(figure);
+          }
+          flush();
+        }
         content.restore();
       };
       if (over) {

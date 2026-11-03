@@ -99,6 +99,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”+ Skalstock” och ”+ Nordpil”: skalstocken räknas ur banans utskriftsskala.",
         "Dra elementet på arket och dra i hörnet nere till höger för storleken. Pilarna flyttar 1 mm (Skift 5 mm), Delete tar bort.",
         "”Hörn” och ”I förhållande till”: ”Kartramen” eller ”Arket”. Elementet står kvar i hörnet när papperet ändras.",
+        "”Sidor”: en bana på flera sidor får elementet på ”Första sidan” (förval) eller på ”Alla sidor”. Beskrivningen står bara på första sidan.",
         "”Uppgifter för texterna”: datum och ekvidistans som ska stå i {datum} och {ekvidistans}."
       ],
       "I .ppen blir texterna Purple Pens textobjekt och bilderna bildobjekt. Skalstock, nordpil, täckning och klippning stannar i O-Tid. Mallar och klippning: [Mallar och klippning av kartan](#papperets-mallar)."
@@ -117,7 +118,13 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”Spara mallen i mitt bibliotek”: mallen finns sedan under ”Mitt bibliotek (alla mina tävlingar)”. ”Hämta” tar in den i en annan tävling."
       ],
       "”Klippning av kartan” begränsar hur mycket av kartan som skrivs ut, utan att ändra kartan. Välj ”Rektangel” eller ”Polygon” och dra hörnen på arket.",
-      "”Utanför” visar ”Vitt” eller ”Tonad karta” runt klippningen. Banan skrivs ut som vanligt, och PDF:en klipps likadant."
+      "”Utanför” visar ”Vitt” eller ”Tonad karta” runt klippningen. PDF:en klipps likadant.",
+      [
+        "Banan står alltid hel, också utanför klippningen: kontroller, start, mål, sträckor och nummer.",
+        "Markeringar (förbjudna områden, gränser, vätska och andra små symboler) står bara innanför.",
+        "Ett förbjudet område som ligger delvis innanför ritas fram till kanten.",
+        "”Visa markeringar utanför utsnittet” visar alla markeringar som vanligt."
+      ]
     ]
   },
   {

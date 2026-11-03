@@ -1,4 +1,5 @@
 import type {
+  CourseVariant,
   CourseVersion,
   Entry,
   EvaluationReadout,
@@ -314,6 +315,34 @@ export function wrongMapVariants(readout: EvaluationReadout, snapshot: RaceSnaps
   const fittingCodes = courseVariantsOf(courseVersion).filter((variant) => variant.code !== assigned.code && variant.controls.length > 0 &&
     ok(matchControls(expectedOf(codesOf(variant), outOfOrder), punches, ANY_TIME))).map((variant) => variant.code);
   return fittingCodes.length > 0 ? { assignedCode: assigned.code, fittingCodes } : undefined;
+}
+
+/**
+ * ADR-0197: stämplingarna passar en variant som banläggningen valt bort. Löparen är felstämplad mot sin variant (eller mot
+ * alla behållna varianter när löparen saknar en giltig), men passar utan fel en bortvald variant av samma bana. Bara ett
+ * besked, som fel karta: inget byts och resultatet är oförändrat (ingen döms ut tyst på grund av bortvalet). Ger de
+ * bortvalda varianternas koder i banans ordning, annars undefined.
+ */
+export function excludedVariantsFitting(readout: EvaluationReadout, snapshot: RaceSnapshot, entryId: string): readonly string[] | undefined {
+  const entry = snapshot.entries.find((candidate) => candidate.id === entryId);
+  const raceClass = entry && snapshot.classes.find((candidate) => candidate.id === entry.classId);
+  if (!entry || !raceClass || raceClass.rogaining || entry.teamSprint) return undefined;
+  const courseVersion = activeVersion(snapshot, entryCourseVersionId(entry, raceClass));
+  const excluded = courseVersion?.excludedVariants ?? [];
+  if (!courseVersion || excluded.length === 0) return undefined;
+  const punches = prepareReadoutForEvaluation(readout, snapshot).readout.punches;
+  const outOfOrder = controlCodesOutOfOrder(snapshot);
+  const ok = (codes: readonly number[]) => {
+    const match = matchControls(expectedOf(codes, outOfOrder), punches, ANY_TIME);
+    return !match.wrongOrder && match.missingControls.length === 0;
+  };
+  const codesOf = (variant: CourseVariant) => [...variant.controls].sort((left, right) => left.sequence - right.sequence)
+    .map((control) => control.controlCode);
+  const assigned = assignedCourseVariant(courseVersion, entry.courseVariantCode);
+  const kept = assigned ? [assigned] : courseVariantsOf(courseVersion);
+  if (kept.some((variant) => ok(codesOf(variant)))) return undefined;
+  const fitting = excluded.filter((variant) => variant.controlCodes.length > 0 && ok(variant.controlCodes)).map((variant) => variant.code);
+  return fitting.length > 0 ? fitting : undefined;
 }
 
 export function evaluateCardReadout(

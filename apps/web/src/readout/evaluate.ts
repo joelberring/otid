@@ -1,5 +1,5 @@
 import type { ReadoutPackage, SportidentReadoutPayload } from "@o-tid/contracts";
-import { cardPunchList, courseVariantForReadout, wrongMapVariants, evaluateCardReadout, evaluateReadoutForEntry, okWithoutSplits, prepareReadoutForEvaluation, startPunchNote, teamSprintChangeoverProblem, type CardPunchList, type EvaluationResult,
+import { cardPunchList, courseVariantForReadout, excludedVariantsFitting, wrongMapVariants, evaluateCardReadout, evaluateReadoutForEntry, okWithoutSplits, prepareReadoutForEvaluation, startPunchNote, teamSprintChangeoverProblem, type CardPunchList, type EvaluationResult,
   type RaceSnapshot, type RogainingScore, type StartPunchNote, type TeamSprintEachLegPart } from "@o-tid/domain";
 import { localRelay, relaySnapshot, routeTeamSprintLocally, type LocalRelay } from "./relay";
 import type { QueuedRegistration } from "./store";
@@ -17,6 +17,8 @@ export interface LocalVerdict {
   readonly variant?: { readonly code: string; readonly assigned: boolean };
   /** Steg 61: felstämplad mot den tilldelade varianten, men stämplingarna passar en annan variant av samma bana ("fel karta?"). */
   readonly wrongMap?: { readonly assignedCode: string; readonly fittingCodes: readonly string[] };
+  /** ADR-0197: stämplingarna passar en variant som banläggningen valt bort (bara ett besked). */
+  readonly excludedVariant?: readonly string[];
   readonly elapsedMs?: number;
   readonly missingControls: readonly number[];
   /** Sträcktider: kontrollkod, tid från start och tid för sträckan. */
@@ -150,6 +152,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     : evaluateCardReadout(readout, snapshot);
   const variant = result.entryId ? courseVariantForReadout(readout, snapshot) : undefined;
   const wrongMap = result.status === "MP" && result.entryId && !sprintRouting ? wrongMapVariants(readout, snapshot, result.entryId) : undefined;
+  const excludedVariant = result.status === "MP" && result.entryId && !sprintRouting ? excludedVariantsFitting(readout, snapshot, result.entryId) : undefined;
   const entry = result.entryId ? pkg.raceSnapshot.entries.find((candidate) => candidate.id === result.entryId) : undefined;
   const raceClass = result.classId ? pkg.raceSnapshot.classes.find((candidate) => candidate.id === result.classId) : undefined;
   const localTeam = result.entryId && result.status !== "UNKNOWN_CARD" ? localRelay(pkg, result.entryId, { status: result.status,
@@ -179,6 +182,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(raceClass ? { className: raceClass.name } : {}),
     ...(variant ? { variant } : {}),
     ...(wrongMap ? { wrongMap } : {}),
+    ...(excludedVariant ? { excludedVariant } : {}),
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}),
     ...(result.rogaining ? { rogaining: result.rogaining } : {}),
     ...(startNote ? { startNote } : {}),

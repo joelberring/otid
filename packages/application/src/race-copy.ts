@@ -138,7 +138,8 @@ export async function copyRaceContent(tx: Transaction, input: ContentInput) {
     .where(inArray(schema.courseVersions.courseId, [...courseIds.keys()])).orderBy(asc(schema.courseVersions.version));
   const versionIds = new Map(versions.map(version => [version.id, randomUUID()]));
   await insertChunked(versions, chunk => tx.insert(schema.courseVersions).values(chunk.map(version => ({ id: mapped(versionIds, version.id),
-    courseId: mapped(courseIds, version.courseId), version: version.version, forking: version.forking, createdAt: now }))));
+    courseId: mapped(courseIds, version.courseId), version: version.version, forking: version.forking,
+    excludedVariants: version.excludedVariants, createdAt: now }))));
 
   const courseControls = versions.length === 0 ? [] : await tx.select().from(schema.courseControls)
     .where(inArray(schema.courseControls.courseVersionId, [...versionIds.keys()]));

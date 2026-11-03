@@ -80,6 +80,9 @@ const courseVersionSchema = z.object({
   version: positiveIntegerSchema,
   controls: z.array(courseControlSchema).max(STATION_PACKAGE_LIMITS.controlsPerCourseVersion),
   variants: z.array(courseVariantSchema).min(1).max(STATION_PACKAGE_LIMITS.variantsPerCourseVersion).optional(),
+  /** ADR-0197: bortvalda varianter (bara för beskedet i avläsningen). */
+  excludedVariants: z.array(z.object({ code: courseVariantCodeSchema, controlCodes: z.array(positiveIntegerSchema)
+    .max(STATION_PACKAGE_LIMITS.controlsPerCourseVersion) }).strict()).min(1).max(1000).optional(),
   createdAt: z.iso.datetime({ offset: true })
 }).strict();
 

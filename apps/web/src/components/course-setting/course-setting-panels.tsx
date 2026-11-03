@@ -55,7 +55,7 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
           onDragEnd={() => { setDragging(undefined); setDropAt(undefined); }}>
           <button type="button" className={styles.course} aria-pressed={view === course.id}
             data-testid="course-setting-course" onClick={() => onView(course.id)}>
-            <strong>{course.name}</strong><span>{text.courses.summary(length, row?.controlCount ?? 0, row?.variants.length ?? 1)}
+            <strong>{course.name}</strong><span>{text.courses.summary(length, row?.controlCount ?? 0, row?.variants.length ?? 1, row?.excludedCount ?? 0)}
               {course.kind === "SCORE" ? ` · ${props.kinds.SCORE.toLowerCase()}` : ""}</span>
           </button>
           {!readOnly && view === course.id && <span className={styles.orderButtons}>

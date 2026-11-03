@@ -54,6 +54,11 @@ export const courseVariantsSv = {
   wrongMap: (assigned: string, fitting: readonly string[]) =>
     `Felstämplad mot ${assigned}, men stämplingarna passar ${fitting.join(" och ")}. Fick löparen fel karta?`,
   wrongMapShort: (fitting: readonly string[]) => `Fel karta? Passar ${fitting.join(", ")}`,
+  // ADR-0197: stämplingarna passar en bortvald variant.
+  excludedVariant: (codes: readonly string[]) =>
+    `Stämplingarna passar ${codes.join(" och ")}, som är bortvald i banläggningen. Fick löparen fel karta? Rätta status eller variant för hand.`,
+  excludedVariantShort: (codes: readonly string[]) => `Bortvald variant? Passar ${codes.join(", ")}`,
+  readinessExcluded: (count: number) => `${count} ${count === 1 ? "variant" : "varianter"} bortvald${count === 1 ? "" : "a"} i banläggningen`,
   approveOn: (code: string) => `Godkänn på ${code}`,
   approveOnHelp: "Byter löparens variant och räknar om resultatet. Orsaken sparas i historiken.",
   // Startlista, avläsning och resultat

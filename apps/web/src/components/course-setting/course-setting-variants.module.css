@@ -1,0 +1,19 @@
+/* ADR-0197: varianterna av en gafflad bana. Tabellen rullar inom sin ruta på telefonen, aldrig sidan. */
+.scroll { overflow-x: auto; max-width: 100%; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.table caption { text-align: left; }
+.table th, .table td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.table th:first-child, .table td:first-child, .table th:nth-child(2), .table td:nth-child(2) { text-align: left; }
+.table thead th { font-weight: 600; color: var(--muted); }
+.table tr[data-excluded="true"] td { color: var(--muted); }
+.table tr[data-excluded="true"] td:nth-child(2) strong { text-decoration: line-through; }
+.table tr[data-preview="goes"] td { background: var(--attention-tint); }
+.table input[type="checkbox"] { width: 20px; height: 20px; margin: 0; }
+.mark { font-size: var(--text-xs, 0.75rem); color: var(--attention); margin-left: 4px; }
+.summary { margin: 0; font-weight: 600; }
+.warning { margin: 0; padding: 6px 8px; border-left: 3px solid var(--attention); background: var(--attention-tint); font-size: var(--text-sm); }
+.prune { display: grid; gap: 6px; padding: 8px 0 0; border-top: 1px solid var(--line); }
+.prune h3 { margin: 0; font-size: var(--text-sm); }
+.prune input[type="text"] { width: 5em; }
+.preview { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); }
+.preview p { margin: 0; }

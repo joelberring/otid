@@ -342,6 +342,11 @@ async function storeCourseMeasurements(tx: Transaction, raceId: string, projecti
   }
 }
 
+/** ADR-0197: bortvalda varianter till banversionen (NULL = inga). */
+function excludedColumn(rows: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] | undefined) {
+  return rows && rows.length > 0 ? { excludedVariants: rows.map(row => ({ code: row.code, controlCodes: [...row.controlCodes] })) } : {};
+}
+
 /** Sparar de godkända raderna ur banfilen och räknar om berörda resultat. Ger antal omräknade. */
 export async function applyCourseFile(tx: Transaction, input: ApplyInput, projection: CourseFileProjection,
   rows: readonly PlannedRow<CourseFileAction>[], links: readonly { id: string; externalId: string }[],
@@ -355,13 +360,15 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
     if (action.type === "CREATE_COURSE") {
       const created = ids.courses.get(action.externalId)!;
       await tx.insert(schema.courses).values({ id: created.courseId, raceId, name: action.name, externalSource: "iof", externalId: action.externalId });
-      await tx.insert(schema.courseVersions).values({ id: created.versionId, courseId: created.courseId, version: 1 });
+      await tx.insert(schema.courseVersions).values({ id: created.versionId, courseId: created.courseId, version: 1,
+        ...excludedColumn(action.excludedVariants) });
       await insertCourseVersionControls(tx, raceId, created.versionId, action.controlCodes, action.variants);
     }
     if (action.type === "CHANGE_COURSE") {
       const current = state.courses.find(course => course.id === action.courseId)!;
       const versionId = ids.versions.get(current.id)!;
-      await tx.insert(schema.courseVersions).values({ id: versionId, courseId: current.id, version: current.version + 1 });
+      await tx.insert(schema.courseVersions).values({ id: versionId, courseId: current.id, version: current.version + 1,
+        ...excludedColumn(action.excludedVariants) });
       await insertCourseVersionControls(tx, raceId, versionId, action.controlCodes, action.variants);
       await tx.update(schema.classes).set({ courseVersionId: versionId })
         .where(and(eq(schema.classes.raceId, raceId), eq(schema.classes.courseVersionId, current.versionId)));

@@ -51,6 +51,7 @@
     { "idx": 46, "version": "7", "when": 1802707200000, "tag": "0060_klubbarkiv", "breakpoints": true },
     { "idx": 47, "version": "7", "when": 1802793600000, "tag": "0061_klubbarkiv_innehall", "breakpoints": true },
     { "idx": 48, "version": "7", "when": 1801584000000, "tag": "0047_forked_till_standard", "breakpoints": true },
-    { "idx": 49, "version": "7", "when": 1802880000000, "tag": "0062_kartarkiv_kontroll", "breakpoints": true }
+    { "idx": 49, "version": "7", "when": 1802880000000, "tag": "0062_kartarkiv_kontroll", "breakpoints": true },
+    { "idx": 50, "version": "7", "when": 1802966400000, "tag": "0063_bortvalda_varianter", "breakpoints": true }
   ]
 }

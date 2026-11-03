@@ -99,6 +99,11 @@ export interface CourseVersion {
   readonly controls: readonly CourseControl[];
   /** Saknas eller tom = banan är inte gafflad. */
   readonly variants?: readonly CourseVariant[];
+  /**
+   * ADR-0197: varianter som banläggningen valt bort. Ingen löpare får dem och de bedöms aldrig som löparens bana; de finns
+   * bara för att avläsningen ska kunna säga att stämplingarna passar en bortvald variant.
+   */
+  readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
   readonly createdAt: string;
 }
 

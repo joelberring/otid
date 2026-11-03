@@ -12,3 +12,6 @@ export { distance, distanceToSegment, nearestOnSegment, polylineLength } from ".
 export { colorUsage } from "./usage";
 export type { ColorUsage, ColorUseKind } from "./usage";
 export { rgbFromCmyk } from "./color";
+export * from "./revision/change-set";
+export { applyMapRevision } from "./revision/apply";
+export { sha256Hex } from "./revision/sha256";

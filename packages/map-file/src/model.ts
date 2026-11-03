@@ -5,6 +5,7 @@
  * Koordinater är kartans millimeter med y uppåt, samma som IOF `MapPosition` och OCAD. Mapper lagrar 0,001 mm med y
  * nedåt och räknas om vid läsningen.
  */
+import type { ObjectSource } from "./revision/change-set";
 
 export type MapFileFormat = "OCD" | "OMAP";
 
@@ -168,12 +169,17 @@ export interface CombinedSymbol extends SymbolBase { readonly kind: "COMBINED"; 
 
 export type MapSymbol = PointSymbol | LineSymbol | AreaSymbol | TextSymbol | CombinedSymbol;
 
-export type MapObject =
+/**
+ * ADR-0207: `source` säger var objektet ligger i grundfilen (indexpost och post i OCAD, del, ordningstal och textintervall
+ * i Mapper) och objektets hash, så att en ändring kan skrivas tillbaka till just det objektet.
+ */
+export type MapObject = (
   | { readonly kind: "point"; readonly symbol: string; readonly at: Point; readonly angle: number }
   | { readonly kind: "line"; readonly symbol: string; readonly path: Path }
   /** Första ringen är ytterkanten, resten hål. */
   | { readonly kind: "area"; readonly symbol: string; readonly rings: readonly Path[]; readonly angle: number }
-  | { readonly kind: "text"; readonly symbol: string; readonly at: Point; readonly angle: number; readonly text: string };
+  | { readonly kind: "text"; readonly symbol: string; readonly at: Point; readonly angle: number; readonly text: string }
+) & { readonly source?: ObjectSource | undefined };
 
 /** Koordinatsystem som O-Tid kan räkna om till WGS 84 (Gauss–Krüger på GRS 80 resp. Bessel via direkta parametrar). */
 export type MapCrs =

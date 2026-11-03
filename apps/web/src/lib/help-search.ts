@@ -67,7 +67,8 @@ export type HelpListingOptions = {
 };
 
 /**
- * Hjälppanelens listor (PLAN.md steg 37): först artiklarna för vyerna (i vyernas ordning, sedan i filens ordning), sedan
+ * Hjälppanelens listor (PLAN.md steg 37): först artiklarna för vyerna (i vyernas ordning; inom en vy först de som har
+ * vyn som sin första, sedan i filens ordning), sedan
  * resten i filens ordning. Med en sökning: bara artiklar där varje ord (eller en synonym) finns i rubriken eller texten;
  * träffar i rubriken och på ordet självt (inte bara en synonym) står först inom varje lista.
  */
@@ -79,6 +80,8 @@ export function listHelpArticles(articles: readonly HelpArticle[], view: HelpVie
     const index = views.findIndex(item => article.views.includes(item));
     return index === -1 ? views.length : index;
   };
+  // Inom en vy först artiklarna som är skrivna för den (vyn står först i artikelns `views`).
+  const primary = (article: HelpArticle) => article.views[0] === views[rank(article)] ? 0 : 1;
   const scored = articles.map((article, order) => {
     if (words.length === 0) return { article, order, score: 0 };
     const title = searchable(article.title);
@@ -95,7 +98,7 @@ export function listHelpArticles(articles: readonly HelpArticle[], view: HelpVie
     return { article, order, score };
   }).filter(row => row !== undefined);
   const sorted = [...scored].sort((a, b) => (a.article.id === options.first ? -1 : 0) - (b.article.id === options.first ? -1 : 0)
-    || rank(a.article) - rank(b.article) || b.score - a.score || a.order - b.order);
+    || rank(a.article) - rank(b.article) || b.score - a.score || primary(a.article) - primary(b.article) || a.order - b.order);
   const inView = (article: HelpArticle) => article.id === options.first || rank(article) < views.length;
   return { here: sorted.filter(row => inView(row.article)).map(row => row.article),
     rest: sorted.filter(row => !inView(row.article)).map(row => row.article) };

@@ -10,7 +10,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
   {
     id: "kom-igang-traning",
     title: "Kom igång: lägga en träning på 10 minuter",
-    views: ["EVENTS", "CS_START", "COURSE_SETTING", "COURSES"],
+    views: ["CS_START", "EVENTS", "COURSE_SETTING", "COURSES"],
     body: [
       "Från tom tävling till utskrivna kartor och avläsning:",
       { steps: [
@@ -28,7 +28,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
   {
     id: "kom-igang-purple-pen",
     title: "Kom igång: från Purple Pen till tävling",
-    views: ["EVENTS", "CS_START", "COURSE_SETTING"],
+    views: ["CS_START", "EVENTS", "COURSE_SETTING"],
     body: [
       "Banorna är lagda i Purple Pen och ska bli en tävling med kartor från tryckeriet:",
       { steps: [

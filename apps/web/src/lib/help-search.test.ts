@@ -41,6 +41,20 @@ describe("sökningen i hjälpen", () => {
     expect(print.indexOf("sparande")).toBeGreaterThan(print.indexOf("pdf-tryck"));
   });
 
+  it("ställer artiklar som är skrivna för vyn (vyn först i artikelns lista) först inom vyn", () => {
+    const rows: HelpArticle[] = [
+      { id: "beskrivning", title: "Beskrivning", views: ["CS_DESCRIPTION", "CS_FIELD"], body: ["a.", "b.", "c."] },
+      { id: "falt", title: "Fältläget", views: ["CS_FIELD"], body: ["a.", "b.", "c."] }
+    ];
+    expect(listHelpArticles(rows, ["CS_FIELD"]).here.map(row => row.id)).toEqual(["falt", "beskrivning"]);
+    expect(listHelpArticles(helpArticles, ["CS_FIELD", "CS_PRINT", "COURSE_SETTING"]).here[0]?.id).toBe("faltlaget");
+    expect(listHelpArticles(helpArticles, ["CS_START", "COURSE_SETTING"]).here.slice(0, 3).map(row => row.id))
+      .toEqual(["kom-igang-traning", "kom-igang-purple-pen", "banlaggning-start"]);
+    expect(listHelpArticles(helpArticles, ["COURSES"]).here[0]?.id).toBe("banor");
+    expect(listHelpArticles(helpArticles, ["READOUT_PAGE"]).here[0]?.id).toBe("avlasning");
+    expect(listHelpArticles(helpArticles, ["EVENTS"]).here[0]?.id).toBe("skapa-tavling");
+  });
+
   it("ställer en efterfrågad artikel först (länk eller ? vid en knapp)", () => {
     const { here } = listHelpArticles(articles, "READOUT", "", { first: "b" });
     expect(here.map(row => row.id)).toEqual(["b", "a", "c"]);

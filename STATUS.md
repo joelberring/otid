@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-03 – Varningar som går att godta (grenen varningar, ADR-0197)
+- Nivåer: fel (samma kod, kod saknas, start/mål saknas, kontroll i förbjudet område, sträcka utan laglig väg), varningar och notiser; grupperade per sort med antal, fel först. Fliken räknar bara fel och varningar som inte är godtagna.
+- Förbjudna områden: fågelvägen genom ett område är ingen varning när vägvalet (med spärrarna) går runt – i stället "Fågelvägen korsar ett förbjudet område – vägvalet går runt (+182 m)" i Vald sträcka. Inget vägval = fel; inte räknat = notis. Bara de sträckorna räknas, i vägvalens Worker med gemensam tabell (banans längd, vald sträcka), viker för dem; i telefonen bara med fliken öppen.
+- Samma sträcka på flera banor/varianter = en rad ("A, B, C: …"). Godta, "Godta alla n" per sort, "Godtagna (n)" med Ångra; sparas i `event.acceptedChecks` (`SET_ACCEPTED_CHECKS`, ångra och versioner), gäller tills något byts ut eller flyttas mer än 25 m. Följer med vid ny .ppen. Fel som stoppar tidtagningen går inte att godta.
+- Visa: "Kollade kontroller", "Notiser" och "Markera varningar" (per webbläsare, på som förval, också i fältläget). Fältraden i telefonen: vald kontroll och "Kollad av …" kortas, statusen går ned under raden på 390 px.
+- Verifierat: lint, typecheck, enhetstester (paketet `check-accept`, webbens `course-setting-checks`), Playwright `banlaggning-varningar` (se slutrapporten).
+
 ### 2026-11-03 – Hittbarhet efter ägarens användning (grenen hittbarhet)
 - Banläggning i arbetsytans sidopanel/remsa och Meny, som knapp i Mina tävlingar (ägare, administratör, banläggare) och sessionen säger banläggningens nivå; den som bara har banläggningen skickas dit. Editorns tillbaka: "← Tävlingen"/"← Mina tävlingar", Fil har Utskrift och Kontrollbeskrivningar.
 - Kontrollbeskrivningen på kartan hör till papperet (`paper-layout.ts`, `event.paperLayouts`, `SET_PAPER_LAYOUT`): på för varje bana, automatiskt i ett fritt hörn med varning när den täcker banan, dras/ändras på arket i förhandsvisningen (piltangenter också). Ritas inte i editorn; Purple Pens `descriptions` tolkas som platsen och skrivs tillbaka vid export. Mallens gamla plats gäller bara utan utplacering.

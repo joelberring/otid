@@ -137,8 +137,23 @@ fieldset.row { margin: 0; padding: 0; border: none; }
 fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
 .points { width: 4.2em; min-height: 32px; padding: 2px 4px; font: inherit; text-align: right; }
 .checks { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.checks button { width: 100%; padding: 4px 6px; border: none; border-left: 3px solid var(--attention); background: var(--attention-tint);
-  color: inherit; font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
+/* ADR-0197: en rad = texten (visa på kartan) och Godta; nivån i gruppens rubrik som ord, inte bara färg. */
+.checkRow { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.checkRow > :last-child:not(.checkText) { flex: none; }
+.checkText { flex: 1; min-width: 0; padding: 4px 6px; border: none; border-left: 3px solid var(--line-strong); background: var(--subtle);
+  color: inherit; font: inherit; font-size: var(--text-sm); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.checkRow[data-level="ERROR"] .checkText { border-left-color: var(--mp); background: var(--mp-tint); }
+.checkRow[data-level="WARNING"] .checkText { border-left-color: var(--attention); background: var(--attention-tint); }
+.checkGroup { display: grid; gap: 4px; margin: 0 0 10px; }
+.checkHead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: var(--text-sm); }
+.checkHead > :last-child:is(button) { margin-left: auto; }
+.checkLevel { padding: 0 6px; border-radius: var(--radius); font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  border: 1px solid var(--line-strong); color: var(--muted); }
+.checkLevel[data-level="ERROR"] { border-color: var(--mp); color: var(--mp); }
+.checkLevel[data-level="WARNING"] { border-color: var(--attention); color: var(--attention); }
+.checkAccepted { margin: 6px 0; font-size: var(--text-sm); }
+.checkAccepted summary { cursor: pointer; color: var(--muted); }
+.checkAccepted .checkText { opacity: .75; }
 .verdict { font-weight: 700; }
 .warnings { margin: 0; padding-left: 1.1rem; font-size: var(--text-sm); }
 .routes { display: grid; gap: 2px; margin: 6px 0; padding: 0; list-style: none; }

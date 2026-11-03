@@ -10,7 +10,7 @@ import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { warningText } from "../../lib/route-choice-view";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import type { EditorState } from "../../lib/course-setting-editor";
-import { controlLabel, minutes, type CheckRow } from "../../lib/course-setting-text";
+import { controlLabel, minutes } from "../../lib/course-setting-text";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
@@ -182,21 +182,14 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
   </section>;
 }
 
-export function ChecksPanel({ rows, onShow }: { rows: readonly CheckRow[]; onShow: (row: CheckRow) => void }) {
-  return <section className={styles.panel} aria-labelledby="course-setting-checks">
-    <h2 id="course-setting-checks">{text.checks.heading}</h2>
-    {rows.length === 0 ? <p className={styles.muted}>{text.checks.none}</p> : <ul className={styles.checks}>
-      {rows.slice(0, 100).map(row => <li key={row.key}><button type="button" title={text.checks.show} onClick={() => onShow(row)}>{row.text}</button></li>)}
-    </ul>}
-  </section>;
-}
-
 /**
  * Vald sträckas vägval. Steg 66 (ägaren): bästa vägen och alternativen i en lista (längd, stigning, tid relativt bästa,
  * t.ex. "+8 %"); ett klick på en rad markerar linjen på kartan.
  */
-export function LegPanel({ legKey, analysis, status, highlighted, onHighlight }: { legKey: string | undefined; analysis: LegAnalysis | undefined;
-  status: "idle" | "waiting" | "analysing" | "failed" | "done"; highlighted?: number | undefined; onHighlight?: (index: number | undefined) => void }) {
+export function LegPanel({ legKey, analysis, status, highlighted, onHighlight, notice }: { legKey: string | undefined; analysis: LegAnalysis | undefined;
+  status: "idle" | "waiting" | "analysing" | "failed" | "done"; highlighted?: number | undefined; onHighlight?: (index: number | undefined) => void;
+  /** ADR-0197: fågelvägen korsar ett förbjudet område (vägvalet går runt, eller ingen laglig väg). */
+  notice?: string | undefined }) {
   const rows = analysis?.best ? [{ ...analysis.best, timeRatio: 1 }, ...analysis.alternatives] : [];
   return <section className={styles.panel} aria-labelledby="course-setting-leg" data-testid="course-setting-leg">
     <h2 id="course-setting-leg">{text.leg.heading}</h2>
@@ -208,6 +201,7 @@ export function LegPanel({ legKey, analysis, status, highlighted, onHighlight }:
       <p className={styles.verdict} data-verdict={analysis.verdict}>{routeChoiceSv.verdicts[analysis.verdict]}</p>
       <p>{text.leg.straight(analysis.straightMeters)}</p>
       {analysis.best ? <p>{text.leg.best(analysis.best.meters, analysis.best.climbMeters, minutes(analysis.best.seconds))}</p> : <p>{text.leg.noRoute}</p>}
+      {notice && <p className={styles.muted} data-testid="course-setting-leg-forbidden">{notice}</p>}
       {analysis.best && <p>{text.leg.choices(1 + analysis.alternatives.length)}</p>}
       {rows.length > 1 && <ol className={styles.routes} aria-label={text.leg.routes}>
         {rows.map((row, index) => <li key={index}><button type="button" aria-pressed={highlighted === index}

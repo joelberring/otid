@@ -137,6 +137,28 @@ export const courseSettingSv = {
     heading: "Kontroller att titta på",
     none: "Inget att anmärka.",
     show: "Visa på kartan",
+    /** ADR-0197: nivåerna (inte bara färg) och grupperna per sort. */
+    levels: { ERROR: "Fel", WARNING: "Varning", NOTICE: "Notis" } as Record<"ERROR" | "WARNING" | "NOTICE", string>,
+    groups: {
+      DUPLICATE_CODE: "Samma kod på flera kontroller", MISSING_CODE: "Kod saknas", COURSE_WITHOUT_START_OR_FINISH: "Start eller mål saknas",
+      CONTROL_IN_FORBIDDEN: "Kontroll i förbjudet område", LEG_NO_ROUTE: "Går inte att nå lagligt",
+      CONTROLS_TOO_CLOSE: "För nära varandra", INVERTIBLE_CODE: "Kod som kan läsas upp och ned",
+      SAME_CONTROL_TWICE_IN_ROW: "Samma kontroll två gånger i rad", LEG_THROUGH_CONTROL: "Sträcka genom en annan ring",
+      UNUSED_CONTROL: "Oanvända kontroller", LEG_THROUGH_FORBIDDEN: "Fågelvägen korsar förbjudet område",
+      CONTROLS_NEAR: "Nära varandra – ange objekt"
+    } as Record<string, string>,
+    accept: "Godta",
+    acceptLabel: (row: string) => `Godta: ${row}`,
+    acceptAll: (count: number) => `Godta alla ${count}`,
+    acceptHelp: "Godta när det är meningen. Varningen kommer tillbaka om kontrollerna eller området byts ut eller flyttas mer än 25 m.",
+    accepted: (count: number) => `Godtagna (${count})`,
+    unaccept: "Ångra",
+    unacceptLabel: (row: string) => `Ångra godtagandet: ${row}`,
+    notAcceptable: "Måste rättas",
+    routes: (count: number) => count === 1 ? "Räknar vägvalet för en sträcka som korsar ett förbjudet område …"
+      : `Räknar vägvalen för ${count} sträckor som korsar förbjudna områden …`,
+    routesHelp: "Fågelvägen genom ett förbjudet område är inget fel när det finns en väg runt. Med kartfilen räknas vägvalen och bara sträckor utan laglig väg blir fel.",
+    routesFailed: "Vägvalen kunde inte räknas; sträckorna genom förbjudna områden står som notiser.",
     CONTROLS_TOO_CLOSE: (a: string, b: string, distance: number, limit: number, feature?: "SAME" | "UNKNOWN") =>
       feature === "SAME" ? `${a} och ${b} ligger ${Math.round(distance)} m från varandra på samma slags objekt (riktvärde minst ${limit} m).`
       : feature === "UNKNOWN" ? `${a} och ${b} ligger ${Math.round(distance)} m från varandra. Under ${limit} m ska objekten vara tydligt olika; ange objekt (kolumn D) så avgörs det.`
@@ -144,10 +166,13 @@ export const courseSettingSv = {
     DUPLICATE_CODE: (code: string, count: number) => `Koden ${code} finns på ${count} kontroller.`,
     INVERTIBLE_CODE: (code: string) => `Koden ${code} kan läsas upp och ned.`,
     SAME_CONTROL_TWICE_IN_ROW: (course: string, control: string) => `${course}: ${control} kommer två gånger i rad.`,
-    LEG_THROUGH_CONTROL: (course: string, from: string, to: string, control: string) =>
-      `${course}: sträckan ${from}–${to} går genom ringen för ${control}.`,
-    LEG_THROUGH_FORBIDDEN: (course: string, from: string, to: string, what: string) =>
-      `${course}: sträckan ${from}–${to} går genom ${what}.`,
+    LEG_THROUGH_CONTROL: (courses: string, from: string, to: string, control: string) =>
+      `${courses}: sträckan ${from}–${to} går genom ringen för ${control}.`,
+    LEG_THROUGH_FORBIDDEN: (courses: string, from: string, to: string, what: string) =>
+      `${courses}: fågelvägen ${from}–${to} korsar ${what}; vägvalet är inte räknat.`,
+    LEG_NO_ROUTE: (courses: string, from: string, to: string, what: string) =>
+      `${courses}: ${from}–${to} har ingen väg runt ${what}.`,
+    CONTROL_IN_FORBIDDEN: (control: string, what: string) => `${control} ligger i ${what}.`,
     forbidden: { "out-of-bounds": "ett förbjudet område", "dangerous-area": "ett farligt område", "temporary-construction": "en tillfällig konstruktion",
       boundary: "en gräns som inte får passeras", "forbidden-route": "en förbjuden väg" } as Record<string, string>,
     COURSE_WITHOUT_START_OR_FINISH: (course: string) => `${course} saknar start eller mål.`,
@@ -164,6 +189,9 @@ export const courseSettingSv = {
     best: (length: number, climb: number, minutes: string) => `Bästa väg ${meters(length)}, ${Math.round(climb)} m stigning, ca ${minutes}`,
     choices: (count: number) => count === 1 ? "Ett tydligt vägval" : `${count} vägval`,
     noRoute: "Ingen väg hittades mellan kontrollerna.",
+    /** ADR-0197: fågelvägen korsar ett förbjudet område men vägvalet går runt (information, ingen varning). */
+    aroundForbidden: (what: string, extra: number) => `Fågelvägen korsar ${what} – vägvalet går runt (+${meters(Math.max(0, extra))}).`,
+    noRouteForbidden: (what: string) => `Ingen laglig väg runt ${what}.`,
     routes: "Vägvalen",
     bestRow: "Bästa",
     alternative: (index: number) => `Alternativ ${index}`,

@@ -57,7 +57,11 @@ export { printScaleOf } from "./overprint";
 export { controlsOnlyIn, unusedControls } from "./course-duplicate";
 export { legPath, variantLetters, variations, type Variation } from "./walk";
 export { normalizeDegrees } from "./edit";
-export { BARRIER_KINDS, routeBarriers, type RouteBarrierGeometry } from "./barriers";
+export { BARRIER_KINDS, controlsInForbidden, forbiddenLegs, routeBarriers, type RouteBarrierGeometry } from "./barriers";
+export {
+  ACCEPT_MOVE_METERS, acceptChecksEdit, checkAcceptable, checkKey, checkLevel, checkSubjects, compareLevels, isAccepted, keepAcceptedChecks,
+  unacceptChecksEdit, type CheckLevel
+} from "./check-accept";
 // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen.
 export {
   acceptSuggestion, lacksFeature, mapNorthDegrees, SUGGEST_LIMITS, suggestAt, suggestForDocument, suggestOptionsFor, type DescriptionSuggestion,

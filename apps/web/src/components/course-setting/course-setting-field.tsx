@@ -344,8 +344,10 @@ export function useFieldMode(input: FieldInput): FieldMode {
 
   const bar = <div className={css.bar} data-expanded={expanded || undefined}>
     <div className={css.barHead}>
-      <strong className={css.selectedLabel} data-testid="course-setting-field-selected">{label ? text.selected(label) : text.none}</strong>
-      {inspectedLine}
+      <span className={css.barWho}>
+        <strong className={css.selectedLabel} data-testid="course-setting-field-selected">{label ? text.selected(label) : text.none}</strong>
+        {inspectedLine}
+      </span>
       <span className={css.status} data-status={status} data-offline={input.offline || undefined} role="status"
         data-testid="course-setting-field-status">{input.statusText}</span>
     </div>

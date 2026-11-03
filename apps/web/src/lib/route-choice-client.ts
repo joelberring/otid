@@ -14,7 +14,7 @@ export class RouteChoiceSession {
   private onModel: ((model: RouteChoiceModel) => void) | undefined;
   private onError: ((code: RouteChoiceWorkerErrorCode) => void) | undefined;
   private readonly runs = new Map<number, { leg: (index: number, analysis: LegAnalysis) => void; done: () => void;
-    calibrated?: (result: CalibrationResult) => void; failed: (code: RouteChoiceWorkerErrorCode) => void }>();
+    calibrated?: (result: CalibrationResult) => void; failed: (code: RouteChoiceWorkerErrorCode) => void; cancelled?: () => void }>();
 
   constructor(createWorker: () => Worker) {
     this.worker = createWorker();
@@ -53,12 +53,12 @@ export class RouteChoiceSession {
   /** Nya inställningar: modellen byggs om (och `onModel` anropas igen). Pågående körning avbryts. */
   settings(settings: RouteChoiceSettings) { this.cancel(); this.send({ type: "settings", settings }); }
 
-  /** Räknar sträckorna i ordning; en tidigare körning avbryts. */
+  /** Räknar sträckorna i ordning; en tidigare körning avbryts (och får `cancelled`). */
   analyse(legs: readonly LegInput[], leg: (index: number, analysis: LegAnalysis) => void, done: () => void,
-    failed: (code: RouteChoiceWorkerErrorCode) => void): number {
+    failed: (code: RouteChoiceWorkerErrorCode) => void, cancelled?: () => void): number {
     this.cancel();
     const runId = ++this.run;
-    this.runs.set(runId, { leg, done, failed });
+    this.runs.set(runId, { leg, done, failed, ...(cancelled ? { cancelled } : {}) });
     this.send({ type: "analyse", runId, legs });
     return runId;
   }
@@ -73,8 +73,10 @@ export class RouteChoiceSession {
 
   /** Avbryter pågående körning (svaren som redan kommit står kvar). */
   cancel() {
+    const handlers = [...this.runs.values()];
     for (const [runId] of this.runs) this.send({ type: "cancel", runId });
     this.runs.clear();
+    for (const handler of handlers) handler.cancelled?.();
   }
 
   close() { this.runs.clear(); this.worker.terminate(); }

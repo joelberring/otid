@@ -109,9 +109,10 @@ export function ForceNew({ on, onChange }: { on: boolean; onChange: (on: boolean
     <input type="checkbox" checked={on} onChange={event => onChange(event.target.checked)} />{ux.snap.forceNew}</label>;
 }
 
-/** Kartans visningsval: andra banor svagt och oanvända kontroller. */
-export function ViewOptions({ others, onOthers, unused }: { others: boolean; onOthers: (on: boolean) => void;
-  unused?: { count: number; on: boolean; onChange: (on: boolean) => void } | undefined }) {
+/** Kartans visningsval: andra banor svagt, oanvända kontroller och markeringarna (kollade, notiser, varningar). */
+export function ViewOptions({ others, onOthers, unused, toggles = [] }: { others: boolean; onOthers: (on: boolean) => void;
+  unused?: { count: number; on: boolean; onChange: (on: boolean) => void } | undefined;
+  toggles?: readonly { label: string; on: boolean; onChange: (on: boolean) => void }[] }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -125,6 +126,8 @@ export function ViewOptions({ others, onOthers, unused }: { others: boolean; onO
     {open && <div className={styles.viewMenu} role="group" aria-label={ux.view.heading}>
       <label><input type="checkbox" checked={others} onChange={event => onOthers(event.target.checked)} />{ux.view.otherCourses}</label>
       {unused && <label><input type="checkbox" checked={unused.on} onChange={event => unused.onChange(event.target.checked)} />{ux.view.unused(unused.count)}</label>}
+      {toggles.map(toggle => <label key={toggle.label}><input type="checkbox" checked={toggle.on} onChange={event => toggle.onChange(event.target.checked)} />
+        {toggle.label}</label>)}
     </div>}
   </div>;
 }

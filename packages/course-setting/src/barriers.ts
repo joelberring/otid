@@ -12,7 +12,7 @@ import { legKey } from "./ppen-common";
 import { printScaleOf } from "./overprint";
 import { specialVisible } from "./specials";
 import type { CourseSettingDocument, SpecialObject } from "./types";
-import { enumerateLegs } from "./walk";
+import { enumerateCourseControls, enumerateLegs } from "./walk";
 
 /** Samma form som `RouteBarriers` i `@o-tid/route-choice` (paketen beror inte på varandra). */
 export interface RouteBarrierGeometry {
@@ -102,10 +102,23 @@ export function pathHitsBarrier(path: readonly Point[], special: SpecialObject):
   return false;
 }
 
-/** Sträckorna på banan som går genom ett förbjudet område eller över en spärr (kontrollen LEG_THROUGH_FORBIDDEN). */
-export function forbiddenLegs(document: CourseSettingDocument, course: string): { from: string; to: string; special: string }[] {
-  const specials = document.specialObjects.filter(special => BARRIER_KINDS.has(special.kind) && special.kind !== "optional-crossing-point"
+/** Specialobjekten som spärrar på banan (inte passagerna, som öppnar). */
+function blockingSpecials(document: CourseSettingDocument, course: string): SpecialObject[] {
+  return document.specialObjects.filter(special => BARRIER_KINDS.has(special.kind) && special.kind !== "optional-crossing-point"
     && specialVisible(special, course));
+}
+
+/** Ligger punkten i specialobjektets yta (förbjudet område, farligt område, tillfällig konstruktion)? */
+export function insideBarrierArea(special: SpecialObject, point: Point): boolean {
+  return AREA_KINDS.has(special.kind) && special.points.length >= 3 && inside(special.points, point);
+}
+
+/**
+ * Sträckorna på banan vars fågelväg (med böjar) går genom ett förbjudet område eller över en spärr (kontrollen
+ * LEG_THROUGH_FORBIDDEN). Ligger en ände i området räknas det som kontrollen i området (`controlsInForbidden`), inte här.
+ */
+export function forbiddenLegs(document: CourseSettingDocument, course: string): { from: string; to: string; special: string }[] {
+  const specials = blockingSpecials(document, course);
   if (specials.length === 0) return [];
   const out: { from: string; to: string; special: string }[] = [];
   const seen = new Set<string>();
@@ -117,7 +130,26 @@ export function forbiddenLegs(document: CourseSettingDocument, course: string): 
     const start = document.controls[from], end = document.controls[to];
     if (!start || !end) continue;
     const path = [start.at, ...(document.legs[key]?.bends ?? []), end.at];
-    for (const special of specials) if (pathHitsBarrier(path, special)) out.push({ from, to, special: special.id });
+    for (const special of specials) {
+      if (insideBarrierArea(special, start.at) || insideBarrierArea(special, end.at)) continue;
+      if (pathHitsBarrier(path, special)) out.push({ from, to, special: special.id });
+    }
+  }
+  return out;
+}
+
+/** ADR-0197: banans kontroller som ligger i ett förbjudet område som syns på banan (kontrollen CONTROL_IN_FORBIDDEN). */
+export function controlsInForbidden(document: CourseSettingDocument, course: string): { control: string; special: string }[] {
+  const areas = blockingSpecials(document, course).filter(special => AREA_KINDS.has(special.kind));
+  if (areas.length === 0) return [];
+  const out: { control: string; special: string }[] = [];
+  const seen = new Set<string>();
+  for (const id of enumerateCourseControls(document, course)) {
+    const control = document.courseControls[id]?.control;
+    const point = control === undefined ? undefined : document.controls[control];
+    if (!point || seen.has(point.id)) continue;
+    seen.add(point.id);
+    for (const special of areas) if (insideBarrierArea(special, point.at)) out.push({ control: point.id, special: special.id });
   }
   return out;
 }

@@ -17,6 +17,7 @@ import { applySpecialEdit } from "./special-edit";
 import { duplicateCourse } from "./course-duplicate";
 import { setPoints, updateCourse } from "./course-properties";
 import { applyTrainingPatch } from "./training-edit";
+import { setAcceptedChecks } from "./check-accept";
 import { enumerateCourseControls, findCourse } from "./walk";
 import { el } from "./xml";
 
@@ -392,6 +393,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
   if (edit.type === "UPDATE_COURSE") return { document: updateCourse(document, edit.course, edit.changes) };
   if (edit.type === "SET_POINTS") return { document: setPoints(document, edit.course, edit.courseControl, edit.points) };
   if (edit.type === "PUT_TRAINING") return { document: applyTrainingPatch(document, edit) };
+  if (edit.type === "SET_ACCEPTED_CHECKS") return { document: setAcceptedChecks(document, edit.checks) };
   const draft = draftOf(document);
   let created: string | undefined;
   switch (edit.type) {

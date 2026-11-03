@@ -183,6 +183,8 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
     case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
     case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.course}`];
+    // ADR-0197: per varning, så att två som godtar olika varningar samtidigt inte krockar.
+    case "SET_ACCEPTED_CHECKS": return Object.keys(edit.checks).sort().map(key => `event:acceptedChecks:${key}`);
     case "PUT_OBJECTS": return [
       ...Object.keys(edit.controls ?? {}).map(id => `control:${id}`),
       ...Object.keys(edit.courseControls ?? {}).map(id => `courseControl:${id}`),
@@ -211,6 +213,7 @@ function touchValue(document: CourseSettingDocument, touch: string): unknown {
     const appearance = appearanceOf(document);
     return field === undefined ? appearance : (appearance as unknown as Record<string, unknown>)[field];
   }
+  if (kind === "event" && id === "acceptedChecks" && field !== undefined) return document.event.acceptedChecks?.[touch.slice("event:acceptedChecks:".length)];
   if (kind === "event") return id === undefined ? document.event : (document.event as unknown as Record<string, unknown>)[id];
   if (kind === "training") return trainingTouchValue(document, touch);
   let object: unknown;

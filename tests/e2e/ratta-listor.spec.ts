@@ -25,6 +25,7 @@ test("Rätta i deltagarkortet, klubbfilter och sammanställning per klubb, impor
 
   // Beslut 3: importen finns under Anmälda; Inställningar hänvisar dit.
   await expect(owner.getByRole("link", { name: "Importera anmälda (IOF XML)" })).toHaveAttribute("href", `/admin/${raceId}/imports`);
+  await reviewScreenshots(owner, "adr0191-import-anmalda");
   await openStep(owner, "Inställningar");
   const imports = owner.getByRole("region", { name: "Import" });
   await expect(imports.getByRole("link")).toHaveCount(0);
@@ -62,6 +63,12 @@ test("Rätta i deltagarkortet, klubbfilter och sammanställning per klubb, impor
   await fix.getByText("Mer", { exact: true }).click();
   await expect(fix.getByText("Rätta observerad måltid")).toBeVisible();
   await reviewScreenshots(owner, "adr0191-ratta");
+  // Hela deltagarkortet med Rätta på datorn (kortet är högre än fönstret).
+  if (process.env.E2E_SCREENSHOT_DIR) {
+    await owner.setViewportSize({ width: 1280, height: 2200 });
+    await card.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/adr0191-ratta-kort-1280.png` });
+    await owner.setViewportSize({ width: 1280, height: 720 });
+  }
 
   // Status ändras i Rätta som förut: bekräfta felstämplad, med journal i historiken.
   await fix.getByLabel("Ändra status").selectOption({ label: "Bekräfta felstämplad" });
@@ -99,6 +106,7 @@ test("Rätta i deltagarkortet, klubbfilter och sammanställning per klubb, impor
   await expect(summary.getByRole("row", { name: /OK Ekorren/ })).toContainText(/2\s*2\s*2/);
   await expect(summary.getByRole("row", { name: /IFK Lindön/ })).toContainText("1");
   await expect(summary.getByRole("row", { name: /Totalt/ })).toContainText(/3\s*2\s*2/);
+  await reviewScreenshots(visitor, "adr0191-klubbar");
   await summary.getByRole("button", { name: "IFK Lindön" }).click();
   await expect(toolbar.getByRole("button", { name: "Per klubb", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(visitor.getByRole("region", { name: "IFK Lindön" })).toContainText("Bo Lind");

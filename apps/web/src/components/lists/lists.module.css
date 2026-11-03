@@ -186,10 +186,11 @@
 .summaryTable tfoot :is(th, td) { border-top: 1.5px solid var(--ink); font-weight: 700; }
 .summaryTable .num { width: 5.5rem; }
 @media (max-width: 760px) {
-  .summaryTable .num { width: 3.2rem; }
-  /* "Startande" och "Fullföljda" bryts hellre än att gå ihop på 390 px. */
-  .summaryTable thead .num { white-space: normal; overflow-wrap: anywhere; font-size: var(--text-xs); vertical-align: bottom; }
-  .summaryTable :is(th, td):is(:nth-child(2), :nth-child(3)) { width: 4.8rem; }
+  /* 390 px: smala kolumner för 1:a–3:a, så att klubbnamnet får plats och bara bryts mellan orden. */
+  .summaryTable .num { width: 2.4rem; }
+  .summaryTable :is(th, td):is(:nth-child(2), :nth-child(3)) { width: 4.4rem; }
+  .summaryTable thead .num { font-size: var(--text-xs); vertical-align: bottom; }
+  .summaryTable tbody th { overflow-wrap: break-word; }
 }
 @media print { .summaryTable tfoot :is(th, td) { border-top: 1pt solid #000; } }
 /* Steg 49: "Visa gafflingar" och den lilla banbilden under löparens namn. */

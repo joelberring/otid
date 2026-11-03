@@ -23,8 +23,8 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
     {visible && <CourseTable ws={ws} visible={visible} />}
     <CourseClassForm ws={ws} />
     {visible && <CourseFileSection ws={ws} />}
-    {/* Steg 62: banläggningen i webben (inte för rogaining, som har sina kontroller med poäng här). */}
-    {visible && !ws.functionary && !ws.profile.features.rogaining && <p className={styles.workflowHelp}>
+    {/* Steg 62: banläggningen i webben (i rogaining poängbanor; poängen i resultatet sätts ovan under Kontroller & poäng). */}
+    {visible && !ws.functionary && <p className={styles.workflowHelp}>
       <Link href={`/admin/${ws.raceId}/course-setting`}>{courseSettingSv.link}</Link> – {courseSettingSv.linkHelp}</p>}
   </section>;
 }

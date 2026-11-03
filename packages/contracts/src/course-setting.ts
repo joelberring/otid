@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { uuidSchema as uuid } from "./ids";
 import { raceMapSourceBoundsSchema } from "./race-map-source";
+import { raceTypeSchema } from "./race-settings";
 
 /**
  * Steg 62 (ADR-0180): banläggningen. Dokumentet (`CourseSettingDocument` i `@o-tid/course-setting`) räknas och ändras i
@@ -87,7 +88,9 @@ export const courseSettingStateSchema = z.object({
   /** Den senast inlästa .ppen-filen orörd (hämtas med `course-setting/original`). */
   original: z.object({ fileName, importedAt: instant }).strict().nullable(),
   mapFile: z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), fileName, scale: z.number().int().min(100).max(1_000_000),
-    bounds: raceMapSourceBoundsSchema, georeferenced: z.boolean() }).strict().nullable()
+    bounds: raceMapSourceBoundsSchema, georeferenced: z.boolean() }).strict().nullable(),
+  /** Tävlingens typ: rogaining (poängbanor) och fest (inga banor i tävlingen) förklaras i editorn. Saknas i äldre svar. */
+  raceType: raceTypeSchema.optional()
 }).strict();
 export type CourseSettingState = z.infer<typeof courseSettingStateSchema>;
 

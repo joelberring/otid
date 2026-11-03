@@ -27,3 +27,9 @@ export const courseDataSv = {
   retry: "Försök igen",
   startConflict: "Någon annan började banläggningen samtidigt, så filen lästes inte in. Läs in den under Fil om den ska ersätta banorna."
 };
+
+/** Banläggningen i rogaining och fest (ägaren 2026-11-03: Banläggning syns för alla tävlingstyper). */
+export const courseSettingRaceTypeSv = {
+  ROGAINING: "Rogaining: nya banor blir poängbanor. Poängen i resultatet sätts under Kontroller & poäng i tävlingen; Överför till tävlingen ger banornas kontroller.",
+  PARTY: "Fest: banläggningen ger kartor att skriva ut. Festen har inga banor i tävlingen, så Överför till tävlingen finns inte här."
+} as const;

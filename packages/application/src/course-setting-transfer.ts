@@ -94,8 +94,7 @@ export function courseSettingProjection(document: CourseSettingDocument, options
         variants: measured.map(variant => ({ code: courseVariantCode(course.name, `${course.name} ${variant.code}`), controlCodes: variant.controlCodes,
           ...(variant.lengthMeters !== undefined ? { lengthMeters: variant.lengthMeters } : {}) })),
         ...(longest?.lengthMeters !== undefined ? { lengthMeters: longest.lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}),
-        // Alltid med (tom = inga), så att en överföring utan bortval tar bort tävlingens (ADR-0198).
-        excludedVariants });
+        ...(excludedVariants.length > 0 ? { excludedVariants } : {}) });
     } else {
       courses.push({ externalId, name: course.name, controlCodes: measured[0]!.controlCodes, ...ends,
         ...(measured[0]!.lengthMeters !== undefined ? { lengthMeters: measured[0]!.lengthMeters } : {}),
@@ -127,6 +126,6 @@ export function courseSettingProjection(document: CourseSettingDocument, options
   }
   const warnings = assignments.length > 0 ? ["Startregel saknas i IOF CourseData 3.0; PUNCH används tills en separat StartList importeras"]
     : ["Inga ClassCourseAssignment hittades"];
-  return { projection: { kind: "COURSE_FILE", data: { courses, assignments, legAssignments: [], personAssignments: [], teamAssignments: [],
+  return { projection: { kind: "COURSE_FILE", data: { fromCourseSetting: true, courses, assignments, legAssignments: [], personAssignments: [], teamAssignments: [],
     controlPositions, ...(controlMapPositions.length > 0 ? { controlMapPositions } : {}), mapScale: Math.round(document.event.mapScale), warnings } } };
 }

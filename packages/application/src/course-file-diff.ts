@@ -81,9 +81,10 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
     used.add(local.id);
     courseTarget.set(course.externalId, { ref: { existing: local.id }, name: local.name });
     // ADR-0198: en banfil som inte kommer från banläggningen (inga bortval i filen) tar inte tillbaka bortvalda varianter;
-    // bortvalen följer med (samma kod och kontroller). Banläggningen anger alltid sina bortval (tom lista = inga).
-    const excludedVariants = course.excludedVariants ?? local.excludedVariants;
-    if (course.excludedVariants === undefined && local.excludedVariants?.length) {
+    // bortvalen följer med (samma kod och kontroller). Från banläggningen gäller banläggningens bortval (inga = inga).
+    const fromFile = projection.data.fromCourseSetting !== true;
+    const excludedVariants = course.excludedVariants ?? (fromFile ? local.excludedVariants : undefined);
+    if (fromFile && course.excludedVariants === undefined && local.excludedVariants?.length) {
       const kept = variants.filter(variant => !local.excludedVariants!.some(row => row.code === variant.code && sameCodes(row.controlCodes, variant.controlCodes)));
       if (kept.length > 0) variants = kept;
     }

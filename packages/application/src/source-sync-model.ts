@@ -27,7 +27,10 @@ export interface CourseFileProjection {
   readonly kind: "COURSE_FILE";
   /** Steg 47: `legAssignments` (AllowedOnLeg) och steg 49: `controlPositions` saknas i projektioner sparade före stegen. */
   readonly data: Omit<CourseDataImport, "kind" | "legAssignments" | "controlPositions"> &
-    Partial<Pick<CourseDataImport, "legAssignments" | "controlPositions">>;
+    Partial<Pick<CourseDataImport, "legAssignments" | "controlPositions">> & {
+      /** ADR-0198: projektionen kommer från banläggningen, så en bana utan `excludedVariants` har inga bortval. */
+      readonly fromCourseSetting?: true;
+    };
 }
 
 export type SourceProjection = EventorProjection | CourseFileProjection;

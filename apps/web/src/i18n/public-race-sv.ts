@@ -18,7 +18,8 @@ export const publicRaceSv = {
     noMatch: (query: string) => `Ingen publicerad tävling matchar ”${query}”.`,
     myRaces: "Mina tävlingar",
     organizerLogin: "För arrangörer: logga in",
-    accountNavigation: "Konto"
+    accountNavigation: "Konto",
+    introFilm: "Se vad O-Tid kan (film, 1 min)"
   },
   links: { startList: "Startlista", results: "Resultat", splits: "Sträcktider" },
   hub: {

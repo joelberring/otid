@@ -21,9 +21,11 @@
 .siteHead { background: var(--surface); border-bottom: 1px solid var(--line); }
 .siteHeadInner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px;
   max-width: 880px; margin: 0 auto; padding: 14px 16px; }
-.brand { display: grid; gap: 0; }
-.brand strong { font-size: var(--text-lg); font-weight: 700; letter-spacing: .01em; }
-.brand span { color: var(--muted); font-size: var(--text-xs); }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brandLogo { flex: none; color: var(--logo); }
+.brandText { display: grid; gap: 0; min-width: 0; }
+.brandText strong { font-size: var(--text-lg); font-weight: 700; letter-spacing: .01em; }
+.brandText span { color: var(--muted); font-size: var(--text-xs); }
 .siteHeadInner nav a { display: inline-flex; align-items: center; min-height: 40px; font-size: var(--text-sm); }
 
 .home { display: grid; gap: 28px; max-width: 880px; padding-top: 24px; padding-bottom: 32px; }
@@ -34,6 +36,8 @@
 .search button { flex: 0 0 auto; }
 .searchMeta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 .searchMeta a { display: inline-flex; align-items: center; min-height: 40px; }
+.introFilm { font-size: var(--text-xs); }
+.introFilm a { display: inline-flex; align-items: center; min-height: 40px; }
 
 .raceSection { display: grid; gap: 6px; min-width: 0; }
 .raceSection > h2 { font-size: var(--text-md); }

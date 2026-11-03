@@ -21,6 +21,8 @@
   --mp: #b4261b;
   --attention: #c2560f;
   --accent: #8e2a80;
+  /* O-Tid-loggan (ringen med "tid"). Appen är bara ljus; på en mörk yta är loggan #c77dff (som icon.svg i mörkt läge). */
+  --logo: #a626ff;
   /* Svaga toner för besked som behöver märkas (används sparsamt) */
   --mp-tint: #fbefed;
   --attention-tint: #fdf3ea;

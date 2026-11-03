@@ -32,6 +32,11 @@ summary { cursor: pointer; }
 body > header { background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--line); padding: 10px max(16px, calc((100vw - 1120px) / 2 + 16px));
   font-size: var(--text-xs); color: var(--muted); }
 body > header a { color: var(--ink); font-weight: 600; text-decoration: none; }
+/* Det gemensamma sidhuvudet: loggan (28 px) före namnet. Under 420 px får bara loggan och namnet plats på en rad. */
+.site-header { display: flex; align-items: center; gap: 6px; padding-block: 6px; }
+.site-header > a { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; }
+.site-header-logo { flex: none; color: var(--logo); }
+@media (max-width: 419px) { .site-header-tagline { display: none; } }
 main { max-width: 1120px; margin: 0 auto; padding: 16px; }
 body > .site-footer { padding: 16px max(16px, calc((100vw - 1120px) / 2 + 16px)) 24px; border-top: 1px solid var(--line); font-size: var(--text-xs); }
 body:has(> main.speaker-page) > .site-footer, body:has(.race-admin-manage-page) > .site-footer { display: none; }

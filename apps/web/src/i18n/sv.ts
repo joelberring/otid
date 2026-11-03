@@ -1,6 +1,6 @@
 export const sv = {
   appName: "O-Tid",
-  tagline: "Tidtagning för orientering",
+  tagline: "Banläggning och tidtagning för orientering",
   publicRaceNavigation: "Publik navigering",
   publicRaceStartListLink: "Till startlistan",
   publicRaceResultsLink: "Till resultatlistan",

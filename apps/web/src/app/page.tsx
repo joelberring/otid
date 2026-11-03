@@ -4,13 +4,15 @@ import { authenticateUserAccountSession, listPublicRaces, PUBLIC_RECENT_MAX, PUB
 import { db } from "../lib/db";
 import { accountSessionToken } from "../lib/public-race-gate";
 import { todayIn } from "../lib/public-race-format";
+import { introFilmUrl } from "../lib/intro-film";
 import { sv } from "../i18n/sv";
 import { publicRaceSv } from "../i18n/public-race-sv";
+import { Logo } from "../components/brand/logo";
 import { RaceList, type RaceListTiming } from "../components/public-race/race-list";
 import styles from "../components/public-race/public-race.module.css";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: `${sv.appName} – ${publicRaceSv.home.title}`, description: publicRaceSv.home.intro };
+export const metadata: Metadata = { title: `${sv.appName} – ${sv.tagline}`, description: `${sv.tagline}. ${publicRaceSv.home.intro}` };
 
 const text = publicRaceSv.home;
 type Query = { q?: string | string[]; fler?: string | string[] };
@@ -18,6 +20,7 @@ type Query = { q?: string | string[]; fler?: string | string[] };
 /**
  * Startsidan för besökare (ADR-0172 beslut 4): sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
  * Senaste med "Visa fler". Bara publicerade tävlingar och inga adminlänkar; den inloggade får en länk till Mina tävlingar.
+ * Längst ned en länk till introduktionsfilmen, bara när `NEXT_PUBLIC_INTRO_FILM_URL` är satt (docs/drift.md).
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Query> }) {
   const query = await searchParams;
@@ -28,6 +31,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const [listing, account] = await Promise.all([listPublicRaces(db, { search, recentLimit }),
     token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined]);
   const signedIn = account?.status === "authenticated";
+  const film = introFilmUrl();
   const today = todayIn("Europe/Stockholm");
   const total = listing.ongoing.length + listing.upcoming.length + listing.recent.length;
   const moreHref = `/?${new URLSearchParams({ ...(search ? { q: search } : {}), fler: String(recentLimit + PUBLIC_RECENT_STEP) })}#senaste`;
@@ -40,7 +44,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   return <>
     <header className={styles.siteHead} data-site-head>
       <div className={styles.siteHeadInner}>
-        <Link href="/" className={styles.brand}><strong>{sv.appName}</strong><span>{sv.tagline}</span></Link>
+        <Link href="/" className={styles.brand}>
+          <Logo size={40} className={styles.brandLogo} />
+          <span className={styles.brandText}><strong>{sv.appName}</strong><span>{sv.tagline}</span></span>
+        </Link>
         <nav aria-label={text.accountNavigation}>
           <Link href="/organizer">{signedIn ? text.myRaces : text.organizerLogin}</Link>
         </nav>
@@ -63,6 +70,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       {section("pagar", text.ongoing, listing.ongoing, "ONGOING", text.noneOngoing)}
       {section("kommande", text.upcoming, listing.upcoming, "UPCOMING", text.noneUpcoming)}
       {section("senaste", text.recent, listing.recent, "RECENT", text.noneRecent, listing.moreRecent)}
+      {film && <p className={styles.introFilm}><a href={film}>{text.introFilm}</a></p>}
     </main>
   </>;
 }

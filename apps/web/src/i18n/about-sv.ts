@@ -1,10 +1,10 @@
 /** Om O-Tid och sidfoten (PLAN.md steg 37). Bara avsnittet "Tekniska funktioner" får ha tekniska ord. */
 export const aboutSv = {
   metaTitle: "Om O-Tid",
-  metaDescription: "O-Tid är tidtagning för orientering i webbläsaren, för klubbtävlingar och träningar.",
+  metaDescription: "O-Tid är banläggning och tidtagning för orientering i webbläsaren, för klubbtävlingar och träningar.",
   kicker: "O-Tid",
   title: "Om O-Tid",
-  intro: "O-Tid är tidtagning för orientering i webbläsaren. Det är gjort för klubbtävlingar och träningar.",
+  intro: "O-Tid är banläggning och tidtagning för orientering i webbläsaren. Det är gjort för klubbtävlingar och träningar.",
   introMore: "Du lägger in banor, klasser och anmälda på webben. I mål läser du av brickorna med en SPORTident-station. " +
     "Löparna ser start- och resultatlistor på mobilen utan att logga in.",
   betaTitle: "Beta – fritt att använda",

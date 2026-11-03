@@ -80,11 +80,16 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await reviewScreenshots(owner, "banlaggning-varningar");
 
   // Sträckan 33–34 på kartan: Vald sträcka säger att vägvalet går runt.
+  await owner.getByRole("tab", { name: "Banor" }).click();
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   const map = owner.getByTestId("course-setting-map");
   await expect(map).toHaveAttribute("data-center", /,/);
-  const onLeg = await screenOf(map, 81.5, 46.5);
-  await owner.mouse.click(onLeg.x, onLeg.y);
+  // Kartan passas in på banan efter bytet: klicka på sträckan när den står still.
+  await expect(async () => {
+    const onLeg = await screenOf(map, 81.5, 46.5);
+    await owner.mouse.click(onLeg.x, onLeg.y);
+    await expect(owner.getByTestId("course-setting-selected")).toHaveText("Sträckan kontroll 33–kontroll 34", { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await owner.getByRole("tab", { name: "Vald" }).click();
   await expect(owner.getByTestId("course-setting-leg-forbidden")).toHaveText(/^Fågelvägen korsar ett förbjudet område – vägvalet går runt \(\+\d+ m\)\.$/,
     { timeout: 90_000 });

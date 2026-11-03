@@ -17,6 +17,9 @@ import { eventorConfigurationFromEnvironment } from "../../src/eventor-secret";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { importOrganisationsFromXml, refreshOrganisationsFromEventor, searchOrganisations } from "../../src/organisations";
 import { liftRaceToClubArchive, readRaceClubArchiveAsAdmin, removeRaceFromClubArchive, setRaceOrganiserAsAdmin } from "../../src/race-club-archive";
+import { inviteFromClub, readClubPicker } from "../../src/club-invite";
+import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
+import { listRacePeopleAsAdmin } from "../../src/race-people";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -344,6 +347,80 @@ describe("ADR-0209: tävlingen i klubbarkivet", { timeout: 60_000 }, () => {
     // Arrangörsklubben kan ändras och tas bort av tävlingens administratör.
     expect(await setRaceOrganiserAsAdmin(db, { ...raceProof, request: { formatVersion: 1, organisationId: null } }, after))
       .toMatchObject({ status: "ok", view: { organiser: null, space: "NONE" } });
+    await unlink();
+  });
+});
+
+describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
+  it("väljaren har namnen på bekräftade medlemmar i mina klubbar; inbjudan går till adressen som aldrig syns", async () => {
+    const { owner, clubId, unlink } = await linkedSpace({ emails: [] });
+    const other = await space("Mossbergets OK");
+    const confirm = async (account: Awaited<ReturnType<typeof registerTestAccount>>, spaceOwner: typeof owner, spaceId: string, text: string) => {
+      await addAccountClub(db, { ...account.proof, request: { formatVersion: 1, organisationId: null, freeText: text } }, NOW);
+      const view = await readClubAffiliation(db, { ...spaceOwner.proof, clubId: spaceId }, NOW);
+      if (view.status !== "ok") throw new Error(view.status);
+      const row = view.view.pending.find(person => person.displayName === `Arrangör ${account.email.split("@")[0]}`)!;
+      await decideClubAffiliation(db, { ...spaceOwner.proof, clubId: spaceId, request: { formatVersion: 1, membershipId: row.membershipId, decision: "CONFIRM" } }, NOW);
+    };
+    const inviterAccount = await registerTestAccount(db, undefined, NOW);
+    const clubmate = await registerTestAccount(db, undefined, NOW);
+    const outsider = await registerTestAccount(db, undefined, NOW);
+    await confirm(inviterAccount, owner, clubId, "OK Älvsjö-Örby");
+    await confirm(clubmate, owner, clubId, "OKÄÖ");
+    await confirm(outsider, other.owner, other.clubId, "Mossbergets OK");
+
+    const created = await createOrganizerEvent(db, { ...inviterAccount.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+      readBody: async () => ({ formatVersion: 1, eventName: "Klubbkväll", raceName: "", raceDate: "2026-11-20", timeZone: "Europe/Stockholm",
+        raceType: "TRAINING" }) }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    const raceId = created.response.raceId;
+    const context = { kind: "RACE" as const, id: raceId };
+    const picker = await readClubPicker(db, { ...inviterAccount.proof, context }, NOW);
+    if (picker.status !== "ok") throw new Error(picker.status);
+    expect(picker.response.members.map(member => member.displayName)).toEqual(expect.arrayContaining([`Arrangör ${clubmate.email.split("@")[0]}`]));
+    expect(picker.response.members.map(member => member.displayName)).not.toContain(`Arrangör ${outsider.email.split("@")[0]}`);
+    expect(JSON.stringify(picker.response)).not.toMatch(/@test\.o-tid\.se/);
+    // Den som inte är med i klubben ser ingen lista; utan behörighet i sammanhanget ingenting alls.
+    expect(await readClubPicker(db, { ...other.owner.proof, context: { kind: "CLUB", id: other.clubId } }, NOW))
+      .toMatchObject({ status: "ok", response: { members: [expect.objectContaining({ displayName: `Arrangör ${outsider.email.split("@")[0]}` })] } });
+    expect((await readClubPicker(db, { ...outsider.proof, context }, NOW)).status).toBe("unauthorized");
+    expect((await readClubPicker(db, { ...outsider.proof, context: { kind: "CLUB", id: clubId } }, NOW)).status).toBe("not-found");
+
+    const ref = picker.response.members.find(member => member.displayName.endsWith(clubmate.email.split("@")[0]!))!.ref;
+    const invited = await inviteFromClub(db, { ...inviterAccount.proof, request: { formatVersion: 1, requestId: randomUUID(), context, refs: [ref],
+      role: "FUNCTIONARY" } }, NOW);
+    expect(invited).toEqual({ status: "ok", response: { formatVersion: 1, invited: 1, already: 0, failed: 0 } });
+    expect(JSON.stringify(invited)).not.toContain(clubmate.email);
+    const [invitation] = await db.select().from(schema.racePersonInvitations).where(eq(schema.racePersonInvitations.raceId, raceId));
+    expect(invitation).toMatchObject({ email: clubmate.email, role: "FUNCTIONARY" });
+    const people = await listRacePeopleAsAdmin(db, { ...inviterAccount.proof, raceId }, NOW);
+    if (people.status !== "ok") throw new Error(people.status);
+    expect(people.response.invitations).toEqual([expect.objectContaining({ email: "", displayName: `Arrangör ${clubmate.email.split("@")[0]}` })]);
+    expect(JSON.stringify(people.response)).not.toContain(clubmate.email);
+    // Personen tar inbjudan som vanligt; adressen syns ändå inte i listan.
+    await db.transaction(tx => acceptRacePersonInvitations(tx, clubmate.accountId, NOW, raceId));
+    const after = await listRacePeopleAsAdmin(db, { ...inviterAccount.proof, raceId }, NOW);
+    expect(JSON.stringify(after)).not.toContain(clubmate.email);
+    expect(after).toMatchObject({ response: { people: expect.arrayContaining([expect.objectContaining({ role: "FUNCTIONARY", email: "", fromClub: true })]) } });
+    // Igen: redan med. En person utanför listan: hela begäran avvisas.
+    expect(await inviteFromClub(db, { ...inviterAccount.proof, request: { formatVersion: 1, requestId: randomUUID(), context, refs: [ref],
+      role: "FUNCTIONARY" } }, NOW)).toMatchObject({ response: { invited: 0, already: 1 } });
+    const outsiderRef = (await db.select({ id: schema.accountClubMemberships.id }).from(schema.accountClubMemberships)
+      .where(eq(schema.accountClubMemberships.accountId, outsider.accountId)))[0]!.id;
+    expect((await inviteFromClub(db, { ...inviterAccount.proof, request: { formatVersion: 1, requestId: randomUUID(), context, refs: [outsiderRef],
+      role: "FUNCTIONARY" } }, NOW)).status).toBe("not-found");
+    expect((await inviteFromClub(db, { ...inviterAccount.proof, request: { formatVersion: 1, requestId: randomUUID(), context, refs: [ref],
+      role: "OWNER" } }, NOW)).status).toBe("invalid-request");
+
+    // I klubbytan: inbjudan till klubben, och listan visar namnet.
+    const clubPicker = await readClubPicker(db, { ...owner.proof, context: { kind: "CLUB", id: clubId } }, NOW);
+    if (clubPicker.status !== "ok") throw new Error(clubPicker.status);
+    expect(clubPicker.response.members.every(member => !member.already)).toBe(true);
+    await inviteFromClub(db, { ...owner.proof, request: { formatVersion: 1, requestId: randomUUID(), context: { kind: "CLUB", id: clubId },
+      refs: [clubPicker.response.members[0]!.ref], role: "LEADER" } }, NOW);
+    const clubView = await readClub(db, { ...owner.proof, clubId }, NOW);
+    if (clubView.status !== "ok") throw new Error(clubView.status);
+    expect(clubView.view.invitations).toEqual([expect.objectContaining({ email: "", role: "LEADER" })]);
     await unlink();
   });
 });

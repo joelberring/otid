@@ -8,6 +8,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RacePrincipal, type RaceSessionProof } from "./race-session";
+import { clubSourcedInContext } from "./club-invite";
 import { alreadyGranted, hasOpenInvitation, invitationKind, lockInvitationEmail, openRacePersonInvitations,
   revokeRacePersonInvitation } from "./race-person-invitations";
 
@@ -86,8 +87,14 @@ export async function listRacePeopleAsAdmin(db: Database, input: Authentication,
     if (!event) return { status: "not-found" } as const;
     const invitations = (await openRacePersonInvitations(tx, actor.raceId)).map(row => ({ invitationId: row.id, email: row.email,
       role: row.role, invitedAt: row.createdAt.toISOString() }));
+    // ADR-0209: personer och inbjudningar "Från klubben" visas med namnet, aldrig adressen.
+    const fromClub = await clubSourcedInContext(tx, "RACE_PERSON", actor.raceId);
+    const people = (await activePeople(tx, event.id, actor.raceId)).map(person => fromClub.accounts.has(person.accountId)
+      ? { ...person, email: "", fromClub: true } : person);
+    const shown = invitations.map(row => fromClub.invitations.has(row.invitationId)
+      ? { ...row, email: "", displayName: fromClub.invitations.get(row.invitationId)! } : row);
     return { status: "ok", response: racePeopleResponseSchema.parse({ formatVersion: 1, raceId: actor.raceId,
-      viewer: { accountId: actor.accountId, role: actor.role }, people: await activePeople(tx, event.id, actor.raceId), invitations }) } as const;
+      viewer: { accountId: actor.accountId, role: actor.role }, people, invitations: shown }) } as const;
   });
 }
 

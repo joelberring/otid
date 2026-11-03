@@ -1,9 +1,9 @@
 import {
-  addAccountClub, answerAccountClubStep, decideClubAffiliation, eventorConfigurationFromEnvironment, linkClubToEventor, liftRaceToClubArchive,
+  addAccountClub, answerAccountClubStep, inviteFromClub, readClubPicker, decideClubAffiliation, eventorConfigurationFromEnvironment, linkClubToEventor, liftRaceToClubArchive,
   readAccountClubs, readClubAffiliation, readRaceClubArchiveAsAdmin, removeAccountClub, removeRaceFromClubArchive, searchOrganisationsForAccount,
   setClubAccessSettings, setRaceOrganiserAsAdmin, syncClubEventorMembersAsAdmin, unlinkClubFromEventor
 } from "@o-tid/application";
-import { clubEventorLinkRequestSchema, UUID_PATTERN } from "@o-tid/contracts";
+import { clubEventorLinkRequestSchema, clubInviteContextSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { accountFailure, privateJson } from "./security-policy";
 import { failure, guarded, mutation, readProof, type ClubEnvironment } from "./club-route-handlers";
@@ -145,5 +145,31 @@ export async function raceClubArchiveRoute(db: Database, request: Request, raceI
     if (result.status === "already") return problem("ALREADY_IN_ARCHIVE");
     if (result.status === "not-lifted") return failure("not-found");
     return failure(result.status);
+  });
+}
+
+// --- Från klubben -----------------------------------------------------------------------------------------------------------------
+
+/**
+ * GET `?kind=RACE|CLUB|TRAINING_GROUP&id=…`: väljaren (namn, aldrig adresser). POST: bjud in de valda genom de vanliga vägarna.
+ * Grenen inbjudan-mejl: när de vägarna tar emot en avsändare (`routeMailer`) skickas den med här.
+ */
+export async function clubPickerRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
+  if (request.method === "GET") {
+    const params = new URL(request.url).searchParams;
+    const context = clubInviteContextSchema.safeParse({ kind: params.get("kind"), id: params.get("id") });
+    if (!context.success) return failure("invalid-request");
+    const input = await readProof(request, environment);
+    if ("response" in input) return input.response;
+    return guarded(async () => {
+      const result = await readClubPicker(db, { ...input.proof, context: context.data });
+      return result.status === "ok" ? privateJson(result.response) : failure(result.status);
+    });
+  }
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await inviteFromClub(db, { ...input.proof, request: input.body });
+    return result.status === "ok" ? privateJson(result.response) : failure(result.status);
   });
 }

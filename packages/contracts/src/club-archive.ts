@@ -129,7 +129,8 @@ export type ClubArchiveEntryUpdateRequest = z.infer<typeof clubArchiveEntryUpdat
 export interface ClubSummary { clubId: string; name: string; role: ClubRole; entries: number }
 
 export interface ClubMember { memberId: string; accountId: string; email: string; displayName: string; role: ClubRole; addedAt: string }
-export interface ClubInvitation { invitationId: string; email: string; role: ClubRole; createdAt: string }
+/** ADR-0209: tom adress och `displayName` = inbjuden "Från klubben". */
+export interface ClubInvitation { invitationId: string; email: string; role: ClubRole; createdAt: string; displayName?: string }
 export interface ClubImportTokenView { tokenId: string; createdAt: string; expiresAt: string; revokedAt: string | null; lastUsedAt: string | null;
   createdByName: string }
 

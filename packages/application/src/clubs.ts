@@ -9,6 +9,7 @@ import {
   acceptClubInvitations, clubJournal, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubRole, type ClubTransaction
 } from "./club-access";
 import { withDerivedClubs } from "./club-affiliation-access";
+import { clubSourcedInContext } from "./club-invite";
 import { mapStorageQuota, mapStorageUsage } from "./map-content";
 import { UUID_PATTERN } from "./serialization";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
@@ -98,13 +99,16 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     .where(eq(schema.clubImportTokens.clubId, clubId)).orderBy(desc(schema.clubImportTokens.createdAt)).limit(20) : [];
   const quota = mapStorageQuota();
   const used = await mapStorageUsage(tx, viewer.accountId);
+  const fromClub = await clubSourcedInContext(tx, "CLUB", clubId);
   const [linked] = await tx.select({ name: schema.organisations.name }).from(schema.clubSettings)
     .innerJoin(schema.organisations, eq(schema.organisations.id, schema.clubSettings.organisationId)).where(eq(schema.clubSettings.clubId, clubId));
   return {
     formatVersion: 1, clubId, name: club.name, viewer, eventorClub: linked?.name ?? null,
-    // Läsare ser medlemmarnas namn men inte adresserna.
-    members: members.map(member => ({ ...member, email: admin ? member.email : "", addedAt: member.addedAt.toISOString() })),
-    invitations: invitations.map(row => ({ ...row, createdAt: row.createdAt.toISOString() })),
+    // Läsare ser medlemmarnas namn men inte adresserna; ADR-0209: inte heller den som kom "Från klubben".
+    members: members.map(member => ({ ...member, email: admin && !fromClub.accounts.has(member.accountId) ? member.email : "",
+      addedAt: member.addedAt.toISOString() })),
+    invitations: invitations.map(row => ({ ...row, createdAt: row.createdAt.toISOString(),
+      ...(fromClub.invitations.has(row.invitationId) ? { email: "", displayName: fromClub.invitations.get(row.invitationId)! } : {}) })),
     usage: await clubUsage(tx, clubId),
     tokens: tokens.map(row => ({ ...row, createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt.toISOString(),
       revokedAt: row.revokedAt?.toISOString() ?? null, lastUsedAt: row.lastUsedAt?.toISOString() ?? null })),

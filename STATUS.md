@@ -16,7 +16,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Fjäril (samma kontroll flera gånger i följd eller slingans mitt) ritas som en ring: alla förekomster i banan byts och frågan säger det. I en gafflad banas variant där bara en förekomst syns byts bara den.
 - Fältläget: "Flytta hit" ställer samma fråga (dialog som ryms i 390 px). "Kom ihåg för den här sessionen" (sessionStorage per tävling) hoppar över frågan med senaste valet; "Fråga igen" i Inställningar.
 - Överförda tävlingar: oförändrat – banläggningen förs över för hand med banfilens granskning, där den nya koden syns som en ändring i banan.
-- Verifierat: enhetstester (paketet `new-control-in-course`, webben `course-setting-move-shared`), Playwright `banlaggning-flytta-kontroll` (1280/390); `banlaggning-mobil` och `banlaggning-beskrivningsforslag` svarar nu på frågan där de flyttar långt.
+- Verifierat: enhetstester (paketet `new-control-in-course`, webben `course-setting-move-shared`, `help-sv`), CI grönt med alla webbläsartester mot driftbygget, också nya `banlaggning-flytta-kontroll` (1280/390); `banlaggning-mobil` och `banlaggning-beskrivningsforslag` svarar nu på frågan där de flyttar långt. Hjälpen "Kontroller och banor" beskriver frågan.
 
 ### 2026-11-03 – Hjälp för banläggning, vägval och klubbarkiv (grenen hjalp-banlaggning, bygger på steg 37)
 - Hjälp i banläggningens rad överst (bara "?" under 900 px), på sidan före editorn, utskriftssidan, kontrollbeskrivningarna, klubbarkivet (flikarna och en träning) och i kontrollkartan. Panelen visar först den öppna flikens artiklar (fältläget först på telefonen), sedan banläggningen i stort; i kontrollkartans läge Vägval vägvalens.

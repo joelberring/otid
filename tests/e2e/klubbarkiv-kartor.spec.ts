@@ -106,6 +106,8 @@ test("klubbarkivets kartor: OCAD 11 fungerar, OCAD 7 säger varför, bilder, ban
   await owner.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);
   const clubId = /clubs\/([0-9a-f-]+)$/.exec(owner.url())![1]!;
   await owner.getByRole("tab", { name: "Import" }).click();
+  // ADR-0204: kommandot och nyckeln ligger hopfällda under importen i webbläsaren.
+  await owner.getByText("För den som kan Git: kommandoraden").click();
   await owner.getByRole("button", { name: "Skapa importnyckel" }).click();
   const token = (await owner.getByTestId("import-token").textContent())!.trim();
 

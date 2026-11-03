@@ -62,6 +62,8 @@ test("banfil utan .ppen: Använd igen öppnar banläggningen, starten flyttas oc
   await dialog.getByRole("button", { name: "Skapa träningen" }).click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/course-setting$/, { timeout: 120_000 });
   const raceId = /admin\/([0-9a-f-]+)\//.exec(owner.url())![1]!;
+  // Beskedet om banfilen (försvinner efter en stund, som andra bekräftelser i editorn).
+  await expect(owner.getByText("Banorna kommer från banfilen (1 bana, 9 kontroller). Kontrollbeskrivningarna är tomma.")).toBeVisible({ timeout: 60_000 });
   await warmCourseSetting(owner, raceId);
   const stateUrl = `/api/admin/races/${raceId}/administrator/course-setting`;
   const controlsNow = async () => ((await (await owner.request.get(stateUrl)).json()) as { setting: { document: { controls: Controls } } }).setting.document.controls;
@@ -73,7 +75,6 @@ test("banfil utan .ppen: Använd igen öppnar banläggningen, starten flyttas oc
   const controls = Object.values(state.setting!.document.controls);
   expect(controls.find(control => control.code === "31")?.at).toEqual({ x: 15, y: 42 });
   expect(controls.find(control => control.kind === "START")?.at).toEqual({ x: 4, y: 8 });
-  await expect(owner.getByText("Banorna kommer från banfilen (1 bana, 9 kontroller). Kontrollbeskrivningarna är tomma.")).toBeVisible({ timeout: 30_000 });
 
   // Dra starten med Välj; efter omladdning står den kvar (som i en kopia av en .ppen).
   const [startId, start] = Object.entries(await controlsNow()).find(([, control]) => control.kind === "START")!;

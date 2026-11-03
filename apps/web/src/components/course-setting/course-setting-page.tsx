@@ -21,7 +21,7 @@ import { fieldStore } from "./use-course-setting-offline";
 import { forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
 import styles from "./course-setting.module.css";
 import { courseDataSv } from "../../i18n/course-data-sv";
-import { takeCourseSettingNotice } from "../../lib/course-setting-notice";
+import { forgetCourseSettingNotice, pendingCourseSettingNotice } from "../../lib/course-setting-notice";
 
 /**
  * Steg 62 (ADR-0180): sidan `/admin/[raceId]/course-setting`. Hämtar läget; utan kartfil laddas den upp här (samma Worker
@@ -40,7 +40,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const [state, setState] = useState<CourseSettingState>();
   const [failed, setFailed] = useState<"login" | "other">();
   const [message, setMessage] = useState<Message>();
-  const [notice, setNotice] = useState<string>();
+  // Använd igen med en banfil (IOF XML) säger i editorn vad som kom med och vad som inte gick (läst innan editorn monteras).
+  const [notice, setNotice] = useState<string | undefined>(() => typeof window === "undefined" ? undefined : pendingCourseSettingNotice(raceId));
   const [busy, setBusy] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [resume, setResume] = useState<{ record: FieldRecord; fromPhone: boolean }>();
@@ -67,8 +68,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other");
     }
   }, [raceId]);
-  // Använd igen med en banfil (IOF XML) säger här vad som kom med och vad som inte gick.
-  useEffect(() => { const pending = takeCourseSettingNotice(raceId); if (pending) setNotice(pending); }, [raceId]);
+  useEffect(() => { forgetCourseSettingNotice(raceId); }, [raceId]);
   useEffect(() => {
     // Ett svar efter att effekten städats (t.ex. Reacts dubbla körning i utvecklingsläget) monterar inte om editorn: ett
     // klick mellan de två svaren gick annars förlorat.

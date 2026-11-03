@@ -6,10 +6,11 @@ export function rememberCourseSettingNotice(raceId: string, notice: string): voi
   try { window.sessionStorage.setItem(noticeKey(raceId), notice); } catch { /* utan lagring visas inget besked; banorna finns ändå */ }
 }
 
-export function takeCourseSettingNotice(raceId: string): string | undefined {
-  try {
-    const value = window.sessionStorage.getItem(noticeKey(raceId));
-    if (value !== null) window.sessionStorage.removeItem(noticeKey(raceId));
-    return value ?? undefined;
-  } catch { return undefined; }
+/** Beskedet som väntar (tas inte bort; `forgetCourseSettingNotice` när editorn visat det). */
+export function pendingCourseSettingNotice(raceId: string): string | undefined {
+  try { return window.sessionStorage.getItem(noticeKey(raceId)) ?? undefined; } catch { return undefined; }
+}
+
+export function forgetCourseSettingNotice(raceId: string): void {
+  try { window.sessionStorage.removeItem(noticeKey(raceId)); } catch { /* inget att ta bort */ }
 }

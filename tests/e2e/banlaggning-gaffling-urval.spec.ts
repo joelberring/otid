@@ -78,12 +78,11 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
 
   // Ladda om: antalet är lägre i panelen och i banlistan.
   await owner.reload();
-  await owner.waitForLoadState("networkidle");
+  await mapReady(owner);
   await courseRow(owner, "Natt").click();
   await expect(summary).toHaveText("8 varianter, 4 används (4 bortvalda som längre)");
   await expect(courseRow(owner, "Natt")).toContainText("4 varianter (4 bortvalda)");
   if (shots) {
-    await mapReady(owner);
     await panel.scrollIntoViewIfNeeded();
     await owner.screenshot({ path: `${shots}/banlaggning-gaffling-urval-tabell-1280.png` });
   }

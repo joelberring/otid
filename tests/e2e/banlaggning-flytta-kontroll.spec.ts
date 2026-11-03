@@ -81,7 +81,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   const question = owner.getByTestId("course-setting-move-question");
   let current = await documentNow();
   expect(codes(current, "Lång")).toEqual(["·", "31", "32", "33", "34", "35", "36", "·"]);
-  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "37", "33", "36", "·"]);
+  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "33", "36", "·"]);
 
   // En kort flytt (30 m) frågar inte, och inte heller en kontroll som bara finns i Lång (34, 80 m).
   await drag(owner, map, 15, 42, 3);
@@ -109,7 +109,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await screenshot(owner, "flytta-kontroll-ny-1280");
   current = await documentNow();
   expect(codes(current, "Lång")).toEqual(["·", "38", "32", "33", "34", "35", "36", "·"]);
-  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "37", "33", "36", "·"]);
+  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "33", "36", "·"]);
   expect(byCode(current, "31")!.at.y).toBeCloseTo(42, 0);
   expect(byCode(current, "38")!.at).toEqual(expect.objectContaining({ y: expect.closeTo(50, 0) }));
 
@@ -145,7 +145,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   current = await documentNow();
   expect(byCode(current, "32")!.at.x).toBeCloseTo(50, 0);
   expect(byCode(current, "33")!.at.y).toBeCloseTo(44, 0);
-  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "37", "33", "36", "·"]);
+  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "33", "36", "·"]);
 
   // Inställningar: valet syns och "Fråga igen"; gränsen går att välja. Sedan frågar 36 igen, och Avbryt lämnar den.
   await owner.getByRole("tab", { name: "Inställningar" }).click();
@@ -197,7 +197,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await screenshot(phone, "flytta-kontroll-ny-390");
   current = await documentNow(phone);
   expect(codes(current, "Lång")).toEqual(["·", "38", "32", "33", "34", "35", "39", "·"]);
-  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "37", "33", "36", "·"]);
+  expect(codes(current, "Mellan")).toEqual(["·", "31", "32", "33", "36", "·"]);
   expect(byCode(current, "39")!.at.x).toBeCloseTo(60, 0);
   expect(byCode(current, "39")!.at.y).toBeCloseTo(50, 0);
   expect(byCode(current, "36")!.at).toEqual(before36);

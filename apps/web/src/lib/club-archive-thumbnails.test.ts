@@ -14,7 +14,7 @@ const entry = (entryId: string, patch: Partial<ClubArchiveListItem>): ClubArchiv
   leader: null, tags: [], courseNames: [], courseFiles: 0, maps: [], status: "COMPLETE", thumbnail: null, thumbnailSource: null, ...patch });
 
 const list = (versions: ClubMapVersionView[], entries: ClubArchiveListItem[]): ClubArchiveList => ({ formatVersion: 1, clubId: "c", clubName: "Klubben",
-  viewer: { role: "OWNER" }, entries, maps: [{ mapId: "m1", name: "Älvsjöskogen", versions, latestVersionId: versions[0]?.versionId ?? null, trainings: 0,
+  viewer: { role: "OWNER", access: { archive: true, mapBank: true } }, entries, maps: [{ mapId: "m1", name: "Älvsjöskogen", versions, latestVersionId: versions[0]?.versionId ?? null, trainings: 0,
     ownership: "CLUB", ownerKind: "CLUB", ownerName: null, agreement: null, validUntil: null, contact: null, trainingOnly: false, feePerPrint: false,
     noPublicDisplay: false }] });
 

@@ -2,6 +2,7 @@ import type { SectionId } from "../lib/race-sections";
 import { archiveHelpArticles, routeChoiceHelpArticles } from "./help-archive-route-sv";
 import { courseSettingHelpArticles, gettingStartedHelpArticles } from "./help-course-setting-sv";
 import { fieldPrintHelpArticles } from "./help-print-sv";
+import { clubHelpArticles } from "./help-club-sv";
 
 /**
  * Hjälpen i programmet (PLAN.md steg 37). Enkel svenska och korta meningar. Knappar och vägar står inom ”…” och heter
@@ -18,7 +19,7 @@ export type CourseSettingHelpView = "COURSE_SETTING" | "CS_START" | "CS_COURSES"
   | "CS_PRINT_PAGE" | "CS_DESCRIPTIONS_PAGE";
 
 /** Klubbarkivets flikar och en träning i arkivet. */
-export type ArchiveHelpView = "ARCHIVE_TRAININGS" | "ARCHIVE_MAPS" | "ARCHIVE_MEMBERS" | "ARCHIVE_IMPORT" | "ARCHIVE_ENTRY";
+export type ArchiveHelpView = "ARCHIVE_TRAININGS" | "ARCHIVE_MAPS" | "ARCHIVE_MEMBERS" | "ARCHIVE_CLUB" | "ARCHIVE_IMPORT" | "ARCHIVE_ENTRY";
 
 /**
  * Vyn man står i: arbetsytans steg (även Fest), Mina tävlingar, avläsningssidan, banläggningens flikar, klubbarkivet,
@@ -69,7 +70,8 @@ export const helpSynonyms: readonly (readonly string[])[] = [
   ["tryck", "utskrift", "skriv ut", "pdf"],
   ["offline", "utan nät"],
   ["vägval", "rutt", "kalibrer"],
-  ["arkiv", "klubbarkiv"]
+  ["arkiv", "klubbarkiv"],
+  ["klubbyta", "klubbarkiv", "klubbtillhörighet", "mina klubbar"]
 ];
 
 const raceDayHelpArticles: readonly HelpArticle[] = [
@@ -368,4 +370,4 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
 ];
 
 export const helpArticles: readonly HelpArticle[] = [...raceDayHelpArticles, ...gettingStartedHelpArticles, ...courseSettingHelpArticles,
-  ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles];
+  ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles, ...clubHelpArticles];

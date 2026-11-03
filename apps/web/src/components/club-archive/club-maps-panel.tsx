@@ -62,7 +62,8 @@ function UploadForm({ clubId, mapId, onDone, onMessage }: { clubId: string; mapI
   </form>;
 }
 
-function MapCard({ clubId, map, maps, admin, groups, onChanged, onMessage }: { clubId: string; map: ClubMapView; maps: readonly ClubMapView[]; admin: boolean;
+function MapCard({ clubId, map, maps, admin, mapBank, groups, onChanged, onMessage }: { clubId: string; map: ClubMapView; maps: readonly ClubMapView[]; admin: boolean;
+  mapBank: boolean;
   groups: readonly GroupSummary[]; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
   const [name, setName] = useState(map.name);
   const [mergeTarget, setMergeTarget] = useState("");
@@ -109,7 +110,7 @@ function MapCard({ clubId, map, maps, admin, groups, onChanged, onMessage }: { c
           <div className={styles.small}>{clubArchiveSv.mb(version.byteLength)} · {text.trainings(version.trainings)}{version.note ? ` · ${version.note}` : ""}</div>
           <MapCheckChip check={version.check} explain /></div>
         <div className={styles.actions}>
-          <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{clubArchiveSv.entry.downloadMap}</a>
+          {mapBank && <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{clubArchiveSv.entry.downloadMap}</a>}
           {admin && <select aria-label={`${text.move} ${version.fileName}`} value="" disabled={busy !== ""}
             onChange={event => {
               const target = event.target.value;
@@ -178,7 +179,8 @@ function RecheckBox({ checks: run }: { checks: Checks }) {
 }
 
 /** ADR-0194 beslut 2 och 5: klubbens kartor med versioner, rättigheter, slå ihop och dela, ny version och gruppens bibliotek. */
-export function ClubMapsPanel({ clubId, maps, admin, onChanged, checks: run }: { clubId: string; maps: readonly ClubMapView[]; admin: boolean;
+export function ClubMapsPanel({ clubId, maps, admin, mapBank, onChanged, checks: run }: { clubId: string; maps: readonly ClubMapView[]; admin: boolean;
+  mapBank: boolean;
   onChanged: () => Promise<void>; checks: Checks }) {
   const [message, setMessage] = useState<Message>();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -195,7 +197,7 @@ export function ClubMapsPanel({ clubId, maps, admin, onChanged, checks: run }: {
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     {admin && maps.length > 0 && <RecheckBox checks={run} />}
     {maps.length === 0 && <EmptyState title={text.empty} />}
-    {maps.map(map => <MapCard key={`${map.mapId}-${map.versions.length}-${map.name}`} clubId={clubId} map={map} maps={maps} admin={admin} groups={groups}
+    {maps.map(map => <MapCard key={`${map.mapId}-${map.versions.length}-${map.name}`} clubId={clubId} map={map} maps={maps} admin={admin} mapBank={mapBank} groups={mapBank ? groups : []}
       onChanged={onChanged} onMessage={setMessage} />)}
     {admin && <details className={styles.details}>
       <summary>{text.uploadNew}</summary>

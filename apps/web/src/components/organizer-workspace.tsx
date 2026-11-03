@@ -1,5 +1,6 @@
 "use client";
 
+import { ClubStep } from "./club-affiliation/club-step";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { organizerEventCreateRequestSchema, type OrganizerMyEventsResponse } from "@o-tid/contracts";
@@ -373,6 +374,8 @@ export function OrganizerWorkspace() {
       </nav>
     </section>}
 
+    {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
+    {session && <ClubStep />}
     {session && <div className={styles.columns}>
       <section className={`${styles.panel} ${styles.events}`}>
         <div className={styles.sectionHeading}><div><h2>{copy.eventsSection}</h2><p className={styles.muted}>{copy.eventsHint}</p></div>

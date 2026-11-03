@@ -8,7 +8,7 @@ import { Button, Field, Notice, Select } from "../ui";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv.members;
-const ROLES: readonly ClubRole[] = ["READER", "ADMIN", "OWNER"];
+const ROLES: readonly ClubRole[] = ["READER", "LEADER", "ADMIN", "OWNER"];
 
 /**
  * ADR-0194 beslut 1: klubbens medlemmar och inbjudningar. Bjud in med e-postadressen (samma svar med och utan konto); listan
@@ -20,7 +20,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  const admin = club.viewer.role !== "READER";
+  const admin = club.viewer.role === "OWNER" || club.viewer.role === "ADMIN";
   const owner = club.viewer.role === "OWNER";
 
   async function run(action: () => Promise<{ status: number }>, ok: string, conflict?: string) {

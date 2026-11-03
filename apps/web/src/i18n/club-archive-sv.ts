@@ -21,13 +21,15 @@ export const clubArchiveSv = {
     entries: (count: number) => count === 1 ? "1 träning" : `${count} träningar`,
     failed: "Klubben kunde inte skapas. Försök igen."
   },
-  roles: { OWNER: "Ägare", ADMIN: "Administratör", READER: "Läsare" } as const,
+  /** ADR-0209 beslut C: Medlem (bekräftad eller inbjuden), Ledare, Administratör och Ägare. */
+  roles: { OWNER: "Ägare", ADMIN: "Administratör", LEADER: "Ledare", READER: "Medlem" } as const,
   roleHelp: {
     OWNER: "allt, också ägarna",
-    ADMIN: "ändrar arkivet, bjuder in och importerar",
-    READER: "ser arkivet och använder träningarna igen"
+    ADMIN: "allt i klubbytan: ändrar arkivet, bjuder in, bekräftar och importerar",
+    LEADER: "ser träningsarkivet och använder kartbanken (kartfiler, Använd igen)",
+    READER: "ser det som klubben låter medlemmar se under Vem ser vad"
   } as const,
-  tabs: { trainings: "Träningar", maps: "Kartor", members: "Medlemmar", import: "Import" },
+  tabs: { trainings: "Träningar", maps: "Kartor", members: "Medlemmar", club: "Klubben", import: "Import" },
   back: "Mina tävlingar",
   backToArchive: "Klubbarkivet",
   loading: "Hämtar arkivet …",
@@ -59,6 +61,8 @@ export const clubArchiveSv = {
     reader: "Ingen har importerat något än."
   },
   entry: {
+    mapBankClosed: "Kartfilerna och Använd igen är för klubbens ledare och administratörer (klubbens val under Vem ser vad).",
+    fromRace: "Från tävlingen",
     readOnlyHint: "Arkivet visar träningen som den gjordes. Vill du ändra banorna: Använd igen – då öppnas en kopia i banläggningen.",
     courses: "Banor",
     noCourses: "Inga banfiler i den här träningen.",

@@ -166,8 +166,9 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
       "Bjud in med e-postadressen under ”Medlemmar” → ”Bjud in”. Personen blir medlem när hen loggar in med adressen och har bekräftat den.",
       [
         "”Ägare”: allt, också att ändra ägarna. Klubben har alltid minst en ägare.",
-        "”Administratör”: ändrar arkivet, bjuder in och importerar.",
-        "”Läsare”: ser arkivet och använder träningarna igen.",
+        "”Administratör”: ändrar arkivet, bjuder in, bekräftar och importerar. Ägare och administratörer ser alltid allt.",
+        "”Ledare”: ser träningsarkivet och använder kartbanken (kartfiler, Använd igen).",
+        "”Medlem”: ser det som klubben väljer under [Vem ser vad](#bekrafta-medlemmar).",
         "”Ändra roll” och ”Ta bort” finns vid varje person."
       ]
     ]

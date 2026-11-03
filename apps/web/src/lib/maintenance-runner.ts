@@ -1,4 +1,4 @@
-import { retentionSettings, runMaintenance } from "@o-tid/application";
+import { retentionSettings, runMaintenance, syncDueClubEventorMembers } from "@o-tid/application";
 import { db } from "./db";
 
 /**
@@ -6,7 +6,8 @@ import { db } from "./db";
  * sedan en gång i timmen: kartinnehåll som ingen tävling pekar på och avbrutna uppladdningar tas bort, och den valfria
  * gallringen (`OTID_RETENTION`, `OTID_RETENTION_MONTHS`) anonymiserar eller tar bort gamla tävlingar. Bara tävlingsinstansen
  * kör det (inte publikens, `OTID_INSTANCE_ROLE=public`); varje tävling gallras i en egen transaktion med radlås, så två
- * instanser gör aldrig samma sak. Loggen har bara antal, aldrig namn. Stängs av med `OTID_MAINTENANCE=off`.
+ * instanser gör aldrig samma sak. ADR-0209: kopplade klubbarkivs medlemslistor från Eventor hämtas när de är äldre än ett
+ * dygn (högst tio klubbar per varv). Loggen har bara antal, aldrig namn eller adresser. Stängs av med `OTID_MAINTENANCE=off`.
  */
 const HOUR = 60 * 60_000;
 type RunnerState = { started: boolean; running: boolean };
@@ -22,6 +23,8 @@ async function tick(state: RunnerState): Promise<void> {
       console.info(`Gallring: ${retention.anonymizedRaces} tävlingar anonymiserade (${retention.anonymizedEntries} deltagare), ` +
         `${retention.deletedEvents} evenemang borttagna`);
     }
+    const members = await syncDueClubEventorMembers(db, new Date());
+    if (members.synced + members.failed > 0) console.info(`Klubbarnas medlemslistor: ${members.synced} hämtade, ${members.failed} misslyckades`);
   } catch (error) {
     console.error(`Underhållet avbröts av ett fel: ${error instanceof Error ? error.message : String(error)}`);
   } finally {

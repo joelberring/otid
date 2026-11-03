@@ -1,0 +1,164 @@
+"use client";
+
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import type { ClubAffiliationPerson, ClubAffiliationView, ClubAreaAccess } from "@o-tid/contracts";
+import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
+import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
+import { Button, Field, Notice } from "../ui";
+import styles from "./club-affiliation.module.css";
+
+const text = clubAffiliationSv.space;
+type Message = { tone: "ok" | "error"; text: string } | undefined;
+const problemText = (json: unknown, status: number) => {
+  const code = (json as { error?: string } | undefined)?.error;
+  return code && text.problems[code] ? text.problems[code]! : clubFailure(status);
+};
+const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
+
+/** Kopplingen med klubbens Eventor-nyckel: klistra in, byt, ta bort, och medlemslistan (bara siffror). */
+function EventorCard({ view, clubId, onChanged }: { view: ClubAffiliationView; clubId: string; onChanged: () => Promise<void> }) {
+  const [key, setKey] = useState("");
+  const [replacing, setReplacing] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState<Message>();
+  const eventor = view.eventor;
+
+  async function link(event: FormEvent) {
+    event.preventDefault();
+    setBusy("link"); setMessage(undefined);
+    const result = await clubRequest(`${clubBase(clubId)}/eventor`, "PUT", { formatVersion: 1, apiKey: key.trim() });
+    // Nyckeln stannar inte i sidan efter försöket.
+    setKey("");
+    setBusy("");
+    if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status) }); return; }
+    setReplacing(false);
+    await onChanged();
+  }
+  async function act(method: "POST" | "DELETE") {
+    if (method === "DELETE" && !window.confirm(text.unlinkConfirm)) return;
+    setBusy(method); setMessage(undefined);
+    const result = await clubRequest(`${clubBase(clubId)}/eventor`, method);
+    setBusy("");
+    if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status) }); return; }
+    await onChanged();
+  }
+
+  return <section className={styles.panel} aria-labelledby="club-eventor" data-testid="club-eventor">
+    <h2 id="club-eventor">{text.eventorTitle}</h2>
+    {eventor.linked && view.organisation ? <>
+      <p data-testid="club-eventor-linked"><strong>{text.linked(view.organisation.name, eventor.keyHint ?? "")}</strong></p>
+      <p data-testid="club-eventor-counts">{text.counts(eventor.members, eventor.confirmedViaEventor)}</p>
+      <p className={styles.muted}>{eventor.syncedAt ? text.syncedAt(when(eventor.syncedAt)) : text.neverSynced}
+        {eventor.problem && text.problems[eventor.problem] ? ` ${text.problems[eventor.problem]}` : ""}</p>
+      <div className={styles.actions}>
+        <Button variant="secondary" disabled={busy !== ""} onClick={() => void act("POST")}>{busy === "POST" ? text.syncing : text.sync}</Button>
+        <Button variant="secondary" disabled={busy !== ""} onClick={() => setReplacing(value => !value)}>{text.replace}</Button>
+        <Button variant="quiet" disabled={busy !== ""} onClick={() => void act("DELETE")}>{text.unlink}</Button>
+      </div>
+    </> : <p className={styles.muted}><span className={styles.badge}>{text.unlinked}</span> {text.unlinkedHelp}</p>}
+    {(!eventor.linked || replacing) && <form className={styles.form} onSubmit={event => void link(event)} noValidate aria-label={text.eventorTitle}>
+      <p className={styles.muted}>{text.eventorHelp}</p>
+      <Field label={text.key}>
+        <input type="password" autoComplete="off" spellCheck={false} value={key} maxLength={128} disabled={busy !== ""}
+          onChange={event => setKey(event.target.value)} />
+      </Field>
+      <div className={styles.actions}><Button type="submit" disabled={busy !== "" || key.trim().length < 16}>{busy === "link" ? text.linking : text.link}</Button></div>
+    </form>}
+    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+  </section>;
+}
+
+function AccessCard({ view, clubId, onSaved }: { view: ClubAffiliationView; clubId: string; onSaved: (view: ClubAffiliationView) => void }) {
+  const [archive, setArchive] = useState<ClubAreaAccess>(view.access.archive);
+  const [mapBank, setMapBank] = useState<ClubAreaAccess>(view.access.mapBank);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<Message>();
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true); setMessage(undefined);
+    const result = await clubRequest(`${clubBase(clubId)}/affiliation`, "PUT", { formatVersion: 1, archive, mapBank });
+    setBusy(false);
+    if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+    onSaved(result.json as ClubAffiliationView);
+    setMessage({ tone: "ok", text: text.accessSaved });
+  }
+  const choice = (name: string, legend: string, value: ClubAreaAccess, set: (value: ClubAreaAccess) => void) =>
+    <fieldset className={styles.radios}>
+      <legend>{legend}</legend>
+      {(["MEMBERS", "LEADERS"] as const).map(option => <label key={option}>
+        <input type="radio" name={name} value={option} checked={value === option} disabled={busy} onChange={() => set(option)} />{text[option]}
+      </label>)}
+    </fieldset>;
+  return <section className={styles.panel} aria-labelledby="club-access">
+    <h2 id="club-access">{text.accessTitle}</h2>
+    <p className={styles.muted}>{text.accessHelp}</p>
+    <form className={styles.form} onSubmit={event => void save(event)}>
+      {choice("archive", text.archive, archive, setArchive)}
+      {choice("mapBank", text.mapBank, mapBank, setMapBank)}
+      <div className={styles.actions}><Button type="submit" variant="secondary" disabled={busy}>{text.saveAccess}</Button></div>
+    </form>
+    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+  </section>;
+}
+
+/**
+ * ADR-0209: fliken Klubben i klubbytan (ägare och administratörer): Koppla till Eventor, Vem ser vad, Väntar på bekräftelse
+ * med Bekräfta och Avböj, och Bekräftade medlemmar. Bara namn, aldrig adresser.
+ */
+export function ClubSpacePanel({ clubId }: { clubId: string }) {
+  const [view, setView] = useState<ClubAffiliationView>();
+  const [failed, setFailed] = useState<number>();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<Message>();
+
+  const load = useCallback(async () => {
+    const result = await clubRequest(`${clubBase(clubId)}/affiliation`);
+    if (result.status !== 200) { setFailed(result.status); return; }
+    setFailed(undefined);
+    setView(result.json as ClubAffiliationView);
+  }, [clubId]);
+  useEffect(() => { void load(); }, [load]);
+
+  async function decide(person: ClubAffiliationPerson, decision: "CONFIRM" | "DECLINE" | "REMOVE") {
+    if (decision === "REMOVE" && !window.confirm(text.removeConfirm(person.displayName))) return;
+    setBusy(true); setMessage(undefined);
+    const result = await clubRequest(`${clubBase(clubId)}/affiliation/decisions`, "POST", { formatVersion: 1, membershipId: person.membershipId, decision });
+    setBusy(false);
+    if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+    setView(result.json as ClubAffiliationView);
+  }
+
+  if (failed) return <Notice tone="error" role="alert">{clubFailure(failed)}</Notice>;
+  if (!view) return <p role="status">…</p>;
+  const person = (row: ClubAffiliationPerson) => <div>
+    <strong>{row.displayName}</strong>
+    <span>{[row.freeText ? text.freeText(row.freeText) : "", row.via ? clubAffiliationSv.confirmedVia[row.via] : ""].filter(Boolean).join(" · ")}</span>
+  </div>;
+  return <div className={styles.form} style={{ maxWidth: "48rem" }}>
+    <EventorCard view={view} clubId={clubId} onChanged={load} />
+    <AccessCard key={`${view.access.archive}-${view.access.mapBank}`} view={view} clubId={clubId} onSaved={setView} />
+    <section className={styles.panel} aria-labelledby="club-pending">
+      <h2 id="club-pending">{text.pending(view.pending.length)}</h2>
+      <p className={styles.muted}>{text.pendingHelp}</p>
+      {view.pending.length === 0 ? <p className={styles.muted}>{text.pendingNone}</p>
+        : <ul className={styles.list} data-testid="club-pending">{view.pending.map(row => <li key={row.membershipId}>
+          {person(row)}
+          <div className={styles.actions}>
+            <Button disabled={busy} aria-label={`${text.confirm}: ${row.displayName}`} onClick={() => void decide(row, "CONFIRM")}>{text.confirm}</Button>
+            <Button variant="secondary" disabled={busy} aria-label={`${text.decline}: ${row.displayName}`} onClick={() => void decide(row, "DECLINE")}>
+              {text.decline}</Button>
+          </div>
+        </li>)}</ul>}
+    </section>
+    <section className={styles.panel} aria-labelledby="club-confirmed">
+      <h2 id="club-confirmed">{text.confirmed(view.confirmed.length)}</h2>
+      {view.confirmed.length === 0 ? <p className={styles.muted}>{text.confirmedNone}</p>
+        : <ul className={styles.list} data-testid="club-confirmed">{view.confirmed.map(row => <li key={row.membershipId}>
+          {person(row)}
+          <div className={styles.actions}><Button variant="secondary" disabled={busy} aria-label={`${text.removeMember}: ${row.displayName}`}
+            onClick={() => void decide(row, "REMOVE")}>{text.removeMember}</Button></div>
+        </li>)}</ul>}
+    </section>
+    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+  </div>;
+}

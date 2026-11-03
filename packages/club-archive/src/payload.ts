@@ -1,3 +1,4 @@
+import { base64OfBytes } from "./bytes";
 import type { ImportPlan, PlannedMap, PlannedTraining } from "./plan";
 
 /**
@@ -5,7 +6,7 @@ import type { ImportPlan, PlannedMap, PlannedTraining } from "./plan";
  * efter sina filer (så att innehållet får en referens på en gång); träningarna i omgångar under `maxBytes`.
  */
 export const BATCH_MAX_BYTES = 6 * 1024 * 1024;
-const MAX_ENTRIES = 100;
+export const BATCH_MAX_ENTRIES = 100;
 
 export function mapPayload(map: PlannedMap) {
   return {
@@ -23,20 +24,20 @@ export function entryPayload(training: PlannedTraining, contents: ReadonlyMap<st
     courseFiles: training.courseFiles.map(file => {
       const bytes = contents.get(file.sha256);
       if (!bytes) throw new Error(`${file.path}: innehållet saknas`);
-      return { fileName: file.fileName, kind: file.kind, sha256: file.sha256, contentBase64: Buffer.from(bytes).toString("base64"),
+      return { fileName: file.fileName, kind: file.kind, sha256: file.sha256, contentBase64: base64OfBytes(bytes),
         mapReference: file.mapReference, mapSha256: file.mapSha256, resolution: file.resolution };
     })
   };
 }
 
-export function entryBatches(plan: ImportPlan, contents: ReadonlyMap<string, Uint8Array>, maxBytes = BATCH_MAX_BYTES) {
+export function entryBatches(plan: ImportPlan, contents: ReadonlyMap<string, Uint8Array>, maxBytes = BATCH_MAX_BYTES, maxEntries = BATCH_MAX_ENTRIES) {
   const batches: { formatVersion: 1; maps: never[]; entries: ReturnType<typeof entryPayload>[] }[] = [];
   let current: ReturnType<typeof entryPayload>[] = [];
   let size = 0;
   for (const training of plan.trainings) {
     const entry = entryPayload(training, contents);
     const bytes = JSON.stringify(entry).length;
-    if (current.length > 0 && (size + bytes > maxBytes || current.length >= MAX_ENTRIES)) {
+    if (current.length > 0 && (size + bytes > maxBytes || current.length >= maxEntries)) {
       batches.push({ formatVersion: 1, maps: [], entries: current });
       current = []; size = 0;
     }

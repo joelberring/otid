@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts"
+  },
   "scripts": {
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit",
@@ -11,5 +14,7 @@
     "build": "tsc -p tsconfig.build.json",
     "archive-import": "tsx src/cli.ts"
   },
-  "devDependencies": { "tsx": "4.20.5" }
+  "devDependencies": {
+    "tsx": "4.20.5"
+  }
 }

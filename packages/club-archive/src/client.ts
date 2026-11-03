@@ -1,4 +1,4 @@
-import type { SourceFile } from "./scan";
+import type { SourceFile } from "./scan-core";
 
 /**
  * ADR-0194 beslut 6–7: anropen till ägarens egen server, med importnyckeln i `Authorization`. Kartfilen skickas som en ström

@@ -572,3 +572,12 @@ export function clipMapPasses(passes: readonly TrainingMapPass[] | undefined, ri
   return [...inside, ...base.map(pass => ({ ...pass, without: [...pass.without, region],
     lighten: Math.max(pass.lighten ?? 0, PAPER_CLIP_FADE) }))];
 }
+
+/** Bilderna (sha256) som banornas papper och mallarna pekar på. */
+export function paperImageHashes(document: CourseSettingDocument): string[] {
+  const out = new Set<string>();
+  const add = (items: readonly PaperItem[] | undefined) => { for (const item of items ?? []) if (item.kind === "IMAGE") out.add(item.image); };
+  for (const layout of Object.values(document.event.paperLayouts ?? {})) add(layout.items);
+  for (const template of document.event.paperTemplates ?? []) add(template.items);
+  return [...out];
+}

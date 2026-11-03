@@ -425,7 +425,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       style={{ cursor: grabbing ? "grabbing" : (cursorAt && hoverCursor) || cursor }} data-testid="course-setting-map"
       data-sketching={sketches?.draft ? "true" : undefined}
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
-      data-drawn={drawnVersion} data-passes={drawn.current?.passes ?? ""}
+      data-passes={drawn.current?.passes ?? ""}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
       data-heading={position?.heading} data-follow={position?.follow || undefined}
       // Kartan är ritad skarpt för vyn som visas (specarna väntar på den före skärmbilder).

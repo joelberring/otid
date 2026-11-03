@@ -81,7 +81,7 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
   await panel.scrollIntoViewIfNeeded();
   if (shots) await owner.screenshot({ path: `${shots}/banlaggning-gaffling-urval-forhand-1280.png`, fullPage: true });
   await preview.getByRole("button", { name: "Ta bort 3 varianter" }).click();
-  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
+  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda)");
   await saved(owner);
   let natt = (await documentNow()).courses.find(course => course.name === "Natt")!;
   expect(natt.excludedVariants).toHaveLength(3);
@@ -92,7 +92,7 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
   await owner.reload();
   await mapReady(owner);
   await courseRow(owner, "Natt").click();
-  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
+  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda)");
   await expect(courseRow(owner, "Natt")).toContainText("5 varianter (3 bortvalda)");
   if (shots) {
     await panel.scrollIntoViewIfNeeded();
@@ -101,10 +101,10 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
 
   // För hand: bocka ur ACE (den kortaste); en kontroll kan bli oanvänd och sägs då. Ångra tar tillbaka den.
   await panel.getByLabel("Använd variant ACE").uncheck();
-  await expect(summary).toHaveText("8 varianter, 4 används (4 bortvalda som längre)");
+  await expect(summary).toHaveText("8 varianter, 4 används (4 bortvalda)");
   await saved(owner);
   await owner.getByRole("button", { name: "Ångra" }).click();
-  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
+  await expect(summary).toHaveText("8 varianter, 5 används (3 bortvalda)");
   await saved(owner);
   natt = (await documentNow()).courses.find(course => course.name === "Natt")!;
   expect(natt.excludedVariants!.map(row => row.code).sort()).toEqual(excludedCodes);
@@ -132,7 +132,7 @@ test("banläggning-gaffling-urval: tre gafflingar, förhandsgranska, ta bort de 
   await phone.getByRole("tab", { name: "Banor" }).click();
   await courseRow(phone, "Natt").click();
   const phonePanel = phone.getByTestId("course-setting-variants");
-  await expect(phone.getByTestId("course-setting-variants-summary")).toHaveText("8 varianter, 5 används (3 bortvalda som längre)");
+  await expect(phone.getByTestId("course-setting-variants-summary")).toHaveText("8 varianter, 5 används (3 bortvalda)");
   await phonePanel.scrollIntoViewIfNeeded();
   expect(await phone.evaluate(() => window.document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   if (shots) await phone.screenshot({ path: `${shots}/banlaggning-gaffling-urval-tabell-390.png` });

@@ -168,7 +168,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
       ],
       "”Begränsa varianter” föreslår vilka som ska bort. Välj sätt:",
       [
-        "”Ta bort de längsta” (förval): de 3 längsta tas bort. Ändra antalet; det går från 1 till alla utom en.",
+        "”Ta bort de längsta” (förval): de 3 längsta av dem som används tas bort. Redan bortvalda förblir bortvalda.",
         "Bara varianter som är längre i alla avseenden än en som blir kvar kan tas bort. Ordningen är längs vägval när den är räknad.",
         "”Längst i alla avseenden (alla)” tar bort alla sådana; med bara fågelvägen blir få kvar.",
         "”Tak: procent eller antal” med ”Högst % längre än kortaste” och ”Högst antal varianter” behåller de kortaste.",

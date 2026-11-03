@@ -5,7 +5,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 export const courseVariantsSv = {
   heading: "Varianter",
   summary: (total: number, kept: number) => kept === total ? `${plural(total, "variant", "varianter")}, alla används`
-    : `${plural(total, "variant", "varianter")}, ${kept} används (${total - kept} bortvald${total - kept === 1 ? "" : "a"} som längre)`,
+    : `${plural(total, "variant", "varianter")}, ${kept} används (${total - kept} bortvald${total - kept === 1 ? "" : "a"})`,
   help: "Bortvalda varianter förs inte över till tävlingen, lottas inte ut, skrivs inte i IOF XML och skrivs inte ut. " +
     "Avläsningen känner ändå igen en löpare som sprungit en bortvald variant.",
   table: {

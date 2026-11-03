@@ -71,9 +71,12 @@ export function variantTable(document: CourseSettingDocument, course: string, re
     prunable: measured.map(row => row.prunable), label };
 }
 
-/** Förslaget med banläggarens val (alltid från alla varianter, så att ett nytt förslag ersätter det förra). */
-export function pruningPlan(table: VariantTable, options: PruningOptions): VariantPruning {
-  return pruneVariants(table.prunable, options);
+/**
+ * Förslaget med banläggarens val bland de varianter som används nu. Redan bortvalda (för hand, tidigare förslag eller
+ * en banfil där varianten saknas) står kvar som bortvalda; förslaget lägger till.
+ */
+export function pruningPlan(table: VariantTable, options: PruningOptions, excluded: ReadonlySet<string> = new Set()): VariantPruning {
+  return pruneVariants(table.prunable.filter(variant => !excluded.has(variant.code)), options);
 }
 
 /** Bortvalen för `UPDATE_COURSE` ur koderna (koden och kontrollkoderna, så att bortvalet slutar gälla om varianten ändras). */

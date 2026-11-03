@@ -47,6 +47,16 @@ describe("varianterna i banläggningen (ADR-0198)", () => {
     expect(after.label(after.prunable[0]!.controls[0]!)).toBe("start");
   });
 
+  it("förslaget utgår från dem som används och lägger till; redan bortvalda står kvar", () => {
+    const table = variantTable(document, natt, new Map())!;
+    const first = pruningPlan(table, { longest: 3 });
+    expect(first.excluded).toHaveLength(3);
+    const again = pruningPlan(table, { longest: 3 }, new Set(first.excluded.map(row => row.code)));
+    expect(again.excluded.map(row => row.code).some(code => first.excluded.some(row => row.code === code))).toBe(false);
+    expect(again.kept.length + again.excluded.length).toBe(5);
+    expect(again.excluded.length).toBeGreaterThan(0);
+  });
+
   it("taken i fälten", () => {
     expect(parseLimit("", 0)).toBeUndefined();
     expect(parseLimit(" 10 ", 0)).toBe(10);

@@ -37,7 +37,7 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
 }) {
   // Ägaren 2026-11-03: förval "Ta bort de längsta" med 3; "längst i alla avseenden (alla)" och taken är andra sätt.
   const [mode, setMode] = useState<PruneMode>("LONGEST");
-  const [longest, setLongest] = useState(String(Math.min(DEFAULT_LONGEST, Math.max(1, table.rows.length - 1))));
+  const [longest, setLongest] = useState(String(Math.min(DEFAULT_LONGEST, Math.max(1, table.rows.filter(row => !row.excluded).length - 1))));
   const [percent, setPercent] = useState("");
   const [count, setCount] = useState("");
   const [invalid, setInvalid] = useState(false);
@@ -61,16 +61,16 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
   const preview = () => {
     if (mode === "LONGEST") {
       const value = parseLimit(longest, 1);
-      if (value === undefined || value === "invalid" || value > total - 1) { setInvalid(true); return; }
+      if (value === undefined || value === "invalid" || value > kept - 1) { setInvalid(true); return; }
       setInvalid(false);
-      setPlan(pruningPlan(table, { longest: value }));
+      setPlan(pruningPlan(table, { longest: value }, excluded));
       return;
     }
-    if (mode === "DOMINATED") { setInvalid(false); setPlan(pruningPlan(table, { dominated: true })); return; }
+    if (mode === "DOMINATED") { setInvalid(false); setPlan(pruningPlan(table, { dominated: true }, excluded)); return; }
     const maxPercentLonger = parseLimit(percent, 0), maxCount = parseLimit(count, 1);
     if (maxPercentLonger === "invalid" || maxCount === "invalid" || (maxPercentLonger === undefined && maxCount === undefined)) { setInvalid(true); return; }
     setInvalid(false);
-    setPlan(pruningPlan(table, { maxPercentLonger, maxCount }));
+    setPlan(pruningPlan(table, { maxPercentLonger, maxCount }, excluded));
   };
   const reason = (row: ProtectedVariant) => row.control !== undefined ? text.prune.needed(text.prune.control(table.label(row.control)))
     : row.leg !== undefined ? text.prune.needed(text.prune.leg(...(row.leg.split(">").map(table.label) as [string, string])))
@@ -124,7 +124,7 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
             onChange={() => { setMode(value); setPlan(undefined); setInvalid(false); }} />{text.prune.modes[value]}</label>)}
       </fieldset>
       {mode === "LONGEST" && <div className={base.row}>
-        <label>{text.prune.longest(total - 1)}<input type="text" inputMode="numeric" value={longest} aria-invalid={invalid || undefined}
+        <label>{text.prune.longest(Math.max(1, kept - 1))}<input type="text" inputMode="numeric" value={longest} aria-invalid={invalid || undefined}
           data-testid="course-setting-variants-longest" onChange={event => { setLongest(event.target.value); setPlan(undefined); }} /></label>
       </div>}
       <p className={base.muted}>{mode === "LONGEST" ? text.prune.longestHelp(table.routeComplete) : mode === "DOMINATED"
@@ -135,9 +135,9 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
         <label>{text.prune.count}<input type="text" inputMode="numeric" value={count} aria-invalid={invalid || undefined}
           onChange={event => { setCount(event.target.value); setPlan(undefined); }} /></label>
       </div>}
-      {invalid && <p role="alert" className={base.muted}>{mode === "LONGEST" ? text.prune.longestInvalid(total - 1) : text.prune.invalid}</p>}
+      {invalid && <p role="alert" className={base.muted}>{mode === "LONGEST" ? text.prune.longestInvalid(Math.max(1, kept - 1)) : text.prune.invalid}</p>}
       <div className={base.row}>
-        <Button variant="secondary" onClick={preview}>{text.prune.preview}</Button>
+        <Button variant="secondary" onClick={preview} disabled={kept <= 1}>{text.prune.preview}</Button>
         {excluded.size > 0 && <Button variant="quiet" onClick={() => { setPlan(undefined); save(new Set()); }}>{text.useAll}</Button>}
       </div>
       {plan && <div className={styles.preview} role="region" aria-label={text.prune.heading} data-testid="course-setting-variants-preview">
@@ -149,7 +149,7 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
           }).join(", ")}</p>
         </>}
         <div className={base.row}>
-          {plan.excluded.length > 0 && <Button onClick={() => { save(new Set(plan.excluded.map(row => row.code))); setPlan(undefined); }}>
+          {plan.excluded.length > 0 && <Button onClick={() => { save(new Set([...excluded, ...plan.excluded.map(row => row.code)])); setPlan(undefined); }}>
             {text.prune.apply(plan.excluded.length)}</Button>}
           <Button variant="quiet" onClick={() => setPlan(undefined)}>{text.prune.cancel}</Button>
         </div>

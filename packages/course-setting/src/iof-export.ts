@@ -17,6 +17,7 @@ import type { Point } from "@o-tid/map-file";
 import { courseViewForExport } from "./description-format";
 import { sortedCourses } from "./course-properties";
 import type { ControlKind, Course, CourseSettingDocument, MapRect } from "./types";
+import { excludedVariantCodes } from "./summary";
 import { enumerateCourseControls, variations } from "./walk";
 
 export interface IofCourseDataOptions {
@@ -117,7 +118,9 @@ export function writeIofCourseData(document: CourseSettingDocument, options: Iof
     const kinds = new Set(enumerateCourseControls(document, course.id)
       .map(id => document.controls[document.courseControls[id]?.control ?? ""]?.kind));
     if (!kinds.has("START") || !kinds.has("FINISH")) continue;
-    const all = course.kind === "SCORE" ? [] : variations(document, course.id);
+    // ADR-0198: bortvalda varianter skrivs inte.
+    const excluded = excludedVariantCodes(document, course.id);
+    const all = course.kind === "SCORE" ? [] : variations(document, course.id).filter(variation => !excluded.has(variation.code));
     const variants = all.length === 0 ? [undefined] : all.map(variation => variation.code);
     for (const variant of variants) {
       const name = variant === undefined ? course.name : `${course.name} ${variant}`;

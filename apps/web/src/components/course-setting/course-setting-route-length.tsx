@@ -6,6 +6,7 @@ import { coursePropertiesSv as copy } from "../../i18n/course-setting-properties
 import { safely } from "../../lib/course-setting-safely";
 import { routeLengthLegs, routeLengthSummary, type LegLength } from "../../lib/course-setting-route-length";
 import type { RouteChoiceSession } from "../../lib/route-choice-client";
+import type { LegInput } from "@o-tid/route-choice";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
@@ -43,23 +44,31 @@ export function useRouteLength({ document, view, variant, session, ready, failed
   const { results, record } = store;
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(false);
-  const pending = useRef(false);
-  const run = () => {
-    if (!legs || !session.current) return;
-    const missing = legs.legs.filter(leg => !results.has(leg.key));
+  const pending = useRef<readonly LegInput[] | undefined>(undefined);
+  /** ADR-0198: sträckorna som räknas (banans eller alla varianters); samma tabell, så en sträcka räknas en gång. */
+  const run = (list: readonly LegInput[] | undefined = legs?.legs) => {
+    if (!list || !session.current) return;
+    const missing = list.filter(leg => !results.has(leg.key));
     if (missing.length === 0) return;
     setRunning(true); setError(false);
     session.current.analyse(missing, (_index, analysis) => record(analysis.key, analysis.best?.meters, analysis.straightMeters),
       () => setRunning(false), () => { setRunning(false); setError(true); });
   };
   // Workern blev klar efter att banläggaren bad om längden.
-  useEffect(() => { if (ready && pending.current) { pending.current = false; run(); } }, [ready]);
-  useEffect(() => { if (failed && wanted) { pending.current = false; setRunning(false); setError(true); } }, [failed, wanted]);
+  useEffect(() => { if (ready && pending.current) { const list = pending.current; pending.current = undefined; run(list); } }, [ready]);
+  useEffect(() => { if (failed && wanted) { pending.current = undefined; setRunning(false); setError(true); } }, [failed, wanted]);
+  const startWith = (list: readonly LegInput[] | undefined) => {
+    if (!list) return;
+    onWanted();
+    if (ready) run(list); else { pending.current = list; setRunning(true); }
+  };
   return {
-    legs, results, running, error, wanted,
-    start: () => { onWanted(); if (ready) run(); else { pending.current = true; setRunning(true); } },
+    legs, results, running, error, wanted, ready,
+    start: () => startWith(legs?.legs),
+    /** ADR-0198: räkna de här sträckorna (alla varianters). */
+    startLegs: (list: readonly LegInput[]) => startWith(list),
     /** Vägvalens Worker fick en annan körning (vald sträcka): den här är avbruten. */
-    interrupted: () => { pending.current = false; setRunning(false); },
+    interrupted: () => { pending.current = undefined; setRunning(false); },
     /** En vald sträcka som räknats (samma indata) räknas inte igen. */
     remember: record
   };

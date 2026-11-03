@@ -34,8 +34,9 @@ export const courseSettingSv = {
     heading: "Banor",
     all: "Alla kontroller",
     allSummary: (count: number) => `${count} ${count === 1 ? "kontroll" : "kontroller"}`,
-    summary: (length: string, controls: number, variants: number) =>
-      `${length} · ${controls} ${controls === 1 ? "kontroll" : "kontroller"}${variants > 1 ? ` · ${variants} varianter` : ""}`,
+    summary: (length: string, controls: number, variants: number, excluded = 0) =>
+      `${length} · ${controls} ${controls === 1 ? "kontroll" : "kontroller"}${variants > 1 || excluded > 0 ? ` · ${variants} ${variants === 1 ? "variant" : "varianter"}` : ""}` +
+      (excluded > 0 ? ` (${excluded} bortvald${excluded === 1 ? "" : "a"})` : ""),
     length: (min: number, max: number) => min === max ? meters(min) : `${meters(min)}–${meters(max)}`,
     add: "Ny bana",
     addName: "Namn på ny bana",

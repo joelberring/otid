@@ -4,6 +4,7 @@ import {
 import type { LegAnalysis, LegInput } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../i18n/course-setting-sv";
 import type { LegLength } from "./course-setting-route-length";
+import { select, setView, type EditorState } from "./course-setting-editor";
 import { controlLabel, legInput } from "./course-setting-text";
 
 /**
@@ -148,4 +149,12 @@ export function legForbiddenNotice(document: CourseSettingDocument, course: stri
   if (!hit) return undefined;
   const what = forbiddenWhat(document, hit.special);
   return analysis.best ? text.leg.aroundForbidden(what, analysis.best.meters - analysis.straightMeters) : text.leg.noRouteForbidden(what);
+}
+
+/** Ett klick på en rad: banan visas, en sträcka väljs på banan (vägvalet i Vald sträcka), en ensam kontroll väljs. */
+export function showCheckRow(state: EditorState, row: CheckRow): EditorState {
+  const inCourse = row.course !== undefined && state.document.courses.some(item => item.id === row.course);
+  const shown = inCourse && row.course !== undefined ? setView(state, row.course) : state;
+  if (row.leg && inCourse) return select(shown, { kind: "leg", from: row.leg.from, to: row.leg.to });
+  return row.controls.length === 1 ? select(shown, { kind: "control", control: row.controls[0]! }) : shown;
 }

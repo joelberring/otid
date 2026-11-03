@@ -64,6 +64,7 @@ export const helpSynonyms: readonly (readonly string[])[] = [
   ["kartdef", "kontrollbeskrivning", "beskrivningen på kartan"],
   ["ppen", "purple pen", "purplepen"],
   ["gaffl", "variant", "grenar", "slinga"],
+  ["bortvald", "bortval", "färre varianter", "begränsa varianter", "längst"],
   ["hänga", "hänger", "utsättning", "sätta ut", "fältläge", "fältet"],
   ["tryck", "utskrift", "skriv ut", "pdf"],
   ["offline", "utan nät"],

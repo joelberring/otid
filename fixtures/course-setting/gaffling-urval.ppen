@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ADR-0198: påhittad Purple Pen-fil till fixtures/maps/kartfil.omap (1:10 000), handskriven i Purple Pens format. "Natt" (H21)
+     har tre fulgafflingar i följd: efter 31 (A: 41, B: 42) till 32, efter 32 (C: 43, D: 44) till 33 och efter 33 (E: 45, F: 46)
+     till 34, alltså åtta varianter ACE … BDF. B, D och F är längre; ACE är kortast och BDF längst. "Kort" (D21) är inte gafflad. -->
+<course-scribe-event>
+  <event id="1">
+    <title>Gafflingsurval på kartfilen</title>
+    <map kind="OCAD" scale="10000" ignore-missing-fonts="false">kartfil.omap</map>
+    <standards map="2017" description="2018" />
+    <all-controls print-scale="10000" description-kind="symbols" />
+    <numbering start="31" disallow-invertible="false" />
+    <course-appearance />
+    <descriptions lang="sv" color="black" />
+  </event>
+  <control id="1" kind="start">
+    <location x="5" y="5" />
+  </control>
+  <control id="2" kind="normal">
+    <code>31</code>
+    <location x="20" y="20" />
+  </control>
+  <control id="3" kind="normal">
+    <code>32</code>
+    <location x="40" y="50" />
+  </control>
+  <control id="4" kind="normal">
+    <code>33</code>
+    <location x="70" y="55" />
+  </control>
+  <control id="5" kind="normal">
+    <code>34</code>
+    <location x="90" y="25" />
+  </control>
+  <control id="6" kind="normal">
+    <code>41</code>
+    <location x="30" y="40" />
+  </control>
+  <control id="7" kind="normal">
+    <code>42</code>
+    <location x="5" y="55" />
+  </control>
+  <control id="8" kind="normal">
+    <code>43</code>
+    <location x="55" y="60" />
+  </control>
+  <control id="9" kind="normal">
+    <code>44</code>
+    <location x="50" y="85" />
+  </control>
+  <control id="10" kind="normal">
+    <code>45</code>
+    <location x="85" y="45" />
+  </control>
+  <control id="11" kind="normal">
+    <code>46</code>
+    <location x="105" y="80" />
+  </control>
+  <control id="12" kind="finish">
+    <location x="60" y="10" />
+  </control>
+  <course id="1" kind="normal" order="1">
+    <name>Natt</name>
+    <secondary-title>H21</secondary-title>
+    <labels label-kind="sequence" />
+    <first course-control="101" />
+    <options print-scale="10000" description-kind="symbols" />
+  </course>
+  <course id="2" kind="normal" order="2">
+    <name>Kort</name>
+    <secondary-title>D21</secondary-title>
+    <labels label-kind="sequence" />
+    <first course-control="201" />
+    <options print-scale="10000" description-kind="symbols" />
+  </course>
+  <course-control id="101" control="1">
+    <next course-control="102" />
+  </course-control>
+  <course-control id="102" control="2" variation="fork" variation-end="105">
+    <next course-control="103" />
+    <variation course-control="102" />
+    <variation course-control="104" />
+  </course-control>
+  <course-control id="104" control="2" variation="fork" variation-end="105">
+    <next course-control="106" />
+    <variation course-control="102" />
+    <variation course-control="104" />
+  </course-control>
+  <course-control id="103" control="6">
+    <next course-control="105" />
+  </course-control>
+  <course-control id="106" control="7">
+    <next course-control="105" />
+  </course-control>
+  <course-control id="105" control="3" variation="fork" variation-end="110">
+    <next course-control="108" />
+    <variation course-control="105" />
+    <variation course-control="107" />
+  </course-control>
+  <course-control id="107" control="3" variation="fork" variation-end="110">
+    <next course-control="109" />
+    <variation course-control="105" />
+    <variation course-control="107" />
+  </course-control>
+  <course-control id="108" control="8">
+    <next course-control="110" />
+  </course-control>
+  <course-control id="109" control="9">
+    <next course-control="110" />
+  </course-control>
+  <course-control id="110" control="4" variation="fork" variation-end="113">
+    <next course-control="111" />
+    <variation course-control="110" />
+    <variation course-control="112" />
+  </course-control>
+  <course-control id="112" control="4" variation="fork" variation-end="113">
+    <next course-control="114" />
+    <variation course-control="110" />
+    <variation course-control="112" />
+  </course-control>
+  <course-control id="111" control="10">
+    <next course-control="113" />
+  </course-control>
+  <course-control id="114" control="11">
+    <next course-control="113" />
+  </course-control>
+  <course-control id="113" control="5">
+    <next course-control="115" />
+  </course-control>
+  <course-control id="115" control="12" />
+  <course-control id="201" control="1">
+    <next course-control="202" />
+  </course-control>
+  <course-control id="202" control="2">
+    <next course-control="203" />
+  </course-control>
+  <course-control id="203" control="3">
+    <next course-control="204" />
+  </course-control>
+  <course-control id="204" control="5">
+    <next course-control="205" />
+  </course-control>
+  <course-control id="205" control="12" />
+</course-scribe-event>

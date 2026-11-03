@@ -74,7 +74,8 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
       courseTarget.set(course.externalId, { ref: { newCourse: course.externalId }, name: course.name });
       rows.push({ row: row({ key: `course-new:${course.externalId}`, kind: "NEW", subject: "COURSE", label: course.name, optional: false,
         changes: variants.length > 0 ? variantChanges([], variants) : [{ field: "CONTROLS", from: null, to: codes(course.controlCodes) }] }),
-      action: { type: "CREATE_COURSE", externalId: course.externalId, name: course.name, controlCodes: course.controlCodes, variants } });
+      action: { type: "CREATE_COURSE", externalId: course.externalId, name: course.name, controlCodes: course.controlCodes, variants,
+        excludedVariants: course.excludedVariants } });
       continue;
     }
     used.add(local.id);
@@ -92,7 +93,8 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
     rows.push({ row: row({ key: `course:${local.id}`, kind: "CHANGED", subject: "COURSE", label: local.name, changes,
       readOut: readOutOnCourse(local.id) > 0, context: state.classes.filter(raceClass => raceClass.courseId === local.id)
         .map(raceClass => raceClass.name).join(", ") || null }),
-    action: { type: "CHANGE_COURSE", courseId: local.id, controlCodes: variants.length > 0 ? [] : course.controlCodes, variants } });
+    action: { type: "CHANGE_COURSE", courseId: local.id, controlCodes: variants.length > 0 ? [] : course.controlCodes, variants,
+      excludedVariants: course.excludedVariants } });
   }
   for (const course of candidates) {
     if (course.externalSource === "iof" && !used.has(course.id) && !courses.some(row => row.externalId === course.externalId)) {

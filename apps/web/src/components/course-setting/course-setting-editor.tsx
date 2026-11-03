@@ -6,9 +6,9 @@ import type {
   CourseSettingMode, CourseSettingState, CourseSettingSuggestionDecided
 } from "@o-tid/contracts";
 import {
-  acceptChecksEdit, applyEdit, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols, keepAcceptedChecks, keepPaperOnImport,
-  layoutCoursePage, layoutOverprint, nextFreeCode, printAreaOf, unacceptChecksEdit, type CourseSettingDocument, type DescriptionSymbol, type MapRect,
-  type OverprintPrimitive
+  acceptChecksEdit, applyEdit, carryExcludedVariants, checkDocument, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
+  keepAcceptedChecks, keepPaperOnImport, layoutCoursePage, layoutOverprint, nextFreeCode, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
+  type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
@@ -36,7 +36,7 @@ import { CourseSettingSync, EditorStore, type LostEdit, type SyncStatus } from "
 import { inspectedPoints, inspectionRows, mergeInspections } from "../../lib/course-setting-inspections";
 import type { FieldRecord, QueuedItem } from "../../lib/course-setting-offline";
 import { controlLabel, legInput } from "../../lib/course-setting-text";
-import { checkGroups, checkRows, legForbiddenNotice, type CheckRow } from "../../lib/course-setting-checks";
+import { checkGroups, checkRows, legForbiddenNotice, showCheckRow, type CheckRow } from "../../lib/course-setting-checks";
 import { toScreen, type Bounds, type Viewport } from "../../lib/course-setting-viewport";
 import { drawPrintFrame, drawSpecialEditing } from "../../lib/course-setting-draw-special";
 import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHandles } from "../../lib/course-setting-specials";
@@ -64,6 +64,7 @@ import { useCourseSettingCollaboration } from "./use-course-setting-collaboratio
 import { ControlList } from "./course-setting-controls";
 import { CourseProperties } from "./course-setting-course-properties";
 import { RouteLengthPanel, useRouteLength, useRouteResults } from "./course-setting-route-length";
+import { VariantsPanel } from "./course-setting-variants";
 import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
 import { useCourseSettingHistory } from "./use-course-setting-history";
@@ -516,7 +517,7 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
       await sync.flush();
       // Steg 64 (ADR-0183): tävlingens utskriftsprofiler och layoutmallar står inte i .ppen-filen och följer med.
       const event = document.event;
-      const carried: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
+      let carried: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
         ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
         ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
         // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10), inte heller de godtagna varningarna (ADR-0199).
@@ -524,6 +525,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         ...((accepted => accepted ? { acceptedChecks: accepted } : {})(keepAcceptedChecks(event.acceptedChecks, file.document))) },
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
         ...(!file.document.training && document.training ? { training: document.training } : {}) };
+      // ADR-0198: bortvalda varianter följer med när filen saknar dem och varianterna finns kvar.
+      carried = carryExcludedVariants(document, carried);
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
       const imported = keepPaperOnImport(document, carried, await importedImageHashes(carried),
@@ -614,6 +617,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
           return step ? applySteps(current, [step], applyEdit) : current; })} />
         {course && <CourseProperties course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
+        {course && <VariantsPanel document={document} course={course} routeLength={routeLength} hasMap={Boolean(state.mapFile)} readOnly={readOnly}
+          onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         {course && <RouteLengthPanel state={routeLength} hasMap={Boolean(state.mapFile)} />}
         <ControlList document={document} summaries={summaries} view={view} variant={variant} branch={ux.active?.start} readOnly={readOnly}
           selected={selection?.kind === "control" ? (view === ALL_CONTROLS ? selection.control : selection.courseControl) : undefined} unused={ux.unused}
@@ -663,15 +668,8 @@ export function CourseSettingEditor({ raceId, state, notice, onReload, resume }:
         routes={{ pending: forbidden.missing.length, running: forbiddenRun.running, failed: forbiddenRun.failed }}
         onAccept={rows => edit(current => applySteps(current, [(_created, doc) => acceptChecksEdit(doc, rows.flatMap(row => row.checks))], applyEdit))}
         onUnaccept={rows => edit(current => applySteps(current, [() => unacceptChecksEdit(rows.map(row => row.key))], applyEdit))}
-        onShow={row => {
-          setFlagged(row);
-          const inCourse = row.course !== undefined && document.courses.some(item => item.id === row.course);
-          if (inCourse) apply(current => setView(current, row.course!));
-          // En sträcka väljs på banan (vägvalet räknas i Vald sträcka), en ensam kontroll väljs.
-          if (row.leg && inCourse) apply(current => select(current, { kind: "leg", from: row.leg!.from, to: row.leg!.to }));
-          else if (row.controls.length === 1) apply(current => select(current, { kind: "control", control: row.controls[0]! }));
-          mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : []));
-        }} />;
+        onShow={row => { setFlagged(row); apply(current => showCheckRow(current, row));
+          mapHandle.current?.reveal(row.controls.flatMap(id => document.controls[id] ? [document.controls[id].at] : [])); }} />;
       case "notes": return notes.panel;
       case "inspections": return <InspectionsPanel rows={inspectionList} selected={selection?.kind === "control" ? selection.control : undefined}
         offline={offline.offline} action={field.inspect}

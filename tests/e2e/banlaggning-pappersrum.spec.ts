@@ -209,7 +209,9 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await owner.getByTestId("paper-inspector").getByTestId("paper-pages").selectOption("ALL");
   await expect.poll(async () => (await doc()).event.paperLayouts!["1"]!.items!.find(item => item.kind === "TEXT")!.pages).toBe("ALL");
   await shot(owner, "06-papperet-alla-sidor", owner.getByTestId("paper-inspector"));
-  await sheet.getByTestId("paper-empty").click({ position: { x: 5, y: 5 } });
+  const empty = (await sheet.boundingBox())!;
+  await owner.mouse.click(empty.x + empty.width * 0.5, empty.y + empty.height * 0.5);
+  await expect(owner.getByTestId("paper-inspector")).toHaveCount(0);
 
   // 5. Mall: banans papper som "Klubbens träningsmall", på alla valda banor; biblioteket.
   await panel.getByTestId("paper-clip-edit").uncheck();

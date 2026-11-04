@@ -10,6 +10,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Utskriften om (grenen utskrift-omtag, ADR-0211, ingen migration)
+- Ringklippen över detaljer följer med till förhandsvisningen och PDF:en (`printSheetGroups` fick aldrig detaljgapen; nu `printDetailGaps` i servern och samma Worker som editorn).
+- Sträckorna slutar 0,35 mm utanför ringar, start och mål (ISOM 705; Purple Pen har inget mellanrum), inställbart under Utseende.
+- Färgordningen efter normen (ISOM/ISSprOM) med undre och övre lila, övertryck på färgerna över banan och multiplicering i förhandsvisningen; asfalt och byggnadsytor ligger under banan. Numren undviker hus och svarta linjer; placerade nummer på ett hus ger en notis.
+- "Skala för banan" i banans egenskaper; fliken Utskrift visar den.
+- Utskriftssidan: Färger för tryck i ett flöde (kompakt rad, kort, "Justera färger för hand"), Skriv ut med skrivaren och PDF:en bredvid varandra, översikten med ett kort per ark, mallen på markerade eller alla banor.
+- Papperet direkt på arket: markera flera, fästning med hjälplinjer (Alt fritt), rutnät, justera/fördela, lager (ordning, lås, dölj), dubbelklick skriver i texten, ram, linje, "Vitt på utskriften", Gör om. Mallen bär papper, riktning, marginal och vita ytor.
+- Verifierat: enhetstester (course-setting, print-pdf, application, contracts, web), lint, typecheck, PDF-tester (ringklipp, ordningen per norm, mellanrum, ramar, vita ytor). Playwright `utskrift-omtag` (1280/390) och de ändrade utskriftsspecarna i CI.
+- Återstår: vridning, kartramen direkt på arket, papperet i editorns flik Utskrift (mallen bär det), editorn i normens färgordning.
+
 ### 2026-11-03 – Klubbtillhörighet (grenen klubbtillhorighet, ADR-0209, migration 0076)
 - Klubblistan från Eventor (`organisation`, `node superadmin.mjs clubs refresh|import|sync`, högst en gång per dygn), sökning utan accenter med kortnamn och initialer.
 - "Vilken klubb tillhör du?" efter registreringen och Mitt konto → Mina klubbar; en egen anmälan ger ingenting.

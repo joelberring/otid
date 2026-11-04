@@ -28,8 +28,14 @@ test("löparkartor: variablerna på arket, två valda löpare, baksidan i samma 
   test.setTimeout(600_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `lopar.${suffix}@exempel.se`, "Lisa Löparkarta");
+  await warmRoute(owner, "/admin/00000000-0000-4000-8000-000000000000/manage");
+  await warmRoute(owner, "/api/admin/races/00000000-0000-4000-8000-000000000000/administrator/session");
   const raceId = await createRace(owner, `Löparkartor ${suffix}`, today(), "Tävling");
   const admin = `/api/admin/races/${raceId}/administrator`;
+  // Utvecklingsservern kompilerar rutterna vid första anropet: i förväg, så att arbetsytans anrop hinner.
+  for (const path of ["courses", "entries", "classes"]) await warmRoute(owner, `${admin}/${path}`);
+  for (const path of ["course-classes", "entries"]) await warmRoute(owner, `${admin}/${path}`, "POST");
+  await owner.reload();
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   for (const [givenName, familyName] of [["Ada", "Ek"], ["Bo", "Lind"], ["Cia", "Holm"]] as const) {
     await addEntry(owner, { className: "H21", givenName, familyName, club: "OK Natt", card: String(8000100 + givenName.length + familyName.charCodeAt(0)) });

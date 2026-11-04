@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Löparkopplade kartor (grenen lopar-kartor, ADR-0213, ingen migration)
+- Löparens variabler på papperet: {namn} {startnummer} {klubb} {klass} {starttid} {variant} och för stafett {lag} {lagnummer} {sträcka}; platshållare med en rad i banornas förhandsvisning.
+- "Baksida med löparens uppgifter": dubbelsidigt i samma PDF (baksidan redigeras på arket som "Baksidan (per löpare)", förvalet som Kartor till startens baksida, `SET_RUNNER_BACK`) eller separat körning.
+- "Vilka som skrivs ut": alla, klasser, löpare (sök på namn eller nummer) eller lag med alla sträckor eller en sträcka; framsida och baksida följer urvalet.
+- Stafetten i Kartor till starten: en klass per sträcka med lagens varianter, efter de individuella; lag och sträcka i listan och på kartorna.
+- "Kontrollera kopplingen": PDF-sida, Nr, Namn, Klubb, Klass, Lag/Sträcka, Bana, Variant, Starttid; sortering, filter, fyra varningar, förhandsvisning per rad, CSV; länk från Kartor till starten.
+- Verifierat: enhetstester (course-setting, domain, contracts, print-pdf med fram/bak för tre löpare, web), lint, typecheck, Playwright `lopar-kartor` lokalt.
+- Återstår: IOF-exporten av lagens gafflingar (utanför uppdraget).
+
 ### 2026-11-04 – Utskriften putsad (grenen utskrift-omtag-2, ADR-0211 beslut 10, ingen migration)
 - Dev-överläggets "1 Issue": dubbla React-nycklar för en banas kartbytesdelar i översikten. Rättat; utskriftens E2E fäller nu på sidfel, `console.error` och svar ≥ 400 (`browserErrors`), vilket också hittade en 404 för en nyss uppladdad bild (visas nu ur webbläsarens kopia).
 - "Layoutmall" heter "Kartor per ark" och står bredvid nya "Papper och kartram"; "Mall för papperet" heter likadant i panelen och översikten.

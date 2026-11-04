@@ -94,7 +94,9 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await inspector.getByTestId("paper-size").press("Enter");
   await expect(text.locator("text").first()).toHaveAttribute("text-anchor", "middle", { timeout: 15_000 });
   await expect(text.locator("text").first()).toHaveAttribute("font-size", "5");
-  // Datum och ekvidistans för variablerna.
+  // Datum och ekvidistans för variablerna (hopfällt, ADR-0211 tillägg).
+  await expect(panel.getByTestId("paper-values-fold")).not.toHaveAttribute("open", "");
+  await panel.getByTestId("paper-values-fold").locator("summary").click();
   await panel.getByTestId("paper-date").fill("9 december 2026");
   await panel.getByTestId("paper-contour").fill("2,5 m");
   await panel.getByTestId("paper-contour").press("Tab");
@@ -131,8 +133,11 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await inspector.getByTestId("paper-opacity").fill("50");
   await inspector.getByTestId("paper-opacity").press("Enter");
   await expect(logo.getByTestId("paper-image")).toHaveAttribute("opacity", "0.5", { timeout: 15_000 });
-  const href = (await logo.getByTestId("paper-image").getAttribute("href"))!;
-  const fetched = await owner.request.get(href);
+  // Arket visar den nyss uppladdade bilden ur webbläsarens kopia (ADR-0211 beslut 10); servern har den under sin sha256.
+  await expect(logo.getByTestId("paper-image")).toHaveAttribute("href", /^blob:/);
+  const imageOf = async () => ((await doc()).event.paperLayouts?.["1"]?.items?.find(item => item.kind === "IMAGE") as unknown as { image?: string } | undefined)?.image;
+  await expect.poll(imageOf, { timeout: 15_000 }).toMatch(/^[0-9a-f]{64}$/);
+  const fetched = await owner.request.get(`${admin}/course-setting/paper-images/${await imageOf()}`);
   expect(fetched.status()).toBe(200);
   expect(fetched.headers()["content-type"]).toBe("image/png");
   await panel.getByTestId("paper-image-file").setInputFiles({ name: "sponsor.svg", mimeType: "image/svg+xml", buffer: Buffer.from(SVG) });
@@ -169,7 +174,8 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await owner.mouse.click(sheetArea.x + sheetArea.width * 0.5, sheetArea.y + sheetArea.height * 0.5);
   await expect(inspector).toHaveCount(0);
 
-  // 4. Klippning: rektangel, tonad karta utanför.
+  // 4. Klippning (hopfälld): rektangel, tonad karta utanför.
+  await panel.getByTestId("paper-clip-fold").locator("summary").click();
   await panel.getByTestId("paper-clip-RECT").check();
   await expect(sheet.getByTestId("paper-clip-handles")).toBeVisible({ timeout: 15_000 });
   await panel.getByTestId("paper-clip-outside").selectOption("FADED");
@@ -245,6 +251,7 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await owner.getByTestId("paper-reset").click();
   await expect(panel.locator(`[data-testid=paper-item-row][data-id="${textItem.id}"]`)).toHaveAttribute("data-source", "TEMPLATE", { timeout: 15_000 });
   await panel.getByTestId("paper-template-to-library").click();
+  await panel.getByTestId("paper-library-fold").locator("summary").click();
   await expect(panel.getByTestId("paper-library-note")).toHaveText("Sparad i biblioteket.", { timeout: 15_000 });
   await expect(panel.getByTestId("paper-library-row")).toContainText("Klubbens träningsmall");
   await reviewScreenshots(owner, "05-papperet-mall-hela-sidan");

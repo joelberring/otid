@@ -128,8 +128,8 @@ export function describeEdit(edit: CourseSettingEdit, document: CourseSettingDoc
     case "SET_PRINT_AREA": return `Tryckytan för ${edit.course === "ALL_CONTROLS" ? "Alla kontroller" : course(edit.course)}`;
     case "PUT_PRINT_PROFILE": return `Utskriftsprofilen ${edit.profile.name}`;
     case "DELETE_PRINT_PROFILE": return `Ta bort utskriftsprofilen ${profileName(edit.id) ?? ""}`.trim();
-    case "PUT_LAYOUT_TEMPLATE": return `Layoutmallen ${edit.template.name}`;
-    case "DELETE_LAYOUT_TEMPLATE": return `Ta bort layoutmallen ${templateName(edit.id) ?? ""}`.trim();
+    case "PUT_LAYOUT_TEMPLATE": return `Kartor per ark: ${edit.template.name}`;
+    case "DELETE_LAYOUT_TEMPLATE": return `Kartor per ark: ta bort ${templateName(edit.id) ?? ""}`.trim();
     // ADR-0192: träningsläget.
     case "PUT_TRAINING": {
       const courses = Object.keys(edit.courses ?? {}).map(course);

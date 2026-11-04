@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Utskriften putsad (grenen utskrift-omtag-2, ADR-0211 beslut 10, ingen migration)
+- Dev-överläggets "1 Issue": dubbla React-nycklar för en banas kartbytesdelar i översikten. Rättat; utskriftens E2E fäller nu på sidfel, `console.error` och svar ≥ 400 (`browserErrors`), vilket också hittade en 404 för en nyss uppladdad bild (visas nu ur webbläsarens kopia).
+- "Layoutmall" heter "Kartor per ark" och står bredvid nya "Papper och kartram"; "Mall för papperet" heter likadant i panelen och översikten.
+- Redigera arket: arken först, panelerna bredvid (datorn) eller under (telefonen); en mening och "?" per panel; Klippning, Vitt, Uppgifter och Mitt bibliotek hopfällda.
+- Papper, riktning, marginal, tryckyta och överlapp på arket; kartramen flyttas och ändrar storlek på arket. Editorns flik Utskrift länkar dit.
+- Verifierat: enhetstester (web, nya `course-setting-sheet-frame`), lint, typecheck, Playwright `utskrift-omtag` lokalt; övriga utskriftsspecar i CI.
+
 ### 2026-11-04 – Nivåstöd (grenen nivastod, ADR-0212, ingen migration)
 - "Nivå" i banans egenskaper (Grön … Svart, förslag ur klasserna med SOFT:s tabell); sparas i dokumentet, inte i .ppen, följer med ny .ppen.
 - "Bedöm nivån" och "Bedöm alla banor" bara på begäran, i vägvalens Worker (samma motor och tabell; ny väg längs stigar `LegInput.follow`).

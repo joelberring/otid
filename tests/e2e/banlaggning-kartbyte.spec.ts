@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting, warmRoute } from "./helpers";
+import { browserErrors, createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting, warmRoute } from "./helpers";
 
 /**
  * ADR-0203: en bana med kartbyte (Lång i kartbyte.ppen, kartbytet vid 33 med "vänd kartan") som Purple Pen: delväljaren i
@@ -51,7 +51,7 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-center", /,/, { timeout: 60_000 });
 
-  // 1. Fliken Utskrift: delväljaren, del 2 med egen tryckyta (liggande), "Visa överlapp".
+  // 1. Fliken Utskrift: delväljaren visar delen på kartan; papperet och ramen ställs in på arket i utskriften (ADR-0211 tillägg).
   await owner.getByRole("tab", { name: "Utskrift" }).click();
   const print = owner.getByTestId("course-setting-print");
   const parts = print.getByTestId("course-setting-parts");
@@ -59,23 +59,29 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   const chooser = parts.getByTestId("course-setting-part");
   await expect(chooser.locator("option")).toHaveText(["Hela banan", "Del 1", "Del 2"]);
   await chooser.selectOption("1");
-  await expect(parts.getByTestId("course-setting-part-area")).toHaveText("Delen har banans tryckyta tills du ändrar den här.");
-  await print.getByLabel("Riktning").selectOption("landscape");
-  await expect(parts.getByTestId("course-setting-part-area")).toHaveText("Delen har en egen tryckyta.", { timeout: 15_000 });
-  await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
-  await expect.poll(async () => (await doc()).courses.find(row => row.id === "1")!.partPrintAreas?.["1"]?.page?.landscape).toBe(true);
-  // Hela banan är fortfarande stående (delen ärver inte tillbaka).
-  expect((await doc()).courses.find(row => row.id === "1")!.partPrintAreas?.["0"]).toBeUndefined();
-  await parts.getByTestId("course-setting-overlap").selectOption("PREVIOUS_PART");
-  await expect.poll(async () => (await doc()).event.paperLayouts?.["1"]?.overlap).toBe("PREVIOUS_PART");
-  await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
+  await expect(parts.getByTestId("course-setting-part-area")).toHaveText("Delen har banans tryckyta tills du ändrar den i utskriften.");
+  await expect(print.getByLabel("Riktning")).toHaveCount(0);
   await shot(owner, "07-kartbyte-editor");
   await reviewScreenshots(owner, "07-kartbyte-editor-hela");
 
-  // 2. Förhandsvisningen: en karta per del, dubbelsidigt förvalt (kartan vänds), del 2 på baksidan med överlappet.
+  // 2. Utskriften: del 2 med egen tryckyta (liggande) och "Visa överlapp" under Papper och kartram för delens ark.
+  // Inga fel i webbläsaren: en banas två delar fick förut samma nyckel i översikten (dev-överläggets "1 Issue").
+  const errors = browserErrors(owner, /\/course-setting\/print$/);
   await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
   const sheets = owner.getByTestId("print-sheet");
   await expect(sheets).toHaveCount(2, { timeout: 60_000 });
+  await owner.getByTestId("print-card").nth(1).getByTestId("print-card-open").click();
+  const paper = owner.getByTestId("sheet-paper");
+  await expect(paper).toHaveAttribute("data-part", "1");
+  await expect(paper.getByTestId("sheet-paper-target")).toHaveText(/Lång – del 2/);
+  await expect(paper.getByTestId("sheet-paper-part-area")).toHaveText("Delen har banans tryckyta tills du ändrar den här.");
+  await paper.getByTestId("sheet-paper-orientation").selectOption("landscape");
+  await expect(paper.getByTestId("sheet-paper-part-area")).toHaveText("Delen har en egen tryckyta.", { timeout: 15_000 });
+  await expect.poll(async () => (await doc()).courses.find(row => row.id === "1")!.partPrintAreas?.["1"]?.page?.landscape).toBe(true);
+  // Hela banan är fortfarande stående (delen ärver inte tillbaka).
+  expect((await doc()).courses.find(row => row.id === "1")!.partPrintAreas?.["0"]).toBeUndefined();
+  await paper.getByTestId("sheet-paper-overlap").selectOption("PREVIOUS_PART");
+  await expect.poll(async () => (await doc()).event.paperLayouts?.["1"]?.overlap).toBe("PREVIOUS_PART");
   await expect(sheets.first()).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   await expect(sheets.nth(0)).toHaveAttribute("aria-label", /Lång – del 1/);
   await expect(sheets.nth(1)).toHaveAttribute("aria-label", /Lång – del 2/);
@@ -112,6 +118,7 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   await expect(sheets).toHaveCount(4, { timeout: 30_000 });
   await expect(sheets.nth(3)).toHaveAttribute("aria-label", "Baksida (tom)");
   await reviewScreenshots(owner, "07-kartbyte-forhandsvisning");
+  errors.check("utskriftssidan med kartbyten");
 
   // 3. .ppen: delens tryckyta som Purple Pens `<print-area part="1">`.
   await owner.goto(`/admin/${raceId}/course-setting`);

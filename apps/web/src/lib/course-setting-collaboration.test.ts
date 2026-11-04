@@ -85,7 +85,7 @@ describe("förslagen", () => {
     expect(describeEdit({ type: "MOVE_SPECIAL", special: "s1", points: [{ x: 1, y: 1 }] }, base)).toBe("Flytta förbjudet område");
     expect(describeEdit({ type: "DELETE_SPECIAL", special: "s1" }, base)).toBe("Ta bort förbjudet område");
     expect(describeEdit({ type: "SET_PRINT_AREA", course: "k", area: null }, base)).toBe("Tryckytan för Lång");
-    expect(describeEdit({ type: "DELETE_LAYOUT_TEMPLATE", id: "x" }, base)).toBe("Ta bort layoutmallen");
+    expect(describeEdit({ type: "DELETE_LAYOUT_TEMPLATE", id: "x" }, base)).toBe("Kartor per ark: ta bort");
     for (const edit of [{ type: "PUT_PRINT_PROFILE", profile: { name: "Kontor" } }, { type: "PUT_LAYOUT_TEMPLATE", template: { name: "A4" } },
       { type: "UPDATE_SPECIAL", special: "s1", changes: {} }, { type: "DELETE_PRINT_PROFILE", id: "p" }]) {
       expect(describeEdit(edit as never, base)).not.toBe("Ändring");

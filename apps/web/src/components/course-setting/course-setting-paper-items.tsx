@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { PAPER_VARIABLES, type PaperPart, type Sheet, type SheetPaperItem } from "@o-tid/course-setting";
+import { PAPER_VARIABLES, type PaperPart, type Sheet, type SheetFrame, type SheetPaperItem } from "@o-tid/course-setting";
 import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
 import { snapMove, snapTargets, type SnapGuide } from "../../lib/course-setting-paper-snap";
 import styles from "./course-setting-print-page.module.css";
@@ -36,7 +36,16 @@ export interface PaperInteraction {
   /** "Vitt på utskriften": ytornas hörn i ramens mm för den markerade banan. */
   readonly white?: { readonly course: string; readonly areas: readonly (readonly { x: number; y: number }[])[] } | undefined;
   readonly onWhitePoint?: ((area: number, index: number, point: { x: number; y: number }) => void) | undefined;
+  /**
+   * Kartramen på arket (ADR-0211 tillägg): banans (och delens) ram flyttas över kartan eller ändrar storlek. Medan den är på
+   * täcker ramens handtag papperets element i ramen.
+   */
+  readonly frame?: { readonly course: string; readonly part: number | undefined } | undefined;
+  readonly onFrame?: ((sheet: Sheet, frame: SheetFrame, change: FrameChange) => void) | undefined;
 }
+
+/** Kartramen flyttad (mm på papperet) eller med ny storlek (mm). */
+export type FrameChange = { readonly kind: "MOVE"; readonly dx: number; readonly dy: number } | { readonly kind: "RESIZE"; readonly width: number; readonly height: number };
 
 const KEY_STEP_MM = 1;
 
@@ -278,7 +287,50 @@ export function PaperHandlesLayer({ sheet, interaction }: { sheet: Sheet; intera
       return points ? <PointHandles key={`w${index}`} frame={frame.clip} points={points} onPoint={(vertex, point) => interaction.onWhitePoint?.(area, vertex, point)}
         testId="paper-white-handles" handleId="paper-white-handle" label={text.white.vertex} /> : null;
     })}
+    {interaction.frame && interaction.onFrame && sheet.frames.map((frame, index) => frame.course === interaction.frame!.course && frame.part === interaction.frame!.part
+      ? <FrameHandles key={`f${index}`} frame={frame} onChange={change => interaction.onFrame?.(sheet, frame, change)} /> : null)}
   </>;
+}
+
+/** Kartramen på arket: dra inne i ramen för att flytta den över kartan, handtaget nere till höger för storleken. */
+function FrameHandles({ frame, onChange }: { frame: SheetFrame; onChange: (change: FrameChange) => void }) {
+  const [drag, setDrag] = useState<{ mode: "MOVE" | "RESIZE"; x: number; y: number; dx: number; dy: number }>();
+  const paperPoint = (event: PointerEvent<SVGElement>) => {
+    const matrix = event.currentTarget.ownerSVGElement?.getScreenCTM()?.inverse();
+    return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix) : { x: 0, y: 0 };
+  };
+  const down = (mode: "MOVE" | "RESIZE") => (event: PointerEvent<SVGElement>) => {
+    if (event.button !== 0) return;
+    event.stopPropagation(); event.preventDefault();
+    capture(event.currentTarget, event.pointerId);
+    const at = paperPoint(event);
+    setDrag({ mode, x: at.x, y: at.y, dx: 0, dy: 0 });
+  };
+  const move = (event: PointerEvent<SVGElement>) => {
+    if (!drag) return;
+    const at = paperPoint(event);
+    setDrag({ ...drag, dx: at.x - drag.x, dy: at.y - drag.y });
+  };
+  const up = () => {
+    const done = drag;
+    setDrag(undefined);
+    if (!done || (Math.abs(done.dx) < 0.3 && Math.abs(done.dy) < 0.3)) return;
+    onChange(done.mode === "MOVE" ? { kind: "MOVE", dx: done.dx, dy: done.dy }
+      : { kind: "RESIZE", width: frame.clip.width + done.dx, height: frame.clip.height + done.dy });
+  };
+  const c = frame.clip;
+  const shown = drag?.mode === "MOVE" ? { ...c, x: c.x + drag.dx, y: c.y + drag.dy }
+    : drag ? { ...c, width: Math.max(5, c.width + drag.dx), height: Math.max(5, c.height + drag.dy) } : c;
+  const handlers = { onPointerMove: move, onPointerUp: up, onPointerCancel: () => setDrag(undefined) };
+  return <g className={styles.paperOutline} data-testid="paper-frame-handles">
+    <rect x={c.x} y={c.y} width={c.width} height={c.height} fill="rgba(29, 111, 209, .06)" style={{ cursor: drag ? "grabbing" : "move", touchAction: "none" }}
+      data-testid="paper-frame-move" aria-label={text.frame.move} onPointerDown={down("MOVE")} {...handlers} />
+    <rect x={shown.x} y={shown.y} width={shown.width} height={shown.height} fill="none" stroke="#1d6fd1" strokeWidth={0.6} strokeDasharray="3 1.5"
+      pointerEvents="none" data-testid="paper-frame-outline" />
+    <rect x={shown.x + shown.width - 3} y={shown.y + shown.height - 3} width={6} height={6} fill="#1d6fd1" stroke="#fff" strokeWidth={0.4}
+      style={{ cursor: "nwse-resize", touchAction: "none" }} data-testid="paper-frame-resize" aria-label={text.frame.resize}
+      onPointerDown={down("RESIZE")} {...handlers} />
+  </g>;
 }
 
 /** Hörnen (klippningen eller en vit yta) i ramen: dras med musen eller fingret (bara på skärmen). */

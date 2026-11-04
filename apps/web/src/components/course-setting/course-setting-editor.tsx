@@ -681,7 +681,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         onSelect={id => { apply(current => select(current, { kind: "special", special: id })); const found = document.specialObjects.find(item => item.id === id);
           if (found) mapHandle.current?.reveal(found.points); }}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} onAlong={ux.along} />;
-      case "print": return <PrintPanel document={document} view={view} page={printPage?.page} readOnly={readOnly} part={part}
+      case "print": return <PrintPanel document={document} view={view} readOnly={readOnly} part={part}
         onCourseProperties={() => setTab("courses")}
         onPart={next => setPartChoice(next === undefined ? undefined : { view, part: next })}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))}

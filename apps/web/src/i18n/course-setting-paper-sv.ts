@@ -1,7 +1,7 @@
 /** ADR-0197: papperet i förhandsvisningen ("paper space"): texter, bilder, skalstock, nordpil, klippning och mallar. */
 export const paperSpaceSv = {
   heading: "Papperet: texter, bilder och klippning",
-  help: "Det här står på papperet, inte på kartan: det syns i förhandsvisningen och utskriften men aldrig i banläggningen. Markera ett element på arket och dra det, dra i hörnet nere till höger för storleken, piltangenterna flyttar 1 mm (Skift 5 mm) och Delete tar bort. Klicka på tomt papper för att släppa markeringen.",
+  help: "Texter, bilder och ramar på papperet syns i utskriften men aldrig i banläggningen.",
   course: "Bana",
   readOnly: "Du kan se papperet men inte ändra det.",
   add: { TEXT: "+ Text", IMAGE: "+ Bild …", SCALE_BAR: "+ Skalstock", NORTH_ARROW: "+ Nordpil", RECT: "+ Ram", LINE: "+ Linje" },
@@ -13,6 +13,8 @@ export const paperSpaceSv = {
   none: "Inga texter eller bilder på banans papper än.",
   source: { OWN: "Banans", TEMPLATE: "Ur mallen", OVERRIDE: "Ändrad för banan" } as Record<string, string>,
   kinds: { TEXT: "Text", IMAGE: "Bild", SCALE_BAR: "Skalstock", NORTH_ARROW: "Nordpil", RECT: "Ram", LINE: "Linje" } as Record<string, string>,
+  /** ADR-0211 tillägg: kartramen flyttas och ändrar storlek på arket. */
+  frame: { move: "Kartramen: dra för att flytta den över kartan", resize: "Kartramens storlek" },
   /** ADR-0211 beslut 8: redigeringen direkt på arket. */
   editor: {
     snap: "Fäst mot kanter och mittlinjer",
@@ -43,7 +45,6 @@ export const paperSpaceSv = {
   },
   white: {
     heading: "Vitt på utskriften",
-    help: "Ytor som skrivs ut vita, t.ex. det som ska skäras bort ur kartan. Kartfilen ändras inte. Banan står hel ovanpå; markeringar syns inte i ytorna.",
     addRect: "+ Vit rektangel",
     addPolygon: "+ Vit polygon",
     area: (index: number) => `Vit yta ${index}`,
@@ -59,7 +60,6 @@ export const paperSpaceSv = {
   inspector: "Markerat element",
   text: "Text",
   variables: "Infoga variabel",
-  variableHelp: "{bana} {klass} {längd} {stigning} {tävling} {datum} {skala} {ekvidistans} {variant} fylls i per bana.",
   size: "Storlek (mm)",
   width: "Bredd (mm)",
   height: "Höjd (mm)",
@@ -87,7 +87,6 @@ export const paperSpaceSv = {
   contour: "Ekvidistans ({ekvidistans})",
   clip: {
     heading: "Klippning av kartan",
-    help: "Begränsar hur mycket av kartan som skrivs ut, utan att ändra kartan. Banan skrivs ut som vanligt. Dra hörnen på arket.",
     none: "Ingen",
     rect: "Rektangel",
     polygon: "Polygon",
@@ -104,9 +103,8 @@ export const paperSpaceSv = {
     markingsHelp: "Banan (kontroller, start, mål, sträckor och nummer) står alltid hel. Förbjudna områden, gränser, vätska och andra markeringar står bara innanför utsnittet om inte rutan är ikryssad."
   },
   templates: {
-    heading: "Mallar för papperet",
-    help: "En mall är papperets element, klippning och beskrivningens plats under ett namn. Banorna ärver mallen; ändrar du ett element på en bana gäller ändringen bara den banan.",
-    use: "Banans mall",
+    heading: "Mall för papperet",
+    use: "Mall för papperet",
     noTemplate: "Ingen mall",
     name: "Namn på mallen",
     saveAs: "Spara banans papper som mall",
@@ -128,5 +126,4 @@ export const paperSpaceSv = {
   redo: "Gör om",
   saved: "Sparat.",
   failed: "Det gick inte att spara. Försök igen.",
-  ppenNote: "I .ppen blir texterna Purple Pens textobjekt och bilderna bildobjekt; skalstock, nordpil, täckning och klippning stannar i O-Tid."
 };

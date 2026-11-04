@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
+  exchangeAfterPart, expandPartItems, printAreaOf, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
   type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect, type PaperTemplate,
   type PaperRect, type Sheet, type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
@@ -40,8 +40,11 @@ import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
 import { LayoutTemplatePanel } from "./course-setting-print-template";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
 import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
-import { HelpButton } from "../help/help-panel";
+import { HelpButton, HelpLink } from "../help/help-panel";
 import { PaperSpacePanel } from "./course-setting-paper-space";
+import { SheetPaperPanel, type SheetTarget } from "./course-setting-sheet-paper";
+import type { FrameChange } from "./course-setting-paper-items";
+import { movedFrameArea, pageOfSheet, printAreaEdit, resizedFrameArea } from "../../lib/course-setting-sheet-frame";
 import { useDetailGaps } from "./course-setting-circle-cutting";
 import { usePaperSpace } from "./use-paper-space";
 import styles from "./course-setting-print-page.module.css";
@@ -329,6 +332,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   // Översikten (ADR-0211 beslut 7): arket som redigeras och "Skriv ut markerade" (bara de markerade arken skrivs ut).
   const [openKey, setOpenKey] = useState<string>();
   const [printOnly, setPrintOnly] = useState<ReadonlySet<string>>();
+  // Kartramens handtag på arket (ADR-0211 tillägg), för arket som är öppet.
+  const [frameEditing, setFrameEditing] = useState(false);
   useEffect(() => {
     if (!printOnly) return;
     const done = () => setPrintOnly(undefined);
@@ -372,6 +377,27 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     void saveShown(ids.flatMap(id => templateEdits(document, id, chosenTemplate)));
   };
   const runnerMode = mode === "RUNNERS";
+  // Arket som redigeras: det öppna om det hör till papperets bana, annars banans första (ADR-0211 tillägg: papper och ram).
+  const editing = mode === "COURSES" && !pieces && !template && paperPanel;
+  const open = sheets.find(item => item.key === openKey);
+  const targetSlot = !editing ? undefined : open && open.sheet.frames[0]?.course === paperPanel.course ? open
+    : sheets.find(item => item.sheet.frames[0]?.course === paperPanel.course);
+  const target: SheetTarget | undefined = targetSlot?.sheet.frames[0]
+    ? { course: targetSlot.sheet.frames[0].course, part: targetSlot.sheet.frames[0].part, label: targetSlot.label, sheet: targetSlot.sheet } : undefined;
+  const onFrame = (sheet: Sheet, frame: SheetFrame, change: FrameChange) => {
+    if (!paperPanel) return;
+    const area = printAreaOf(document, frame.course, frame.part);
+    const page = pageOfSheet(area, sheet);
+    const next = change.kind === "MOVE" ? movedFrameArea(area, page, frame, change.dx, change.dy)
+      : resizedFrameArea(area, page, frame, sheet, change.width, change.height);
+    void paperPanel.onSave([printAreaEdit(frame.course, frame.part, next)]);
+  };
+  const interaction = editing && frameEditing && target && canEdit
+    ? { ...paperSpace.interaction, frame: { course: target.course, part: target.part }, onFrame } : paperSpace.interaction;
+  const choosePaperCourse = (id: string) => {
+    paperPanel?.onCourse(id);
+    setOpenKey(sheets.find(item => item.sheet.frames[0]?.course === id)?.key);
+  };
   return <main className={styles.page}>
     <style>{pageStyles(sheets.map(item => item.sheet))}</style>
     <div className={styles.controls}>
@@ -385,7 +411,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} /> : undefined} />
       {/* ADR-0211 beslut 7: vad som skrivs ut och de två sätten att skriva ut, bredvid varandra. */}
       <section className={styles.panel} aria-labelledby="print-output" data-testid="print-output">
-        <h2 id="print-output">{outputText.heading}</h2>
+        <h2 id="print-output">{outputText.heading} <HelpLink article="utskrift" view={["CS_PRINT_PAGE", "CS_PRINT"]} /></h2>
         <div className={styles.row} role="radiogroup" aria-label={text.page.mode}>
           <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "COURSES"} onChange={() => { setMode("COURSES"); setDraftTemplate(undefined); }} />
             {text.page.modeCourses}</label>
@@ -420,7 +446,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
         <div className={styles.outputs}>
           <div className={styles.stack} data-testid="print-output-printer">
             <Button onClick={() => window.print()} disabled={sheets.length === 0}>{outputText.printer}</Button>
-            <p className={styles.muted} data-testid="print-draft">{outputText.printerHelp} {text.page.draft}</p>
+            <p className={styles.muted} data-testid="print-draft">{outputText.printerHelp}</p>
           </div>
           <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}
             blockedText={blocked ? pdfText.runnerBlocked : undefined} heading={outputText.pdf} help={outputText.pdfHelp}
@@ -441,21 +467,32 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       thumb={card => <SheetView sheet={sheets[card.index]!.sheet} index={1000 + card.index} symbols={symbols} images={images} colorsKey={colorsKey}
         courseColor={courseColor} label={card.label} pressLayers={pressLayers} testId="print-thumb"
         paper={{ ...paperSpace.interaction, editable: false }} />} />
-    <div className={styles.controls}>
-      <h2 className={styles.sectionTitle}>{outputText.editor}</h2>
-      <p className={styles.muted}>{outputText.editorHelp}</p>
-      {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
-        readOnly={!canEdit} onSave={save} />}
-      {mode === "COURSES" && !pieces && paperPanel && <PaperSpacePanel raceId={raceId} document={document} readOnly={!canEdit} {...paperPanel} />}
-      <LayoutTemplatePanel key={mode} saved={savedTemplates} selectedId={chosenTemplateId} readOnly={!canEdit}
-        onSelect={id => { setTemplateId(id); setDraftTemplate(undefined); }} onDraft={setDraftTemplate} onSave={save} />
-    </div>
-    <div className={styles.sheets}>
-      {sheets.map((item, index) => <div key={item.key} id={`print-sheet-${index}`} className={styles.sheetSlot} data-open={openKey === item.key ? "" : undefined}
-        data-noprint={printOnly && !printOnly.has(item.key) ? "" : undefined}>
-        <SheetView sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
-          courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} paper={paperSpace.interaction} pressLayers={pressLayers} /></div>)}
-    </div>
+    {/* ADR-0211 tillägg: Redigera arket, arken först och panelerna bredvid (på datorn) eller under (i telefonen). */}
+    <section className={styles.editor} aria-labelledby="print-editor" data-testid="print-editor">
+      <div className={styles.controls}>
+        <h2 id="print-editor" className={styles.sectionTitle}>{outputText.editor}</h2>
+        <p className={styles.muted}>{outputText.editorHelp}</p>
+      </div>
+      <div className={styles.editorBody}>
+        <div className={styles.sheets}>
+          {sheets.map((item, index) => <div key={item.key} id={`print-sheet-${index}`} className={styles.sheetSlot}
+            data-open={openKey === item.key ? "" : undefined} data-target={targetSlot === item ? "" : undefined}
+            data-noprint={printOnly && !printOnly.has(item.key) ? "" : undefined}>
+            <SheetView sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
+              courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} paper={interaction} pressLayers={pressLayers} /></div>)}
+        </div>
+        <div className={`${styles.controls} ${styles.editorPanels}`} data-testid="print-editor-panels">
+          {editing && <SheetPaperPanel raceId={raceId} document={document} target={target} readOnly={!canEdit} onSave={paperPanel.onSave}
+            frameEditing={frameEditing} onFrameEditing={setFrameEditing} />}
+          <LayoutTemplatePanel key={mode} saved={savedTemplates} selectedId={chosenTemplateId} readOnly={!canEdit}
+            onSelect={id => { setTemplateId(id); setDraftTemplate(undefined); }} onDraft={setDraftTemplate} onSave={save} />
+          {mode === "COURSES" && !pieces && paperPanel && <PaperSpacePanel raceId={raceId} document={document} readOnly={!canEdit} {...paperPanel}
+            onCourse={choosePaperCourse} />}
+          {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
+            readOnly={!canEdit} onSave={save} />}
+        </div>
+      </div>
+    </section>
   </main>;
 }
 

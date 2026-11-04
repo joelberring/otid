@@ -9,6 +9,8 @@ import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
 import { templateEdits } from "../../lib/course-setting-paper";
 import { deletePaperLibrary, fetchPaperLibrary, savePaperLibrary } from "../../lib/course-setting-paper-api";
 import { Button } from "../ui";
+import { HelpLink } from "../help/help-panel";
+import { Fold } from "./course-setting-fold";
 import styles from "./course-setting-print-page.module.css";
 
 const newTemplateId = () => `t${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
@@ -52,8 +54,7 @@ export function PaperTemplatesSection({ raceId, document, course, courses, readO
     await onSave([{ type: "PUT_PAPER_TEMPLATE", template: copy }, ...use(course, copy)]);
   }
   return <fieldset className={styles.stack} disabled={readOnly} data-testid="paper-templates">
-    <legend><strong>{text.templates.heading}</strong></legend>
-    <p className={styles.muted}>{text.templates.help}</p>
+    <legend><strong>{text.templates.heading}</strong> <HelpLink article="papperets-mallar" view={["CS_PRINT_PAGE", "CS_PRINT"]} /></legend>
     <div className={styles.row}>
       <label className={styles.field}>{text.templates.use}<select value={current?.id ?? ""} data-testid="paper-template"
         onChange={event => void onSave(use(course, templates.find(row => row.id === event.target.value)))}>
@@ -77,8 +78,7 @@ export function PaperTemplatesSection({ raceId, document, course, courses, readO
         data-testid="paper-template-name" /></label>
       <Button variant="secondary" onClick={() => void saveAs()} data-testid="paper-template-save">{text.templates.saveAs}</Button>
     </div>
-    {!readOnly && <div className={styles.stack} data-testid="paper-library">
-      <strong>{text.templates.library}</strong>
+    {!readOnly && <Fold title={text.templates.library} open={false} testId="paper-library-fold"><div className={styles.stack} data-testid="paper-library">
       {note && <p role="status" className={styles.muted} data-testid="paper-library-note">{note}</p>}
       {libraryState === "failed" && <p className={styles.paperWarning}>{text.templates.libraryFailed}</p>}
       {library && library.templates.length === 0 && <p className={styles.muted}>{text.templates.libraryEmpty}</p>}
@@ -88,6 +88,6 @@ export function PaperTemplatesSection({ raceId, document, course, courses, readO
         <Button variant="quiet" onClick={() => void deletePaperLibrary(raceId, row.id).then(setLibrary, error => { console.error("Biblioteket", error); setLibraryState("failed"); })}>
           {text.templates.deleteFromLibrary}</Button>
       </li>)}</ul>}
-    </div>}
+    </div></Fold>}
   </fieldset>;
 }

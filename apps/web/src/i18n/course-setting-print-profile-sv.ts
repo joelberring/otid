@@ -1,15 +1,19 @@
-/** Steg 64 (ADR-0183): layoutmallen på utskriftssidan. */
+/**
+ * Steg 64 (ADR-0183): layoutmallen på utskriftssidan, sedan ADR-0211 tillägg "Kartor per ark" (det den gör: flera kartor
+ * på ett ark, eller en karta med remsa). Inte samma sak som "Mall för papperet" (ADR-0197, papperets element per bana).
+ */
 export const layoutTemplateSv = {
-  heading: "Layoutmall",
-  help: "Mallen är papperet med kartramar, texter, logotyp, beskrivningens plats och remsa. Samma mall används för alla valda banor.",
-  choose: "Mall",
-  none: "Ingen mall (en bana per sida, tryckytan som i Purple Pen)",
+  heading: "Kartor per ark",
+  help: "Flera banor på samma ark, eller en karta med remsa för rullad karta; gäller alla valda banor.",
+  choose: "Kartor per ark",
+  none: "En bana per ark (tryckytan som i Purple Pen)",
+  edit: "Ändra arket (ramar, texter, logotyp, remsa)",
   name: "Namn",
-  copy: "Kopiera till egen mall",
-  save: "Spara mallen",
-  remove: "Ta bort mallen",
-  saved: "Mallen är sparad.",
-  saveFailed: "Mallen sparades inte. Ladda om sidan och försök igen.",
+  copy: "Kopiera till egen",
+  save: "Spara",
+  remove: "Ta bort",
+  saved: "Sparat.",
+  saveFailed: "Det sparades inte. Ladda om sidan och försök igen.",
   paper: "Papper",
   landscape: "Liggande",
   margin: "Marginal (mm)",
@@ -18,7 +22,6 @@ export const layoutTemplateSv = {
   gap: "Mellanrum (mm)",
   frames: (count: number) => `${count} kartram${count === 1 ? "" : "ar"}`,
   texts: "Texter",
-  textHelp: "Platshållare: {tävling} {bana} {variant} {längd} {stigning} {skala} {datum} {klasser} {löpare} {klubb} {klass} {starttid} {startnummer}",
   addText: "Lägg till text",
   removeText: "Ta bort",
   textValue: "Text",
@@ -28,7 +31,6 @@ export const layoutTemplateSv = {
   logo: "Logotyp (PNG, JPEG, SVG, högst 300 kB)",
   removeLogo: "Ta bort logotypen",
   logoTooLarge: "Logotypen är större än 300 kB.",
-  descriptionMoved: "Kontrollbeskrivningen ställs in per bana under Kontrollbeskrivning på kartan och dras på arket.",
   strip: "Remsa för rullad karta",
   edge: "Kant",
   edges: { top: "Överkant", bottom: "Nederkant", left: "Vänster kant", right: "Höger kant" } as Record<string, string>,

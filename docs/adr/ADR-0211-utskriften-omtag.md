@@ -95,10 +95,33 @@ ställen och papperet redigerades i en ruta bredvid arket.
    (`page`, som banans tryckyta) och de vita ytorna; "Använd mallen" sätter banans tryckyta till mallens papper
    (`templateEdits`). Mallen kan användas på markerade banor eller alla banor i översikten.
 
+10. **Tillägg 2026-11-04 (grenen `utskrift-omtag-2`, ägarens återkoppling).** Ingen migration.
+    - *"1 Issue" i dev-överlägget:* en bana med kartbyte fick samma React-nyckel för sina två delar (`1||{}|1`) i översikten och
+      bland arken, eftersom delen saknades i arkets nyckel. Nyckeln har nu delen. Ett avvisat sparande som strax försöks igen
+      loggas som varning, inte fel. En bild som just laddats upp visas ur webbläsarens egen kopia tills dokumentet som pekar på
+      den är sparat (förut 404 i konsolen när ett annat konto redan laddat upp samma bild, beslut 5 i ADR-0197 står kvar).
+      E2E (`browserErrors`) fäller utskriftssidan på sidfel, `console.error` och svar ≥ 400.
+    - *Namnen:* "Layoutmall" (ADR-0183: flera kartor per ark, remsa för rullad karta) heter nu **"Kartor per ark"** med
+      förvalet "En bana per ark (tryckytan som i Purple Pen)" och står bredvid "Papper och kartram". Papperets mall (ADR-0197)
+      heter **"Mall för papperet"** både i panelen och i översikten (förut "Mallar för papperet", "Banans mall" och "Mall för
+      papperet"). Det är två olika saker och hjälpen säger det.
+    - *Sidan i 390 px:* ordningen är Färger för tryck, Skriv ut, Översikt, **Redigera arket**: arken först och panelerna efter
+      (på datorn från 1 100 px bredvid arken och kvar i bild när man rullar). Panelerna: "Papper och kartram", "Kartor per ark",
+      "Papperet: texter, bilder och klippning" och "Kontrollbeskrivning på kartan", var och en med högst en mening och "?".
+      Klippning, Vitt på utskriften, Uppgifter för texterna, Mitt bibliotek och fälten i Kartor per ark är hopfällda och öppna
+      från början bara när de har något. Förklaringarna som togs bort står i hjälpen (nya artiklar "Papper och kartram" och
+      "Kartor per ark").
+    - *Papper och kartram på arket* (ersätter "Inte gjort" nedan för ramen och papperet): papper, riktning, marginal och
+      tryckytan (automatisk eller fast ram) för arket som är öppet, för banan, Alla kontroller eller kartbytets del
+      (`SET_PRINT_AREA` med `part`), och kartbytets "Visa överlapp". "Flytta ramen på arket" visar ramens handtag: dra inne i
+      ramen för att flytta den över kartan (tryckytan blir fast och behåller papperet) och handtaget nere till höger för att
+      göra ramen mindre (`restrictToPageSize` av; ramen står mitt på papperet som i Purple Pen). Ändringarna går genom papperets
+      Ångra. Editorns flik Utskrift har bara länken till utskriften, kartbytets delväljare (kartan visar delen) och skalan; en
+      fast ram kan fortfarande dras på kartan där. .ppen som förut (`print-area`).
+
 ## Inte gjort (för senare)
 
-- Vridning av texter och bilder, och att flytta och ändra storleken på kartramen direkt på arket (ramen följer fortfarande
-  tryckytan i editorn). Papperet, riktningen och marginalen väljs fortfarande i editorns flik Utskrift; mallen bär dem.
+- Vridning av texter och bilder. Ramen kan inte flyttas bort från papperets mitt (Purple Pens tryckyta har ingen plats för det).
 - Editorn (model space) ritar banan överst och lägger inte kartans färger över banan som förhandsvisningen och PDF:en.
 
 ## Följder

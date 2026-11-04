@@ -327,7 +327,8 @@ function FrameHandles({ frame, onChange }: { frame: SheetFrame; onChange: (chang
       data-testid="paper-frame-move" aria-label={text.frame.move} onPointerDown={down("MOVE")} {...handlers} />
     <rect x={shown.x} y={shown.y} width={shown.width} height={shown.height} fill="none" stroke="#1d6fd1" strokeWidth={0.6} strokeDasharray="3 1.5"
       pointerEvents="none" data-testid="paper-frame-outline" />
-    <rect x={shown.x + shown.width - 3} y={shown.y + shown.height - 3} width={6} height={6} fill="#1d6fd1" stroke="#fff" strokeWidth={0.4}
+    {/* Handtaget står helt innanför ramen: en ram utan marginal går ut till papperets kant, och utanför arket träffas inget. */}
+    <rect x={shown.x + shown.width - 7} y={shown.y + shown.height - 7} width={7} height={7} fill="#1d6fd1" stroke="#fff" strokeWidth={0.4}
       style={{ cursor: "nwse-resize", touchAction: "none" }} data-testid="paper-frame-resize" aria-label={text.frame.resize}
       onPointerDown={down("RESIZE")} {...handlers} />
   </g>;

@@ -93,7 +93,7 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
         data-testid="paper-image-file" aria-label={text.add.IMAGE} />
     </div>}
     <h3>{effective.items.length === 0 ? text.items : text.editor.layers}</h3>
-    {effective.items.length === 0 ? <p className={styles.muted}>{text.none}</p> : <>
+    {effective.items.length === 0 ? <p className={styles.muted} role="note">{text.none}</p> : <>
       <ul className={styles.paperRows} data-testid="paper-items">
       {effective.items.map(row => <li key={row.item.id} data-id={row.item.id} data-source={row.source} data-testid="paper-item-row"
         data-selected={item?.item.id === row.item.id ? "" : undefined} data-locked={row.item.locked ? "" : undefined} data-hidden={row.item.hide ? "" : undefined}>

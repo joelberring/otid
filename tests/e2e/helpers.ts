@@ -399,6 +399,8 @@ export function browserErrors(page: Page, path: RegExp): { check: (what?: string
   const errors: string[] = [];
   const here = () => { try { return path.test(new URL(page.url()).pathname); } catch { return false; } };
   page.on("pageerror", error => { if (here()) errors.push(`pageerror: ${error.message}`); });
-  page.on("console", message => { if (message.type() === "error" && here()) errors.push(`console: ${message.text()}`); });
+  // "Failed to load resource" säger inte vilken; svaret med adressen tas med i stället.
+  page.on("console", message => { if (message.type() === "error" && here() && !message.text().startsWith("Failed to load resource")) errors.push(`console: ${message.text()}`); });
+  page.on("response", response => { if (response.status() >= 400 && here()) errors.push(`${response.status()} ${new URL(response.url()).pathname}`); });
   return { check: (what = "sidan") => expect(errors, `fel i webbläsaren på ${what}`).toEqual([]) };
 }

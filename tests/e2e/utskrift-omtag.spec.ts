@@ -18,8 +18,8 @@ async function shot(page: Page, name: string, part?: Locator) {
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForTimeout(400);
-    if (part) { await part.scrollIntoViewIfNeeded(); await part.screenshot({ path: `${shots}/utskrift-omtag-${name}-${width}.png` }); }
-    else await page.screenshot({ path: `${shots}/utskrift-omtag-${name}-${width}.png`, fullPage: width === 390 });
+    if (part) { await part.scrollIntoViewIfNeeded(); await part.screenshot({ path: `${shots}/2-${name}-${width}.png` }); }
+    else await page.screenshot({ path: `${shots}/2-${name}-${width}.png`, fullPage: width === 390 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${name} i ${width} px`).toBeLessThanOrEqual(0);
   }
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -109,6 +109,18 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await expect(owner.locator("[id^=print-sheet-][data-open]")).toHaveCount(1);
   await shot(owner, "oversikt");
 
+  // ADR-0211 tillägg: Redigera arket har arken först och panelerna bredvid; varje panel har högst en mening (och "?").
+  const editorPanels = owner.getByTestId("print-editor-panels");
+  const sheetBox = (await sheet.boundingBox())!, panelsBox = (await editorPanels.boundingBox())!;
+  expect(panelsBox.x).toBeGreaterThan(sheetBox.x + sheetBox.width - 1);
+  expect(await editorPanels.evaluate(node => [...node.querySelectorAll(":scope > section")].map(section =>
+    [...section.querySelectorAll(":scope > p")].filter(p => !p.getAttribute("role")).length))).toEqual([1, 1, 1, 1]);
+  await expect(editorPanels.locator(":scope > section h2")).toHaveText(["Papper och kartram", "Kartor per ark", "Papperet: texter, bilder och klippning",
+    "Kontrollbeskrivning på kartan"]);
+  // De sällan använda delarna är hopfällda.
+  for (const fold of ["paper-clip-fold", "paper-white-fold", "paper-values-fold", "paper-library-fold"]) await expect(owner.getByTestId(fold)).not.toHaveAttribute("open", "");
+  await expect(owner.getByTestId("layout-template-select").locator("option:checked")).toHaveText("En bana per ark (tryckytan som i Purple Pen)");
+
   // Text: läggs till, dubbelklick skriver i den på arket med en variabel.
   const panel = owner.getByTestId("paper-space");
   await panel.getByTestId("paper-add-TEXT").click();
@@ -144,7 +156,8 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await panel.getByTestId("paper-image-file").setInputFiles({ name: "logga.png", mimeType: "image/png", buffer: png() });
   await expect(sheet.locator("[data-testid=paper-item][data-kind=IMAGE]")).toHaveCount(1, { timeout: 30_000 });
 
-  // Vitt på utskriften: en rektangel; hörnen dras på arket.
+  // Vitt på utskriften (hopfällt): en rektangel; hörnen dras på arket.
+  await panel.getByTestId("paper-white-fold").locator("summary").click();
   await panel.getByTestId("paper-white-add-RECT").click();
   await expect(sheet.getByTestId("print-white-area")).toHaveCount(1, { timeout: 15_000 });
   await expect(sheet.getByTestId("paper-white-handles")).toBeVisible();
@@ -163,6 +176,9 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await panel.getByTestId("paper-template-name").fill("Natt A4");
   await panel.getByTestId("paper-template-save").click();
   await expect.poll(async () => (await doc()).event.paperTemplates?.map(row => row.name)).toEqual(["Natt A4"]);
+  // Samma sak med samma namn i panelen och i översikten.
+  await expect(panel.getByRole("combobox", { name: "Mall för papperet" })).toHaveValue(/^t/);
+  await expect(owner.getByTestId("print-overview").getByRole("combobox", { name: "Mall för papperet" })).toHaveValue(/^t/);
   await owner.getByTestId("print-output").getByLabel("Alla", { exact: true }).check();
   await expect(cards).toHaveCount(courses.length + 1);
   await owner.getByTestId("print-overview-apply-all").click();
@@ -173,6 +189,36 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await expect(cards.filter({ has: owner.getByTestId("print-card-template") })).toHaveCount(courses.length, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").locator("[data-testid=paper-item][data-kind=RECT]")).toHaveCount(courses.length, { timeout: 30_000 });
   await shot(owner, "mallen-pa-alla");
+
+  // Kartramen på arket (ADR-0211 tillägg): flytta den över kartan och gör den mindre; "Automatisk igen" tar bort ramen.
+  type Area = { automatic: boolean; restrictToPageSize: boolean; rect?: { minX: number; maxX: number } };
+  const area = async () => ((await doc()).courses as unknown as { id: string; printArea?: Area }[]).find(row => row.id === "1")?.printArea;
+  const sheetPaper = owner.getByTestId("sheet-paper");
+  await expect(sheetPaper).toHaveAttribute("data-course", "1");
+  await sheetPaper.getByTestId("sheet-frame-edit").check();
+  const move = owner.getByTestId("paper-frame-move").first();
+  await move.scrollIntoViewIfNeeded();
+  const frameBox = (await move.boundingBox())!;
+  await owner.mouse.move(frameBox.x + frameBox.width / 2, frameBox.y + frameBox.height / 2);
+  await owner.mouse.down();
+  await owner.mouse.move(frameBox.x + frameBox.width / 2 + 30, frameBox.y + frameBox.height / 2, { steps: 5 });
+  await owner.mouse.up();
+  await expect.poll(async () => (await area())?.automatic, { timeout: 30_000 }).toBe(false);
+  await expect(sheetPaper.getByTestId("sheet-paper-area-manual")).toBeChecked();
+  const resize = owner.getByTestId("paper-frame-resize").first();
+  await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
+  await resize.scrollIntoViewIfNeeded();
+  const handleBox = (await resize.boundingBox())!;
+  await owner.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await owner.mouse.down();
+
+  await owner.mouse.move(handleBox.x - 40, handleBox.y - 30, { steps: 5 });
+  await owner.mouse.up();
+  await expect.poll(async () => (await area())?.restrictToPageSize, { timeout: 30_000 }).toBe(false);
+  await shot(owner, "kartramen", owner.locator("[id^=print-sheet-][data-target]").first());
+  await sheetPaper.getByTestId("sheet-paper-reset").click();
+  await expect.poll(async () => (await area()) ?? null, { timeout: 30_000 }).toBeNull();
+  await expect(owner.getByTestId("paper-frame-move")).toHaveCount(0);
   errors.check("utskriftssidan");
 
   // PDF:en för kontorsskrivaren har ringklippen (öppna bågar "c S") och den vita ytan.
@@ -236,7 +282,7 @@ test("utskrift-omtag i telefonen: listan, tryck på ett element och dra det", as
     const read = ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: Doc } }).setting.document;
     return read.event.paperLayouts?.["1"]?.items?.find(item => item.kind === "NORTH_ARROW")?.at;
   }, { timeout: 30_000 }).not.toMatchObject({ corner: "TOP_RIGHT", x: 3, y: 30 });
-  if (shots) await phone.screenshot({ path: `${shots}/utskrift-omtag-telefon-390.png`, fullPage: true });
+  if (shots) await phone.screenshot({ path: `${shots}/2-telefon-390.png`, fullPage: true });
   errors.check("utskriftssidan i telefonen");
   await phoneContext.close();
 });

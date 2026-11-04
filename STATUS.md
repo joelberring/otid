@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Utskriften putsad (grenen utskrift-omtag-2, ADR-0211 beslut 10, ingen migration)
+- Dev-överläggets "1 Issue": dubbla React-nycklar för en banas kartbytesdelar i översikten. Rättat; utskriftens E2E fäller nu på sidfel, `console.error` och svar ≥ 400 (`browserErrors`), vilket också hittade en 404 för en nyss uppladdad bild (visas nu ur webbläsarens kopia).
+- "Layoutmall" heter "Kartor per ark" och står bredvid nya "Papper och kartram"; "Mall för papperet" heter likadant i panelen och översikten.
+- Redigera arket: arken först, panelerna bredvid (datorn) eller under (telefonen); en mening och "?" per panel; Klippning, Vitt, Uppgifter och Mitt bibliotek hopfällda.
+- Papper, riktning, marginal, tryckyta och överlapp på arket; kartramen flyttas och ändrar storlek på arket. Editorns flik Utskrift länkar dit.
+- Verifierat: enhetstester (web, nya `course-setting-sheet-frame`), lint, typecheck, Playwright `utskrift-omtag` lokalt; övriga utskriftsspecar i CI.
+
 ### 2026-11-04 – Utskriften om (grenen utskrift-omtag, ADR-0211, ingen migration)
 - Ringklippen över detaljer följer med till förhandsvisningen och PDF:en (`printSheetGroups` fick aldrig detaljgapen; nu `printDetailGaps` i servern och samma Worker som editorn).
 - Sträckorna slutar 0,35 mm utanför ringar, start och mål (ISOM 705; Purple Pen har inget mellanrum), inställbart under Utseende.

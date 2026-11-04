@@ -44,6 +44,9 @@ av den andra sidan syns.
    delen på kartan (med överlappet) och dess ram; papper, riktning, marginal och ramen ändrar då delens tryckyta; "Som banans
    igen" tar bort den. "Visa överlapp" sparas för banan.
 
+9. **ADR-0211 (2026-11-04):** delarna får ett kort var i utskriftssidans översikt; papperet, dubbelsidigt och överlappet är
+   oförändrade. Sträckorna slutar nu ett mellanrum utanför ringarna (ADR-0211 beslut 2), också vid kartbytet.
+
 ## Följder
 
 - .ppen: delarnas tryckytor, kartbytena och `part-options` som i Purple Pen. Överlappet och delarnas papper är O-Tid:s

@@ -93,17 +93,18 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     title: "Papperet: texter, bilder, skalstock och nordpil",
     views: ["CS_PRINT_PAGE", "CS_PRINT"],
     body: [
-      "På utskriftssidan finns ”Papperet: texter, bilder och klippning” för vald bana. Det står på papperet, inte på kartan, och syns inte i banläggningen.",
+      "Klicka på ett kort i översikten för att redigera arket. Det som står på papperet syns inte i banläggningen.",
       [
-        "”+ Text”: skriv texten. ”Infoga variabel” lägger in t.ex. {bana}, {längd} eller {datum}, som fylls i per bana.",
-        "”+ Bild …”: t.ex. klubbens logotyp. PNG, JPG eller SVG, högst 2 MB. ”Täckning (%)” gör den svagare.",
-        "”+ Skalstock” och ”+ Nordpil”: skalstocken räknas ur banans utskriftsskala.",
-        "Dra elementet på arket och dra i hörnet nere till höger för storleken. Pilarna flyttar 1 mm (Skift 5 mm), Delete tar bort.",
-        "”Hörn” och ”I förhållande till”: ”Kartramen” eller ”Arket”. Elementet står kvar i hörnet när papperet ändras.",
-        "”Sidor”: en bana på flera sidor får elementet på ”Första sidan” (förval) eller på ”Alla sidor”. Beskrivningen står bara på första sidan.",
+        "”+ Text”, ”+ Bild …”, ”+ Skalstock”, ”+ Nordpil”, ”+ Ram” och ”+ Linje” lägger till element.",
+        "Dubbelklicka på en text för att skriva i den på arket. ”Infoga variabel” lägger in t.ex. {bana} eller {datum}.",
+        "Dra elementet, dra i hörnet nere till höger för storleken. Pilarna flyttar 1 mm (Skift 5 mm), Delete tar bort.",
+        "”Fäst mot kanter och mittlinjer”: elementen fäster mot ramen, marginalen och varandra. Håll Alt för att dra fritt.",
+        "Skift-klick eller en ruta på tomt papper markerar flera. ”Justera markerade” ställer dem i linje.",
+        "Lagren: ”Upp” och ”Ned” ändrar ordningen, ”Lås” och ”Dölj” skyddar eller gömmer ett element.",
+        "”Ångra” och ”Gör om”, eller Ctrl+Z och Ctrl+Y.",
         "”Uppgifter för texterna”: datum och ekvidistans som ska stå i {datum} och {ekvidistans}."
       ],
-      "I .ppen blir texterna Purple Pens textobjekt och bilderna bildobjekt. Skalstock, nordpil, täckning och klippning stannar i O-Tid. Mallar och klippning: [Mallar och klippning av kartan](#papperets-mallar)."
+      "I .ppen blir texterna Purple Pens textobjekt och bilderna bildobjekt. Ramar, linjer, skalstock, nordpil och vita ytor stannar i O-Tid. Mallar: [Mallar och klippning av kartan](#papperets-mallar)."
     ]
   },
   {
@@ -111,7 +112,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     title: "Mallar för papperet och klippning av kartan",
     views: ["CS_PRINT_PAGE"],
     body: [
-      "En mall är papperets element, klippning och beskrivningens plats under ett namn. Banorna ärver mallen.",
+      "En mall är papperet, riktningen och marginalen, elementen, klippningen, de vita ytorna och beskrivningens plats under ett namn. Banorna ärver mallen.",
       [
         "”Spara banans papper som mall” och välj den under ”Banans mall” på de andra banorna.",
         "I översikten: markera banorna och använd mallen på dem, eller ”Använd på alla banor”.",
@@ -120,7 +121,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”Spara mallen i mitt bibliotek”: mallen finns sedan under ”Mitt bibliotek (alla mina tävlingar)”. ”Hämta” tar in den i en annan tävling."
       ],
       "”Klippning av kartan” begränsar hur mycket av kartan som skrivs ut, utan att ändra kartan. Välj ”Rektangel” eller ”Polygon” och dra hörnen på arket.",
-      "”Utanför” visar ”Vitt” eller ”Tonad karta” runt klippningen. PDF:en klipps likadant.",
+      "”Utanför” visar ”Vitt” eller ”Tonad karta” runt klippningen. ”Vitt på utskriften” gör egna ytor vita; dra hörnen på arket.",
       [
         "Banan står alltid hel, också utanför klippningen: kontroller, start, mål, sträckor och nummer.",
         "Markeringar (förbjudna områden, gränser, vätska och andra små symboler) står bara innanför.",

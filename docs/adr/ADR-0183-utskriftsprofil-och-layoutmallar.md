@@ -74,6 +74,10 @@ kod är tagen ur PDFsharp eller andra tredjepartsbibliotek; idéerna kommer ur m
      i regeln är "Blå linje och punkt"; regeln för svart och blått kommer från sidan om baninritning, inte skogssidan; banans
      violett har inget övertryck (sidorna säger inget om övertryck).
 
+8. **Ändrat av ADR-0211 (2026-11-04).** Banans plats i färgordningen (beslut 7, "under brunt, svart och 100 % blå") går nu
+   efter normen (ISOM eller ISSprOM) med övre och undre lila och övertryck på färgerna över banan; BL:s tabell är kvar som
+   källa till CMYK. Profilpanelen och förslaget är ett flöde, "Färger för tryck" (ADR-0211 beslut 3 och 6).
+
 **Konsekvenser.** Arrangören kan rätta färgerna för sin skrivare och tryckeriet utan OCAD. Webbläsarens utskrift är fortsatt
 ett utkast med skärmens färger; profilens dekorfärger och övertryck syns som data och i förhandskontrollen men görs först i
 steg 65. Profilerna och mallarna gör dokumentet större (logotyp högst 300 kB per mall, högst 50 profiler och 50 mallar).

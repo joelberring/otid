@@ -17,9 +17,9 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
         "Skriv namn och datum på ”Mina tävlingar”, välj ”Träning” och tryck på ”Skapa tävling”. Se [Skapa en tävling](#skapa-tavling).",
         "Öppna ”Banläggning” och ladda upp kartfilen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",
         "Tryck på ”Börja med en tom banläggning” (eller ”Läs in .ppen” om banan finns i Purple Pen).",
-        "Tryck på ”Ny bana”. Välj ”Kontroll” och klicka ut kontrollerna, sedan ”Start” och ”Mål”. Se [Kontroller och banor](#kontroller-banor).",
+        "Tryck på ”Ny bana” och välj ”Skala för banan” i banans egenskaper. Klicka ut kontrollerna, start och mål. Se [Kontroller och banor](#kontroller-banor).",
         "Korridor, kurvbild eller annan form: fliken ”Träning”. Se [Träningsformer](#traning).",
-        "”Fil” → ”Utskrift av banor …” → ”Skriv ut”. Se [Utskrift och förhandsvisning](#utskrift).",
+        "”Fil” → ”Utskrift av banor …” → ”Skriv ut på skrivare”. Se [Utskrift och förhandsvisning](#utskrift).",
         "Skriv klassen i banans fält ”Klasser (som i Purple Pen, t.ex. H21, D21)”.",
         "”Fil” → ”Överför till tävlingen …”. Sedan kan ni läsa av. Se [Överför banorna](#overfor) och [Avläsning](#avlasning)."
       ] }
@@ -36,7 +36,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
         "Öppna ”Banläggning” och ladda upp samma kartfil som i Purple Pen. Se [Banläggningen och kartfilen](#banlaggning-start).",
         "Tryck på ”Läs in .ppen”. Bara IOF XML: ”Banor” → ”Läs in banfil”. Se [Purple Pen, OCAD och IOF XML](#purple-pen).",
         "Gå igenom fliken ”Varningar” och fliken ”Beskrivning”. Se [Varningar](#varningar).",
-        "”Fil” → ”Utskrift av banor …”: förhandsvisning, BL-färger och PDF. Se [PDF för tryck](#pdf-tryck) och [BL-färger](#bl-farger).",
+        "”Fil” → ”Utskrift av banor …”: ”Färger för tryck”, en mall för alla banor och ”Skapa PDF för tryckeriet”. Se [PDF för tryck](#pdf-tryck).",
         "”Fil” → ”Överför till tävlingen …”: banorna och varianterna blir tävlingens. Se [Överför banorna](#overfor).",
         "Fortsätt med klasser, anmälda och lottning i arbetsytan. Se [Start och lottning](#start).",
         "Ska banorna tillbaka till Purple Pen: ”Fil och versioner …” → ”Ladda ned .ppen”."

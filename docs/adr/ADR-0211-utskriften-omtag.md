@@ -65,6 +65,42 @@ ställen och papperet redigerades i en ruta bredvid arket.
    som avstånd från kontrollen i kartans mm (`numberDeltaX/Y`) och ändrar dem inte när banans skala ändras (bara när kartan
    skalas om, ChangeEvent.ChangeMapFile). O-Tid gör likadant: numret står kvar.
 
+6. **Färger för tryck i ett flöde.** De två avsnitten ("Förslag för BL skog" och "Färger och tryck (utskriftsprofil)") gjorde
+   samma sak: korten sätter en BL-rad per kartfärg (`colorDecisions`), tabellen en egen rad per färg (`mapColors`), och en egen
+   rad går före BL-raden (`mapColorAdjust`). Nu ett avsnitt "Färger för tryck": en rad överst med "Färgprofil", status
+   ("Godkänd", "3 färger att bekräfta"), "Redigera färger" och "Ny profil"; hela flödet visas medan profilen inte är godkänd.
+   I flödet: en rad om vad som bestäms och att kartfilen aldrig ändras, banans färg (CMYK, dekorfärg, övertryck),
+   färgordningen (beslut 3: normen, "Kontrollnummer och texter överst"), förslagskorten och sist "Justera färger för hand" med
+   samma värden per färg som korten sätter (förslagets CMYK visas, en ändring blir en egen rad och kortet visar "Ändrad för
+   hand"; ett beslut på kortet tar bort färgens egna rad). JSON, källan och förhandskontrollen ligger under "Mer". Allt sparas
+   genast i tävlingens kopia av profilen (en färdig profil kopieras först).
+7. **Sidans upplägg.** Överst färgerna och "Skriv ut" (vad som skrivs ut: banor eller en karta per löpare, vilka banor; "Skriv
+   ut på skrivare" och "Skapa PDF för tryckeriet" bredvid varandra med en rad var, jobben och "Ladda ned" i samma ruta), sedan
+   översikten och sist redigeringen av arken. Översikten (`sheetCards`) har ett kort per ark (bana, kartbytets del, sida) med
+   bild, skala, papper, mall och märken ("Följer mallen …", "Ändrad för banan", "Beskrivningen täcker kartan", "Banan går
+   utanför ramen"); ett klick öppnar arket, kryssrutorna ger "Skriv ut markerade" och "Använd mallen på markerade banor", och
+   "Använd på alla banor". På telefonen en lista.
+8. **Papperet direkt på arket** (ändrar ADR-0197 beslut 10). Markera med klick, Skift-klick eller en ruta på tomt papper;
+   dra en eller flera (gruppen); fästning mot kartramens, arkets och marginalens kanter och mittlinjer och mot andra element
+   med synliga hjälplinjer (1,5 mm, Alt stänger av) och ett valbart rutnät (1 eller 5 mm, `course-setting-paper-snap.ts`);
+   "Justera markerade" (vänster, mitten, höger, överkant, mitten, nederkant; ett element mot kartramen) och fördela (tre eller
+   fler); dubbelklick på en text skriver i den på arket med variablerna nära markeringen; lagerlistan med ordning (banans egna
+   element), "Lås" och "Dölj" (`locked`, `hide`); "Ångra" och "Gör om" (Ctrl+Z, Ctrl+Skift+Z, Ctrl+Y). Nya element: `RECT`
+   (ram eller ruta: bredd, höjd, linjens bredd, färg #rrggbb, fyllning, rundade hörn) och `LINE`. PDF:en ritar färgerna som
+   CMYK (svart blir rent K). "Vitt på utskriften" (`whiteAreas`: rektanglar och polygoner i ramens mm, flera, hörnen dras på
+   arket) skrivs vitt över kartan och under banan; kartans färger över banan (beslut 3) och markeringarna klipps bort i ytorna
+   (jämn–udda), punktmarkeringar i en yta står inte alls, banan står hel. Finns bredvid "Behåll bara innanför" (klippningen).
+   På 390 px finns markering och ark nere på skärmen som förut; dragning fungerar med finger (`touch-action: none`).
+9. **Mallen bär papperet.** En mall för papperet (`PaperTemplate`) har nu också papperets storlek, riktning och marginal
+   (`page`, som banans tryckyta) och de vita ytorna; "Använd mallen" sätter banans tryckyta till mallens papper
+   (`templateEdits`). Mallen kan användas på markerade banor eller alla banor i översikten.
+
+## Inte gjort (för senare)
+
+- Vridning av texter och bilder, och att flytta och ändra storleken på kartramen direkt på arket (ramen följer fortfarande
+  tryckytan i editorn). Papperet, riktningen och marginalen väljs fortfarande i editorns flik Utskrift; mallen bär dem.
+- Editorn (model space) ritar banan överst och lägger inte kartans färger över banan som förhandsvisningen och PDF:en.
+
 ## Följder
 
 - PDF-jobben räknar detaljgapen och hindren för numren på kartan; det tar några tiotal millisekunder per karta.

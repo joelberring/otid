@@ -88,6 +88,10 @@ Steg 1 (hittbarhet) flyttade kontrollbeskrivningen dit; det här är steg 2.
       "Visa markeringar utanför utsnittet" (`clip.showMarkings`, förval av) visar alla som förut.
     - *Förvald plats* i ett hörn av kartramen behålls.
 
+12. **Ändrat av ADR-0211 (2026-11-04).** Beslut 10 ersätts av redigeringen direkt på arket (ADR-0211 beslut 8: markera
+    flera, fästning med hjälplinjer, justera, lager, skriv i texten på arket, ram, linje och "Vitt på utskriften"), och
+    mallarna (beslut 7) bär papperets storlek, riktning, marginal och de vita ytorna (ADR-0211 beslut 9).
+
 ## Följder
 
 - Steg 1:s `PaperDescriptions` och förankringen flyttade till `paper-items.ts` och `paper-anchor.ts`; `paper-layout.ts`

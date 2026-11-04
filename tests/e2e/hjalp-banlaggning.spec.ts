@@ -61,7 +61,7 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   await expect(summaries(owner).nth(0)).toHaveText("Utskrift och förhandsvisning");
   await expect(summaries(owner).nth(1)).toHaveText("Kontrollbeskrivningen på kartan");
   await expect(summaries(owner).nth(2)).toHaveText("Papperet: texter, bilder, skalstock och nordpil");
-  await expect(summaries(owner).nth(3)).toHaveText("Färger för tryckeriet (BL-förslaget)");
+  await expect(summaries(owner).nth(3)).toHaveText("Färger för tryck");
   await expect(summaries(owner).nth(4)).toHaveText("PDF för tryck och spegelvänd karta");
   await expect(summaries(owner)).toContainText(["Sparande, versioner och ångra"]);
   await shot(owner, "editor-utskrift");

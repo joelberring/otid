@@ -40,6 +40,11 @@ export interface PaperInteraction {
 
 const KEY_STEP_MM = 1;
 
+/** Fångar pekaren (mus, finger, penna) för dragningen; en pekare som redan släppts kan inte fångas och dras då bara så länge den är över elementet. */
+function capture(element: Element, pointerId: number): void {
+  try { element.setPointerCapture(pointerId); } catch (error) { console.warn("Pekaren kunde inte fångas", error); }
+}
+
 function Part({ part, imageUrl }: { part: PaperPart; imageUrl: (sha256: string) => string }) {
   switch (part.kind) {
     case "rect": return <rect x={part.x} y={part.y} width={part.width} height={part.height} rx={part.radius} ry={part.radius}
@@ -80,7 +85,7 @@ export function PaperItemsLayer({ sheet, interaction }: { sheet: Sheet; interact
   const marqueeHandlers = active.editable ? {
     onPointerDown: (event: PointerEvent<SVGRectElement>) => {
       if (event.button !== 0) return;
-      event.currentTarget.setPointerCapture(event.pointerId);
+      capture(event.currentTarget, event.pointerId);
       const at = paperPoint(event);
       setMarquee({ x0: at.x, y0: at.y, x1: at.x, y1: at.y });
     },
@@ -145,7 +150,7 @@ function PaperItemView({ sheet, item, interaction, selected, onGuides, onEdit }:
     // Skift-klick lägger till eller tar bort ur markeringen; ett klick på ett markerat behåller gruppen.
     if (event.shiftKey) { interaction.onSelect({ course: item.course, id: item.id }, true); return; }
     if (!selected) interaction.onSelect({ course: item.course, id: item.id });
-    event.currentTarget.setPointerCapture(event.pointerId);
+    capture(event.currentTarget, event.pointerId);
     const at = paperPoint(event);
     start.current = { x: at.x, y: at.y, mode };
     setDrag({ dx: 0, dy: 0, dw: 0, dh: 0 });
@@ -279,7 +284,7 @@ function PointHandles({ frame, points, onPoint, testId, handleId, label }: { fra
       pointerEvents="none" />
     {shown.map((p, index) => <rect key={index} x={frame.x + p.x - 2} y={frame.y + p.y - 2} width={4} height={4} fill="#1d6fd1" stroke="#fff" strokeWidth={0.3}
       style={{ cursor: "move", touchAction: "none" }} data-testid={handleId} aria-label={label(index + 1)}
-      onPointerDown={event => { event.stopPropagation(); event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
+      onPointerDown={event => { event.stopPropagation(); event.preventDefault(); capture(event.currentTarget, event.pointerId);
         const at = paperPoint(event); setDrag({ index, x: at.x - frame.x, y: at.y - frame.y }); }}
       onPointerMove={event => { if (drag?.index !== index) return; const at = paperPoint(event); setDrag({ index, x: at.x - frame.x, y: at.y - frame.y }); }}
       onPointerUp={() => { if (drag?.index === index) onPoint?.(index, { x: round(drag.x), y: round(drag.y) }); setDrag(undefined); }}

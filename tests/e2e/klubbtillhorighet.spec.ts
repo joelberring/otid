@@ -7,7 +7,8 @@ import { createRace, daysFromToday, importClubDirectory, openStep, registerAccou
  * ADR-0209: klubbtillhörighet som användarflöde. Den som registrerar sig väljer OK Älvsjö-Örby; ingen har startat klubbytan, så
  * hen startar den och kopplar den till Eventor med klubbens nyckel (den falska Eventor). En medlem registrerar sig och väljer
  * klubben (adressen finns inte i Eventors lista), administratören bekräftar, medlemmen ser klubbarkivet, administratören bjuder
- * in medlemmen till en tävling "Från klubben", och efter tävlingsdagen läggs tävlingen i klubbarkivet där medlemmen ser den.
+ * in medlemmen till en tävling "Från klubben", och efter tävlingsdagen läggs tävlingen i klubbarkivet där medlemmen ser den och kan
+ * använda den igen (kartbanken är för alla medlemmar som förval) tills klubben väljer "Ledare och admin" under Vem ser vad.
  */
 const fixture = (name: string) => fileURLToPath(new URL(`../../fixtures/iof/${name}`, import.meta.url));
 
@@ -130,8 +131,24 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await entries.getByRole("link").filter({ hasText: `Klubbkvällen ${suffix}` }).click();
   await expect(member.getByTestId("entry-source-race")).toContainText(`Klubbkvällen ${suffix}`);
   await expect(member.getByTestId("course-file").first()).toBeVisible();
-  await expect(member.getByTestId("map-bank-closed")).toBeVisible();
+  // Kartbanken är för alla medlemmar som förval: medlemmen kan använda träningen igen.
+  await expect(member.getByRole("button", { name: "Använd igen" }).first()).toBeVisible();
+  await expect(member.getByTestId("map-bank-closed")).toHaveCount(0);
   await reviewScreenshots(member, "klubb-arkivets-traning");
   await fitsPhone(member);
+
+  // 6. Klubben väljer att kartorna inte delas med alla medlemmar: "Ledare och admin" under Vem ser vad.
+  await admin.goto(`/organizer/clubs/${clubId}#club`);
+  const access = admin.getByRole("region", { name: "Vem ser vad" });
+  const mapBankChoice = access.getByRole("group", { name: "Kartbanken (kartfiler, Använd igen, nedladdning) får användas av" });
+  await expect(mapBankChoice.getByRole("radio", { name: "Alla medlemmar" })).toBeChecked();
+  await expect(mapBankChoice).toContainText("Välj Ledare och admin om kartorna inte ska delas med alla medlemmar.");
+  await reviewScreenshots(admin, "klubb-vem-ser-vad");
+  await mapBankChoice.getByRole("radio", { name: "Ledare och admin" }).check();
+  await access.getByRole("button", { name: "Spara" }).click();
+  await expect(access.getByRole("status")).toHaveText("Vem ser vad är sparat.");
+  await member.reload();
+  await expect(member.getByTestId("map-bank-closed")).toBeVisible();
+  await expect(member.getByRole("button", { name: "Använd igen" })).toHaveCount(0);
   expect(raceId).toMatch(/^[0-9a-f-]{36}$/);
 });

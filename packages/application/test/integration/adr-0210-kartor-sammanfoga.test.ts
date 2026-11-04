@@ -73,8 +73,7 @@ async function archive() {
   expect(imported.status).toBe("ok");
   const adminAccount = await registerTestAccount(db, undefined, NOW);
   const reader = await registerTestAccount(db, undefined, NOW);
-  // ADR-0209: kartbanken är för ledare och administratörer i en ny klubb; "läsaren" här är ledare.
-  for (const [account, role] of [[adminAccount, "ADMIN"], [reader, "LEADER"]] as const) {
+  for (const [account, role] of [[adminAccount, "ADMIN"], [reader, "READER"]] as const) {
     await inviteClubMember(db, { ...owner.proof, clubId, request: { formatVersion: 1, requestId: randomUUID(), email: account.email, role } }, NOW);
     await listMyClubs(db, account.proof, NOW);
   }

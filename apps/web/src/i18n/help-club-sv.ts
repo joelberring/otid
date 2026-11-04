@@ -47,7 +47,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "Slutar någon i klubben i Eventor försvinner det som Eventor gav vid nästa hämtning. Bekräftelser för hand står kvar."
       ],
       "Rollerna är ”Medlem”, ”Ledare”, ”Administratör” och ”Ägare”. Ledare sätts av en administratör i listan under ”Medlemmar” eller när man bjuder in.",
-      "Under ”Vem ser vad” väljer klubben vem som ser träningsarkivet (förval ”Alla medlemmar”) och vem som får använda kartbanken (förval ”Ledare och admin”). Ägare och administratörer ser och använder alltid allt. För medlemmar och ledare gäller kartans egna rättigheter också; den strängaste vinner."
+      "Under ”Vem ser vad” väljer klubben vem som ser träningsarkivet och vem som får använda kartbanken (kartfiler, Använd igen, nedladdning). Förvalet för båda är ”Alla medlemmar”; välj ”Ledare och admin” om kartorna inte ska delas med alla medlemmar. Ägare och administratörer ser och använder alltid allt. För medlemmar och ledare gäller kartans egna rättigheter också; den strängaste vinner."
     ]
   },
   {

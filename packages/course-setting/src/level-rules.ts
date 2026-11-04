@@ -31,6 +31,8 @@ export const LEVEL_LIMITS = {
     searchMeters: 250
   },
   leg: {
+    /** Ett vägval inom så här mycket av det bästa är ett verkligt vägval (ägarens önskemål 2026-11-04). */
+    closeAlternative: 0.1,
     /** Vägen räknas som längs en ledstång inom så här långt från den. */
     followMeters: 12,
     /** Vägen mäts var 5:e meter. */

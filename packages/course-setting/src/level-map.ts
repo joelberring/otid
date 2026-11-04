@@ -38,6 +38,8 @@ export interface LevelMap {
   readonly contours: readonly { readonly a: Point; readonly b: Point; readonly weight: number }[];
   readonly contourGrid: ReadonlyMap<number, readonly number[]>;
   readonly open: readonly { readonly rings: readonly (readonly Point[])[]; readonly box: Box }[];
+  /** Ändarna på väg- och stiglinjerna (502–508), för korsningarna i stignätet. */
+  readonly pathEnds: readonly { readonly at: Point; readonly feature: number }[];
 }
 
 interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
@@ -78,6 +80,7 @@ export function prepareLevelMap(map: ParsedMap, sprint = false): LevelMap {
   if (known) return known;
   const scale = map.scale > 0 ? map.scale : 15000;
   const segments: LevelSegment[] = [], objects: LevelObject[] = [], contours: LevelMap["contours"][number][] = [], open: LevelMap["open"][number][] = [];
+  const pathEnds: { at: Point; feature: number }[] = [];
   const segmentGrid = new Map<number, number[]>(), objectGrid = new Map<number, number[]>(), contourGrid = new Map<number, number[]>();
   const addSegments = (lines: readonly (readonly Point[])[], feature: number, kind: HandrailKind, main: number) => {
     for (const line of lines) for (let i = 1; i < line.length; i++) {
@@ -125,6 +128,7 @@ export function prepareLevelMap(map: ParsedMap, sprint = false): LevelMap {
       const box = boxOf(lines);
       const large = object.kind === "line" || Math.max(box.maxX - box.minX, box.maxY - box.minY) >= MIN_EDGE_AREA_MM;
       if (large) addSegments(lines, index, handrail, main);
+      if (main >= 502 && main <= 508 && object.kind === "line") for (const line of lines) if (line.length > 1) pathEnds.push({ at: line[0]!, feature: index }, { at: line[line.length - 1]!, feature: index });
     }
     const size = (lookup?.by === "NUMBER" ? SIZE_BY_SYMBOL[main] : undefined) ?? (d ? SIZE_BY_DESCRIPTION[d] : undefined);
     if (!size || size === "LINE") return;
@@ -135,7 +139,7 @@ export function prepareLevelMap(map: ParsedMap, sprint = false): LevelMap {
       if (Math.max(box.maxX - box.minX, box.maxY - box.minY) <= MAX_LOOP_MM && lines[0]) addObject({ at: centroid(lines[0]), ring: lines[0], size, d, code: symbol.code.text, name: symbol.name });
     }
   });
-  const prepared: LevelMap = { scale, segments, segmentGrid, objects, objectGrid, contours, contourGrid, open };
+  const prepared: LevelMap = { scale, segments, segmentGrid, objects, objectGrid, contours, contourGrid, open, pathEnds };
   if (!cache.has(map)) cache.set(map, new Map());
   cache.get(map)!.set(signature, prepared);
   return prepared;
@@ -212,6 +216,74 @@ export function contourLengthNear(prepared: LevelMap, at: Point, radius: number)
   return total;
 }
 
+const networkCache = new WeakMap<LevelMap, { points: Point[]; grid: Map<number, number[]> }>();
+
+/**
+ * Alla korsningar och förgreningar i väg- och stignätet (502–508), en gång per karta; punkter närmare än 3 m är samma
+ * korsning (flera linjedelar som möts i samma punkt).
+ */
+function networkJunctions(prepared: LevelMap) {
+  const known = networkCache.get(prepared);
+  if (known) return known;
+  const points: Point[] = [];
+  const grid = new Map<number, number[]>();
+  const same = 3 * 1000 / prepared.scale;
+  const add = (p: Point) => {
+    let duplicate = false;
+    near(grid, p, same, index => { if (Math.hypot(points[index]!.x - p.x, points[index]!.y - p.y) <= same) duplicate = true; });
+    if (duplicate) return;
+    insertBox(grid, { minX: p.x, minY: p.y, maxX: p.x, maxY: p.y }, points.length);
+    points.push(p);
+  };
+  const isPath = (segment: LevelSegment) => segment.main >= 502 && segment.main <= 508;
+  const inside = (t: number) => t > 0.01 && t < 0.99;
+  // Korsningar (X): två linjer som skär varandra inne på båda delarna.
+  prepared.segments.forEach((p, i) => {
+    if (!isPath(p)) return;
+    const box = boxOf([[p.a, p.b]]);
+    near(prepared.segmentGrid, { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 },
+      Math.max(box.maxX - box.minX, box.maxY - box.minY) / 2 + 0.2, j => {
+        const q = prepared.segments[j]!;
+        if (j <= i || !isPath(q) || q.feature === p.feature) return;
+        const hit = crossing(p, q);
+        if (hit && inside(hit.t) && inside(hit.u)) add(hit.at);
+      });
+  });
+  // Förgreningar (T): en linje slutar på en annan. Två linjer som bara möts ände mot ände är en och samma stig; tre eller
+  // fler ändar i samma punkt (Y) är en förgrening.
+  const endGrid = new Map<number, number[]>();
+  prepared.pathEnds.forEach((end, index) => insertBox(endGrid, { minX: end.at.x, minY: end.at.y, maxX: end.at.x, maxY: end.at.y }, index));
+  for (const end of prepared.pathEnds) {
+    const features = new Set<number>([end.feature]);
+    near(prepared.segmentGrid, end.at, 0.2, j => {
+      const q = prepared.segments[j]!;
+      if (!isPath(q) || q.feature === end.feature) return;
+      const hit = nearestOnSegment(end.at, q.a, q.b);
+      if (hit.distance > 0.2) return;
+      const length = Math.hypot(q.b.x - q.a.x, q.b.y - q.a.y);
+      const t = length === 0 ? 0 : Math.hypot(hit.point.x - q.a.x, hit.point.y - q.a.y) / length;
+      if (inside(t)) features.add(q.feature);
+    });
+    if (features.size >= 2) { add(end.at); continue; }
+    near(endGrid, end.at, 0.2, index => {
+      const other = prepared.pathEnds[index]!;
+      if (Math.hypot(other.at.x - end.at.x, other.at.y - end.at.y) <= 0.2) features.add(other.feature);
+    });
+    if (features.size >= 3) add(end.at);
+  }
+  const out = { points, grid };
+  networkCache.set(prepared, out);
+  return out;
+}
+
+/** Korsningarna i stignätet inom `radius` mm (index, samma för samma korsning). */
+export function networkJunctionsNear(prepared: LevelMap, at: Point, radius: number): number[] {
+  const { points, grid } = networkJunctions(prepared);
+  const out: number[] = [];
+  near(grid, at, radius, index => { if (Math.hypot(points[index]!.x - at.x, points[index]!.y - at.y) <= radius) out.push(index); });
+  return out;
+}
+
 /** Stigkorsningar (två tydliga ledstänger av väg- och stigslag som möts) inom `radius` mm, närmast först. */
 export function junctionsNear(prepared: LevelMap, at: Point, radius: number): Point[] {
   const list: LevelSegment[] = [];
@@ -227,6 +299,14 @@ export function junctionsNear(prepared: LevelMap, at: Point, radius: number): Po
     if (hit && Math.hypot(hit.x - at.x, hit.y - at.y) <= radius) out.push(hit);
   }
   return out.sort((a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y));
+}
+
+function crossing(p: LevelSegment, q: LevelSegment): { at: Point; t: number; u: number } | undefined {
+  const rx = p.b.x - p.a.x, ry = p.b.y - p.a.y, sx = q.b.x - q.a.x, sy = q.b.y - q.a.y;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-12) return undefined;
+  const t = ((q.a.x - p.a.x) * sy - (q.a.y - p.a.y) * sx) / den, u = ((q.a.x - p.a.x) * ry - (q.a.y - p.a.y) * rx) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? { at: { x: p.a.x + t * rx, y: p.a.y + t * ry }, t, u } : undefined;
 }
 
 function intersection(p: LevelSegment, q: LevelSegment): Point | undefined {

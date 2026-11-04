@@ -15,7 +15,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Normen bestämmer bara sidan; inom sidan gäller kartfilens ordning. Vitt över banan bara om det ligger över all svart och inget under banan ritas över det. Svart för odlad mark med rastren under banan. Vitt aldrig med övertryck eller multiplicering.
 - Skog: numren i undre lila som förval (kurvorna korsar dem); "Kontrollnummer och texter överst" som val. Sprint som förut.
 - Kontors-PDF:en: tävlingsprofilens färgordning och kartans färger över banan med /BM /Multiply; tryck-PDF:en oförändrad (/OP, /OPM 1). Rad om Acrobat och Förhandsvisning under knappen; förhandsvisningen ritar övre vitt utan multiplicering.
-- Verifierat: enhetstester (course-setting, print-pdf med påhittad gloria-, järnvägs- och kurvkarta och Ghostscript, web), lint, typecheck, Playwright `banlaggning-pdf`, `utskrift-omtag`, `hjalp-banlaggning`; före och efter med pdftoppm.
+- Verifierat: enhetstester (course-setting, print-pdf med påhittad gloria-, järnvägs- och kurvkarta och Ghostscript, web), lint, typecheck, hela Playwright-sviten i CI (`banlaggning-pdf` provar kontors-PDF:ens multiplicering); före och efter med pdftoppm.
 - Återstår: provtryck hos tryckeriet med ägarens karta.
 
 ### 2026-11-04 – Löparkopplade kartor (grenen lopar-kartor, ADR-0213, ingen migration)

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { nextGoogleIdentity } from "./fake-google";
 import { daysFromToday, logIn, password, registerAccount, today, unique, warmRoute } from "./helpers";
@@ -10,6 +11,7 @@ import { daysFromToday, logIn, password, registerAccount, today, unique, warmRou
  * dubblett, och remsan Mina klubbar och grupper överst i Mina tävlingar. Vid 1280 och 390 px.
  */
 const WIDTHS = [1280, 390] as const;
+const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 
 async function shot(page: Page, name: string) {
   const directory = process.env.E2E_SCREENSHOT_DIR;
@@ -64,6 +66,9 @@ test("kontomenyn finns på varje inloggad sida, och utloggningen frågar först 
   const raceId = await createRace(owner, `Kvällsträning ${suffix}`);
   await createRace(owner, `Förra veckan ${suffix}`, daysFromToday(-7));
   await owner.goto(`/admin/${raceId}/course-setting`);
+  await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles(fixture("maps/kartfil.omap"));
+  await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
+  await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
   await owner.getByRole("button", { name: "Börja med en tom banläggning" }).click();
   await expect(owner.getByRole("button", { name: /^Fil/ })).toBeVisible({ timeout: 60_000 });
 
@@ -160,7 +165,7 @@ test("kontomenyn finns på varje inloggad sida, och utloggningen frågar först 
   });
   expect(left).toEqual({ queued: 0, follow: null, sound: "off" });
   // Servern har avslutat sessionen.
-  expect((await owner.request.get("/api/organizer/session")).status()).toBe(401);
+  expect((await owner.request.get("/api/account")).status()).toBe(401);
 });
 
 test("Kom ihåg mig och Logga ut från alla enheter", async ({ browser }) => {
@@ -194,7 +199,7 @@ test("Kom ihåg mig och Logga ut från alla enheter", async ({ browser }) => {
   await laptop.goto("/konto");
   await laptop.getByRole("button", { name: "Logga ut från alla enheter" }).click();
   await expect(laptop.getByText("Du är utloggad på alla enheter.")).toBeVisible();
-  expect((await phone.request.get("/api/organizer/session")).status()).toBe(401);
+  expect((await phone.request.get("/api/account")).status()).toBe(401);
   await phone.reload();
   await expect(phone.getByRole("button", { name: "Logga in", exact: true })).toBeVisible();
 });

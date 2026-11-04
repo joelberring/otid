@@ -1,0 +1,78 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import type { ClubSummary, GroupSummary } from "@o-tid/contracts";
+import { myPlacesSv as text } from "../i18n/my-places-sv";
+import { clubArchiveSv } from "../i18n/club-archive-sv";
+import { trainingGroupSv } from "../i18n/training-group-sv";
+import { clubRequest } from "../lib/club-archive-client";
+import { groupRequest } from "../lib/training-group-client";
+import { NewClubForm } from "./club-archive/my-clubs";
+import { NewGroupForm } from "./training-group/my-groups";
+import styles from "./my-places-strip.module.css";
+
+/**
+ * Ägaren 2026-11-04: Mina klubbar (klubbytorna med arkivet, ADR-0194) och Mina grupper (träningsgrupperna, steg 68) som en
+ * remsa överst i Mina tävlingar, före tävlingarna: ett kort per klubbyta och grupp med namn, roll och antal, och en direktlänk.
+ * Ägare och administratörer ser hur många som väntar på bekräftelse. "Ny klubbyta" och "Ny grupp" är små åtgärder i remsan.
+ * Ankarna `#mina-klubbar` och `#mina-grupper` nås från kontomenyn på alla sidor.
+ */
+export function MyPlacesStrip() {
+  const [clubs, setClubs] = useState<ClubSummary[]>();
+  const [groups, setGroups] = useState<GroupSummary[]>();
+  const [creating, setCreating] = useState<"club" | "group">();
+
+  useEffect(() => {
+    let active = true;
+    void clubRequest("/api/organizer/clubs").then(result => {
+      if (active) setClubs(result.status === 200 ? (result.json as { clubs: ClubSummary[] }).clubs : []);
+    });
+    void groupRequest("/api/organizer/groups").then(result => {
+      if (active) setGroups(result.status === 200 ? (result.json as { groups: GroupSummary[] }).groups : []);
+    });
+    return () => { active = false; };
+  }, []);
+
+  // Kontomenyns länk till ett ankare här: rulla dit när listorna har kommit (sidan ritas först utan dem).
+  useEffect(() => {
+    if (!clubs || !groups) return;
+    const id = window.location.hash.slice(1);
+    if (id === "mina-klubbar" || id === "mina-grupper") document.getElementById(id)?.scrollIntoView({ block: "start" });
+  }, [clubs !== undefined && groups !== undefined]);
+
+  const loaded = clubs !== undefined && groups !== undefined;
+  const none = loaded && clubs.length === 0 && groups.length === 0;
+  const toggle = (kind: "club" | "group") => setCreating(current => current === kind ? undefined : kind);
+  return <div className={styles.strip} aria-label={text.label} role="group" data-testid="my-places">
+    {none && <p className={styles.none}>{text.noneAtAll} <Link href="/konto#konto-klubbar">{text.noneAtAllLink}</Link></p>}
+    <section id="mina-klubbar" className={styles.place} aria-labelledby="my-clubs-heading">
+      <h2 id="my-clubs-heading">{text.clubs}</h2>
+      <NewClubForm open={creating === "club"} onToggle={() => toggle("club")} />
+      {clubs && clubs.length > 0 && <ul className={styles.chips}>
+        {clubs.map(club => <li key={club.clubId}>
+          <Link className={styles.chip} href={`/organizer/clubs/${encodeURIComponent(club.clubId)}`}>
+            <strong>{club.name}</strong>
+            <span>{clubArchiveSv.roles[club.role]} · {clubArchiveSv.myClubs.entries(club.entries)}</span>
+            {(club.pending ?? 0) > 0 && <span className={styles.badge}>{text.pending(club.pending!)}</span>}
+          </Link>
+        </li>)}
+      </ul>}
+      {clubs && clubs.length === 0 && !none && <p className={styles.empty}>{text.noClubs}</p>}
+    </section>
+    <section id="mina-grupper" className={styles.place} aria-labelledby="my-groups-heading">
+      <h2 id="my-groups-heading">{text.groups}</h2>
+      <NewGroupForm open={creating === "group"} onToggle={() => toggle("group")} />
+      {groups && groups.length > 0 && <ul className={styles.chips}>
+        {groups.map(group => <li key={group.groupId}>
+          <Link className={styles.chip} href={group.role === "LEADER" ? `/organizer/groups/${encodeURIComponent(group.groupId)}` : `/g/${group.code}`}>
+            <strong>{group.name}</strong>
+            <span>{trainingGroupSv.myGroups.role[group.role]} · {trainingGroupSv.myGroups.sessions(group.sessions)}</span>
+          </Link>
+        </li>)}
+      </ul>}
+      {groups && groups.length === 0 && !none && <p className={styles.empty}>{text.noGroups}</p>}
+    </section>
+    {!loaded && <p className={styles.none} role="status">{text.loading}</p>}
+  </div>;
+}

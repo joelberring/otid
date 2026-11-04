@@ -11,6 +11,9 @@
  * `pnpm account:superadmin clubs import <fil.xml|->` – samma lista ur en fil (eller stdin), t.ex. hämtad på en annan dator.
  * `pnpm account:superadmin clubs unlink <eventor-id>` – tar bort en klubbytas koppling till klubben (fel klubbyta kopplad).
  * `pnpm account:superadmin clubs sync` – klubbarnas medlemslistor från Eventor som är äldre än ett dygn (görs också i underhållet).
+ * `pnpm account:superadmin google move <googles-eller-källkontots-adress> <målkontots-adress> [--delete-source-if-empty]` –
+ *   flyttar en Google-koppling till ett annat konto (ADR-0205 tillägg), t.ex. när inloggning med Google skapade en dubblett. Med
+ *   `--delete-source-if-empty` tas källkontot bort om det inte används. Skriver bara antal och adresser.
  *
  * I drift finns kommandot paketerat i webbens avbildning:
  *   docker compose -f docker-compose.prod.yml exec web node superadmin.mjs grant anna@klubb.se
@@ -25,12 +28,37 @@ import { anyStoredClubEventorKey, syncDueClubEventorMembers, unlinkOrganisationB
 import { EventorAdapterError } from "../packages/eventor/src/index.ts";
 import { setSuperadmin } from "../packages/application/src/superadmin.ts";
 import { markEmailVerifiedByCommand } from "../packages/application/src/email-verification.ts";
+import { moveGoogleLinkByCommand, type GoogleMoveCommandResult } from "../packages/application/src/google-link.ts";
 import {
   inlineMapContentRows, mapStorageQuota, mapStorageUsage, moveInlineMapContent, sweepMapContent
 } from "../packages/application/src/map-content.ts";
 
 const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl] | verify <e-postadress> | map-content status|move" +
-  " | clubs refresh [--force] | clubs import <fil.xml|-> | clubs unlink <eventor-id> | clubs sync";
+  " | clubs refresh [--force] | clubs import <fil.xml|-> | clubs unlink <eventor-id> | clubs sync" +
+  " | google move <googles-eller-källkontots-adress> <målkontots-adress> [--delete-source-if-empty]";
+
+/** `google move`: argumenten (adresserna och flaggan i valfri ordning). */
+export function parseGoogleMoveArguments(args: readonly string[]): { source: string; target: string; deleteSourceIfEmpty: boolean } {
+  const flags = args.filter(arg => arg.startsWith("--"));
+  const rest = args.filter(arg => !arg.startsWith("--"));
+  if (args[0] !== "move" || rest.length !== 3 || flags.some(flag => flag !== "--delete-source-if-empty")) throw new Error(USAGE);
+  return { source: rest[1]!, target: rest[2]!, deleteSourceIfEmpty: flags.includes("--delete-source-if-empty") };
+}
+
+/** Beskedet efter `google move`: bara antal och adresser. */
+export function googleMoveReport(result: GoogleMoveCommandResult, deleteSourceIfEmpty: boolean): string {
+  if (result.status === "source-not-found") throw new Error("Ingen Google-koppling hittades för källadressen (Googles adress eller kontots).");
+  if (result.status === "target-not-found") throw new Error("Det finns inget konto med måladressen.");
+  if (result.status === "same-account") throw new Error("Google-kontot är redan kopplat till målkontot.");
+  const google = result.googleEmail ? ` (${result.googleEmail})` : "";
+  const lines = [`Klart: Google-kontot${google} är flyttat från ${result.sourceEmail} till ${result.targetEmail}.` +
+    (result.replacedTargetLink ? " Målkontots tidigare Google-koppling ersattes." : "")];
+  const usage = `${result.sourceUsage.rows} rader i ${result.sourceUsage.tables} tabeller pekar på källkontot`;
+  if (result.sourceDeleted) lines.push(`Källkontot ${result.sourceEmail} var tomt och är borttaget (syns i loggen på /superadmin).`);
+  else if (deleteSourceIfEmpty) lines.push(`Källkontot ${result.sourceEmail} används (${usage}) och står kvar utan Google-koppling.`);
+  else lines.push(`Källkontot ${result.sourceEmail} står kvar utan Google-koppling (${usage}).`);
+  return `${lines.join("\n")}\n`;
+}
 
 function refreshReport(result: OrganisationRefreshResult): string {
   if (result.status === "too-soon") return `Ingen hämtning: listan hämtades ${result.lastAt.toISOString()} och Eventor ber om högst en gång per dygn. ` +
@@ -106,6 +134,13 @@ async function main(): Promise<void> {
       process.stdout.write(`Kartor lagras: ${mb(usage.totalBytes)} (gräns ${quota.totalBytes === null ? "ingen" : mb(quota.totalBytes)}, ` +
         `per konto ${quota.accountBytes === null ? "ingen" : mb(quota.accountBytes)}). Rader kvar i de gamla kolumnerna: ${left}.\n`);
     } finally { await pool.end(); }
+    return;
+  }
+  if (args[0] === "google") {
+    const input = parseGoogleMoveArguments(args.slice(1));
+    const { db, pool } = createDatabase(url);
+    try { process.stdout.write(googleMoveReport(await moveGoogleLinkByCommand(db, input), input.deleteSourceIfEmpty)); }
+    finally { await pool.end(); }
     return;
   }
   if (args[0] === "verify") {

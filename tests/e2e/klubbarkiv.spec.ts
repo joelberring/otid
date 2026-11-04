@@ -32,8 +32,9 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     // Mina tävlingar → Mina klubbar → Ny klubb.
     await owner.goto("/organizer");
     const clubs = owner.getByRole("region", { name: "Mina klubbar" });
-    await expect(clubs.getByText("Du är inte med i någon klubb än.")).toBeVisible();
-    await clubs.getByText("Ny klubb", { exact: true }).click();
+    // Ägaren 2026-11-04: utan klubbar och grupper en rad i remsan överst.
+    await expect(owner.getByTestId("my-places")).toContainText("Välj din klubb under Mitt konto");
+    await clubs.getByRole("button", { name: "Ny klubbyta" }).click();
     await clubs.getByLabel("Klubbens namn").fill(`OK Älvsjö-Örby ${suffix}`);
     await clubs.getByRole("button", { name: "Skapa klubben" }).click();
     await owner.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);
@@ -124,7 +125,7 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await reader.goto("/organizer");
     const readerClubs = reader.getByRole("region", { name: "Mina klubbar" });
     await expect(readerClubs).toContainText("Medlem · 4 träningar");
-    await readerClubs.getByRole("link", { name: "Öppna arkivet" }).click();
+    await readerClubs.getByRole("link", { name: /Medlem · 4 träningar/ }).click();
     await reader.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);
     await reader.getByTestId("archive-entries").getByRole("link").filter({ hasText: "2019-04-02" }).click();
     await expect(reader.getByRole("heading", { name: "Skogen", level: 1 })).toBeVisible();

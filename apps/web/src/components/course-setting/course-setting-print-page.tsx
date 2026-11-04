@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccountMenu } from "../account-menu";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
@@ -423,7 +424,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   return <main className={styles.page}>
     <style>{pageStyles(sheets.map(item => item.sheet))}</style>
     <div className={styles.controls}>
-      <div className={styles.topLine}>{back}<HelpButton view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></div>
+      <div className={styles.topLine}>{back}<HelpButton view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /><AccountMenu /></div>
       <h1>{text.page.title}</h1>
       {/* ADR-0211 beslut 6: färgprofilen som en kompakt rad; hela flödet medan profilen inte är godkänd. */}
       <PrintColors saved={savedProfiles} profile={profile} colors={colors} usage={usage} norm={pressNorm} detectedNorm={pressNormOf({}, mapScale, usage)}

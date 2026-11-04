@@ -1,19 +1,15 @@
-import { createHash, randomUUID } from "node:crypto";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 import { createDatabase, migrate } from "@o-tid/database";
 import { authenticateUserAccountSession, loginUserAccount, MAX_FAILED_ATTEMPTS_PER_CLIENT } from "../../src/user-account";
 import { checkEmailVerificationToken, registerUserAccountWithVerification, verifyEmailAndLogIn } from "../../src/email-verification";
 import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { grantRacePersonAsAdmin } from "../../src/race-people";
-import {
-  exchangeGoogleCode, googleAuthorizationUrl, GoogleOidcError, newGoogleLoginState, type GoogleEndpoints, type GoogleOidcConfig
-} from "../../src/google-oidc";
+import { exchangeGoogleCode, googleAuthorizationUrl, GoogleOidcError, newGoogleLoginState } from "../../src/google-oidc";
 import { signInWithGoogle } from "../../src/google-login";
 import { registerTestAccount } from "./accounts";
+import { startFakeGoogle, type FakeGoogle } from "./fake-google";
 
 /**
  * ADR-0205: kontot från klubbmötet 2026-11-03. Fel lösenord vid registreringen, ett bekräftelsemejl och ett återställningsmejl
@@ -165,60 +161,9 @@ describe("ADR-0205: fel lösenord vid registreringen", () => {
   }, 120_000);
 });
 
-/** Falsk OpenID-leverantör: auktorisering (koden knyts till PKCE-utmaningen och nonce), tokenändpunkt och JWKS. */
-interface Provider { endpoints: GoogleEndpoints; config: GoogleOidcConfig; authorize(authorizationUrl: string, claims: Record<string, unknown>): string;
-  close(): Promise<void>; signWith(key: "own" | "foreign"): void }
-
-async function startProvider(): Promise<Provider> {
-  const own = await generateKeyPair("RS256");
-  const foreign = await generateKeyPair("RS256");
-  const jwk: JWK = { ...await exportJWK(own.publicKey), kid: "nyckel-1", alg: "RS256", use: "sig" };
-  const codes = new Map<string, { challenge: string; claims: Record<string, unknown> }>();
-  let signing = own.privateKey;
-  let issuer = "";
-  const server: Server = createServer((request, response) => {
-    if (request.url === "/certs") { response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ keys: [jwk] })); return; }
-    let body = "";
-    request.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-    request.on("end", () => void (async () => {
-      const form = new URLSearchParams(body);
-      const grant = codes.get(form.get("code") ?? "");
-      codes.delete(form.get("code") ?? "");
-      const challenge = createHash("sha256").update(form.get("code_verifier") ?? "").digest("base64url");
-      if (!grant || grant.challenge !== challenge || form.get("client_secret") !== "hemlig" || form.get("redirect_uri") !== config.redirectUri) {
-        response.statusCode = 400; response.end(JSON.stringify({ error: "invalid_grant" })); return;
-      }
-      const idToken = await new SignJWT({ ...grant.claims }).setProtectedHeader({ alg: "RS256", kid: "nyckel-1" }).sign(signing);
-      response.setHeader("content-type", "application/json");
-      response.end(JSON.stringify({ access_token: "x", id_token: idToken, token_type: "Bearer" }));
-    })());
-  });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  issuer = "https://accounts.google.com";
-  const endpoints: GoogleEndpoints = { authorization: `${origin}/auth`, token: `${origin}/token`, jwks: `${origin}/certs`, issuers: [issuer] };
-  const config: GoogleOidcConfig = { clientId: "otid-klient.apps.googleusercontent.com", clientSecret: "hemlig",
-    redirectUri: "https://otid.example/api/account/google/callback", endpoints };
-  return {
-    endpoints, config,
-    authorize(authorizationUrl, claims) {
-      const params = new URL(authorizationUrl).searchParams;
-      expect(params.get("code_challenge_method")).toBe("S256");
-      expect(params.get("scope")).toBe("openid email profile");
-      const code = randomUUID();
-      const now = Math.floor(Date.now() / 1000);
-      codes.set(code, { challenge: params.get("code_challenge")!, claims: { iss: issuer, aud: config.clientId, iat: now, exp: now + 300,
-        nonce: params.get("nonce"), ...claims } });
-      return code;
-    },
-    signWith(key) { signing = key === "own" ? own.privateKey : foreign.privateKey; },
-    close: () => new Promise<void>(resolve => server.close(() => resolve()))
-  };
-}
-
 describe("ADR-0205: inloggning med Google mot en falsk leverantör", () => {
-  let provider: Provider;
-  beforeAll(async () => { provider = await startProvider(); });
+  let provider: FakeGoogle;
+  beforeAll(async () => { provider = await startFakeGoogle(); });
   afterAll(async () => { await provider.close(); });
 
   /** Hela flödet utan databasen: start (state, nonce, PKCE), leverantören, kodbytet och ID-token. */

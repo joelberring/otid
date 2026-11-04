@@ -35,6 +35,20 @@ export function googleDisplayName(identity: Pick<GoogleIdentity, "name">, email:
   return (name || email.slice(0, email.indexOf("@")) || "Google-konto").slice(0, 120).trim();
 }
 
+/**
+ * ADR-0205 tillägg: har kontot ett lösenord som någon känner till? Ett konto som Google skapade (eller ett obekräftat konto
+ * som Google kopplade) fick ett slumpat lösenord i samma transaktion som kopplingen, så den lösenordsversionen har samma
+ * tidpunkt som kopplingens `linkedAt`. Ett lösenord som valts efteråt ("Glömt lösenordet", byte) är nyare. Utan koppling har
+ * kontot alltid ett eget lösenord (registreringen).
+ */
+export async function accountHasKnownPassword(tx: DbExecutor, accountId: string): Promise<boolean> {
+  const verifier = await currentUserAccountVerifier(tx, accountId);
+  if (!verifier) return false;
+  const [link] = await tx.select({ linkedAt: schema.userAccountGoogleIdentities.linkedAt }).from(schema.userAccountGoogleIdentities)
+    .where(eq(schema.userAccountGoogleIdentities.accountId, accountId));
+  return !link || verifier.createdAt.getTime() !== link.linkedAt.getTime();
+}
+
 /** Ett lösenord som ingen känner till: tidigare lösenord och sessioner slutar gälla. */
 async function rotateToRandomPassword(tx: DbExecutor, accountId: string, now: Date): Promise<void> {
   const current = await currentUserAccountVerifier(tx, accountId);
@@ -70,11 +84,13 @@ export async function signInWithGoogle(db: Database, identity: GoogleIdentity, o
     }
     const accountId = account!.id;
     if (link) {
-      await tx.update(identities).set({ lastLoginAt: now }).where(eq(identities.accountId, accountId));
+      // ADR-0205 tillägg: Googles adress följer med (den kan ha bytts hos Google, och rader från före migration 0082 saknar den).
+      await tx.update(identities).set({ lastLoginAt: now, googleEmail: email }).where(eq(identities.accountId, accountId));
     } else {
-      // Ett konto har en koppling: ett nytt Google-konto med samma bekräftade adress ersätter den gamla.
-      await tx.insert(identities).values({ accountId, googleSub: identity.sub, linkedAt: now, lastLoginAt: now })
-        .onConflictDoUpdate({ target: identities.accountId, set: { googleSub: identity.sub, linkedAt: now, lastLoginAt: now } });
+      // Ett konto har en koppling: ett nytt Google-konto med samma bekräftade adress ersätter den gamla. `linkedAt` står kvar,
+      // eftersom den visar om kontots lösenord är det slumpade från kopplingen (`accountHasKnownPassword`).
+      await tx.insert(identities).values({ accountId, googleSub: identity.sub, linkedAt: now, lastLoginAt: now, googleEmail: email })
+        .onConflictDoUpdate({ target: identities.accountId, set: { googleSub: identity.sub, lastLoginAt: now, googleEmail: email } });
     }
     const [loggedIn] = await tx.update(schema.userAccounts).set({ lastLoginAt: now })
       .where(eq(schema.userAccounts.id, accountId)).returning();

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { AccountMenu } from "../account-menu";
 import type { CourseSettingNote } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
@@ -161,7 +162,8 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
   const all = mapErrorNotes(notes);
   return <main className={styles.page}>
     <section className={styles.controls} aria-labelledby="map-errors-title">
-      <p><Link href={`/admin/${raceId}/course-setting`}>← {text.back}</Link></p>
+      <p style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <Link href={`/admin/${raceId}/course-setting`}>← {text.back}</Link><AccountMenu /></p>
       <h1 id="map-errors-title">{text.title}</h1>
       <p>{mapMaker ? text.mapMakerIntro : text.intro}</p>
       {all.length === 0 ? <p>{text.none}</p> : <>

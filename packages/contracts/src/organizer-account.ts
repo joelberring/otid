@@ -16,7 +16,9 @@ const instant = z.iso.datetime({ offset: true });
 export const organizerAccountLoginRequestSchema = z.object({
   formatVersion: z.literal(1),
   email: accountEmailSchema,
-  password: z.string().min(1).max(1024)
+  password: z.string().min(1).max(1024),
+  /** ADR-0205 tillägg: "Kom ihåg mig på den här datorn" (lång session). Utan den en kort session och en sessionskaka. */
+  remember: z.boolean().optional()
 }).strict();
 
 /** Öppen registrering (ADR-0172 beslut 1): e-post, namn och lösenord. */

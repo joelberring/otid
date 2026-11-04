@@ -34,16 +34,28 @@ export interface GoogleLoginState {
   nonce: string;
   codeVerifier: string;
   createdAt: number;
+  /**
+   * ADR-0205 tillägg: "login" (förval) loggar in; "link" kopplar Google-kontot till det inloggade kontot under Mitt konto.
+   * Kopplingen är bunden till sessionen som började den (`sessionId`), så att återkomsten bara gäller samma inloggning.
+   */
+  mode?: "login" | "link";
+  sessionId?: string;
+  /** "Kom ihåg mig på den här datorn" vid inloggningen (lång session); annars en kort session och en sessionskaka. */
+  remember?: boolean;
 }
 
 /** Hur länge en påbörjad inloggning gäller. */
 export const GOOGLE_LOGIN_STATE_LIFETIME_MS = 10 * 60 * 1000;
 const RANDOM = /^[A-Za-z0-9_-]{43}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const random = () => randomBytes(32).toString("base64url");
 
-export function newGoogleLoginState(now = new Date()): GoogleLoginState {
-  return { state: random(), nonce: random(), codeVerifier: random(), createdAt: now.getTime() };
+export function newGoogleLoginState(now = new Date(), options: Pick<GoogleLoginState, "mode" | "sessionId" | "remember"> = {}): GoogleLoginState {
+  if (options.mode === "link" && !(options.sessionId && UUID.test(options.sessionId))) throw new Error("Kopplingen kräver sessionens id");
+  return { state: random(), nonce: random(), codeVerifier: random(), createdAt: now.getTime(),
+    ...(options.mode === "link" ? { mode: "link" as const, sessionId: options.sessionId } : {}),
+    ...(options.remember ? { remember: true } : {}) };
 }
 
 /** PKCE S256: base64url(SHA-256(verifier)) (RFC 7636). */
@@ -69,7 +81,8 @@ export function googleAuthorizationUrl(config: GoogleOidcConfig, login: GoogleLo
 
 /** Kakans värde: base64url av JSON (bara tecken som får stå i en kaka). */
 export function serializeGoogleLoginState(login: GoogleLoginState): string {
-  return Buffer.from(JSON.stringify([login.state, login.nonce, login.codeVerifier, login.createdAt])).toString("base64url");
+  return Buffer.from(JSON.stringify([login.state, login.nonce, login.codeVerifier, login.createdAt, login.mode === "link" ? "link" : "login",
+    login.mode === "link" ? login.sessionId : "", login.remember ? 1 : 0])).toString("base64url");
 }
 
 /** Kakans värde tillbaka, eller undefined om det är trasigt eller äldre än tio minuter. */
@@ -77,13 +90,16 @@ export function parseGoogleLoginState(value: string | null | undefined, now = ne
   if (!value || value.length > 400 || !/^[A-Za-z0-9_-]+$/.test(value)) return undefined;
   let parsed: unknown;
   try { parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")); } catch { return undefined; }
-  if (!Array.isArray(parsed) || parsed.length !== 4) return undefined;
-  const [state, nonce, codeVerifier, createdAt] = parsed as unknown[];
+  // Fyra delar: en inloggning som började före ADR-0205 tillägg (kakan gäller tio minuter).
+  if (!Array.isArray(parsed) || (parsed.length !== 4 && parsed.length !== 7)) return undefined;
+  const [state, nonce, codeVerifier, createdAt, mode = "login", sessionId = "", remember = 0] = parsed as unknown[];
   if (typeof state !== "string" || typeof nonce !== "string" || typeof codeVerifier !== "string" || typeof createdAt !== "number") return undefined;
   if (![state, nonce, codeVerifier].every(part => RANDOM.test(part))) return undefined;
+  if ((mode !== "login" && mode !== "link") || typeof sessionId !== "string" || (remember !== 0 && remember !== 1)) return undefined;
+  if (mode === "link" ? !UUID.test(sessionId) : sessionId !== "") return undefined;
   const age = now.getTime() - createdAt;
   if (!Number.isFinite(age) || age < -60_000 || age > GOOGLE_LOGIN_STATE_LIFETIME_MS) return undefined;
-  return { state, nonce, codeVerifier, createdAt };
+  return { state, nonce, codeVerifier, createdAt, ...(mode === "link" ? { mode, sessionId } : {}), ...(remember === 1 ? { remember: true } : {}) };
 }
 
 /** Jämför `state` från Google med kakans i konstant tid. */

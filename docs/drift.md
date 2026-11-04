@@ -376,6 +376,28 @@ skriver `logs web` ett `KONFIGURATIONSFEL` och ingen knapp visas. Koppling: tabe
 (migration 0072) håller Googles `sub` per konto. Den som loggar in med Google och vill ha ett lösenord väljer ett med
 "Glömt lösenordet".
 
+
+### Två konton efter Google-inloggningen (Koppla Google-konto)
+
+Har Google-kontot en annan adress än kontot i O-Tid skapar "Logga in med Google" ett nytt konto med Google-adressen. Personen
+rättar det själv: logga in med e-postadressen och lösenordet, öppna Mitt konto och tryck på "Koppla Google-konto". Är det andra
+kontot tomt (inga tävlingar, behörigheter, klubbar, grupper, arkivinnehåll eller banläggningsändringar) visar O-Tid vad som händer
+och flyttar kopplingen när personen bekräftar med lösenordet; det tomma kontot tas bort och syns i superadmins logg. Används det
+andra kontot vägras kopplingen. Då, eller när personen inte själv kan, flyttar superadmin kopplingen på servern:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs google move joel.exempel@gmail.com joel@exempelklubb.se
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs google move joel.exempel@gmail.com joel@exempelklubb.se --delete-source-if-empty
+```
+
+Första adressen är Googles adress eller källkontots adress, den andra målkontots. Kommandot skriver bara antal och adresser. Utan
+flaggan står källkontot kvar utan Google-koppling; med `--delete-source-if-empty` tas det bort om det är tomt (loggas som
+"Serverkommando"), annars står det kvar och kommandot säger hur många rader som pekar på det. Lokalt:
+`pnpm account:superadmin google move <källa> <mål>`.
+
+Inloggningen gäller 30 dygn bara med "Kom ihåg mig på den här datorn"; annars tolv timmar och en sessionskaka. "Logga ut från
+alla enheter" under Mitt konto spärrar alla kontots inloggningar.
+
 ## Radiokontroller (ROC/OResults)
 
 Administratören kopplar tävlingen under Inställningar → Radiokontroller: källa (ROC eller OResults), enhetens id

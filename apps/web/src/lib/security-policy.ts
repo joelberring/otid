@@ -182,10 +182,17 @@ export async function hasNoRequestBody(request: Request): Promise<boolean> {
   } finally { await reader.cancel(); }
 }
 
-function cookie(name: string, value: string, policy: SecurityPolicy, expiresAt: string, httpOnly: boolean): string {
+/**
+ * ADR-0205 tillägg: en session som gäller högst tolv timmar (inloggning utan "Kom ihåg mig på den här datorn") får en
+ * sessionskaka utan `Expires`, som webbläsaren glömmer när den stängs. Servern stänger sessionen efter tolv timmar ändå.
+ */
+const SHORT_SESSION_MS = 12 * 60 * 60 * 1000;
+
+function cookie(name: string, value: string, policy: SecurityPolicy, expiresAt: string, httpOnly: boolean, now = Date.now()): string {
   const expires = new Date(expiresAt);
   if (!COOKIE_VALUE.test(value) || !Number.isFinite(expires.getTime())) throw new SecurityConfigurationError("Ogiltig kaka");
-  const attributes = [`${name}=${value}`, "Path=/", `Expires=${expires.toUTCString()}`, "SameSite=Strict"];
+  const persistent = expires.getTime() - now > SHORT_SESSION_MS + 60_000;
+  const attributes = [`${name}=${value}`, "Path=/", ...(persistent ? [`Expires=${expires.toUTCString()}`] : []), "SameSite=Strict"];
   if (httpOnly) attributes.push("HttpOnly");
   if (policy.secureCookies) attributes.push("Secure");
   return attributes.join("; ");
@@ -245,7 +252,7 @@ export function organizerFailure(status: 400 | 401 | 403 | 404 | 409 | 500, erro
 }
 
 /** Fel från kontots egna anrop (ADR-0172): också spärr, spärrat konto, e-post avstängd och fel bekräftelse. */
-export function accountFailure(status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503, error: AccountErrorCode): Response {
+export function accountFailure(status: 400 | 401 | 403 | 404 | 409 | 410 | 429 | 500 | 503, error: AccountErrorCode): Response {
   return privateJson(accountErrorResponseSchema.parse({ formatVersion: 1, error }), status);
 }
 

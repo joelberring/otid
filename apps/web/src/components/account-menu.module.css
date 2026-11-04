@@ -1,0 +1,39 @@
+/* ADR-0205 tillägg: kontomenyn. Initialerna i en ring, namnet bredvid på bred skärm; panelen under knappen. */
+.menu { position: relative; display: inline-flex; flex: none; }
+.trigger {
+  display: inline-flex; align-items: center; gap: .45rem; min-height: var(--control); padding: 0 .55rem 0 .3rem;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink);
+  font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+}
+.trigger:focus-visible { outline: none; box-shadow: var(--focus); }
+.initials {
+  display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--subtle);
+  color: var(--ink); font-size: var(--text-xs); font-weight: 700; letter-spacing: .02em;
+}
+.name { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caret { color: var(--muted); font-size: var(--text-xs); }
+.panel {
+  position: absolute; z-index: 60; top: calc(100% + 6px); right: 0; width: min(18rem, calc(100vw - 24px));
+  display: grid; gap: 2px; padding: .4rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%); text-align: left;
+}
+.who { display: grid; margin: 0; padding: .4rem .6rem .55rem; border-bottom: 1px solid var(--line); }
+.who strong { overflow-wrap: anywhere; }
+.who span { color: var(--muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.item {
+  display: flex; align-items: center; min-height: var(--row); padding: 0 .6rem; border: 0; border-radius: 4px; background: none;
+  color: var(--ink); font: inherit; font-size: var(--text-sm); text-align: left; text-decoration: none; cursor: pointer;
+}
+.item:hover { background: var(--subtle); }
+.item:focus-visible { outline: none; box-shadow: var(--focus); }
+.separator { height: 1px; margin: .25rem 0; background: var(--line); }
+.confirm { display: grid; gap: .5rem; padding: .6rem; border-radius: 4px; background: var(--attention-tint); font-size: var(--text-sm); }
+.confirm p { margin: 0; }
+.confirm div { display: flex; flex-wrap: wrap; gap: .5rem; }
+.status { margin: 0; padding: .4rem .6rem; color: var(--muted); font-size: var(--text-sm); }
+.error { margin: 0; padding: .4rem .6rem; color: var(--mp); font-size: var(--text-sm); }
+@media (max-width: 640px) {
+  .name, .caret { display: none; }
+  .trigger { padding: 0 .3rem; }
+}
+@media print { .menu { display: none; } }

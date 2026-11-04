@@ -25,8 +25,8 @@ test("träningsgrupp: ledare, upprepning, gruppsidan med förnamn och kartans av
   // Mina tävlingar → Mina grupper → Skapa grupp. Kortnamnet föreslås ur namnet.
   await leader.goto("/organizer");
   const groups = leader.getByRole("region", { name: "Mina grupper" });
-  await expect(groups.getByText("Du är inte med i någon grupp än.")).toBeVisible();
-  await groups.getByText("Ny grupp", { exact: true }).click();
+  await expect(leader.getByTestId("my-places")).toContainText("Välj din klubb under Mitt konto");
+  await groups.getByRole("button", { name: "Ny grupp" }).click();
   await groups.getByLabel("Gruppens namn").fill(`Ungdom OK ÄÖ ${suffix}`);
   await expect(groups.getByLabel("Kortnamn i länken")).toHaveValue(`ungdom-ok-ao-${suffix}`);
   await groups.getByRole("button", { name: "Skapa grupp" }).click();
@@ -98,7 +98,7 @@ test("träningsgrupp: ledare, upprepning, gruppsidan med förnamn och kartans av
 
   // Ledaren ändrar till fullt namn; det syns på gruppsidan.
   await leader.goto("/organizer");
-  await leader.getByRole("region", { name: "Mina grupper" }).getByRole("link", { name: "Öppna gruppen" }).click();
+  await leader.getByRole("region", { name: "Mina grupper" }).getByRole("link", { name: /Ledare/ }).click();
   await leader.waitForURL(/\/organizer\/groups\//);
   const settings = await leaderSection(leader, "Inställningar");
   await settings.getByRole("radio", { name: "Fullt namn" }).check();

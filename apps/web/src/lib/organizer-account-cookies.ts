@@ -38,3 +38,11 @@ export function readAccountCsrfCookie(cookieText: string, currentUrl: URL): stri
 export function googleLoginCookieName(secure: boolean): string {
   return secure ? "__Host-otid-google-login" : "otid_google_login";
 }
+
+/**
+ * ADR-0205 tillägg: den påbörjade flytten av en Google-koppling (signerad, tio minuter) mellan återkomsten från Google och
+ * bekräftelsen under Mitt konto. SameSite=Strict: den läses bara av O-Tids egna sidor.
+ */
+export function googleMoveCookieName(secure: boolean): string {
+  return secure ? "__Host-otid-google-move" : "otid_google_move";
+}

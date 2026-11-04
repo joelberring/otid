@@ -50,3 +50,44 @@ På ett klubbmöte 2026-11-03 skrev en person fel lösenord när kontot skapades
 - Tester: `adr-0205-konto.test.ts` (ordningarna från mötet och en falsk OpenID-leverantör), ett fall i
   `adr-0209-klubbtillhorighet.test.ts` (medlemslistan vid Google och återställning) och `tests/e2e/konto-inloggning.spec.ts`
   (mejlen ur den falska SMTP-servern, länkarna i andra webbläsare).
+
+## Tillägg 2026-11-04: Koppla Google-konto, kontomenyn och utloggning (grenen `google-koppla`)
+
+Ägaren loggade in med Google, vars adress (Gmail) skiljer sig från kontots (joel@berring.se). Beslut 5 kopplar bara ett konto
+med samma adress, så Google skapade ett andra konto. Ägaren hittade heller ingen "Logga ut" utanför tävlingens arbetsyta, och
+loggar in på klubbens och tävlingens lånade datorer.
+
+7. **Koppla Google-konto under Mitt konto.** Inloggad startar man OpenID-flödet i läget `link` (state, nonce och PKCE som förut);
+   kakan med state bär också sessionens id, så återkomsten bara gäller inloggningen som började den. Sessionens kakor är
+   SameSite=Strict och följer inte med navigeringen från Google, så återkomsten går först vidare till sig själv från O-Tids egen
+   sida (`steg=2`). Google-kontot (`sub`) kopplas till det aktuella kontot även om Googles adress är en annan; adressen måste vara
+   bekräftad hos Google (`email_verified`). Kontots adress ändras inte. Googles adress sparas med kopplingen (migration 0082, en
+   kolumn som får vara tom; äldre rader får den vid nästa inloggning) och visas under Mitt konto med "Ta bort kopplingen".
+   Borttagningen vägras om kontot då saknar sätt att logga in: inget lösenord som någon känner till. Ett slumpat lösenord från
+   beslut 5 känns igen på att lösenordsversionen har samma tidpunkt som kopplingens `linked_at` (samma transaktion); ett lösenord
+   som valts efteråt är nyare. Därför står `linked_at` kvar när kopplingen byter Google-konto.
+8. **Kopplat till ett annat konto.** Är det andra kontot tomt flyttas kopplingen efter en sida som säger vad som händer och en
+   bekräftelse med lösenordet (utan känt lösenord: en inloggning de senaste tio minuterna). Det tomma kontot tas sedan bort som
+   när kontot själv tas bort (sessionerna spärras, raderna följer främmande nycklar) och det loggas i superadmins logg
+   (`DELETE_ACCOUNT`, med kontot som gjorde det som utförare). Den påbörjade flytten ligger i en signerad HttpOnly-kaka (tio
+   minuter, bunden till sessionen). "Tomt" betyder att ingen annan rad pekar på kontot (kolumner `…account_id` och `…_by` i alla
+   tabeller utom inloggningens egna och svaret på "Vilken klubb tillhör du?"), och att det inte är superadmin eller spärrat. Nya
+   tabeller räknas alltså med. Avvikelse från uppdraget: kontots egna sessioner räknas inte, eftersom den som just bevisat
+   Google-kontot ändå kan logga in på det; de spärras vid flytten. Väntande inbjudningar till adressen lämnas; de gäller adressen.
+   Används kontot vägras kopplingen ("… Logga in på det och ta bort kopplingen där först"); superadmin kan flytta med
+   `node superadmin.mjs google move <källa> <mål> [--delete-source-if-empty]` (docs/drift.md).
+9. **Kontomenyn.** Varje inloggad sida har namnet (initialerna på telefonen) i överlisten med Mina tävlingar, Mina klubbar, Mina
+   grupper, Mitt konto och Logga ut. Utloggningen spärrar sessionen (samma route som förut), tar bort det som webbläsaren sparat om
+   tävlingar och personer (banläggningens kopia med service workerns sidor, inbjudan, följda löpare, självregistreringens namn och
+   flikarnas `otid…` i sessionStorage) och visar "Du är utloggad." på inloggningen. Väntar ändringar på nät frågar menyn först
+   ("2 ändringar väntar på nät – logga ut ändå?"). Avläsningarnas och festens köer tas aldrig bort (AGENTS.md); de räknas i
+   varningen och ligger kvar tills servern har kvitterat dem. "Logga ut från alla enheter" under Mitt konto spärrar alla sessioner.
+10. **Kom ihåg mig på den här datorn**, av som förval: utan den gäller inloggningen tolv timmar och kakan är en sessionskaka; med
+    den 30 dygn som förut (ADR-0168). Valet följer med till Google (`?remember=1`) och behålls vid lösenordsbyte. Andra vägar in
+    (bekräftelse- och återställningslänken, registreringen) ger som förut 30 dygn.
+
+Följder: migration 0082 (endast tillägg); `google-link.ts` i `@o-tid/application`; rutterna `/api/account/google/link`, `/move`,
+`/unlink` och `/api/account/logout-all`; sidan `/konto/flytta-google`. Tester: `adr-0205-google-koppla.test.ts` (koppling med annan
+adress, obekräftad adress, flytt, vägran, sista inloggningssättet, bindningen till sessionen, superadmins kommando, Kom ihåg mig och
+alla enheter), `google-route-handlers.test.ts` (läget link) och `tests/e2e/konto-meny.spec.ts` mot en falsk OpenID-leverantör
+(`tests/e2e/fake-google.ts`; webben pekas dit med `OTID_GOOGLE_BASE_URL` och `OTID_GOOGLE_AUTHORIZE_URL`, endast test).

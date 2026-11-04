@@ -126,3 +126,13 @@
   font-weight: 600; text-decoration: none; }
 .googleButton:hover { border-color: var(--ink); }
 .googleLogin .muted { margin: 0; font-size: var(--text-xs); }
+
+/* ADR-0205 tillägg: "Kom ihåg mig på den här datorn" med varningen för lånade datorer. */
+.remember { display: grid; gap: .1rem; }
+.form .remember label { display: flex; align-items: center; gap: .6rem; min-height: 44px; font-weight: 550; cursor: pointer; }
+.form .remember input { flex: none; width: 20px; height: 20px; min-height: 0; margin: 0; }
+.remember p { margin: 0 0 0 calc(20px + .6rem); font-size: var(--text-sm); }
+
+/* Ägaren 2026-11-04: tidigare tävlingar ihopfällda under listan. */
+.pastEvents { margin-top: 1rem; border-top: 1px solid var(--line); }
+.pastEvents > summary { display: flex; align-items: center; min-height: 44px; font-weight: 600; cursor: pointer; }

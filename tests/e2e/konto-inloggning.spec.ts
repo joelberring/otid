@@ -25,8 +25,8 @@ const otherBrowser = async (browser: Browser) => (await newContext(browser)).new
 
 async function registerWithTypo(page: Page, email: string) {
   await page.goto("/organizer");
-  // Ingen Google-knapp utan Google-klient på servern (testservern har ingen).
-  await expect(page.getByRole("link", { name: "Logga in med Google" })).toHaveCount(0);
+  // ADR-0205 tillägg: testservern har en Google-klient (den falska leverantören), så knappen syns.
+  await expect(page.getByRole("link", { name: "Logga in med Google" })).toHaveCount(1);
   await page.getByRole("button", { name: "Har du inget konto? Skapa ett" }).click();
   await page.getByLabel("Ditt namn").fill("Klubbmedlem");
   await page.getByLabel("E-postadress").fill(email);

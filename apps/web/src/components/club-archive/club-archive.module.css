@@ -153,3 +153,6 @@
 .previewReport h4 { margin-top: .4rem; font-size: var(--text-sm); font-weight: 600; }
 .cliDetails > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
 .cliDetails > summary h2 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+/* Ägaren 2026-11-04: "Ny klubbyta" i remsan överst i Mina tävlingar. */
+.smallAction { min-height: 32px; padding: 0 10px; font-size: var(--text-sm); }
+.createInline { flex-basis: 100%; margin-top: 8px; }

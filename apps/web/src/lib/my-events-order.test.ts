@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { orderMyEvents } from "./my-events-order";
+import { orderMyEvents, splitMyEvents } from "./my-events-order";
 
 const event = (name: string, ...dates: string[]) => ({ eventName: name, timeZone: "Europe/Stockholm", startsOn: dates[0]!,
   races: dates.map((raceDate, index) => ({ raceId: `${name}-${index}`, raceDate })) });
@@ -23,5 +23,13 @@ describe("orderMyEvents", () => {
     const now = new Date("2026-10-19T22:30:00Z");
     expect(orderMyEvents([event("Igår", "2026-10-19"), event("Idag", "2026-10-20")], now).map((row) => row.eventName))
       .toEqual(["Idag", "Igår"]);
+  });
+
+  it("ägaren 2026-11-04: delar i idag och kommande och tidigare (senaste först), i samma ordning", () => {
+    const now = new Date("2026-11-04T10:00:00Z");
+    const { current, past } = splitMyEvents([event("Gammal", "2026-09-01"), event("Idag", "2026-11-04"), event("Igår", "2026-11-03"),
+      event("Helg", "2026-10-01", "2026-11-08"), event("Snart", "2026-11-05")], now);
+    expect(current.map(row => row.eventName)).toEqual(["Idag", "Snart", "Helg"]);
+    expect(past.map(row => row.eventName)).toEqual(["Igår", "Gammal"]);
   });
 });

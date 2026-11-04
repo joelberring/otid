@@ -128,10 +128,13 @@ export const userAccountGoogleIdentities = pgTable("user_account_google_identity
   accountId: uuid("account_id").primaryKey().references(() => userAccounts.id),
   googleSub: text("google_sub").notNull(),
   linkedAt: timestamp("linked_at", { withTimezone: true }).notNull(),
-  lastLoginAt: timestamp("last_login_at", { withTimezone: true })
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** ADR-0205 tillägg (migration 0082): Googles adress (normaliserad), kan skilja sig från kontots. Tom före 0082. */
+  googleEmail: text("google_email")
 }, (table) => [
   uniqueIndex("user_account_google_identity_sub_uidx").on(table.googleSub),
-  check("user_account_google_identity_sub_check", sql`length(${table.googleSub}) BETWEEN 1 AND 255 AND ${table.googleSub} ~ '^[A-Za-z0-9_-]+$'`)
+  check("user_account_google_identity_sub_check", sql`length(${table.googleSub}) BETWEEN 1 AND 255 AND ${table.googleSub} ~ '^[A-Za-z0-9_-]+$'`),
+  check("user_account_google_identity_email_check", sql`${table.googleEmail} IS NULL OR (${table.googleEmail} = lower(btrim(${table.googleEmail})) AND length(${table.googleEmail}) BETWEEN 3 AND 254 AND ${table.googleEmail} ~ '^[^@[:space:]]+@[^@[:space:]]+$')`)
 ]);
 
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |

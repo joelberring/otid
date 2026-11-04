@@ -37,6 +37,23 @@ describe("Google OpenID Connect", () => {
     expect(parseGoogleLoginState("inte;en kaka", now)).toBeUndefined();
   });
 
+  it("ADR-0205 tillägg: kopplingen bär sessionens id och valet Kom ihåg mig; en kaka från före tillägget godtas", () => {
+    const now = new Date("2026-11-04T10:00:00Z");
+    const sessionId = "6f0c1a52-3b9e-4c55-8d7e-1f2a3b4c5d6e";
+    const link = newGoogleLoginState(now, { mode: "link", sessionId });
+    expect(parseGoogleLoginState(serializeGoogleLoginState(link), now)).toEqual({ ...link, mode: "link", sessionId });
+    const remembered = newGoogleLoginState(now, { remember: true });
+    expect(parseGoogleLoginState(serializeGoogleLoginState(remembered), now)).toEqual({ ...remembered, remember: true });
+    expect(() => newGoogleLoginState(now, { mode: "link" })).toThrow();
+    const old = Buffer.from(JSON.stringify([link.state, link.nonce, link.codeVerifier, link.createdAt])).toString("base64url");
+    expect(parseGoogleLoginState(old, now)).toEqual({ state: link.state, nonce: link.nonce, codeVerifier: link.codeVerifier, createdAt: link.createdAt });
+    const forged = (mode: string, id: string) => Buffer.from(JSON.stringify([link.state, link.nonce, link.codeVerifier, link.createdAt, mode, id, 0]))
+      .toString("base64url");
+    expect(parseGoogleLoginState(forged("link", "inte-ett-id"), now)).toBeUndefined();
+    expect(parseGoogleLoginState(forged("login", sessionId), now)).toBeUndefined();
+    expect(parseGoogleLoginState(forged("admin", ""), now)).toBeUndefined();
+  });
+
   it("jämför state exakt", () => {
     const { state } = newGoogleLoginState();
     expect(sameState(state, state)).toBe(true);

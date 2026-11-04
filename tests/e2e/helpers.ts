@@ -390,3 +390,15 @@ export async function sendReadout(page: Page, raceId: string, readout: { cardNum
   expect(response.status()).toBe(200);
   expect(((await response.json()) as { acknowledgements: { status: string }[] }).acknowledgements[0]?.status).toBe("stored");
 }
+
+/**
+ * Fel i webbläsaren på sidor som börjar med `path` (ADR-0211 tillägg): sidfel och `console.error` samlas, och `check()`
+ * fäller testet med dem. Next.js dev-överlägg ("1 Issue") visar samma fel, så ett grönt test betyder ett tomt överlägg.
+ */
+export function browserErrors(page: Page, path: RegExp): { check: (what?: string) => void } {
+  const errors: string[] = [];
+  const here = () => { try { return path.test(new URL(page.url()).pathname); } catch { return false; } };
+  page.on("pageerror", error => { if (here()) errors.push(`pageerror: ${error.message}`); });
+  page.on("console", message => { if (message.type() === "error" && here()) errors.push(`console: ${message.text()}`); });
+  return { check: (what = "sidan") => expect(errors, `fel i webbläsaren på ${what}`).toEqual([]) };
+}

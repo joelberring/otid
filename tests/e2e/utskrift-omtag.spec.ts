@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { deflateSync, inflateSync } from "node:zlib";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createRace, registerAccount, today, unique, warmCourseSetting, warmRoute } from "./helpers";
+import { browserErrors, createRace, registerAccount, today, unique, warmCourseSetting, warmRoute } from "./helpers";
 
 /**
  * ADR-0211: utskriftssidan om. Färgprofilen som en rad, Skriv ut med skrivaren och PDF:en bredvid varandra, översikten med
@@ -84,7 +84,8 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   expect(edited.status()).toBe(200);
   const courses = (await doc()).courses;
 
-  // Utskriftssidan: färgerna på en rad med status, Skriv ut och PDF:en bredvid varandra.
+  // Utskriftssidan: färgerna på en rad med status, Skriv ut och PDF:en bredvid varandra. Inga fel i webbläsaren (dev-överlägget tomt).
+  const errors = browserErrors(owner, /\/course-setting\/print$/);
   await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
   const sheet = owner.getByTestId("print-sheet").first();
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
@@ -120,7 +121,7 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await editor.getByTestId("paper-text-inplace-variable").selectOption("bana");
   await editor.getByTestId("paper-text-inplace-done").click();
   await expect(text).toContainText("Natt-KM Lång", { timeout: 15_000 });
-  await expect.poll(async () => (await doc()).event.paperLayouts!["1"]!.items!.find(item => item.kind === "TEXT")!.text).toBe("Natt-KM {bana}");
+  await expect.poll(async () => (await doc()).event.paperLayouts?.["1"]?.items?.find(item => item.kind === "TEXT")?.text, { timeout: 30_000 }).toBe("Natt-KM {bana}");
   await shot(owner, "text-pa-arket", sheet);
 
   // Dra texten nära kartramens vänsterkant: den fäster mot kanten (hjälplinjen syns medan den dras).
@@ -134,7 +135,7 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await expect(sheet.getByTestId("paper-guide").first()).toBeAttached();
   await owner.mouse.up();
   await expect(sheet.getByTestId("paper-guide")).toHaveCount(0);
-  await expect.poll(async () => (await doc()).event.paperLayouts!["1"]!.items!.find(item => item.kind === "TEXT")!.at)
+  await expect.poll(async () => (await doc()).event.paperLayouts?.["1"]?.items?.find(item => item.kind === "TEXT")?.at, { timeout: 30_000 })
     .toMatchObject({ x: 0 });
 
   // En ram och en logotyp.
@@ -172,6 +173,7 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await expect(cards.filter({ has: owner.getByTestId("print-card-template") })).toHaveCount(courses.length, { timeout: 30_000 });
   await expect(owner.getByTestId("print-sheet").locator("[data-testid=paper-item][data-kind=RECT]")).toHaveCount(courses.length, { timeout: 30_000 });
   await shot(owner, "mallen-pa-alla");
+  errors.check("utskriftssidan");
 
   // PDF:en för kontorsskrivaren har ringklippen (öppna bågar "c S") och den vita ytan.
   await owner.getByTestId("print-output").getByLabel("Alla", { exact: true }).uncheck();
@@ -206,6 +208,7 @@ test("utskrift-omtag i telefonen: listan, tryck på ett element och dra det", as
 
   const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 }, hasTouch: true });
   const phone = await phoneContext.newPage();
+  const errors = browserErrors(phone, /\/course-setting\/print$/);
   await phone.goto(`/admin/${raceId}/course-setting/print?course=1`);
   const sheet = phone.getByTestId("print-sheet").first();
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
@@ -234,5 +237,6 @@ test("utskrift-omtag i telefonen: listan, tryck på ett element och dra det", as
     return read.event.paperLayouts?.["1"]?.items?.find(item => item.kind === "NORTH_ARROW")?.at;
   }, { timeout: 30_000 }).not.toMatchObject({ corner: "TOP_RIGHT", x: 3, y: 30 });
   if (shots) await phone.screenshot({ path: `${shots}/utskrift-omtag-telefon-390.png`, fullPage: true });
+  errors.check("utskriftssidan i telefonen");
   await phoneContext.close();
 });

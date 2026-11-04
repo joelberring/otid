@@ -3,9 +3,9 @@
  * löparna ser dem) och vägvalsmotorns vägar. Ren funktion; gränserna står i `LEVEL_LIMITS` (`level-rules.ts`).
  */
 import type { Point } from "@o-tid/map-file";
-import { BIG_BOULDER_METERS, SIZE_BY_DESCRIPTION } from "./level-symbols";
+import { BIG_BOULDER_METERS, SIZE_BY_DESCRIPTION, SMALL_BOULDER_METERS } from "./level-symbols";
 import {
-  contourLengthNear, inOpenLand, junctionsNear, nearestHandrail, objectsNear, type LevelMap, type LevelObject
+  contourLengthNear, inOpenLand, junctionsNear, nearestHandrail, networkJunctionsNear, objectsNear, type LevelMap, type LevelObject
 } from "./level-map";
 import type { ControlLevelFeatures, FeatureSize, LegLevelFeatures } from "./level-types";
 import { LEVEL_LIMITS } from "./level-rules";
@@ -26,6 +26,8 @@ export interface LevelLegInput {
   readonly best?: readonly Point[] | undefined;
   /** Vägen längs vägar och stigar: hur mycket långsammare än bästa (1,15 = 15 %). */
   readonly followRatio?: number | undefined;
+  /** Motorns skilda vägval utöver det bästa: hur mycket långsammare var och ett är (1,08 = 8 %). */
+  readonly alternatives?: readonly number[] | undefined;
 }
 
 const round = (value: number) => Math.round(value);
@@ -40,6 +42,7 @@ function featureOf(prepared: LevelMap, control: LevelControlInput, mmPerMeter: n
     if (mapped) size = mapped.object.size;
     const height = Number(/^\s*(\d+(?:[.,]\d+)?)/.exec(control.f ?? "")?.[1]?.replace(",", "."));
     if (control.d === "2.4" && Number.isFinite(height) && height >= BIG_BOULDER_METERS) size = "BIG";
+    if (control.d === "2.4" && Number.isFinite(height) && height < SMALL_BOULDER_METERS) size = "SMALL";
     return { size, d: control.d, source: "DESCRIPTION", ...(mapped ? { code: mapped.object.code, name: mapped.object.name } : {}) };
   }
   const object: LevelObject | undefined = near[0]?.object;
@@ -68,14 +71,14 @@ export function controlFeatures(prepared: LevelMap, control: LevelControlInput):
   };
   const big = others.find(hit => hit.object.size === "BIG");
   // Ledstänger räknas på alla avstånd (en kontroll på stigen har stigen att gå från och läsa in sig på).
-  // I öppen mark syns omgivningen: den räknas som ledstång på avståndet 0.
-  const attack = min(big?.distance, open ? 0 : strong?.distance);
+  // Öppen mark är en yta, ingen ledstång (bara dess kant är det); den ger sikt att läsa in sig på, så inläsningen räknas 0 där.
+  const attack = min(big?.distance, strong?.distance);
   const relocation = min(others.find(hit => hit.object.size === "BIG" || hit.object.size === "MEDIUM")?.distance, open ? 0 : any?.distance);
   const junction = junctionsNear(prepared, control.at, search)[0];
   return {
     control: control.id,
-    strongMeters: open ? 0 : meters(strong?.distance),
-    handrailMeters: open ? 0 : meters(any?.distance),
+    strongMeters: meters(strong?.distance),
+    handrailMeters: meters(any?.distance),
     feature,
     attackMeters: meters(attack),
     relocationMeters: meters(relocation),
@@ -126,11 +129,15 @@ export function legFeatures(prepared: LevelMap, leg: LevelLegInput): LegLevelFea
   let strongOn = 0, anyOn = 0, offStrong = 0, offAny = 0, longestStrong = 0, longestAny = 0, detail = 0, longestDetail = 0, gap = 0;
   let offStart = 0, longestStart = 0, decisions = 0;
   let current: { feature: number; angle: number; main: number } | undefined, candidate: typeof current, run = 0;
+  // Stigkorsningar som vägen passerar (stignät: att hålla rätt stig bland många är en uppgift i sig).
+  const passed = new Set<number>();
   samples.forEach((sample, index) => {
+    // Öppen mark är en yta, ingen ledstång: bara kanterna (mot skogen) räknas, och de är linjer i `nearestHandrail`.
     const open = inOpenLand(prepared, sample);
-    const strong = open ? undefined : nearestHandrail(prepared, sample, follow, true);
-    const any = open ? undefined : nearestHandrail(prepared, sample, free, false);
-    const onStrong = open || strong !== undefined, onAny = open || (any !== undefined && any.distance <= follow);
+    const strong = nearestHandrail(prepared, sample, follow, true);
+    const any = nearestHandrail(prepared, sample, free, false);
+    const onStrong = strong !== undefined, onAny = any !== undefined && any.distance <= follow;
+    for (const junction of networkJunctionsNear(prepared, sample, follow)) passed.add(junction);
     if (onStrong) { strongOn += 1; offStrong = 0; } else { offStrong += 1; longestStrong = Math.max(longestStrong, offStrong); }
     if (onAny) { anyOn += 1; offAny = 0; } else {
       if (offAny === 0) offStart = index;
@@ -170,6 +177,8 @@ export function legFeatures(prepared: LevelMap, leg: LevelLegInput): LegLevelFea
     longestOffStrongMeters: longestStrong * limits.sampleMeters,
     longestOffMeters: longestAny * limits.sampleMeters,
     decisions,
+    junctions: passed.size,
+    closeAlternatives: (leg.alternatives ?? []).filter(ratio => ratio <= 1 + limits.closeAlternative).length,
     shortcutGain: Math.max(0, (leg.followRatio ?? 1) - 1),
     detailMeters: longestDetail * limits.sampleMeters,
     ...(offAt ? { offAt } : {})

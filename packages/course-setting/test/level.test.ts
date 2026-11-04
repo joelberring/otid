@@ -84,13 +84,29 @@ describe("nivåstödets kontroller", () => {
   });
 
   it("ett litet föremål med en stor angreppspunkt nära är Violett; utan ledstänger men med stora föremål är det tydliga Orange", () => {
-    const map = mapOf([path, at("205", 400, 700), at("111", 410, 760)]);
+    // Angreppspunkten 120 m bort: Violett (inom 100 m hade det varit Orange).
+    const map = mapOf([path, at("205", 400, 640), at("111", 410, 760)]);
     expect(judgeControl(control(map, 410, 760, "1.13")).rank).toBe(4);
     expect(judgeControl(control(mapOf([path, at("205", 400, 700), at("204", 410, 760)]), 410, 760, "2.4")).rank).toBe(3);
   });
 
-  it("öppen mark räknas som ledstång (Grön: stigar, vägar … öppen mark)", () => {
-    expect(judgeControl(control(mapOf([area("401", 0, 200, 400, 600)]), 200, 400, "4.1")).rank).toBe(0);
+  it("öppen mark är en yta: kanten mot skogen är en ledstång, mitt i en stor gräsyta är den inte det (ägarens synpunkt 2026-11-04)", () => {
+    const map = mapOf([area("401", 0, 200, 400, 600)]);
+    expect(judgeControl(control(map, 0, 400, "4.1")).rank).toBe(0);
+    const inside = control(map, 200, 400, "1.10");
+    expect(inside.strongMeters).toBeGreaterThan(150);
+    // Sikten hjälper att läsa in sig, men ett litet föremål mitt på en stor gräsyta är inte lätt.
+    expect(inside.relocationMeters).toBe(0);
+    expect(judgeControl(inside).rank).toBeGreaterThanOrEqual(3);
+  });
+
+  it("ett medelstort föremål en bit in från stigen är inte Vit (Vit vill ha stort och tydligt eller på stigen)", () => {
+    const stone = control(mapOf([path, at("204", 300, 25)]), 300, 25, "2.4");
+    expect(judgeControl(stone)).toMatchObject({ rank: 2, rule: "C_CLEAR_FEATURE" });
+    expect(judgeControl(control(mapOf([path, at("205", 300, 25)]), 300, 25, "2.4")).rank).toBe(1);
+    // En punkthöjd 30 m från stigen är Orange (SOFT:s exempel), en liten sten likaså.
+    expect(judgeControl(control(mapOf([path, at("109", 300, 30)]), 300, 30, "1.10"))).toMatchObject({ rank: 3, rule: "C_SMALL_NEAR" });
+    expect(control(mapOf([path, at("204", 300, 30)]), 300, 30, "2.4", "0.8").feature.size).toBe("SMALL");
   });
 
   it("föreslår närmaste stigkorsning och stora föremål på kartan", () => {
@@ -121,8 +137,8 @@ describe("nivåstödets sträckor", () => {
 
   it("en kort genväg genom skogen är Gul: reglerna säger att genandet är mer än Vit tillåter", () => {
     const map = mapOf([line("505", [0, 0], [300, 0]), line("505", [300, 80], [600, 80]), line("505", [300, 0], [300, 300], [300, 80])]);
-    const verdict = judgeLeg(leg(map, [[0, 0], [300, 0], [300, 80], [600, 80]].map(([x, y]) => [x!, y!]), 1.15));
-    expect(verdict).toMatchObject({ rank: 2, rule: "L_NO_SHORTCUT", values: { percent: 15 } });
+    const verdict = judgeLeg(leg(map, [[0, 0], [300, 0], [300, 80], [600, 80]].map(([x, y]) => [x!, y!]), 1.6));
+    expect(verdict).toMatchObject({ rank: 2, rule: "L_NO_SHORTCUT", values: { percent: 60 } });
   });
 
   it("en lång sträcka genom detaljrik kurvbild utan linjer kräver kurvläsning (Blå eller Svart)", () => {
@@ -130,6 +146,27 @@ describe("nivåstödets sträckor", () => {
     const features = leg(map, [[200, 380], [600, 820]]);
     expect(features.detailMeters).toBeGreaterThan(150);
     expect(judgeLeg(features)).toMatchObject({ rank: 5, rule: "L_CONTOURS" });
+  });
+
+  it("ett tätt stignät och flera likvärdiga vägval är svårare än Gul", () => {
+    const base: LegLevelFeatures = { key: "k", from: "a", to: "b", meters: 600, strongShare: 0.8, handrailShare: 0.8, longestOffStrongMeters: 40,
+      longestOffMeters: 40, decisions: 5, junctions: 3, closeAlternatives: 1, shortcutGain: 0.15, detailMeters: 0 };
+    expect(judgeLeg(base).rank).toBe(2);
+    expect(judgeLeg({ ...base, closeAlternatives: 2 })).toMatchObject({ rank: 3, rule: "L_ROUTE_CHOICE" });
+    expect(judgeLeg({ ...base, junctions: 12 })).toMatchObject({ rank: 3, rule: "L_NETWORK" });
+    expect(judgeLeg({ ...base, closeAlternatives: 3, decisions: 20, junctions: 9 })).toMatchObject({ rank: 5, rule: "L_HARD_CHOICE" });
+    // Grön har inga vägval.
+    expect(judgeLeg({ ...base, strongShare: 1, handrailShare: 1, longestOffStrongMeters: 0, longestOffMeters: 0, decisions: 1, junctions: 1,
+      closeAlternatives: 1, shortcutGain: 0 })).toMatchObject({ rank: 1, rule: "L_NO_CHOICE" });
+  });
+
+  it("räknar stigkorsningar som vägen passerar, inte en stig i flera delar ände mot ände", () => {
+    const joined = mapOf([line("505", [0, 0], [300, 0]), line("505", [300, 0], [600, 0])]);
+    expect(leg(joined, [[0, 0], [600, 0]]).junctions).toBe(0);
+    const network = mapOf([line("505", [0, 0], [600, 0]), line("505", [200, -100], [200, 100]), line("505", [400, 0], [400, 200])]);
+    expect(leg(network, [[0, 0], [600, 0]]).junctions).toBe(2);
+    const alternatives = legFeatures(prepareLevelMap(joined), { key: "k", from: "a", to: "b", best: [m(0, 0), m(600, 0)], alternatives: [1.05, 1.08, 1.2] })!;
+    expect(alternatives.closeAlternatives).toBe(2);
   });
 
   it("räknar byten mellan stigar som går åt olika håll, inte en rak stig i flera delar", () => {
@@ -147,23 +184,23 @@ describe("nivåstödets regler och tips", () => {
   });
 
   it("tipset mot målnivån är det första kravet som inte uppfylls där; tydligt lättare från Gul", () => {
-    const far: ControlLevelFeatures = { control: "c", strongMeters: 80, handrailMeters: 80, feature: { size: "BIG", source: "DESCRIPTION", d: "2.4" },
+    const far: ControlLevelFeatures = { control: "c", strongMeters: 60, handrailMeters: 60, feature: { size: "BIG", source: "DESCRIPTION", d: "2.4" },
       attackMeters: 20, relocationMeters: 20, candidates: {} };
     const verdict = judgeControl(far);
     expect(verdict.rank).toBe(2);
     expect(levelDeviation("control", far, verdict.rank, levelRank("GRON"))).toMatchObject({ direction: "HARDER", rule: "C_ON_HANDRAIL" });
     expect(levelDeviation("control", far, verdict.rank, levelRank("VIT"))).toMatchObject({ direction: "HARDER", rule: "C_NEAR_HANDRAIL",
-      values: { meters: 80, limit: 50 } });
+      values: { meters: 60, limit: 50 } });
     expect(levelDeviation("control", far, verdict.rank, levelRank("GUL"))).toBeUndefined();
     expect(levelDeviation("control", far, verdict.rank, levelRank("VIOLETT"))).toMatchObject({ direction: "EASIER", rule: "E_CONTROL_EASY" });
     const along: LegLevelFeatures = { key: "k", from: "a", to: "b", meters: 400, strongShare: 1, handrailShare: 1, longestOffStrongMeters: 0,
-      longestOffMeters: 0, decisions: 1, shortcutGain: 0, detailMeters: 0 };
+      longestOffMeters: 0, decisions: 1, junctions: 1, closeAlternatives: 0, shortcutGain: 0, detailMeters: 0 };
     expect(levelDeviation("leg", along, 0, levelRank("GUL"))).toMatchObject({ direction: "EASIER", rule: "E_LEG_NO_SHORTCUT" });
     expect(levelDeviation("leg", along, 0, levelRank("VIT"))).toBeUndefined();
   });
 
   it("sammanfattar banan och räknar det som är svårare", () => {
-    const item = (rank: number): ControlLevelFeatures => ({ control: String(rank), strongMeters: rank === 0 ? 0 : 80, handrailMeters: rank === 0 ? 0 : 80,
+    const item = (rank: number): ControlLevelFeatures => ({ control: String(rank), strongMeters: rank === 0 ? 0 : 60, handrailMeters: rank === 0 ? 0 : 60,
       feature: { size: "BIG", source: "NONE" }, attackMeters: 10, relocationMeters: 10, candidates: {} });
     const assessment = assessLevel([item(0), item(0), item(2), item(2), item(2)], []);
     expect(assessment.low).toBe(2);

@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
-import { controlFeatures, detectPressNorm, legFeatures, prepareLevelMap, type LegLevelFeatures } from "@o-tid/course-setting";
+import { controlFeatures, legFeatures, prepareLevelMap, type LegLevelFeatures } from "@o-tid/course-setting";
 import { analyseLeg, buildCostModel, calibrateSpeeds, resolveSettings, type CostModel, type RouteChoiceSettings } from "@o-tid/route-choice";
 import type { RouteChoiceWorkerRequest, RouteChoiceWorkerResponse } from "./route-choice-worker-protocol";
 
@@ -46,11 +46,13 @@ async function analyse(runId: number, request: Extract<RouteChoiceWorkerRequest,
  */
 const levelLegs = new Map<string, { features: LegLevelFeatures | undefined; best: number | undefined; straight: number }>();
 
-/** Sprint har ingen färgskala (SOFT 2022): kartans norm som i utskriften (ADR-0211 beslut 3). */
+/**
+ * Sprint har ingen färgskala (SOFT 2022). Nivåstödet räknar en karta som sprint bara i sprintskala (1:4 000 och 1:5 000):
+ * en park i 1:10 000 eller 1:15 000 med ISSprOM-symboler är skogsnorm (ADR-0212, omkalibreringen), till skillnad från
+ * utskriftens färgordning (`detectPressNorm`, ADR-0211) som också tittar på symbolerna.
+ */
 function sprintMap(parsed: ParsedMap): boolean {
-  const codes = new Set<string>();
-  for (const object of parsed.objects) { const symbol = parsed.symbols.get(object.symbol); if (symbol) codes.add(symbol.code.text.replace(/\.0+$/, "")); }
-  return detectPressNorm({ scale: parsed.scale, codes }) === "ISSPROM";
+  return parsed.scale > 0 && parsed.scale <= 5000;
 }
 
 async function level(runId: number, request: Extract<RouteChoiceWorkerRequest, { type: "level" }>) {
@@ -66,7 +68,8 @@ async function level(runId: number, request: Extract<RouteChoiceWorkerRequest, {
       const analysis = analyseLeg(model, { ...leg.input, follow: true }, settings);
       if (runId !== activeRun) return;
       known = { best: analysis.best?.meters, straight: analysis.straightMeters,
-        features: legFeatures(prepared, { key: leg.input.key, from: leg.from, to: leg.to, best: analysis.best?.points, followRatio: analysis.following?.timeRatio }) };
+        features: legFeatures(prepared, { key: leg.input.key, from: leg.from, to: leg.to, best: analysis.best?.points, followRatio: analysis.following?.timeRatio,
+          alternatives: analysis.alternatives.map(alternative => alternative.timeRatio) }) };
       if (levelLegs.size > 2000) levelLegs.clear();
       levelLegs.set(leg.input.key, known);
     }

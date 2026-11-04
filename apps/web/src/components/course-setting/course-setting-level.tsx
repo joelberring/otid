@@ -188,8 +188,8 @@ export function LevelPanel({ store, support, document, readOnly, onEdits, onShow
   const shown = only ? rows.filter(row => row.deviation) : rows;
   const deviations = target && stored ? levelDeviations(stored.assessment, target) : [];
   const easier = deviations.filter(row => row.deviation.direction === "EASIER").length;
-  const harder = stored ? harderThan(stored.assessment, target ? levelRank(target) : stored.assessment.low) : undefined;
-  const compare = target ? text.levelName(target) : stored ? text.rankName(stored.assessment.low) : "";
+  const harder = stored ? harderThan(stored.assessment, target ? levelRank(target) : stored.assessment.typical) : undefined;
+  const compare = target ? text.levelName(target) : stored ? text.rankName(stored.assessment.typical) : "";
   return <section className={base.panel} aria-labelledby="course-setting-level" data-testid="course-setting-level">
     <h2 id="course-setting-level">{text.panel.heading}</h2>
     <p className={base.muted}>{text.panel.support} <HelpLink article={levelGuideArticle(target)} label={text.field.guide(target)} /></p>
@@ -206,7 +206,8 @@ export function LevelPanel({ store, support, document, readOnly, onEdits, onShow
       {course.kind === "SCORE" && <p className={base.muted}>{text.panel.score}</p>}
       {stored && <>
         <p role="status" data-testid="course-setting-level-summary" data-stale={!fresh || undefined}><strong>
-          {rows.length === 0 ? text.panel.empty : text.panel.summary(text.rankName(stored.assessment.low), text.rankName(stored.assessment.high))}</strong>
+          {rows.length === 0 ? text.panel.empty : text.panel.summary(text.rankName(stored.assessment.typical),
+            text.rankName(stored.assessment.low), text.rankName(stored.assessment.high))}</strong>
           {rows.length > 0 && harder && <> {text.panel.harder(harder.legs, harder.controls, compare)}</>}
           {easier > 0 && target && <> {text.panel.easier(easier, text.levelName(target))}</>}</p>
         {target && !readOnly && <label className={base.inline}>

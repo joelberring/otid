@@ -104,6 +104,10 @@ export interface LegLevelFeatures {
   readonly longestOffMeters: number;
   /** Byten mellan ledstänger längs vägen (vägvalspunkter). */
   readonly decisions: number;
+  /** Stigkorsningar som vägen passerar (stignätets täthet). */
+  readonly junctions: number;
+  /** Skilda vägval inom 10 % av det bästa (verkliga vägval). */
+  readonly closeAlternatives: number;
   /** Hur mycket långsammare det är att följa vägar och stigar än att gena (0,15 = 15 %); 0 när det inte lönar sig att gena. */
   readonly shortcutGain: number;
   /** Längsta biten (m) långt från alla ledstänger i detaljrik kurvbild (kurvläsning). */

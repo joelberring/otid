@@ -17,7 +17,7 @@ function documentWith(edits: readonly CourseSettingEdit[]): { document: CourseSe
   return { document, ids };
 }
 
-const far = (control: string): ControlLevelFeatures => ({ control, strongMeters: 80, handrailMeters: 80, feature: { size: "BIG", source: "DESCRIPTION" },
+const far = (control: string): ControlLevelFeatures => ({ control, strongMeters: 60, handrailMeters: 60, feature: { size: "BIG", source: "DESCRIPTION" },
   attackMeters: 10, relocationMeters: 10, candidates: { handrail: { x: 1, y: 1 } } });
 
 describe("nivåstödets texter", () => {
@@ -48,11 +48,11 @@ describe("nivåstödets rader och notiser", () => {
   for (const id of [start, control, finish]) doc = applyEdit(doc, { type: "INSERT_COURSE_CONTROL", course, control: id }).document;
   doc = applyEdit(doc, { type: "UPDATE_COURSE", course, changes: { level: "VIT" } }).document;
 
-  it("visar skälet och tipset mot målnivån: en kontroll 80 m från stigen är Gul, mer än Vit tillåter", () => {
+  it("visar skälet och tipset mot målnivån: en stor sten 60 m från stigen är Gul, mer än Vit tillåter", () => {
     const rows = levelRows(doc, assessLevel([far(control)], []), "VIT");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ kind: "control", label: "Kontroll 34", rank: 2 });
-    expect(rows[0]!.reason).toBe("ligger 80 m från närmaste stig eller annan ledstång – mer än Vit tillåter (50 m)");
+    expect(rows[0]!.reason).toBe("ligger 60 m från närmaste stig eller annan ledstång – mer än Vit tillåter (50 m)");
     expect(rows[0]!.tip).toBe("Flytta kontrollen närmare stigen (inom ~20 m) eller välj ett större föremål");
     expect(rows[0]!.candidates.map(item => item.kind)).toEqual(["handrail"]);
   });
@@ -75,7 +75,7 @@ describe("nivåstödets rader och notiser", () => {
     const rows = checkRows(on, checks, check => levelCheckText(on, check, assessment));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ level: "NOTICE", acceptable: true, group: "LEVEL_DEVIATION", controls: [control] });
-    expect(rows[0]!.text).toContain("Ungdom: Kontroll 34: ligger 80 m");
+    expect(rows[0]!.text).toContain("Ungdom: Kontroll 34: ligger 60 m");
     expect(rows[0]!.text).toContain("Flytta kontrollen närmare stigen");
     // Notiser räknas inte i fliken.
     expect(checkGroups(rows).count).toBe(0);

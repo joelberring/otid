@@ -17,6 +17,13 @@ export const organizerSv = {
   loggingOut: "Loggar ut …",
   logoutError: (status: number) => `Utloggningen kunde inte bekräftas (${status}).`,
   loggedOut: "Du är utloggad.",
+  /** ADR-0205 tillägg: efter "Logga ut från alla enheter" under Mitt konto. */
+  loggedOutEverywhere: "Du är utloggad på alla enheter.",
+  /** ADR-0205 tillägg: lång inloggning bara när den är vald (lånade datorer på klubben och tävlingen). */
+  remember: "Kom ihåg mig på den här datorn",
+  rememberHint: "Använd inte på en lånad dator",
+  /** Ägaren 2026-11-04: de som varit, ihopfällda under listan. */
+  pastEvents: (count: number) => `Tidigare tävlingar (${count})`,
   checkSessionBeforeContinue: (error: string) => `${error} Kontrollera sessionen innan du fortsätter.`,
   openingRace: "Öppnar tävlingsadministrationen …",
   checkSession: "Kontrollerar session …",

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
+import { useState, type FormEvent } from "react";
 import type { ClubSummary } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubFailure, clubRequest } from "../../lib/club-archive-client";
@@ -12,23 +11,17 @@ const text = clubArchiveSv.myClubs;
 /** Samma gräns som servern (`clubNameSchema`). */
 const NAME_MAX = 120;
 
-/** ADR-0194 beslut 1: Mina tävlingar → Mina klubbar, med klubbarkivet. Den som skapar en klubb blir ägare. */
-export function MyClubs() {
-  const [clubs, setClubs] = useState<ClubSummary[]>();
+/**
+ * ADR-0194 beslut 1: en ny klubbyta från Mina tävlingar (den som skapar en klubb blir ägare). Ägaren 2026-11-04: en liten åtgärd
+ * i remsan Mina klubbar överst (`MyPlacesStrip`); formuläret visas under remsan.
+ */
+export function NewClubForm({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const [name, setName] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   /** Felet vid namnfältet (tomt, för långt, finns redan); övriga fel under knappen. */
   const [nameError, setNameError] = useState<string>();
-
-  useEffect(() => {
-    let active = true;
-    void clubRequest("/api/organizer/clubs").then(result => {
-      if (active && result.status === 200) setClubs((result.json as { clubs: ClubSummary[] }).clubs);
-    });
-    return () => { active = false; };
-  }, []);
 
   async function create(event: FormEvent) {
     event.preventDefault();
@@ -52,24 +45,13 @@ export function MyClubs() {
     } finally { setBusy(false); }
   }
 
-  return <section className={styles.myClubs} aria-labelledby="my-clubs-heading">
-    <h2 id="my-clubs-heading">{text.title}</h2>
-    <p className={styles.muted}>{text.hint}</p>
-    {clubs && clubs.length === 0 && <p className={styles.muted}>{text.empty}</p>}
-    {clubs && clubs.length > 0 && <ul className={styles.list}>
-      {clubs.map(club => <li key={club.clubId}>
-        <div><strong>{club.name}</strong><span>{clubArchiveSv.roles[club.role]} · {text.entries(club.entries)}</span></div>
-        <Link className={styles.buttonLink} href={`/organizer/clubs/${club.clubId}`}>{text.open}</Link>
-      </li>)}
-    </ul>}
-    <details className={styles.details}>
-      <summary>{text.create}</summary>
-      <form className={styles.form} noValidate onSubmit={event => void create(event)}>
-        <Field label={text.name} error={nameError}><input value={name} required aria-required="true" maxLength={NAME_MAX} autoComplete="off"
-          placeholder={text.namePlaceholder} onChange={event => { setName(event.target.value); if (nameError) setNameError(undefined); }} /></Field>
-        <Button type="submit" disabled={busy}>{text.createButton}</Button>
-        {problem && <Notice tone="error" role="alert">{problem}</Notice>}
-      </form>
-    </details>
-  </section>;
+  return <>
+    <Button variant="secondary" className={styles.smallAction} aria-expanded={open} onClick={onToggle}>{text.create}</Button>
+    {open && <form className={`${styles.form} ${styles.createInline}`} noValidate onSubmit={event => void create(event)}>
+      <Field label={text.name} error={nameError}><input value={name} required aria-required="true" maxLength={NAME_MAX} autoComplete="off" autoFocus
+        placeholder={text.namePlaceholder} onChange={event => { setName(event.target.value); if (nameError) setNameError(undefined); }} /></Field>
+      <Button type="submit" disabled={busy}>{text.createButton}</Button>
+      {problem && <Notice tone="error" role="alert">{problem}</Notice>}
+    </form>}
+  </>;
 }

@@ -180,6 +180,11 @@ async function affiliationView(tx: DbExecutor, clubId: string): Promise<ClubAffi
     confirmed: confirmed.filter(row => row.organisationId === null || row.organisationId === link.organisationId).map(person) };
 }
 
+/** Mina tävlingar (ADR-0205 tillägg, ägaren 2026-11-04): hur många som väntar på bekräftelse i klubbytan ("3 väntar på bekräftelse"). */
+export async function pendingClubAffiliations(tx: DbExecutor, clubId: string): Promise<number> {
+  return (await affiliationView(tx, clubId))?.pending.length ?? 0;
+}
+
 /** Klubben i Eventor och bekräftelserna: bara ägare och administratörer (läsare får 403, andra 404). */
 export async function readClubAffiliation(db: Database, input: ClubProof & { clubId: string }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; view: ClubAffiliationView }> {

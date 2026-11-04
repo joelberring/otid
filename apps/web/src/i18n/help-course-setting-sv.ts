@@ -13,7 +13,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
     title: "Kom igång: lägga en träning på 10 minuter",
     views: ["CS_START", "EVENTS", "COURSE_SETTING", "COURSES"],
     body: [
-      "Från tom tävling till utskrivna kartor och avläsning:",
+      "Från tom tävling till utskrivna kartor och avläsning. Klubbytorna och träningsgrupperna finns överst på ”Mina tävlingar” (”Mina klubbar”, ”Mina grupper”) och i menyn med ditt namn.",
       { steps: [
         "Skriv namn och datum på ”Mina tävlingar”, välj ”Träning” och tryck på ”Skapa tävling”. Se [Skapa en tävling](#skapa-tavling).",
         "Öppna ”Banläggning” och ladda upp kartfilen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",

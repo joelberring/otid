@@ -9,6 +9,7 @@ import {
   acceptClubInvitations, clubJournal, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubRole, type ClubTransaction
 } from "./club-access";
 import { withDerivedClubs } from "./club-affiliation-access";
+import { pendingClubAffiliations } from "./club-affiliations";
 import { clubSourcedInContext } from "./club-invite";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import { mapStorageQuota, mapStorageUsage } from "./map-content";
@@ -63,7 +64,11 @@ export async function listMyClubs(db: Database, proof: ClubProof, now = new Date
     const entries = new Map((await tx.select({ clubId: schema.clubArchiveEntries.clubId, value: count() }).from(schema.clubArchiveEntries)
       .where(inArray(schema.clubArchiveEntries.clubId, rows.map(row => row.clubId))).groupBy(schema.clubArchiveEntries.clubId))
       .map(row => [row.clubId, row.value]));
-    return { status: "ok", clubs: rows.map(row => ({ clubId: row.clubId, name: row.name, role: row.role, entries: entries.get(row.clubId) ?? 0 })) } as const;
+    // Ägaren 2026-11-04: ägare och administratörer ser hur många som väntar på bekräftelse, direkt i Mina tävlingar.
+    const pending = new Map<string, number>();
+    for (const row of rows) if (row.role === "OWNER" || row.role === "ADMIN") pending.set(row.clubId, await pendingClubAffiliations(tx, row.clubId));
+    return { status: "ok", clubs: rows.map(row => ({ clubId: row.clubId, name: row.name, role: row.role, entries: entries.get(row.clubId) ?? 0,
+      ...(pending.has(row.clubId) ? { pending: pending.get(row.clubId)! } : {}) })) } as const;
   });
 }
 

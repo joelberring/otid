@@ -49,7 +49,7 @@ export async function startFakeGoogle(): Promise<FakeGoogle> {
   const endpoints: GoogleEndpoints = { authorization: `${origin}/auth`, token: `${origin}/token`, jwks: `${origin}/certs`, issuers: [issuer] };
   const config: GoogleOidcConfig = { clientId: "otid-klient.apps.googleusercontent.com", clientSecret: "hemlig",
     redirectUri: "https://otid.example/api/account/google/callback", endpoints };
-  return {
+  const provider: FakeGoogle = {
     endpoints, config,
     authorize(authorizationUrl, claims) {
       const params = new URL(authorizationUrl).searchParams;
@@ -63,10 +63,11 @@ export async function startFakeGoogle(): Promise<FakeGoogle> {
     },
     async identity(claims) {
       const login = newGoogleLoginState();
-      const code = this.authorize(googleAuthorizationUrl(config, login), claims);
+      const code = provider.authorize(googleAuthorizationUrl(config, login), claims);
       return exchangeGoogleCode(config, { code, login });
     },
     signWith(key) { signing = key === "own" ? own.privateKey : foreign.privateKey; },
     close: () => new Promise<void>(resolve => server.close(() => resolve()))
   };
+  return provider;
 }

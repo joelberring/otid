@@ -113,6 +113,8 @@ export interface FieldStore {
   clearRecord(raceId: string): Promise<void>;
   /** Allt för alla tävlingar (utloggning). */
   clearAll(): Promise<void>;
+  /** ADR-0205 tillägg: ändringar som inte har kommit fram till servern, för alla tävlingar (varningen före utloggning). */
+  pendingCount(): Promise<number>;
   /** Kön i den ordning den lades till. */
   listQueue(raceId: string): Promise<QueuedItem[]>;
   addQueued(item: QueuedItem): Promise<void>;
@@ -142,6 +144,7 @@ export function memoryFieldStore(): FieldStore {
     },
     clearRecord: async raceId => { logs.delete(raceId); bases.delete(raceId); },
     clearAll: async () => { logs.clear(); bases.clear(); queue.splice(0); maps.clear(); histories.clear(); },
+    pendingCount: async () => [...logs.values()].reduce((sum, log) => sum + log.log.length, 0) + queue.length,
     readHistory: async raceId => structuredClone(histories.get(raceId)),
     writeHistory: async history => { histories.set(history.raceId, structuredClone(history)); },
     clearHistory: async raceId => { histories.delete(raceId); },

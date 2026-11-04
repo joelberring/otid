@@ -131,7 +131,8 @@ export type ClubArchiveEntryUpdateRequest = z.infer<typeof clubArchiveEntryUpdat
 
 // --- Vyerna ----------------------------------------------------------------------------------------------------------------
 
-export interface ClubSummary { clubId: string; name: string; role: ClubRole; entries: number }
+/** `pending`: för ägare och administratörer, hur många som väntar på bekräftelse som medlemmar. */
+export interface ClubSummary { clubId: string; name: string; role: ClubRole; entries: number; pending?: number }
 
 export interface ClubMember { memberId: string; accountId: string; email: string; displayName: string; role: ClubRole; addedAt: string }
 /**

@@ -13,6 +13,7 @@ import { MapRightsEditor } from "./map-rights-editor";
 import { ReuseDialog } from "./reuse-dialog";
 import { usePpen } from "./use-ppen";
 import { HelpButton } from "../help/help-panel";
+import { AccountMenu } from "../account-menu";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv.entry;
@@ -125,6 +126,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>}
         {admin && !editing && <Button variant="secondary" onClick={() => setEditing(true)}>{text.edit}</Button>}
         <HelpButton view={["ARCHIVE_ENTRY", "ARCHIVE_MAPS"]} />
+        <AccountMenu />
       </div>
     </header>
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}

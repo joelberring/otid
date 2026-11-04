@@ -33,3 +33,13 @@ export function orderMyEvents<R extends Race, E extends EventWithRaces<R>>(event
     : left.upcoming ? left.key.localeCompare(right.key) : right.key.localeCompare(left.key))
     .map((row) => row.event);
 }
+
+/**
+ * Ägaren 2026-11-04: långa listor. Idag och kommande överst; de som varit fälls ihop under "Tidigare tävlingar (n)", senaste
+ * först. Ordningen är densamma som `orderMyEvents`, bara delad (också för den som bara är funktionär).
+ */
+export function splitMyEvents<R extends Race, E extends EventWithRaces<R>>(events: readonly E[], now: Date): { current: E[]; past: E[] } {
+  const ordered = orderMyEvents<R, E>(events, now);
+  const upcoming = (event: E) => (event.races[0]?.raceDate ?? event.startsOn) >= todayIn(event.timeZone, now);
+  return { current: ordered.filter(upcoming), past: ordered.filter(event => !upcoming(event)) };
+}

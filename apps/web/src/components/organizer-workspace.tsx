@@ -27,13 +27,12 @@ import { raceBackupSv } from "../i18n/race-backup-sv";
 import { raceCopySv } from "../i18n/race-copy-sv";
 import { hasErrors, validateCreateRace, type CreateRaceInput, type FieldErrors } from "../lib/form-validation";
 import { DateInput, Field, focusFirstError } from "./ui";
-import { orderMyEvents } from "../lib/my-events-order";
+import { splitMyEvents } from "../lib/my-events-order";
 import { raceListName } from "../lib/race-list-name";
-import { MyGroups } from "./training-group/my-groups";
-import { MyClubs } from "./club-archive/my-clubs";
+import { MyPlacesStrip } from "./my-places-strip";
+import { AccountMenu } from "./account-menu";
 import { applyClubMap, ClubMapChoiceField, type ClubMapChoice } from "./club-archive/club-map-picker";
 import { clubMapDuplicatesSv } from "../i18n/club-map-duplicates-sv";
-import { forgetAllCourseSettingCopies } from "../lib/course-setting-offline-forget";
 import { readInvitationHandoff, takeInvitationNext } from "../lib/invitation-handoff";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import styles from "./organizer-workspace.module.css";
@@ -66,11 +65,24 @@ function takeGoogleProblem(): string | undefined {
   return Object.hasOwn(copy.googleProblem, code) ? copy.googleProblem[code as keyof typeof copy.googleProblem] : copy.googleProblem.fel;
 }
 
-/** ADR-0205: "Logga in med Google" när servern har en Google-klient (en vanlig länk; servern skickar vidare till Google). */
-function GoogleLogin() {
+/** ADR-0205 tillägg: beskedet efter utloggningen (`/organizer?utloggad=1|alla`), som sedan tas bort ur adressen. */
+function takeLoggedOut(): string | undefined {
+  const url = new URL(window.location.href);
+  const value = url.searchParams.get("utloggad");
+  if (value === null) return undefined;
+  url.searchParams.delete("utloggad");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  return value === "alla" ? copy.loggedOutEverywhere : copy.loggedOut;
+}
+
+/**
+ * ADR-0205: "Logga in med Google" när servern har en Google-klient (en vanlig länk; servern skickar vidare till Google).
+ * "Kom ihåg mig på den här datorn" följer med (`?remember=1`).
+ */
+function GoogleLogin({ remember }: { remember: boolean }) {
   return <div className={styles.googleLogin}>
     <p className={styles.googleOr}><span>{copy.googleOr}</span></p>
-    <a className={styles.googleButton} href="/api/account/google/start">{copy.googleLogin}</a>
+    <a className={styles.googleButton} href={remember ? "/api/account/google/start?remember=1" : "/api/account/google/start"}>{copy.googleLogin}</a>
     <p className={styles.muted}>{copy.googleHint}</p>
   </div>;
 }
@@ -81,6 +93,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
+  /** ADR-0205 tillägg: "Kom ihåg mig på den här datorn", av som förval (en kort inloggning och en sessionskaka). */
+  const [remember, setRemember] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   /** ADR-0206: "Skapa konto" från en inbjudan låser adressen till inbjudans. */
@@ -161,6 +175,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     if (invitation) { setMode(invitation.mode); setEmail(invitation.email); setLockedEmail(invitation.mode === "register"); }
     const googleProblem = takeGoogleProblem();
     if (googleProblem) setMessage(googleProblem);
+    const loggedOut = takeLoggedOut();
+    if (loggedOut) setMessage(loggedOut);
     void checkSession();
   }, []);
 
@@ -219,7 +235,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(request)
+        body: JSON.stringify({ ...request, remember })
       });
       if (!response.ok) throw new Error(response.status === 401 ? copy.invalidCredentialsOrUnverified
         : response.status === 429 ? copy.loginRateLimited : response.status === 403 ? copy.accountBlocked
@@ -330,31 +346,6 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     setMessage(copy.attemptAbandoned);
   }
 
-  async function logout() {
-    setBusy(true);
-    setMessage(copy.loggingOut);
-    try {
-      const response = await fetch("/api/organizer/logout", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "x-otid-csrf": readOrganizerCsrf(document.cookie, new URL(window.location.href)) }
-      });
-      if (!response.ok && response.status !== 401) throw new Error(copy.logoutError(response.status));
-      // Banhemligheten: telefonens kopior av banläggningen (posten, kön, kartfilen, sidan) tas bort vid utloggning.
-      await forgetAllCourseSettingCopies().catch(error => console.error("Banläggningen i telefonen kunde inte tas bort", error));
-      setSession(undefined);
-      setEvents([]);
-      setEventSearch("");
-      setEventsLoaded(false);
-      setMode("login");
-      setMessage(copy.loggedOut);
-    } catch (error) {
-      setMessage(copy.checkSessionBeforeContinue(errorMessage(error)));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   /** Kontots session gäller tävlingen direkt (ADR-0173 beslut 4): arbetsytan öppnas utan eget steg. */
   function enterRace(raceId: string, page: "manage" | "course-setting" | "course-setting/map-errors" = "manage") {
     setEnteringRaceId(raceId);
@@ -365,92 +356,16 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const attemptMatchesSession = !!session && !!attempt && attempt.accountId === session.accountId;
   const attemptBelongsToOtherAccount = !!session && !!attempt && attempt.accountId !== session.accountId;
   const searchTerm = eventSearch.trim().normalize("NFC").toLocaleLowerCase("sv-SE");
-  // PLAN.md steg 27: idag och kommande först, sedan gångna.
-  const orderedEvents = orderMyEvents(events, new Date());
-  const visibleEvents = searchTerm
-    ? orderedEvents.filter((event) => event.eventName.normalize("NFC").toLocaleLowerCase("sv-SE").includes(searchTerm)
-      || event.races.some((race) => race.raceName.normalize("NFC").toLocaleLowerCase("sv-SE").includes(searchTerm)))
-    : orderedEvents;
+  // PLAN.md steg 27: idag och kommande först, sedan gångna. Ägaren 2026-11-04: de gångna fälls ihop; sökningen gäller båda.
+  const matches = (event: OrganizerMyEventsResponse["events"][number]) => !searchTerm
+    || event.eventName.normalize("NFC").toLocaleLowerCase("sv-SE").includes(searchTerm)
+    || event.races.some((race) => race.raceName.normalize("NFC").toLocaleLowerCase("sv-SE").includes(searchTerm));
+  const split = splitMyEvents(events, new Date());
+  const currentEvents = split.current.filter(matches);
+  const pastEvents = split.past.filter(matches);
+  const visibleCount = currentEvents.length + pastEvents.length;
 
-  return <main className={styles.main}>
-    <header className={styles.header}>
-      <div><p className={styles.kicker}>O-Tid · Arrangör</p><h1>{copy.yourEvents}</h1>
-        {session && events.length > 0 && <a className={styles.createJump} href="#organizer-create-event">{copy.createJump}</a>}</div>
-      {session && <div className={styles.account}><span>{session.displayName}</span>
-        {session.superadmin && <Link href="/superadmin">{copy.superadmin}</Link>}
-        <Link href="/konto">{copy.myAccount}</Link>
-        <button className={styles.secondary} type="button" disabled={busy} onClick={() => void logout()}>{copy.logout}</button>
-        <HelpButton view="EVENTS" />
-      </div>}
-      {!session && <HelpButton view="EVENTS" />}
-    </header>
-
-    {!sessionChecked && <section className={styles.panel} aria-live="polite"><p>{copy.checkSession}</p></section>}
-    {session?.emailVerified === false && <section className={styles.panel} data-testid="unverified-email"><p>{copy.unverifiedNotice}</p></section>}
-
-    {sessionChecked && !session && mode === "login" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
-      <h2>{copy.login}</h2>
-      <p className={styles.muted}>{copy.loginHint}</p>
-      <form className={styles.form} onSubmit={(event) => void login(event)}>
-        <label>{copy.email}
-          <input type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email}
-            onChange={(event) => setEmail(event.target.value)} required />
-        </label>
-        <PasswordInput label={copy.password} value={password} onChange={setPassword} autoComplete="current-password" />
-        <button type="submit" disabled={busy || !email || !password} aria-busy={busy}>{copy.login}</button>
-        {message && <p className={styles.loginMessage} role={loginProblems.has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
-      </form>
-      {googleEnabled && <GoogleLogin />}
-      <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
-        <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); setRepeat(""); }}>{copy.toRegister}</button>
-        <Link href="/recover">{copy.forgotPassword}</Link>
-      </nav>
-    </section>}
-
-    {sessionChecked && !session && mode === "register" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
-      <h2>{copy.register}</h2>
-      <p className={styles.muted}>{copy.registerHint}</p>
-      <form className={styles.form} onSubmit={(event) => void register(event)}>
-        <label>{copy.displayName}
-          <input autoComplete="name" value={displayName} maxLength={120}
-            onChange={(event) => setDisplayName(event.target.value)} required />
-        </label>
-        <label>{copy.email}
-          <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
-            readOnly={lockedEmail} onChange={(event) => setEmail(event.target.value)} required />
-        </label>
-        <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} />
-        <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>
-        <button type="submit" disabled={busy || !email || !displayName.trim() || !passwordsReady(password, repeat)} aria-busy={busy}>{copy.register}</button>
-        {message && <p className={styles.loginMessage} role={message === copy.registering ? "status" : "alert"} aria-live="polite">{message}</p>}
-      </form>
-      {googleEnabled && <GoogleLogin />}
-      <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
-        <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>{copy.toLogin}</button>
-      </nav>
-    </section>}
-
-    {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
-    {session && <ClubStep />}
-    {session && <div className={styles.columns}>
-      <section className={`${styles.panel} ${styles.events}`}>
-        <div className={styles.sectionHeading}><div><h2>{copy.eventsSection}</h2><p className={styles.muted}>{copy.eventsHint}</p></div>
-          <button type="button" className={styles.secondary} disabled={busy} onClick={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))}>{copy.refresh}</button>
-        </div>
-        {!eventsLoaded && <p aria-live="polite">{copy.loadingEvents}</p>}
-        {eventsLoaded && eventsError && <p role="alert">{eventsError}</p>}
-        {eventsLoaded && !eventsError && events.length === 0 && <div className={styles.empty}><strong>{copy.noEvents}</strong><p>{copy.noEventsHint}</p><a href="#organizer-create-event">{copy.noEventsCreateLink}</a></div>}
-        {eventsLoaded && !eventsError && events.length > 0 && <div className={styles.eventFinder}>
-          <label htmlFor="organizer-event-search">{copy.eventSearchLabel}</label>
-          <div className={styles.eventFinderControls}>
-            <input id="organizer-event-search" type="search" value={eventSearch}
-              onChange={(event) => setEventSearch(event.target.value)} autoComplete="off" />
-            {eventSearch && <button type="button" className={styles.secondary} onClick={() => setEventSearch("")}>{copy.clearEventSearch}</button>}
-          </div>
-        </div>}
-        {eventsLoaded && !eventsError && events.length > 0 && visibleEvents.length === 0 && <p className={styles.noEventMatches} role="status">{copy.noEventMatches}</p>}
-        {eventsLoaded && !eventsError && visibleEvents.length > 0 && <ul className={styles.eventList}>
-          {visibleEvents.map((event) => <li className={styles.event} key={event.eventId}>
+  const renderEvent = (event: OrganizerMyEventsResponse["events"][number]) => <li className={styles.event} key={event.eventId}>
             <div className={styles.eventHeading}>
               <h3>{event.eventName}</h3>
               <span className={styles.eventRole}>{copy.eventRole[event.role]}</span>
@@ -477,8 +392,98 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
               </div>
             </li>;
             })}</ul>
-          </li>)}
+          </li>;
+
+  return <main className={styles.main}>
+    <header className={styles.header}>
+      <div><p className={styles.kicker}>O-Tid · Arrangör</p><h1>{copy.yourEvents}</h1>
+        {session && events.length > 0 && <a className={styles.createJump} href="#organizer-create-event">{copy.createJump}</a>}</div>
+      {session && <div className={styles.account}>
+        {session.superadmin && <Link href="/superadmin">{copy.superadmin}</Link>}
+        <HelpButton view="EVENTS" />
+        <AccountMenu who={{ displayName: session.displayName, email: session.email }} />
+      </div>}
+      {!session && <HelpButton view="EVENTS" />}
+    </header>
+
+    {!sessionChecked && <section className={styles.panel} aria-live="polite"><p>{copy.checkSession}</p></section>}
+    {session?.emailVerified === false && <section className={styles.panel} data-testid="unverified-email"><p>{copy.unverifiedNotice}</p></section>}
+
+    {sessionChecked && !session && mode === "login" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
+      <h2>{copy.login}</h2>
+      <p className={styles.muted}>{copy.loginHint}</p>
+      <form className={styles.form} onSubmit={(event) => void login(event)}>
+        <label>{copy.email}
+          <input type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email}
+            onChange={(event) => setEmail(event.target.value)} required />
+        </label>
+        <PasswordInput label={copy.password} value={password} onChange={setPassword} autoComplete="current-password" />
+        <div className={styles.remember}>
+          <label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> {copy.remember}</label>
+          <p className={styles.muted}>{copy.rememberHint}</p>
+        </div>
+        <button type="submit" disabled={busy || !email || !password} aria-busy={busy}>{copy.login}</button>
+        {message && <p className={styles.loginMessage} role={loginProblems.has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
+      </form>
+      {googleEnabled && <GoogleLogin remember={remember} />}
+      <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
+        <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); setRepeat(""); }}>{copy.toRegister}</button>
+        <Link href="/recover">{copy.forgotPassword}</Link>
+      </nav>
+    </section>}
+
+    {sessionChecked && !session && mode === "register" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
+      <h2>{copy.register}</h2>
+      <p className={styles.muted}>{copy.registerHint}</p>
+      <form className={styles.form} onSubmit={(event) => void register(event)}>
+        <label>{copy.displayName}
+          <input autoComplete="name" value={displayName} maxLength={120}
+            onChange={(event) => setDisplayName(event.target.value)} required />
+        </label>
+        <label>{copy.email}
+          <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
+            readOnly={lockedEmail} onChange={(event) => setEmail(event.target.value)} required />
+        </label>
+        <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} />
+        <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>
+        <button type="submit" disabled={busy || !email || !displayName.trim() || !passwordsReady(password, repeat)} aria-busy={busy}>{copy.register}</button>
+        {message && <p className={styles.loginMessage} role={message === copy.registering ? "status" : "alert"} aria-live="polite">{message}</p>}
+      </form>
+      {googleEnabled && <GoogleLogin remember={false} />}
+      <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
+        <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>{copy.toLogin}</button>
+      </nav>
+    </section>}
+
+    {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
+    {session && <ClubStep />}
+    {session && <MyPlacesStrip />}
+    {session && <div className={styles.columns}>
+      <section className={`${styles.panel} ${styles.events}`}>
+        <div className={styles.sectionHeading}><div><h2>{copy.eventsSection}</h2><p className={styles.muted}>{copy.eventsHint}</p></div>
+          <button type="button" className={styles.secondary} disabled={busy} onClick={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))}>{copy.refresh}</button>
+        </div>
+        {!eventsLoaded && <p aria-live="polite">{copy.loadingEvents}</p>}
+        {eventsLoaded && eventsError && <p role="alert">{eventsError}</p>}
+        {eventsLoaded && !eventsError && events.length === 0 && <div className={styles.empty}><strong>{copy.noEvents}</strong><p>{copy.noEventsHint}</p><a href="#organizer-create-event">{copy.noEventsCreateLink}</a></div>}
+        {eventsLoaded && !eventsError && events.length > 0 && <div className={styles.eventFinder}>
+          <label htmlFor="organizer-event-search">{copy.eventSearchLabel}</label>
+          <div className={styles.eventFinderControls}>
+            <input id="organizer-event-search" type="search" value={eventSearch}
+              onChange={(event) => setEventSearch(event.target.value)} autoComplete="off" />
+            {eventSearch && <button type="button" className={styles.secondary} onClick={() => setEventSearch("")}>{copy.clearEventSearch}</button>}
+          </div>
+        </div>}
+        {eventsLoaded && !eventsError && events.length > 0 && visibleCount === 0 && <p className={styles.noEventMatches} role="status">{copy.noEventMatches}</p>}
+        {eventsLoaded && !eventsError && currentEvents.length > 0 && <ul className={styles.eventList}>
+          {currentEvents.map(renderEvent)}
         </ul>}
+        {/* Ägaren 2026-11-04: de som varit, senaste först, ihopfällda (öppna när sökningen hittar något bland dem). */}
+        {eventsLoaded && !eventsError && pastEvents.length > 0 && <details className={styles.pastEvents} data-testid="past-events"
+          open={searchTerm ? true : undefined} key={searchTerm ? "search" : "list"}>
+          <summary>{copy.pastEvents(pastEvents.length)}</summary>
+          <ul className={styles.eventList}>{pastEvents.map(renderEvent)}</ul>
+        </details>}
       </section>
 
       <section id="organizer-create-event" className={`${styles.panel} ${styles.createPanel}`}>
@@ -522,8 +527,6 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       </section>
     </div>}
 
-    {session && <MyGroups />}
-    {session && <MyClubs />}
     {session && <p className={styles.message} role="status" aria-live="polite">{message}</p>}
     <RestoreRaceDialog open={restoreOpen} onClose={() => setRestoreOpen(false)}
       onRestored={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />

@@ -10,7 +10,7 @@ export const clubArchiveSv = {
     title: "Mina klubbar",
     hint: "Klubbens arkiv med kartor och banor från tidigare träningar, för att använda dem igen. Bara för inbjudna.",
     empty: "Du är inte med i någon klubb än.",
-    create: "Ny klubb",
+    create: "Ny klubbyta",
     name: "Klubbens namn",
     namePlaceholder: "t.ex. OK Älvsjö-Örby",
     nameMissing: "Skriv klubbens namn.",

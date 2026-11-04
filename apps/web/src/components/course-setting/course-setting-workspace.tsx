@@ -9,6 +9,7 @@ import type { HelpView } from "../../i18n/help-sv";
 import type { Tool } from "../../lib/course-setting-editor";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { HelpButton } from "../help/help-panel";
+import { AccountMenu } from "../account-menu";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
@@ -81,6 +82,7 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
     </div>
     {/* Hjälp (grenen hjalp-banlaggning): flikens artiklar först; bara "?" på smal skärm. */}
     <HelpButton view={help} compact />
+    <AccountMenu />
     <Button variant="secondary" title={full ? copy.topbar.exitFullscreen : copy.topbar.fullscreen}
       aria-label={full ? copy.topbar.exitFullscreen : copy.topbar.fullscreen}
       onClick={() => {

@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Nivåstöd omkalibrerat (grenen nivastod-2, ändring i ADR-0212, ingen migration)
+- Stämt mot 238 märkta banor ur klubbens träningsbank (lokalt, committas inte) och Djurgårdens natt-KM: öppen mark är en yta (bara kanten är ledstång), föremålets storlek väger mer, stignätets korsningar och likvärdiga vägval (inom 10 %) är nya mått och regler, genandet räknas först vid 50 %.
+- Banans nivå är två tredjedelar-punkten med spridningen; en park i 1:15 000 är skogsnorm (bara 1:4 000/1:5 000 är sprint i nivåstödet).
+- Märkta banor inom ±1 steg 90 % (exakt 47 %, före 39 %), nivåerna i rätt ordning; Djurgården Gul–Orange (före Vit–Gul). Siffrorna i ADR-0212.
+- Verifierat: enhetstester (course-setting, web), lint, typecheck, Playwright `banlaggning-nivastod`. Återstår: nattval saknas i tävlingen, så "Natt: upplevs svårare" visas inte.
+
 ### 2026-11-04 – Koppla Google-konto, kontomenyn och Mina tävlingar (grenen google-koppla, ADR-0205 tillägg, migration 0082)
 - Mitt konto → "Koppla Google-konto": Google-kontot kopplas till kontot också med en annan adress (bunden till sessionen, `email_verified`); "Ta bort kopplingen" vägras utan eget lösenord.
 - Kopplat till ett tomt konto (dubbletten): sidan `/konto/flytta-google` säger vad som händer, lösenordet bekräftar, dubbletten tas bort och loggas; används kontot vägras det. Superadmin: `superadmin.mjs google move <källa> <mål> [--delete-source-if-empty]`.

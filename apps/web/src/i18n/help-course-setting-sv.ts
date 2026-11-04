@@ -434,6 +434,7 @@ export const levelHelpArticles: readonly HelpArticle[] = [
       "Det är ett stöd, inte en dom: du som banläggare avgör.",
       [
         "Verktyget ser inte sikt, löpbarhet eller hur tydlig en detalj är i verkligheten.",
+        "Gränserna är stämda mot riktiga banor med kända nivåer. I skog med många stigar och diken blir svåra banor ofta bedömda något lägre.",
         "Sprint har ingen färgskala, så nivåstödet gäller inte sprintkartor.",
         SOURCE
       ],

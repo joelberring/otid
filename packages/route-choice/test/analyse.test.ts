@@ -78,6 +78,20 @@ describe("analyseLeg", () => {
     expect(straight.best!.meters / straight.straightMeters).toBeLessThan(1.02);
   });
 
+  it("räknar vägen längs stigen för nivåstödet: att gena lönar sig över en båge men inte längs en rak stig (ADR-0212)", () => {
+    const path: [number, number][] = [[0, 0], [100, 150], [300, 150], [400, 0]];
+    const model = buildCostModel(forest().line("505", 0.25, ...path).build());
+    const bow = analyseLeg(model, leg([0, 0], [400, 0], { follow: true }));
+    // Bästa vägen går rakt genom skogen; vägen längs stigen tar mycket längre tid.
+    expect(bow.following).toBeDefined();
+    expect(Math.max(...bow.following!.points.map(p => p.y))).toBeGreaterThan(140 * 0.1);
+    expect(bow.following!.timeRatio).toBeGreaterThan(1.1);
+    const straight = analyseLeg(buildCostModel(forest().line("505", 0.25, [0, 0], [400, 0]).build()), leg([0, 0], [400, 0], { follow: true }));
+    expect(straight.following!.timeRatio).toBeLessThan(1.02);
+    // Utan `follow` räknas den inte.
+    expect(analyseLeg(model, leg([0, 0], [400, 0])).following).toBeUndefined();
+  });
+
   it("följer en stig genom tät skog och räknar den som snabb", () => {
     const model = buildCostModel(forest().area("410", rect(-500, -500, 500, 500)).line("506", 0.18, [0, 0], [400, 0]).build());
     const result = analyseLeg(model, leg([0, 0], [400, 0]));

@@ -70,7 +70,9 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     order: z.number().int().min(1).max(10_000).optional(),
     // ADR-0198: de bortvalda varianterna (ersätts helt; null = alla används).
     excludedVariants: z.array(z.object({ code: z.string().min(1).max(64), controls: z.array(z.string().max(32)).max(1000) }).strict())
-      .max(5000).nullable().optional() }).strict() }).strict(),
+      .max(5000).nullable().optional(),
+    // ADR-0212: banans målnivå för nivåstödet (null = ingen).
+    level: z.enum(["GRON", "VIT", "GUL", "ORANGE", "VIOLETT", "BLA", "SVART"]).nullable().optional() }).strict() }).strict(),
   z.object({ type: z.literal("SET_POINTS"), course: id, courseControl: id, points: z.number().int().min(0).max(9999).nullable() }).strict(),
   z.object({ type: z.literal("DELETE_COURSE"), course: id }).strict(),
   z.object({ type: z.literal("INSERT_COURSE_CONTROL"), course: id, control: id, after: id.nullable().optional() }).strict(),
@@ -92,6 +94,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     paperValues: z.object({ date: z.string().max(40).optional(), contourInterval: z.string().max(20).optional() }).strict().optional(),
     // Ringklippen (ADR-0180 beslut 10).
     circleCutting: z.object({ overlap: z.boolean(), details: z.boolean() }).strict().optional(),
+    // Nivåstödets avvikelser i Varningar (ADR-0212).
+    levelNotices: z.boolean().optional(),
     // Mellanrummet mellan sträckan och ringen (ADR-0211 beslut 2); gränserna kontrolleras av paketets applyEdit.
     legCircleGapMm: z.number().finite().optional() }).strict() }).strict(),
   // Banans utseende (ADR-0180 beslut 12); gränserna kontrolleras av paketets applyEdit.

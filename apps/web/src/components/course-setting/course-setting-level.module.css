@@ -1,0 +1,20 @@
+/* Nivåstödet (ADR-0212): märket i nivåns färg, raderna med skäl och tips. Inga animationer. */
+.badge { display: inline-block; flex: 0 0 auto; min-width: 4.5em; padding: 1px 6px; border: 1px solid; border-radius: 3px; font-size: var(--text-xs);
+  font-weight: 700; line-height: 1.4; text-align: center; white-space: nowrap; }
+/* Samma färger som märkena på kartan (`LEVEL_COLORS`). */
+.badge[data-rank="0"] { background: #2e8b3a; border-color: #1f6a2a; color: #ffffff; }
+.badge[data-rank="1"] { background: #ffffff; border-color: #6b6b6b; color: #1a1a1a; }
+.badge[data-rank="2"] { background: #f2c200; border-color: #b08d00; color: #1a1a1a; }
+.badge[data-rank="3"] { background: #f28c00; border-color: #b86a00; color: #1a1a1a; }
+.badge[data-rank="4"] { background: #8a3ab9; border-color: #6a2c8e; color: #ffffff; }
+.badge[data-rank="5"] { background: linear-gradient(90deg, #1f4fae 0 50%, #111111 50% 100%); border-color: #111111; color: #ffffff; }
+.details { display: grid; gap: 6px; }
+.details > summary { cursor: pointer; font-size: var(--text-sm); font-weight: 600; }
+.rows { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.item { display: grid; gap: 2px; padding: 6px 0; border-top: 1px solid var(--line); font-size: var(--text-sm); }
+.item[data-deviation="HARDER"] { border-left: 3px solid var(--attention); padding-left: 6px; }
+.item[data-deviation="EASIER"] { border-left: 3px solid var(--line-strong); padding-left: 6px; }
+.head { display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
+.tag { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+.tip { margin: 0; padding: 4px 6px; background: var(--attention-tint); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.stale { padding: 1px 6px; border: 1px solid var(--attention); border-radius: 3px; color: var(--attention); font-size: var(--text-xs); font-weight: 600; }

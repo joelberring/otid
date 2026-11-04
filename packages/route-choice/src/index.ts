@@ -5,5 +5,5 @@ export {
   type ResolvedSettings, type RunnableClass
 } from "./defaults";
 export { buildCostModel, type BuiltCostModel, type SymbolClassRow } from "./cost-model";
-export { analyseCourse, analyseLeg, legGrid, shiftedSpeeds } from "./analyse";
+export { analyseCourse, analyseLeg, FOLLOW_PENALTY, legGrid, shiftedSpeeds } from "./analyse";
 export { calibrateSpeeds, MIN_CLASS_METERS, MIN_CLASS_SEGMENTS, SEGMENT_METERS } from "./calibrate";

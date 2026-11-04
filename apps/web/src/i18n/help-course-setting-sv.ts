@@ -1,3 +1,4 @@
+import type { CourseLevel } from "@o-tid/course-setting";
 import type { HelpArticle } from "./help-sv";
 
 /**
@@ -395,3 +396,153 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
     ]
   }
 ];
+
+/**
+ * Nivåstödet (ADR-0212): artikeln om nivåerna och verktyget, och en kort guide per nivå för den som lägger sin första
+ * bana ("Så lägger du en gul bana"). Källor: SOFT, "Klasser, svårighetsnivåer, beräknade segrartider samt banlängder"
+ * (2022-03-25), och SOFT:s banläggarträff "Banläggningens grunder – svårighetsgrader" (2025). Banlängderna är SOFT:s för
+ * medel- och långdistans; sprint har ingen färgskala.
+ */
+const SOURCE = "Källa: Svensk Orientering (SOFT): Klasser, svårighetsnivåer, beräknade segrartider samt banlängder (2022), och SOFT:s banläggarträff 2025.";
+
+export const levelHelpArticles: readonly HelpArticle[] = [
+  {
+    id: "nivastod",
+    title: "Nivåstöd – grön, vit, gul …",
+    views: ["CS_COURSES", "COURSE_SETTING"],
+    body: [
+      "Svensk Orientering delar banorna i sju färgnivåer, från lättast till svårast: Grön, Vit, Gul, Orange, Violett, Blå och Svart.",
+      [
+        "Grön och Vit följer stigar och andra tydliga ledstänger. Gul får gena och kontrollen ligger en bit från stigen.",
+        "Orange och Violett kräver mer kartläsning, men det ska finnas något tydligt att läsa in sig på.",
+        "Blå och Svart är för de skickligaste. Höjdkurvor och detaljer avgör; Svart får vara tyngre fysiskt.",
+        "Klasserna: H/D10 Vit, 12 Gul, 14 Orange, 16 Violett, 18–65 Svart, 70 och äldre Blå. Inskolning Grön, Mycket lätt Vit, Lätt Gul, Medelsvår Orange."
+      ],
+      "Så använder du nivåstödet:",
+      [
+        "Välj banans nivå i fältet ”Nivå” i banans egenskaper. Har banan klasser föreslås nivån ur dem.",
+        "Tryck på ”Bedöm nivån” (eller ”Bedöm alla banor”). Inget räknas förrän du ber om det.",
+        "Varje kontroll och sträcka får en nivå med skäl och ett tips. ”Visa på kartan” väljer den; ”Visa förslag på kartan” visar t.ex. närmaste stigkorsning.",
+        "Ändrar du banan står det ”Inaktuell – bedöm igen”.",
+        "Med ”Visa avvikelser mot nivån i Varningar” kommer avvikelserna som notiser, som kan godtas. ”Nivåmarkeringar” under ”Visa” släcker märkena på kartan."
+      ],
+      "Så mäter verktyget, bara ur kartans symboler och vägvalen:",
+      [
+        "Kontrollen: hur långt det är till närmaste stig eller ledstång, hur stort föremålet är och om det finns en angreppspunkt nära.",
+        "Sträckan: hur mycket av vägvalet som följer ledstänger, hur långt det går utan, om det lönar sig att gena och om det krävs kurvläsning."
+      ],
+      "Det är ett stöd, inte en dom: du som banläggare avgör.",
+      [
+        "Verktyget ser inte sikt, löpbarhet eller hur tydlig en detalj är i verkligheten.",
+        "Sprint har ingen färgskala, så nivåstödet gäller inte sprintkartor.",
+        SOURCE
+      ],
+      "Guider per nivå: [grön](#niva-gron), [vit](#niva-vit), [gul](#niva-gul), [orange](#niva-orange), [violett](#niva-violett) och [blå eller svart](#niva-bla-svart)."
+    ]
+  },
+  {
+    id: "niva-gron",
+    title: "Så lägger du en grön bana",
+    views: ["CS_COURSES"],
+    body: [
+      "Grön är för de allra yngsta och nya (Inskolning, ca 2 km). Löparen ska kunna följa stigen hela vägen.",
+      [
+        "Kontrollerna sitter på eller alldeles intill stigen, vägen, staketet eller den öppna marken, väl synliga.",
+        "Sträckan följer en tydlig ledstång hela vägen. Ett byte vid kontrollen går bra; inte för många byten ute på sträckan.",
+        "Inga vägval: det ska inte löna sig att gena genom skogen.",
+        "Lägg en kontroll vid stigkorsningar där det annars är lätt att springa fel.",
+        "Vanlig fallgrop: en kontroll bara 30 m in i skogen. Det är Vit eller svårare."
+      ],
+      "Se [Nivåstöd – grön, vit, gul …](#nivastod). Källa: SOFT 2022 och SOFT:s banläggarträff 2025."
+    ]
+  },
+  {
+    id: "niva-vit",
+    title: "Så lägger du en vit bana",
+    views: ["CS_COURSES"],
+    body: [
+      "Vit är för H/D10 och Mycket lätt (ca 2 km för H/D10 på medeldistans, 2,5 km på lång; Mycket lätt 2 eller 4 km).",
+      [
+        "Kontrollen får ligga vid sidan av stigen, högst ca 50 m, vid ett lätt och tydligt föremål: en sten eller en tydlig höjd.",
+        "Det ska finnas ett tydligt stopp på stigen strax före kontrollen, och skärmen ska synas därifrån.",
+        "Sträckorna följer ledstänger; de får vara mindre tydliga än på Grön, t.ex. diken, bäckar, stenmurar och beståndsgränser.",
+        "Att gena över öppen mark mot en säker uppfångare går bra, högst ca 200 m.",
+        "Vanlig fallgrop: en liten grop eller en liten höjd som föremål. Välj något större."
+      ],
+      "Se [Nivåstöd – grön, vit, gul …](#nivastod). Källa: SOFT 2022 och SOFT:s banläggarträff 2025."
+    ]
+  },
+  {
+    id: "niva-gul",
+    title: "Så lägger du en gul bana",
+    views: ["CS_COURSES"],
+    body: [
+      "Gul är för H/D12 och Lätt (ca 2,5 km för H/D12 på medeldistans, 3 km på lång; Lätt 2,5 eller 5 km).",
+      [
+        "Kontrollen kan sitta en bit från stigen. Föremålen får vara större sänkor, tydliga åsar, höjder och branter.",
+        "Det ska löna sig att gena mellan två stigar, högst ca 150 m genom skogen, mot en säker uppfångare. Runtvägen längs stigen ska också finnas.",
+        "En säker inläsningspunkt högst ca 200 m före kontrollen, och en tydlig uppfångare bakom.",
+        "Lättframkomlig terräng: undvik tät skog, brant och stenig mark och svårlöpta hyggen.",
+        "Vanlig fallgrop: sträckor där stigen går rakt mot kontrollen, så att genandet aldrig lönar sig. Då blir det en vit bana."
+      ],
+      "Se [Nivåstöd – grön, vit, gul …](#nivastod). Källa: SOFT 2022 och SOFT:s banläggarträff 2025."
+    ]
+  },
+  {
+    id: "niva-orange",
+    title: "Så lägger du en orange bana",
+    views: ["CS_COURSES"],
+    body: [
+      "Orange är för H/D14 och Medelsvår (ca 3 km för H/D14 på medeldistans, 4 km på lång; Medelsvår 3 eller 5 km).",
+      [
+        "Terrängen ska fortfarande vara lättframkomlig. Sankmarker, höjdkanter, åsar och sänkor ska kunna följas.",
+        "Kontrollen är svårare än på Gul, men det ska alltid finnas tydliga föremål i närheten att läsa in sig på.",
+        "Sträckorna får gå där ledstänger inte räcker: grovorientering över tydliga hållpunkter och i enkel kurvbild.",
+        "Det behövs ingen uppfångare bakom kontrollen, men löparen ska kunna läsa in sig på rimligt avstånd.",
+        "Vanlig fallgrop: en liten detalj långt från allt annat. Lägg den nära något tydligt."
+      ],
+      "Se [Nivåstöd – grön, vit, gul …](#nivastod). Källa: SOFT 2022 och SOFT:s banläggarträff 2025."
+    ]
+  },
+  {
+    id: "niva-violett",
+    title: "Så lägger du en violett bana",
+    views: ["CS_COURSES"],
+    body: [
+      "Violett är för H/D16 (ca 3,5 km på medeldistans, 5–5,5 km på lång).",
+      [
+        "All slags terräng går bra, men undvik mycket fysiskt krävande terräng och svårläst kartbild.",
+        "Sträckorna är lika svåra som på Orange; det är kontrollerna som får vara svårare.",
+        "Det ska gå att förenkla: ta kontrollen från ett håll där det finns något stort och tydligt (en angreppspunkt).",
+        "Kontroller utan tydlig uppfångare och i detaljfattig terräng hör hit.",
+        "Vanlig fallgrop: långa sträckor med kurvläsning i detaljrik terräng. Det är Blå eller Svart."
+      ],
+      "Se [Nivåstöd – grön, vit, gul …](#nivastod). Källa: SOFT 2022 och SOFT:s banläggarträff 2025."
+    ]
+  },
+  {
+    id: "niva-bla-svart",
+    title: "Så lägger du en blå eller svart bana",
+    views: ["CS_COURSES"],
+    body: [
+      "Blå och Svart är för de skickligaste: Blå för 70 och äldre och Svår 3 km, Svart för 18–65 och Svår 5 eller 7 km.",
+      [
+        "Att läsa höjdkurvor och detaljer är en stor fördel: grovorientering i svår kurvbild och finorientering i detaljrik terräng.",
+        "Vägvalen får vara svåra att bedöma, med flera beslut per vägval och varierande löpbarhet.",
+        "Svart får gå i all slags terräng; på Blå undviks den mest fysiskt krävande.",
+        "Variera: blanda långa vägvalssträckor med korta sträckor med finorientering.",
+        "Vanlig fallgrop: alla kontroller vid stora föremål nära stigar. Då blir banan för lätt."
+      ],
+      "Se [Nivåstöd – grön, vit, gul …](#nivastod). Källa: SOFT 2022 och SOFT:s banläggarträff 2025."
+    ]
+  }
+];
+
+const GUIDES: Readonly<Record<CourseLevel, string>> = {
+  GRON: "niva-gron", VIT: "niva-vit", GUL: "niva-gul", ORANGE: "niva-orange", VIOLETT: "niva-violett", BLA: "niva-bla-svart", SVART: "niva-bla-svart"
+};
+
+/** Guiden för nivån, eller artikeln om nivåstödet när ingen nivå är vald. */
+export function levelGuideArticle(level: CourseLevel | undefined): string {
+  return level ? GUIDES[level] : "nivastod";
+}

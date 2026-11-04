@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Nivåstöd (grenen nivastod, ADR-0212, ingen migration)
+- "Nivå" i banans egenskaper (Grön … Svart, förslag ur klasserna med SOFT:s tabell); sparas i dokumentet, inte i .ppen, följer med ny .ppen.
+- "Bedöm nivån" och "Bedöm alla banor" bara på begäran, i vägvalens Worker (samma motor och tabell; ny väg längs stigar `LegInput.follow`).
+- Mätning ur kartans symboler: avstånd till ledstänger, föremålets storlek, angreppspunkt, inläsning; längs vägvalet andel på ledstänger, längsta bit utan, byten, lönar det sig att gena, kurvläsning. Regeltabell `LEVEL_LIMITS` med skäl och tips per regel.
+- Panelen med märken i nivåns färg, skäl, tips, "Visa på kartan" och "Visa förslag på kartan"; "Inaktuell – bedöm igen"; "Nivåmarkeringar" under Visa; notiser i Varningar bara med "Visa avvikelser mot nivån i Varningar". Sprint: inte tillämpligt.
+- Hjälpen: "Nivåstöd – grön, vit, gul …" och en guide per nivå med SOFT:s banlängder.
+- Verifierat: enhetstester (course-setting, route-choice, web), integration `adr-0212-nivastod`, lint, typecheck, Playwright `banlaggning-nivastod` (1280/390).
+- Återstår: stämma av gränserna mot banor med kända nivåer.
+
 ### 2026-11-04 – Utskriften om (grenen utskrift-omtag, ADR-0211, ingen migration)
 - Ringklippen över detaljer följer med till förhandsvisningen och PDF:en (`printSheetGroups` fick aldrig detaljgapen; nu `printDetailGaps` i servern och samma Worker som editorn).
 - Sträckorna slutar 0,35 mm utanför ringar, start och mål (ISOM 705; Purple Pen har inget mellanrum), inställbart under Utseende.

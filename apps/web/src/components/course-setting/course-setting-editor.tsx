@@ -6,7 +6,7 @@ import type {
   CourseSettingMode, CourseSettingState, CourseSettingSuggestionDecided
 } from "@o-tid/contracts";
 import {
-  acceptChecksEdit, applyEdit, carryExcludedVariants, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
+  acceptChecksEdit, applyEdit, carryCourseLevels, carryExcludedVariants, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
   keepAcceptedChecks, keepPaperOnImport, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
   type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
@@ -65,6 +65,7 @@ import { useCourseSettingCollaboration } from "./use-course-setting-collaboratio
 import { ControlList } from "./course-setting-controls";
 import { CourseProperties } from "./course-setting-course-properties";
 import { RouteLengthPanel, useRouteLength, useRouteResults } from "./course-setting-route-length";
+import { drawLevelMarks, LevelAllButton, LevelPanel, useLevelStore, useLevelSupport } from "./course-setting-level";
 import { VariantsPanel } from "./course-setting-variants";
 import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
@@ -263,8 +264,10 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), () => [] as readonly DescriptionSymbol[])), [standard]);
   // ADR-0199: varningarna; vägvalen (en gemensam tabell) avgör sträckorna genom förbjudna områden.
   const routeStore = useRouteResults();
+  // ADR-0212: nivåstödet (bara på begäran); resultatet ger notiser i Varningar och märken på kartan.
+  const levelStore = useLevelStore({ document, mapSha256: state.mapFile?.sha256 });
   const forbidden = useForbiddenRoutes({ document, results: routeStore.results, hasMap: Boolean(state.mapFile), tabOpen: tab === "checks",
-    numberObstacles: cutting.obstacles });
+    numberObstacles: cutting.obstacles, levelChecks: levelStore.checks, levelText: levelStore.checkText });
   const checks = forbidden.checks, checked = forbidden.checked;
   const [flagged, setFlagged] = useState<CheckRow>();
   // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utskrift).
@@ -274,6 +277,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       () => undefined);
     return page ? { page, automatic: printAreaOf(document, view, part).automatic || !printAreaOf(document, view, part).rect } : undefined;
   }, [tab, document, view, variant, mapBounds, part]);
+  const levelAssessment = levelStore.fresh(view)?.assessment;
   const selectedSpecial = selection?.kind === "special" ? document.specialObjects.find(item => item.id === selection.special) : undefined;
   const uxDraw = ux.draw, trainingDraw = training.draw;
   const overlayExtra = useMemo(() => (ctx: CanvasRenderingContext2D, mapView: Viewport) => {
@@ -283,7 +287,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     if (suggestionHover) drawSuggestionHighlight(ctx, at, suggestionHover, mapView.pxPerMm);
     uxDraw(ctx, mapView);
     trainingDraw(ctx, mapView);
-  }, [printPage, editor.tool, editor.drawing, selectedSpecial, suggestionHover, uxDraw, trainingDraw]);
+    drawLevelMarks(ctx, mapView, document, levelAssessment, levelStore.highlight, ux.marks.levels);
+  }, [printPage, editor.tool, editor.drawing, selectedSpecial, suggestionHover, uxDraw, trainingDraw, levelAssessment, levelStore.highlight, ux.marks.levels]);
   const mapHandle = useRef<CourseSettingMapHandle>(null);
   // Oanvända kontroller i Alla kontroller ritas grå och streckade i stället (träffas ändå).
   const drawnPrimitives = useMemo(() => ux.unusedRefs.size > 0 ? primitives.filter(primitive => !ux.unusedRefs.has(primitive.ref ?? "")) : primitives,
@@ -309,7 +314,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const inputKey = input?.key;
   const [lengthWanted, setLengthWanted] = useState(false);
   const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
-    wanted: input !== undefined || lengthWanted || forbidden.wanted });
+    wanted: input !== undefined || lengthWanted || forbidden.wanted || levelStore.wanted });
   const routes = routeWorker.session, routeReady = routeWorker.ready;
   // ADR-0190 beslut 6: banans längd längs vägval (samma Worker; en vald sträcka avbryter och sparas i samma tabell).
   const routeLength = useRouteLength({ document, view, variant, session: routes, ready: routeReady, failed: routeWorker.failed,
@@ -330,7 +335,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     // Nyckeln ändras med ändarnas lägen; övriga kontroller räknas med när sträckan räknas.
   }, [inputKey, routeReady, routeWorker.failed]);
   const forbiddenRun = useForbiddenRouteRunner({ legs: forbidden.missing, wanted: forbidden.wanted, session: routes, ready: routeReady,
-    failed: routeWorker.failed, busy: legStatus === "analysing" || routeLength.running, record: routeStore.record });
+    failed: routeWorker.failed, busy: legStatus === "analysing" || routeLength.running || levelStore.running, record: routeStore.record });
+  const level = useLevelSupport({ store: levelStore, document, view, mapSha256: state.mapFile?.sha256, hasMap: Boolean(state.mapFile), session: routes,
+    ready: routeReady, failed: routeWorker.failed, busy: legStatus === "analysing" || routeLength.running || forbiddenRun.running, record: routeStore.record });
   const code = (id: string, end: "S" | "F") => document.controls[id]?.kind === "NORMAL" ? `${document.controls[id].code ?? "?"}.1` : end;
   const legKey = selection?.kind === "leg" && view !== ALL_CONTROLS ? `${code(selection.from, "S")}-${code(selection.to, "F")}` : undefined;
   const routeRows = analysis?.best ? [analysis.best, ...analysis.alternatives] : [];
@@ -544,7 +551,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
         ...(!file.document.training && document.training ? { training: document.training } : {}) };
       // ADR-0198: bortvalda varianter följer med när filen saknar dem och varianterna finns kvar.
-      carried = carryExcludedVariants(document, carried);
+      carried = carryCourseLevels(document, carryExcludedVariants(document, carried));
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
       const imported = keepPaperOnImport(document, carried, await importedImageHashes(carried),
@@ -634,12 +641,16 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         onClasses={(id, classes) => edit(current => applySteps(current, [{ type: "UPDATE_COURSE", course: id, changes: { secondaryTitle: classes } }], applyEdit))}
         onRemove={ux.requestDelete} onDuplicate={ux.duplicate}
         onMove={(id, position) => edit(current => { const step = moveCourseEdit(current.document, id, position);
-          return step ? applySteps(current, [step], applyEdit) : current; })} />
+          return step ? applySteps(current, [step], applyEdit) : current; })} extra={<LevelAllButton support={level} />} />
         {course && <CourseProperties key={course.id} course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly} mapScale={document.event.mapScale}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         {course && <VariantsPanel document={document} course={course} routeLength={routeLength} hasMap={Boolean(state.mapFile)} readOnly={readOnly}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         {course && <RouteLengthPanel state={routeLength} hasMap={Boolean(state.mapFile)} />}
+        {course && <LevelPanel store={levelStore} support={level} document={document} readOnly={readOnly}
+          onEdits={edits => edit(current => applySteps(current, edits, applyEdit))}
+          onShow={row => { apply(current => select(current, row.kind === "control" ? { kind: "control", control: row.control! } : { kind: "leg", from: row.from!, to: row.to! }));
+            mapHandle.current?.reveal([...row.points, ...row.candidates.map(item => item.at)]); }} />}
         <ControlList document={document} summaries={summaries} view={view} variant={variant} branch={ux.active?.start} readOnly={readOnly}
           selected={selection?.kind === "control" ? (view === ALL_CONTROLS ? selection.control : selection.courseControl) : undefined} unused={ux.unused}
           onSelect={target => { apply(current => select(current, { kind: "control", ...target })); const at = document.controls[target.control]?.at;

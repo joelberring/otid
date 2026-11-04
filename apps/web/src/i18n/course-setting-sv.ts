@@ -146,7 +146,8 @@ export const courseSettingSv = {
       CONTROLS_TOO_CLOSE: "För nära varandra", INVERTIBLE_CODE: "Kod som kan läsas upp och ned",
       SAME_CONTROL_TWICE_IN_ROW: "Samma kontroll två gånger i rad", LEG_THROUGH_CONTROL: "Sträcka genom en annan ring",
       UNUSED_CONTROL: "Oanvända kontroller", LEG_THROUGH_FORBIDDEN: "Fågelvägen korsar förbjudet område",
-      CONTROLS_NEAR: "Nära varandra – ange objekt", NUMBER_ON_OBSTACLE: "Nummer på hus eller mörk yta"
+      CONTROLS_NEAR: "Nära varandra – ange objekt", NUMBER_ON_OBSTACLE: "Nummer på hus eller mörk yta",
+      LEVEL_DEVIATION: "Avviker från banans nivå"
     } as Record<string, string>,
     accept: "Godta",
     acceptLabel: (row: string) => `Godta: ${row}`,

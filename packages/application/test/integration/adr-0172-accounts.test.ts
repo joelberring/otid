@@ -108,8 +108,9 @@ describe("ADR-0172 konton", () => {
 
     expect(await completePasswordReset(db, { formatVersion: 1, token: known.delivery.token, password: "kort" }))
       .toEqual({ status: "invalid-request" });
+    // ADR-0205: länken loggar in på enheten där den öppnades.
     expect(await completePasswordReset(db, { formatVersion: 1, token: known.delivery.token, password: "nytt-lösenord-1" }))
-      .toEqual({ status: "reset" });
+      .toMatchObject({ status: "authenticated", response: { email: account.email } });
     expect(await completePasswordReset(db, { formatVersion: 1, token: known.delivery.token, password: "nytt-lösenord-2" }))
       .toEqual({ status: "invalid-token" });
     expect((await authenticateUserAccountSession(db, account.proof)).status).toBe("unauthorized");
@@ -122,7 +123,7 @@ describe("ADR-0172 konton", () => {
     const late = await requestPasswordReset(db, { formatVersion: 1, email: account.email }, { now: created });
     if (late.status !== "accepted" || !late.delivery) throw new Error("Länken saknas");
     expect(await completePasswordReset(db, { formatVersion: 1, token: late.delivery.token, password: "nytt-lösenord-3" },
-      new Date(created.getTime() + HOUR + 1))).toEqual({ status: "invalid-token" });
+      { now: new Date(created.getTime() + HOUR + 1) })).toEqual({ status: "invalid-token" });
 
     // Högst tre länkar per adress och timme; svaret är detsamma.
     const again = await requestPasswordReset(db, { formatVersion: 1, email: account.email }, { now: created });
@@ -230,7 +231,7 @@ describe("ADR-0172 konton", () => {
       reason: "Ringde och bad om hjälp" });
     if (link.status !== "done" || !link.reset) throw new Error("Länken saknas");
     expect(await completePasswordReset(db, { formatVersion: 1, token: link.reset.token, password: "nytt-lösenord-1" }))
-      .toEqual({ status: "reset" });
+      .toMatchObject({ status: "authenticated" });
 
     expect(await performSuperadminAction(db, boss.proof, { formatVersion: 1, action: "DELETE_ACCOUNT", accountId: spam.accountId,
       reason: "Skräp", confirmation: "fel@exempel.se" })).toEqual({ status: "confirmation-mismatch" });

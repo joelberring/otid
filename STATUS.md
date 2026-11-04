@@ -16,6 +16,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Listorna: "skickad …"/"inte skickad", "Skicka igen" (ny nyckel, spärrad) eller "Kopiera länken" utan e-post; borttagen inbjudan ger "Inbjudan gäller inte längre". Flera adresser på en gång med sammanfattning.
 - Spärrar per avsändare (100/h, 300/dygn) och mottagare (3/h, 10/dygn); "Från klubben" visar aldrig adressen och kan inte kopieras.
 - Verifierat: enhetstester (mejltexten, adresserna, hjälpen, routernas roller), integration `adr-0206-inbjudningar` och `adr-0209-klubbtillhorighet`, lint, typecheck; Playwright `inbjudan`. Återstår: provning mot riktig SMTP.
+### 2026-11-04 – Kontot: ingen loop mellan bekräftelse och återställning, lösenordet två gånger, Logga in med Google (grenen konto-inloggning, ADR-0205, migration 0072)
+- Orsaken till loopen från klubbmötet 2026-11-03: bekräftelselänken krävde registreringens (felskrivna) lösenord och skickade tillbaka till inloggningen; efter fem fel spärrades adressen från IP-adressen, och återställningen nollställde bara spärren utan IP-adress, så det nya lösenordet gav "För många försök" och den gamla länken "ogiltig".
+- Bekräftelselänken bevisar adressen och personen väljer lösenordet där; redan bekräftad eller gammal länk ger ett nästa steg (Logga in / Glömt lösenordet). Återställningslänken bekräftar alltid adressen och loggar in där den öppnas; ett nytt lösenord häver spärren.
+- Lösenordet två gånger med besked direkt och ögat (registrering, bekräftelse, återställning, byte). Mejlen säger samma sak.
+- Logga in med Google (PKCE, state, nonce, JWKS via `jose`) när `OTID_GOOGLE_CLIENT_ID` och `OTID_GOOGLE_CLIENT_SECRET` är satta; koppling på `sub` (0072). Alla inloggningsvägar tar inbjudningar och Eventor-listan (`acceptOnLogin`).
+- Hjälpen: Skapa konto, Glömt lösenordet, Logga in med Google. Drift: docs/drift.md (Inloggning med Google, steg i Google Cloud Console).
+- Verifierat: se slutrapporten för grenen. Återstår: Google-klienten på servern (ägaren) och provning mot riktiga Google.
 
 ### 2026-11-04 – Kartbanken för alla medlemmar som förval (grenen kartbank-forval, ändring i ADR-0209, migration 0079)
 - Ägaren: kartorna döljs bara som undantag. "Kartbanken (kartfiler, Använd igen, nedladdning) får användas av" har förvalet "Alla medlemmar" (först och förvald) med tipset "Välj Ledare och admin om kartorna inte ska delas med alla medlemmar"; `CLUB_AREA_DEFAULTS` och kolumnens förval.

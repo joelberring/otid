@@ -3,6 +3,7 @@ import { archiveHelpArticles, routeChoiceHelpArticles } from "./help-archive-rou
 import { courseSettingHelpArticles, gettingStartedHelpArticles } from "./help-course-setting-sv";
 import { fieldPrintHelpArticles } from "./help-print-sv";
 import { clubHelpArticles } from "./help-club-sv";
+import { accountHelpArticles } from "./help-account-sv";
 
 /**
  * Hjälpen i programmet (PLAN.md steg 37). Enkel svenska och korta meningar. Knappar och vägar står inom ”…” och heter
@@ -391,4 +392,4 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
 ];
 
 export const helpArticles: readonly HelpArticle[] = [...raceDayHelpArticles, ...gettingStartedHelpArticles, ...courseSettingHelpArticles,
-  ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles, ...clubHelpArticles];
+  ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles, ...clubHelpArticles, ...accountHelpArticles];

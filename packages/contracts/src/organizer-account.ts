@@ -49,12 +49,25 @@ export const organizerAccountRegistrationPendingSchema = z.object({
   status: z.literal("check-email")
 }).strict();
 
-/** ADR-0186: länken i bekräftelsemejlet och lösenordet från registreringen. */
+const verificationToken = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+/**
+ * ADR-0186, ändrat av ADR-0205: länken i bekräftelsemejlet och lösenordet som personen väljer på sidan (samma som vid
+ * registreringen eller ett nytt).
+ */
 export const emailVerificationRequestSchema = z.object({
   formatVersion: z.literal(1),
-  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-  password: z.string().min(1).max(1024)
+  token: verificationToken,
+  password: z.string().min(ACCOUNT_PASSWORD_MIN_LENGTH).max(1024)
 }).strict();
+
+/** ADR-0205: vad länken leder till innan personen skriver något. */
+export const emailVerificationCheckRequestSchema = z.object({ formatVersion: z.literal(1), token: verificationToken }).strict();
+export const emailVerificationCheckResponseSchema = z.object({
+  formatVersion: z.literal(1),
+  state: z.enum(["valid", "already-verified", "invalid"])
+}).strict();
+export type EmailVerificationCheckResponse = z.infer<typeof emailVerificationCheckResponseSchema>;
 
 /** GET /api/organizer/session utan inloggning: 200 med `authenticated: false` i stället för 401 (PLAN.md steg 22). */
 export const organizerAccountSessionAbsentSchema = z.object({ formatVersion: z.literal(1), authenticated: z.literal(false) }).strict();

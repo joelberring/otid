@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { latestMailTo } from "./fake-smtp";
-import { addPerson, createRace, newContext, password, registerAccount, reviewScreenshots, unique, verificationLink, warmRoute } from "./helpers";
+import { addPerson, createRace, fillNewPassword, newContext, password, registerAccount, reviewScreenshots, unique, verificationLink, warmRoute }
+  from "./helpers";
 
 /**
  * ADR-0206: inbjudningar med e-post. Ägaren bjuder in en ny adress till klubbarkivet (flera adresser på en gång) och till en
@@ -90,11 +91,12 @@ test("inbjudan med e-post: klubbarkivet och tävlingen, länken, nytt konto och 
   await expect(email).toHaveValue(invited);
   await expect(email).not.toBeEditable();
   await guest.getByLabel("Ditt namn").fill("Nora Ny");
-  await guest.getByLabel("Lösenord").fill(password);
+  // ADR-0205: lösenordet två gånger.
+  await fillNewPassword(guest, password);
   await guest.getByRole("button", { name: "Skapa konto" }).click();
   await expect(guest.getByText("Vi har skickat ett mejl till")).toBeVisible();
   await guest.goto(await verificationLink(invited));
-  await guest.getByLabel("Lösenord").fill(password);
+  await fillNewPassword(guest, password);
   await guest.getByRole("button", { name: "Bekräfta och logga in" }).click();
   await guest.waitForURL(`**/organizer/clubs/${clubId}`);
   await expect(guest.getByRole("heading", { name: clubName, level: 1 })).toBeVisible();

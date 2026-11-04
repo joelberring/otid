@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { accountProfileSchema, type AccountProfile } from "@o-tid/contracts";
 import { accountSv } from "../i18n/account-sv";
 import { accountRequest } from "../lib/account-client";
+import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
 import { AccountClubs } from "./club-affiliation/account-clubs";
 import styles from "./account-pages.module.css";
@@ -19,6 +20,7 @@ export function AccountPage() {
   const [displayName, setDisplayName] = useState("");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
+  const [repeat, setRepeat] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [nameMessage, setNameMessage] = useState<Message>();
@@ -61,11 +63,12 @@ export function AccountPage() {
 
   function savePassword(event: FormEvent) {
     event.preventDefault();
+    if (!passwordsReady(next, repeat)) return;
     void run(async () => {
       const response = await accountRequest("/api/account/password", { method: "POST", csrf: true,
         body: { formatVersion: 1, currentPassword: current, newPassword: next } });
       setCurrent("");
-      setNext("");
+      if (response.status === 200) { setNext(""); setRepeat(""); }
       return response.status === 200 ? { tone: "ok", text: text.passwordSaved } : failure(response.status);
     }, setPasswordMessage);
   }
@@ -111,14 +114,9 @@ export function AccountPage() {
 
       <Section id="konto-losenord" title={text.password} help={text.passwordHelp}>
         <form className={styles.form} onSubmit={savePassword}>
-          <Field label={text.currentPassword}>
-            <input type="password" autoComplete="current-password" value={current} required disabled={busy} onChange={event => setCurrent(event.target.value)} />
-          </Field>
-          <Field label={text.newPassword} help={text.passwordRule}>
-            <input type="password" autoComplete="new-password" minLength={8} maxLength={1024} value={next} required disabled={busy}
-              onChange={event => setNext(event.target.value)} />
-          </Field>
-          <Button type="submit" variant="secondary" disabled={busy || !current || next.length < 8}>{text.savePassword}</Button>
+          <PasswordInput label={text.currentPassword} value={current} onChange={setCurrent} autoComplete="current-password" disabled={busy} />
+          <NewPasswordFields label={text.newPassword} password={next} repeat={repeat} onPassword={setNext} onRepeat={setRepeat} disabled={busy} />
+          <Button type="submit" variant="secondary" disabled={busy || !current || !passwordsReady(next, repeat)}>{text.savePassword}</Button>
           {notice(passwordMessage)}
         </form>
       </Section>

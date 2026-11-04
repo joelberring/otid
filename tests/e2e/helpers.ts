@@ -79,7 +79,8 @@ export async function registerAccount(browser: Browser, email: string, displayNa
   await page.getByRole("button", { name: "Har du inget konto? Skapa ett" }).click();
   await page.getByLabel("Ditt namn").fill(displayName);
   await page.getByLabel("E-postadress").fill(email);
-  await page.getByLabel("Lösenord").fill(password);
+  await page.getByLabel("Lösenord", { exact: true }).fill(password);
+  await page.getByLabel("Upprepa lösenordet", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Skapa konto" }).click();
   await expect(page.getByText("Vi har skickat ett mejl till")).toBeVisible();
   await verifyEmail(page, email);
@@ -97,10 +98,30 @@ export async function verificationLink(email: string): Promise<string> {
   return link!;
 }
 
-/** ADR-0186: öppnar bekräftelselänken och skriver lösenordet; kontot är sedan bekräftat och inloggat. */
+/** ADR-0205: länken i det senaste återställningsmejlet till adressen (väntar tills mejlet har kommit). */
+export async function resetLink(email: string): Promise<string> {
+  let link: string | undefined;
+  await expect.poll(() => {
+    const pattern = /https?:\/\/\S+\/recover#token=[A-Za-z0-9_-]{43}/;
+    link = pattern.exec(latestMailTo(email, pattern)?.text ?? "")?.[0];
+    return link;
+  }, { timeout: 20_000 }).toBeTruthy();
+  return link!;
+}
+
+/** ADR-0205: "Lösenord" och "Upprepa lösenordet" (registrering, bekräftelse och återställning). */
+export async function fillNewPassword(page: Page, secret: string, label = "Lösenord"): Promise<void> {
+  await page.getByLabel(label, { exact: true }).fill(secret);
+  await page.getByLabel("Upprepa lösenordet", { exact: true }).fill(secret);
+}
+
+/**
+ * ADR-0186, ändrat av ADR-0205: öppnar bekräftelselänken och väljer lösenordet (två gånger); kontot är sedan bekräftat och
+ * inloggat.
+ */
 export async function verifyEmail(page: Page, email: string, secret = password): Promise<void> {
   await page.goto(await verificationLink(email));
-  await page.getByLabel("Lösenord").fill(secret);
+  await fillNewPassword(page, secret);
   await page.getByRole("button", { name: "Bekräfta och logga in" }).click();
   await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
 }
@@ -109,8 +130,8 @@ export async function verifyEmail(page: Page, email: string, secret = password):
 export async function logIn(page: Page, email: string, secret = password): Promise<void> {
   await page.goto("/organizer");
   await page.getByLabel("E-postadress").fill(email);
-  await page.getByLabel("Lösenord").fill(secret);
-  await page.getByRole("button", { name: "Logga in" }).click();
+  await page.getByLabel("Lösenord", { exact: true }).fill(secret);
+  await page.getByRole("button", { name: "Logga in", exact: true }).click();
 }
 
 /**

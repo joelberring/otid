@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { latestMailTo } from "./fake-smtp";
-import { grantSuperadmin, logIn, password, publishRaceViaApi, registerAccount, today, unique, warmRoute } from "./helpers";
+import { fillNewPassword, grantSuperadmin, logIn, password, publishRaceViaApi, registerAccount, resetLink, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 17 (ADR-0172 beslut 1–2): konton med e-post, glömt lösenord med länk via e-post (fångad av en falsk
@@ -29,15 +28,6 @@ async function createRaceViaApi(page: Page, eventName: string): Promise<string> 
   });
   expect(response.status()).toBe(201);
   return (await response.json() as { raceId: string }).raceId;
-}
-
-async function resetLink(email: string): Promise<string> {
-  let link: string | undefined;
-  await expect.poll(() => {
-    link = /https?:\/\/\S+\/recover#token=[A-Za-z0-9_-]{43}/.exec(latestMailTo(email)?.text ?? "")?.[0];
-    return link;
-  }, { timeout: 20_000 }).toBeTruthy();
-  return link!;
 }
 
 test("konto med e-post och glömt lösenord via e-post", async ({ browser }) => {
@@ -73,14 +63,17 @@ test("konto med e-post och glömt lösenord via e-post", async ({ browser }) => 
   await ulla.goto(link);
   await expect(ulla.getByRole("heading", { name: "Välj nytt lösenord" })).toBeVisible();
   expect(ulla.url()).not.toContain("token=");
-  await ulla.getByLabel("Nytt lösenord", { exact: true }).fill("nytt-lösen-2");
-  await ulla.getByRole("button", { name: "Spara nytt lösenord" }).click();
-  await expect(ulla.getByText("Lösenordet är bytt. Logga in med det nya lösenordet.")).toBeVisible();
+  // ADR-0205: lösenordet två gånger, och länken loggar in direkt.
+  await fillNewPassword(ulla, "nytt-lösen-2", "Nytt lösenord");
+  await ulla.getByRole("button", { name: "Spara och logga in" }).click();
+  await expect(ulla.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
+  await ulla.getByRole("button", { name: "Logga ut" }).click();
+  await expect(ulla.getByText("Du är utloggad.")).toBeVisible();
 
   // Länken går inte att använda två gånger.
   await ulla.goto(link);
-  await ulla.getByLabel("Nytt lösenord", { exact: true }).fill("tredje-lösen-3");
-  await ulla.getByRole("button", { name: "Spara nytt lösenord" }).click();
+  await fillNewPassword(ulla, "tredje-lösen-3", "Nytt lösenord");
+  await ulla.getByRole("button", { name: "Spara och logga in" }).click();
   await expect(ulla.getByText("Länken är ogiltig, redan använd eller har gått ut.")).toBeVisible();
 
   // Det gamla lösenordet gäller inte; det nya gör det.

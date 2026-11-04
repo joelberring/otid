@@ -30,3 +30,11 @@ export function readAccountCsrfCookie(cookieText: string, currentUrl: URL): stri
   const value = values[0]!.slice(values[0]!.indexOf("=") + 1).trim();
   return /^[A-Za-z0-9_-]{43}$/.test(value) ? value : undefined;
 }
+
+/**
+ * ADR-0205: den påbörjade Google-inloggningen (state, nonce och PKCE-verifierare) mellan start och återkomst. SameSite=Lax,
+ * eftersom återkomsten är en navigering från Google; `__Host-` i drift så att ingen annan värd under domänen kan sätta den.
+ */
+export function googleLoginCookieName(secure: boolean): string {
+  return secure ? "__Host-otid-google-login" : "otid_google_login";
+}

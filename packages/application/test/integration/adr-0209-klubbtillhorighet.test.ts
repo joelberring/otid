@@ -23,6 +23,9 @@ import { resendClubInvitation } from "../../src/invitation-resend";
 import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
 import { listRacePeopleAsAdmin } from "../../src/race-people";
 import { registerTestAccount } from "./accounts";
+import { registerUserAccountWithVerification } from "../../src/email-verification";
+import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
+import { signInWithGoogle } from "../../src/google-login";
 
 /**
  * ADR-0209 mot PostgreSQL: klubblistan, Mina klubbar, kopplingen med klubbens Eventor-nyckel (falsk Eventor via fetch-attrapp),
@@ -471,6 +474,30 @@ describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
     // "Kopiera länken" finns inte för den: länksidan visar adressen.
     expect(await resendClubInvitation(db, { ...owner.proof, clubId, invitationId: clubInvitation!.id,
       request: { formatVersion: 1, delivery: "LINK" } }, undefined, NOW)).toEqual({ status: "forbidden" });
+    await unlink();
+  });
+});
+
+describe("ADR-0205: medlemslistan vid inloggning med Google och med återställningslänken", { timeout: 60_000 }, () => {
+  it("bekräftar tillhörigheten direkt när adressen blir bekräftad, också för ett konto som aldrig bekräftades", async () => {
+    const google = `google.${randomUUID().slice(0, 8)}@test.o-tid.se`;
+    const reset = `reset.${randomUUID().slice(0, 8)}@test.o-tid.se`;
+    const { clubId, unlink } = await linkedSpace({ emails: [google, reset] });
+    const confirmed = async (accountId: string) => (await db.select().from(schema.accountClubMemberships)
+      .where(eq(schema.accountClubMemberships.accountId, accountId))).filter(row => row.status === "CONFIRMED" && row.clubId === clubId);
+
+    const signed = await signInWithGoogle(db, { sub: `sub-${randomUUID().slice(0, 8)}`, email: google, emailVerified: true, name: "G" }, { now: NOW });
+    if (signed.status !== "authenticated") throw new Error(signed.status);
+    expect(await confirmed(signed.response.accountId)).toHaveLength(1);
+
+    const registered = await registerUserAccountWithVerification(db, { formatVersion: 1, email: reset, displayName: "R", password: "skrevs-fel-1" },
+      { now: NOW });
+    expect(registered.delivery?.kind).toBe("VERIFY");
+    const requested = await requestPasswordReset(db, { formatVersion: 1, email: reset }, { now: NOW });
+    if (requested.status !== "accepted" || !requested.delivery) throw new Error("Återställningslänken saknas");
+    const done = await completePasswordReset(db, { formatVersion: 1, token: requested.delivery.token, password: "tankt-losen-1" }, { now: NOW });
+    if (done.status !== "authenticated") throw new Error(done.status);
+    expect(await confirmed(done.response.accountId)).toHaveLength(1);
     await unlink();
   });
 });

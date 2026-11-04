@@ -54,7 +54,7 @@ export function passwordResetMessage(mail: PasswordResetMail): { subject: string
       "",
       mail.link,
       "",
-      `Länken fungerar en gång och gäller till kl. ${time}. När lösenordet är bytt loggas du ut överallt.`,
+      `Länken fungerar en gång och gäller till kl. ${time}. När lösenordet är bytt är du inloggad där du öppnade länken och utloggad överallt annars. Länken bekräftar också adressen.`,
       "Har du inte bett om detta kan du strunta i meddelandet; lösenordet är då oförändrat.",
       "",
       "O-Tid"
@@ -62,7 +62,7 @@ export function passwordResetMessage(mail: PasswordResetMail): { subject: string
   };
 }
 
-/** ADR-0186: bekräftelselänken efter registreringen (eller en inloggning på ett obekräftat konto). */
+/** ADR-0186, ändrat av ADR-0205: bekräftelselänken efter registreringen (eller en inloggning på ett obekräftat konto). */
 export function emailVerificationMessage(mail: PasswordResetMail): { subject: string; text: string } {
   const time = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
   return {
@@ -70,8 +70,8 @@ export function emailVerificationMessage(mail: PasswordResetMail): { subject: st
     text: [
       `Hej ${mail.displayName}!`,
       "",
-      "Någon (förhoppningsvis du) skapade ett konto i O-Tid med den här adressen. Öppna länken och skriv lösenordet du valde,",
-      "så är adressen bekräftad och du loggas in:",
+      "Någon (förhoppningsvis du) skapade ett konto i O-Tid med den här adressen. Öppna länken (i vilken webbläsare som helst)",
+      "och välj lösenord, så är adressen bekräftad och du loggas in:",
       "",
       mail.link,
       "",

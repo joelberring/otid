@@ -123,6 +123,17 @@ export const emailVerificationTokens = pgTable("email_verification_token", {
     sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '1 day'`)
 ]);
 
+/** ADR-0205 (migration 0072): kontots koppling till ett Google-konto (`sub` ur ID-token). En per konto och en per `sub`. */
+export const userAccountGoogleIdentities = pgTable("user_account_google_identity", {
+  accountId: uuid("account_id").primaryKey().references(() => userAccounts.id),
+  googleSub: text("google_sub").notNull(),
+  linkedAt: timestamp("linked_at", { withTimezone: true }).notNull(),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true })
+}, (table) => [
+  uniqueIndex("user_account_google_identity_sub_uidx").on(table.googleSub),
+  check("user_account_google_identity_sub_check", sql`length(${table.googleSub}) BETWEEN 1 AND 255 AND ${table.googleSub} ~ '^[A-Za-z0-9_-]+$'`)
+]);
+
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |
   "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK";
 

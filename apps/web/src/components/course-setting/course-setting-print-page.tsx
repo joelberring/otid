@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  exchangeAfterPart, expandPartItems, printAreaOf, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
+  exchangeAfterPart, expandPartItems, printAreaOf, RUNNER_BACK, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
   type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect, type PaperTemplate,
   type PaperRect, type Sheet, type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
@@ -21,7 +21,11 @@ import { mapRenderRequest, pageStyles } from "../../lib/course-setting-print";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { safely } from "../../lib/course-setting-safely";
 import { trainingSv } from "../../i18n/course-setting-training-sv";
-import { runnerPrintItems, type RunnerPrint, type RunnerPrintProblem } from "../../lib/course-setting-runner-print";
+import { runnerPrintItems, type RunnerPrint } from "../../lib/course-setting-runner-print";
+import { ALL_RUNNERS, runnerCheckRows, runnerPages, selectRunnerItems, type CheckRow, type RunnerSelection } from "../../lib/course-setting-runner-select";
+import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
+import { RunnerControls, type BackMode } from "./course-setting-runner-panel";
+import { RunnerCheckTable } from "./course-setting-runner-check";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
 import { fetchMapSource } from "../../lib/route-choice-api";
@@ -76,16 +80,6 @@ const clockIn = (timeZone: string) => (instant: string | null) => {
   return full.endsWith(":00") ? full.slice(0, 5) : full;
 };
 
-function problemText(problem: RunnerPrintProblem): string {
-  switch (problem.kind) {
-    case "MISSING_VARIANT": return text.page.problem.MISSING_VARIANT(problem.name, problem.className);
-    case "UNKNOWN_COURSE": return text.page.problem.UNKNOWN_COURSE(problem.courseName);
-    case "UNKNOWN_VARIANT": return text.page.problem.UNKNOWN_VARIANT(problem.courseName, problem.variantCode);
-    case "EXCLUDED_VARIANT": return text.page.problem.EXCLUDED_VARIANT(problem.courseName, problem.variantCode, problem.count);
-    case "COUNT": return text.page.problem.COUNT(problem.variantCode ? `${problem.courseName} ${problem.variantCode}` : problem.courseName, problem.expected, problem.actual);
-  }
-}
-
 /**
  * Steg 64 (ADR-0180 beslut 11, ADR-0183): `/admin/[raceId]/course-setting/print`. Arken för valda banor (och varianter)
  * eller en karta per löpare ur kartbuntarna, utlagda som i Purple Pen (`layoutCoursePage`) eller i en layoutmall
@@ -108,7 +102,10 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const [fill, setFill] = useState<"FILL" | "REPEAT">("FILL");
   const [profileId, setProfileId] = useState<string>();
   const [order, setOrder] = useState<"BUNDLE" | "START">("BUNDLE");
-  const [duplex, setDuplex] = useState(false);
+  // ADR-0213: baksidan (ingen, dubbelsidigt i samma PDF, separat körning) och vilka löpare som skrivs ut.
+  const [backMode, setBackMode] = useState<BackMode>("NONE");
+  const duplex = backMode === "DUPLEX";
+  const [selection, setSelection] = useState<RunnerSelection>(ALL_RUNNERS);
   // Träningsläget (ADR-0192): kartbitar och kontrollantens karta i linjeorienteringen.
   const [pieces, setPieces] = useState(false);
   const [controllerMaps, setControllerMaps] = useState(false);
@@ -200,7 +197,10 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
 
   // Papperet (ADR-0197): texter, bilder, skalstock, nordpil, klippning och mallar per bana. Medan papperets ändringar sparas
   // visas dokumentet med dem (`view`).
-  const paperSpace = usePaperSpace({ raceId, document: loaded, save, canEdit, chosen });
+  // En karta per löpare: alla banor att redigera papperet för, och baksidan när den skrivs dubbelsidigt (ADR-0213).
+  const paperChosen = useMemo(() => mode === "RUNNERS" ? (loaded?.courses ?? []).map(course => course.id) : chosen, [mode, loaded, chosen]);
+  const paperExtra = useMemo(() => mode === "RUNNERS" && duplex ? [{ id: RUNNER_BACK, name: runnerText.backCourse }] : [], [mode, duplex]);
+  const paperSpace = usePaperSpace({ raceId, document: loaded, save, canEdit, chosen: paperChosen, extra: paperExtra });
   const document = paperSpace.view ?? loaded;
 
   // Ringklippen över detaljer (ADR-0211 beslut 1): samma gap som i editorn, räknade av kartans Worker. Saknades förut, så
@@ -269,16 +269,19 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const lineChosen = trainingChosen.some(id => document?.training?.courses[id]?.line);
 
   // Arken som servern också lägger ut för PDF:en (`printSheetGroups` i paketet), med etikett per ark och vad som inte gick.
-  const { sheets, errors } = useMemo(() => {
+  const chosenRunners = useMemo(() => runners ? selectRunnerItems(runners.items, selection) : [], [runners, selection]);
+  const { sheets, errors, perItem } = useMemo(() => {
     const out: Printed[] = [], bad: string[] = mode === "RUNNERS" ? [] : [...variantErrors];
-    if (!document) return { sheets: out, errors: bad };
+    if (!document) return { sheets: out, errors: bad, perItem: [] as number[] };
     const runnerMode = mode === "RUNNERS";
-    if (runnerMode && (!runners || !template)) return { sheets: out, errors: bad };
-    const items: readonly SheetItem[] = runnerMode ? runners!.items : courseItems;
+    if (runnerMode && (!runners || !template)) return { sheets: out, errors: bad, perItem: [] as number[] };
+    const items: readonly SheetItem[] = runnerMode ? chosenRunners : courseItems;
+    const perItem = items.map(() => 0);
     const nameOf = (course: string) => course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course;
     const layout = !runnerMode && pieces ? { kind: "PIECES" as const }
       : template ? { kind: "TEMPLATE" as const, template, perRunner: runnerMode, duplex, fill } : { kind: "COURSE" as const, header, duplex: partsDuplex };
-    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids,
+    // ADR-0213: banornas förhandsvisning visar löparens variabler som platshållare ({namn} …).
+    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids, runnerPlaceholders: !runnerMode,
       onError: ({ item, error }) => {
         console.error("Utskriftslayouten misslyckades", error);
         const row = item === undefined ? undefined : items[item];
@@ -286,6 +289,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       } });
     for (const group of groups) {
       const row = group.item === undefined ? undefined : items[group.item];
+      if (group.item !== undefined) perItem[group.item] = group.sheets.length;
       group.sheets.forEach((sheet, part) => {
         const page = group.pages?.[part];
         // Kartbytets del hör till nyckeln: utan den fick en banas två delar samma nyckel (dev-överläggets "1 Issue").
@@ -297,8 +301,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
         else out.push({ key: `t${group.item ?? ""}|${part}`, sheet, label: sheet.frames.length === 0 ? text.page.blankBack : sheet.frames.map(frame => frame.title).join(", ") });
       });
     }
-    return { sheets: out, errors: bad };
-  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, duplex, bundles, pieces, partsDuplex, mapAids]);
+    return { sheets: out, errors: bad, perItem };
+  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, chosenRunners, duplex, bundles, pieces, partsDuplex, mapAids]);
 
   // Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång).
   const [images, setImages] = useState<Readonly<Record<string, string>>>({});
@@ -365,7 +369,17 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const paperPanel = paperSpace.panel(sheets);
   const frameCount = sheets.reduce((sum, item) => sum + item.sheet.frames.length, 0);
   const waiting = mapState === "reading" || (mapState === "ready" && sheets.some(item => item.sheet.frames.some(frame => !images[frameImageKey(frame, colorsKey)])));
-  const blocked = mode === "RUNNERS" && (runners?.problems.length ?? 0) > 0;
+  // Hela utskriften stoppas av felen mot Kartor till starten; ett urval (en löpare som skrivs om) varnas bara i tabellen.
+  const blocked = mode === "RUNNERS" && selection.kind === "ALL" && (runners?.problems.length ?? 0) > 0;
+  const checkRows: CheckRow[] = mode === "RUNNERS" && runners && bundles ? runnerCheckRows(runners, chosenRunners, runnerPages(perItem),
+    course => courses.find(item => item.id === course)?.name ?? course, selection.kind === "ALL" ? bundles.missingVariant : [], runnerText) : [];
+  const previewRow = (row: CheckRow) => {
+    if (row.item === undefined) return;
+    const key = `r${row.item}|0`;
+    setOpenKey(key);
+    const index = sheets.findIndex(item => item.key === key);
+    window.document.getElementById(`print-sheet-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const cards = sheetCards(document, sheets, template?.name);
   const openCard = (card: SheetCard) => {
     setOpenKey(card.key);
@@ -439,7 +453,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
               <select value={fill} onChange={event => setFill(event.target.value as "FILL" | "REPEAT")} data-testid="print-fill">
                 <option value="FILL">{text.page.fill}</option><option value="REPEAT">{text.page.repeat}</option></select></label>}
           </div>
-        </> : <RunnerControls bundlesState={bundlesState} runners={runners} raceId={raceId} order={order} setOrder={setOrder} duplex={duplex} setDuplex={setDuplex} />}
+        </> : <RunnerControls bundlesState={bundlesState} runners={runners} raceId={raceId} order={order} setOrder={setOrder} backMode={backMode} setBackMode={setBackMode}
+          selection={selection} setSelection={setSelection} chosen={chosenRunners.length} />}
         <span role="status" data-testid="print-count">{sheets.length === 0 ? text.page.none : frameCount > sheets.length ? `${text.page.sheets(sheets.length)}, ${layoutTemplateSv.frames(frameCount)}`
           : text.page.pages(sheets.length)}{waiting ? ` – ${text.page.readingMap}` : ""}</span>
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
@@ -450,7 +465,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           </div>
           <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}
             blockedText={blocked ? pdfText.runnerBlocked : undefined} heading={outputText.pdf} help={outputText.pdfHelp}
-            selection={{ items: mode === "RUNNERS" ? runners?.items ?? [] : courseItems, template, templateIsDraft: draftTemplate !== undefined,
+            selection={{ items: mode === "RUNNERS" ? chosenRunners : courseItems, template, templateIsDraft: draftTemplate !== undefined,
               savedTemplateIds: savedTemplates.map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex: mode === "RUNNERS" ? duplex : partsDuplex,
               pieces: mode === "COURSES" && pieces,
               ...(bundles ? { date: bundles.raceDate } : {}) }} />
@@ -460,6 +475,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}
       {mapState === "failed" && <Notice tone="attention">{text.page.mapFailed}</Notice>}
       {errors.map(name => <Notice key={name} tone="error">{text.page.failedCourse(name)}</Notice>)}
+      {runnerMode && runners && <RunnerCheckTable rows={checkRows} onPreview={previewRow} selected={undefined} />}
     </div>
     {/* ADR-0211 beslut 7: översikten över alla ark är sidans huvudvy. */}
     <PrintOverview cards={cards} selected={openKey} onOpen={openCard} templates={document.event.paperTemplates ?? []} readOnly={!canEdit || runnerMode}
@@ -486,7 +502,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
             frameEditing={frameEditing} onFrameEditing={setFrameEditing} />}
           <LayoutTemplatePanel key={mode} saved={savedTemplates} selectedId={chosenTemplateId} readOnly={!canEdit}
             onSelect={id => { setTemplateId(id); setDraftTemplate(undefined); }} onDraft={setDraftTemplate} onSave={save} />
-          {mode === "COURSES" && !pieces && paperPanel && <PaperSpacePanel raceId={raceId} document={document} readOnly={!canEdit} {...paperPanel}
+          {(mode === "RUNNERS" || !pieces) && paperPanel && <PaperSpacePanel raceId={raceId} document={document} readOnly={!canEdit} {...paperPanel}
             onCourse={choosePaperCourse} />}
           {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
             readOnly={!canEdit} onSave={save} />}
@@ -494,27 +510,4 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       </div>
     </section>
   </main>;
-}
-
-function RunnerControls({ bundlesState, runners, raceId, order, setOrder, duplex, setDuplex }: {
-  bundlesState: "none" | "reading" | "ready" | "failed"; runners: RunnerPrint | undefined; raceId: string;
-  order: "BUNDLE" | "START"; setOrder: (order: "BUNDLE" | "START") => void; duplex: boolean; setDuplex: (on: boolean) => void;
-}) {
-  if (bundlesState === "reading" || bundlesState === "none") return <p role="status">{text.page.runnersLoading}</p>;
-  if (bundlesState === "failed" || !runners) return <Notice tone="error">{text.page.runnersFailed}</Notice>;
-  return <div className={styles.stack} data-testid="print-runners">
-    <div className={styles.row}>
-      <label className={styles.field}>{text.page.order}<select value={order} onChange={event => setOrder(event.target.value as "BUNDLE" | "START")}>
-        <option value="BUNDLE">{text.page.orderBundle}</option><option value="START">{text.page.orderStart}</option></select></label>
-      <label className={styles.check}><input type="radio" name="print-duplex" checked={!duplex} onChange={() => setDuplex(false)} />{text.page.singleSided}</label>
-      <label className={styles.check}><input type="radio" name="print-duplex" checked={duplex} onChange={() => setDuplex(true)} data-testid="print-duplex" />{text.page.duplex}</label>
-    </div>
-    {runners.items.length === 0 && <p className={styles.muted}>{text.page.runnersNone}</p>}
-    {runners.counts.length > 0 && <p className={styles.muted}>{text.page.runnerCounts}: {runners.counts.map(row =>
-      `${row.courseName} ${row.variantCode ?? text.page.noVariant} ${row.count}`).join(" · ")}</p>}
-    {runners.problems.length === 0 ? <Notice tone="ok"><p data-testid="print-runner-check">{text.page.runnerOk}</p></Notice>
-      : <Notice tone="error"><p data-testid="print-runner-check">{text.page.runnerProblems}</p>
-        <ul className={styles.problems}>{runners.problems.map((problem, index) => <li key={index}>{problemText(problem)}</li>)}</ul>
-        <p><Link href={`/admin/${raceId}/maps`}>{text.page.bundlesLink}</Link></p></Notice>}
-  </div>;
 }

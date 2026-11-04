@@ -6,8 +6,11 @@ const maps = (count: number) => count === 1 ? "1 karta" : `${count} kartor`;
 
 export const mapBundlesSv = {
   title: "Kartor till starten",
-  pageHelp: "Här står hur många kartor varje variant behöver, i vilken ordning de ska ligga vid starten och vilken löpare som får vilken karta. Kartorna skrivs ut i banläggningen, en karta per löpare i samma ordning, som PDF för tryckeriet eller kontorsskrivaren.",
+  pageHelp: "Här står hur många kartor varje variant behöver, i vilken ordning de ska ligga vid starten och vilken löpare som får vilken karta, också stafettens lag och sträckor. Kartorna skrivs ut i banläggningen, en karta per löpare i samma ordning, som PDF för tryckeriet eller kontorsskrivaren.",
   printLink: "Skriv ut en karta per löpare",
+  /** ADR-0213: kontrolltabellen i utskriften och stafettens lag och sträcka. */
+  checkLink: "Kontrollera kopplingen",
+  teamLeg: (team: number, leg: number | undefined) => leg !== undefined ? `lag ${team}, sträcka ${leg}` : `lag ${team}`,
   back: "Tillbaka till arbetsytan",
   loading: "Läser in kartorna …",
   loadError: "Kartorna kunde inte läsas in. Försök igen.",

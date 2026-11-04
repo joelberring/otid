@@ -5,7 +5,7 @@ import {
   applyEdit, effectivePaper, paperClipPoints, paperLayoutOf, shapePoints, withPaperItem, type CourseSettingDocument, type CourseSettingEdit, type PaperRect,
   type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
-import { anchorRect, movedPaperItem, paperLayoutEdit, paperUndoFor, resizedPaperItem } from "../../lib/course-setting-paper";
+import { anchorRect, movedPaperItem, paperItemEdit, paperItemsOf, paperLayoutEdit, paperUndoFor, resizedPaperItem } from "../../lib/course-setting-paper";
 import { paperImageUrl } from "../../lib/course-setting-paper-api";
 import { CLIP_SELECTION, type PaperInteraction, type PaperSelection } from "./course-setting-paper-items";
 import { paperCourses } from "./course-setting-paper-panel";
@@ -17,9 +17,11 @@ import { clipWithPoint, shapeWithPoint, type PlacedPaper } from "./course-settin
  * från servern efter ett tidigare sparande. Ångra (knappen och Ctrl+Z) sparar ändringarna som återställer det som gällde
  * före (`paperUndoFor`), de senaste 50.
  */
-export function usePaperSpace({ raceId, document, save, canEdit, chosen }: {
+export function usePaperSpace({ raceId, document, save, canEdit, chosen, extra: extraCourses = [] }: {
   raceId: string; document: CourseSettingDocument | null | undefined;
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; canEdit: boolean; chosen: readonly string[];
+  /** ADR-0213: fler att välja bland i panelen (baksidan per löpare). */
+  extra?: readonly { id: string; name: string }[] | undefined;
 }) {
   const [course, setCourse] = useState<string>();
   const [selected, setSelected] = useState<PaperSelection>();
@@ -34,7 +36,7 @@ export function usePaperSpace({ raceId, document, save, canEdit, chosen }: {
   const current = useRef<CourseSettingDocument | null | undefined>(document);
   if (pending.current === 0) current.current = document;
   const shown = view ?? document;
-  const courses = shown ? paperCourses(shown, chosen) : [];
+  const courses = shown ? [...paperCourses(shown, chosen), ...extraCourses] : [];
   const paperCourse = course && courses.some(row => row.id === course) ? course : courses[0]?.id;
 
   const redo = useRef<CourseSettingEdit[][]>([]);
@@ -97,11 +99,11 @@ export function usePaperSpace({ raceId, document, save, canEdit, chosen }: {
 
   const itemOf = (placed: SheetPaperItem) => {
     const doc = current.current;
-    return doc ? effectivePaper(doc, placed.course).items.find(row => row.item.id === placed.id)?.item : undefined;
+    return doc ? paperItemsOf(doc, placed.course).find(row => row.item.id === placed.id)?.item : undefined;
   };
   const putItem = (courseId: string, id: string, next: Parameters<typeof withPaperItem>[3]) => {
     const doc = current.current;
-    if (doc) void savePaper([paperLayoutEdit(courseId, withPaperItem(doc, courseId, id, next))]);
+    if (doc) void savePaper([paperItemEdit(doc, courseId, id, next)]);
   };
   const select = (selection: PaperSelection, additive = false) => {
     if (additive && selection && selected && selection.id !== CLIP_SELECTION && selected.id !== CLIP_SELECTION) {
@@ -127,9 +129,9 @@ export function usePaperSpace({ raceId, document, save, canEdit, chosen }: {
     const edits = new Map<string, CourseSettingEdit>();
     for (const { placed, dx, dy } of moves) {
       if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) continue;
-      const item = effectivePaper(doc, placed.course).items.find(row => row.item.id === placed.id)?.item;
+      const item = paperItemsOf(doc, placed.course).find(row => row.item.id === placed.id)?.item;
       if (!item || item.locked) continue;
-      const edit = paperLayoutEdit(placed.course, withPaperItem(doc, placed.course, placed.id, movedPaperItem(item, placed, anchorRect(sheet, placed), dx, dy)));
+      const edit = paperItemEdit(doc, placed.course, placed.id, movedPaperItem(item, placed, anchorRect(sheet, placed), dx, dy));
       doc = applyEdit(doc, edit).document;
       edits.set(placed.course, edit);
     }
@@ -165,7 +167,7 @@ export function usePaperSpace({ raceId, document, save, canEdit, chosen }: {
       let next = doc;
       const edits = new Map<string, CourseSettingEdit>();
       for (const target of targets) {
-        const edit = paperLayoutEdit(target.course, withPaperItem(next, target.course, target.id, null));
+        const edit = paperItemEdit(next, target.course, target.id, null);
         next = applyEdit(next, edit).document;
         edits.set(target.course, edit);
       }

@@ -90,6 +90,7 @@ describe("en karta per löpare (steg 64)", () => {
     const duplex = layoutTemplateSheets(document, one, [items[1]!], { duplexBacks: true });
     expect(duplex).toHaveLength(2);
     expect(duplex[1]!.back).toBe(true);
-    expect(duplex[1]!.texts.map(text => text.text)).toEqual(["Ledig start", "D21", "Nr 102   10:30"]);
+    // ADR-0213: baksidan är papperets element (förvalet som Kartor till startens baksida).
+    expect((duplex[1]!.paperItems ?? []).map(item => item.parts.flatMap(part => part.kind === "text" ? [part.text] : []).join(""))).toEqual(["102", "Ledig", "D21  10:30"]);
   });
 });

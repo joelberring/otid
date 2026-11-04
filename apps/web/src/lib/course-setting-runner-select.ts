@@ -113,8 +113,10 @@ export function sortCheckRows(rows: readonly CheckRow[], column: CheckColumn, de
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
       const x = value(a.row), y = value(b.row);
-      const order = typeof x === "number" || typeof y === "number" ? (x === undefined || x === null ? Infinity : Number(x)) - (y === undefined || y === null ? Infinity : Number(y))
-        : String(x).localeCompare(String(y), "sv-SE", { numeric: true });
+      // Tomma (ingen sida, inget nummer) står sist åt båda hållen.
+      const empty = (v: unknown) => v === undefined || v === null || v === "";
+      if (empty(x) || empty(y)) return Number(empty(x)) - Number(empty(y)) || a.index - b.index;
+      const order = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "sv-SE", { numeric: true });
       return (descending ? -order : order) || a.index - b.index;
     }).map(entry => entry.row);
 }

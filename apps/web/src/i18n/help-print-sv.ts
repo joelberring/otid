@@ -208,6 +208,24 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "lopar-kartor",
+    title: "En karta per löpare: variabler, baksida och kontroll",
+    views: ["CS_PRINT_PAGE"],
+    body: [
+      "”En karta per löpare (i samma ordning som Kartor till starten)” under ”Skriv ut” ger en karta för varje löpare, ledig tid och reserv.",
+      [
+        "Texter på papperet kan ha löparens variabler: {namn} {startnummer} {klubb} {klass} {starttid} {variant}, och för stafett {lag} {lagnummer} {sträcka}.",
+        "Exempel på framsidan: Lag {lagnummer} · Sträcka {sträcka} · {variant}. I utskriften av banor syns variablerna som platshållare.",
+        "”Baksida med löparens uppgifter”: dubbelsidigt i samma PDF, eller separat körning under Kartor till starten → Baksidor.",
+        "Baksidan redigeras på arket: välj ”Baksidan (per löpare)” under ”Bana” i papperets fält. Förvalet är samma som Kartor till startens baksida.",
+        "”Vilka som skrivs ut”: alla, valda klasser, valda löpare (sök på namn eller nummer) eller valda lag med alla sträckor eller en sträcka.",
+        "”Kontrollera kopplingen” visar sidan i PDF:en, löparen, klassen, laget, banan, varianten och starttiden. Klicka på en rad för att se arket.",
+        "Varningarna: ingen variant, bortvald variant, antalet stämmer inte med Kartor till starten, samma startnummer två gånger. ”Spara som CSV” sparar tabellen."
+      ],
+      "Mallarna, ”Mitt bibliotek (alla mina tävlingar)” och klubbarkivet sparar bara variablerna, aldrig löparna."
+    ]
+  },
+  {
     id: "kartbyten",
     title: "Kartbyten: delar, dubbelsidigt och överlapp",
     views: ["CS_PRINT_PAGE", "CS_PRINT"],

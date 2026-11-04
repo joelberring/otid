@@ -1,5 +1,5 @@
 import {
-  applyPaperTemplate, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
+  applyPaperTemplate, effectivePaper, newPaperItemId, runnerBackOf, withPaperItem, RUNNER_BACK, type PaperSource, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
   type PaperItemKind, type PaperRect,
   type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
@@ -108,6 +108,8 @@ export function paperUndoFor(document: CourseSettingDocument, edits: readonly Co
         for (const [course, row] of Object.entries(document.event.paperLayouts ?? {})) if (row.template === edit.id) out.push(layout(course));
         break;
       }
+      // ADR-0213: baksidan per löpare som den var (eller förvalet).
+      case "SET_RUNNER_BACK": out.push({ type: "SET_RUNNER_BACK", back: document.event.runnerBack ?? null }); break;
       case "SET_EVENT":
         if (edit.changes.paperValues !== undefined) out.push({ type: "SET_EVENT", changes: { paperValues: document.event.paperValues ?? {} } });
         break;
@@ -134,4 +136,31 @@ export function paperItemLabel(item: PaperItem): string {
     case "RECT": return "Ram";
     case "LINE": return "Linje";
   }
+}
+
+/**
+ * ADR-0213: elementen som redigeras för en bana eller för baksidan per löpare (`RUNNER_BACK`), så att arket, lagren och
+ * fälten fungerar likadant för båda.
+ */
+export function paperItemsOf(document: CourseSettingDocument, course: string): readonly { item: PaperItem; source: PaperSource }[] {
+  if (course !== RUNNER_BACK) return effectivePaper(document, course).items;
+  const source: PaperSource = document.event.runnerBack ? "OWN" : "TEMPLATE";
+  return runnerBackOf(document).items.map(item => ({ item, source }));
+}
+
+/** Ändringen som sätter, lägger till eller tar bort (null) ett element på banans papper eller på baksidan. */
+export function paperItemEdit(document: CourseSettingDocument, course: string, id: string, next: PaperItem | null): CourseSettingEdit {
+  if (course !== RUNNER_BACK) return paperLayoutEdit(course, withPaperItem(document, course, id, next));
+  const items = runnerBackOf(document).items;
+  const list = next === null ? items.filter(item => item.id !== id) : items.some(item => item.id === id) ? items.map(item => item.id === id ? next : item) : [...items, next];
+  return { type: "SET_RUNNER_BACK", back: { items: list } };
+}
+
+/** Ett nytt elements id för banan eller baksidan. */
+export function newItemIdFor(document: CourseSettingDocument, course: string): string {
+  if (course !== RUNNER_BACK) return newPaperItemId(document, course);
+  const used = new Set(runnerBackOf(document).items.map(item => item.id));
+  let n = used.size + 1;
+  while (used.has(`b${n}`)) n += 1;
+  return `b${n}`;
 }

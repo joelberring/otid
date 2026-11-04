@@ -110,3 +110,7 @@
   .editor, .editorBody { display: block; }
   .sheetSlot[data-target] .sheet, .sheetSlot[data-open] .sheet { outline: none; }
 }
+/* ADR-0213: Kontrollera kopplingen. */
+.sortButton { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; text-decoration: underline dotted; }
+.warnRow td { background: color-mix(in srgb, var(--attention, #8a5a00) 10%, transparent); }
+.table tr[data-selected] td { outline: 2px solid #1d6fd1; }

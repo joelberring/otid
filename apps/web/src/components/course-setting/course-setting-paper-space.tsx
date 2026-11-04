@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  effectivePaper, newPaperItemId, paperClipPoints, paperLayoutOf, reanchor, resetPaperItem, withPaperItem, PAPER_CORNERS, PAPER_VARIABLES,
+  effectivePaper, paperClipPoints, paperLayoutOf, reanchor, resetPaperItem, PAPER_CORNERS, RUNNER_BACK, RUNNER_PAPER_VARIABLES,
   type CourseSettingDocument, type CourseSettingEdit, type PaperAlign, type PaperClip, type PaperCorner, type PaperItem, type PaperItemKind,
   type PaperRect, type PaperShape, type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
 import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
-import { anchorIn, anchorRect, newPaperItem, paperItemLabel, paperLayoutEdit } from "../../lib/course-setting-paper";
+import { anchorIn, anchorRect, newItemIdFor, newPaperItem, paperItemEdit, paperItemLabel, paperItemsOf, paperLayoutEdit } from "../../lib/course-setting-paper";
+import { VariableOptions } from "./course-setting-paper-variables";
+import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
 import { uploadPaperImage } from "../../lib/course-setting-paper-api";
 import { Button } from "../ui";
 import { CLIP_SELECTION, WHITE_SELECTION, type PaperSelection } from "./course-setting-paper-items";
@@ -45,17 +47,19 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   if (!course) return null;
-  const effective = effectivePaper(document, course);
+  // ADR-0213: baksidan per löpare redigeras som en banas papper, utan klippning, vita ytor och mall.
+  const back = course === RUNNER_BACK;
+  const effective = { items: paperItemsOf(document, course) };
   const item = selected?.course === course ? effective.items.find(row => row.item.id === selected.id) : undefined;
   async function save(edits: CourseSettingEdit[], done?: string) {
     const ok = await onSave(edits);
     setMessage(ok ? (done ? { ok, text: done } : undefined) : { ok, text: text.failed });
     return ok;
   }
-  const putItem = (id: string, next: PaperItem | null) => save([paperLayoutEdit(course, withPaperItem(document, course, id, next))]);
+  const putItem = (id: string, next: PaperItem | null) => save([paperItemEdit(document, course, id, next)]);
   async function add(kind: PaperItemKind) {
     if (kind === "IMAGE") { file.current?.click(); return; }
-    const id = newPaperItemId(document, course!);
+    const id = newItemIdFor(document, course!);
     if (await putItem(id, newPaperItem(kind, id))) onSelect({ course: course!, id });
   }
   async function upload(chosen: File | undefined) {
@@ -65,7 +69,7 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
       const outcome = await uploadPaperImage(raceId, chosen);
       if (outcome.kind === "too-large") { setMessage({ ok: false, text: text.imageTooLarge }); return; }
       if (outcome.kind === "invalid") { setMessage({ ok: false, text: text.imageInvalid }); return; }
-      const id = newPaperItemId(document, course!);
+      const id = newItemIdFor(document, course!);
       if (await putItem(id, newPaperItem("IMAGE", id, outcome.image))) onSelect({ course: course!, id });
     } catch (error) { console.error("Bilden laddades inte upp", error); setMessage({ ok: false, text: text.imageFailed }); }
     finally { setBusy(false); if (file.current) file.current.value = ""; }
@@ -115,10 +119,10 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
     {item && <Inspector key={`${course}:${item.item.id}`} item={item.item} source={item.source} placed={placed} readOnly={readOnly}
       onChange={next => void putItem(item.item.id, next)} onRemove={() => { onSelect(undefined); void putItem(item.item.id, null); }}
       onReset={() => void save([paperLayoutEdit(course, resetPaperItem(document, course, item.item.id))])} onClose={() => onSelect(undefined)} />}
-    <ClipSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />
-    <WhiteSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />
+    {!back && <ClipSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />}
+    {!back && <WhiteSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />}
     <Values document={document} readOnly={readOnly} onSave={save} />
-    <PaperTemplatesSection raceId={raceId} document={document} course={course} courses={courses} readOnly={readOnly} onSave={save} />
+    {!back && <PaperTemplatesSection raceId={raceId} document={document} course={course} courses={courses.filter(row => row.id !== RUNNER_BACK)} readOnly={readOnly} onSave={save} />}
     {message && <p role="status" className={message.ok ? styles.muted : styles.paperWarning} data-testid="paper-message">{message.text}</p>}
   </section>;
 }
@@ -174,10 +178,11 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
             if (!event.target.value) return;
             const next = `${draft}${draft && !draft.endsWith(" ") && !draft.endsWith("\n") ? " " : ""}{${event.target.value}}`;
             setDraft(next); onChange({ ...item, text: next });
-          }}><option value="">…</option>{PAPER_VARIABLES.map(name => <option key={name} value={name}>{`{${name}}`}</option>)}</select></Field>
+          }}><VariableOptions /></select></Field>
           <NumberField label={text.size} value={item.sizeMm} min={1.5} max={40} disabled={readOnly} onCommit={sizeMm => onChange({ ...item, sizeMm })} testId="paper-size" />
           <NumberField label={text.width} value={item.widthMm} min={5} max={1000} step={1} disabled={readOnly} onCommit={widthMm => onChange({ ...item, widthMm })} testId="paper-width" />
         </div>
+        {RUNNER_PAPER_VARIABLES.some(name => draft.includes(`{${name}}`)) && <p className={styles.muted} data-testid="paper-runner-hint">{runnerText.runnerHint}</p>}
         <div className={styles.row}>
           <label className={styles.check}><input type="checkbox" checked={item.bold === true} onChange={event => onChange({ ...item, bold: event.target.checked })}
             data-testid="paper-bold" />{text.bold}</label>

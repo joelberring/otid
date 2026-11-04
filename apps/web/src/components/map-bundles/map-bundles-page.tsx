@@ -96,7 +96,8 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
       <h1>{text.title}</h1>
       <p>{race}</p>
       <p>{text.pageHelp}</p>
-      <p><Link href={`/admin/${raceId}/course-setting/print?mode=runners`}>{text.printLink}</Link></p>
+      <p><Link href={`/admin/${raceId}/course-setting/print?mode=runners`}>{text.printLink}</Link>{" · "}
+        <Link href={`/admin/${raceId}/course-setting/print?mode=runners#runner-check`} data-testid="map-bundles-check">{text.checkLink}</Link></p>
     </header>
     <div className={`${styles.tabs} ${styles.noPrint}`} role="group" aria-label={text.title}>
       {(["COUNTS", "BUNDLE", "BACKS"] as const).map(id => <button key={id} type="button" aria-pressed={view === id}
@@ -105,7 +106,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
     {message && <p role="alert" className={`${styles.notice} ${styles.noPrint}`}>{message}</p>}
     {data.missingVariant.length > 0 && <div className={`${styles.notice} ${styles.noPrint}`} role="note">
       <strong>{text.missingVariantTitle(data.missingVariant.length)}</strong>
-      <p>{data.missingVariant.slice(0, 12).map(row => `${row.name} (${row.className})`).join(", ")}{data.missingVariant.length > 12 ? " …" : ""}</p>
+      <p>{data.missingVariant.slice(0, 12).map(row => `${row.name} (${row.className}${row.team ? `, ${text.teamLeg(row.team.number, row.leg)}` : ""})`).join(", ")}{data.missingVariant.length > 12 ? " …" : ""}</p>
       <p>{text.missingVariantHelp}</p>
     </div>}
     {view === "COUNTS" && <Counts data={data} raceId={raceId} onSaved={load} />}
@@ -230,7 +231,7 @@ function BundleTable({ data, order, clock }: { data: MapBundleResponse; order: O
       <tr className={styles.groupHead}><th scope="rowgroup" colSpan={6}>{group.title}</th></tr>
       {group.rows.map(row => <tr key={row.number}>
         <td className={styles.num}>{row.number}</td><td>{row.startMode === "FREE" ? text.freeStart : clock(row.startTime)}</td>
-        <td>{row.className}</td><td className={styles.code}>{row.variantCode ?? ""}</td>
+        <td>{row.className}{row.team ? ` · ${text.teamLeg(row.team.number, row.leg)}` : ""}</td><td className={styles.code}>{row.variantCode ?? ""}</td>
         <td>{row.name ?? <span className={styles.muted}>{text.vacant}</span>}</td><td>{row.club ?? ""}</td>
       </tr>)}
     </tbody>)}

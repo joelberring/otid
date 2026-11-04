@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { PAPER_VARIABLES, type PaperPart, type Sheet, type SheetFrame, type SheetPaperItem } from "@o-tid/course-setting";
+import type { PaperPart, Sheet, SheetFrame, SheetPaperItem } from "@o-tid/course-setting";
+import { VariableOptions } from "./course-setting-paper-variables";
 import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
 import { snapMove, snapTargets, type SnapGuide } from "../../lib/course-setting-paper-snap";
 import styles from "./course-setting-print-page.module.css";
@@ -261,7 +262,7 @@ function TextEditor({ item, source: raw, onDone }: { item: SheetPaperItem; sourc
           const field = area.current, at = field.selectionStart ?? field.value.length;
           const next = `${field.value.slice(0, at)}{${event.target.value}}${field.value.slice(field.selectionEnd ?? at)}`;
           field.value = next; setValue(next); field.focus();
-        }}><option value="">…</option>{PAPER_VARIABLES.map(name => <option key={name} value={name}>{`{${name}}`}</option>)}</select></label>
+        }}><VariableOptions /></select></label>
         <button type="button" onClick={commit} data-testid="paper-text-inplace-done">{text.editor.done}</button>
         <button type="button" onClick={() => onDone(undefined)}>{text.editor.cancel}</button>
       </div>

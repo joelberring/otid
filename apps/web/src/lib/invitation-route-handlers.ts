@@ -1,5 +1,5 @@
 import {
-  readInvitationLink, resendClubInvitation, resendGroupInvitation, resendRacePersonInvitation, type InvitationMailer,
+  readInvitationLink, resendClubInvitation, resendGroupInvitation, type InvitationMailer,
   type InvitationResendResult
 } from "@o-tid/application";
 import { invitationLinkRequestSchema, invitationLinkViewSchema, invitationResendResponseSchema, UUID_PATTERN } from "@o-tid/contracts";
@@ -12,7 +12,8 @@ import { logServerError } from "./server-error-log";
 
 /**
  * ADR-0206: länksidans fråga (POST /api/invitation med nyckeln i kroppen, utan inloggning) och "Skicka igen"/"Kopiera länken"
- * i klubbens, tävlingens och gruppens listor (inloggad administratör, exakt Origin och CSRF). Svaren är privata och cachas inte.
+ * i klubbens och gruppens listor (inloggad administratör, exakt Origin och CSRF; tävlingens går genom arbetsytans route).
+ * Svaren är privata och cachas inte.
  */
 type Environment = Record<string, string | undefined>;
 const BODY_MAX = 2 * 1024;
@@ -51,7 +52,8 @@ export async function invitationLinkRoute(db: Database, request: Request, enviro
   }
 }
 
-function resendResponse(result: InvitationResendResult): Response {
+/** Svaret på Skicka igen eller Kopiera länken (också tävlingens, som går genom arbetsytans route). */
+export function invitationResendResponse(result: InvitationResendResult): Response {
   switch (result.status) {
     case "ok": return privateJson(invitationResendResponseSchema.parse(result.response));
     case "unauthorized": return accountFailure(401, "UNAUTHORIZED");
@@ -62,12 +64,12 @@ function resendResponse(result: InvitationResendResult): Response {
   }
 }
 
-type Scope = { kind: "CLUB"; clubId: string } | { kind: "GROUP"; groupId: string } | { kind: "RACE"; raceId: string };
+type Scope = { kind: "CLUB"; clubId: string } | { kind: "GROUP"; groupId: string };
 
 /** POST …/invitations/{invitationId} med `{ delivery: "MAIL" | "LINK" }`. */
 export async function invitationResendRoute(db: Database, request: Request, scope: Scope, invitationId: string,
   environment: Environment = process.env): Promise<Response> {
-  const scopeId = scope.kind === "CLUB" ? scope.clubId : scope.kind === "GROUP" ? scope.groupId : scope.raceId;
+  const scopeId = scope.kind === "CLUB" ? scope.clubId : scope.groupId;
   if (!UUID_PATTERN.test(scopeId) || !UUID_PATTERN.test(invitationId)) return accountFailure(404, "NOT_FOUND");
   const configured = policy(environment);
   if (!configured) return accountFailure(500, "INTERNAL_ERROR");
@@ -79,9 +81,8 @@ export async function invitationResendRoute(db: Database, request: Request, scop
   try {
     const input = { ...proof, invitationId, request: body };
     const result = scope.kind === "CLUB" ? await resendClubInvitation(db, { ...input, clubId: scope.clubId }, mailer)
-      : scope.kind === "GROUP" ? await resendGroupInvitation(db, { ...input, groupId: scope.groupId }, mailer)
-        : await resendRacePersonInvitation(db, { ...input, raceId: scope.raceId }, mailer);
-    return resendResponse(result);
+      : await resendGroupInvitation(db, { ...input, groupId: scope.groupId }, mailer);
+    return invitationResendResponse(result);
   } catch (error) {
     logServerError("invitation", "resend", error);
     return accountFailure(500, "INTERNAL_ERROR");

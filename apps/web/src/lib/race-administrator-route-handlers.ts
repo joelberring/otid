@@ -146,7 +146,7 @@ async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteCon
 }
 
 function allowedMethods(action: Action): string[] {
-  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "uninterpreted-readouts" ? ["GET", "POST"] :
+  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "people-invitation" ? ["POST"] : action.kind === "uninterpreted-readouts" ? ["GET", "POST"] :
     action.kind === "uninterpreted-readouts-reread" ? ["POST"] : action.kind === "party" ? ["GET", "POST"] : action.kind === "party-logo" ? ["PUT", "DELETE"] :
     action.kind === "party-guests" || action.kind === "party-desk-events" ? ["POST"] : action.kind === "radio" ? ["GET", "PUT"] :
     action.kind === "radio-fetch" ? ["POST"] : action.kind === "race-publication" ? ["PUT", "DELETE"] : action.kind === "course-secrecy" ? ["PUT", "DELETE", "PATCH"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :

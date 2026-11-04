@@ -1,20 +1,28 @@
-import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema } from "@o-tid/contracts";
+import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema, UUID_PATTERN } from "@o-tid/contracts";
 import {
   adminFailure as failure,
   hasNoRequestBody,
   privateJson as json,
   readJsonBody
 } from "./security-policy";
-import { mailAvailable, routeMailer } from "./invitation-route-handlers";
+import { invitationResendResponse, mailAvailable, routeMailer } from "./invitation-route-handlers";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
 /**
  * Personer med behörighet (ADR-0172 beslut 3): GET listar ägaren, administratörer och funktionärer, POST lägger till
  * ett befintligt konto med e-post och roll, DELETE tar bort en behörighet. Bara administratörer når hit.
- * Ger undefined för åtgärder som inte hör till gruppen.
+ * ADR-0206: POST …/people/invitations/{id} skickar inbjudan igen eller ger en länk att kopiera. Ger undefined för åtgärder
+ * som inte hör till gruppen.
  */
 export async function handlePeopleRoute(context: RaceAdministratorRouteContext): Promise<Response | undefined> {
   const { db, request, raceId, action, dependencies, proof } = context;
+  if (action.kind === "people-invitation") {
+    if (!UUID_PATTERN.test(action.invitationId)) return failure(404, "NOT_FOUND");
+    let body: unknown;
+    try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
+    return invitationResendResponse(await dependencies.resendPersonInvitation(db, { ...proof, raceId, invitationId: action.invitationId,
+      request: body }, routeMailer(context.environment)));
+  }
   if (action.kind !== "people") return undefined;
   if (request.method === "GET") {
     if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");

@@ -40,7 +40,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   uploadPaperImageAsAdmin, readPaperImageAsAdmin, listPaperLibraryAsAdmin, savePaperLibraryAsAdmin, deletePaperLibraryAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
-  listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin,
+  listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin, resendRacePersonInvitation,
   setRacePublicationAsAdmin, setCoursesPublicAsAdmin, setPublicTimingAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
   saveCourseDetailsAsAdmin, removeEntryAsAdmin, removeClassAsAdmin, removeCourseAsAdmin, readResultsOfficialAsAdmin,
@@ -143,6 +143,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   paperLibrarySave: savePaperLibraryAsAdmin, paperLibraryDelete: deletePaperLibraryAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
+  // ADR-0206: Skicka igen och Kopiera länken.
+  resendPersonInvitation: resendRacePersonInvitation,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,
   // ADR-0186: Publicera → före start (varianten och kartan publikt).
   publicTiming: setPublicTimingAsAdmin,
@@ -209,7 +211,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-print-jobs" } | { kind: "course-setting-print-job"; jobId: string } | { kind: "course-setting-print-job-pdf"; jobId: string } |
   { kind: "course-setting-paper-images" } | { kind: "course-setting-paper-image"; sha256: string } | { kind: "course-setting-paper-library" } |
   { kind: "course-setting-paper-library-item"; templateId: string } |
-  { kind: "people" } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
+  { kind: "people" } | { kind: "people-invitation"; invitationId: string } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
   { kind: "readout-registrations" } | { kind: "remaining-runners" } | { kind: "course-details"; courseId: string } |
   { kind: "entry-removal"; entryId: string } | { kind: "class-removal"; classId: string } | { kind: "course-removal"; courseId: string } |
   { kind: "results-official" } | { kind: "race-export" } | { kind: "race-backup-status" } | { kind: "runner-database" } | { kind: "runner-search" } |

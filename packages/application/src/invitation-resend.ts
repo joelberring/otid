@@ -37,12 +37,13 @@ async function fromClub(tx: Transaction, ref: InvitationRef): Promise<boolean> {
 async function resend(db: Database, ref: InvitationRef, request: unknown, authorize: Authorize, mailer: InvitationMailer | undefined, now: Date)
   : Promise<InvitationResendResult> {
   const parsed = invitationResendRequestSchema.safeParse(request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const delivery = parsed.data.delivery;
-  if (delivery === "MAIL" && !mailer) return { status: "mail-off" };
   const result = await db.transaction(async (tx): Promise<InvitationResendResult | { status: "prepared"; prepared: PreparedInvitationMail }> => {
+    // Behörigheten först: den som inte får skicka får samma svar oavsett vad begäran innehåller.
     const actor = await authorize(tx);
     if (actor.status !== "ok") return actor;
+    if (!parsed.success) return { status: "invalid-request" };
+    const delivery = parsed.data.delivery;
+    if (delivery === "MAIL" && !mailer) return { status: "mail-off" };
     const invitation = await loadInvitation(tx, ref);
     if (!invitation || invitation.acceptedAt || invitation.revokedAt) return { status: "not-found" };
     const refused = actor.permits(invitation);

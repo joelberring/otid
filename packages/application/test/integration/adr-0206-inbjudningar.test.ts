@@ -252,7 +252,7 @@ describe("ADR-0206: inbjudningar med e-post", () => {
     const hex = () => randomBytes(32).toString("hex");
     await db.insert(schema.invitationLinks).values(Array.from({ length: INVITATION_MAILS_PER_INVITER.hour - 1 }, (_, index) => ({
       id: randomUUID(), clubInvitationId: first.invitationId, tokenHash: hex(), recipientKey: hex(), issuedBy: theClub.owner.accountId,
-      delivery: "MAIL", createdAt: later(index * 1000), expiresAt: later(INVITATION_LINK_LIFETIME_MS), sentAt: later(index * 1000) })));
+      delivery: "MAIL" as const, createdAt: later(index * 1000), expiresAt: later(INVITATION_LINK_LIFETIME_MS), sentAt: later(index * 1000) })));
     const blocked = await inviteToClub(theClub, address("hundraforsta"), mailer, later(10 * MINUTE));
     expect(blocked.mail).toBe("throttled");
     expect(sent).toHaveLength(1);

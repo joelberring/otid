@@ -121,7 +121,7 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 async function call(route: { file: string; path: string }, method: string): Promise<number> {
   const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
   const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid, noteId: uuid,
-    replyId: uuid, suggestionId: uuid, jobId: uuid, templateId: uuid, sha256: "a".repeat(64), version: "1" });
+    replyId: uuid, suggestionId: uuid, jobId: uuid, templateId: uuid, invitationId: uuid, sha256: "a".repeat(64), version: "1" });
   const write = method !== "GET";
   const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replace("[sha256]", "a".repeat(64)).replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {

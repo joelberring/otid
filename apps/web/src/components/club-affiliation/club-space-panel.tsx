@@ -142,7 +142,8 @@ export function ClubSpacePanel({ clubId }: { clubId: string }) {
   </div>;
   return <div className={styles.form} style={{ maxWidth: "48rem" }}>
     <EventorCard view={view} clubId={clubId} onChanged={load} />
-    <AccessCard key={`${view.access.archive}-${view.access.mapBank}`} view={view} clubId={clubId} onSaved={setView} />
+    {/* Ingen key på valen: en ändring som sparas byter view.access, och en ny komponent tappade beskedet "Vem ser vad är sparat." */}
+    <AccessCard view={view} clubId={clubId} onSaved={setView} />
     <section className={styles.panel} aria-labelledby="club-pending">
       <h2 id="club-pending">{text.pending(view.pending.length)}</h2>
       <p className={styles.muted}>{text.pendingHelp}</p>

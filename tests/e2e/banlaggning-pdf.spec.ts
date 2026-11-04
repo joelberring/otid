@@ -80,7 +80,9 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   // kartans färger över banan och kontorsskrivarens PDF gör likadant (/BM /Multiply), så att den ser ut som trycket.
   const colors = owner.getByTestId("print-profile");
   await colors.getByTestId("print-colors-edit").click();
-  await colors.getByTestId("bl-course-layer").check();
+  // Kryssrutan följer den sparade profilen (en färdig profil kopieras först), så den byter läge först när kopian är sparad.
+  await colors.getByTestId("bl-course-layer").click();
+  await expect(colors.getByTestId("bl-course-layer")).toBeChecked({ timeout: 15_000 });
   await expect(colors.getByTestId("print-colors-numbers-top")).not.toBeChecked();
   await expect(colors.getByTestId("print-colors-order-help")).toContainText("Kurvorna korsar numren");
   await expect.poll(async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as {

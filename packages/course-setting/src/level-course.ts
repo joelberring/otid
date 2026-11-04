@@ -59,6 +59,11 @@ export interface LevelAssessment {
   /** Ungefär: från medianen till 85:e percentilen av alla kontroller och sträckor. */
   readonly low: LevelRank;
   readonly high: LevelRank;
+  /**
+   * Banans nivå: två tredjedelar av kontrollerna och sträckorna är högst så svåra (stämt mot klubbens märkta banor, ADR-0212;
+   * "det svåraste momentet avgör" men inte en enstaka svår sträcka).
+   */
+  readonly typical: LevelRank;
 }
 
 /** Bedömningen ur de uppmätta värdena. */
@@ -67,7 +72,7 @@ export function assessLevel(controls: readonly ControlLevelFeatures[], legs: rea
   const judgedLegs = legs.map(features => ({ features, verdict: judgeLeg(features) }));
   const ranks = [...judgedControls, ...judgedLegs].map(item => item.verdict.rank).sort((a, b) => a - b);
   const at = (share: number) => ranks.length === 0 ? 0 : ranks[Math.min(ranks.length - 1, Math.floor(share * ranks.length))]!;
-  return { controls: judgedControls, legs: judgedLegs, low: at(0.5), high: at(0.85) };
+  return { controls: judgedControls, legs: judgedLegs, low: at(0.5), high: at(0.85), typical: at(2 / 3) };
 }
 
 /** Hur många kontroller och sträckor som är svårare än nivån. */

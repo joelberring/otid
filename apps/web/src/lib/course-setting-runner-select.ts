@@ -123,7 +123,7 @@ export function sortCheckRows(rows: readonly CheckRow[], column: CheckColumn, de
 
 /** CSV med semikolon (svensk Excel), rubrikerna och en rad per tabellrad; varningarna sist. */
 export function checkRowsCsv(rows: readonly CheckRow[], header: readonly string[], warningText: (warning: CheckWarning) => string): string {
-  const cell = (value: unknown) => { const raw = value === undefined || value === null ? "" : String(value); return /[";\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw; };
+  const cell = (value: string | number | null | undefined) => { const raw = value === undefined || value === null ? "" : String(value); return /[";\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw; };
   return [header.map(cell).join(";"), ...rows.map(row => [...CHECK_COLUMNS.map(key => cell(row[key])), cell(row.warnings.map(warningText).join(", "))].join(";"))].join("\r\n") + "\r\n";
 }
 

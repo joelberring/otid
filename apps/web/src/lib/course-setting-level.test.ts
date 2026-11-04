@@ -7,7 +7,7 @@ import { LEVEL_REASONS, LEVEL_TIPS } from "../i18n/course-setting-level-sv";
 import { levelGuideArticle } from "../i18n/help-course-setting-sv";
 import { helpArticles } from "../i18n/help-sv";
 import { checkGroups, checkRows } from "./course-setting-checks";
-import { levelCheckText, levelRequest, levelRows, levelSignature } from "./course-setting-level";
+import { levelCheckText, levelRequest, levelRows, levelSignature, levelSprint } from "./course-setting-level";
 
 /** Nivåstödet (ADR-0212) i editorn: texterna per regel, raderna, signaturen och notiserna i Varningar. */
 function documentWith(edits: readonly CourseSettingEdit[]): { document: CourseSettingDocument; ids: string[] } {
@@ -79,5 +79,16 @@ describe("nivåstödets rader och notiser", () => {
     expect(rows[0]!.text).toContain("Flytta kontrollen närmare stigen");
     // Notiser räknas inte i fliken.
     expect(checkGroups(rows).count).toBe(0);
+  });
+});
+
+describe("nivåstödets sprintgräns", () => {
+  it("ISSprOM-påtryck på en skogskarta bedöms; sprint bara med sprintskala", () => {
+    const issprom = (mapScale: number) => ({ ...emptyDocument({ title: "Natt", mapScale, sprint: false }),
+      event: { ...emptyDocument({ title: "Natt", mapScale, sprint: false }).event, overprintStandard: "ISSPROM2019" as const } });
+    expect(levelSprint(issprom(10000))).toBe(false);
+    expect(levelSprint(issprom(7500))).toBe(false);
+    expect(levelSprint(issprom(4000))).toBe(true);
+    expect(levelSprint(emptyDocument({ title: "Skog", mapScale: 4000, sprint: false }))).toBe(false);
   });
 });

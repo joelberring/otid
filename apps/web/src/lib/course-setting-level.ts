@@ -22,7 +22,16 @@ export function levelRequest(document: CourseSettingDocument, course: string): L
     const input = legInput(document, from, to, [], course);
     return input ? [{ input, from, to }] : [];
   });
-  return { legs, controls: levelControls(document, course), sprint: document.event.overprintStandard === "ISSPROM2019" };
+  return { legs, controls: levelControls(document, course), sprint: levelSprint(document) };
+}
+
+/**
+ * Sprint för nivåstödet: banpåtrycket enligt ISSprOM och en sprintskala (1:5 000 eller mindre). Bara standarden räcker inte:
+ * många lägger skog- och nattbanor med ISSprOM-påtryck (t.ex. tätortsnära natt), och de ska bedömas efter färgskalan.
+ * Kartans egen skala prövas också i Workern.
+ */
+export function levelSprint(document: CourseSettingDocument): boolean {
+  return document.event.overprintStandard === "ISSPROM2019" && document.event.mapScale > 0 && document.event.mapScale <= 5000;
 }
 
 /** Ändras när banan, kontrollerna, deras beskrivningar, spärrarna eller kartan ändras (då är bedömningen inaktuell). */

@@ -8,7 +8,7 @@ import {
 import type { Point } from "@o-tid/map-file";
 import { courseSettingLevelSv as text } from "../../i18n/course-setting-level-sv";
 import { levelGuideArticle } from "../../i18n/help-course-setting-sv";
-import { LEVEL_COLORS, levelCheckText, levelRequest, levelRows, levelSignature, type LevelRow } from "../../lib/course-setting-level";
+import { LEVEL_COLORS, levelCheckText, levelRequest, levelRows, levelSignature, levelSprint, type LevelRow } from "../../lib/course-setting-level";
 import { safely } from "../../lib/course-setting-safely";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import type { RouteChoiceSession } from "../../lib/route-choice-client";
@@ -184,7 +184,7 @@ export function LevelPanel({ store, support, document, readOnly, onEdits, onShow
   if (!course) return null;
   const running = support.running?.course === course.id ? support.running : undefined;
   const queued = support.queue.includes(course.id) && !running;
-  const sprint = stored?.measured.notApplicable === "SPRINT" || document.event.overprintStandard === "ISSPROM2019";
+  const sprint = stored?.measured.notApplicable === "SPRINT" || levelSprint(document);
   const shown = only ? rows.filter(row => row.deviation) : rows;
   const deviations = target && stored ? levelDeviations(stored.assessment, target) : [];
   const easier = deviations.filter(row => row.deviation.direction === "EASIER").length;

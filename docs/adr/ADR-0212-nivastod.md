@@ -103,7 +103,9 @@ Källor (sammanfattade, inget kopierat ordagrant utöver korta citat):
    `SET_EVENT`, av som förval). Då blir avvikelserna i ett aktuellt resultat notiser (`LEVEL_DEVIATION`, aldrig fel eller
    varningar), nyckel `LEVEL_DEVIATION/<målnivå>/<kontroll>` eller `…/<från>/<till>` utan bana, som godtas som andra
    (ADR-0199, gäller tills något flyttas mer än 25 m).
-9. **Sprint:** inte tillämpligt. Banläggningen med ISSprOM 2019 eller en karta i sprintskala (1:4 000, 1:5 000) ger
+9. **Sprint:** inte tillämpligt. En karta i sprintskala (1:4 000, 1:5 000), eller banläggning med ISSprOM 2019 *och* kartskala
+   1:5 000 eller mindre, ger (tillägg 2026-11-04: ISSprOM-påtryck ensamt räcker inte; Stockholm by Night läggs med
+   ISSprOM-påtryck på en skogskarta och ska bedömas)
    "Nivåstödet gäller inte sprint". (Före omkalibreringen användes `detectPressNorm`, som räknar Djurgårdens parkkarta i
    1:15 000 som sprint för att den har ISSprOM-symboler; en sådan park är skogsnorm.)
 10. **Hjälp:** "Nivåstöd – grön, vit, gul …" och en guide per nivå ("Så lägger du en gul bana", Blå och Svart tillsammans)

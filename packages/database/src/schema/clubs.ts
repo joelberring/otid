@@ -5,7 +5,8 @@ import { userAccounts } from "./accounts";
  * ADR-0194 (migration 0059–0061): klubben och klubbarkivet. Kartversionernas filer ligger i `map_content` (ADR-0189);
  * banfilerna (små) ligger i `club_archive_course_file.content`.
  */
-export type ClubRole = "OWNER" | "ADMIN" | "READER";
+/** ADR-0208: `MAP_REVISER` (Kartrevidering) ser och ändrar bara klubbens kartrevideringar. */
+export type ClubRole = "OWNER" | "ADMIN" | "READER" | "MAP_REVISER";
 export type ClubMapFormat = "OCD" | "OMAP";
 export type ClubCourseFileKind = "PPEN" | "COURSE_DATA";
 export type ClubMapResolution = "FOLDER" | "NAME" | "MANUAL" | "MISSING" | "NONE";

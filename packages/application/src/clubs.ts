@@ -79,7 +79,9 @@ export async function clubUsage(tx: DbExecutor, clubId: string): Promise<ClubUsa
 async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId: string; role: ClubRole }): Promise<ClubView | undefined> {
   const [club] = await tx.select().from(schema.clubs).where(eq(schema.clubs.id, clubId));
   if (!club) return undefined;
-  const members = await tx.select({ memberId: schema.clubMembers.id, accountId: schema.clubMembers.accountId, email: schema.userAccounts.email,
+  // ADR-0208: Kartrevidering ser bara revideringarna; medlemslistan och användningen hör till arkivet.
+  const reviser = viewer.role === "MAP_REVISER";
+  const members = reviser ? [] : await tx.select({ memberId: schema.clubMembers.id, accountId: schema.clubMembers.accountId, email: schema.userAccounts.email,
     displayName: schema.userAccounts.displayName, role: schema.clubMembers.role, addedAt: schema.clubMembers.addedAt })
     .from(schema.clubMembers).innerJoin(schema.userAccounts, eq(schema.userAccounts.id, schema.clubMembers.accountId))
     .where(eq(schema.clubMembers.clubId, clubId)).orderBy(asc(schema.clubMembers.addedAt)).limit(2000);
@@ -100,7 +102,7 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     // Läsare ser medlemmarnas namn men inte adresserna.
     members: members.map(member => ({ ...member, email: admin ? member.email : "", addedAt: member.addedAt.toISOString() })),
     invitations: invitations.map(row => ({ ...row, createdAt: row.createdAt.toISOString() })),
-    usage: await clubUsage(tx, clubId),
+    usage: reviser ? { mapBytes: 0, courseFileBytes: 0, maps: 0, versions: 0, entries: 0, courseFiles: 0 } : await clubUsage(tx, clubId),
     tokens: tokens.map(row => ({ ...row, createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt.toISOString(),
       revokedAt: row.revokedAt?.toISOString() ?? null, lastUsedAt: row.lastUsedAt?.toISOString() ?? null })),
     quota: { accountLimitBytes: quota.accountBytes, accountUsedBytes: used.accountBytes }
@@ -110,7 +112,8 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
 export async function readClub(db: Database, input: ClubProof & { clubId: string }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; view: ClubView }> {
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    // ADR-0208: också Kartrevidering (sidan visar då bara revideringarna).
+    const member = await requireClubRole(tx, input, "MAP_REVISER", now, false);
     if (member.status !== "ok") return member;
     const view = await clubView(tx, input.clubId, { accountId: member.accountId, role: member.role });
     return view ? { status: "ok", view } as const : { status: "not-found" } as const;

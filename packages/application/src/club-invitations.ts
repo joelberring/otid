@@ -4,8 +4,9 @@ import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 
 /** ADR-0194 beslut 1: klubbens roller (rangordnade) och journalen. Egen fil utan inloggningen (som training-group-invitations). */
-export type ClubRole = "OWNER" | "ADMIN" | "READER";
-const RANK: Record<ClubRole, number> = { READER: 0, ADMIN: 1, OWNER: 2 };
+export type ClubRole = "OWNER" | "ADMIN" | "READER" | "MAP_REVISER";
+// ADR-0208: Kartrevidering under läsaren; en inbjudan med Kartrevidering sänker aldrig en läsare.
+const RANK: Record<ClubRole, number> = { MAP_REVISER: -1, READER: 0, ADMIN: 1, OWNER: 2 };
 
 export async function clubJournal(tx: DbExecutor, input: { clubId: string; action: string; actorAccountId: string | null;
   details: Record<string, unknown>; now: Date }): Promise<void> {

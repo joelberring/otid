@@ -18,7 +18,11 @@ export type ClubTransaction = Parameters<Parameters<Database["transaction"]>[0]>
 export type ClubFailure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "name-taken" };
 export type ClubProof = UserAccountSessionProof;
 
-export const CLUB_ROLE_RANK: Record<ClubRole, number> = { READER: 0, ADMIN: 1, OWNER: 2 };
+/**
+ * ADR-0208: Kartrevidering (`MAP_REVISER`) ligger under läsaren: den ser inte arkivets träningar och kartor, bara
+ * kartrevideringarna (`requireRevisionRole` i `map-revisions.ts`). Alla vanliga läsningar kräver minst läsare.
+ */
+export const CLUB_ROLE_RANK: Record<ClubRole, number> = { MAP_REVISER: -1, READER: 0, ADMIN: 1, OWNER: 2 };
 export const clubRoleAtLeast = (role: ClubRole, minimum: ClubRole) => CLUB_ROLE_RANK[role] >= CLUB_ROLE_RANK[minimum];
 
 /** Kontots roll i klubben (raden i `club_member`), eller undefined. Bekräftad e-post krävs om någon annan lade till kontot. */

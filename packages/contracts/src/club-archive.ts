@@ -19,7 +19,8 @@ export const CLUB_IMPORT_BATCH_MAX_BYTES = 8 * 1024 * 1024;
 export const CLUB_IMPORT_TOKEN_HOURS = 12;
 export const CLUB_IMPORT_TOKEN_PATTERN = /^otid-imp-[A-Za-z0-9_-]{43}$/;
 
-export const clubRoleSchema = z.enum(["OWNER", "ADMIN", "READER"]);
+/** ADR-0208: `MAP_REVISER` (Kartrevidering) ser och ändrar bara klubbens kartrevideringar. */
+export const clubRoleSchema = z.enum(["OWNER", "ADMIN", "READER", "MAP_REVISER"]);
 export const clubNameSchema = z.string().trim().min(1).max(120);
 export const clubTagSchema = z.string().trim().min(1).max(40);
 

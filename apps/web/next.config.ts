@@ -64,6 +64,7 @@ const nextConfig: NextConfig = {
     "@o-tid/database",
     "@o-tid/domain",
     "@o-tid/map-file",
+    "@o-tid/map-revision",
     "@o-tid/route-choice"
   ]
 };

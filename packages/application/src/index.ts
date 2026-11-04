@@ -153,3 +153,11 @@ export * from "./club-archive-import";
 export {
   readClubEntryThumbnail, readClubMapVersionThumbnail, refreshClubCourseSummaries, saveClubEntryThumbnail, saveClubMapVersionCheck, type ThumbnailRead
 } from "./club-archive-checks";
+export {
+  canEditRevision, canManageRevision, createMapRevision, listMapRevisions, readMapRevision, readMapRevisionBase, readMapRevisionLog, setMapRevisionStatus
+} from "./map-revisions";
+export { MAP_REVISION_PULL_LIMIT, syncMapRevision } from "./map-revision-sync";
+export {
+  createMapRevisionVersion, revisedFileName, revisionNote, unavailableMapRevisionWriter, type MapRevisionVersionResult, type MapRevisionWriteResult,
+  type MapRevisionWriter
+} from "./map-revision-version";

@@ -49,6 +49,8 @@ describe("ramar, linjer och vita ytor i PDF:en", () => {
     expect(mapAt).toBeGreaterThan(-1);
     expect(white).toBeGreaterThan(mapAt);
     expect(ring).toBeGreaterThan(white);
+    // Samma mönster som E2E-testet letar efter: klippningen till ramen och den fyllda vita fyrhörningen.
+    expect(content).toMatch(/ re W n\n(?:[^\n]*\n){0,2}[-\d. ]+ m [-\d. ]+ l [-\d. ]+ l [-\d. ]+ l h f/);
     // Markeringen ritas med en jämn–udda klippning som tar bort den vita ytan (W* n).
     expect(content).toMatch(/ W\* n/);
   });

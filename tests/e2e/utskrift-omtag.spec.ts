@@ -183,7 +183,8 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   const href = (await job.getByTestId("print-job-download").getAttribute("href"))!;
   const content = pdfStreams(Buffer.from(await (await owner.request.get(href)).body()));
   expect(content).toMatch(/\d c S/);
-  expect(content).toMatch(/ W\* n/);
+  // Den vita ytan: en fylld fyrhörning (papperets vita, CMYK 0/0/0/0) över kartan.
+  expect(content).toMatch(/ re W n\n(?:[^\n]*\n){0,2}[-\d. ]+ m [-\d. ]+ l [-\d. ]+ l [-\d. ]+ l h f/);
 });
 
 test("utskrift-omtag i telefonen: listan, tryck på ett element och dra det", async ({ browser }) => {

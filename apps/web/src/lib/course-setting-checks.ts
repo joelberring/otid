@@ -37,9 +37,12 @@ export interface CheckGroup {
   readonly rows: readonly CheckRow[];
 }
 
+/** ADR-0212: nivåstödets text för en avvikelse (skälet ur bedömningen). */
+export type LevelCheckText = (check: Extract<CourseCheck, { kind: "LEVEL_DEVIATION" }>) => string;
+
 const GROUP_ORDER = ["LEG_NO_ROUTE", "CONTROL_IN_FORBIDDEN", "DUPLICATE_CODE", "MISSING_CODE", "COURSE_WITHOUT_START_OR_FINISH",
   "CONTROLS_TOO_CLOSE", "LEG_THROUGH_CONTROL", "SAME_CONTROL_TWICE_IN_ROW", "INVERTIBLE_CODE",
-  "LEG_THROUGH_FORBIDDEN", "CONTROLS_NEAR", "NUMBER_ON_OBSTACLE", "UNUSED_CONTROL"];
+  "LEG_THROUGH_FORBIDDEN", "CONTROLS_NEAR", "NUMBER_ON_OBSTACLE", "LEVEL_DEVIATION", "UNUSED_CONTROL"];
 const LEVELS: readonly CheckLevel[] = ["ERROR", "WARNING", "NOTICE"];
 
 function groupOf(check: CourseCheck, level: CheckLevel): string {
@@ -52,7 +55,7 @@ const forbiddenWhat = (document: CourseSettingDocument, special: string) => {
   return text.checks.forbidden[kind] ?? kind;
 };
 
-function rowText(document: CourseSettingDocument, check: CourseCheck, courses: string): string {
+function rowText(document: CourseSettingDocument, check: CourseCheck, courses: string, levelText?: LevelCheckText): string {
   const label = (control: string) => controlLabel(document, control);
   switch (check.kind) {
     case "CONTROLS_TOO_CLOSE": return text.checks.CONTROLS_TOO_CLOSE(label(check.controls[0]), label(check.controls[1]), check.meters, check.limitMeters, check.feature);
@@ -68,6 +71,7 @@ function rowText(document: CourseSettingDocument, check: CourseCheck, courses: s
     case "UNUSED_CONTROL": return text.checks.UNUSED_CONTROL(label(check.control));
     case "MISSING_CODE": return text.checks.MISSING_CODE(label(check.control));
     case "NUMBER_ON_OBSTACLE": return text.checks.NUMBER_ON_OBSTACLE(check.text, courses);
+    case "LEVEL_DEVIATION": return `${courses}: ${levelText?.(check) ?? check.rule}`;
   }
 }
 
@@ -77,12 +81,13 @@ function controlsOf(check: CourseCheck): string[] {
     case "LEG_THROUGH_CONTROL": return [check.from, check.to, check.control];
     case "LEG_THROUGH_FORBIDDEN": return [check.from, check.to];
     case "COURSE_WITHOUT_START_OR_FINISH": return [];
+    case "LEVEL_DEVIATION": return [check.control, check.from, check.to].filter((id): id is string => id !== undefined);
     default: return [check.control];
   }
 }
 
 /** Raderna: en per nyckel och nivå, med banorna i banornas ordning. */
-export function checkRows(document: CourseSettingDocument, checks: readonly CourseCheck[]): CheckRow[] {
+export function checkRows(document: CourseSettingDocument, checks: readonly CourseCheck[], levelText?: LevelCheckText): CheckRow[] {
   const order = new Map([...document.courses].sort((a, b) => a.order - b.order).map((course, index) => [course.id, index]));
   const merged = new Map<string, { level: CheckLevel; key: string; checks: CourseCheck[]; courses: Set<string> }>();
   for (const check of checks) {
@@ -99,8 +104,9 @@ export function checkRows(document: CourseSettingDocument, checks: readonly Cour
     const sorted = [...courses].sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9));
     const names = sorted.map(id => document.courses.find(course => course.id === id)?.name ?? id).join(", ");
     rows.push({ key, level, group: groupOf(first, level), acceptable: checkAcceptable(first), accepted: isAccepted(document, first),
-      text: rowText(document, first, names), controls: controlsOf(first), course: sorted[0],
-      leg: first.kind === "LEG_THROUGH_FORBIDDEN" || first.kind === "LEG_THROUGH_CONTROL" ? { from: first.from, to: first.to } : undefined,
+      text: rowText(document, first, names, levelText), controls: controlsOf(first), course: sorted[0],
+      leg: first.kind === "LEG_THROUGH_FORBIDDEN" || first.kind === "LEG_THROUGH_CONTROL" ? { from: first.from, to: first.to }
+        : first.kind === "LEVEL_DEVIATION" && first.from !== undefined && first.to !== undefined ? { from: first.from, to: first.to } : undefined,
       checks: list });
   }
   return rows;

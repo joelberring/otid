@@ -16,7 +16,7 @@ import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting.module.css";
 
 /** Steg 62: banläggningens spalt – banlistan, verktygen, det valda, kontrollerna och vald sträckas vägval. Tunna vyer. */
-export function CourseList({ document, summaries, view, readOnly = false, onView, onAdd, onRename, onClasses, onRemove, onDuplicate, onMove }: {
+export function CourseList({ document, summaries, view, readOnly = false, onView, onAdd, onRename, onClasses, onRemove, onDuplicate, onMove, extra }: {
   document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; readOnly?: boolean;
   onView: (view: string, variant?: string) => void; onAdd: (name: string) => void; onRename: (course: string, name: string) => void;
   onClasses: (course: string, classes: string) => void;
@@ -24,6 +24,8 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
   onRemove: (course: string) => void; onDuplicate: (course: string) => void;
   /** ADR-0190: flytta banan till plats `position` (1 = först) i listan. */
   onMove: (course: string, position: number) => void;
+  /** ADR-0212: "Bedöm alla banor". */
+  extra?: ReactNode;
 }) {
   const [renaming, setRenaming] = useState<string>();
   const [dragging, setDragging] = useState<string>();
@@ -95,6 +97,7 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
       <label>{text.courses.addName}<input type="text" name="name" maxLength={120} placeholder={text.courses.newName(courses.length + 1)} /></label>
       <Button type="submit" variant="secondary">{text.courses.add}</Button>
     </form>}
+    {extra}
   </section>;
 }
 

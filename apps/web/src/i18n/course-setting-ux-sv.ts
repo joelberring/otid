@@ -58,7 +58,9 @@ export const courseSettingUxSv = {
     unused: (count: number) => `Markera oanvända kontroller (${count})`,
     inspected: "Kollade kontroller",
     notes: "Notiser",
-    warnings: "Markera varningar"
+    warnings: "Markera varningar",
+    /** ADR-0212: nivåstödets märken (syns bara efter "Bedöm nivån"). */
+    levels: "Nivåmarkeringar"
   },
   courses: {
     duplicate: "Duplicera",

@@ -29,7 +29,7 @@ export function checkLevel(check: CourseCheck): CheckLevel {
     case "DUPLICATE_CODE": case "MISSING_CODE": case "COURSE_WITHOUT_START_OR_FINISH": case "CONTROL_IN_FORBIDDEN": return "ERROR";
     case "LEG_THROUGH_FORBIDDEN": return check.route === "NO_ROUTE" ? "ERROR" : "NOTICE";
     case "CONTROLS_TOO_CLOSE": return check.feature === "UNKNOWN" ? "NOTICE" : "WARNING";
-    case "UNUSED_CONTROL": case "NUMBER_ON_OBSTACLE": return "NOTICE";
+    case "UNUSED_CONTROL": case "NUMBER_ON_OBSTACLE": case "LEVEL_DEVIATION": return "NOTICE";
     case "INVERTIBLE_CODE": case "SAME_CONTROL_TWICE_IN_ROW": case "LEG_THROUGH_CONTROL": return "WARNING";
   }
 }
@@ -57,6 +57,9 @@ export function checkKey(check: CourseCheck): string {
     case "UNUSED_CONTROL": return `UNUSED_CONTROL/${check.control}`;
     case "MISSING_CODE": return `MISSING_CODE/${check.control}`;
     case "NUMBER_ON_OBSTACLE": return `NUMBER_ON_OBSTACLE/${check.course}/${check.control}`;
+    // ADR-0212: samma kontroll eller sträcka med samma målnivå på flera banor är en rad.
+    case "LEVEL_DEVIATION": return check.control !== undefined ? `LEVEL_DEVIATION/${check.target}/${check.control}`
+      : `LEVEL_DEVIATION/${check.target}/${check.from}/${check.to}`;
   }
 }
 
@@ -76,6 +79,7 @@ export function checkSubjects(document: CourseSettingDocument, check: CourseChec
     case "LEG_THROUGH_FORBIDDEN": controls.push(check.from, check.to); specials.push(...(check.specials ?? [check.special])); break;
     case "CONTROL_IN_FORBIDDEN": controls.push(check.control); specials.push(check.special); break;
     case "COURSE_WITHOUT_START_OR_FINISH": break;
+    case "LEVEL_DEVIATION": for (const id of [check.control, check.from, check.to]) if (id !== undefined) controls.push(id); break;
   }
   const at: Record<string, Point> = {};
   for (const id of controls) { const point = document.controls[id]; if (point) at[`c:${id}`] = { x: point.at.x, y: point.at.y }; }

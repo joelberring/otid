@@ -35,14 +35,19 @@ export function HelpButton({ view, large = false, compact = false }: { view: Vie
  * Ett litet "?" vid en knapp eller ruta som är svår att förstå. Öppnar panelen med artikeln först och utfälld; resten
  * av listan följer artikelns vyer (eller `view`).
  */
-export function HelpLink({ article, view }: { article: string; view?: Views | undefined }) {
+export function HelpLink({ article, view, label: shownLabel }: { article: string; view?: Views | undefined;
+  /** En textlänk i stället för "?" (t.ex. "Hur lägger man en gul bana?"). */
+  label?: string | undefined }) {
   const [open, setOpen] = useState(false);
   const found = helpArticles.find(row => row.id === article);
   if (!found) throw new Error(`Hjälpartikeln ${article} finns inte`);
   const label = text.link(found.title);
   return <>
-    <button type="button" className={styles.inline} aria-haspopup="dialog" aria-expanded={open} aria-label={label} title={label}
-      data-help-link={article} onClick={() => setOpen(true)}><span aria-hidden="true">?</span></button>
+    {shownLabel
+      ? <button type="button" className={styles.textLink} aria-haspopup="dialog" aria-expanded={open} title={label} data-help-link={article}
+        onClick={() => setOpen(true)}>{shownLabel}</button>
+      : <button type="button" className={styles.inline} aria-haspopup="dialog" aria-expanded={open} aria-label={label} title={label}
+        data-help-link={article} onClick={() => setOpen(true)}><span aria-hidden="true">?</span></button>}
     {open && createPortal(<HelpDialog views={view ?? found.views} first={article} onClose={() => setOpen(false)} />, document.body)}
   </>;
 }

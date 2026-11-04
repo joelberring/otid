@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { COURSE_PRINT_SCALES, defaultScorePoints, type Course, type CourseSettingDocument, type CourseSettingEdit, type CourseSummary } from "@o-tid/course-setting";
+import { COURSE_LEVELS, COURSE_PRINT_SCALES, defaultScorePoints, isCourseLevel, suggestedCourseLevel, type Course, type CourseSettingDocument, type CourseSettingEdit, type CourseSummary } from "@o-tid/course-setting";
 import { coursePropertiesSv as text } from "../../i18n/course-setting-properties-sv";
 import { formOf, parsePoints, propertyChanges, type PropertiesForm } from "../../lib/course-setting-properties";
+import { courseSettingLevelSv as level } from "../../i18n/course-setting-level-sv";
+import { levelGuideArticle } from "../../i18n/help-course-setting-sv";
+import { HelpLink } from "../help/help-panel";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
@@ -61,12 +64,34 @@ export function CourseProperties({ course, summary, readOnly, onEdits, mapScale 
           <option key={value} value={value}>{value === mapScale ? text.scaleMap(thousands(value)) : `1:${thousands(value)}`}</option>)}
       </select></label>
     <p className={styles.muted}>{text.scaleHelp}</p>
+    <LevelField course={course} readOnly={readOnly} onEdits={onEdits} />
     {error && <p role="alert" className={styles.muted}>{text.invalid}</p>}
     {!readOnly && <div className={styles.row}>
       <Button type="submit" variant="secondary">{text.save}</Button>
       {saved && <span role="status" className={styles.muted}>{text.saved}</span>}
     </div>}
   </form>;
+}
+
+/**
+ * ADR-0212: banans målnivå för nivåstödet (sparas direkt). Med klasser i undertiteln föreslås nivån ur dem (SOFT:s tabell);
+ * länken går till hjälpens guide för nivån.
+ */
+function LevelField({ course, readOnly, onEdits }: { course: Course; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void }) {
+  const suggested = suggestedCourseLevel(course);
+  const set = (value: string) => onEdits([{ type: "UPDATE_COURSE", course: course.id, changes: { level: isCourseLevel(value) ? value : null } }]);
+  return <div className={styles.stack} data-testid="course-setting-level-field">
+    <label className={styles.stack}>{level.field.label}
+      <select value={course.level ?? ""} disabled={readOnly} data-testid="course-setting-level-select" onChange={event => set(event.target.value)}>
+        <option value="">{level.field.none}</option>
+        {COURSE_LEVELS.map(value => <option key={value} value={value}>{level.levelName(value)}</option>)}
+      </select></label>
+    {suggested && suggested !== course.level && <p className={styles.row}>
+      <span className={styles.muted}>{level.field.suggested(level.levelName(suggested))}</span>
+      {!readOnly && <Button variant="quiet" onClick={() => set(suggested)}>{level.field.use}</Button>}
+    </p>}
+    <p className={styles.muted}>{level.field.help} <HelpLink article={levelGuideArticle(course.level)} label={level.field.guide(course.level)} /></p>
+  </div>;
 }
 
 /** Poängfältet på en kontroll i poängbanans lista; ändringen sparas när fältet lämnas eller med Enter. */

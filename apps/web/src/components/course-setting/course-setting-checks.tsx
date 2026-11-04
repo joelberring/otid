@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, type RefObject } from "react";
-import { checkDocument, type CourseSettingDocument, type OverprintOptions } from "@o-tid/course-setting";
+import { checkDocument, type CourseCheck, type CourseSettingDocument, type OverprintOptions } from "@o-tid/course-setting";
 import type { LegInput } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { checkGroups, checkRows, forbiddenRouteLegs, legRouteLookup, type CheckGroup, type CheckRow } from "../../lib/course-setting-checks";
+import { checkGroups, checkRows, forbiddenRouteLegs, legRouteLookup, type CheckGroup, type CheckRow, type LevelCheckText } from "../../lib/course-setting-checks";
 import type { LegLength } from "../../lib/course-setting-route-length";
 import { safely } from "../../lib/course-setting-safely";
 import type { RouteChoiceSession } from "../../lib/route-choice-client";
@@ -19,8 +19,10 @@ const copy = text.checks;
  * (samma svar som banans längd och vald sträcka) när fliken Varningar är öppen, och på datorn utan att den är det. I
  * telefonen startas Workern bara med fliken, eftersom den är det tyngsta i editorn.
  */
-export function useForbiddenRoutes({ document, results, hasMap, tabOpen, numberObstacles }: {
+export function useForbiddenRoutes({ document, results, hasMap, tabOpen, numberObstacles, levelChecks, levelText }: {
   document: CourseSettingDocument; results: ReadonlyMap<string, LegLength>; hasMap: boolean; tabOpen: boolean;
+  /** ADR-0212: nivåstödets avvikelser som notiser (bara med "Visa avvikelser mot nivån i Varningar"). */
+  levelChecks?: readonly CourseCheck[]; levelText?: LevelCheckText;
   /** Kartans hinder för numren (ADR-0211 beslut 4): de placerade numren kontrolleras mot dem. */
   numberObstacles?: OverprintOptions["numberObstacles"];
 }) {
@@ -32,9 +34,9 @@ export function useForbiddenRoutes({ document, results, hasMap, tabOpen, numberO
   const signature = candidates.map(leg => { const result = results.get(leg.key); return result ? result.best === undefined ? "x" : "o" : "?"; }).join("");
   const legRoute = useMemo(() => legRouteLookup(document, results), [document, signature]);
   // Kontrollerna med vägvalen, som rader i grupper (godtagna räknas inte i fliken).
-  const checked = useMemo(() => safely("Kontrollerna", () => checkDocument(document, { legRoute, ...(numberObstacles ? { numberObstacles } : {}) }), () => []),
-    [document, legRoute, numberObstacles]);
-  const checks = useMemo(() => checkGroups(checkRows(document, checked)), [document, checked]);
+  const checked = useMemo(() => [...safely("Kontrollerna", () => checkDocument(document, { legRoute, ...(numberObstacles ? { numberObstacles } : {}) }), () => []),
+    ...(levelChecks ?? [])], [document, legRoute, numberObstacles, levelChecks]);
+  const checks = useMemo(() => checkGroups(checkRows(document, checked, levelText)), [document, checked, levelText]);
   return { candidates, missing, checked, checks, wanted: hasMap && missing.length > 0 && (tabOpen || !narrow) };
 }
 

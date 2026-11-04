@@ -1,6 +1,6 @@
 import type { SectionId } from "../lib/race-sections";
 import { archiveHelpArticles, routeChoiceHelpArticles } from "./help-archive-route-sv";
-import { courseSettingHelpArticles, gettingStartedHelpArticles } from "./help-course-setting-sv";
+import { courseSettingHelpArticles, gettingStartedHelpArticles, levelHelpArticles } from "./help-course-setting-sv";
 import { fieldPrintHelpArticles } from "./help-print-sv";
 import { clubHelpArticles } from "./help-club-sv";
 import { accountHelpArticles } from "./help-account-sv";
@@ -391,5 +391,5 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
   }
 ];
 
-export const helpArticles: readonly HelpArticle[] = [...raceDayHelpArticles, ...gettingStartedHelpArticles, ...courseSettingHelpArticles,
+export const helpArticles: readonly HelpArticle[] = [...raceDayHelpArticles, ...gettingStartedHelpArticles, ...courseSettingHelpArticles, ...levelHelpArticles,
   ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles, ...clubHelpArticles, ...accountHelpArticles];

@@ -163,7 +163,7 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
     title: "Medlemmar i klubbarkivet",
     views: ["ARCHIVE_MEMBERS"],
     body: [
-      "Bjud in med e-postadressen under ”Medlemmar” → ”Bjud in”. Personen blir medlem när hen loggar in med adressen och har bekräftat den.",
+      "Bjud in med e-postadressen under ”Medlemmar” → ”Bjud in”; flera adresser går på en gång. Personen får ett mejl med en länk och blir medlem när hen loggar in med adressen och har bekräftat den. ”Skicka igen” (eller ”Kopiera länken” utan e-post på servern) finns vid varje inbjudan; se [Inbjudningar med e-post](#inbjudningar).",
       [
         "”Ägare”: allt, också att ändra ägarna. Klubben har alltid minst en ägare.",
         "”Administratör”: ändrar arkivet, bjuder in och importerar.",

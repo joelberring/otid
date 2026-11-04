@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { ClubRole, ClubView } from "@o-tid/contracts";
+import { INVITATION_BULK_MAX, invitationMailOutcomeSchema, type ClubRole, type ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
+import { formErrorsSv } from "../../i18n/form-errors-sv";
+import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
+import { fatalStatus, inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
+import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./club-archive.module.css";
@@ -22,6 +26,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const admin = club.viewer.role !== "READER";
   const owner = club.viewer.role === "OWNER";
+  const mailEnabled = club.mailEnabled ?? false;
 
   async function run(action: () => Promise<{ status: number }>, ok: string, conflict?: string) {
     setBusy(true); setMessage(undefined);
@@ -33,12 +38,38 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
     } finally { setBusy(false); }
   }
 
+  /** ADR-0206: en eller flera adresser, var sin inbjudan och var sitt mejl. */
   async function invite(event: FormEvent) {
     event.preventDefault();
-    const done = await run(() => clubRequest(`${clubBase(club.clubId)}/members`, "POST", { formatVersion: 1, requestId, email: email.trim(), role }),
-      text.invited, text.exists);
-    setRequestId(crypto.randomUUID());
-    if (done) setEmail("");
+    const { addresses, invalid } = parseInvitationAddresses(email);
+    if (addresses.length === 0) { setMessage({ tone: "error", text: invalid.length ? formErrorsSv.email : invitationSv.bulk.none }); return; }
+    if (addresses.length > INVITATION_BULK_MAX) { setMessage({ tone: "error", text: invitationSv.bulk.tooMany(INVITATION_BULK_MAX) }); return; }
+    const post = (address: string, id: string) => clubRequest(`${clubBase(club.clubId)}/members`, "POST", { formatVersion: 1, requestId: id,
+      email: address, role });
+    setBusy(true); setMessage(undefined);
+    try {
+      if (addresses.length === 1 && invalid.length === 0) {
+        const result = await post(addresses[0]!, requestId);
+        setRequestId(crypto.randomUUID());
+        if (result.status === 200 || result.status === 201) {
+          const mail = invitationMailOutcomeSchema.catch("off").parse((result.json as { mail?: unknown } | undefined)?.mail);
+          setMessage({ tone: "ok", text: `${text.invited} ${invitationMailNote[mail]}` });
+          setEmail(""); await onChanged();
+        } else setMessage({ tone: "error", text: result.status === 409 ? text.exists : clubFailure(result.status) });
+        return;
+      }
+      const { tally, fatal } = await inviteAll(addresses, invalid.length, async address => {
+        const result = await post(address, crypto.randomUUID());
+        if (result.status === 200 || result.status === 201) {
+          return invitationMailOutcomeSchema.catch("off").parse((result.json as { mail?: unknown } | undefined)?.mail);
+        }
+        if (fatalStatus(result.status)) return { fatal: result.status };
+        return result.status === 409 ? "existing" : "error";
+      });
+      setMessage(fatal ? { tone: "error", text: clubFailure(fatal) } : { tone: tally.other || tally.invalid ? "error" : "ok", text: invitationSummary(tally) });
+      if (!fatal) setEmail("");
+      await onChanged();
+    } finally { setBusy(false); }
   }
 
   const remove = (who: string, body: { memberId: string | null; invitationId: string | null }) => {
@@ -65,15 +96,21 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
             {text.remove}</Button>
         </div>}
       </li>)}
-      {club.invitations.map(invitation => <li key={invitation.invitationId}>
-        <div><strong>{invitation.email}</strong><span>{clubArchiveSv.roles[invitation.role]} · {text.pending}</span></div>
-        {(owner || invitation.role !== "OWNER") && <Button variant="secondary" disabled={busy}
-          onClick={() => remove(invitation.email, { memberId: null, invitationId: invitation.invitationId })}>{text.remove}</Button>}
+      {club.invitations.map(invitation => <li key={invitation.invitationId} data-testid="club-invitation">
+        <div><strong>{invitation.email}</strong><span>{[clubArchiveSv.roles[invitation.role], text.pending,
+          invitationSentText(invitation.sentAt, mailEnabled)].filter(Boolean).join(" · ")}</span></div>
+        {(owner || invitation.role !== "OWNER") && <div className={styles.actions}>
+          <InvitationActions email={invitation.email} mailEnabled={mailEnabled} disabled={busy} onSent={onChanged}
+            endpoint={`${clubBase(club.clubId)}/invitations/${invitation.invitationId}`} />
+          <Button variant="secondary" disabled={busy}
+            onClick={() => remove(invitation.email, { memberId: null, invitationId: invitation.invitationId })}>{text.remove}</Button>
+        </div>}
       </li>)}
     </ul>
     {admin && <form className={styles.form} onSubmit={event => void invite(event)} aria-label={text.invite}>
       <div className={styles.inline}>
-        <Field label={text.email}><input type="email" autoComplete="off" value={email} onChange={event => setEmail(event.target.value)} required /></Field>
+        <Field label={text.email} help={invitationSv.bulk.help}><textarea rows={2} autoComplete="off" autoCapitalize="none" spellCheck={false}
+          value={email} onChange={event => setEmail(event.target.value)} required /></Field>
         <Select label={text.role} value={role} onChange={event => setRole(event.target.value as ClubRole)}
           help={clubArchiveSv.roleHelp[role]}>
           {ROLES.filter(value => owner || value !== "OWNER").map(value => <option key={value} value={value}>{clubArchiveSv.roles[value]}</option>)}

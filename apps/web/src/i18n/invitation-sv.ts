@@ -46,8 +46,7 @@ export const invitationSv = {
     register: "Skapa konto",
     login: "Logga in",
     open: "Öppna",
-    otherAccount: (email: string) => `Du är inloggad som ${email}. Logga ut och logga in med adressen i inbjudan.`,
-    logout: "Logga ut"
+    otherAccount: (email: string) => `Du är inloggad som ${email}. Logga ut under Mina tävlingar och öppna länken igen för att logga in med adressen i inbjudan.`
   },
   list: {
     sent: (time: string) => `skickad ${time}`,
@@ -75,6 +74,7 @@ export const invitationSv = {
 export interface InvitationTally { sent: number; saved: number; throttled: number; failed: number; invalid: number; existing: number; other: number }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const notSent = (n: number) => n === 1 ? "1 inbjudan sparad men inte skickad" : `${n} inbjudningar sparade men inte skickade`;
 
 /**
  * Sammanfattningen efter flera adresser: "5 inbjudningar skickade, 1 adress var ogiltig". `saved` = sparade utan mejl (ingen
@@ -84,8 +84,8 @@ export function invitationSummary(tally: InvitationTally): string {
   const parts = [
     tally.sent > 0 ? `${plural(tally.sent, "inbjudan", "inbjudningar")} ${tally.sent === 1 ? "skickad" : "skickade"}` : undefined,
     tally.saved > 0 ? `${plural(tally.saved, "inbjudan", "inbjudningar")} ${tally.saved === 1 ? "sparad" : "sparade"} (kopiera länken i listan och skicka den själv)` : undefined,
-    tally.throttled > 0 ? `${plural(tally.throttled, "inbjudan", "inbjudningar")} sparade men inte skickade (för många just nu, skicka igen senare)` : undefined,
-    tally.failed > 0 ? `${plural(tally.failed, "inbjudan", "inbjudningar")} sparade men inte skickade (försök Skicka igen)` : undefined,
+    tally.throttled > 0 ? `${notSent(tally.throttled)} (för många just nu, skicka igen senare)` : undefined,
+    tally.failed > 0 ? `${notSent(tally.failed)} (försök Skicka igen)` : undefined,
     tally.existing > 0 ? `${plural(tally.existing, "adress", "adresser")} fanns redan i listan` : undefined,
     tally.invalid > 0 ? `${plural(tally.invalid, "adress", "adresser")} var ${tally.invalid === 1 ? "ogiltig" : "ogiltiga"}` : undefined,
     tally.other > 0 ? `${plural(tally.other, "adress", "adresser")} kunde inte sparas` : undefined

@@ -293,6 +293,12 @@ Utan `OTID_SMTP_URL` säger sidan "Glömt lösenordet" att man ska kontakta den 
 skapar då en länk på `/superadmin` (Konton → Återställningslänk) och ger den till personen. Länken visas
 en gång. En felaktig inställning stänger av e-posten och skrivs i `logs web` (utan lösenord eller adresser).
 
+ADR-0206: med e-post mejlas också inbjudningar (klubbarkivets medlemmar, Personer med behörighet och träningsgruppernas
+ledare och medlemmar) med en länk som gäller 14 dagar; listan visar när de skickades och har "Skicka igen". Spärrar: högst
+100 inbjudningar per avsändare och timme (300 per dygn) och 3 per mottagare och timme (10 per dygn). Mejl som inte gick iväg
+skrivs i `logs web` som "Inbjudan kunde inte skickas (kod)" utan adress eller länk. **Utan e-post** sparas inbjudningarna som
+förut och listan har "Kopiera länken", så att administratören kan skicka länken själv.
+
 `OTID_CONTACT_EMAIL` (valfri, förval otid@berring.se) visas på sidan om personuppgifter (`/integritet`) och på "Glömt lösenordet".
 Adressen för frågor om programmet (sidfoten, Om O-Tid och Hjälp) är fast i `apps/web/src/lib/contact.ts`.
 `NEXT_PUBLIC_INTRO_FILM_URL` (valfri) är adressen till en kort film om O-Tid. När den är satt visar startsidan länken

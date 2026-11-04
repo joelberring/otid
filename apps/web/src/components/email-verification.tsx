@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { passwordResetTokenSchema } from "@o-tid/contracts";
 import { accountSv } from "../i18n/account-sv";
 import { accountRequest } from "../lib/account-client";
+import { takeInvitationNext } from "../lib/invitation-handoff";
 import { Button, Field, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
@@ -45,7 +46,12 @@ export function EmailVerification() {
     setMessage({ tone: "info", text: text.verifying });
     try {
       const response = await accountRequest("/api/organizer/verify-email", { method: "POST", body: { formatVersion: 1, token, password } });
-      if (response.status === 200) { window.location.assign("/organizer"); return; }
+      if (response.status === 200) {
+        // ADR-0206: kontot kom från en inbjudan – till klubben eller tävlingen.
+        const email = (response.json as { email?: unknown } | undefined)?.email;
+        window.location.assign((typeof email === "string" ? takeInvitationNext(email) : undefined) ?? "/organizer");
+        return;
+      }
       setMessage({ tone: "error", text: response.status === 404 || response.status === 400 ? text.invalid : accountSv.genericError(response.status) });
     } catch { setMessage({ tone: "error", text: accountSv.networkError }); }
     finally { setPassword(""); setBusy(false); }

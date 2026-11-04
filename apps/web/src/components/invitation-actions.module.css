@@ -1,0 +1,7 @@
+/* ADR-0206: Skicka igen / Kopiera länken vid en öppen inbjudan. Beskedet och länken bryts under knappen på smal skärm. */
+.actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; min-width: 0; }
+.actions .ok, .actions .error { flex-basis: 100%; font-size: var(--text-xs); text-align: end; overflow-wrap: anywhere; }
+.actions .ok { color: var(--ok); }
+.actions .error { color: var(--mp); }
+.actions .link { flex-basis: 100%; min-width: 0; font-size: var(--text-xs); }
+.sent { color: var(--muted); font-size: var(--text-xs); }

@@ -272,9 +272,27 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     body: [
       "En funktionär läser av, direktanmäler, följer kvar i skogen, sköter starten och ser speakersidan. Inget annat.",
       "Funktionären ser deltagarnas och gästernas fulla namn, klubb och bricka och kan ladda ner festens köp (”Ladda ner summering (CSV)”), så ge behörigheten bara till personer du litar på.",
-      "Personen skapar först ett eget konto. Gå sedan till ”Inställningar” → ”Personer med behörighet”.",
-      "Skriv personens e-postadress under ”Lägg till person”, välj ”Funktionär” och tryck på ”Lägg till”. Personen ser tävlingen under ”Mina tävlingar”.",
+      "Gå till ”Inställningar” → ”Personer med behörighet”.",
+      "Skriv personens e-postadress under ”Lägg till person”, välj ”Funktionär” och tryck på ”Lägg till”. Flera adresser går på en gång, åtskilda med komma, mellanslag eller ny rad.",
+      "Personen får ett mejl med en länk, skapar ett konto med adressen eller loggar in och hamnar på tävlingen. Den ser den sedan under ”Mina tävlingar”. Se [Inbjudningar med e-post](#inbjudningar).",
       "”Ta bort” tar bort behörigheten direkt."
+    ]
+  },
+  {
+    id: "inbjudningar",
+    title: "Inbjudningar med e-post",
+    views: ["SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
+    body: [
+      "När du lägger till en person i en tävling, ett klubbarkiv eller en träningsgrupp sparas behörigheten för e-postadressen. Med e-post på servern får personen samtidigt ett mejl: vem som bjöd in, till vad, rollen och en länk.",
+      "Länken öppnar en sida med ”Skapa konto” (adressen är ifylld och går inte att ändra) och ”Logga in”. Behörigheten gäller när personen är inloggad med just den adressen och har bekräftat den; ett nytt konto får först ett mejl som bekräftar adressen. Sedan hamnar personen på tävlingen, i klubbarkivet eller i gruppen.",
+      "Länken gäller i 14 dagar och ger ingenting själv. Svaret och sidan är desamma oavsett om adressen redan har ett konto.",
+      [
+        "Listan visar när inbjudan skickades, eller ”inte skickad”.",
+        "”Skicka igen” skickar ett nytt mejl med en ny länk; den förra slutar gälla. Det går högst några gånger i timmen till samma adress.",
+        "Utan e-post på servern står ”Kopiera länken” i stället. Klistra in länken i ett eget mejl eller sms.",
+        "”Ta bort” tar bort inbjudan, och länken visar då ”Inbjudan gäller inte längre”."
+      ],
+      "Flera adresser på en gång: skriv eller klistra in dem åtskilda med komma, mellanslag eller ny rad. Alla får samma roll och var sitt mejl, och du ser hur många som skickades och vilka adresser som var ogiltiga."
     ]
   },
   {

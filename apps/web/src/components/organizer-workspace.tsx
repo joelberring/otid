@@ -31,6 +31,7 @@ import { raceListName } from "../lib/race-list-name";
 import { MyGroups } from "./training-group/my-groups";
 import { MyClubs } from "./club-archive/my-clubs";
 import { forgetAllCourseSettingCopies } from "../lib/course-setting-offline-forget";
+import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string; emailVerified?: boolean | undefined };
@@ -48,13 +49,34 @@ function errorMessage(error: unknown): string {
 }
 
 /** Besked vid inloggning som är fel (läses upp direkt); övriga är lägesbesked. */
-const loginProblems = new Set<string>([copy.invalidCredentialsOrUnverified, copy.loginRateLimited, copy.accountBlocked]);
+const loginProblems = new Set<string>([copy.invalidCredentialsOrUnverified, copy.loginRateLimited, copy.accountBlocked,
+  ...Object.values(copy.googleProblem)]);
 
-export function OrganizerWorkspace() {
+/** ADR-0205: beskedet efter en misslyckad Google-inloggning (`/organizer?google=…`), som sedan tas bort ur adressen. */
+function takeGoogleProblem(): string | undefined {
+  const url = new URL(window.location.href);
+  const code = url.searchParams.get("google");
+  if (code === null) return undefined;
+  url.searchParams.delete("google");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  return Object.hasOwn(copy.googleProblem, code) ? copy.googleProblem[code as keyof typeof copy.googleProblem] : copy.googleProblem.fel;
+}
+
+/** ADR-0205: "Logga in med Google" när servern har en Google-klient (en vanlig länk; servern skickar vidare till Google). */
+function GoogleLogin() {
+  return <div className={styles.googleLogin}>
+    <p className={styles.googleOr}><span>{copy.googleOr}</span></p>
+    <a className={styles.googleButton} href="/api/account/google/start">{copy.googleLogin}</a>
+    <p className={styles.muted}>{copy.googleHint}</p>
+  </div>;
+}
+
+export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: boolean }) {
   const [session, setSession] = useState<Session>();
   const [sessionChecked, setSessionChecked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [events, setEvents] = useState<OrganizerMyEventsResponse["events"]>([]);
@@ -124,11 +146,14 @@ export function OrganizerWorkspace() {
 
   useEffect(() => {
     setAttempt(restoreOrganizerAttempt());
+    const googleProblem = takeGoogleProblem();
+    if (googleProblem) setMessage(googleProblem);
     void checkSession();
   }, []);
 
   async function register(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!passwordsReady(password, repeat)) return;
     setBusy(true);
     setMessage(copy.registering);
     try {
@@ -157,6 +182,7 @@ export function OrganizerWorkspace() {
       setMessage(errorMessage(error));
     } finally {
       setPassword("");
+      setRepeat("");
       setBusy(false);
     }
   }
@@ -334,15 +360,13 @@ export function OrganizerWorkspace() {
           <input type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email}
             onChange={(event) => setEmail(event.target.value)} required />
         </label>
-        <label>{copy.password}
-          <input type="password" autoComplete="current-password" value={password}
-            onChange={(event) => setPassword(event.target.value)} required />
-        </label>
+        <PasswordInput label={copy.password} value={password} onChange={setPassword} autoComplete="current-password" />
         <button type="submit" disabled={busy || !email || !password} aria-busy={busy}>{copy.login}</button>
         {message && <p className={styles.loginMessage} role={loginProblems.has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
       </form>
+      {googleEnabled && <GoogleLogin />}
       <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
-        <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); }}>{copy.toRegister}</button>
+        <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); setRepeat(""); }}>{copy.toRegister}</button>
         <Link href="/recover">{copy.forgotPassword}</Link>
       </nav>
     </section>}
@@ -359,17 +383,14 @@ export function OrganizerWorkspace() {
           <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
             onChange={(event) => setEmail(event.target.value)} required />
         </label>
-        <label>{copy.password}
-          <input type="password" autoComplete="new-password" minLength={8} value={password} aria-describedby="register-password-rule"
-            onChange={(event) => setPassword(event.target.value)} required />
-          <small id="register-password-rule" className={styles.muted}>{copy.passwordRule}</small>
-        </label>
+        <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} />
         <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>
-        <button type="submit" disabled={busy || !email || !displayName.trim() || password.length < 8} aria-busy={busy}>{copy.register}</button>
+        <button type="submit" disabled={busy || !email || !displayName.trim() || !passwordsReady(password, repeat)} aria-busy={busy}>{copy.register}</button>
         {message && <p className={styles.loginMessage} role={message === copy.registering ? "status" : "alert"} aria-live="polite">{message}</p>}
       </form>
+      {googleEnabled && <GoogleLogin />}
       <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
-        <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); }}>{copy.toLogin}</button>
+        <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>{copy.toLogin}</button>
       </nav>
     </section>}
 

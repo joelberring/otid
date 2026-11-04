@@ -21,6 +21,11 @@ export function configurationProblems(environment: Partial<Record<string, string
     problems.push(`${mail.problem === "SMTP_URL" ? "OTID_SMTP_URL" : "OTID_MAIL_FROM"} är fel: e-posten är avstängd ` +
       "(glömt lösenord och bekräftelse av e-postadressen). Se docs/drift.md, E-post.");
   }
+  // ADR-0205: Google-inloggningen kräver båda; med bara en syns ingen knapp.
+  if (!!environment.OTID_GOOGLE_CLIENT_ID?.trim() !== !!environment.OTID_GOOGLE_CLIENT_SECRET?.trim()) {
+    problems.push("Bara en av OTID_GOOGLE_CLIENT_ID och OTID_GOOGLE_CLIENT_SECRET är satt: Logga in med Google är avstängt. "
+      + "Se docs/drift.md, Inloggning med Google.");
+  }
   const role = environment.OTID_INSTANCE_ROLE?.trim().toLowerCase();
   if (role && role !== "competition" && role !== "public" && role !== "all") {
     problems.push(`OTID_INSTANCE_ROLE="${role}" är okänd; tillåtet är competition, public eller tom.`);

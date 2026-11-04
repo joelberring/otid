@@ -1,5 +1,6 @@
 import {
   authenticateUserAccountSession,
+  checkEmailVerificationToken,
   createOrganizerEvent,
   listMyEvents,
   loginUserAccount,
@@ -10,6 +11,7 @@ import {
   type EmailVerificationDelivery
 } from "@o-tid/application";
 import {
+  emailVerificationCheckResponseSchema,
   organizerAccountLoginRequestSchema,
   organizerAccountLoginResponseSchema,
   organizerEventCreateIdempotencyKeySchema,
@@ -49,6 +51,7 @@ type Login = typeof loginUserAccount;
 type Register = typeof registerUserAccount;
 type RegisterWithVerification = typeof registerUserAccountWithVerification;
 type Verify = typeof verifyEmailAndLogIn;
+type Check = typeof checkEmailVerificationToken;
 type Authenticate = typeof authenticateUserAccountSession;
 type Logout = typeof logoutUserAccountSession;
 type Create = typeof createOrganizerEvent;
@@ -162,7 +165,10 @@ export async function organizerRegisterRoute(
   } catch (error) { logServerError("organizer-account", "organizerRegisterRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
-/** ADR-0186: länken i bekräftelsemejlet med lösenordet från registreringen. Bekräftar adressen och loggar in. */
+/**
+ * ADR-0186, ändrat av ADR-0205: länken i bekräftelsemejlet och lösenordet som personen väljer på sidan. Bekräftar adressen och
+ * loggar in. En länk till ett konto som redan är bekräftat ger 409 (sidan visar inloggningen), en ogiltig 404.
+ */
 export async function organizerVerifyEmailRoute(
   db: Database, request: Request, verify: Verify = verifyEmailAndLogIn, environment: Environment = process.env
 ): Promise<Response> {
@@ -172,14 +178,31 @@ export async function organizerVerifyEmailRoute(
   let body: unknown;
   try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
   try {
-    const result = await verify(db, body);
+    const result = await verify(db, body, { clientKey: clientAddress(request) });
     if (result.status === "invalid-request") return organizerFailure(400, "INVALID_REQUEST");
+    if (result.status === "already-verified") return accountFailure(409, "CONFLICT");
     if (result.status !== "authenticated") return accountFailure(404, "NOT_FOUND");
     const response = organizerAccountLoginResponseSchema.parse(result.response);
     return setSessionCookies(privateJson(response), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
   } catch (error) { logServerError("organizer-account", "organizerVerifyEmailRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
+}
+
+/** ADR-0205: vad bekräftelselänken leder till (välj lösenord, redan bekräftad eller ogiltig) innan personen skriver något. */
+export async function organizerVerifyEmailCheckRoute(
+  db: Database, request: Request, check: Check = checkEmailVerificationToken, environment: Environment = process.env
+): Promise<Response> {
+  const configured = policy(environment);
+  if ("response" in configured) return configured.response;
+  if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
+  let body: unknown;
+  try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
+  try {
+    const result = await check(db, body);
+    if (result.status !== "checked") return organizerFailure(400, "INVALID_REQUEST");
+    return privateJson(emailVerificationCheckResponseSchema.parse({ formatVersion: 1, state: result.state }));
+  } catch (error) { logServerError("organizer-account", "organizerVerifyEmailCheckRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function organizerSessionStatusRoute(

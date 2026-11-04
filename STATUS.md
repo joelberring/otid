@@ -20,6 +20,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Verifierat: enhetstester (course-setting, print-pdf, application, contracts, web), lint, typecheck, PDF-tester (ringklipp, ordningen per norm, mellanrum, ramar, vita ytor). Playwright `utskrift-omtag` (1280/390) och de ändrade utskriftsspecarna i CI.
 - Återstår: vridning, kartramen direkt på arket, papperet i editorns flik Utskrift (mallen bär det), editorn i normens färgordning.
 
+### 2026-11-04 – Kontot: ingen loop mellan bekräftelse och återställning, lösenordet två gånger, Logga in med Google (grenen konto-inloggning, ADR-0205, migration 0072)
+- Orsaken till loopen från klubbmötet 2026-11-03: bekräftelselänken krävde registreringens (felskrivna) lösenord och skickade tillbaka till inloggningen; efter fem fel spärrades adressen från IP-adressen, och återställningen nollställde bara spärren utan IP-adress, så det nya lösenordet gav "För många försök" och den gamla länken "ogiltig".
+- Bekräftelselänken bevisar adressen och personen väljer lösenordet där; redan bekräftad eller gammal länk ger ett nästa steg (Logga in / Glömt lösenordet). Återställningslänken bekräftar alltid adressen och loggar in där den öppnas; ett nytt lösenord häver spärren.
+- Lösenordet två gånger med besked direkt och ögat (registrering, bekräftelse, återställning, byte). Mejlen säger samma sak.
+- Logga in med Google (PKCE, state, nonce, JWKS via `jose`) när `OTID_GOOGLE_CLIENT_ID` och `OTID_GOOGLE_CLIENT_SECRET` är satta; koppling på `sub` (0072). Alla inloggningsvägar tar inbjudningar och Eventor-listan (`acceptOnLogin`).
+- Hjälpen: Skapa konto, Glömt lösenordet, Logga in med Google. Drift: docs/drift.md (Inloggning med Google, steg i Google Cloud Console).
+- Verifierat: se slutrapporten för grenen. Återstår: Google-klienten på servern (ägaren) och provning mot riktiga Google.
+
 ### 2026-11-04 – Kartbanken för alla medlemmar som förval (grenen kartbank-forval, ändring i ADR-0209, migration 0079)
 - Ägaren: kartorna döljs bara som undantag. "Kartbanken (kartfiler, Använd igen, nedladdning) får användas av" har förvalet "Alla medlemmar" (först och förvald) med tipset "Välj Ledare och admin om kartorna inte ska delas med alla medlemmar"; `CLUB_AREA_DEFAULTS` och kolumnens förval.
 - Migration 0079: befintliga `LEADERS` blir alla medlemmar utom där en administratör valt det (journalen `CLUB_ACCESS_CHANGED`); godtas i ett steg eftersom ingen driftsatt server har 0076.

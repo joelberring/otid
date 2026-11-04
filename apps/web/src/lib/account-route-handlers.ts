@@ -13,7 +13,6 @@ import {
   deletedResponseSchema,
   organizerAccountLoginResponseSchema,
   passwordResetAvailabilitySchema,
-  passwordResetCompleteResponseSchema,
   passwordResetRequestResponseSchema,
   passwordResetRequestSchema,
   raceCopyResponseSchema
@@ -106,13 +105,20 @@ export async function passwordResetRequestRoute(
   return privateJson(passwordResetRequestResponseSchema.parse({ formatVersion: 1, status: "accepted" }), 202);
 }
 
+/**
+ * Nytt lösenord med länken. ADR-0205: adressen blir bekräftad och den här enheten loggas in (nya cookies), så att personen
+ * kommer in direkt, också när länken öppnas i en annan webbläsare än den där kontot skapades.
+ */
 export async function passwordResetCompleteRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   try {
-    const result = await completePasswordReset(db, input.body);
-    if (result.status !== "reset") return failure(result.status);
-    return privateJson(passwordResetCompleteResponseSchema.parse({ formatVersion: 1, status: "reset" }));
+    const result = await completePasswordReset(db, input.body, { clientKey: clientAddress(request) });
+    if (result.status !== "authenticated") return failure(result.status);
+    const response = organizerAccountLoginResponseSchema.parse(result.response);
+    return setSessionCookies(privateJson(response), input.policy, {
+      sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
+    });
   } catch (error) { logServerError("account", "passwordResetCompleteRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 

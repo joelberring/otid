@@ -64,16 +64,13 @@ export const passwordResetRequestResponseSchema = z.object({
 
 export const passwordResetTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 
+/** ADR-0205: svaret är en inloggning (`organizerAccountLoginResponseSchema`) med nya cookies. */
 export const passwordResetCompleteRequestSchema = z.object({
   formatVersion: z.literal(1),
   token: passwordResetTokenSchema,
   password: newPassword
 }).strict();
 
-export const passwordResetCompleteResponseSchema = z.object({
-  formatVersion: z.literal(1),
-  status: z.literal("reset")
-}).strict();
 
 /** Mitt konto. `ownedEvents` är de tävlingar som tas bort tillsammans med kontot. */
 export const accountProfileSchema = z.object({

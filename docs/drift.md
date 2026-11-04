@@ -304,7 +304,14 @@ direkt som förut, men då måste superadmin bekräfta adressen för hand innan 
 docker compose -f docker-compose.prod.yml exec web node superadmin.mjs verify anna@exempelklubb.se
 ```
 
-(ett lösenordsbyte med en återställningslänk från superadmin bekräftar också adressen). Lägg till e-post i `.env` och starta om:
+(ett lösenordsbyte med en återställningslänk från superadmin bekräftar också adressen).
+
+ADR-0205 (ändrar ADR-0186): bekräftelselänken kräver inte lösenordet från registreringen. Den bevisar att personen har
+adressen, och på sidan väljer personen lösenordet (två gånger). Återställningslänken fungerar alltid, också för ett konto
+som aldrig bekräftades: den bekräftar adressen och loggar in där den öppnades. Ett nytt lösenord häver inloggningsspärren
+för adressen. Den som har skrivit fel lösenord vid registreringen kommer alltså in med vilken av länkarna som helst.
+
+Lägg till e-post i `.env` och starta om:
 
 ```bash
 OTID_SMTP_URL=smtp://användare:lösenord@smtp.exempelklubb.se:587   # STARTTLS; eller smtps://…:465
@@ -329,6 +336,39 @@ Filmen kan ligga på servern: lägg filen i mappen `media/` bredvid `docker-comp
 
 Endast test: CI pekar `OTID_SMTP_URL` mot en falsk SMTP-server på värden (`tests/e2e/fake-smtp.ts`), på samma
 sätt som `OTID_EVENTOR_BASE_URL`. Appen har ingen särskild testväg för e-post.
+
+## Inloggning med Google
+
+ADR-0205: med en OAuth-klient från Google visar inloggningen och registreringen "Logga in med Google" (OpenID Connect med
+PKCE, `state` och `nonce`; ID-token kontrolleras mot Googles nycklar). Bara adresser som Google har bekräftat godtas. Finns ett
+konto med samma adress kopplas Google till det och adressen blir bekräftad; annars skapas ett konto. Ett spärrat konto förblir
+spärrat. Utan variablerna syns ingen knapp, och allt annat fungerar som förut.
+
+Skapa klienten i Google Cloud Console (en gång):
+
+1. Gå till <https://console.cloud.google.com/>, välj eller skapa ett projekt (t.ex. "O-Tid").
+2. **APIs & Services → OAuth consent screen** (i nyare konsol: **Google Auth Platform → Branding/Audience**): välj
+   **External**. Fyll i appens namn (O-Tid), supportadress och utvecklarens kontaktadress. Under **Authorized domains**:
+   `berring.se`. Lägg gärna in länken till `https://otid.berring.se/integritet` som integritetspolicy.
+3. **Scopes (Data Access)**: lägg till `openid`, `.../auth/userinfo.email` (email) och `.../auth/userinfo.profile` (profile).
+   Inga andra behövs, och de kräver ingen granskning av Google.
+4. **Audience / Publishing status**: tryck **Publish app** (In production). I läget Testing kan bara de testanvändare du
+   lagt in logga in.
+5. **Credentials → Create credentials → OAuth client ID**: typ **Web application**, namn "O-Tid". Under
+   **Authorized redirect URIs**: `https://otid.berring.se/api/account/google/callback` (exakt, med https och utan snedstreck
+   sist; den följer `O_TID_PUBLIC_ORIGIN`). **Authorized JavaScript origins** behövs inte.
+6. Kopiera **Client ID** och **Client secret** till `.env` på servern och starta om:
+
+```bash
+OTID_GOOGLE_CLIENT_ID=123456789012-abc….apps.googleusercontent.com
+OTID_GOOGLE_CLIENT_SECRET=GOCSPX-…
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Hemligheten är bara serverns (aldrig `NEXT_PUBLIC_`) och följer inte med i säkerhetskopian. Är bara en av variablerna satt
+skriver `logs web` ett `KONFIGURATIONSFEL` och ingen knapp visas. Koppling: tabellen `user_account_google_identity`
+(migration 0072) håller Googles `sub` per konto. Den som loggar in med Google och vill ha ett lösenord väljer ett med
+"Glömt lösenordet".
 
 ## Radiokontroller (ROC/OResults)
 

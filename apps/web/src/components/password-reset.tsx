@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { passwordResetAvailabilitySchema, passwordResetTokenSchema, type PasswordResetAvailability } from "@o-tid/contracts";
 import { accountSv } from "../i18n/account-sv";
 import { accountRequest } from "../lib/account-client";
+import { NewPasswordFields, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
@@ -28,6 +29,7 @@ export function PasswordReset() {
   const [availability, setAvailability] = useState<PasswordResetAvailability>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>();
   const [done, setDone] = useState(false);
@@ -36,16 +38,16 @@ export function PasswordReset() {
   useEffect(() => {
     const onHash = () => {
       const found = takeTokenFromLocation();
-      if (found) { setToken(found); setDone(false); setMessage(undefined); setPassword(""); setChecked(true); }
+      if (found) { setToken(found); setDone(false); setMessage(undefined); setPassword(""); setRepeat(""); setChecked(true); }
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   useEffect(() => {
+    // Bara en hittad nyckel sätts: effekten kan köras två gånger (React strict mode), och andra gången är adressen redan tömd.
     const found = takeTokenFromLocation();
-    setToken(found);
-    if (found) { setChecked(true); return; }
+    if (found) { setToken(found); setChecked(true); return; }
     void (async () => {
       try {
         const response = await accountRequest("/api/account/password-reset");
@@ -72,16 +74,18 @@ export function PasswordReset() {
 
   async function savePassword(event: FormEvent) {
     event.preventDefault();
+    if (!passwordsReady(password, repeat)) return;
     setBusy(true);
     setMessage({ tone: "info", text: text.saving });
     try {
       const response = await accountRequest("/api/account/password-reset/complete", { method: "POST",
         body: { formatVersion: 1, token, password } });
-      if (response.status === 200) { setDone(true); setMessage({ tone: "ok", text: text.saved }); }
-      else if (response.status === 404) { setDone(true); setMessage({ tone: "error", text: text.invalidLink }); }
+      // ADR-0205: länken loggar in (och bekräftar adressen); vidare till Mina tävlingar.
+      if (response.status === 200) { setDone(true); setMessage({ tone: "ok", text: text.saved }); window.location.assign("/organizer"); return; }
+      if (response.status === 404) { setDone(true); setMessage({ tone: "error", text: text.invalidLink }); }
       else setMessage({ tone: "error", text: accountSv.genericError(response.status) });
     } catch { setMessage({ tone: "error", text: accountSv.networkError }); }
-    finally { setPassword(""); setBusy(false); }
+    finally { setBusy(false); }
   }
 
   const notice = message && <Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice>;
@@ -94,14 +98,12 @@ export function PasswordReset() {
     {checked && token && <Section label={text.newTitle}>
       {!done && <form className={styles.form} onSubmit={event => void savePassword(event)}>
         <p>{text.newIntro}</p>
-        <Field label={text.password} help={text.passwordRule}>
-          <input type="password" autoComplete="new-password" minLength={8} maxLength={1024} value={password} required disabled={busy}
-            onChange={event => setPassword(event.target.value)} />
-        </Field>
-        <Button type="submit" disabled={busy || password.length < 8}>{text.save}</Button>
+        <NewPasswordFields label={text.password} password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat}
+          disabled={busy} />
+        <Button type="submit" disabled={busy || !passwordsReady(password, repeat)}>{text.save}</Button>
       </form>}
       {notice}
-      {done && <div className={styles.actions}>
+      {done && message?.tone === "error" && <div className={styles.actions}>
         <Link href="/organizer">{accountSv.logIn}</Link>
         {message?.tone === "error" && <a href="/recover">{text.newLink}</a>}
       </div>}

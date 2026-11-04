@@ -89,7 +89,8 @@ export function hasExpectedOrigin(request: Request, policy: SecurityPolicy): boo
   return request.headers.get("origin") === policy.publicOrigin;
 }
 
-function readUniqueCookie(request: Request, name: string): string | null {
+/** En kaka med namnet (exakt en, med giltiga tecken), annars null. */
+export function readUniqueCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie");
   if (!header) return null;
   let found: string | null = null;

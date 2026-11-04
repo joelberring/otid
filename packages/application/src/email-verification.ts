@@ -1,14 +1,14 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { acceptOnLogin } from "./account-arrival";
 import { and, eq, isNull } from "drizzle-orm";
-import { emailVerificationRequestSchema, organizerAccountRegistrationRequestSchema } from "@o-tid/contracts";
+import { emailVerificationCheckRequestSchema, emailVerificationRequestSchema, organizerAccountRegistrationRequestSchema } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR } from "./account-throttle";
 import { sha256Hex as sha256 } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 import {
-  currentUserAccountVerifier, issueUserAccountSession, scryptVerifier, userAccountPasswordMatches, type UserAccountLoginResult,
-  type UserAccountRuntimeOptions
+  appendUserAccountPasswordVerifier, clearUserAccountLoginThrottle, currentUserAccountVerifier, issueUserAccountSession,
+  revokeAllUserAccountSessions, scryptVerifier, type UserAccountLoginResult, type UserAccountRuntimeOptions
 } from "./user-account";
 
 /**
@@ -18,9 +18,9 @@ import {
  *
  * Med e-post inställd (`OTID_SMTP_URL`) ger registreringen samma svar oavsett om adressen redan har ett konto, och arbetet
  * görs efter svaret: ett nytt konto skapas obekräftat och får en länk; ett obekräftat konto får en ny länk; ett bekräftat
- * konto får ett mejl om att det redan finns. Länken bekräftar adressen och loggar in, men bara tillsammans med lösenordet
- * som valdes vid just den registreringen. Den som registrerar någon annans adress kan alltså inte få kontot, och den som
- * äger adressen kan inte luras att bekräfta ett lösenord som någon annan valt.
+ * konto får ett mejl om att det redan finns. ADR-0205: länken bevisar att personen har adressen; på sidan väljer personen
+ * lösenordet (samma som vid registreringen eller ett nytt), och först då är adressen bekräftad och kontot inloggat. Den som
+ * registrerar någon annans adress kan alltså inte få kontot: lösenordet från registreringen gäller inte efter bekräftelsen.
  *
  * Utan e-post loggar registreringen in direkt som förut (ADR-0172), men kontot är obekräftat tills superadmin bekräftar det
  * (`node superadmin.mjs verify <e-post>`) eller lösenordet byts med en återställningslänk.
@@ -39,7 +39,10 @@ export async function accountEmailVerified(tx: DbExecutor, accountId: string): P
   return account?.verifiedAt != null;
 }
 
-/** Ny bekräftelselänk med lösenordets verifierare (salt och hash). Bara hashen av nyckeln sparas. */
+/**
+ * Ny bekräftelselänk. Bara hashen av nyckeln sparas. Lösenordets verifierare sparas med länken som förut (kolumnerna är
+ * NOT NULL), men används inte längre vid bekräftelsen (ADR-0205).
+ */
 async function createVerificationToken(tx: DbExecutor, accountId: string, verifier: { saltHex: string; verifierHex: string }, now: Date)
   : Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString("base64url");
@@ -110,39 +113,70 @@ export async function verificationForUnverifiedLogin(tx: DbExecutor, account: { 
   return { kind: "VERIFY", email: account.email, displayName: account.displayName, token, expiresAt };
 }
 
+/** Nyckelns rad och kontot bakom den (låsta), eller undefined. */
+async function tokenAndAccount(tx: DbExecutor, token: string) {
+  const [row] = await tx.select().from(schema.emailVerificationTokens)
+    .where(eq(schema.emailVerificationTokens.tokenHash, sha256(token))).for("update");
+  if (!row) return undefined;
+  const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, row.accountId)).for("update");
+  return account ? { row, account } : undefined;
+}
+
 /**
- * Länken öppnad: nyckeln och lösenordet från samma registrering. Kontot blir bekräftat, lösenordet från registreringen gäller,
- * alla kontots länkar förbrukas och kontot loggas in. En förbrukad eller gammal länk, fel lösenord eller ett konto som redan
- * är bekräftat ger `invalid-token` (samma svar).
+ * ADR-0205: vad länken leder till, innan personen skriver något. `valid` = välj lösenord; `already-verified` = adressen är
+ * redan bekräftad (logga in); `invalid` = okänd, gammal eller använd länk till ett obekräftat konto, eller spärrat konto
+ * (välj nytt lösenord via "Glömt lösenordet", som också bekräftar adressen). Bara den som har länken får veta något.
+ */
+export type EmailVerificationState = "valid" | "already-verified" | "invalid";
+
+function stateOf(found: Awaited<ReturnType<typeof tokenAndAccount>>, now: Date): EmailVerificationState {
+  if (!found || found.account.blockedAt) return "invalid";
+  if (found.account.emailVerifiedAt) return "already-verified";
+  return found.row.usedAt || found.row.expiresAt.getTime() <= now.getTime() ? "invalid" : "valid";
+}
+
+export async function checkEmailVerificationToken(db: Database, request: unknown, now = new Date())
+  : Promise<{ status: "invalid-request" } | { status: "checked"; state: EmailVerificationState }> {
+  const parsed = emailVerificationCheckRequestSchema.safeParse(request);
+  if (!parsed.success) return { status: "invalid-request" };
+  return db.transaction(async tx => ({ status: "checked", state: stateOf(await tokenAndAccount(tx, parsed.data.token), now) }) as const);
+}
+
+/**
+ * Länken öppnad och lösenordet valt (ADR-0205, ändrar ADR-0186): länken bevisar att personen har adressen, och kontot får
+ * lösenordet som personen skriver nu (samma som vid registreringen eller ett nytt). Så gäller aldrig ett lösenord som någon
+ * annan valde vid registreringen. Adressen blir bekräftad, alla kontots bekräftelselänkar förbrukas, andra sessioner spärras,
+ * inloggningsspärren nollställs, öppna inbjudningar tas och kontot loggas in.
  */
 export async function verifyEmailAndLogIn(db: Database, request: unknown, options: UserAccountRuntimeOptions = {})
-  : Promise<{ status: "invalid-request" | "invalid-token" } | Extract<UserAccountLoginResult, { status: "authenticated" }>> {
+  : Promise<{ status: "invalid-request" | "invalid-token" | "already-verified" } | Extract<UserAccountLoginResult, { status: "authenticated" }>> {
   const parsed = emailVerificationRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "invalid-request" };
   const now = options.now ?? new Date();
   return db.transaction(async tx => {
-    const [row] = await tx.select().from(schema.emailVerificationTokens)
-      .where(eq(schema.emailVerificationTokens.tokenHash, sha256(parsed.data.token))).for("update");
-    const matches = await userAccountPasswordMatches(row, parsed.data.password);
-    if (!row || !matches || row.usedAt || row.expiresAt.getTime() <= now.getTime()) return { status: "invalid-token" } as const;
-    const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, row.accountId)).for("update");
-    if (!account || account.blockedAt || account.emailVerifiedAt) return { status: "invalid-token" } as const;
+    const found = await tokenAndAccount(tx, parsed.data.token);
+    const state = stateOf(found, now);
+    if (state !== "valid" || !found) return { status: state === "already-verified" ? "already-verified" : "invalid-token" } as const;
+    const { account } = found;
     const current = await currentUserAccountVerifier(tx, account.id);
     if (!current) return { status: "invalid-token" } as const;
-    let version = current.version;
-    if (current.saltHex !== row.saltHex || current.verifierHex !== row.verifierHex) {
-      version = current.version + 1;
-      await tx.insert(schema.userAccountPasswordVerifiers).values({ accountId: account.id, version, algorithm: "scrypt-v1",
-        saltHex: row.saltHex, verifierHex: row.verifierHex, createdAt: now });
-    }
+    const version = await appendUserAccountPasswordVerifier(tx, { accountId: account.id, password: parsed.data.password,
+      previousVersion: current.version }, now, options.saltBytes);
+    await revokeAllUserAccountSessions(tx, account.id, now, "EMAIL_VERIFIED");
     const [verified] = await tx.update(schema.userAccounts).set({ emailVerifiedAt: now, lastLoginAt: now })
       .where(eq(schema.userAccounts.id, account.id)).returning();
-    await tx.update(schema.emailVerificationTokens).set({ usedAt: now })
-      .where(and(eq(schema.emailVerificationTokens.accountId, account.id), isNull(schema.emailVerificationTokens.usedAt)));
+    await consumeEmailVerificationTokens(tx, account.id, now);
+    await clearUserAccountLoginThrottle(tx, account.email, now, options.clientKey);
     // ADR-0188 beslut 6: behörigheter sparade för adressen gäller när den är bekräftad.
-    await acceptRacePersonInvitations(tx, account.id, now);
+    await acceptOnLogin(tx, account.id, now);
     return issueUserAccountSession(tx, verified!, version, now, options);
   });
+}
+
+/** Förbrukar kontots öppna bekräftelselänkar (bekräftelse, återställning, Google). */
+export async function consumeEmailVerificationTokens(tx: DbExecutor, accountId: string, now: Date): Promise<void> {
+  await tx.update(schema.emailVerificationTokens).set({ usedAt: now })
+    .where(and(eq(schema.emailVerificationTokens.accountId, accountId), isNull(schema.emailVerificationTokens.usedAt)));
 }
 
 /** Superadmin bekräftar adressen med kommando på servern (`node superadmin.mjs verify <e-post>`), t.ex. utan e-post. */

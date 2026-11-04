@@ -19,26 +19,36 @@ export const accountSv = {
     noMail: "Kontakta den som driver O-Tid och be om en återställningslänk. Länken gäller i en timme.",
     contact: "Kontakt:",
     newTitle: "Välj nytt lösenord",
-    newIntro: "Lösenordet ska vara minst 8 tecken. När det är bytt loggas du ut på alla enheter.",
+    newIntro: "Skriv det nya lösenordet två gånger. Du loggas in här och ut på alla andra enheter. Har du inte bekräftat e-postadressen än blir den bekräftad samtidigt.",
     password: "Nytt lösenord",
-    passwordRule: "Minst 8 tecken.",
-    save: "Spara nytt lösenord",
+    save: "Spara och logga in",
     saving: "Sparar …",
-    saved: "Lösenordet är bytt. Logga in med det nya lösenordet.",
+    saved: "Lösenordet är bytt och du är inloggad. Öppnar Mina tävlingar …",
     invalidLink: "Länken är ogiltig, redan använd eller har gått ut. Be om en ny länk.",
     newLink: "Be om en ny länk",
     backToLogin: "Tillbaka till inloggningen"
   },
-  /** ADR-0186: bekräftelselänken. */
+  /** ADR-0186, ändrat av ADR-0205: bekräftelselänken bevisar adressen och personen väljer lösenordet. */
   verify: {
     kicker: "O-Tid · Konto",
     title: "Bekräfta e-postadressen",
-    intro: "Skriv lösenordet du valde när du skapade kontot. Då är adressen bekräftad och du loggas in.",
-    password: "Lösenord",
+    intro: "Välj lösenordet du vill logga in med och skriv det två gånger. Det kan vara samma som när du skapade kontot eller ett nytt. Sedan är adressen bekräftad och du är inloggad.",
     submit: "Bekräfta och logga in",
     verifying: "Bekräftar …",
-    invalid: "Länken är ogiltig, redan använd eller har gått ut, eller så stämmer inte lösenordet. Logga in med e-post och lösenord så skickar vi en ny länk.",
+    alreadyVerified: "E-postadressen är redan bekräftad. Logga in med ditt lösenord. Har du glömt det kan du välja ett nytt.",
+    invalid: "Länken har gått ut eller är redan använd. Välj ett nytt lösenord via Glömt lösenordet, så bekräftas adressen samtidigt och du loggas in.",
+    newPassword: "Välj nytt lösenord",
     noToken: "Länken saknar sin nyckel. Öppna länken i mejlet igen."
+  },
+  /** ADR-0205: lösenordsfälten (registrering, återställning, bekräftelse och byte). */
+  passwordField: {
+    password: "Lösenord",
+    repeat: "Upprepa lösenordet",
+    rule: "Minst 8 tecken.",
+    tooShort: "Lösenordet är för kort (minst 8 tecken).",
+    mismatch: "Lösenorden är inte lika.",
+    show: "Visa lösenordet",
+    hide: "Dölj lösenordet"
   },
   me: {
     kicker: "O-Tid · Konto",
@@ -54,10 +64,9 @@ export const accountSv = {
     saveName: "Spara namn",
     nameSaved: "Namnet är sparat.",
     password: "Byt lösenord",
-    passwordHelp: "Alla andra inloggningar slutar gälla. Den här enheten förblir inloggad.",
+    passwordHelp: "Alla andra inloggningar slutar gälla. Den här enheten förblir inloggad. Loggar du in med Google och har inget eget lösenord: välj ett med Glömt lösenordet.",
     currentPassword: "Nuvarande lösenord",
     newPassword: "Nytt lösenord",
-    passwordRule: "Minst 8 tecken.",
     savePassword: "Byt lösenord",
     passwordSaved: "Lösenordet är bytt. Andra enheter behöver logga in igen.",
     wrongPassword: "Lösenordet stämmer inte.",

@@ -160,6 +160,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@types/pg@8.15.5)(pg@8.16.3)
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
     devDependencies:
       tsx:
         specifier: 4.20.5
@@ -1657,6 +1660,9 @@ packages:
 
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
+
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   js-tokens@9.0.1:
     resolution: {integrity: sha512-mxa9E9ITFOt0ban3j6L5MpjwegGz6lBQmM1IJkWeBZGcMxto50+eWdjC/52xDbS2vy0k7vIMK0Fe2wfL9OQSpQ==}
@@ -3290,6 +3296,8 @@ snapshots:
   is-unsafe@2.0.2: {}
 
   isexe@2.0.0: {}
+
+  jose@6.2.12: {}
 
   js-tokens@9.0.1: {}
 

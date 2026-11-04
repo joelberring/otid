@@ -17,6 +17,13 @@ export function invitationSentText(sentAt: string | null | undefined, mailEnable
   return sentAt ? text.sent(time(sentAt)) : text.notSent;
 }
 
+async function copyToClipboard(value: string): Promise<boolean> {
+  try {
+    return await Promise.race([navigator.clipboard.writeText(value).then(() => true),
+      new Promise<boolean>(resolve => window.setTimeout(() => resolve(false), 2000))]);
+  } catch { return false; }
+}
+
 /**
  * ADR-0206: knappen vid en öppen inbjudan. Med e-post på servern "Skicka igen" (ny länk, de tidigare slutar gälla); utan den
  * "Kopiera länken" så att administratören kan skicka den själv. Länken visas också i ett fält om urklippet inte går att nå.
@@ -40,8 +47,10 @@ export function InvitationActions({ name, fromClub, endpoint, mailEnabled, disab
       if (result.status !== "link") { setMessage({ tone: "error", text: result.status === "throttled" ? text.throttled : text.failed }); return; }
       const url = `${window.location.origin}/inbjudan#token=${result.token}`;
       setLink(url);
-      try { await navigator.clipboard.writeText(url); setMessage({ tone: "ok", text: text.copied }); }
-      catch { setMessage({ tone: "ok", text: text.copyManually }); }
+      setMessage({ tone: "ok", text: text.copyManually });
+      setBusy(false);
+      // Urklippet kan vara avstängt eller vänta på ett tillstånd som aldrig kommer: länken står redan i fältet.
+      if (await copyToClipboard(url)) setMessage({ tone: "ok", text: text.copied });
     } catch { setMessage({ tone: "error", text: text.failed }); }
     finally { setBusy(false); }
   }

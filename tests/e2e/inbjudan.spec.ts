@@ -20,6 +20,11 @@ async function invitationLink(email: string, about: string): Promise<string> {
   return link!;
 }
 
+async function openMembers(page: Page, clubId: string): Promise<void> {
+  await page.goto(`/organizer/clubs/${clubId}`);
+  await page.getByRole("tab", { name: "Medlemmar" }).click();
+}
+
 async function createClub(owner: Page, name: string): Promise<string> {
   await owner.goto("/organizer");
   const clubs = owner.getByRole("region", { name: "Mina klubbar" });
@@ -34,19 +39,24 @@ test("inbjudan med e-post: klubbarkivet och tävlingen, länken, nytt konto och 
   test.setTimeout(300_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `agare.${suffix}@exempel.se`, "Joel Ägare");
-  for (const path of ["/api/organizer/clubs", "/inbjudan", "/organizer/clubs/00000000-0000-4000-8000-000000000000"]) await warmRoute(owner, path);
+  const none = "00000000-0000-4000-8000-000000000000";
+  for (const path of ["/api/organizer/clubs", "/inbjudan", `/organizer/clubs/${none}`]) await warmRoute(owner, path);
+  for (const path of [`/api/organizer/clubs/${none}/members`, `/api/organizer/clubs/${none}/invitations/${none}`, "/api/invitation"]) {
+    await warmRoute(owner, path, "POST");
+  }
   const clubName = `OK Inbjudan ${suffix}`;
   const clubId = await createClub(owner, clubName);
   const invited = `ny.${suffix}@exempel.se`;
   const other = `annan.${suffix}@exempel.se`;
 
   // Flera adresser på en gång, en av dem ogiltig.
-  await owner.goto(`/organizer/clubs/${clubId}#members`);
+  await openMembers(owner, clubId);
   const form = owner.getByRole("form", { name: "Bjud in" });
   await form.getByLabel("E-postadress").fill(`${invited}, inte-en-adress\n${other}`);
   await form.getByLabel("Roll").selectOption({ label: "Administratör" });
   await form.getByRole("button", { name: "Bjud in" }).click();
-  await expect(owner.getByRole("alert").filter({ hasText: "2 inbjudningar skickade, 1 adress var ogiltig." })).toBeVisible();
+  await expect(owner.getByRole("alert").filter({ hasText: "2 inbjudningar skickade, 1 adress var ogiltig." }))
+    .toBeVisible({ timeout: 60_000 });
   const row = owner.getByTestId("club-invitation").filter({ hasText: invited });
   await expect(row).toContainText(/Administratör · väntar på inloggning · skickad \d/);
   await expect(row.getByRole("button", { name: "Skicka igen" })).toBeVisible();
@@ -88,7 +98,7 @@ test("inbjudan med e-post: klubbarkivet och tävlingen, länken, nytt konto och 
   await guest.waitForURL(`**/organizer/clubs/${clubId}`);
   await expect(guest.getByRole("heading", { name: clubName, level: 1 })).toBeVisible();
   // Administratör: får bjuda in.
-  await guest.goto(`/organizer/clubs/${clubId}#members`);
+  await openMembers(guest, clubId);
   await expect(guest.getByRole("form", { name: "Bjud in" })).toBeVisible();
 
   // Tävlingens länk, nu inloggad med adressen: direkt till arbetsytan som funktionär.
@@ -99,7 +109,7 @@ test("inbjudan med e-post: klubbarkivet och tävlingen, länken, nytt konto och 
   await expect(guest.locator("header").getByText("Funktionär", { exact: true })).toBeVisible();
 
   // Ägarens listor: inbjudningarna är tagna.
-  await owner.goto(`/organizer/clubs/${clubId}#members`);
+  await openMembers(owner, clubId);
   await expect(owner.getByTestId("club-invitation").filter({ hasText: invited })).toHaveCount(0);
   await expect(owner.getByTestId("club-invitation").filter({ hasText: other })).toHaveCount(1);
 });
@@ -115,11 +125,11 @@ test("inbjudan utan e-post på servern: Kopiera länken, och en borttagen inbjud
     const response = await route.fetch();
     await route.fulfill({ response, json: { ...(await response.json() as object), mailEnabled: false } });
   });
-  await owner.goto(`/organizer/clubs/${clubId}#members`);
+  await openMembers(owner, clubId);
   const form = owner.getByRole("form", { name: "Bjud in" });
   await form.getByLabel("E-postadress").fill(invited);
   await form.getByRole("button", { name: "Bjud in" }).click();
-  await expect(owner.getByRole("status").filter({ hasText: "Inbjudan är sparad." })).toBeVisible();
+  await expect(owner.getByRole("status").filter({ hasText: "Inbjudan är sparad." })).toBeVisible({ timeout: 60_000 });
   const row = owner.getByTestId("club-invitation").filter({ hasText: invited });
   await expect(row.getByRole("button", { name: "Skicka igen" })).toHaveCount(0);
   await expect(row).not.toContainText("skickad");

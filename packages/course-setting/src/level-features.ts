@@ -3,7 +3,7 @@
  * löparna ser dem) och vägvalsmotorns vägar. Ren funktion; gränserna står i `LEVEL_LIMITS` (`level-rules.ts`).
  */
 import type { Point } from "@o-tid/map-file";
-import { BIG_BOULDER_METERS, SIZE_BY_DESCRIPTION } from "./level-symbols";
+import { BIG_BOULDER_METERS, SIZE_BY_DESCRIPTION, SMALL_BOULDER_METERS } from "./level-symbols";
 import {
   contourLengthNear, inOpenLand, junctionsNear, nearestHandrail, networkJunctionsNear, objectsNear, type LevelMap, type LevelObject
 } from "./level-map";
@@ -42,6 +42,7 @@ function featureOf(prepared: LevelMap, control: LevelControlInput, mmPerMeter: n
     if (mapped) size = mapped.object.size;
     const height = Number(/^\s*(\d+(?:[.,]\d+)?)/.exec(control.f ?? "")?.[1]?.replace(",", "."));
     if (control.d === "2.4" && Number.isFinite(height) && height >= BIG_BOULDER_METERS) size = "BIG";
+    if (control.d === "2.4" && Number.isFinite(height) && height < SMALL_BOULDER_METERS) size = "SMALL";
     return { size, d: control.d, source: "DESCRIPTION", ...(mapped ? { code: mapped.object.code, name: mapped.object.name } : {}) };
   }
   const object: LevelObject | undefined = near[0]?.object;

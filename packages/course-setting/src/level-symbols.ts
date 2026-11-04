@@ -63,8 +63,8 @@ export const SIZE_BY_DESCRIPTION: Readonly<Record<string, FeatureSize>> = {
   "3.1": "BIG", "3.2": "BIG", "3.3": "SMALL", "3.4": "LINE", "3.5": "LINE", "3.6": "LINE", "3.7": "MEDIUM", "3.8": "MEDIUM",
   "3.9": "MEDIUM", "3.10": "SMALL", "3.11": "MEDIUM",
   // Vegetation.
-  "4.1": "BIG", "4.2": "MEDIUM", "4.3": "MEDIUM", "4.4": "BIG", "4.5": "MEDIUM", "4.6": "LINE", "4.7": "LINE", "4.8": "MEDIUM",
-  "4.9": "MEDIUM", "4.10": "SMALL",
+  "4.1": "BIG", "4.2": "MEDIUM", "4.3": "MEDIUM", "4.4": "BIG", "4.5": "MEDIUM", "4.6": "LINE", "4.7": "SMALL", "4.8": "MEDIUM",
+  "4.9": "SMALL", "4.10": "SMALL",
   // Anläggningar.
   "5.1": "LINE", "5.2": "LINE", "5.3": "LINE", "5.4": "BIG", "5.5": "LINE", "5.6": "MEDIUM", "5.7": "BIG", "5.8": "LINE", "5.9": "LINE",
   "5.10": "MEDIUM", "5.11": "BIG", "5.12": "BIG", "5.13": "BIG", "5.14": "LINE", "5.15": "BIG", "5.16": "MEDIUM", "5.17": "MEDIUM",
@@ -85,5 +85,7 @@ export const SIZE_BY_SYMBOL: Readonly<Record<number, FeatureSize>> = {
 
 /** En sten med höjd i kolumn F på minst så här mycket (m) är stor ("ett större block"). */
 export const BIG_BOULDER_METERS = 1.5;
+/** En sten lägre än så här (m) i kolumn F är liten. */
+export const SMALL_BOULDER_METERS = 1;
 /** En sluten höjdkurva med minst så här stor utsträckning (m) är en tydlig höjd; mindre är en liten höjd. */
 export const DISTINCT_HILL_METERS = 30;

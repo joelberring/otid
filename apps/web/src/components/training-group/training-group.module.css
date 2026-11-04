@@ -66,3 +66,6 @@
 }
 /* ADR-0206: Skicka igen / Kopiera länken bredvid Ta bort vid en väntande inbjudan. */
 .memberActions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .35rem .5rem; }
+/* Ägaren 2026-11-04: "Ny grupp" i remsan överst i Mina tävlingar. */
+.smallAction { min-height: 32px; padding: 0 10px; font-size: var(--text-sm); }
+.createInline { flex-basis: 100%; margin-top: 8px; }

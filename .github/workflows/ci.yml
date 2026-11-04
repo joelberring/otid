@@ -67,13 +67,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Eventor: slumpad masternyckel och den falska Eventor som Playwrights global-setup startar på värden (port 4319).
       # E-post: den falska SMTP-servern från global-setup (port 4325). Många testkonton från samma adress.
-      # Radio: den falska ROC-servern från global-setup (port 4331).
+      # Radio: den falska ROC-servern från global-setup (port 4331). Google: den falska leverantören (port 4337).
       - run: |
           printf 'OTID_DOMAIN=localhost\nPOSTGRES_PASSWORD=endast-for-ci\n' > .env
           printf 'OTID_EVENTOR_MASTER_KEY=%s\nOTID_EVENTOR_BASE_URL=http://host.docker.internal:4319\n' "$(openssl rand -base64 32)" >> .env
           printf 'OTID_SMTP_URL=smtp://host.docker.internal:4325\nOTID_MAIL_FROM=O-Tid test <noreply@o-tid.test>\n' >> .env
           printf 'OTID_REGISTRATION_LIMIT_PER_HOUR=1000\n' >> .env
           printf 'OTID_ROC_BASE_URL=http://host.docker.internal:4331\n' >> .env
+          # Google (ADR-0205 tillägg): den falska OpenID-leverantören från global-setup (port 4337); webbläsaren når den på värden.
+          printf 'OTID_GOOGLE_CLIENT_ID=otid-e2e.apps.googleusercontent.com\nOTID_GOOGLE_CLIENT_SECRET=endast-for-test\n' >> .env
+          printf 'OTID_GOOGLE_BASE_URL=http://host.docker.internal:4337\nOTID_GOOGLE_AUTHORIZE_URL=http://127.0.0.1:4337/auth\n' >> .env
           # Hälsokontrollen: CI-maskinens disk är ofta fullare än 80 %.
           printf 'OTID_DISK_ALERT_PERCENT=97\n' >> .env
           # ADR-0195: CI bygger avbildningarna från den här commiten (lokala namn), hämtar aldrig ghcr.io/…:main.

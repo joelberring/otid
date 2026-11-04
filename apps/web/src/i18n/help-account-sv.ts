@@ -1,6 +1,9 @@
 import type { HelpArticle } from "./help-sv";
 
-/** ADR-0205: hjälpen om kontot – skapa konto, bekräfta adressen, glömt lösenord och Logga in med Google. */
+/**
+ * ADR-0205: hjälpen om kontot – skapa konto, bekräfta adressen, glömt lösenord och Logga in med Google. ADR-0205 tillägg: Koppla
+ * Google-konto med en annan adress, kontomenyn, Logga ut och lånade datorer.
+ */
 export const accountHelpArticles: readonly HelpArticle[] = [
   {
     id: "konto",
@@ -39,9 +42,46 @@ export const accountHelpArticles: readonly HelpArticle[] = [
     views: ["EVENTS"],
     body: [
       "Finns knappen ”Logga in med Google” på inloggningen kan du använda ditt Google-konto i stället för ett lösenord.",
-      "Finns ett konto i O-Tid med samma e-postadress kopplas Google till det, och adressen räknas som bekräftad. Annars skapas ett nytt konto.",
+      "Finns ett konto i O-Tid med samma e-postadress kopplas Google till det och adressen räknas som bekräftad; annars skapas ett nytt konto.",
       "Google måste ha bekräftat e-postadressen. Vill du också kunna logga in med lösenord: välj ett med [Glömt lösenordet](#glomt-losenord).",
-      "Ett spärrat konto kommer inte in med Google heller."
+      "Ett spärrat konto kommer inte in med Google heller.",
+      "Har ditt Google-konto en annan adress? Logga in som vanligt och koppla Google under Mitt konto ([Koppla Google-konto](#google-koppla))."
+    ]
+  },
+  {
+    id: "google-koppla",
+    title: "Koppla Google-konto",
+    views: ["EVENTS"],
+    body: [
+      "Har ditt Google-konto en annan adress? Logga in som vanligt och koppla Google under Mitt konto.",
+      { steps: [
+        "Logga in med e-postadressen och lösenordet och öppna ”Mitt konto” i menyn med ditt namn.",
+        "Tryck på ”Koppla Google-konto” under ”Inloggning med Google” och välj Google-kontot hos Google.",
+        "Tillbaka i O-Tid står det att Google-kontot är kopplat. Sedan räcker ”Logga in med Google”."
+      ] },
+      "Kontots e-postadress ändras inte; Googles adress visas bara vid kopplingen.",
+      [
+        "”Ta bort kopplingen” tar bort den igen, men inte om kontot saknar eget lösenord.",
+        "Skapade Google tidigare ett tomt konto åt dig flyttas kopplingen hit när du bekräftar med lösenordet.",
+        "Bekräfta med ”Flytta kopplingen och ta bort dubbletten”; det tomma kontot tas bort.",
+        "Används det andra kontot (tävlingar, behörigheter, klubbar): logga in där och ta bort kopplingen först."
+      ]
+    ]
+  },
+  {
+    id: "logga-ut",
+    title: "Logga ut och lånade datorer",
+    views: ["EVENTS", "COURSE_SETTING", "CS_PRINT_PAGE"],
+    body: [
+      "Menyn med ditt namn (initialerna på telefonen) finns överst på varje sida när du är inloggad.",
+      [
+        "Där finns ”Mina tävlingar”, ”Mina klubbar”, ”Mina grupper”, ”Mitt konto” och ”Logga ut”.",
+        "”Logga ut” tar också bort det webbläsaren sparat om tävlingar och personer, som fältlägets kopia.",
+        "Väntar ändringar på nät frågar menyn först. Avläsningar som inte har skickats ligger kvar tills de kommit fram.",
+        "”Kom ihåg mig på den här datorn” gäller i 30 dagar. Utan den gäller inloggningen tolv timmar.",
+        "Glömt att logga ut någonstans: ”Mitt konto” → ”Logga ut från alla enheter”."
+      ],
+      "Använd inte ”Kom ihåg mig på den här datorn” på en lånad dator."
     ]
   }
 ];

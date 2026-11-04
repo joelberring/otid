@@ -21,8 +21,13 @@ const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const DUMMY_ID = "00000000-0000-4000-8000-000000000000";
 const DUMMY_SALT = Buffer.alloc(16);
 const DUMMY_HASH = Buffer.alloc(32);
-// ADR-0168: en inloggning ska räcka en hel tävlingshelg.
-const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+// ADR-0168: en inloggning ska räcka en hel tävlingshelg ("Kom ihåg mig på den här datorn").
+export const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * ADR-0205 tillägg: utan "Kom ihåg mig" gäller inloggningen tolv timmar (en tävlingsdag) och kakan är en sessionskaka som
+ * webbläsaren glömmer när den stängs, för klubbens och tävlingens lånade datorer.
+ */
+export const SHORT_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000;
 /**
  * Inloggningsspärren: 5 fel för en e-postadress inom 15 minuter spärrar adressen i 15 minuter (tidsbegränsat, aldrig för
  * alltid). Steg 46: dessutom spärras en klientadress (IP) i 15 minuter efter 30 fel inom 15 minuter, oavsett e-postadress,
@@ -76,6 +81,8 @@ export interface UserAccountRuntimeOptions {
   clientKey?: string;
   /** ADR-0186: med e-post inställd loggas ett obekräftat konto inte in; det får en ny bekräftelselänk i stället. */
   requireVerifiedEmail?: boolean;
+  /** ADR-0205 tillägg: false = kort session (tolv timmar) för en lånad dator; förval lång (30 dygn). */
+  remember?: boolean;
 }
 
 function validDate(value: Date): Date {
@@ -182,7 +189,7 @@ export async function issueUserAccountSession(
   const sessionId = validUuid(options.sessionId ?? randomUUID());
   const sessionSecret = bytes(options.sessionSecretBytes, 32);
   const csrfSecret = bytes(options.csrfSecretBytes, 32);
-  const expiresAt = new Date(now.getTime() + SESSION_LIFETIME_MS);
+  const expiresAt = new Date(now.getTime() + (options.remember === false ? SHORT_SESSION_LIFETIME_MS : SESSION_LIFETIME_MS));
   await tx.insert(schema.userAccountSessions).values({
     id: sessionId, accountId: account.id, passwordVersion,
     sessionSecretHash: sha256(sessionSecret), csrfSecretHash: sha256(csrfSecret), issuedAt: now, expiresAt
@@ -321,7 +328,37 @@ export async function loginUserAccount(
     await tx.update(schema.userAccounts).set({ lastLoginAt: now }).where(eq(schema.userAccounts.id, account.id));
     // ADR-0188 beslut 6: behörigheter sparade för adressen gäller när personen loggar in med den.
     await acceptOnLogin(tx, account.id, now);
-    return issueUserAccountSession(tx, account, verifier.version, now, options);
+    return issueUserAccountSession(tx, account, verifier.version, now,
+      parsed.data.remember === undefined ? options : { ...options, remember: parsed.data.remember });
+  });
+}
+
+/** ADR-0205 tillägg: är sessionen en kort (utan "Kom ihåg mig")? En ny session för samma enhet får samma slag. */
+export async function sessionRemembered(tx: DbExecutor, sessionId: string): Promise<boolean> {
+  const [session] = await tx.select({ issuedAt: schema.userAccountSessions.issuedAt, expiresAt: schema.userAccountSessions.expiresAt })
+    .from(schema.userAccountSessions).where(eq(schema.userAccountSessions.id, sessionId));
+  return !session || session.expiresAt.getTime() - session.issuedAt.getTime() > SHORT_SESSION_LIFETIME_MS;
+}
+
+/** När sessionen gavs (för en ny inloggning nyss, ADR-0205 tillägg), eller undefined. */
+export async function sessionIssuedAt(tx: DbExecutor, sessionId: string): Promise<Date | undefined> {
+  const [session] = await tx.select({ issuedAt: schema.userAccountSessions.issuedAt })
+    .from(schema.userAccountSessions).where(eq(schema.userAccountSessions.id, sessionId));
+  return session?.issuedAt;
+}
+
+/**
+ * ADR-0205 tillägg: "Logga ut från alla enheter" under Mitt konto. Alla kontots sessioner spärras, också den här; kakorna
+ * tas bort av anroparen. Returnerar hur många sessioner som spärrades.
+ */
+export async function logoutAllUserAccountSessions(
+  db: Database, proof: UserAccountSessionProof, now = new Date()
+): Promise<{ status: "unauthorized" | "forbidden" } | { status: "logged-out"; sessions: number }> {
+  const at = validDate(now);
+  return db.transaction(async (tx) => {
+    const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, at);
+    if (auth.status !== "authenticated") return auth;
+    return { status: "logged-out", sessions: await revokeAllUserAccountSessions(tx, auth.principal.accountId, at, "USER_LOGOUT_ALL") } as const;
   });
 }
 

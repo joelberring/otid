@@ -33,6 +33,8 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
 
   // Mina tävlingar: "Kopiera" på loppet öppnar dialogen med samma namn och datumet en vecka senare.
   await owner.goto("/organizer");
+  // Ägaren 2026-11-04: förra veckans träning ligger under "Tidigare tävlingar (1)".
+  await owner.getByTestId("past-events").locator("summary").click();
   await owner.getByRole("button", { name: "Kopiera Torsdag till en ny tävling" }).click();
   const dialog = owner.getByRole("dialog", { name: "Ny tävling som …" });
   await expect(dialog.getByLabel("Tävlingens namn")).toHaveValue(`Träning v${suffix}`);
@@ -123,6 +125,8 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
   await owner.goto("/organizer");
   await createRace(owner, `Nästa vecka ${suffix}`, daysFromToday(7), "Träning");
   await owner.goto("/organizer");
+  // Ägaren 2026-11-04: de gångna under "Tidigare tävlingar (n)", ihopfällda; öppnade för att se hela ordningen.
+  await owner.getByTestId("past-events").locator("summary").click();
   const events = owner.locator("section").filter({ has: owner.getByRole("heading", { name: "Dina tävlingar" }) })
     .getByRole("heading", { level: 3 });
   await expect(events).toHaveText([`Träning denna vecka ${suffix}`, `Nästa vecka ${suffix}`, `Nästa månad ${suffix}`, `Träning v${suffix}`]);

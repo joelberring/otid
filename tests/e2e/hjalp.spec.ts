@@ -51,7 +51,7 @@ test("Hjälp i arbetsytan och på avläsningssidan", async ({ browser }) => {
   await warmRoute(owner, "/om");
 
   // Mina tävlingar har Hjälp med artikeln om att skapa en tävling först.
-  await owner.getByRole("button", { name: "Hjälp" }).click();
+  await owner.getByRole("button", { name: "Hjälp", exact: true }).click();
   let panel = owner.getByRole("dialog", { name: "Hjälp" });
   await expect(panel.getByRole("region", { name: "Hjälp för den här sidan" })).toContainText("Skapa en tävling och välj typ");
   await owner.keyboard.press("Escape");
@@ -68,7 +68,7 @@ test("Hjälp i arbetsytan och på avläsningssidan", async ({ browser }) => {
   await expect(footer.getByRole("link", { name: contact })).toHaveAttribute("href", `mailto:${contact}`);
 
   // Hjälp öppnar panelen med stegets artiklar först (en ny tävling står på Banor).
-  const help = owner.getByRole("button", { name: "Hjälp" });
+  const help = owner.getByRole("button", { name: "Hjälp", exact: true });
   await help.click();
   panel = owner.getByRole("dialog", { name: "Hjälp" });
   await expect(panel).toBeVisible();
@@ -121,7 +121,7 @@ test("Hjälp i arbetsytan och på avläsningssidan", async ({ browser }) => {
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   await expect(owner.getByTestId("station-status")).toBeVisible();
   await reviewScreenshots(owner, "step37-avlasning");
-  await owner.getByRole("button", { name: "Hjälp" }).click();
+  await owner.getByRole("button", { name: "Hjälp", exact: true }).click();
   panel = owner.getByRole("dialog", { name: "Hjälp" });
   await expect(panel.getByRole("region", { name: "Hjälp för den här sidan" }).locator("details > summary").first())
     .toHaveText("Avläsning med station");

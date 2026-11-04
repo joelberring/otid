@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { AccountMenu } from "../account-menu";
 import type { GroupLeaderView as View, GroupSession } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
@@ -93,6 +94,7 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
         <Link href={`/g/${view.settings.code}`}>{text.publicLink}: /g/{view.settings.code}</Link>
         <Link href={`/g/${view.settings.code}/qr`}>{text.qr}</Link>
         <PublicLinkShare path={`/g/${view.settings.code}`} title={view.settings.name} />
+        <AccountMenu />
       </div>
     </header>
     {(message || problem) && <Notice tone={problem ? "error" : "ok"} role="status">{problem || message}</Notice>}

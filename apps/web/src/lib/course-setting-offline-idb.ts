@@ -80,6 +80,13 @@ export function indexedDbFieldStore(): FieldStore | undefined {
       transaction.objectStore("base").delete(raceId);
     }),
     clearAll: () => write(STORES, transaction => { for (const name of STORES) transaction.objectStore(name).clear(); }),
+    pendingCount: async () => {
+      const db = await open();
+      const transaction = db.transaction(["record", "queue"]);
+      const [logs, queued] = await Promise.all([request(transaction.objectStore("record").getAll()) as Promise<(StoredLog | FieldRecord)[]>,
+        request(transaction.objectStore("queue").count())]);
+      return logs.reduce((sum, row) => sum + (row.log?.length ?? 0), 0) + queued;
+    },
     listQueue: async raceId => {
       const db = await open();
       const rows = await request(db.transaction("queue").objectStore("queue").index("raceId").getAll(raceId)) as (QueuedItem & { seq: number })[];

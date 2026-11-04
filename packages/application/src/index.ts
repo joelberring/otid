@@ -5,6 +5,7 @@ export * from "./password-reset";
 export * from "./email-verification";
 export * from "./google-oidc";
 export * from "./google-login";
+export * from "./google-link";
 export * from "./health";
 export * from "./account-self-service";
 export * from "./organizer-events";

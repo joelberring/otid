@@ -21,6 +21,9 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * Radiokontroller (ADR-0172 beslut 5): global-setup startar en falsk ROC på E2E_ROC_PORT (4331). Webben pekas dit med
  * OTID_ROC_BASE_URL; driftmiljön får samma inställning via sin .env (se CI).
+ *
+ * Google (ADR-0205 tillägg): global-setup startar en falsk OpenID-leverantör på E2E_GOOGLE_PORT (4337). Webben får en
+ * Google-klient och pekas dit med OTID_GOOGLE_BASE_URL (servern) och OTID_GOOGLE_AUTHORIZE_URL (webbläsaren).
  */
 const external = process.env.E2E_BASE_URL;
 const port = Number(process.env.E2E_PORT ?? 3100);
@@ -32,6 +35,8 @@ const eventorPort = Number(process.env.E2E_EVENTOR_PORT ?? 4319);
 const smtpPort = Number(process.env.E2E_SMTP_PORT ?? 4325);
 /** Samma port som tests/e2e/fake-roc.ts. */
 const rocPort = Number(process.env.E2E_ROC_PORT ?? 4331);
+/** Samma port som tests/e2e/fake-google.ts. */
+const googlePort = Number(process.env.E2E_GOOGLE_PORT ?? 4337);
 if (!external && !database) throw new Error("Sätt E2E_DATABASE_URL eller TEST_DATABASE_URL för webbläsartesterna (eller E2E_BASE_URL)");
 if (!external && database) process.env.E2E_DATABASE_URL = database;
 
@@ -57,7 +62,9 @@ export default defineConfig({
       env: { ...process.env, DATABASE_URL: database!, O_TID_PUBLIC_ORIGIN: origin,
         OTID_EVENTOR_MASTER_KEY: randomBytes(32).toString("base64"), OTID_EVENTOR_BASE_URL: `http://127.0.0.1:${eventorPort}`,
         OTID_SMTP_URL: `smtp://127.0.0.1:${smtpPort}`, OTID_MAIL_FROM: "O-Tid test <noreply@o-tid.test>",
-        OTID_REGISTRATION_LIMIT_PER_HOUR: "1000", OTID_ROC_BASE_URL: `http://127.0.0.1:${rocPort}` }
+        OTID_REGISTRATION_LIMIT_PER_HOUR: "1000", OTID_ROC_BASE_URL: `http://127.0.0.1:${rocPort}`,
+        OTID_GOOGLE_CLIENT_ID: "otid-e2e.apps.googleusercontent.com", OTID_GOOGLE_CLIENT_SECRET: "endast-for-test",
+        OTID_GOOGLE_BASE_URL: `http://127.0.0.1:${googlePort}`, OTID_GOOGLE_AUTHORIZE_URL: `http://127.0.0.1:${googlePort}/auth` }
     }
   })
 });

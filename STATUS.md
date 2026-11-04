@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Koppla Google-konto, kontomenyn och Mina tävlingar (grenen google-koppla, ADR-0205 tillägg, migration 0082)
+- Mitt konto → "Koppla Google-konto": Google-kontot kopplas till kontot också med en annan adress (bunden till sessionen, `email_verified`); "Ta bort kopplingen" vägras utan eget lösenord.
+- Kopplat till ett tomt konto (dubbletten): sidan `/konto/flytta-google` säger vad som händer, lösenordet bekräftar, dubbletten tas bort och loggas; används kontot vägras det. Superadmin: `superadmin.mjs google move <källa> <mål> [--delete-source-if-empty]`.
+- Kontomenyn (namnet/initialerna) på alla inloggade sidor: Mina tävlingar, Mina klubbar, Mina grupper, Mitt konto, Logga ut; utloggningen rensar webbläsarens tävlings- och persondata och varnar när ändringar väntar på nät. "Logga ut från alla enheter".
+- "Kom ihåg mig på den här datorn" (av som förval): annars tolv timmar och en sessionskaka.
+- Mina tävlingar: Mina klubbar och Mina grupper som remsa överst (roll, antal, väntar på bekräftelse, Ny klubbyta/Ny grupp); tidigare tävlingar ihopfällda, sökningen gäller dem också.
+- Verifierat: se slutrapporten (enhet, integration `adr-0205-google-koppla`, Playwright `konto-meny` 1280/390).
+
 ### 2026-11-04 – Utskriften putsad (grenen utskrift-omtag-2, ADR-0211 beslut 10, ingen migration)
 - Dev-överläggets "1 Issue": dubbla React-nycklar för en banas kartbytesdelar i översikten. Rättat; utskriftens E2E fäller nu på sidfel, `console.error` och svar ≥ 400 (`browserErrors`), vilket också hittade en 404 för en nyss uppladdad bild (visas nu ur webbläsarens kopia).
 - "Layoutmall" heter "Kartor per ark" och står bredvid nya "Papper och kartram"; "Mall för papperet" heter likadant i panelen och översikten.

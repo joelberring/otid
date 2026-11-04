@@ -48,7 +48,9 @@ test("konto med e-post och glömt lösenord via e-post", async ({ browser }) => 
   await registration.close();
 
   const ulla = await registerAccount(browser, email, "Ulla Glömsk");
-  await ulla.getByRole("button", { name: "Logga ut" }).click();
+  // ADR-0205 tillägg: Logga ut i kontomenyn (namnet i överlisten).
+  await ulla.getByRole("button", { name: /^Konto: / }).click();
+  await ulla.getByTestId("account-menu").getByRole("button", { name: "Logga ut" }).click();
   await expect(ulla.getByText("Du är utloggad.")).toBeVisible();
 
   // Glömt lösenord: samma besked oavsett adress; länken kommer med e-post.
@@ -67,7 +69,9 @@ test("konto med e-post och glömt lösenord via e-post", async ({ browser }) => 
   await fillNewPassword(ulla, "nytt-lösen-2", "Nytt lösenord");
   await ulla.getByRole("button", { name: "Spara och logga in" }).click();
   await expect(ulla.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
-  await ulla.getByRole("button", { name: "Logga ut" }).click();
+  // ADR-0205 tillägg: Logga ut i kontomenyn (namnet i överlisten).
+  await ulla.getByRole("button", { name: /^Konto: / }).click();
+  await ulla.getByTestId("account-menu").getByRole("button", { name: "Logga ut" }).click();
   await expect(ulla.getByText("Du är utloggad.")).toBeVisible();
 
   // Länken går inte att använda två gånger.
@@ -83,7 +87,8 @@ test("konto med e-post och glömt lösenord via e-post", async ({ browser }) => 
   await expect(ulla.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
 
   // Mitt konto.
-  await ulla.getByRole("link", { name: "Mitt konto" }).click();
+  await ulla.getByRole("button", { name: /^Konto: / }).click();
+  await ulla.getByTestId("account-menu").getByRole("link", { name: "Mitt konto" }).click();
   await expect(ulla.getByRole("heading", { name: "Mitt konto" })).toBeVisible();
   await expect(ulla.getByText(email)).toBeVisible();
   await ulla.getByLabel("Namn", { exact: true }).fill("Ulla Minnesgod");

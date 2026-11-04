@@ -42,3 +42,5 @@
   .facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .facts dd { margin-bottom: 8px; }
 }
+/* ADR-0205 tillägg: kontomenyn bredvid Mina tävlingar. */
+.headerNav { align-items: center; }

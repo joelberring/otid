@@ -77,7 +77,50 @@ export const accountSv = {
     deleteOthers: "Tävlingar där du är medadministratör finns kvar hos sina ägare; du försvinner bara som administratör.",
     deletePassword: "Skriv ditt lösenord för att bekräfta",
     deleteButton: "Ta bort mitt konto",
-    deleted: "Kontot är borttaget."
+    deleted: "Kontot är borttaget.",
+    /** ADR-0205 tillägg: Koppla Google-konto. Kontots adress ändras inte; Googles visas bara som kopplingen. */
+    google: "Inloggning med Google",
+    googleHelp: "Koppla ditt Google-konto, också om det har en annan e-postadress än kontot. Sedan kan du logga in med Google. Kontots e-postadress ändras inte.",
+    googleLink: "Koppla Google-konto",
+    googleLinking: "Går till Google …",
+    googleLinked: (email: string) => `Kopplat Google-konto: ${email}`,
+    googleLinkedUnknown: "Ett Google-konto är kopplat. Adressen visas efter nästa inloggning med Google.",
+    googleNone: "Inget Google-konto är kopplat.",
+    googleUnlink: "Ta bort kopplingen",
+    googleUnlinked: "Kopplingen är borttagen. Du loggar in med e-postadressen och lösenordet.",
+    googleLastMethod: "Kopplingen kan inte tas bort: kontot har inget eget lösenord. Välj ett med Glömt lösenordet först.",
+    googleDone: {
+      kopplat: (email: string) => `Google-kontot (${email}) är kopplat – du kan logga in med Google.`,
+      upptaget: "Google-kontot är kopplat till ett annat konto som används. Logga in på det och ta bort kopplingen där först.",
+      obekraftad: "Google har inte bekräftat e-postadressen på Google-kontot. Bekräfta den hos Google och försök igen.",
+      sessionen: "Kopplingen gällde en annan inloggning. Logga in igen och tryck på Koppla Google-konto en gång till.",
+      avbruten: "Kopplingen avbröts hos Google. Inget är ändrat.",
+      fel: "Kopplingen till Google misslyckades. Försök igen."
+    },
+    moved: (email: string) => `Google-kontot (${email}) är kopplat – du kan logga in med Google. Det tomma kontot är borttaget.`,
+    /** ADR-0205 tillägg: Logga ut från alla enheter (telefonen, klubbens dator, tävlingens dator). */
+    sessions: "Inloggningar",
+    sessionsHelp: "Har du loggat in på en lånad dator eller tappat telefonen: logga ut överallt. Du loggar in igen här efteråt.",
+    logoutAll: "Logga ut från alla enheter",
+    logoutAllFailed: "Utloggningen kunde inte bekräftas. Kontrollera nätet och försök igen."
+  },
+  /** ADR-0205 tillägg: sidan som bekräftar att Google-kopplingen flyttas från ett tomt konto (dubbletten). */
+  googleMove: {
+    kicker: "O-Tid · Konto",
+    title: "Flytta Google-kopplingen hit",
+    loading: "Läser kopplingen …",
+    what: (google: string, source: string, target: string) => `Google-kontot ${google} är kopplat till ett annat konto i O-Tid (${source}). `
+      + `Det kontot är tomt: inga tävlingar, behörigheter, klubbar eller arkivinnehåll. Kopplingen flyttas till ${target}, och du loggar sedan in med Google här.`,
+    duplicate: (source: string, created: string) => `Kontot ${source} (skapat ${created}) tas bort som dubblett och loggas ut överallt. Inbjudningar till adressen väntar kvar.`,
+    password: "Ditt lösenord",
+    passwordHelp: "Bekräfta flytten med lösenordet till det här kontot.",
+    recentLogin: "Du loggade in nyss, så det räcker att bekräfta.",
+    loginAgain: "Logga ut och in igen, och koppla sedan Google en gång till (kontot har inget eget lösenord, och inloggningen är äldre än tio minuter).",
+    confirm: "Flytta kopplingen och ta bort dubbletten",
+    cancel: "Avbryt",
+    expired: "Flytten gäller inte längre (för gammal, eller en annan inloggning). Tryck på Koppla Google-konto under Mitt konto igen.",
+    inUse: "Google-kontot är kopplat till ett annat konto som används. Logga in på det och ta bort kopplingen där först.",
+    wrongPassword: "Lösenordet stämmer inte."
   },
   raceDelete: {
     title: "Ta bort tävling",

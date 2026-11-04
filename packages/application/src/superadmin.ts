@@ -45,7 +45,7 @@ export async function requireSuperadmin(
   return auth.principal.superadmin ? auth : { status: "forbidden" };
 }
 
-async function logAction(tx: DbExecutor, entry: {
+export async function logAction(tx: DbExecutor, entry: {
   actorAccountId: string | null; actorLabel: string; action: SuperadminActionKind;
   targetType: "ACCOUNT" | "EVENT" | "RACE"; targetId: string; targetLabel: string; reason: string;
 }, now: Date): Promise<void> {

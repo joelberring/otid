@@ -132,6 +132,9 @@ services:
       # ADR-0205: Logga in med Google (docs/drift.md, Inloggning med Google). Båda tomma = ingen Google-knapp. Bara i web.
       OTID_GOOGLE_CLIENT_ID: ${OTID_GOOGLE_CLIENT_ID:-}
       OTID_GOOGLE_CLIENT_SECRET: ${OTID_GOOGLE_CLIENT_SECRET:-}
+      # Endast test (ADR-0205 tillägg): en falsk OpenID-leverantör i stället för Google. Tomt i drift.
+      OTID_GOOGLE_BASE_URL: ${OTID_GOOGLE_BASE_URL:-}
+      OTID_GOOGLE_AUTHORIZE_URL: ${OTID_GOOGLE_AUTHORIZE_URL:-}
       # Länken "Se vad O-Tid kan" längst ned på startsidan (docs/drift.md). Tom = ingen länk. Samma värde i web-public.
       NEXT_PUBLIC_INTRO_FILM_URL: ${NEXT_PUBLIC_INTRO_FILM_URL:-}
       # Hemlighet för spärrarnas hash (docs/drift.md). Tom = härleds ur DATABASE_URL, så inget behöver läggas till.

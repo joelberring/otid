@@ -30,7 +30,7 @@ async function createClub(owner: Page, name: string): Promise<string> {
   // registerAccount landar redan i Mina tävlingar.
   if (!owner.url().endsWith("/organizer")) await owner.goto("/organizer");
   const clubs = owner.getByRole("region", { name: "Mina klubbar" });
-  await clubs.getByText("Ny klubb", { exact: true }).click();
+  await clubs.getByRole("button", { name: "Ny klubbyta" }).click();
   await clubs.getByLabel("Klubbens namn").fill(name);
   await clubs.getByRole("button", { name: "Skapa klubben" }).click();
   await owner.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);

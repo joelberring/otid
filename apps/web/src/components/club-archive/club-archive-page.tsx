@@ -15,6 +15,7 @@ import { useArchiveChecks } from "./use-archive-checks";
 import { ClubSpacePanel } from "../club-affiliation/club-space-panel";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { HelpButton } from "../help/help-panel";
+import { AccountMenu } from "../account-menu";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv;
@@ -75,6 +76,7 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
         <p className={styles.usage} data-testid="club-usage">{usage}</p>
         {/* Hjälp (grenen hjalp-banlaggning): flikens artiklar först. */}
         <HelpButton view={[TAB_HELP[tab], "ARCHIVE_TRAININGS"]} />
+        <AccountMenu />
       </div>
     </header>
     <div className={styles.tabs} role="tablist" aria-label={text.title}>

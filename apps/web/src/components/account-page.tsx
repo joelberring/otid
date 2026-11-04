@@ -8,13 +8,18 @@ import { accountRequest } from "../lib/account-client";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
 import { AccountClubs } from "./club-affiliation/account-clubs";
+import { AccountMenu } from "./account-menu";
+import { AccountGoogle, LogoutEverywhere } from "./account-google";
 import styles from "./account-pages.module.css";
 
 const text = accountSv.me;
 type Message = { tone: "ok" | "error"; text: string } | undefined;
 
-/** Mitt konto (ADR-0172 beslut 2): namn, lösenord och att ta bort kontot med de tävlingar det äger. */
-export function AccountPage() {
+/**
+ * Mitt konto (ADR-0172 beslut 2): namn, lösenord och att ta bort kontot med de tävlingar det äger. ADR-0205 tillägg: Koppla
+ * Google-konto (med Google på servern), Logga ut från alla enheter och kontomenyn.
+ */
+export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean }) {
   const [profile, setProfile] = useState<AccountProfile>();
   const [loadError, setLoadError] = useState<string>();
   const [displayName, setDisplayName] = useState("");
@@ -88,7 +93,8 @@ export function AccountPage() {
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}>
       <div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div>
-      {!deleted && <nav aria-label={text.title}><Link href="/organizer">{accountSv.backToEvents}</Link></nav>}
+      {!deleted && <nav className={styles.headerNav} aria-label={text.title}><Link href="/organizer">{accountSv.backToEvents}</Link>
+        {profile && <AccountMenu who={{ displayName: profile.displayName, email: profile.email }} />}</nav>}
     </header>
     {!profile && !loadError && <p role="status">{text.loading}</p>}
     {loadError && <Notice tone="error" role="alert">{loadError} <Link href="/organizer">{accountSv.logIn}</Link></Notice>}
@@ -110,6 +116,8 @@ export function AccountPage() {
         </form>
       </Section>
 
+      {googleEnabled && <AccountGoogle profile={profile} onChange={() => void load()} />}
+
       <AccountClubs />
 
       <Section id="konto-losenord" title={text.password} help={text.passwordHelp}>
@@ -120,6 +128,8 @@ export function AccountPage() {
           {notice(passwordMessage)}
         </form>
       </Section>
+
+      <LogoutEverywhere />
 
       <Section id="konto-ta-bort" title={text.delete} help={text.deleteHelp}>
         {profile.ownedEvents.length > 0 ? <div className={styles.prose}>

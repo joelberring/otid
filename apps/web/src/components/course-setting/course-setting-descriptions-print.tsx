@@ -16,6 +16,7 @@ import { A4, BOX_SIZES_MM, copiesOf, CUT_MARK, layoutPages, MAX_COPIES, svgFileN
 import { Button, Notice } from "../ui";
 import { DescriptionShapes } from "./description-svg";
 import { HelpButton } from "../help/help-panel";
+import { AccountMenu } from "../account-menu";
 import styles from "./course-setting-descriptions-print.module.css";
 
 /** Vald bana: varianterna att skriva ut ("" = alla grenar i en beskrivning, som Purple Pen). */
@@ -107,7 +108,7 @@ export function DescriptionPrintPage({ raceId }: { raceId: string }) {
   if (document === null) return <main className={styles.page}><div className={styles.controls}>{back}<p>{text.page.noSetting}</p></div></main>;
   return <main className={styles.page}>
     <div className={styles.controls}>
-      <div className={styles.topLine}>{back}<HelpButton view={["CS_DESCRIPTIONS_PAGE", "CS_DESCRIPTION", "COURSE_SETTING"]} /></div>
+      <div className={styles.topLine}>{back}<HelpButton view={["CS_DESCRIPTIONS_PAGE", "CS_DESCRIPTION", "COURSE_SETTING"]} /><AccountMenu /></div>
       <h1>{text.page.title}</h1>
       <p>{text.page.help}</p>
       <fieldset className={styles.courses}>

@@ -635,7 +635,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         onRemove={ux.requestDelete} onDuplicate={ux.duplicate}
         onMove={(id, position) => edit(current => { const step = moveCourseEdit(current.document, id, position);
           return step ? applySteps(current, [step], applyEdit) : current; })} />
-        {course && <CourseProperties course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly} mapScale={document.event.mapScale}
+        {course && <CourseProperties key={course.id} course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly} mapScale={document.event.mapScale}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         {course && <VariantsPanel document={document} course={course} routeLength={routeLength} hasMap={Boolean(state.mapFile)} readOnly={readOnly}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}

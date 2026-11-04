@@ -235,6 +235,8 @@ function TextEditor({ item, source: raw, onDone }: { item: SheetPaperItem; sourc
   const [value, setValue] = useState<string>();
   const area = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
+    // Texten mitt i fönstret först, så att rutan med verktygen syns (den står fast i fönstret vid texten).
+    anchor.current?.scrollIntoView({ block: "center", inline: "nearest" });
     const place = () => setBox(anchor.current?.getBoundingClientRect());
     place();
     window.addEventListener("scroll", place, true);
@@ -247,7 +249,8 @@ function TextEditor({ item, source: raw, onDone }: { item: SheetPaperItem; sourc
   return <>
     <rect ref={anchor} x={item.rect.x} y={item.rect.y} width={Math.max(10, item.rect.width)} height={Math.max(5, item.rect.height)} fill="none" pointerEvents="none" />
     {box && typeof window !== "undefined" && createPortal(<div className={styles.textEditor} role="dialog" aria-label={text.editor.editText} data-testid="paper-text-editor"
-      style={{ left: Math.max(4, box.left), top: Math.max(4, box.top), width: Math.max(220, box.width) }}>
+      style={{ left: Math.max(4, Math.min(box.left, window.innerWidth - 228)), top: Math.max(4, Math.min(box.top, window.innerHeight - 180)),
+        width: Math.min(window.innerWidth - 8, Math.max(220, box.width)) }}>
       <textarea ref={area} rows={Math.max(2, (value ?? source).split("\n").length)} defaultValue={source} maxLength={400} data-testid="paper-text-inplace"
         onChange={event => setValue(event.target.value)}
         onKeyDown={event => {

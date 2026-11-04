@@ -175,13 +175,18 @@ export function thumbnailView(center: { x: number; y: number }, sizeMm = 24, px 
 
 /** Mapcolor-justeringen för "efter" (beslut + förslag) och delarna under och över banan enligt normen. */
 export function afterViews(profile: PrintProfile, state: ProposalState, colors: readonly MapColor[], norm: PressNorm = "ISOM"):
-  { adjust: Record<number, MapColorAdjust>; over: number[] | undefined; under: number[] | undefined } {
+  { adjust: Record<number, MapColorAdjust>; over: number[] | undefined; overWhite: number[] | undefined; under: number[] | undefined } {
   const preview = previewProfile(profile, state);
   const adjust = mapColorAdjust(preview, colors);
-  if (profile.courseLayer !== "REFERENCE") return { adjust, over: undefined, under: undefined };
-  const above = pressOrder(state.colors, norm).over;
-  if (above.size === 0) return { adjust, over: undefined, under: undefined };
-  return { adjust, over: colors.map(color => color.id).filter(id => above.has(id)), under: colors.map(color => color.id).filter(id => !above.has(id)) };
+  if (profile.courseLayer !== "REFERENCE") return { adjust, over: undefined, overWhite: undefined, under: undefined };
+  const order = pressOrder(state.colors, norm);
+  const above = order.over;
+  if (above.size === 0) return { adjust, over: undefined, overWhite: undefined, under: undefined };
+  // Vitt över banan slår ut (som i PDF:en) och ritas utan multiplicering; de andra färgerna över banan multipliceras.
+  const white = new Set(order.classes.filter(item => item.kind === "WHITE").map(item => item.ocadId));
+  const ids = colors.map(color => color.id);
+  return { adjust, over: ids.filter(id => above.has(id) && !white.has(id)), overWhite: ids.filter(id => above.has(id) && white.has(id)),
+    under: ids.filter(id => !above.has(id)) };
 }
 
 /**

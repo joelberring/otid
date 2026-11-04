@@ -16,14 +16,14 @@
  */
 import type { ColorUsage } from "@o-tid/map-file";
 import { colorComponents, normalizeColorName } from "./color-match";
-import type { Cmyk100, SourceMapColor } from "./print-profile";
+import { BUILT_IN_PRINT_PROFILES, type Cmyk100, type PrintProfile, type SourceMapColor } from "./print-profile";
 import type { OverprintPrimitive } from "./types";
 
 export type PressNorm = "ISOM" | "ISSPROM";
 
 /** Vad en kartfärg är i normens lista. */
 export type PressColorKind =
-  | "WHITE" | "BLACK" | "BLACK_BUILDING" | "BLACK_ROAD_EDGE" | "BLUE_LINE" | "BLUE_AREA" | "BROWN" | "GREEN_POINT" | "GREEN"
+  | "WHITE" | "BLACK" | "BLACK_BUILDING" | "BLACK_ROAD_EDGE" | "BLACK_PATTERN" | "BLUE_LINE" | "BLUE_AREA" | "BROWN" | "GREEN_POINT" | "GREEN"
   | "MAGENTA" | "SCREEN";
 
 export interface PressColorClass {
@@ -60,6 +60,8 @@ const BUILDING_WORDS = /\b(byggnad|building|hus|house)/;
 const ROAD_EDGE_WORDS = /\b(vägkant|väg sidlinje|sidlinje|road edge|kant)/;
 const AREA_WORDS = /\b(yta|area|ytobjekt|sjö|lake|vatten yta|sank)/;
 const POINT_WORDS = /\b(punkt|point)/;
+/** Svart som mönster i ytor (ISOM 412 odlad mark): normen har ingen rad för det; det ligger bland skärmarna i kartfilen. */
+const PATTERN_WORDS = /\b(odlad|odlade|åker|cultivated|cultivation|mönster|pattern)/;
 
 const only = (usage: ColorUsage | undefined, kind: ColorUsage["kinds"][number]) => usage !== undefined && usage.kinds.length > 0 && usage.kinds.every(item => item === kind);
 const allMains = (usage: ColorUsage | undefined, mains: readonly number[]) => usage !== undefined && usage.mains.length > 0 && usage.mains.every(main => mains.includes(main));
@@ -89,6 +91,8 @@ export function pressColorKind(color: Pick<SourceMapColor, "name" | "cmyk" | "us
       // ISOM 521 byggnad (och 521.x) som yta = stora byggnaders svarta fyllning.
       if ((only(usage, "AREA") && allMains(usage, [521])) || (BUILDING_WORDS.test(name) && (!usage || only(usage, "AREA")))) return "BLACK_BUILDING";
       if (ROAD_EDGE_WORDS.test(name)) return "BLACK_ROAD_EDGE";
+      // ISOM 412 odlad mark (och 413, 414): svarta prickar i en yta, ett raster som ritas med skärmarna.
+      if (PATTERN_WORDS.test(name) || (only(usage, "AREA") && allMains(usage, [412, 413, 414]))) return "BLACK_PATTERN";
       return "BLACK";
     case "BLUE": return only(usage, "AREA") || (!usage && AREA_WORDS.test(name)) ? "BLUE_AREA" : "BLUE_LINE";
     case "BROWN": return "BROWN";
@@ -105,14 +109,26 @@ const OVER_KINDS: Readonly<Record<PressNorm, ReadonlySet<PressColorKind>>> = {
 };
 
 /**
- * Kartans färger över och under banan enligt normen. Vitt ligger över banan om kartfilen ritar det över någon av färgerna
- * som ligger över banan (övre vitt, masker), annars under.
+ * Kartans färger över och under banan enligt normen. Normen bestämmer bara *sidan*; inom varje sida ritas färgerna i
+ * kartfilens egen ordning (PDF:en och förhandsvisningen ritar varje sida med `onlyColors`).
+ *
+ * Vitt har ingen egen plats i normen utom "vitt (övre)". Ett vitt i kartfilen är nästan alltid en gloria eller en
+ * grundlinje under en annan färg i samma symbol (vitt under ett grönt träd, vit linje under järnvägens svarta streck,
+ * vit vägfyllning mellan svarta kanter). Det ligger därför över banan bara när kartfilen ritar det över all svart (den
+ * översta svarta färgen över banan) och ingen färg under banan ritas över det i kartfilen (äkta övre vitt, masker).
+ * Annars under banan: allt som kartfilen ritar över vitet ritas då fortfarande efter det, oavsett sida.
  */
 export function pressOrder(colors: readonly SourceMapColor[], norm: PressNorm): { readonly over: ReadonlySet<number>; readonly classes: readonly PressColorClass[] } {
   const kinds = colors.map(color => ({ color, kind: pressColorKind(color) }));
-  const lowestOver = Math.min(...kinds.filter(item => OVER_KINDS[norm].has(item.kind)).map(item => item.color.drawOrder));
+  const isOver = (kind: PressColorKind) => OVER_KINDS[norm].has(kind);
+  const overOrders = kinds.filter(item => isOver(item.kind)).map(item => item.color.drawOrder);
+  const blackOrders = kinds.filter(item => item.kind === "BLACK" && isOver(item.kind)).map(item => item.color.drawOrder);
+  // Vitt över banan måste ligga över den översta svarta (finns ingen: över den översta färgen över banan).
+  const upperFrom = Math.max(...(blackOrders.length > 0 ? blackOrders : overOrders));
+  const underOrders = kinds.filter(item => item.kind !== "WHITE" && !isOver(item.kind)).map(item => item.color.drawOrder);
+  const highestUnder = Math.max(-Infinity, ...underOrders);
   const classes = kinds.map(({ color, kind }): PressColorClass => {
-    const over = kind === "WHITE" ? color.drawOrder > lowestOver : OVER_KINDS[norm].has(kind);
+    const over = kind === "WHITE" ? overOrders.length > 0 && color.drawOrder > upperFrom && color.drawOrder > highestUnder : isOver(kind);
     return { ocadId: color.ocadId, name: color.name, kind, side: over ? "OVER" : "UNDER" };
   });
   return { over: new Set(classes.filter(item => item.side === "OVER").map(item => item.ocadId)), classes };
@@ -121,9 +137,11 @@ export function pressOrder(colors: readonly SourceMapColor[], norm: PressNorm): 
 /**
  * Banans figurer i undre lila: 701 start, 703 ring, 705 linje, 706 mål, 708 snitslad väg och 710.1 passage (ISSprOM:s
  * lista; ISOM delar på samma sätt). Allt annat (nummer, markeringar, texter) är övre lila och ritas över kartans färger.
- * I ISOM ligger numren enligt bilagan i undre lila; `numbersOnTop` (förval på) lägger dem i övre som i sprint.
+ * I ISOM ligger numren enligt bilagan i undre lila (förval), så att svart, brunt och blått 100 % korsar dem och de ser lite
+ * genomsiktliga ut; `numbersOnTop` lägger dem i övre lila som i sprint. ISSprOM har alltid numren i övre lila (704 finns
+ * inte i listan för undre lila).
  */
-export function lowerPurple(figure: OverprintPrimitive, norm: PressNorm, numbersOnTop = true): boolean {
+export function lowerPurple(figure: OverprintPrimitive, norm: PressNorm, numbersOnTop = false): boolean {
   if (figure.kind === "image" || figure.kind === "description") return false;
   if (figure.color !== "COURSE" && figure.color !== "COURSE_LOWER") return false;
   switch (figure.role) {
@@ -132,4 +150,15 @@ export function lowerPurple(figure: OverprintPrimitive, norm: PressNorm, numbers
     case "NUMBER": return norm === "ISOM" && !numbersOnTop;
     default: return false;
   }
+}
+
+/**
+ * Profilen för "Skapa PDF för kontorsskrivare": kontorsskrivarens färger (ljusare grönt och gult) med tävlingsprofilens
+ * färgordning (normen, banan i färgordningen och numren), så att kontors-PDF:en har samma lager som förhandsvisningen och
+ * trycket. Övertrycket blir multiplicering i PDF:en (ADR-0211 beslut 11).
+ */
+export function officePrintProfile(from: Pick<PrintProfile, "courseLayer" | "pressNorm" | "numbersOnTop">): PrintProfile {
+  const office = BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!;
+  return { ...office, ...(from.courseLayer ? { courseLayer: from.courseLayer } : {}), ...(from.pressNorm ? { pressNorm: from.pressNorm } : {}),
+    ...(from.numbersOnTop !== undefined ? { numbersOnTop: from.numbersOnTop } : {}) };
 }

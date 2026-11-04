@@ -38,7 +38,7 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
   const after = useMemo(() => afterViews(profile, state, colors, norm), [profile, state, colors, norm]);
   const afterKey = JSON.stringify(after);
   const [before, setBefore] = useState<string>();
-  const [images, setImages] = useState<{ key: string; under: string; over?: string | undefined }>();
+  const [images, setImages] = useState<{ key: string; under: string; over?: string | undefined; overWhite?: string | undefined }>();
   const [split, setSplit] = useState(50);
   useEffect(() => {
     let live = true;
@@ -50,7 +50,9 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
     void (async () => {
       const under = await render({ ...view, colorAdjust: after.adjust, ...(after.under ? { onlyColors: after.under } : {}) }, COMPARE_PRIORITY);
       const over = after.over && after.over.length > 0 ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.over, background: false }, COMPARE_PRIORITY) : undefined;
-      if (live) setImages({ key: afterKey, under, over });
+      const overWhite = after.overWhite && after.overWhite.length > 0
+        ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.overWhite, background: false }, COMPARE_PRIORITY) : undefined;
+      if (live) setImages({ key: afterKey, under, over, overWhite });
     })().catch(error => console.error("Kartbiten kunde inte ritas", error));
     return () => { live = false; };
   }, [view, after, afterKey, render]);
@@ -75,6 +77,7 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
         <img src={images.under} alt="" />
         {courseSvg(profile.course.cmyk)}
         {/* Färgerna över banan med multiplicering: så ser övertrycket ut på tryck (ADR-0211 beslut 3). */}
+        {images.overWhite && <img src={images.overWhite} alt="" />}
         {images.over && <img src={images.over} alt="" style={{ mixBlendMode: "multiply" }} />}
       </div>}
       {images && <span className={styles.divider} style={{ left: `${split}%` }} title={text.compareDivider} aria-hidden="true" />}

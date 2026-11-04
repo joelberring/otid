@@ -29,12 +29,12 @@ export interface PrintJobSelection {
 }
 
 export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind, profileId: string, confirmation: { warnings: boolean; rules: readonly string[] },
-  requestId: string = crypto.randomUUID()): PrintJobRequest {
+  requestId: string = crypto.randomUUID(), profile?: PrintProfile): PrintJobRequest {
   const template = selection.template;
   const known = template && !selection.templateIsDraft
     && (BUILT_IN_TEMPLATES.some(item => item.id === template.id) || selection.savedTemplateIds.includes(template.id));
   return {
-    formatVersion: 1, requestId, kind, profileId,
+    formatVersion: 1, requestId, kind, profileId, ...(profile ? { profile } : {}),
     layout: selection.pieces ? { kind: "PIECES" } : template ? { kind: "TEMPLATE", template: known ? template.id : template, fill: selection.fill }
       : { kind: "PAGES", header: selection.header },
     perRunner: selection.perRunner, duplex: selection.perRunner && selection.duplex,

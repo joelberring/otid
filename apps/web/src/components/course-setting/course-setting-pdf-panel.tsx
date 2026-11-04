@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PrintJob, PrintJobKind, PrintJobs } from "@o-tid/contracts";
-import type { PrintProfile } from "@o-tid/course-setting";
+import { officePrintProfile, type PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { printPdfSv as text } from "../../i18n/course-setting-print-pdf-sv";
 import { printColorsSv } from "../../i18n/course-setting-print-colors-sv";
@@ -49,8 +49,10 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
     setBusy(true);
     setMessage(undefined);
     try {
-      const request = printJobRequest(selection, kind, kind === "OFFICE" ? "office" : profile.id,
-        kind === "OFFICE" ? { warnings: true, rules: [] } : { warnings: warningsConfirmed, rules: [...confirmed] });
+      // Kontorsskrivaren: dess färger med tävlingsprofilens färgordning (ADR-0211 beslut 11).
+      const request = kind === "OFFICE"
+        ? printJobRequest(selection, kind, "office", { warnings: true, rules: [] }, undefined, officePrintProfile(profile))
+        : printJobRequest(selection, kind, profile.id, { warnings: warningsConfirmed, rules: [...confirmed] });
       const result = await createPrintJob(raceId, request);
       setMessage(result.kind === "ok" ? { tone: "ok", text: text.created } : { tone: "error", text: result.problem.message });
       await load();
@@ -95,6 +97,7 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
       <Button variant="secondary" onClick={() => void create("OFFICE")} disabled={disabled || busy} data-testid="print-pdf-office">{text.office}</Button>
       {busy && <span role="status">{text.creating}</span>}
     </div>
+    <p className={styles.muted} data-testid="print-pdf-overprint-viewer">{text.overprintViewer}</p>
     {blockedText && <p className={styles.muted}>{blockedText}</p>}
     {!allowed && report && <p className={styles.muted}>{text.blocked}</p>}
     {message && <Notice tone={message.tone === "ok" ? "ok" : "error"} role="status"><p>{message.text}</p></Notice>}

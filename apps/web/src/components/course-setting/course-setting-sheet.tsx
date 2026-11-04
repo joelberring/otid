@@ -34,7 +34,8 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
   testId?: string | undefined;
 }) {
   const sheetPaper = sheet.paper;
-  const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)] && (!pressLayers || images[`${frameImageKey(frame, colorsKey)}|OVER`]));
+  const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)] && (!pressLayers || (images[`${frameImageKey(frame, colorsKey)}|OVER`]
+    && (pressLayers.overWhite.length === 0 || images[`${frameImageKey(frame, colorsKey)}|OVERWHITE`]))));
   return <svg className={styles.sheet} role="img" aria-label={label} data-testid={testId} data-back={sheet.back ? "" : undefined}
     data-course={sheet.frames[0]?.course} data-variant={sheet.frames[0]?.variant ?? ""} data-frames={sheet.frames.length}
     data-map={ready ? "ready" : "waiting"} data-scale={sheet.frames[0]?.printScale}
@@ -42,6 +43,7 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
     <rect width={sheetPaper.widthMm} height={sheetPaper.heightMm} fill="#fff" />
     {sheet.frames.map((frame, frameIndex) => <FrameView key={frameIndex} id={`s${index}f${frameIndex}`} frame={frame} symbols={symbols}
       image={images[frameImageKey(frame, colorsKey)]} overImage={pressLayers ? images[`${frameImageKey(frame, colorsKey)}|OVER`] : undefined}
+      overWhiteImage={pressLayers ? images[`${frameImageKey(frame, colorsKey)}|OVERWHITE`] : undefined}
       layers={pressLayers} courseColor={courseColor} />)}
     {sheet.boxes.map((box, boxIndex) => <rect key={boxIndex} x={box.x} y={box.y} width={box.width} height={box.height} fill="#fff"
       stroke={box.border ? "#000" : undefined} strokeWidth={box.border ? 0.25 : undefined} data-testid="print-strip" />)}
@@ -62,8 +64,8 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
   </svg>;
 }
 
-function FrameView({ id, frame, symbols, image, overImage, layers, courseColor }: { id: string; frame: SheetFrame; symbols: SymbolLookup; image: string | undefined;
-  overImage?: string | undefined; layers?: PressLayers | undefined; courseColor?: string | undefined }) {
+function FrameView({ id, frame, symbols, image, overImage, overWhiteImage, layers, courseColor }: { id: string; frame: SheetFrame; symbols: SymbolLookup;
+  image: string | undefined; overImage?: string | undefined; overWhiteImage?: string | undefined; layers?: PressLayers | undefined; courseColor?: string | undefined }) {
   const { clip } = frame;
   const nodes = pageNodes(frame, symbols, courseColor);
   // Figurerna och noderna står i samma ordning (`pageNodes`): undre lila mellan kartans två bilder, övre lila överst.
@@ -91,7 +93,9 @@ function FrameView({ id, frame, symbols, image, overImage, layers, courseColor }
     {white.length > 0 && <path d={whitePath} fill="#fff" clipPath={`url(#${id})`} data-testid="print-white-area" />}
     {lower ? <>
       <g clipPath={`url(#${id})`} data-testid="print-overprint" data-layer="lower">{draw(index => lower[index] === true)}</g>
-      {/* Kartans färger över banan multipliceras, som övertryck på tryck: lila syns genom dem. */}
+      {/* Kartans färger över banan multipliceras, som övertryck på tryck: lila syns genom dem. Vitt över banan slår ut. */}
+      {overWhiteImage && <g clipPath={white.length > 0 ? `url(#${id}w)` : undefined}><image href={overWhiteImage} x={clip.x} y={clip.y} width={clip.width}
+        height={clip.height} preserveAspectRatio="none" data-testid="print-map-over-white" transform={mirror} /></g>}
       {overImage && <g clipPath={white.length > 0 ? `url(#${id}w)` : undefined}><image href={overImage} x={clip.x} y={clip.y} width={clip.width} height={clip.height}
         preserveAspectRatio="none" data-testid="print-map-over" style={{ mixBlendMode: "multiply" }} transform={mirror} /></g>}
       <g clipPath={`url(#${id})`} data-testid="print-overprint-upper" data-layer="upper">{draw(index => lower[index] !== true)}</g>

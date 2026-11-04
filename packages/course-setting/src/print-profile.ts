@@ -71,7 +71,7 @@ export interface PrintProfile {
   readonly courseLayer?: "TOP" | "REFERENCE" | undefined;
   /** Normen för färgordningen; saknas = känns igen ur kartan (`detectPressNorm`). */
   readonly pressNorm?: "ISOM" | "ISSPROM" | undefined;
-  /** "Kontrollnummer och texter överst" i ISOM (i övre lila som i sprint); saknas = på. ISSprOM har dem alltid överst. */
+  /** "Kontrollnummer och texter överst" i ISOM (i övre lila som i sprint); saknas = av (undre lila som i bilagan). ISSprOM har dem alltid överst. */
   readonly numbersOnTop?: boolean | undefined;
   /** PDF:en för tryck i CMYK utan dekorfärger (BL); förval = kartans dekorfärger som i filen. */
   readonly processColors?: boolean | undefined;

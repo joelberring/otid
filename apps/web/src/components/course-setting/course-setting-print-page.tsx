@@ -330,11 +330,14 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           const request = { ...mapRenderRequest(frame), ...(Object.keys(adjust).length > 0 ? { colorAdjust: adjust } : {}) };
           // Normens ordning: två bilder, färgerna under banan och färgerna över (utan vit bakgrund).
           const url = await renderImage(pressLayers ? { ...request, onlyColors: pressLayers.under } : request, 0);
-          const over = pressLayers ? await renderImage({ ...request, onlyColors: pressLayers.over, background: false }, 0) : undefined;
-          urls.current.push(url, ...(over ? [over] : []));
+          const over = pressLayers ? await renderImage({ ...request, onlyColors: pressLayers.overInk, background: false }, 0) : undefined;
+          // Vitt över banan slår ut (som i PDF:en): en egen bild utan multiplicering.
+          const overWhite = pressLayers && pressLayers.overWhite.length > 0
+            ? await renderImage({ ...request, onlyColors: pressLayers.overWhite, background: false }, 0) : undefined;
+          urls.current.push(url, ...(over ? [over] : []), ...(overWhite ? [overWhite] : []));
           // Bilden gäller sin nyckel (utsnitt och färger) även om arken ändrats under tiden: en senare körning hoppar över
           // nyckeln medan den ritas, så den måste sparas här (annars väntar arket för alltid).
-          setImages(current => ({ ...current, ...(over ? { [`${key}|OVER`]: over } : {}), [key]: url }));
+          setImages(current => ({ ...current, ...(over ? { [`${key}|OVER`]: over } : {}), ...(overWhite ? { [`${key}|OVERWHITE`]: overWhite } : {}), [key]: url }));
         } catch (error) { started.current.delete(key); console.error("Kartan kunde inte ritas", error); }
       }
     })();

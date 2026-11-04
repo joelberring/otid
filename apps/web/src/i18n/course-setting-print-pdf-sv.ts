@@ -1,13 +1,14 @@
 /** Steg 65 (ADR-0184): PDF för tryck i förhandsvisningen. */
 export const printPdfSv = {
   heading: "PDF för tryck",
-  help: "PDF:en skrivs på servern när tävlingen inte behöver datorn (låg prioritet) och har kartan som vektorer, kartans dekorfärger och banan i egen dekorfärg med övertryck. Kontorsskrivaren får CMYK utan dekorfärger.",
+  help: "PDF:en skrivs på servern när tävlingen inte behöver datorn (låg prioritet) och har kartan som vektorer, kartans dekorfärger och banan i egen dekorfärg med övertryck. Kontorsskrivaren får CMYK utan dekorfärger, och kartans färger över banan multipliceras så att den ser ut som trycket.",
   honesty: "PDF/X och ICC-profiler stöds inte ännu (de är inte verifierade). Gör alltid ett provtryck hos tryckeriet innan PDF:en används skarpt.",
   mapColors: "Kartans färger i PDF:en för tryck",
   mapSpots: "Dekorfärger som i kartfilen",
   mapProcess: "CMYK (kartfärgernas egna värden)",
   press: "Skapa PDF för tryck",
   office: "Skapa PDF för kontorsskrivare",
+  overprintViewer: "Övertrycket syns i Acrobat med ”Simulera övertryck”; Förhandsvisning på Mac visar lila heltäckande.",
   preflight: "Förhandskontroll för PDF:en",
   preflightOk: "inga hinder",
   preflightBlocked: "stoppar",

@@ -63,7 +63,7 @@ export const blProposalSv = {
   layerCourse: "Banan",
   layerUnder: "Under banan",
   byHand: "Ändrad för hand",
-  layerConflicts: (names: string) => `BL:s tabell lägger dessa på andra sidan banan; O-Tid följer normen: ${names}`,
+  layerConflicts: (names: string) => `BL:s tabell lägger dessa på andra sidan banan; O-Tid följer normen och kartfilens ordning (färgerna byter aldrig plats med varandra på samma sida): ${names}`,
   layerWrongSide: "fel sida",
   notes: "BL:s regler och upplysningar",
   interpretation: "O-Tid:s tolkning",

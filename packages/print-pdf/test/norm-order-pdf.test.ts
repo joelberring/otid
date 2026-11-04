@@ -56,16 +56,16 @@ function sheetsFor(scale: number) {
   return { map, sheets: layoutCoursePage(document, { course, mapBounds: map.bounds ?? undefined }).map(sheetOfPage) };
 }
 
-async function pdfFor(scale: number) {
+async function pdfFor(scale: number, chosen: PrintProfile = profile) {
   const { map, sheets } = sheetsFor(scale);
-  const result = await writeSheetsPdf({ sheets, map, profile, mode: "PRESS", fonts: fontFiles(), title: "Norm" });
+  const result = await writeSheetsPdf({ sheets, map, profile: chosen, mode: "PRESS", fonts: fontFiles(), title: "Norm" });
   const pdf = await parsePdf(result.bytes);
   const content = pdf.pages[0]!.content;
   const forms = [...pdf.forms.values()];
   return {
     map, content, under: forms[0]!, over: forms[1]!,
     // Banans lila: ringar och linjer som linje (K), numret som fyllning (k).
-    at: { under: content.indexOf("/Fm0 Do"), circle: content.indexOf("0.2 1 0 0 K"), over: content.indexOf("/Fm1 Do"), number: content.indexOf("0.2 1 0 0 k") }
+    at: { under: content.indexOf("/Fm0 Do"), circle: content.indexOf("0.2 1 0 0 K"), over: content.indexOf("/Fm1 Do"), number: content.lastIndexOf("0.2 1 0 0 k") }
   };
 }
 
@@ -85,8 +85,11 @@ describe("normens färgordning i PDF:en (ADR-0211 beslut 3)", () => {
     expect(pdf.over).toContain("0 0.56 1 0.18 K");
     // Färgerna över banan med övertryck, så att lila syns genom dem på tryck.
     expect(pdf.over).toMatch(/\/GOP gs/);
-    // Numret (övre lila, "Kontrollnummer och texter överst") efter kartans färger över banan.
-    expect(pdf.at.number).toBeGreaterThan(pdf.at.over);
+    // Numret i undre lila (bilagan, förval i skog) före kartans färger över banan: kurvorna och stigen korsar det.
+    expect(pdf.at.number).toBeLessThan(pdf.at.over);
+    // "Kontrollnummer och texter överst": efter kartans färger över banan.
+    const top = await pdfFor(10000, { ...profile, numbersOnTop: true });
+    expect(top.at.number).toBeGreaterThan(top.at.over);
   });
 
   it("ISSprOM: numren över de svarta byggnaderna, ringarna under svart; brunt 100 % under banan", async () => {

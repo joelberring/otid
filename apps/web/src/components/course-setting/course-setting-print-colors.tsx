@@ -118,7 +118,7 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
             <option value="ISOM">{text.norms.ISOM}</option>
             <option value="ISSPROM">{text.norms.ISSPROM}</option>
           </select></label>
-        {norm === "ISOM" && <label className={styles.check}><input type="checkbox" checked={profile.numbersOnTop ?? true} data-testid="print-colors-numbers-top"
+        {norm === "ISOM" && <label className={styles.check}><input type="checkbox" checked={profile.numbersOnTop ?? false} data-testid="print-colors-numbers-top"
           onChange={event => void change(current => ({ ...current, numbersOnTop: event.target.checked }))} />{text.numbersOnTop}</label>}
       </fieldset>
       <p className={styles.muted} data-testid="print-colors-order-help">{profile.courseLayer === "REFERENCE" ? text.orderHelp[norm] : text.orderTop}</p>

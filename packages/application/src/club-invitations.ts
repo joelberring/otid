@@ -4,8 +4,8 @@ import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 
 /** ADR-0194 beslut 1: klubbens roller (rangordnade) och journalen. Egen fil utan inloggningen (som training-group-invitations). */
-export type ClubRole = "OWNER" | "ADMIN" | "READER";
-const RANK: Record<ClubRole, number> = { READER: 0, ADMIN: 1, OWNER: 2 };
+export type ClubRole = "OWNER" | "ADMIN" | "LEADER" | "READER";
+const RANK: Record<ClubRole, number> = { READER: 0, LEADER: 1, ADMIN: 2, OWNER: 3 };
 
 export async function clubJournal(tx: DbExecutor, input: { clubId: string; action: string; actorAccountId: string | null;
   details: Record<string, unknown>; now: Date }): Promise<void> {

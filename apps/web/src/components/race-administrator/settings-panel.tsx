@@ -15,6 +15,7 @@ import { EventorSection } from "./eventor-section";
 import { RaceDeleteSection } from "./race-delete-section";
 import { RaceExportSection } from "./race-export-section";
 import { PeopleSection } from "./people-section";
+import { ClubArchiveSection } from "./club-archive-section";
 import { RadioSection } from "./radio-section";
 import { SelfRegistrationSetting } from "./self-registration-setting";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
@@ -125,6 +126,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
       <div><Button variant="secondary" onClick={() => navigateStep(publish.id)}>{text.publishOpen}</Button></div>
     </Section>}
     <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />
+    <ClubArchiveSection raceId={raceId} disabled={locked} />
     {(profile.features.eventor || profile.features.eventorRunners) && <EventorSection ws={ws} runnersOnly={!profile.features.eventor} />}
     {profile.features.radio && <RadioSection raceId={raceId} disabled={locked} />}
     {/* ADR-0191 beslut 3: importen av anmälda finns under Anmälda; här bara vägen dit. */}

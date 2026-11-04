@@ -1,5 +1,6 @@
 "use client";
 
+import { ClubStep } from "./club-affiliation/club-step";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { organizerEventCreateRequestSchema, type OrganizerMyEventsResponse } from "@o-tid/contracts";
@@ -30,6 +31,8 @@ import { orderMyEvents } from "../lib/my-events-order";
 import { raceListName } from "../lib/race-list-name";
 import { MyGroups } from "./training-group/my-groups";
 import { MyClubs } from "./club-archive/my-clubs";
+import { applyClubMap, ClubMapChoiceField, type ClubMapChoice } from "./club-archive/club-map-picker";
+import { clubMapDuplicatesSv } from "../i18n/club-map-duplicates-sv";
 import { forgetAllCourseSettingCopies } from "../lib/course-setting-offline-forget";
 import styles from "./organizer-workspace.module.css";
 
@@ -67,6 +70,8 @@ export function OrganizerWorkspace() {
   const [enteringRaceId, setEnteringRaceId] = useState<string>();
   const [copySource, setCopySource] = useState<CopySource>();
   const [restoreOpen, setRestoreOpen] = useState(false);
+  /** ADR-0210: kartan ur klubbarkivet som den nya tävlingen får (valfritt). */
+  const [clubMap, setClubMap] = useState<ClubMapChoice>();
   const [message, setMessage] = useState("");
   const createHeadingRef = useRef<HTMLHeadingElement>(null);
 
@@ -223,6 +228,18 @@ export function OrganizerWorkspace() {
       const result = parseOrganizerCreateResponse(await responseJson(response), current);
       clearOrganizerAttempt();
       setAttempt(undefined);
+      // ADR-0210: kartan ur klubbarkivet blir tävlingens kartfil, och banläggningen öppnas med den.
+      if (clubMap) {
+        const problem = await applyClubMap(clubMap, result.raceId, stage => setMessage(clubMapDuplicatesSv.picker.working[stage]));
+        setClubMap(undefined);
+        if (problem) {
+          setMessage(problem);
+          window.setTimeout(() => enterRace(result.raceId, "course-setting"), 2500);
+          return;
+        }
+        enterRace(result.raceId, "course-setting");
+        return;
+      }
       // PLAN.md steg 24: direkt in i den nya tävlingens arbetsyta.
       setMessage(copy.created);
       enterRace(result.raceId);
@@ -373,6 +390,8 @@ export function OrganizerWorkspace() {
       </nav>
     </section>}
 
+    {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
+    {session && <ClubStep />}
     {session && <div className={styles.columns}>
       <section className={`${styles.panel} ${styles.events}`}>
         <div className={styles.sectionHeading}><div><h2>{copy.eventsSection}</h2><p className={styles.muted}>{copy.eventsHint}</p></div>
@@ -439,6 +458,7 @@ export function OrganizerWorkspace() {
               <Field label={copy.timeZone} error={createErrors.timeZone} help={copy.timeZoneHelp}><input name="timeZone"
                 defaultValue="Europe/Stockholm" maxLength={100} disabled={busy} /></Field>
             </details>
+            <ClubMapChoiceField value={clubMap} disabled={busy} onChange={setClubMap} />
             <button type="submit" disabled={busy} aria-busy={busy}>{copy.createEvent}</button>
           </form>
           {/* ADR-0187: en säkerhetskopia blir en ny tävling (t.ex. på en ny server när den gamla har gått sönder). */}

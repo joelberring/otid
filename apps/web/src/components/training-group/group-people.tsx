@@ -6,6 +6,7 @@ import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { groupFailure, groupRequest } from "../../lib/training-group-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./training-group.module.css";
+import { FromClubPicker } from "../club-affiliation/from-club-picker";
 
 const text = trainingGroupSv.leader;
 
@@ -49,7 +50,7 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
       {view.members.map(member => <li key={member.memberId}>
         <div><strong>{member.displayName ?? member.email}</strong><span>{member.pending
           ? `${trainingGroupSv.myGroups.role[member.role]} · ${text.pending}`
-          : `${member.email} · ${trainingGroupSv.myGroups.role[member.role]}`}</span></div>
+          : [member.email, trainingGroupSv.myGroups.role[member.role]].filter(Boolean).join(" · ")}</span></div>
         {(member.pending || member.role !== "LEADER" || leaders > 1) && <Button variant="secondary" disabled={busy}
           aria-label={`${text.remove}: ${member.displayName ?? member.email}`} onClick={() => void remove(member.memberId)}>{text.remove}</Button>}
       </li>)}
@@ -67,5 +68,8 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
       <Button type="submit" disabled={busy || !email.includes("@")}>{text.add}</Button>
       {problem && <Notice tone="error" role="alert">{problem}</Notice>}
     </form>
+    {/* ADR-0209: "Från klubben" med rollen som är vald ovan. */}
+    <FromClubPicker context={{ kind: "TRAINING_GROUP", id: view.groupId }} role={role} roleLabel={trainingGroupSv.myGroups.role[role]} disabled={busy}
+      onInvited={onChanged} />
   </>;
 }

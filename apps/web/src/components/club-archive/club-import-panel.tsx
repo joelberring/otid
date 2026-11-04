@@ -25,7 +25,7 @@ export function ClubImportPanel({ club, onChanged }: { club: ClubView; onChanged
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [copied, setCopied] = useState(false);
   useEffect(() => { setOrigin(window.location.origin); }, []);
-  const admin = club.viewer.role !== "READER";
+  const admin = club.viewer.role === "OWNER" || club.viewer.role === "ADMIN";
 
   async function create() {
     setBusy(true); setMessage(undefined); setCopied(false);

@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { defaultRaceOrganiser } from "./race-club-archive";
 import { sql } from "drizzle-orm";
 import {
   organizerEventCreateIdempotencyKeySchema,
@@ -90,6 +91,8 @@ export async function createOrganizerEvent(
     await tx.insert(schema.eventAdministrationGrants).values({
       eventId: event.id, accountId: auth.principal.accountId, role: "OWNER", grantedAt: createdAt
     });
+    // ADR-0209 beslut 4: arrangörsklubben förvald från skaparens bekräftade klubb.
+    await defaultRaceOrganiser(tx, { raceId: race.id, accountId: auth.principal.accountId, now: createdAt });
     const [journal] = await tx.insert(schema.userAccountEventCreationRequests).values({
       requestId, actorAccountId: auth.principal.accountId,
       eventName: request.data.eventName, raceName: request.data.raceName,

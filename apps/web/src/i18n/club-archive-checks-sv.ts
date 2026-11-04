@@ -33,7 +33,6 @@ export const clubArchiveChecksSv = {
   trainingMapFailed: "Kartan kunde inte ritas",
   previewFailed: (reason: string) => `Kartan kunde inte ritas här: ${reason}`,
   previewDownload: "Ladda ner originalet och öppna det i OCAD eller Mapper.",
-  renameMap: "Byt namn",
   recheckAll: "Kontrollera alla kartor igen",
   recheckHelp: "Läser varje kartversion på nytt, ritar bilderna av kartorna och träningarna och räknar om banfilernas sammanfattningar. Det görs i den här webbläsaren och kan ta en stund.",
   progress: (done: number, total: number, label: string) => `Kontrollerar ${done + 1} av ${total}: ${label}`,

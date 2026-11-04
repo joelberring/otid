@@ -11,7 +11,9 @@ const sha = "a".repeat(64);
 describe("klubbarkivet", () => {
   it("inbjudan: adressen normaliseras, rollerna är ägare, administratör och läsare", () => {
     expect(clubMemberInviteRequestSchema.parse({ formatVersion: 1, requestId: id, email: " Lisa@Exempel.se ", role: "READER" }).email).toBe("lisa@exempel.se");
-    expect(clubMemberInviteRequestSchema.safeParse({ formatVersion: 1, requestId: id, email: "lisa@exempel.se", role: "LEADER" }).success).toBe(false);
+    expect(clubMemberInviteRequestSchema.safeParse({ formatVersion: 1, requestId: id, email: "lisa@exempel.se", role: "MEMBER" }).success).toBe(false);
+    // ADR-0209: Ledare är en roll i klubbytan.
+    expect(clubMemberInviteRequestSchema.safeParse({ formatVersion: 1, requestId: id, email: "lisa@exempel.se", role: "LEADER" }).success).toBe(true);
     expect(clubMemberRemoveRequestSchema.safeParse({ formatVersion: 1, memberId: id, invitationId: id }).success).toBe(false);
     expect(clubMemberRemoveRequestSchema.safeParse({ formatVersion: 1, memberId: null, invitationId: id }).success).toBe(true);
   });

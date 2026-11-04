@@ -18,15 +18,19 @@ export const racePersonRoleSchema = z.enum(["OWNER", "ADMIN", "FUNCTIONARY", "CO
 /** Roller som kan läggas till. Ägaren finns från början och kan inte läggas till eller tas bort här. */
 export const racePersonGrantableRoleSchema = z.enum(["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"]);
 
+/** ADR-0209: tom adress = personen kom "Från klubben"; den som bjöd in ser bara namnet. */
+const shownEmailSchema = storedAccountEmailSchema.or(z.literal(""));
+
 export const racePersonSchema = z.object({
   grantId: canonicalUuidSchema,
   accountId: canonicalUuidSchema,
-  email: storedAccountEmailSchema,
+  email: shownEmailSchema,
   displayName: z.string().trim().min(1).max(120),
   role: racePersonRoleSchema,
   grantedAt: instantSchema,
   /** ADR-0186: kontots e-postadress är inte bekräftad; behörigheten gäller först när den är det (ägaren alltid). */
-  pendingVerification: z.boolean().optional()
+  pendingVerification: z.boolean().optional(),
+  fromClub: z.boolean().optional()
 }).strict();
 
 /**
@@ -35,9 +39,11 @@ export const racePersonSchema = z.object({
  */
 export const racePersonInvitationSchema = z.object({
   invitationId: canonicalUuidSchema,
-  email: storedAccountEmailSchema,
+  email: shownEmailSchema,
   role: racePersonGrantableRoleSchema,
-  invitedAt: instantSchema
+  invitedAt: instantSchema,
+  /** ADR-0209: inbjuden "Från klubben": namnet i stället för adressen. */
+  displayName: z.string().trim().min(1).max(120).optional()
 }).strict();
 
 export const racePeopleResponseSchema = z.object({

@@ -122,6 +122,9 @@ services:
       OTID_EVENTOR_MASTER_KEY: ${OTID_EVENTOR_MASTER_KEY:-}
       # Endast test (CI pekar på en falsk Eventor på värden). Tom i drift = Eventor Sverige.
       OTID_EVENTOR_BASE_URL: ${OTID_EVENTOR_BASE_URL:-}
+      # ADR-0209: klubbens API-nyckel för klubblistan (`node superadmin.mjs clubs refresh`). Tom = en nyckel som ett klubbarkiv
+      # kopplat till Eventor har sparat. Hemlig: skrivs aldrig ut. Bara i web.
+      OTID_EVENTOR_API_KEY: ${OTID_EVENTOR_API_KEY:-}
       # E-post för återställningslänkar och bekräftelse av e-postadressen (docs/drift.md). Tom = ingen e-post. Bara i web.
       OTID_SMTP_URL: ${OTID_SMTP_URL:-}
       OTID_MAIL_FROM: ${OTID_MAIL_FROM:-}

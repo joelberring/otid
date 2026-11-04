@@ -12,13 +12,16 @@ import { ClubImportPanel } from "./club-import-panel";
 import { ClubMapsPanel } from "./club-maps-panel";
 import { ClubMembersPanel } from "./club-members-panel";
 import { useArchiveChecks } from "./use-archive-checks";
+import { ClubSpacePanel } from "../club-affiliation/club-space-panel";
+import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { HelpButton } from "../help/help-panel";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv;
-type Tab = "trainings" | "maps" | "members" | "import";
-const TABS: readonly Tab[] = ["trainings", "maps", "members", "import"];
-const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", import: "ARCHIVE_IMPORT" };
+type Tab = "trainings" | "maps" | "members" | "club" | "import";
+const TABS: readonly Tab[] = ["trainings", "maps", "members", "club", "import"];
+const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
+  import: "ARCHIVE_IMPORT" };
 
 function initialTab(): Tab {
   if (typeof window === "undefined") return "trainings";
@@ -50,7 +53,7 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     setTab(next);
     try { window.history.replaceState(null, "", `#${next}`); } catch { /* adressen är bara en bekvämlighet */ }
   };
-  const admin = club ? club.viewer.role !== "READER" : false;
+  const admin = club ? club.viewer.role === "OWNER" || club.viewer.role === "ADMIN" : false;
   // ADR-0196: kartornas kontroll och bilderna ritas i bakgrunden när en administratör har arkivet öppet.
   const checks = useArchiveChecks(clubId, list, admin, load);
   const usage = useMemo(() => club ? text.usage(club.usage.mapBytes + club.usage.courseFileBytes, club.usage.maps, club.usage.versions,
@@ -64,6 +67,9 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       <div>
         <p className={styles.kicker}><Link href="/organizer">{text.back}</Link> · {text.title}</p>
         <h1>{list.clubName}</h1>
+        {/* ADR-0209 beslut D: en klubbyta utan Eventor-nyckel är inte bevisad. */}
+        <p className={styles.muted} data-testid="club-eventor-badge">{club.eventorClub ? clubAffiliationSv.space.linkedBadge(club.eventorClub)
+          : clubAffiliationSv.space.unlinked}</p>
       </div>
       <div className={styles.headSide}>
         <p className={styles.usage} data-testid="club-usage">{usage}</p>
@@ -72,13 +78,16 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       </div>
     </header>
     <div className={styles.tabs} role="tablist" aria-label={text.title}>
-      {TABS.map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}
+      {TABS.filter(name => admin || name !== "club").map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}
         onClick={() => choose(name)}>{text.tabs[name]}</button>)}
     </div>
     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-      {tab === "trainings" && <ArchiveList clubId={clubId} list={list} admin={admin} />}
-      {tab === "maps" && <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} onChanged={load} checks={checks} />}
+      {tab === "trainings" && (list.viewer.access.archive ? <ArchiveList clubId={clubId} list={list} admin={admin} />
+        : <Notice role="status">{clubAffiliationSv.space.archiveClosed}</Notice>)}
+      {tab === "maps" && (list.viewer.access.archive ? <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} mapBank={list.viewer.access.mapBank}
+        onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationSv.space.archiveClosed}</Notice>)}
       {tab === "members" && <ClubMembersPanel club={club} onChanged={load} />}
+      {tab === "club" && admin && <ClubSpacePanel clubId={clubId} />}
       {tab === "import" && <ClubImportPanel club={club} onChanged={load} />}
     </div>
   </main>;

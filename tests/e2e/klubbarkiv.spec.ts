@@ -110,20 +110,21 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await expect(owner.getByTestId("course-preview")).toHaveAttribute("data-ready", "true", { timeout: 60_000 });
     await reviewScreenshots(owner, "klubbarkiv-traning");
 
-    // Bjud in en läsare.
+    // Bjud in en ledare (ADR-0209: kartbanken – Använd igen – är för ledare och administratörer i en ny klubb).
     const reader = await registerAccount(browser, `lasare.${suffix}@exempel.se`, "Lisa Läsare");
     await owner.goto(`/organizer/clubs/${clubId}#members`);
     const invite = owner.getByRole("form", { name: "Bjud in" });
     await invite.getByLabel("E-postadress").fill(`lasare.${suffix}@exempel.se`);
+    await invite.getByLabel("Roll").selectOption({ label: "Ledare" });
     await invite.getByRole("button", { name: "Bjud in" }).click();
     await expect(owner.getByRole("status").filter({ hasText: "Inbjudan är sparad." })).toBeVisible();
-    await expect(owner.getByTestId("club-members")).toContainText("Läsare · väntar på inloggning");
+    await expect(owner.getByTestId("club-members")).toContainText("Ledare · väntar på inloggning");
     await reviewScreenshots(owner, "klubbarkiv-medlemmar");
 
     // Läsaren ser klubben, kan inte ändra, och använder Skogen-träningen igen (senaste kartversionen, samma georeferens).
     await reader.goto("/organizer");
     const readerClubs = reader.getByRole("region", { name: "Mina klubbar" });
-    await expect(readerClubs).toContainText("Läsare · 4 träningar");
+    await expect(readerClubs).toContainText("Ledare · 4 träningar");
     await readerClubs.getByRole("link", { name: "Öppna arkivet" }).click();
     await reader.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);
     await reader.getByTestId("archive-entries").getByRole("link").filter({ hasText: "2019-04-02" }).click();

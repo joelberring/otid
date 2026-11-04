@@ -1,0 +1,32 @@
+/* ADR-0209: klubbtillhörighet. Bara färgtoken; fungerar på 390 px. */
+.picker { position: relative; display: grid; gap: .4rem; min-width: 0; }
+.picker input { width: 100%; min-height: 44px; }
+.options { position: absolute; z-index: 5; top: 100%; left: 0; right: 0; max-height: 16rem; overflow: auto; margin: .2rem 0 0; padding: .25rem 0;
+  list-style: none; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
+.options li { padding: .55rem .75rem; cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: .5rem; overflow-wrap: anywhere; }
+.options li[aria-selected="true"], .options li:hover { background: var(--surface-strong, var(--line)); }
+.options small { color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.chips li { display: inline-flex; align-items: center; gap: .25rem; padding: .15rem .25rem .15rem .65rem; border: 1px solid var(--line-strong);
+  border-radius: 999px; max-width: 100%; overflow-wrap: anywhere; }
+.chips button { min-width: 36px; min-height: 36px; }
+.panel { display: grid; gap: .75rem; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); min-width: 0; }
+.panel h2, .panel h3 { margin: 0; }
+.muted { margin: 0; color: var(--muted); }
+.form { display: grid; gap: .65rem; max-width: 40rem; }
+.form input:not([type="radio"]):not([type="checkbox"]), .form select { width: 100%; min-height: 44px; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.actions > button, .actions > a { min-height: 44px; }
+.list { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.list > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem 1rem; padding: .6rem 0;
+  border-bottom: 1px solid var(--line); min-width: 0; }
+.list > li > div:first-child { display: grid; gap: .1rem; min-width: 0; overflow-wrap: anywhere; }
+.list span { color: var(--muted); font-size: var(--text-sm); }
+.badge { display: inline-block; padding: .1rem .55rem; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); }
+.warning { border-left: 4px solid var(--warning, var(--line-strong)); padding-left: .75rem; }
+.radios { display: grid; gap: .35rem; border: 0; margin: 0; padding: 0; min-width: 0; }
+.radios legend { font-weight: 600; margin-bottom: .25rem; }
+.radios label { display: flex; gap: .5rem; align-items: center; min-height: 36px; }
+.checklist { display: grid; gap: .2rem; max-height: 20rem; overflow: auto; margin: 0; padding: 0; list-style: none; }
+.checklist label { display: flex; gap: .6rem; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
+.checklist small { color: var(--muted); }

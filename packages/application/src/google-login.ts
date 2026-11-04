@@ -5,7 +5,7 @@ import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { consumeEmailVerificationTokens } from "./email-verification";
 import type { GoogleIdentity } from "./google-oidc";
-import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { acceptOnLogin } from "./account-arrival";
 import {
   appendUserAccountPasswordVerifier, currentUserAccountVerifier, issueUserAccountSession, revokeAllUserAccountSessions,
   type UserAccountLoginResult, type UserAccountRuntimeOptions
@@ -79,7 +79,7 @@ export async function signInWithGoogle(db: Database, identity: GoogleIdentity, o
     const [loggedIn] = await tx.update(schema.userAccounts).set({ lastLoginAt: now })
       .where(eq(schema.userAccounts.id, accountId)).returning();
     // ADR-0188 beslut 6: behörigheter sparade för adressen gäller när personen loggar in med en bekräftad adress.
-    await acceptRacePersonInvitations(tx, accountId, now);
+    await acceptOnLogin(tx, accountId, now);
     const verifier = await currentUserAccountVerifier(tx, accountId);
     if (!verifier) throw new Error("Kontot saknar lösenordsversion");
     return { ...await issueUserAccountSession(tx, loggedIn!, verifier.version, now, options), created };

@@ -19,7 +19,7 @@ import {
   type UserAccountRuntimeOptions
 } from "./user-account";
 import { consumeEmailVerificationTokens } from "./email-verification";
-import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { acceptOnLogin } from "./account-arrival";
 import { sha256Hex as sha256 } from "./serialization";
 
 /**
@@ -114,7 +114,7 @@ export async function completePasswordReset(
     await consumeEmailVerificationTokens(tx, account.id, now);
     await revokeAllUserAccountSessions(tx, account.id, now, "PASSWORD_RESET");
     await clearUserAccountLoginThrottle(tx, account.email, now, options.clientKey);
-    await acceptRacePersonInvitations(tx, account.id, now);
+    await acceptOnLogin(tx, account.id, now);
     return issueUserAccountSession(tx, updated!, version, now, options);
   });
 }

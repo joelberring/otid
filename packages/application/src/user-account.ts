@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
-import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { acceptOnLogin } from "./account-arrival";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import {
   organizerAccountLoginRequestSchema,
@@ -320,7 +320,7 @@ export async function loginUserAccount(
     }
     await tx.update(schema.userAccounts).set({ lastLoginAt: now }).where(eq(schema.userAccounts.id, account.id));
     // ADR-0188 beslut 6: behörigheter sparade för adressen gäller när personen loggar in med den.
-    await acceptRacePersonInvitations(tx, account.id, now);
+    await acceptOnLogin(tx, account.id, now);
     return issueUserAccountSession(tx, account, verifier.version, now, options);
   });
 }

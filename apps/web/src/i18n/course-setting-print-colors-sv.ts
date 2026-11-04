@@ -23,7 +23,7 @@ export const printColorsSv = {
   normAuto: (detected: string) => `Ur kartan: ${detected}`,
   numbersOnTop: "Kontrollnummer och texter överst",
   orderHelp: {
-    ISOM: "Skog (ISOM 2017-2): ringar, linjer, start och mål under svart, brunt 100 % och blått 100 % för linjer och punkter, över asfalt, stora byggnaders fyllning och alla rastrerade färger. Kartans färger över banan trycks med övertryck.",
+    ISOM: "Skog (ISOM 2017-2): ringar, linjer, nummer, start och mål under svart, brunt 100 % och blått 100 % för linjer och punkter, över asfalt, stora byggnaders fyllning och alla rastrerade färger. Kurvorna korsar numren, så att de ser lite genomsiktliga ut. Kartans färger över banan trycks med övertryck; inom var sida behåller de kartfilens ordning.",
     ISSPROM: "Sprint (ISSprOM 2019-2): ringar, linjer, start och mål under svart 100 % och grönt för punkter, över blått, brunt och allt annat. Nummer och markeringar ligger alltid överst. Kartans färger över banan trycks med övertryck."
   } as Record<"ISOM" | "ISSPROM", string>,
   orderTop: "Banan ligger överst, som i Purple Pen.",

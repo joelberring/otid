@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Färgordningen i trycket rättad (grenen tryck-fargordning, ADR-0211 beslut 11, ingen migration)
+- Orsak till vita skivor och vita streck på ägarens provtryck (Stockholm by Night, ISOM): allt vitt lyftes över banan om det låg över den lägsta "över"-färgen (Svart för odlad mark), men grönt för punkter och vägkanternas svart ligger under; glorian täckte ringen och järnvägens vitt låg över strecken.
+- Normen bestämmer bara sidan; inom sidan gäller kartfilens ordning. Vitt över banan bara om det ligger över all svart och inget under banan ritas över det. Svart för odlad mark med rastren under banan. Vitt aldrig med övertryck eller multiplicering.
+- Skog: numren i undre lila som förval (kurvorna korsar dem); "Kontrollnummer och texter överst" som val. Sprint som förut.
+- Kontors-PDF:en: tävlingsprofilens färgordning och kartans färger över banan med /BM /Multiply; tryck-PDF:en oförändrad (/OP, /OPM 1). Rad om Acrobat och Förhandsvisning under knappen; förhandsvisningen ritar övre vitt utan multiplicering.
+- Verifierat: enhetstester (course-setting, print-pdf med påhittad gloria-, järnvägs- och kurvkarta och Ghostscript, web), lint, typecheck, Playwright `banlaggning-pdf`, `utskrift-omtag`, `hjalp-banlaggning`; före och efter med pdftoppm.
+- Återstår: provtryck hos tryckeriet med ägarens karta.
+
 ### 2026-11-04 – Löparkopplade kartor (grenen lopar-kartor, ADR-0213, ingen migration)
 - Löparens variabler på papperet: {namn} {startnummer} {klubb} {klass} {starttid} {variant} och för stafett {lag} {lagnummer} {sträcka}; platshållare med en rad i banornas förhandsvisning.
 - "Baksida med löparens uppgifter": dubbelsidigt i samma PDF (baksidan redigeras på arket som "Baksidan (per löpare)", förvalet som Kartor till startens baksida, `SET_RUNNER_BACK`) eller separat körning.

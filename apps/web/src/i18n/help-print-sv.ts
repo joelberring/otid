@@ -180,8 +180,12 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
       [
         "”Banans färg”: CMYK, ”Dekorfärg” och ”Övertryck”.",
         "”Lägg banan i normens färgordning”: ringar och linjer under svart och 100 %-färger, över asfalt, byggnadsytor och raster.",
+        "Normen bestämmer bara om en kartfärg hamnar över eller under banan. På varje sida ligger färgerna i kartfilens ordning.",
+        "Ett vitt under ett träd eller under järnvägens svarta streck stannar alltså under dem.",
+        "Vitt ligger över banan bara när kartfilen ritar det över all svart, t.ex. vitt för förbjudet område. Svart för odlad mark ligger med rastren under banan.",
         "”Norm”: skog (ISOM) eller sprint (ISSprOM), förvalt ur kartan.",
-        "”Kontrollnummer och texter överst”: numren över kartans färger också i skog. I sprint ligger de alltid överst.",
+        "I skog ligger numren under kurvor, svart och blått som i normen, så att de ser lite genomsiktliga ut.",
+        "”Kontrollnummer och texter överst” lägger dem över kartans färger. I sprint ligger de alltid överst.",
         "Med BL skog eller BL sprint får varje färg ett kort: ”Säker”, ”Bekräfta” eller ”Tvetydig”.",
         "”Godta”, ”Behåll filens” eller ”Välj BL-rad …”. ”Godta alla säkra” tar alla säkra på en gång.",
         "”Justera färger för hand”: samma värden per färg i en tabell. En ändring där syns på kortet som ”Ändrad för hand”.",
@@ -198,7 +202,9 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
       "”Skapa PDF för tryckeriet” under ”Skriv ut” på utskriftssidan skapar PDF:en på servern. Den har kartan som vektorer och banan i egen dekorfärg med övertryck.",
       [
         "”Skapa PDF för tryck”: till tryckeriet. ”Kartans färger i PDF:en för tryck”: dekorfärger som i kartfilen eller CMYK.",
-        "”Skapa PDF för kontorsskrivare”: CMYK utan dekorfärger.",
+        "”Skapa PDF för kontorsskrivare”: CMYK utan dekorfärger, med samma färgordning som trycket.",
+        "I den är kartans färger över banan multiplicerade, så den ser ut som trycket i alla program.",
+        "PDF:en för tryck har äkta övertryck. Det syns i Acrobat med Simulera övertryck; Förhandsvisning på Mac visar lila heltäckande.",
         "”Förhandskontroll för PDF:en” visar det som stoppar eller bör ses över. Läs varningarna först.",
         "Jobbet läggs i en kö. PDF:en står i listan när den är klar: ”Ladda ned”.",
         "Klara PDF:er sparas några dagar och syns bara för tävlingens administratörer."

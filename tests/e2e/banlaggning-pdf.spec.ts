@@ -6,7 +6,8 @@ import { createRace, registerAccount, reviewScreenshots, today, unique, warmCour
  * Steg 65 (ADR-0184): PDF för tryck från förhandsvisningen. Kartfilen och en .ppen läses in; i förhandsvisningen visas
  * förhandskontrollen och raden om att PDF/X och ICC inte stöds och att provtryck behövs. "Skapa PDF för tryck" lägger
  * jobbet i serverns kö; utskriftsarbetaren skriver PDF:en och listan visar "Klar". PDF:en laddas ned och har en sida per
- * bana, kartan som vektorer och banan i dekorfärgen Purple med övertryck. Kontorsskrivarens PDF har inga dekorfärger.
+ * bana, kartan som vektorer och banan i dekorfärgen Purple med övertryck. Kontorsskrivarens PDF har inga dekorfärger; med
+ * normens färgordning är kartans färger över banan multiplicerade i den (ADR-0211 beslut 11).
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 
@@ -61,6 +62,9 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   expect(pdf).toMatch(/\/OP true\s+\/op true\s+\/OPM 1/);
   expect(pdf).toMatch(/\/Subtype \/Form/);
   expect(pdf).toMatch(/\/FontFile2/);
+  // Tryck-PDF:en har äkta övertryck och ingen genomskinlighet; raden bredvid säger var övertrycket syns (ADR-0211 beslut 11).
+  expect(pdf).not.toMatch(/\/BM \/Multiply/);
+  await expect(panel.getByTestId("print-pdf-overprint-viewer")).toHaveText("Övertrycket syns i Acrobat med ”Simulera övertryck”; Förhandsvisning på Mac visar lila heltäckande.");
 
   // Kontorsskrivaren: CMYK utan dekorfärger.
   await panel.getByTestId("print-pdf-office").click();
@@ -71,6 +75,28 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   const officePdf = Buffer.from(await (await owner.request.get(href)).body()).toString("latin1");
   expect(officePdf.startsWith("%PDF-")).toBe(true);
   expect(officePdf).not.toMatch(/\/Separation/);
+
+  // Normens färgordning (ADR-0211 beslut 3 och 11): numren i undre lila i skog som förval; förhandsvisningen multiplicerar
+  // kartans färger över banan och kontorsskrivarens PDF gör likadant (/BM /Multiply), så att den ser ut som trycket.
+  const colors = owner.getByTestId("print-profile");
+  await colors.getByTestId("print-colors-edit").click();
+  await colors.getByTestId("bl-course-layer").check();
+  await expect(colors.getByTestId("print-colors-numbers-top")).not.toBeChecked();
+  await expect(colors.getByTestId("print-colors-order-help")).toContainText("Kurvorna korsar numren");
+  await expect.poll(async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as {
+    setting: { document: { event: { printProfiles?: { courseLayer?: string }[] } } } }).setting.document.event.printProfiles?.some(item => item.courseLayer === "REFERENCE"),
+  { timeout: 15_000 }).toBe(true);
+  await expect(sheet.first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
+  await expect(sheet.first().getByTestId("print-map-over").first()).toHaveCSS("mix-blend-mode", "multiply");
+  const officeRequest = owner.waitForRequest(request => request.method() === "POST" && /\/print-jobs$/.test(request.url()));
+  await panel.getByTestId("print-pdf-office").click();
+  expect((await officeRequest).postDataJSON()).toMatchObject({ kind: "OFFICE", profileId: "office", profile: { id: "office", courseLayer: "REFERENCE" } });
+  await expect(panel.locator("[data-testid=print-job][data-kind=OFFICE]")).toHaveCount(2, { timeout: 30_000 });
+  const layered = panel.locator("[data-testid=print-job][data-kind=OFFICE]").first();
+  await expect(layered).toHaveAttribute("data-status", "DONE", { timeout: 180_000 });
+  const layeredPdf = Buffer.from(await (await owner.request.get((await layered.getByTestId("print-job-download").getAttribute("href"))!)).body()).toString("latin1");
+  expect(layeredPdf).toMatch(/\/BM \/Multiply/);
+  expect(layeredPdf).not.toMatch(/\/OP true/);
 
   // PDF:erna är aldrig publika: utan inloggning nekas nedladdningen.
   const anonymous = await browser.newContext();

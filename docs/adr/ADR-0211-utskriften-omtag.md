@@ -1,6 +1,7 @@
 # ADR-0211: Utskriften om – ringklipp, mellanrum vid ringen, normens färgordning, numren, banans skala och sidans upplägg
 
-Status: beslutad 2026-11-03 (grenen `utskrift-omtag`, ägarens återkoppling efter provutskrifter på riktiga kartor samma dag).
+Status: beslutad 2026-11-03 (grenen `utskrift-omtag`, ägarens återkoppling efter provutskrifter på riktiga kartor samma dag);
+tillägg 2026-11-04 (beslut 10 och 11).
 Ingen migration. Ändrar ADR-0183 beslut 7 (BL:s ordning), ADR-0197 beslut 10 (förhandsvisningens redigering) och ADR-0180
 beslut 11 (skalan i fliken Utskrift). Purple Pen (BSD, Peter Golde) och IOF:s bilaga till ISOM 2017 "CMYK printing and colour
 definitions (includes ISSprOM)" (avsnitt 4, 5 och 7) är underlag; ingen kod är kopierad.
@@ -119,10 +120,47 @@ ställen och papperet redigerades i en ruta bredvid arket.
       Ångra. Editorns flik Utskrift har bara länken till utskriften, kartbytets delväljare (kartan visar delen) och skalan; en
       fast ram kan fortfarande dras på kartan där. .ppen som förut (`print-area`).
 
+11. **Tillägg 2026-11-04 kväll (grenen `tryck-fargordning`, ägarens provtryck av Stockholm by Night, skog 1:10 000, OCAD,
+    "Skog (ISOM)").** Ingen migration. Ändrar beslut 3 (vitt, numren i skog och kontorsskrivaren).
+    - *Orsaken till de vita skivorna:* `pressOrder` lade vitt över banan om kartfilen ritade det över den *lägsta* färgen över
+      banan. I ägarens karta ligger "Svart för odlad mark" långt ned (svart = över banan), så allt vitt lyftes över banan,
+      medan "Grön 100% – Punktobjekt" ligger under i ISOM. "Vit över grön" (glorian under det framträdande trädet) hamnade
+      därmed över sin egen gröna ring: vita skivor där träden skulle stå. Samma sak gav vita streck över järnvägens svarta
+      (vitet under strecken lyftes, vägkanternas svart ligger under i ISOM). I tryck-PDF:en fick vitet dessutom övertryck,
+      som gör vitt osynligt på tryck; Förhandsvisning på Mac visar inte övertryck, så skivorna syntes där.
+    - *Principen:* normen bestämmer bara vilken *sida* av banans undre lila en kartfärg hamnar på. Inom varje sida ritas
+      färgerna i kartfilens egen ordning (som förut, `onlyColors`). Vitt ligger över banan bara när kartfilen ritar det över
+      den översta svarta färgen över banan *och* ingen färg under banan ritas över det (äkta övre vitt, t.ex. vitt under
+      rött för förbjudet område); annars under. Då ritas allt som kartfilen lägger på ett vitt fortfarande efter det (ringen
+      efter glorian, järnvägens svarta streck efter den vita linjen, vägkanter efter en vit vägfyllning).
+    - *Svart för odlad mark* (ISOM 412–414 som yta eller namnet "odlad", "åker", "cultivated") är `BLACK_PATTERN` och ligger
+      under banan med rastren: bilagans lista har ingen rad för det och kartfilen lägger det bland skärmarna. Där BL:s tabell
+      säger annat (BL:s "Svart" ligger över banan) visar listan "fel sida"; O-Tid följer normen och kartfilens ordning. Grönt
+      100 % för punkter ligger under banan i skog som i bilagan; kurvor som korsar ett träd ligger alltså över ringen.
+    - *Vitt slår alltid ut:* i tryck-PDF:en får vitt aldrig övertryck och i kontorsskrivaren aldrig multiplicering.
+    - *Numren i skog* ligger i undre lila som förval (bilagan avsnitt 4: "Magenta (símbolos de trazados)" under svart, blått
+      100 % och brunt 100 %; avsnitt 5: lila under 100 % svart, brunt och blått för laser). Kurvorna korsar siffrorna, så att
+      de ser lite genomsiktliga ut. "Kontrollnummer och texter överst" (`numbersOnTop`, nu förval av) lägger dem överst. ISSprOM
+      har alltid numren i övre lila (704 finns inte i listan för undre lila).
+    - *Kontorsskrivaren* ("Skapa PDF för kontorsskrivare") får kontorsprofilens färger med tävlingsprofilens färgordning
+      (`officePrintProfile`: `courseLayer`, `pressNorm`, `numbersOnTop`, skickas som `profile` i jobbet). Kartans färger över
+      banan ritas med `/BM /Multiply` i stället för övertryck, så att PDF:en ser ut som trycket i alla visare och skrivare.
+      Tryck-PDF:en har som förut /OP /op true och /OPM 1 och ingen genomskinlighet (testet kräver att ingen ExtGState har /BM).
+      Under knappen står "Övertrycket syns i Acrobat med 'Simulera övertryck'; Förhandsvisning på Mac visar lila heltäckande."
+    - *Förhandsvisningen och BL-jämförelsen* ritar vitt över banan i en egen bild utan multiplicering under de multiplicerade
+      färgerna (`overWhite`, `overInk`). Förenkling: ett övre vitt som kartfilen lägger *över* en annan färg över banan ritas
+      under den i förhandsvisningen (PDF:en har rätt ordning).
+    - *Verifierat:* enhetstest med en färgtabell som ägarens (gloria, järnväg, odlad mark, vitt för rött) och PDF-test på en
+      påhittad karta (`halo-map.ts`): ringen ritas efter glorian, järnvägens svart efter vitet, numret före kartans färger över
+      banan, kontors-PDF:en multiplicerar, och med Ghostscript (övertrycket simulerat) är ringen grön, järnvägen svart och
+      kurvorna korsar numret. Före och efter med pdftoppm på samma karta: förut vit skiva, vit järnväg och heltäckande nummer.
+
 ## Inte gjort (för senare)
 
 - Vridning av texter och bilder. Ramen kan inte flyttas bort från papperets mitt (Purple Pens tryckyta har ingen plats för det).
 - Editorn (model space) ritar banan överst och lägger inte kartans färger över banan som förhandsvisningen och PDF:en.
+- Kartfärger på samma sida byter aldrig plats, men mellan sidorna går normen före kartfilen (grönt för punkter under brunt
+  100 % i skog). Ett eget val per färg ("lägg över banan") finns inte.
 
 ## Följder
 

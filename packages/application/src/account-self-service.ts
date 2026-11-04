@@ -12,6 +12,7 @@ import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { activeEventAdministrationGrant } from "./race-session";
 import { purgeRows } from "./purge";
+import { readGoogleLink } from "./google-link";
 import {
   appendUserAccountPasswordVerifier,
   authenticateUserAccountSessionForMutation,
@@ -19,6 +20,7 @@ import {
   currentUserAccountVerifier,
   issueUserAccountSession,
   revokeAllUserAccountSessions,
+  sessionRemembered,
   userAccountPasswordMatches,
   type UserAccountLoginResult,
   type UserAccountSessionProof
@@ -65,9 +67,10 @@ export async function readAccountProfile(
     const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, auth.principal.accountId));
     if (!account) return { status: "unauthorized" } as const;
     const events = await ownedEvents(tx, account.id);
+    const login = await readGoogleLink(tx, account.id, account.email);
     return { status: "ok", response: accountProfileSchema.parse({
       formatVersion: 1, accountId: account.id, email: account.email, displayName: account.displayName,
-      superadmin: account.isSuperadmin, createdAt: account.createdAt.toISOString(), ownedEvents: events
+      superadmin: account.isSuperadmin, createdAt: account.createdAt.toISOString(), ownedEvents: events, ...login
     }) } as const;
   });
 }
@@ -102,8 +105,10 @@ export async function changeAccountPassword(
     const version = await appendUserAccountPasswordVerifier(tx, {
       accountId: account.id, password: parsed.data.newPassword, previousVersion: verifier.version
     }, now);
+    // ADR-0205 tillägg: enheten behåller sitt slag av inloggning (kort utan "Kom ihåg mig").
+    const remember = await sessionRemembered(tx, auth.principal.sessionId);
     await revokeAllUserAccountSessions(tx, account.id, now, "PASSWORD_CHANGED");
-    return issueUserAccountSession(tx, account, version, now);
+    return issueUserAccountSession(tx, account, version, now, { remember });
   });
 }
 

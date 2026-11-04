@@ -37,7 +37,15 @@ export const accountErrorCodeSchema = z.enum([
   "INVALID_REQUEST", "UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "CONFLICT", "RATE_LIMITED",
   "ACCOUNT_BLOCKED", "MAIL_DISABLED", "CONFIRMATION_MISMATCH", "INTERNAL_ERROR",
   /** Mina klubbar: kontot har redan en klubb med samma namn. */
-  "NAME_TAKEN"
+  "NAME_TAKEN",
+  /** ADR-0205 tillägg: kopplingen kan inte tas bort, kontot har inget annat sätt att logga in. */
+  "LAST_LOGIN_METHOD",
+  /** ADR-0205 tillägg: flytten av Google-kopplingen kräver en inloggning nyss (kontot saknar känt lösenord). */
+  "LOGIN_AGAIN",
+  /** ADR-0205 tillägg: Google-kontot är kopplat till ett annat konto som används. */
+  "GOOGLE_IN_USE",
+  /** ADR-0205 tillägg: den påbörjade flytten gäller inte längre (för gammal, annan inloggning eller ändrad koppling). */
+  "EXPIRED"
 ]);
 export const accountErrorResponseSchema = z.object({
   formatVersion: z.literal(1),
@@ -84,7 +92,32 @@ export const accountProfileSchema = z.object({
     eventId: uuid,
     eventName: z.string().trim().min(1).max(160),
     startsOn: z.iso.date()
-  }).strict()).max(10_000)
+  }).strict()).max(10_000),
+  /** ADR-0205 tillägg: kopplat Google-konto (bara adressen visas; tom för en koppling från före migration 0082). */
+  google: z.object({ email: storedAccountEmailSchema.nullable(), linkedAt: instant }).strict().optional(),
+  /** Kontot har ett lösenord som någon känner till (inte bara det slumpade från Google). */
+  hasPassword: z.boolean().optional()
+}).strict();
+
+/** ADR-0205 tillägg: sidan som bekräftar att Google-kopplingen flyttas från ett tomt konto (dubbletten) till det här. */
+export const googleMoveDetailsSchema = z.object({
+  formatVersion: z.literal(1),
+  googleEmail: storedAccountEmailSchema,
+  sourceEmail: storedAccountEmailSchema,
+  sourceCreatedAt: instant,
+  needsPassword: z.boolean(),
+  recentLogin: z.boolean()
+}).strict();
+
+export const googleMoveRequestSchema = z.object({
+  formatVersion: z.literal(1),
+  password: z.string().min(1).max(1024).optional()
+}).strict();
+
+export const googleMoveResponseSchema = z.object({
+  formatVersion: z.literal(1),
+  status: z.literal("moved"),
+  googleEmail: storedAccountEmailSchema
 }).strict();
 
 export const accountDisplayNameChangeSchema = z.object({
@@ -117,3 +150,4 @@ export const deletedResponseSchema = z.object({
 export type AccountErrorCode = z.infer<typeof accountErrorCodeSchema>;
 export type PasswordResetAvailability = z.infer<typeof passwordResetAvailabilitySchema>;
 export type AccountProfile = z.infer<typeof accountProfileSchema>;
+export type GoogleMoveDetails = z.infer<typeof googleMoveDetailsSchema>;

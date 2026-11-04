@@ -53,6 +53,14 @@ import { useDetailGaps } from "./course-setting-circle-cutting";
 import { usePaperSpace } from "./use-paper-space";
 import styles from "./course-setting-print-page.module.css";
 
+/** PDF-jobbet får löparens uppgifter för kartan men inte deltagarens id (det behövs bara för urvalet på sidan, ADR-0213). */
+function withoutEntry(item: SheetItem): SheetItem {
+  if (!item.runner?.entryId) return item;
+  const runner = { ...item.runner };
+  delete runner.entryId;
+  return { ...item, runner };
+}
+
 // Steg 67: styrd av service workern när banläggningen är sparad för offline (`controlledWorker`).
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
@@ -465,7 +473,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           </div>
           <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}
             blockedText={blocked ? pdfText.runnerBlocked : undefined} heading={outputText.pdf} help={outputText.pdfHelp}
-            selection={{ items: mode === "RUNNERS" ? chosenRunners : courseItems, template, templateIsDraft: draftTemplate !== undefined,
+            selection={{ items: mode === "RUNNERS" ? chosenRunners.map(withoutEntry) : courseItems, template, templateIsDraft: draftTemplate !== undefined,
               savedTemplateIds: savedTemplates.map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex: mode === "RUNNERS" ? duplex : partsDuplex,
               pieces: mode === "COURSES" && pieces,
               ...(bundles ? { date: bundles.raceDate } : {}) }} />

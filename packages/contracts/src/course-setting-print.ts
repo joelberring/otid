@@ -21,7 +21,9 @@ export const PRINT_JOB_REQUEST_MAX_BYTES = 2 * 1024 * 1024;
 const text = (max: number) => z.string().max(max);
 const runnerSchema = z.object({
   kind: z.enum(["RUNNER", "VACANT", "RESERVE"]), name: text(200).nullable(), club: text(200).nullable().optional(), className: text(200).nullable(),
-  startTime: text(40).nullable(), startNumber: z.number().int().min(0).max(1_000_000).nullable()
+  startTime: text(40).nullable(), startNumber: z.number().int().min(0).max(1_000_000).nullable(),
+  // ADR-0213: stafettens lag och sträcka för {lag}, {lagnummer} och {sträcka}.
+  team: z.object({ number: z.number().int().min(1).max(1_000_000), name: text(200) }).strict().optional(), leg: z.number().int().min(1).max(100).optional()
 }).strict();
 const mapRect = z.object({ minX: z.number().finite(), minY: z.number().finite(), maxX: z.number().finite(), maxY: z.number().finite() }).strict();
 

@@ -133,8 +133,11 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await inspector.getByTestId("paper-opacity").fill("50");
   await inspector.getByTestId("paper-opacity").press("Enter");
   await expect(logo.getByTestId("paper-image")).toHaveAttribute("opacity", "0.5", { timeout: 15_000 });
-  const href = (await logo.getByTestId("paper-image").getAttribute("href"))!;
-  const fetched = await owner.request.get(href);
+  // Arket visar den nyss uppladdade bilden ur webbläsarens kopia (ADR-0211 beslut 10); servern har den under sin sha256.
+  await expect(logo.getByTestId("paper-image")).toHaveAttribute("href", /^blob:/);
+  const imageOf = async () => ((await doc()).event.paperLayouts?.["1"]?.items?.find(item => item.kind === "IMAGE") as unknown as { image?: string } | undefined)?.image;
+  await expect.poll(imageOf, { timeout: 15_000 }).toMatch(/^[0-9a-f]{64}$/);
+  const fetched = await owner.request.get(`${admin}/course-setting/paper-images/${await imageOf()}`);
   expect(fetched.status()).toBe(200);
   expect(fetched.headers()["content-type"]).toBe("image/png");
   await panel.getByTestId("paper-image-file").setInputFiles({ name: "sponsor.svg", mimeType: "image/svg+xml", buffer: Buffer.from(SVG) });

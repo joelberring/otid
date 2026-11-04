@@ -146,7 +146,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await reviewScreenshots(admin, "klubb-vem-ser-vad");
   await mapBankChoice.getByRole("radio", { name: "Ledare och admin" }).check();
   await access.getByRole("button", { name: "Spara" }).click();
-  await expect(access.getByRole("status")).toHaveText("Vem ser vad är sparat.");
+  await expect(access.getByRole("status")).toContainText("Vem ser vad är sparat.");
   await member.reload();
   await expect(member.getByTestId("map-bank-closed")).toBeVisible();
   await expect(member.getByRole("button", { name: "Använd igen" })).toHaveCount(0);

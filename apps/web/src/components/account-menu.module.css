@@ -5,6 +5,9 @@
   border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink);
   font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer;
 }
+/* Den globala `button:hover` (svart yta) gäller inte här: ljus yta och mörk text också vid hovring och när menyn är öppen. */
+.trigger:hover:not(:disabled), .trigger[aria-expanded="true"] { border-color: var(--ink); background: var(--subtle); color: var(--ink); }
+.trigger[aria-expanded="true"] .initials { background: var(--surface); }
 .trigger:focus-visible { outline: none; box-shadow: var(--focus); }
 .initials {
   display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--subtle);
@@ -24,7 +27,7 @@
   display: flex; align-items: center; min-height: var(--row); padding: 0 .6rem; border: 0; border-radius: 4px; background: none;
   color: var(--ink); font: inherit; font-size: var(--text-sm); text-align: left; text-decoration: none; cursor: pointer;
 }
-.item:hover { background: var(--subtle); }
+.item:hover, .item:hover:not(:disabled) { background: var(--subtle); color: var(--ink); }
 .item:focus-visible { outline: none; box-shadow: var(--focus); }
 .separator { height: 1px; margin: .25rem 0; background: var(--line); }
 .confirm { display: grid; gap: .5rem; padding: .6rem; border-radius: 4px; background: var(--attention-tint); font-size: var(--text-sm); }

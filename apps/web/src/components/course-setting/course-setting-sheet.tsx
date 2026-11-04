@@ -7,7 +7,7 @@ import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { DESCRIPTION_FONT, descriptionNodes, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { pageName, pageNodes, type PrintNode } from "../../lib/course-setting-print";
 import { DescriptionShapes } from "./description-svg";
-import { PaperItemsLayer, type PaperInteraction } from "./course-setting-paper-items";
+import { PaperHandlesLayer, PaperItemsLayer, type PaperInteraction } from "./course-setting-paper-items";
 import styles from "./course-setting-print-page.module.css";
 
 /** Nyckeln för en rams kartbild (samma utsnitt, skala och färger ritas en gång). */
@@ -55,6 +55,7 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
       textAnchor={item.align === "left" ? "start" : item.align === "right" ? "end" : "middle"} fill={item.color === "COURSE" ? courseColor ?? "rgb(204, 0, 255)" : "#000"}
       transform={item.rotation ? `rotate(${item.rotation} ${item.at.x} ${item.at.y})` : undefined}
       fontFamily="Arial, Helvetica, sans-serif" data-testid="print-text">{item.text}</text>)}
+    <PaperHandlesLayer sheet={sheet} interaction={paper} />
     {sheet.cutMarks.map((mark, markIndex) => <line key={markIndex} x1={mark.x1} y1={mark.y1} x2={mark.x2} y2={mark.y2} stroke="#000" strokeWidth={0.15} />)}
     {!sheet.back && <text x={Math.max(2, sheetPaper.marginMm)} y={sheetPaper.heightMm - Math.max(1.2, sheetPaper.marginMm / 3)} fontSize={2} fill="#777"
       fontFamily="Arial, Helvetica, sans-serif">{text.page.draft}</text>}

@@ -109,17 +109,6 @@ export function PaperItemsLayer({ sheet, interaction }: { sheet: Sheet; interact
     {active.editable && <rect width={sheet.paper.widthMm} height={sheet.paper.heightMm} fill="transparent" data-testid="paper-empty" {...marqueeHandlers} />}
     {items.map(item => <PaperItemView key={`${item.frame}:${item.id}`} sheet={sheet} item={item} interaction={active} selected={selectedKeys.has(keyOf(item))}
       onGuides={setGuides} onEdit={active.onText && item.kind === "TEXT" ? () => setEditing(item) : undefined} />)}
-    {interaction?.clip && sheet.frames.map((frame, index) => frame.course === interaction.clip!.course
-      && interaction.selected?.course === frame.course && interaction.selected.id === CLIP_SELECTION
-      ? <PointHandles key={index} frame={frame.clip} points={interaction.clip!.points} onPoint={interaction.onClipPoint} testId="paper-clip-handles"
-        handleId="paper-clip-handle" label={text.clip.vertex} /> : null)}
-    {interaction?.white && sheet.frames.map((frame, index) => {
-      const area = interaction.selected?.course === frame.course && interaction.selected.id.startsWith(WHITE_SELECTION) && frame.course === interaction.white!.course
-        ? Number(interaction.selected.id.slice(WHITE_SELECTION.length)) : -1;
-      const points = interaction.white!.areas[area];
-      return points ? <PointHandles key={`w${index}`} frame={frame.clip} points={points} onPoint={(vertex, point) => interaction.onWhitePoint?.(area, vertex, point)}
-        testId="paper-white-handles" handleId="paper-white-handle" label={text.white.vertex} /> : null;
-    })}
     {guides.map((guide, index) => guide.axis === "x"
       ? <line key={index} className={styles.paperOutline} x1={guide.value} x2={guide.value} y1={0} y2={sheet.paper.heightMm} stroke="#e0007a" strokeWidth={0.25}
         strokeDasharray="1 1" pointerEvents="none" data-testid="paper-guide" data-axis="x" data-kind={guide.kind} />
@@ -268,6 +257,27 @@ function TextEditor({ item, source: raw, onDone }: { item: SheetPaperItem; sourc
         <button type="button" onClick={() => onDone(undefined)}>{text.editor.cancel}</button>
       </div>
     </div>, window.document.body)}
+  </>;
+}
+
+/**
+ * Klippningens och de vita ytornas hörn, ritade sist på arket (över beskrivningen och texterna), så att de alltid går att
+ * dra.
+ */
+export function PaperHandlesLayer({ sheet, interaction }: { sheet: Sheet; interaction?: PaperInteraction | undefined }) {
+  if (!interaction?.editable) return null;
+  return <>
+    {interaction?.clip && sheet.frames.map((frame, index) => frame.course === interaction.clip!.course
+      && interaction.selected?.course === frame.course && interaction.selected.id === CLIP_SELECTION
+      ? <PointHandles key={index} frame={frame.clip} points={interaction.clip!.points} onPoint={interaction.onClipPoint} testId="paper-clip-handles"
+        handleId="paper-clip-handle" label={text.clip.vertex} /> : null)}
+    {interaction?.white && sheet.frames.map((frame, index) => {
+      const area = interaction.selected?.course === frame.course && interaction.selected.id.startsWith(WHITE_SELECTION) && frame.course === interaction.white!.course
+        ? Number(interaction.selected.id.slice(WHITE_SELECTION.length)) : -1;
+      const points = interaction.white!.areas[area];
+      return points ? <PointHandles key={`w${index}`} frame={frame.clip} points={points} onPoint={(vertex, point) => interaction.onWhitePoint?.(area, vertex, point)}
+        testId="paper-white-handles" handleId="paper-white-handle" label={text.white.vertex} /> : null;
+    })}
   </>;
 }
 

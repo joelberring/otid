@@ -148,6 +148,7 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await expect(sheet.getByTestId("print-white-area")).toHaveCount(1, { timeout: 15_000 });
   await expect(sheet.getByTestId("paper-white-handles")).toBeVisible();
   const handle = sheet.getByTestId("paper-white-handle").first();
+  await handle.scrollIntoViewIfNeeded();
   const corner = (await handle.boundingBox())!;
   const whiteBefore = JSON.stringify((await doc()).event.paperLayouts!["1"]!.whiteAreas);
   await owner.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);

@@ -180,7 +180,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           edits: edits as unknown as CourseSettingEditsRequest["edits"] });
         await load();
         if (result.rejected.length === 0) return "saved";
-        console.error("Utskriftsinställningen avvisades", result.rejected);
+        // Ett nytt försök följer; misslyckas det visas det på sidan (inte ett fel i konsolen, som dev-överlägget räknar).
+        console.warn("Utskriftsinställningen avvisades", result.rejected);
         return "conflict";
       }
     });
@@ -284,7 +285,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       const row = group.item === undefined ? undefined : items[group.item];
       group.sheets.forEach((sheet, part) => {
         const page = group.pages?.[part];
-        if (page && row) out.push({ key: `${row.course}|${row.variant ?? ""}|${JSON.stringify(row.training ?? {})}|${page.sheet}`, sheet,
+        // Kartbytets del hör till nyckeln: utan den fick en banas två delar samma nyckel (dev-överläggets "1 Issue").
+        if (page && row) out.push({ key: `${row.course}|${row.variant ?? ""}|${row.part ?? ""}|${JSON.stringify(row.training ?? {})}|${page.sheet}`, sheet,
           label: text.page.sheet(page.title, page.sheet, page.sheets) });
         // En löpare per ark: remsan och baksidan gäller arkets löpare.
         else if (runnerMode && row) out.push({ key: `r${group.item}|${part}`, sheet,

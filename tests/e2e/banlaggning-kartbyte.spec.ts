@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting, warmRoute } from "./helpers";
+import { browserErrors, createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting, warmRoute } from "./helpers";
 
 /**
  * ADR-0203: en bana med kartbyte (Lång i kartbyte.ppen, kartbytet vid 33 med "vänd kartan") som Purple Pen: delväljaren i
@@ -73,6 +73,8 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   await reviewScreenshots(owner, "07-kartbyte-editor-hela");
 
   // 2. Förhandsvisningen: en karta per del, dubbelsidigt förvalt (kartan vänds), del 2 på baksidan med överlappet.
+  // Inga fel i webbläsaren: en banas två delar fick förut samma nyckel i översikten (dev-överläggets "1 Issue").
+  const errors = browserErrors(owner, /\/course-setting\/print$/);
   await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
   const sheets = owner.getByTestId("print-sheet");
   await expect(sheets).toHaveCount(2, { timeout: 60_000 });
@@ -112,6 +114,7 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   await expect(sheets).toHaveCount(4, { timeout: 30_000 });
   await expect(sheets.nth(3)).toHaveAttribute("aria-label", "Baksida (tom)");
   await reviewScreenshots(owner, "07-kartbyte-forhandsvisning");
+  errors.check("utskriftssidan med kartbyten");
 
   // 3. .ppen: delens tryckyta som Purple Pens `<print-area part="1">`.
   await owner.goto(`/admin/${raceId}/course-setting`);

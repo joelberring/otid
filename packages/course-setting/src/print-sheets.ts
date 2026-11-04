@@ -11,6 +11,7 @@ import type { MapRect, OverprintOptions } from "./types";
 import { mirrorFigures } from "./training-mirror";
 import { trainingMapPasses } from "./training-passes";
 import { clipMapPasses, clipMarkings, effectivePaper, paperClipRing } from "./paper-items";
+import { whiteAreasOnFrame } from "./paper-white";
 import { trainingPieceSheets } from "./training-print";
 
 export type SheetLayout =
@@ -55,8 +56,11 @@ export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0
  */
 function withMapPasses(document: Parameters<typeof layoutCoursePage>[0], groups: SheetGroup[]): SheetGroup[] {
   // Klippningen per bana och del (ADR-0203: en del ärver banans papper).
-  const anyClip = Object.keys(document.event.paperLayouts ?? {}).some(key => effectivePaper(document, key.split("#")[0]!, key.includes("#") ? Number(key.split("#")[1]) : undefined).clip);
-  if (!document.training && !anyClip) return groups;
+  const effective = (key: string) => effectivePaper(document, key.split("#")[0]!, key.includes("#") ? Number(key.split("#")[1]) : undefined);
+  const anyClip = Object.keys(document.event.paperLayouts ?? {}).some(key => effective(key).clip);
+  // "Vitt på utskriften" (ADR-0211 beslut 8) kan också komma ur en mall som banorna använder.
+  const anyWhite = Object.keys(document.event.paperLayouts ?? {}).some(key => effective(key).whiteAreas.length > 0);
+  if (!document.training && !anyClip && !anyWhite) return groups;
   const clipCache = new Map<string, ReturnType<typeof effectivePaper>["clip"]>();
   const clipOf = (course: string, part: number | undefined) => {
     const key = `${course}#${part ?? ""}`;
@@ -74,10 +78,11 @@ function withMapPasses(document: Parameters<typeof layoutCoursePage>[0], groups:
     const withPasses = passes ? { ...frame, mapPasses: passes } : frame;
     const axis = (frame.mapArea.minX + frame.mapArea.maxX) / 2;
     const mirrored = mirror ? { ...withPasses, mirror: true, figures: mirrorFigures(frame.figures, axis) } : withPasses;
+    const whitened = whiteAreasOnFrame(document, mirrored, effectivePaper(document, frame.course, frame.part).whiteAreas, mirror);
     // Markeringarna utanför klippningen syns inte (om inte "Visa markeringar utanför utsnittet"); banan står hel.
-    if (!clip || clip.showMarkings) return mirrored;
-    const marked = clipMarkings(document, mirrored, clip, mirror);
-    return { ...mirrored, figures: marked.figures, ...(marked.markingClip.refs.length > 0 ? { markingClip: marked.markingClip } : {}) };
+    if (!clip || clip.showMarkings) return whitened;
+    const marked = clipMarkings(document, whitened, clip, mirror);
+    return { ...whitened, figures: marked.figures, ...(marked.markingClip.refs.length > 0 ? { markingClip: marked.markingClip } : {}) };
   }) })) }));
 }
 

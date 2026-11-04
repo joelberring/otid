@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  applyPaperTemplate, exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
+  exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
   type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect, type PaperTemplate,
   type PaperRect, type Sheet, type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
@@ -34,7 +34,7 @@ import { PrintColors } from "./course-setting-print-colors";
 import { PrintOverview } from "./course-setting-print-overview";
 import { sheetCards, type SheetCard } from "../../lib/course-setting-print-overview";
 import { printOutputSv as outputText } from "../../i18n/course-setting-print-overview-sv";
-import { paperLayoutEdit } from "../../lib/course-setting-paper";
+import { templateEdits } from "../../lib/course-setting-paper";
 import { PdfPanel } from "./course-setting-pdf-panel";
 import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
 import { LayoutTemplatePanel } from "./course-setting-print-template";
@@ -367,7 +367,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   };
   const applyTemplate = (chosenTemplate: PaperTemplate, list: readonly string[] | "ALL") => {
     const ids = list === "ALL" ? courses.map(course => course.id) : list;
-    void saveShown(ids.map(id => paperLayoutEdit(id, applyPaperTemplate(document, id, chosenTemplate))));
+    void saveShown(ids.flatMap(id => templateEdits(document, id, chosenTemplate)));
   };
   const runnerMode = mode === "RUNNERS";
   return <main className={styles.page}>

@@ -9,7 +9,7 @@
  */
 import { Duplex, PDFDocument, PDFName, type PDFRawStream, type PDFRef } from "pdf-lib";
 import {
-  descriptionSymbols, detectPressNorm, drawTrainingMap, lowerPurple, passesKey, PDF_PRINT_CAPABILITIES, pressOrder, sourceMapColors, usageCodes,
+  cmykOfHex, descriptionSymbols, detectPressNorm, drawTrainingMap, lowerPurple, passesKey, PDF_PRINT_CAPABILITIES, pressOrder, sourceMapColors, usageCodes,
   type DescriptionStandard, type OverprintPrimitive, type PressNorm, type PrintProfile, type Sheet, type SheetFrame
 } from "@o-tid/course-setting";
 import { colorUsage, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
@@ -166,6 +166,18 @@ function tintFunction(document: PDFDocument, alternates: readonly Cmyk[]): PDFRe
     Range: [0, 1, 0, 1, 0, 1, 0, 1] }));
 }
 
+/** Papperets färg (#rrggbb) som CMYK utan övertryck. */
+const hexPaint = (hex: string): Paint => ({ ink: { kind: "CMYK", cmyk: cmykOfHex(hex) }, overprint: false });
+
+/** Rektangel med rundade hörn (papperets mm, y nedåt) som väg i punkter. */
+function roundedRect(x: number, y: number, w: number, h: number, radius: number, pageHeight: number): string {
+  const r = Math.min(radius, w / 2, h / 2), k = 0.5523 * r;
+  const P = (px: number, py: number) => `${num(px * PT_PER_MM)} ${num((pageHeight - py) * PT_PER_MM)}`;
+  return [`${P(x + r, y)} m`, `${P(x + w - r, y)} l`, `${P(x + w - r + k, y)} ${P(x + w, y + r - k)} ${P(x + w, y + r)} c`, `${P(x + w, y + h - r)} l`,
+    `${P(x + w, y + h - r + k)} ${P(x + w - r + k, y + h)} ${P(x + w - r, y + h)} c`, `${P(x + r, y + h)} l`, `${P(x + r - k, y + h)} ${P(x, y + h - r + k)} ${P(x, y + h - r)} c`,
+    `${P(x, y + r)} l`, `${P(x, y + r - k)} ${P(x + r - k, y)} ${P(x + r, y)} c`, "h"].join(" ");
+}
+
 export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResult> {
   const notes = new Set<string>();
   const document = await PDFDocument.create({ updateMetadata: false });
@@ -283,10 +295,23 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       `${num(x * PT_PER_MM)} ${num((H - y - h) * PT_PER_MM)} ${num(w * PT_PER_MM)} ${num(h * PT_PER_MM)} re`;
     for (const frame of sheet.frames) {
       const { clip } = frame;
-      const place = (form: { name: string } | undefined) => {
+      // "Vitt på utskriften" (ADR-0211 beslut 8): ytorna som vägar i punkter; `outsideWhite` klipper bort dem jämn–udda.
+      const whitePaths = (frame.whiteAreas ?? []).map(polygon =>
+        `${polygon.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h`);
+      const outsideWhite = whitePaths.length > 0 ? `${rect(clip.x, clip.y, clip.width, clip.height)} ${whitePaths.join(" ")} W* n` : "";
+      const paintWhite = () => {
+        if (whitePaths.length === 0) return;
+        content.save();
+        content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
+        content.fill(WHITE);
+        content.op(`${whitePaths.join(" ")} f`);
+        content.restore();
+      };
+      const place = (form: { name: string } | undefined, excludeWhite = false) => {
         if (!form) return;
         content.save();
         content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
+        if (excludeWhite && outsideWhite) content.op(outsideWhite);
         // Spegelorientering (ADR-0192 beslut 12): kartbilden vänds kring ramens mitt; figurerna är redan speglade.
         const a = frame.mirror ? -1 : 1, x0 = frame.mirror ? clip.x + clip.width : clip.x;
         content.op(`${a} 0 0 1 ${num(x0 * PT_PER_MM)} ${num((H - clip.y - clip.height) * PT_PER_MM)} cm /${form.name} Do`);
@@ -297,19 +322,26 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       const mapMatrix: Matrix = [PT_PER_MM * s, 0, 0, PT_PER_MM * s, PT_PER_MM * frame.transform.translateX, PT_PER_MM * (H - frame.transform.translateY)];
       // Papperets klippning (ADR-0197): specialobjekten i `markingClip.refs` ritas klippta till polygonen, i målningsordning.
       const marked = new Set(frame.markingClip?.refs ?? []);
-      const isMarking = (figure: OverprintPrimitive) => figure.role === "SPECIAL" && figure.kind !== "description" && figure.ref !== undefined && marked.has(figure.ref);
+      const isSpecial = (figure: OverprintPrimitive) => figure.role === "SPECIAL" && figure.kind !== "description" && figure.ref !== undefined;
+      const isMarking = (figure: OverprintPrimitive) => (isSpecial(figure) && marked.has(figure.ref!)) || (outsideWhite !== "" && isSpecial(figure));
       const markingPath = frame.markingClip
         ? `${frame.markingClip.polygon.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h W n` : "";
       const figures = (list: readonly OverprintPrimitive[]) => {
         if (list.length === 0) return;
         content.save();
         content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
-        if (marked.size === 0) figureOps(figureContext, mapMatrix, list);
+        if (marked.size === 0 && !outsideWhite) figureOps(figureContext, mapMatrix, list);
         else {
           let run: OverprintPrimitive[] = [], runMarked = false;
           const flush = () => {
             if (run.length === 0) return;
-            if (runMarked) { content.save(); content.op(markingPath); figureOps(figureContext, mapMatrix, run); content.restore(); }
+            if (runMarked) {
+              content.save();
+              if (markingPath && run.some(figure => marked.has(figure.ref ?? ""))) content.op(markingPath);
+              if (outsideWhite) content.op(outsideWhite);
+              figureOps(figureContext, mapMatrix, run);
+              content.restore();
+            }
             else figureOps(figureContext, mapMatrix, run);
             run = [];
           };
@@ -325,11 +357,13 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       if (over) {
         // BL: kartans färger under banan, banan, kartans färger över banan, sist beskrivningar och texter.
         place(mapForm(frame, "UNDER"));
+        paintWhite();
         figures(frame.figures.filter(figure => inCourseLayer(figure, norm, numbersOnTop)));
-        place(mapForm(frame, "OVER"));
+        place(mapForm(frame, "OVER"), true);
         figures(frame.figures.filter(figure => !inCourseLayer(figure, norm, numbersOnTop)));
       } else {
         place(mapForm(frame));
+        paintWhite();
         figures(frame.figures);
       }
     }
@@ -357,8 +391,16 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
     for (const item of sheet.paperItems ?? []) for (const part of item.parts) {
       switch (part.kind) {
         case "rect": {
-          if (part.fill) { content.fill(part.fill === "BLACK" ? BLACK : WHITE); content.op(`${rect(part.x, part.y, part.width, part.height)} f`); }
-          if (part.stroke) { content.stroke(BLACK); content.lineStyle(part.stroke * PT_PER_MM, 0, 0); content.op(`${rect(part.x, part.y, part.width, part.height)} S`); }
+          // Ramar (ADR-0211 beslut 8): egna färger och rundade hörn.
+          const path = part.radius ? roundedRect(part.x, part.y, part.width, part.height, part.radius, H) : rect(part.x, part.y, part.width, part.height);
+          if (part.fillColor || part.fill) { content.fill(part.fillColor ? hexPaint(part.fillColor) : part.fill === "BLACK" ? BLACK : WHITE); content.op(`${path} f`); }
+          if (part.stroke) { content.stroke(part.strokeColor ? hexPaint(part.strokeColor) : BLACK); content.lineStyle(part.stroke * PT_PER_MM, 0, 0); content.op(`${path} S`); }
+          break;
+        }
+        case "line": {
+          content.stroke(hexPaint(part.color));
+          content.lineStyle(part.width * PT_PER_MM, 0, 0);
+          content.op(`${num(part.x1 * PT_PER_MM)} ${num((H - part.y1) * PT_PER_MM)} m ${num(part.x2 * PT_PER_MM)} ${num((H - part.y2) * PT_PER_MM)} l S`);
           break;
         }
         case "polygon": {

@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import type { PaperLibrary } from "@o-tid/contracts";
 import {
-  applyPaperTemplate, paperLayoutOf, paperTemplateFromCourse, validatePaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperTemplate
+  paperLayoutOf, paperTemplateFromCourse, validatePaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperTemplate
 } from "@o-tid/course-setting";
 import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
-import { paperLayoutEdit } from "../../lib/course-setting-paper";
+import { templateEdits } from "../../lib/course-setting-paper";
 import { deletePaperLibrary, fetchPaperLibrary, savePaperLibrary } from "../../lib/course-setting-paper-api";
 import { Button } from "../ui";
 import styles from "./course-setting-print-page.module.css";
@@ -32,11 +32,11 @@ export function PaperTemplatesSection({ raceId, document, course, courses, readO
     fetchPaperLibrary(raceId).then(value => { setLibrary(value); setLibraryState("ready"); }, error => { console.error("Biblioteket", error); setLibraryState("failed"); });
   }, [raceId, readOnly, libraryState]);
   const users = (id: string) => Object.values(document.event.paperLayouts ?? {}).filter(layout => layout.template === id).length;
-  const use = (id: string, template: PaperTemplate | undefined) => paperLayoutEdit(id, applyPaperTemplate(document, id, template));
+  const use = (id: string, template: PaperTemplate | undefined) => templateEdits(document, id, template);
 
   async function saveAs() {
     const template = paperTemplateFromCourse(document, course, newTemplateId(), name.trim() || text.templates.defaultName);
-    await onSave([{ type: "PUT_PAPER_TEMPLATE", template }, use(course, template)]);
+    await onSave([{ type: "PUT_PAPER_TEMPLATE", template }, ...use(course, template)]);
   }
   const [note, setNote] = useState<string>();
   async function toLibrary(template: PaperTemplate) {
@@ -49,24 +49,24 @@ export function PaperTemplatesSection({ raceId, document, course, courses, readO
     // Samma id med annat innehåll i den här tävlingen: ny kopia.
     const clash = templates.find(item => item.id === template.id);
     const copy = clash && JSON.stringify(clash) !== JSON.stringify(template) ? { ...template, id: newTemplateId() } : template;
-    await onSave([{ type: "PUT_PAPER_TEMPLATE", template: copy }, use(course, copy)]);
+    await onSave([{ type: "PUT_PAPER_TEMPLATE", template: copy }, ...use(course, copy)]);
   }
   return <fieldset className={styles.stack} disabled={readOnly} data-testid="paper-templates">
     <legend><strong>{text.templates.heading}</strong></legend>
     <p className={styles.muted}>{text.templates.help}</p>
     <div className={styles.row}>
       <label className={styles.field}>{text.templates.use}<select value={current?.id ?? ""} data-testid="paper-template"
-        onChange={event => void onSave([use(course, templates.find(row => row.id === event.target.value))])}>
+        onChange={event => void onSave(use(course, templates.find(row => row.id === event.target.value)))}>
         <option value="">{text.templates.noTemplate}</option>
         {templates.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
       {current && <span className={styles.muted} data-testid="paper-template-users">{text.templates.users(users(current.id))}</span>}
     </div>
     {current && <div className={styles.row}>
       <Button variant="secondary" data-testid="paper-template-apply-all"
-        onClick={() => void onSave(courses.filter(row => row.id !== course).map(row => use(row.id, current)))}>{text.templates.applyAll}</Button>
+        onClick={() => void onSave(courses.filter(row => row.id !== course).flatMap(row => use(row.id, current)))}>{text.templates.applyAll}</Button>
       <Button variant="quiet" data-testid="paper-template-update" onClick={() => {
         const template = paperTemplateFromCourse(document, course, current.id, current.name);
-        void onSave([{ type: "PUT_PAPER_TEMPLATE", template }, use(course, template)]);
+        void onSave([{ type: "PUT_PAPER_TEMPLATE", template }, ...use(course, template)]);
       }}>{text.templates.update}</Button>
       <Button variant="quiet" onClick={() => { if (window.confirm(text.templates.removeConfirm(current.name, users(current.id)))) void onSave([{ type: "DELETE_PAPER_TEMPLATE", id: current.id }]); }}>
         {text.templates.remove}</Button>

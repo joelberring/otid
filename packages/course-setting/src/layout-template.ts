@@ -104,6 +104,11 @@ export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "par
   readonly mirror?: boolean | undefined;
   /** Papperets klippning (ADR-0197): specialobjekten i `refs` ritas klippta till polygonen (papperets mm). */
   readonly markingClip?: MarkingClip | undefined;
+  /**
+   * "Vitt på utskriften" (ADR-0211 beslut 8): polygoner i papperets mm som skrivs ut vita över kartan. Banan ritas ovanpå
+   * hel; markeringarna (specialobjekten) syns inte i dem.
+   */
+  readonly whiteAreas?: readonly (readonly { readonly x: number; readonly y: number }[])[] | undefined;
 }
 
 /**

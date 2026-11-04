@@ -10,6 +10,7 @@ import type { TrainingMapPass } from "./training-types";
 import type { CourseSettingDocument, MapRect, PartOverlap } from "./types";
 import { CourseSettingEditError } from "./types";
 import { measuredLengthMeters, variations } from "./walk";
+import { shapeParts, shapeSize, validateShapeItem, validateWhiteAreas } from "./paper-shapes";
 
 export type PaperAlign = "left" | "center" | "right";
 
@@ -21,6 +22,9 @@ interface PaperItemBase {
   readonly relativeTo?: "PAGE" | undefined;
   /** En bana på flera sidor: ALL = på varje sida; saknas = bara första sidan (som beskrivningen). */
   readonly pages?: "ALL" | undefined;
+  /** Lagerlistan (ADR-0211 beslut 8): låst = går inte att markera eller flytta på arket; dold = står inte på arket. */
+  readonly locked?: boolean | undefined;
+  readonly hide?: boolean | undefined;
 }
 
 /** Text: rutans bredd (raderna justeras i den), storleken (em i mm), fet, justering och vit bakgrund. */
@@ -58,7 +62,31 @@ export interface PaperNorthArrow extends PaperItemBase {
   readonly sizeMm: number;
 }
 
-export type PaperItem = PaperText | PaperImage | PaperScaleBar | PaperNorthArrow;
+/**
+ * Rektangel eller ram (ADR-0211 beslut 8): bredd och höjd, linjens bredd (0 = ingen linje), färg (#rrggbb), fyllning
+ * (saknas = ingen) och rundade hörn. Så kan banorna få samma ramar och fält kring logotyper.
+ */
+export interface PaperRectangle extends PaperItemBase {
+  readonly kind: "RECT";
+  readonly widthMm: number;
+  readonly heightMm: number;
+  readonly strokeMm: number;
+  readonly color: string;
+  readonly fill?: string | undefined;
+  readonly radiusMm?: number | undefined;
+}
+
+/** Linje i rutan bredd × höjd: från övre vänstra till nedre högra hörnet, eller (`rising`) från nedre vänstra till övre högra. */
+export interface PaperLine extends PaperItemBase {
+  readonly kind: "LINE";
+  readonly widthMm: number;
+  readonly heightMm: number;
+  readonly strokeMm: number;
+  readonly color: string;
+  readonly rising?: boolean | undefined;
+}
+
+export type PaperItem = PaperText | PaperImage | PaperScaleBar | PaperNorthArrow | PaperRectangle | PaperLine;
 export type PaperItemKind = PaperItem["kind"];
 
 /**
@@ -96,7 +124,14 @@ export interface CoursePaperLayout {
   readonly clip?: PaperClip | "NONE" | undefined;
   /** Kartbyten (ADR-0203): "Visa överlapp" mot föregående del; saknas = sista sträckan. Gäller banan (inte en del). */
   readonly overlap?: PartOverlap | undefined;
+  /** "Vitt på utskriften" (ADR-0211 beslut 8): ytor i ramen som skrivs ut vita; tom lista = inga (också om mallen har). */
+  readonly whiteAreas?: readonly PaperShape[] | undefined;
 }
+
+/** En rektangel eller polygon i ramens mm (origo i ramens övre vänstra hörn). */
+export type PaperShape =
+  | { readonly shape: "RECT"; readonly rect: PaperRect }
+  | { readonly shape: "POLYGON"; readonly points: readonly { readonly x: number; readonly y: number }[] };
 
 /** En namngiven mall för papperet ("Klubbens träningsmall"): element, klippning och beskrivningens inställning. */
 export interface PaperTemplate {
@@ -106,6 +141,12 @@ export interface PaperTemplate {
   readonly items: readonly PaperItem[];
   readonly clip?: PaperClip | undefined;
   readonly descriptions?: PaperDescriptions | undefined;
+  readonly whiteAreas?: readonly PaperShape[] | undefined;
+  /**
+   * Papperet (ADR-0211 beslut 9): storlek och marginal i 1/100 tum och riktning, som banans tryckyta (`PrintArea.page`).
+   * "Använd mallen" sätter banans papper till mallens.
+   */
+  readonly page?: { readonly width: number; readonly height: number; readonly margins: number; readonly landscape: boolean } | undefined;
 }
 
 /** Tävlingens värden för variablerna som inte finns i banfilen. */
@@ -160,7 +201,9 @@ export function validatePaperItem(value: unknown): PaperItem {
   const item = value as PaperItem;
   if (typeof item.id !== "string" || !ID.test(item.id)) throw invalid("elementets id");
   const base = { id: item.id, at: validAnchor(item.at, "elementet"), ...(item.relativeTo === "PAGE" ? { relativeTo: "PAGE" as const } : {}),
-    ...(item.pages === "ALL" ? { pages: "ALL" as const } : {}) };
+    ...(item.pages === "ALL" ? { pages: "ALL" as const } : {}), ...(item.locked === true ? { locked: true } : {}), ...(item.hide === true ? { hide: true } : {}) };
+  if (item.locked !== undefined && typeof item.locked !== "boolean") throw invalid("låst");
+  if (item.hide !== undefined && typeof item.hide !== "boolean") throw invalid("dold");
   if (item.relativeTo !== undefined && item.relativeTo !== "PAGE") throw invalid("vad elementet står i förhållande till");
   if (item.pages !== undefined && item.pages !== "ALL") throw invalid("sidorna (första eller alla)");
   const flag = (value: unknown, what: string) => {
@@ -191,6 +234,7 @@ export function validatePaperItem(value: unknown): PaperItem {
     case "NORTH_ARROW":
       if (!within(item.sizeMm, PAPER_LIMITS.minArrowMm, PAPER_LIMITS.maxArrowMm)) throw invalid("nordpilens storlek");
       return { ...base, kind: "NORTH_ARROW", sizeMm: item.sizeMm };
+    case "RECT": case "LINE": return validateShapeItem(item, base);
     default: throw invalid("okänt slags element");
   }
 }
@@ -246,6 +290,7 @@ export function validatePaperLayout(value: CoursePaperLayout): CoursePaperLayout
     if (value.hidden.length > 0) out.hidden = [...new Set(value.hidden)];
   }
   if (value.clip !== undefined) out.clip = value.clip === "NONE" ? "NONE" : validatePaperClip(value.clip);
+  if (value.whiteAreas !== undefined) out.whiteAreas = validateWhiteAreas(value.whiteAreas);
   if (value.overlap !== undefined) {
     if (!["NONE", "LAST_LEG", "PREVIOUS_PART"].includes(value.overlap)) throw invalid("överlappet vid kartbytet");
     if (value.overlap !== "LAST_LEG") out.overlap = value.overlap;
@@ -263,7 +308,16 @@ export function validatePaperTemplate(value: unknown): PaperTemplate {
   const descriptions = template.descriptions === undefined ? undefined : validatePaperDescriptions(template.descriptions);
   return { schemaVersion: 1, id: template.id, name, items: validItems(template.items ?? []),
     ...(template.clip !== undefined ? { clip: validatePaperClip(template.clip) } : {}),
-    ...(descriptions && Object.keys(descriptions).length > 0 ? { descriptions } : {}) };
+    ...(descriptions && Object.keys(descriptions).length > 0 ? { descriptions } : {}),
+    ...(template.whiteAreas !== undefined && template.whiteAreas.length > 0 ? { whiteAreas: validateWhiteAreas(template.whiteAreas) } : {}),
+    ...(template.page !== undefined ? { page: validTemplatePage(template.page) } : {}) };
+}
+
+function validTemplatePage(page: NonNullable<PaperTemplate["page"]>): NonNullable<PaperTemplate["page"]> {
+  if (!within(page.width, 100, 10_000) || !within(page.height, 100, 10_000) || !within(page.margins, 0, 1000) || typeof page.landscape !== "boolean") {
+    throw invalid("mallens papper");
+  }
+  return { width: page.width, height: page.height, margins: page.margins, landscape: page.landscape };
 }
 
 /** Nyckeln för en dels papper i `event.paperLayouts` (ADR-0203): "1#0", "1#1" … */
@@ -300,6 +354,9 @@ export interface EffectivePaper {
   readonly clip?: PaperClip | undefined;
   readonly clipSource?: "OWN" | "TEMPLATE" | undefined;
   readonly descriptions: PaperDescriptions;
+  /** "Vitt på utskriften": banans ytor, annars mallens. */
+  readonly whiteAreas: readonly PaperShape[];
+  readonly whiteSource?: "OWN" | "TEMPLATE" | undefined;
 }
 
 /**
@@ -323,7 +380,9 @@ export function effectivePaper(document: CourseSettingDocument, course: string, 
   const clip = layout.clip === "NONE" ? undefined : layout.clip ?? template?.clip;
   const clipSource = layout.clip === "NONE" || !clip ? undefined : layout.clip ? "OWN" as const : "TEMPLATE" as const;
   const descriptions = { ...(template?.descriptions ?? {}), ...(layout.descriptions ?? {}) };
-  return { ...(template ? { template } : {}), items, ...(clip ? { clip, clipSource } : {}), descriptions };
+  const white = layout.whiteAreas ?? template?.whiteAreas ?? [];
+  const whiteSource = white.length === 0 ? undefined : layout.whiteAreas ? "OWN" as const : "TEMPLATE" as const;
+  return { ...(template ? { template } : {}), items, ...(clip ? { clip, clipSource } : {}), descriptions, whiteAreas: white, ...(whiteSource ? { whiteSource } : {}) };
 }
 
 /**
@@ -350,8 +409,10 @@ export function resetPaperItem(document: CourseSettingDocument, course: string, 
 export function paperTemplateFromCourse(document: CourseSettingDocument, course: string, id: string, name: string, part?: number): PaperTemplate {
   const effective = effectivePaper(document, course, part);
   const descriptions = effective.descriptions;
+  const page = document.courses.find(row => row.id === course)?.printArea?.page;
   return validatePaperTemplate({ schemaVersion: 1, id, name, items: effective.items.map(row => row.item),
-    ...(effective.clip ? { clip: effective.clip } : {}), ...(Object.keys(descriptions).length > 0 ? { descriptions } : {}) });
+    ...(effective.clip ? { clip: effective.clip } : {}), ...(Object.keys(descriptions).length > 0 ? { descriptions } : {}),
+    ...(effective.whiteAreas.length > 0 ? { whiteAreas: effective.whiteAreas } : {}), ...(page ? { page } : {}) });
 }
 
 /** Banans papper när mallen används: mallen och beskrivningen ur mallen; banans egna element står kvar, ändringar av mallens tas bort. */
@@ -457,7 +518,10 @@ export function paperTextForPpen(text: string, document: CourseSettingDocument):
 /** Delarna som förhandsvisningen (SVG) och PDF:en ritar, i papperets mm (y nedåt). Svart och vitt; bilden med täckning. */
 export type PaperPart =
   | { readonly kind: "rect"; readonly x: number; readonly y: number; readonly width: number; readonly height: number;
-      readonly fill?: "WHITE" | "BLACK" | undefined; readonly stroke?: number | undefined }
+      readonly fill?: "WHITE" | "BLACK" | undefined; readonly stroke?: number | undefined;
+      /** Rektangelns färger (#rrggbb, ADR-0211 beslut 8) i stället för svart och vitt, och rundade hörn. */
+      readonly fillColor?: string | undefined; readonly strokeColor?: string | undefined; readonly radius?: number | undefined }
+  | { readonly kind: "line"; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number; readonly width: number; readonly color: string }
   | { readonly kind: "polygon"; readonly points: readonly { readonly x: number; readonly y: number }[]; readonly fill: "WHITE" | "BLACK";
       readonly stroke?: number | undefined }
   | { readonly kind: "text"; readonly text: string; readonly at: { readonly x: number; readonly y: number }; readonly heightMm: number;
@@ -475,6 +539,8 @@ export interface SheetPaperItem {
   readonly source: PaperSource;
   readonly relativeTo: "FRAME" | "PAGE";
   readonly parts: readonly PaperPart[];
+  /** Låst i lagerlistan: ritas men markeras och flyttas inte på arket. */
+  readonly locked?: boolean | undefined;
 }
 
 export const PAPER_TEXT_LINE = 1.2;
@@ -504,6 +570,7 @@ export function paperItemSize(item: PaperItem, text?: string): { width: number; 
     case "SCALE_BAR": return { width: item.widthMm + (item.background ? 2 * SCALE_BAR.pad : 0),
       height: SCALE_BAR.label * PAPER_TEXT_LINE + SCALE_BAR.gap + SCALE_BAR.bar + (item.background ? 2 * SCALE_BAR.pad : 0) };
     case "NORTH_ARROW": return { width: item.sizeMm * 0.6, height: item.sizeMm };
+    case "RECT": case "LINE": return shapeSize(item);
   }
 }
 
@@ -548,6 +615,7 @@ export function paperItemParts(item: PaperItem, at: { x: number; y: number }, co
         { kind: "text", text: "N", at: { x: at.x + w / 2, y: at.y + h }, heightMm: 0.28 * h, bold: true, align: "center" }
       ];
     }
+    case "RECT": case "LINE": return shapeParts(item, at);
   }
 }
 
@@ -568,6 +636,7 @@ export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFra
   const partOwn = new Set(frame.part !== undefined ? (ownPartLayout(document, frame.course, frame.part).items ?? []).map(item => item.id) : []);
   for (const { item, source } of effectivePaper(document, frame.course, frame.part).items) {
     if (options.firstPage === false && item.pages !== "ALL") continue;
+    if (item.hide) continue;
     // Kartbyten (ADR-0203): "Alla sidor" är alla delar; en senare del har annars bara sina egna element.
     if (frame.part !== undefined && frame.part > 0 && item.pages !== "ALL" && !partOwn.has(item.id)) continue;
     const onPage = item.relativeTo === "PAGE";
@@ -577,6 +646,7 @@ export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFra
     const size = paperItemSize(item, text);
     const at = anchorToPaper(item.at, size, onPage ? options.page : frame.clip);
     out.push({ id: item.id, kind: item.kind, course: frame.course, frame: frameIndex, rect: { ...at, ...size }, source, relativeTo: onPage ? "PAGE" : "FRAME",
+      ...(item.locked ? { locked: true } : {}),
       parts: paperItemParts(item, at, { ...(text !== undefined ? { text } : {}), printScale: frame.printScale }) });
   }
   return out;
@@ -603,7 +673,7 @@ export function paperClipRing(clip: PaperClip, frame: { readonly clip: PaperRect
 }
 
 /** Specialobjekten som är punktsymboler: står helt eller inte alls (efter sin punkt), klipps aldrig mitt itu. */
-const POINT_MARKINGS = new Set(["first-aid", "water", "optional-crossing-point", "forbidden-route", "registration-mark"]);
+export const POINT_MARKINGS: ReadonlySet<string> = new Set(["first-aid", "water", "optional-crossing-point", "forbidden-route", "registration-mark"]);
 
 function inside(point: { x: number; y: number }, polygon: readonly { x: number; y: number }[]): boolean {
   let hit = false;

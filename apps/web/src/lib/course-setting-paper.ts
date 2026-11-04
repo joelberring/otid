@@ -1,5 +1,5 @@
 import {
-  paperAnchorOf, paperLayoutOf, PAPER_LIMITS, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
+  applyPaperTemplate, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
   type PaperItemKind, type PaperRect,
   type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
@@ -17,7 +17,25 @@ export function newPaperItem(kind: PaperItemKind, id: string, image?: { sha256: 
       aspect: Math.max(0.01, Math.min(100, image!.width / image!.height)), widthMm: 25 };
     case "SCALE_BAR": return { id, kind, at: { corner: "BOTTOM_RIGHT", x: 3, y: 3 }, widthMm: 40, background: true };
     case "NORTH_ARROW": return { id, kind, at: { corner: "TOP_RIGHT", x: 3, y: 30 }, sizeMm: 12 };
+    // ADR-0211 beslut 8: en ram längs kartramen (förankrad i arket) och en kort linje.
+    case "RECT": return { id, kind, at: { corner: "TOP_LEFT", x: 10, y: 10 }, relativeTo: "PAGE", widthMm: 60, heightMm: 25, ...PAPER_SHAPE_DEFAULTS };
+    case "LINE": return { id, kind, at: { corner: "TOP_LEFT", x: 10, y: 40 }, relativeTo: "PAGE", widthMm: 60, heightMm: 0, ...PAPER_SHAPE_DEFAULTS };
   }
+}
+
+/**
+ * Ändringarna som gör att banan använder mallen (ADR-0211 beslut 9): papperet (element, klippning, vita ytor och
+ * beskrivningen) och, om mallen har det, papperets storlek, riktning och marginal i banans tryckyta.
+ */
+export function templateEdits(document: CourseSettingDocument, course: string, template: PaperTemplate | undefined): CourseSettingEdit[] {
+  const edits: CourseSettingEdit[] = [paperLayoutEdit(course, applyPaperTemplate(document, course, template))];
+  if (template?.page && course !== "ALL_CONTROLS") {
+    const area = printAreaOf(document, course);
+    const same = area.page && area.page.width === template.page.width && area.page.height === template.page.height
+      && area.page.margins === template.page.margins && area.page.landscape === template.page.landscape;
+    if (!same) edits.push({ type: "SET_PRINT_AREA", course, area: { ...area, page: template.page } });
+  }
+  return edits;
 }
 
 /** Ramen (eller arket) som elementet är förankrat i. */
@@ -47,8 +65,11 @@ export function resizedPaperItem(item: PaperItem, placed: SheetPaperItem, refere
     case "IMAGE": next = { ...item, widthMm: clamp(width, 2, PAPER_LIMITS.maxWidthMm) }; break;
     case "SCALE_BAR": next = { ...item, widthMm: clamp(width - (item.background ? 2 : 0), PAPER_LIMITS.minScaleBarMm, PAPER_LIMITS.maxScaleBarMm) }; break;
     case "NORTH_ARROW": next = { ...item, sizeMm: clamp(height, PAPER_LIMITS.minArrowMm, PAPER_LIMITS.maxArrowMm) }; break;
+    case "RECT": case "LINE": next = { ...item, widthMm: clamp(width, PAPER_SHAPE_LIMITS.minMm, PAPER_SHAPE_LIMITS.maxMm),
+      heightMm: clamp(height, PAPER_SHAPE_LIMITS.minMm, PAPER_SHAPE_LIMITS.maxMm) }; break;
   }
-  const size = next.kind === "IMAGE" ? { width: next.widthMm, height: next.widthMm / next.aspect } : next.kind === "NORTH_ARROW"
+  const size = next.kind === "RECT" || next.kind === "LINE" ? { width: next.widthMm, height: next.heightMm }
+    : next.kind === "IMAGE" ? { width: next.widthMm, height: next.widthMm / next.aspect } : next.kind === "NORTH_ARROW"
     ? { width: next.sizeMm * 0.6, height: next.sizeMm } : next.kind === "TEXT" ? { width: next.widthMm, height: placed.rect.height }
       : { width: next.widthMm + (next.background ? 2 : 0), height: placed.rect.height };
   return { ...next, at: paperAnchorOf({ x: placed.rect.x, y: placed.rect.y, ...size }, reference) };
@@ -67,6 +88,9 @@ export function paperUndoFor(document: CourseSettingDocument, edits: readonly Co
   for (const edit of edits) {
     switch (edit.type) {
       case "SET_PAPER_LAYOUT": out.push(layout(edit.course)); break;
+      // Mallens papper (ADR-0211 beslut 9): banans tryckyta som den var.
+      case "SET_PRINT_AREA": if (edit.part === undefined) out.push({ type: "SET_PRINT_AREA", course: edit.course,
+        area: document.courses.find(row => row.id === edit.course)?.printArea ?? null }); break;
       case "PUT_PAPER_TEMPLATE": {
         const before = document.event.paperTemplates?.find(row => row.id === edit.template.id);
         out.push(before ? { type: "PUT_PAPER_TEMPLATE", template: before } : { type: "DELETE_PAPER_TEMPLATE", id: edit.template.id });
@@ -101,5 +125,7 @@ export function paperItemLabel(item: PaperItem): string {
     case "IMAGE": return "Bild";
     case "SCALE_BAR": return "Skalstock";
     case "NORTH_ARROW": return "Nordpil";
+    case "RECT": return "Ram";
+    case "LINE": return "Linje";
   }
 }

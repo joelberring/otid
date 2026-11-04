@@ -10,9 +10,10 @@ import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./club-archive.module.css";
+import { FromClubPicker } from "../club-affiliation/from-club-picker";
 
 const text = clubArchiveSv.members;
-const ROLES: readonly ClubRole[] = ["READER", "ADMIN", "OWNER"];
+const ROLES: readonly ClubRole[] = ["READER", "LEADER", "ADMIN", "OWNER"];
 
 /**
  * ADR-0194 beslut 1: klubbens medlemmar och inbjudningar. Bjud in med e-postadressen (samma svar med och utan konto); listan
@@ -24,7 +25,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  const admin = club.viewer.role !== "READER";
+  const admin = club.viewer.role === "OWNER" || club.viewer.role === "ADMIN";
   const owner = club.viewer.role === "OWNER";
   const mailEnabled = club.mailEnabled ?? false;
 
@@ -97,13 +98,15 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
         </div>}
       </li>)}
       {club.invitations.map(invitation => <li key={invitation.invitationId} data-testid="club-invitation">
-        <div><strong>{invitation.email}</strong><span>{[clubArchiveSv.roles[invitation.role], text.pending,
+        <div><strong>{invitation.displayName ?? invitation.email}</strong><span>{[clubArchiveSv.roles[invitation.role], text.pending,
           invitationSentText(invitation.sentAt, mailEnabled)].filter(Boolean).join(" · ")}</span></div>
         {(owner || invitation.role !== "OWNER") && <div className={styles.actions}>
-          <InvitationActions email={invitation.email} mailEnabled={mailEnabled} disabled={busy} onSent={onChanged}
+          <InvitationActions name={invitation.displayName ?? invitation.email} fromClub={invitation.displayName !== undefined}
+            mailEnabled={mailEnabled} disabled={busy} onSent={onChanged}
             endpoint={`${clubBase(club.clubId)}/invitations/${invitation.invitationId}`} />
           <Button variant="secondary" disabled={busy}
-            onClick={() => remove(invitation.email, { memberId: null, invitationId: invitation.invitationId })}>{text.remove}</Button>
+            onClick={() => remove(invitation.displayName ?? invitation.email, { memberId: null, invitationId: invitation.invitationId })}>
+            {text.remove}</Button>
         </div>}
       </li>)}
     </ul>
@@ -118,6 +121,9 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
       </div>
       <Button type="submit" disabled={busy || !email.trim()}>{text.inviteButton}</Button>
     </form>}
+    {/* ADR-0209: "Från klubben" med rollen som är vald ovan. */}
+    {admin && <FromClubPicker context={{ kind: "CLUB", id: club.clubId }} role={role} roleLabel={clubArchiveSv.roles[role]} disabled={busy}
+      onInvited={onChanged} />}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
   </section>;
 }

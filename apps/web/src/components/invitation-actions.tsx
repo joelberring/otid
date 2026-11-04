@@ -20,9 +20,10 @@ export function invitationSentText(sentAt: string | null | undefined, mailEnable
 /**
  * ADR-0206: knappen vid en öppen inbjudan. Med e-post på servern "Skicka igen" (ny länk, de tidigare slutar gälla); utan den
  * "Kopiera länken" så att administratören kan skicka den själv. Länken visas också i ett fält om urklippet inte går att nå.
+ * `name` är adressen eller, för en inbjudan "Från klubben" (ADR-0209), namnet; en sådan kan bara mejlas (länksidan visar adressen).
  */
-export function InvitationActions({ email, endpoint, mailEnabled, disabled, onSent }: { email: string; endpoint: string; mailEnabled: boolean;
-  disabled?: boolean; onSent?: () => void | Promise<void> }) {
+export function InvitationActions({ name, fromClub, endpoint, mailEnabled, disabled, onSent }: { name: string; fromClub?: boolean;
+  endpoint: string; mailEnabled: boolean; disabled?: boolean; onSent?: () => void | Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [link, setLink] = useState<string>();
@@ -35,7 +36,7 @@ export function InvitationActions({ email, endpoint, mailEnabled, disabled, onSe
       const parsed = invitationResendResponseSchema.safeParse(response.json);
       if (response.status !== 200 || !parsed.success) { setMessage({ tone: "error", text: text.failed }); return; }
       const result = parsed.data;
-      if (result.status === "sent") { setMessage({ tone: "ok", text: text.resent(email) }); await onSent?.(); return; }
+      if (result.status === "sent") { setMessage({ tone: "ok", text: text.resent(name) }); await onSent?.(); return; }
       if (result.status !== "link") { setMessage({ tone: "error", text: result.status === "throttled" ? text.throttled : text.failed }); return; }
       const url = `${window.location.origin}/inbjudan#token=${result.token}`;
       setLink(url);
@@ -45,8 +46,9 @@ export function InvitationActions({ email, endpoint, mailEnabled, disabled, onSe
     finally { setBusy(false); }
   }
 
+  if (!mailEnabled && fromClub) return null;
   return <span className={styles.actions}>
-    <Button variant="secondary" disabled={busy || disabled} aria-label={mailEnabled ? text.resendLabel(email) : text.copyLabel(email)}
+    <Button variant="secondary" disabled={busy || disabled} aria-label={mailEnabled ? text.resendLabel(name) : text.copyLabel(name)}
       onClick={() => void run()}>{mailEnabled ? text.resend : text.copy}</Button>
     {message && <span className={message.tone === "error" ? styles.error : styles.ok} role={message.tone === "error" ? "alert" : "status"}>
       {message.text}</span>}

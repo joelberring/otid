@@ -1,0 +1,292 @@
+import { createHash, randomUUID } from "node:crypto";
+import { and, desc, eq, sql } from "drizzle-orm";
+import {
+  CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES, raceClubArchiveLiftRequestSchema, raceOrganiserRequestSchema, type RaceClubArchiveView
+} from "@o-tid/contracts";
+import { writeIofCourseData, writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
+import { schema, type Database } from "@o-tid/database";
+import { localRaceDate, raceFinishedForArchive, raceTitle } from "@o-tid/domain";
+import { clubJournal, clubMembership, clubRoleAtLeast } from "./club-access";
+import { forgetEntryThumbnail } from "./club-archive-checks";
+import { courseFileSummary } from "./club-archive-import";
+import { coursesArePublic } from "./course-secrecy";
+import { organisationById, organisationSummary } from "./organisations";
+import { requireRaceRole, type RaceSessionProof } from "./race-session";
+import type { DbExecutor } from "./snapshot";
+
+/**
+ * ADR-0209 beslut 4: tävlingens arrangörsklubb och tävlingen i klubbarkivet.
+ *
+ * - Arrangörsklubben är en klubb i listan; förvalet är skaparens bekräftade klubb. Den syns bara för tävlingens behöriga.
+ * - Före tävlingen visas ingenting om den för klubben. "Lägg i klubbarkivet" gör en träning i klubbarkivet som är kopplat
+ *   till arrangörsklubben, med tävlingens kartfil (som kartversion i klubbens kartor, ADR-0196; samma innehåll en gång),
+ *   banläggningens dokument (.ppen), banorna som IOF XML och en länk tillbaka till tävlingen. Inga personuppgifter: inga
+ *   startlistor, resultat eller deltagare. Bara den som är administratör både i tävlingen och i klubbarkivet får göra det.
+ * - Före tävlingsdagen (eller medan banorna är hemliga, ADR-0176) krävs att arrangören bekräftar banhemligheten.
+ * - "Ta ur klubbarkivet" tar bort träningen (och kartan och versionen som inlyftet skapade, om inget annat använder dem).
+ *   Tävlingen ändras aldrig. Inget läggs in automatiskt.
+ */
+type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" };
+type ReadProof = Omit<RaceSessionProof, "csrfCookie" | "csrfHeader"> & Partial<Pick<RaceSessionProof, "csrfCookie" | "csrfHeader">>;
+
+async function raceFacts(tx: DbExecutor, raceId: string) {
+  const [row] = await tx.select({ race: schema.races, event: schema.events }).from(schema.races)
+    .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
+  return row;
+}
+
+/** Den som äger tävlingen (skaparen) och hens bekräftade klubb i listan, för förvalet. */
+async function ownerConfirmedOrganisation(tx: DbExecutor, eventId: string): Promise<string | undefined> {
+  const rows = (await tx.execute<{ organisation_id: string }>(sql`select m.organisation_id from event_administration_grant g
+    join account_club_membership m on m.account_id = g.account_id and m.status = 'CONFIRMED' and m.organisation_id is not null
+    where g.event_id = ${eventId} and g.role = 'OWNER' order by m.decided_at limit 2`)).rows;
+  return rows[0]?.organisation_id;
+}
+
+/** Förvalet när tävlingen skapas: skaparens bekräftade klubb, om hen har precis en. */
+export async function defaultRaceOrganiser(tx: DbExecutor, input: { raceId: string; accountId: string; now: Date }): Promise<void> {
+  const rows = await tx.select({ organisationId: schema.accountClubMemberships.organisationId }).from(schema.accountClubMemberships)
+    .where(and(eq(schema.accountClubMemberships.accountId, input.accountId), eq(schema.accountClubMemberships.status, "CONFIRMED"),
+      sql`${schema.accountClubMemberships.organisationId} is not null`)).limit(2);
+  if (rows.length !== 1) return;
+  await tx.insert(schema.raceOrganisers).values({ raceId: input.raceId, organisationId: rows[0]!.organisationId!, setBy: input.accountId,
+    setAt: input.now }).onConflictDoNothing();
+}
+
+/** Klubbarkivet som är kopplat till arrangörsklubben och den inloggades roll där (undefined = inget, eller inte medlem). */
+async function organiserSpace(tx: DbExecutor, raceId: string, accountId: string) {
+  const [organiser] = await tx.select().from(schema.raceOrganisers).where(eq(schema.raceOrganisers.raceId, raceId));
+  if (!organiser) return { organiser: undefined, space: undefined };
+  const [setting] = await tx.select({ clubId: schema.clubSettings.clubId, name: schema.clubs.name }).from(schema.clubSettings)
+    .innerJoin(schema.clubs, eq(schema.clubs.id, schema.clubSettings.clubId))
+    .where(eq(schema.clubSettings.organisationId, organiser.organisationId));
+  if (!setting) return { organiser, space: undefined };
+  const member = await clubMembership(tx, { accountId, clubId: setting.clubId }, "none");
+  return { organiser, space: member && clubRoleAtLeast(member.role, "ADMIN") ? { clubId: setting.clubId, name: setting.name } : undefined };
+}
+
+async function liftOf(tx: DbExecutor, raceId: string, clubId: string) {
+  const [row] = await tx.select({ lift: schema.raceClubArchives, entryId: schema.clubArchiveEntries.id }).from(schema.raceClubArchives)
+    .leftJoin(schema.clubArchiveEntries, eq(schema.clubArchiveEntries.id, schema.raceClubArchives.entryId))
+    .where(and(eq(schema.raceClubArchives.raceId, raceId), eq(schema.raceClubArchives.clubId, clubId)));
+  return row;
+}
+
+async function view(tx: DbExecutor, raceId: string, accountId: string, now: Date): Promise<RaceClubArchiveView | undefined> {
+  const facts = await raceFacts(tx, raceId);
+  if (!facts) return undefined;
+  const { organiser, space } = await organiserSpace(tx, raceId, accountId);
+  const organisation = organiser ? await organisationById(tx, organiser.organisationId) : undefined;
+  const suggestedId = organiser ? undefined : await ownerConfirmedOrganisation(tx, facts.event.id);
+  const suggested = suggestedId ? await organisationById(tx, suggestedId) : undefined;
+  const coursesPublic = await coursesArePublic(tx, raceId);
+  const lift = space ? await liftOf(tx, raceId, space.clubId) : undefined;
+  const [map] = await tx.select({ fileName: schema.raceMapSources.fileName, sha: schema.raceMapSources.contentSha256 }).from(schema.raceMapSources)
+    .where(eq(schema.raceMapSources.raceId, raceId));
+  const [setting] = await tx.select({ raceId: schema.courseSettings.raceId }).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
+  const courseFile = await latestCourseFile(tx, raceId);
+  return { formatVersion: 1, raceId, raceDate: facts.race.raceDate, organiser: organisation ? organisationSummary(organisation) : null,
+    suggestion: suggested ? organisationSummary(suggested) : null, space: space ? "ADMIN" : "NONE", spaceName: space?.name ?? null,
+    finished: raceFinishedForArchive({ raceDate: facts.race.raceDate, today: localRaceDate(now, facts.event.timeZone), coursesPublic }),
+    coursesPublic, lifted: lift?.entryId ? { clubId: lift.lift.clubId, entryId: lift.entryId, liftedAt: lift.lift.liftedAt.toISOString() } : null,
+    contents: { mapFile: map?.sha ? map.fileName : null, courseSetting: !!setting, courseFile: !!courseFile } };
+}
+
+export async function readRaceClubArchiveAsAdmin(db: Database, input: ReadProof, now = new Date())
+  : Promise<Failure | { status: "ok"; view: RaceClubArchiveView }> {
+  return db.transaction(async tx => {
+    const auth = await requireRaceRole(tx, { ...input, csrfCookie: input.csrfCookie ?? null, csrfHeader: input.csrfHeader ?? null, role: "ADMIN" }, now, "share");
+    if (auth.status !== "authenticated") return auth;
+    const result = await view(tx, auth.principal.raceId, auth.principal.accountId, now);
+    return result ? { status: "ok", view: result } as const : { status: "not-found" } as const;
+  });
+}
+
+/** Arrangörsklubben (eller ingen). Bara tävlingens administratörer; auditpost på tävlingen. */
+export async function setRaceOrganiserAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
+  : Promise<Failure | { status: "ok"; view: RaceClubArchiveView }> {
+  const parsed = raceOrganiserRequestSchema.safeParse(input.request);
+  if (!parsed.success) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
+    if (auth.status !== "authenticated") return auth;
+    const { raceId, accountId } = auth.principal;
+    const organisationId = parsed.data.organisationId;
+    if (organisationId) {
+      const organisation = await organisationById(tx, organisationId);
+      if (!organisation || organisation.removedAt) return { status: "not-found" } as const;
+      await tx.insert(schema.raceOrganisers).values({ raceId, organisationId, setBy: accountId, setAt: now })
+        .onConflictDoUpdate({ target: schema.raceOrganisers.raceId, set: { organisationId, setBy: accountId, setAt: now } });
+    } else {
+      await tx.delete(schema.raceOrganisers).where(eq(schema.raceOrganisers.raceId, raceId));
+    }
+    await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, action: "RACE_ORGANISER_SET",
+      actorKind: "USER_ACCOUNT", actorId: accountId, after: { organisationId }, createdAt: now });
+    return { status: "ok", view: (await view(tx, raceId, accountId, now))! } as const;
+  });
+}
+
+export type RaceClubArchiveResult = Failure | { status: "no-space" | "secret" | "already" | "not-lifted" } | { status: "ok"; view: RaceClubArchiveView };
+
+/**
+ * Den senast inlästa banfilen (IOF CourseData): "Läs in banfil" (en godkänd banfil, `source_snapshot` med källan COURSE_FILE),
+ * annars importen av IOF XML. Eventors ögonblicksbilder (med anmälda) används aldrig.
+ */
+async function latestCourseFile(tx: DbExecutor, raceId: string): Promise<{ xml: string; fileName: string | null } | undefined> {
+  const [snapshot] = await tx.select({ xml: schema.sourceSnapshots.originalXml, fileName: schema.sourceSnapshots.fileName, at: schema.sourceSnapshots.appliedAt })
+    .from(schema.sourceSnapshots).where(and(eq(schema.sourceSnapshots.raceId, raceId), eq(schema.sourceSnapshots.source, "COURSE_FILE"),
+      sql`${schema.sourceSnapshots.appliedAt} is not null`, sql`${schema.sourceSnapshots.originalXml} is not null`))
+    .orderBy(desc(schema.sourceSnapshots.appliedAt)).limit(1);
+  const [imported] = await tx.select({ xml: schema.importFiles.originalXml, at: schema.importFiles.createdAt }).from(schema.importFiles)
+    .where(and(eq(schema.importFiles.raceId, raceId), eq(schema.importFiles.kind, "CourseData"))).orderBy(desc(schema.importFiles.createdAt)).limit(1);
+  if (snapshot?.xml && (!imported || snapshot.at! >= imported.at)) return { xml: snapshot.xml, fileName: snapshot.fileName?.slice(0, 200) ?? null };
+  return imported ? { xml: imported.xml, fileName: null } : undefined;
+}
+
+const stem = (fileName: string) => fileName.replace(/\.[A-Za-z0-9]{1,6}$/u, "").trim();
+const safeName = (value: string) => value.replace(/[^\p{L}\p{N} ._()-]/gu, "_").trim().slice(0, 120) || "banor";
+
+/** Kontrollerna som gäller båda (tävlingens administratör, klubbarkivets administratör) och arkivet. */
+async function dualAdmin(tx: DbExecutor, input: RaceSessionProof, now: Date) {
+  const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
+  if (auth.status !== "authenticated") return auth;
+  const { raceId, accountId } = auth.principal;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`race-club-archive:${raceId}`}, 0))`);
+  const [organiser] = await tx.select().from(schema.raceOrganisers).where(eq(schema.raceOrganisers.raceId, raceId));
+  if (!organiser) return { status: "no-space" } as const;
+  const [setting] = await tx.select({ clubId: schema.clubSettings.clubId }).from(schema.clubSettings)
+    .where(eq(schema.clubSettings.organisationId, organiser.organisationId));
+  if (!setting) return { status: "no-space" } as const;
+  const member = await clubMembership(tx, { accountId, clubId: setting.clubId }, "update");
+  // Arkivets existens röjs inte för den som inte är med: samma svar som utan arkiv.
+  if (!member) return { status: "no-space" } as const;
+  if (!clubRoleAtLeast(member.role, "ADMIN")) return { status: "forbidden" } as const;
+  return { status: "ok", raceId, accountId, clubId: setting.clubId } as const;
+}
+
+/** "Lägg i klubbarkivet". */
+export async function liftRaceToClubArchive(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date()): Promise<RaceClubArchiveResult> {
+  const parsed = raceClubArchiveLiftRequestSchema.safeParse(input.request);
+  if (!parsed.success) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const actor = await dualAdmin(tx, input, now);
+    if (actor.status !== "ok") return actor;
+    const { raceId, accountId, clubId } = actor;
+    const facts = (await raceFacts(tx, raceId))!;
+    const coursesPublic = await coursesArePublic(tx, raceId);
+    if (!raceFinishedForArchive({ raceDate: facts.race.raceDate, today: localRaceDate(now, facts.event.timeZone), coursesPublic })
+      && !parsed.data.confirmSecrecy) return { status: "secret" } as const;
+    const prior = await liftOf(tx, raceId, clubId);
+    if (prior?.entryId) return { status: "already" } as const;
+    if (prior) await tx.delete(schema.raceClubArchives).where(eq(schema.raceClubArchives.id, prior.lift.id));
+    const title = raceTitle(facts.event.name, facts.race.name).slice(0, 200);
+
+    // Kartan: samma innehåll är en version en gång per klubb (ADR-0194 beslut 2); annars en ny version av kartan med samma namn.
+    const [source] = await tx.select().from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
+    const [agreement] = await tx.select().from(schema.raceMapAgreements).where(eq(schema.raceMapAgreements.raceId, raceId));
+    let versionId: string | null = null, createdMapId: string | null = null, createdVersionId: string | null = null;
+    const mapName = (agreement?.mapName || (source ? stem(source.fileName) : "") || facts.event.name).slice(0, 120);
+    if (source?.contentSha256) {
+      const [same] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)
+        .where(and(eq(schema.clubMapVersions.clubId, clubId), eq(schema.clubMapVersions.contentSha256, source.contentSha256)));
+      if (same) versionId = same.id;
+      else {
+        const [named] = await tx.select({ id: schema.clubMaps.id }).from(schema.clubMaps)
+          .where(and(eq(schema.clubMaps.clubId, clubId), sql`lower(${schema.clubMaps.name}) = lower(${mapName})`)).limit(1);
+        let mapId = named?.id;
+        if (!mapId) {
+          mapId = createdMapId = randomUUID();
+          await tx.insert(schema.clubMaps).values({ id: mapId, clubId, name: mapName, ownership: agreement?.ownership ?? "CLUB",
+            ownerKind: agreement?.ownerKind ?? "CLUB", ownerName: agreement?.ownerName ?? null, agreement: agreement?.agreement ?? null,
+            validUntil: agreement?.validUntil ?? null, contact: agreement?.contact ?? null, trainingOnly: agreement?.trainingOnly ?? false,
+            feePerPrint: agreement?.feePerPrint ?? false, noPublicDisplay: agreement?.noPublicDisplay ?? false, createdAt: now, createdBy: accountId,
+            updatedAt: now });
+        }
+        versionId = createdVersionId = randomUUID();
+        await tx.insert(schema.clubMapVersions).values({ id: versionId, clubId, mapId, contentSha256: source.contentSha256, fileName: source.fileName,
+          format: source.format, byteLength: source.byteLength, versionDate: facts.race.raceDate, note: `Från tävlingen ${title}`.slice(0, 500),
+          uploadedBy: accountId, uploadedAt: now, sourcePath: null });
+      }
+    }
+
+    // Banorna: banläggningens dokument som .ppen och IOF XML, annars den senast inlästa banfilen (IOF CourseData).
+    const files: { kind: "PPEN" | "COURSE_DATA"; fileName: string; bytes: Buffer }[] = [];
+    const [courseSetting] = await tx.select({ document: schema.courseSettings.document }).from(schema.courseSettings)
+      .where(eq(schema.courseSettings.raceId, raceId));
+    if (courseSetting) {
+      const document = courseSetting.document as unknown as CourseSettingDocument;
+      files.push({ kind: "PPEN", fileName: `${safeName(title)}.ppen`, bytes: Buffer.from(writePpen(document), "utf8") });
+      files.push({ kind: "COURSE_DATA", fileName: `${safeName(title)} IOF.xml`, bytes: Buffer.from(writeIofCourseData(document,
+        { mapBounds: source?.bounds, createTime: now }), "utf8") });
+    } else {
+      const imported = await latestCourseFile(tx, raceId);
+      if (imported) files.push({ kind: "COURSE_DATA", fileName: imported.fileName ?? `${safeName(title)} banor.xml`, bytes: Buffer.from(imported.xml, "utf8") });
+    }
+
+    const entryId = randomUUID();
+    await tx.insert(schema.clubArchiveEntries).values({ id: entryId, clubId, trainingDate: facts.race.raceDate, year: Number(facts.race.raceDate.slice(0, 4)),
+      place: mapName, title, leader: null, tags: [facts.race.raceType === "TRAINING" ? "Träning" : "Tävling"], notes: null, sourcePath: null,
+      importKey: `race:${raceId}:${entryId}`, createdAt: now, createdBy: accountId, updatedAt: now });
+    if (versionId) await tx.insert(schema.clubArchiveEntryMaps).values({ entryId, versionId });
+    const seen = new Set<string>();
+    for (const file of files) {
+      if (file.bytes.byteLength > CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES) continue;
+      const sha256 = createHash("sha256").update(file.bytes).digest("hex");
+      if (seen.has(sha256)) continue;
+      seen.add(sha256);
+      await tx.insert(schema.clubArchiveCourseFiles).values({ id: randomUUID(), entryId, clubId, kind: file.kind, fileName: file.fileName, content: file.bytes,
+        sha256, byteLength: file.bytes.byteLength, summary: courseFileSummary(file.kind, new Uint8Array(file.bytes)), mapVersionId: versionId,
+        mapReference: source?.fileName ?? null, mapResolution: versionId ? "FOLDER" : "NONE", createdAt: now });
+    }
+    await tx.insert(schema.raceClubArchives).values({ id: randomUUID(), raceId, clubId, entryId, createdMapId, createdVersionId, raceName: title,
+      raceDate: facts.race.raceDate, liftedBy: accountId, liftedAt: now });
+    await clubJournal(tx, { clubId, action: "CLUB_ARCHIVE_RACE_ADDED", actorAccountId: accountId,
+      details: { entryId, raceId, mapVersionId: versionId, courseFiles: seen.size, beforeFinished: parsed.data.confirmSecrecy }, now });
+    await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, action: "RACE_ADDED_TO_CLUB_ARCHIVE",
+      actorKind: "USER_ACCOUNT", actorId: accountId, after: { clubId, entryId }, createdAt: now });
+    return { status: "ok", view: (await view(tx, raceId, accountId, now))! } as const;
+  });
+}
+
+/** "Ta ur klubbarkivet": träningen tas bort; tävlingen ändras inte. */
+export async function removeRaceFromClubArchive(db: Database, input: RaceSessionProof, now = new Date()): Promise<RaceClubArchiveResult> {
+  return db.transaction(async tx => {
+    const actor = await dualAdmin(tx, input, now);
+    if (actor.status !== "ok") return actor;
+    const { raceId, accountId, clubId } = actor;
+    const prior = await liftOf(tx, raceId, clubId);
+    if (!prior) return { status: "not-lifted" } as const;
+    const entryId = prior.lift.entryId;
+    if (prior.entryId) {
+      await forgetEntryThumbnail(tx, entryId);
+      await tx.delete(schema.clubArchiveCourseFiles).where(eq(schema.clubArchiveCourseFiles.entryId, entryId));
+      await tx.delete(schema.clubArchiveEntryMaps).where(eq(schema.clubArchiveEntryMaps.entryId, entryId));
+      await tx.delete(schema.clubArchiveEntries).where(eq(schema.clubArchiveEntries.id, entryId));
+    }
+    await tx.delete(schema.raceClubArchives).where(eq(schema.raceClubArchives.id, prior.lift.id));
+    await dropUnusedCreated(tx, prior.lift.createdVersionId, prior.lift.createdMapId);
+    await clubJournal(tx, { clubId, action: "CLUB_ARCHIVE_RACE_REMOVED", actorAccountId: accountId, details: { entryId, raceId }, now });
+    await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, action: "RACE_REMOVED_FROM_CLUB_ARCHIVE",
+      actorKind: "USER_ACCOUNT", actorId: accountId, after: { clubId, entryId }, createdAt: now });
+    return { status: "ok", view: (await view(tx, raceId, accountId, now))! } as const;
+  });
+}
+
+/** Kartversionen och kartan som inlyftet skapade tas bort när inget annat i arkivet eller någon grupp använder dem. */
+async function dropUnusedCreated(tx: DbExecutor, versionId: string | null, mapId: string | null): Promise<void> {
+  if (versionId) {
+    const [used] = (await tx.execute<{ used: boolean }>(sql`select exists (select 1 from club_archive_entry_map where version_id = ${versionId})
+      or exists (select 1 from club_archive_course_file where map_version_id = ${versionId}) as used`)).rows;
+    if (!used?.used) {
+      await tx.delete(schema.clubArchiveEntryThumbnails).where(eq(schema.clubArchiveEntryThumbnails.mapVersionId, versionId));
+      await tx.delete(schema.clubMapVersionChecks).where(eq(schema.clubMapVersionChecks.versionId, versionId));
+      await tx.delete(schema.clubMapVersions).where(eq(schema.clubMapVersions.id, versionId));
+    }
+  }
+  if (mapId) {
+    const [used] = (await tx.execute<{ used: boolean }>(sql`select exists (select 1 from club_map_version where map_id = ${mapId})
+      or exists (select 1 from training_group_map where club_map_id = ${mapId}) as used`)).rows;
+    if (!used?.used) await tx.delete(schema.clubMaps).where(eq(schema.clubMaps.id, mapId));
+  }
+}
+

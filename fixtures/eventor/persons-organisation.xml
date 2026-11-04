@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ADR-0209: syntetisk medlemslista (GET /api/persons/organisations/9901?includeContactDetails=true), Eventors äldre
+     format. Påhittade personer. Bara PersonId och adressen läses; namn, födelsedatum, adress och telefon lämnas.
+     Strukturen är inte provad mot riktiga Eventor. -->
+<PersonList>
+  <Person sex="F">
+    <PersonName><Family>Medlemsson</Family><Given sequence="1">Maja</Given></PersonName>
+    <PersonId>700001</PersonId>
+    <BirthDate><Date>1985-04-12</Date></BirthDate>
+    <Address street="Påhittad gata 2" zipCode="12346" city="Stockholm" />
+    <Tele mailAddress="Maja.Medlem@Exempel.se" mobilePhoneNumber="070-0000001" />
+  </Person>
+  <Person sex="M">
+    <PersonName><Family>Andersson</Family><Given sequence="1">Anders</Given></PersonName>
+    <PersonId>700002</PersonId>
+    <BirthDate><Date>1970-01-01</Date></BirthDate>
+    <Tele mailAddress="anders.annan@exempel.se" />
+  </Person>
+  <Person sex="M">
+    <PersonName><Family>Utan</Family><Given sequence="1">Adress</Given></PersonName>
+    <PersonId>700003</PersonId>
+  </Person>
+</PersonList>

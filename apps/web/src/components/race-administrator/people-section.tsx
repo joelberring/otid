@@ -12,6 +12,7 @@ import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
 import { inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
+import { FromClubPicker } from "../club-affiliation/from-club-picker";
 
 const text = raceTypeSv.settings.people;
 const GRANTABLE = ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"] as const;
@@ -124,7 +125,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       {data.people.map(person => <li key={person.grantId}>
         <span className={styles.who}>
           <strong>{person.displayName}{person.accountId === data.viewer.accountId && <span className={styles.muted}> ({text.you})</span>}</strong>
-          <span className={styles.email}>{person.email}</span>
+          {person.email && <span className={styles.email}>{person.email}</span>}
           {person.pendingVerification && <span className={styles.muted} data-testid="person-pending-verification">{text.pendingVerification}</span>}
         </span>
         <span className={styles.role} data-role={person.role}>{text.roles[person.role]}</span>
@@ -134,15 +135,17 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       </li>)}
       {data.invitations.map(invitation => <li key={invitation.invitationId} data-testid="person-invitation">
         <span className={styles.who}>
-          <strong>{invitation.email}</strong>
+          <strong>{invitation.displayName ?? invitation.email}</strong>
           <span className={styles.muted}>{[text.waitingForLogin, invitationSentText(invitation.sentAt, mailEnabled)].filter(Boolean).join(" · ")}</span>
         </span>
         <span className={styles.role} data-role={invitation.role}>{text.roles[invitation.role]}</span>
         <span className={styles.action}>{invitationRemovable(invitation) && <>
-          <InvitationActions email={invitation.email} mailEnabled={mailEnabled} disabled={locked} onSent={load}
+          <InvitationActions name={invitation.displayName ?? invitation.email} fromClub={invitation.displayName !== undefined}
+            mailEnabled={mailEnabled} disabled={locked} onSent={load}
             endpoint={`${base}/invitations/${encodeURIComponent(invitation.invitationId)}`} />
-          <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(invitation.email)}
-            onClick={() => void remove({ grantId: invitation.invitationId, displayName: invitation.email })}>{text.remove}</Button></>}</span>
+          <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(invitation.displayName ?? invitation.email)}
+            onClick={() => void remove({ grantId: invitation.invitationId, displayName: invitation.displayName ?? invitation.email })}>
+            {text.remove}</Button></>}</span>
       </li>)}
     </ul>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
@@ -163,5 +166,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       </Field>
       <Button type="submit" disabled={locked || !email.trim()}>{text.add}</Button>
     </form>}
+    {/* ADR-0209: "Från klubben" med rollen som är vald ovan. */}
+    {data && <FromClubPicker context={{ kind: "RACE", id: raceId }} role={role} roleLabel={text.roles[role]} disabled={locked} onInvited={load} />}
   </Section>;
 }

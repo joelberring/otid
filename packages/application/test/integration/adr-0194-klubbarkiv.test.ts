@@ -246,7 +246,8 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
 
     // Använd igen: en läsare gör en egen träning; kartfilen laddas inte upp igen.
     const reader = await registerTestAccount(db, undefined, NOW);
-    await inviteClubMember(db, { ...owner.proof, clubId, request: { formatVersion: 1, requestId: randomUUID(), email: reader.email, role: "READER" } }, NOW);
+    // ADR-0209 beslut C: kartbanken (Använd igen) är för ledare och administratörer i en ny klubb.
+    await inviteClubMember(db, { ...owner.proof, clubId, request: { formatVersion: 1, requestId: randomUUID(), email: reader.email, role: "LEADER" } }, NOW);
     const created = await createOrganizerEvent(db, { ...reader.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
       readBody: async () => ({ formatVersion: 1, eventName: "Träning ur arkivet", raceName: "Träning", raceDate: "2026-11-10",
         timeZone: "Europe/Stockholm", raceType: "TRAINING" }) }, NOW);

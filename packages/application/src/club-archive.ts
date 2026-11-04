@@ -4,10 +4,12 @@ import {
   type ClubArchiveEntryView, type ClubArchiveList, type ClubArchiveListItem, type ClubMapVersionView, type ClubMapView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { clubJournal, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
+import { guessVersionYear, versionYearSpan } from "@o-tid/domain";
+import { clubAreaAccess, clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
 import { entryThumbnails, forgetEntryThumbnail, mapChecks } from "./club-archive-checks";
 import { courseDataPoints, courseFileSummary } from "./club-archive-import";
 import { leaderGroups } from "./club-maps";
+import { mapMergeHistory } from "./club-map-merge";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
@@ -18,8 +20,13 @@ import type { DbExecutor } from "./snapshot";
 type MapRow = typeof schema.clubMaps.$inferSelect;
 type VersionRow = typeof schema.clubMapVersions.$inferSelect;
 
-const versionOrder = (a: VersionRow, b: VersionRow) => (b.versionDate ?? "").localeCompare(a.versionDate ?? "")
-  || b.uploadedAt.getTime() - a.uploadedAt.getTime() || a.fileName.localeCompare(b.fileName);
+/** ADR-0210: versionens år, inskrivet eller gissat (filnamnet, mapparna, årsmappen, datumet, uppladdningen). */
+export const versionYearOf = (version: VersionRow) => guessVersionYear({ fileName: version.fileName, sourcePath: version.sourcePath,
+  versionDate: version.versionDate, uploadedAt: version.uploadedAt, manualYear: version.versionYear });
+
+/** Nyaste först: året, sedan datumet och uppladdningen. */
+const versionOrder = (a: VersionRow, b: VersionRow) => versionYearOf(b).year - versionYearOf(a).year
+  || (b.versionDate ?? "").localeCompare(a.versionDate ?? "") || b.uploadedAt.getTime() - a.uploadedAt.getTime() || a.fileName.localeCompare(b.fileName);
 
 /** Kartorna med versionerna (senaste först) och hur många träningar som använder varje version. */
 export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: readonly string[]): Promise<ClubMapView[]> {
@@ -33,20 +40,26 @@ export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: read
       union all select map_version_id, entry_id from club_archive_course_file where club_id = ${clubId} and map_version_id is not null) u
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
   const checks = await mapChecks(tx, versions.map(version => version.id));
+  const merges = await mapMergeHistory(tx, clubId, maps, versions);
   // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
   return [...maps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
-    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses, checks));
+    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses, checks, merges.get(map.id) ?? []));
 }
 
-function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>): ClubMapView {
-  const views: ClubMapVersionView[] = versions.map(version => ({ versionId: version.id, mapId: version.mapId, fileName: version.fileName,
-    format: version.format, byteLength: version.byteLength, versionDate: version.versionDate, note: version.note,
-    uploadedAt: version.uploadedAt.toISOString(), sourcePath: version.sourcePath, contentSha256: version.contentSha256,
-    trainings: uses.get(version.id) ?? 0, check: checks.get(version.id) ?? null }));
+function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>,
+  merges: ClubMapView["merges"]): ClubMapView {
+  const views: ClubMapVersionView[] = versions.map(version => {
+    const year = versionYearOf(version);
+    return { versionId: version.id, mapId: version.mapId, fileName: version.fileName,
+      format: version.format, byteLength: version.byteLength, versionDate: version.versionDate, note: version.note,
+      uploadedAt: version.uploadedAt.toISOString(), sourcePath: version.sourcePath, contentSha256: version.contentSha256,
+      trainings: uses.get(version.id) ?? 0, check: checks.get(version.id) ?? null, year: year.year, yearSource: year.source, maker: version.maker };
+  });
   return { mapId: map.id, name: map.name, ownership: map.ownership, ownerKind: map.ownerKind, ownerName: map.ownerName, agreement: map.agreement,
     validUntil: map.validUntil, contact: map.contact, trainingOnly: map.trainingOnly, feePerPrint: map.feePerPrint,
     noPublicDisplay: map.noPublicDisplay, versions: views, latestVersionId: views[0]?.versionId ?? null,
-    trainings: views.reduce((sum, version) => sum + version.trainings, 0) };
+    trainings: views.reduce((sum, version) => sum + version.trainings, 0), description: map.description, maker: map.maker,
+    years: versionYearSpan(views.map(version => version.year)), merges };
 }
 
 type StoredSummary = typeof schema.clubArchiveCourseFiles.$inferSelect["summary"];
@@ -123,12 +136,14 @@ export async function readClubArchive(db: Database, input: ClubProof & { clubId:
     if (member.status !== "ok") return member;
     const [club] = await tx.select({ name: schema.clubs.name }).from(schema.clubs).where(eq(schema.clubs.id, input.clubId));
     if (!club) return { status: "not-found" } as const;
-    return { status: "ok", list: { formatVersion: 1, clubId: input.clubId, clubName: club.name, viewer: { role: member.role },
-      entries: await listItems(tx, input.clubId), maps: await clubMapViews(tx, input.clubId) } } as const;
+    // ADR-0209 beslut C: utan tillgång till träningsarkivet är listan tom (klubben och medlemmarna syns ändå).
+    const access = await clubAreaAccess(tx, input.clubId, member.role);
+    return { status: "ok", list: { formatVersion: 1, clubId: input.clubId, clubName: club.name, viewer: { role: member.role, access },
+      entries: access.archive ? await listItems(tx, input.clubId) : [], maps: access.archive ? await clubMapViews(tx, input.clubId) : [] } } as const;
   });
 }
 
-async function entryView(tx: ClubTransaction, clubId: string, entryId: string): Promise<Omit<ClubArchiveEntryView, "clubName" | "viewer" | "groups"> | undefined> {
+async function entryView(tx: ClubTransaction, clubId: string, entryId: string): Promise<Omit<ClubArchiveEntryView, "clubName" | "viewer" | "groups" | "sourceRace"> | undefined> {
   const [item] = await listItems(tx, clubId, [entryId]);
   const [entry] = await tx.select().from(schema.clubArchiveEntries).where(and(eq(schema.clubArchiveEntries.id, entryId), eq(schema.clubArchiveEntries.clubId, clubId)));
   if (!item || !entry) return undefined;
@@ -164,12 +179,13 @@ export async function readClubArchiveEntry(db: Database, input: ClubProof & { cl
   : Promise<ClubFailure | { status: "ok"; view: ClubArchiveEntryView }> {
   if (!UUID_PATTERN.test(input.entryId)) return { status: "not-found" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
     const [club] = await tx.select({ name: schema.clubs.name }).from(schema.clubs).where(eq(schema.clubs.id, input.clubId));
     const view = await entryView(tx, input.clubId, input.entryId);
     if (!view || !club) return { status: "not-found" } as const;
-    return { status: "ok", view: { ...view, clubName: club.name, viewer: { role: member.role }, groups: await leaderGroups(tx, member.accountId) } } as const;
+    return { status: "ok", view: { ...view, clubName: club.name, viewer: { role: member.role, access: await clubAreaAccess(tx, input.clubId, member.role) },
+      sourceRace: await liftedRaceOf(tx, input.clubId, input.entryId), groups: await leaderGroups(tx, member.accountId) } } as const;
   });
 }
 
@@ -202,6 +218,8 @@ export async function deleteClubArchiveEntry(db: Database, input: ClubProof & { 
       .where(and(eq(schema.clubArchiveEntries.id, input.entryId), eq(schema.clubArchiveEntries.clubId, input.clubId))).for("update");
     if (!entry) return { status: "not-found" } as const;
     await forgetEntryThumbnail(tx, entry.id);
+    // ADR-0209: en tävling som lagts i arkivet är inte längre där.
+    await tx.delete(schema.raceClubArchives).where(eq(schema.raceClubArchives.entryId, entry.id));
     await tx.delete(schema.clubArchiveCourseFiles).where(eq(schema.clubArchiveCourseFiles.entryId, entry.id));
     await tx.delete(schema.clubArchiveEntryMaps).where(eq(schema.clubArchiveEntryMaps.entryId, entry.id));
     await tx.delete(schema.clubArchiveEntries).where(eq(schema.clubArchiveEntries.id, entry.id));
@@ -210,12 +228,12 @@ export async function deleteClubArchiveEntry(db: Database, input: ClubProof & { 
   });
 }
 
-/** Banfilen orörd ("Ladda ner original"), för läsare och uppåt. */
+/** Banfilen orörd ("Ladda ner original"), för den som ser träningsarkivet (ADR-0209 beslut C). */
 export async function readClubCourseFile(db: Database, input: ClubProof & { clubId: string; courseFileId: string }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; fileName: string; kind: "PPEN" | "COURSE_DATA"; content: Buffer }> {
   if (!UUID_PATTERN.test(input.courseFileId)) return { status: "not-found" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
     const [row] = await tx.select({ fileName: schema.clubArchiveCourseFiles.fileName, kind: schema.clubArchiveCourseFiles.kind,
       content: schema.clubArchiveCourseFiles.content }).from(schema.clubArchiveCourseFiles)
@@ -248,4 +266,15 @@ export async function setClubCourseFileMap(db: Database, input: ClubProof & { cl
       details: { courseFileId: row.id, mapVersionId: parsed.data.mapVersionId }, now });
     return { status: "ok" } as const;
   });
+}
+
+/** ADR-0209 beslut 4: tävlingen som träningen kom från ("Från tävlingen …"), eller null. */
+async function liftedRaceOf(tx: DbExecutor, clubId: string, entryId: string) {
+  const [row] = await tx.select({ raceId: schema.raceClubArchives.raceId, name: schema.raceClubArchives.raceName, date: schema.raceClubArchives.raceDate,
+    shortCode: schema.races.shortCode, publishedAt: schema.races.publishedAt }).from(schema.raceClubArchives)
+    .leftJoin(schema.races, eq(schema.races.id, schema.raceClubArchives.raceId))
+    .where(and(eq(schema.raceClubArchives.clubId, clubId), eq(schema.raceClubArchives.entryId, entryId)));
+  if (!row) return null;
+  return { raceId: row.raceId, name: row.name, date: row.date, exists: row.shortCode !== null,
+    publicPath: row.shortCode && row.publishedAt ? `/t/${row.shortCode}` : null };
 }

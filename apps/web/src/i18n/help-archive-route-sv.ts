@@ -140,12 +140,34 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
       "En karta är ett område med versioner. Gamla träningar visar versionen de gjordes på; ”Använd igen” väljer den senaste.",
       [
         "”Ny karta” och ”Ladda upp ny version”: OCAD (.ocd) eller Mapper (.omap, .xmap), högst 75 MB.",
-        "”Slå ihop med …” flyttar alla versioner till en annan karta. ”Flytta versionen till …” flyttar en version.",
+        "”Slå ihop markerade” eller ”Möjliga dubbletter” gör flera kartor till en. ”Flytta versionen till …” flyttar en version.",
         "”Ändra rättigheter”: klubbens eller extern karta, ägare, avtal, bara träning, avgift per utskrift och publik visning.",
         "Rättigheterna gäller alla versioner och följer med när kartan används i en grupp eller tävling.",
         "”Lägg i gruppens kartbibliotek” lägger senaste versionen i en träningsgrupp."
       ],
-      "Bilderna och kontrollen av kartorna: [Bilder och kontroll av kartorna](#arkiv-bilder)."
+      "Bilderna och kontrollen av kartorna: [Bilder och kontroll av kartorna](#arkiv-bilder). Dubbletter: [Dubbletter och versioner av kartor](#arkiv-dubbletter)."
+    ]
+  },
+  {
+    id: "arkiv-dubbletter",
+    title: "Dubbletter och versioner av kartor",
+    views: ["ARCHIVE_MAPS", "CS_START", "EVENTS"],
+    body: [
+      "Samma karta finns ofta under flera filnamn. ”Möjliga dubbletter” överst i fliken ”Kartor” visar kartor som troligen är samma, med bild, år och skälen:",
+      [
+        "”Troligen samma karta” eller ”Kanske samma”. Skälen är till exempel samma område med överlappet, ”Liknande namn” och ”Samma symboler”.",
+        "Välj under ”Behåll namn och uppgifter från” vilken karta som behåller namnet och rättigheterna. Förvalet är den som används mest.",
+        "”Slå ihop till en karta” flyttar de andras versioner dit. ”Inte samma karta” tar bort förslaget för gott.",
+        "Egna val: kryssa i kartorna och tryck på ”Slå ihop markerade”."
+      ],
+      "Kartfilerna och träningarna ändras aldrig: varje träning visar fortfarande versionen den gjordes på.",
+      [
+        "Varje version har ett år, gissat ur filnamnet, mappen eller uppladdningen. ”Ändra år och uppgifter” rättar det.",
+        "Versionerna står nyaste först, och kortet säger till exempel 5 versioner, 2014–2023.",
+        "”Kopiera till alla versioner” sätter en versions kartritare eller anteckning på de andra; du ser först vad som ändras. ”Från kartan” tar kartans kartritare.",
+        "”Historik” → ”Ångra sammanslagning” delar kartorna igen, så länge inget annat har ändrats i kartan."
+      ],
+      "När du skapar en träning eller öppnar banläggningen utan karta väljer ”Välj karta från klubbarkivet” en karta ur dina klubbar; senaste versionen är förvald."
     ]
   },
   {
@@ -166,8 +188,9 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
       "Bjud in med e-postadressen under ”Medlemmar” → ”Bjud in”; flera adresser går på en gång. Personen får ett mejl med en länk och blir medlem när hen loggar in med adressen och har bekräftat den. ”Skicka igen” (eller ”Kopiera länken” utan e-post på servern) finns vid varje inbjudan; se [Inbjudningar med e-post](#inbjudningar).",
       [
         "”Ägare”: allt, också att ändra ägarna. Klubben har alltid minst en ägare.",
-        "”Administratör”: ändrar arkivet, bjuder in och importerar.",
-        "”Läsare”: ser arkivet och använder träningarna igen.",
+        "”Administratör”: ändrar arkivet, bjuder in, bekräftar och importerar. Ägare och administratörer ser alltid allt.",
+        "”Ledare”: ser träningsarkivet och använder kartbanken (kartfiler, Använd igen).",
+        "”Medlem”: ser det som klubben väljer under [Vem ser vad](#bekrafta-medlemmar).",
         "”Ändra roll” och ”Ta bort” finns vid varje person."
       ]
     ]

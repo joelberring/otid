@@ -1,3 +1,4 @@
+import { clubSourcedInContext } from "./club-invite";
 import { randomInt, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
@@ -119,6 +120,14 @@ async function members(tx: Transaction, groupId: string): Promise<GroupMember[]>
       addedAt: row.createdAt.toISOString(), pending: true, sentAt: sent.get(row.id)?.toISOString() ?? null }))];
 }
 
+/** ADR-0209: den som kom "Från klubben" visas med namnet, aldrig adressen. */
+async function shownMembers(tx: Transaction, groupId: string): Promise<GroupMember[]> {
+  const fromClub = await clubSourcedInContext(tx, "TRAINING_GROUP", groupId);
+  return (await members(tx, groupId)).map(member => member.accountId && fromClub.accounts.has(member.accountId) ? { ...member, email: "" }
+    : !member.accountId && fromClub.invitations.has(member.memberId) ? { ...member, email: "", displayName: fromClub.invitations.get(member.memberId)! }
+      : member);
+}
+
 /** Gruppens tillfällen (tävlingarna i gruppens evenemang), äldst först. */
 export async function groupSessions(tx: Transaction, groupId: string): Promise<GroupSession[]> {
   const rows = await tx.select({ raceId: schema.races.id, eventId: schema.events.id, eventName: schema.events.name, raceName: schema.races.name,
@@ -173,7 +182,7 @@ export async function readGroupAsLeader(db: Database, input: Proof & { groupId: 
     const series = await tx.select().from(schema.trainingGroupSeries).where(eq(schema.trainingGroupSeries.groupId, group.id))
       .orderBy(desc(schema.trainingGroupSeries.createdAt)).limit(200);
     const { today, timeZone } = await groupToday(tx, group.id, now);
-    return { status: "ok" as const, accountId: leader.accountId, group, sessions, today, timeZone, members: await members(tx, group.id),
+    return { status: "ok" as const, accountId: leader.accountId, group, sessions, today, timeZone, members: await shownMembers(tx, group.id),
       maps: await listGroupLibraryMaps(tx, group.id),
       series: series.map((row): GroupSeries => ({ seriesId: row.id, weekday: row.weekday, startTime: row.startTime, firstDate: row.firstDate,
         lastDate: row.lastDate, undoneAt: row.undoneAt?.toISOString() ?? null, sessions: sessions.filter(session => session.seriesId === row.id).length })) };

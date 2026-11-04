@@ -12,4 +12,5 @@ export * from "./schema/runners";
 export * from "./schema/party";
 export * from "./schema/groups";
 export * from "./schema/clubs";
+export * from "./schema/affiliations";
 export * from "./schema/invitations";

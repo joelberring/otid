@@ -44,6 +44,13 @@ export interface EventorOrganisationSummary {
   readonly name: string;
   readonly shortName?: string;
   readonly type: EventorOrganisationType;
+  /** ADR-0209: organisationen ovanför (klubbens distrikt, distriktets förbund). */
+  readonly parentId?: string;
+  /**
+   * ADR-0209: landet som kod: IOF 3.0 `<Country code="SWE">`, Eventors äldre `<Country><Alpha3 value="SWE"/>` eller
+   * `<CountryId value="752"/>` (numerisk ISO 3166-kod, som den står). Inte provad mot riktiga Eventor.
+   */
+  readonly country?: string;
 }
 
 export const MAX_COMPETITORS = 400_000;
@@ -158,7 +165,29 @@ function readOrganisation(organisation: XmlRecord): EventorOrganisationSummary |
   if (!id || !organisationName) return undefined;
   const shortName = optionalDisplayText(organisation.ShortName);
   const typeId = textOf(organisation.OrganisationTypeId) ?? attribute(organisation.OrganisationTypeId, "value");
-  return { id, name: organisationName, ...(shortName ? { shortName } : {}), type: legacyType(typeId, attribute(organisation, "type")) };
+  const parentId = parentOf(organisation);
+  const country = countryOf(organisation);
+  return { id, name: organisationName, ...(shortName ? { shortName } : {}), type: legacyType(typeId, attribute(organisation, "type")),
+    ...(parentId && parentId !== id ? { parentId } : {}), ...(country ? { country } : {}) };
+}
+
+/** `<ParentOrganisation><OrganisationId>` (äldre format), `<ParentOrganisationId>` (IOF 3.0) eller `<ParentOrganisation><Id>`. */
+function parentOf(organisation: XmlRecord): string | undefined {
+  const parent = record(many(organisation.ParentOrganisation)[0]);
+  const value = parent ? textOf(parent.OrganisationId) ?? textOf(many(parent.Id)[0]) : textOf(organisation.ParentOrganisationId);
+  return value !== undefined && ID.test(value) ? value : undefined;
+}
+
+const COUNTRY = /^[A-Za-z]{2,3}$|^\d{1,3}$/;
+
+function countryOf(organisation: XmlRecord): string | undefined {
+  const country = many(organisation.Country)[0];
+  const countryRecord = record(country);
+  const candidates = [attribute(country, "code"), countryRecord ? attribute(countryRecord.Alpha3, "value") : undefined,
+    countryRecord ? attribute(countryRecord.Alpha2, "value") : undefined, countryRecord ? attribute(countryRecord.CountryId, "value") : undefined,
+    attribute(organisation.CountryId, "value"), textOf(organisation.CountryId)];
+  const value = candidates.find(candidate => candidate !== undefined && COUNTRY.test(candidate));
+  return value?.toUpperCase();
 }
 
 /** Alla organisationer (förbund, distrikt och klubbar). Utan id eller namn hoppas de över; ett id räknas en gång. */

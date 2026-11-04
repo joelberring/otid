@@ -34,8 +34,7 @@ test("löparkartor: variablerna på arket, två valda löpare, baksidan i samma 
   const admin = `/api/admin/races/${raceId}/administrator`;
   // Utvecklingsservern kompilerar rutterna vid första anropet: i förväg, så att arbetsytans anrop hinner.
   for (const path of ["courses", "entries", "classes"]) await warmRoute(owner, `${admin}/${path}`);
-  for (const path of ["course-classes", "entries"]) await warmRoute(owner, `${admin}/${path}`, "POST");
-  await owner.reload();
+  for (const path of ["course-classes", "registration", "registration-candidates"]) await warmRoute(owner, `${admin}/${path}`, "POST");
   await addCourseAndClass(owner, "Lång", "H21", "31 32 33");
   for (const [givenName, familyName] of [["Ada", "Ek"], ["Bo", "Lind"], ["Cia", "Holm"]] as const) {
     await addEntry(owner, { className: "H21", givenName, familyName, club: "OK Natt", card: String(8000100 + givenName.length + familyName.charCodeAt(0)) });

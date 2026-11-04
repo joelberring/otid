@@ -1,6 +1,7 @@
 import type { CostModel, LegAnalysis, LegInput, RouteChoiceSettings } from "@o-tid/route-choice";
-import type { CalibrationResult, CalibrationSample, RouteChoiceWorkerErrorCode, RouteChoiceWorkerRequest,
+import type { CalibrationResult, CalibrationSample, LevelLegRequest, LevelMeasured, RouteChoiceWorkerErrorCode, RouteChoiceWorkerRequest,
   RouteChoiceWorkerResponse, SpeedFactors } from "./route-choice-worker-protocol";
+import type { LevelControlInput } from "@o-tid/course-setting";
 
 /**
  * Steg 60: vägvalsanalysens Worker sedd från arbetsytan. En Worker per öppen vy; kartfilen skickas en gång. `analyse` ger
@@ -14,7 +15,8 @@ export class RouteChoiceSession {
   private onModel: ((model: RouteChoiceModel) => void) | undefined;
   private onError: ((code: RouteChoiceWorkerErrorCode) => void) | undefined;
   private readonly runs = new Map<number, { leg: (index: number, analysis: LegAnalysis) => void; done: () => void;
-    calibrated?: (result: CalibrationResult) => void; failed: (code: RouteChoiceWorkerErrorCode) => void; cancelled?: () => void }>();
+    calibrated?: (result: CalibrationResult) => void; failed: (code: RouteChoiceWorkerErrorCode) => void; cancelled?: () => void;
+    levelLeg?: (message: Extract<RouteChoiceWorkerResponse, { type: "level-leg" }>) => void; level?: (result: LevelMeasured) => void }>();
 
   constructor(createWorker: () => Worker) {
     this.worker = createWorker();
@@ -30,6 +32,8 @@ export class RouteChoiceSession {
     if (!handler) return;
     if (message.type === "leg") handler.leg(message.index, message.analysis);
     else if (message.type === "calibrated") { this.runs.delete(message.runId); handler.calibrated?.(message.result); }
+    else if (message.type === "level-leg") handler.levelLeg?.(message);
+    else if (message.type === "level") { this.runs.delete(message.runId); handler.level?.(message.result); }
     else if (message.type === "done") { this.runs.delete(message.runId); handler.done(); }
     else { this.runs.delete(message.runId); handler.failed(message.code); }
   }
@@ -69,6 +73,20 @@ export class RouteChoiceSession {
       this.runs.set(runId, { leg: () => undefined, done: () => undefined, calibrated: resolve, failed: code => reject(new Error(code)) });
       this.send({ type: "calibrate", runId, samples });
     });
+  }
+
+  /**
+   * ADR-0212: nivåstödet för en bana. En tidigare körning avbryts; `progress` får varje sträcka (och dess längd för den
+   * gemensamma tabellen), `done` mätningen.
+   */
+  level(request: { legs: readonly LevelLegRequest[]; controls: readonly LevelControlInput[]; sprint: boolean },
+    progress: (message: Extract<RouteChoiceWorkerResponse, { type: "level-leg" }>) => void, done: (result: LevelMeasured) => void,
+    failed: (code: RouteChoiceWorkerErrorCode) => void, cancelled?: () => void): number {
+    this.cancel();
+    const runId = ++this.run;
+    this.runs.set(runId, { leg: () => undefined, done: () => undefined, failed, levelLeg: progress, level: done, ...(cancelled ? { cancelled } : {}) });
+    this.send({ type: "level", runId, ...request });
+    return runId;
   }
 
   /** Avbryter pågående körning (svaren som redan kommit står kvar). */

@@ -1,3 +1,4 @@
+import type { ControlLevelFeatures, LegLevelFeatures, LevelControlInput } from "@o-tid/course-setting";
 import type { CalibrationSample as EngineCalibrationSample, CostModel, LegAnalysis, LegInput, RouteChoiceSettings, SpeedClass }
   from "@o-tid/route-choice";
 
@@ -20,12 +21,25 @@ export interface CalibrationResult {
   readonly reliability: "NONE" | "LOW" | "MEDIUM" | "HIGH";
 }
 
+/** Nivåstödet (ADR-0212): en sträcka att bedöma (vägvalets indata och kontrollernas id). */
+export interface LevelLegRequest { readonly input: LegInput; readonly from: string; readonly to: string }
+
+/** Nivåstödets mätning för en bana; `notApplicable` för sprintkartor (ingen färgskala). */
+export interface LevelMeasured {
+  readonly controls: readonly ControlLevelFeatures[];
+  readonly legs: readonly LegLevelFeatures[];
+  readonly notApplicable?: "SPRINT" | undefined;
+}
+
 export type RouteChoiceWorkerRequest =
   | { readonly type: "load"; readonly bytes: ArrayBuffer; readonly fileName: string; readonly settings: RouteChoiceSettings }
   | { readonly type: "settings"; readonly settings: RouteChoiceSettings }
   | { readonly type: "analyse"; readonly runId: number; readonly legs: readonly LegInput[] }
   | { readonly type: "cancel"; readonly runId: number }
-  | { readonly type: "calibrate"; readonly runId: number; readonly samples: readonly CalibrationSample[] };
+  | { readonly type: "calibrate"; readonly runId: number; readonly samples: readonly CalibrationSample[] }
+  /** ADR-0212: nivåstödet för en bana; `sprint` = banläggningen är för sprint (ISSprOM). */
+  | { readonly type: "level"; readonly runId: number; readonly legs: readonly LevelLegRequest[]; readonly controls: readonly LevelControlInput[];
+      readonly sprint: boolean };
 
 export type RouteChoiceWorkerErrorCode = "NOT_A_MAP_FILE" | "UNSUPPORTED_VERSION" | "TRUNCATED" | "INVALID" | "NO_MODEL" | "FAILED";
 
@@ -34,4 +48,8 @@ export type RouteChoiceWorkerResponse =
   | { readonly type: "leg"; readonly runId: number; readonly index: number; readonly analysis: LegAnalysis }
   | { readonly type: "done"; readonly runId: number }
   | { readonly type: "calibrated"; readonly runId: number; readonly result: CalibrationResult }
+  /** ADR-0212: en sträcka är räknad (`best` i meter, för den gemensamma tabellen med vägvalen). */
+  | { readonly type: "level-leg"; readonly runId: number; readonly done: number; readonly total: number; readonly key: string;
+      readonly best: number | undefined; readonly straight: number }
+  | { readonly type: "level"; readonly runId: number; readonly result: LevelMeasured }
   | { readonly type: "error"; readonly code: RouteChoiceWorkerErrorCode; readonly runId?: number | undefined };

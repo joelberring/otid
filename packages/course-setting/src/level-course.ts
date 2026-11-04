@@ -67,7 +67,7 @@ export function assessLevel(controls: readonly ControlLevelFeatures[], legs: rea
   const judgedLegs = legs.map(features => ({ features, verdict: judgeLeg(features) }));
   const ranks = [...judgedControls, ...judgedLegs].map(item => item.verdict.rank).sort((a, b) => a - b);
   const at = (share: number) => ranks.length === 0 ? 0 : ranks[Math.min(ranks.length - 1, Math.floor(share * ranks.length))]!;
-  return { controls: judgedControls, legs: judgedLegs, low: at(0.5) as LevelRank, high: at(0.85) as LevelRank };
+  return { controls: judgedControls, legs: judgedLegs, low: at(0.5), high: at(0.85) };
 }
 
 /** Hur många kontroller och sträckor som är svårare än nivån. */

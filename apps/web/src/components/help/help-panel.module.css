@@ -61,4 +61,9 @@
   line-height: 1; vertical-align: text-bottom; cursor: pointer; }
 .inline:hover:not(:disabled) { border-color: var(--ink); background: var(--surface); color: var(--ink); }
 .inline:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media print { .dialog, .inline { display: none; } }
+/* En textlänk till hjälpen ("Hur lägger man en gul bana?"). */
+.textLink { display: inline; min-height: 0; margin: 0; padding: 0; border: 0; background: none; color: var(--accent);
+  font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.textLink:hover { color: var(--ink); }
+.textLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media print { .dialog, .inline, .textLink { display: none; } }

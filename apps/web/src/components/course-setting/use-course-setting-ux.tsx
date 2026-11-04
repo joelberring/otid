@@ -33,7 +33,8 @@ type Say = (message: { tone: "ok" | "error" | "attention"; text: string; list?: 
 const ADD_TOOLS: readonly Tool[] = ["ADD_CONTROL", "ADD_START", "ADD_FINISH", "ADD_CROSSING", "ADD_MAP_EXCHANGE", "INSERT_EXISTING"];
 const UNUSED_KEY = "otid.course-setting.show-unused", OTHERS_KEY = "otid.course-setting.show-others";
 /** Markeringarna på kartan som kan släckas (per webbläsare, alla på som förval; fältläget i telefonen också). */
-const MARKS = { inspected: "otid.course-setting.show-inspected", notes: "otid.course-setting.show-notes", warnings: "otid.course-setting.show-warnings" } as const;
+const MARKS = { inspected: "otid.course-setting.show-inspected", notes: "otid.course-setting.show-notes", warnings: "otid.course-setting.show-warnings",
+  levels: "otid.course-setting.show-levels" } as const;
 export type MapMarks = Record<keyof typeof MARKS, boolean>;
 
 function readFlag(key: string, fallback: boolean): boolean {
@@ -58,10 +59,11 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   const [forceNew, setForceNew] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
   const [showUnused, setShowUnused] = useState(true);
-  const [marks, setMarks] = useState<MapMarks>({ inspected: true, notes: true, warnings: true });
+  const [marks, setMarks] = useState<MapMarks>({ inspected: true, notes: true, warnings: true, levels: true });
   useEffect(() => {
     setShowOthers(readFlag(OTHERS_KEY, false)); setShowUnused(readFlag(UNUSED_KEY, true));
-    setMarks({ inspected: readFlag(MARKS.inspected, true), notes: readFlag(MARKS.notes, true), warnings: readFlag(MARKS.warnings, true) });
+    setMarks({ inspected: readFlag(MARKS.inspected, true), notes: readFlag(MARKS.notes, true), warnings: readFlag(MARKS.warnings, true),
+      levels: readFlag(MARKS.levels, true) });
   }, []);
   const markToggle = (key: keyof MapMarks) => ({ label: ux.view[key], on: marks[key],
     onChange: (on: boolean) => { setMarks(current => ({ ...current, [key]: on })); writeFlag(MARKS[key], on); } });
@@ -225,7 +227,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
     {forkPicker && <ForkPicker onFork={forkHere} onClose={() => setForkPicker(false)} />}
     <ViewOptions others={showOthers} onOthers={on => { setShowOthers(on); writeFlag(OTHERS_KEY, on); }}
       unused={view === ALL_CONTROLS ? { count: unused.length, on: showUnused, onChange: on => { setShowUnused(on); writeFlag(UNUSED_KEY, on); } } : undefined}
-      toggles={[markToggle("inspected"), markToggle("notes"), markToggle("warnings")]} />
+      toggles={[markToggle("inspected"), markToggle("notes"), markToggle("warnings"), markToggle("levels")]} />
     {confirm && <Dialog title={confirm.title} onClose={() => setConfirm(undefined)}>{confirm.body}</Dialog>}
   </>;
   /** I beskedens stapel uppe till höger: grenen man arbetar i och "Alltid ny". */

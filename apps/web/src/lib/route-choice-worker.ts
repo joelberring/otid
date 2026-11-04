@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
+import { controlFeatures, detectPressNorm, legFeatures, prepareLevelMap, type LegLevelFeatures } from "@o-tid/course-setting";
 import { analyseLeg, buildCostModel, calibrateSpeeds, resolveSettings, type CostModel, type RouteChoiceSettings } from "@o-tid/route-choice";
 import type { RouteChoiceWorkerRequest, RouteChoiceWorkerResponse } from "./route-choice-worker-protocol";
 
@@ -18,6 +19,7 @@ let settings: RouteChoiceSettings = { version: 1 };
 let activeRun = 0;
 
 function build() {
+  levelLegs.clear();
   if (!map) { model = undefined; post({ type: "error", code: "NO_MODEL" }); return; }
   model = buildCostModel(map, settings);
   post({ type: "model", unknownSymbols: model.unknownSymbols, speeds: { ...resolveSettings(settings).speedByClass } });
@@ -36,6 +38,45 @@ async function analyse(runId: number, request: Extract<RouteChoiceWorkerRequest,
     post({ type: "leg", runId, index, analysis }, analysis.corridor ? [analysis.corridor.mask.buffer] : []);
   }
   if (runId === activeRun) post({ type: "done", runId });
+}
+
+/**
+ * ADR-0212: nivåstödets sträckor per indata (samma nyckel som vägvalen), så att bara ändrade sträckor räknas om när
+ * banläggaren bedömer igen. Tas bort när kartan eller inställningarna byts.
+ */
+const levelLegs = new Map<string, { features: LegLevelFeatures | undefined; best: number | undefined; straight: number }>();
+
+/** Sprint har ingen färgskala (SOFT 2022): kartans norm som i utskriften (ADR-0211 beslut 3). */
+function sprintMap(parsed: ParsedMap): boolean {
+  const codes = new Set<string>();
+  for (const object of parsed.objects) { const symbol = parsed.symbols.get(object.symbol); if (symbol) codes.add(symbol.code.text.replace(/\.0+$/, "")); }
+  return detectPressNorm({ scale: parsed.scale, codes }) === "ISSPROM";
+}
+
+async function level(runId: number, request: Extract<RouteChoiceWorkerRequest, { type: "level" }>) {
+  if (!model || !map) { post({ type: "error", code: "NO_MODEL", runId }); return; }
+  if (request.sprint || sprintMap(map)) { post({ type: "level", runId, result: { controls: [], legs: [], notApplicable: "SPRINT" } }); return; }
+  const prepared = prepareLevelMap(map);
+  const legs: LegLevelFeatures[] = [];
+  for (const [index, leg] of request.legs.entries()) {
+    let known = levelLegs.get(leg.input.key);
+    if (!known) {
+      await yieldToMessages();
+      if (runId !== activeRun || !model) return;
+      const analysis = analyseLeg(model, { ...leg.input, follow: true }, settings);
+      if (runId !== activeRun) return;
+      known = { best: analysis.best?.meters, straight: analysis.straightMeters,
+        features: legFeatures(prepared, { key: leg.input.key, from: leg.from, to: leg.to, best: analysis.best?.points, followRatio: analysis.following?.timeRatio }) };
+      if (levelLegs.size > 2000) levelLegs.clear();
+      levelLegs.set(leg.input.key, known);
+    }
+    if (known.features) legs.push({ ...known.features, from: leg.from, to: leg.to });
+    post({ type: "level-leg", runId, done: index + 1, total: request.legs.length, key: leg.input.key, best: known.best, straight: known.straight });
+  }
+  await yieldToMessages();
+  if (runId !== activeRun) return;
+  const controls = request.controls.map(control => controlFeatures(prepared, control));
+  post({ type: "level", runId, result: { controls, legs } });
 }
 
 function calibrate(request: Extract<RouteChoiceWorkerRequest, { type: "calibrate" }>) {
@@ -67,6 +108,9 @@ function handle(request: RouteChoiceWorkerRequest): Promise<void> | void {
       return;
     case "calibrate":
       return calibrate(request);
+    case "level":
+      activeRun = request.runId;
+      return level(request.runId, request);
   }
 }
 

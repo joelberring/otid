@@ -121,7 +121,7 @@ describe("nivåstödets sträckor", () => {
 
   it("en kort genväg genom skogen är Gul: reglerna säger att genandet är mer än Vit tillåter", () => {
     const map = mapOf([line("505", [0, 0], [300, 0]), line("505", [300, 80], [600, 80]), line("505", [300, 0], [300, 300], [300, 80])]);
-    const verdict = judgeLeg(leg(map, [[0, 0], [300, 0], [300, 80], [600, 80]].map(([x, y]) => [x!, y!]) as [number, number][], 1.15));
+    const verdict = judgeLeg(leg(map, [[0, 0], [300, 0], [300, 80], [600, 80]].map(([x, y]) => [x!, y!]), 1.15));
     expect(verdict).toMatchObject({ rank: 2, rule: "L_NO_SHORTCUT", values: { percent: 15 } });
   });
 

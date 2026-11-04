@@ -125,6 +125,8 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
   await owner.goto("/organizer");
   await createRace(owner, `Nästa vecka ${suffix}`, daysFromToday(7), "Träning");
   await owner.goto("/organizer");
+  // Ägaren 2026-11-04: de gångna under "Tidigare tävlingar (n)", ihopfällda; öppnade för att se hela ordningen.
+  await owner.getByTestId("past-events").locator("summary").click();
   const events = owner.locator("section").filter({ has: owner.getByRole("heading", { name: "Dina tävlingar" }) })
     .getByRole("heading", { level: 3 });
   await expect(events).toHaveText([`Träning denna vecka ${suffix}`, `Nästa vecka ${suffix}`, `Nästa månad ${suffix}`, `Träning v${suffix}`]);

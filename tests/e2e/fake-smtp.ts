@@ -67,12 +67,17 @@ function decodeBody(raw: string): string {
   return body;
 }
 
-/** Senaste mejlet till adressen (texten avkodad), eller undefined. */
-export function latestMailTo(address: string, directory = FAKE_SMTP_DIR): { text: string; raw: string } | undefined {
+/**
+ * Senaste mejlet till adressen (texten avkodad), eller undefined. Med `matching` det senaste vars text matchar (ADR-0206: en
+ * adress kan få både en inbjudan och ett bekräftelsemejl).
+ */
+export function latestMailTo(address: string, matching?: RegExp, directory = FAKE_SMTP_DIR): { text: string; raw: string } | undefined {
   const files = readdirSync(directory).filter((file) => file.endsWith(".json")).sort();
   for (const file of files.reverse()) {
     const mail = JSON.parse(readFileSync(join(directory, file), "utf8")) as { to: string[]; raw: string };
-    if (mail.to.includes(address.toLowerCase())) return { text: decodeBody(mail.raw), raw: mail.raw };
+    if (!mail.to.includes(address.toLowerCase())) continue;
+    const text = decodeBody(mail.raw);
+    if (!matching || matching.test(text)) return { text, raw: mail.raw };
   }
   return undefined;
 }

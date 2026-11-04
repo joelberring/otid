@@ -119,7 +119,9 @@ test("löparkartor: variablerna på arket, två valda löpare, baksidan i samma 
   const csv = await (await downloadPromise).createReadStream();
   const chunks: Buffer[] = [];
   for await (const chunk of csv) chunks.push(chunk as Buffer);
-  expect(Buffer.concat(chunks).toString("utf8")).toMatch(/PDF-sida;Nr;Namn;Klubb;Klass;Lag\/Sträcka;Bana;Variant;Starttid;Varningar\r\n1;2;Bo Lind;OK Natt;H21;;Lång;;/);
+  // CSV:en har tabellens rader i tabellens ordning (sorterad på namn, fallande).
+  expect(Buffer.concat(chunks).toString("utf8")).toBe("\ufeffPDF-sida;Nr;Namn;Klubb;Klass;Lag/Sträcka;Bana;Variant;Starttid;Varningar\r\n"
+    + "3;3;Cia Holm;OK Natt;H21;;Lång;;;\r\n1;2;Bo Lind;OK Natt;H21;;Lång;;;\r\n");
   await shot(owner, "kontrollera");
 
   // 4. PDF:en för kontorsskrivaren: fyra sidor (fram och bak för två löpare).

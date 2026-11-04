@@ -8,6 +8,7 @@
  *   tillbaka till vanlig bana tappar etiketten poängen ("Kod och poäng" → "Kod"). Poängen på banans kontroller står kvar.
  * - Ordningen är platsen i listan (1 = först); de andra banorna numreras om 1, 2, 3 … i sin ordning.
  */
+import { isCourseLevel } from "./level-types";
 import { fromRaw, toRaw } from "./ppen-common";
 import type { Course, CourseChanges, CourseSettingDocument } from "./types";
 import { CourseSettingEditError } from "./types";
@@ -119,6 +120,12 @@ export function updateCourse(document: CourseSettingDocument, courseId: string, 
     course = { ...course, kind: changes.kind, labelKind: labelForKind(course.labelKind, changes.kind) };
   }
   if ("excludedVariants" in changes) course = withExcludedVariants(document, course, changes.excludedVariants);
+  if ("level" in changes) {
+    const level = changes.level;
+    if (level === null || level === undefined) course = without(course, "level");
+    else if (!isCourseLevel(level)) throw invalid("Okänd nivå");
+    else course = { ...course, level };
+  }
   if ("labelKind" in changes) {
     const label = changes.labelKind;
     if (label === undefined) throw invalid("labelKind måste ha ett värde");

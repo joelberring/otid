@@ -59,6 +59,8 @@ export interface LegInput {
   readonly otherControls?: readonly { readonly code: string; readonly at: Point }[];
   /** Steg 64: banläggningens spärrar och öppningar för sträckan (saknas = bara kartan). */
   readonly barriers?: RouteBarriers | undefined;
+  /** Nivåstödet (ADR-0212): räkna också vägen längs vägar, stigar och öppen mark (`LegAnalysis.following`). */
+  readonly follow?: boolean | undefined;
 }
 
 export interface RouteLine {
@@ -98,6 +100,11 @@ export interface LegAnalysis {
   } | undefined;
   /** ROUTE_CHOICE: skilda vägval finns; NO_CHOICE: ett tydligt bästa; ABOUT_EQUAL: bästa byter plats vid farter ±15 %. */
   readonly verdict: "ROUTE_CHOICE" | "NO_CHOICE" | "ABOUT_EQUAL";
+  /**
+   * Nivåstödet (ADR-0212, bara med `LegInput.follow`): vägen som följer vägar, stigar och öppen lättlöpt mark så långt det
+   * går, med `timeRatio` mot bästa vägen (1,15 = att följa tar 15 % längre tid än att gena).
+   */
+  readonly following?: (RouteLine & { readonly timeRatio: number }) | undefined;
   readonly warnings: readonly LegWarning[];
   readonly milliseconds: number;
 }

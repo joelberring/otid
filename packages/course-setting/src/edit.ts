@@ -518,6 +518,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
         && changes.legCircleGapMm >= LEG_CIRCLE_GAP_LIMITS.min && changes.legCircleGapMm <= LEG_CIRCLE_GAP_LIMITS.max)) {
         throw invalidEdit(`Mellanrummet vid ringen ska vara ${LEG_CIRCLE_GAP_LIMITS.min}–${LEG_CIRCLE_GAP_LIMITS.max} mm`);
       }
+      if (changes.levelNotices !== undefined && typeof changes.levelNotices !== "boolean") throw invalidEdit("Avvikelserna mot nivån är på eller av");
       if (changes.paperValues !== undefined) {
         const values = changes.paperValues;
         const ok = (value: unknown, max: number) => value === undefined || (typeof value === "string" && value.length <= max);

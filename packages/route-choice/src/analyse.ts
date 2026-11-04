@@ -8,7 +8,7 @@ import type { Point } from "@o-tid/map-file";
 import { preparedOf, withBarriers, type PreparedModel } from "./cost-model";
 import { climbCostPerUnit, RUNNABLE_CLASSES, type ResolvedSettings, type RunnableClass, resolveSettings } from "./defaults";
 import { distance, distanceToPolyline, polylineLength, simplify } from "./geometry";
-import { cellCenter, cellOf, legFrame, paceField, rasterize, strokeLine, type Grid } from "./raster";
+import { cellCenter, cellOf, legFrame, NO_TRACK, paceField, rasterize, strokeLine, type Grid } from "./raster";
 import { backtrack, minimumPace, pathCost, search, SearchWorkspace, type SearchGrid, type SearchResult } from "./search";
 import { polylineCost, straighten } from "./smooth";
 import type { CostModel, LegAnalysis, LegInput, LegWarning, RouteChoiceSettings, RouteLine } from "./types";
@@ -29,6 +29,11 @@ export const UNCERTAINTY = 0.15;
 export const CONTROL_RING_RADIUS_MM = 3;
 /** Så långt (m) en kontroll i ej passerbar mark får flyttas till närmaste passerbara cell. */
 export const SNAP_METERS = 10;
+/**
+ * Nivåstödet (ADR-0212): i sökningen efter vägen längs ledstängerna (`LegInput.follow`) kostar mark utan väg, stig eller
+ * öppen lättlöpt mark så här många gånger mer. Vägen mäts sedan med de riktiga farterna.
+ */
+export const FOLLOW_PENALTY = 20;
 
 interface Context {
   readonly grid: Grid;
@@ -257,15 +262,42 @@ function analyseInFrame(model: CostModel, leg: LegInput, settings: RouteChoiceSe
   for (let index = 0; index < region.length; index += 1) if (fromA.cost[index]! + fromB.cost[index]! <= regionBound) region[index] = 1;
   const switched = bestSwitches(context, resolved, best, alternatives.map(alt => alt.route), a, b, region, fromB.cost, workspace);
   const verdict = switched ? "ABOUT_EQUAL" : alternatives.length > 0 ? "ROUTE_CHOICE" : "NO_CHOICE";
+  const following = leg.follow ? followRoute(context, best, a, b, minPace) : undefined;
   return finish({
     best: bestLine,
     alternatives: alternatives.map(alt => ({ ...alt.line, timeRatio: alt.route.cost / best.cost })),
     corridor,
-    verdict
+    verdict,
+    ...(following ? { following } : {})
   });
 }
 
 interface End { readonly cell: number; readonly point: Point }
+
+/**
+ * Nivåstödet (ADR-0212): bästa vägen som följer vägar, stigar och öppen lättlöpt mark så långt det går. Annan mark kostar
+ * `FOLLOW_PENALTY` gånger mer i sökningen (en egen A* i samma rutnät); vägen räknas sedan med de riktiga farterna, så att
+ * `timeRatio` säger hur mycket långsammare det är att följa än att gena.
+ */
+function followRoute(context: Context, best: FoundRoute, a: End, b: End, minPace: number): (RouteLine & { readonly timeRatio: number }) | undefined {
+  const { grid, searchGrid } = context;
+  const pace = searchGrid.pace;
+  const follow = new Float32Array(pace.length);
+  const fast = RUNNABLE_CLASSES.indexOf("FAST");
+  for (let index = 0; index < pace.length; index += 1) {
+    const onTrack = grid.track[index] !== NO_TRACK || grid.ground[index] === fast;
+    follow[index] = onTrack ? pace[index]! : pace[index]! * FOLLOW_PENALTY;
+  }
+  const followGrid: SearchGrid = { ...searchGrid, pace: follow };
+  const result = search(followGrid, follow, a.cell, { goal: b.cell, towards: b.cell, minPace });
+  if (!(result.cost[b.cell]! < Infinity)) return undefined;
+  const cells = backtrack(result.parent, a.cell, b.cell);
+  if (cells.length === 0) return undefined;
+  const corners = straighten(followGrid, follow, cells);
+  const measured = polylineCost(searchGrid, pace, corners);
+  const route: FoundRoute = { corners, cells, gridCost: result.cost[b.cell]!, cost: measured.cost, climbUnits: measured.climbUnits, meters: measured.meters };
+  return { ...toLine(context, route, a.point, b.point), timeRatio: best.cost > 0 ? measured.cost / best.cost : 1 };
+}
 
 /** Finns det karta utanför rutnätet? (Utan kartans yta: anta att det gör det.) */
 function canGrow(bounds: PreparedModel["bounds"], grid: Grid): boolean {

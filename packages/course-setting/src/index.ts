@@ -194,3 +194,18 @@ export { SECTION_MARKER_TEXT, dashedGaps, pairLabels, sectionMarkerText } from "
 export { DEFAULT_PIECES, expandTrainingItems, starSpokes, trainingPieceSheets } from "./training-print";
 export { mirrorFigures, mirrorPoint } from "./training-mirror";
 export { TRAINING_TAGS, trainingTags, type TrainingTag } from "./training-tags";
+// ADR-0212: nivåstödet (Grön … Svart), på begäran.
+export {
+  COURSE_LEVELS, isCourseLevel, LEVEL_RANKS, levelFromClassNames, levelRank, type ControlLevelFeatures, type CourseLevel, type FeatureSize,
+  type HandrailKind, type LegLevelFeatures, type LevelRank
+} from "./level-types";
+export { prepareLevelMap, type LevelMap } from "./level-map";
+export { controlFeatures, legFeatures, type LevelControlInput, type LevelLegInput } from "./level-features";
+export {
+  ALL_LEVEL_RULES, CONTROL_RULES, EASIER_FROM, EASIER_RULES, EASIER_STEPS, judgeControl, judgeLeg, LEG_RULES, LEVEL_LIMITS, levelDeviation,
+  type LevelDeviation, type LevelRuleId, type LevelValues, type LevelVerdict
+} from "./level-rules";
+export {
+  assessLevel, carryCourseLevels, harderThan, levelChecks, levelControls, levelDeviations, levelLegPairs, suggestedCourseLevel,
+  type LevelAssessment, type LevelDeviationRow, type LevelItem
+} from "./level-course";

@@ -15,6 +15,8 @@ import type { LayoutTemplate } from "./layout-template";
 import type { CoursePaperLayout, PaperTemplate, PaperValues } from "./paper-items";
 import type { PrintProfile } from "./print-profile";
 import type { OverprintTraining, TrainingPatch, TrainingSettings } from "./training-types";
+import type { CourseLevel, LevelRank } from "./level-types";
+import type { LevelRuleId } from "./level-rules";
 
 /**
  * Ett XML-element som O-Tid inte tolkar men skriver tillbaka orört (attribut och innehåll som text). Ett element som
@@ -144,6 +146,11 @@ export interface Course {
    * och skrivs inte ut. Bara O-Tid; i .ppen i O-Tid:s namnrymd (`<otid:variants>`).
    */
   readonly excludedVariants?: readonly ExcludedVariant[] | undefined;
+  /**
+   * ADR-0212: banans målnivå (Grön … Svart) för nivåstödet. Bara O-Tid; skrivs inte till .ppen och följer med när en ny .ppen
+   * läses in (`carryCourseLevels`). Saknas = ingen.
+   */
+  readonly level?: CourseLevel | undefined;
   readonly raw?: readonly RawXml[] | undefined;
 }
 
@@ -287,6 +294,11 @@ export interface CourseSettingDocument {
      * .ppen och följer med när en ny .ppen läses in (de vars kontroller och objekt finns kvar).
      */
     readonly acceptedChecks?: Readonly<Record<string, AcceptedCheck>> | undefined;
+    /**
+     * ADR-0212: nivåstödets avvikelser mot banornas målnivå visas som notiser i Varningar ("Visa avvikelser mot nivån i
+     * Varningar"). Bara O-Tid; saknas = av.
+     */
+    readonly levelNotices?: boolean | undefined;
     /** Papperets mallar (ADR-0197) som banorna ärver av, och värdena för {datum} och {ekvidistans}. Bara O-Tid. */
     readonly paperTemplates?: readonly PaperTemplate[] | undefined;
     readonly paperValues?: PaperValues | undefined;
@@ -348,7 +360,7 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "legCircleGapMm" | "allControlsPrintScale" | "printProfileId" | "paperValues">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "legCircleGapMm" | "allControlsPrintScale" | "printProfileId" | "paperValues" | "levelNotices">> }
   /** Banans utseende för hela banläggningen (Purple Pens `<course-appearance>`, ADR-0180 beslut 12). */
   | { readonly type: "SET_APPEARANCE"; readonly changes: Partial<Appearance> }
   /** Steg 63: kontrollbeskrivningen. */
@@ -375,6 +387,8 @@ export interface CourseChanges {
   readonly lengthOverrideMeters?: number | null | undefined;
   /** ADR-0198: de bortvalda varianterna (ersätts helt); null eller tom = alla används. */
   readonly excludedVariants?: readonly ExcludedVariant[] | null | undefined;
+  /** ADR-0212: målnivån; null tar bort den. */
+  readonly level?: CourseLevel | null | undefined;
 }
 
 /** Specialobjektets tolkade egenskaper (utom punkter och banor). */
@@ -522,7 +536,14 @@ export type CourseCheck =
   | { readonly kind: "UNUSED_CONTROL"; readonly control: string }
   | { readonly kind: "MISSING_CODE"; readonly control: string }
   /** ADR-0211 beslut 4: ett nummer som banläggaren placerat ligger delvis på ett hus eller en mörk yta (en notis). */
-  | { readonly kind: "NUMBER_ON_OBSTACLE"; readonly course: string; readonly control: string; readonly text: string };
+  | { readonly kind: "NUMBER_ON_OBSTACLE"; readonly course: string; readonly control: string; readonly text: string }
+  /**
+   * ADR-0212: nivåstödet bedömer kontrollen eller sträckan svårare (eller tydligt lättare) än banans målnivå (en notis, bara
+   * med "Visa avvikelser mot nivån i Varningar"). `rule` är regeln vars tips gäller, `rank` den uppskattade nivån.
+   */
+  | { readonly kind: "LEVEL_DEVIATION"; readonly course: string; readonly target: CourseLevel; readonly direction: "HARDER" | "EASIER";
+      readonly rule: LevelRuleId; readonly rank: LevelRank; readonly control?: string | undefined; readonly from?: string | undefined;
+      readonly to?: string | undefined };
 
 /**
  * Färg i banpåtrycket (färgroll; dekorfärg och övertryck i steg 65). COURSE = banans övre lila; COURSE_LOWER = undre lila

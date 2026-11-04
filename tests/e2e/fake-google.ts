@@ -50,7 +50,7 @@ export function startFakeGoogle(port = FAKE_GOOGLE_PORT): Promise<Server> {
       const redirectUri = url.searchParams.get("redirect_uri") ?? "";
       const back = new URL(redirectUri);
       back.searchParams.set("state", url.searchParams.get("state") ?? "");
-      if (next.error) back.searchParams.set("error", String(next.error));
+      if (typeof next.error === "string") back.searchParams.set("error", next.error);
       else {
         const code = randomUUID();
         codes.set(code, { challenge: url.searchParams.get("code_challenge") ?? "", nonce: url.searchParams.get("nonce") ?? "", redirectUri,

@@ -100,7 +100,7 @@ test("klubbarkivets kartor: OCAD 11 fungerar, OCAD 7 säger varför, bilder, ban
   }
   await owner.goto("/organizer");
   const clubs = owner.getByRole("region", { name: "Mina klubbar" });
-  await clubs.getByText("Ny klubb", { exact: true }).click();
+  await clubs.getByRole("button", { name: "Ny klubbyta" }).click();
   await clubs.getByLabel("Klubbens namn").fill(`OK Kartor ${suffix}`);
   await clubs.getByRole("button", { name: "Skapa klubben" }).click();
   await owner.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);

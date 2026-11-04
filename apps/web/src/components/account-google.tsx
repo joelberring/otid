@@ -34,7 +34,8 @@ export function AccountGoogle({ profile, onChange }: { profile: AccountProfile; 
   const [message, setMessage] = useState<Message>();
   const [outcome, setOutcome] = useState<Outcome | "flyttad">();
 
-  useEffect(() => { setOutcome(takeOutcome()); }, []);
+  // Bara när adressen har ett besked (React kör effekten två gånger i utvecklingsläget; andra gången är beskedet redan taget).
+  useEffect(() => { const taken = takeOutcome(); if (taken) setOutcome(taken); }, []);
   useEffect(() => {
     if (!outcome) return;
     const email = profile.google?.email ?? "";

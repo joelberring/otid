@@ -33,6 +33,8 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
 
   // Mina tävlingar: "Kopiera" på loppet öppnar dialogen med samma namn och datumet en vecka senare.
   await owner.goto("/organizer");
+  // Ägaren 2026-11-04: förra veckans träning ligger under "Tidigare tävlingar (1)".
+  await owner.getByTestId("past-events").locator("summary").click();
   await owner.getByRole("button", { name: "Kopiera Torsdag till en ny tävling" }).click();
   const dialog = owner.getByRole("dialog", { name: "Ny tävling som …" });
   await expect(dialog.getByLabel("Tävlingens namn")).toHaveValue(`Träning v${suffix}`);

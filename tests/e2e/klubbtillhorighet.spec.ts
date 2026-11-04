@@ -86,7 +86,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   const clubs = member.getByRole("region", { name: "Mina klubbar" });
   await expect(clubs).toContainText("OK Älvsjö-Örby");
   await expect(clubs).toContainText("Medlem");
-  await clubs.getByRole("link", { name: "Öppna arkivet" }).click();
+  await clubs.getByRole("link", { name: /OK Älvsjö-Örby/ }).click();
   await member.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);
   await expect(member.getByTestId("club-eventor-badge")).toHaveText("Kopplad till Eventor · OK Älvsjö-Örby");
   await expect(member.getByText("Arkivet är tomt")).toBeVisible();

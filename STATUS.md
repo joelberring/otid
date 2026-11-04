@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Koppla Google-konto, kontomenyn och Mina tävlingar (grenen google-koppla, ADR-0205 tillägg, migration 0082)
+- Mitt konto → "Koppla Google-konto": Google-kontot kopplas till kontot också med en annan adress (bunden till sessionen, `email_verified`); "Ta bort kopplingen" vägras utan eget lösenord.
+- Kopplat till ett tomt konto (dubbletten): sidan `/konto/flytta-google` säger vad som händer, lösenordet bekräftar, dubbletten tas bort och loggas; används kontot vägras det. Superadmin: `superadmin.mjs google move <källa> <mål> [--delete-source-if-empty]`.
+- Kontomenyn (namnet/initialerna) på alla inloggade sidor: Mina tävlingar, Mina klubbar, Mina grupper, Mitt konto, Logga ut; utloggningen rensar webbläsarens tävlings- och persondata och varnar när ändringar väntar på nät. "Logga ut från alla enheter".
+- "Kom ihåg mig på den här datorn" (av som förval): annars tolv timmar och en sessionskaka.
+- Mina tävlingar: Mina klubbar och Mina grupper som remsa överst (roll, antal, väntar på bekräftelse, Ny klubbyta/Ny grupp); tidigare tävlingar ihopfällda, sökningen gäller dem också.
+- Verifierat: se slutrapporten (enhet, integration `adr-0205-google-koppla`, Playwright `konto-meny` 1280/390).
+
 ### 2026-11-04 – Nivåstöd (grenen nivastod, ADR-0212, ingen migration)
 - "Nivå" i banans egenskaper (Grön … Svart, förslag ur klasserna med SOFT:s tabell); sparas i dokumentet, inte i .ppen, följer med ny .ppen.
 - "Bedöm nivån" och "Bedöm alla banor" bara på begäran, i vägvalens Worker (samma motor och tabell; ny väg längs stigar `LegInput.follow`).

@@ -47,12 +47,19 @@ behörighet när ett konto med adressen och bekräftad e-post loggar in. Men ing
    <adress>"), högst 100, alla med samma roll. Varje adress blir en egen inbjudan med eget mejl (en begäran per adress, som förut);
    sammanfattningen säger till exempel "5 inbjudningar skickade, 1 adress var ogiltig".
 
+8. **"Från klubben" (ADR-0209).** Inbjudningar som skapas genom väljaren går samma väg som när adressen skrivs in och mejlas
+   från servern med samma text. Adressen står aldrig i svaret eller i listorna (namnet visas). Sådana inbjudningar kan bara
+   mejlas ("Skicka igen"), inte kopieras: länksidan visar adressen, och den som har en kopierad länk är den som bjöd in. Utan
+   e-post på servern visas ingen knapp; personen har redan ett konto och får behörigheten nästa gång hen loggar in.
+
 ## Konsekvenser
 
 - Migration 0073 (bara tillägg): tabellen `invitation_link` med nyckel till en av de tre inbjudningstabellerna och till kontot
   som skickade, så att raderna tas bort med dem (purge.ts).
+- Klubbens roller i mejlet följer ADR-0209: ägare, administratör, ledare och medlem (`READER`). Tävlingens lista (Personer med
+  behörighet) har både funktionärer, administratörer och banläggningens roller med kartritaren.
 - Nya anrop: `POST /api/invitation`, `POST /api/organizer/clubs/{id}/invitations/{id}`,
   `POST /api/organizer/groups/{id}/invitations/{id}` och `POST /api/admin/races/{id}/administrator/people/invitations/{id}`
-  (`{ delivery: "MAIL" | "LINK" }`). Svaren på "Lägg till"/"Bjud in" har `mail` (sent, failed, throttled, off); listorna har
+  (`{ delivery: "MAIL" | "LINK" }`; tävlingens går genom arbetsytans route, så rollen prövas innan begäran tolkas). Svaren på "Lägg till"/"Bjud in" har `mail` (sent, failed, throttled, off); listorna har
   `sentAt` och `mailEnabled`.
 - Utan e-post är allt som förut, plus "Kopiera länken".

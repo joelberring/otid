@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-04 – Kontot: ingen loop mellan bekräftelse och återställning, lösenordet två gånger, Logga in med Google (grenen konto-inloggning, ADR-0205, migration 0072)
+- Orsaken till loopen från klubbmötet 2026-11-03: bekräftelselänken krävde registreringens (felskrivna) lösenord och skickade tillbaka till inloggningen; efter fem fel spärrades adressen från IP-adressen, och återställningen nollställde bara spärren utan IP-adress, så det nya lösenordet gav "För många försök" och den gamla länken "ogiltig".
+- Bekräftelselänken bevisar adressen och personen väljer lösenordet där; redan bekräftad eller gammal länk ger ett nästa steg (Logga in / Glömt lösenordet). Återställningslänken bekräftar alltid adressen och loggar in där den öppnas; ett nytt lösenord häver spärren.
+- Lösenordet två gånger med besked direkt och ögat (registrering, bekräftelse, återställning, byte). Mejlen säger samma sak.
+- Logga in med Google (PKCE, state, nonce, JWKS via `jose`) när `OTID_GOOGLE_CLIENT_ID` och `OTID_GOOGLE_CLIENT_SECRET` är satta; koppling på `sub` (0072). Alla inloggningsvägar tar inbjudningar och Eventor-listan (`acceptOnLogin`).
+- Hjälpen: Skapa konto, Glömt lösenordet, Logga in med Google. Drift: docs/drift.md (Inloggning med Google, steg i Google Cloud Console).
+- Verifierat: se slutrapporten för grenen. Återstår: Google-klienten på servern (ägaren) och provning mot riktiga Google.
+
 ### 2026-11-03 – Klubbtillhörighet (grenen klubbtillhorighet, ADR-0209, migration 0076)
 - Klubblistan från Eventor (`organisation`, `node superadmin.mjs clubs refresh|import|sync`, högst en gång per dygn), sökning utan accenter med kortnamn och initialer.
 - "Vilken klubb tillhör du?" efter registreringen och Mitt konto → Mina klubbar; en egen anmälan ger ingenting.

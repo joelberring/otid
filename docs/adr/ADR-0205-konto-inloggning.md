@@ -36,9 +36,17 @@ På ett klubbmöte 2026-11-03 skrev en person fel lösenord när kontot skapades
    var kontot obekräftat byts lösenordet mot ett slumpat (samma skydd som beslut 1), annars behålls det. Utan konto skapas ett
    med Googles namn och ett slumpat lösenord som ingen känner till; ett eget lösenord väljs med "Glömt lösenordet". Ett spärrat
    konto förblir spärrat. Sessionen och inbjudningarna fungerar som vid inloggning med lösenord.
+6. **Samma steg efter varje inloggning.** Lösenord, bekräftelselänk, återställningslänk och Google går genom samma funktion
+   (`acceptOnLogin`): öppna inbjudningar tas (ADR-0188 beslut 6) och adressen jämförs med klubbarnas medlemslistor från Eventor
+   (ADR-0209 beslut B). Båda kräver bekräftad adress, så ett obekräftat konto får inget förrän en länk eller Google har
+   bekräftat den.
 
 ## Följder
 
 - Migration 0072 (endast tillägg): `user_account_google_identity`.
 - Beroende: `jose` (JWKS och JWT) i `@o-tid/application`.
-- Drift: Google-klienten skapas i Google Cloud Console (docs/drift.md).
+- Drift: Google-klienten skapas i Google Cloud Console (docs/drift.md, Inloggning med Google); `OTID_GOOGLE_CLIENT_ID` och
+  `OTID_GOOGLE_CLIENT_SECRET` i `.env`. Återkomstadressen är `{O_TID_PUBLIC_ORIGIN}/api/account/google/callback`.
+- Tester: `adr-0205-konto.test.ts` (ordningarna från mötet och en falsk OpenID-leverantör), ett fall i
+  `adr-0209-klubbtillhorighet.test.ts` (medlemslistan vid Google och återställning) och `tests/e2e/konto-inloggning.spec.ts`
+  (mejlen ur den falska SMTP-servern, länkarna i andra webbläsare).

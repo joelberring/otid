@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
@@ -6,7 +6,7 @@ import { createClub, inviteClubMember, readClub, removeClubMember } from "../../
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { grantRacePersonAsAdmin, listRacePeopleAsAdmin, revokeRacePersonAsAdmin } from "../../src/race-people";
 import { addGroupMember, createTrainingGroup, readGroupAsLeader } from "../../src/training-groups";
-import { INVITATION_LINK_LIFETIME_MS, INVITATION_MAILS_PER_RECIPIENT, INVITATION_RESEND_INTERVAL_MS, readInvitationLink,
+import { INVITATION_LINK_LIFETIME_MS, INVITATION_MAILS_PER_INVITER, INVITATION_MAILS_PER_RECIPIENT, INVITATION_RESEND_INTERVAL_MS, readInvitationLink,
   type InvitationMail, type InvitationMailer } from "../../src/invitation-links";
 import { resendClubInvitation, resendGroupInvitation, resendRacePersonInvitation } from "../../src/invitation-resend";
 import { loginUserAccount } from "../../src/user-account";
@@ -242,6 +242,22 @@ describe("ADR-0206: inbjudningar med e-post", () => {
     await db.update(schema.userAccounts).set({ emailVerifiedAt: NOW }).where(eq(schema.userAccounts.id, unverified.accountId));
     const view = await readClub(db, { ...unverified.proof, clubId: theClub.clubId }, NOW);
     expect(view.status === "ok" && view.view.viewer.role).toBe("ADMIN");
+  });
+
+  it("per avsändare: högst 100 mejl i timmen, sedan sparas inbjudan utan mejl", async () => {
+    const { mailer, sent } = testMailer();
+    const theClub = await club();
+    const first = await inviteToClub(theClub, address("forsta"), mailer);
+    // 99 tidigare mejl från samma avsändare den senaste timmen (till andra adresser).
+    const hex = () => randomBytes(32).toString("hex");
+    await db.insert(schema.invitationLinks).values(Array.from({ length: INVITATION_MAILS_PER_INVITER.hour - 1 }, (_, index) => ({
+      id: randomUUID(), clubInvitationId: first.invitationId, tokenHash: hex(), recipientKey: hex(), issuedBy: theClub.owner.accountId,
+      delivery: "MAIL", createdAt: later(index * 1000), expiresAt: later(INVITATION_LINK_LIFETIME_MS), sentAt: later(index * 1000) })));
+    const blocked = await inviteToClub(theClub, address("hundraforsta"), mailer, later(10 * MINUTE));
+    expect(blocked.mail).toBe("throttled");
+    expect(sent).toHaveLength(1);
+    // En timme senare går det igen.
+    expect((await inviteToClub(theClub, address("senare"), mailer, later(2 * 60 * MINUTE))).mail).toBe("sent");
   });
 
   it("länken går ut efter 14 dagar", async () => {

@@ -55,7 +55,9 @@ const adminFiles = [
   // Steg 68: träningsgrupperna (kartans avtal på kartsidan).
   "training-group-sv.ts",
   // ADR-0209: klubbtillhörigheten (Inställningar → Klubben och klubbarkivet, Från klubben) och klubbytans roller.
-  "club-affiliation-sv.ts", "club-archive-sv.ts"
+  "club-affiliation-sv.ts", "club-archive-sv.ts",
+  // ADR-0206: inbjudningar med e-post (Personer med behörighet).
+  "invitation-sv.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

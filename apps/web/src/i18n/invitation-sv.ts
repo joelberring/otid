@@ -4,7 +4,7 @@ import type { InvitationKind, InvitationMailOutcome, InvitationRole } from "@o-t
 
 /** Rollen i ord, i mejlet och på länksidan. */
 export const invitationRoleWords: Record<InvitationKind, Partial<Record<InvitationRole, string>>> = {
-  CLUB: { OWNER: "ägare", ADMIN: "administratör", READER: "läsare" },
+  CLUB: { OWNER: "ägare", ADMIN: "administratör", LEADER: "ledare", READER: "medlem" },
   RACE: { ADMIN: "administratör", FUNCTIONARY: "funktionär", COURSE_EDIT: "banläggare – kan ändra",
     COURSE_SUGGEST: "banläggare – kan föreslå ändringar", COURSE_COMMENT: "banläggare – kan läsa och kommentera",
     COURSE_MAP: "kartritare – ser kartan och kartfelen" },

@@ -24,6 +24,12 @@ describe("ADR-0206: inbjudningsmejlet", () => {
       .text).toContain("som funktionär.");
   });
 
+  it("klubbens roller i ord (ADR-0209: Medlem och Ledare)", () => {
+    const club = { kind: "CLUB", clubId: "c", name: "OK Påhitt" } as const;
+    expect(invitationMessage({ ...base, role: "READER", target: club }, link).text).toContain("som medlem.");
+    expect(invitationMessage({ ...base, role: "LEADER", target: club }, link).text).toContain("som ledare.");
+  });
+
   it("träningsgruppen och medlem", () => {
     expect(invitationMessage({ ...base, role: "MEMBER", target: { kind: "GROUP", groupId: "g", name: "Torsdagsgänget" } }, link).text)
       .toContain("till träningsgruppen Torsdagsgänget i O-Tid som medlem.");

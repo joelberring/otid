@@ -21,7 +21,7 @@ export const LEVEL_LIMITS = {
     gulHandrailMeters: 150,
     /** Ett litet föremål (liten grop, liten höjd) bara så här nära en ledstång på Gul. */
     gulSmallMeters: 50,
-    /** Orange: tydliga föremål att läsa in sig på inom så här långt (egen tumregel). */
+    /** Orange: tydliga föremål att läsa in sig på inom så här långt (egen tumregel); Violett klarar detaljfattig terräng (K15). */
     relocationMeters: 150,
     /** Violett: en stor, tydlig angreppspunkt inom så här långt (egen tumregel). */
     attackMeters: 150,
@@ -100,7 +100,7 @@ export const CONTROL_RULES: readonly Rule<ControlLevelFeatures>[] = [
     values: f => ({ meters: shown(f.handrailMeters), limit: C.gulSmallMeters }), show: ["bigFeature"] },
   { id: "C_SMALL_REACH", through: 3, test: f => !small(f) || within(f.handrailMeters, C.gulHandrailMeters),
     values: f => ({ meters: shown(f.handrailMeters), limit: C.gulHandrailMeters }), show: ["bigFeature", "handrail"] },
-  { id: "C_RELOCATION", through: 4, test: f => within(f.relocationMeters, C.relocationMeters),
+  { id: "C_RELOCATION", through: 3, test: f => within(f.relocationMeters, C.relocationMeters),
     values: f => ({ meters: shown(f.relocationMeters), limit: C.relocationMeters }), show: ["bigFeature", "handrail"] },
   { id: "C_ATTACK", through: 4, test: f => !small(f) || within(f.attackMeters, C.attackMeters),
     values: f => ({ meters: shown(f.attackMeters), limit: C.attackMeters }), show: ["bigFeature"] }

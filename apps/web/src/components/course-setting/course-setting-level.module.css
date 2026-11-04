@@ -1,5 +1,5 @@
 /* Nivåstödet (ADR-0212): märket i nivåns färg, raderna med skäl och tips. Inga animationer. */
-.badge { display: inline-block; min-width: 4.5em; padding: 1px 6px; border: 1px solid; border-radius: 3px; font-size: var(--text-xs);
+.badge { display: inline-block; flex: 0 0 auto; min-width: 4.5em; padding: 1px 6px; border: 1px solid; border-radius: 3px; font-size: var(--text-xs);
   font-weight: 700; line-height: 1.4; text-align: center; white-space: nowrap; }
 /* Samma färger som märkena på kartan (`LEVEL_COLORS`). */
 .badge[data-rank="0"] { background: #2e8b3a; border-color: #1f6a2a; color: #ffffff; }

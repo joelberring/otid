@@ -72,6 +72,7 @@ test("banläggning-nivåstöd: målnivå, bedöm på begäran, skäl och tips, V
   await expect(first.getByLabel(/^Nivå (Vit|Gul|Orange|Violett|Blå–Svart)$/)).toBeVisible();
   await expect(first).toContainText(/(Kontroll \d+|Start|Mål|Kontroll \d+–)/);
   await expect(first.getByTestId("course-setting-level-tip")).toHaveText(/^Tips: \S/);
+  await summary.scrollIntoViewIfNeeded();
   await shot(owner, "banlaggning-nivastod-1280");
 
   // Visa på kartan väljer kontrollen eller sträckan.

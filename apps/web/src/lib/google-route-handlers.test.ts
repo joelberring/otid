@@ -126,7 +126,9 @@ describe("ADR-0205 tillägg: Koppla Google-konto och Kom ihåg mig", () => {
     const session = `__Host-otid-organizer-session=${sessionToken}`;
     const second = await googleCallbackRoute(db, callback(`code=kod&state=${login.state}&steg=2`, `${cookie}; ${session}`), env, { exchange, link, now });
     expect(location(second)).toBe("https://otid.example/konto?google=kopplat");
-    expect(link).toHaveBeenCalledWith(db, expect.objectContaining({ boundSessionId: sessionId, proof: expect.objectContaining({ sessionToken }) }), now);
+    const [, input] = vi.mocked(link).mock.calls[0]!;
+    expect(input.boundSessionId).toBe(sessionId);
+    expect(input.proof.sessionToken).toBe(sessionToken);
     expect(cookies(second).some(value => value.startsWith("__Host-otid-google-login=deleted"))).toBe(true);
   });
 
@@ -148,7 +150,7 @@ describe("ADR-0205 tillägg: Koppla Google-konto och Kom ihåg mig", () => {
     expect(location(moved)).toBe("https://otid.example/konto/flytta-google");
     const move = cookies(moved).find(value => value.startsWith("__Host-otid-google-move="))!;
     expect(move).toMatch(/; Path=\/; Max-Age=600; SameSite=Strict; HttpOnly; Secure$/);
-    expect(parseGoogleMovePending(move.split(";")[0]!.split("=")[1]!, now)).toEqual(pending);
+    expect(parseGoogleMovePending(move.split(";")[0]!.split("=")[1], now)).toEqual(pending);
     // Fel state i läget link: aldrig vidare till kodbytet.
     expect(location(await googleCallbackRoute(db, callback(`code=kod&state=${"A".repeat(43)}&steg=2`, cookie), env,
       { exchange, link: link as unknown as typeof linkGoogleToAccount, now }))).toBe("https://otid.example/konto?google=fel");

@@ -9,13 +9,14 @@ import {
   SecurityConfigurationError, accountFailure, hasExpectedOrigin, hasNoRequestBody, privateJson, readJsonBody, securityPolicy, sessionProof,
   type SecurityPolicy
 } from "./security-policy";
+import { mailAvailable, routeMailer } from "./invitation-route-handlers";
 import { logServerError } from "./server-error-log";
 
 /**
  * Steg 68 (ADR-0182): träningsgruppernas anrop under /api/organizer/groups och tävlingens grupp och kartavtal. Samma skydd
  * som kontots andra anrop: exakt Origin och CSRF på skrivningar, privata svar utan cache. Behörigheten avgörs i tjänsterna.
  */
-type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
+type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_SMTP_URL" | "OTID_MAIL_FROM">>;
 /** Avtalet är fri text (högst 2000 tecken), så skrivningarna får större kropp än kontots övriga. */
 const BODY_MAX = 16 * 1024;
 
@@ -93,7 +94,7 @@ export async function groupReadRoute(db: Database, request: Request, groupId: st
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await readGroupAsLeader(db, { ...input.proof, groupId });
-    return result.status === "ok" ? privateJson(result.view) : failure(result.status);
+    return result.status === "ok" ? privateJson({ ...result.view, mailEnabled: mailAvailable(environment) }) : failure(result.status);
   });
 }
 
@@ -112,8 +113,9 @@ export async function groupMemberAddRoute(db: Database, request: Request, groupI
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await addGroupMember(db, { ...input.proof, groupId, request: input.body });
-    return result.status === "added" ? privateJson({ formatVersion: 1, member: result.member }, result.replayed ? 200 : 201) : failure(result.status);
+    const result = await addGroupMember(db, { ...input.proof, groupId, request: input.body }, new Date(), routeMailer(environment));
+    return result.status === "added" ? privateJson({ formatVersion: 1, member: result.member, mail: result.mail }, result.replayed ? 200 : 201)
+      : failure(result.status);
   });
 }
 

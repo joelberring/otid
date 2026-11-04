@@ -7,6 +7,8 @@ import {
   type RacePersonRevokeResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
+import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer,
+  type PreparedInvitationMail } from "./invitation-links";
 import { requireRaceRole, type RacePrincipal, type RaceSessionProof } from "./race-session";
 import { clubSourcedInContext } from "./club-invite";
 import { alreadyGranted, hasOpenInvitation, invitationKind, lockInvitationEmail, openRacePersonInvitations,
@@ -85,8 +87,10 @@ export async function listRacePeopleAsAdmin(db: Database, input: Authentication,
     if (!actor) return { status: "forbidden" } as const;
     const event = await eventOf(tx, actor.raceId, "share");
     if (!event) return { status: "not-found" } as const;
-    const invitations = (await openRacePersonInvitations(tx, actor.raceId)).map(row => ({ invitationId: row.id, email: row.email,
-      role: row.role, invitedAt: row.createdAt.toISOString() }));
+    const open = await openRacePersonInvitations(tx, actor.raceId);
+    const sent = await invitationSentTimes(tx, "RACE", open.map(row => row.id));
+    const invitations = open.map(row => ({ invitationId: row.id, email: row.email,
+      role: row.role, invitedAt: row.createdAt.toISOString(), sentAt: sent.get(row.id)?.toISOString() ?? null }));
     // ADR-0209: personer och inbjudningar "Från klubben" visas med namnet, aldrig adressen.
     const fromClub = await clubSourcedInContext(tx, "RACE_PERSON", actor.raceId);
     const people = (await activePeople(tx, event.id, actor.raceId)).map(person => fromClub.accounts.has(person.accountId)
@@ -103,13 +107,14 @@ async function readBody(read: () => Promise<unknown>): Promise<unknown> {
 }
 
 export async function grantRacePersonAsAdmin(db: Database,
-  input: Authentication & { idempotencyKey: string | null; readBody: () => Promise<unknown> }, now = new Date()): Promise<RacePersonGrantResult> {
+  input: Authentication & { idempotencyKey: string | null; readBody: () => Promise<unknown> }, now = new Date(),
+  mailer?: InvitationMailer): Promise<RacePersonGrantResult> {
   const key = racePersonGrantIdempotencyKeySchema.safeParse(input.idempotencyKey);
   const request = racePersonGrantRequestSchema.safeParse(await readBody(input.readBody));
   if (!key.success || !request.success || key.data !== `race-person-grant:${request.data.requestId}`) return { status: "invalid-request" };
   const intent = request.data;
   const action = intent.role === "ADMIN" ? "GRANT_ADMIN" : "GRANT_FUNCTIONARY";
-  return db.transaction(async tx => {
+  const result = await db.transaction(async (tx): Promise<RacePersonGrantResult & { prepared?: PreparedInvitationMail }> => {
     const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     const actor = actorOf(auth.principal);
@@ -150,8 +155,15 @@ export async function grantRacePersonAsAdmin(db: Database,
     await tx.insert(schema.auditEvents).values({ raceId: actor.raceId, entityType: "race_person_invitation", entityId: row.id,
       action: "RACE_PERSON_INVITED", actorKind: "USER_ACCOUNT", actorId: actor.accountId, requestId: intent.requestId,
       after: { invitationId: row.id, role: intent.role, invitedAt: now.toISOString() } });
-    return { status: "granted", response: receipt(row, false) } as const;
+    // ADR-0206: mejlet går till adressen oavsett om den har ett konto.
+    const prepared = await prepareIfMail(tx, mailer, { kind: "RACE", invitationId: row.id }, actor.accountId, now);
+    return { status: "granted", response: receipt(row, false), ...(prepared ? { prepared } : {}) } as const;
   });
+  if (result.status !== "granted") return result;
+  const { prepared, response } = result;
+  const mail = response.replayed ? await replayedOutcome(db, { kind: "RACE", invitationId: response.invitation.invitationId })
+    : (await deliverPrepared(db, prepared, mailer, now)).outcome;
+  return { status: "granted", response: { ...response, mail } };
 }
 
 export async function revokeRacePersonAsAdmin(db: Database,

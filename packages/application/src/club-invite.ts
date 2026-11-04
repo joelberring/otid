@@ -8,6 +8,7 @@ import { requireClubRole, type ClubProof } from "./club-access";
 import { clubsOfMember } from "./club-affiliation-access";
 import { confirmedMembersOf } from "./club-affiliations";
 import { inviteClubMember } from "./clubs";
+import type { InvitationMailer } from "./invitation-links";
 import { grantRacePersonAsAdmin } from "./race-people";
 import { requireRaceRole } from "./race-session";
 import type { DbExecutor } from "./snapshot";
@@ -110,10 +111,10 @@ function personRequestId(requestId: string, ref: string): string {
 }
 
 /**
- * Bjuder in de valda. Varje person går genom den vanliga vägen (egen transaktion, som när någon skriver adressen). `mailer`
- * skickas vidare till vägen när den tar emot en (inbjudningsmejlet, grenen inbjudan-mejl).
+ * Bjuder in de valda. Varje person går genom den vanliga vägen (egen transaktion, som när någon skriver adressen) och får
+ * inbjudningsmejlet när e-post finns (`mailer`, ADR-0206). Adressen stannar på servern: svaret har bara antalen.
  */
-export async function inviteFromClub(db: Database, input: ClubProof & { request: unknown }, now = new Date())
+export async function inviteFromClub(db: Database, input: ClubProof & { request: unknown }, now = new Date(), mailer?: InvitationMailer)
   : Promise<Failure | { status: "ok"; response: ClubInviteFromClubResponse }> {
   const parsed = clubInviteFromClubRequestSchema.safeParse(input.request);
   if (!parsed.success || !ROLES[parsed.data.context.kind].includes(parsed.data.role)) return { status: "invalid-request" };
@@ -132,7 +133,7 @@ export async function inviteFromClub(db: Database, input: ClubProof & { request:
   for (const person of chosen.people) {
     if (person.already) { already += 1; continue; }
     const id = personRequestId(requestId, person.ref);
-    const created = await createInvitation(db, input, context, { requestId: id, email: person.email, role }, now);
+    const created = await createInvitation(db, input, context, { requestId: id, email: person.email, role }, now, mailer);
     if (created === "conflict") { already += 1; continue; }
     if (!created) { failed += 1; continue; }
     await db.insert(schema.invitationClubSources).values({ id: randomUUID(), kind: KIND[context.kind], invitationId: created.id, contextId: context.id,
@@ -143,18 +144,19 @@ export async function inviteFromClub(db: Database, input: ClubProof & { request:
 }
 
 async function createInvitation(db: Database, proof: ClubProof, context: ClubInviteContext,
-  intent: { requestId: string; email: string; role: string }, now: Date): Promise<{ id: string } | "conflict" | undefined> {
+  intent: { requestId: string; email: string; role: string }, now: Date, mailer: InvitationMailer | undefined)
+  : Promise<{ id: string } | "conflict" | undefined> {
   if (context.kind === "RACE") {
     const result = await grantRacePersonAsAdmin(db, { raceId: context.id, sessionToken: proof.sessionToken, csrfCookie: proof.csrfCookie ?? null,
       csrfHeader: proof.csrfHeader ?? null, idempotencyKey: `race-person-grant:${intent.requestId}`,
-      readBody: async () => ({ formatVersion: 1, ...intent }) }, now);
+      readBody: async () => ({ formatVersion: 1, ...intent }) }, now, mailer);
     return result.status === "granted" ? { id: result.response.invitation.invitationId } : result.status === "conflict" ? "conflict" : undefined;
   }
   if (context.kind === "CLUB") {
-    const result = await inviteClubMember(db, { ...proof, clubId: context.id, request: { formatVersion: 1, ...intent } }, now);
+    const result = await inviteClubMember(db, { ...proof, clubId: context.id, request: { formatVersion: 1, ...intent } }, now, mailer);
     return result.status === "invited" ? { id: result.invitationId } : result.status === "conflict" ? "conflict" : undefined;
   }
-  const result = await addGroupMember(db, { ...proof, groupId: context.id, request: { formatVersion: 1, ...intent } }, now);
+  const result = await addGroupMember(db, { ...proof, groupId: context.id, request: { formatVersion: 1, ...intent } }, now, mailer);
   return result.status === "added" ? { id: result.member.memberId } : result.status === "conflict" ? "conflict" : undefined;
 }
 

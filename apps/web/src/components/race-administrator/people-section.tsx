@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
+import { INVITATION_BULK_MAX, racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
   type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest, type RacePersonInvitation } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
@@ -9,6 +9,9 @@ import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "./people-section.module.css";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
+import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
+import { inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
+import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { FromClubPicker } from "../club-affiliation/from-club-picker";
 
 const text = raceTypeSv.settings.people;
@@ -57,19 +60,37 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       : status === 401 ? text.sessionExpired : text.failed;
   }
 
+  /** ADR-0206: en eller flera adresser med samma roll, var sin inbjudan och var sitt mejl. */
   async function add(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setEmailError(formErrorsSv.email); return; }
+    const { addresses, invalid } = parseInvitationAddresses(email);
+    if (addresses.length === 0) { setEmailError(invalid.length ? formErrorsSv.email : invitationSv.bulk.none); return; }
+    if (addresses.length > INVITATION_BULK_MAX) { setEmailError(invitationSv.bulk.tooMany(INVITATION_BULK_MAX)); return; }
     setEmailError("");
-    const requestId = crypto.randomUUID();
+    const grant = async (address: string) => {
+      const requestId = crypto.randomUUID();
+      const result = await send("POST", { formatVersion: 1, requestId, email: address, role }, `race-person-grant:${requestId}`);
+      return { status: result.status, receipt: result.status === 200 ? racePersonGrantResponseSchema.parse(result.value) : undefined };
+    };
     setBusy(true); onPendingChange(true); setMessage(undefined);
     try {
-      const result = await send("POST", { formatVersion: 1, requestId, email, role }, `race-person-grant:${requestId}`);
-      if (result.status !== 200) { setMessage({ tone: "error", text: failure(result.status) }); return; }
-      const receipt = racePersonGrantResponseSchema.parse(result.value);
-      setEmail(""); setRole("FUNCTIONARY");
-      setMessage({ tone: "ok", text: text.invited(receipt.invitation.email, text.roles[receipt.invitation.role]) });
+      if (addresses.length === 1 && invalid.length === 0) {
+        const { status, receipt } = await grant(addresses[0]!);
+        if (!receipt) { setMessage({ tone: "error", text: failure(status) }); return; }
+        setEmail(""); setRole("FUNCTIONARY");
+        setMessage({ tone: "ok", text: `${text.invited(receipt.invitation.email, text.roles[receipt.invitation.role])} ${invitationMailNote[receipt.mail ?? "off"]}` });
+        await load();
+        return;
+      }
+      const { tally, fatal } = await inviteAll(addresses, invalid.length, async address => {
+        const { status, receipt } = await grant(address);
+        if (receipt) return receipt.mail ?? "off";
+        if (status === 401 || status === 403) return { fatal: status };
+        return status === 409 ? "existing" : "error";
+      });
+      setMessage(fatal ? { tone: "error", text: failure(fatal) } : { tone: tally.other || tally.invalid ? "error" : "ok", text: invitationSummary(tally) });
+      if (!fatal) setEmail("");
       await load();
     } catch { setMessage({ tone: "error", text: text.failed }); }
     finally { setBusy(false); onPendingChange(false); }
@@ -90,6 +111,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   }
 
   const owner = data?.viewer.role === "OWNER";
+  const mailEnabled = data?.mailEnabled ?? false;
   // Steg 66: banläggningens behörigheter tas bort av alla administratörer, som funktionärer.
   const removable = (person: RacePerson) => person.accountId !== data?.viewer.accountId &&
     (person.role === "FUNCTIONARY" || person.role.startsWith("COURSE_") || (person.role === "ADMIN" && owner));
@@ -114,18 +136,22 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       {data.invitations.map(invitation => <li key={invitation.invitationId} data-testid="person-invitation">
         <span className={styles.who}>
           <strong>{invitation.displayName ?? invitation.email}</strong>
-          <span className={styles.muted}>{text.waitingForLogin}</span>
+          <span className={styles.muted}>{[text.waitingForLogin, invitationSentText(invitation.sentAt, mailEnabled)].filter(Boolean).join(" · ")}</span>
         </span>
         <span className={styles.role} data-role={invitation.role}>{text.roles[invitation.role]}</span>
-        <span className={styles.action}>{invitationRemovable(invitation) &&
+        <span className={styles.action}>{invitationRemovable(invitation) && <>
+          <InvitationActions name={invitation.displayName ?? invitation.email} fromClub={invitation.displayName !== undefined}
+            mailEnabled={mailEnabled} disabled={locked} onSent={load}
+            endpoint={`${base}/invitations/${encodeURIComponent(invitation.invitationId)}`} />
           <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(invitation.displayName ?? invitation.email)}
-            onClick={() => void remove({ grantId: invitation.invitationId, displayName: invitation.displayName ?? invitation.email })}>{text.remove}</Button>}</span>
+            onClick={() => void remove({ grantId: invitation.invitationId, displayName: invitation.displayName ?? invitation.email })}>
+            {text.remove}</Button></>}</span>
       </li>)}
     </ul>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     {data && <form className={styles.add} noValidate onSubmit={event => void add(event)} aria-label={text.addTitle}>
-      <Field label={text.addEmail} help={text.addEmailHelp} error={emailError}>
-        <input type="email" value={email} autoComplete="off" maxLength={320} disabled={locked}
+      <Field label={text.addEmail} help={`${text.addEmailHelp} ${invitationSv.bulk.help}`} error={emailError}>
+        <textarea rows={2} value={email} autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={locked}
           onChange={event => { setEmail(event.target.value); setEmailError(""); }} />
       </Field>
       <Field label={text.addRole}>

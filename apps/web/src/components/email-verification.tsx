@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { emailVerificationCheckResponseSchema, passwordResetTokenSchema, type EmailVerificationCheckResponse } from "@o-tid/contracts";
 import { accountSv } from "../i18n/account-sv";
 import { accountRequest } from "../lib/account-client";
+import { takeInvitationNext } from "../lib/invitation-handoff";
 import { NewPasswordFields, passwordsReady } from "./password-field";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
@@ -66,7 +67,12 @@ export function EmailVerification() {
     setMessage({ tone: "info", text: text.verifying });
     try {
       const response = await accountRequest("/api/organizer/verify-email", { method: "POST", body: { formatVersion: 1, token, password } });
-      if (response.status === 200) { window.location.assign("/organizer"); return; }
+      if (response.status === 200) {
+        // ADR-0206: kontot kom från en inbjudan – till klubben eller tävlingen.
+        const email = (response.json as { email?: unknown } | undefined)?.email;
+        window.location.assign((typeof email === "string" ? takeInvitationNext(email) : undefined) ?? "/organizer");
+        return;
+      }
       if (response.status === 409) { setState("already-verified"); setMessage(undefined); }
       else if (response.status === 404) { setState("invalid"); setMessage(undefined); }
       else setMessage({ tone: "error", text: accountSv.genericError(response.status) });

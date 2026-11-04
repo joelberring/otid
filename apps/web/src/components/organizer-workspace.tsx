@@ -34,6 +34,7 @@ import { MyClubs } from "./club-archive/my-clubs";
 import { applyClubMap, ClubMapChoiceField, type ClubMapChoice } from "./club-archive/club-map-picker";
 import { clubMapDuplicatesSv } from "../i18n/club-map-duplicates-sv";
 import { forgetAllCourseSettingCopies } from "../lib/course-setting-offline-forget";
+import { readInvitationHandoff, takeInvitationNext } from "../lib/invitation-handoff";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import styles from "./organizer-workspace.module.css";
 
@@ -82,6 +83,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const [repeat, setRepeat] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
+  /** ADR-0206: "Skapa konto" från en inbjudan låser adressen till inbjudans. */
+  const [lockedEmail, setLockedEmail] = useState(false);
   const [events, setEvents] = useState<OrganizerMyEventsResponse["events"]>([]);
   const [eventSearch, setEventSearch] = useState("");
   const [eventsLoaded, setEventsLoaded] = useState(false);
@@ -141,6 +144,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         return;
       }
       setSession(current);
+      // ADR-0206: redan inloggad med inbjudans adress – direkt till klubben eller tävlingen.
+      const next = takeInvitationNext(current.email);
+      if (next) { window.location.assign(next); return; }
       await loadEvents();
     } catch (error) {
       setMessage(errorMessage(error));
@@ -151,10 +157,19 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
   useEffect(() => {
     setAttempt(restoreOrganizerAttempt());
+    const invitation = readInvitationHandoff();
+    if (invitation) { setMode(invitation.mode); setEmail(invitation.email); setLockedEmail(invitation.mode === "register"); }
     const googleProblem = takeGoogleProblem();
     if (googleProblem) setMessage(googleProblem);
     void checkSession();
   }, []);
+
+  /** ADR-0206: efter inloggningen till sidan i inbjudan (om kontot har dess adress). */
+  function followInvitation(accountEmail: string): boolean {
+    const next = takeInvitationNext(accountEmail);
+    if (next) window.location.assign(next);
+    return next !== undefined;
+  }
 
   async function register(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -176,7 +191,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         setMessage(copy.checkEmail(email.trim()));
         return;
       }
-      setSession(parseOrganizerSession(await responseJson(response)));
+      const signedIn = parseOrganizerSession(await responseJson(response));
+      if (followInvitation(signedIn.email)) return;
+      setSession(signedIn);
       setMessage("");
       try {
         await loadEvents();
@@ -207,7 +224,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       if (!response.ok) throw new Error(response.status === 401 ? copy.invalidCredentialsOrUnverified
         : response.status === 429 ? copy.loginRateLimited : response.status === 403 ? copy.accountBlocked
           : copy.loginError(response.status));
-      setSession(parseOrganizerSession(await responseJson(response)));
+      const signedIn = parseOrganizerSession(await responseJson(response));
+      if (followInvitation(signedIn.email)) return;
+      setSession(signedIn);
       setMessage("");
       try {
         await loadEvents();
@@ -398,7 +417,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         </label>
         <label>{copy.email}
           <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
-            onChange={(event) => setEmail(event.target.value)} required />
+            readOnly={lockedEmail} onChange={(event) => setEmail(event.target.value)} required />
         </label>
         <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} />
         <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema, storedAccountEmailSchema } from "./account";
 import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
+import { invitationMailOutcomeSchema } from "./invitations";
 
 /**
  * Personer med behörighet på tävlingen (ADR-0172 beslut 3): ägaren, administratörer och funktionärer.
@@ -42,6 +43,8 @@ export const racePersonInvitationSchema = z.object({
   email: shownEmailSchema,
   role: racePersonGrantableRoleSchema,
   invitedAt: instantSchema,
+  /** ADR-0206: när inbjudan senast mejlades (null = aldrig). */
+  sentAt: instantSchema.nullable().optional(),
   /** ADR-0209: inbjuden "Från klubben": namnet i stället för adressen. */
   displayName: z.string().trim().min(1).max(120).optional()
 }).strict();
@@ -53,7 +56,9 @@ export const racePeopleResponseSchema = z.object({
   viewer: z.object({ accountId: canonicalUuidSchema, role: z.enum(["OWNER", "ADMIN"]) }).strict(),
   people: z.array(racePersonSchema).max(10_000),
   /** ADR-0188 beslut 6: sparade behörigheter som väntar på att personen loggar in med adressen. */
-  invitations: z.array(racePersonInvitationSchema).max(1_000)
+  invitations: z.array(racePersonInvitationSchema).max(1_000),
+  /** ADR-0206: e-post finns på servern ("Skicka igen"); utan den "Kopiera länken". Sätts av webben. */
+  mailEnabled: z.boolean().optional()
 }).strict();
 
 export const racePersonGrantIdempotencyKeySchema = z.string().regex(
@@ -77,7 +82,9 @@ export const racePersonGrantResponseSchema = z.object({
   replayed: z.boolean(),
   requestId: canonicalUuidSchema,
   /** ADR-0188 beslut 6: alltid en sparad behörighet för adressen, aldrig kontots namn. */
-  invitation: racePersonInvitationSchema
+  invitation: racePersonInvitationSchema,
+  /** ADR-0206: vad som hände med inbjudans mejl. */
+  mail: invitationMailOutcomeSchema.optional()
 }).strict();
 
 export const racePersonRevokeRequestSchema = z.object({

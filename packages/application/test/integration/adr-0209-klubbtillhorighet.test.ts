@@ -18,6 +18,8 @@ import { createOrganizerEvent } from "../../src/organizer-events";
 import { importOrganisationsFromXml, refreshOrganisationsFromEventor, searchOrganisations } from "../../src/organisations";
 import { liftRaceToClubArchive, readRaceClubArchiveAsAdmin, removeRaceFromClubArchive, setRaceOrganiserAsAdmin } from "../../src/race-club-archive";
 import { inviteFromClub, readClubPicker } from "../../src/club-invite";
+import type { InvitationMail } from "../../src/invitation-links";
+import { resendClubInvitation } from "../../src/invitation-resend";
 import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
 import { listRacePeopleAsAdmin } from "../../src/race-people";
 import { registerTestAccount } from "./accounts";
@@ -457,11 +459,21 @@ describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
     const clubPicker = await readClubPicker(db, { ...owner.proof, context: { kind: "CLUB", id: clubId } }, NOW);
     if (clubPicker.status !== "ok") throw new Error(clubPicker.status);
     expect(clubPicker.response.members.every(member => !member.already)).toBe(true);
-    await inviteFromClub(db, { ...owner.proof, request: { formatVersion: 1, requestId: randomUUID(), context: { kind: "CLUB", id: clubId },
-      refs: [clubPicker.response.members[0]!.ref], role: "LEADER" } }, NOW);
+    // ADR-0206: inbjudan "Från klubben" mejlas från servern; adressen står varken i svaret eller i listan.
+    const mailed: InvitationMail[] = [];
+    const fromClub = await inviteFromClub(db, { ...owner.proof, request: { formatVersion: 1, requestId: randomUUID(), context: { kind: "CLUB", id: clubId },
+      refs: [clubPicker.response.members[0]!.ref], role: "LEADER" } }, NOW, async mail => { mailed.push(mail); });
+    const [clubInvitation] = await db.select().from(schema.clubInvitations).where(eq(schema.clubInvitations.clubId, clubId));
+    expect(mailed).toEqual([expect.objectContaining({ to: clubInvitation!.email, role: "LEADER",
+      inviterName: owner.login.response.displayName, target: expect.objectContaining({ kind: "CLUB", clubId }) as unknown })]);
+    expect(JSON.stringify(fromClub)).not.toContain(clubInvitation!.email);
     const clubView = await readClub(db, { ...owner.proof, clubId }, NOW);
     if (clubView.status !== "ok") throw new Error(clubView.status);
     expect(clubView.view.invitations).toEqual([expect.objectContaining({ email: "", role: "LEADER" })]);
+    expect(JSON.stringify(clubView.view.invitations)).not.toContain(clubInvitation!.email);
+    // "Kopiera länken" finns inte för den: länksidan visar adressen.
+    expect(await resendClubInvitation(db, { ...owner.proof, clubId, invitationId: clubInvitation!.id,
+      request: { formatVersion: 1, delivery: "LINK" } }, undefined, NOW)).toEqual({ status: "forbidden" });
     await unlink();
   });
 });

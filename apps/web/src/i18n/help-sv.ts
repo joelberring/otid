@@ -276,9 +276,29 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     body: [
       "En funktionär läser av, direktanmäler, följer kvar i skogen, sköter starten och ser speakersidan. Inget annat.",
       "Funktionären ser deltagarnas och gästernas fulla namn, klubb och bricka och kan ladda ner festens köp (”Ladda ner summering (CSV)”), så ge behörigheten bara till personer du litar på.",
-      "Personen skapar först ett eget konto. Gå sedan till ”Inställningar” → ”Personer med behörighet”.",
-      "Skriv personens e-postadress under ”Lägg till person”, välj ”Funktionär” och tryck på ”Lägg till”. Personen ser tävlingen under ”Mina tävlingar”.",
+      "Gå till ”Inställningar” → ”Personer med behörighet”.",
+      "Skriv en eller flera e-postadresser under ”Lägg till person”, välj ”Funktionär” och tryck på ”Lägg till”.",
+      "Personen får ett mejl med en länk och hamnar på tävlingen efter inloggningen (se [Inbjudningar med e-post](#inbjudningar)).",
       "”Ta bort” tar bort behörigheten direkt."
+    ]
+  },
+  {
+    id: "inbjudningar",
+    title: "Inbjudningar med e-post",
+    views: ["SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
+    body: [
+      "När du bjuder in någon till en tävling, ett klubbarkiv eller en träningsgrupp sparas behörigheten för e-postadressen, och med e-post på servern får personen ett mejl med vem som bjöd in, till vad, rollen och en länk.",
+      "Länken öppnar en sida med ”Skapa konto” (adressen ifylld och låst) och ”Logga in”.",
+      "Behörigheten gäller när personen är inloggad med just den adressen och har bekräftat den, och sedan hamnar personen på tävlingen, i klubbarkivet eller i gruppen.",
+      "Länken gäller i 14 dagar och ger ingenting själv, och sidan ser likadan ut oavsett om adressen redan har ett konto.",
+      [
+        "Listan visar när inbjudan skickades, eller ”inte skickad”.",
+        "”Skicka igen” skickar ett nytt mejl med en ny länk; den förra slutar gälla. Det går högst några gånger i timmen till samma adress.",
+        "Utan e-post på servern står ”Kopiera länken” i stället. Klistra in länken i ett eget mejl eller sms.",
+        "”Ta bort” tar bort inbjudan, och länken visar då ”Inbjudan gäller inte längre”."
+      ],
+      "Flera adresser går på en gång, åtskilda med komma, mellanslag eller ny rad, och alla får samma roll och var sitt mejl.",
+      "Inbjudningar ”Från klubben” mejlas på samma sätt, men du ser bara personens namn."
     ]
   },
   {

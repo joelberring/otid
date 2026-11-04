@@ -73,7 +73,7 @@ export const trainingGroupSv = {
     attachRace: "Tävling",
     attachButton: "Lägg till i gruppen",
     attached: "Tävlingen hör nu till gruppen.",
-    peopleHint: "Ledarna är administratörer på alla gruppens tävlingar. Medlemmar ser gruppens sida när den bara är för inloggade, och närvaron när ni slagit på det. Personen får behörigheten när den loggar in i O-Tid med adressen (och har bekräftat den); till dess står adressen som ”väntar på inloggning”.",
+    peopleHint: "Ledarna är administratörer på alla gruppens tävlingar. Medlemmar ser gruppens sida när den bara är för inloggade, och närvaron när ni slagit på det. Personen får behörigheten när den loggar in i O-Tid med adressen (och har bekräftat den); till dess står adressen som ”väntar på inloggning”. Med e-post på servern får personen ett mejl med en länk.",
     email: "E-postadress",
     personRole: "Roll",
     add: "Lägg till",

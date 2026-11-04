@@ -209,7 +209,7 @@ export const clubArchiveSv = {
   },
   members: {
     title: "Medlemmar",
-    help: "Bjud in med e-postadressen. Personen blir medlem när hen loggar in med adressen och har bekräftat den.",
+    help: "Bjud in med en eller flera e-postadresser. Med e-post på servern får varje person ett mejl med en länk. Personen blir medlem när hen loggar in med adressen och har bekräftat den.",
     invite: "Bjud in",
     email: "E-postadress",
     role: "Roll",

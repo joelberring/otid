@@ -64,3 +64,5 @@
 @media (max-width: 900px) {
   .leaderGrid { grid-template-columns: minmax(0, 1fr); }
 }
+/* ADR-0206: Skicka igen / Kopiera länken bredvid Ta bort vid en väntande inbjudan. */
+.memberActions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .35rem .5rem; }

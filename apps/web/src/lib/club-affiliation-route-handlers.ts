@@ -7,6 +7,7 @@ import { clubEventorLinkRequestSchema, clubInviteContextSchema, UUID_PATTERN } f
 import type { Database } from "@o-tid/database";
 import { accountFailure, privateJson } from "./security-policy";
 import { failure, guarded, mutation, readProof, type ClubEnvironment } from "./club-route-handlers";
+import { routeMailer } from "./invitation-route-handlers";
 
 /**
  * ADR-0209: klubbtillhörighetens anrop. Samma skydd som klubbens (exakt Origin och CSRF på skrivningar, privata svar utan
@@ -152,7 +153,7 @@ export async function raceClubArchiveRoute(db: Database, request: Request, raceI
 
 /**
  * GET `?kind=RACE|CLUB|TRAINING_GROUP&id=…`: väljaren (namn, aldrig adresser). POST: bjud in de valda genom de vanliga vägarna.
- * Grenen inbjudan-mejl: när de vägarna tar emot en avsändare (`routeMailer`) skickas den med här.
+ * Inbjudningsmejlet (ADR-0206) skickas från servern; adresserna står aldrig i svaret.
  */
 export async function clubPickerRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
   if (request.method === "GET") {
@@ -169,7 +170,7 @@ export async function clubPickerRoute(db: Database, request: Request, environmen
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await inviteFromClub(db, { ...input.proof, request: input.body });
+    const result = await inviteFromClub(db, { ...input.proof, request: input.body }, new Date(), routeMailer(environment));
     return result.status === "ok" ? privateJson(result.response) : failure(result.status);
   });
 }

@@ -66,7 +66,7 @@ export const raceTypeSv = {
     failed: "Inställningarna kunde inte sparas. Försök igen.",
     people: {
       title: "Personer med behörighet",
-      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. De ser deltagarnas fulla namn och kan ladda ner festens köp som CSV-fil. Administratörer når allt. Banläggning ger bara banläggningen på den här tävlingen: ändra, föreslå ändringar eller läsa och kommentera. Kartritaren ser bara kartan och kartfelen (inga banor eller kontroller, inga foton), svarar och markerar dem klara; ett kartfel nära en kontroll kan ändå avslöja den. Behörigheten sparas för e-postadressen och gäller när personen loggar in med den adressen (med eget konto och bekräftad e-post).",
+      help: "Funktionärer når avläsning, direktanmälan av okänd bricka, kvar i skogen, start och speaker. De ser deltagarnas fulla namn och kan ladda ner festens köp som CSV-fil. Administratörer når allt. Banläggning ger bara banläggningen på den här tävlingen: ändra, föreslå ändringar eller läsa och kommentera. Kartritaren ser bara kartan och kartfelen (inga banor eller kontroller, inga foton), svarar och markerar dem klara; ett kartfel nära en kontroll kan ändå avslöja den. Behörigheten sparas för e-postadressen och gäller när personen loggar in med den adressen (med eget konto och bekräftad e-post). Med e-post på servern får personen ett mejl med en länk.",
       loading: "Hämtar personer …",
       loadError: "Listan kunde inte hämtas. Försök igen.",
       name: "Namn",

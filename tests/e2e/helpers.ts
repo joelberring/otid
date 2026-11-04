@@ -91,7 +91,8 @@ export async function registerAccount(browser: Browser, email: string, displayNa
 export async function verificationLink(email: string): Promise<string> {
   let link: string | undefined;
   await expect.poll(() => {
-    link = /https?:\/\/\S+\/verify#token=[A-Za-z0-9_-]{43}/.exec(latestMailTo(email)?.text ?? "")?.[0];
+    const pattern = /https?:\/\/\S+\/verify#token=[A-Za-z0-9_-]{43}/;
+    link = pattern.exec(latestMailTo(email, pattern)?.text ?? "")?.[0];
     return link;
   }, { timeout: 20_000 }).toBeTruthy();
   return link!;
@@ -101,7 +102,8 @@ export async function verificationLink(email: string): Promise<string> {
 export async function resetLink(email: string): Promise<string> {
   let link: string | undefined;
   await expect.poll(() => {
-    link = /https?:\/\/\S+\/recover#token=[A-Za-z0-9_-]{43}/.exec(latestMailTo(email)?.text ?? "")?.[0];
+    const pattern = /https?:\/\/\S+\/recover#token=[A-Za-z0-9_-]{43}/;
+    link = pattern.exec(latestMailTo(email, pattern)?.text ?? "")?.[0];
     return link;
   }, { timeout: 20_000 }).toBeTruthy();
   return link!;

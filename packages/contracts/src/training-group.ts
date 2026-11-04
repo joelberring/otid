@@ -109,7 +109,9 @@ export interface GroupSummary { groupId: string; name: string; code: string; rol
  * `accountId` och `displayName` null och `memberId` inbjudans id); svaret är detsamma oavsett om adressen har ett konto.
  */
 export interface GroupMember { memberId: string; accountId: string | null; email: string; displayName: string | null; role: GroupMemberRole;
-  addedAt: string; pending: boolean }
+  addedAt: string; pending: boolean;
+  /** ADR-0206: för en väntande inbjudan, när den senast mejlades (null = aldrig). */
+  sentAt?: string | null }
 
 export interface GroupSession {
   raceId: string; eventId: string; eventName: string; raceName: string; raceDate: string; raceType: string; firstStartTime: string | null;
@@ -133,6 +135,8 @@ export interface GroupLeaderView {
   formatVersion: 1; groupId: string; viewer: { accountId: string; role: "LEADER" }; settings: GroupSettings; members: GroupMember[];
   sessions: GroupSession[]; series: GroupSeries[]; maps: GroupLibraryMap[]; season: { sessions: number; rows: GroupSeasonRow[] };
   today: string; timeZone: string;
+  /** ADR-0206: e-post finns på servern ("Skicka igen"); utan den "Kopiera länken". Sätts av webben. */
+  mailEnabled?: boolean;
 }
 
 /** Gruppsidan (/g/<kod>), med namnen enligt gruppens inställning. */

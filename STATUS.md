@@ -20,6 +20,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Verifierat: enhetstester (course-setting, print-pdf, application, contracts, web), lint, typecheck, PDF-tester (ringklipp, ordningen per norm, mellanrum, ramar, vita ytor). Playwright `utskrift-omtag` (1280/390) och de ändrade utskriftsspecarna i CI.
 - Återstår: vridning, kartramen direkt på arket, papperet i editorns flik Utskrift (mallen bär det), editorn i normens färgordning.
 
+### 2026-11-04 – Inbjudningar med e-post (grenen inbjudan-mejl, ADR-0206, migration 0073)
+- Med `OTID_SMTP_URL` mejlas varje ny inbjudan (klubbarkivets medlemmar, tävlingens Personer med behörighet med banläggningens roller, träningsgruppen och "Från klubben"): vem, till vad, rollen i ord och en länk `/inbjudan#token=…` (14 dagar, bara hashen sparas).
+- Länksidan: "Skapa konto" (adressen låst) eller "Logga in"; efter inloggningen eller bekräftelsen hamnar personen på klubben eller tävlingen. Länken ger ingenting själv; bekräftelsen hoppas inte över (beslut 4).
+- Listorna: "skickad …"/"inte skickad", "Skicka igen" (ny nyckel, spärrad) eller "Kopiera länken" utan e-post; borttagen inbjudan ger "Inbjudan gäller inte längre". Flera adresser på en gång med sammanfattning.
+- Spärrar per avsändare (100/h, 300/dygn) och mottagare (3/h, 10/dygn); "Från klubben" visar aldrig adressen och kan inte kopieras.
+- Verifierat: enhetstester (mejltexten, adresserna, hjälpen, routernas roller), integration `adr-0206-inbjudningar` och `adr-0209-klubbtillhorighet`, lint, typecheck; Playwright `inbjudan`. Återstår: provning mot riktig SMTP.
+
 ### 2026-11-04 – Kontot: ingen loop mellan bekräftelse och återställning, lösenordet två gånger, Logga in med Google (grenen konto-inloggning, ADR-0205, migration 0072)
 - Orsaken till loopen från klubbmötet 2026-11-03: bekräftelselänken krävde registreringens (felskrivna) lösenord och skickade tillbaka till inloggningen; efter fem fel spärrades adressen från IP-adressen, och återställningen nollställde bara spärren utan IP-adress, så det nya lösenordet gav "För många försök" och den gamla länken "ogiltig".
 - Bekräftelselänken bevisar adressen och personen väljer lösenordet där; redan bekräftad eller gammal länk ger ett nästa steg (Logga in / Glömt lösenordet). Återställningslänken bekräftar alltid adressen och loggar in där den öppnas; ett nytt lösenord häver spärren.

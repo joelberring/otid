@@ -56,7 +56,7 @@ function Part({ part, imageUrl }: { part: PaperPart; imageUrl: (sha256: string) 
     case "text": return <text x={part.at.x} y={part.at.y} fontSize={part.heightMm} fontWeight={part.bold ? "bold" : undefined}
       textAnchor={part.align === "left" ? "start" : part.align === "right" ? "end" : "middle"} fill="#000" fontFamily="Arial, Helvetica, sans-serif"
       style={{ whiteSpace: "pre" }}>{part.text}</text>;
-    case "image": return <image href={imageUrl(part.image)} x={part.x} y={part.y} width={part.width} height={part.height} preserveAspectRatio="none"
+    case "image": return <image href={imageUrl(part.image) || undefined} x={part.x} y={part.y} width={part.width} height={part.height} preserveAspectRatio="none"
       opacity={part.opacity < 1 ? part.opacity : undefined} data-testid="paper-image" />;
   }
 }

@@ -437,7 +437,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     <PrintOverview cards={cards} selected={openKey} onOpen={openCard} templates={document.event.paperTemplates ?? []} readOnly={!canEdit || runnerMode}
       onApplyTemplate={applyTemplate} onPrintMarked={keys => setPrintOnly(new Set(keys))}
       thumb={card => <SheetView sheet={sheets[card.index]!.sheet} index={1000 + card.index} symbols={symbols} images={images} colorsKey={colorsKey}
-        courseColor={courseColor} label={card.label} pressLayers={pressLayers} testId="print-thumb" />} />
+        courseColor={courseColor} label={card.label} pressLayers={pressLayers} testId="print-thumb"
+        paper={{ ...paperSpace.interaction, editable: false }} />} />
     <div className={styles.controls}>
       <h2 className={styles.sectionTitle}>{outputText.editor}</h2>
       <p className={styles.muted}>{outputText.editorHelp}</p>

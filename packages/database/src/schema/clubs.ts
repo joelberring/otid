@@ -1,11 +1,12 @@
 import { boolean, customType, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { MapFingerprint } from "@o-tid/domain";
 import { userAccounts } from "./accounts";
 
 /**
  * ADR-0194 (migration 0059–0061): klubben och klubbarkivet. Kartversionernas filer ligger i `map_content` (ADR-0189);
  * banfilerna (små) ligger i `club_archive_course_file.content`.
  */
-export type ClubRole = "OWNER" | "ADMIN" | "READER";
+export type ClubRole = "OWNER" | "ADMIN" | "LEADER" | "READER";
 export type ClubMapFormat = "OCD" | "OMAP";
 export type ClubCourseFileKind = "PPEN" | "COURSE_DATA";
 export type ClubMapResolution = "FOLDER" | "NAME" | "MANUAL" | "MISSING" | "NONE";
@@ -79,7 +80,10 @@ export const clubMaps = pgTable("club_map", {
   importKey: text("import_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  /** ADR-0210 (migration 0077): beskrivning och kartritare, satta en gång på kartan. */
+  description: text("description"),
+  maker: text("maker")
 });
 
 export const clubMapVersions = pgTable("club_map_version", {
@@ -94,7 +98,10 @@ export const clubMapVersions = pgTable("club_map_version", {
   note: text("note"),
   uploadedBy: uuid("uploaded_by").notNull(),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull(),
-  sourcePath: text("source_path")
+  sourcePath: text("source_path"),
+  /** ADR-0210: året som någon skrivit in (annars gissas det), och versionens kartritare. */
+  versionYear: integer("version_year"),
+  maker: text("maker")
 });
 
 export const clubArchiveEntries = pgTable("club_archive_entry", {
@@ -155,7 +162,9 @@ export const clubMapVersionChecks = pgTable("club_map_version_check", {
   thumbnail: bytea("thumbnail"),
   thumbnailWidth: integer("thumbnail_width"),
   thumbnailHeight: integer("thumbnail_height"),
-  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull()
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+  /** ADR-0210: fingeravtrycket (ytan, skalan, symbolerna), räknat i webbläsaren vid kontrollen. */
+  fingerprint: jsonb("fingerprint").$type<MapFingerprint>()
 });
 
 /** ADR-0196: träningens bild (längsta banan på kartversionen), eller varför kartan inte kunde ritas. */
@@ -171,4 +180,34 @@ export const clubArchiveEntryThumbnails = pgTable("club_archive_entry_thumbnail"
   width: integer("width"),
   height: integer("height"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+});
+
+/** ADR-0210: "Inte samma karta" för ett par (map_a < map_b). */
+export const clubMapDuplicateDismissals = pgTable("club_map_duplicate_dismissal", {
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  mapA: uuid("map_a").notNull(),
+  mapB: uuid("map_b").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull()
+}, (table) => [primaryKey({ columns: [table.clubId, table.mapA, table.mapB] })]);
+
+/** En uppgången karta som den var före sammanslagningen, med versionerna och gruppernas kartor som flyttades. */
+export interface ClubMapMergeAbsorbed {
+  readonly map: Record<string, unknown>;
+  readonly versionIds: readonly string[];
+  readonly groupMapIds: readonly string[];
+}
+
+/** ADR-0210: en sammanslagning, så att den går att ångra tills något annat ändrar kartan. */
+export const clubMapMerges = pgTable("club_map_merge", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  targetMapId: uuid("target_map_id").notNull(),
+  absorbed: jsonb("absorbed").$type<ClubMapMergeAbsorbed[]>().notNull(),
+  targetVersionIds: jsonb("target_version_ids").$type<string[]>().notNull(),
+  targetUpdatedAt: timestamp("target_updated_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  createdBy: uuid("created_by").notNull(),
+  undoneAt: timestamp("undone_at", { withTimezone: true }),
+  undoneBy: uuid("undone_by")
 });

@@ -124,12 +124,14 @@ export const RACE_BACKUP_TABLES: readonly BackupTable[] = [
  * - `race_restore_request`: kvittot för en återställning (den nya tävlingen får ett eget).
  * - `race_person_invitation` (ADR-0188 beslut 6): behörigheter som väntar på att någon loggar in med adressen; de gäller
  *   tävlingen som den var och ges på nytt i den återställda.
+ * - `race_organiser` (ADR-0209): arrangörsklubben pekar på klubblistan, som inte följer med; den väljs igen,
+ * - `race_club_archive` (ADR-0209): att tävlingen ligger i ett klubbarkiv hör till klubben, inte till tävlingen.
  * Konton, lösenord, sessioner, behörigheternas journal och träningsgrupper har ingen `race_id` och följer inte heller med;
  * behörigheterna följer med som e-postadresser (`personer.json`).
  */
 export const RACE_BACKUP_EXCLUDED_TABLES: readonly string[] = [
   "race_copy_request", "public_result_update_event", "course_setting_print_job", "user_account_event_creation_request",
-  "race_restore_request", "race_person_invitation"
+  "race_restore_request", "race_person_invitation", "race_organiser", "race_club_archive"
 ];
 
 /** Kolumner som töms vid återställningen: de pekar på sådant som inte följer med (träningsgruppen och dess kartor). */

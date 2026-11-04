@@ -1,10 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   clubEntryThumbnailRequestSchema, clubMapVersionCheckRequestSchema, CLUB_THUMBNAIL_MAX_BYTES, type ClubArchiveSummariesResponse,
   type ClubEntryThumbnailView, type ClubMapCheckView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { clubJournal, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
 import { courseFileSummary } from "./club-archive-import";
 import { imageDimensions } from "./image-dimensions";
 import { UUID_PATTERN } from "./serialization";
@@ -34,10 +34,11 @@ export async function mapChecks(tx: DbExecutor, versionIds: readonly string[]): 
   if (versionIds.length === 0) return new Map();
   const rows = await tx.select({ versionId: schema.clubMapVersionChecks.versionId, status: schema.clubMapVersionChecks.status,
     detail: schema.clubMapVersionChecks.detail, fileVersion: schema.clubMapVersionChecks.fileVersion, readerVersion: schema.clubMapVersionChecks.readerVersion,
-    checkedAt: schema.clubMapVersionChecks.checkedAt, width: schema.clubMapVersionChecks.thumbnailWidth })
+    checkedAt: schema.clubMapVersionChecks.checkedAt, width: schema.clubMapVersionChecks.thumbnailWidth,
+    fingerprint: sql<boolean>`${schema.clubMapVersionChecks.fingerprint} is not null` })
     .from(schema.clubMapVersionChecks).where(inArray(schema.clubMapVersionChecks.versionId, [...versionIds]));
   return new Map(rows.map(row => [row.versionId, { status: row.status, detail: row.detail, fileVersion: row.fileVersion, readerVersion: row.readerVersion,
-    checkedAt: row.checkedAt.toISOString(), thumbnail: row.width !== null }]));
+    checkedAt: row.checkedAt.toISOString(), thumbnail: row.width !== null, fingerprint: row.fingerprint }]));
 }
 
 /** Träningarnas bilder; `stale` när bilden ritades på en annan version än den träningen nu ritas av. */
@@ -66,7 +67,8 @@ export async function saveClubMapVersionCheck(db: Database, input: ClubProof & {
       .where(and(eq(schema.clubMapVersions.id, input.versionId), eq(schema.clubMapVersions.clubId, input.clubId)));
     if (!version) return { status: "not-found" } as const;
     const values = { readerVersion: check.readerVersion, status: check.status, detail: check.detail, fileVersion: check.fileVersion,
-      thumbnail, thumbnailWidth: check.thumbnail?.width ?? null, thumbnailHeight: check.thumbnail?.height ?? null, checkedAt: now };
+      thumbnail, thumbnailWidth: check.thumbnail?.width ?? null, thumbnailHeight: check.thumbnail?.height ?? null, checkedAt: now,
+      fingerprint: check.fingerprint ?? null };
     await tx.insert(schema.clubMapVersionChecks).values({ versionId: version.id, clubId: input.clubId, ...values })
       .onConflictDoUpdate({ target: schema.clubMapVersionChecks.versionId, set: values });
     return { status: "ok" } as const;
@@ -102,7 +104,7 @@ export async function readClubMapVersionThumbnail(db: Database, input: ClubProof
   : Promise<ThumbnailRead> {
   if (!validId(input.versionId)) return { status: "not-found" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
     const [row] = await tx.select({ png: schema.clubMapVersionChecks.thumbnail, checkedAt: schema.clubMapVersionChecks.checkedAt })
       .from(schema.clubMapVersionChecks)
@@ -114,7 +116,7 @@ export async function readClubMapVersionThumbnail(db: Database, input: ClubProof
 export async function readClubEntryThumbnail(db: Database, input: ClubProof & { clubId: string; entryId: string }, now = new Date()): Promise<ThumbnailRead> {
   if (!validId(input.entryId)) return { status: "not-found" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "READER", now, false);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
     const [row] = await tx.select({ png: schema.clubArchiveEntryThumbnails.image, createdAt: schema.clubArchiveEntryThumbnails.createdAt })
       .from(schema.clubArchiveEntryThumbnails)

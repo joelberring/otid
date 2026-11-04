@@ -6,9 +6,10 @@ import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./club-archive.module.css";
+import { FromClubPicker } from "../club-affiliation/from-club-picker";
 
 const text = clubArchiveSv.members;
-const ROLES: readonly ClubRole[] = ["READER", "ADMIN", "OWNER"];
+const ROLES: readonly ClubRole[] = ["READER", "LEADER", "ADMIN", "OWNER"];
 
 /**
  * ADR-0194 beslut 1: klubbens medlemmar och inbjudningar. Bjud in med e-postadressen (samma svar med och utan konto); listan
@@ -20,7 +21,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  const admin = club.viewer.role !== "READER";
+  const admin = club.viewer.role === "OWNER" || club.viewer.role === "ADMIN";
   const owner = club.viewer.role === "OWNER";
 
   async function run(action: () => Promise<{ status: number }>, ok: string, conflict?: string) {
@@ -66,9 +67,9 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
         </div>}
       </li>)}
       {club.invitations.map(invitation => <li key={invitation.invitationId}>
-        <div><strong>{invitation.email}</strong><span>{clubArchiveSv.roles[invitation.role]} · {text.pending}</span></div>
+        <div><strong>{invitation.displayName ?? invitation.email}</strong><span>{clubArchiveSv.roles[invitation.role]} · {text.pending}</span></div>
         {(owner || invitation.role !== "OWNER") && <Button variant="secondary" disabled={busy}
-          onClick={() => remove(invitation.email, { memberId: null, invitationId: invitation.invitationId })}>{text.remove}</Button>}
+          onClick={() => remove(invitation.displayName ?? invitation.email, { memberId: null, invitationId: invitation.invitationId })}>{text.remove}</Button>}
       </li>)}
     </ul>
     {admin && <form className={styles.form} onSubmit={event => void invite(event)} aria-label={text.invite}>
@@ -81,6 +82,9 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
       </div>
       <Button type="submit" disabled={busy || !email.trim()}>{text.inviteButton}</Button>
     </form>}
+    {/* ADR-0209: "Från klubben" med rollen som är vald ovan. */}
+    {admin && <FromClubPicker context={{ kind: "CLUB", id: club.clubId }} role={role} roleLabel={clubArchiveSv.roles[role]} disabled={busy}
+      onInvited={onChanged} />}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
   </section>;
 }

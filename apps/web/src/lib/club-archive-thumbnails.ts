@@ -96,7 +96,8 @@ export function planChecks(list: ClubArchiveList, force: boolean): CheckJob[] {
     return found;
   };
   for (const map of list.maps) for (const version of map.versions) {
-    if (force || !version.check || outdated(version.check.readerVersion)) {
+    // ADR-0210: en fungerande version utan fingeravtryck kontrolleras igen, så att dubbletterna kan jämföras.
+    if (force || !version.check || outdated(version.check.readerVersion) || (version.check.status === "OK" && !version.check.fingerprint)) {
       job(version.versionId, version.fileName, `${map.name} (${version.fileName})`).check = true;
     }
   }

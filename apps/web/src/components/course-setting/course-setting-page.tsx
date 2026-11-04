@@ -13,6 +13,7 @@ import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { usableRecord, type FieldRecord } from "../../lib/course-setting-offline";
 import { fetchUntilReached } from "../../lib/retrying-fetch";
 import { MapFileUpload } from "../race-administrator/map-file-upload";
+import { ClubMapToRace } from "../club-archive/club-map-picker";
 import type { Message } from "../race-administrator/source-sync-actions";
 import { Button, Notice } from "../ui";
 import { CourseSettingEditor } from "./course-setting-editor";
@@ -142,8 +143,11 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     {!state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-map-file">
       <h2 id="course-setting-map-file">{raceMapSv.mapFile.upload}</h2>
       <p>{text.noMapFile}</p>
-      {state.access.admin ? <MapFileUpload disabled={busy} hasMap={false} upload={uploadMapFile} onMessage={setMessage} />
-        : <p className={styles.muted}>{copy.waitForMap}</p>}
+      {state.access.admin ? <>
+        {/* ADR-0210: kartan ur klubbarkivet i stället för att ladda upp kartfilen. */}
+        <ClubMapToRace raceId={raceId} raceType={state.raceType} disabled={busy} onSaved={() => load()} onMessage={setMessage} />
+        <MapFileUpload disabled={busy} hasMap={false} upload={uploadMapFile} onMessage={setMessage} />
+      </> : <p className={styles.muted}>{copy.waitForMap}</p>}
     </section>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     {state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-start">

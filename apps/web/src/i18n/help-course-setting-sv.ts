@@ -15,7 +15,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
       "Från tom tävling till utskrivna kartor och avläsning:",
       { steps: [
         "Skriv namn och datum på ”Mina tävlingar”, välj ”Träning” och tryck på ”Skapa tävling”. Se [Skapa en tävling](#skapa-tavling).",
-        "Öppna ”Banläggning” i arbetsytans sidopanel och ladda upp kartfilen. Se [Banläggningen och kartfilen](#banlaggning-start).",
+        "Öppna ”Banläggning” och ladda upp kartfilen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",
         "Tryck på ”Börja med en tom banläggning” (eller ”Läs in .ppen” om banan finns i Purple Pen).",
         "Tryck på ”Ny bana”. Välj ”Kontroll” och klicka ut kontrollerna, sedan ”Start” och ”Mål”. Se [Kontroller och banor](#kontroller-banor).",
         "Korridor, kurvbild eller annan form: fliken ”Träning”. Se [Träningsformer](#traning).",
@@ -63,7 +63,8 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "OCAD 8 till OCAD 2018 (.ocd) och Mapper (.omap, .xmap), högst 75 MB.",
         "OCAD 7 och äldre går inte: öppna kartan och spara den i nyare OCAD eller i Mapper.",
         "Kartfilen är densamma som under ”Karta och vägval” i arbetsytan.",
-        "Saknar kartan georeferens sätter du tre punkter under ”Karta och vägval”. Positionen i fältläget behöver den."
+        "Saknar kartan georeferens sätter du tre punkter under ”Karta och vägval”. Positionen i fältläget behöver den.",
+        "Finns kartan i klubbens arkiv: ”Välj karta från klubbarkivet” → ”Använd kartan”. Se [Dubbletter och versioner av kartor](#arkiv-dubbletter)."
       ],
       "Sedan: ”Läs in .ppen” från Purple Pen eller ”Börja med en tom banläggning”."
     ]

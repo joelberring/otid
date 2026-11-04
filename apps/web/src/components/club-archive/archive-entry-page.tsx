@@ -87,7 +87,8 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
   }, [view]);
   const previewVersion = file?.mapVersion ? { versionId: file.mapVersion.versionId, fileName: file.mapVersion.fileName }
     : file ? null : folderVersion ? { versionId: folderVersion.versionId, fileName: folderVersion.fileName } : null;
-  const rendered = useRenderedVersion(clubId, previewVersion);
+  // ADR-0209 beslut C: kartfilen hör till kartbanken; utan den ritas ingen förhandsvisning (bilden i listan finns kvar).
+  const rendered = useRenderedVersion(clubId, view?.viewer.access.mapBank === false ? null : previewVersion);
   const courses = ppen ? [...ppen.document.courses].sort((a, b) => a.order - b.order) : [];
   const selectedCourse = courses.find(course => course.id === courseId)?.id ?? courses[0]?.id;
   const courseDataCourse = file?.courseData ? file.courseData.find(course => course.name === courseId) ?? file.courseData[0] : undefined;
@@ -109,7 +110,8 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
   if (failed) return <main className={styles.page}><p className={styles.kicker}>{back}</p><Notice tone="error" role="alert">{clubArchiveSv.loadFailed}</Notice></main>;
   if (!view) return <main className={styles.page}><p className={styles.kicker}>{back}</p><p role="status">{clubArchiveSv.loading}</p></main>;
   const entry = view.entry;
-  const admin = view.viewer.role !== "READER";
+  const admin = view.viewer.role === "OWNER" || view.viewer.role === "ADMIN";
+  const mapBank = view.viewer.access.mapBank;
   const allVersions = view.maps.flatMap(map => map.versions.map(version => ({ map, version })));
   const usedVersionIds = new Set([...view.folderVersionIds, ...view.courseFiles.flatMap(courseFile => courseFile.mapVersion ? [courseFile.mapVersion.versionId] : [])]);
   return <main className={styles.page}>
@@ -120,7 +122,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         <p className={styles.muted}>{[entry.trainingDate ?? entry.year, entry.leader, clubArchiveSv.status[entry.status]].filter(Boolean).join(" · ")}</p>
       </div>
       <div className={styles.actions}>
-        <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>
+        {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>}
         {admin && !editing && <Button variant="secondary" onClick={() => setEditing(true)}>{text.edit}</Button>}
         <HelpButton view={["ARCHIVE_ENTRY", "ARCHIVE_MAPS"]} />
       </div>
@@ -143,12 +145,15 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         {/* Ägaren 2026-11-03 försökte flytta en start här: arkivet visar bara; ändringar görs i en kopia (Använd igen). */}
         <div className={styles.readOnlyHint} data-testid="archive-read-only">
           <p>{text.readOnlyHint}</p>
-          <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>
+          {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>}
         </div>
         {entry.tags.length > 0 && <p className={styles.actions}>{entry.tags.map(tag => <span key={tag} className={styles.tag}>{tag}</span>)}</p>}
         {entry.notes && <p>{entry.notes}</p>}
+        {!mapBank && <p className={styles.muted} data-testid="map-bank-closed">{text.mapBankClosed}</p>}
         <dl className={styles.facts}>
           {entry.sourcePath && <><dt>{text.source}</dt><dd>{entry.sourcePath}</dd></>}
+          {view.sourceRace && <><dt>{text.fromRace}</dt><dd data-testid="entry-source-race">{view.sourceRace.publicPath
+            ? <Link href={view.sourceRace.publicPath}>{view.sourceRace.name}</Link> : view.sourceRace.name} ({view.sourceRace.date})</dd></>}
         </dl>
       </section>
       <section aria-labelledby="entry-courses">
@@ -183,7 +188,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
           <ul className={styles.versionList} aria-label={`${text.mapVersion}: ${map.name}`}>{map.versions.map(version => <li key={version.versionId}>
             <span className={styles.versionDate}>{version.versionDate ?? "–"}</span>
             <span className={styles.versionFile}>
-              <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{version.fileName}</a>
+              {mapBank ? <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{version.fileName}</a> : <span>{version.fileName}</span>}
               {usedVersionIds.has(version.versionId) && <span className={styles.small}>{text.usedHere}</span>}
               <MapCheckChip check={version.check} />
             </span>

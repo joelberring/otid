@@ -112,7 +112,7 @@ describe("ADR-0196: kartornas kontroll och bilder i klubbarkivet", { timeout: 12
     const after = await readClubArchive(db, { ...reader.proof, clubId }, later);
     expect(after.status === "ok" && after.list.maps[0]!.versions[0]!.check).toEqual({ status: "UNSUPPORTED_VERSION",
       detail: "OCAD 7 stöds inte. Öppna kartan och spara den i nyare OCAD eller i Mapper.", fileVersion: null, readerVersion: 2,
-      checkedAt: later.toISOString(), thumbnail: false });
+      checkedAt: later.toISOString(), thumbnail: false, fingerprint: false });
     expect((await readClubMapVersionThumbnail(db, { ...reader.proof, clubId, versionId: version.versionId }, later)).status).toBe("not-found");
   });
 

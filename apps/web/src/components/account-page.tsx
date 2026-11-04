@@ -7,6 +7,7 @@ import { accountSv } from "../i18n/account-sv";
 import { accountRequest } from "../lib/account-client";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
+import { AccountClubs } from "./club-affiliation/account-clubs";
 import styles from "./account-pages.module.css";
 
 const text = accountSv.me;
@@ -108,6 +109,8 @@ export function AccountPage() {
           {notice(nameMessage)}
         </form>
       </Section>
+
+      <AccountClubs />
 
       <Section id="konto-losenord" title={text.password} help={text.passwordHelp}>
         <form className={styles.form} onSubmit={savePassword}>

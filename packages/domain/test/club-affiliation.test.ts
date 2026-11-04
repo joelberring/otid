@@ -79,7 +79,7 @@ describe("ADR-0209: vad en tillhörighet ger", () => {
     expect(clubAreaAllowed("READER", "LEADERS")).toBe(false);
     expect(clubAreaAllowed("LEADER", "LEADERS")).toBe(true);
     expect(clubAreaAllowed("ADMIN", "LEADERS")).toBe(true);
-    expect(CLUB_AREA_DEFAULTS).toEqual({ ARCHIVE: "MEMBERS", MAP_BANK: "LEADERS" });
+    expect(CLUB_AREA_DEFAULTS).toEqual({ ARCHIVE: "MEMBERS", MAP_BANK: "MEMBERS" });
   });
 
   it("den högsta av uttrycklig och härledd roll gäller", () => {

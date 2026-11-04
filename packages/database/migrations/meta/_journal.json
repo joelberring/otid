@@ -56,6 +56,7 @@
     { "idx": 51, "version": "7", "when": 1803052800000, "tag": "0064_bortvalda_varianter", "breakpoints": true },
     { "idx": 52, "version": "7", "when": 1804089607700, "tag": "0077_kartor_sammanfoga", "breakpoints": true },
     { "idx": 53, "version": "7", "when": 1804089600000, "tag": "0076_klubbtillhorighet", "breakpoints": true },
-    { "idx": 54, "version": "7", "when": 1803830400000, "tag": "0073_inbjudningslankar", "breakpoints": true }
+    { "idx": 54, "version": "7", "when": 1804176000000, "tag": "0079_kartbanken_for_alla", "breakpoints": true },
+    { "idx": 55, "version": "7", "when": 1803830400000, "tag": "0073_inbjudningslankar", "breakpoints": true }
   ]
 }

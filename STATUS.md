@@ -17,6 +17,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Spärrar per avsändare (100/h, 300/dygn) och mottagare (3/h, 10/dygn); "Från klubben" visar aldrig adressen och kan inte kopieras.
 - Verifierat: enhetstester (mejltexten, adresserna, hjälpen, routernas roller), integration `adr-0206-inbjudningar` och `adr-0209-klubbtillhorighet`, lint, typecheck; Playwright `inbjudan`. Återstår: provning mot riktig SMTP.
 
+### 2026-11-04 – Kartbanken för alla medlemmar som förval (grenen kartbank-forval, ändring i ADR-0209, migration 0079)
+- Ägaren: kartorna döljs bara som undantag. "Kartbanken (kartfiler, Använd igen, nedladdning) får användas av" har förvalet "Alla medlemmar" (först och förvald) med tipset "Välj Ledare och admin om kartorna inte ska delas med alla medlemmar"; `CLUB_AREA_DEFAULTS` och kolumnens förval.
+- Migration 0079: befintliga `LEADERS` blir alla medlemmar utom där en administratör valt det (journalen `CLUB_ACCESS_CHANGED`); godtas i ett steg eftersom ingen driftsatt server har 0076.
+- Hjälpen (`bekrafta-medlemmar`) säger det nya förvalet. Testerna `adr-0194`, `adr-0210` och `klubbarkiv` bjuder åter in en vanlig medlem för Använd igen; `adr-0209` och `klubbtillhorighet` provar båda valen och migrationen.
+- Verifierat: se slutrapporten för grenen.
 ### 2026-11-03 – Klubbtillhörighet (grenen klubbtillhorighet, ADR-0209, migration 0076)
 - Klubblistan från Eventor (`organisation`, `node superadmin.mjs clubs refresh|import|sync`, högst en gång per dygn), sökning utan accenter med kortnamn och initialer.
 - "Vilken klubb tillhör du?" efter registreringen och Mitt konto → Mina klubbar; en egen anmälan ger ingenting.

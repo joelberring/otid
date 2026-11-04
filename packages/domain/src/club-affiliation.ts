@@ -107,8 +107,11 @@ export function clubAreaAllowed(role: ClubSpaceRole, access: ClubAreaAccess): bo
   return access === "MEMBERS" || RANK[role] >= RANK.LEADER;
 }
 
-/** Förvalen för ett nytt klubbarkiv: arkivet för alla medlemmar, kartbanken för ledare och administratörer. */
-export const CLUB_AREA_DEFAULTS: Readonly<Record<ClubArea, ClubAreaAccess>> = { ARCHIVE: "MEMBERS", MAP_BANK: "LEADERS" };
+/**
+ * Förvalen för ett nytt klubbarkiv: båda delarna för alla medlemmar. Ägaren: kartorna döljs bara som undantag, när klubben väljer
+ * "Ledare och admin".
+ */
+export const CLUB_AREA_DEFAULTS: Readonly<Record<ClubArea, ClubAreaAccess>> = { ARCHIVE: "MEMBERS", MAP_BANK: "MEMBERS" };
 
 /**
  * När en tävling räknas som klar för klubbarkivet: dagen efter tävlingsdagen (i evenemangets tidszon), eller när banorna

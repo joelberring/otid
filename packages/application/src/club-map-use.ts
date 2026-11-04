@@ -8,7 +8,7 @@ import type { DbExecutor } from "./snapshot";
  * ADR-0210 beslut 7: "Välj karta från klubbarkivet" när en träning eller tävling skapas och i banläggningens start. Det enda
  * stället som avgör om kontot får använda klubbens karta i en egen tävling; "Använd igen" och kartan till tävlingen
  * (`saveClubMapVersionToRace`) frågar samma funktion. ADR-0209 beslut 5: ägare och administratörer får alltid; ledare och
- * medlemmar enligt klubbens "Kartbanken (kartfiler, Använd igen, nedladdning) får användas av" (förval ledare och admin).
+ * medlemmar enligt klubbens "Kartbanken (kartfiler, Använd igen, nedladdning) får användas av" (förval alla medlemmar).
  * Kartans villkor stoppar inte men sägs (ett utgånget avtal, bara träning, avgift per utskrift).
  */
 export interface ClubMapUseFacts {

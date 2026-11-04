@@ -1,6 +1,7 @@
 # ADR-0209: Klubbtillhörighet – klubblistan, Mina klubbar, klubbytan i Eventor, Från klubben och tävlingen i klubbarkivet
 
-Status: beslutad 2026-11-03 (grenen `klubbtillhorighet`, migration 0076, ägarens önskemål och tillägg samma dag). Bygger på
+Status: beslutad 2026-11-03 (grenen `klubbtillhorighet`, migration 0076, ägarens önskemål och tillägg samma dag); ändrad
+2026-11-04 (grenen `kartbank-forval`, migration 0079): kartbankens förval är alla medlemmar (beslut 5). Bygger på
 ADR-0194 (klubbarkivet), ADR-0196 (kartorna), ADR-0188 beslut 6 (inbjudan per adress, inga konton röjs), ADR-0186 (bekräftad
 e-post), ADR-0176 (banhemlighet), ADR-0172 (konton) och ADR-0170 beslut 4 (Eventor-nyckeln).
 
@@ -41,12 +42,14 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
    och fritexter som liknar klubbens namn); "Ta bort" vid en bekräftad. Allt journalförs.
 5. **Roller och Vem ser vad.** Klubbytans roller är Medlem (`READER`: bekräftad eller inbjuden), Ledare (`LEADER`, ny, sätts av
    administratörer i listan eller vid inbjudan), Administratör och Ägare. Klubben väljer under "Vem ser vad": träningsarkivet
-   (träningar, småbilder, banfiler) för alla medlemmar (förval) eller ledare och admin; kartbanken (kartfiler, Använd igen,
-   nedladdning) för ledare och admin (förval) eller alla medlemmar (`requireClubArea`; "Välj karta från klubbarkivet" och
-   Använd igen frågar `mayUseClubMap` i ADR-0210, som har samma regel). **Ägare och administratörer ser och
+   (träningar, småbilder, banfiler) och kartbanken (kartfiler, Använd igen, nedladdning), var för sig för alla medlemmar (förval
+   för båda) eller ledare och admin (`requireClubArea`; "Välj karta från klubbarkivet" och Använd igen frågar `mayUseClubMap` i
+   ADR-0210, som har samma regel). Ändrat 2026-11-04, ägaren: kartorna döljs bara som undantag. Först var kartbankens förval
+   ledare och admin; nu står "Alla medlemmar" först och förvald, med tipset "Välj Ledare och admin om kartorna inte ska delas med
+   alla medlemmar". **Ägare och administratörer ser och
    använder alltid allt**: arkivet, kartbanken, alla kartversioner och medlemslistan, oavsett inställningarna och kartans egna
    rättigheter. För medlemmar och ledare gäller kartans rättigheter (ADR-0196) ovanpå; den strängaste vinner. Klubbytor från före
-   migrationen får en rad med kartbanken för alla medlemmar, så att de uttryckligen inbjudna läsarna behåller det de hade.
+   migration 0076 fick en rad med kartbanken för alla medlemmar, så att de uttryckligen inbjudna läsarna behöll det de hade.
    Inställningen "Bekräftade medlemmar kan läsa arkivet" (första utkastet) ersätts av de två.
 6. **Integritet.** Bekräftade medlemmar ser namnen (aldrig adresser) på andra bekräftade medlemmar i samma klubb, och bara i
    väljaren "Från klubben". Den som inte är med ser ingen lista; klubbytans existens röjs inte (404). Det finns ingen
@@ -68,6 +71,12 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
 
 - Migration 0076: nya tabeller, rader i `club_setting` för befintliga klubbytor och vidgade rollvillkor (`LEADER`). Inga
   borttagningar.
+- Migration 0079 (beslut 5 ändrat): kolumnens förval `club_setting.map_bank_access` blir `MEMBERS` (också `CLUB_AREA_DEFAULTS`
+  i domänen, som gäller för en klubbyta utan rad). Raden sparar inte om värdet är förvalet eller ett val; ett val syns bara i
+  klubbens journal. Därför blir varje `LEADERS` alla medlemmar, utom där journalen har `CLUB_ACCESS_CHANGED` med kartbanken från
+  `MEMBERS` till `LEADERS` (en administratör valde det). Det är en omskrivning av data i ett steg, vilket `AGENTS.md` annars inte
+  tillåter: den godtas här eftersom ingen driftsatt server har fått 0076 än, så bara utvecklings- och provdatabaser har sådana
+  rader, och koden läser värdet som det står (gammalt och nytt fungerar lika). Ingen kolumn för "valt av administratör" behövs.
 - Drift: `OTID_EVENTOR_API_KEY` (valfri, bara för `clubs refresh`) i `web`. Masternyckeln krävs för kopplingen och medlemslistan.
 - Matchningen hashar varje bekräftad adress vid en hämtning (en gång per klubb och dygn); det räcker för tusentals konton.
 - Grenen `inbjudan-mejl` skickar mejl i webbens anrop; när den är med skickas avsändaren också i `clubPickerRoute`.

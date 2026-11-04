@@ -20,9 +20,9 @@ export function v8SymbolNumber(number: number): number {
   return Math.floor(number / 10) * 1000 + (number % 10);
 }
 
-interface SymbolHead { readonly size: number; readonly number: number; readonly type: number }
+export interface SymbolHead { readonly size: number; readonly number: number; readonly type: number }
 
-function readHead(bytes: Bytes, position: number, variant: OcdVariant): SymbolHead {
+export function readHead(bytes: Bytes, position: number, variant: OcdVariant): SymbolHead {
   if (variant.symbolHeader === "V8") {
     bytes.check(position, 6, "symbol");
     return { size: bytes.i16(position), number: v8SymbolNumber(bytes.i16(position + 2)), type: bytes.i16(position + 4) };

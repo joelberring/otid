@@ -32,6 +32,12 @@ async function openMenu(page: Page) {
   await expect(menu(page).getByRole("link", { name: "Mitt konto" })).toBeVisible();
 }
 
+/** Bakgrund och textfärg som de ritas (getComputedStyle). */
+const colors = (locator: ReturnType<Page["getByRole"]>) =>
+  locator.evaluate(element => { const style = getComputedStyle(element); return { background: style.backgroundColor, color: style.color }; });
+/** Ljus yta (--subtle) och mörk text (--ink): inte den globala svarta `button:hover`. */
+const LIGHT = { background: "rgb(238, 240, 238)", color: "rgb(26, 29, 27)" };
+
 async function logOutWithMenu(page: Page) {
   await openMenu(page);
   await menu(page).getByRole("button", { name: "Logga ut" }).click();
@@ -83,9 +89,17 @@ test("kontomenyn finns på varje inloggad sida, och utloggningen frågar först 
       await expect(menuButton(owner)).toHaveAccessibleName("Konto: Maja Menysson");
       // Initialerna alltid; namnet bara på bred skärm.
       await expect(menuButton(owner)).toContainText("MM");
+      // Hovrad och öppen: ljus yta och mörk text (namnet syns), också "Logga ut" när den hovras.
+      await menuButton(owner).hover();
+      expect(await colors(menuButton(owner)), `hovrad ${name} ${width}`).toEqual(LIGHT);
       await openMenu(owner);
+      await owner.mouse.move(0, 0);
+      expect(await colors(menuButton(owner)), `öppen ${name} ${width}`).toEqual(LIGHT);
       for (const label of ["Mina klubbar", "Mina grupper", "Mitt konto"]) await expect(menu(owner).getByRole("link", { name: label })).toBeVisible();
       await expect(menu(owner).getByRole("button", { name: "Logga ut" })).toBeVisible();
+      await menu(owner).getByRole("button", { name: "Logga ut" }).hover();
+      expect(await colors(menu(owner).getByRole("button", { name: "Logga ut" })), `Logga ut ${name} ${width}`).toEqual(LIGHT);
+      await menuButton(owner).hover();
       await noSidewaysScroll(owner);
       await shot(owner, `kontomeny-${name}`);
       await owner.keyboard.press("Escape");

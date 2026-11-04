@@ -184,6 +184,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
       : edit.part !== undefined ? `course:${edit.course}:partPrintAreas:${edit.part}` : `course:${edit.course}:printArea`];
     case "PUT_PRINT_PROFILE": case "DELETE_PRINT_PROFILE": return ["event:printProfiles"];
     case "PUT_LAYOUT_TEMPLATE": case "DELETE_LAYOUT_TEMPLATE": return ["event:layoutTemplates"];
+    case "SET_RUNNER_BACK": return ["event:runnerBack"];
     case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.part !== undefined ? `${edit.course}#${edit.part}` : edit.course}`];
     // ADR-0199: per varning, så att två som godtar olika varningar samtidigt inte krockar.
     case "SET_ACCEPTED_CHECKS": return Object.keys(edit.checks).sort().map(key => `event:acceptedChecks:${key}`);

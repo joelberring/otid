@@ -48,6 +48,8 @@ export interface CoursePageOptions {
   /** false = ingen kontrollbeskrivning på papperet (t.ex. editorns ram); saknas = som banans papper. */
   readonly descriptions?: boolean | undefined;
   /** Datumet för papperets {datum} (annars tävlingens värde i dokumentet). */
+  /** ADR-0213: löparens variabler som platshållare (förhandsvisningen av banor). */
+  readonly runnerPlaceholders?: boolean | undefined;
   readonly date?: string | undefined;
   /** Kartbyten (ADR-0203): en del av banan (0, 1 …) med delens tryckyta, beskrivning och papper; saknas = hela banan. */
   readonly part?: number | undefined;
@@ -247,7 +249,7 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
     // Papperets element: första sidan, och de med "Alla sidor" på de följande (ägaren 2026-11-03).
     const paperItems = !options.training?.section && options.descriptions !== false
       ? sheetPaperItems(document, { course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}), printScale, clip }, 0,
-        { page: { x: 0, y: 0, width: widthMm, height: heightMm }, date: options.date, firstPage: pages.length === 0 }) : [];
+        { page: { x: 0, y: 0, width: widthMm, height: heightMm }, date: options.date, firstPage: pages.length === 0, runnerPlaceholders: options.runnerPlaceholders }) : [];
     pages.push({
       course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}), title,
       paper: { widthMm, heightMm, landscape: page.landscape, marginMm }, mapScale, printScale, mapArea, clip, transform,

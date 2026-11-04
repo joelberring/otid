@@ -6,6 +6,7 @@ import type { Point } from "@o-tid/map-file";
 import { nextId } from "./ppen-common";
 import { BUILT_IN_TEMPLATES, validateLayoutTemplate } from "./layout-template";
 import { PAPER_LIMITS, paperPartKey, validatePaperLayout, validatePaperTemplate, type CoursePaperLayout } from "./paper-items";
+import { validateRunnerBack } from "./runner-back";
 import { newSpecial } from "./ppen-special";
 import { BUILT_IN_PRINT_PROFILES, validatePrintProfile } from "./print-profile";
 import type { CourseSettingDocument, EditResult, PrintArea, SpecialEdit, SpecialKind, SpecialObject } from "./types";
@@ -146,6 +147,12 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       const event = { ...document.event };
       delete event.paperLayouts;
       return { document: { ...document, event: Object.keys(layouts).length > 0 ? { ...event, paperLayouts: layouts } : event } };
+    }
+    // ADR-0213: baksidan per löpare; null = förvalet igen.
+    case "SET_RUNNER_BACK": {
+      const event = { ...document.event };
+      delete event.runnerBack;
+      return { document: { ...document, event: edit.back ? { ...event, runnerBack: validateRunnerBack(edit.back) } : event } };
     }
     case "PUT_PAPER_TEMPLATE": {
       const template = validatePaperTemplate(edit.template);

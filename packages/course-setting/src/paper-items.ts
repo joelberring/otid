@@ -156,6 +156,11 @@ export interface PaperValues {
 }
 
 export const PAPER_VARIABLES = ["bana", "klass", "längd", "stigning", "tävling", "datum", "skala", "ekvidistans", "variant"] as const;
+/**
+ * ADR-0213: löparens variabler i en karta per löpare (och på baksidan). {klass} och {variant} finns redan (banans klasser och
+ * ramens variant utan löpare). Stafett: {lag}, {lagnummer} och {sträcka}. Mallarna sparar bara variablerna, aldrig löparen.
+ */
+export const RUNNER_PAPER_VARIABLES = ["namn", "startnummer", "klubb", "starttid", "lag", "lagnummer", "sträcka"] as const;
 export const PAPER_LIMITS = {
   items: 40, templates: 30, textLength: 400, nameLength: 80, minTextMm: 1.5, maxTextMm: 40, minWidthMm: 5, maxWidthMm: 1000,
   minScaleBarMm: 10, maxScaleBarMm: 300, minArrowMm: 5, maxArrowMm: 100, minOpacity: 0.05, polygonPoints: 64, imageBytes: 2 * 1024 * 1024
@@ -450,7 +455,14 @@ export interface PaperTextFrame {
   readonly part?: number | undefined;
   readonly printScale: number;
   readonly runner?: { readonly kind: "RUNNER" | "VACANT" | "RESERVE"; readonly name: string | null; readonly club?: string | null | undefined;
-    readonly className: string | null; readonly startTime: string | null; readonly startNumber: number | null } | undefined;
+    readonly className: string | null; readonly startTime: string | null; readonly startNumber: number | null;
+    /** Stafett (ADR-0213): laget och sträckan. */
+    readonly team?: { readonly number: number; readonly name: string } | undefined; readonly leg?: number | undefined } | undefined;
+  /**
+   * ADR-0213: utan löpare står löparens variabler kvar som {namn} … (förhandsvisningen av banor, så att man ser var de hamnar);
+   * annars blir de tomma (PDF:en och utskriften av banor).
+   */
+  readonly runnerPlaceholders?: boolean | undefined;
 }
 
 const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
@@ -479,12 +491,28 @@ export function paperTextValues(document: CourseSettingDocument, frame: PaperTex
     datum: date ?? document.event.paperValues?.date ?? "",
     ekvidistans: document.event.paperValues?.contourInterval ?? "",
     klasser: classes,
-    "löpare": runner?.name ?? (runner?.kind === "VACANT" ? "Ledig" : runner?.kind === "RESERVE" ? "Reserv" : ""),
-    klubb: runner?.club ?? "",
     // Klassen: löparens i en karta per löpare, annars banans klasser.
     klass: runner ? runner.className ?? "" : classes,
-    starttid: runner?.startTime ?? "",
-    startnummer: runner?.startNumber !== null && runner?.startNumber !== undefined ? String(runner.startNumber) : ""
+    ...runnerValues(frame)
+  };
+}
+
+/** Löparens variabler (ADR-0213); utan löpare tomma, eller som platshållare i förhandsvisningen av banor. */
+function runnerValues(frame: PaperTextFrame | undefined): Record<string, string> {
+  const runner = frame?.runner;
+  if (!runner) {
+    const keep = frame?.runnerPlaceholders === true;
+    return Object.fromEntries(["löpare", ...RUNNER_PAPER_VARIABLES].map(key => [key, keep ? `{${key}}` : ""]));
+  }
+  const name = runner.name ?? (runner.kind === "VACANT" ? "Ledig" : runner.kind === "RESERVE" ? "Reserv" : "");
+  return {
+    "löpare": name, namn: name,
+    klubb: runner.club ?? "",
+    starttid: runner.startTime ?? "",
+    startnummer: runner.startNumber !== null && runner.startNumber !== undefined ? String(runner.startNumber) : "",
+    lag: runner.team?.name ?? "",
+    lagnummer: runner.team ? String(runner.team.number) : "",
+    "sträcka": runner.leg !== undefined ? String(runner.leg) : ""
   };
 }
 
@@ -630,6 +658,8 @@ export interface PaperFrameRef extends PaperTextFrame {
  */
 export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFrameRef, frameIndex: number,
   options: { readonly page: PaperRect; readonly date?: string | undefined; readonly pageItems?: boolean | undefined;
+    /** ADR-0213: löparens variabler som platshållare när ramen inte har någon löpare. */
+    readonly runnerPlaceholders?: boolean | undefined;
     /** false = en senare sida av en bana på flera sidor: bara elementen med `pages: "ALL"`. */
     readonly firstPage?: boolean | undefined }): SheetPaperItem[] {
   const out: SheetPaperItem[] = [];
@@ -639,17 +669,28 @@ export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFra
     if (item.hide) continue;
     // Kartbyten (ADR-0203): "Alla sidor" är alla delar; en senare del har annars bara sina egna element.
     if (frame.part !== undefined && frame.part > 0 && item.pages !== "ALL" && !partOwn.has(item.id)) continue;
-    const onPage = item.relativeTo === "PAGE";
-    if (onPage && options.pageItems === false) continue;
-    const text = item.kind === "TEXT" ? expandPaperText(item.text, document, frame, options.date) : undefined;
-    if (item.kind === "TEXT" && text === "") continue;
-    const size = paperItemSize(item, text);
-    const at = anchorToPaper(item.at, size, onPage ? options.page : frame.clip);
-    out.push({ id: item.id, kind: item.kind, course: frame.course, frame: frameIndex, rect: { ...at, ...size }, source, relativeTo: onPage ? "PAGE" : "FRAME",
-      ...(item.locked ? { locked: true } : {}),
-      parts: paperItemParts(item, at, { ...(text !== undefined ? { text } : {}), printScale: frame.printScale }) });
+    if (item.relativeTo === "PAGE" && options.pageItems === false) continue;
+    const placed = placePaperItem(document, item, source, frame, frameIndex, options);
+    if (placed) out.push(placed);
   }
   return out;
+}
+
+/**
+ * Ett element på arket med variablerna ifyllda (för ramens bana och löpare). En text som blir tom står inte på arket.
+ * `course` på resultatet säger vems element det är (banans id, eller baksidans, ADR-0213).
+ */
+export function placePaperItem(document: CourseSettingDocument, item: PaperItem, source: PaperSource, frame: PaperFrameRef, frameIndex: number,
+  options: { readonly page: PaperRect; readonly date?: string | undefined; readonly runnerPlaceholders?: boolean | undefined; readonly course?: string | undefined })
+  : SheetPaperItem | undefined {
+  const onPage = item.relativeTo === "PAGE";
+  const text = item.kind === "TEXT" ? expandPaperText(item.text, document, options.runnerPlaceholders ? { ...frame, runnerPlaceholders: true } : frame, options.date) : undefined;
+  if (item.kind === "TEXT" && text === "") return undefined;
+  const size = paperItemSize(item, text);
+  const at = anchorToPaper(item.at, size, onPage ? options.page : frame.clip);
+  return { id: item.id, kind: item.kind, course: options.course ?? frame.course, frame: frameIndex, rect: { ...at, ...size }, source, relativeTo: onPage ? "PAGE" : "FRAME",
+    ...(item.locked ? { locked: true } : {}),
+    parts: paperItemParts(item, at, { ...(text !== undefined ? { text } : {}), printScale: frame.printScale }) };
 }
 
 // ── Klippningen ─────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import type { MapBundleResponse } from "@o-tid/contracts";
 import { courseVariants, excludedVariantCodes, type CourseSettingDocument, type SheetItem } from "@o-tid/course-setting";
-import { mapBackPages } from "@o-tid/domain";
+import { mapBackPages, type MapBackPage } from "@o-tid/domain";
 
 /**
  * Steg 64: utskrift per löpare. Steg 61:s plan (`planMapBundles` via kartbuntarna) ger ordningen, löparna, lediga tider
@@ -16,8 +16,14 @@ export type RunnerPrintProblem =
   | { readonly kind: "EXCLUDED_VARIANT"; readonly courseName: string; readonly variantCode: string; readonly count: number }
   | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly expected: number; readonly actual: number };
 
+/** ADR-0213: en löpare med en bortvald variant (skrivs inte ut men står i kontrolltabellen). */
+export interface ExcludedRunner {
+  readonly courseName: string; readonly variantCode: string; readonly runner: NonNullable<SheetItem["runner"]>;
+}
+
 export interface RunnerPrint {
   readonly items: readonly SheetItem[];
+  readonly excluded: readonly ExcludedRunner[];
   readonly problems: readonly RunnerPrintProblem[];
   /** Kartor per variant (för översikten). */
   readonly counts: readonly { readonly courseName: string; readonly variantCode: string | null; readonly count: number }[];
@@ -39,6 +45,7 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
   const instants: (string | null)[] = [];
   const excludedPages = new Map<string, { kind: "EXCLUDED_VARIANT"; courseName: string; variantCode: string; count: number }>();
   const excludedCache = new Map<string, ReadonlySet<string>>();
+  const excludedRunners: ExcludedRunner[] = [];
   const excludedOf = (course: string) => {
     if (!excludedCache.has(course)) {
       let codes: ReadonlySet<string> = new Set();
@@ -60,7 +67,7 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
     // ADR-0198: en bortvald variant skrivs aldrig ut, inte heller som reserv; löpare med den sägs som problem.
     if (variant && excludedOf(course.id).has(variant)) {
       const found = excludedPages.get(key) ?? { kind: "EXCLUDED_VARIANT" as const, courseName: page.courseName, variantCode: variant, count: 0 };
-      if (page.kind !== "RESERVE") found.count += 1;
+      if (page.kind !== "RESERVE") { found.count += 1; excludedRunners.push({ courseName: page.courseName, variantCode: variant, runner: runnerOf(page, clock) }); }
       excludedPages.set(key, found);
       continue;
     }
@@ -70,12 +77,7 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
       try { codes = courseVariants(document, course.id).map(row => row.code); } catch { codes = []; }
       if (!codes.includes(variant)) problems.push({ kind: "UNKNOWN_VARIANT", courseName: page.courseName, variantCode: variant });
     }
-    const runner = page.kind === "RUNNER"
-      ? { kind: "RUNNER" as const, name: page.item.name, club: page.item.club, className: page.item.className, startTime: page.item.startTime ? clock(page.item.startTime) : null,
-        startNumber: page.item.number }
-      : page.kind === "VACANT"
-        ? { kind: "VACANT" as const, name: null, className: page.item.className, startTime: clock(page.item.startTime), startNumber: page.item.number }
-        : { kind: "RESERVE" as const, name: null, className: null, startTime: null, startNumber: null };
+    const runner = runnerOf(page, clock);
     items.push({ course: course.id, ...(variant ? { variant } : {}), runner });
     instants.push(page.kind === "RESERVE" ? null : page.item.startTime);
     const count = counts.get(key) ?? { courseName: page.courseName, variantCode: page.variantCode, count: 0 };
@@ -93,5 +95,14 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
   const ordered = order === "BUNDLE" ? items : items.map((item, index) => ({ item, index, at: instants[index] ?? null }))
     .sort((a, b) => rank(a.item, a.at) - rank(b.item, b.at) || (a.at ?? "").localeCompare(b.at ?? "")
       || (a.item.runner?.startNumber ?? Infinity) - (b.item.runner?.startNumber ?? Infinity) || a.index - b.index).map(row => row.item);
-  return { items: ordered, problems, counts: [...counts.values()] };
+  return { items: ordered, excluded: excludedRunners, problems, counts: [...counts.values()] };
+}
+
+/** Löparens uppgifter för kartan (ADR-0213: deltagaren, laget och sträckan för urvalet och kontrolltabellen). */
+function runnerOf(page: Exclude<MapBackPage, { kind: "DIVIDER" }>, clock: (instant: string | null) => string): NonNullable<SheetItem["runner"]> {
+  if (page.kind === "RUNNER") return { kind: "RUNNER", name: page.item.name, club: page.item.club, className: page.item.className,
+    startTime: page.item.startTime ? clock(page.item.startTime) : null, startNumber: page.item.number, entryId: page.item.entryId,
+    ...(page.item.team ? { team: page.item.team } : {}), ...(page.item.leg !== undefined ? { leg: page.item.leg } : {}) };
+  if (page.kind === "VACANT") return { kind: "VACANT", name: null, className: page.item.className, startTime: clock(page.item.startTime), startNumber: page.item.number };
+  return { kind: "RESERVE", name: null, className: null, startTime: null, startNumber: null };
 }

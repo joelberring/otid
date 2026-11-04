@@ -85,6 +85,7 @@ export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } fro
 // Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan; senare fler element på arket.
 export * from "./paper-layout";
 export * from "./paper-items";
+export * from "./runner-back";
 export * from "./paper-shapes";
 export * from "./paper-white";
 export { expandPartItems, printSheetGroups, type SheetGroup, type SheetGroupOptions, type SheetLayout } from "./print-sheets";

@@ -12,7 +12,7 @@ import type { Point } from "@o-tid/map-file";
 import type { Appearance } from "./appearance";
 import type { DescriptionEdit, DescriptionLayout } from "./description-types";
 import type { LayoutTemplate } from "./layout-template";
-import type { CoursePaperLayout, PaperTemplate, PaperValues } from "./paper-items";
+import type { CoursePaperLayout, PaperItem, PaperTemplate, PaperValues } from "./paper-items";
 import type { PrintProfile } from "./print-profile";
 import type { OverprintTraining, TrainingPatch, TrainingSettings } from "./training-types";
 import type { CourseLevel, LevelRank } from "./level-types";
@@ -252,6 +252,9 @@ export interface PrintArea {
   readonly page?: { readonly width: number; readonly height: number; readonly margins: number; readonly landscape: boolean } | undefined;
 }
 
+/** ADR-0213: baksidan per löpare (papperets element, förankrade i arket). */
+export interface RunnerBackLayout { readonly items: readonly PaperItem[] }
+
 export interface CourseSettingDocument {
   readonly version: 1;
   readonly event: {
@@ -302,6 +305,11 @@ export interface CourseSettingDocument {
     /** Papperets mallar (ADR-0197) som banorna ärver av, och värdena för {datum} och {ekvidistans}. Bara O-Tid. */
     readonly paperTemplates?: readonly PaperTemplate[] | undefined;
     readonly paperValues?: PaperValues | undefined;
+    /**
+     * ADR-0213: baksidan i en karta per löpare (dubbelsidigt i samma PDF): papperets element med löparens variabler, förankrade
+     * i arket. Saknas = förvalet (som Kartor till startens baksida). Bara variablerna sparas, aldrig löparna. Bara O-Tid.
+     */
+    readonly runnerBack?: RunnerBackLayout | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -420,6 +428,8 @@ export type SpecialEdit =
   | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string }
   /** Papperet för en bana (eller "ALL_CONTROLS"): ersätts helt; null = som förval. */
   | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null; readonly part?: number | undefined }
+  /** ADR-0213: baksidan per löpare; null = förvalet igen. */
+  | { readonly type: "SET_RUNNER_BACK"; readonly back: RunnerBackLayout | null }
   /** Papperets mall (ADR-0197): lägg till eller ersätt per id, ta bort (banorna som ärver av den står kvar utan mall). */
   | { readonly type: "PUT_PAPER_TEMPLATE"; readonly template: PaperTemplate }
   | { readonly type: "DELETE_PAPER_TEMPLATE"; readonly id: string };

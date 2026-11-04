@@ -121,3 +121,25 @@ describe("kontroll före tävlingen (steg 61)", () => {
     expect(forkingReadiness({ variantCodes: ["A"], forking: letters, classes: [] }).tooManyLetters).toBe(true);
   });
 });
+
+describe("kartbuntsplan för stafett (ADR-0213)", () => {
+  const legClass = (leg: number, codes: string[]): MapBundleClassInput => ({ id: "c-staf", name: "H21 stafett", courseVersionId: `v-leg${leg}`,
+    courseName: `Sträcka ${leg}`, variantCodes: codes, startMode: leg === 1 ? "MASS" : "FREE", vacancies: [], leg });
+  const legRunner = (id: string, team: number, leg: number, variantCode: string | null): MapBundleEntryInput =>
+    ({ id, name: `Löpare ${id}`, club: "OK Lag", classId: "c-staf", startTime: leg === 1 ? at(0) : null, variantCode, leg,
+      team: { number: team, name: `Lag ${team}` }, legOrder: 1 });
+
+  it("en grupp per sträckans bana och lagets variant, efter de individuella, i lagnummerordning", () => {
+    const plan = planMapBundles({ classes: [{ ...h21, vacancies: [] }, legClass(1, ["A", "B"]), legClass(2, [])], reserve: { kind: "COUNT", value: 0 },
+      entries: [...entries.slice(0, 2), legRunner("r12a", 12, 1, "B"), legRunner("r3a", 3, 1, "A"), legRunner("r12b", 12, 2, null), legRunner("r3b", 3, 2, null),
+        legRunner("r7a", 7, 1, null)] });
+    // De individuella först (nummer 1 och 2 som förut), sedan sträcka 1 och 2 i lagnummerordning.
+    expect(plan.rows.map(row => row.entryId)).toEqual(["e1", "e2", "r3a", "r12a", "r3b", "r12b"]);
+    expect(plan.rows[2]).toMatchObject({ number: 3, team: { number: 3, name: "Lag 3" }, leg: 1, variantCode: "A", courseName: "Sträcka 1" });
+    const group = plan.groups.find(row => row.courseName === "Sträcka 1" && row.variantCode === "B")!;
+    expect(group.items).toEqual([expect.objectContaining({ kind: "RUNNER", entryId: "r12a", team: { number: 12, name: "Lag 12" }, leg: 1 })]);
+    expect(plan.groups.find(row => row.courseName === "Sträcka 2")!.items.map(item => item.kind === "RUNNER" ? item.entryId : "")).toEqual(["r3b", "r12b"]);
+    // Lag 7 saknar variant på den gafflade sträckan.
+    expect(plan.missingVariant).toEqual([{ entryId: "r7a", name: "Löpare r7a", className: "H21 stafett", team: { number: 7, name: "Lag 7" }, leg: 1 }]);
+  });
+});

@@ -42,6 +42,8 @@ export interface SheetGroupOptions {
   readonly numberObstacles?: OverprintOptions["numberObstacles"];
   /** En grupp som inte gick att lägga ut (felet loggas av den som anropar); utan den kastas felet. */
   readonly onError?: ((failed: { readonly item?: number | undefined; readonly error: unknown }) => void) | undefined;
+  /** ADR-0213: löparens variabler som platshållare i ramar utan löpare (förhandsvisningen av banor). */
+  readonly runnerPlaceholders?: boolean | undefined;
 }
 
 export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: SheetLayout, items: readonly SheetItem[],
@@ -96,7 +98,8 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: S
     }
   };
   const gaps = { ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.numberObstacles ? { numberObstacles: options.numberObstacles } : {}) };
-  const common = { mapBounds: options.mapBounds, ...(options.date ? { date: options.date } : {}), ...gaps };
+  const common = { mapBounds: options.mapBounds, ...(options.date ? { date: options.date } : {}), ...gaps,
+    ...(options.runnerPlaceholders ? { runnerPlaceholders: true } : {}) };
   if (layout.kind === "PIECES") {
     items.forEach((item, index) => attempt(index, () => ({ item: index, sheets: trainingPieceSheets(document, item, { mapBounds: options.mapBounds }) })));
     return groups;
@@ -113,7 +116,8 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: S
   items.forEach((item, index) => attempt(index, () => {
     const pages = layoutCoursePage(document, { course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.part !== undefined ? { part: item.part } : {}),
       ...(item.printScale ? { printScale: item.printScale } : {}), ...(item.printArea ? { printArea: item.printArea } : {}),
-      mapBounds: options.mapBounds, header: layout.header, ...gaps, ...(item.training ? { training: item.training } : {}), ...(options.date ? { date: options.date } : {}) });
+      mapBounds: options.mapBounds, header: layout.header, ...gaps, ...(item.training ? { training: item.training } : {}), ...(options.date ? { date: options.date } : {}),
+      ...(options.runnerPlaceholders ? { runnerPlaceholders: true } : {}) });
     return { item: index, sheets: pages.map(sheetOfPage), pages };
   }));
   return layout.duplex ? duplexParts(groups, items) : groups;

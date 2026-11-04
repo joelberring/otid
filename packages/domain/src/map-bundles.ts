@@ -13,7 +13,9 @@ import { leastUsedCourseVariant } from "./course-variants";
  *   (`leastUsedCourseVariant`), i tidsordning.
  *
  * Löpare i en gafflad klass utan giltig variant ingår inte i någon grupp; de står i `missingVariant` (fördela först).
- * Allt här är rent.
+ * Stafett (ADR-0213): en klass per sträcka (`leg`, sträckans bana och varianter), löparna med lag och sträcka och lagets
+ * variant (lagets gafflingar). Stafettens kartor står efter de individuella, per klass, sträcka, lagnummer och ordning
+ * inom sträckan, så att de individuellas nummer inte ändras av stafetten. Allt här är rent.
  */
 
 export type MapBundleStartMode = "MINUTE" | "MASS" | "FREE";
@@ -28,7 +30,12 @@ export interface MapBundleClassInput {
   readonly startMode: MapBundleStartMode;
   /** Lediga lottade starttider (ISO). */
   readonly vacancies: readonly string[];
+  /** Stafett (ADR-0213): sträckan som klassen står för. */
+  readonly leg?: number | undefined;
 }
+
+/** Stafett (ADR-0213): laget som kartan gäller. */
+export interface MapBundleTeam { readonly number: number; readonly name: string }
 
 export interface MapBundleEntryInput {
   readonly id: string;
@@ -38,6 +45,10 @@ export interface MapBundleEntryInput {
   /** Lottad tid; null vid fri start eller saknad tid. */
   readonly startTime: string | null;
   readonly variantCode: string | null;
+  /** Stafett: sträckan, laget och ordningen inom sträckan (1 om den saknas). */
+  readonly leg?: number | undefined;
+  readonly team?: MapBundleTeam | undefined;
+  readonly legOrder?: number | undefined;
 }
 
 export type MapReserve = { readonly kind: "PERCENT" | "COUNT"; readonly value: number };
@@ -51,6 +62,8 @@ export interface MapBundleRunnerItem {
   readonly club: string | null;
   readonly className: string;
   readonly startTime: string | null;
+  readonly team?: MapBundleTeam | undefined;
+  readonly leg?: number | undefined;
 }
 export interface MapBundleVacantItem {
   readonly kind: "VACANT";
@@ -86,13 +99,16 @@ export interface MapBundleRow {
   readonly variantCode: string | null;
   readonly startTime: string | null;
   readonly startMode: MapBundleStartMode;
+  readonly team?: MapBundleTeam | undefined;
+  readonly leg?: number | undefined;
 }
 
 export interface MapBundlePlan {
   readonly groups: readonly MapBundleGroup[];
   /** Alla kartor i startnummerordning. */
   readonly rows: readonly MapBundleRow[];
-  readonly missingVariant: readonly { readonly entryId: string; readonly name: string; readonly className: string }[];
+  readonly missingVariant: readonly { readonly entryId: string; readonly name: string; readonly className: string;
+    readonly team?: MapBundleTeam | undefined; readonly leg?: number | undefined }[];
 }
 
 const compare = (left: string, right: string) => left.localeCompare(right, "sv-SE");
@@ -113,17 +129,18 @@ export function planMapBundles(input: {
   readonly reserve: MapReserve;
 }): MapBundlePlan {
   const slots: Slot[] = [];
-  const missingVariant: { entryId: string; name: string; className: string }[] = [];
-  const classes = [...input.classes].sort((left, right) => compare(left.name, right.name) || compare(left.id, right.id));
+  const missingVariant: { entryId: string; name: string; className: string; team?: MapBundleTeam; leg?: number }[] = [];
+  const classes = [...input.classes].sort((left, right) => compare(left.name, right.name) || compare(left.id, right.id) || (left.leg ?? 0) - (right.leg ?? 0));
   for (const raceClass of classes) {
-    const entries = input.entries.filter((entry) => entry.classId === raceClass.id);
+    const entries = input.entries.filter((entry) => entry.classId === raceClass.id && (entry.leg ?? null) === (raceClass.leg ?? null));
     const forked = raceClass.variantCodes.length > 0;
     const used: (string | null)[] = [];
     for (const entry of entries) {
       const time = raceClass.startMode === "FREE" ? null : entry.startTime;
       if (!forked) { slots.push({ entry: { ...entry, startTime: time }, raceClass, variantCode: null }); continue; }
       if (entry.variantCode === null || !raceClass.variantCodes.includes(entry.variantCode)) {
-        missingVariant.push({ entryId: entry.id, name: entry.name, className: raceClass.name });
+        missingVariant.push({ entryId: entry.id, name: entry.name, className: raceClass.name,
+          ...(entry.team ? { team: entry.team } : {}), ...(entry.leg !== undefined ? { leg: entry.leg } : {}) });
         continue;
       }
       used.push(entry.variantCode);
@@ -139,14 +156,20 @@ export function planMapBundles(input: {
   // Startordning: tid, klass, namn (lediga tider efter löparna samma minut); fri start sist per klass. Varianten ingår inte,
   // så att ett byte av variant inte flyttar startnumren.
   const sortKey = (slot: Slot) => slot.entry ? slot.entry.startTime : slot.vacancy!;
-  slots.sort((left, right) => timeOf(sortKey(left)) - timeOf(sortKey(right)) ||
+  const relay = (slot: Slot) => slot.raceClass.leg !== undefined;
+  slots.sort((left, right) => Number(relay(left)) - Number(relay(right)) || (relay(left)
+    ? compare(left.raceClass.name, right.raceClass.name) || compare(left.raceClass.id, right.raceClass.id) || left.raceClass.leg! - right.raceClass.leg! ||
+      (left.entry?.team?.number ?? 0) - (right.entry?.team?.number ?? 0) || (left.entry?.legOrder ?? 1) - (right.entry?.legOrder ?? 1) ||
+      compare(left.entry?.id ?? "", right.entry?.id ?? "")
+    : 0) || timeOf(sortKey(left)) - timeOf(sortKey(right)) ||
     compare(left.raceClass.name, right.raceClass.name) || compare(left.raceClass.id, right.raceClass.id) ||
     Number(!left.entry) - Number(!right.entry) ||
     compare(left.entry?.name ?? "", right.entry?.name ?? "") || compare(left.entry?.id ?? "", right.entry?.id ?? ""));
   const rows: MapBundleRow[] = slots.map((slot, index) => ({ number: index + 1, entryId: slot.entry?.id ?? null,
     name: slot.entry?.name ?? null, club: slot.entry?.club ?? null, classId: slot.raceClass.id, className: slot.raceClass.name,
     courseName: slot.raceClass.courseName, variantCode: slot.variantCode, startTime: slot.entry ? slot.entry.startTime : slot.vacancy!,
-    startMode: slot.raceClass.startMode }));
+    startMode: slot.raceClass.startMode, ...(slot.entry?.team ? { team: slot.entry.team } : {}),
+    ...(slot.raceClass.leg !== undefined ? { leg: slot.raceClass.leg } : {}) }));
 
   const groups = new Map<string, { courseVersionId: string; courseName: string; variantCode: string | null; order: number; items: MapBundleItem[] }>();
   const variantOrder = new Map<string, readonly string[]>(classes.map((row) => [row.courseVersionId, row.variantCodes]));
@@ -156,7 +179,8 @@ export function planMapBundles(input: {
     const group = groups.get(key) ?? { courseVersionId: slot.raceClass.courseVersionId, courseName: slot.raceClass.courseName,
       variantCode: slot.variantCode, order: (variantOrder.get(slot.raceClass.courseVersionId) ?? []).indexOf(slot.variantCode ?? ""), items: [] };
     group.items.push(slot.entry ? { kind: "RUNNER", number: row.number, entryId: slot.entry.id, name: slot.entry.name,
-      club: slot.entry.club, className: slot.raceClass.name, startTime: row.startTime }
+      club: slot.entry.club, className: slot.raceClass.name, startTime: row.startTime, ...(slot.entry.team ? { team: slot.entry.team } : {}),
+      ...(slot.raceClass.leg !== undefined ? { leg: slot.raceClass.leg } : {}) }
       : { kind: "VACANT", number: row.number, className: slot.raceClass.name, startTime: slot.vacancy! });
     groups.set(key, group);
   }

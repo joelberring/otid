@@ -1,11 +1,12 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   mapBundleResponseSchema, mapPrintRequestSchema, mapPrintResponseSchema, mapReserveRequestSchema, mapReserveResponseSchema,
   printedMapStateSchema, type MapBundleResponse, type MapPrintList
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  DEFAULT_MAP_RESERVE, mapPrintChanges, planMapBundles, printedMapState, type MapBundleClassInput, type MapBundlePlan, type MapReserve
+  DEFAULT_MAP_RESERVE, mapPrintChanges, planMapBundles, printedMapState, type MapBundleClassInput, type MapBundleEntryInput, type MapBundlePlan,
+  type MapReserve
 } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { loadCourseVersionVariants } from "./course-variants";
@@ -16,8 +17,8 @@ import { canonicalHash, UUID_PATTERN as uuid } from "./serialization";
 /**
  * Kartor till starten (PLAN.md steg 61): tryckantal per variant, kartbuntslistan och baksidorna ur domänens
  * `planMapBundles`, plus senaste utskriften per lista (`map_print`) och vad som ändrats sedan dess. Funktionären vid
- * starten läser och skriver ut; reserven ställs in av administratören. Stafettklasser ingår inte (sträckorna har egna
- * starter och bana per lag).
+ * starten läser och skriver ut; reserven ställs in av administratören. Stafett (ADR-0213): en klass per sträcka med
+ * sträckans bana och lagens varianter (lagens gafflingar, eller sträckans fasta variant), efter de individuella.
  */
 type Authentication = RaceSessionProof;
 const notRelayClass = sql`not exists (select 1 from relay_leg rl where rl.class_id = ${schema.classes.id})`;
@@ -59,10 +60,58 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
   if (entries.length > 20_000) throw new Error("För många deltagare");
   const startRule = new Map(classRows.map(row => [row.id, row.startRule]));
   const reserve = race.reserve ?? DEFAULT_MAP_RESERVE;
-  const plan = planMapBundles({ classes, reserve, entries: entries.map(row => ({ id: row.id, name: `${row.givenName} ${row.familyName}`.trim(),
+  const relay = await loadRelayBasis(tx, raceId);
+  const plan = planMapBundles({ classes: [...classes, ...relay.classes], reserve, entries: [...entries.map(row => ({ id: row.id, name: `${row.givenName} ${row.familyName}`.trim(),
     club: row.club, classId: row.classId, variantCode: row.variantCode,
-    startTime: startRule.get(row.classId) === "FIXED" ? row.startTime?.toISOString() ?? null : null })) });
-  return { race, reserve, classes, plan };
+    startTime: startRule.get(row.classId) === "FIXED" ? row.startTime?.toISOString() ?? null : null })), ...relay.entries] });
+  return { race, reserve, classes: [...classes, ...relay.classes], plan };
+}
+
+/**
+ * Stafettens sträckor som klasser (ADR-0213): sträckans bana (eller klassens), dess varianter och sträckans fasta variant;
+ * löparna med lag, sträcka och lagets variant. Masstartens tid för sträckor med masstart; växling och omstart har ingen
+ * lottad tid. Rogaining ingår inte (som de individuella).
+ */
+async function loadRelayBasis(tx: DbExecutor, raceId: string): Promise<{ classes: MapBundleClassInput[]; entries: MapBundleEntryInput[] }> {
+  const legs = await tx.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg, startMethod: schema.relayLegs.startMethod,
+    startTime: schema.relayLegs.startTime, fixedVariant: schema.relayLegs.courseVariantCode, legCourseVersionId: schema.relayLegs.courseVersionId,
+    className: schema.classes.name, classCourseVersionId: schema.classes.courseVersionId })
+    .from(schema.relayLegs).innerJoin(schema.classes, eq(schema.classes.id, schema.relayLegs.classId))
+    .where(and(eq(schema.relayLegs.raceId, raceId), isNull(schema.classes.rogainingTimeLimitSeconds)))
+    .orderBy(asc(schema.classes.name), asc(schema.relayLegs.leg)).limit(2001);
+  if (legs.length === 0) return { classes: [], entries: [] };
+  if (legs.length > 2000) throw new Error("För många sträckor");
+  const versionOf = (leg: typeof legs[number]) => leg.legCourseVersionId ?? leg.classCourseVersionId;
+  const versionIds = [...new Set(legs.map(versionOf))];
+  const names = new Map((await tx.select({ id: schema.courseVersions.id, name: schema.courses.name }).from(schema.courseVersions)
+    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId)).where(inArray(schema.courseVersions.id, versionIds)))
+    .map(row => [row.id, row.name]));
+  const variants = await loadCourseVersionVariants(tx, versionIds);
+  const classes: MapBundleClassInput[] = legs.flatMap(leg => {
+    const courseName = names.get(versionOf(leg));
+    if (!courseName) return [];
+    const codes = (variants.get(versionOf(leg)) ?? []).map(variant => variant.code);
+    return [{ id: leg.classId, name: leg.className, courseVersionId: versionOf(leg), courseName, leg: leg.leg,
+      variantCodes: leg.fixedVariant !== null && codes.includes(leg.fixedVariant) ? [leg.fixedVariant] : codes,
+      startMode: leg.startMethod === "MASS_START" ? "MASS" as const : "FREE" as const, vacancies: [] }];
+  });
+  const legOf = new Map(legs.map(leg => [`${leg.classId}:${leg.leg}`, leg]));
+  const rows = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
+    club: schema.entries.organisationName, classId: schema.entries.classId, leg: schema.entries.relayLeg, legOrder: schema.entries.relayLegOrder,
+    variantCode: schema.entries.courseVariantCode, teamNumber: schema.teams.number, teamName: schema.teams.name, teamClub: schema.teams.organisationName })
+    .from(schema.entries).innerJoin(schema.teams, eq(schema.teams.id, schema.entries.teamId))
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt), isNull(schema.teams.struckAt), isNotNull(schema.entries.relayLeg)))
+    .limit(20_001);
+  if (rows.length > 20_000) throw new Error("För många deltagare");
+  const entries: MapBundleEntryInput[] = rows.flatMap(row => {
+    const leg = legOf.get(`${row.classId}:${row.leg}`);
+    if (!leg || row.leg === null) return [];
+    return [{ id: row.id, name: `${row.givenName} ${row.familyName}`.trim(), club: row.club ?? row.teamClub, classId: row.classId, leg: row.leg,
+      legOrder: row.legOrder ?? 1, team: { number: row.teamNumber, name: row.teamName },
+      // Lagets variant (lagets gafflingar); en sträcka med fast variant ger den.
+      variantCode: row.variantCode ?? leg.fixedVariant, startTime: leg.startMethod === "MASS_START" ? leg.startTime?.toISOString() ?? null : null }];
+  });
+  return { classes, entries };
 }
 
 const stateHash = (basis: MapBundleBasis) => canonicalHash({ reserve: basis.reserve, groups: basis.plan.groups, rows: basis.plan.rows });

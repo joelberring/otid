@@ -7,6 +7,7 @@
 import type { OverprintTraining, TrainingMapPass } from "./training-types";
 import { placeDescription, type SheetDescription } from "./paper-layout";
 import { expandPaperText, paperLayoutOf, sheetPaperItems, type MarkingClip, type SheetPaperItem } from "./paper-items";
+import { runnerBackSheet } from "./runner-back";
 import { countCourseParts } from "./course-parts";
 import { layout, printScaleOf } from "./overprint";
 import { figureBounds, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, printRectangle, type CoursePage, type PaperName } from "./page-layout";
@@ -71,6 +72,11 @@ export interface RunnerInfo {
   /** Starttiden som den ska stå ("18:32"). */
   readonly startTime: string | null;
   readonly startNumber: number | null;
+  /** ADR-0213: deltagaren (urvalet och kontrolltabellen; skrivs aldrig ut). */
+  readonly entryId?: string | undefined;
+  /** Stafett (ADR-0213): laget och sträckan. */
+  readonly team?: { readonly number: number; readonly name: string } | undefined;
+  readonly leg?: number | undefined;
 }
 
 export interface SheetItem {
@@ -209,12 +215,18 @@ export interface SheetOptions {
   readonly descriptionLanguage?: string | undefined;
   /** Dubbelsidigt: efter varje ark med en löpare kommer en baksida med namn, klass, startnummer, starttid och variant. */
   readonly duplexBacks?: boolean | undefined;
+  /** ADR-0213: löparens variabler som platshållare i ramar utan löpare (förhandsvisningen). */
+  readonly runnerPlaceholders?: boolean | undefined;
 }
 
 /** Platshållarna i mallens texter för en ram (okända lämnas kvar); samma variabler som papperets texter (`expandPaperText`). */
 export function fillPlaceholders(text: string, document: CourseSettingDocument, frame: Pick<SheetFrame, "course" | "variant" | "printScale" | "runner"> | undefined,
   date?: string): string {
   return expandPaperText(text, document, frame, date).trim();
+}
+
+function withPlaceholders(frame: SheetFrame | undefined, options: SheetOptions): SheetFrame | undefined {
+  return frame && options.runnerPlaceholders ? { ...frame, runnerPlaceholders: true } as SheetFrame : frame;
 }
 
 /** Kartramen för en bana: utsnittet lika stort som ramen i utskriftsskalan, kring banans tryckyta (eller automatiskt). */
@@ -267,24 +279,6 @@ function stripParts(strip: TemplateStrip, paper: { widthMm: number; heightMm: nu
   }
 }
 
-/** Baksidan för en löpares karta (dubbelsidigt): namn, klass, startnummer, starttid och variant i stor stil, mitt på. */
-export function runnerBack(paper: Sheet["paper"], runner: RunnerInfo, variant: string | undefined): Sheet {
-  const lines: [string, number, boolean][] = [
-    [runner.name ?? (runner.kind === "VACANT" ? "Ledig start" : "Reserv"), 14, true],
-    [runner.className ?? "", 10, true],
-    [[runner.startNumber !== null ? `Nr ${runner.startNumber}` : "", runner.startTime ?? ""].filter(Boolean).join("   "), 10, false],
-    [variant ? `Variant ${variant}` : "", 10, false]
-  ];
-  const shown = lines.filter(([text]) => text !== "");
-  const total = shown.reduce((sum, [, size]) => sum + size * 1.5, 0);
-  let y = paper.heightMm / 2 - total / 2;
-  const texts: SheetText[] = shown.map(([text, size, bold]) => {
-    y += size * 1.5;
-    return { text, at: { x: paper.widthMm / 2, y }, heightMm: size, bold, align: "center", rotation: 0, color: "BLACK" };
-  });
-  return { paper, frames: [], texts, images: [], descriptions: [], boxes: [], cutMarks: [], back: true };
-}
-
 /**
  * Arken för mallen och de valda banorna (eller löparna). FILL lägger dem i ramarna i ordning (sista arket kan ha tomma
  * ramar); REPEAT ger ett ark per bana med banan i alla ramar. Med `duplexBacks` följer en baksida varje ark med löpare.
@@ -302,12 +296,12 @@ export function layoutTemplateSheets(document: CourseSettingDocument, template: 
   for (const group of groups) {
     const frames = group.map((item, index) => frameFor(document, item, rects[index]!, options));
     const texts: SheetText[] = template.texts.map(text => ({
-      text: fillPlaceholders(text.text, document, frames[text.frame ?? 0], options.date), at: { x: text.x, y: text.y }, heightMm: text.sizeMm,
+      text: fillPlaceholders(text.text, document, withPlaceholders(frames[text.frame ?? 0], options), options.date), at: { x: text.x, y: text.y }, heightMm: text.sizeMm,
       bold: text.bold ?? false, align: text.align ?? "left", rotation: text.rotation ?? 0, color: text.color ?? "BLACK"
     })).filter(text => text.text !== "");
     const boxes: (TemplateRect & { border: boolean })[] = [];
     for (const strip of template.strips) {
-      const parts = stripParts(strip, paper, margin, fillPlaceholders(strip.text, document, frames[strip.frame ?? 0], options.date));
+      const parts = stripParts(strip, paper, margin, fillPlaceholders(strip.text, document, withPlaceholders(frames[strip.frame ?? 0], options), options.date));
       boxes.push({ ...parts.box, border: true });
       if (parts.text.text !== "") texts.push(parts.text);
     }
@@ -322,12 +316,13 @@ export function layoutTemplateSheets(document: CourseSettingDocument, template: 
     // Papperets element per ram; de som står i arkets hörn bara för första ramen.
     const page = { x: 0, y: 0, width: paper.widthMm, height: paper.heightMm };
     const items = frames.flatMap((frame, index) => group[index]?.training?.section ? []
-      : sheetPaperItems(document, frame, index, { page, date: options.date, pageItems: index === 0 }));
+      : sheetPaperItems(document, frame, index, { page, date: options.date, pageItems: index === 0, runnerPlaceholders: options.runnerPlaceholders }));
     const sheet: Sheet = { paper, frames, texts, images: template.images.map(image => ({ ...image })), descriptions, boxes,
       cutMarks: template.cutMarks ? cutMarksFor(paper, rects, margin) : [], ...(items.length > 0 ? { paperItems: items } : {}) };
     sheets.push(sheet);
     const runner = frames[0]?.runner;
-    if (options.duplexBacks && runner) sheets.push(runnerBack(paper, runner, frames[0]!.variant));
+    // ADR-0213: baksidan är ett eget ark med papperets element (förvalet som Kartor till startens baksida).
+    if (options.duplexBacks && runner) sheets.push(runnerBackSheet(document, paper, frames[0]!, { date: options.date }));
   }
   return sheets;
 }

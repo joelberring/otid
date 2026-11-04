@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyEdit, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, CourseSettingEditError, fillPlaceholders, gridTemplate, layoutTemplateSheets,
+  applyEdit, RUNNER_BACK, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, CourseSettingEditError, fillPlaceholders, gridTemplate, layoutTemplateSheets,
   mapColorAdjust, parseLayoutTemplate, parsePrintProfile, readPpen, sourceMapColors, toPage, writePpen, type PrintProfile
 } from "../src";
 import { lineCourse } from "./build";
@@ -109,8 +109,11 @@ describe("layoutmallen (paperspace, steg 64)", () => {
     expect(front.boxes).toEqual([{ x: 7, y: 297 - 7 - 14, width: 210 - 14, height: 14, border: true }]);
     expect(front.images).toHaveLength(1);
     expect(front.descriptions[0]!.layout.widthMm).toBeCloseTo(8 * 5 + 0.25, 6);
-    expect(sheets[1]!.texts.map(text => text.text)).toEqual(["Anna Andersson", "D21", "Nr 112   18:32"]);
-    expect(sheets[3]!.texts[0]!.text).toBe("Reserv");
+    // ADR-0213: baksidan är papperets element (förvalet som Kartor till startens baksida); tomma rader står inte.
+    const backTexts = (index: number) => (sheets[index]!.paperItems ?? []).map(item => item.parts.flatMap(part => part.kind === "text" ? [part.text] : []).join("\n"));
+    expect(backTexts(1)).toEqual(["112", "Anna Andersson", "OK Ravinen", "D21  18:32"]);
+    expect(backTexts(3)).toEqual(["Reserv", "D21"]);
+    expect(sheets[1]!.paperItems!.every(item => item.course === RUNNER_BACK && item.relativeTo === "PAGE")).toBe(true);
     expect(fillPlaceholders("{löpare}|{klass}|{okänd}", b.document, { course, printScale: 10000, runner: { ...runner, kind: "VACANT", name: null } }))
       .toBe("Ledig|D21|{okänd}");
   });

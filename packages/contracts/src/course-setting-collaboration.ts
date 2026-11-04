@@ -119,6 +119,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   // Papperet per bana (kontrollbeskrivningen på kartan); formen kontrolleras av paketet (validatePaperLayout).
   z.object({ type: z.literal("SET_PAPER_LAYOUT"), course: id, layout: z.object({ descriptions: z.object({}).loose().optional(),
     items: z.array(z.object({}).loose()).max(40).optional() }).loose().nullable(), part: z.number().int().min(0).max(50).optional() }).strict(),
+  // Baksidan per löpare (ADR-0213); formen kontrolleras av paketet (validateRunnerBack).
+  z.object({ type: z.literal("SET_RUNNER_BACK"), back: z.object({ items: z.array(z.object({}).loose()).max(40) }).strict().nullable() }).strict(),
   // Papperets mallar (ADR-0197); formen kontrolleras av paketet (validatePaperTemplate).
   z.object({ type: z.literal("PUT_PAPER_TEMPLATE"), template: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
   z.object({ type: z.literal("DELETE_PAPER_TEMPLATE"), id }).strict(),

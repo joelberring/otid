@@ -480,7 +480,11 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   for (const page of pages) page.node.set(PDFName.of("Resources"), pageResources);
 
   // Dubbelsidigt: utskriftsdialogen föreslår vändning på långsidan (baksidorna ligger rätt i samma riktning som framsidan).
-  if (input.sheets.some(sheet => sheet.back)) document.catalog.getOrCreateViewerPreferences().setDuplex(Duplex.DuplexFlipLongEdge);
+  // Dubbelsidigt: baksidan står rätt när arket vänds kring långsidan (stående) eller kortsidan (liggande, ADR-0213), så att
+  // texten inte hamnar upp och ned; alla baksidor liggande = kortsidan.
+  const backs = input.sheets.filter(sheet => sheet.back);
+  if (backs.length > 0) document.catalog.getOrCreateViewerPreferences().setDuplex(backs.every(sheet => sheet.paper.widthMm > sheet.paper.heightMm)
+    ? Duplex.DuplexFlipShortEdge : Duplex.DuplexFlipLongEdge);
 
   const bytes = await document.save({ useObjectStreams: false });
   return { bytes, pages: pages.length, plates: spaces.plates().filter(name => name !== "All"), overprint: overprintUsed, mapForms: forms.size,

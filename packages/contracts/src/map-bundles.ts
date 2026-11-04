@@ -12,13 +12,17 @@ const number = z.number().int().positive().max(100_000);
 const instant = z.iso.datetime({ offset: true });
 const name = z.string().min(1).max(400);
 const variant = courseVariantCodeSchema.nullable();
+/** Stafett (ADR-0213): laget och sträckan för kartan. */
+const team = z.object({ number, name }).strict();
+const leg = z.number().int().positive().max(100);
 
 export const mapReserveSchema = z.object({ kind: z.enum(["PERCENT", "COUNT"]), value: z.number().int().min(0).max(1000) }).strict();
 export const mapPrintListSchema = z.enum(["BUNDLE", "BACKS"]);
 export const mapStartModeSchema = z.enum(["MINUTE", "MASS", "FREE"]);
 
 const itemSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("RUNNER"), number, entryId: uuid, name, club: name.nullable(), className: name, startTime: instant.nullable() }).strict(),
+  z.object({ kind: z.literal("RUNNER"), number, entryId: uuid, name, club: name.nullable(), className: name, startTime: instant.nullable(),
+    team: team.optional(), leg: leg.optional() }).strict(),
   z.object({ kind: z.literal("VACANT"), number, className: name, startTime: instant }).strict()
 ]);
 
@@ -29,7 +33,7 @@ export const mapBundleGroupSchema = z.object({
 
 export const mapBundleRowSchema = z.object({
   number, entryId: uuid.nullable(), name: name.nullable(), club: name.nullable(), classId: uuid, className: name, courseName: name,
-  variantCode: variant, startTime: instant.nullable(), startMode: mapStartModeSchema
+  variantCode: variant, startTime: instant.nullable(), startMode: mapStartModeSchema, team: team.optional(), leg: leg.optional()
 }).strict();
 
 export const mapPrintChangeSchema = z.discriminatedUnion("kind", [
@@ -61,7 +65,7 @@ export const mapBundleResponseSchema = z.object({
     startMode: mapStartModeSchema }).strict()).max(1000),
   groups: z.array(mapBundleGroupSchema).max(20_000),
   rows: z.array(mapBundleRowSchema).max(20_000),
-  missingVariant: z.array(z.object({ entryId: uuid, name, className: name }).strict()).max(20_000),
+  missingVariant: z.array(z.object({ entryId: uuid, name, className: name, team: team.optional(), leg: leg.optional() }).strict()).max(20_000),
   prints: z.object({ BUNDLE: printSchema.optional(), BACKS: printSchema.optional() }).strict()
 }).strict();
 

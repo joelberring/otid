@@ -78,6 +78,7 @@ export const clubAffiliationSv = {
     accessHelp: "Klubben bestämmer. Ägare och administratörer ser och använder alltid allt; kartornas egna rättigheter gäller ovanpå för medlemmar och ledare.",
     archive: "Träningsarkivet (träningar, småbilder, banfiler) syns för",
     mapBank: "Kartbanken (kartfiler, Använd igen, nedladdning) får användas av",
+    mapBankHint: "Välj Ledare och admin om kartorna inte ska delas med alla medlemmar.",
     MEMBERS: "Alla medlemmar",
     LEADERS: "Ledare och admin",
     saveAccess: "Spara",

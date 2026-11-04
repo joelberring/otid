@@ -69,7 +69,7 @@ export const clubSettings = pgTable("club_setting", {
   linkedBy: uuid("linked_by"),
   linkedAt: timestamp("linked_at", { withTimezone: true }),
   archiveVisibility: text("archive_visibility").$type<ClubAreaAccess>().notNull().default("MEMBERS"),
-  mapBankAccess: text("map_bank_access").$type<ClubAreaAccess>().notNull().default("LEADERS"),
+  mapBankAccess: text("map_bank_access").$type<ClubAreaAccess>().notNull().default("MEMBERS"),
   updatedBy: uuid("updated_by").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 });

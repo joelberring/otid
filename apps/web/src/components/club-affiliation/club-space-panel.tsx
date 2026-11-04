@@ -83,19 +83,21 @@ function AccessCard({ view, clubId, onSaved }: { view: ClubAffiliationView; club
     onSaved(result.json as ClubAffiliationView);
     setMessage({ tone: "ok", text: text.accessSaved });
   }
-  const choice = (name: string, legend: string, value: ClubAreaAccess, set: (value: ClubAreaAccess) => void) =>
-    <fieldset className={styles.radios}>
+  // "Alla medlemmar" först; det är förvalet för båda delarna (ADR-0209 beslut 5).
+  const choice = (name: string, legend: string, value: ClubAreaAccess, set: (value: ClubAreaAccess) => void, hint?: string) =>
+    <fieldset className={styles.radios} aria-describedby={hint ? `club-access-${name}-hint` : undefined}>
       <legend>{legend}</legend>
       {(["MEMBERS", "LEADERS"] as const).map(option => <label key={option}>
         <input type="radio" name={name} value={option} checked={value === option} disabled={busy} onChange={() => set(option)} />{text[option]}
       </label>)}
+      {hint && <small id={`club-access-${name}-hint`} className={styles.muted}>{hint}</small>}
     </fieldset>;
   return <section className={styles.panel} aria-labelledby="club-access">
     <h2 id="club-access">{text.accessTitle}</h2>
     <p className={styles.muted}>{text.accessHelp}</p>
     <form className={styles.form} onSubmit={event => void save(event)}>
       {choice("archive", text.archive, archive, setArchive)}
-      {choice("mapBank", text.mapBank, mapBank, setMapBank)}
+      {choice("mapBank", text.mapBank, mapBank, setMapBank, text.mapBankHint)}
       <div className={styles.actions}><Button type="submit" variant="secondary" disabled={busy}>{text.saveAccess}</Button></div>
     </form>
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
@@ -140,7 +142,8 @@ export function ClubSpacePanel({ clubId }: { clubId: string }) {
   </div>;
   return <div className={styles.form} style={{ maxWidth: "48rem" }}>
     <EventorCard view={view} clubId={clubId} onChanged={load} />
-    <AccessCard key={`${view.access.archive}-${view.access.mapBank}`} view={view} clubId={clubId} onSaved={setView} />
+    {/* Ingen key på valen: en ändring som sparas byter view.access, och en ny komponent tappade beskedet "Vem ser vad är sparat." */}
+    <AccessCard view={view} clubId={clubId} onSaved={setView} />
     <section className={styles.panel} aria-labelledby="club-pending">
       <h2 id="club-pending">{text.pending(view.pending.length)}</h2>
       <p className={styles.muted}>{text.pendingHelp}</p>

@@ -243,47 +243,84 @@ describe("ADR-0209: kopplingen med klubbens Eventor-nyckel och medlemslistan", {
 });
 
 describe("ADR-0209: Vem ser vad", { timeout: 60_000 }, () => {
-  it("medlemmar ser arkivet men inte kartbanken (förval); ledare båda; ägare och administratörer alltid allt", async () => {
-    const { owner, clubId } = await space("Vem ser vad-klubben");
-    const people = Object.fromEntries(await Promise.all((["READER", "LEADER", "ADMIN"] as const).map(async role => {
+  async function people(owner: Awaited<ReturnType<typeof space>>["owner"], clubId: string) {
+    return Object.fromEntries(await Promise.all((["READER", "LEADER", "ADMIN"] as const).map(async role => {
       const account = await registerTestAccount(db, undefined, NOW);
       await inviteClubMember(db, { ...owner.proof, clubId, request: { formatVersion: 1, requestId: randomUUID(), email: account.email, role } }, NOW);
       await readClub(db, { ...account.proof, clubId }, NOW);
       return [role, account] as const;
     })));
-    const access = async (proof: typeof owner.proof) => {
-      const list = await readClubArchive(db, { ...proof, clubId }, NOW);
-      return list.status === "ok" ? list.list.viewer.access : list.status;
-    };
-    const fakeVersion = randomUUID();
-    const mapBank = async (proof: typeof owner.proof) => (await readClubMapVersionHead(db, { ...proof, clubId, versionId: fakeVersion }, NOW)).status;
-    expect(await access(people.READER!.proof)).toEqual({ archive: true, mapBank: false });
-    expect(await mapBank(people.READER!.proof)).toBe("forbidden");
-    expect(await mapBank(people.LEADER!.proof)).toBe("not-found");
-    expect(await access(people.LEADER!.proof)).toEqual({ archive: true, mapBank: true });
+  }
+  const access = async (proof: { sessionToken: string; csrfCookie: string; csrfHeader: string }, clubId: string) => {
+    const list = await readClubArchive(db, { ...proof, clubId }, NOW);
+    return list.status === "ok" ? list.list.viewer.access : list.status;
+  };
+  // En kartversion som inte finns: "not-found" betyder att kontot fick fråga kartbanken, "forbidden" att det inte fick.
+  const mapBank = async (proof: { sessionToken: string; csrfCookie: string; csrfHeader: string }, clubId: string) =>
+    (await readClubMapVersionHead(db, { ...proof, clubId, versionId: randomUUID() }, NOW)).status;
 
-    // Strängast: arkivet bara för ledare och admin.
-    expect((await setClubAccessSettings(db, { ...people.LEADER!.proof, clubId, request: { formatVersion: 1, archive: "LEADERS", mapBank: "LEADERS" } }, NOW))
-      .status).toBe("forbidden");
-    await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "LEADERS", mapBank: "LEADERS" } }, NOW);
-    const hidden = await readClubArchive(db, { ...people.READER!.proof, clubId }, NOW);
-    expect(hidden).toMatchObject({ status: "ok", list: { entries: [], maps: [], viewer: { access: { archive: false, mapBank: false } } } });
-    expect((await readClubArchiveEntry(db, { ...people.READER!.proof, clubId, entryId: randomUUID() }, NOW)).status).toBe("forbidden");
-    expect((await readClubCourseFile(db, { ...people.READER!.proof, clubId, courseFileId: randomUUID() }, NOW)).status).toBe("forbidden");
-    // Ägare och administratörer: allt, oavsett inställningarna.
-    for (const proof of [owner.proof, people.ADMIN!.proof]) {
-      expect(await access(proof)).toEqual({ archive: true, mapBank: true });
-      expect(await mapBank(proof)).toBe("not-found");
-      expect((await readClubAffiliation(db, { ...proof, clubId }, NOW)).status).toBe("ok");
-    }
-    // Alla medlemmar får kartbanken.
-    await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "MEMBERS", mapBank: "MEMBERS" } }, NOW);
-    expect(await access(people.READER!.proof)).toEqual({ archive: true, mapBank: true });
+  it("förval: alla medlemmar ser arkivet och använder kartbanken, också i en klubbyta som kopplats till Eventor", async () => {
+    const { owner, clubId } = await space("Förvalsklubben");
+    const members = await people(owner, clubId);
+    expect(await access(members.READER!.proof, clubId)).toEqual({ archive: true, mapBank: true });
+    expect(await mapBank(members.READER!.proof, clubId)).toBe("not-found");
+    expect(await readClubAffiliation(db, { ...owner.proof, clubId }, NOW)).toMatchObject({ view: { access: { archive: "MEMBERS", mapBank: "MEMBERS" } } });
+
+    // Kopplingen skapar raden i club_setting; kolumnens förval är också alla medlemmar (migration 0079).
+    const linked = await linkedSpace({ emails: [] });
+    const rows = (await pool.query<{ map_bank_access: string }>("select map_bank_access from club_setting where club_id = $1", [linked.clubId])).rows;
+    expect(rows).toEqual([{ map_bank_access: "MEMBERS" }]);
+    await linked.unlink();
   });
 
-  it("klubbar från före ADR-0209 behåller kartbanken för sina inbjudna läsare (migrationens rad)", async () => {
-    const rows = (await pool.query<{ n: number }>("select count(*)::int as n from club_setting where map_bank_access = 'MEMBERS'")).rows;
-    expect(rows[0]!.n).toBeGreaterThanOrEqual(1);
+  it("Ledare och admin döljer kartbanken för medlemmar; ledare båda; ägare och administratörer alltid allt", async () => {
+    const { owner, clubId } = await space("Vem ser vad-klubben");
+    const members = await people(owner, clubId);
+    expect((await setClubAccessSettings(db, { ...members.LEADER!.proof, clubId, request: { formatVersion: 1, archive: "MEMBERS", mapBank: "LEADERS" } }, NOW))
+      .status).toBe("forbidden");
+    await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "MEMBERS", mapBank: "LEADERS" } }, NOW);
+    expect(await access(members.READER!.proof, clubId)).toEqual({ archive: true, mapBank: false });
+    expect(await mapBank(members.READER!.proof, clubId)).toBe("forbidden");
+    expect(await access(members.LEADER!.proof, clubId)).toEqual({ archive: true, mapBank: true });
+    expect(await mapBank(members.LEADER!.proof, clubId)).toBe("not-found");
+
+    // Strängast: arkivet också bara för ledare och admin.
+    await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "LEADERS", mapBank: "LEADERS" } }, NOW);
+    const hidden = await readClubArchive(db, { ...members.READER!.proof, clubId }, NOW);
+    expect(hidden).toMatchObject({ status: "ok", list: { entries: [], maps: [], viewer: { access: { archive: false, mapBank: false } } } });
+    expect((await readClubArchiveEntry(db, { ...members.READER!.proof, clubId, entryId: randomUUID() }, NOW)).status).toBe("forbidden");
+    expect((await readClubCourseFile(db, { ...members.READER!.proof, clubId, courseFileId: randomUUID() }, NOW)).status).toBe("forbidden");
+    // Ägare och administratörer: allt, oavsett inställningarna.
+    for (const proof of [owner.proof, members.ADMIN!.proof]) {
+      expect(await access(proof, clubId)).toEqual({ archive: true, mapBank: true });
+      expect(await mapBank(proof, clubId)).toBe("not-found");
+      expect((await readClubAffiliation(db, { ...proof, clubId }, NOW)).status).toBe("ok");
+    }
+    // Tillbaka till alla medlemmar.
+    await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "MEMBERS", mapBank: "MEMBERS" } }, NOW);
+    expect(await access(members.READER!.proof, clubId)).toEqual({ archive: true, mapBank: true });
+  });
+
+  it("migration 0079: det gamla förvalet blir alla medlemmar, en administratörs val står kvar", async () => {
+    const old = await space("Gamla förvalet");
+    const archiveOnly = await space("Bara arkivet ändrat");
+    const chosen = await space("Valde ledare och admin");
+    // Raden som "Koppla till Eventor" skapade med det gamla förvalet.
+    await pool.query("insert into club_setting (club_id, map_bank_access, updated_by, updated_at) values ($1, 'LEADERS', $2, now())",
+      [old.clubId, randomUUID()]);
+    // Samma rad, och sedan ändrade administratören bara arkivet (kartbanken stod kvar på förvalet).
+    await pool.query("insert into club_setting (club_id, map_bank_access, updated_by, updated_at) values ($1, 'LEADERS', $2, now())",
+      [archiveOnly.clubId, randomUUID()]);
+    await setClubAccessSettings(db, { ...archiveOnly.owner.proof, clubId: archiveOnly.clubId,
+      request: { formatVersion: 1, archive: "LEADERS", mapBank: "LEADERS" } }, NOW);
+    // En administratör valde "Ledare och admin" (journalfört från alla medlemmar).
+    await setClubAccessSettings(db, { ...chosen.owner.proof, clubId: chosen.clubId, request: { formatVersion: 1, archive: "MEMBERS", mapBank: "LEADERS" } }, NOW);
+
+    await pool.query(await readFile(new URL("../../../database/migrations/0079_kartbanken_for_alla.sql", import.meta.url), "utf8"));
+    const rows = (await pool.query<{ club_id: string; archive_visibility: string; map_bank_access: string }>(
+      "select club_id, archive_visibility, map_bank_access from club_setting where club_id = any($1)", [[old.clubId, archiveOnly.clubId, chosen.clubId]])).rows;
+    const byClub = Object.fromEntries(rows.map(row => [row.club_id, [row.archive_visibility, row.map_bank_access]]));
+    expect(byClub).toEqual({ [old.clubId]: ["MEMBERS", "MEMBERS"], [archiveOnly.clubId]: ["LEADERS", "MEMBERS"], [chosen.clubId]: ["MEMBERS", "LEADERS"] });
   });
 });
 

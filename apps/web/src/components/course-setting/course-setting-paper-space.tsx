@@ -13,6 +13,7 @@ import { Button } from "../ui";
 import { CLIP_SELECTION, WHITE_SELECTION, type PaperSelection } from "./course-setting-paper-items";
 import { alignMoves, distributeMoves } from "../../lib/course-setting-paper-snap";
 import { PaperTemplatesSection } from "./course-setting-paper-templates";
+import { Fold } from "./course-setting-fold";
 import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting-print-page.module.css";
 
@@ -71,8 +72,7 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
   }
   return <section className={styles.panel} aria-labelledby="paper-space" data-testid="paper-space">
     <h2 id="paper-space">{text.heading}</h2>
-    <p className={styles.muted}>{text.help} <HelpLink article="papperet" view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></p>
-    {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
+    <p className={styles.muted}>{readOnly ? text.readOnly : text.help} <HelpLink article="papperet" view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></p>
     <div className={styles.row}>
       <label className={styles.field}>{text.course}<select value={course} onChange={event => { onCourse(event.target.value); onSelect(undefined); }}
         data-testid="paper-course">{courses.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
@@ -80,24 +80,20 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
       {!readOnly && onRedo && <Button variant="quiet" onClick={onRedo} disabled={!canRedo} data-testid="paper-redo">{text.redo}</Button>}
     </div>
     {!readOnly && snap && onSnap && <div className={styles.row} data-testid="paper-snap">
-      <label className={styles.check}><input type="checkbox" checked={snap.enabled} onChange={event => onSnap({ ...snap, enabled: event.target.checked })}
+      <label className={styles.check} title={text.editor.snapHelp}><input type="checkbox" checked={snap.enabled} onChange={event => onSnap({ ...snap, enabled: event.target.checked })}
         data-testid="paper-snap-enabled" />{text.editor.snap}</label>
       <Field label={text.editor.grid}><select value={String(snap.gridMm)} onChange={event => onSnap({ ...snap, gridMm: Number(event.target.value) })} data-testid="paper-grid">
         {["0", "1", "5"].map(value => <option key={value} value={value}>{text.editor.grids[value]}</option>)}</select></Field>
-      <span className={styles.muted}>{text.editor.snapHelp}</span>
     </div>}
-    {!readOnly && <p className={styles.muted}>{text.editor.inPlaceHelp}</p>}
     {!readOnly && marked.length > 0 && onMoveMany && <AlignBar marked={marked} onMoveMany={onMoveMany} />}
     {!readOnly && <div className={styles.row} data-testid="paper-add">
       {(["TEXT", "IMAGE", "SCALE_BAR", "NORTH_ARROW", "RECT", "LINE"] as const).map(kind => <Button key={kind} variant="secondary" disabled={busy}
-        onClick={() => void add(kind)} data-testid={`paper-add-${kind}`}>{text.add[kind]}</Button>)}
+        title={kind === "IMAGE" ? text.imageHelp : kind === "TEXT" ? text.editor.inPlaceHelp : undefined} onClick={() => void add(kind)} data-testid={`paper-add-${kind}`}>{text.add[kind]}</Button>)}
       <input ref={file} type="file" accept="image/png,image/jpeg,image/svg+xml,.svg" hidden onChange={event => void upload(event.target.files?.[0])}
         data-testid="paper-image-file" aria-label={text.add.IMAGE} />
     </div>}
-    {!readOnly && <p className={styles.muted}>{text.imageHelp}</p>}
-    <h3>{text.items}</h3>
-    {effective.items.length === 0 ? <p className={styles.muted}>{text.none}</p> : <>
-      <p className={styles.muted}>{text.editor.layers}</p>
+    <h3>{effective.items.length === 0 ? text.items : text.editor.layers}</h3>
+    {effective.items.length === 0 ? <p className={styles.muted} role="note">{text.none}</p> : <>
       <ul className={styles.paperRows} data-testid="paper-items">
       {effective.items.map(row => <li key={row.item.id} data-id={row.item.id} data-source={row.source} data-testid="paper-item-row"
         data-selected={item?.item.id === row.item.id ? "" : undefined} data-locked={row.item.locked ? "" : undefined} data-hidden={row.item.hide ? "" : undefined}>
@@ -123,7 +119,6 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
     <WhiteSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />
     <Values document={document} readOnly={readOnly} onSave={save} />
     <PaperTemplatesSection raceId={raceId} document={document} course={course} courses={courses} readOnly={readOnly} onSave={save} />
-    <p className={styles.muted}>{text.ppenNote}</p>
     {message && <p role="status" className={message.ok ? styles.muted : styles.paperWarning} data-testid="paper-message">{message.text}</p>}
   </section>;
 }
@@ -183,7 +178,6 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
           <NumberField label={text.size} value={item.sizeMm} min={1.5} max={40} disabled={readOnly} onCommit={sizeMm => onChange({ ...item, sizeMm })} testId="paper-size" />
           <NumberField label={text.width} value={item.widthMm} min={5} max={1000} step={1} disabled={readOnly} onCommit={widthMm => onChange({ ...item, widthMm })} testId="paper-width" />
         </div>
-        <p className={styles.muted}>{text.variableHelp}</p>
         <div className={styles.row}>
           <label className={styles.check}><input type="checkbox" checked={item.bold === true} onChange={event => onChange({ ...item, bold: event.target.checked })}
             data-testid="paper-bold" />{text.bold}</label>
@@ -270,9 +264,8 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
     return onSave([paperLayoutEdit(course, value === undefined ? rest : { ...rest, clip: value })]);
   };
   const shape = clip?.shape ?? "NONE";
-  return <fieldset className={styles.stack} disabled={readOnly} data-testid="paper-clip">
-    <legend><strong>{text.clip.heading}</strong></legend>
-    <p className={styles.muted}>{text.clip.help}</p>
+  return <Fold title={text.clip.heading} open={clip !== undefined} testId="paper-clip-fold">
+    <fieldset className={styles.stack} disabled={readOnly} data-testid="paper-clip">
     <div className={styles.row} role="radiogroup" aria-label={text.clip.heading}>
       {([["NONE", text.clip.none], ["RECT", text.clip.rect], ["POLYGON", text.clip.polygon]] as const).map(([value, label]) =>
         <label key={value} className={styles.check}><input type="radio" name={`paper-clip-${course}`} checked={shape === value} data-testid={`paper-clip-${value}`}
@@ -284,7 +277,7 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
         <Field label={text.clip.outside}><select value={clip.outside} data-testid="paper-clip-outside"
           onChange={event => void setClip({ ...clip, outside: event.target.value as "WHITE" | "FADED" })}>
           <option value="WHITE">{text.clip.white}</option><option value="FADED">{text.clip.faded}</option></select></Field>
-        <label className={styles.check}><input type="checkbox" checked={clip.showMarkings === true} data-testid="paper-clip-markings"
+        <label className={styles.check} title={text.clip.markingsHelp}><input type="checkbox" checked={clip.showMarkings === true} data-testid="paper-clip-markings"
           onChange={event => void setClip({ ...clip, showMarkings: event.target.checked || undefined })} />{text.clip.markings}</label>
         <label className={styles.check}><input type="checkbox" checked={editing} onChange={event => onSelect(event.target.checked ? { course, id: CLIP_SELECTION } : undefined)}
           data-testid="paper-clip-edit" />{text.clip.edit}</label>
@@ -300,7 +293,6 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
           <Button variant="quiet" disabled={clip.points.length <= 3} onClick={() => void setClip({ ...clip, points: clip.points.slice(0, -1) })}>{text.clip.removePoint}</Button>
         </>}
       </div>
-      <p className={styles.muted}>{text.clip.markingsHelp}</p>
       {effective.clipSource === "TEMPLATE" && <p className={styles.muted}>{text.clip.fromTemplate}</p>}
       {clip.shape === "RECT" && <div className={styles.row} aria-label={text.clip.rectFields} role="group">
         {(["x", "y", "width", "height"] as const).map(key => <NumberField key={key} label={key === "x" ? "X" : key === "y" ? "Y" : key === "width" ? text.width : text.height}
@@ -308,7 +300,8 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
           onCommit={value => void setClip({ ...clip, rect: { ...clip.rect, [key]: value } })} />)}
       </div>}
     </>}
-  </fieldset>;
+    </fieldset>
+  </Fold>;
 }
 
 /** En ram utan fyllning. */
@@ -339,7 +332,7 @@ function AlignBar({ marked, onMoveMany }: { marked: readonly PlacedPaper[];
   const onSheet = marked.filter(row => row.sheet === sheet);
   const apply = (moves: readonly { dx: number; dy: number }[]) => onMoveMany(sheet, onSheet.map((row, index) => ({ placed: row.item, ...moves[index]! })));
   const frame = sheet.frames[onSheet[0]!.item.frame]?.clip;
-  return <div className={styles.row} role="group" aria-label={text.editor.align} data-testid="paper-align-bar">
+  return <div className={styles.row} role="group" aria-label={text.editor.align} title={text.editor.alignHelp} data-testid="paper-align-bar">
     <strong>{text.editor.align}</strong><span className={styles.muted}>{text.editor.marked(onSheet.length)}</span>
     {(["LEFT", "CENTER", "RIGHT", "TOP", "MIDDLE", "BOTTOM"] as const).map(mode => <Button key={mode} variant="quiet" data-testid={`paper-align-${mode}`}
       onClick={() => apply(alignMoves(onSheet.map(row => row.item.rect), mode, frame))}>{text.editor.aligns[mode]}</Button>)}
@@ -347,7 +340,6 @@ function AlignBar({ marked, onMoveMany }: { marked: readonly PlacedPaper[];
       <Button variant="quiet" data-testid="paper-distribute-h" onClick={() => apply(distributeMoves(onSheet.map(row => row.item.rect), "HORIZONTAL"))}>{text.editor.distributeH}</Button>
       <Button variant="quiet" data-testid="paper-distribute-v" onClick={() => apply(distributeMoves(onSheet.map(row => row.item.rect), "VERTICAL"))}>{text.editor.distributeV}</Button>
     </>}
-    <p className={styles.muted}>{text.editor.alignHelp}</p>
   </div>;
 }
 
@@ -366,9 +358,8 @@ function WhiteSection({ document, course, frame, readOnly, selected, onSelect, o
       : { shape, points: [{ x: Math.round(w * 0.05), y: Math.round(h * 0.7) }, { x: Math.round(w * 0.35), y: Math.round(h * 0.7) }, { x: Math.round(w * 0.05), y: Math.round(h * 0.95) }] };
     if (await setAreas([...areas, area])) onSelect({ course, id: `${WHITE_SELECTION}${areas.length}` });
   };
-  return <fieldset className={styles.stack} disabled={readOnly} data-testid="paper-white">
-    <legend><strong>{text.white.heading}</strong></legend>
-    <p className={styles.muted}>{text.white.help}</p>
+  return <Fold title={text.white.heading} open={areas.length > 0} testId="paper-white-fold">
+    <fieldset className={styles.stack} disabled={readOnly} data-testid="paper-white">
     {!readOnly && <div className={styles.row}>
       <Button variant="secondary" onClick={() => void add("RECT")} data-testid="paper-white-add-RECT">{text.white.addRect}</Button>
       <Button variant="secondary" onClick={() => void add("POLYGON")} data-testid="paper-white-add-POLYGON">{text.white.addPolygon}</Button>
@@ -384,7 +375,8 @@ function WhiteSection({ document, course, frame, readOnly, selected, onSelect, o
       </li>)}
     </ul>}
     {effective.whiteSource === "TEMPLATE" && <p className={styles.muted}>{text.white.fromTemplate}</p>}
-  </fieldset>;
+    </fieldset>
+  </Fold>;
 }
 
 /** En vit yta med ett hörn flyttat (rektangeln: motstående hörn står kvar). */
@@ -413,13 +405,14 @@ function Values({ document, readOnly, onSave }: { document: CourseSettingDocumen
     if (date === (values.date ?? "") && contour === (values.contourInterval ?? "")) return;
     void onSave([{ type: "SET_EVENT", changes: { paperValues: { ...(date.trim() ? { date: date.trim() } : {}), ...(contour.trim() ? { contourInterval: contour.trim() } : {}) } } }]);
   };
-  return <fieldset className={styles.stack} disabled={readOnly}>
-    <legend><strong>{text.values}</strong></legend>
+  return <Fold title={text.values} open={Boolean(values.date || values.contourInterval)} testId="paper-values-fold">
+    <fieldset className={styles.stack} disabled={readOnly}>
     <div className={styles.row}>
       <Field label={text.date}><input className={styles.medium} value={date} maxLength={40} onChange={event => setDate(event.target.value)} onBlur={commit}
         data-testid="paper-date" /></Field>
       <Field label={text.contour}><input className={styles.small} value={contour} maxLength={20} onChange={event => setContour(event.target.value)} onBlur={commit}
         data-testid="paper-contour" /></Field>
     </div>
-  </fieldset>;
+    </fieldset>
+  </Fold>;
 }

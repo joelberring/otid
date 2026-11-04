@@ -98,8 +98,7 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
     {blockedText && <p className={styles.muted}>{blockedText}</p>}
     {!allowed && report && <p className={styles.muted}>{text.blocked}</p>}
     {message && <Notice tone={message.tone === "ok" ? "ok" : "error"} role="status"><p>{message.text}</p></Notice>}
-    <h3>{text.jobs}</h3>
-    {jobs && <p className={styles.muted}>{text.keep(jobs.keepDays, Math.round(jobs.maxBytes / 1e6))}</p>}
+    <h3 title={jobs ? text.keep(jobs.keepDays, Math.round(jobs.maxBytes / 1e6)) : undefined}>{text.jobs}</h3>
     {!jobs || jobs.jobs.length === 0 ? <p className={styles.muted}>{text.noJobs}</p> : <ul className={styles.jobs}>
       {jobs.jobs.map(job => <li key={job.id} data-testid="print-job" data-status={job.status} data-kind={job.kind}>
         <div><strong>{job.label}</strong> <span className={styles.muted}>({text.version(job.documentVersion)})</span></div>

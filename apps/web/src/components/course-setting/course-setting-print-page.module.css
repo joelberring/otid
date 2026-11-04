@@ -92,3 +92,21 @@
 .textEditorBar label { display: inline-flex; align-items: center; gap: 4px; }
 .textEditorBar button { min-height: 32px; }
 @media print { .textEditor { display: none; } }
+/* ADR-0211 tillägg: Redigera arket. Arken först; på datorn står panelerna bredvid och följer med när man rullar. */
+.editor { display: grid; gap: 10px; min-width: 0; }
+.editorBody { display: grid; gap: 16px; min-width: 0; }
+.editorPanels { align-content: start; max-width: none; }
+@media (min-width: 1100px) {
+  .editorBody { grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem); align-items: start; }
+  .editorPanels { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding-right: 4px; }
+}
+.sheetSlot[data-target] .sheet { outline: 2px dashed #1d6fd1; }
+.sheetSlot[data-open][data-target] .sheet { outline: 3px solid #1d6fd1; }
+/* Avsnitt som sällan behövs, hopfällda. */
+.fold { border: 1px solid var(--line); padding: 4px 8px; min-width: 0; }
+.fold > summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.fold[open] { display: grid; gap: 8px; padding-bottom: 8px; }
+@media print {
+  .editor, .editorBody { display: block; }
+  .sheetSlot[data-target] .sheet, .sheetSlot[data-open] .sheet { outline: none; }
+}

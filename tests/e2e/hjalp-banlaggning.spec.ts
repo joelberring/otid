@@ -125,7 +125,7 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   const paper = panel.locator("details[data-help-article='papperet']");
   await expect(paper).toHaveAttribute("open", "");
   await expect(paper).toContainText("+ Skalstock");
-  await paper.getByRole("link", { name: "Mallar och klippning av kartan" }).click();
+  await paper.getByRole("link", { name: "Mall för papperet och klippning av kartan" }).click();
   await expect(panel.locator("details[data-help-article='papperets-mallar']")).toContainText("Mitt bibliotek (alla mina tävlingar)");
   await owner.keyboard.press("Escape");
   await owner.setViewportSize({ width: 1280, height: 720 });

@@ -11,7 +11,17 @@ function csrf(): string {
   return value;
 }
 
-export const paperImageUrl = (raceId: string, sha256: string) => `${courseSettingBase(raceId)}/course-setting/paper-images/${sha256}`;
+/**
+ * Bilder som laddats upp i den här fliken (sha256 → objekt-URL). Arket visar den nya bilden innan dokumentet som pekar på den
+ * är sparat; har ett annat konto laddat upp samma bild svarar servern 404 tills dess (ADR-0197 beslut 5), så bilden visas ur
+ * webbläsarens egen kopia (ADR-0211 tillägg: felet i konsolen och logotypen som saknades tills sidan lästes om).
+ */
+const uploadedHere = new Map<string, string>();
+
+export const paperImageUrl = (raceId: string, sha256: string) => uploadedHere.get(sha256) ?? paperImageFileUrl(raceId, sha256);
+
+/** Bildens adress på servern. */
+export const paperImageFileUrl = (raceId: string, sha256: string) => `${courseSettingBase(raceId)}/course-setting/paper-images/${sha256}`;
 
 /** Största sidan när en SVG görs om till PNG (ADR-0197: PDF:en tar PNG och JPEG). */
 export const SVG_RASTER_PX = 2400;
@@ -47,12 +57,14 @@ export async function uploadPaperImage(raceId: string, file: File): Promise<Uplo
   if (response.status === 413) return { kind: "too-large" };
   if (response.status === 400) return { kind: "invalid" };
   if (!response.ok) throw new HttpError(response.status);
-  return { kind: "ok", image: paperImageSchema.parse(await response.json()) };
+  const image = paperImageSchema.parse(await response.json());
+  if (!uploadedHere.has(image.sha256)) uploadedHere.set(image.sha256, URL.createObjectURL(body));
+  return { kind: "ok", image };
 }
 
 /** Bildens data som base64 (för .ppen). */
 export async function paperImageBase64(raceId: string, sha256: string): Promise<string> {
-  const response = await fetchWithRetry(paperImageUrl(raceId, sha256), { credentials: "same-origin" });
+  const response = await fetchWithRetry(paperImageFileUrl(raceId, sha256), { credentials: "same-origin" });
   if (!response.ok) throw new HttpError(response.status);
   const bytes = new Uint8Array(await response.arrayBuffer());
   let binary = "";

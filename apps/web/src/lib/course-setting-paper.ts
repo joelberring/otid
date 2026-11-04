@@ -88,9 +88,15 @@ export function paperUndoFor(document: CourseSettingDocument, edits: readonly Co
   for (const edit of edits) {
     switch (edit.type) {
       case "SET_PAPER_LAYOUT": out.push(layout(edit.course)); break;
-      // Mallens papper (ADR-0211 beslut 9): banans tryckyta som den var.
-      case "SET_PRINT_AREA": if (edit.part === undefined) out.push({ type: "SET_PRINT_AREA", course: edit.course,
-        area: document.courses.find(row => row.id === edit.course)?.printArea ?? null }); break;
+      // Mallens papper (ADR-0211 beslut 9) och papperet och kartramen på arket: tryckytan som den var (banans, delens
+      // eller Alla kontrollers).
+      case "SET_PRINT_AREA": {
+        const course = document.courses.find(row => row.id === edit.course);
+        const before = edit.course === "ALL_CONTROLS" ? document.event.printArea
+          : edit.part !== undefined ? course?.partPrintAreas?.[String(edit.part)] : course?.printArea;
+        out.push({ type: "SET_PRINT_AREA", course: edit.course, area: before ?? null, ...(edit.part !== undefined ? { part: edit.part } : {}) });
+        break;
+      }
       case "PUT_PAPER_TEMPLATE": {
         const before = document.event.paperTemplates?.find(row => row.id === edit.template.id);
         out.push(before ? { type: "PUT_PAPER_TEMPLATE", template: before } : { type: "DELETE_PAPER_TEMPLATE", id: edit.template.id });

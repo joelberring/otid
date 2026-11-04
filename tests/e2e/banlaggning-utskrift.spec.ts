@@ -62,31 +62,36 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await owner.getByTestId("course-setting-course-scale").selectOption("10000");
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
 
-  // Fliken Utskrift: A4 liggande; skalan visas och ändras i banans egenskaper.
+  // Fliken Utskrift: skalan visas och ändras i banans egenskaper; papperet ställs in på arket i utskriften (ADR-0211 tillägg).
   await owner.getByRole("tab", { name: "Utskrift" }).click();
   const print = owner.getByTestId("course-setting-print");
-  await expect(owner.getByTestId("course-setting-print-description").getByRole("checkbox", { name: "Kontrollbeskrivning på kartan" })).toBeChecked();
-  await print.getByLabel("Papper").selectOption("A4");
-  await print.getByLabel("Riktning").selectOption("landscape");
   await expect(print.getByTestId("course-setting-print-scale-value")).toHaveText("1:10 000");
   await expect(print.getByTestId("course-setting-print-scale-change")).toBeVisible();
+  await expect(print.getByLabel("Papper")).toHaveCount(0);
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
   await reviewScreenshots(owner, "banlaggning-utskrift-editor");
+
+  // Förhandsvisningen: A4 liggande under Papper och kartram, med kartan, området och beskrivningen.
+  await print.getByRole("button", { name: "Förhandsvisning och utskrift" }).click();
+  const before = (await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } }).setting.document;
+  const lang = before.courses.find(item => item.name === "Lång")!;
+  await owner.waitForURL(`**/admin/${raceId}/course-setting/print?course=${lang.id}`);
+  await expect(owner.getByTestId("print-draft")).toContainText("färgerna är inte tryckkvalitet");
+  await expect(owner.getByRole("checkbox", { name: "Kontrollbeskrivning på kartan för Lång" })).toBeChecked();
+  const sheetPaper = owner.getByTestId("sheet-paper");
+  await sheetPaper.getByTestId("sheet-paper-size").selectOption("A4");
+  await sheetPaper.getByTestId("sheet-paper-orientation").selectOption("landscape");
+  await expect.poll(async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: Document } }).setting.document
+    .courses.find(item => item.name === "Lång")!.printArea?.page, { timeout: 15_000 }).toMatchObject({ width: 827, height: 1169, landscape: true });
 
   const state = await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
   const document = state.setting.document;
   const course = document.courses.find(item => item.name === "Lång")!;
   expect(course.printScale).toBe(10000);
-  expect(course.printArea?.page).toMatchObject({ width: 827, height: 1169, landscape: true });
   const area = document.specialObjects.find(item => item.kind === "out-of-bounds")!;
   expect(area.points).toHaveLength(3);
   expect(area.courses).toEqual([]);
   expect(document.specialObjects.some(item => item.kind === "descriptions")).toBe(false);
-
-  // Förhandsvisningen: en A4 liggande med kartan, området och beskrivningen.
-  await print.getByRole("button", { name: "Förhandsvisning och utskrift" }).click();
-  await owner.waitForURL(`**/admin/${raceId}/course-setting/print?course=${course.id}`);
-  await expect(owner.getByTestId("print-draft")).toContainText("färgerna är inte tryckkvalitet");
   const sheet = owner.getByTestId("print-sheet");
   await expect(sheet).toHaveCount(1);
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 60_000 });

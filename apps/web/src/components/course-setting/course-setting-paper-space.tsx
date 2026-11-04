@@ -4,13 +4,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   effectivePaper, newPaperItemId, paperClipPoints, paperLayoutOf, reanchor, resetPaperItem, withPaperItem, PAPER_CORNERS, PAPER_VARIABLES,
   type CourseSettingDocument, type CourseSettingEdit, type PaperAlign, type PaperClip, type PaperCorner, type PaperItem, type PaperItemKind,
-  type PaperRect, type Sheet, type SheetPaperItem
+  type PaperRect, type PaperShape, type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
 import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
 import { anchorIn, anchorRect, newPaperItem, paperItemLabel, paperLayoutEdit } from "../../lib/course-setting-paper";
 import { uploadPaperImage } from "../../lib/course-setting-paper-api";
 import { Button } from "../ui";
-import { CLIP_SELECTION, type PaperSelection } from "./course-setting-paper-items";
+import { CLIP_SELECTION, WHITE_SELECTION, type PaperSelection } from "./course-setting-paper-items";
+import { alignMoves, distributeMoves } from "../../lib/course-setting-paper-snap";
 import { PaperTemplatesSection } from "./course-setting-paper-templates";
 import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting-print-page.module.css";
@@ -23,7 +24,8 @@ export interface PlacedPaper { readonly sheet: Sheet; readonly item: SheetPaperI
  * elementen kommer, det markerade elementets fält (siffror räcker på telefonen), klippningen, uppgifterna för texterna och
  * mallarna. Arket ritar och drar elementen (`course-setting-paper-items.tsx`).
  */
-export function PaperSpacePanel({ raceId, document, courses, course, onCourse, selected, onSelect, placed, frameOf, readOnly, onSave, onUndo, canUndo }: {
+export function PaperSpacePanel({ raceId, document, courses, course, onCourse, selected, onSelect, placed, frameOf, readOnly, onSave, onUndo, canUndo,
+  onRedo, canRedo, marked = [], onMoveMany, snap, onSnap }: {
   raceId: string; document: CourseSettingDocument; courses: readonly { id: string; name: string }[];
   course: string | undefined; onCourse: (course: string) => void;
   selected: PaperSelection; onSelect: (selection: PaperSelection) => void;
@@ -32,6 +34,11 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
   /** Banans första kartram på ett ark (klippningens förval). */
   frameOf: (course: string) => PaperRect | undefined;
   readOnly: boolean; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>; onUndo: () => void; canUndo: boolean;
+  /** ADR-0211 beslut 8: gör om, de markerade på arket (justera, fördela), fästningen och rutnätet. */
+  onRedo?: (() => void) | undefined; canRedo?: boolean | undefined;
+  marked?: readonly PlacedPaper[] | undefined;
+  onMoveMany?: ((sheet: Sheet, moves: readonly { placed: SheetPaperItem; dx: number; dy: number }[]) => void) | undefined;
+  snap?: { enabled: boolean; gridMm: number } | undefined; onSnap?: ((snap: { enabled: boolean; gridMm: number }) => void) | undefined;
 }) {
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
   const [busy, setBusy] = useState(false);
@@ -70,27 +77,50 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
       <label className={styles.field}>{text.course}<select value={course} onChange={event => { onCourse(event.target.value); onSelect(undefined); }}
         data-testid="paper-course">{courses.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
       {!readOnly && <Button variant="quiet" onClick={onUndo} disabled={!canUndo} data-testid="paper-undo">{text.undo}</Button>}
+      {!readOnly && onRedo && <Button variant="quiet" onClick={onRedo} disabled={!canRedo} data-testid="paper-redo">{text.redo}</Button>}
     </div>
+    {!readOnly && snap && onSnap && <div className={styles.row} data-testid="paper-snap">
+      <label className={styles.check}><input type="checkbox" checked={snap.enabled} onChange={event => onSnap({ ...snap, enabled: event.target.checked })}
+        data-testid="paper-snap-enabled" />{text.editor.snap}</label>
+      <Field label={text.editor.grid}><select value={String(snap.gridMm)} onChange={event => onSnap({ ...snap, gridMm: Number(event.target.value) })} data-testid="paper-grid">
+        {["0", "1", "5"].map(value => <option key={value} value={value}>{text.editor.grids[value]}</option>)}</select></Field>
+      <span className={styles.muted}>{text.editor.snapHelp}</span>
+    </div>}
+    {!readOnly && <p className={styles.muted}>{text.editor.inPlaceHelp}</p>}
+    {!readOnly && marked.length > 0 && onMoveMany && <AlignBar marked={marked} onMoveMany={onMoveMany} />}
     {!readOnly && <div className={styles.row} data-testid="paper-add">
-      {(["TEXT", "IMAGE", "SCALE_BAR", "NORTH_ARROW"] as const).map(kind => <Button key={kind} variant="secondary" disabled={busy}
+      {(["TEXT", "IMAGE", "SCALE_BAR", "NORTH_ARROW", "RECT", "LINE"] as const).map(kind => <Button key={kind} variant="secondary" disabled={busy}
         onClick={() => void add(kind)} data-testid={`paper-add-${kind}`}>{text.add[kind]}</Button>)}
       <input ref={file} type="file" accept="image/png,image/jpeg,image/svg+xml,.svg" hidden onChange={event => void upload(event.target.files?.[0])}
         data-testid="paper-image-file" aria-label={text.add.IMAGE} />
     </div>}
     {!readOnly && <p className={styles.muted}>{text.imageHelp}</p>}
     <h3>{text.items}</h3>
-    {effective.items.length === 0 ? <p className={styles.muted}>{text.none}</p> : <ul className={styles.paperRows} data-testid="paper-items">
+    {effective.items.length === 0 ? <p className={styles.muted}>{text.none}</p> : <>
+      <p className={styles.muted}>{text.editor.layers}</p>
+      <ul className={styles.paperRows} data-testid="paper-items">
       {effective.items.map(row => <li key={row.item.id} data-id={row.item.id} data-source={row.source} data-testid="paper-item-row"
-        data-selected={item?.item.id === row.item.id ? "" : undefined}>
+        data-selected={item?.item.id === row.item.id ? "" : undefined} data-locked={row.item.locked ? "" : undefined} data-hidden={row.item.hide ? "" : undefined}>
         <Button variant="quiet" aria-pressed={item?.item.id === row.item.id} onClick={() => onSelect({ course, id: row.item.id })}
           aria-label={text.select(paperItemLabel(row.item))}><strong>{text.kinds[row.item.kind]}</strong>{row.item.kind === "TEXT" ? `: ${paperItemLabel(row.item)}` : ""}</Button>
-        <span className={styles.muted}>{text.source[row.source]}</span>
+        <span className={styles.muted}>{text.source[row.source]}{row.item.locked ? ` · ${text.editor.locked}` : ""}{row.item.hide ? ` · ${text.editor.hidden}` : ""}</span>
+        {!readOnly && <span className={styles.row}>
+          <Button variant="quiet" disabled={!canReorder(document, course, row.item.id, -1)} aria-label={text.editor.downLabel(paperItemLabel(row.item))}
+            onClick={() => void save([paperLayoutEdit(course, reorderedLayout(document, course, row.item.id, -1))])} data-testid="paper-layer-down">{text.editor.down}</Button>
+          <Button variant="quiet" disabled={!canReorder(document, course, row.item.id, 1)} aria-label={text.editor.upLabel(paperItemLabel(row.item))}
+            onClick={() => void save([paperLayoutEdit(course, reorderedLayout(document, course, row.item.id, 1))])} data-testid="paper-layer-up">{text.editor.up}</Button>
+          <Button variant="quiet" aria-pressed={row.item.locked === true} data-testid="paper-layer-lock"
+            onClick={() => void putItem(row.item.id, { ...row.item, locked: !row.item.locked || undefined })}>{row.item.locked ? text.editor.unlock : text.editor.lock}</Button>
+          <Button variant="quiet" aria-pressed={row.item.hide === true} data-testid="paper-layer-hide"
+            onClick={() => void putItem(row.item.id, { ...row.item, hide: !row.item.hide || undefined })}>{row.item.hide ? text.editor.show : text.editor.hide}</Button>
+        </span>}
       </li>)}
-    </ul>}
+    </ul></>}
     {item && <Inspector key={`${course}:${item.item.id}`} item={item.item} source={item.source} placed={placed} readOnly={readOnly}
       onChange={next => void putItem(item.item.id, next)} onRemove={() => { onSelect(undefined); void putItem(item.item.id, null); }}
       onReset={() => void save([paperLayoutEdit(course, resetPaperItem(document, course, item.item.id))])} onClose={() => onSelect(undefined)} />}
     <ClipSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />
+    <WhiteSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />
     <Values document={document} readOnly={readOnly} onSave={save} />
     <PaperTemplatesSection raceId={raceId} document={document} course={course} courses={courses} readOnly={readOnly} onSave={save} />
     <p className={styles.muted}>{text.ppenNote}</p>
@@ -175,6 +205,24 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
       </div>}
       {item.kind === "NORTH_ARROW" && <NumberField label={text.height} value={item.sizeMm} min={5} max={100} step={1} disabled={readOnly}
         onCommit={sizeMm => onChange({ ...item, sizeMm })} testId="paper-arrow-size" />}
+      {(item.kind === "RECT" || item.kind === "LINE") && <div className={styles.row}>
+        <NumberField label={text.width} value={item.widthMm} min={0} max={1000} step={1} disabled={readOnly} onCommit={widthMm => onChange({ ...item, widthMm })} testId="paper-width" />
+        <NumberField label={text.height} value={item.heightMm} min={0} max={1000} step={1} disabled={readOnly} onCommit={heightMm => onChange({ ...item, heightMm })} testId="paper-height" />
+        <NumberField label={text.editor.stroke} value={item.strokeMm} min={item.kind === "LINE" ? 0.05 : 0} max={5} step={0.05} disabled={readOnly}
+          onCommit={strokeMm => onChange({ ...item, strokeMm })} testId="paper-stroke" />
+        <Field label={text.editor.color}><input type="color" value={item.color} disabled={readOnly} data-testid="paper-color"
+          onChange={event => onChange({ ...item, color: event.target.value })} /></Field>
+        {item.kind === "RECT" && <>
+          <label className={styles.check}><input type="checkbox" checked={item.fill !== undefined} disabled={readOnly} data-testid="paper-fill-on"
+            onChange={event => onChange(event.target.checked ? { ...item, fill: "#ffffff" } : withoutFill(item))} />{text.editor.fill}</label>
+          {item.fill !== undefined && <input type="color" value={item.fill} aria-label={text.editor.fill} disabled={readOnly} data-testid="paper-fill"
+            onChange={event => onChange({ ...item, fill: event.target.value })} />}
+          <NumberField label={text.editor.radius} value={item.radiusMm ?? 0} min={0} max={50} step={0.5} disabled={readOnly}
+            onCommit={radiusMm => onChange({ ...item, radiusMm })} testId="paper-radius" />
+        </>}
+        {item.kind === "LINE" && <label className={styles.check}><input type="checkbox" checked={item.rising === true} disabled={readOnly}
+          onChange={event => onChange({ ...item, rising: event.target.checked || undefined })} />{text.editor.rising}</label>}
+      </div>}
       <div className={styles.row}>
         <Field label={text.pages}><select value={item.pages ?? "FIRST"} data-testid="paper-pages" title={text.pagesHelp}
           onChange={event => onChange({ ...item, pages: event.target.value === "ALL" ? "ALL" : undefined })}>
@@ -261,6 +309,89 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
       </div>}
     </>}
   </fieldset>;
+}
+
+/** En ram utan fyllning. */
+function withoutFill(item: Extract<PaperItem, { kind: "RECT" }>): PaperItem {
+  return Object.fromEntries(Object.entries(item).filter(([key]) => key !== "fill")) as unknown as PaperItem;
+}
+
+/** Kan elementet flyttas ett steg i ritordningen? Bara banans egna element byter plats med varandra (mallens ordning står kvar). */
+function canReorder(document: CourseSettingDocument, course: string, id: string, step: 1 | -1): boolean {
+  const own = paperLayoutOf(document, course).items ?? [];
+  const index = own.findIndex(item => item.id === id);
+  return index >= 0 && index + step >= 0 && index + step < own.length;
+}
+
+function reorderedLayout(document: CourseSettingDocument, course: string, id: string, step: 1 | -1) {
+  const layout = paperLayoutOf(document, course);
+  const own = [...(layout.items ?? [])];
+  const index = own.findIndex(item => item.id === id);
+  if (index < 0 || index + step < 0 || index + step >= own.length) return layout;
+  [own[index], own[index + step]] = [own[index + step]!, own[index]!];
+  return { ...layout, items: own };
+}
+
+/** Justera och fördela de markerade (ADR-0211 beslut 8): ett mot kartramen, flera mot varandra. */
+function AlignBar({ marked, onMoveMany }: { marked: readonly PlacedPaper[];
+  onMoveMany: (sheet: Sheet, moves: readonly { placed: SheetPaperItem; dx: number; dy: number }[]) => void }) {
+  const sheet = marked[0]!.sheet;
+  const onSheet = marked.filter(row => row.sheet === sheet);
+  const apply = (moves: readonly { dx: number; dy: number }[]) => onMoveMany(sheet, onSheet.map((row, index) => ({ placed: row.item, ...moves[index]! })));
+  const frame = sheet.frames[onSheet[0]!.item.frame]?.clip;
+  return <div className={styles.row} role="group" aria-label={text.editor.align} data-testid="paper-align-bar">
+    <strong>{text.editor.align}</strong><span className={styles.muted}>{text.editor.marked(onSheet.length)}</span>
+    {(["LEFT", "CENTER", "RIGHT", "TOP", "MIDDLE", "BOTTOM"] as const).map(mode => <Button key={mode} variant="quiet" data-testid={`paper-align-${mode}`}
+      onClick={() => apply(alignMoves(onSheet.map(row => row.item.rect), mode, frame))}>{text.editor.aligns[mode]}</Button>)}
+    {onSheet.length >= 3 && <>
+      <Button variant="quiet" data-testid="paper-distribute-h" onClick={() => apply(distributeMoves(onSheet.map(row => row.item.rect), "HORIZONTAL"))}>{text.editor.distributeH}</Button>
+      <Button variant="quiet" data-testid="paper-distribute-v" onClick={() => apply(distributeMoves(onSheet.map(row => row.item.rect), "VERTICAL"))}>{text.editor.distributeV}</Button>
+    </>}
+    <p className={styles.muted}>{text.editor.alignHelp}</p>
+  </div>;
+}
+
+/** "Vitt på utskriften" (ADR-0211 beslut 8): rektanglar och polygoner i ramen som skrivs ut vita; hörnen dras på arket. */
+function WhiteSection({ document, course, frame, readOnly, selected, onSelect, onSave }: {
+  document: CourseSettingDocument; course: string; frame: PaperRect | undefined; readOnly: boolean; selected: PaperSelection;
+  onSelect: (selection: PaperSelection) => void; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
+}) {
+  const effective = effectivePaper(document, course);
+  const areas = effective.whiteAreas;
+  const layout = paperLayoutOf(document, course);
+  const setAreas = (next: readonly PaperShape[]) => onSave([paperLayoutEdit(course, { ...layout, whiteAreas: next })]);
+  const w = frame?.width ?? 150, h = frame?.height ?? 150;
+  const add = async (shape: "RECT" | "POLYGON") => {
+    const area: PaperShape = shape === "RECT" ? { shape, rect: { x: Math.round(w * 0.6), y: Math.round(h * 0.05), width: Math.round(w * 0.35), height: Math.round(h * 0.2) } }
+      : { shape, points: [{ x: Math.round(w * 0.05), y: Math.round(h * 0.7) }, { x: Math.round(w * 0.35), y: Math.round(h * 0.7) }, { x: Math.round(w * 0.05), y: Math.round(h * 0.95) }] };
+    if (await setAreas([...areas, area])) onSelect({ course, id: `${WHITE_SELECTION}${areas.length}` });
+  };
+  return <fieldset className={styles.stack} disabled={readOnly} data-testid="paper-white">
+    <legend><strong>{text.white.heading}</strong></legend>
+    <p className={styles.muted}>{text.white.help}</p>
+    {!readOnly && <div className={styles.row}>
+      <Button variant="secondary" onClick={() => void add("RECT")} data-testid="paper-white-add-RECT">{text.white.addRect}</Button>
+      <Button variant="secondary" onClick={() => void add("POLYGON")} data-testid="paper-white-add-POLYGON">{text.white.addPolygon}</Button>
+    </div>}
+    {areas.length === 0 ? <p className={styles.muted}>{text.white.none}</p> : <ul className={styles.paperRows}>
+      {areas.map((area, index) => <li key={index} data-testid="paper-white-row">
+        <strong>{text.white.area(index + 1)}</strong>
+        <label className={styles.check}><input type="checkbox" checked={selected?.course === course && selected.id === `${WHITE_SELECTION}${index}`}
+          onChange={event => onSelect(event.target.checked ? { course, id: `${WHITE_SELECTION}${index}` } : undefined)} data-testid="paper-white-edit" />{text.white.edit}</label>
+        {area.shape === "POLYGON" && <span className={styles.muted}>{area.points.length}</span>}
+        {!readOnly && <Button variant="quiet" onClick={() => { onSelect(undefined); void setAreas(areas.filter((_, i) => i !== index)); }}
+          data-testid="paper-white-remove">{text.white.remove}</Button>}
+      </li>)}
+    </ul>}
+    {effective.whiteSource === "TEMPLATE" && <p className={styles.muted}>{text.white.fromTemplate}</p>}
+  </fieldset>;
+}
+
+/** En vit yta med ett hörn flyttat (rektangeln: motstående hörn står kvar). */
+export function shapeWithPoint(area: PaperShape, index: number, point: { x: number; y: number }): PaperShape {
+  if (area.shape === "POLYGON") return { ...area, points: area.points.map((p, i) => i === index ? point : p) };
+  const moved = clipWithPoint({ shape: "RECT", rect: area.rect, outside: "WHITE" }, index, point);
+  return moved.shape === "RECT" ? { shape: "RECT", rect: moved.rect } : area;
 }
 
 /** Klippningen med ett hörn flyttat (rektangeln: motstående hörn står kvar). */

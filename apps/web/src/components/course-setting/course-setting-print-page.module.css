@@ -84,3 +84,11 @@
   .sheetSlot { break-after: page; }
   .sheetSlot:last-child { break-after: auto; }
 }
+/* ADR-0211 beslut 8: texten skrivs direkt på arket, med verktygen nära markeringen. */
+.textEditor { position: fixed; z-index: 40; display: grid; gap: 4px; padding: 6px; background: var(--surface, #fff); border: 2px solid #1d6fd1;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .25); max-width: calc(100vw - 8px); }
+.textEditor textarea { font: inherit; min-height: 3rem; width: 100%; box-sizing: border-box; }
+.textEditorBar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-sm); }
+.textEditorBar label { display: inline-flex; align-items: center; gap: 4px; }
+.textEditorBar button { min-height: 32px; }
+@media print { .textEditor { display: none; } }

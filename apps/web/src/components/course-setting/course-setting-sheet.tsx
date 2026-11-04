@@ -47,9 +47,7 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
       stroke={box.border ? "#000" : undefined} strokeWidth={box.border ? 0.25 : undefined} data-testid="print-strip" />)}
     {sheet.images.map((image, imageIndex) => <image key={imageIndex} href={`data:${image.mediaType};base64,${image.data}`} x={image.x} y={image.y}
       width={image.width} height={image.height} preserveAspectRatio="xMidYMid meet" data-testid="print-logo" />)}
-    {/* Klick på tomt papper (kartan räknas som papper här) släpper markeringen. */}
-    {paper?.editable && paper.selected && <rect width={sheetPaper.widthMm} height={sheetPaper.heightMm} fill="transparent" data-testid="paper-empty"
-      onPointerDown={() => paper.onSelect(undefined)} />}
+    {/* Klick på tomt papper (kartan räknas som papper här) släpper markeringen; en ruta markerar flera (PaperItemsLayer). */}
     <PaperItemsLayer sheet={sheet} interaction={paper} />
     {sheet.descriptions.map((item, descriptionIndex) => <PaperDescription key={descriptionIndex} item={item} symbols={symbols}
       frame={sheet.frames[item.frame]} onPlace={onPlace} />)}
@@ -71,20 +69,30 @@ function FrameView({ id, frame, symbols, image, overImage, layers, courseColor }
   const lower = layers ? frame.figures.map(figure => lowerPurple(figure, layers.norm, layers.numbersOnTop)) : undefined;
   // Papperets klippning (ADR-0197): specialobjekten i `markingClip.refs` klipps till polygonen; banan står hel.
   const marked = new Set(frame.markingClip?.refs ?? []);
-  const isMarking = (node: PrintNode) => node.tag !== "description" && "role" in node && node.role === "SPECIAL" && node.ref !== undefined && marked.has(node.ref);
+  const white = frame.whiteAreas ?? [];
+  const isSpecial = (node: PrintNode) => node.tag !== "description" && "role" in node && node.role === "SPECIAL" && node.ref !== undefined;
+  const isMarking = (node: PrintNode) => isSpecial(node) && marked.has(node.ref!);
+  // "Vitt på utskriften" (ADR-0211 beslut 8): ytorna vita över kartan; kartan över banan och markeringarna klipps bort där.
+  const whitePath = white.map(polygon => `M${polygon.map(p => `${p.x} ${p.y}`).join(" L")} Z`).join(" ");
   const mirror = frame.mirror ? `translate(${2 * clip.x + clip.width} 0) scale(-1 1)` : undefined;
-  const draw = (keep: (index: number) => boolean) => nodes.map((node, index) => !keep(index) ? null : isMarking(node)
-    ? <g key={index} clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node key={index} node={node} />);
+  const draw = (keep: (index: number) => boolean) => nodes.map((node, index) => {
+    if (!keep(index)) return null;
+    const inner = isMarking(node) ? <g clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node node={node} />;
+    return white.length > 0 && isSpecial(node) ? <g key={index} clipPath={`url(#${id}w)`} data-testid="print-marking-white">{inner}</g>
+      : isMarking(node) ? <g key={index} clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node key={index} node={node} />;
+  });
   return <g data-testid="print-frame" data-course={frame.course} data-marking-clip={frame.markingClip ? "" : undefined} data-norm={layers?.norm}>
     <defs><clipPath id={id}><rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} /></clipPath>
-      {frame.markingClip && <clipPath id={`${id}m`}><polygon points={frame.markingClip.polygon.map(p => `${p.x},${p.y}`).join(" ")} /></clipPath>}</defs>
+      {frame.markingClip && <clipPath id={`${id}m`}><polygon points={frame.markingClip.polygon.map(p => `${p.x},${p.y}`).join(" ")} /></clipPath>}
+      {white.length > 0 && <clipPath id={`${id}w`}><path clipRule="evenodd" d={`M${clip.x} ${clip.y} h${clip.width} v${clip.height} h${-clip.width} Z ${whitePath}`} /></clipPath>}</defs>
     {image && <image href={image} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map"
       data-mirror={frame.mirror ? "" : undefined} transform={mirror} />}
+    {white.length > 0 && <path d={whitePath} fill="#fff" clipPath={`url(#${id})`} data-testid="print-white-area" />}
     {lower ? <>
       <g clipPath={`url(#${id})`} data-testid="print-overprint" data-layer="lower">{draw(index => lower[index] === true)}</g>
       {/* Kartans färger över banan multipliceras, som övertryck på tryck: lila syns genom dem. */}
-      {overImage && <image href={overImage} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map-over"
-        style={{ mixBlendMode: "multiply" }} transform={mirror} />}
+      {overImage && <g clipPath={white.length > 0 ? `url(#${id}w)` : undefined}><image href={overImage} x={clip.x} y={clip.y} width={clip.width} height={clip.height}
+        preserveAspectRatio="none" data-testid="print-map-over" style={{ mixBlendMode: "multiply" }} transform={mirror} /></g>}
       <g clipPath={`url(#${id})`} data-testid="print-overprint-upper" data-layer="upper">{draw(index => lower[index] !== true)}</g>
     </> : <g clipPath={`url(#${id})`} data-testid="print-overprint">{draw(() => true)}</g>}
   </g>;

@@ -270,7 +270,8 @@ export async function setVerdictViaMapLink(db: Database, input: MapLinkInput & {
       const id = randomUUID(), fixed = parsed.data.verdict === "FIXED";
       await tx.insert(replies).values({ id, noteId: input.noteId, raceId: link.raceId, text: parsed.data.text.trim(), createdAt: now, createdBy: null,
         requestId: parsed.data.requestId, mapLinkId: link.id, authorName: mapMakerName(parsed.data.name), verdict: parsed.data.verdict });
-      await tx.update(notes).set({ status: fixed ? "DONE" : "OPEN", resolvedAt: fixed ? now : null, resolvedBy: null })
+      await tx.update(notes).set({ status: fixed ? "DONE" : "OPEN", resolvedAt: fixed ? now : null, resolvedBy: null,
+        resolvedMapLinkId: fixed ? link.id : null })
         .where(and(eq(notes.id, input.noteId), eq(notes.raceId, link.raceId)));
       await audit(tx, link.raceId, { type: "course_setting_note", id: input.noteId }, "MAP_LINK_VERDICT",
         { kind: "COURSE_SETTING_MAP_LINK", id: link.id }, { replyId: id, verdict: parsed.data.verdict }, now);

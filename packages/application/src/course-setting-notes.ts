@@ -170,7 +170,8 @@ export async function setCourseSettingNoteStatusAsAdmin(db: Database, input: Rac
     const access = await reachable(tx, raceId, input.noteId, principal);
     if (access.status !== "ok") return access;
     const done = parsed.data.status === "DONE";
-    const [updated] = await tx.update(notes).set({ status: parsed.data.status, resolvedAt: done ? now : null, resolvedBy: done ? actorId : null })
+    const [updated] = await tx.update(notes).set({ status: parsed.data.status, resolvedAt: done ? now : null, resolvedBy: done ? actorId : null,
+      resolvedMapLinkId: null })
       .where(and(eq(notes.id, input.noteId), eq(notes.raceId, raceId))).returning({ id: notes.id });
     if (!updated) return { status: "not-found" as const };
     const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, updated.id));

@@ -452,6 +452,8 @@ export const courseSettingNotes = pgTable("course_setting_note", {
   createdBy: uuid("created_by").notNull(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   resolvedBy: uuid("resolved_by"),
+  /** ADR-0214: kartritaren gjorde kartfelet klart med länken ("Åtgärdat i kartan"); då är `resolvedBy` tom. */
+  resolvedMapLinkId: uuid("resolved_map_link_id"),
   photo: bytea("photo"),
   photoMediaType: text("photo_media_type"),
   requestId: uuid("request_id").notNull(),

@@ -6,6 +6,8 @@
 .layout { display: grid; gap: 12px; }
 .mapArea { display: grid; gap: 8px; align-content: start; }
 .mapBox { position: relative; height: 58vh; min-height: 300px; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+/* Kartans ram fyller rutan också under 700 px (banläggningens regel för smal skärm gäller dess egen layout). */
+.mapBox > div { position: absolute; inset: 0; height: 100%; }
 .mapNote { margin: 0; padding: 24px 12px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); text-align: center; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .row button { min-height: 44px; }

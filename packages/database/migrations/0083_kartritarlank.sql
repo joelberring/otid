@@ -50,6 +50,13 @@ ALTER TABLE course_setting_note_reply DROP CONSTRAINT IF EXISTS course_setting_n
 ALTER TABLE course_setting_note_reply ADD CONSTRAINT course_setting_note_reply_text_check
   CHECK (char_length(text) <= 2000 AND (char_length(text) >= 1 OR verdict IS NOT NULL));
 
+-- "Åtgärdat i kartan" gör kartfelet klart utan konto: klar av ett konto (resolved_by) eller av länken (resolved_map_link_id).
+ALTER TABLE course_setting_note ADD COLUMN IF NOT EXISTS resolved_map_link_id uuid;
+ALTER TABLE course_setting_note DROP CONSTRAINT IF EXISTS course_setting_note_status_check;
+ALTER TABLE course_setting_note ADD CONSTRAINT course_setting_note_status_check CHECK (status IN ('OPEN', 'DONE')
+  AND (status = 'OPEN') = (resolved_at IS NULL) AND (resolved_at IS NULL) = (num_nonnulls(resolved_by, resolved_map_link_id) = 0)
+  AND num_nonnulls(resolved_by, resolved_map_link_id) <= 1);
+
 -- Spärren räknar också anrop med kartritarens länk per IP-adress och per länk.
 ALTER TABLE account_request_throttle DROP CONSTRAINT IF EXISTS account_request_throttle_scope_check;
 ALTER TABLE account_request_throttle ADD CONSTRAINT account_request_throttle_scope_check CHECK (scope IN ('REGISTER_IP', 'RESET_IP',

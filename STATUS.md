@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-05 – Länken till kartritaren och redigera egna notiser (grenen kartritare-lank, ADR-0214, migration 0083)
+- Kartfel → "Dela med kartritaren" (den som får ändra): länk med 256-bitars nyckel, bara hashen sparas, visas en gång med "Kopiera länken"; "Begränsa tiden" (förslag tävlingsdagen + 7), "Visa tävlingens namn", "Senast öppnad", "Stäng av länken", "Skapa ny länk".
+- `/kartfel/<nyckel>` utan konto: kartan (kartfilen ritas i webbläsaren) med kartfelen och löpnummer, listan, tråden, svar, "Åtgärdat i kartan"/"Inte åtgärdat", "Min position". Inga banor, kontroller, foton eller deltagare. Ogiltig/avstängd/utgången länk: samma besked.
+- Svaren går via tävlingens instans och syns direkt i Kartfel och editorn (banläggningens ström). Spärr per IP och länk, Origin + eget huvud på skrivningar, journalposter, no-index, Caddy.
+- "Redigera" på egna notiser och svar (bara den som skrev), "(ändrad …)", tidigare text i historiken, 409 vid samtidig ändring.
+- Verifierat: enhetstester (domain, application, web med routetestet för länkens routes), integration (`adr-0214-kartritarens-lank` och hela sviten), lint, typecheck, Playwright `kartritarens-lank` i 1280 och 390 px.
+- Återstår: kartritaren skapar kartfel och redigerar sina svar med länken (inte byggt).
+
 ### 2026-11-04 – Färgordningen i trycket rättad (grenen tryck-fargordning, ADR-0211 beslut 11, ingen migration)
 - Orsak till vita skivor och vita streck på ägarens provtryck (Stockholm by Night, ISOM): allt vitt lyftes över banan om det låg över den lägsta "över"-färgen (Svart för odlad mark), men grönt för punkter och vägkanternas svart ligger under; glorian täckte ringen och järnvägens vitt låg över strecken.
 - Normen bestämmer bara sidan; inom sidan gäller kartfilens ordning. Vitt över banan bara om det ligger över all svart och inget under banan ritas över det. Svart för odlad mark med rastren under banan. Vitt aldrig med övertryck eller multiplicering.

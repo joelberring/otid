@@ -207,8 +207,8 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
   </div>;
   return <main className={styles.page}>
     <section className={styles.controls} aria-labelledby="map-errors-title">
-      <p style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <Link href={`/admin/${raceId}/course-setting`}>← {text.back}</Link><AccountMenu /></p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <Link href={`/admin/${raceId}/course-setting`}>← {text.back}</Link><AccountMenu /></div>
       <h1 id="map-errors-title">{text.title}</h1>
       <p>{mapMaker ? text.mapMakerIntro : text.intro}</p>
       {access?.level === "EDIT" && <MapLinkPanel raceId={raceId} nearCount={nearCount} />}

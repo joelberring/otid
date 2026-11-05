@@ -232,14 +232,17 @@ async function copyCourseSettingPeople(tx: Transaction, input: ContentInput): Pr
   await tx.execute(sql`create temporary table course_setting_note_copy on commit drop as
     select id as old_id, gen_random_uuid() as new_id from course_setting_note where race_id = ${sourceRaceId}`);
   await tx.execute(sql`insert into course_setting_note (id, race_id, target, kind, sketch, at_x, at_y, control_id, from_control_id,
-      to_control_id, course_id, text, status, created_at, created_by, resolved_at, resolved_by, photo, photo_media_type, request_id)
+      to_control_id, course_id, text, status, created_at, created_by, resolved_at, resolved_by, photo, photo_media_type, request_id,
+      resolved_map_link_id, edited_at)
     select c.new_id, ${raceId}, n.target, n.kind, n.sketch, n.at_x, n.at_y, n.control_id, n.from_control_id, n.to_control_id, n.course_id,
-      n.text, n.status, n.created_at, n.created_by, n.resolved_at, n.resolved_by, n.photo, n.photo_media_type, gen_random_uuid()
+      n.text, n.status, n.created_at, n.created_by, n.resolved_at, n.resolved_by, n.photo, n.photo_media_type, gen_random_uuid(),
+      n.resolved_map_link_id, n.edited_at
     from course_setting_note n join course_setting_note_copy c on c.old_id = n.id`);
   // ADR-0214: kartritarens svar med länken följer med (utan länken, som inte kopieras).
   await tx.execute(sql`insert into course_setting_note_reply (id, note_id, race_id, text, created_at, created_by, request_id, map_link_id,
-      author_name, verdict)
-    select gen_random_uuid(), c.new_id, ${raceId}, r.text, r.created_at, r.created_by, gen_random_uuid(), r.map_link_id, r.author_name, r.verdict
+      author_name, verdict, edited_at)
+    select gen_random_uuid(), c.new_id, ${raceId}, r.text, r.created_at, r.created_by, gen_random_uuid(), r.map_link_id, r.author_name, r.verdict,
+      r.edited_at
     from course_setting_note_reply r join course_setting_note_copy c on c.old_id = r.note_id`);
   await tx.execute(sql`drop table course_setting_note_copy`);
 }

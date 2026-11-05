@@ -75,7 +75,8 @@ const columns = {
   id: notes.id, raceId: notes.raceId, target: notes.target, atX: notes.atX, atY: notes.atY, controlId: notes.controlId,
   fromControlId: notes.fromControlId, toControlId: notes.toControlId, courseId: notes.courseId, text: notes.text, status: notes.status,
   createdAt: notes.createdAt, createdBy: notes.createdBy, resolvedAt: notes.resolvedAt, resolvedBy: notes.resolvedBy,
-  photoMediaType: notes.photoMediaType, requestId: notes.requestId, kind: notes.kind, sketch: notes.sketch, editedAt: notes.editedAt
+  photoMediaType: notes.photoMediaType, requestId: notes.requestId, kind: notes.kind, sketch: notes.sketch, editedAt: notes.editedAt,
+  resolvedMapLinkId: notes.resolvedMapLinkId
 };
 
 const isMapError = (row: Pick<NoteListRow, "kind" | "target">) => row.kind === "MAP_ERROR" && (row.target === "POINT" || row.target === "SKETCH");

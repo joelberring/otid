@@ -29,7 +29,9 @@ function routeFiles(directory: string): string[] {
 }
 const routes = [...routeFiles(join(api, "public")), ...routeFiles(join(api, "races"))]
   .map(file => ({ file, path: relative(api, file).split(sep).slice(0, -1).join("/") }))
-  .filter(route => route.path !== "races/[raceId]/imports").sort((a, b) => a.path.localeCompare(b.path));
+  // ADR-0214: kartritarens länk är inte tävlingens publika sida: nyckeln är behörigheten (också för en opublicerad tävling).
+  // Routes med nyckel prövas i race-roles.test.ts ("routes med kartritarens länk").
+  .filter(route => route.path !== "races/[raceId]/imports" && !route.path.includes("[token]")).sort((a, b) => a.path.localeCompare(b.path));
 const raceId = "10000000-0000-4000-8000-000000000001";
 
 async function call(route: { file: string; path: string }) {

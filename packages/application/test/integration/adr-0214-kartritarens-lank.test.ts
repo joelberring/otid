@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import { readPpen, type CourseSettingDocument } from "@o-tid/course-setting";
+import { localRaceDate, mapLinkExpiresAt } from "@o-tid/domain";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
 import { importCourseSettingAsAdmin } from "../../src/course-setting";
@@ -184,18 +185,26 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
   });
 
   it("utgången, avstängd och ersatt länk avvisas likadant som en okänd, och avstängningen gäller direkt", async () => {
-    const owner = await race("2026-11-20");
+    // Tiderna räknas från nu (sessionerna prövas vid tiden): tävlingen i dag, länken till och med i dag.
+    const now = new Date();
+    const today = localRaceDate(now, "Europe/Stockholm");
+    const owner = await race(today);
     await setUp(owner);
-    const now = new Date("2026-11-05T12:00:00Z");
-    const limited = await newLink(owner, { lastDay: "2026-11-27" }, now);
+    const limited = await newLink(owner, { lastDay: today }, now);
+    const expiresAt = mapLinkExpiresAt(today, "Europe/Stockholm")!;
     const state = await created(readMapLinkAsAdmin(db, owner, now));
-    expect(state.response).toMatchObject({ raceDate: "2026-11-20", today: "2026-11-05",
-      link: { status: "ACTIVE", expiresAt: "2026-11-27T23:00:00.000Z", showRaceName: false, lastOpenedAt: null } });
-    expect((await readMapLinkView(db, link(limited), new Date("2026-11-27T22:59:59Z"))).status).toBe("ok");
-    expect(await readMapLinkView(db, link(limited), new Date("2026-11-27T23:00:00Z"))).toEqual({ status: "invalid" });
-    expect((await created(readMapLinkAsAdmin(db, owner, new Date("2026-11-28T00:00:00Z")))).response.link).toMatchObject({ status: "EXPIRED" });
+    expect(state.response).toMatchObject({ raceDate: today, today,
+      link: { status: "ACTIVE", expiresAt: expiresAt.toISOString(), showRaceName: false, lastOpenedAt: null } });
+    expect((await readMapLinkView(db, link(limited), new Date(expiresAt.getTime() - 1000))).status).toBe("ok");
+    expect(await readMapLinkView(db, link(limited), expiresAt)).toEqual({ status: "invalid" });
+    // Gått ut (som i Playwright: tiden flyttas i databasen): banläggaren ser det.
+    await pool.query(`update course_setting_map_link set created_at = now() - interval '3 days', expires_at = now() - interval '1 day'
+      where race_id = $1 and revoked_at is null`, [owner.raceId]);
+    expect((await created(readMapLinkAsAdmin(db, owner))).response.link).toMatchObject({ status: "EXPIRED" });
+    expect(await readMapLinkView(db, link(limited))).toEqual({ status: "invalid" });
     // Ett sista datum som redan passerat godtas inte.
-    expect((await createMapLinkAsAdmin(db, { ...owner, request: { formatVersion: 1, lastDay: "2026-11-04", showRaceName: false } }, now)).status)
+    const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    expect((await createMapLinkAsAdmin(db, { ...owner, request: { formatVersion: 1, lastDay: yesterday, showRaceName: false } })).status)
       .toBe("invalid-request");
 
     // Ny länk: den förra slutar gälla.
@@ -265,7 +274,8 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
     expect((await editCourseSettingNoteAsAdmin(db, { ...owner, noteId, replyId, request: edit("Ny", "Rättat") })).status).toBe("forbidden");
     expect((await editCourseSettingNoteAsAdmin(db, { ...mapMaker, noteId, request: edit("Ny", "Stigen saknas") })).status).toBe("forbidden");
 
-    const t1 = new Date("2026-11-05T10:00:00Z");
+    // En tid efter att sessionerna skapades (sessionen prövas vid tiden).
+    const t1 = new Date(Date.now() + 1000);
     const edited = await created(editCourseSettingNoteAsAdmin(db, { ...editor, noteId, request: edit("Stigen saknas norr om kullen", "Stigen saknas") }, t1));
     expect(edited.note).toMatchObject({ text: "Stigen saknas norr om kullen", editedAt: t1.toISOString() });
     // Bygger på en gammal text: konflikt, inget skrivs.

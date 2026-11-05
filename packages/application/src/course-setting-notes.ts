@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   COURSE_SETTING_NOTE_PHOTO_MAX_BYTES, courseSettingNoteCreateSchema, courseSettingNoteReplySchema, courseSettingNoteSchema,
-  courseSettingNoteStatusSchema, courseSettingNotesSchema, sketchCenter, type CourseSettingNote, type CourseSettingNotes
+  courseSettingNoteEditSchema, courseSettingNoteStatusSchema, courseSettingNotesSchema, sketchCenter, type CourseSettingNote, type CourseSettingNotes
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { actor, actors, courseSettingRead, courseSettingWrite, loadRow, type Failure, type ReadProof, type Transaction } from "./course-setting";
@@ -17,6 +17,9 @@ import type { RaceSessionProof } from "./race-session";
  * ADR-0181 beslut 8: en notis kan ha en ritning (target SKETCH) och vara ett kartfel. Den som skrev en notis eller ett
  * svar och den som får ändra (EDIT) kan ta bort den; svaren och fotot försvinner med notisen. Kartritaren (MAP) ser bara
  * kartfelen (utan bana och foto, som kan visa en kontrollplats), svarar och markerar dem klara, men skriver inga notiser.
+ *
+ * ADR-0214: kartritaren kan också svara med en länk utan konto (`course-setting-map-link.ts`); svaret har då inget konto
+ * utan kartritarens namn och eventuellt ett besked ("Åtgärdat i kartan"/"Inte åtgärdat").
  *
  * Översynen 2026-11-02: en ny notis på en kontroll, sträcka eller bana som inte finns i dokumentet avvisas (409). Telefonens
  * kö skickas efter ändringarna med id översatta (`remapQueuedItem`), så en notis på en kontroll som skapades utan nät
@@ -36,6 +39,7 @@ export async function noteTargetExists(tx: Transaction, raceId: string,
 type NoteRow = typeof schema.courseSettingNotes.$inferSelect;
 const notes = schema.courseSettingNotes;
 const replies = schema.courseSettingNoteReplies;
+const edits = schema.courseSettingNoteEdits;
 
 type NoteListRow = Omit<NoteRow, "photo"> & { photoBytes: number | null };
 
@@ -52,21 +56,26 @@ async function noteDtos(tx: Transaction, rows: readonly NoteListRow[]): Promise<
   const answers = ids.length === 0 ? [] : await tx.select().from(replies).where(inArray(replies.noteId, ids))
     .orderBy(asc(replies.createdAt), asc(replies.id));
   const names = await actors(tx, [...rows.flatMap(row => [row.createdBy, ...(row.resolvedBy ? [row.resolvedBy] : [])]),
-    ...answers.map(answer => answer.createdBy)]);
+    ...answers.flatMap(answer => answer.createdBy ? [answer.createdBy] : [])]);
   return rows.map(row => courseSettingNoteSchema.parse({ id: row.id, target: targetOf(row), kind: row.kind,
     at: row.atX !== null && row.atY !== null ? { x: row.atX, y: row.atY } : null, course: row.courseId, text: row.text, status: row.status,
     createdAt: row.createdAt.toISOString(), createdBy: actor(names, row.createdBy), resolvedAt: row.resolvedAt?.toISOString() ?? null,
     resolvedBy: row.resolvedBy ? actor(names, row.resolvedBy) : null,
     photo: row.photoMediaType && row.photoBytes ? { mediaType: row.photoMediaType, bytes: row.photoBytes } : null,
     replies: answers.filter(answer => answer.noteId === row.id).map(answer => ({ id: answer.id, text: answer.text,
-      createdAt: answer.createdAt.toISOString(), createdBy: actor(names, answer.createdBy) })) }));
+      createdAt: answer.createdAt.toISOString(),
+      // ADR-0214: kartritaren svarade med länken (utan konto), med namnet hen skrev och eventuellt ett besked.
+      ...(answer.mapLinkId !== null ? { createdBy: null, mapMaker: { name: answer.authorName }, ...(answer.verdict ? { verdict: answer.verdict } : {}) }
+        : { createdBy: actor(names, answer.createdBy!) }),
+      ...(answer.editedAt ? { editedAt: answer.editedAt.toISOString() } : {}) })),
+    ...(row.editedAt ? { editedAt: row.editedAt.toISOString() } : {}) }));
 }
 
 const columns = {
   id: notes.id, raceId: notes.raceId, target: notes.target, atX: notes.atX, atY: notes.atY, controlId: notes.controlId,
   fromControlId: notes.fromControlId, toControlId: notes.toControlId, courseId: notes.courseId, text: notes.text, status: notes.status,
   createdAt: notes.createdAt, createdBy: notes.createdBy, resolvedAt: notes.resolvedAt, resolvedBy: notes.resolvedBy,
-  photoMediaType: notes.photoMediaType, requestId: notes.requestId, kind: notes.kind, sketch: notes.sketch
+  photoMediaType: notes.photoMediaType, requestId: notes.requestId, kind: notes.kind, sketch: notes.sketch, editedAt: notes.editedAt
 };
 
 const isMapError = (row: Pick<NoteListRow, "kind" | "target">) => row.kind === "MAP_ERROR" && (row.target === "POINT" || row.target === "SKETCH");
@@ -191,6 +200,7 @@ export async function deleteCourseSettingNoteAsAdmin(db: Database, input: RaceSe
       .where(and(eq(notes.id, input.noteId), eq(notes.raceId, raceId)));
     if (!row) return { status: "not-found" as const };
     if (row.createdBy !== actorId && !courseSettingAllows(principal, "EDIT")) return { status: "forbidden" as const };
+    await tx.delete(edits).where(and(eq(edits.noteId, row.id), eq(edits.raceId, raceId)));
     await tx.delete(replies).where(and(eq(replies.noteId, row.id), eq(replies.raceId, raceId)));
     await tx.delete(notes).where(eq(notes.id, row.id));
     return { status: "ok" as const, id: row.id };
@@ -208,7 +218,45 @@ export async function deleteCourseSettingNoteReplyAsAdmin(db: Database, input: R
       .where(and(eq(replies.id, input.replyId), eq(replies.noteId, input.noteId), eq(replies.raceId, raceId)));
     if (!row) return { status: "not-found" as const };
     if (row.createdBy !== actorId && !courseSettingAllows(principal, "EDIT")) return { status: "forbidden" as const };
+    await tx.delete(edits).where(eq(edits.replyId, row.id));
     await tx.delete(replies).where(eq(replies.id, row.id));
+    const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, input.noteId));
+    return dto ? { status: "ok" as const, note: mapMaker(principal) ? forMapMaker(dto) : dto } : { status: "not-found" as const };
+  });
+}
+
+/**
+ * ADR-0214 beslut 9: redigera en egen notis eller ett eget svar (bara den som skrev det, inte ens den med EDIT, och aldrig
+ * kartritarens svar med länken). Den tidigare texten sparas i `course_setting_note_edit` och notisen eller svaret får
+ * `edited_at`. Bygger redigeringen på en text som någon annan har ändrat sedan dess blir det 409 och inget skrivs.
+ */
+export async function editCourseSettingNoteAsAdmin(db: Database, input: RaceSessionProof & { noteId: string; replyId?: string; request: unknown },
+  now = new Date()): Promise<Failure | { status: "conflict" } | { status: "ok"; note: CourseSettingNote }> {
+  const parsed = courseSettingNoteEditSchema.safeParse(input.request);
+  if (!parsed.success || !idPattern.test(input.noteId) || (input.replyId !== undefined && !idPattern.test(input.replyId))) {
+    return { status: "invalid-request" };
+  }
+  return courseSettingWrite(db, input, now, input.replyId ? "MAP" : "COMMENT", async (tx, raceId, actorId, principal) => {
+    const access = await reachable(tx, raceId, input.noteId, principal);
+    if (access.status !== "ok") return access;
+    const table = input.replyId ? replies : notes;
+    const id = input.replyId ?? input.noteId;
+    const [row] = input.replyId
+      ? await tx.select({ text: replies.text, createdBy: replies.createdBy }).from(replies)
+        .where(and(eq(replies.id, input.replyId), eq(replies.noteId, input.noteId), eq(replies.raceId, raceId))).for("update")
+      : await tx.select({ text: notes.text, createdBy: notes.createdBy }).from(notes)
+        .where(and(eq(notes.id, input.noteId), eq(notes.raceId, raceId))).for("update");
+    if (!row) return { status: "not-found" as const };
+    if (row.createdBy !== actorId) return { status: "forbidden" as const };
+    if (row.text !== parsed.data.text) {
+      if (row.text !== parsed.data.expectedText) return { status: "conflict" as const };
+      await tx.insert(edits).values({ id: randomUUID(), raceId, noteId: input.noteId, replyId: input.replyId ?? null, previousText: row.text,
+        editedAt: now, editedBy: actorId });
+      await tx.update(table).set({ text: parsed.data.text, editedAt: now }).where(eq(table.id, id));
+      await tx.insert(schema.auditEvents).values({ raceId, entityType: "course_setting_note", entityId: input.noteId,
+        action: input.replyId ? "COURSE_SETTING_NOTE_REPLY_EDITED" : "COURSE_SETTING_NOTE_EDITED", actorKind: "USER_ACCOUNT", actorId,
+        after: input.replyId ? { replyId: input.replyId } : {}, createdAt: now });
+    }
     const [dto] = await noteDtos(tx, await selectNotes(tx, raceId, input.noteId));
     return dto ? { status: "ok" as const, note: mapMaker(principal) ? forMapMaker(dto) : dto } : { status: "not-found" as const };
   });

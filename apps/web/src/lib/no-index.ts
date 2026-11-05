@@ -6,11 +6,15 @@
  * Startsidan, Om och Integritet indexeras som förut: de har inga löpare.
  */
 
-/** Sökvägar som robots.txt stänger (prefix). Fest (steg 40) och träningsgrupper (steg 68) fanns före beslutet. Hela API:t. */
-export const NO_INDEX_PATH_PREFIXES = ["/results/", "/starts/", "/t/", "/fest/", "/g/", "/api/"] as const;
+/**
+ * Sökvägar som robots.txt stänger (prefix). Fest (steg 40) och träningsgrupper (steg 68) fanns före beslutet. Hela API:t.
+ * ADR-0214: kartritarens länk (/kartfel/<nyckel>).
+ */
+export const NO_INDEX_PATH_PREFIXES = ["/results/", "/starts/", "/t/", "/fest/", "/g/", "/kartfel/", "/api/"] as const;
 
 /** next.config `headers()`-källor som får X-Robots-Tag. */
-export const NO_INDEX_HEADER_SOURCES = ["/results/:path*", "/starts/:path*", "/t/:path*", "/fest/:path*", "/g/:path*", "/api/:path*"] as const;
+export const NO_INDEX_HEADER_SOURCES = ["/results/:path*", "/starts/:path*", "/t/:path*", "/fest/:path*", "/g/:path*", "/kartfel/:path*",
+  "/api/:path*"] as const;
 
 export const NO_INDEX_HEADER = { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet, noai, noimageai" } as const;
 

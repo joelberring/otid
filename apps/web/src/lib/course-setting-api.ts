@@ -135,6 +135,16 @@ export async function setCourseSettingNoteStatus(raceId: string, noteId: string,
     courseSettingNoteSchema);
 }
 
+/**
+ * ADR-0214 beslut 9: redigera en egen notis (utan `replyId`) eller ett eget svar. `expectedText` är texten som redigeringen
+ * bygger på; 409 betyder att någon annan ändrat den (läs om).
+ */
+export async function editCourseSettingNote(raceId: string, input: { noteId: string; replyId?: string | undefined; text: string;
+  expectedText: string }): Promise<CourseSettingNote> {
+  const path = `/course-setting/notes/${encodeURIComponent(input.noteId)}${input.replyId ? `/replies/${encodeURIComponent(input.replyId)}` : ""}`;
+  return parsed(await write(raceId, path, "PATCH", { formatVersion: 1, text: input.text, expectedText: input.expectedText }), courseSettingNoteSchema);
+}
+
 /** ADR-0181 beslut 8: ta bort notisen (svar och foto med); 404 om den redan är borta. */
 export async function deleteCourseSettingNote(raceId: string, noteId: string): Promise<void> {
   const response = await write(raceId, `/course-setting/notes/${encodeURIComponent(noteId)}`, "DELETE", {});

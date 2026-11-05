@@ -33,6 +33,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   readRouteChoiceAsAdmin, saveRouteChoiceSettingsAsAdmin, publishRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
   readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
   requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
+  createMapLinkAsAdmin, readMapLinkAsAdmin, revokeMapLinkAsAdmin, editCourseSettingNoteAsAdmin,
   createCourseSettingNoteAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin, readCourseSettingNotePhotoAsAdmin,
   deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin,
   listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin,
@@ -133,6 +134,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingNotePhoto: readCourseSettingNotePhotoAsAdmin, courseSettingSuggestions: listCourseSettingSuggestionsAsAdmin,
   // ADR-0181 beslut 8: ta bort notiser och svar.
   courseSettingNoteDelete: deleteCourseSettingNoteAsAdmin, courseSettingNoteReplyDelete: deleteCourseSettingNoteReplyAsAdmin,
+  // ADR-0214: länken till kartritaren (läget, ny länk och avstängning).
+  courseSettingNoteEdit: editCourseSettingNoteAsAdmin, mapLink: readMapLinkAsAdmin, mapLinkCreate: createMapLinkAsAdmin, mapLinkRevoke: revokeMapLinkAsAdmin,
   courseSettingSuggestion: createCourseSettingSuggestionAsAdmin, courseSettingSuggestionDecision: decideCourseSettingSuggestionAsAdmin,
   // Steg 67: "kollad" per kontroll.
   courseSettingInspections: listCourseSettingInspectionsAsAdmin, courseSettingInspection: setCourseSettingInspectionAsAdmin,
@@ -207,6 +210,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-note-reply"; noteId: string } | { kind: "course-setting-note-status"; noteId: string } |
   { kind: "course-setting-note-photo"; noteId: string } | { kind: "course-setting-suggestions" } |
   { kind: "course-setting-note"; noteId: string } | { kind: "course-setting-note-reply-item"; noteId: string; replyId: string } |
+  { kind: "course-setting-map-link" } |
   { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } |
   { kind: "course-setting-print-jobs" } | { kind: "course-setting-print-job"; jobId: string } | { kind: "course-setting-print-job-pdf"; jobId: string } |
   { kind: "course-setting-paper-images" } | { kind: "course-setting-paper-image"; sha256: string } | { kind: "course-setting-paper-library" } |

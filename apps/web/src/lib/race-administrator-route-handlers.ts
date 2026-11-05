@@ -160,12 +160,12 @@ function allowedMethods(action: Action): string[] {
     action.kind === "course-setting-notes" || action.kind === "course-setting-suggestions" ? ["GET", "POST"] :
     action.kind === "course-setting-edits" || action.kind === "course-setting-note-reply" || action.kind === "course-setting-suggestion-decision" ? ["POST"] :
     action.kind === "course-setting-mode" || action.kind === "course-setting-note-status" ? ["PUT"] :
-    action.kind === "course-setting-inspections" ? ["GET", "PUT"] :
+    action.kind === "course-setting-inspections" ? ["GET", "PUT"] : action.kind === "course-setting-map-link" ? ["GET", "POST", "DELETE"] :
     action.kind === "course-setting-print-jobs" ? ["GET", "POST"] : action.kind === "course-setting-print-job" ? ["DELETE"] :
     action.kind === "course-setting-print-job-pdf" ? ["GET"] :
     action.kind === "course-setting-paper-images" ? ["POST"] : action.kind === "course-setting-paper-image" ? ["GET"] :
     action.kind === "course-setting-paper-library" ? ["GET", "POST"] : action.kind === "course-setting-paper-library-item" ? ["DELETE"] :
-    action.kind === "course-setting-note" || action.kind === "course-setting-note-reply-item" ? ["DELETE"] :
+    action.kind === "course-setting-note" || action.kind === "course-setting-note-reply-item" ? ["DELETE", "PATCH"] :
     action.kind === "course-setting-note-photo" || action.kind === "course-setting-events" ? ["GET"] :
     action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
     action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :

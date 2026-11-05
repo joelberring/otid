@@ -54,8 +54,10 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies": { POST: "MAP" },
   "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/status": { PUT: "MAP" },
   "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/photo": { GET: "COMMENT" },
-  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]": { DELETE: "COMMENT" },
-  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]": { DELETE: "MAP" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]": { DELETE: "COMMENT", PATCH: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]": { DELETE: "MAP", PATCH: "MAP" },
+  // ADR-0214: länken till kartritaren, bara den som får ändra.
+  "admin/races/[raceId]/administrator/course-setting/map-link": { GET: "EDIT", POST: "EDIT", DELETE: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "admin/races/[raceId]/administrator/course-setting/suggestions/[suggestionId]/decision": { POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/events": { GET: "COMMENT" },
@@ -103,9 +105,16 @@ const authenticateCourseSetting = vi.hoisted(() => async (_db: unknown, input: {
     level: state.role === "ADMIN" ? "EDIT" as const : state.role === "COURSE_MAP" ? "MAP" as const : "COMMENT" as const, admin: state.role === "ADMIN" } };
 });
 
+/** ADR-0214: med kartritarens länk prövas nyckeln i tjänsten; här finns ingen giltig nyckel. */
+const linkCalls = vi.hoisted(() => [] as string[]);
+const invalidLink = vi.hoisted(() => (name: string) => async (_db: unknown, input: { token: string }) => {
+  linkCalls.push(`${name}:${input.token}`);
+  return { status: "invalid" as const };
+});
 vi.mock("@o-tid/application", async (importOriginal) => ({
   ...await importOriginal<typeof import("@o-tid/application")>(), requireRaceRole: authenticate,
-  requireCourseSettingAccess: authenticateCourseSetting
+  requireCourseSettingAccess: authenticateCourseSetting, readMapLinkView: invalidLink("view"), readMapLinkMapFile: invalidLink("map"),
+  replyViaMapLink: invalidLink("reply"), setVerdictViaMapLink: invalidLink("verdict")
 }));
 
 const api = fileURLToPath(new URL("../app/api/", import.meta.url));
@@ -199,6 +208,7 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
     }
     expect(reached.sort()).toEqual(["DELETE admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]",
       "GET admin/races/[raceId]/administrator/course-setting/notes", "GET admin/races/[raceId]/administrator/map/source",
+      "PATCH admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]",
       "POST admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies",
       "PUT admin/races/[raceId]/administrator/course-setting/notes/[noteId]/status"]);
   });
@@ -213,5 +223,60 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
       }
     }
     expect(state.calls).toBeGreaterThan(85);
+  });
+});
+
+/**
+ * ADR-0214: routes som nyckeln i adressen ger behörighet till (kartritarens länk), utan konto och utan rollkontroll. De är
+ * dokumenterade här i stället för i rolltabellerna: varje sådan route står i listan, en okänd nyckel ger samma 404
+ * (LINK_INVALID) och skrivningarna avvisas (403) utan samma ursprung och kartritarens huvud innan tjänsten nås.
+ */
+const TOKEN_ROUTES: Record<string, readonly string[]> = {
+  "public/map-link/[token]": ["GET"],
+  "public/map-link/[token]/map": ["GET"],
+  "map-link/[token]/notes/[noteId]/replies": ["POST"],
+  "map-link/[token]/notes/[noteId]/verdict": ["POST"]
+};
+
+describe("routes med kartritarens länk (ADR-0214)", () => {
+  const token = "B".repeat(43);
+  const all = routeFiles(api).map(file => ({ file, path: relative(api, file).split(sep).slice(0, -1).join("/") }));
+  const tokenRoutes = all.filter(route => route.path.includes("[token]"));
+  beforeAll(() => { vi.stubEnv("O_TID_PUBLIC_ORIGIN", origin); vi.spyOn(console, "error").mockImplementation(() => undefined); });
+  afterAll(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+  it("har bara de dokumenterade routes med nyckel, och ingen av dem under admin", () => {
+    expect(tokenRoutes.map(route => route.path).sort()).toEqual(Object.keys(TOKEN_ROUTES).sort());
+    expect(tokenRoutes.some(route => route.path.startsWith("admin/"))).toBe(false);
+  });
+
+  it("svarar likadant (404) på en okänd nyckel och kräver samma ursprung för att skriva", async () => {
+    for (const route of tokenRoutes) {
+      const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
+      expect(METHODS.filter(name => typeof handlers[name] === "function"), route.path).toEqual(TOKEN_ROUTES[route.path]);
+      const url = `${origin}/api/${route.path.replace("[token]", token).replace("[noteId]", uuid)}`;
+      const params = Promise.resolve({ token, noteId: uuid });
+      for (const method of TOKEN_ROUTES[route.path]!) {
+        linkCalls.length = 0;
+        if (method === "GET") {
+          const response = await handlers[method]!(new Request(url), { params });
+          expect(response.status, route.path).toBe(404);
+          expect(await response.json(), route.path).toEqual({ formatVersion: 1, error: "LINK_INVALID" });
+          expect(response.headers.get("cache-control"), route.path).toBe("private, no-store");
+          continue;
+        }
+        const body = JSON.stringify({ formatVersion: 1 });
+        const json = { "content-type": "application/json" };
+        for (const headers of [json, { ...json, origin: "https://annan.example" }, { ...json, origin }, { ...json, "x-otid-map-link": "1" },
+          { ...json, origin: "https://annan.example", "x-otid-map-link": "1" }]) {
+          const response = await handlers[method]!(new Request(url, { method, body, headers }), { params });
+          expect(response.status, `${route.path} ${JSON.stringify(headers)}`).toBe(403);
+        }
+        expect(linkCalls, route.path).toEqual([]);
+        const response = await handlers[method]!(new Request(url, { method, body, headers: { ...json, origin, "x-otid-map-link": "1" } }), { params });
+        expect(response.status, route.path).toBe(404);
+        expect(linkCalls.length, route.path).toBe(1);
+      }
+    }
   });
 });

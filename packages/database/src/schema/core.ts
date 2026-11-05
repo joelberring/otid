@@ -82,6 +82,8 @@ export const auditActorKindEnum = pgEnum("audit_actor_kind", [
   "WITHOUT_TIMING_ACCESS_CREDENTIAL",
   "WITHOUT_TIMING_WITHDRAWAL_ACCESS_CREDENTIAL"
   ,"START_LIST_PUBLICATION_ACCESS_CREDENTIAL"
+  // ADR-0214: kartritarens länk (svar och besked utan konto; aktörens id är länkens id).
+  ,"COURSE_SETTING_MAP_LINK"
 ]);
 export const resultFinalizationScopeEnum = pgEnum("result_finalization_scope", ["CLASS", "RACE"]);
 

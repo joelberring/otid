@@ -454,7 +454,9 @@ export const courseSettingNotes = pgTable("course_setting_note", {
   resolvedBy: uuid("resolved_by"),
   photo: bytea("photo"),
   photoMediaType: text("photo_media_type"),
-  requestId: uuid("request_id").notNull()
+  requestId: uuid("request_id").notNull(),
+  /** ADR-0214 beslut 9: när texten senast redigerades (den tidigare texten i `course_setting_note_edit`). */
+  editedAt: timestamp("edited_at", { withTimezone: true })
 });
 
 export const courseSettingNoteReplies = pgTable("course_setting_note_reply", {
@@ -463,8 +465,44 @@ export const courseSettingNoteReplies = pgTable("course_setting_note_reply", {
   raceId: uuid("race_id").notNull().references(() => races.id),
   text: text("text").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  /** Kontot som skrev svaret; tomt när kartritaren svarade med länken (ADR-0214, då finns `mapLinkId`). */
+  createdBy: uuid("created_by"),
+  requestId: uuid("request_id").notNull(),
+  /** ADR-0214: länken som svaret skrevs med (ingen främmande nyckel: svaret följer med kopia och säkerhetskopia). */
+  mapLinkId: uuid("map_link_id"),
+  /** Namnet kartritaren skrev (valfritt; annars visas "Kartritaren"). */
+  authorName: text("author_name"),
+  /** Kartritarens besked: åtgärdat i kartan eller inte åtgärdat. */
+  verdict: text("verdict").$type<"FIXED" | "NOT_FIXED">(),
+  editedAt: timestamp("edited_at", { withTimezone: true })
+});
+
+/** ADR-0214 beslut 9: tidigare texter för en notis eller ett svar som redigerats (bara för historiken, inte publikt). */
+export const courseSettingNoteEdits = pgTable("course_setting_note_edit", {
+  id: uuid("id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  noteId: uuid("note_id").notNull().references(() => courseSettingNotes.id),
+  replyId: uuid("reply_id").references(() => courseSettingNoteReplies.id),
+  previousText: text("previous_text").notNull(),
+  editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
+  editedBy: uuid("edited_by").notNull()
+});
+
+/**
+ * ADR-0214: länken till kartritaren (kartfelen utan konto). Bara nyckelns sha256 sparas; högst en länk som inte är
+ * avstängd per tävling. Ingen IP-adress eller webbläsare, bara när länken senast öppnades.
+ */
+export const courseSettingMapLinks = pgTable("course_setting_map_link", {
+  id: uuid("id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  tokenHash: text("token_hash").notNull(),
   createdBy: uuid("created_by").notNull(),
-  requestId: uuid("request_id").notNull()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  showRaceName: boolean("show_race_name").notNull().default(false),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedBy: uuid("revoked_by"),
+  lastOpenedAt: timestamp("last_opened_at", { withTimezone: true })
 });
 
 /** Steg 66: förslag (åtgärder mot en version) som den med EDIT godkänner helt, delvis eller avböjer. */

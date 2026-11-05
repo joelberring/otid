@@ -220,6 +220,24 @@ export function sketchCenter(shapes: readonly { readonly points: readonly { x: n
 export const mapErrorTargetAllowed = (target: CourseSettingNoteTarget) => target.kind === "POINT" || target.kind === "SKETCH";
 
 const photoTypeSchema = z.enum(COURSE_SETTING_NOTE_PHOTO_TYPES);
+
+/** ADR-0214: kartritarens besked om ett kartfel (med länken). */
+export const mapMakerVerdictSchema = z.enum(["FIXED", "NOT_FIXED"]);
+export type MapMakerVerdict = z.infer<typeof mapMakerVerdictSchema>;
+
+/**
+ * Ett svar i notisens tråd. ADR-0214: kartritaren svarar med länken utan konto; då saknas `createdBy` och `mapMaker` har
+ * namnet hen skrev (null = "Kartritaren"). Ett besked (`verdict`) kan ha tom text.
+ */
+function courseSettingNoteReplyItemSchema() {
+  return z.object({ id: uuid, text: z.string().max(2000), createdAt: instant, createdBy: actor.nullable(),
+    mapMaker: z.object({ name: z.string().min(1).max(80).nullable() }).strict().optional(),
+    verdict: mapMakerVerdictSchema.optional(),
+    /** ADR-0214 beslut 9: när svaret senast redigerades av den som skrev det ("(ändrad)"). */
+    editedAt: instant.optional() }).strict()
+    .refine(reply => (reply.createdBy === null) === (reply.mapMaker !== undefined), { message: "Ett svar har ett konto eller kartritarens länk" })
+    .refine(reply => reply.text.trim().length > 0 || reply.verdict !== undefined, { message: "Ett svar har text" });
+}
 export const courseSettingNoteSchema = z.object({
   id: uuid, target: courseSettingNoteTargetSchema, kind: courseSettingNoteKindSchema,
   /** Läget när notisen skrevs (null för en bana). */
@@ -228,9 +246,12 @@ export const courseSettingNoteSchema = z.object({
   course: id.nullable(),
   text, status: z.enum(["OPEN", "DONE"]), createdAt: instant, createdBy: actor, resolvedAt: instant.nullable(), resolvedBy: actor.nullable(),
   photo: z.object({ mediaType: photoTypeSchema, bytes: z.number().int().positive().max(COURSE_SETTING_NOTE_PHOTO_MAX_BYTES) }).strict().nullable(),
-  replies: z.array(z.object({ id: uuid, text, createdAt: instant, createdBy: actor }).strict()).max(1000)
+  replies: z.array(courseSettingNoteReplyItemSchema()).max(1000),
+  /** ADR-0214 beslut 9: när texten senast redigerades (saknas = aldrig). */
+  editedAt: instant.optional()
 }).strict();
 export type CourseSettingNote = z.infer<typeof courseSettingNoteSchema>;
+export type CourseSettingNoteReplyItem = CourseSettingNote["replies"][number];
 
 export const courseSettingNotesSchema = z.object({ formatVersion: z.literal(1), raceId: uuid, notes: z.array(courseSettingNoteSchema).max(5000) }).strict();
 export type CourseSettingNotes = z.infer<typeof courseSettingNotesSchema>;
@@ -247,6 +268,12 @@ export const courseSettingNoteCreateSchema = z.object({
 export type CourseSettingNoteCreate = z.infer<typeof courseSettingNoteCreateSchema>;
 
 export const courseSettingNoteReplySchema = z.object({ formatVersion: z.literal(1), requestId: uuid, text }).strict();
+/**
+ * ADR-0214 beslut 9: redigera en egen notis eller ett eget svar. `expectedText` är texten som redigeringen bygger på; har
+ * någon annan ändrat den sedan dess svarar servern 409 (som en versionskonflikt) och inget skrivs.
+ */
+export const courseSettingNoteEditSchema = z.object({ formatVersion: z.literal(1), text, expectedText: z.string().max(2000) }).strict();
+export type CourseSettingNoteEdit = z.infer<typeof courseSettingNoteEditSchema>;
 export const courseSettingNoteStatusSchema = z.object({ formatVersion: z.literal(1), status: z.enum(["OPEN", "DONE"]) }).strict();
 
 // Kollad (steg 67, ADR-0181 beslut 6): per kontroll, utanför dokumentet.

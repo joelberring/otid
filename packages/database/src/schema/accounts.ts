@@ -75,7 +75,7 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
 /** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */
 export const accountRequestThrottles = pgTable("account_request_throttle", {
   scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL"
-    | "GROUP_CODE_IP">().notNull(),
+    | "GROUP_CODE_IP" | "MAP_LINK_IP" | "MAP_LINK_TOKEN">().notNull(),
   keyHash: text("key_hash").notNull(),
   windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
   attempts: integer("attempts").notNull()

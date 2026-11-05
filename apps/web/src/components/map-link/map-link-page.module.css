@@ -1,0 +1,42 @@
+/* ADR-0214: kartritarens sida med länken. Telefonen: kartan överst och listan under; bred skärm: listan bredvid kartan. */
+.page { display: grid; gap: 12px; max-width: 1280px; margin: 0 auto; padding: 12px 16px 24px; }
+.head h1, .head p { margin: 0; }
+.head { display: grid; gap: 4px; }
+.kicker { color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.layout { display: grid; gap: 12px; }
+.mapArea { display: grid; gap: 8px; align-content: start; }
+.mapBox { position: relative; height: 58vh; min-height: 300px; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+.mapNote { margin: 0; padding: 24px 12px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); text-align: center; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row button { min-height: 44px; }
+.muted { color: var(--muted); font-size: var(--text-sm); }
+.listArea { display: grid; gap: 8px; align-content: start; }
+.listArea h2 { margin: 0; }
+.name { display: grid; gap: 2px; font-size: var(--text-sm); }
+.name input, .form input, .form textarea { width: 100%; min-height: 44px; font: inherit; box-sizing: border-box; }
+.list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.list > li { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.list > li[data-selected] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.itemHead { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; min-height: 56px; padding: 8px 10px; border: 0;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.itemHead:hover, .itemHead:focus-visible { background: var(--subtle); }
+.itemHead .text, .itemHead .muted { grid-column: 1 / -1; }
+.number { font-weight: 700; }
+.status { justify-self: end; padding: 0 6px; border: 1px solid currentColor; border-radius: var(--radius); font-size: var(--text-sm); }
+.status[data-status="OPEN"] { color: var(--mp); }
+.status[data-status="DONE"] { color: var(--ok); }
+.text { overflow-wrap: anywhere; white-space: pre-wrap; }
+.thread { display: grid; gap: 10px; padding: 0 10px 10px; }
+.replies { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.replies li { padding: 6px 8px; border-left: 3px solid var(--line-strong); background: var(--subtle); }
+.form { display: grid; gap: 6px; }
+.form label { display: grid; gap: 2px; font-size: var(--text-sm); }
+.form button { min-height: 44px; }
+.invalid { max-width: 34em; margin: 40px auto; display: grid; gap: 8px; }
+.invalid h1, .invalid p { margin: 0; }
+
+@media (min-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); align-items: start; }
+  .mapBox { height: 72vh; }
+  .listArea { max-height: calc(72vh + 60px); overflow-y: auto; padding-right: 4px; }
+}

@@ -304,9 +304,32 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "”Rita i en notis”: rita linjer eller ytor på kartan, t.ex. var snitseln ska gå.",
         "”Rita kartfel”: ett kartfel sitter på en punkt eller ritning, aldrig på en kontroll, så att det kan ges till kartritaren.",
         "”Kartfel till kartritaren …”: kartfelen utan banor och kontroller, att skriva ut eller ladda ned som GeoJSON.",
+        "Där finns också ”Dela med kartritaren”: en länk som öppnas utan konto. Se [Dela kartfelen med kartritaren](#kartritarens-lank).",
+        "”Redigera” på din egen notis eller ditt eget svar ändrar texten. Den visas sedan som ändrad, med tiden.",
         "”Ta bort” tar bort notisen med svar och foto. Det går inte att ångra."
       ],
       "I telefonen sätter ”Notis här” notisen på vald kontroll eller där du står. Se [Fältläget i telefonen](#faltlaget)."
+    ]
+  },
+  {
+    id: "kartritarens-lank",
+    title: "Dela kartfelen med kartritaren",
+    views: ["CS_NOTES", "CS_FIELD"],
+    body: [
+      "Kartritaren kan se kartfelen med en länk, utan konto och utan tillgång till tävlingen. Den som får ändra banläggningen skapar länken.",
+      { steps: [
+        "Öppna ”Kartfel till kartritaren …” i fliken ”Notiser”.",
+        "Tryck på ”Dela med kartritaren”. Välj ”Begränsa tiden” om länken ska sluta gälla ett visst datum.",
+        "Välj ”Visa tävlingens namn” om kartritaren ska se det. Annars står bara ”Kartfel” på sidan.",
+        "Tryck på ”Skapa länken” och sedan ”Kopiera länken”. Länken visas bara den gången."
+      ] },
+      "Kartritaren ser kartan, kartfelen och trådarna, men inga banor, kontroller, foton eller deltagare.",
+      "Kartritaren kan svara och trycka på ”Åtgärdat i kartan” eller ”Inte åtgärdat”. Svaren syns direkt i Kartfel och i banläggningen.",
+      [
+        "”Senast öppnad” visar när länken användes senast.",
+        "”Stäng av länken” gäller direkt. ”Skapa ny länk” ger en ny länk och stänger den gamla.",
+        "Ett kartfel nära en kontroll kan avslöja kontrollen. Skriv texten så att den inte gör det."
+      ]
     ]
   },
   {

@@ -192,7 +192,7 @@ export async function applyLibraryMapToRace(tx: DbExecutor, input: { mapId: stri
     const [setting] = await tx.select({ mapId: schema.trainingGroupMapCourseSettings.mapId }).from(schema.trainingGroupMapCourseSettings)
       .where(eq(schema.trainingGroupMapCourseSettings.mapId, input.mapId));
     if (setting) {
-      for (const table of ["course_setting_note_reply", "course_setting_note", "course_setting_suggestion", "course_setting_change",
+      for (const table of ["course_setting_note_edit", "course_setting_note_reply", "course_setting_note", "course_setting_suggestion", "course_setting_change",
         "course_setting_revision", "course_setting_inspection", "course_setting"]) {
         await tx.execute(sql`delete from ${sql.identifier(table)} where race_id = ${raceId}`);
       }

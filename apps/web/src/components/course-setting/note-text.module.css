@@ -1,0 +1,13 @@
+/* ADR-0214: texten i en notis eller ett svar med "Redigera", "(ändrad …)" och kartritarens besked. */
+.text { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.edited { color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+.small { min-height: 32px; padding: 0 6px; font-size: var(--text-sm); }
+.message { display: block; color: var(--mp); font-size: var(--text-sm); }
+.form { display: grid; gap: 6px; }
+.form label { display: grid; gap: 2px; font-size: var(--text-sm); }
+.form textarea { width: 100%; min-height: 72px; font: inherit; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.verdict { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid currentColor; border-radius: var(--radius);
+  font-size: var(--text-sm); }
+.verdict[data-verdict="FIXED"] { color: var(--ok); }
+.verdict[data-verdict="NOT_FIXED"] { color: var(--attention); }

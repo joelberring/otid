@@ -6,3 +6,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ race
   const { raceId, noteId } = await context.params;
   return raceAdministratorRoute(db, request, raceId, { kind: "course-setting-note", noteId });
 }
+
+/** ADR-0214 beslut 9: redigera notisens text (bara den som skrev den). */
+export async function PATCH(request: Request, context: { params: Promise<{ raceId: string; noteId: string }> }) {
+  const { raceId, noteId } = await context.params;
+  return raceAdministratorRoute(db, request, raceId, { kind: "course-setting-note", noteId });
+}

@@ -13,6 +13,7 @@ import { courseSettingNotePhotoUrl } from "../../lib/course-setting-api";
 import { filterNotes, PHOTO_QUALITIES, PHOTO_SIDES, scaledSize, type NoteFilter, type NoteKindFilter } from "../../lib/course-setting-note-marks";
 import { controlLabel } from "../../lib/course-setting-text";
 import { Button } from "../ui";
+import { EditableText, EditedMark, replyAuthor, VerdictBadge, type EditOutcome } from "./note-text";
 import styles from "./course-setting.module.css";
 import own from "./course-setting-notes.module.css";
 
@@ -103,11 +104,14 @@ export interface NotesPanelProps {
   canDelete: (createdBy: string) => boolean;
   onDelete: (note: CourseSettingNote) => void; onDeleteReply: (note: CourseSettingNote, replyId: string) => void;
   onSketch: (kind: CourseSettingNoteKind) => void;
+  /** ADR-0214 beslut 9: bara den som skrev notisen eller svaret redigerar (kontots id). */
+  canEdit: (createdBy: string | null) => boolean;
+  onEdit: (note: CourseSettingNote, replyId: string | undefined, text: string, expectedText: string) => Promise<EditOutcome>;
 }
 
 /** Notiserna: filter, lista (klick visar på kartan), tråden med svar, klar/öppen, foto och borttagning. */
 export function NotesPanel({ raceId, notes, document, show, onShow, selected, onSelect, onReveal, onReply, onStatus, onCourseNote, view, draft,
-  readOnlyCourse, pending, filter, onFilter, kind, onKind, canDelete, onDelete, onDeleteReply, onSketch }: NotesPanelProps) {
+  readOnlyCourse, pending, filter, onFilter, kind, onKind, canDelete, onDelete, onDeleteReply, onSketch, canEdit, onEdit }: NotesPanelProps) {
   const [reply, setReply] = useState("");
   const visible = filterNotes(notes, filter, kind);
   const course = document.courses.find(row => row.id === view);
@@ -138,17 +142,22 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
           <span className={styles.noteStatus}>{pending?.has(note.id) ? offlineSv.inspection.pending : text.notes.status[note.status]}
             {note.kind === "MAP_ERROR" && <span className={own.kind}>{notesSv.kind.MAP_ERROR}</span>}</span>
           <strong>{targetText(note.target, document)}</strong>
-          <span className={styles.noteText}>{note.text}</span>
+          <span className={styles.noteText}>{note.text} <EditedMark editedAt={note.editedAt} /></span>
           <span className={styles.muted}>{text.notes.by(note.createdBy.displayName, note.createdAt)}
             {note.replies.length > 0 ? ` · ${text.notes.replies(note.replies.length)}` : ""}</span>
         </button>
         {note.id === selected && <div className={styles.thread}>
           {!pending?.has(note.id) && <>
+            {canEdit(note.createdBy.accountId) && <EditableText value={note.text} editedAt={note.editedAt} canEdit
+              onSave={(value, expected) => onEdit(note, undefined, value, expected)} />}
             {note.photo && <a href={courseSettingNotePhotoUrl(raceId, note.id)} target="_blank" rel="noreferrer">
               <img src={courseSettingNotePhotoUrl(raceId, note.id)} alt={text.notes.photoAlt} className={styles.notePhoto} loading="lazy" /></a>}
-            <ul className={styles.replies}>{note.replies.map(row => <li key={row.id}><p>{row.text}</p>
-              <span className={styles.muted}>{text.notes.by(row.createdBy.displayName, row.createdAt)}</span>
-              {canDelete(row.createdBy.accountId) && <Button variant="quiet" className={own.small} onClick={() => onDeleteReply(note, row.id)}>
+            <ul className={styles.replies}>{note.replies.map(row => <li key={row.id} data-testid="course-setting-note-reply">
+              <VerdictBadge verdict={row.verdict} />
+              {(row.text || !row.verdict) && <EditableText value={row.text} editedAt={row.editedAt} canEdit={canEdit(row.createdBy?.accountId ?? null)}
+                onSave={(value, expected) => onEdit(note, row.id, value, expected)} />}
+              <span className={styles.muted}>{text.notes.by(replyAuthor(row), row.createdAt)}</span>
+              {canDelete(row.createdBy?.accountId ?? "") && <Button variant="quiet" className={own.small} onClick={() => onDeleteReply(note, row.id)}>
                 {notesSv.deleteReply}</Button>}</li>)}</ul>
             <form className={styles.row} onSubmit={event => {
               event.preventDefault();

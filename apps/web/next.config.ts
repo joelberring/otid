@@ -53,6 +53,9 @@ const nextConfig: NextConfig = {
       { source: "/readout/:path*", headers: [{ key: "Cache-Control", value: "no-cache" },
         { key: "Content-Security-Policy", value: READOUT_SHELL_CSP }, { key: "Referrer-Policy", value: "no-referrer" }, readout] },
       { source: "/starts/:raceId", headers: [...privateAdminHeaders] },
+      // ADR-0214: kartritarens länk. Nyckeln står i adressen: ingen cache, ingen referer och telefonens position på kartan.
+      { source: "/kartfel/:token", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] },
       // Kontosidorna (ADR-0172): inte i cache, inte i ram och ingen referer (återställningslänken).
       ...["/superadmin", "/konto", "/recover", "/organizer/groups/:groupId"].map((source) => ({ source, headers: [...privateAdminHeaders] }))
     ];

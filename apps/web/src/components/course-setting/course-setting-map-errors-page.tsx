@@ -6,10 +6,13 @@ import { AccountMenu } from "../account-menu";
 import type { CourseSettingNote } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
+import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import {
-  courseSettingNotePhotoUrl, fetchCourseSetting, fetchCourseSettingNotes, HttpError, replyCourseSettingNote, setCourseSettingNoteStatus
+  courseSettingEventsUrl, courseSettingNotePhotoUrl, editCourseSettingNote, fetchCourseSetting, fetchCourseSettingNotes, HttpError,
+  replyCourseSettingNote, setCourseSettingNoteStatus
 } from "../../lib/course-setting-api";
+import { openCourseSettingStream } from "../../lib/course-setting-stream-client";
 import { drawPointMark, drawSketchShapes } from "../../lib/course-setting-draw-sketch";
 import { metersPerMm } from "../../lib/course-setting-geo";
 import { MAX_RENDER_SIDE, MapRenderSession } from "../../lib/course-setting-map-protocol";
@@ -20,6 +23,8 @@ import type { NoteFilter } from "../../lib/course-setting-note-marks";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapSource } from "../../lib/route-choice-api";
 import { Button, Notice } from "../ui";
+import { MapLinkPanel } from "./map-link-panel";
+import { EditableText, editOutcome, replyAuthor, VerdictBadge } from "./note-text";
 import styles from "./course-setting-map-errors-page.module.css";
 
 const text = notesSv.export;
@@ -71,6 +76,8 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
   const [failed, setFailed] = useState(false);
   const [hasMap, setHasMap] = useState(false);
   const [mapMaker, setMapMaker] = useState(false);
+  /** Den inloggade i banläggningen (null för kartritaren med behörigheten MAP, som inte får läget). */
+  const [access, setAccess] = useState<{ accountId: string; level: string } | null>(null);
   const reload = () => fetchCourseSettingNotes(raceId).then(list => setNotes(list.notes));
   useEffect(() => {
     void (async () => {
@@ -81,11 +88,24 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
         });
         // Kartritaren: ingen banläggning, kartfilen om den finns.
         if (!state) { setMapMaker(true); setDocument(null); setHasMap(true); }
-        else { setDocument((state.setting?.document ?? null) as unknown as CourseSettingDocument | null); setHasMap(state.mapFile !== null); }
+        else {
+          setDocument((state.setting?.document ?? null) as unknown as CourseSettingDocument | null); setHasMap(state.mapFile !== null);
+          setAccess({ accountId: state.access.accountId, level: state.access.level });
+        }
         await reload();
       } catch { setFailed(true); }
     })();
   }, [raceId]);
+
+  // ADR-0214: kartritarens svar och besked (också med länken) syns direkt: banläggningens ström säger till när notiserna ändrats.
+  const listening = access !== null;
+  useEffect(() => {
+    if (!listening) return;
+    const nothing = () => undefined;
+    const again = () => { void reload().catch(nothing); };
+    return openCourseSettingStream(courseSettingEventsUrl(raceId), { version: nothing, notes: again, suggestions: nothing, mode: nothing,
+      inspections: nothing, presence: nothing, reconnected: again });
+  }, [raceId, listening]);
 
   // Kartfilen i en Worker (som i förhandsvisningen av utskriften).
   const [session, setSession] = useState<MapRenderSession>();
@@ -160,12 +180,38 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
   if (failed) return <main className={styles.page}><Notice tone="error">{text.failed}</Notice></main>;
   if (!notes || document === undefined) return <main className={styles.page}><p role="status">{text.loading}</p></main>;
   const all = mapErrorNotes(notes);
+  const nearCount = document ? all.filter(note => nearControlMeters(mapErrorGeometry(note), document, perMm) !== undefined).length : 0;
+  /** Tråden: svar (med kartritarens besked och "(ändrad)"), egna svar går att redigera, svara och klar/öppna igen. */
+  const thread = (note: CourseSettingNote) => <div className={styles.thread} data-testid="map-errors-thread">
+    {note.replies.length > 0 && <ul>{note.replies.map(answer => <li key={answer.id} data-testid="map-errors-reply">
+      <VerdictBadge verdict={answer.verdict} />
+      {(answer.text || !answer.verdict) && <EditableText as="span" value={answer.text} editedAt={answer.editedAt}
+        canEdit={access !== null && answer.createdBy?.accountId === access.accountId}
+        onSave={async (value, expectedText) => {
+          const outcome = await editOutcome(() => editCourseSettingNote(raceId, { noteId: note.id, replyId: answer.id, text: value, expectedText }));
+          if (outcome !== "failed") await reload().catch(() => undefined);
+          return outcome;
+        }} />}
+      <span className={styles.muted}> – {replyAuthor(answer)}</span></li>)}</ul>}
+    <form className={styles.row} onSubmit={event => {
+      event.preventDefault();
+      const value = reply[note.id]?.trim();
+      if (value) void act(async () => { await replyCourseSettingNote(raceId, note.id, value); setReply(current => ({ ...current, [note.id]: "" })); });
+    }}>
+      <label>{text.reply}<input type="text" maxLength={2000} value={reply[note.id] ?? ""}
+        onChange={event => setReply(current => ({ ...current, [note.id]: event.target.value }))} /></label>
+      <Button type="submit" variant="secondary" disabled={!reply[note.id]?.trim()}>{text.sendReply}</Button>
+      <Button variant="secondary" onClick={() => void act(() => setCourseSettingNoteStatus(raceId, note.id, note.status === "OPEN" ? "DONE" : "OPEN"))}>
+        {note.status === "OPEN" ? text.markDone : text.reopen}</Button>
+    </form>
+  </div>;
   return <main className={styles.page}>
     <section className={styles.controls} aria-labelledby="map-errors-title">
       <p style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <Link href={`/admin/${raceId}/course-setting`}>← {text.back}</Link><AccountMenu /></p>
       <h1 id="map-errors-title">{text.title}</h1>
       <p>{mapMaker ? text.mapMakerIntro : text.intro}</p>
+      {access?.level === "EDIT" && <MapLinkPanel raceId={raceId} nearCount={nearCount} />}
       {all.length === 0 ? <p>{text.none}</p> : <>
         <div className={styles.row} role="group" aria-label={text.statusFilter}>
           {(["OPEN", "DONE", "ALL"] as const).map(value => <Button key={value} variant="secondary" aria-pressed={status === value}
@@ -180,6 +226,8 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
               {row.near !== undefined && <p className={styles.warning} role="alert">{text.near(row.near)}</p>}
               {row.note.photo && <label className={styles.check}><input type="checkbox" checked={withPhoto(row.note)}
                 onChange={event => set(row.note.id, { photo: event.target.checked })} />{text.includePhoto}</label>}
+              <p className={styles.muted} data-testid="map-errors-status">{collaborationSv.notes.status[row.note.status]}</p>
+              {thread(row.note)}
             </li>;
           })}
         </ol>}
@@ -206,20 +254,7 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
           style={{ width: `${Math.round((row.crop.maxX - row.crop.minX) * ENLARGE)}mm` }} />
           : hasMap && mapState !== "failed" ? <p className={styles.muted} role="status">{text.loading}</p> : null}
         <p className={styles.text}>{row.note.text}</p>
-        {mapMaker && <div className={styles.thread} data-testid="map-errors-thread">
-          {row.note.replies.length > 0 && <ul>{row.note.replies.map(answer => <li key={answer.id}>{answer.text}</li>)}</ul>}
-          <form className={styles.row} onSubmit={event => {
-            event.preventDefault();
-            const value = reply[row.note.id]?.trim();
-            if (value) void act(async () => { await replyCourseSettingNote(raceId, row.note.id, value); setReply(current => ({ ...current, [row.note.id]: "" })); });
-          }}>
-            <label>{text.reply}<input type="text" maxLength={2000} value={reply[row.note.id] ?? ""}
-              onChange={event => setReply(current => ({ ...current, [row.note.id]: event.target.value }))} /></label>
-            <Button type="submit" variant="secondary" disabled={!reply[row.note.id]?.trim()}>{text.sendReply}</Button>
-            <Button variant="secondary" onClick={() => void act(() => setCourseSettingNoteStatus(raceId, row.note.id, row.note.status === "OPEN" ? "DONE" : "OPEN"))}>
-              {row.note.status === "OPEN" ? text.markDone : text.reopen}</Button>
-          </form>
-        </div>}
+        {mapMaker && thread(row.note)}
         {withPhoto(row.note) && <img className={styles.photo} src={courseSettingNotePhotoUrl(raceId, row.note.id)} alt={text.photoAlt(index + 1)} />}
       </section>)}
     </article>}

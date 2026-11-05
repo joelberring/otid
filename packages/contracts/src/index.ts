@@ -302,6 +302,7 @@ export * from "./self-registration-cleanup";
 export * from "./route-choice";
 export * from "./course-setting";
 export * from "./course-setting-collaboration";
+export * from "./course-setting-map-link";
 export * from "./course-setting-print";
 export * from "./course-setting-paper";
 export * from "./training-group";

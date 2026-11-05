@@ -9,7 +9,7 @@ import type { DbExecutor } from "./snapshot";
  * så att en adress inte kan räknas fram ur databasen eller en backup. Rader äldre än två dygn tas bort vid nästa skrivning.
  */
 export type AccountThrottleScope = "REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL"
-  | "GROUP_CODE_IP";
+  | "GROUP_CODE_IP" | "MAP_LINK_IP" | "MAP_LINK_TOKEN";
 export const ACCOUNT_THROTTLE_WINDOW_MS = 60 * 60 * 1000;
 export const DEFAULT_REGISTRATIONS_PER_HOUR = 10;
 export const RESET_REQUESTS_PER_IP_AND_HOUR = 10;

@@ -21,7 +21,7 @@ export default function PrivacyPage() {
       <p>{text.intro}</p>
       <h2>{text.whatTitle}</h2>
       <ul className={styles.list}><li>{text.accounts}</li><li>{text.races}</li><li>{text.runners}</li><li>{text.groups}</li><li>{text.clubs}</li>
-        <li>{text.courseSetting}</li><li>{text.printJobs}</li><li>{text.party}</li><li>{text.selfRegistration}</li><li>{text.logs}</li>
+        <li>{text.courseSetting}</li><li>{text.mapLink}</li><li>{text.printJobs}</li><li>{text.party}</li><li>{text.selfRegistration}</li><li>{text.logs}</li>
         <li>{text.backup}</li></ul>
       <h2>{text.whyTitle}</h2>
       <p>{text.why}</p>

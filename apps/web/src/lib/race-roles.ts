@@ -81,8 +81,11 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-note-status": { PUT: "MAP" },
   "course-setting-note-photo": { GET: "COMMENT" },
   // ADR-0181 beslut 8: den som skrev notisen (svaret) eller den med EDIT; det prövas i tjänsten.
-  "course-setting-note": { DELETE: "COMMENT" },
-  "course-setting-note-reply-item": { DELETE: "MAP" },
+  // ADR-0214 beslut 9: redigera (PATCH) gör bara den som skrev notisen eller svaret; det prövas i tjänsten.
+  "course-setting-note": { DELETE: "COMMENT", PATCH: "COMMENT" },
+  "course-setting-note-reply-item": { DELETE: "MAP", PATCH: "MAP" },
+  // ADR-0214: länken till kartritaren skapas, visas och stängs av av den som får ändra (ägare och administratörer har EDIT).
+  "course-setting-map-link": { GET: "EDIT", POST: "EDIT", DELETE: "EDIT" },
   "course-setting-suggestions": { GET: "COMMENT", POST: "SUGGEST" },
   "course-setting-suggestion-decision": { POST: "EDIT" },
   "course-setting-events": { GET: "COMMENT" },

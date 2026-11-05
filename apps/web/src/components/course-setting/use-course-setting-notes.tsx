@@ -5,7 +5,7 @@ import type { CourseSettingLevel, CourseSettingNote, CourseSettingNoteKind, Cour
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
-import { replyCourseSettingNote, setCourseSettingNoteStatus } from "../../lib/course-setting-api";
+import { editCourseSettingNote, replyCourseSettingNote, setCourseSettingNoteStatus } from "../../lib/course-setting-api";
 import type { QueuedItem } from "../../lib/course-setting-offline";
 import { filterNotes, noteInView, noteMarks, notePosition, type NoteFilter, type NoteKindFilter } from "../../lib/course-setting-note-marks";
 import {
@@ -14,6 +14,7 @@ import {
 } from "../../lib/course-setting-sketch";
 import type { CourseSettingMapHandle, MapPointerHandlers, SketchLayer } from "./course-setting-map";
 import { NoteForm, NotesPanel, type NotePhoto } from "./course-setting-notes";
+import { editOutcome } from "./note-text";
 import { useNarrow } from "./course-setting-field";
 import { SketchBar } from "./course-setting-sketch-bar";
 import type { CourseSettingOffline } from "./use-course-setting-offline";
@@ -182,6 +183,12 @@ export function useCourseSettingNotes(input: NotesInput) {
     onReply={async (id, value) => { try { await replyCourseSettingNote(raceId, id, value); await input.reloadNotes(); return true; } catch { return false; } }}
     onStatus={async (id, value) => { try { await setCourseSettingNoteStatus(raceId, id, value); await input.reloadNotes(); return true; } catch { return false; } }}
     onCourseNote={() => { const course = document.courses.find(row => row.id === view); if (course) setDraft({ target: { kind: "COURSE", course: course.id }, kind: "COURSE_SETTING" }); }}
+    canEdit={createdBy => createdBy !== null && createdBy === access.accountId}
+    onEdit={async (note, replyId, value, expectedText) => {
+      const outcome = await editOutcome(() => editCourseSettingNote(raceId, { noteId: note.id, replyId, text: value, expectedText }));
+      if (outcome !== "failed") await input.reloadNotes().catch(() => undefined);
+      return outcome;
+    }}
     canDelete={canDelete} onDelete={note => void remove(note)} onDeleteReply={(note, replyId) => void remove(note, replyId)} onSketch={startSketch} />;
 
   return {

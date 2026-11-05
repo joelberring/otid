@@ -2,7 +2,7 @@ import {
   COURSE_SETTING_EDITS_MAX, COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
   courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
   courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
-  courseSettingSuggestionSchema, courseSettingSuggestionsSchema, courseSettingTransferProblemSchema, PRINT_JOB_REQUEST_MAX_BYTES, printJobProblemSchema,
+  courseSettingSuggestionSchema, courseSettingSuggestionsSchema, mapLinkCreatedSchema, mapLinkStateSchema, courseSettingTransferProblemSchema, PRINT_JOB_REQUEST_MAX_BYTES, printJobProblemSchema,
   printJobSchema, printJobsSchema, syncPreviewResponseSchema, PAPER_IMAGE_MAX_BYTES, PAPER_TEMPLATE_MAX_BYTES, paperImageSchema, paperLibrarySchema
 } from "@o-tid/contracts";
 import { createCourseSettingEventStream, publishCourseSettingEvent } from "./course-setting-events";
@@ -158,12 +158,37 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
     }
     // ADR-0181 beslut 8: ta bort en notis (med svar och foto) eller ett svar; öppna editorer får beskedet i strömmen.
     case "course-setting-note": {
+      if (request.method === "PATCH") {
+        const value = await body(request, 16 * 1024);
+        if (value === undefined) return failure(400, "INVALID_REQUEST");
+        return note(await dependencies.courseSettingNoteEdit(db, { ...input, noteId: action.noteId, request: value }), raceId, by);
+      }
       const result = await dependencies.courseSettingNoteDelete(db, { ...input, noteId: action.noteId });
       if (result.status !== "ok") return resultFailure(result.status);
       publishCourseSettingEvent(raceId, { type: "notes", by });
       return new Response(null, { status: 204, headers: privateHeaders });
     }
+    // ADR-0214: länken till kartritaren. Nyckeln finns bara i svaret när länken skapas.
+    case "course-setting-map-link": {
+      if (request.method === "GET") {
+        const result = await dependencies.mapLink(db, input);
+        return result.status === "ok" ? json(mapLinkStateSchema.parse(result.response)) : resultFailure(result.status);
+      }
+      if (request.method === "DELETE") {
+        const result = await dependencies.mapLinkRevoke(db, input);
+        return result.status === "ok" ? json(mapLinkStateSchema.parse(result.response)) : resultFailure(result.status);
+      }
+      const value = await body(request, 1024);
+      if (value === undefined) return failure(400, "INVALID_REQUEST");
+      const result = await dependencies.mapLinkCreate(db, { ...input, request: value });
+      return result.status === "ok" ? json(mapLinkCreatedSchema.parse(result.response), 201) : resultFailure(result.status);
+    }
     case "course-setting-note-reply-item":
+      if (request.method === "PATCH") {
+        const value = await body(request, 16 * 1024);
+        if (value === undefined) return failure(400, "INVALID_REQUEST");
+        return note(await dependencies.courseSettingNoteEdit(db, { ...input, noteId: action.noteId, replyId: action.replyId, request: value }), raceId, by);
+      }
       return note(await dependencies.courseSettingNoteReplyDelete(db, { ...input, noteId: action.noteId, replyId: action.replyId }), raceId, by);
     case "course-setting-note-photo": {
       const result = await dependencies.courseSettingNotePhoto(db, { ...input, noteId: action.noteId });

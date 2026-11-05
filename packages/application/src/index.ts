@@ -109,9 +109,14 @@ export {
   setCourseSettingModeAsAdmin
 } from "./course-setting-collaboration";
 export {
-  createCourseSettingNoteAsAdmin, deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin, listCourseSettingNotesAsAdmin,
+  createCourseSettingNoteAsAdmin, deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin, editCourseSettingNoteAsAdmin,
+  listCourseSettingNotesAsAdmin,
   readCourseSettingNotePhotoAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin
 } from "./course-setting-notes";
+export {
+  createMapLinkAsAdmin, MAP_LINK_REQUESTS_PER_IP_HOUR, MAP_LINK_REQUESTS_PER_TOKEN_HOUR, newMapLinkToken, readMapLinkAsAdmin, readMapLinkMapFile,
+  readMapLinkView, replyViaMapLink, revokeMapLinkAsAdmin, setVerdictViaMapLink, type MapLinkFailure, type MapLinkInput, type MapLinkLimits
+} from "./course-setting-map-link";
 export { listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin } from "./course-setting-inspections";
 export {
   claimPrintJob, cleanupPrintJobs, createPrintJobAsAdmin, deletePrintJobAsAdmin, heartbeatPrintJob, listPrintJobsAsAdmin, PRINT_JOB_LIMITS, readPrintJobPdfAsAdmin,

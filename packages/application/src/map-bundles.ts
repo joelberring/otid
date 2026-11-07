@@ -140,7 +140,7 @@ export async function readMapBundlesAsAdmin(db: Database, input: Authentication,
     return { status: "ok", response: mapBundleResponseSchema.parse({ formatVersion: 1, raceId, snapshotVersion: race.snapshotVersion,
       eventName: race.eventName, raceName: race.raceName, raceDate: race.raceDate, timeZone: race.timeZone, reserve, stateHash: stateHash(basis),
       classes: classes.map(row => ({ classId: row.id, name: row.name, courseName: row.courseName, variantCodes: row.variantCodes,
-        startMode: row.startMode })),
+        startMode: row.startMode, ...(row.leg !== undefined ? { leg: row.leg } : {}) })),
       groups: plan.groups.map(group => ({ courseName: group.courseName, variantCode: group.variantCode, items: group.items,
         runnerCount: group.runnerCount, vacancyCount: group.vacancyCount, reserveCount: group.reserveCount, printCount: group.printCount })), rows: plan.rows, missingVariant: plan.missingVariant, prints }) };
   }, { isolationLevel: "repeatable read" });

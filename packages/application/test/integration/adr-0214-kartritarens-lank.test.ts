@@ -195,10 +195,11 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
 
   it("utgången, avstängd och ersatt länk avvisas likadant som en okänd, och avstängningen gäller direkt", async () => {
     // Tiderna räknas från nu (sessionerna prövas vid tiden): tävlingen i dag, länken till och med i dag.
-    const now = new Date();
-    const today = localRaceDate(now, "Europe/Stockholm");
+    const today = localRaceDate(new Date(), "Europe/Stockholm");
     const owner = await race(today);
     await setUp(owner);
+    // Efter att sessionen skapats: en tid före sessionen godtas inte (gav "unauthorized" när testet gick snabbt).
+    const now = new Date();
     const limited = await newLink(owner, { lastDay: today }, now);
     const expiresAt = mapLinkExpiresAt(today, "Europe/Stockholm")!;
     const state = await created(readMapLinkAsAdmin(db, owner, now));

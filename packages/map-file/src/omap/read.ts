@@ -177,7 +177,7 @@ function describeCrs(projected: XmlNode): string {
 }
 
 /**
- * Linjär genomgång av `<object …>…</object>` i `<parts>`. Med `sources` (ADR-0207) får varje objekt sin kartdel, sitt
+ * Linjär genomgång av `<object …>…</object>` i `<parts>`. Med `sources` (ADR-0219) får varje objekt sin kartdel, sitt
  * ordningstal i delen och sitt textintervall med hash.
  */
 function readObjects(
@@ -233,7 +233,7 @@ function readObject(
   return { kind: "line", symbol, path: joinParts(parts) };
 }
 
-function readCoords(content: string, from: number, to: number): number[] | null {
+export function readCoords(content: string, from: number, to: number): number[] | null {
   const open = content.indexOf("<coords", from);
   if (open < 0 || open >= to) return null;
   const tagEnd = content.indexOf(">", open);

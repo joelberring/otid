@@ -78,10 +78,10 @@ function readObjects(
 }
 
 /**
- * ADR-0207: postens längd i byte ur indexet (version 9+ i byte, där OCAD ibland lämnar plats efter texten; version 8 i
+ * ADR-0219: postens längd i byte ur indexet (version 9+ i byte, där OCAD ibland lämnar plats efter texten; version 8 i
  * koordinater, redan omräknad). Saknas den eller går den utanför filen räknas den ur huvudet, punkterna och texten.
  */
-export function recordLength(bytes: Bytes, at: number, indexLength: number, variant: OcdVariant): number {
+function recordLength(bytes: Bytes, at: number, indexLength: number, variant: OcdVariant): number {
   if (indexLength > 0 && bytes.has(at, indexLength)) return indexLength;
   const layout = variant.object;
   const count = layout.coordCount16 ? bytes.u16(at + layout.coordCount) : bytes.u32(at + layout.coordCount);

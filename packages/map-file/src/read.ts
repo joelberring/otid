@@ -3,7 +3,7 @@ import { MapFileError, type ParsedMap, type ReadOptions } from "./model";
 import { readOcd } from "./ocd/read";
 import { MAPPER_NAMESPACE, readOmap } from "./omap/read";
 
-/** ADR-0207: med `{ sources: true }` får varje objekt `source` (plats i filen och hash) för kartrevidering. */
+/** ADR-0219: med `{ sources: true }` får varje objekt `source` (plats i filen och hash) för kartrevidering. */
 export function readMapFile(bytes: Uint8Array, fileName?: string, options: ReadOptions = {}): ParsedMap {
   if (bytes.length >= 2 && bytes[0] === 0xad && bytes[1] === 0x0c) return readOcd(bytes, options);
   const head = new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, 4096));

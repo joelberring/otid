@@ -1,5 +1,5 @@
 /**
- * ADR-0207: kartrevidering, kontraktet mellan revideringsytan och fillagret. Ändringar sparas per objekt mot en bestämd
+ * ADR-0219: kartrevidering, kontraktet mellan revideringsytan och fillagret. Ändringar sparas per objekt mot en bestämd
  * grundfil (dess sha256) och skrivs tillbaka till OCAD (.ocd) eller Mapper (.omap/.xmap) genom att lappa originalets bytes.
  * Originalet skrivs aldrig över: skrivaren ger nya bytes som sparas som en ny kartversion (ADR-0196) bredvid originalet.
  *

@@ -170,7 +170,7 @@ export interface CombinedSymbol extends SymbolBase { readonly kind: "COMBINED"; 
 export type MapSymbol = PointSymbol | LineSymbol | AreaSymbol | TextSymbol | CombinedSymbol;
 
 /**
- * ADR-0207: `source` säger var objektet ligger i grundfilen (indexpost och post i OCAD, del, ordningstal och textintervall
+ * ADR-0219: `source` säger var objektet ligger i grundfilen (indexpost och post i OCAD, del, ordningstal och textintervall
  * i Mapper) och objektets hash, så att en ändring kan skrivas tillbaka till just det objektet.
  */
 export type MapObject = (
@@ -226,7 +226,7 @@ export interface ParsedMap {
 /** Val för `readMapFile`. */
 export interface ReadOptions {
   /**
-   * ADR-0207: sätt `source` (plats i filen och objektets sha256) på varje objekt, för kartrevidering. Av som förval: det
+   * ADR-0219: sätt `source` (plats i filen och objektets sha256) på varje objekt, för kartrevidering. Av som förval: det
    * kostar en hash per objekt och behövs inte för att rita.
    */
   readonly sources?: boolean | undefined;

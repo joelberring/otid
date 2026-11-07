@@ -173,10 +173,16 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
     const closed = (await created(listCourseSettingNotesAsAdmin(db, owner))).response.notes.find(row => row.id === noteId)!;
     expect(closed).toMatchObject({ status: "DONE", resolvedBy: { displayName: "Bea Banläggare" } });
     expect(closed.replies.at(-1)).toMatchObject({ verdict: "NOT_FIXED", text: "Fortfarande fel" });
+    // Ändrat 2026-11-07 (paket D): "Åtgärdat" via länken skriver inte heller över kontots stängning (den som stängde står kvar).
+    expect((await setVerdictViaMapLink(db, { ...link(token), noteId, request: { formatVersion: 1, requestId: randomUUID(), verdict: "FIXED",
+      text: "Nu rättat", name: "Kim" } })).status).toBe("ok");
+    const still = (await created(listCourseSettingNotesAsAdmin(db, owner))).response.notes.find(row => row.id === noteId)!;
+    expect(still).toMatchObject({ status: "DONE", resolvedBy: { displayName: "Bea Banläggare" }, resolvedAt: closed.resolvedAt });
+    expect(still.replies.at(-1)).toMatchObject({ verdict: "FIXED", text: "Nu rättat" });
     // Kartritaren med länken ser samma tråd; den som tar bort kan fortfarande ta bort kartritarens svar.
     const view = await readMapLinkView(db, link(token));
     expect(view.status === "ok" && view.response.mapErrors[0]!.replies.map(row => [row.author, row.mapMaker, row.verdict])).toEqual([
-      ["Kim Karta", true, null], [null, true, "FIXED"], ["Kim", true, "NOT_FIXED"], ["Kim", true, "NOT_FIXED"]]);
+      ["Kim Karta", true, null], [null, true, "FIXED"], ["Kim", true, "NOT_FIXED"], ["Kim", true, "NOT_FIXED"], ["Kim", true, "FIXED"]]);
     expect((await deleteCourseSettingNoteReplyAsAdmin(db, { ...owner, noteId, replyId: again.replies[0]!.id })).status).toBe("ok");
 
     const audit = await pool.query<{ action: string; actor_kind: string | null; after: unknown }>(

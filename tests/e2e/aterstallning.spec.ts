@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, publishRaceViaApi, registerAccount, reviewScreenshots,
-  sendReadout, today, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, publishRaceViaApi, readExercise, registerAccount,
+  reviewScreenshots, sendReadout, today, unique, warmRoute } from "./helpers";
 
 /**
  * ADR-0187: arrangörens säkerhetskopia och återställning. En tävling med avläsningar laddas ner från Inställningar
@@ -110,8 +110,8 @@ test("ladda ner säkerhetskopia och återställ den som en ny tävling med samma
   await owner.goto(`/admin/${raceId}/readout`);
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await owner.getByLabel("Deltagare").selectOption({ label: "Dan Sen · H21 · 7390004" });
-  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
+  // Brickan är avläst (beskedet för just den) innan sidan lämnas; servern nås inte, så den sparas bara i datorn.
+  await readExercise(owner, "Dan Sen · H21 · 7390004", { status: null, saved: false });
   await expect(owner.getByTestId("verdict")).toContainText("Dan Sen");
   await owner.unroute("**/administrator/readouts");
   await owner.goto(`/admin/${copyId}/readout`);

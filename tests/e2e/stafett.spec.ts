@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique, expectSaved, raceStartedAgo } from "./helpers";
+import { addCourseAndClass, createRace, openStep, publishRace, raceStartedAgo, readExercise, registerAccount, unique } from "./helpers";
 
 /**
  * PLAN.md steg 11 (ADR-0169 beslut 3): klubbstafett med 6 lag × 3 sträckor. Stafettklassen skapas
@@ -31,12 +31,9 @@ async function screenshots(page: Page, name: string) {
 }
 
 async function readLeg(page: Page, team: number, leg: number, name: string, variant: "ok" | "missing" = "ok") {
-  await page.getByLabel("Deltagare").selectOption({ label: `${name} · Stafett · Lag ${team} · Sträcka ${leg} · ${card(team, leg)}` });
-  await page.getByRole("button", { name: variant === "ok" ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" }).click();
-  const verdict = page.getByTestId("verdict");
-  await expect(verdict).toContainText(variant === "ok" ? "GODKÄND" : "FELSTÄMPLAD");
-  await expect(verdict).toContainText(name);
-  await expectSaved(page);
+  await readExercise(page, `${name} · Stafett · Lag ${team} · Sträcka ${leg} · ${card(team, leg)}`,
+    { button: variant === "ok" ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" });
+  await expect(page.getByTestId("verdict")).toContainText(name);
   await expect(page.getByTestId("verdict-relay")).toContainText(`Lag ${team} OK Test ${team} · Sträcka ${leg} av 3`);
   return page.getByTestId("verdict-relay");
 }
@@ -141,9 +138,8 @@ test("klubbstafett: stafettklass, lag, byte av löpare, avläsning per sträcka,
   // Sträcka 2 och 3. Lag 4 missar en kontroll på sträcka 2.
   await openReadout(owner, raceId);
   for (let team = 1; team <= TEAMS; team += 1) {
-    await owner.getByLabel("Deltagare").selectOption({ label: `${legName(team, 2)} · Stafett · Lag ${team} · Sträcka 2 · ${legCard(team, 2)}` });
-    await owner.getByRole("button", { name: team === 4 ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" }).click();
-    await expect(owner.getByTestId("verdict")).toContainText(team === 4 ? "FELSTÄMPLAD" : "GODKÄND");
+    await readExercise(owner, `${legName(team, 2)} · Stafett · Lag ${team} · Sträcka 2 · ${legCard(team, 2)}`,
+      { button: team === 4 ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" });
     await expect(owner.getByTestId("verdict-relay")).toContainText(`Lag ${team} OK Test ${team} · Sträcka 2 av 3 · Växlar till sträcka 3`);
   }
   for (let team = 1; team <= TEAMS; team += 1) {

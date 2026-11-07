@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { FAKE_ROC_PORT } from "./fake-roc";
-import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, readExercise, registerAccount, unique,
+  warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 20 (ADR-0172 beslut 5): radiokontroller via ROC/OResults. Admin kopplar tävlingen till en enhet och
@@ -147,9 +148,7 @@ test("radiokontroller: mellantid och speaker före avläsning, avläsningen avg�
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await owner.getByLabel("Deltagare").selectOption({ label: `${fullName(anna)} · H21 · ${anna.card}` });
-  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await readExercise(owner, `${fullName(anna)} · H21 · ${anna.card}`);
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   await visitor.goto(`/results/${raceId}`);

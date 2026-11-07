@@ -49,6 +49,45 @@ export async function expectSaved(page: Page): Promise<void> {
   await expect(page.getByTestId("verdict-sync")).toHaveText("Sparad.", { timeout: 30_000 });
 }
 
+/** Brickan i övningsstationens alternativ under "Deltagare", som slutar med den: "Ada Ek · H21 · 8571001" ger "8571001". */
+export function cardOf(label: string): string {
+  const card = label.split(" · ").at(-1) ?? "";
+  if (!/^\d+$/.test(card)) throw new Error(`Alternativet "${label}" slutar inte med en bricka`);
+  return card;
+}
+
+/**
+ * Väntar på beskedet för just brickan `card` ("Bricka 8571001 · Ada Ek · H21") och sedan på `status` ("GODKÄND"). Förra
+ * brickans "GODKÄND" och "Sparad." står kvar tills den nya brickan är avläst; ett test som bara väntar på dem går vidare
+ * medan brickan läses, och nästa bricka (eller att sidan lämnas) tar ur den mitt i avläsningen. Läses samma bricka två
+ * gånger i rad med samma besked skiljer beskedet inte dem åt; vänta då på något annat (till exempel listan Senaste).
+ */
+export async function expectVerdictFor(page: Page, card: string, status?: string): Promise<void> {
+  const verdict = page.getByTestId("verdict");
+  await expect(verdict).toContainText(new RegExp(`Bricka ${card}(?!\\d)`), { timeout: 30_000 });
+  if (status) await expect(verdict).toContainText(status);
+}
+
+const EXERCISE_STATUS: Record<string, string> = { "Läs av: rätt stämplat": "GODKÄND", "Läs av: missad kontroll": "FELSTÄMPLAD" };
+
+/**
+ * Övningsstationen (startad): väljer deltagaren (alternativets text, eller ett mönster för det första som passar), trycker
+ * på knappen och väntar på beskedet för den brickan (`expectVerdictFor`). `status` är beskedet som väntas (förval efter
+ * knappen: GODKÄND eller FELSTÄMPLAD; null kontrollerar inget). Med `saved` (förval) väntar den också tills servern har
+ * tagit emot avläsningen (`expectSaved`); utan nät sätts den till false. Ger alternativets text.
+ */
+export async function readExercise(page: Page, runner: string | RegExp, options: { button?: string; status?: string | null;
+  saved?: boolean } = {}): Promise<string> {
+  const select = page.getByLabel("Deltagare");
+  const label = typeof runner === "string" ? runner : (await select.locator("option").filter({ hasText: runner }).first().textContent()) ?? "";
+  const button = options.button ?? "Läs av: rätt stämplat";
+  await select.selectOption({ label });
+  await page.getByRole("button", { name: button }).click();
+  await expectVerdictFor(page, cardOf(label), options.status === null ? undefined : options.status ?? EXERCISE_STATUS[button]);
+  if (options.saved ?? true) await expectSaved(page);
+  return label;
+}
+
 /** Datumet `days` dagar från i dag (negativt bakåt), ÅÅÅÅ-MM-DD i Stockholm. */
 export function daysFromToday(days: number, now = new Date()): string {
   const [year, month, day] = today(now).split("-").map(Number) as [number, number, number];

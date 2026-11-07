@@ -56,6 +56,22 @@ class Writer {
   result(): Uint8Array { return this.buffer.slice(0, this.length); }
 }
 
+/**
+ * Indexblock om 256 poster i en kedja (blockets första fält pekar på nästa), så att testkartor kan ha fler än 256 objekt.
+ * Ger blockets position och postens nummer i blocket för post nummer `k`.
+ */
+function chained(w: Writer, firstPointer: number, entrySize: number): (k: number) => [number, number] {
+  let block = 0;
+  return k => {
+    if (k % 256 === 0) {
+      const next = w.reserve(4 + 256 * entrySize);
+      w.i32(block === 0 ? firstPointer : block, next);
+      block = next;
+    }
+    return [block, k % 256];
+  };
+}
+
 /** Windows-1252 för tecken under 256 (räcker för testerna: å, ä, ö). */
 const latin1 = (text: string) => Uint8Array.from(text, char => char.charCodeAt(0) & 0xff);
 
@@ -95,9 +111,9 @@ export function buildOcd(spec: OcdSpec & { readonly encoding?: StringEncoding })
 
   const symbols = spec.symbols ?? [];
   if (symbols.length > 0) {
-    const block = w.reserve(4 + 256 * 4);
-    w.i32(header + 8, block);
-    symbols.forEach((symbol, index) => {
+    const slot = chained(w, header + 8, 4);
+    symbols.forEach((symbol, k) => {
+      const [block, index] = slot(k);
       const raw = symbol.body ?? new Uint8Array(0);
       const body = before12 && symbol.type === 3 ? areaBodyBefore12(raw) : raw;
       const size = symbolBase + body.length;
@@ -116,9 +132,9 @@ export function buildOcd(spec: OcdSpec & { readonly encoding?: StringEncoding })
 
   const objects = spec.objects ?? [];
   if (objects.length > 0) {
-    const block = w.reserve(4 + 256 * 40);
-    w.i32(header + 12, block);
-    objects.forEach((object, index) => {
+    const slot = chained(w, header + 12, 40);
+    objects.forEach((object, k) => {
+      const [block, index] = slot(k);
       const text = object.text === undefined ? new Uint8Array(0) : utf16(`${object.text}\0`);
       const textWords = Math.ceil(text.length / 8);
       const size = objectHeader + 8 * (object.coords.length + textWords);

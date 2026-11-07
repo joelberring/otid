@@ -5,6 +5,7 @@ import {
 import { lineDecorations, type Placement } from "./along";
 import { closeRing, flattenPath, offsetPolyline, pathsBox, withoutGaps, type Polyline } from "./geometry";
 import { clamp01, rgbFromCmyk } from "../color";
+import { spatialIndexOf } from "./spatial-index";
 
 /**
  * Steg 59 (ADR-0179 beslut 2): kartan ritad för skärmen (inte för tryck) på en canvas i webbläsaren. Bara typerna för
@@ -80,6 +81,11 @@ export interface DrawMapOptions {
    * utan tonen i `beforeColor` och skriver samma dekorfärg med lägre andel.
    */
   readonly tint?: number | undefined;
+  /**
+   * ADR-0218: rita bara objekten som når in i bilden (rumsligt index, byggt en gång per karta). Ger samma bild som utan;
+   * förval nej, så att utskriften (PDF) ritar som förut.
+   */
+  readonly cull?: boolean | undefined;
 }
 
 /**
@@ -429,7 +435,13 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   const drawColors = ink < 1 ? new Map([...colors].map(([id, color]) => [id, { ...color, opacity: color.opacity * ink }])) : colors;
   const plan = new Plan(drawColors, simplifications);
   let parts = 0;
-  for (const object of map.objects) parts += planObject(plan, map, object, options);
+  if (options.cull) {
+    // Bildens yta i kartans mm med en liten marginal (kantutjämning och avrundning).
+    const margin = 0.5 + 2 / options.pxPerMm;
+    const visible = spatialIndexOf(map).query({ minX: options.origin.x - margin, maxX: options.origin.x + ctx.canvas.width / options.pxPerMm + margin,
+      minY: options.origin.y - ctx.canvas.height / options.pxPerMm - margin, maxY: options.origin.y + margin });
+    for (const index of visible) parts += planObject(plan, map, map.objects[index]!, options);
+  } else for (const object of map.objects) parts += planObject(plan, map, object, options);
   if (options.background !== false) {
     const width = ctx.canvas.width, height = ctx.canvas.height;
     ctx.save();

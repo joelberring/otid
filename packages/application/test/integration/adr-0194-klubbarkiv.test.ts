@@ -279,6 +279,43 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     expect(head.status).toBe("ok");
     expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content where sha256 = $1", [sha(omap)])).rows[0]?.n).toBe(1);
   });
+  it("Använd igen: kartan och kartavtalet sparas tillsammans; misslyckas avtalet sparas ingenting", async () => {
+    const { owner, clubId } = await clubWithOwner();
+    const omap = await fixture("maps/kartfil.omap");
+    const uploaded = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: null, newMapName: "Avtalsskogen", fileName: "Avtalsskogen.omap",
+      versionDate: "2021-05-01", note: null, body: chunks(omap) }, NOW);
+    if (uploaded.status !== "created") throw new Error("Ingen karta");
+    const created = await createOrganizerEvent(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+      readBody: async () => ({ formatVersion: 1, eventName: "Avtalsträning", raceName: "Träning", raceDate: "2026-11-11",
+        timeZone: "Europe/Stockholm", raceType: "TRAINING" }) }, NOW);
+    if (created.status !== "created") throw new Error("Ingen tävling");
+    const raceId = created.response.raceId;
+    const metadata: RaceMapSourceMetadata = { formatVersion: 1, format: "OMAP", version: "Mapper v9", scale: 10_000,
+      bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 }, georeference: null, render: { pxPerMm: 8, originX: -2, originY: 102 },
+      summary: { objectCount: 11, warnings: [], simplifications: [] }, tiePoints: null };
+    const png = new Uint8Array(80);
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(png.buffer).setUint32(16, 992); new DataView(png.buffer).setUint32(20, 832);
+    const input = { ...owner.proof, clubId, versionId: uploaded.versionId, raceId, image: png, metadata };
+    const saved = async () => (await pool.query<{ maps: number; sources: number; agreements: number; contents: number }>(`select
+      (select count(*)::int from race_map where race_id = $1) as maps, (select count(*)::int from race_map_source where race_id = $1) as sources,
+      (select count(*)::int from race_map_agreement where race_id = $1) as agreements, (select count(*)::int from map_content) as contents`, [raceId])).rows[0]!;
+    const before = await saved();
+    await pool.query(`create function test_fail_agreement() returns trigger language plpgsql as $$ begin raise exception 'avtalet kunde inte sparas'; end $$`);
+    await pool.query("create trigger test_fail_agreement before insert or update on race_map_agreement for each row execute function test_fail_agreement()");
+    try {
+      await expect(saveClubMapVersionToRace(db, input, NOW)).rejects.toThrow();
+    } finally {
+      await pool.query("drop trigger test_fail_agreement on race_map_agreement");
+      await pool.query("drop function test_fail_agreement()");
+    }
+    expect(await saved()).toEqual(before);
+    expect(before).toMatchObject({ maps: 0, sources: 0, agreements: 0 });
+    // Utan felet sparas båda.
+    expect(await saveClubMapVersionToRace(db, input, NOW)).toEqual({ status: "ok", georeferenced: false });
+    expect(await saved()).toMatchObject({ maps: 1, sources: 1, agreements: 1 });
+  });
+
   it("gruppens kartbibliotek pekar på klubbens karta: rättigheterna följer med och en ny version syns", async () => {
     const { owner, clubId } = await clubWithOwner();
     const omap = await fixture("maps/kartfil.omap");

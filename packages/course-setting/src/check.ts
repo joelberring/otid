@@ -2,10 +2,11 @@
 import { sizesFor } from "./appearance";
 import { controlsInForbidden, forbiddenLegs } from "./barriers";
 import { distance, nearestOnPath } from "./geometry";
-import { courseVariantList, isInvertibleCode } from "./summary";
+import { activeParts, courseVariantList, isInvertibleCode } from "./summary";
 import type { CheckOptions, CourseCheck, CourseSettingDocument, DescriptionBox } from "./types";
 import { enumerateCourseControls, enumerateLegs, legPath } from "./walk";
 import { numberObstacleChecks } from "./number-notices";
+import { legKey } from "./ppen-common";
 
 /** IOF:s riktvärden: under `min` för nära, under `similar` bara med tydligt olika objekt (sprint hälften). */
 export const CONTROL_DISTANCE_LIMITS = {
@@ -54,7 +55,9 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
   for (const course of [...document.courses].sort((a, b) => a.order - b.order)) {
     const ccIds = enumerateCourseControls(document, course.id);
     const controlIds = ccIds.map(id => document.courseControls[id]!.control);
-    for (const id of controlIds) used.add(id);
+    // ADR-0198 tillägg 12: kontroller och sträckor som bara finns i bortvalda varianter räknas inte (städrundan 2026-11-07).
+    const active = activeParts(document, course.id);
+    for (const id of controlIds) if (!active || active.controls.has(id)) used.add(id);
     const ofKind = (index: number | undefined) => index === undefined ? undefined : document.controls[controlIds[index]!]?.kind;
     const firstReal = controlIds.findIndex(id => document.controls[id]?.kind !== "MAP_ISSUE");
     const lastId = enumerateLastCourseControl(document, ccIds);
@@ -67,6 +70,7 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
     for (const [fromCc, toCc] of legs) {
       const from = document.courseControls[fromCc]!.control;
       const to = document.courseControls[toCc]!.control;
+      if (active && !active.legs.has(legKey(from, to))) continue;
       if (from === to) {
         if (!seenTwice.has(from)) checks.push({ kind: "SAME_CONTROL_TWICE_IN_ROW", course: course.id, control: from });
         seenTwice.add(from);

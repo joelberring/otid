@@ -83,3 +83,8 @@ ger åtta varianter, fyra med fyra 256; tävlingen tar högst 100 per bana.
     `$(CourseLength)`, pappersramens `{längd}` och överföringen till tävlingen. Avrundningen är oförändrad och görs där
     längden visas: 0,1 km i texterna, 100 m i överföringen. Förut räknade utskriftens rubrik, `$(CourseLength)` och
     `{längd}` med alla varianter, också bortvalda.
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`), tillägg 12: också kontrollerna under arbetet (`checkCourseSetting`: en
+kontroll som bara finns i bortvalda varianter är oanvänd, "samma kontroll två gånger i rad" bara där varnar inte), ringarnas
+detaljgap (en sträcka bara i bortvalda varianter spärrar inget gap och en kontroll bara där får inte banans utskriftsskala) och
+IOF-exportens längd (`courseLength`) följer regeln.

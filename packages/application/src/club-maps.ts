@@ -228,7 +228,7 @@ export type ClubMapToRaceResult = ClubFailure | { status: "problem"; problem: Ra
 
 /**
  * "Använd igen" (beslut 4): klubbens kartversion blir tävlingens kartfil. Webbläsaren har ritat bilden ur arkivets fil;
- * kartfilen laddas inte upp igen utan tävlingen pekar på samma innehåll. Kräver läsare i klubben och admin på tävlingen
+ * kartfilen laddas inte upp igen utan tävlingen pekar på samma innehåll. Kräver medlem i klubben och admin på tävlingen
  * (`saveRaceMapSourceAsAdmin` kontrollerar tävlingen). Kartans rättigheter följer med till tävlingen.
  */
 export async function saveClubMapVersionToRace(db: Database, input: ClubProof & { clubId: string; versionId: string; raceId: string;
@@ -262,7 +262,7 @@ export type ClubMapToGroupResult = ClubFailure | { status: "problem"; problem: R
 /**
  * Beslut 5: klubbens karta (en version, normalt den senaste) i en träningsgrupps kartbibliotek. Finns kartan redan i gruppen
  * (samma klubbkarta) byts dess bild och fil mot versionen ("Uppdatera i gruppen"); rättigheterna följer klubbens karta.
- * Kräver läsare i klubben och ledare i gruppen.
+ * Kräver medlem i klubben och ledare i gruppen.
  */
 export async function saveClubMapToGroupLibrary(db: Database, input: ClubProof & { clubId: string; versionId: string; groupId: string;
   image: MapContentInput; metadata: unknown }, now = new Date()): Promise<ClubMapToGroupResult> {

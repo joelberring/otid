@@ -30,7 +30,8 @@ fungerar och hittade inte var kartans rättigheter ändras.
    kontroll eller kontrollerades med en äldre läsare, högst sex per besök, i kartfilens Worker (högst 2 400 px): varje version
    ger ett besked ("Fungerar · OCAD 11.2" eller läsarens skäl) med en bild på högst 480 px, och träningarna som gjordes på
    versionen får en bild (360 × 240) med den längsta banan. "Kontrollera alla kartor igen" gör om allt med förlopp och kan
-   avbrytas; det som hunnit bli klart är sparat. Läsare ser beskeden och bilderna men ritar inte.
+   avbrytas; det som hunnit bli klart är sparat. Medlemmar (lagrat `READER`, förut "läsare"; ändrat 2026-11-07, städrundan C4)
+   ser beskeden och bilderna men ritar inte.
 5. **Bilderna lagras i egna tabeller, inte i kartinnehållet** (migration 0062: `club_map_version_check` och
    `club_archive_entry_thumbnail`). De är små (högst 512 kB, servern kontrollerar PNG-huvudet och storleken), unika per version
    eller träning och går alltid att rita om, så ADR-0189:s delning och referensräkning ger inget; de räknas inte i kvoten. Raden

@@ -12,7 +12,7 @@ import {
 
 /**
  * ADR-0194 beslut 1: klubbens roller och inbjudningarna per e-postadress. Det enda stället som avgör vem som får vad i klubben:
- * läsare läser och använder igen, administratörer ändrar, bjuder in och importerar, ägare dessutom ägarna. En som inte är medlem
+ * medlemmar (lagrat `READER`) läser och använder igen, administratörer ändrar, bjuder in och importerar, ägare dessutom ägarna. En som inte är medlem
  * får "not-found" (klubbens existens röjs inte).
  */
 export type { ClubRole } from "./club-invitations";
@@ -25,7 +25,7 @@ export const clubRoleAtLeast = (role: ClubRole, minimum: ClubRole) => CLUB_ROLE_
 
 /**
  * Kontots roll i klubben (raden i `club_member`), eller undefined. Bekräftad e-post krävs om någon annan lade till kontot.
- * ADR-0209 beslut 3: utan rad är en bekräftad tillhörighet läsare (när arkivet låter bekräftade medlemmar läsa).
+ * ADR-0209 beslut 3: utan rad är en bekräftad tillhörighet medlem, `READER` (när arkivet låter bekräftade medlemmar läsa).
  */
 export async function clubMembership(tx: DbExecutor, input: { accountId: string; clubId: string }, lock: "none" | "share" | "update")
   : Promise<{ id: string; role: ClubRole; derived?: true } | undefined> {

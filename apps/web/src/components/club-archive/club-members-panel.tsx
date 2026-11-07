@@ -17,7 +17,7 @@ const ROLES: readonly ClubRole[] = ["READER", "LEADER", "ADMIN", "OWNER"];
 
 /**
  * ADR-0194 beslut 1: klubbens medlemmar och inbjudningar. Bjud in med e-postadressen (samma svar med och utan konto); listan
- * visar adressen som "väntar på inloggning" tills personen loggat in med den. Läsare och ledare ser bara sin egen rad (ADR-0209).
+ * visar adressen som "väntar på inloggning" tills personen loggat in med den. Medlemmar och ledare ser bara sin egen rad (ADR-0209).
  */
 export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChanged: () => Promise<void> }) {
   const [email, setEmail] = useState("");

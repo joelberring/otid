@@ -95,7 +95,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "En fast ram kan också dras på kartan i banläggningen, med fliken ”Utskrift” öppen."
       ],
       "I en annan layout än huvudlayouten visar den layoutens skala, med ”Ändra i layouten”.",
-      "Använder utskriften ”Kartor per ark” bestämmer den mallen papperet i stället."
+      "Använder utskriften ”Kartor per ark” bestämmer Kartor per ark papperet i stället."
     ]
   },
   {

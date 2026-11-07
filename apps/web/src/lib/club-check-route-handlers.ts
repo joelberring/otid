@@ -8,7 +8,7 @@ import { privateHeaders, privateJson } from "./security-policy";
 
 /**
  * ADR-0196: kontrollen av klubbarkivets kartversioner och bilderna av kartorna och träningarna. Samma skydd som arkivets
- * övriga anrop (club-route-handlers.ts); GET ger PNG:n till läsare, PUT sparar kontrollen och bilden för administratörer.
+ * övriga anrop (club-route-handlers.ts); GET ger PNG:n till medlemmar, PUT sparar kontrollen och bilden för administratörer.
  */
 const validId = (id: string) => UUID_PATTERN.test(id);
 

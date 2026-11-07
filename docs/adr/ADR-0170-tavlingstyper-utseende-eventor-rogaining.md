@@ -56,6 +56,9 @@ Ny klasstyp med tidsgräns och poäng per kontroll. Löparen stämplar valfria
 kontroller; resultat = summan av unika kontrollers poäng minus straffpoäng per
 påbörjad minut över tidsgränsen. Sortering på poäng, sedan tid. Bedömningen
 ligger i `packages/domain` bredvid den vanliga resultatmotorn.
+Ändrat 2026-11-07 (städrundan C4): har tävlingen en banläggning sätts poängen där och följer med "Överför till tävlingen";
+poängfälten under Kontroller & poäng är då skrivskyddade ("Poängen sätts i banläggningen") och servern vägrar ändrade poäng.
+Utan banläggning ändras de som förut. Tidsgräns och straff ändras alltid på tävlingssidan.
 
 ## Konsekvenser
 

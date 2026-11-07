@@ -91,7 +91,7 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
   const [club] = await tx.select().from(schema.clubs).where(eq(schema.clubs.id, clubId));
   if (!club) return undefined;
   const admin = clubRoleAtLeast(viewer.role, "ADMIN");
-  // ADR-0209 beslut 5–6: medlemslistan bara för ägare och administratörer; läsare och ledare ser bara sin egen rad (namnen på
+  // ADR-0209 beslut 5–6: medlemslistan bara för ägare och administratörer; medlemmar och ledare ser bara sin egen rad (namnen på
   // andra bekräftade medlemmar finns bara i väljaren "Från klubben").
   const members = await tx.select({ memberId: schema.clubMembers.id, accountId: schema.clubMembers.accountId, email: schema.userAccounts.email,
     displayName: schema.userAccounts.displayName, role: schema.clubMembers.role, addedAt: schema.clubMembers.addedAt })

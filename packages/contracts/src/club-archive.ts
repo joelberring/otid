@@ -128,7 +128,7 @@ export type ClubImportCourseFile = z.infer<typeof clubImportCourseFileSchema>;
 export interface ClubSummary { clubId: string; name: string; role: ClubRole; entries: number; pending?: number }
 
 /**
- * En rad i klubbens medlemslista. ADR-0209 beslut 5–6: bara ägare och administratörer får hela listan; läsare och ledare får
+ * En rad i klubbens medlemslista. ADR-0209 beslut 5–6: bara ägare och administratörer får hela listan; medlemmar och ledare får
  * bara sin egen rad. Inget konto-id (`you` = raden är den inloggades).
  */
 export interface ClubMember { memberId: string; email: string; displayName: string; role: ClubRole; addedAt: string; you: boolean }

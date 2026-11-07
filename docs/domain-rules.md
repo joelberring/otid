@@ -17,6 +17,52 @@ Gäller från steg 23. Äldre version med regler per TASK och de borttagna behö
 Alla interna identiteter är UUID. Externa identiteter (Eventor, IOF) lagras med källsystem och används aldrig
 som primärnyckel.
 
+## Ordlista
+
+Ett begrepp, ett ord (städrundan C4). Lagrade namn (databasens kolumner och CHECK-värden, nycklar i banläggningsdokumentet,
+åtgärder i historiken, kontraktens trådformat) byts inte; de har en kommentar om vad de heter i UI. TypeScript, UI-text och
+dokumentation använder orden nedan.
+
+### Banläggningens utskrift (ADR-0217)
+
+- **Model space** = fliken Banläggning (kartan och banorna, kartans mm). **Paper space** = fliken Layout (papperets mm).
+- **Layout** = papper (storlek, riktning, marginal), skala, Mall för papperet och Kartor per ark (`event.layouts`).
+  **Huvudlayouten** (`MAIN_LAYOUT`, lagrat `event.mainLayout`) är banans egna fält (banans skala, tryckyta och papper) och den
+  enda som skrivs till .ppen. Klassernas val: `event.classLayouts`.
+- **Ark** = bana × layout (`LayoutSheet`, lagrat `event.layoutSheets`): utsnitt, klippning, kartbyten (delar) och papperets
+  element. **Justering** = ett nummer flyttat på ett ark eller ringavbrott per layout; det som inte är justerat följer
+  banläggningen.
+- **Tryckyta** = `printArea`, Purple Pens `print-area`: banans yta av kartan (huvudlayouten, skrivs till .ppen). I UI heter
+  den Tryckyta under "Papper och kartram".
+- **Utsnitt** = UI-ordet för arkets egen tryckyta i en layout (`LayoutSheet.printArea`, "Eget utsnitt", "Går utanför – välj
+  utsnitt").
+- **Kartram** = `SheetFrame`: ytan på papperet där kartan står (ett ark kan ha flera med Kartor per ark).
+- **Mall för papperet** = `PaperTemplate` (ADR-0197), lagrat `event.paperTemplates`: papperets element, klippning och vita ytor
+  som banorna ärver.
+- **Kartor per ark** = `SheetLayout` (ADR-0183; förut `LayoutTemplate`, i äldre ADR:er "layoutmall"): flera kartor på ett ark
+  eller en karta med remsa. Lagrat `event.layoutTemplates`, layoutens `layoutTemplate` och åtgärderna `PUT_LAYOUT_TEMPLATE` och
+  `DELETE_LAYOUT_TEMPLATE`.
+
+### Banläggningens samarbete
+
+- **Notis** = `course_setting_note`: en text (med ritning och foto) på en punkt, kontroll, sträcka, bana eller ritning. Slaget
+  (`kind`) är Banläggning (`COURSE_SETTING`) eller **Kartfel** (`MAP_ERROR`); ett kartfel är alltså en notis av slaget Kartfel.
+- **Svar** = `course_setting_note_reply`: ett svar i notisens tråd (också kartritarens med länken).
+- **Förslag** = `course_setting_suggestion`: ändringar som någon godkänner. **Kommentar** = texten som följer förslaget
+  (`comment`) och beslutet (`decisionComment`), inte ett svar i en tråd.
+
+### Roller
+
+- Klubbens roller: **Medlem** (lagrat `READER`, förut "läsare"), **Ledare** (`LEADER`), **Administratör** (`ADMIN`) och
+  **Ägare** (`OWNER`), i den ordningen (`CLUB_ROLE_RANK`). Träningsgruppens: Ledare (`LEADER`) och Medlem (`MEMBER`).
+- Inbjudningarnas roller hör till sitt slag (`invitationRoleFits`): klubbens ovan, tävlingens (`ADMIN`, `FUNCTIONARY`,
+  `COURSE_*`) och gruppens.
+
+### Klubbarkivet
+
+- **Årsmapp** = en mapp som bara är ett år eller ett år och ord ("2019", "2019 träningar"), inte ett datum ("2019 04-02
+  Skogen"). Regeln finns på ett ställe: `yearOfYearFolder` i `packages/domain`.
+
 ## Resultatutvärdering
 
 `evaluateCardReadout(readout, snapshot)` gör ingen I/O och läser inget globalt tillstånd. Den kräver bara
@@ -101,16 +147,6 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   variant, ojämn fördelning per gafflingspunkt (mer än en löpare i skillnad), högst 100 varianter och 26 bokstäver.
 - Layouter (ADR-0217): en grupp per bana, variant *och* klassens layout i banläggningen (`event.classLayouts`, klassnamn →
   layout); reserven räknas per grupp, så reserverna följer klassens layout. Utan val gäller huvudlayouten och grupperna är som förut.
-
-## Banläggningens utskrift: ordlista (ADR-0217)
-
-- **Model space** = fliken Banläggning (kartan och banorna, kartans mm). **Paper space** = fliken Layout (papperets mm).
-- **Layout** = papper (storlek, riktning, marginal), skala, mall för papperet och "Kartor per ark". **Huvudlayouten** är banans
-  egna fält (banans skala, tryckyta och papper) och den enda som skrivs till .ppen.
-- **Ark** = bana × layout: utsnitt, klippning, kartbyten (delar) och papperets element. Justerade nummer per ark och ringavbrott
-  per layout; det som inte är justerat följer banläggningen.
-- **Tryckyta** = `printArea` (Purple Pens `print-area`); i UI på arket heter den **utsnitt**. **Kartram** = `SheetFrame`, ytan på
-  papperet där kartan står. **Mall för papperet** = `PaperTemplate` (ADR-0197); **Kartor per ark** = `SheetLayout` (ADR-0183).
 
 ## Banhemlighet (steg 52, ADR-0176)
 

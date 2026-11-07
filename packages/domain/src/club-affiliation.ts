@@ -82,7 +82,7 @@ export function derivedClubRole(affiliations: readonly ClubAffiliationFacts[], l
   return affiliations.some(affiliation => affiliationConfirmedIn(affiliation, link)) ? "READER" : undefined;
 }
 
-/** Klubbrollerna i rangordning (ADR-0194 beslut 1): läsare < ledare < administratör < ägare. */
+/** Klubbrollerna i rangordning (ADR-0194 beslut 1): medlem (lagrat `READER`) < ledare < administratör < ägare. */
 export const CLUB_ROLE_RANK: Readonly<Record<ClubSpaceRole, number>> = { READER: 0, LEADER: 1, ADMIN: 2, OWNER: 3 };
 
 /** Rollen som gäller: den uttryckliga (inbjudan) eller den härledda, den högsta av dem. */

@@ -35,7 +35,7 @@ export const layoutSv = {
   },
   layouts: {
     heading: "Layouter",
-    help: "En layout är papper, skala och mall. Huvudlayouten är banornas egen skala och papper och skrivs till .ppen.",
+    help: "En layout är papper, skala, Mall för papperet och Kartor per ark. Huvudlayouten är banornas egen skala och papper och skrivs till .ppen.",
     add: "+ Ny layout",
     newName: "Ny layout",
     name: "Namn",
@@ -104,7 +104,7 @@ export const layoutSv = {
       LAYOUT: (name: string, change: string) => `Layouten ${name}: ${change === "ADDED" ? "ny sedan läget" : change === "REMOVED" ? "borttagen sedan läget" : "ändrad"}`,
       SHEET: (course: string, layout: string) => `Arket ${course} i ${layout}`,
       CLASS: (name: string, from: string, to: string) => `${name}: ${from} → ${to}`,
-      TEMPLATES: "Mallarna",
+      TEMPLATES: "Mall för papperet och Kartor per ark",
       PROFILE: "Färgprofilen"
     }
   }

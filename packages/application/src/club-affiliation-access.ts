@@ -33,7 +33,7 @@ export async function clubLinkFactsMany(tx: DbExecutor, clubIds: readonly string
 }
 
 /**
- * Läsare genom en bekräftad tillhörighet (beslut 3). Kräver bekräftad e-postadress och ett konto som inte är spärrat, som
+ * Medlem (`READER`) genom en bekräftad tillhörighet (beslut 3). Kräver bekräftad e-postadress och ett konto som inte är spärrat, som
  * behörigheter från andra (ADR-0186). Används av `clubMembership`, så att allt i arkivet följer samma regel.
  */
 export async function derivedClubMembership(tx: DbExecutor, accountId: string, clubId: string): Promise<{ id: string; role: "READER" } | undefined> {

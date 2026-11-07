@@ -16,11 +16,13 @@ inte via Claude eller någon tredje part.
 ## Beslut
 
 1. **Klubben** (`club`) är en egen nivå över träningsgrupperna: namn, medlemmar med rollerna ägare (`OWNER`), administratör
-   (`ADMIN`) och läsare (`READER`). Den som skapar klubben är ägare. Medlemmar läggs till med e-postadressen och sparas för
+   (`ADMIN`) och medlem (`READER`). Den som skapar klubben är ägare. Medlemmar läggs till med e-postadressen och sparas för
    adressen (`club_invitation`) som ADR-0188 beslut 6: svaret är detsamma med och utan konto, och inbjudan blir ett medlemskap
    när ett konto med adressen och bekräftad e-post loggar in, bekräftar adressen, öppnar Mina tävlingar eller klubben. Bara
    ägare och administratörer bjuder in, ändrar och importerar; en ägare kan bara läggas till eller tas bort av en ägare, och den
-   sista ägaren kan inte tas bort. Läsare ser arkivet, laddar ner originalen och använder träningarna igen i sina egna tävlingar.
+   sista ägaren kan inte tas bort. Medlemmar ser arkivet, laddar ner originalen och använder träningarna igen i sina egna tävlingar.
+   Ändrat 2026-11-07 (städrundan C4): rollen heter Medlem i UI och här (förut "läsare"); det lagrade värdet är fortfarande
+   `READER` (ADR-0209 beslut 5 lade till Ledare däremellan).
    `training_group.club_id` (nullbar) låter en klubb äga grupper senare utan att grupperna görs om (ADR-0182 beslut 8); den
    sätts inte än.
 2. **Kartan är logisk och har versioner.** `club_map` är ett område ("Älvsjöskogen") med kartans rättigheter (samma fält som
@@ -59,6 +61,9 @@ inte via Claude eller någon tredje part.
    träningar med karta och banor, bara banor med löst karta, karta saknas, mappar utan något att importera) utan att kontakta
    servern, och en rapportfil sparas lokalt. Importen är idempotent: träningen känns igen på källans sökväg, banfilen på
    träningen och innehållet, versionen på innehållet. Ett avbrott fortsätter där det slutade.
+   Ändrat 2026-11-07 (städrundan C4): vad som är en årsmapp avgörs av en regel (`yearOfYearFolder` i domänen) för importen,
+   träningens mapp och kartversionens år (ADR-0210 beslut 3): bara året eller året och ord, året 1950–2100. "2019 04-02 Skogen"
+   är en träning med datum, inte en årsmapp (förut tolkade importen den som årsmapp och kartversionens år inte).
 7. **Importnyckeln.** Importen loggar inte in med lösenord: en ägare eller administratör skapar en nyckel i arkivet ("Skapa
    importnyckel"), som visas en gång, gäller i 12 timmar och bara för importen till den klubben (`club_import_token`, hashad).
    Nyckeln går att återkalla. Anropen under `/api/club-import/` kräver nyckeln i `Authorization: Bearer`, inga kakor.

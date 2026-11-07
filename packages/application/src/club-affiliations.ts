@@ -192,7 +192,7 @@ export async function pendingClubAffiliations(tx: DbExecutor, clubId: string): P
   return (await affiliationView(tx, clubId))?.pending.length ?? 0;
 }
 
-/** Klubben i Eventor och bekräftelserna: bara ägare och administratörer (läsare får 403, andra 404). */
+/** Klubben i Eventor och bekräftelserna: bara ägare och administratörer (medlemmar och ledare får 403, andra 404). */
 export async function readClubAffiliation(db: Database, input: ClubProof & { clubId: string }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; view: ClubAffiliationView }> {
   return db.transaction(async tx => {

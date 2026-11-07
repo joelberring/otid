@@ -7,6 +7,7 @@ import { bytea } from "./types";
  * ADR-0194 (migration 0059–0061): klubben och klubbarkivet. Kartversionernas filer ligger i `map_content` (ADR-0189);
  * banfilerna (små) ligger i `club_archive_course_file.content`.
  */
+/** Lagrade värden; i UI Ägare, Administratör, Ledare och Medlem (`READER`, förut "läsare"; docs/domain-rules.md, Ordlista). */
 export type ClubRole = "OWNER" | "ADMIN" | "LEADER" | "READER";
 export type ClubMapFormat = "OCD" | "OMAP";
 export type ClubCourseFileKind = "PPEN" | "COURSE_DATA";

@@ -1,9 +1,5 @@
+import { foldForSearch } from "@o-tid/domain";
 import { helpSynonyms, type HelpArticle, type HelpBlock, type HelpView } from "../i18n/help-sv";
-
-/** Gemener utan accenter: å, ä och ö blir a, a och o (även æ och ø), så att "lasa" hittar "läsa" och tvärtom. */
-export function foldForSearch(value: string): string {
-  return value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("sv-SE").replace(/æ/g, "a").replace(/ø/g, "o");
-}
 
 /** En länk till en annan artikel i texten: `[text](#artikel-id)`. */
 export const HELP_LINK = /\[([^\]]+)\]\(#([a-z0-9-]+)\)/g;

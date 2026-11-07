@@ -71,6 +71,13 @@ describe("löpardatabasen i avläsningspaketet (offline)", () => {
     expect(clubByName(pkg(), "Okänd klubb")).toBeUndefined();
   });
 
+  it("klubbar med ø, æ och ß hittas utan dem", () => {
+    const value = pkg();
+    const clubs = [...value.runnerLookup!.clubs, { id: "9500", name: "Ørsta Æbeltoft OK", type: "CLUB" as const }];
+    const withClub = { ...value, runnerLookup: { ...value.runnerLookup!, clubs } };
+    expect(clubByName(withClub, "orsta aebeltoft ok")?.id).toBe("9500");
+  });
+
   it("klassen vars bana passar kommer först; damklass före för en kvinna bland lika passande", () => {
     const value = pkg();
     const full = classSuggestions(value, payload("8100101", [31, 32, 33]), registrable(value), "F");

@@ -2,18 +2,14 @@
  * ADR-0209: klubbtillhörighet. Ren logik utan I/O: sökningen i klubblistan (Eventors organisationer) och vad en anmäld
  * tillhörighet ger i ett klubbarkiv.
  */
-
-/** Bokstäver som inte delas upp av Unicode-normaliseringen. */
-const FOLD: Readonly<Record<string, string>> = { "ø": "o", "æ": "ae", "œ": "oe", "ß": "ss", "ð": "d", "þ": "th", "ł": "l", "đ": "d", "ı": "i" };
+import { foldForSearch } from "./search-fold";
 
 /**
  * Text för jämförelse: gemener, utan accenter (å → a, ä → a, ö → o) och utan allt som inte är bokstav eller siffra.
  * "OK Älvsjö-Örby" → "okalvsjoorby".
  */
 export function normalizeClubSearch(value: string): string {
-  return value.toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "")
-    .replace(/[øæœßðþłđı]/g, letter => FOLD[letter] ?? letter)
-    .replace(/[^\p{L}\p{N}]+/gu, "");
+  return foldForSearch(value).replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 /**

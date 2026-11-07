@@ -58,3 +58,4 @@ export * from "./training-group";
 export * from "./club-affiliation";
 export * from "./map-link";
 export * from "./csv";
+export * from "./search-fold";

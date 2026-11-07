@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  clusterDuplicates, extentIoU, extentOverlap, findDuplicatePairs, nameSimilarity, normalizeMapName, scoreDuplicatePair, stripAccents,
+  clusterDuplicates, extentIoU, extentOverlap, findDuplicatePairs, nameSimilarity, normalizeMapName, scoreDuplicatePair,
   symbolSetHash, type DuplicateCandidate, type MapFingerprint
 } from "../src/map-duplicates";
 
@@ -30,7 +30,7 @@ describe("normalizeMapName", () => {
     expect(normalizeMapName("Gamla skogen.ocd")).toEqual(["gamla", "skogen"]);
     expect(normalizeMapName("Solberga sprint.omap")).toEqual(["solberga", "sprint"]);
     expect(normalizeMapName("2019.ocd")).toEqual([]);
-    expect(stripAccents("ÅÄÖ åäö é ü ø")).toBe("AAO aao e u o");
+    expect(normalizeMapName("Øvre Strasse Ålund.ocd")).toEqual(normalizeMapName("øvre straße alund.ocd"));
   });
 });
 

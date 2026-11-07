@@ -13,7 +13,7 @@ export const invitationRoleWords: { CLUB: Record<ClubRole, string>; RACE: Record
     COURSE_SUGGEST: "banläggare – kan föreslå ändringar", COURSE_COMMENT: "banläggare – kan läsa och kommentera",
     COURSE_MAP: "kartritare – ser kartan och kartfelen" },
   GROUP: { LEADER: "ledare", MEMBER: "medlem" },
-  MAP_PROJECT: { OWNER: "ägare", EDIT: "kartritare – kan ändra", READ: "kan läsa" }
+  MAP_PROJECT: { OWNER: "ägare", EDIT: "kartritare – kan ändra", SUGGEST: "kartritare – kan föreslå ändringar", READ: "kan läsa" }
 };
 export const invitationRoleWord = (kind: InvitationKind, role: InvitationRole) =>
   (invitationRoleWords[kind] as Partial<Record<InvitationRole, string>>)[role] ?? role.toLowerCase();

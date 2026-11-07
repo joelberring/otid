@@ -69,6 +69,8 @@ export const mapProjectSyncRequestSchema = z.object({
  */
 const areaPointSchema = z.object({ x: z.number().finite().min(-5_000_000).max(5_000_000), y: z.number().finite().min(-5_000_000).max(5_000_000) })
   .strict();
+/** Kroppen när ett delområde skapas eller ändras får vara högst så här stor (20 ringar × 2000 punkter). */
+export const MAP_PROJECT_AREA_MAX_BYTES = 2 * 1024 * 1024;
 export const mapProjectAreaPolygonSchema = z.array(z.array(areaPointSchema).min(3).max(2000)).min(1).max(20);
 export const mapProjectAreaNameSchema = z.string().trim().min(1).max(80);
 export const mapProjectAreaCreateRequestSchema = z.object({

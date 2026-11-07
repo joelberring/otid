@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, daysFromToday, ongoingRaceTimeZone, openStep, publishRace, registerAccount, reviewScreenshots, sectionButton,
-  sendReadout, today, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, daysFromToday, ongoingRaceTimeZone, openStep, publishRace, readExercise, registerAccount,
+  reviewScreenshots, sectionButton, sendReadout, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 4–5 (ADR-0168): en hel träningskväll med tio syntetiska löpare.
@@ -24,10 +24,9 @@ const RUNNERS = [
   { givenName: "Hugo", familyName: "Mo", className: "D21", card: "8001008" }
 ] as const;
 
-async function readExercise(page: Page, runner: typeof RUNNERS[number], button: string, verdict: string) {
-  await page.getByLabel("Deltagare").selectOption({ label: `${runner.givenName} ${runner.familyName} · ${runner.className} · ${runner.card}` });
-  await page.getByRole("button", { name: button }).click();
-  await expect(page.getByTestId("verdict")).toContainText(verdict);
+/** Övningsstationen läser löparens bricka (beskedet för just den brickan, se readExercise); `saved` false utan nät. */
+async function read(page: Page, runner: typeof RUNNERS[number], button: string, verdict: string, saved = true) {
+  await readExercise(page, `${runner.givenName} ${runner.familyName} · ${runner.className} · ${runner.card}`, { button, status: verdict, saved });
   await expect(page.getByTestId("verdict")).toContainText(`${runner.givenName} ${runner.familyName}`);
 }
 
@@ -96,17 +95,17 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await expect(owner.getByTestId("station-status")).toContainText("Övningsstation");
 
   // Tre med nät.
-  for (const runner of RUNNERS.slice(0, 3)) await readExercise(owner, runner, "Läs av: rätt stämplat", "GODKÄND");
+  for (const runner of RUNNERS.slice(0, 3)) await read(owner, runner, "Läs av: rätt stämplat", "GODKÄND");
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar");
   await expect(owner.getByTestId("verdict").getByRole("list", { name: "Sträcktider" })).toContainText("31");
 
   // Nätet försvinner: två till, en av dem felstämplad, och en okänd bricka.
   await owner.context().setOffline(true);
   await expect(owner.getByTestId("internet-status")).toContainText("Ej ansluten");
-  await readExercise(owner, RUNNERS[3], "Läs av: missad kontroll", "FELSTÄMPLAD");
+  await read(owner, RUNNERS[3], "Läs av: missad kontroll", "FELSTÄMPLAD", false);
   // Steg 27: beskedet visar brickans stämplingar i ordning med klockslag.
   await expect(owner.getByTestId("verdict-punches").getByRole("list", { name: "Brickans stämplingar i ordning" })).toContainText("31");
-  await readExercise(owner, RUNNERS[4], "Läs av: rätt stämplat", "GODKÄND");
+  await read(owner, RUNNERS[4], "Läs av: rätt stämplat", "GODKÄND", false);
   await owner.getByRole("button", { name: "Läs av: okänd bricka" }).click();
   await expect(owner.getByTestId("verdict")).toContainText("OKÄND BRICKA");
   await expect(owner.getByTestId("queue-status")).toHaveText("3 väntar");
@@ -115,7 +114,7 @@ test("träningskväll från tävling till IOF-export", async ({ browser, request
   await owner.reload();
   await expect(owner.getByTestId("queue-status")).toHaveText("3 väntar");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await readExercise(owner, RUNNERS[5], "Läs av: rätt stämplat", "GODKÄND");
+  await read(owner, RUNNERS[5], "Läs av: rätt stämplat", "GODKÄND", false);
   // Den andra okända brickan springer också H21:s bana.
   await owner.getByLabel("Deltagare").selectOption({ label: `${RUNNERS[4].givenName} ${RUNNERS[4].familyName} · H21 · ${RUNNERS[4].card}` });
   await owner.getByRole("button", { name: "Läs av: okänd bricka" }).click();

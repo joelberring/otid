@@ -16,6 +16,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Sträckavbrott per layout: `PrintLayout.legGaps`, edit `SET_LAYOUT_LEG_GAPS`, rader i "Justera för 1:…"; "Ta bort justeringar" tar dem också.
 - `paperUndoFor` behåller `part` vid ångra av SET_PAPER_LAYOUT och DELETE_PAPER_TEMPLATE (test `course-setting-paper-undo.test.ts`).
 - Specarna pappersrum, utskrift-omtag, kartbyte, hittbarhet, löparkartor, utskrift och layout arbetar i Layout-fliken; hjälpen ändrad och hjälpknapp i Layout.
+### 2026-11-07 – Teststabilitet och behörighetstester (grenen c6-tester, C6, inga produktändringar)
+- E2E: `readExercise`/`expectVerdictFor` i `tests/e2e/helpers.ts` väntar på "Bricka <nr>" för just den brickan, sedan status och "Sparad."; alla specar som läser av med övningsstationen använder den (20 specar).
+- `placering.spec.ts`: Adas tider från en och samma hela sekund (gav ibland "+4:59"). `live.spec.ts`: Live väntar 20 s (en väckning under en pågående hämtning tas först vid nästa hämtning, 10 s med öppen ström).
+- `waitForTimeout` i flödet ersatt med tillstånd: `mapSettled` (kartan ritad och stilla), `courseSettingInPhone` (posten, kön och ångra-historiken i IndexedDB före omladdning), festens hämtning, kartfilens uppladdning. Kvar: `ux-flode` före breddmätningen (två "Hämtar …" stod kvar i CI), väntor före skärmdumpar bakom E2E_SCREENSHOT_DIR, Högdalen-testerna, pekgesternas 16 ms och notisens foto (ingen synlig signal).
+- `stafett-steg47`: `compileRoutes` hoppas över mot driftbygget (E2E_BASE_URL).
+- Nytt `apps/web/src/lib/organizer-roles.test.ts`: tabell över vad ägare/admin/ledare/medlem i klubben, ledare/medlem i gruppen, utomstående, superadmin, utloggad och importnyckeln får på varje route och metod under organizer/clubs, organizer/groups, account, club-import och superadmin (81 metoder, ~650 anrop mot en egen PostgreSQL-databas; körs när TEST_DATABASE_URL finns). En route som saknas i tabellen fäller testet. Inga felaktiga behörigheter hittades; Google-routes prövas inte (inte inställt i testet).
+
 ### 2026-11-07 – Död kod bort och knip i CI (grenen c1-dod-kod, ingen migration)
 - Gamla versionsscheman (resultOutcomeV1–V8, storedResult*V4/V6, publicResult*V1–V6, V9-alias) bort; gällande namn kvar. `publicResultListResponseSchema` är format 7.
 - Oanvända exporter, konstanter och ~150 exporterade typer bort; `distributeRelayVariants` och `encodeCaptureWalNdjson` flyttade till testerna.
@@ -29,6 +36,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Utskrift: alla ark i en layout, klasser, provark (ett av varje) och antal (anmälda + reserver eller eget); B2:s färgdel orörd.
 - Verifierat: enhetstester (course-setting, domain, contracts, application, web-lib), integration `adr-0217-layout-kartbuntar`, E2E `banlaggning-layout`.
 - Återstår: papperets redigering finns kvar också på utskriftssidan (specarna pappersrum, utskrift-omtag, kartbyte, hittbarhet, löparkartor och utskrift använder den; baksidan per löpare och kartbytets delmål finns bara där). Sträckavbrott per layout.
+### 2026-11-07 – Städrundan C5: databasen, säkrare migrationer och schema (grenen c5-databas, migration 0087, ändringsmeningar i ADR-0186 och ADR-0189)
+- Spärrens scope räknas inte längre upp i ett CHECK (skrevs om sex gånger): listan står i `ACCOUNT_REQUEST_THROTTLE_SCOPES` (schema/accounts.ts), `throttleKeyHash` vägrar andra, databasen kräver bara formen. Klubbens roller behåller sitt CHECK (ändrat en gång, sluten lista).
+- K4: `training_group_invitation.actor_account_id` utan främmande nyckel; ett borttaget konto tar inte med sig gruppinbjudningar till andra.
+- Bekräftelselänken skriver inte `salt_hex`/`verifier_hex` (nullbara, steg 1). Steg 2 (DROP COLUMN) under Idéer.
+- `club_map_merge`/`club_map_duplicate_dismissal` får inga nycklar (målet kan gå upp i en senare sammanslagning och komma tillbaka; `purgeRows` skulle radera klubbens historik via `user_account`); skälet i schema/clubs.ts och ett test.
+- Nya tester: `schemadrift.test.ts` (Drizzle mot `information_schema` efter alla migrationer, undantagslista), `c5-databas.test.ts`, kedjad sammanslagning i `adr-0210`. migrations/README.md: journalens ordning är körordningen, nya sist, undantaget i 0079 stängt.
+
 ### 2026-11-07 – Serverrapport, larm, mindre säkerhetskopior, belastningstest (grenen b4-serverrapport, ADR-0216, migration 0085)
 - Veckorapport söndag kl. 19 och larm (disk, kartkvot, backup, hälsokontroll, minne; högst ett per sort och dygn, "löst" när det gått över) till superadmin via mail.ts, från `web` (`lib/server-watch-runner.ts`, `application/server-report.ts` + `server-status.ts`). Tabellerna `server_sample`, `server_notice`, `server_notice_log`. `node superadmin.mjs server-report` visar rapporten.
 - `monitor.sh` skriver `./status/monitor.log`, `backup.sh` `./backups/.backup-status`; `web` monterar `./backups` och `./status` skrivskyddat (compose). Inget nytt i `.env` krävs.
@@ -1205,6 +1219,9 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Tvåstegsregelns steg 2 för migration 0087 (städrundan C5), i en driftsättning efter den med 0087: `ALTER TABLE email_verification_token
+  DROP COLUMN salt_hex, DROP COLUMN verifier_hex` (och kolumnerna ur schema/accounts.ts). Ingen kod läser eller skriver dem sedan 0087.
 
 - Steg 54: en utläsning i 25-manna gör 84 databasfrågor i följd (individuell 38); under last väntar varje fråga på
   processorn. Färre frågor (lagets sträckor, starter och resultat i en fråga) skulle ge snabbare kvitto vid täta växlingar.

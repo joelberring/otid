@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { FAKE_EVENTOR_API_KEY, FAKE_EVENTOR_PORT, fakeEventorEventDate } from "./fake-eventor";
-import { createRace, openStep, registerAccount, unique, warmRoute } from "./helpers";
+import { createRace, openStep, readExercise, registerAccount, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 14 (ADR-0170 beslut 4): Eventor och banfiler, med uppdateringar. Klubbens nyckel sparas,
@@ -76,9 +76,7 @@ test("Eventor: koppla, importera, uppdatera med skillnader och läs in ny banfil
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await owner.getByLabel("Deltagare").selectOption({ label: "Anna Åkesson · D21 · 2101001" });
-  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await readExercise(owner, "Anna Åkesson · D21 · 2101001");
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Anmälningarna ändras i Eventor: ny bricka, klassbyte, en struken och en ny löpare.

@@ -66,12 +66,17 @@ att gissa, och träningsgruppens medlemslista avslöjade om en adress hade ett k
    kortnamnet kortas till 31 tecken. Befintliga grupper behåller sin kod (utskrivna QR-koder ska fungera). Gruppsidan räknar
    missade koder per IP-adress och svarar "För många försök" efter 30 i timmen, också för en riktig kod (migration 0046,
    spärrens `GROUP_CODE_IP`).
+   Ändrat 2026-11-07 (städrundan C5, migration 0087): spärrens scope räknas inte längre upp i ett CHECK som skrevs om för varje
+   nytt scope; listan står i koden (`ACCOUNT_REQUEST_THROTTLE_SCOPES`, kontrolleras i `throttleKeyHash`) och databasen kräver bara formen.
 9. **Träningsgruppens ledare och medlemmar** avslöjar inte konton (som ADR-0188 beslut 6): de sparas för adressen
    (`training_group_invitation`) och listan visar "väntar på inloggning" tills ett konto med adressen och bekräftad e-post loggar
    in, bekräftar adressen, öppnar Mina tävlingar, en tävling eller gruppens sida. En adress som redan finns i listan ger 409 (den
    syns redan). Registreringen och svarstiden: ADR-0186 beslut 9 täcker registrering, glömt lösenord och inloggning när servern
    har e-post (samma svar, lösenordet hashas alltid, mejlet efter svaret; inloggning mot okänd adress gör en lika lång
    scrypt-kontroll). Utan e-post säger registreringen fortfarande att adressen finns; det står i docs/security-privacy.md.
+   Ändrat 2026-11-07 (städrundan C5/K4, migration 0087): inbjudans avsändare (`actor_account_id`) har ingen främmande nyckel, som
+   klubbens inbjudan. Ett konto som tas bort tar alltså inte med sig inbjudningar det skickat till andra; de står kvar och en
+   annan ledare kan skicka dem igen.
 
 ## Följder
 

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, registerAccount, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openStep, publishRace, readExercise, registerAccount, unique,
+  warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 16 (ADR-0171): sträcktidsanalys och vägval. Tre löpare lottas med fem minuter mellan starterna och
@@ -97,10 +98,9 @@ test("sträcktidsanalys: från resultatlistan, sortering på en sträcka och vä
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
   const cardStart = new Map<string, number>();
   for (const runner of [early, middle, late]) {
-    await owner.getByLabel("Deltagare").selectOption({ label: `${fullName(runner)} · H21 · ${runner.card}` });
     cardStart.set(runner.card, Date.now() - 30 * 60_000);
-    await owner.getByRole("button", { name: runner === late ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" }).click();
-    await expect(owner.getByTestId("verdict")).toContainText(runner === late ? "FELSTÄMPLAD" : "GODKÄND");
+    await readExercise(owner, `${fullName(runner)} · H21 · ${runner.card}`,
+      { button: runner === late ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" });
   }
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 

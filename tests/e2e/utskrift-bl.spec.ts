@@ -46,7 +46,9 @@ async function uploadFiles(owner: Page, raceId: string, mapPath: string, ppenPat
     await owner.getByLabel("Kartfil (.ocd, .omap eller .xmap, högst 75 MB)").setInputFiles({ name: asciiName(mapPath),
       mimeType: "application/octet-stream", buffer: readFileSync(mapPath) });
     await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
-    await owner.waitForTimeout(1000);
+    // Antingen syntes ingen fil, eller så läses, ritas eller sparas kartan (eller är redan klar).
+    await expect(notChosen.or(owner.getByText(/^(Läser kartfilen|Ritar kartan|Sparar kartan) …$/))
+      .or(owner.getByRole("heading", { name: "Ingen banläggning än" })).first()).toBeVisible({ timeout: 30_000 });
     if (!(await notChosen.isVisible())) break;
   }
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 120_000 });

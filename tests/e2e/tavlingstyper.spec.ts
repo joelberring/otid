@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, sectionButton, today, unique, warmRoute, type RaceTypeName,
-  type SectionName } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, readExercise, registerAccount, sectionButton, today, unique, warmRoute,
+  type RaceTypeName, type SectionName } from "./helpers";
 
 /**
  * Steg 12 (ADR-0170): tävlingstypen styr vilka delar som syns, navigeringen följer med när man rullar och
@@ -93,9 +93,7 @@ test("speakern har en egen sida som visar den som gått i mål", async ({ browse
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await owner.getByLabel("Deltagare").selectOption({ label: "Anna Ek · H21 · 8004001" });
-  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await readExercise(owner, "Anna Ek · H21 · 8004001");
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Speakersidan i en egen flik: senast i mål med placering, ledare per klass och kvar i skogen.

@@ -62,6 +62,7 @@
     { "idx": 57, "version": "7", "when": 1804435200000, "tag": "0082_google_koppla", "breakpoints": true },
     { "idx": 58, "version": "7", "when": 1804521608300, "tag": "0083_kartritarlank", "breakpoints": true },
     { "idx": 59, "version": "7", "when": 1804608000000, "tag": "0084_stadrunda_sakerhet", "breakpoints": true },
-    { "idx": 60, "version": "7", "when": 1804694400000, "tag": "0085_serverrapport", "breakpoints": true }
+    { "idx": 60, "version": "7", "when": 1804694400000, "tag": "0085_serverrapport", "breakpoints": true },
+    { "idx": 61, "version": "7", "when": 1804867200000, "tag": "0087_databas_stadning", "breakpoints": true }
   ]
 }

@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { mapPointToWgs84 } from "../../packages/map-file/src/georef";
 import type { MapGeoreference } from "../../packages/map-file/src/model";
-import { createRace, openStep, registerAccount, today, unique, warmRoute } from "./helpers";
+import { createRace, mapSettled, openStep, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * Banläggningens karta på en telefon (390 × 844): ett finger på tom karta flyttar kartan och två fingrar isär zoomar in,
@@ -50,7 +50,7 @@ test("kartan på telefonen: ett finger flyttar kartan, två fingrar zoomar", asy
   const map = phone.getByTestId("course-setting-map");
   await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
-  await phone.waitForTimeout(500);
+  await mapSettled(map);
 
   const cdp = await phone.context().newCDPSession(phone);
   const box = (await map.boundingBox())!;
@@ -62,10 +62,8 @@ test("kartan på telefonen: ett finger flyttar kartan, två fingrar zoomar", asy
     await phone.waitForTimeout(16);
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await phone.waitForTimeout(300);
-  const after = await map.getAttribute("data-center");
+  await expect(map).not.toHaveAttribute("data-center", before!);
   expect(await phone.evaluate(() => window.scrollY)).toBe(0);
-  expect(after).not.toBe(before);
   // Två fingrar isär: zoomar in.
   const scale0 = Number(await map.getAttribute("data-px-per-mm"));
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
@@ -75,7 +73,5 @@ test("kartan på telefonen: ett finger flyttar kartan, två fingrar zoomar", asy
     await phone.waitForTimeout(16);
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await phone.waitForTimeout(300);
-  const scale1 = Number(await map.getAttribute("data-px-per-mm"));
-  expect(scale1).toBeGreaterThan(scale0 * 2);
+  await expect.poll(async () => Number(await map.getAttribute("data-px-per-mm"))).toBeGreaterThan(scale0 * 2);
 });

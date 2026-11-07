@@ -72,19 +72,25 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
   check("user_account_login_throttle_attempts_check", sql`${table.failedAttempts} >= 0`)
 ]);
 
+/**
+ * Spärrens scope. Städrundan 2026-11-07 (C5, migration 0087): listan finns bara här, inte i ett CHECK som måste skrivas om för
+ * varje nytt scope (0000, 0018, 0040, 0046, 0083 och 0084 gjorde det, och en glömd rad gav fel i drift). Databasen kräver bara
+ * formen; `throttleKeyHash` i application vägrar ett scope som inte står här.
+ */
+export const ACCOUNT_REQUEST_THROTTLE_SCOPES = ["REGISTER_IP", "RESET_IP", "RESET_EMAIL", "SELF_REGISTRATION_IP", "SELF_REGISTRATION_RACE",
+  "VERIFY_EMAIL", "GROUP_CODE_IP", "MAP_LINK_IP", "MAP_LINK_TOKEN", "INVITATION_RECIPIENT_HOUR", "INVITATION_RECIPIENT_DAY",
+  "INVITATION_ISSUER_HOUR", "INVITATION_ISSUER_DAY"] as const;
+export type AccountRequestThrottleScope = typeof ACCOUNT_REQUEST_THROTTLE_SCOPES[number];
+
 /** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */
 export const accountRequestThrottles = pgTable("account_request_throttle", {
-  scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL"
-    | "GROUP_CODE_IP" | "MAP_LINK_IP" | "MAP_LINK_TOKEN" | "INVITATION_RECIPIENT_HOUR" | "INVITATION_RECIPIENT_DAY" | "INVITATION_ISSUER_HOUR"
-    | "INVITATION_ISSUER_DAY">().notNull(),
+  scope: text("scope").$type<AccountRequestThrottleScope>().notNull(),
   keyHash: text("key_hash").notNull(),
   windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
   attempts: integer("attempts").notNull()
 }, (table) => [
   primaryKey({ columns: [table.scope, table.keyHash] }),
-  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL', 'SELF_REGISTRATION_IP', 'SELF_REGISTRATION_RACE', 'VERIFY_EMAIL',
-    'GROUP_CODE_IP', 'MAP_LINK_IP', 'MAP_LINK_TOKEN', 'INVITATION_RECIPIENT_HOUR', 'INVITATION_RECIPIENT_DAY', 'INVITATION_ISSUER_HOUR',
-    'INVITATION_ISSUER_DAY')`),
+  check("account_request_throttle_scope_format_check", sql`${table.scope} ~ '^[A-Z][A-Z0-9_]{0,62}[A-Z0-9]$'`),
   check("account_request_throttle_key_check", sql`${table.keyHash} ~ '^[a-f0-9]{64}$'`),
   check("account_request_throttle_attempts_check", sql`${table.attempts} >= 0`)
 ]);
@@ -106,13 +112,16 @@ export const passwordResetTokens = pgTable("password_reset_token", {
     sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '1 hour'`)
 ]);
 
-/** ADR-0186: bekräftelselänken för e-postadressen. Hash av engångsnyckeln och registreringens lösenord, ett dygn, en gång. */
+/**
+ * ADR-0186: bekräftelselänken för e-postadressen. Hash av engångsnyckeln, ett dygn, en gång. `salt_hex`/`verifier_hex` (registreringens
+ * lösenord) läses inte sedan ADR-0205 och skrivs inte sedan migration 0087 (nullbara, steg 1); de tas bort i en senare driftsättning.
+ */
 export const emailVerificationTokens = pgTable("email_verification_token", {
   id: uuid("id").primaryKey().defaultRandom(),
   accountId: uuid("account_id").notNull().references(() => userAccounts.id),
   tokenHash: text("token_hash").notNull(),
-  saltHex: text("salt_hex").notNull(),
-  verifierHex: text("verifier_hex").notNull(),
+  saltHex: text("salt_hex"),
+  verifierHex: text("verifier_hex"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),

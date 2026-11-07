@@ -198,6 +198,32 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
     expect((await undoClubMapMerge(db, { ...owner.proof, clubId, mergeId: merged.response.mergeId }, later(3))).status).toBe("conflict");
   });
 
+  it("C5: en karta som tagit emot en sammanslagning kan själv gå upp i en annan, och båda kan ångras i tur och ordning", async () => {
+    // Därför har club_map_merge inga främmande nycklar till kartan (städrundan 2026-11-07): målet tas bort och kommer tillbaka.
+    const { owner, clubId, maps } = await archive();
+    const first = await mergeClubMaps(db, { ...owner.proof, clubId, request: { formatVersion: 1, keepMapId: maps.a.mapId,
+      mapIds: [maps.a.mapId, maps.c.mapId] } }, later(1));
+    if (first.status !== "ok") throw new Error(first.status);
+    const second = await mergeClubMaps(db, { ...owner.proof, clubId, request: { formatVersion: 1, keepMapId: maps.b.mapId,
+      mapIds: [maps.a.mapId, maps.b.mapId] } }, later(2));
+    if (second.status !== "ok") throw new Error(second.status);
+    const merged = await readClubArchive(db, { ...owner.proof, clubId }, later(2));
+    expect(merged.status === "ok" && merged.list.maps.map(item => item.name)).toEqual(["alvsjoskogen_ny", "Solberga"]);
+
+    expect((await undoClubMapMerge(db, { ...owner.proof, clubId, mergeId: second.response.mergeId }, later(3))).status).toBe("ok");
+    const back = await readClubArchive(db, { ...owner.proof, clubId }, later(3));
+    if (back.status !== "ok") throw new Error("Inget arkiv");
+    const a = back.list.maps.find(item => item.mapId === maps.a.mapId)!;
+    expect(a.merges.map(merge => [merge.mergeId, merge.undoable])).toEqual([[first.response.mergeId, true]]);
+    expect((await undoClubMapMerge(db, { ...owner.proof, clubId, mergeId: first.response.mergeId }, later(4))).status).toBe("ok");
+    const restored = await readClubArchive(db, { ...owner.proof, clubId }, later(4));
+    if (restored.status !== "ok") throw new Error("Inget arkiv");
+    for (const original of [maps.a, maps.b, maps.c, maps.d]) {
+      const map = restored.list.maps.find(item => item.mapId === original.mapId)!;
+      expect([map.name, map.versions.map(version => version.versionId)]).toEqual([original.name, original.versions.map(version => version.versionId)]);
+    }
+  });
+
   it("året går att skriva in, och Kopiera till alla versioner och Från kartan sätter uppgifterna med journal", async () => {
     const { owner, reader, clubId, maps } = await archive();
     const merged = await mergeClubMaps(db, { ...owner.proof, clubId, request: { formatVersion: 1, keepMapId: maps.b.mapId,

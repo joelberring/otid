@@ -22,3 +22,21 @@ Journalen ska ha unika taggar och unika `when`, och `idx` ska vara 0..n i ordnin
 Översynen 2026-11-02 (ADR-0185 beslut 1): appen används publikt, så migrationer får inte längre ta bort eller skriva om
 data i ett steg (se `AGENTS.md`). `CREATE [UNIQUE] INDEX CONCURRENTLY IF NOT EXISTS …;` lyfts ut ur filen och körs före
 filens transaktion; ett ogiltigt index från ett avbrutet bygge tas bort och byggs om (`splitConcurrentIndexes`).
+
+## Ordning och nummer (städrundan 2026-11-07)
+
+- **Journalens ordning är körordningen, inte numret.** Migratorn kör raderna i `meta/_journal.json` uppifrån och ned. Numret
+  i filnamnet är bara ett namn: i dag står t.ex. 0059–0061 före 0047 och 0077 före 0076, eftersom de lades till i den ordningen.
+  En rad som flyttas i journalen körs i den nya ordningen på en ny databas men aldrig om på en befintlig (bokföringen är per
+  tagg), så två databaser kan få olika scheman. Flytta därför aldrig en befintlig rad.
+- **En ny migration läggs alltid sist i journalen**, med nästa lediga nummer (högsta numret i mappen plus ett, eller numret
+  som koordinatorn delat ut när flera grenar arbetar samtidigt), nästa `idx` och ett `when` som är större än alla andra.
+  Krockar två grenar läggs den som slås ihop sist längst ned med `idx` omnumrerat; filnamnet ändras inte.
+- **Tvåstegsregeln gäller utan undantag** (`AGENTS.md`, ADR-0185 beslut 1): först en migration som lägger till eller lättar
+  (ny kolumn, nullbar kolumn, borttaget villkor) och en kodversion som klarar både det gamla och det nya, sedan i en senare
+  driftsättning det som tar bort. Undantaget i 0079 (en engångsändring av data i ett steg, godtagen eftersom ingen driftsatt
+  server hade 0076) är stängt och gäller inte nya migrationer.
+- **Ett villkor som räknar upp värden som koden bestämmer** (som spärrens scope före 0087) skrivs inte som en lista i CHECK,
+  eftersom varje nytt värde då kräver att hela listan kopieras: listan står i koden med ett test, och databasen kräver formen.
+- `test/integration/schemadrift.test.ts` i application jämför Drizzle-schemat med databasen efter alla migrationer (kolumner,
+  NULL och typ i grova drag). En kolumn eller tabell som medvetet bara finns i SQL skrivs in i testets undantagslista med skälet.

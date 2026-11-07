@@ -35,7 +35,9 @@ Workern skapades först när filen var hämtad (0,8 s i utvecklingsläget). Kart
    cachen om en fil som kontot inte just fått veta att det får se. Innehållet är oföränderligt och sha256 kontrolleras när
    filen sparas. Högst tre filer och 250 MB; den som använts längst tillbaka tas bort först. Fel i lagret (privat läge, full
    lagring) gör bara att filen hämtas som förut, med en rad i konsolen. Lagret töms vid utloggning med banläggningens övriga
-   kopior. Ordningen i `loadMapFile`: "Spara för offline"-kopian, cachen, servern.
+   kopior. Ordningen i `loadMapFile`: "Spara för offline"-kopian, cachen, servern. Samtidiga anrop för samma sha256
+   (editorn, vägvalen) delar en hämtning (`fetchOnce`) och får var sin kopia; den som avbryter slutar vänta men hämtningen
+   fortsätter för de andra och för lagret. Editorn läser om kartan bara när sha256 ändras, inte vid ett nytt tillstånd.
 3. **HTTP-cache för kartfilen.** Ny adress `…/administrator/map/source/<sha256>` (bara GET, samma behörighet som
    `map/source`). När adressens sha256 är filens: `Cache-Control: private, max-age=86400, immutable`, `ETag: "<sha256>"` och
    `Vary: Cookie`; annars `private, no-store` som förut. If-None-Match prövas **efter** behörigheten och ger 304 utan att
@@ -43,7 +45,9 @@ Workern skapades först när filen var hämtad (0,8 s i utvecklingsläget). Kart
    kakor och hämtar och prövas på nytt; efter ett dygn frågar webbläsaren med ETag (behörigheten prövas, ingen ny hämtning om
    filen är densamma). Den som en gång fått filen har den kvar i sin webbläsare under dygnet, som med offlinekopian. Chrome
    sparar inga svar över en åttondel av cachens storlek och i Playwrights (privata) kontext kom 11 MB inte med; därför
-   beslut 2. HTTP-cachen hjälper för mindre filer och när lagret i beslut 2 saknas.
+   beslut 2. HTTP-cachen hjälper för mindre filer och när lagret i beslut 2 saknas. Chromium sparar inte heller svar från en
+   adress med certifikatfel, så mot CI:s driftmiljö (`https://localhost`, självsignerat) provas HTTP-cachen inte i E2E, bara
+   mot utvecklingsservern.
 4. **Rita det synliga först: rumsligt index** (`packages/map-file/src/render/spatial-index.ts`, ren TypeScript). Ett jämnt
    rutnät över objektens rutor, utökade med det symbolen ritar utanför geometrin (punktsymbolens storlek, linjens bredd och
    tecken, hörnsymbolens sträckning, textens längd). Långa objekt (över 64 rutor) prövas en och en. `drawMap(…, { cull: true })`

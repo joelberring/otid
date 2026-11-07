@@ -32,8 +32,45 @@ async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   return [...digest].map(value => value.toString(16).padStart(2, "0")).join("");
 }
 
+/** Kastas när den som väntar på en delad hämtning har avbrutit (själva hämtningen fortsätter för de andra). */
+function aborted(): DOMException { return new DOMException("Avbrutet", "AbortError"); }
+
 export class MapFileCache {
+  /** Hämtningar som pågår, per sha256, med de som vill veta förloppet. */
+  private readonly pending = new Map<string, { readonly file: Promise<CachedMapFile>; readonly listeners: Set<(fraction: number) => void> }>();
+
   constructor(private readonly backend: () => MapCacheBackend | undefined, private readonly now: () => number = Date.now) {}
+
+  /**
+   * Hämtar filen en gång även när flera ber om samma sha256 samtidigt (editorn, vägvalen, en ny rendering av editorn). Var
+   * och en får en egen kopia, eftersom kopian går över till en Worker. När filen kommit sparas den i lagret. Den som avbryter
+   * slutar vänta; hämtningen fortsätter för de andra (och för lagret).
+   */
+  async fetchOnce(sha256: string, fetchFile: (onProgress: (fraction: number) => void) => Promise<CachedMapFile>,
+    options: { readonly signal?: AbortSignal | undefined; readonly onProgress?: ((fraction: number) => void) | undefined } = {}): Promise<CachedMapFile> {
+    const { signal, onProgress } = options;
+    if (signal?.aborted) throw aborted();
+    let entry = this.pending.get(sha256);
+    if (!entry) {
+      const listeners = new Set<(fraction: number) => void>();
+      const file = fetchFile(fraction => { for (const listener of listeners) listener(fraction); })
+        .then(result => { void this.store(sha256, result); return result; })
+        .finally(() => { this.pending.delete(sha256); });
+      entry = { file, listeners };
+      this.pending.set(sha256, entry);
+    }
+    if (onProgress) entry.listeners.add(onProgress);
+    try {
+      const file = await new Promise<CachedMapFile>((resolve, reject) => {
+        const abort = () => reject(aborted());
+        signal?.addEventListener("abort", abort, { once: true });
+        entry.file.then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));
+      });
+      return { bytes: file.bytes.slice(0), fileName: file.fileName };
+    } finally {
+      if (onProgress) entry.listeners.delete(onProgress);
+    }
+  }
 
   /** Filen med denna sha256, eller undefined (saknas eller lagret fungerar inte). */
   async read(sha256: string): Promise<CachedMapFile | undefined> {

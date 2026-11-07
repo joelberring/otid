@@ -67,7 +67,10 @@ test("banläggningen öppnas två gånger: kartfilen hämtas från servern bara 
   expect(network.requests()).toBe(before);
   expect(network.downloads()).toHaveLength(1);
 
-  // Utan det lagret (t.ex. full lagring): webbläsarens HTTP-cache ger filen, ingen ny hämtning från servern.
+  // Utan det lagret (t.ex. full lagring): webbläsarens HTTP-cache ger filen, ingen ny hämtning från servern. Mot driftmiljön
+  // i CI (https med självsignerat certifikat) sparar Chromium inga svar i HTTP-cachen alls, så den delen provas bara mot
+  // utvecklingsservern; där räcker svarets huvuden.
+  if (process.env.E2E_BASE_URL?.startsWith("https://")) return;
   await owner.evaluate(() => new Promise<void>((resolve, reject) => {
     const removal = indexedDB.deleteDatabase("otid-map-cache");
     removal.onsuccess = () => resolve();

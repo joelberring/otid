@@ -31,6 +31,7 @@ export function useCourseSettingMapFile(input: { readonly raceId: string; readon
   const say = input.say;
   useEffect(() => {
     if (!mapFile) return;
+    const sha256 = mapFile.sha256;
     const controller = new AbortController();
     let closed = false;
     // Workern startar medan filen hämtas (ADR-0218), så att den är redo när filen kommer.
@@ -48,7 +49,7 @@ export function useCourseSettingMapFile(input: { readonly raceId: string; readon
     };
     void (async () => {
       try {
-        const file = await loadMapFile(raceId, mapFile.sha256, storage, controller.signal, () => say({ tone: "attention", text: offlineSv.olderMap }),
+        const file = await loadMapFile(raceId, sha256, storage, controller.signal, () => say({ tone: "attention", text: offlineSv.olderMap }),
           onProgress);
         if (closed) return;
         setProgress(undefined);
@@ -59,7 +60,8 @@ export function useCourseSettingMapFile(input: { readonly raceId: string; readon
       } catch { if (!closed) { setProgress(undefined); setStatus("failed"); } }
     })();
     return () => { closed = true; controller.abort(); created.close(); };
-  // Bara en ny kartfil (eller tävling) läser om kartan; `say` och lagret byts inte under tiden.
-  }, [raceId, mapFile]);
+  // Bara en ny kartfil (sha256) eller tävling läser om kartan, inte ett nytt tillstånd med samma fil; `say` och lagret byts
+  // inte under tiden.
+  }, [raceId, mapFile?.sha256]);
   return { session, bounds, status, georeference, bytes, progress };
 }

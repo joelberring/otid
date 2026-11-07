@@ -68,4 +68,38 @@ describe("kartfilerna i webbläsaren per sha256 (ADR-0218)", () => {
     await working.clear();
     expect(files.size).toBe(0);
   });
+
+  it("en hämtning per sha256 när flera ber samtidigt; var och en får en egen kopia och förloppet, den som avbryter slutar vänta", async () => {
+    const { backend, files } = memoryBackend();
+    const cache = new MapFileCache(() => backend);
+    const one = file(4000, 7);
+    let release!: () => void;
+    const fetchFile = vi.fn(async (progress: (fraction: number) => void) => {
+      await new Promise<void>(resolve => { release = resolve; });
+      progress(1);
+      return { bytes: one.bytes.slice(0), fileName: one.fileName };
+    });
+    const seen: number[][] = [[], []];
+    const controller = new AbortController();
+    const first = cache.fetchOnce(one.sha256, fetchFile, { onProgress: fraction => seen[0]!.push(fraction) });
+    const second = cache.fetchOnce(one.sha256, fetchFile, { onProgress: fraction => seen[1]!.push(fraction) });
+    const gone = cache.fetchOnce(one.sha256, fetchFile, { signal: controller.signal });
+    controller.abort();
+    await expect(gone).rejects.toMatchObject({ name: "AbortError" });
+    release();
+    const [a, b] = await Promise.all([first, second]);
+    expect(fetchFile).toHaveBeenCalledTimes(1);
+    expect(seen).toEqual([[1], [1]]);
+    // Egna kopior: den ena kan gå över till en Worker utan att den andra töms.
+    expect(a.bytes).not.toBe(b.bytes);
+    structuredClone(a.bytes, { transfer: [a.bytes] });
+    expect(b.bytes.byteLength).toBe(4000);
+    await vi.waitFor(() => expect(files.has(one.sha256)).toBe(true));
+    // Efteråt börjar en ny hämtning.
+    release = () => undefined;
+    const again = cache.fetchOnce(one.sha256, fetchFile);
+    release();
+    await again;
+    expect(fetchFile).toHaveBeenCalledTimes(2);
+  });
 });

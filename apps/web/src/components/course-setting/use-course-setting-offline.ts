@@ -51,10 +51,8 @@ export async function loadMapFile(raceId: string, sha256: string, storage: Field
   const cached = await mapFileCache.read(sha256);
   if (cached) return cached;
   try {
-    const file = await fetchMapSource(raceId, signal, { sha256, onProgress });
-    // En kopia sparas medan kartan läses (filen själv går över till Workern).
-    void mapFileCache.store(sha256, { bytes: file.bytes.slice(0), fileName: file.fileName });
-    return file;
+    // En hämtning per sha256 även när editorn och vägvalen ber om filen samtidigt; den sparas sedan i lagret.
+    return await mapFileCache.fetchOnce(sha256, progress => fetchMapSource(raceId, undefined, { sha256, onProgress: progress }), { signal, onProgress });
   } catch (error) {
     const map = stored && !signal.aborted ? await fromPhone().catch(() => undefined) : undefined;
     if (!map) throw error;

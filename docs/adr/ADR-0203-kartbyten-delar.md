@@ -44,6 +44,12 @@ av den andra sidan syns.
    delen på kartan (med överlappet) och dess ram; papper, riktning, marginal och ramen ändrar då delens tryckyta; "Som banans
    igen" tar bort den. "Visa överlapp" sparas för banan.
 
+   *Ändrat 2026-11-07 (städrundan, grenen `a3-tryck`):* PDF-jobbet fick förut varken delen eller "Dubbelsidigt" (klienten
+   tappade `part` och skickade dubbelsidigt bara för löpare), så servern skrev hela banan en gång per del; nu följer båda med.
+   Vändningskanten för delarna är alltid långsidan, också för liggande delar (`duplexEdge`); ADR-0213:s kortsida när alla
+   baksidor är liggande gäller bara löparnas baksidor. Liggande ark med del 2 står alltså rätt när arket vänds kring sin
+   övre kant.
+
 9. **ADR-0211 (2026-11-04):** delarna får ett kort var i utskriftssidans översikt; papperet, dubbelsidigt och överlappet är
    oförändrade. Sträckorna slutar nu ett mellanrum utanför ringarna (ADR-0211 beslut 2), också vid kartbytet.
 

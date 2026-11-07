@@ -1,6 +1,4 @@
 /* ADR-0194: klubbarkivet – Mina klubbar, arkivet med flikar, träningens sida. */
-.myClubs { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
-.myClubs h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
 .muted { margin: .25rem 0 .65rem; color: var(--muted); }
 .small { color: var(--muted); font-size: var(--text-sm); }
 .list { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
@@ -8,8 +6,6 @@
   padding: 10px 0; border-bottom: 1px solid var(--line); }
 .list > li > div:first-child { display: grid; gap: .1rem; min-width: 0; }
 .list span { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
-.buttonLink { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line-strong);
-  border-radius: var(--radius); color: var(--ink); text-decoration: none; font-weight: 550; }
 .details { margin-top: 12px; }
 .details > summary { display: flex; align-items: center; min-height: 44px; font-weight: 600; cursor: pointer; }
 .form { display: grid; gap: .65rem; max-width: 40rem; }

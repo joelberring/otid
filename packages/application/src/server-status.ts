@@ -196,7 +196,7 @@ export async function superadminRecipients(db: DbExecutor): Promise<string[]> {
     .rows.map(row => row.email);
 }
 
-const rowDate = (value: unknown) => value === null || value === undefined ? null : value instanceof Date ? value : new Date(String(value));
+const rowDate = (value: unknown): Date | null => value instanceof Date ? value : typeof value === "string" || typeof value === "number" ? new Date(value) : null;
 
 async function readStates(tx: DbExecutor): Promise<Map<string, NoticeState>> {
   const rows = (await tx.execute<{ kind: string; active_since: unknown; alerted: boolean; last_sent_at: unknown; detail: string | null }>(

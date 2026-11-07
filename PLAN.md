@@ -1167,19 +1167,21 @@ ADR-0184. Migration 0036.
 - [x] Tester: paketet (struktur, färger, övertryck, DeviceN, typsnitt, baksidor, Ghostscripts separationer när gs finns),
   integration `steg-65-tryck` (kö, behörighet, rensning, avläsning under ett pågående jobb), Playwright `banlaggning-pdf`.
 
-## [ ] Steg K0 – Kartprojekt och säker tillbakaskrivning
+## [x] Steg K0 – Kartprojekt och säker tillbakaskrivning
 
 ADR-0219. Migration 0089. Ägaren startade kartritningen 2026-11-07; planen i projektdokumentet `claude/plan-kartritning.md`.
 Bygger om det användbara från de pausade grenarna `kartfil-skrivning` och `kartrevidering` på main.
 
-- [ ] **Kartfilen:** läsarna anger varifrån varje objekt kom (`sources`); kontraktet för ändringssatser; `applyMapRevision`
+- [x] **Kartfilen:** läsarna anger varifrån varje objekt kom (`sources`); kontraktet för ändringssatser; `applyMapRevision`
   lappar Mapper-filer (byte för byte lika vid en tom sats, kontroll efter skrivningen), vägrar OCAD tills K7.
-- [ ] **T2:** OCAD 8:s strukturmönster läses rätt (översynen 2026-11-07).
-- [ ] **Paketet `map-revision`** på main: ändringar per objekt, krockar, ångra, kö i klienten, export av ändringarna, med
+- [x] **T2:** OCAD 8:s strukturmönster läses rätt (översynen 2026-11-07).
+- [x] **Paketet `map-revision`** på main: ändringar per objekt, krockar, ångra, kö i klienten, export av ändringarna, med
   objektens riktiga platser i grundfilen.
-- [ ] **Kartprojekt** (migration 0089): projekt från en kartversion i klubbarkivet, egna medlemmar (Ägare, Ändra, Läsa),
+- [x] **Kartprojekt** (migration 0089): projekt från en kartversion i klubbarkivet, egna medlemmar (Ägare, Ändra, Läsa),
   inbjudan med e-post (slaget `MAP_PROJECT`), synk av ändringar, ny kartversion ur ändringarna, export när grundfilen ändrats.
-- [ ] **Tester:** paketen (skrivaren, egenskapstest, riktiga fixturer), integration (behörighet, synk, krock, dubblett, ny
+  En enkel projektsida (grundversion, medlemmar, filer, ny version) och "Starta kartprojekt" i klubbarkivets Kartor; ritningen
+  kommer i K1.
+- [x] **Tester:** paketen (skrivaren, egenskapstest, riktiga fixturer), integration (behörighet, synk, krock, dubblett, ny
   version, inbjudan), schemadrift och `lint:dead`.
 
 ## [ ] Steg K1 – Rita på datorn och flera samtidigt

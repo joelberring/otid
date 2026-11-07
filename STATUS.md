@@ -5,10 +5,19 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): steg K0 är klart, nästa är K1. Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-07 – Steg K0: kartprojekt och säker tillbakaskrivning (grenen k0-kartritning, ADR-0219, migration 0089)
+- Kartfilen: läsarna anger varifrån varje objekt kom (`readMapFile(…, { sources: true })`); `applyMapRevision` lappar Mapper-filer (bara ändrade `<object>`, `<objects count>`, ångra-historiken bort vid ändring), läser om och kontrollerar objekt för objekt, tom sats ger samma bytes; OCAD vägras tills K7. `MAP_READER_VERSION` 3.
+- T2: OCAD 8:s ytsymbol saknar FillOn/BorderOn, så strukturfälten ligger 2 byte tidigare (ocd/layout.ts, symbols.ts, testbyggaren).
+- Paketet `map-revision` från den pausade grenen på main med kartfilens riktiga `ObjectRef` (plats + hash) och `toChangeSet` (bara det som skiljer).
+- Kartprojekt (0089): `map_project` från en kartversion i klubbarkivet, egna medlemmar (Ägare/Ändra/Läsa, klubbens administratörer som ägare), inbjudan med e-post (slaget `MAP_PROJECT` i invitation_link), synk per objekt med krockar, "Skapa ny kartversion" (ny version av samma karta, `map_project_output`), export som Mapper-fil eller GeoJSON. Versioner och innehåll som ett projekt använder tas inte bort (`dropUnusedCreated`, `sweepMapContent`).
+- Webben: API under `/api/organizer/map-projects`, enkel projektsida (grundversion, filer, medlemmar, ny version), "Starta kartprojekt" i Kartor, remsan Mina kartprojekt. Ritningen är K1.
+- Verifierat: lint, typecheck, test, `lint:dead`, integration `adr-0219-kartprojekt` (behörighet, inbjudan, synk, krock, dubblett, avslutat, ny version, export, kontots borttagning) och hela integrationssviten; E2E `kartprojekt`.
+- Återstår: ägaren provar tillbakaskrivningen på en riktig Mapper-fil (öppna resultatet i Mapper); de pausade grenarna kan tas bort.
 
 ### 2026-11-07 – Begrepp, namn och två sanningar (grenen c4-begrepp, C4, ingen migration, ingen ny ADR)
 - Ordlista i `docs/domain-rules.md` (tryckyta/utsnitt/kartram, layout/ark/justering, Kartor per ark, Mall för papperet, notis/svar/kommentar, Medlem = `READER`); UI-texter som blandade mall-orden rättade; ADR-0194/0196 "läsare" → Medlem.
@@ -1280,13 +1289,7 @@ brickor till steg 7.
 - Vägval: justera tidsförskjutning mellan GPS-klocka och stationer per rutt; georeferens från KMZ eller världsfil (OCAD) i stället för tre punkter;
   kontrollernas lägen från banfilens koordinater; sträcktidsanalys för stafett (per sträcka); uppladdning av flera GPX-filer matchade på namn.
 
-- Rekning (ägaren 2026-11-03, väntar tills det befintliga är klart): flera ritare rekar samma kartversion i fält, utan nät och med synk,
-  i stället för att flytta Mapper-filer för hand. Ändringar per objekt mot grundfilens sha256 (krock bara när samma objekt ändrats);
-  bara befintliga symboler. Tillbakaskrivning till OCAD och Mapper som sista steg: lappa filen (Mapper: byt bara ändrade `<object>`;
-  OCAD: ny post sist, indexposten ompekad, den gamla markerad borttagen), skriv aldrig om hela filen och skriv aldrig över originalet;
-  har grundfilen ändrats exporteras ändringarna som en liten egen fil. Ändrar ADR-0179 beslut 1. Bygger på fältlägets kö (steg 67),
-  kartfelens ritning och rollen Kartritare. Förberedelse: läsarna i `packages/map-file` sparar varifrån varje objekt kom
-  (indexpost och byteposition i OCAD, textintervall i XML).
+- Rekning med flera ritare: nu stegen K0–K7 i PLAN.md (ADR-0219).
 
 - Stafett: bana per sträcka finns bara via en gafflad bana (variant per sträcka). Det fastställda resultatets IOF-export skriver inte lag än. Kvar i skogen räknar även sträcklöpare som inte startat.
 

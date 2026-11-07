@@ -1,0 +1,28 @@
+/* ADR-0219: kartprojektets sidor (steg K0). Samma mått som klubbarkivet. */
+.page { width: min(100%, 1120px); margin-inline: auto; padding: 20px 16px 48px; }
+.header { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin-bottom: 8px; }
+.header h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; overflow-wrap: anywhere; }
+.kicker { margin: 0 0 2px; color: var(--muted); font-size: var(--text-xs); }
+.kicker a { color: inherit; }
+.muted { margin: .25rem 0 .65rem; color: var(--muted); }
+.sections { display: grid; gap: 24px; margin-top: 12px; }
+.sections h2 { margin: 0 0 4px; font-size: var(--text-lg); font-weight: 600; }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem 1rem; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.list { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.list > li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .35rem 1rem; min-width: 0;
+  padding: 8px 2px; border-bottom: 1px solid var(--line); }
+.list > li > div:first-child { display: grid; gap: .1rem; min-width: 0; }
+.list span { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.list a { color: inherit; font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.actions > button, .actions > a { min-height: 44px; }
+.form { display: grid; gap: .65rem; max-width: 40rem; }
+.form input, .form select { width: 100%; min-height: 44px; }
+.inline { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; }
+.inline > * { flex: 1 1 12rem; min-width: 0; }
+.buttonLink { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); color: inherit; text-decoration: none; font-weight: 600; }
+.refusals { margin: .25rem 0 0; padding-left: 1.2rem; }
+.sections h3 { margin: 18px 0 4px; font-size: var(--text-md); font-weight: 600; }

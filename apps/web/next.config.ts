@@ -57,7 +57,7 @@ const nextConfig: NextConfig = {
       { source: "/kartfel/:token", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "Referrer-Policy", value: "no-referrer" },
         { key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] },
       // Kontosidorna (ADR-0172): inte i cache, inte i ram och ingen referer (återställningslänken).
-      ...["/superadmin", "/konto", "/recover", "/organizer/groups/:groupId"].map((source) => ({ source, headers: [...privateAdminHeaders] }))
+      ...["/superadmin", "/konto", "/recover", "/organizer/groups/:groupId", "/organizer/map-projects", "/organizer/map-projects/:projectId"].map((source) => ({ source, headers: [...privateAdminHeaders] }))
     ];
   },
   transpilePackages: [

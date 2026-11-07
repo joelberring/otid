@@ -58,6 +58,18 @@ dokumentation använder orden nedan.
 - Inbjudningarnas roller hör till sitt slag (`invitationRoleFits`): klubbens ovan, tävlingens (`ADMIN`, `FUNCTIONARY`,
   `COURSE_*`) och gruppens.
 
+### Kartprojekt (ADR-0219)
+
+- **Kartprojekt** = `map_project`: flera ritar på samma kartversion. Utgår från en **grundversion** (en kartversion i
+  klubbarkivet, exakt dess sha256, `base_version_id`/`base_sha256`). Ordet "revidering" används bara i löptext; i koden heter det
+  projekt (`MapProject*`). Paketet för ändringarna heter `map-revision` (logg per objekt).
+- Projektets roller: **Ägare** (`OWNER`), **Ändra** (`EDIT`) och **Läsa** (`READ`). Klubbens administratörer och ägare har
+  samma rätt som projektets ägare i klubbens projekt.
+- **Ändring** = en `RevisionEdit` på ett objekt (nyckel `b:<plats>` för grundfilens objekt, `n:<uuid>` för nya). **Krock** = två
+  ändringar av samma objekt där den senare inte byggde på den förra.
+- **Ny kartversion** = filen som skrivaren lappar fram ur grundfilen och ändringarna (`map_project_output`). **Exportera
+  ändringarna** = en liten Mapper-fil eller GeoJSON med bara de ändrade och nya objekten.
+
 ### Klubbarkivet
 
 - **Årsmapp** = en mapp som bara är ett år eller ett år och ord ("2019", "2019 träningar"), inte ett datum ("2019 04-02

@@ -74,16 +74,6 @@ export function moveVertex(object: MapObject, address: VertexAddress, to: Point)
   return withParts(object, parts);
 }
 
-/** Hela objektet flyttat. */
-export function translate(object: MapObject, dx: number, dy: number): MapObject {
-  const move = (command: PathCommand): PathCommand => command.type === "C"
-    ? { ...command, x: command.x + dx, y: command.y + dy, x1: command.x1 + dx, y1: command.y1 + dy, x2: command.x2 + dx, y2: command.y2 + dy }
-    : { ...command, x: command.x + dx, y: command.y + dy };
-  if (object.kind === "point" || object.kind === "text") return { ...object, at: { x: object.at.x + dx, y: object.at.y + dy } };
-  if (object.kind === "line") return { ...object, path: object.path.map(move) };
-  return { ...object, rings: object.rings.map(ring => ring.map(move)) };
-}
-
 /** Raka sträckor där en ny punkt kan läggas in (mitten), med punkten före. Ytans stängande sträcka räknas. */
 export function insertPoints(object: MapObject): (VertexAddress & { readonly at: Point })[] {
   const out: (VertexAddress & { at: Point })[] = [];
@@ -166,7 +156,6 @@ export function newObject(kind: "point" | "line" | "area", symbol: string, point
 }
 
 export const withSymbol = (object: MapObject, symbol: string): MapObject => ({ ...object, symbol });
-export const withText = (object: MapObject, text: string): MapObject => object.kind === "text" ? { ...object, text } : object;
 
 /**
  * Vilket slags objekt en symbol ritar: punkt, linje, yta eller text. Mappers sammansatta symbol är en yta när någon del är en

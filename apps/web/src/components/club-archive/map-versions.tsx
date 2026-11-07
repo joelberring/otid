@@ -5,6 +5,7 @@ import type { ClubMapCopyField, ClubMapVersionView, ClubMapView } from "@o-tid/c
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
 import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
 import { Button, Field } from "../ui";
+import { StartMapProject } from "../map-project/start-map-project";
 import styles from "./map-duplicates.module.css";
 
 /**
@@ -97,6 +98,7 @@ export function VersionDetails({ clubId, map, version, admin, onChanged, onMessa
         fields: version.maker ? ["maker"] : ["note"], versionIds: others, title: text.copyAllTitle(version.fileName) })}>{text.copyAll}</Button>}
       {map.maker && <Button variant="quiet" aria-label={text.fromMapTitle(version.fileName)} onClick={() => setCopy({ fromVersionId: null, fields: ["maker"],
         versionIds: [version.versionId], title: text.fromMapTitle(version.fileName) })}>{text.fromMap}</Button>}
+      <StartMapProject clubId={clubId} versionId={version.versionId} mapName={map.name} fileName={version.fileName} />
     </div>}
     {editing && <form className={styles.versionForm} onSubmit={event => void save(event)} aria-label={text.editTitle(version.fileName)}>
       <div className={styles.row}>

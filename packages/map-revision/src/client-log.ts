@@ -81,8 +81,6 @@ export function addEdit(state: RevisionClientState, input: NewEdit): { state: Re
   return { state: { ...state, pending: [...state.pending, edit] }, edit };
 }
 
-/** Kön att skicka, högst `max` ändringar (i ordning). */
-export const nextBatch = (state: RevisionClientState, max = 200): readonly RevisionEdit[] => state.pending.slice(0, max);
 
 export interface AcknowledgeOutcome {
   readonly state: RevisionClientState;

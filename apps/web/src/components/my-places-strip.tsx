@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { ClubSummary, GroupSummary } from "@o-tid/contracts";
+import type { ClubSummary, GroupSummary, MapProjectSummary } from "@o-tid/contracts";
 import { myPlacesSv as text } from "../i18n/my-places-sv";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
+import { mapProjectSv } from "../i18n/map-project-sv";
 import { trainingGroupSv } from "../i18n/training-group-sv";
 import { clubRequest } from "../lib/club-archive-client";
 import { groupRequest } from "../lib/training-group-client";
@@ -22,6 +23,7 @@ export function MyPlacesStrip() {
   const [clubs, setClubs] = useState<ClubSummary[]>();
   const [groups, setGroups] = useState<GroupSummary[]>();
   const [creating, setCreating] = useState<"club" | "group">();
+  const [projects, setProjects] = useState<MapProjectSummary[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -30,6 +32,10 @@ export function MyPlacesStrip() {
     });
     void groupRequest("/api/organizer/groups").then(result => {
       if (active) setGroups(result.status === 200 ? (result.json as { groups: GroupSummary[] }).groups : []);
+    });
+    // ADR-0219: kartprojekten visas bara för den som är med i något.
+    void clubRequest("/api/organizer/map-projects").then(result => {
+      if (active && result.status === 200) setProjects((result.json as { projects: MapProjectSummary[] }).projects);
     });
     return () => { active = false; };
   }, []);
@@ -73,6 +79,17 @@ export function MyPlacesStrip() {
       </ul>}
       {groups && groups.length === 0 && !none && <p className={styles.empty}>{text.noGroups}</p>}
     </section>
+    {projects.length > 0 && <section id="mina-kartprojekt" className={styles.place} aria-labelledby="my-map-projects-heading">
+      <h2 id="my-map-projects-heading"><Link href="/organizer/map-projects">{mapProjectSv.list.title}</Link></h2>
+      <ul className={styles.chips}>
+        {projects.map(project => <li key={project.projectId}>
+          <Link className={styles.chip} href={`/organizer/map-projects/${encodeURIComponent(project.projectId)}`}>
+            <strong>{project.name}</strong>
+            <span>{mapProjectSv.roles[project.role]} · {mapProjectSv.list.changed(project.changedObjects)}</span>
+          </Link>
+        </li>)}
+      </ul>
+    </section>}
     {!loaded && <p className={styles.none} role="status">{text.loading}</p>}
   </div>;
 }

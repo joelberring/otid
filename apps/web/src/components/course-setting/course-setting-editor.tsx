@@ -42,6 +42,7 @@ import { drawPrintFrame, drawSpecialEditing } from "../../lib/course-setting-dra
 import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHandles } from "../../lib/course-setting-specials";
 import { PrintPanel } from "./course-setting-print-panel";
 import { CourseSettingTabs } from "./course-setting-tabs";
+import { courseSettingTabsSv as layoutTabsSv } from "../../i18n/course-setting-layout-sv";
 import { SpecialsPanel } from "./course-setting-specials";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { describeEdit } from "../../lib/course-setting-suggestion";
@@ -750,6 +751,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     { label: copy.topbar.settings, onClick: () => setTab("settings") },
     // Utskriftens sidor direkt från Fil (ägaren 2026-11-03), efter att det osparade skickats.
     { label: text.printMenu, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print${view !== ALL_CONTROLS ? `?course=${encodeURIComponent(view)}` : ""}`)) },
+    // ADR-0217: fliken Layout (på telefonen finns flikarna bara här, raden överst är full).
+    { label: layoutTabsSv.layout, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/layout`)) },
     { label: text.descriptionsMenu, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`)) },
     { label: `${offlineSv.panel.heading} …`, onClick: () => setOfflineDialog(true) }];
   // `course-setting-shell` (globals.css): sidan under arbetsytan skrollar och studsar aldrig.
@@ -762,7 +765,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu}
       admin={access.admin} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)}
-      tabs={<CourseSettingTabs raceId={raceId} current="SETTING" onLeave={href => void flush().finally(() => router.push(href))} />} />
+      tabs={<CourseSettingTabs raceId={raceId} current="SETTING" className={styles.tabsWide} onLeave={href => void flush().finally(() => router.push(href))} />} />
     {/* Telefonen: verktygen och flikarna (även Objekt och Utskrift) bakom "Mer"; medan ett specialobjekt ritas syns
         verktygsraden och fliken Objekt (Klar och Avbryt). */}
     <div className={styles.stage} data-compact={field.narrow && !field.expanded && editor.tool !== "SPECIAL" ? "true" : undefined}>

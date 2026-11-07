@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Banans utseende och etiketten vid kontrollen (ADR-0180 beslut 12). */
 const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
 const STANDARD = { ISOM2017: "ISOM 2017-2", ISSPROM2019: "ISSprOM 2019-2" } as const;

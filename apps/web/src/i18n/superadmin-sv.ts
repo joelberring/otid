@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Superadminsidan (ADR-0172 beslut 2). */
 export const superadminSv = {
   kicker: "O-Tid · Drift",

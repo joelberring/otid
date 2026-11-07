@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** BL-profilerna (ADR-0183 beslut 7): godkännandet av förslaget i förhandsvisningen. */
 export const blProposalSv = {
   heading: (name: string) => `Förslag för ${name}`,

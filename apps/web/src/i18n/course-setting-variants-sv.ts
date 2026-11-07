@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0198: varianterna av en gafflad bana och färre gafflingsvarianter i banläggningen. */
 const km = (meters: number) => `${(meters / 1000).toFixed(2).replace(".", ",")} km`;
 

@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** En banfil (IOF XML) utan .ppen i banläggningen, och besked när en ändring i banläggningen inte sparades. */
 export const courseDataSv = {
   /** Banor → Banfil, efter att banfilen lästs in i tävlingen. */

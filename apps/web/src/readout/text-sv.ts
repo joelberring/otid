@@ -1,4 +1,5 @@
 import { plural } from "../i18n/plural";
+
 /** "3 h 20 min", "2 dygn 4 h" – en stor klockavvikelse i hela minuter. */
 function formatSkew(minutes: number): string {
   const total = Math.abs(minutes);

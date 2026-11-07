@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0205 tillägg: kontomenyn i alla inloggade sidors överlist (namnet eller initialerna). */
 export const accountMenuSv = {
   open: (name: string) => `Konto: ${name}`,

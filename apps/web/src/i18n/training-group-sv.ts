@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Steg 68 (ADR-0182): texterna för träningsgrupperna – Mina grupper, ledarnas vy, gruppsidan och kartans avtal. */
 export const trainingGroupSv = {
   myGroups: {

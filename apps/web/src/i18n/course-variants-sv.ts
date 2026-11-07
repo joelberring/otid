@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Gafflingar (ADR-0169 beslut 2): banvarianter, löparens variant och fördelning. */
 export const courseVariantsSv = {
   forked: (count: number) => count === 1 ? "Gafflad (1 variant)" : `Gafflad (${count} varianter)`,

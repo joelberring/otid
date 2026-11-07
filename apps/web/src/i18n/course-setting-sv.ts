@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Steg 62 (ADR-0180): banläggningen i webben. Enkel svenska; kontroller nämns med kod ("kontroll 31"), inga interna id. */
 const meters = (value: number) => value >= 10_000 ? `${(value / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(value)} m`;
 

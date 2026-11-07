@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Steg 45: avläsningar vars tider inte gick att tolka. */
 export const uninterpretedReadoutsSv = {
   title: "Otolkade avläsningar",

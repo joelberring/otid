@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Steg 63 (ADR-0180): kontrollbeskrivningarna i banläggningen och på utskriftssidan. Kontroller nämns med kod. */
 export const courseSettingDescriptionSv = {
   heading: "Kontrollbeskrivning",

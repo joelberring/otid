@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { SuperadminActionRequest } from "@o-tid/contracts";
 import { superadminSv as text } from "../../i18n/superadmin-sv";
-import { Button, Field, Notice } from "../ui";
+import { Button, CopyButton, Field, Notice } from "../ui";
 import styles from "../account-pages.module.css";
 
 export type PendingAction =
@@ -57,16 +57,12 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
 export function ResetLink({ url, expiresAt, onClose }: { url: string; expiresAt: string; onClose: () => void }) {
   const [copied, setCopied] = useState<string>();
   const time = new Date(expiresAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-  async function copy() {
-    try { await navigator.clipboard.writeText(url); setCopied(text.copied); }
-    catch { setCopied(text.copyFailed); }
-  }
   return <div className={styles.panel} role="status">
     <h3>{text.resetTitle}</h3>
     <p>{text.resetHelp(time)}</p>
     <output className={styles.link} aria-label={text.resetTitle}>{url}</output>
     <div className={styles.actions}>
-      <Button onClick={() => void copy()}>{text.copy}</Button>
+      <CopyButton value={url} onResult={ok => setCopied(ok ? text.copied : text.copyFailed)}>{text.copy}</CopyButton>
       <Button variant="secondary" onClick={onClose}>{text.closeLink}</Button>
       {copied && <span>{copied}</span>}
     </div>

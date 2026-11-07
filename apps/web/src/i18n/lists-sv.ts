@@ -1,5 +1,6 @@
 import { startRuleSv as rule } from "./start-rule-sv";
 import { plural } from "./plural";
+
 /** Start- och resultatlistorna (PLAN.md steg 13): verktygsraden, vyerna, utskriften och CSV-exporten. */
 
 export const listsSv = {

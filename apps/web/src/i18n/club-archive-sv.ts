@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0194: klubben och klubbarkivet. */
 const mb = (bytes: number) => bytes > 0 && bytes < 100 * 1024
   ? `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("sv-SE")} kB`

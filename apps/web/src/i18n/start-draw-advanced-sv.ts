@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Lottningens "Avancerat" och förhandsvisningens regelbrott (PLAN.md steg 26). Tider skrivs som klockslag. */
 const names = (list: readonly string[]) =>
   list.length <= 1 ? list.join("") : `${list.slice(0, -1).join(", ")} och ${list[list.length - 1]}`;

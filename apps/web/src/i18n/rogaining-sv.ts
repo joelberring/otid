@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Rogaining (ADR-0170 beslut 5, PLAN.md steg 15): "Kontroller & poäng" och ny bana med klass i en rogainingtävling. */
 const points = (value: number) => `${value} p`;
 

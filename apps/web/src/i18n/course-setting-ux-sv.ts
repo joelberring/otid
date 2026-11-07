@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0180 beslut 14: paletten med objekt, vridning, kopia av bana, fångst av befintliga kontroller och gafflingarna. */
 const list = (codes: readonly string[]) => codes.length <= 12 ? codes.join(", ") : `${codes.slice(0, 12).join(", ")} och ${codes.length - 12} till`;
 

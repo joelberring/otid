@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Steg 60 (ADR-0179 beslut 7–13): vägvalsanalysen i kontrollkartan. Enkel svenska, inga interna id. */
 const place = (key: string) => key === "S" ? "start" : key === "F" ? "mål" : key.split(".")[0]!;
 const meters = (value: number) => value >= 10_000 ? `${(value / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(value)} m`;

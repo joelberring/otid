@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0217: Layout som egen flik i banläggningen. */
 export const courseSettingTabsSv = {
   label: "Banläggningens delar",

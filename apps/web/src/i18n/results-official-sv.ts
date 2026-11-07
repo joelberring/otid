@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** "Resultaten är klara" (PLAN.md steg 27): en knapp i stället för fastställande i två steg. */
 export const resultsOfficialSv = {
   title: "Resultaten är klara",

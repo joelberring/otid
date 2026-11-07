@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Rättningar för hela tävlingen (PLAN.md steg 31). */
 type Station = "START" | "FINISH" | "CONTROL" | "ALL";
 

@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0211 beslut 7: översikten och "Skriv ut" på utskriftssidan. */
 export const printOverviewSv = {
   heading: (count: number) => `Översikt: ${count} ark`,

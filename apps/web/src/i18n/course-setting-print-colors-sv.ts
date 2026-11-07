@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0211 beslut 6: "Färger för tryck" på utskriftssidan (profil, norm, banans färg, förslaget och färgerna för hand). */
 export const printColorsSv = {
   heading: "Färger för tryck",

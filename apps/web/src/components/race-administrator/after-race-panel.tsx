@@ -8,7 +8,7 @@ import { RecalculateRace } from "../race-corrections";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
-import { Button, Field, Notice, Section } from "../ui";
+import { Button, Disclosure, Field, Notice, Section } from "../ui";
 import { mispunchedEntries } from "../../lib/section-status";
 import { MispunchedList } from "./readout-control-view";
 import { CorrectionShortcut } from "./correction-shortcut";
@@ -88,18 +88,15 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
     <CorrectionShortcut ws={ws} />
     <div className={styles.disclosureList}>
     {/* Steg 45: beslut som döljer en senare avläsning. */}
-    {data && <details className={styles.disclosure} open={data.entries.some((entry) => entry.decisionReview) ? true : undefined}>
-      <summary>{reviewText.listTitle} ({data.entries.filter((entry) => entry.decisionReview).length})</summary>
+    {data && <Disclosure className={styles.disclosure} open={data.entries.some((entry) => entry.decisionReview) ? true : undefined} summary={<>{reviewText.listTitle} ({data.entries.filter((entry) => entry.decisionReview).length})</>}>
       <div className={styles.disclosureBody}><DecisionReviewList ws={ws} /></div>
-    </details>}
+    </Disclosure>}
     {/* PLAN.md steg 25: efter tävlingen, alla som är kvar utan tecken på start blir ej start. */}
-    <details className={styles.disclosure} open={ws.remaining || ws.remainingMessage ? true : undefined}>
-      <summary>{text.remainingTitle}</summary>
+    <Disclosure className={styles.disclosure} open={ws.remaining || ws.remainingMessage ? true : undefined} summary={text.remainingTitle}>
       <RemainingRunnersSection ws={ws} />
-    </details>
+    </Disclosure>
     {/* PLAN.md steg 27: hela loppet fastställs med "Resultaten är klara"; en klass i taget bara här. */}
-    {profile.features.finalization && <details className={styles.disclosure} open={finalizationAttempt ? true : undefined}>
-      <summary>{officialText.advanced}</summary>
+    {profile.features.finalization && <Disclosure className={styles.disclosure} open={finalizationAttempt ? true : undefined} summary={officialText.advanced}>
       <div className={styles.disclosureBody}>
       <p className={styles.workflowHelp}>{officialText.advancedHelp}</p>
       <div><Button variant="secondary" disabled={disabled} onClick={() => void loadFinalizationBasis()}>{text.finalizationLoad}</Button></div>
@@ -131,16 +128,15 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
       </section>}
       <FinalizedExports ws={ws} />
       </div>
-    </details>}
-    <details className={styles.disclosure} open={classRecalculationAttempt ? true : undefined}>
-      <summary>{text.classRecalculationTitle}</summary>
+    </Disclosure>}
+    <Disclosure className={styles.disclosure} open={classRecalculationAttempt ? true : undefined} summary={text.classRecalculationTitle}>
       {data && <ClassResultRecalculation classes={data.classes.map((item) => ({ id: item.id, name: item.name }))}
         disabled={disabled} candidates={classRecalculationCandidates} attempt={classRecalculationAttempt}
         unknown={classRecalculationUnknown} error={classRecalculationError} saved={classRecalculationSaved}
         onLoad={(id) => void loadClassRecalculation(id)} onPrepare={prepareClassRecalculation}
         onSubmit={(value) => void submitClassRecalculation(value)} onRetry={() => classRecalculationAttempt && void submitClassRecalculation(classRecalculationAttempt)}
         onCancel={() => { pending.current = undefined; sent.current = false; setClassRecalculationAttempt(undefined); setClassRecalculationUnknown(false); }} />}
-    </details>
+    </Disclosure>
     {/* PLAN.md steg 31: alla med avläsning på en gång, med förhandsvisning av statusbyten. */}
     <RecalculateRace raceId={raceId} onChanged={ws.reloadQuietly} />
     </div>

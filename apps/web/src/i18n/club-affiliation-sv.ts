@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /**
  * Var klubbens API-nyckel finns i Eventor (Eventors guide "Get data via API": Club → Club settings; svenska Eventor: Klubb →
  * Klubbinställningar). Samma väg i kopplingsrutan, hjälpen, tävlingens Eventor-ruta och texten till klubbens Eventor-administratör.

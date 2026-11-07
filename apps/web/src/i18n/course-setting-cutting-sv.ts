@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Ringklipp i banläggningen (ADR-0180 beslut 10). */
 export const courseSettingCuttingSv = {
   heading: "Ringklipp",

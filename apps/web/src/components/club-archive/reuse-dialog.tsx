@@ -5,7 +5,7 @@ import type { ClubArchiveEntryView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { alignedDocument, checkAlignment, controlsOutside } from "../../lib/club-archive-align";
 import { fetchCourseFileBytes, reuseTraining, type ReuseStage } from "../../lib/club-archive-client";
-import { Button, DateInput, Field, Notice } from "../ui";
+import { Button, DateInput, Dialog, Field, Notice } from "../ui";
 import { usePpen } from "./use-ppen";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
 import styles from "./club-archive.module.css";
@@ -21,7 +21,6 @@ const today = () => new Date().toLocaleDateString("sv-SE");
  */
 export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiveEntryView; initialFileId: string | undefined; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { dialog.current?.showModal(); }, []);
   const [name, setName] = useState(view.entry.title);
   const [date, setDate] = useState(today());
   const [groupId, setGroupId] = useState("");
@@ -81,7 +80,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
   }
 
   const nudge = (dx: number, dy: number) => setOffset(current => ({ dx: Math.round((current.dx + dx) * 10) / 10, dy: Math.round((current.dy + dy) * 10) / 10 }));
-  return <dialog ref={dialog} className={styles.dialog} aria-labelledby="reuse-title" onClose={onClose}>
+  return <Dialog dialogRef={dialog} className={styles.dialog} labelledBy="reuse-title" onClose={onClose}>
     <div className={styles.dialogBody}>
       <h2 id="reuse-title">{text.title}</h2>
       <p className={styles.muted}>{text.help}</p>
@@ -139,5 +138,5 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         <Button variant="secondary" disabled={Boolean(stage) && stage !== "done"} onClick={() => dialog.current?.close()}>{clubArchiveSv.entry.cancel}</Button>
       </div>
     </div>
-  </dialog>;
+  </Dialog>;
 }

@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Steg 65 (ADR-0184): PDF för tryck i förhandsvisningen. */
 export const printPdfSv = {
   heading: "PDF för tryck",

@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** ADR-0190: banans egenskaper i editorn (stigning, fast längd, banslag, poäng och ordning) och exporten av banor. */
 const km = (meters: number) => `${(meters / 1000).toFixed(1).replace(".", ",")} km`;
 

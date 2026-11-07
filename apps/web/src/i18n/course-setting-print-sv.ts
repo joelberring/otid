@@ -1,4 +1,5 @@
 import { plural } from "./plural";
+
 /** Steg 64: specialobjekten och utskriften i banläggningen. */
 export const coursePrintSv = {
   tabs: { objects: "Objekt", print: "Utskrift" },

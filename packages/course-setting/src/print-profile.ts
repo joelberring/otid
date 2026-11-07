@@ -110,8 +110,19 @@ const rule = (id: string, name: string, cmyk: [number, number, number, number], 
   ({ id, name, match, cmyk: { c: cmyk[0], m: cmyk[1], y: cmyk[2], k: cmyk[3] }, overprint: false, ...extra });
 const named = (name: string, ocadIds: number[] = []) => ({ names: [name], ...(ocadIds.length > 0 ? { ocadIds } : {}) });
 
-/** Färdiga profiler: som i filen, kontorsskrivare och BL Idrottsservice skog och sprint (ur macpurplepen). */
+/**
+ * Förvalet (ADR-0215 beslut 1): kartans egna färger i normens färgordning (ADR-0211 beslut 3, 11 och 12), utan att någon
+ * gör något. Gäller en tävling som inte har valt någon profil; en tävling som valt en (`printProfileId`) behåller den.
+ */
+export const MAP_OWN_PRINT_PROFILE_ID = "map-own";
+
+/** Färdiga profiler: kartans egna färger (förval), som i filen, kontorsskrivare och BL Idrottsservice skog och sprint (ur macpurplepen). */
 export const BUILT_IN_PRINT_PROFILES: readonly PrintProfile[] = [
+  {
+    schemaVersion: 1, id: MAP_OWN_PRINT_PROFILE_ID, name: "Kartans egna färger",
+    description: "Kartans färger som i kartfilen i normens färgordning (skog eller sprint ur kartan); banan i Purple Pens lila med övertryck.",
+    course: PURPLE_PEN_COURSE, mapColors: [], rules: [], requirements: NO_REQUIREMENTS, courseLayer: "REFERENCE"
+  },
   {
     schemaVersion: 1, id: "as-file", name: "Tryckeri (som i filen)", description: "Kartans färger som i kartfilen; banan i Purple Pens lila med övertryck.",
     course: PURPLE_PEN_COURSE, mapColors: [], rules: [], requirements: NO_REQUIREMENTS

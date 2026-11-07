@@ -75,6 +75,9 @@ ställen och papperet redigerades i en ruta bredvid arket.
    samma värden per färg som korten sätter (förslagets CMYK visas, en ändring blir en egen rad och kortet visar "Ändrad för
    hand"; ett beslut på kortet tar bort färgens egna rad). JSON, källan och förhandskontrollen ligger under "Mer". Allt sparas
    genast i tävlingens kopia av profilen (en färdig profil kopieras först).
+   *Ändrat 2026-11-07 (grenen `b2-tryckfarger`, ADR-0215):* överst en statusrad med "Visa" och lägena "Kartans egna färger"
+   (ny förvald profil `map-own` i normens ordning) och "Tryck hos BL" (bara de tveksamma färgerna); hela flödet ovan ligger
+   under "Avancerat", stängt som förval, och öppnas inte längre av sig självt.
 7. **Sidans upplägg.** Överst färgerna och "Skriv ut" (vad som skrivs ut: banor eller en karta per löpare, vilka banor; "Skriv
    ut på skrivare" och "Skapa PDF för tryckeriet" bredvid varandra med en rad var, jobben och "Ladda ned" i samma ruta), sedan
    översikten och sist redigeringen av arken. Översikten (`sheetCards`) har ett kort per ark (bana, kartbytets del, sida) med

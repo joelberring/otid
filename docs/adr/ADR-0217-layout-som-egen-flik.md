@@ -24,8 +24,9 @@ en skala, en tryckyta och ett papper per bana, och papperet redigeras på utskri
    utsnitt (`partPrintAreas`), papperet (`paper`, `partPapers`; ärver layoutens mall tills det ändras, "Återställ till mallen"),
    och justerade nummer. Ett ark finns när en klass med banan har layouten eller när det lagts till ("+ Lägg till ark").
 4. **Justering per skala**: nummerplaceringen per ark (`LayoutSheet.numbers[banans kontroll]`, kartans mm; null = automatisk
-   i layouten) och ringavbrotten per layout (`PrintLayout.circleGaps[kontroll]`, grader). Det som inte är justerat följer
-   banläggningen, också när den ändras. Sträckornas avbrott justeras inte (för senare).
+   i layouten), ringavbrotten per layout (`PrintLayout.circleGaps[kontroll]`, grader) och sträckavbrotten per layout
+   (`PrintLayout.legGaps[legKey]`, mm från sträckans början och längd, `SET_LAYOUT_LEG_GAPS`; ändrat 2026-11-07, fas 3). Det som
+   inte är justerat följer banläggningen, också när den ändras.
 5. **Utskriften räknar arket genom en projektion** (`layoutDocument(dokument, layout)`): dokumentet med layoutens skala,
    arkets utsnitt med layoutens papper, arkets papper och justeringarna i banans och kontrollernas vanliga fält. Allt efter det
    (`layoutCoursePage`, `layoutTemplateSheets`, papperet, klippningen, delarna, PDF:en) är oförändrat. `SheetItem.layout` och

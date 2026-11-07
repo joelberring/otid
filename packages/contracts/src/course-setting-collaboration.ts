@@ -146,6 +146,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("PUT_LAYOUT_SHEET"), layout: id, course: id, sheet: z.object({}).loose().nullable() }).strict(),
   z.object({ type: z.literal("SET_LAYOUT_CIRCLE_GAPS"), layout: id, control: id, gaps: z.array(z.object({ startDegrees: z.number().finite(),
     endDegrees: z.number().finite() }).strict()).max(100).nullable() }).strict(),
+  z.object({ type: z.literal("SET_LAYOUT_LEG_GAPS"), layout: id, from: id, to: id, gaps: z.array(z.object({ start: z.number().finite(),
+    length: z.number().finite() }).strict()).max(1000).nullable() }).strict(),
   z.object({ type: z.literal("CLEAR_LAYOUT_ADJUSTMENTS"), layout: id, course: id }).strict(),
   z.object({ type: z.literal("SET_CLASS_LAYOUTS"), classes: z.record(z.string().min(1).max(200), id.nullable())
     .refine(record => Object.keys(record).length <= 2000) }).strict(),

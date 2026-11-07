@@ -10,6 +10,7 @@
 import type { Point } from "@o-tid/map-file";
 import { BUILT_IN_TEMPLATES, type LayoutTemplate } from "./layout-template";
 import { HUNDREDTH_INCH_MM } from "./page-layout";
+import { legKey } from "./ppen-common";
 import { validatePaperLayout, type CoursePaperLayout } from "./paper-items";
 import type { CourseSettingDocument, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
@@ -35,7 +36,12 @@ export interface PrintLayout {
   readonly layoutTemplate?: string | undefined;
   /** Justerade ringavbrott per kontroll; saknas = banläggningens. Tom lista = inga avbrott i layouten. */
   readonly circleGaps?: Readonly<Record<string, readonly LayoutArc[]>> | undefined;
+  /** Justerade sträckavbrott per sträcka (`legKey`, mm från sträckans början); saknas = banläggningens. Tom lista = inga. */
+  readonly legGaps?: Readonly<Record<string, readonly LayoutLegGap[]>> | undefined;
 }
+
+/** Ett avbrott i en sträcka (som `Leg.gaps`): start i mm från sträckans början och längd i mm. */
+export interface LayoutLegGap { readonly start: number; readonly length: number }
 
 /** Ett ark i en annan layout än huvudlayouten (bana × layout). */
 export interface LayoutSheet {
@@ -90,6 +96,15 @@ export function validateArcs(value: unknown): LayoutArc[] {
   });
 }
 
+export function validateLegGaps(value: unknown): LayoutLegGap[] {
+  if (!Array.isArray(value) || value.length > 1000) throw invalid("sträckavbrotten");
+  return value.map(gap => {
+    const item = gap as LayoutLegGap;
+    if (!(finite(item.start) && item.start >= 0 && finite(item.length) && item.length > 0)) throw invalid("sträckavbrotten");
+    return { start: item.start, length: item.length };
+  });
+}
+
 /** Kontrollerar en layout (okända fält tas bort). */
 export function validatePrintLayout(value: unknown): PrintLayout {
   if (typeof value !== "object" || value === null) throw invalid("inte ett objekt");
@@ -103,6 +118,10 @@ export function validatePrintLayout(value: unknown): PrintLayout {
     if (ref === undefined) continue;
     if (typeof ref !== "string" || ref === "" || ref.length > 200) throw invalid("mallen");
     out[key] = ref;
+  }
+  if (layout.legGaps !== undefined) {
+    if (typeof layout.legGaps !== "object" || layout.legGaps === null || Object.keys(layout.legGaps).length > 50_000) throw invalid("sträckavbrotten");
+    out.legGaps = Object.fromEntries(Object.entries(layout.legGaps).map(([leg, gaps]) => [leg, validateLegGaps(gaps)]));
   }
   if (layout.circleGaps !== undefined) {
     if (typeof layout.circleGaps !== "object" || layout.circleGaps === null || Object.keys(layout.circleGaps).length > 10_000) throw invalid("ringavbrotten");
@@ -182,13 +201,26 @@ export function classLayoutOf(document: CourseSettingDocument, className: string
 }
 
 /** Justeringarna på ett ark: numren på arket och ringavbrotten för banans kontroller i layouten. */
-export function layoutAdjustments(document: CourseSettingDocument, layout: string, course: string): { numbers: string[]; circleGaps: string[] } {
-  if (layout === MAIN_LAYOUT) return { numbers: [], circleGaps: [] };
+export function layoutAdjustments(document: CourseSettingDocument, layout: string, course: string): { numbers: string[]; circleGaps: string[]; legGaps: string[] } {
+  if (layout === MAIN_LAYOUT) return { numbers: [], circleGaps: [], legGaps: [] };
   const numbers = Object.keys(layoutSheetOf(document, layout, course).numbers ?? {}).filter(cc => document.courseControls[cc]);
   const gaps = findPrintLayout(document, layout)?.circleGaps ?? {};
   const controls = course === "ALL_CONTROLS" ? new Set(Object.keys(document.controls))
     : new Set(Object.values(document.courseControls).filter(cc => courseControlIds(document, course).has(cc.id)).map(cc => cc.control));
-  return { numbers, circleGaps: Object.keys(gaps).filter(control => controls.has(control)) };
+  const legs = course === "ALL_CONTROLS" ? new Set<string>() : new Set(courseLegKeys(document, course));
+  return { numbers, circleGaps: Object.keys(gaps).filter(control => controls.has(control)),
+    legGaps: Object.keys(findPrintLayout(document, layout)?.legGaps ?? {}).filter(leg => legs.has(leg)) };
+}
+
+/** Banans sträckor (`legKey`, kontrollernas id), alla grenar. */
+export function courseLegKeys(document: CourseSettingDocument, course: string): string[] {
+  const out = new Set<string>();
+  for (const id of courseControlIds(document, course)) {
+    const item = document.courseControls[id]!;
+    const to = item.next !== undefined ? document.courseControls[item.next] : undefined;
+    if (to && to.control !== item.control) out.add(legKey(item.control, to.control));
+  }
+  return [...out];
 }
 
 /** Banans kontroller (alla grenar), genom den länkade listan och gafflingarna. */
@@ -275,10 +307,19 @@ export function layoutDocument(document: CourseSettingDocument, layout: string |
     controls[id] = { ...current, circleGaps: arcs.map(arc => ({ scale: null, startDegrees: arc.startDegrees, endDegrees: arc.endDegrees })) };
     gapsChanged = true;
   }
+  // Sträckavbrotten i layouten (en sträcka utan egen post i dokumentet får en).
+  const legs = { ...document.legs };
+  let legsChanged = false;
+  for (const [key, gaps] of Object.entries(found.legGaps ?? {})) {
+    const [from, to] = key.split("-");
+    if (!from || !to || !document.controls[from] || !document.controls[to]) continue;
+    legs[key] = { ...(legs[key] ?? { from, to, bends: [] }), gaps: gaps.map(gap => ({ start: gap.start, length: gap.length })) };
+    legsChanged = true;
+  }
   const event = { ...document.event, allControlsPrintScale: found.scale, printArea: area(sheets.ALL_CONTROLS?.printArea) };
   delete (event as { paperLayouts?: unknown }).paperLayouts;
   return { ...document, courses, event: Object.keys(papers).length > 0 ? { ...event, paperLayouts: papers } : event,
-    ...(numbersChanged ? { courseControls } : {}), ...(gapsChanged ? { controls } : {}) };
+    ...(numbersChanged ? { courseControls } : {}), ...(gapsChanged ? { controls } : {}), ...(legsChanged ? { legs } : {}) };
 }
 
 /** Skalan för en bana i en layout (huvudlayouten: banans, annars kartans). */

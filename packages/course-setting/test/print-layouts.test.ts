@@ -81,7 +81,7 @@ describe("layouterna (ADR-0217)", () => {
     expect(ring().gaps ?? []).toEqual([]);
     expect(ring("elit").gaps ?? []).toEqual([]);
     expect(layoutAdjustments(gapped, "aldre", course).circleGaps).toEqual([controls[0]]);
-    expect(layoutAdjustments(gapped, "aldre", course)).toEqual({ numbers: [], circleGaps: [controls[0]] });
+    expect(layoutAdjustments(gapped, "aldre", course)).toEqual({ numbers: [], circleGaps: [controls[0]], legGaps: [] });
   });
 
   it("arkets utsnitt och papper gäller bara arket; papperet ärver layoutens mall", () => {
@@ -173,5 +173,19 @@ describe("layouterna (ADR-0217)", () => {
     expect(() => apply(b.document, { type: "ADD_LAYOUT", layout: { ...ELIT, id: MAIN_LAYOUT } })).toThrow();
     const changed = apply(b.document, { type: "UPDATE_LAYOUT", layout: "elit", changes: { scale: 10000, name: "Elit A4" } });
     expect(changed.event.layouts!.find(item => item.id === "elit")).toMatchObject({ scale: 10000, name: "Elit A4", page: A3_LANDSCAPE });
+  });
+
+  it("sträckavbrott per layout: bara i den layouten; Ta bort justeringar tar dem", () => {
+    const { b, course, controls } = setup();
+    const [from, to] = [controls[0]!, controls[1]!];
+    const doc = apply(b.document, { type: "SET_LAYOUT_LEG_GAPS", layout: "aldre", from, to, gaps: [{ start: 9, length: 2 }] });
+    const leg = (layout?: string) => firstFrame(doc, course, layout).figures.filter(item => item.kind === "polyline" && item.role === "LEG" && item.ref === `${from}-${to}`);
+    // Avbrottet delar sträckan i två linjer i layouten; i huvudlayouten är den hel.
+    expect(leg("aldre").length).toBe(leg().length + 1);
+    expect(layoutAdjustments(doc, "aldre", course).legGaps).toEqual([`${from}-${to}`]);
+    expect(editTouches({ type: "SET_LAYOUT_LEG_GAPS", layout: "aldre", from, to, gaps: null })).toEqual([`event:layouts:aldre:legGaps:${from}-${to}`]);
+    const cleared = apply(doc, { type: "CLEAR_LAYOUT_ADJUSTMENTS", layout: "aldre", course });
+    expect(layoutAdjustments(cleared, "aldre", course).legGaps).toEqual([]);
+    expect(() => apply(b.document, { type: "SET_LAYOUT_LEG_GAPS", layout: "aldre", from, to, gaps: [{ start: -1, length: 2 }] })).toThrow();
   });
 });

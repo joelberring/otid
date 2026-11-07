@@ -83,6 +83,7 @@ describe("banläggningens åtgärder", () => {
     ok({ type: "PUT_LAYOUT_SHEET", layout: "elit", course: "3", sheet: {} });
     ok({ type: "SET_LAYOUT_CIRCLE_GAPS", layout: "elit", control: "4", gaps: [{ startDegrees: 10, endDegrees: 40 }] });
     ok({ type: "CLEAR_LAYOUT_ADJUSTMENTS", layout: "elit", course: "3" });
+    ok({ type: "SET_LAYOUT_LEG_GAPS", layout: "elit", from: "4", to: "5", gaps: [{ start: 3, length: 1.5 }] });
     ok({ type: "SET_CLASS_LAYOUTS", classes: { H21: "elit", D21: null } });
     ok({ type: "SAVE_LAYOUT_STATE", id: "s1", name: "Före provtryck", savedAt: "2026-11-07T10:00:00.000Z" });
     ok({ type: "RESTORE_LAYOUT_STATE", id: "s1" });

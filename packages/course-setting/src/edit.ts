@@ -25,7 +25,7 @@ import { applyLayoutEdit, setLayoutSheetArea, setLayoutSheetNumber, setLayoutShe
 import { MAIN_LAYOUT } from "./print-layouts";
 
 const LAYOUT_EDIT_TYPES: ReadonlySet<string> = new Set(["ADD_LAYOUT", "UPDATE_LAYOUT", "DELETE_LAYOUT", "PUT_LAYOUT_SHEET", "SET_LAYOUT_CIRCLE_GAPS",
-  "CLEAR_LAYOUT_ADJUSTMENTS", "SET_CLASS_LAYOUTS", "SAVE_LAYOUT_STATE", "RESTORE_LAYOUT_STATE", "DELETE_LAYOUT_STATE"]);
+  "SET_LAYOUT_LEG_GAPS", "CLEAR_LAYOUT_ADJUSTMENTS", "SET_CLASS_LAYOUTS", "SAVE_LAYOUT_STATE", "RESTORE_LAYOUT_STATE", "DELETE_LAYOUT_STATE"]);
 export const isLayoutEdit = (edit: CourseSettingEdit): edit is LayoutEdit => LAYOUT_EDIT_TYPES.has(edit.type);
 
 interface Draft {

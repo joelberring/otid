@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import {
-  courseControlIds, findPrintLayout, paperAnchorOf, layoutAdjustments, layoutDocument, MAIN_LAYOUT, printAreaOf, printSheetGroups, type CourseSettingDocument,
+  findPrintLayout, paperAnchorOf, layoutDocument, MAIN_LAYOUT, printAreaOf, printSheetGroups, type CourseSettingDocument,
   type CourseSettingEdit, type MapRect, type PaperRect, type Sheet, type SheetDescription, type SheetFrame
 } from "@o-tid/course-setting";
 import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
-import { sheetEdits, scaleText } from "../../lib/course-setting-layouts";
+import { sheetEdits } from "../../lib/course-setting-layouts";
 import { mapRenderRequest } from "../../lib/course-setting-print";
 import type { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
@@ -19,6 +19,7 @@ import { paperDescriptionEdit, PaperDescriptionsPanel, paperCourses } from "./co
 import type { FrameChange } from "./course-setting-paper-items";
 import { usePaperSpace } from "./use-paper-space";
 import { useDetailGaps } from "./course-setting-circle-cutting";
+import { AdjustPanel } from "./course-setting-layout-adjust";
 import styles from "./course-setting-layout.module.css";
 
 /** En kartbild per ram (samma utsnitt ritas en gång), utan färgprofil: Layout handlar om papperet. */
@@ -155,55 +156,6 @@ function NumberLayer({ sheet, onMove }: { sheet: Sheet; onMove: (courseControl: 
         }} />;
     })}
   </svg>;
-}
-
-/** "Justera för 1:7 500": antalet justeringar, ringavbrotten per kontroll och "Ta bort justeringar". */
-function AdjustPanel({ document, layout, course, scale, canEdit, save }: { document: CourseSettingDocument; layout: string; course: string;
-  scale: number | undefined; canEdit: boolean; save: (edits: CourseSettingEdit[]) => Promise<boolean> }) {
-  const found = findPrintLayout(document, layout);
-  if (layout === MAIN_LAYOUT || course === "ALL_CONTROLS" || !found) {
-    return <section className={styles.panel} data-testid="layout-adjust"><h3>{text.sheet.adjust(scale ? scaleText(scale) : "")}</h3>
-      <p className={styles.muted}>{text.sheet.adjustMain}</p></section>;
-  }
-  const adjustments = layoutAdjustments(document, layout, course);
-  const count = adjustments.numbers.length + adjustments.circleGaps.length;
-  const ids = courseControlIds(document, course);
-  const controls = [...new Set([...ids].map(id => document.courseControls[id]!.control))].map(id => document.controls[id]!)
-    .filter(control => control.kind === "NORMAL" || control.kind === "FINISH").sort((a, b) => Number(a.code ?? 999) - Number(b.code ?? 999));
-  const numbers = adjustments.numbers;
-  return <section className={styles.panel} aria-labelledby="layout-adjust" data-testid="layout-adjust" data-count={count}>
-    <h3 id="layout-adjust">{text.sheet.adjust(scaleText(found.scale))}</h3>
-    <p className={styles.muted}>{text.sheet.adjustHelp}</p>
-    <p data-testid="layout-adjust-count">{text.sheet.adjustments(count)}</p>
-    {numbers.length > 0 && <ul className={styles.list}>{numbers.map(cc => {
-      const code = document.controls[document.courseControls[cc]!.control]?.code ?? cc;
-      return <li key={cc}>{text.sheet.numberLabel(code)} <Button variant="quiet" disabled={!canEdit}
-        onClick={() => void save([{ type: "MOVE_NUMBER", course, courseControl: cc, at: null, printLayout: layout }])}>{text.sheet.numberReset}</Button></li>;
-    })}</ul>}
-    <details>
-      <summary>{text.sheet.gaps}</summary>
-      <div className={styles.stack}>{controls.map(control => <GapRow key={control.id} code={control.code ?? control.id} value={found.circleGaps?.[control.id]}
-        disabled={!canEdit} onSave={gaps => void save([{ type: "SET_LAYOUT_CIRCLE_GAPS", layout, control: control.id, gaps }])} />)}</div>
-    </details>
-    {count > 0 && <div><Button variant="secondary" disabled={!canEdit} data-testid="layout-adjust-clear"
-      onClick={() => void save([{ type: "CLEAR_LAYOUT_ADJUSTMENTS", layout, course }])}>{text.sheet.clear}</Button></div>}
-  </section>;
-}
-
-function GapRow({ code, value, disabled, onSave }: { code: string; value: readonly { startDegrees: number; endDegrees: number }[] | undefined; disabled: boolean;
-  onSave: (gaps: { startDegrees: number; endDegrees: number }[] | null) => void }) {
-  const shown = value ? value.map(arc => `${arc.startDegrees}-${arc.endDegrees}`).join(", ") : "";
-  const [draft, setDraft] = useState(shown);
-  useEffect(() => setDraft(shown), [shown]);
-  const parsed = draft.trim() === "" ? [] : draft.split(",").map(part => part.trim().split("-").map(Number));
-  const valid = parsed.every(pair => pair.length === 2 && pair.every(Number.isFinite));
-  return <div className={styles.row}>
-    <label className={styles.field}>{code}<input value={draft} disabled={disabled} placeholder={text.sheet.gapsFollow} data-testid={`layout-gaps-${code}`}
-      onChange={event => setDraft(event.target.value)} /></label>
-    <Button variant="secondary" disabled={disabled || !valid || draft === shown}
-      onClick={() => onSave(parsed.map(([start, end]) => ({ startDegrees: start!, endDegrees: end! })))}>{text.sheet.gapsSave}</Button>
-    {value && <Button variant="quiet" disabled={disabled} onClick={() => onSave(null)}>{text.sheet.gapsReset}</Button>}
-  </div>;
 }
 
 /** "Ändra i layouten": layoutens skala i listan, i bild och markerad. */

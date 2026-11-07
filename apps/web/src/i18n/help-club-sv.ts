@@ -1,3 +1,4 @@
+import { EVENTOR_KEY_PLACE } from "./club-affiliation-sv";
 import type { HelpArticle } from "./help-sv";
 
 /** ADR-0209: hjälpen om klubbtillhörighet – Mina klubbar, klubben i Eventor, bekräfta, bjuda in från klubben och klubbarkivet. */
@@ -24,7 +25,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
     body: [
       "Klubbytan visar ”Inte kopplad till Eventor” tills klubbens egen API-nyckel från Eventor är inlagd. Bara en administratör i klubben i Eventor kan skapa nyckeln, så kopplingen visar att klubbytan är klubbens.",
       { steps: [
-        "Skapa eller kopiera klubbens API-nyckel i Eventor (klubbens sidor, API-nyckel).",
+        `Hämta klubbens API-nyckel. Den finns i Eventor under ${EVENTOR_KEY_PLACE}. Har du den inte: se [Kom igång med klubbytan](#klubbytan-kom-igang).`,
         "Öppna klubbytan och fliken ”Klubben”.",
         "Klistra in nyckeln under ”Klubbens API-nyckel” och välj ”Koppla till Eventor”.",
         "O-Tid frågar Eventor vilken klubb nyckeln hör till och hämtar medlemslistan. Medlemmar med samma adress i O-Tid blir bekräftade.",
@@ -32,6 +33,22 @@ export const clubHelpArticles: readonly HelpArticle[] = [
       ] },
       "Nyckeln sparas krypterad och visas aldrig igen, bara de sista fyra tecknen. Av medlemslistan sparas bara Eventors person-id och ett oläsbart avtryck av e-postadressen, inga namn eller andra uppgifter. Med ”Byt nyckel” lägger du in en ny nyckel och med ”Ta bort kopplingen” tas nyckeln och listan bort.",
       "En klubb i Eventor kan bara kopplas till en klubbyta. Är den redan kopplad: kontakta ägaren av den klubbytan."
+    ]
+  },
+  {
+    id: "klubbytan-kom-igang",
+    title: "Kom igång med klubbytan",
+    views: ["ARCHIVE_TRAININGS", "ARCHIVE_CLUB"],
+    body: [
+      "Ägare och administratörer ser ”Kom igång” överst i klubbytan tills den är kopplad till Eventor och har minst en karta. Du kan också välja ”Dölj”.",
+      [
+        "Koppla klubben till Eventor med klubbens API-nyckel. Det är nästa steg i en ny klubbyta.",
+        "Bjud in fler ledare och administratörer under ”Medlemmar”.",
+        "Ladda upp kartor under ”Kartor” eller importera arkivet under ”Import”.",
+        "Välj under ”Vem ser vad”. Förvalet är ”Alla medlemmar”."
+      ],
+      "Har du inte nyckeln: välj ”Be klubbens Eventor-administratör koppla”. Du får en färdig text att kopiera eller öppna i e-post. Den säger vad O-Tid är, var nyckeln finns i Eventor och var den klistras in.",
+      "Bjud in personen som ”Administratör” under ”Medlemmar”, så klistrar hen in nyckeln själv. Texten har ingen nyckel, och nyckeln ska aldrig skickas i mejl."
     ]
   },
   {

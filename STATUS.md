@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Kom igång i klubbytan (grenen b1-kom-igang, ändringsmening i ADR-0209, ingen migration)
+- "Kom igång" överst i klubbytan för ägare och administratörer: koppla till Eventor med klubbens API-nyckel, bjud in fler ledare/admin, kartor eller import, Vem ser vad (förval). Försvinner vid koppling + minst en karta; "Dölj" i localStorage per klubbyta. En ny klubbyta säger "Nästa steg: koppla klubbytan till Eventor".
+- "Be klubbens Eventor-administratör koppla" (i kortet och i kopplingsrutan): text att kopiera eller öppna i e-post utan mottagare; ingen nyckel i texten.
+- Var nyckeln finns: Eventor → Klubb → Klubbinställningar (Eventors guide: Club → Club settings) i kopplingsrutan, hjälpen och tävlingens Eventor-ruta (`EVENTOR_KEY_PLACE`). Ny hjälpartikel "Kom igång med klubbytan".
+- Verifierat: enhetstester (`lib/club-start.test.ts`), `klubbtillhorighet.spec.ts` (kortet för ägaren, inte för medlemmen, dialogen, Dölj).
+
 ### 2026-11-07 – Städrundan A4: konton och klubbar (grenen a4-konto, ändringsmeningar i ADR-0205 och ADR-0209, ingen migration)
 - Koppla Google-konto: egna klubbsvar (utan `decided_by`) räknas som tomt konto, så en dubblett som svarat på klubbfrågan går att flytta; konto i bruk utan lösenord ger beskedet "Glömt lösenordet först" (`?google=upptaget-utan-losenord`).
 - Välj karta från klubbarkivet: bekräftade medlemmar ser klubbens kartor (samma medlemskap som övriga ställen), prövningen på en gång och utan sammanslagningshistorik.

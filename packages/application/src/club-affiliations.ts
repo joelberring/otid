@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   accountClubAddRequestSchema, accountClubRemoveRequestSchema, accountClubStepRequestSchema, clubAffiliationDecisionRequestSchema,
-  clubAccessSettingsRequestSchema, type AccountClubMembershipView, type AccountClubsResponse, type ClubAffiliationPerson,
+  type AccountClubMembershipView, type AccountClubsResponse, type ClubAffiliationPerson,
   type ClubAffiliationView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
@@ -197,26 +197,6 @@ export async function readClubAffiliation(db: Database, input: ClubProof & { clu
     if (actor.status !== "ok") return actor;
     const view = await affiliationView(tx, input.clubId);
     return view ? { status: "ok", view } as const : { status: "not-found" } as const;
-  });
-}
-
-/** "Vem ser vad": träningsarkivet och kartbanken för alla medlemmar eller bara ledare och administratörer. Journalförs. */
-export async function setClubAccessSettings(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
-  : Promise<ClubFailure | { status: "ok"; view: ClubAffiliationView }> {
-  const parsed = clubAccessSettingsRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  return db.transaction(async tx => {
-    const actor = await requireClubRole(tx, input, "ADMIN", now, true);
-    if (actor.status !== "ok") return actor;
-    const before = await clubLinkFacts(tx, input.clubId);
-    const values = { archiveVisibility: parsed.data.archive, mapBankAccess: parsed.data.mapBank, updatedBy: actor.accountId, updatedAt: now };
-    await tx.insert(schema.clubSettings).values({ clubId: input.clubId, ...values })
-      .onConflictDoUpdate({ target: schema.clubSettings.clubId, set: values });
-    if (before.access.ARCHIVE !== parsed.data.archive || before.access.MAP_BANK !== parsed.data.mapBank) {
-      await clubJournal(tx, { clubId: input.clubId, action: "CLUB_ACCESS_CHANGED", actorAccountId: actor.accountId,
-        details: { from: { archive: before.access.ARCHIVE, mapBank: before.access.MAP_BANK }, to: parsed.data }, now });
-    }
-    return { status: "ok", view: (await affiliationView(tx, input.clubId))! } as const;
   });
 }
 

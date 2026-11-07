@@ -110,8 +110,8 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   // --- Klubben (ADR-0194, ADR-0209, ADR-0210) --------------------------------------------------------------------------------
   "organizer/clubs": { GET: { allow: LOGGED_IN }, POST: { allow: LOGGED_IN, body: () => ({ formatVersion: 1, requestId: id(), name: "Egen klubb" }) } },
   "organizer/clubs/[clubId]": { GET: { allow: CLUB_MEMBERS } },
-  "organizer/clubs/[clubId]/affiliation": { GET: { allow: CLUB_ADMINS },
-    PUT: { allow: CLUB_ADMINS, body: { formatVersion: 1, archive: "MEMBERS", mapBank: "MEMBERS" } } },
+  "organizer/clubs/[clubId]/access": { PUT: { allow: CLUB_ADMINS, body: { formatVersion: 1, archive: "MEMBERS", mapBank: "MEMBERS" } } },
+  "organizer/clubs/[clubId]/affiliation": { GET: { allow: CLUB_ADMINS } },
   "organizer/clubs/[clubId]/affiliation/decisions": { POST: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, membershipId: id(), decision: "CONFIRM" }) } },
   "organizer/clubs/[clubId]/archive": { GET: { allow: CLUB_MEMBERS } },
   "organizer/clubs/[clubId]/archive/summaries": { POST: { allow: CLUB_ADMINS } },

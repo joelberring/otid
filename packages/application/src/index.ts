@@ -153,7 +153,9 @@ export * from "./training-groups";
 export * from "./training-group-maps";
 export * from "./training-group-sessions";
 export * from "./training-group-public";
-export { acceptClubInvitations, clubMembership, requireClubArea, requireClubRole, type ClubFailure, type ClubRole } from "./club-access";
+export {
+  acceptClubInvitations, clubMembership, requireClubArea, requireClubRole, setClubAccessSettings, type ClubFailure, type ClubRole
+} from "./club-access";
 export * from "./organisations";
 export * from "./club-affiliations";
 export { applyEventorMemberships, clubsOfMember, derivedClubMembership } from "./club-affiliation-access";

@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
+import { clubAccessSettingsRequestSchema, type ClubAccessSettingsResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
-import { acceptClubInvitations } from "./club-invitations";
+import { acceptClubInvitations, clubJournal } from "./club-invitations";
 import { applyEventorMemberships, clubLinkFacts, derivedClubMembership } from "./club-affiliation-access";
 import { CLUB_ROLE_RANK, clubAreaAllowed, type ClubArea } from "@o-tid/domain";
 import { UUID_PATTERN } from "./serialization";
@@ -64,7 +65,7 @@ export async function requireClubRole(tx: ClubTransaction, proof: ClubProof & { 
   return { status: "ok", accountId, clubId: proof.clubId, role: member.role };
 }
 
-export { acceptClubInvitations, clubJournal } from "./club-invitations";
+export { acceptClubInvitations, clubJournal };
 
 /**
  * ADR-0209 beslut C: "Vem ser vad". Träningsarkivet (träningar, småbilder, banfiler) och kartbanken (kartfiler, Använd igen,
@@ -82,4 +83,28 @@ export async function requireClubArea(tx: ClubTransaction, proof: ClubProof & { 
 export async function clubAreaAccess(tx: DbExecutor, clubId: string, role: ClubRole): Promise<{ archive: boolean; mapBank: boolean }> {
   const { access } = await clubLinkFacts(tx, clubId);
   return { archive: clubAreaAllowed(role, access.ARCHIVE), mapBank: clubAreaAllowed(role, access.MAP_BANK) };
+}
+
+/**
+ * ADR-0209 beslut C: spara "Vem ser vad" (träningsarkivet och kartbanken för alla medlemmar eller bara ledare och
+ * administratörer). Gäller klubbens arkiv oavsett Eventor, så den har en egen route (`…/clubs/[clubId]/access`, städrundan C4;
+ * förut på tillhörighetsrutten). Bara ägare och administratörer. Journalförs.
+ */
+export async function setClubAccessSettings(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
+  : Promise<ClubFailure | { status: "ok"; response: ClubAccessSettingsResponse }> {
+  const parsed = clubAccessSettingsRequestSchema.safeParse(input.request);
+  if (!parsed.success) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const actor = await requireClubRole(tx, input, "ADMIN", now, true);
+    if (actor.status !== "ok") return actor;
+    const before = await clubLinkFacts(tx, input.clubId);
+    const values = { archiveVisibility: parsed.data.archive, mapBankAccess: parsed.data.mapBank, updatedBy: actor.accountId, updatedAt: now };
+    await tx.insert(schema.clubSettings).values({ clubId: input.clubId, ...values })
+      .onConflictDoUpdate({ target: schema.clubSettings.clubId, set: values });
+    if (before.access.ARCHIVE !== parsed.data.archive || before.access.MAP_BANK !== parsed.data.mapBank) {
+      await clubJournal(tx, { clubId: input.clubId, action: "CLUB_ACCESS_CHANGED", actorAccountId: actor.accountId,
+        details: { from: { archive: before.access.ARCHIVE, mapBank: before.access.MAP_BANK }, to: parsed.data }, now });
+    }
+    return { status: "ok", response: { formatVersion: 1, access: { archive: parsed.data.archive, mapBank: parsed.data.mapBank } } } as const;
+  });
 }

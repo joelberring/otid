@@ -6,8 +6,9 @@ import { readPpen } from "@o-tid/course-setting";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
 import {
-  addAccountClub, answerAccountClubStep, decideClubAffiliation, readAccountClubs, readClubAffiliation, removeAccountClub, setClubAccessSettings
+  addAccountClub, answerAccountClubStep, decideClubAffiliation, readAccountClubs, readClubAffiliation, removeAccountClub
 } from "../../src/club-affiliations";
+import { setClubAccessSettings } from "../../src/club-access";
 import { clubsOfMember } from "../../src/club-affiliation-access";
 import { readClubArchive, readClubArchiveEntry, readClubCourseFile } from "../../src/club-archive";
 import { linkClubToEventor, syncClubEventorMembers, syncClubEventorMembersAsAdmin, unlinkClubFromEventor } from "../../src/club-eventor";

@@ -2,7 +2,7 @@ import {
   bearerToken, createClub, createClubImportToken, deleteClubArchiveEntry, discardStagedMapContent, importBatch, importCheck, importMapContent, importTokenClub,
   inviteClubMember, listMyClubs, moveClubMapVersion, readClub, readClubArchive, readClubArchiveEntry, readClubCourseFile,
   readClubMapVersionHead, removeClubMember, revokeClubImportToken, saveClubMapToGroupLibrary, saveClubMapVersionToRace, setClubCourseFileMap,
-  setClubMemberRole, stageMapContent, streamMapContentParts, updateClubArchiveEntry, updateClubMap, updateClubMapVersion, uploadClubMapVersion,
+  setClubAccessSettings, setClubMemberRole, stageMapContent, streamMapContentParts, updateClubArchiveEntry, updateClubMap, updateClubMapVersion, uploadClubMapVersion,
   type MapQuotaExceeded, type StagedMapContent
 } from "@o-tid/application";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, CLUB_IMPORT_BATCH_MAX_BYTES, RACE_MAP_MAX_BYTES, RACE_MAP_SOURCE_PARTS, UUID_PATTERN } from "@o-tid/contracts";
@@ -132,6 +132,17 @@ export async function clubReadRoute(db: Database, request: Request, clubId: stri
   return guarded(async () => {
     const result = await readClub(db, { ...input.proof, clubId });
     return result.status === "ok" ? privateJson({ ...result.view, mailEnabled: mailAvailable(environment) }) : failure(result.status);
+  });
+}
+
+/** PUT "Vem ser vad" (ADR-0209 beslut C): träningsarkivet och kartbanken, oavsett Eventor. Bara ägare och administratörer. */
+export async function clubAccessRoute(db: Database, request: Request, clubId: string, environment: Environment = process.env): Promise<Response> {
+  if (!validId(clubId)) return failure("not-found");
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await setClubAccessSettings(db, { ...input.proof, clubId, request: input.body });
+    return result.status === "ok" ? privateJson(result.response) : failure(result.status);
   });
 }
 

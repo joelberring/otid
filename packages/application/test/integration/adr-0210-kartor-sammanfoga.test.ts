@@ -9,7 +9,7 @@ import { importBatch, importMapContent } from "../../src/club-archive-import";
 import { copyClubMapVersionFields, dismissClubMapDuplicates, readClubMapDuplicates } from "../../src/club-map-duplicates";
 import { mergeClubMaps, undoClubMapMerge } from "../../src/club-map-merge";
 import { listUsableClubMaps } from "../../src/club-map-picker";
-import { setClubAccessSettings } from "../../src/club-affiliations";
+import { setClubAccessSettings } from "../../src/club-access";
 import { mayUseClubMap } from "../../src/club-map-use";
 import { updateClubMap, updateClubMapVersion } from "../../src/club-maps";
 import { registerTestAccount } from "./accounts";

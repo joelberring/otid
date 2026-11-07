@@ -1,7 +1,7 @@
 import {
   addAccountClub, answerAccountClubStep, inviteFromClub, readClubPicker, decideClubAffiliation, eventorConfigurationFromEnvironment, linkClubToEventor, liftRaceToClubArchive,
   readAccountClubs, readClubAffiliation, readRaceClubArchiveAsAdmin, removeAccountClub, removeRaceFromClubArchive, searchOrganisationsForAccount,
-  setClubAccessSettings, setRaceOrganiserAsAdmin, syncClubEventorMembersAsAdmin, unlinkClubFromEventor
+  setRaceOrganiserAsAdmin, syncClubEventorMembersAsAdmin, unlinkClubFromEventor
 } from "@o-tid/application";
 import { clubEventorLinkRequestSchema, clubInviteContextSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
@@ -65,21 +65,13 @@ export async function accountClubStepRoute(db: Database, request: Request, envir
 
 // --- Klubbarkivet ---------------------------------------------------------------------------------------------------------------
 
-/** GET kopplingen, bekräftelserna och Vem ser vad; PUT Vem ser vad. Bara ägare och administratörer. */
+/** GET kopplingen, bekräftelserna och Vem ser vad (läses här; sparas på `…/access`). Bara ägare och administratörer. */
 export async function clubAffiliationRoute(db: Database, request: Request, clubId: string, environment: Environment = process.env): Promise<Response> {
   if (!validId(clubId)) return failure("not-found");
-  if (request.method === "GET") {
-    const input = await readProof(request, environment);
-    if ("response" in input) return input.response;
-    return guarded(async () => {
-      const result = await readClubAffiliation(db, { ...input.proof, clubId });
-      return result.status === "ok" ? privateJson(result.view) : failure(result.status);
-    });
-  }
-  const input = await mutation(request, environment);
+  const input = await readProof(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await setClubAccessSettings(db, { ...input.proof, clubId, request: input.body });
+    const result = await readClubAffiliation(db, { ...input.proof, clubId });
     return result.status === "ok" ? privateJson(result.view) : failure(result.status);
   });
 }

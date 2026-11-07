@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import type { ClubAffiliationPerson, ClubAffiliationView, ClubAreaAccess } from "@o-tid/contracts";
+import type { ClubAccessSettingsResponse, ClubAffiliationPerson, ClubAffiliationView, ClubAreaAccess } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { clubBase, clubFailure } from "../../lib/club-archive-client";
 import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
@@ -92,10 +92,10 @@ function AccessCard({ view, clubId, onSaved }: { view: ClubAffiliationView; club
   async function save(event: FormEvent) {
     event.preventDefault();
     setBusy(true); setMessage(undefined);
-    const result = await clubRequest(`${clubBase(clubId)}/affiliation`, "PUT", { formatVersion: 1, archive, mapBank });
+    const result = await clubRequest(`${clubBase(clubId)}/access`, "PUT", { formatVersion: 1, archive, mapBank });
     setBusy(false);
     if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
-    onSaved(result.json as ClubAffiliationView);
+    onSaved({ ...view, access: (result.json as ClubAccessSettingsResponse).access });
     setMessage({ tone: "ok", text: text.accessSaved });
   }
   // "Alla medlemmar" först; det är förvalet för båda delarna (ADR-0209 beslut 5).

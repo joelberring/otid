@@ -3,10 +3,7 @@ import { clubAffiliationRoute } from "../../../../../../lib/club-affiliation-rou
 
 type Context = { params: Promise<{ clubId: string }> };
 
-/** ADR-0209: kopplingen till Eventor, bekräftelserna (GET) och "Vem ser vad" (PUT). */
+/** ADR-0209: kopplingen till Eventor, bekräftelserna och "Vem ser vad" (GET; Vem ser vad sparas på …/access). */
 export async function GET(request: Request, context: Context): Promise<Response> {
-  return clubAffiliationRoute(db, request, (await context.params).clubId);
-}
-export async function PUT(request: Request, context: Context): Promise<Response> {
   return clubAffiliationRoute(db, request, (await context.params).clubId);
 }

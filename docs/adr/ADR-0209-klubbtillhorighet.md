@@ -65,6 +65,8 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
    Inställningen "Bekräftade medlemmar kan läsa arkivet" (första utkastet) ersätts av de två.
    Ändrat 2026-11-07: "Välj karta från klubbarkivet" räknar medlemmar som `clubMembership` (också bekräftade medlemmar utan
    uttryckligt medlemskap); förut såg de inga kartor fast de fick använda dem.
+   Ändrat 2026-11-07 (städrundan C4): "Vem ser vad" sparas på klubbens egen route `PUT …/clubs/[clubId]/access` (förut PUT på
+   tillhörighetsrutten), eftersom den gäller arkivet oavsett Eventor; tillhörighetsrutten läser den bara (GET).
 6. **Integritet.** Bekräftade medlemmar ser namnen (aldrig adresser) på andra bekräftade medlemmar i samma klubb, och bara i
    väljaren "Från klubben". Den som inte är med ser ingen lista; klubbytans existens röjs inte (404). Det finns ingen
    kontoexport i O-Tid; borttagningen av ett konto tar raderna med sig (nycklarna). Integritetssidan beskriver vad som sparas.

@@ -84,6 +84,8 @@ const areaAccessSchema = z.enum(["MEMBERS", "LEADERS"]);
 export const clubAccessSettingsRequestSchema = z.object({
   formatVersion: z.literal(1), archive: areaAccessSchema, mapBank: areaAccessSchema
 }).strict();
+/** Svaret när "Vem ser vad" sparats (PUT …/clubs/[clubId]/access). */
+export interface ClubAccessSettingsResponse { formatVersion: 1; access: ClubAffiliationView["access"] }
 export const clubEventorLinkRequestSchema = z.object({ formatVersion: z.literal(1), apiKey: z.string().trim().min(16).max(128) }).strict();
 
 export const clubAffiliationDecisionRequestSchema = z.object({

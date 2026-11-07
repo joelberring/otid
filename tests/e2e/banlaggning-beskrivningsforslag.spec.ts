@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createRace, openStep, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
+import { createRace, mapSettled, openStep, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen. Testkartan (kartfil.omap) har stenar i (42, 61),
@@ -104,7 +104,7 @@ test("förslag på kontrollbeskrivning: ny kontroll på en sten, förhandsvisnin
   const phoneMap = phone.getByTestId("course-setting-map");
   await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
   await expect(phoneMap).toHaveAttribute("data-px-per-mm", /\d/);
-  await phone.waitForTimeout(500);
+  await mapSettled(phoneMap);
   const c34 = await screenOf(phoneMap, 98, 30);
   await phone.touchscreen.tap(c34.x, c34.y);
   await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 34");

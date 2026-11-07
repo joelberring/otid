@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { expect, type Browser, type Page } from "@playwright/test";
+import { expect, type Browser, type Locator, type Page } from "@playwright/test";
 import { latestMailTo } from "./fake-smtp";
 
 /** Gemensamma steg för webbläsartesterna (ADR-0168, ADR-0172). */
@@ -295,6 +295,56 @@ export async function warmCourseSetting(page: Page, raceId: string): Promise<voi
   await warmRoute(page, `${admin}/course-setting/inspections`, "PUT");
   await warmRoute(page, `/admin/${raceId}/course-setting`);
   await warmUpload(page, `${admin}/map/source`);
+}
+
+/**
+ * Banläggningens karta står still: ritad skarpt för vyn som visas (`data-drawn`), och vyn (läge och skala) och rutan på
+ * sidan är desamma två bildrutor i rad. Används efter "Visa hela kartan", en ny bana eller att kartan blivit klar, innan
+ * testet räknar ut var en kontroll ligger på skärmen (i stället för att vänta en fast tid).
+ */
+export async function mapSettled(map: Locator): Promise<void> {
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await expect.poll(() => map.evaluate(element => {
+    const state = () => {
+      const box = element.getBoundingClientRect();
+      return [box.x, box.y, box.width, box.height, element.getAttribute("data-center"), element.getAttribute("data-px-per-mm"),
+        element.getAttribute("data-drawn")].join(";");
+    };
+    // En bildruta (eller 100 ms om sidan inte ritar, t.ex. i bakgrunden).
+    const frame = () => new Promise<void>(resolve => { requestAnimationFrame(() => resolve()); setTimeout(resolve, 100); });
+    const before = state();
+    return frame().then(frame).then(() => state() === before && element.getAttribute("data-drawn") === "true");
+  }), { timeout: 30_000 }).toBe(true);
+}
+
+/**
+ * Banläggningen i telefonen (IndexedDB "otid-course-setting", steg 67 och ADR-0190): `waiting` är åtgärderna som väntar
+ * i den sparade posten och kön, som "Utan nät – N ändringar väntar" räknar dem; `history` är ångra-historiken (antal
+ * steg och de godtagna varningarna i dess dokument). Posten och historiken skrivs strax efter en ändring; vänta på dem
+ * med `expect.poll` före en omladdning eller en stängd sida i stället för en fast tid.
+ */
+export async function courseSettingInPhone(page: Page, raceId: string): Promise<{ waiting: number;
+  history: { past: number; future: number; acceptedChecks: string[] } | undefined }> {
+  return page.evaluate(async id => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const open = indexedDB.open("otid-course-setting");
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(new Error(open.error?.message ?? "IndexedDB"));
+    });
+    const ask = <T,>(request: IDBRequest) => new Promise<T>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result as T);
+      request.onerror = () => reject(new Error(request.error?.message ?? "IndexedDB"));
+    });
+    try {
+      const has = (name: string) => db.objectStoreNames.contains(name);
+      const record = has("record") ? await ask<{ log?: unknown[] } | undefined>(db.transaction("record").objectStore("record").get(id)) : undefined;
+      const queued = has("queue") ? await ask<number>(db.transaction("queue").objectStore("queue").index("raceId").count(id)) : 0;
+      const history = has("history") ? await ask<{ past: unknown[]; future: unknown[];
+        document?: { event?: { acceptedChecks?: Record<string, unknown> } } } | undefined>(db.transaction("history").objectStore("history").get(id)) : undefined;
+      return { waiting: (record?.log?.length ?? 0) + queued, history: history ? { past: history.past.length, future: history.future.length,
+        acceptedChecks: Object.keys(history.document?.event?.acceptedChecks ?? {}) } : undefined };
+    } finally { db.close(); }
+  }, raceId);
 }
 
 /** Delarna i sidopanelen; vilka som finns avgörs av tävlingstypen (ADR-0170). */

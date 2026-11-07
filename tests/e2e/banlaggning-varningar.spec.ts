@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mapPointToWgs84 } from "../../packages/map-file/src/georef";
 import type { MapGeoreference } from "../../packages/map-file/src/model";
-import { createRace, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
+import { courseSettingInPhone, createRace, mapSettled, registerAccount, reviewScreenshots, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * ADR-0199: varningarna i banläggningen. Kartfilen och kartfil.ppen (kontrollernas id: 31 = 2, 32 = 3, 33 = 4, 35 = 6, 36 = 7, mål = 9)
@@ -104,8 +104,10 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await expect(accepted.locator("summary")).toHaveText("Godtagna (1)");
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 60_000 });
 
-  // Omladdning: fortfarande godtagen (sparad i dokumentet). Ångra-historiken skrivs i webbläsaren strax efter ändringen.
-  await owner.waitForTimeout(800);
+  // Omladdning: fortfarande godtagen (sparad i dokumentet). Ångra-historiken skrivs i webbläsaren strax efter ändringen:
+  // vänta tills den med den godtagna varningen ligger där.
+  await expect.poll(async () => (await courseSettingInPhone(owner, raceId)).history?.acceptedChecks, { timeout: 15_000 })
+    .toEqual(["LEG_NO_ROUTE/7/9"]);
   await owner.reload();
   await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
   await badge(owner).click();
@@ -148,7 +150,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
-  await phone.waitForTimeout(400);
+  await mapSettled(phoneMap);
   const at = await screenOf(phoneMap, 42, 61);
   await phone.touchscreen.tap(at.x, at.y);
   await expect(phone.getByTestId("course-setting-field-selected")).toHaveText("Vald: kontroll 32");

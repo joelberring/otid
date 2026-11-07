@@ -20,7 +20,9 @@ const TIME_ZONE = "Europe/Stockholm";
 const BACK = 360;
 const raceClock = (back: number) => raceStartedAgo(back, TIME_ZONE);
 
+/** Kompilerar stafettens rutter i utvecklingsservern i förväg; mot ett driftbygge (E2E_BASE_URL, som i CI) finns inget att kompilera. */
 async function compileRoutes(page: Page, raceId: string) {
+  if (process.env.E2E_BASE_URL) return;
   for (const path of ["relay", "relay-classes", "relay-teams", "relay-class-edit", "relay-start-times", "relay-team-edit"]) {
     await page.request.get(`/api/admin/races/${raceId}/administrator/${path}`, { timeout: 120_000 });
   }

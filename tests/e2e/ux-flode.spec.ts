@@ -188,7 +188,8 @@ test("arbetsytan går inte utanför skärmen på 390 px", async ({ browser }) =>
   await shotPage(owner, "efter-klasser");
   for (const step of ["Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"] as const) {
     await openStep(owner, step);
-    await owner.waitForTimeout(500);
+    // Delen är inläst ("Hämtar …"/"Läser in …" borta) innan bredden mäts.
+    await expect(owner.getByText(/^(Hämtar|Läser in)\b.*…$/)).toHaveCount(0, { timeout: 30_000 });
     await fitsWidth(owner);
   }
 });

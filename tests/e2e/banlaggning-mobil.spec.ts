@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mapPointToWgs84 } from "../../packages/map-file/src/georef";
 import type { MapGeoreference } from "../../packages/map-file/src/model";
-import { createRace, openStep, registerAccount, today, unique, warmCourseSetting } from "./helpers";
+import { courseSettingInPhone, createRace, mapSettled, openStep, registerAccount, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * Fältläget, första versionen (ADR-0181 beslut 6–7): banläggningen på en telefon (390 × 844) med fejkad position. Välj
@@ -86,7 +86,7 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   const map = phone.getByTestId("course-setting-map");
   await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
-  await phone.waitForTimeout(500);
+  await mapSettled(map);
 
   // Banväljaren i fältets rad: banan Lång ritas med sträckor, nummer, start och mål (inte bara kontrollerna).
   const allControls = await map.getByTestId("course-setting-overprint").screenshot();
@@ -95,8 +95,7 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await course.selectOption({ label: "Lång" });
   await expect(course).toHaveValue("1");
   await expect(phone.getByRole("img", { name: "Karta med banpåtryck: Lång" })).toBeVisible();
-  await phone.waitForTimeout(300);
-  expect((await map.getByTestId("course-setting-overprint").screenshot()).equals(allControls)).toBe(false);
+  await expect.poll(async () => (await map.getByTestId("course-setting-overprint").screenshot()).equals(allControls)).toBe(false);
   await screenshot(phone, "banlaggning-mobil-bana");
 
   // Sidan skrollar inte när man panorerar kartan med fingret (eller hjulet).
@@ -105,7 +104,7 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await phone.mouse.wheel(0, 400);
   expect(await scrolled(phone)).toEqual([0, 0, 0]);
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
-  await phone.waitForTimeout(300);
+  await mapSettled(map);
   // Kartans övre vänstra hörn (5, 95 mm) är tomt.
   const empty = await screenOf(map, 5, 95);
   const centerBefore = await map.getAttribute("data-center");
@@ -187,7 +186,8 @@ test("banläggning på telefonen: min position, flytta hit, finjustera, F och G,
   await phone.getByRole("button", { name: "Flytta 1 m österut" }).click();
   await expect(status()).toHaveText("Utan nät – 1 ändring väntar", { timeout: 15_000 });
   await screenshot(phone, "banlaggning-mobil-inte-sparat");
-  await phone.waitForTimeout(500);
+  // Ändringen ligger i telefonen (posten skrivs strax efter ändringen) innan sidan stängs.
+  await expect.poll(async () => (await courseSettingInPhone(phone, raceId)).waiting, { timeout: 15_000 }).toBe(1);
   await phone.close({ runBeforeUnload: false });
   phone = await phoneContext.newPage();
   await phone.goto(`/admin/${raceId}/course-setting`);

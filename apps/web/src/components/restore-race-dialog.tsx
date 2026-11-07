@@ -138,7 +138,7 @@ function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void
     </div>}
     {result && <div className={styles.form}>
       <Notice tone="ok" role="status"><strong>{text.restored}</strong><span>{text.counts(result.counts)}</span></Notice>
-      {result.missingPeople.length > 0 && <Notice tone="info">{text.missing(result.missingPeople)}</Notice>}
+      {result.invitations > 0 && <Notice tone="info">{text.invited(result.invitations)}</Notice>}
       <div className={styles.actions}>
         <Button disabled={opening} aria-busy={opening} onClick={() => { setOpening(true);
           window.location.assign(`/admin/${encodeURIComponent(result.raceId)}/manage`); }}>{opening ? text.opening : text.openRace}</Button>

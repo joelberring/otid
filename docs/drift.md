@@ -693,8 +693,8 @@ serverns backup: konton, andra tävlingar och behörigheternas historik finns ba
    "Kontrollera filen": servern kontrollerar kontrollsummorna och varje rad och visar tävlingen, datum, antal klasser,
    deltagare och avläsningar och formatversionen innan något sparas.
 3. "Skapa tävlingen". Det blir en **ny** tävling (nya id, ny kort adress, opublicerad) med samma resultat och sträcktider;
-   en befintlig tävling skrivs aldrig över. Med "Ge dem samma behörighet här" får administratörer och funktionärer med konto
-   (samma e-post) på servern sin roll igen; övriga räknas upp och läggs till under Personer med behörighet när de har konto.
+   en befintlig tävling skrivs aldrig över. Med "Bjud in dem med samma roller" får administratörer, funktionärer och banläggare
+   i kopian en inbjudan (mejl) till sin adress; den syns under Personer med behörighet och gäller när de loggar in med adressen.
 4. Publicera tävlingen, slå på radiokontrollerna och klistra in Eventor-nyckeln under Inställningar om de användes. Avläsningen
    kopplas till den nya tävlingen (öppna Avläsning i den nya arbetsytan). Det som lästes ut efter att kopian togs finns inte i
    den: läs ut de brickorna igen i den nya tävlingen. Avläsningsdatorns kö (IndexedDB) hör till den gamla tävlingens id och

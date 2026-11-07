@@ -8,6 +8,7 @@ import {
   sessionProof, validDeclaredLength, type SecurityPolicy
 } from "./security-policy";
 import { logServerError } from "./server-error-log";
+import { routeMailer } from "./invitation-route-handlers";
 
 /**
  * "Återställ tävling från säkerhetskopia" (ADR-0187): förhandsvisningen och återställningen tar emot zip-filen som den är
@@ -59,7 +60,7 @@ export async function raceRestoreRoute(db: Database, request: Request, environme
   const search = new URL(request.url).searchParams;
   try {
     const result = await restore(db, { ...sessionProof(request, input.policy, true), requireCsrf: true, bytes: input.bytes,
-      options: { requestId: search.get("requestId"), people: search.get("people") } });
+      options: { requestId: search.get("requestId"), people: search.get("people") } }, new Date(), routeMailer(environment));
     if (result.status === "invalid") return problem(result.problem);
     if (result.status !== "restored") return failure(result.status);
     const response = raceRestoreResponseSchema.parse(result.response);

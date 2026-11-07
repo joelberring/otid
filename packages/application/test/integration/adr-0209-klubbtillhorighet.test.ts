@@ -519,7 +519,7 @@ describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
     expect(JSON.stringify(backup.people)).not.toContain(clubmate.email);
     const restored = await restoreRaceBackup(db, { ...inviterAccount.proof, bytes: exported.bytes, options: { requestId: randomUUID(), people: "link" } }, NOW);
     if (restored.status !== "restored") throw new Error(JSON.stringify(restored));
-    expect(restored.response).toMatchObject({ linkedPeople: 0, missingPeople: [] });
+    expect(restored.response).toMatchObject({ invitations: 0 });
     const copied = await db.select().from(schema.eventAdministrationGrants).where(eq(schema.eventAdministrationGrants.accountId, clubmate.accountId));
     expect(copied.map(row => row.eventId)).not.toContain(restored.response.eventId);
     // Igen: redan med. En person utanför listan: hela begäran avvisas.

@@ -46,8 +46,9 @@ klasser, deltagare och avläsningar, formatversion och personer med behörighet,
 - Den nya tävlingen får nya id genomgående och en egen kort adress, och är opublicerad. Resultaten och sträcktiderna är
   desamma; inget räknas om. Resultat som väntade på omräkning när kopian togs (`staleResultRevisions`) är inaktuella också i
   den nya tävlingen.
-- Den som återställer blir ägare. "Ge dem samma behörighet här" ger personerna i kopian sin roll igen om de har ett konto med
-  samma e-post på servern (ägare blir administratör); de som saknar konto räknas upp.
+- Den som återställer blir ägare och den enda med behörighet. "Bjud in dem med samma roller" ger adresserna i kopian vanliga
+  inbjudningar (mejl, ägare blir administratör) som gäller när någon loggar in med adressen; svaret är bara antalet inbjudningar
+  och säger inte vilka adresser som har konto.
 - Radiohämtningen är avstängd och Eventor-nyckeln saknas: slå på radion och klistra in nyckeln under Inställningar.
 - Gränser: högst 200 MB fil, 96 MB per tabellfil, 72 MB per binärfil och 400 MB uppackat. Varje fil kontrolleras mot sin
   sha256 och varje rad mot databasens kolumner innan något sparas.

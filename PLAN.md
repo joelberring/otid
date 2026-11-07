@@ -1167,6 +1167,37 @@ ADR-0184. Migration 0036.
 - [x] Tester: paketet (struktur, färger, övertryck, DeviceN, typsnitt, baksidor, Ghostscripts separationer när gs finns),
   integration `steg-65-tryck` (kö, behörighet, rensning, avläsning under ett pågående jobb), Playwright `banlaggning-pdf`.
 
+## [ ] Steg K0 – Kartprojekt och säker tillbakaskrivning
+
+ADR-0219. Migration 0089. Ägaren startade kartritningen 2026-11-07; planen i projektdokumentet `claude/plan-kartritning.md`.
+Bygger om det användbara från de pausade grenarna `kartfil-skrivning` och `kartrevidering` på main.
+
+- [ ] **Kartfilen:** läsarna anger varifrån varje objekt kom (`sources`); kontraktet för ändringssatser; `applyMapRevision`
+  lappar Mapper-filer (byte för byte lika vid en tom sats, kontroll efter skrivningen), vägrar OCAD tills K7.
+- [ ] **T2:** OCAD 8:s strukturmönster läses rätt (översynen 2026-11-07).
+- [ ] **Paketet `map-revision`** på main: ändringar per objekt, krockar, ångra, kö i klienten, export av ändringarna, med
+  objektens riktiga platser i grundfilen.
+- [ ] **Kartprojekt** (migration 0089): projekt från en kartversion i klubbarkivet, egna medlemmar (Ägare, Ändra, Läsa),
+  inbjudan med e-post (slaget `MAP_PROJECT`), synk av ändringar, ny kartversion ur ändringarna, export när grundfilen ändrats.
+- [ ] **Tester:** paketen (skrivaren, egenskapstest, riktiga fixturer), integration (behörighet, synk, krock, dubblett, ny
+  version, inbjudan), schemadrift och `lint:dead`.
+
+## [ ] Steg K1 – Rita på datorn och flera samtidigt
+
+- [ ] Kartprojektets sida: kartan som vektorer (ritkoden från steg 59), lager och symbolgrupper, andras ändringar i realtid.
+- [ ] Ritverktyg: punkt, linje och yta med bezier, flytta brytpunkter, byta symbol, ta bort, ångra/gör om, kortkommandon som
+  i Mapper; bara symboler som finns i filen.
+- [ ] Arbetssätt Huvudkartritare/Gemensamt och förslag (`SUGGEST`), delområden som delas ut till personer.
+- [ ] Nya kartor: tom .omap med ISOM 2017-2 eller ISSprOM 2019-2, område som polygon, export.
+
+## [ ] Steg K2 – Claude ser och läser kartan (MCP)
+
+- [ ] OAuth med O-Tid-kontot, verktygen `render_view`, `render_compare`, `list_objects`, `norm_check`, rendering på servern;
+  bara förslag, aldrig direkt i kartan (ADR-0219 beslut 8).
+
+Senare enligt planen: K3 mobil ritning och rekningsstatus ur GPS-spår, K3b frivillig spelifiering, K4 underlag och
+geo-arbetaren, K5 Karttapullautin och fuktighet, K6 generalisering och normkontroll, K7 begränsad revidering av OCAD.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

@@ -51,6 +51,7 @@ export * from "./control-map";
 export * from "./map-bundles";
 export * from "./map-duplicates";
 export * from "./map-version-year";
+export * from "./year-folder";
 export * from "./forking-readiness";
 export * from "./variant-pruning";
 export * from "./race-title";

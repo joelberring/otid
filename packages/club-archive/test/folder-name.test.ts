@@ -39,6 +39,10 @@ describe("mappnamnen (ADR-0194 beslut 6)", () => {
     expect(trainingFolderOf("export/2021 Träningar/03-02 Sjön/x.ocd")).toMatchObject({ path: "export/2021 Träningar/03-02 Sjön", year: 2021 });
     // En träningsmapp som börjar med ett helt datum är ingen årsmapp.
     expect(trainingFolderOf("2019-04-02 Skogen/x.ppen")).toMatchObject({ path: "2019-04-02 Skogen", date: "2019-04-02", year: 2019 });
+    // Städrundan C4: samma regel som kartversionens år (domänens yearOfYearFolder); ett datum med mellanslag är ingen årsmapp.
+    expect(trainingFolderOf("2019 04-02 Skogen/x.ppen")).toMatchObject({ path: "2019 04-02 Skogen", date: "2019-04-02", year: 2019 });
+    expect(pathInChosenFolder("2019 04-02 Skogen", "x.ppen")).toBe("x.ppen");
+    expect(pathInChosenFolder("2019 träningar", "04-02 Skogen/x.ppen")).toBe("2019 träningar/04-02 Skogen/x.ppen");
   });
 
   it("sökvägar normaliseras: \\, NFD från macOS, mellanslag", () => {

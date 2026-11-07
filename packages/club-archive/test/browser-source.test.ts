@@ -203,6 +203,8 @@ describe("webbläsarens moduler drar inte in Node", () => {
       const source = await readFile(join(src, file), "utf8");
       for (const match of source.matchAll(/^(?:import|export)\s(?!type\s)[^;]*?from\s+"([^"]+)"/gm)) {
         const target = match[1]!;
+        // Domänen är ren TypeScript utan I/O (AGENTS.md); årsmappens regel finns där (städrundan C4).
+        if (target === "@o-tid/domain") continue;
         if (!target.startsWith("./")) { bad.push(`${file} → ${target}`); continue; }
         await visit(`${target.slice(2)}.ts`);
       }

@@ -3,6 +3,7 @@
  * mellanslag i slutet, flera mellanslag, datum som `4-2`, `0402` eller `2019-04-02`, ledaren i hakparenteser eller inte alls,
  * undermappar. Allt här är rena funktioner utan filsystem.
  */
+import { yearOfYearFolder } from "@o-tid/domain";
 
 /** En sökväg i arkivet med `/`, varje del trimmad och i NFC (macOS skriver namnen i NFD), utan tomma delar. */
 export function normalizePath(path: string): string {
@@ -27,11 +28,8 @@ export const stemOf = (path: string): string => {
   return dot > 0 ? name.slice(0, dot) : name;
 };
 
-/** Årsmappen: "2019" eller "2019 träningar" (men inte en träning som "2019-04-02 Skogen"). */
-const YEAR = /^((?:19|20)\d{2})(?:$|\s)/;
-
-/** Mappens namn ser ut som ett år ("2019", "2019 träningar"). */
-export const isYearFolderName = (name: string): boolean => YEAR.test(normalizePath(name));
+/** Mappens namn ser ut som ett år ("2019", "2019 träningar"); regeln är domänens `yearOfYearFolder`. */
+const isYearFolderName = (name: string): boolean => yearOfYearFolder(normalizePath(name)) !== null;
 
 /**
  * Sökvägen i arkivet för en fil i en vald mapp (kommandots mapp eller webbläsarens "Välj mapp"), relativt mappen. Är den valda
@@ -106,8 +104,8 @@ export interface TrainingFolder extends ParsedFolderName {
  */
 export function trainingFolderOf(filePath: string): TrainingFolder {
   const parts = normalizePath(filePath).split("/");
-  const yearIndex = parts.findIndex((part, index) => index < parts.length - 1 && YEAR.test(part));
-  const year = yearIndex >= 0 ? Number(YEAR.exec(parts[yearIndex]!)![1]) : null;
+  const yearIndex = parts.findIndex((part, index) => index < parts.length - 1 && yearOfYearFolder(part) !== null);
+  const year = yearIndex >= 0 ? yearOfYearFolder(parts[yearIndex]!) : null;
   const folderIndex = yearIndex >= 0 ? yearIndex + 1 : 0;
   const inFolder = folderIndex < parts.length - 1;
   const name = inFolder ? parts[folderIndex]! : stemOf(parts[parts.length - 1] ?? "");

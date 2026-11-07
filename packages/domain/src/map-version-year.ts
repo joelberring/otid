@@ -5,6 +5,8 @@
  * dagen för uppladdningen. Kartfilerna (OCAD och Mapper) har inget eget datum att läsa. Gissningen går att ändra; ett
  * ändrat år sparas och gäller före gissningen. Ren funktion utan I/O.
  */
+import { yearOfYearFolder } from "./year-folder";
+
 export type VersionYearSource = "MANUAL" | "FILE_NAME" | "FOLDER" | "YEAR_FOLDER" | "DATE" | "UPLOAD";
 
 export interface VersionYearInput {
@@ -22,8 +24,6 @@ export const MIN_VERSION_YEAR = 1950;
 export const MAX_VERSION_YEAR = 2100;
 
 const YEAR = /(?<!\d)(19[5-9]\d|20\d{2})(?!\d)/g;
-/** En årsmapp: bara året, eller året och ord ("2019 träningar"), men inget datum efter året. */
-const YEAR_FOLDER = /^\s*(19[5-9]\d|20\d{2})(?:\s+\D.*)?\s*$/;
 
 const plausible = (year: number) => year >= MIN_VERSION_YEAR && year <= MAX_VERSION_YEAR;
 
@@ -41,13 +41,13 @@ export function guessVersionYear(input: VersionYearInput): { year: number; sourc
   const folders = (input.sourcePath ?? "").split(/[\\/]/).slice(0, -1).filter(segment => segment.trim().length > 0);
   // Närmaste mappen först; en ren årsmapp räknas för sig (den säger när träningen var, inte när kartan gjordes).
   for (const folder of [...folders].reverse()) {
-    if (YEAR_FOLDER.test(folder)) continue;
+    if (yearOfYearFolder(folder) !== null) continue;
     const year = yearInText(folder);
     if (year !== null) return { year, source: "FOLDER" };
   }
   for (const folder of [...folders].reverse()) {
-    const match = YEAR_FOLDER.exec(folder);
-    if (match) return { year: Number(match[1]), source: "YEAR_FOLDER" };
+    const year = yearOfYearFolder(folder);
+    if (year !== null) return { year, source: "YEAR_FOLDER" };
   }
   if (input.versionDate && /^\d{4}-\d{2}-\d{2}$/.test(input.versionDate)) {
     const year = Number(input.versionDate.slice(0, 4));

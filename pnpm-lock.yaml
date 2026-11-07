@@ -172,6 +172,10 @@ importers:
         version: 4.20.5
 
   packages/club-archive:
+    dependencies:
+      '@o-tid/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       tsx:
         specifier: 4.20.5

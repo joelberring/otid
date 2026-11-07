@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, daysFromToday, openEntryForm, openStep, publishRace, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, daysFromToday, openEntryForm, openStep, publishRace, readExercise, registerAccount, unique } from "./helpers";
 
 /** Tävlingsdagen i tävlingens tidszon, 30 dagar fram: tävlingen är inte igång när testet körs. */
 const raceDate = daysFromToday(30);
@@ -103,10 +103,7 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
   await expect(owner.getByTestId("station-status")).toContainText("Övningsstation");
-  await owner.getByLabel("Deltagare").selectOption({ label: `Sen Anmäld · H21 · ${card - 1}` });
-  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await readExercise(owner, `Sen Anmäld · H21 · ${card - 1}`);
   await expect(owner.getByTestId("verdict")).toContainText("Sen Anmäld");
   await expect(owner.getByTestId("verdict")).toContainText("30:00");
-  await expect(owner.getByTestId("verdict")).toContainText("Sparad.");
 });

@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Teststabilitet och behörighetstester (grenen c6-tester, C6, inga produktändringar)
+- E2E: `readExercise`/`expectVerdictFor` i `tests/e2e/helpers.ts` väntar på "Bricka <nr>" för just den brickan, sedan status och "Sparad."; alla specar som läser av med övningsstationen använder den (20 specar).
+- `placering.spec.ts`: Adas tider från en och samma hela sekund (gav ibland "+4:59"). `live.spec.ts`: Live väntar 20 s (en väckning under en pågående hämtning tas först vid nästa hämtning, 10 s med öppen ström).
+- `waitForTimeout` i flödet ersatt med tillstånd: `mapSettled` (kartan ritad och stilla), `courseSettingInPhone` (posten, kön och ångra-historiken i IndexedDB före omladdning), festens hämtning, kartfilens uppladdning. Kvar: `ux-flode` före breddmätningen (två "Hämtar …" stod kvar i CI), väntor före skärmdumpar bakom E2E_SCREENSHOT_DIR, Högdalen-testerna, pekgesternas 16 ms och notisens foto (ingen synlig signal).
+- `stafett-steg47`: `compileRoutes` hoppas över mot driftbygget (E2E_BASE_URL).
+- Nytt `apps/web/src/lib/organizer-roles.test.ts`: tabell över vad ägare/admin/ledare/medlem i klubben, ledare/medlem i gruppen, utomstående, superadmin, utloggad och importnyckeln får på varje route och metod under organizer/clubs, organizer/groups, account, club-import och superadmin (81 metoder, ~650 anrop mot en egen PostgreSQL-databas; körs när TEST_DATABASE_URL finns). En route som saknas i tabellen fäller testet. Inga felaktiga behörigheter hittades; Google-routes prövas inte (inte inställt i testet).
+
+
 ### 2026-11-07 – Död kod bort och knip i CI (grenen c1-dod-kod, ingen migration)
 - Gamla versionsscheman (resultOutcomeV1–V8, storedResult*V4/V6, publicResult*V1–V6, V9-alias) bort; gällande namn kvar. `publicResultListResponseSchema` är format 7.
 - Oanvända exporter, konstanter och ~150 exporterade typer bort; `distributeRelayVariants` och `encodeCaptureWalNdjson` flyttade till testerna.

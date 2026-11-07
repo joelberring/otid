@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, today, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, readExercise, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 8.2–8.4 (ADR-0169): banan ändras efter att en löpare läst ut. Beskedet visar
@@ -21,9 +21,7 @@ test("redigera bana efter avläsning räknar om resultatet", async ({ browser, r
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await owner.getByLabel("Deltagare").selectOption({ label: "Anna Ek · H21 · 8002001" });
-  await owner.getByRole("button", { name: "Läs av: missad kontroll" }).click();
-  await expect(owner.getByTestId("verdict")).toContainText("FELSTÄMPLAD");
+  await readExercise(owner, "Anna Ek · H21 · 8002001", { button: "Läs av: missad kontroll" });
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Banor: stryk kontroll 33 i Lång.

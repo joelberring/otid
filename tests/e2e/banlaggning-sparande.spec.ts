@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
-import { createRace, registerAccount, today, unique, warmCourseSetting } from "./helpers";
+import { createRace, mapSettled, registerAccount, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * Översynen 2026-11-02 (ADR-0181 beslut 9): telefonen utan nät med många ändringar. Två kontroller flyttas i många steg,
@@ -50,7 +50,7 @@ test("utan nät: många ändringar, en bock och en notis sparas i ordning när n
   await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
-  await phone.waitForTimeout(400);
+  await mapSettled(phone.getByTestId("course-setting-map"));
   const status = phone.getByTestId("course-setting-field-status");
 
   // Utan nät (också service workerns egna anrop).
@@ -75,17 +75,16 @@ test("utan nät: många ändringar, en bock och en notis sparas i ordning när n
   await sheet.getByRole("button", { name: "Spara notisen" }).click();
   await expect(status).toHaveText(`Utan nät – ${2 * STEPS + 2} ändringar väntar`, { timeout: 15_000 });
   // Posten i telefonen: loggen med alla flyttar, grunden skriven en gång (posten skrivs strax efter senaste ändringen).
-  await phone.waitForTimeout(800);
-  const stored = await phone.evaluate(async id => {
+  await expect.poll(() => phone.evaluate(async id => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => { const open = indexedDB.open("otid-course-setting"); open.onsuccess = () => resolve(open.result);
       open.onerror = () => reject(new Error(open.error?.message ?? "IndexedDB")); });
     const get = <T,>(store: string) => new Promise<T>((resolve, reject) => { const request = db.transaction(store).objectStore(store).get(id);
       request.onsuccess = () => resolve(request.result as T); request.onerror = () => reject(new Error(request.error?.message ?? "IndexedDB")); });
-    const record = await get<{ formatVersion: number; log: unknown[]; document?: unknown }>("record");
+    const record = await get<{ formatVersion: number; log: unknown[]; document?: unknown } | undefined>("record");
     const base = await get<{ version: number } | undefined>("base");
-    return { format: record.formatVersion, log: record.log.length, hasDocument: record.document !== undefined, base: base?.version };
-  }, raceId);
-  expect(stored).toEqual({ format: 2, log: 2 * STEPS, hasDocument: false, base: before.version });
+    db.close();
+    return { format: record?.formatVersion, log: record?.log.length, hasDocument: record?.document !== undefined, base: base?.version };
+  }, raceId), { timeout: 15_000 }).toEqual({ format: 2, log: 2 * STEPS, hasDocument: false, base: before.version });
 
   // Nätet tillbaka: allt sparas, inget stryks.
   await phoneContext.unroute("**/*", noNetwork);

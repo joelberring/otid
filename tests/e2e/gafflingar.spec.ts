@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { createRace, openStep, publishRace, registerAccount, today, unique, warmRoute } from "./helpers";
+import { createRace, openStep, publishRace, readExercise, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 10 (ADR-0169 beslut 2): en gafflad klass importeras från IOF XML
@@ -17,10 +17,8 @@ async function importFile(page: Page, name: string, summary: string) {
   await expect(page.getByRole("status").filter({ hasText: "Filen är inläst" })).toContainText(summary);
 }
 
-async function readExercise(page: Page, label: string, name: string, variant: string) {
-  await page.getByLabel("Deltagare").selectOption({ label });
-  await page.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  await expect(page.getByTestId("verdict")).toContainText("GODKÄND");
+async function readVariant(page: Page, label: string, name: string, variant: string) {
+  await readExercise(page, label);
   await expect(page.getByTestId("verdict")).toContainText(name);
   await expect(page.getByTestId("verdict-variant")).toHaveText(`Variant ${variant}`);
 }
@@ -72,8 +70,8 @@ test("gafflad klass: import, fördelning, avläsning mot rätt variant och publi
   await owner.waitForURL(`**/readout/index.html#${raceId}`);
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await readExercise(owner, "Cia Holm · H21 · 8101003", "Cia Holm", "AD");
-  await readExercise(owner, "Dan Berg · H21 · 8101004", "Dan Berg", "BC");
+  await readVariant(owner, "Cia Holm · H21 · 8101003", "Cia Holm", "AD");
+  await readVariant(owner, "Dan Berg · H21 · 8101004", "Dan Berg", "BC");
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Deltagarkortet: Dan byter variant till BD. Resultatet ändras, så beskedet visas först och

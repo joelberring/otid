@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import { mapPointToWgs84 } from "../../packages/map-file/src/georef";
 import type { MapGeoreference } from "../../packages/map-file/src/model";
-import { addPerson, createRace, registerAccount, today, unique, warmCourseSetting } from "./helpers";
+import { addPerson, courseSettingInPhone, createRace, mapSettled, registerAccount, today, unique, warmCourseSetting } from "./helpers";
 
 /** Telefonens rad är kompakt: Lista, Offline och Notis utan vald kontroll ligger bakom "Mer" (⋯). */
 async function openMore(page: Page) {
@@ -78,7 +78,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
-  await phone.waitForTimeout(400);
+  await mapSettled(map);
   const status = phone.getByTestId("course-setting-field-status");
 
   // 1. Kollad: kontroll 32, och den syns i listan (inte under "Ej kollade").
@@ -175,7 +175,8 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   // (E2E_BASE_URL, som i CI): utvecklingsserverns filer är inte byggda för att gå utan nät (Next: "Dev mode is not a
   // reliable reference for offline behavior"), där startar sidan aldrig från service workern.
   if (process.env.E2E_BASE_URL) {
-    await phone.waitForTimeout(600);
+    // De tre ändringarna ligger i telefonen (posten skrivs strax efter senaste ändringen) innan sidan laddas om.
+    await expect.poll(async () => (await courseSettingInPhone(phone, raceId)).waiting, { timeout: 15_000 }).toBe(3);
     await phone.reload();
     await expect(phone.getByText(/Utan nät: banläggningen från telefonen/)).toBeVisible({ timeout: 30_000 });
     await expect(phone.getByTestId("course-setting-field")).toBeVisible();
@@ -183,7 +184,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
     await expect(phone.getByText(/Kartfilen kunde inte läsas/)).toHaveCount(0);
     await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
     await expect(status).toHaveText("Utan nät – 3 ändringar väntar", { timeout: 15_000 });
-    await phone.waitForTimeout(500);
+    await mapSettled(map);
     await screenshot(phone, "falt-omladdad-utan-nat");
     // Bockarna från servern (sparade i telefonen) och den som väntar syns i listan utan nät.
     await openMore(phone);

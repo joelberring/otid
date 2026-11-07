@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { createRace, registerAccount, today, unique, warmCourseSetting } from "./helpers";
+import { courseSettingInPhone, createRace, registerAccount, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * ADR-0190: banans egenskaper i editorn (stigning, fast längd, poängbana med poäng, ordningen), ångra efter omladdning,
@@ -76,8 +76,10 @@ test("banläggning-egenskaper: stigning, fast längd, poängbana, ordning, ångr
     await properties.scrollIntoViewIfNeeded();
     if (shots) await owner.screenshot({ path: `${shots}/banlaggning-egenskaper-1280.png` });
 
-    // Omladdning: ångra finns kvar och tar bort den fasta längden (den senaste egna ändringen före flytten).
-    await owner.waitForTimeout(800);
+    // Omladdning: ångra finns kvar och tar bort den fasta längden (den senaste egna ändringen före flytten). Historiken
+    // skrivs i webbläsaren strax efter ändringen: vänta tills den med flytten ångrad (ett steg framåt) ligger där.
+    await saved(owner);
+    await expect.poll(async () => (await courseSettingInPhone(owner, raceId)).history?.future, { timeout: 15_000 }).toBe(1);
     await owner.reload();
     await mapReady(owner);
     await expect(owner.getByRole("button", { name: "Ångra" })).toBeEnabled({ timeout: 15_000 });

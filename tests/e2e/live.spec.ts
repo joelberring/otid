@@ -99,7 +99,9 @@ test("Live: avläsning syns hos en anonym besökare, följd klubb hamnar överst
   await sendReadout(owner, raceId, { cardNumber: RUNNERS.anna.card, startPunchedAt: ago(40), finishPunchedAt: ago(5), punches: punches([31, 50, 33], 40) });
   const latest = visitor.getByRole("region", { name: "Senast i mål" });
   const annaRow = latest.getByRole("listitem").filter({ hasText: name(RUNNERS.anna) });
-  await expect(annaRow).toBeVisible({ timeout: 10_000 });
+  // "Inom några sekunder": resultatströmmen väcker sidan, men kommer väckningen medan en hämtning pågår (radiopassagen
+  // nyss) tar sidan nästa avläsning först vid nästa hämtning, som med öppen ström sker efter 10 s (STREAM_OPEN_INTERVAL_MS).
+  await expect(annaRow).toBeVisible({ timeout: 20_000 });
   await expect(annaRow).toContainText("35:00");
   await expect(annaRow).toContainText("1:a");
   await expect(annaRow).toContainText("OK Ek · H21");
@@ -110,9 +112,9 @@ test("Live: avläsning syns hos en anonym besökare, följd klubb hamnar överst
   await sendReadout(owner, raceId, { cardNumber: RUNNERS.dan.card, startPunchedAt: ago(38), finishPunchedAt: ago(4), punches: punches([31, 33], 38) });
   await sendReadout(owner, raceId, { cardNumber: RUNNERS.cia.card, startPunchedAt: ago(36), finishPunchedAt: ago(3), punches: punches([31, 33], 36) });
   const danRow = latest.getByRole("listitem").filter({ hasText: name(RUNNERS.dan) });
-  await expect(danRow).toContainText("Felstämplad", { timeout: 10_000 });
+  await expect(danRow).toContainText("Felstämplad", { timeout: 20_000 });
   await expect(danRow).not.toContainText(/\d+:[ae]\b/);
-  await expect(latest.getByRole("listitem").first()).toContainText(name(RUNNERS.cia), { timeout: 10_000 });
+  await expect(latest.getByRole("listitem").first()).toContainText(name(RUNNERS.cia), { timeout: 20_000 });
   await expect(leaders.getByRole("listitem").filter({ hasText: name(RUNNERS.cia) })).toBeVisible();
   const passages = visitor.getByRole("region", { name: "Vid radiokontrollerna" });
   await expect(passages.getByRole("listitem").filter({ hasText: name(RUNNERS.bo) })).toContainText(/passerade Radio 1(, 1:a)?/);

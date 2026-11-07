@@ -18,6 +18,7 @@
     "print:worker": "tsx --env-file-if-exists=.env scripts/print-worker.ts",
     "lasttest:seed": "tsx scripts/lasttest/seed.ts",
     "lasttest:load": "tsx scripts/lasttest/load.ts",
+    "load-test": "tsx scripts/load-test.ts",
     "si:ports": "tsx apps/si-tools/src/cli.ts ports",
     "si:capture": "tsx apps/si-tools/src/cli.ts capture",
     "si:replay": "tsx apps/si-tools/src/cli.ts replay"
@@ -25,7 +26,7 @@
   "devDependencies": {
     "@eslint/js": "9.34.0",
     "@o-tid/database": "workspace:*",
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.55.1",
     "@types/node": "24.3.0",
     "eslint": "9.34.0",
     "tsx": "4.20.5",

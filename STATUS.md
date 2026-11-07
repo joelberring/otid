@@ -17,13 +17,29 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Servern: kartväljaren utan frågor per klubb, dubblettförslagen med namnen normaliserade en gång (400 kartor 12,8 → 1,9 s) och sparade per klubb, kartbuntarna grupperade en gång.
 - Verifierat: enhetstester (index, cache, adress/ETag, förlopp, kartbuntar, dubbletter), prestandatest för tolkningen, integrationstester (steg-59, adr-0210 med frågeräkning, 0189, 0194, 0196, 0209), E2E `banlaggning-kartcache`.
 
+### 2026-11-07 – Serverrapport, larm, mindre säkerhetskopior, belastningstest (grenen b4-serverrapport, ADR-0216, migration 0085)
+- Veckorapport söndag kl. 19 och larm (disk, kartkvot, backup, hälsokontroll, minne; högst ett per sort och dygn, "löst" när det gått över) till superadmin via mail.ts, från `web` (`lib/server-watch-runner.ts`, `application/server-report.ts` + `server-status.ts`). Tabellerna `server_sample`, `server_notice`, `server_notice_log`. `node superadmin.mjs server-report` visar rapporten.
+- `monitor.sh` skriver `./status/monitor.log`, `backup.sh` `./backups/.backup-status`; `web` monterar `./backups` och `./status` skrivskyddat (compose). Inget nytt i `.env` krävs.
+- Backup: kartinnehållet en gång per innehåll i `./backups/map-content`, miniatyrer och kartkontroller utesluts, 24 timdumpar; `sh /backup.sh restore-map-content` efter pg_restore. Dump och återställning provade lokalt (md5 lika, även omtagen dump).
+- `pnpm load-test` (N samtidiga tävlingar via API:t) och bedömning för CX23 i docs/drift.md.
+- Tester: `server-report.test.ts` (16), `adr-0216-serverrapport.test.ts` (integration), `server-watch-runner.test.ts`; CI kör `server-report` i driftjobbet.
+
 ### 2026-11-07 – Förenklade färger för tryck (grenen b2-tryckfarger, ADR-0215, ingen migration)
 - Ny förvald profil "Kartans egna färger" (`map-own`): kartfilens färger i normens ordning utan att någon gör något. En tävling som valt en profil behåller den; en som aldrig valt får normens ordning i nästa PDF.
 - "Färger för tryck": en statusrad ("Färger: kartans egna, i normens ordning (32 färger, 3 över banan)") med "Visa", lägena "Kartans egna färger" och "Tryck hos BL". BL visar bara de tveksamma färgerna (ingen säker rad eller fel sida mot normen) och "Godta alla säkra".
 - Profilval, banans färg, färgordningen, BL:s hela lista, tabellen för hand, förhandskontrollen och JSON under "Avancerat" (stängt). Ett lagrat eget val visas som "Egna inställningar (Avancerat)".
 - Fliken Utskrift använder `COURSE_PRINT_SCALES` (också 1:3 000).
 - Verifierat: enhetstester (`course-setting-print-colors-mode.test.ts`, `course-setting-print-colors.test.tsx`), print-pdf-testerna oförändrade; E2E `banlaggning-pdf` (statusrad, Avancerat stängt, `map-own` i jobbet), `utskrift-bl` och `hittbarhet` väljer BL med radioknappen.
+### 2026-11-07 – Ostadiga E2E: avläsningen väntar på sin egen bricka (grenen c6-flaky-e2e, testfel, ingen produktändring)
+- `stafett-steg47.spec.ts` (lag 1 "deltog i omstart" placerad först) och `listor.spec.ts` (Eva Sjö saknades per klubb) hade samma orsak: testet godtog förra löparens "GODKÄND" och "Sparad." som besked för nästa bricka. Övningsstationen tar ur en bricka som sitter i när nästa sätts i, så den sista brickan (eller en mitt i) blev aldrig avläst: lag 2 var ute på sträcka 3 och laget i omstart ensamt godkänt.
+- Testen väntar nu på "Bricka <nummer> · …" i beskedet före status och "Sparad.". Placeringen efter omstart är rätt: nytt integrationstest i `adr-0174-stafett.test.ts` med E2E-testets läge (fart 97/94 %, omstart flyttad till hel minut mellan växlingarna).
 
+### 2026-11-07 – Drift: publika sökvägar, beroenden, hälsokontroll (grenen a2-drift, ingen migration, ingen ny ADR)
+- Caddy: `/g/…` (träningsgrupperna), `/icon.svg`, `/apple-icon.png`, `/manifest.webmanifest` och `/icons/…` till publikens instanser. Listan står en gång i koden (`PUBLIC_PATHS`, `apps/web/src/lib/public-paths.ts`); testet kräver att Caddyfiles `@public` är samma, att varje sida med `publicDb` är publik och att inget av admin, konto, arbetsytan eller deras API:er är det. ADR-0177 har en mening om det.
+- Beroenden: `@playwright/test` 1.55.0 → 1.55.1 (GHSA-7mvr-c777-76hp, hög; samma Chromium 140). 1.63 och 1.65 fäller `banlaggning-falt`: omladdningen utan nät når inte service workern (1.63), kompassen ger 0 (1.65, Chromium 158) – eget arbete, next 16.4.4 (inte 16.4.5: den tar bort `content-encoding` från route handlers svar, och de förpackade gzip-svaren i `public-race-cache.ts` blir oläsliga; 16 E2E föll), pg 8.23.1, jose 6.2.15. `pnpm audit` 19 → 18 fynd (kvar: vitest/tinypool/vite, brace-expansion, minimatch i utvecklingsverktygen).
+- Hälsokontrollen i `docker-compose.prod.yml`: web, web-public och web-public2 frågar `/api/health` var 30:e sekund (timeout 5 s, start_period 120 s, retries 10) i stället för `/organizer` och `/om` var 5:e. `up -d` väntar därför upp till ~30 s längre på varje steg (web, sedan publikens instanser).
+- docs/drift.md: Caddyfile-ändringar kräver `docker compose -f docker-compose.prod.yml restart caddy` (filen är monterad som enskild fil); tabell över miljövariablerna som saknas i `prod.env.example`.
+- Servern: `git pull && dc pull && dc up -d && dc restart caddy` räcker; inget mer krävs.
 ### 2026-11-07 – Saknad skala för banan är kartans, också i .ppen (grenen a6-tryckskala, ADR-0211 beslut 13)
 - En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.
 - Tester: `print-scale-default.test.ts` (ny bana, banfil, rundtripp med fixturen och med en annan skala); A3:s rundtripptest förväntar nu ingen skala efter återinläsning.

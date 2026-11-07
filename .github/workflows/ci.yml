@@ -100,6 +100,12 @@ jobs:
       # ADR-0186: dumpen före migreringen, timdumpen och dagsbackupen; hälsokontrollen en gång.
       - run: ls -lR backups && ls backups/hourly/otid-*.dump backups/daily/otid-*.dump backups/fore-migrering/otid-*.dump
       - run: docker compose -f docker-compose.prod.yml exec -T monitor sh /monitor.sh once
+      # ADR-0216: veckorapporten som web ser den (säkerhetskopiorna och hälsokontrollens fil syns), och att dumparna har sin lista
+      # över kartinnehållet bredvid sig.
+      - run: |
+          ls backups/hourly/otid-*.dump.contents backups/map-content
+          docker compose -f docker-compose.prod.yml exec -T web node superadmin.mjs server-report | tee server-report.txt
+          grep -q "Hälsokontrollen: [1-9]" server-report.txt && ! grep -q "syns inte för webben" server-report.txt
       # Webbläsartestens spår (trace) och felsammanhang när ett test fallerar; bara syntetiska testdata.
       - if: failure()
         uses: actions/upload-artifact@v4

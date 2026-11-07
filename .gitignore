@@ -17,3 +17,4 @@ captures
 backups/
 deploy/backup-ssh/
 media/
+status/

@@ -38,6 +38,10 @@ async function openReadout(page: Page, raceId: string) {
 async function read(page: Page, label: string, ok = true) {
   await page.getByLabel("Deltagare").selectOption({ label });
   await page.getByRole("button", { name: ok ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" }).click();
+  // Beskedet gäller den här brickan: förra löparens "GODKÄND" och "Sparad." står kvar tills brickan är avläst. Utan det går
+  // testet vidare medan brickan läses, och nästa bricka (eller att sidan lämnas) tar ur den, så sträckan saknar resultat.
+  const card = label.split(" · ").at(-1)!;
+  await expect(page.getByTestId("verdict")).toContainText(`Bricka ${card} · `);
   await expect(page.getByTestId("verdict")).toContainText(ok ? "GODKÄND" : "FELSTÄMPLAD");
   // Steg 58: servern har tagit emot avläsningen innan testet går vidare (ett "0 väntar" ensamt kan vara gammalt).
   await expectSaved(page);

@@ -25,9 +25,9 @@
     "@o-tid/map-file": "workspace:*",
     "@o-tid/route-choice": "workspace:*",
     "@o-tid/sportident": "workspace:*",
-    "next": "16.4.3",
+    "next": "16.4.4",
     "nodemailer": "10.3.1",
-    "pg": "8.16.3",
+    "pg": "8.23.1",
     "qrcode": "1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"

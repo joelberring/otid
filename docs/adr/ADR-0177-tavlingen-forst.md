@@ -21,6 +21,8 @@ tänker att vi inte skalar upp än".
 2. **Caddy delar upp per sökväg och inloggning** (`deploy/Caddyfile`): publika sökvägar utan sessionskaka till
    `web-public`/`web-public2` (färst pågående anrop), allt annat till `web`. Den som är inloggad (arrangör, funktionär,
    speakern) går alltid till `web`, även på publika sidor, och berörs därför aldrig av publikens lastavlastning.
+   Ändrat 2026-11-07: de publika sökvägarna står en gång i koden (`PUBLIC_PATHS`, `apps/web/src/lib/public-paths.ts`) och ett
+   enhetstest kräver att Caddyfiles `@public` har samma; träningsgruppernas sidor (`/g/…`), ikonerna och manifestet lades till.
 3. **Processortid och minne:** `cpu_shares` 1024 för `postgres`, `web` och Caddy, 256 för var publik instans, 128 för backupen;
    minnestak per tjänst så att summan ryms i 4 GB (`docker-compose.prod.yml`, `docs/drift.md`). Vikterna gäller bara när
    processorn inte räcker, så publiken får all ledig tid annars. En hård gräns (`cpus`) för publiken provades och gav

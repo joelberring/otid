@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Städrundan A4: konton och klubbar (grenen a4-konto, ändringsmeningar i ADR-0205 och ADR-0209, ingen migration)
+- Koppla Google-konto: egna klubbsvar (utan `decided_by`) räknas som tomt konto, så en dubblett som svarat på klubbfrågan går att flytta; konto i bruk utan lösenord ger beskedet "Glömt lösenordet först" (`?google=upptaget-utan-losenord`).
+- Välj karta från klubbarkivet: bekräftade medlemmar ser klubbens kartor (samma medlemskap som övriga ställen), prövningen på en gång och utan sammanslagningshistorik.
+- Ta bort kontot vägras för ensam ägare av klubb eller ensam ledare av träningsgrupp; Mitt konto listar dem.
+- Eventors medlemslista: tillbakadragandet använder hämtningens konfiguration; adresserna normaliseras som kontots (NFC), också i `verify`-kommandot.
+- Kartritarens länk: "Inte åtgärdat" öppnar inte en notis som ett konto har stängt.
+- Verifierat: integration (`adr-0205-google-koppla`, `adr-0210`, `adr-0172-accounts`, `adr-0209`, `adr-0214` utom ett tidsberoende test som fallerar också på main), enhetstester, lint, typecheck.
+- Återstår: `training_group_invitation.actor_account_id` har FK, så kontoradering tar andras gruppinbjudningar (kräver migration).
+
 ### 2026-11-05 – Länken till kartritaren och redigera egna notiser (grenen kartritare-lank, ADR-0214, migration 0083)
 - Kartfel → "Dela med kartritaren" (den som får ändra): länk med 256-bitars nyckel, bara hashen sparas, visas en gång med "Kopiera länken"; "Begränsa tiden" (förslag tävlingsdagen + 7), "Visa tävlingens namn", "Senast öppnad", "Stäng av länken", "Skapa ny länk".
 - `/kartfel/<nyckel>` utan konto: kartan (kartfilen ritas i webbläsaren) med kartfelen och löpnummer, listan, tråden, svar, "Åtgärdat i kartan"/"Inte åtgärdat", "Min position". Inga banor, kontroller, foton eller deltagare. Ogiltig/avstängd/utgången länk: samma besked.

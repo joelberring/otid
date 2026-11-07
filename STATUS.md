@@ -10,6 +10,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Ostadiga E2E: avläsningen väntar på sin egen bricka (grenen c6-flaky-e2e, testfel, ingen produktändring)
+- `stafett-steg47.spec.ts` (lag 1 "deltog i omstart" placerad först) och `listor.spec.ts` (Eva Sjö saknades per klubb) hade samma orsak: testet godtog förra löparens "GODKÄND" och "Sparad." som besked för nästa bricka. Övningsstationen tar ur en bricka som sitter i när nästa sätts i, så den sista brickan (eller en mitt i) blev aldrig avläst: lag 2 var ute på sträcka 3 och laget i omstart ensamt godkänt.
+- Testen väntar nu på "Bricka <nummer> · …" i beskedet före status och "Sparad.". Placeringen efter omstart är rätt: nytt integrationstest i `adr-0174-stafett.test.ts` med E2E-testets läge (fart 97/94 %, omstart flyttad till hel minut mellan växlingarna).
+
 ### 2026-11-07 – Saknad skala för banan är kartans, också i .ppen (grenen a6-tryckskala, ADR-0211 beslut 13)
 - En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.
 - Tester: `print-scale-default.test.ts` (ny bana, banfil, rundtripp med fixturen och med en annan skala); A3:s rundtripptest förväntar nu ingen skala efter återinläsning.

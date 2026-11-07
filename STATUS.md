@@ -16,6 +16,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Profilval, banans färg, färgordningen, BL:s hela lista, tabellen för hand, förhandskontrollen och JSON under "Avancerat" (stängt). Ett lagrat eget val visas som "Egna inställningar (Avancerat)".
 - Fliken Utskrift använder `COURSE_PRINT_SCALES` (också 1:3 000).
 - Verifierat: enhetstester (`course-setting-print-colors-mode.test.ts`, `course-setting-print-colors.test.tsx`), print-pdf-testerna oförändrade; E2E `banlaggning-pdf` (statusrad, Avancerat stängt, `map-own` i jobbet), `utskrift-bl` och `hittbarhet` väljer BL med radioknappen.
+### 2026-11-07 – Ostadiga E2E: avläsningen väntar på sin egen bricka (grenen c6-flaky-e2e, testfel, ingen produktändring)
+- `stafett-steg47.spec.ts` (lag 1 "deltog i omstart" placerad först) och `listor.spec.ts` (Eva Sjö saknades per klubb) hade samma orsak: testet godtog förra löparens "GODKÄND" och "Sparad." som besked för nästa bricka. Övningsstationen tar ur en bricka som sitter i när nästa sätts i, så den sista brickan (eller en mitt i) blev aldrig avläst: lag 2 var ute på sträcka 3 och laget i omstart ensamt godkänt.
+- Testen väntar nu på "Bricka <nummer> · …" i beskedet före status och "Sparad.". Placeringen efter omstart är rätt: nytt integrationstest i `adr-0174-stafett.test.ts` med E2E-testets läge (fart 97/94 %, omstart flyttad till hel minut mellan växlingarna).
 
 ### 2026-11-07 – Saknad skala för banan är kartans, också i .ppen (grenen a6-tryckskala, ADR-0211 beslut 13)
 - En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.

@@ -236,11 +236,13 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   // Alla banor i Layout och mallen på alla.
   await owner.goto(`/admin/${raceId}/course-setting/layout?course=1`);
   await owner.getByTestId("layout-courses").getByLabel("Alla", { exact: true }).check();
+  // "Alla" tar med "Alla kontroller"; mallen ska bara till banorna.
+  await owner.getByTestId("layout-courses").getByLabel("Alla kontroller", { exact: true }).uncheck();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   await expect(panel.getByTestId("paper-course")).toHaveValue("1");
   await panel.getByTestId("paper-template-apply-all").click();
   await expect.poll(async () => Object.values((await doc()).event.paperLayouts ?? {}).filter(layout => layout.template === template.id).length)
-    .toBe(saved.courses.length + 0);
+    .toBe(saved.courses.length);
   const other = saved.courses.find(row => row.id !== "1")!;
   const otherText = owner.locator(`[data-testid=print-sheet][data-course="${other.id}"] [data-testid=paper-item][data-kind=TEXT]`).first();
   await expect(otherText).toContainText(`Bana ${other.name}`, { timeout: 30_000 });

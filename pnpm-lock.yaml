@@ -218,6 +218,9 @@ importers:
 
   packages/eventor:
     dependencies:
+      '@o-tid/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       fast-xml-parser:
         specifier: 5.11.2
         version: 5.11.2

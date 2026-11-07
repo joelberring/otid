@@ -8,19 +8,13 @@ import {
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { sourcesSv } from "../../i18n/sources-sv";
 import { courseSettingBase, previewCourseSettingTransfer } from "../../lib/course-setting-api";
-import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { SourceReviewPanel } from "../race-administrator/source-review";
 import type { Message, SourceReview } from "../race-administrator/source-sync-actions";
 import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
+import { adminFetch } from "../../lib/retrying-fetch";
 
 const review = sourcesSv.review;
-
-function csrf(): string {
-  const value = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-  if (!value) throw new Error("csrf");
-  return value;
-}
 
 /**
  * Banfilssynkens granskning (ADR-0170 beslut 4) utan arbetsytan: samma rader, urval, besked och godkännande med request-id
@@ -33,8 +27,8 @@ function useStandaloneReview(raceId: string, onApplied: () => void): SourceRevie
   const [attempt, setAttempt] = useState<SyncApplyRequest>();
   const [message, setMessage] = useState<Message>();
   const [busy, setBusy] = useState(false);
-  const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(`${courseSettingBase(raceId)}${path}`, {
-    method: "POST", credentials: "same-origin", headers: { "content-type": "application/json", "x-otid-csrf": csrf(), ...headers },
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}) => adminFetch(`${courseSettingBase(raceId)}${path}`, {
+    method: "POST", headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body) });
 
   function show(next: SyncPreviewResponse) {

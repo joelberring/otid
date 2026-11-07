@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { canRetry, fetchUntilReached, fetchWithRetry, neverReachedRoute } from "./retrying-fetch";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { adminFetch, canRetry, fetchUntilReached, fetchWithRetry, neverReachedRoute } from "./retrying-fetch";
 
 const ok = () => new Response("{}", { status: 200 });
 const post = (headers: Record<string, string>, body: unknown) =>
@@ -64,5 +64,27 @@ describe("steg 66: utvecklingsserverns 404 som aldrig nådde routen", () => {
     const once = vi.fn(async () => app());
     expect((await fetchUntilReached("/x", { method: "POST" }, { delays: [0], fetchImpl: once })).status).toBe(404);
     expect(once).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("adminFetch", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const token = "c".repeat(43);
+
+  it("skickar kontots cookie och CSRF-headern, med anroparens headrar och vald fetch", async () => {
+    vi.stubGlobal("document", { cookie: `__Host-otid-organizer-csrf=${token}` });
+    vi.stubGlobal("window", { location: { href: "https://otid.example/admin" } });
+    const fetchImpl = vi.fn(async () => ok());
+    await adminFetch("/api/x", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }, fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledWith("/api/x", { method: "POST", credentials: "same-origin", body: "{}",
+      headers: { "content-type": "application/json", "x-otid-csrf": token } });
+  });
+
+  it("skickar inget utan CSRF-cookie", async () => {
+    vi.stubGlobal("document", { cookie: "" });
+    vi.stubGlobal("window", { location: { href: "https://otid.example/admin" } });
+    const fetchImpl = vi.fn(async () => ok());
+    await expect(adminFetch("/api/x", { method: "DELETE" }, fetchImpl)).rejects.toThrow("csrf");
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

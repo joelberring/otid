@@ -58,6 +58,12 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
     } catch { setFailed(true); }
   }, [raceId]);
   useEffect(() => { void load(); }, [load]);
+  // Länken från Banläggning och Utskrift öppnar ett ark: ?course=<bana>&layout=<layout> (utan layout: huvudlayouten).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const course = params.get("course");
+    if (course) setOpen({ course, layout: params.get("layout") ?? "MAIN" });
+  }, []);
 
   // Klasserna och kartorna ur Kartor till starten (tävlingens klasser och banor); utan dem visas bara banorna.
   const [bundles, setBundles] = useState<MapBundleResponse>();

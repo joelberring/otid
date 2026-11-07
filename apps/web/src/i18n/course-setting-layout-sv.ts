@@ -106,3 +106,18 @@ export const layoutSv = {
     }
   }
 } as const;
+
+/** ADR-0217 beslut 8: Utskrift-flikens urval (vad och hur många). */
+export const printWhatSv = {
+  modeClasses: "Klasser",
+  modeProof: "Provark (ett av varje)",
+  layout: "Alla ark i layouten",
+  count: "Antal",
+  entered: "Anmälda + reserver",
+  own: "Eget antal",
+  copies: "Kartor per ark",
+  classes: "Klasser",
+  allClasses: "Alla klasser",
+  noClasses: "Klasserna läses från tävlingen.",
+  layoutLink: "Ändra papperet i Layout"
+} as const;

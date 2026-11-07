@@ -4,6 +4,25 @@ Frågan från ägaren: hur stora tävlingar klarar O-Tid på produktionsservern 
 Steg 51 mätte och rättade det publika; steg 54 ([ADR-0177](adr/ADR-0177-tavlingen-forst.md)) ser till att tävlingen
 (avläsningen, arbetsytan, funktionärerna) går före publiken. Skripten finns i `scripts/lasttest/` (se [Köra om](#köra-om)).
 
+## ADR-0216: samtidiga arrangemang
+
+Ägaren: "hur många samtidiga arr servern idag klarar?" `scripts/load-test.ts` (`pnpm load-test`) skapar N tävlingar via API:t och
+kör avläsningar, besökare och speaker i alla samtidigt mot valfri adress, också den riktiga servern över HTTPS (se
+[docs/drift.md, Belastningstest](drift.md#belastningstest)). Till skillnad från `scripts/lasttest/` behöver det ingen testdata i
+databasen och inga cgroups; det mäter det en arrangör och publiken märker, inte CPU per tjänst.
+
+**Provat 2026-11-07** mot en utvecklingsserver (`next dev`, inte produktionsbygget: bygget fick inte plats i minnet på
+utvecklingsmaskinen, som delades av sex agenter med load 8–10 på 2 kärnor): 2 tävlingar × 40 löpare, 20 avläsningar/min, 10
+besökare och en speaker per tävling i 1,5 minuter. Skriptet skapade, publicerade, mätte och tog bort tävlingarna; svarstiderna
+(kvitto p50 9 s, 19 % utan svar inom 30 s) säger bara att den maskinen var överlastad och att utvecklingsservern kompilerar, inte
+något om en CX23. **Kör det mot servern** för en riktig siffra.
+
+**Bedömning utan ny mätning**, ur steg 51–57 ovan (samma 2 kärnor som CX23): 1 000 besökare ≈ 1,0 kärna i publikens instanser,
+tävlingens instans 0,3 kärna med två arbetsytor, två speakerskärmar och 150 avläsningar på 5 minuter, databasen 0,2. Ett vanligt
+klubbarrangemang (100–300 löpare, 50–100 besökare, högst 20 avläsningar/min) ≈ 0,15–0,25 kärnor ⇒ ungefär **5–6 samtidigt** med
+marginal, 15–20 små träningar, eller **ett** stort (1 000 besökare). Stafett med många samtidiga växlingar (25-manna, 300 lag:
+kvitto p95 10,9 s vid toppar på 3/s) är det tyngsta per avläsning; en sådan tävling bör inte dela servern med andra stora.
+
 ## Steg 57: placering i kvittot (mätt 2026-10-27)
 
 Kravet från steg 54: kvittot under 1 s (p95) under målrusningen även med placeringen. Samma uppställning som steg 54

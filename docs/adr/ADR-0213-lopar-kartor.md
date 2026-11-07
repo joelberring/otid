@@ -45,6 +45,8 @@ sträcka igen, och få baksidan i samma PDF. Stafettklasserna fanns inte alls i 
    (ADR-0198), antalet stämmer inte med Kartor till starten och samma startnummer två gånger (utom inom ett lag). Löpare
    utan karta (ingen eller bortvald variant) står med utan sida. Ett klick på en rad visar löparens ark; "Spara som CSV"
    (semikolon, UTF-8). Kartor till starten länkar till tabellen.
+   Ändrat 2026-11-07: varningen "samma startnummer två gånger" är borttagen; numren är kartbuntens löpnummer och alltid
+   unika, och det finns inget eget nummerlappsfält.
 6. **Integriteten**: mallarna, "Mitt bibliotek" och klubbarkivet får bara variablerna. Löparna finns bara i kartbuntarna
    som läses när sidan visas, och i PDF-jobbets urval som förut (steg 64).
 

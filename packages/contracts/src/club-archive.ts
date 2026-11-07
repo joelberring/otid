@@ -53,9 +53,6 @@ export const clubMapUpdateRequestSchema = z.object({
   maker: optionalText(200).optional()
 }).strict();
 
-/** Slå ihop kartan med en annan (alla versioner flyttas dit och kartan tas bort). */
-export const clubMapMergeRequestSchema = z.object({ formatVersion: z.literal(1), targetMapId: uuidSchema }).strict();
-
 /** Flytta en version till en annan karta, eller till en ny karta med namnet. */
 export const clubMapVersionMoveRequestSchema = z.object({
   formatVersion: z.literal(1), targetMapId: uuidSchema.nullable(), newMapName: clubNameSchema.nullable()

@@ -268,14 +268,6 @@ export const mapContents = pgTable("map_content", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 });
 
-/** Innehållets delar. Skrivs medan uppladdningen strömmar in, innan innehållets rad finns (därför ingen nyckel). */
-export const mapContentParts = pgTable("map_content_part", {
-  contentId: uuid("content_id").notNull(),
-  part: integer("part").notNull(),
-  data: bytea("data").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
-}, (table) => [primaryKey({ columns: [table.contentId, table.part] })]);
-
 /** PLAN.md steg 16 (migration 0098): löparens GPS-rutt. Punkterna är [tid ms, lat, lon] i tidsordning. */
 export const participantRoutes = pgTable("participant_route", {
   entryId: uuid("entry_id").primaryKey(),

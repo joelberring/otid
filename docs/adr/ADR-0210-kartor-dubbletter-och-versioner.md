@@ -42,7 +42,8 @@ tävling skapas, i stället för att ladda upp kartfilen igen.
    nyaste versionen); i en grupp med fler än två kartor kan en karta tas bort ur sammanslagningen. "Slå ihop till en karta"
    och "Inte samma karta" (alla par i gruppen sparas i `club_map_duplicate_dismissal` och föreslås aldrig igen). Kartorna
    kan också kryssas i listan och slås ihop med "Slå ihop markerade". ADR-0194:s "Slå ihop med …" är borta ur gränssnittet;
-   anropet finns kvar och gör samma journalförda sammanslagning.
+   anropet finns kvar och gör samma journalförda sammanslagning. Ändrat 2026-11-07: anropet
+   (`POST …/maps/{mapId}/merge`) är borttaget; sammanslagningen görs bara med `…/map-merges`.
 4. **Sammanslagningen är bara metadata.** De uppgångna kartornas versioner byter karta, träningsgruppernas kartor som pekade
    på en uppgången karta pekar på den som behålls (deras sparade rättigheter ändras inte förrän kartans rättigheter ändras
    nästa gång), och de tomma kartorna tas bort. Kartinnehållet (ADR-0189), dess referenser och kvoten är orörda. Banfilerna

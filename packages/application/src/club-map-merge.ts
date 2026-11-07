@@ -129,9 +129,3 @@ export async function mapMergeHistory(tx: DbExecutor, clubId: string, maps: read
   }
   return history;
 }
-
-/** ADR-0194:s "Slå ihop med …" (en karta in i en annan) är samma sammanslagning: målet behåller namnet och uppgifterna. */
-export async function mergeClubMapInto(db: Database, input: ClubProof & { clubId: string; mapId: string; targetMapId: string }, now = new Date())
-  : Promise<MergeResult> {
-  return mergeClubMaps(db, { ...input, request: { formatVersion: 1, keepMapId: input.targetMapId, mapIds: [input.targetMapId, input.mapId] } }, now);
-}

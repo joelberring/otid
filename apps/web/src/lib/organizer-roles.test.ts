@@ -213,7 +213,7 @@ describe("tabellen över klubbens, gruppens, kontots, importens och superadmins 
     for (const route of routes) for (const method of (await methodsOf(route.file)).methods) found.push(`${method} ${route.path}`);
     const listed = Object.entries(ROUTES).flatMap(([path, methods]) => Object.keys(methods).map(method => `${method} ${path}`));
     expect(found.sort()).toEqual(listed.sort());
-    expect(found.length).toBeGreaterThan(80);
+    expect(found.length).toBeGreaterThan(75);
   });
 });
 

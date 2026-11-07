@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Städrundan A3: tryck (grenen a3-tryck, ändringar i ADR-0184, ADR-0203 och ADR-0211, ingen migration)
+- PDF-jobbet: kartbytets del och "Dubbelsidigt" följer med från förhandsvisningen (förut hela banan en gång per del och aldrig dubbelsidigt utan löpare); delar vänds alltid på långsidan.
+- Servern filtrerar bort bortvalda gafflingsvarianter ur jobbet och säger det i notiserna.
+- Normens färgordning: vita specialobjekt (white-out) och bilder ritas under banan, och kartans färger över banan ritas inte i dem, i PDF:en och förhandsvisningen.
+- .ppen: automatisk tryckyta (0,0,0,0 som Purple Pen) läses tillbaka utan rektangel; `<options>` skrivs alltid, med kartans skala när banan saknar egen.
+- Ringklipp också för kartor med egen skala i jobbet. Sträckans fasta avbrott räknas från kontrollens mitt (test fixerar konventionen, ingen kodändring).
+- Verifierat: enhetstester (course-setting, print-pdf, application, web), integration `steg-65-tryck`, lint och typecheck per paket, provark-PDF (syntetisk karta) renderad med pdftoppm och Ghostscript.
+
 ### 2026-11-05 – Länken till kartritaren och redigera egna notiser (grenen kartritare-lank, ADR-0214, migration 0083)
 - Kartfel → "Dela med kartritaren" (den som får ändra): länk med 256-bitars nyckel, bara hashen sparas, visas en gång med "Kopiera länken"; "Begränsa tiden" (förslag tävlingsdagen + 7), "Visa tävlingens namn", "Senast öppnad", "Stäng av länken", "Skapa ny länk".
 - `/kartfel/<nyckel>` utan konto: kartan (kartfilen ritas i webbläsaren) med kartfelen och löpnummer, listan, tråden, svar, "Åtgärdat i kartan"/"Inte åtgärdat", "Min position". Inga banor, kontroller, foton eller deltagare. Ogiltig/avstängd/utgången länk: samma besked.

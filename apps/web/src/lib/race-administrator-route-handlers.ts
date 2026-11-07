@@ -145,46 +145,47 @@ async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteCon
     failure(500, "INTERNAL_ERROR");
 }
 
+/**
+ * HTTP-metoderna per åtgärd (405 med `Allow` för andra). En åtgärd som inte står här tar PATCH när den gäller en deltagare
+ * (`entryId`) eller klassens kapacitet, annars GET.
+ */
+const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>> = {
+  people: ["GET", "POST", "DELETE"], "people-invitation": ["POST"], "uninterpreted-readouts": ["GET", "POST"],
+  "uninterpreted-readouts-reread": ["POST"], party: ["GET", "POST"], "party-logo": ["PUT", "DELETE"], "party-guests": ["POST"],
+  "party-desk-events": ["POST"], radio: ["GET", "PUT"], "radio-fetch": ["POST"], "race-publication": ["PUT", "DELETE"],
+  "course-secrecy": ["PUT", "DELETE", "PATCH"], "race-map": ["GET", "PUT", "DELETE"], "race-map-image": ["GET"],
+  "race-map-georeference": ["POST"], "race-map-source": ["GET", "POST", "DELETE"], "route-choice": ["GET"],
+  "route-choice-calibration": ["GET"], "route-choice-settings": ["POST"], "route-choice-published": ["POST"],
+  "course-setting": ["GET", "PUT"], "course-setting-revisions": ["GET"], "course-setting-revision": ["GET"],
+  "course-setting-original": ["GET"], "course-setting-import": ["POST"], "course-setting-restore": ["POST"],
+  "course-setting-transfer": ["POST"], "course-setting-notes": ["GET", "POST"], "course-setting-suggestions": ["GET", "POST"],
+  "course-setting-edits": ["POST"], "course-setting-note-reply": ["POST"], "course-setting-suggestion-decision": ["POST"],
+  "course-setting-mode": ["PUT"], "course-setting-note-status": ["PUT"], "course-setting-inspections": ["GET", "PUT"],
+  "course-setting-map-link": ["GET", "POST", "DELETE"], "course-setting-print-jobs": ["GET", "POST"],
+  "course-setting-print-job": ["DELETE"], "course-setting-print-job-pdf": ["GET"], "course-setting-paper-images": ["POST"],
+  "course-setting-paper-image": ["GET"], "course-setting-paper-library": ["GET", "POST"],
+  "course-setting-paper-library-item": ["DELETE"], "course-setting-note": ["DELETE", "PATCH"],
+  "course-setting-note-reply-item": ["DELETE", "PATCH"], "course-setting-note-photo": ["GET"], "course-setting-events": ["GET"],
+  "participant-route": ["POST", "DELETE"], eventor: ["GET", "PUT", "DELETE"], "runner-database": ["GET", "POST", "DELETE"],
+  "runner-search": ["POST"], "source-sync": ["GET", "POST"], "eventor-events": ["GET"], "eventor-test": ["POST"],
+  "eventor-event": ["POST"], "eventor-sync-preview": ["POST"], "course-file-preview": ["POST"], "source-sync-consequence": ["POST"],
+  "entry-status": ["GET", "POST"], "unknown-readout-resolution": ["GET", "POST"], "remaining-runners": ["GET", "POST"],
+  "class-result-recalculation": ["GET", "POST"], "race-corrections": ["GET", "POST"], draw: ["GET", "POST"],
+  "results-official": ["GET", "POST"], "self-registration-cleanup": ["GET", "POST"], "review-conflicts": ["POST"],
+  "conflict-candidate": ["GET"], session: ["GET", "DELETE"], "checkin-history": ["GET"], "effective-result": ["GET"], changes: ["GET"],
+  "control-map": ["GET"], "entry-control-map": ["GET"], "start-correction": ["POST"], "manual-return-withdrawal": ["POST"],
+  "manual-return": ["POST"], publication: ["POST"], "draw-preview": ["POST"], "race-date-move-preview": ["POST"], finalize: ["POST"],
+  recalculate: ["POST"], registration: ["POST"], "registration-candidates": ["POST"], "manual-course-class": ["POST"],
+  "manual-class": ["POST"], "course-edit-preview": ["POST"], "course-edit": ["POST"], "class-edit-preview": ["POST"],
+  "class-edit": ["POST"], "rogaining-preview": ["POST"], rogaining: ["POST"], "entry-variant-preview": ["POST"],
+  "entry-variant": ["POST"], "class-variant-distribution": ["POST"], "map-print": ["POST"], "map-reserve": ["POST"],
+  "relay-class": ["POST"], "relay-team": ["POST"], "relay-leg-runner": ["POST"], "relay-start-times": ["POST"],
+  "relay-class-edit": ["POST"], "relay-team-edit": ["POST"], "relay-team-removal": ["POST"], "relay-team-dns": ["POST"],
+  "relay-leg-variant": ["POST"], "race-settings": ["POST"], "readout-registrations": ["POST"], "course-details": ["POST"],
+  "entry-removal": ["POST"], "class-removal": ["POST"], "course-removal": ["POST"], "race-corrections-preview": ["POST"],
+  "readout-reread": ["POST"], "readout-reread-preview": ["POST"]
+};
+
 function allowedMethods(action: Action): string[] {
-  return action.kind === "people" ? ["GET", "POST", "DELETE"] : action.kind === "people-invitation" ? ["POST"] : action.kind === "uninterpreted-readouts" ? ["GET", "POST"] :
-    action.kind === "uninterpreted-readouts-reread" ? ["POST"] : action.kind === "party" ? ["GET", "POST"] : action.kind === "party-logo" ? ["PUT", "DELETE"] :
-    action.kind === "party-guests" || action.kind === "party-desk-events" ? ["POST"] : action.kind === "radio" ? ["GET", "PUT"] :
-    action.kind === "radio-fetch" ? ["POST"] : action.kind === "race-publication" ? ["PUT", "DELETE"] : action.kind === "course-secrecy" ? ["PUT", "DELETE", "PATCH"] : action.kind === "race-map" ? ["GET", "PUT", "DELETE"] :
-    action.kind === "race-map-image" ? ["GET"] : action.kind === "race-map-georeference" ? ["POST"] :
-    action.kind === "race-map-source" ? ["GET", "POST", "DELETE"] :
-    action.kind === "route-choice" || action.kind === "route-choice-calibration" ? ["GET"] :
-    action.kind === "route-choice-settings" || action.kind === "route-choice-published" ? ["POST"] :
-    action.kind === "course-setting" ? ["GET", "PUT"] :
-    action.kind === "course-setting-revisions" || action.kind === "course-setting-revision" || action.kind === "course-setting-original" ? ["GET"] :
-    action.kind === "course-setting-import" || action.kind === "course-setting-restore" || action.kind === "course-setting-transfer" ? ["POST"] :
-    action.kind === "course-setting-notes" || action.kind === "course-setting-suggestions" ? ["GET", "POST"] :
-    action.kind === "course-setting-edits" || action.kind === "course-setting-note-reply" || action.kind === "course-setting-suggestion-decision" ? ["POST"] :
-    action.kind === "course-setting-mode" || action.kind === "course-setting-note-status" ? ["PUT"] :
-    action.kind === "course-setting-inspections" ? ["GET", "PUT"] : action.kind === "course-setting-map-link" ? ["GET", "POST", "DELETE"] :
-    action.kind === "course-setting-print-jobs" ? ["GET", "POST"] : action.kind === "course-setting-print-job" ? ["DELETE"] :
-    action.kind === "course-setting-print-job-pdf" ? ["GET"] :
-    action.kind === "course-setting-paper-images" ? ["POST"] : action.kind === "course-setting-paper-image" ? ["GET"] :
-    action.kind === "course-setting-paper-library" ? ["GET", "POST"] : action.kind === "course-setting-paper-library-item" ? ["DELETE"] :
-    action.kind === "course-setting-note" || action.kind === "course-setting-note-reply-item" ? ["DELETE", "PATCH"] :
-    action.kind === "course-setting-note-photo" || action.kind === "course-setting-events" ? ["GET"] :
-    action.kind === "participant-route" ? ["POST", "DELETE"] : action.kind === "eventor" ? ["GET", "PUT", "DELETE"] :
-    action.kind === "runner-database" ? ["GET", "POST", "DELETE"] : action.kind === "runner-search" ? ["POST"] :
-    action.kind === "source-sync" ? ["GET", "POST"] : action.kind === "eventor-events" ? ["GET"] :
-    action.kind === "eventor-test" || action.kind === "eventor-event" || action.kind === "eventor-sync-preview" ||
-    action.kind === "course-file-preview" || action.kind === "source-sync-consequence" ? ["POST"] : action.kind === "entry-status" || action.kind === "unknown-readout-resolution" || action.kind === "remaining-runners" || action.kind === "class-result-recalculation" || action.kind === "race-corrections" || action.kind === "draw" || action.kind === "results-official" || action.kind === "self-registration-cleanup" ? ["GET", "POST"] : action.kind === "review-conflicts" ? ["POST"] : action.kind === "conflict-candidate" ? ["GET"] : action.kind === "session" ? ["GET", "DELETE"] : action.kind === "checkin-history" || action.kind === "effective-result" || action.kind === "changes" || action.kind === "control-map" || action.kind === "entry-control-map" ? ["GET"] :
-    action.kind === "start-correction" || action.kind === "manual-return-withdrawal" || action.kind === "manual-return" || action.kind === "publication" || action.kind === "draw-preview" || action.kind === "race-date-move-preview" || action.kind === "finalize" || action.kind === "recalculate" || action.kind === "registration" || action.kind === "registration-candidates" ||
-    action.kind === "manual-course-class" || action.kind === "manual-class" ||
-    action.kind === "course-edit-preview" || action.kind === "course-edit" ||
-    action.kind === "class-edit-preview" || action.kind === "class-edit" ||
-    action.kind === "rogaining-preview" || action.kind === "rogaining" ||
-    action.kind === "entry-variant-preview" || action.kind === "entry-variant" || action.kind === "class-variant-distribution" ||
-    action.kind === "map-print" || action.kind === "map-reserve" ||
-    action.kind === "relay-class" || action.kind === "relay-team" || action.kind === "relay-leg-runner" ||
-    action.kind === "relay-start-times" || action.kind === "relay-class-edit" || action.kind === "relay-team-edit" ||
-    action.kind === "relay-team-removal" || action.kind === "relay-team-dns" || action.kind === "relay-leg-variant" ||
-    action.kind === "race-settings" || action.kind === "readout-registrations" ||
-    action.kind === "course-details" || action.kind === "entry-removal" || action.kind === "class-removal" ||
-    action.kind === "course-removal" || action.kind === "race-corrections-preview" ||
-    action.kind === "readout-reread" || action.kind === "readout-reread-preview" ? ["POST"] :
-    "entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"];
+  return [...(ROUTE_METHODS[action.kind] ?? ("entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"]))];
 }

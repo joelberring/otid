@@ -18,7 +18,7 @@ import { fromRaw } from "./ppen-common";
 import { attr, childElements } from "./xml";
 import { ellipsePoints, hatchLines, offsetLine, rectOf, roundedRectPoints, symPath } from "./special-shapes";
 import type { CourseSettingDocument, OverprintColor, OverprintPrimitive, SpecialLine, SpecialObject } from "./types";
-import { measuredLengthMeters, variations } from "./walk";
+import { courseLength } from "./summary";
 
 type Paint = { color: OverprintColor; cmyk?: readonly [number, number, number, number] };
 
@@ -90,11 +90,8 @@ export function expandText(context: SpecialContext, text: string): string {
   const found = course === "ALL_CONTROLS" ? undefined : document.courses.find(item => item.id === course);
   const lengthText = () => {
     if (!found) return "";
-    if (found.lengthOverrideMeters !== undefined) return km(found.lengthOverrideMeters, found.lengthOverrideMeters);
-    const all = variations(document, found.id);
-    const chosen = context.variant !== undefined ? all.filter(item => item.code === context.variant) : all;
-    const lengths = chosen.length > 0 ? chosen.map(item => measuredLengthMeters(document, found.id, item.choices)) : [measuredLengthMeters(document, found.id, null)];
-    return km(Math.min(...lengths), Math.max(...lengths));
+    const length = courseLength(document, found.id, { variant: context.variant });
+    return km(length.min, length.max);
   };
   const map = (document.event.raw ?? []).find(raw => raw.xml.startsWith("<map"))?.xml.match(/>([^<]*)</)?.[1] ?? "";
   const climb = found?.climbMeters;

@@ -4,7 +4,7 @@ import { INVITATION_LINK_LIFETIME_DAYS, type InvitationKind, type InvitationLink
   type InvitationRole } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { raceTitle } from "@o-tid/domain";
-import { throttleHmac } from "./account-throttle";
+import { accountRequestAllowanceExhausted, consumeAccountRequestAllowance, throttleHmac, type AccountThrottleScope } from "./account-throttle";
 import { sha256Hex } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
@@ -15,7 +15,9 @@ import type { DbExecutor } from "./snapshot";
  * beslut 6). Länksidan svarar likadant oavsett om adressen har ett konto.
  *
  * Spärrar mot att O-Tid används för att skicka skräppost: mejl per avsändare och per mottagare (timme och dygn), och "Skicka
- * igen" tidigast tio minuter efter förra mejlet till samma inbjudan. Raderna i `invitation_link` är räknarna.
+ * igen" tidigast tio minuter efter förra mejlet till samma inbjudan. Mejlen räknas i `account_request_throttle` (nyckeln som
+ * HMAC), som står kvar när tävlingen, klubben, gruppen eller kontot tas bort (städrundan 2026-11-07; förut räknades raderna i
+ * `invitation_link`, som försvinner med inbjudan). Kopierade länkar och "Skicka igen" räknas fortfarande i `invitation_link`.
  */
 export const INVITATION_LINK_LIFETIME_MS = INVITATION_LINK_LIFETIME_DAYS * 24 * 60 * 60 * 1000;
 export const INVITATION_MAILS_PER_INVITER = { hour: 100, day: 300 } as const;
@@ -99,23 +101,28 @@ async function issued(tx: DbExecutor, where: ReturnType<typeof and>, since: Date
  * Ryms ett till mejl (MAIL) eller en kopierad länk (LINK)? Låser avsändaren och mottagaren i transaktionen så att två samtidiga
  * anrop räknas efter varandra.
  */
-async function allowed(tx: DbExecutor, input: { ref: InvitationRef; issuedBy: string; recipientKey: string; delivery: "MAIL" | "LINK";
-  now: Date }): Promise<boolean> {
+async function allowed(tx: DbExecutor, input: { ref: InvitationRef; issuedBy: string; email: string; recipientKey: string;
+  delivery: "MAIL" | "LINK"; now: Date }): Promise<boolean> {
   const links = schema.invitationLinks;
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`invitation-issuer:${input.issuedBy}`}, 0))`);
-  const byIssuer = and(eq(links.issuedBy, input.issuedBy), eq(links.delivery, input.delivery));
-  const hourAgo = new Date(input.now.getTime() - HOUR);
-  if (input.delivery === "LINK") return await issued(tx, byIssuer, hourAgo) < INVITATION_LINKS_PER_INVITER_HOUR;
+  if (input.delivery === "LINK") {
+    const byIssuer = and(eq(links.issuedBy, input.issuedBy), eq(links.delivery, "LINK"));
+    return await issued(tx, byIssuer, new Date(input.now.getTime() - HOUR)) < INVITATION_LINKS_PER_INVITER_HOUR;
+  }
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`invitation-recipient:${input.recipientKey}`}, 0))`);
-  const dayAgo = new Date(input.now.getTime() - DAY);
-  const byRecipient = and(eq(links.recipientKey, input.recipientKey), eq(links.delivery, "MAIL"));
-  if (await issued(tx, byIssuer, hourAgo) >= INVITATION_MAILS_PER_INVITER.hour) return false;
-  if (await issued(tx, byIssuer, dayAgo) >= INVITATION_MAILS_PER_INVITER.day) return false;
-  if (await issued(tx, byRecipient, hourAgo) >= INVITATION_MAILS_PER_RECIPIENT.hour) return false;
-  if (await issued(tx, byRecipient, dayAgo) >= INVITATION_MAILS_PER_RECIPIENT.day) return false;
+  const recipient = input.email.trim().toLowerCase();
+  const limits: { scope: AccountThrottleScope; key: string; limit: number; windowMs: number }[] = [
+    { scope: "INVITATION_ISSUER_HOUR", key: input.issuedBy, limit: INVITATION_MAILS_PER_INVITER.hour, windowMs: HOUR },
+    { scope: "INVITATION_ISSUER_DAY", key: input.issuedBy, limit: INVITATION_MAILS_PER_INVITER.day, windowMs: DAY },
+    { scope: "INVITATION_RECIPIENT_HOUR", key: recipient, limit: INVITATION_MAILS_PER_RECIPIENT.hour, windowMs: HOUR },
+    { scope: "INVITATION_RECIPIENT_DAY", key: recipient, limit: INVITATION_MAILS_PER_RECIPIENT.day, windowMs: DAY }];
+  for (const limit of limits) if (await accountRequestAllowanceExhausted(tx, limit, input.now)) return false;
   // Ett mejl som inte gick iväg hindrar inte ett nytt försök direkt.
   const sameInvitation = and(eq(linkColumn(input.ref.kind), input.ref.invitationId), eq(links.delivery, "MAIL"), isNotNull(links.sentAt));
-  return await issued(tx, sameInvitation, new Date(input.now.getTime() - INVITATION_RESEND_INTERVAL_MS)) === 0;
+  if (await issued(tx, sameInvitation, new Date(input.now.getTime() - INVITATION_RESEND_INTERVAL_MS)) > 0) return false;
+  // Avsändaren och mottagaren är låsta, så alla fyra ryms (prövat ovan); räknas först nu, när mejlet blir av.
+  for (const limit of limits) if (!await consumeAccountRequestAllowance(tx, limit, input.now)) return false;
+  return true;
 }
 
 /**

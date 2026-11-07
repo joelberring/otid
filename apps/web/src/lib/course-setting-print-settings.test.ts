@@ -71,6 +71,17 @@ describe("en karta per löpare (steg 64)", () => {
     expect(result.items.map(item => item.runner?.kind)).toEqual(["VACANT", "RUNNER", "RESERVE"]);
   });
 
+  it("rogaining: poängbanan (ogafflad grupp) ger löparkartor utan problem", () => {
+    const document = testDocument();
+    const score = { ...document, courses: document.courses.map(course => ({ ...course, kind: "SCORE" as const, labelKind: "CODE" as const })) };
+    const result = runnerPrintItems(score, { ...bundles(3), missingVariant: [] }, clock);
+    expect(result.problems).toEqual([]);
+    expect(result.items.map(item => [item.course, item.variant, item.runner?.kind])).toEqual([["k", undefined, "RUNNER"], ["k", undefined, "VACANT"],
+      ["k", undefined, "RESERVE"]]);
+    const strip = BUILT_IN_TEMPLATES.find(template => template.id === "a4-strip")!;
+    expect(layoutTemplateSheets(score, strip, [result.items[0]!])[0]!.texts.map(text => text.text)).toContain("Anna Andersson  D21  10:32  nr 101");
+  });
+
   it("varnar när en bana saknas i banläggningen eller varianten inte finns", () => {
     const base = bundles(3);
     const other = { missingVariant: [], groups: [{ ...base.groups[0]!, courseName: "Kort" }] } as unknown as Bundles;

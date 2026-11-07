@@ -21,7 +21,9 @@ import { mapStorageQuota, mapStorageUsage, storeInlineMapContentForRace, type Ma
  * sha256 per fil, zod per rad efter databasens katalog) och blir en NY tävling: alla id byts (också inuti JSON och text),
  * ingen befintlig tävling skrivs över. Avläsningar, resultatrevisioner och fastställanden läses in som de är, så resultaten och
  * sträcktiderna blir desamma (integrationstestet `aterstallning`). Den som återställer blir ägare; med `people: "link"` får
- * personerna i kopian sina behörigheter igen om det finns ett konto med samma e-post här. Den nya tävlingen är opublicerad och
+ * personerna i kopian sina behörigheter igen om det finns ett konto med samma e-post här (per referens i kopian; en person
+ * "Från klubben" har ingen adress i kopian och kopplas aldrig). Förhandsvisningen säger inte vilka adresser som har konto här:
+ * filen är inte signerad, så en hemmagjord kopia skulle annars fråga ut servern. Den nya tävlingen är opublicerad och
  * radiohämtningen är avstängd tills arrangören slår på den. Bara inloggade konton (samma krav som för att skapa en tävling).
  */
 type Row = Record<string, unknown>;
@@ -208,12 +210,11 @@ export async function previewRaceBackup(db: Database, input: UserAccountSessionP
   if (auth.status !== "authenticated") return auth;
   try {
     const { backup } = await checkBackup(db, input.bytes);
-    const accounts = await accountsByEmail(db, backup.people.map(person => person.email));
     const table = (name: string) => backup.manifest.tables.find(entry => entry.name === name)?.rows ?? 0;
     return { status: "ok", preview: raceBackupPreviewSchema.parse({ formatVersion: 1, backupFormatVersion: backup.manifest.formatVersion,
       createdAt: backup.manifest.createdAt, race: backup.manifest.race, counts: backup.manifest.counts,
       staleResults: backup.manifest.staleResults, sha256: backup.sha256, bytes: backup.bytes,
-      people: backup.people.map(person => ({ email: person.email, role: personRole(person), hasAccount: accounts.has(person.email) })),
+      people: backup.people.map(person => ({ email: person.email, role: personRole(person) })),
       eventorLinked: table("race_eventor_link") > 0, radioLinked: table("race_radio_link") > 0, map: table("race_map") > 0 }) };
   } catch (error) {
     if (error instanceof BackupRejected) return error.failure;
@@ -314,14 +315,18 @@ export async function restoreRaceBackup(db: Database,
       // Kartinnehållet före återställningen, för kvoten (ADR-0189 beslut 3).
       const before = await mapStorageUsage(tx, accountId);
 
-      // Nya id för allt; kontonas referenser blir konton med samma e-post här när personerna kopplas.
-      const linked = peopleMode === "link" ? await accountsByEmail(tx, backup.people.map(person => person.email)) : new Map<string, string>();
+      // Nya id för allt; kontonas referenser blir konton med samma e-post här när personerna kopplas. Kopplingen gäller
+      // referensen (en person utan adress, "Från klubben", kopplas aldrig).
+      const byEmail = peopleMode === "link"
+        ? await accountsByEmail(tx, backup.people.flatMap(person => person.email === null ? [] : [person.email])) : new Map<string, string>();
+      const linked = new Map<string, string>();
+      for (const person of backup.people) {
+        const account = person.email === null ? undefined : byEmail.get(person.email);
+        if (account) linked.set(person.ref, account);
+      }
       const map = new Map<string, string>([...ids].map(id => [id, randomUUID()]));
       const linkedAccounts = new Set<string>();
-      for (const person of backup.people) {
-        const account = linked.get(person.email);
-        if (account) { map.set(person.ref, account); linkedAccounts.add(account); }
-      }
+      for (const [ref, account] of linked) { map.set(ref, account); linkedAccounts.add(account); }
       const startDraws: { id: string; drawId: string }[] = [];
       let eventId = "", raceId = "";
       for (const table of RACE_BACKUP_TABLES) {
@@ -404,7 +409,7 @@ export async function restoreRaceBackup(db: Database,
       await tx.insert(schema.eventAdministrationGrants).values({ eventId, accountId, role: "OWNER", grantedAt: now });
       const granted = new Set<string>();
       for (const person of backup.people) {
-        const account = linked.get(person.email);
+        const account = linked.get(person.ref);
         if (!account || account === accountId) continue;
         if (person.eventRole) {
           await tx.insert(schema.eventAdministrationGrants).values({ eventId, accountId: account,
@@ -413,7 +418,8 @@ export async function restoreRaceBackup(db: Database,
         }
         if (person.courseSettingLevel) granted.add(account);
       }
-      const missingPeople = peopleMode === "link" ? backup.people.filter(person => !linked.has(person.email)).map(person => person.email) : [];
+      const missingPeople = peopleMode === "link"
+        ? backup.people.flatMap(person => person.email !== null && !linked.has(person.ref) ? [person.email] : []) : [];
       const response = raceRestoreResponseSchema.parse({ formatVersion: 1, replayed: false, requestId, eventId, raceId,
         counts: backup.manifest.counts, linkedPeople: granted.size, missingPeople, createdAt: now.toISOString() });
       await tx.insert(schema.raceRestoreRequests).values({ requestId, actorAccountId: accountId, eventId, raceId, fileSha256,

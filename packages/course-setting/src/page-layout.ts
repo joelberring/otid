@@ -8,8 +8,8 @@ import { layout, printScaleOf } from "./overprint";
 import { placeDescription, type SheetDescription } from "./paper-layout";
 import { paperLayoutOf, sheetPaperItems, type SheetPaperItem } from "./paper-items";
 import { countCourseParts } from "./course-parts";
-import { excludedVariantCodes } from "./summary";
-import { measuredLengthMeters, variations } from "./walk";
+import { courseLength, excludedVariantCodes } from "./summary";
+import { variations } from "./walk";
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
 
@@ -195,10 +195,7 @@ function lengthText(document: CourseSettingDocument, course: string, variant: st
   if (!found) return "";
   const climb = found.climbMeters !== undefined && found.climbMeters >= 0 ? `, ${Math.round(found.climbMeters / 5) * 5} m` : "";
   if (found.kind === "SCORE" && found.lengthOverrideMeters === undefined) return climb.slice(2);
-  const meters = found.lengthOverrideMeters ?? (() => {
-    const all = variations(document, course).filter(item => variant === undefined || item.code === variant);
-    return Math.max(...(all.length > 0 ? all.map(item => measuredLengthMeters(document, course, item.choices)) : [measuredLengthMeters(document, course, null)]));
-  })();
+  const meters = courseLength(document, course, { variant }).meters;
   return `${(Math.round(meters / 100) / 10).toFixed(1).replace(".", ",")} km${climb}`;
 }
 

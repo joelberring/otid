@@ -17,6 +17,7 @@ import { exportIofResultListAsAdmin } from "../../src/result-list-export";
 import { exportCurrentStartListXmlAsAdmin } from "../../src/start-list-publication";
 import { listSpeakerBoardAsAdmin } from "../../src/speaker-board";
 import { readPublicLive } from "../../src/public-live";
+import { loadRaceSnapshot } from "../../src/snapshot";
 import { accountOnRace } from "./accounts";
 
 /**
@@ -405,6 +406,50 @@ describe("steg 47 stafett", () => {
     expect(await change(false)).toMatchObject({ status: "confirmation-required", preview: { changes: [{ before: "OK", after: "MP" }] } });
     expect(await change(true)).toMatchObject({ status: "saved", response: { recalculatedCount: 1 } });
     expect((await overview(proof)).teams[0]!.legs[1]).toMatchObject({ variantCode: "A", status: "MP" });
+  });
+
+  it("fast variant satt efter att lagen skapats: sträcklöparnas variant skrivs om och journalförs; avläsningen följer sträckan", async () => {
+    const proof = await race();
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0">
+  <Event><Name>Stafett</Name></Event>
+  <RaceCourseData>
+    <Control type="Start"><Id>S1</Id></Control><Control><Id>41</Id></Control><Control><Id>42</Id></Control><Control><Id>43</Id></Control>
+    <Control type="Finish"><Id>F1</Id></Control>
+    <Course><Id>K1</Id><Name>Gaffel-A</Name><CourseFamily>Gaffel</CourseFamily><CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>41</Control></CourseControl><CourseControl><Control>42</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl></Course>
+    <Course><Id>K2</Id><Name>Gaffel-B</Name><CourseFamily>Gaffel</CourseFamily><CourseControl type="Start"><Control>S1</Control></CourseControl>
+      <CourseControl><Control>41</Control></CourseControl><CourseControl><Control>43</Control></CourseControl>
+      <CourseControl type="Finish"><Control>F1</Control></CourseControl></Course>
+  </RaceCourseData>
+</CourseData>`;
+    const imported = await importIofXmlAsAdmin(db, { ...proof, idempotencyKey: `iof-import:${randomUUID()}`, xmlBytes: new TextEncoder().encode(xml) });
+    if (imported.status !== "stored") throw new Error(`Importen misslyckades: ${imported.status}`);
+    const forked = (await pool.query<{ id: string }>("select id from course where race_id = $1 and name = 'Gaffel'", [proof.raceId])).rows[0]!.id;
+    const settings: Leg[] = [{ startMethod: "MASS_START", startTime: at("17:00") }, { startMethod: "CHANGEOVER" }];
+    const classId = await relayClass(proof, forked, settings);
+    for (const name of ["Lag 1", "Lag 2", "Lag 3", "Lag 4"]) await team(proof, classId, name, [null, null]);
+    const before = await legs(proof.raceId);
+    // Jämn fördelning: båda varianterna används på sträcka 2 innan den får en fast variant.
+    expect(new Set([1, 2, 3, 4].map(number => before[`${number}.2`]!.code))).toEqual(new Set(["A", "B"]));
+    const edit = editRequest(classId, [settings[0]!, { ...settings[1]!, variantCode: "B" }]);
+    expect(await editRelayClassAsAdmin(db, { ...proof, ...edit })).toMatchObject({ status: "saved" });
+    const after = await legs(proof.raceId);
+    const switched = [1, 2, 3, 4].filter(number => before[`${number}.2`]!.code !== "B");
+    for (const number of [1, 2, 3, 4]) {
+      expect(after[`${number}.2`]!.code).toBe("B");
+      expect(after[`${number}.2`]!.version).toBe(before[`${number}.2`]!.version + (switched.includes(number) ? 1 : 0));
+      expect(after[`${number}.1`]).toEqual(before[`${number}.1`]);
+    }
+    const audit = (await pool.query<{ after: { assignedCount: number } }>(
+      "select after from audit_event where race_id = $1 and action = 'RELAY_LEG_VARIANTS_ASSIGNED_BY_ADMIN'", [proof.raceId])).rows;
+    expect(audit.map(row => row.after.assignedCount)).toEqual([switched.length]);
+    // En sträcklöpare utan egen variant (t.ex. en äldre import) får sträckans fasta variant i avläsningens paket.
+    await pool.query("update entry set course_variant_code = null where id = $1", [after["1.2"]!.id]);
+    const snapshot = await loadRaceSnapshot(db, proof.raceId);
+    expect(snapshot.entries.find(entry => entry.id === after["1.2"]!.id)?.courseVariantCode).toBe("B");
+    expect(snapshot.entries.find(entry => entry.id === after["1.1"]!.id)?.courseVariantCode).toBe(after["1.1"]!.code);
   });
 
   it("linjestafett med 25 sträckor × 300 lag: svarstider för omräkning och publik resultatlista", async () => {

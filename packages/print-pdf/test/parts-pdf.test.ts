@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { BUILT_IN_PRINT_PROFILES, expandPartItems, printSheetGroups, readPpen } from "@o-tid/course-setting";
-import { writeSheetsPdf } from "../src";
+import { applyEdit, BUILT_IN_PRINT_PROFILES, expandPartItems, printSheetGroups, readPpen } from "@o-tid/course-setting";
+import { duplexEdge, writeSheetsPdf } from "../src";
 import { fontFiles, parsePdf } from "./helpers";
 
 /**
@@ -31,5 +31,23 @@ describe("kartbyten i PDF:en", () => {
     const loaded = await PDFDocument.load(result.bytes);
     const preferences = loaded.catalog.lookup(PDFName.of("ViewerPreferences"));
     expect(String(preferences)).toContain("DuplexFlipLongEdge");
+  });
+
+  it("liggande delar vänds också på långsidan (ADR-0203 beslut 7); löparnas liggande baksidor på kortsidan (ADR-0213)", async () => {
+    const page = { width: 827, height: 1169, margins: 28, landscape: true };
+    let landscape = document;
+    for (const part of [0, 1]) landscape = applyEdit(landscape, { type: "SET_PRINT_AREA", course: "2", part, area: { automatic: true, restrictToPageSize: true, page } }).document;
+    const sheets = printSheetGroups(landscape, { kind: "COURSE", duplex: true }, expandPartItems(landscape, [{ course: "2" }])).flatMap(group => group.sheets);
+    expect(sheets.every(sheet => sheet.paper.widthMm > sheet.paper.heightMm)).toBe(true);
+    expect(sheets.filter(sheet => sheet.back)).toHaveLength(1);
+    expect(duplexEdge(sheets)).toBe("LONG");
+    const result = await writeSheetsPdf({ sheets, map: null, profile: press, mode: "PRESS", fonts: fontFiles() });
+    const { PDFDocument } = await import("pdf-lib");
+    expect(String((await PDFDocument.load(result.bytes)).catalog.lookup(PDFName.of("ViewerPreferences")))).toContain("DuplexFlipLongEdge");
+    // Löparnas baksidor utan delar: alla liggande = kortsidan, annars långsidan; inga baksidor = inget förslag.
+    const back = { back: true, paper: { widthMm: 297, heightMm: 210 }, frames: [] };
+    expect(duplexEdge([back])).toBe("SHORT");
+    expect(duplexEdge([back, { ...back, paper: { widthMm: 210, heightMm: 297 } }])).toBe("LONG");
+    expect(duplexEdge([{ ...back, back: false }])).toBeUndefined();
   });
 });

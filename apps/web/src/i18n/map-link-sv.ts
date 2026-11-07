@@ -48,7 +48,7 @@ export const mapLinkSv = {
     status: { OPEN: "Öppet", DONE: "Åtgärdat" } as Record<string, string>,
     replies: (count: number) => plural(count, "svar", "svar"),
     mapMaker: "Kartritaren",
-    courseSetter: "Banläggare",
+    courseSetter: "Banläggaren",
     name: "Ditt namn (valfritt)",
     nameHelp: "Står på dina svar. Annars står det Kartritaren.",
     reply: "Svar",

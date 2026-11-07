@@ -9,7 +9,7 @@
  */
 import { Duplex, PDFDocument, PDFName, type PDFRawStream, type PDFRef } from "pdf-lib";
 import {
-  cmykOfHex, descriptionSymbols, detectPressNorm, drawTrainingMap, lowerPurple, passesKey, PDF_PRINT_CAPABILITIES, pressOrder, sourceMapColors, usageCodes,
+  cmykOfHex, courseLayerOf, descriptionSymbols, detectPressNorm, drawTrainingMap, lowerPurple, passesKey, PDF_PRINT_CAPABILITIES, pressOrder, sourceMapColors, usageCodes,
   type DescriptionStandard, type OverprintPrimitive, type PressNorm, type PrintProfile, type Sheet, type SheetFrame
 } from "@o-tid/course-setting";
 import { colorUsage, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
@@ -78,11 +78,37 @@ export function colorsOverCourse(map: Pick<ParsedMap, "colors" | "scale"> & Part
 }
 
 /**
- * Figurerna i banans undre lila (ringar, start, mål, linjer, snitslar, passager); nummer, markeringar, texter,
- * beskrivningar och bilder ligger i övre lila över kartans färger (ADR-0211 beslut 3).
+ * Figurerna i banans undre lila (ringar, start, mål, linjer, snitslar, passager); nummer, markeringar, texter och
+ * beskrivningar ligger i övre lila över kartans färger (ADR-0211 beslut 3). Vita specialobjekt och bilder ligger under
+ * banan (`courseLayerOf`, ändrat 2026-11-07).
  */
 export function inCourseLayer(figure: OverprintPrimitive, norm: PressNorm = "ISOM", numbersOnTop = false): boolean {
   return lowerPurple(figure, norm, numbersOnTop);
+}
+
+/**
+ * Vändningskanten för dubbelsidigt. Kartbytets delar (ADR-0203 beslut 7): alltid långsidan, också liggande delar och
+ * blandade riktningar. Löparnas baksidor (ADR-0213): långsidan, eller kortsidan när alla baksidor är liggande, så att
+ * texten inte hamnar upp och ned. Inga baksidor = inget förslag.
+ */
+export function duplexEdge(sheets: readonly { readonly back?: boolean | undefined; readonly paper: { readonly widthMm: number; readonly heightMm: number };
+  readonly frames: readonly { readonly part?: number | undefined }[] }[]): "LONG" | "SHORT" | undefined {
+  const backs = sheets.filter(sheet => sheet.back);
+  if (backs.length === 0) return undefined;
+  if (backs.some(sheet => sheet.frames.some(frame => frame.part !== undefined))) return "LONG";
+  return backs.every(sheet => sheet.paper.widthMm > sheet.paper.heightMm) ? "SHORT" : "LONG";
+}
+
+/** Ytan som ett vitt specialobjekt eller en bild täcker, som väg i punkter (kartans mm genom `m`); tom för annat. */
+function coverPath(figure: OverprintPrimitive, m: Matrix): string {
+  const at = (p: { x: number; y: number }) => `${num(m[0] * p.x + m[2] * p.y + m[4])} ${num(m[1] * p.x + m[3] * p.y + m[5])}`;
+  const ring = (points: readonly { x: number; y: number }[]) => `${points.map((p, index) => `${at(p)} ${index === 0 ? "m" : "l"}`).join(" ")} h`;
+  if (figure.kind === "image") {
+    const r = figure.rect;
+    return ring([{ x: r.minX, y: r.minY }, { x: r.maxX, y: r.minY }, { x: r.maxX, y: r.maxY }, { x: r.minX, y: r.maxY }]);
+  }
+  if (figure.kind === "polygon") return figure.rings.filter(points => points.length >= 3).map(ring).join(" ");
+  return "";
 }
 
 const base64Bytes = (data: string): Uint8Array => {
@@ -320,11 +346,12 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
         content.op(`${whitePaths.join(" ")} f`);
         content.restore();
       };
-      const place = (form: { name: string } | undefined, excludeWhite = false) => {
+      const place = (form: { name: string } | undefined, excludeWhite = false, clips: readonly string[] = []) => {
         if (!form) return;
         content.save();
         content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
         if (excludeWhite && outsideWhite) content.op(outsideWhite);
+        for (const extra of clips) content.op(extra);
         // Spegelorientering (ADR-0192 beslut 12): kartbilden vänds kring ramens mitt; figurerna är redan speglade.
         const a = frame.mirror ? -1 : 1, x0 = frame.mirror ? clip.x + clip.width : clip.x;
         content.op(`${a} 0 0 1 ${num(x0 * PT_PER_MM)} ${num((H - clip.y - clip.height) * PT_PER_MM)} cm /${form.name} Do`);
@@ -337,8 +364,9 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       const marked = new Set(frame.markingClip?.refs ?? []);
       const isSpecial = (figure: OverprintPrimitive) => figure.role === "SPECIAL" && figure.kind !== "description" && figure.ref !== undefined;
       const isMarking = (figure: OverprintPrimitive) => (isSpecial(figure) && marked.has(figure.ref!)) || (outsideWhite !== "" && isSpecial(figure));
-      const markingPath = frame.markingClip
-        ? `${frame.markingClip.polygon.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h W n` : "";
+      const markingPolygon = frame.markingClip
+        ? `${frame.markingClip.polygon.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h` : "";
+      const markingPath = markingPolygon ? `${markingPolygon} W n` : "";
       const figures = (list: readonly OverprintPrimitive[]) => {
         if (list.length === 0) return;
         content.save();
@@ -368,12 +396,22 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
         content.restore();
       };
       if (over) {
-        // BL: kartans färger under banan, banan, kartans färger över banan, sist beskrivningar och texter.
+        // Normens ordning (ADR-0211 beslut 3): kartans färger under banan, vita specialobjekt och bilder (`beneathCourse`), undre
+        // lila, kartans färger över banan (inte i de vita ytorna och bilderna: de ligger över hela kartan), sist övre lila.
+        const layer = (figure: OverprintPrimitive) => courseLayerOf(figure, norm, numbersOnTop);
+        const beneath = frame.figures.filter(figure => layer(figure) === "BENEATH");
+        const frameRect = rect(clip.x, clip.y, clip.width, clip.height);
+        const covers = beneath.map(figure => ({ ref: figure.ref, path: coverPath(figure, mapMatrix) })).filter(cover => cover.path !== "");
         place(mapForm(frame, "UNDER"));
         paintWhite();
-        figures(frame.figures.filter(figure => inCourseLayer(figure, norm, numbersOnTop)));
-        place(mapForm(frame, "OVER"), true);
-        figures(frame.figures.filter(figure => !inCourseLayer(figure, norm, numbersOnTop)));
+        figures(beneath);
+        figures(frame.figures.filter(figure => layer(figure) === "LOWER"));
+        const overForm = mapForm(frame, "OVER");
+        // En täckning per klippning (jämn–udda mot ramen): överlappande ytor tar då inte ut varandra.
+        place(overForm, true, covers.map(cover => `${frameRect} ${cover.path} W* n`));
+        // En täckning som papperets klippning skär (ADR-0197) syns bara innanför: utanför ritas kartan över banan som vanligt.
+        for (const cover of covers) if (markingPolygon && marked.has(cover.ref ?? "")) place(overForm, true, [`${cover.path} W* n`, `${frameRect} ${markingPolygon} W* n`]);
+        figures(frame.figures.filter(figure => layer(figure) === "UPPER"));
       } else {
         place(mapForm(frame));
         paintWhite();
@@ -495,12 +533,9 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   const pageResources = context.register(context.obj({ ...shared, XObject: context.register(context.obj(xobjects)) }));
   for (const page of pages) page.node.set(PDFName.of("Resources"), pageResources);
 
-  // Dubbelsidigt: utskriftsdialogen föreslår vändning på långsidan (baksidorna ligger rätt i samma riktning som framsidan).
-  // Dubbelsidigt: baksidan står rätt när arket vänds kring långsidan (stående) eller kortsidan (liggande, ADR-0213), så att
-  // texten inte hamnar upp och ned; alla baksidor liggande = kortsidan.
-  const backs = input.sheets.filter(sheet => sheet.back);
-  if (backs.length > 0) document.catalog.getOrCreateViewerPreferences().setDuplex(backs.every(sheet => sheet.paper.widthMm > sheet.paper.heightMm)
-    ? Duplex.DuplexFlipShortEdge : Duplex.DuplexFlipLongEdge);
+  // Dubbelsidigt: utskriftsdialogens förslag på vändningskant (`duplexEdge`).
+  const edge = duplexEdge(input.sheets);
+  if (edge) document.catalog.getOrCreateViewerPreferences().setDuplex(edge === "LONG" ? Duplex.DuplexFlipLongEdge : Duplex.DuplexFlipShortEdge);
 
   const bytes = await document.save({ useObjectStreams: false });
   if (multiplyUsed) notes.add("Kontorsskrivaren: kartans färger över banan är multiplicerade, så att lila syns genom dem som på tryck.");

@@ -1,15 +1,17 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { createClub, inviteClubMember, readClub, removeClubMember } from "../../src/clubs";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { grantRacePersonAsAdmin, listRacePeopleAsAdmin, revokeRacePersonAsAdmin } from "../../src/race-people";
 import { addGroupMember, createTrainingGroup, readGroupAsLeader } from "../../src/training-groups";
-import { INVITATION_LINK_LIFETIME_MS, INVITATION_MAILS_PER_INVITER, INVITATION_MAILS_PER_RECIPIENT, INVITATION_RESEND_INTERVAL_MS, readInvitationLink,
-  type InvitationMail, type InvitationMailer } from "../../src/invitation-links";
+import { INVITATION_LINK_LIFETIME_MS, INVITATION_MAILS_PER_INVITER, INVITATION_MAILS_PER_RECIPIENT, INVITATION_RESEND_INTERVAL_MS, invitationRecipientKey,
+  readInvitationLink, type InvitationMail, type InvitationMailer } from "../../src/invitation-links";
 import { resendClubInvitation, resendGroupInvitation, resendRacePersonInvitation } from "../../src/invitation-resend";
 import { loginUserAccount } from "../../src/user-account";
+import { deleteEventAsOwner } from "../../src/account-self-service";
+import { throttleKeyHash } from "../../src/account-throttle";
 import { registerTestAccount, TEST_PASSWORD } from "./accounts";
 
 /**
@@ -248,16 +250,40 @@ describe("ADR-0206: inbjudningar med e-post", () => {
     const { mailer, sent } = testMailer();
     const theClub = await club();
     const first = await inviteToClub(theClub, address("forsta"), mailer);
-    // 99 tidigare mejl från samma avsändare den senaste timmen (till andra adresser).
-    const hex = () => randomBytes(32).toString("hex");
-    await db.insert(schema.invitationLinks).values(Array.from({ length: INVITATION_MAILS_PER_INVITER.hour - 1 }, (_, index) => ({
-      id: randomUUID(), clubInvitationId: first.invitationId, tokenHash: hex(), recipientKey: hex(), issuedBy: theClub.owner.accountId,
-      delivery: "MAIL" as const, createdAt: later(index * 1000), expiresAt: later(INVITATION_LINK_LIFETIME_MS), sentAt: later(index * 1000) })));
+    expect(first.mail).toBe("sent");
+    // 99 tidigare mejl från samma avsändare den senaste timmen (till andra adresser): räknaren i spärren.
+    await db.update(schema.accountRequestThrottles).set({ attempts: INVITATION_MAILS_PER_INVITER.hour })
+      .where(and(eq(schema.accountRequestThrottles.scope, "INVITATION_ISSUER_HOUR"),
+        eq(schema.accountRequestThrottles.keyHash, throttleKeyHash("INVITATION_ISSUER_HOUR", theClub.owner.accountId))));
     const blocked = await inviteToClub(theClub, address("hundraforsta"), mailer, later(10 * MINUTE));
     expect(blocked.mail).toBe("throttled");
     expect(sent).toHaveLength(1);
     // En timme senare går det igen.
     expect((await inviteToClub(theClub, address("senare"), mailer, later(2 * 60 * MINUTE))).mail).toBe("sent");
+  });
+
+  it("spärren per mottagare står kvar när tävlingen tas bort (räknas inte i inbjudningarna)", async () => {
+    const { mailer, sent } = testMailer();
+    const email = address("borttagen");
+    for (let index = 0; index < INVITATION_MAILS_PER_RECIPIENT.hour; index += 1) {
+      const theRace = await race();
+      const granted = await grant(theRace.proof, email, "FUNCTIONARY", mailer, later(index * MINUTE));
+      expect(granted.status === "granted" && granted.response.mail).toBe("sent");
+      // Tävlingen tas bort med inbjudan och dess länkar.
+      expect(await deleteEventAsOwner(db, theRace.proof, { formatVersion: 1, confirmation: "Natt-KM" }, later(index * MINUTE)))
+        .toMatchObject({ status: "deleted" });
+    }
+    expect(await db.select().from(schema.invitationLinks).where(eq(schema.invitationLinks.recipientKey, invitationRecipientKey(email)))).toEqual([]);
+    const fourth = await grant((await race()).proof, email, "FUNCTIONARY", mailer, later(10 * MINUTE));
+    expect(fourth.status === "granted" && fourth.response.mail).toBe("throttled");
+    expect(sent).toHaveLength(INVITATION_MAILS_PER_RECIPIENT.hour);
+    // Räknaren: nyckeln som HMAC av adressen, ingen adress i klartext.
+    const rows = await db.select().from(schema.accountRequestThrottles)
+      .where(eq(schema.accountRequestThrottles.keyHash, throttleKeyHash("INVITATION_RECIPIENT_HOUR", email)));
+    expect(rows).toMatchObject([{ attempts: INVITATION_MAILS_PER_RECIPIENT.hour }]);
+    // En timme senare går det igen.
+    const later2 = await grant((await race()).proof, email, "FUNCTIONARY", mailer, later(61 * MINUTE));
+    expect(later2.status === "granted" && later2.response.mail).toBe("sent");
   });
 
   it("länken går ut efter 14 dagar", async () => {

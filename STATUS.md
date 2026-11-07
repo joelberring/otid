@@ -16,6 +16,21 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Var nyckeln finns: Eventor → Klubb → Klubbinställningar (Eventors guide: Club → Club settings) i kopplingsrutan, hjälpen och tävlingens Eventor-ruta (`EVENTOR_KEY_PLACE`). Ny hjälpartikel "Kom igång med klubbytan".
 - Verifierat: enhetstester (`lib/club-start.test.ts`), `klubbtillhorighet.spec.ts` (kortet för ägaren, inte för medlemmen, dialogen, Dölj).
 
+### 2026-11-07 – Bortvalda varianter påverkar inte banläggningen, en regel för banans längd (grenen a6-bortvalda, ADR-0198 tillägg 12)
+- B5: "sträcka/kontroll i förbjudet område" och nivåstödet räknar bara kontroller och sträckor i varianter som används (`activeParts`, `activeControlOrders`).
+- Banans längd: `courseLength` (fast längd först, annars längsta kvarvarande variant, eller den valda varianten) i banlistan, beskrivningen, utskriftens rubrik, `$(CourseLength)`, `{längd}` och överföringen. Rubriken, makrot och `{längd}` räknade förut med bortvalda.
+- B11: krysset (förbjuden väg) spärrar så stort som det ritas (1,06 × figurskalan) i stället för fasta 1,5 kartans mm.
+- Väntar på A3: att en ny eller importerad bana inte får något förval för skalan (saknas = kartans skala) läggs på när ppen-write behåller `<options>` utan skala.
+- Verifierat: enhetstester (course-setting, application) och nya tester som fallerade före.
+### 2026-11-07 – Städrundan A1: säkerhet och personuppgifter (grenen a1-sakerhet, migration 0084, ingen ny ADR)
+- Säkerhetskopian: förhandsvisningen säger inte vilka adresser som har konto (hemmagjord zip var ett kontoorakel); personer "Från klubben" följer med utan adress och kopplas per referens (ADR-0187, ADR-0209).
+- Klubbytan: fritext som liknar namnet bara i en Eventor-kopplad klubbyta och mot klubbens namn; medlemslistan bara för ägare och admin, läsare och ledare ser sin egen rad, inget konto-id.
+- Inbjudningsmejlens spärr (mottagare och avsändare, timme och dygn) i `account_request_throttle`, så att en borttagen tävling inte nollställer den (ADR-0206, migration 0084).
+- Ny registrering av obekräftad adress: namnet skrivs över och länken minns sitt namn (`email_verification_token.display_name`, ADR-0205).
+- Kartritarsidan: svar med konto som "Banläggaren"/"Kartritaren" utan namn och tid (ADR-0214 beslut 4).
+- Utloggningen spärrar alltid sessionen på servern (exakt Origin räcker utan CSRF-kakan); "Du är utloggad" först efter svaret.
+- CSV: `toCsv`/`csvCell` i `@o-tid/domain` (BOM, `;`, formelskydd) också för festen och "Kontrollera kopplingen". Varning en gång om X-Forwarded-For saknas i https-drift; inbjudans `next` får inte börja med `//`.
+- Verifierat: lint och typecheck (per paket), enhetstester, integration (`aterstallning`, `adr-0186`, `adr-0194`, `adr-0206`, `adr-0209`, `adr-0214` utom ett test som fallerar också på main).
 ### 2026-11-07 – Städrundan A4: konton och klubbar (grenen a4-konto, ändringsmeningar i ADR-0205 och ADR-0209, ingen migration)
 - Koppla Google-konto: egna klubbsvar (utan `decided_by`) räknas som tomt konto, så en dubblett som svarat på klubbfrågan går att flytta; konto i bruk utan lösenord ger beskedet "Glömt lösenordet först" (`?google=upptaget-utan-losenord`).
 - Välj karta från klubbarkivet: bekräftade medlemmar ser klubbens kartor (samma medlemskap som övriga ställen), prövningen på en gång och utan sammanslagningshistorik.
@@ -24,6 +39,21 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Kartritarens länk: "Inte åtgärdat" öppnar inte en notis som ett konto har stängt.
 - Verifierat: integration (`adr-0205-google-koppla`, `adr-0210`, `adr-0172-accounts`, `adr-0209`, `adr-0214` utom ett tidsberoende test som fallerar också på main), enhetstester, lint, typecheck.
 - Återstår: `training_group_invitation.actor_account_id` har FK, så kontoradering tar andras gruppinbjudningar (kräver migration).
+### 2026-11-07 – Städrundan A3: tryck (grenen a3-tryck, ändringar i ADR-0184, ADR-0203 och ADR-0211, ingen migration)
+- PDF-jobbet: kartbytets del och "Dubbelsidigt" följer med från förhandsvisningen (förut hela banan en gång per del och aldrig dubbelsidigt utan löpare); delar vänds alltid på långsidan.
+- Servern filtrerar bort bortvalda gafflingsvarianter ur jobbet och säger det i notiserna.
+- Normens färgordning: vita specialobjekt (white-out) och bilder ritas under banan, och kartans färger över banan ritas inte i dem, i PDF:en och förhandsvisningen.
+- .ppen: automatisk tryckyta (0,0,0,0 som Purple Pen) läses tillbaka utan rektangel; `<options>` skrivs alltid, med kartans skala när banan saknar egen.
+- Ringklipp också för kartor med egen skala i jobbet. Sträckans fasta avbrott räknas från kontrollens mitt (test fixerar konventionen, ingen kodändring).
+- Verifierat: enhetstester (course-setting, print-pdf, application, web), integration `steg-65-tryck`, lint och typecheck per paket, provark-PDF (syntetisk karta) renderad med pdftoppm och Ghostscript.
+### 2026-11-07 – Städrundan A5: tävlingsdag, stafett, rogaining, klubbarkiv (grenen a5-tavlingsdag, ingen migration)
+- Flytta banorna: okänt koordinatsystem (OCAD 8, OCAD 9–11 utan kod) ger alltid "kontrollera själv" (`UNKNOWN_CRS`), aldrig "Georefererad".
+- IOF XML-banor: poängbanans förvalda poäng (koden/10) skrivs som `Score`; ADR-0190 ändrad.
+- Kartor till starten: listan per klass skiljer stafettens sträckor (`leg` i grupp och kontrakt); rogaining ingår som ogafflade grupper. ADR-0213 ändrad.
+- Stafett: ny fast variant skriver om sträcklöparnas variant med ny version och auditpost; avläsningens paket ger sträckans fasta variant när löparens saknas. ADR-0174 ändrad.
+- Använd igen: kartan och kartavtalet i samma transaktion. Gruppens bibliotek: "senaste version" i arkivets ordning (året först).
+- Kontrollera kopplingen: död varning "samma startnummer" borttagen. Dubbletter: pappersytan kräver namnlikhet eller gemensam träning. ADR-0210 ändrad.
+- Verifierat: enhetstester, integration (`adr-0174-stafett`, `adr-0194-klubbarkiv`, `adr-0213-stafett-kartor`, `adr-0210-kartor-sammanfoga`), lint, typecheck.
 
 ### 2026-11-05 – Länken till kartritaren och redigera egna notiser (grenen kartritare-lank, ADR-0214, migration 0083)
 - Kartfel → "Dela med kartritaren" (den som får ändra): länk med 256-bitars nyckel, bara hashen sparas, visas en gång med "Kopiera länken"; "Begränsa tiden" (förslag tävlingsdagen + 7), "Visa tävlingens namn", "Senast öppnad", "Stäng av länken", "Skapa ny länk".

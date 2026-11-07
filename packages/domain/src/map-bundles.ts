@@ -218,19 +218,30 @@ export function mapBundlesByTime(rows: readonly MapBundleRow[]): { readonly star
   return result.map(({ startTime, rows: groupRows }) => ({ startTime, rows: groupRows }));
 }
 
-/** Kartbuntslistan per klass och variant (masstart): klasserna i namnordning, varianterna i banans ordning. */
-export function mapBundlesByClass(rows: readonly MapBundleRow[], variantOrder: (className: string) => readonly string[] = () => []):
-  { readonly className: string; readonly courseName: string; readonly variantCode: string | null; readonly rows: readonly MapBundleRow[] }[] {
-  const groups = new Map<string, { className: string; courseName: string; variantCode: string | null; rows: MapBundleRow[] }>();
+/** En klass (stafett: en sträcka) i kartbuntslistan per klass. */
+export interface MapBundleClassKey { readonly classId: string; readonly className: string; readonly leg?: number | undefined }
+
+/**
+ * Kartbuntslistan per klass och variant (masstart): klasserna i namnordning, varianterna i banans ordning. Stafett: en grupp
+ * per sträcka och variant (sträckorna kan ha samma variantkoder), i sträckans ordning; `variantOrder` gäller klassen och sträckan.
+ */
+export function mapBundlesByClass(rows: readonly MapBundleRow[], variantOrder: (key: MapBundleClassKey) => readonly string[] = () => []):
+  { readonly className: string; readonly courseName: string; readonly variantCode: string | null; readonly leg?: number | undefined;
+    readonly rows: readonly MapBundleRow[] }[] {
+  const groups = new Map<string, { classId: string; className: string; courseName: string; variantCode: string | null; leg?: number; order: number;
+    rows: MapBundleRow[] }>();
   for (const row of rows) {
-    const key = `${row.classId}\u0000${row.variantCode ?? ""}`;
-    const group = groups.get(key) ?? { className: row.className, courseName: row.courseName, variantCode: row.variantCode, rows: [] };
+    const key = `${row.classId}\u0000${row.leg ?? ""}\u0000${row.variantCode ?? ""}`;
+    const classKey = { classId: row.classId, className: row.className, ...(row.leg !== undefined ? { leg: row.leg } : {}) };
+    const group = groups.get(key) ?? { ...classKey, courseName: row.courseName, variantCode: row.variantCode,
+      order: variantOrder(classKey).indexOf(row.variantCode ?? ""), rows: [] };
     group.rows.push(row);
     groups.set(key, group);
   }
-  return [...groups.values()].sort((left, right) => compare(left.className, right.className) ||
-    variantOrder(left.className).indexOf(left.variantCode ?? "") - variantOrder(right.className).indexOf(right.variantCode ?? "") ||
-    compare(left.variantCode ?? "", right.variantCode ?? ""));
+  return [...groups.values()].sort((left, right) => compare(left.className, right.className) || compare(left.classId, right.classId) ||
+    (left.leg ?? 0) - (right.leg ?? 0) || left.order - right.order || compare(left.variantCode ?? "", right.variantCode ?? ""))
+    .map(({ className, courseName, variantCode, leg, rows: groupRows }) => ({ className, courseName, variantCode,
+      ...(leg !== undefined ? { leg } : {}), rows: groupRows }));
 }
 
 /** En sida i baksidesutskriften: avdelare före varje variant, en sida per karta och reservsidor. */

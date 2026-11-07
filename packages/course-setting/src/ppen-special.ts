@@ -148,7 +148,9 @@ export function readPrintArea(element: XmlElement): PrintArea {
   const bool = (name: string) => { const value = attr(element, name); return value === undefined ? false : parseBool(value, name); };
   const n = (name: string) => { const value = attr(element, name); return value === undefined ? NaN : parseNumber(value, name); };
   const [left, top, right, bottom] = [n("left"), n("top"), n("right"), n("bottom")];
-  const hasRect = [left, top, right, bottom].every(Number.isFinite);
+  // Purple Pen skriver en automatisk tryckyta med rektangeln 0,0,0,0 (RectangleF.Empty); en rektangel utan yta är ingen
+  // rektangel (förut blev den {0,0,0,0} och "Tryckytan är ingen rektangel" vid nästa ändring efter export och import).
+  const hasRect = [left, top, right, bottom].every(Number.isFinite) && left !== right && top !== bottom;
   const width = n("page-width"), height = n("page-height");
   const page = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
     ? { width, height, margins: Number.isFinite(n("page-margins")) ? n("page-margins") : 0, landscape: bool("page-landscape") } : undefined;
@@ -164,7 +166,10 @@ export function readPrintArea(element: XmlElement): PrintArea {
   };
 }
 
-/** `<print-area>` som Purple Pen skriver den (PrintArea.WriteAttributesAndContent); okända attribut ur `old` följer med. */
+/**
+ * `<print-area>` som Purple Pen skriver den (PrintArea.WriteAttributesAndContent): alltid med rektangeln, 0,0,0,0 för en
+ * automatisk yta utan rektangel (som Purple Pens egna filer); okända attribut ur `old` följer med.
+ */
 export function printAreaElement(area: PrintArea, old: XmlElement | undefined): XmlElement {
   const attrs: [string, string][] = [];
   const part = old ? attr(old, "part") : undefined;

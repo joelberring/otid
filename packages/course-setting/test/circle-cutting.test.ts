@@ -305,6 +305,21 @@ describe("bakning och .ppen", () => {
     expect(edits).toEqual([{ type: "SET_CIRCLE_GAPS", control: id, gaps: [{ scale: 10000, ...small }, { scale: 15000, ...large }] }]);
   });
 
+  it("en karta med egen skala i utskriften (SheetItem.printScale) får sin ringstorlek och sina gap (städrundan 2026-11-07)", () => {
+    const { b, course: built } = lineCourse(1, { mapScale: 15000 });
+    const xml = writePpen(applyEdit(b.document, { type: "UPDATE_COURSE", course: built, changes: { printScale: 10000 } }).document);
+    const doc = withCutting(readPpen(xml.replace("scale-sizes=\"RelativeTo15000\"", "scale-sizes=\"None\"")).document, false, true);
+    const id = Object.values(doc.controls).find(c => c.kind === "NORMAL")!.id;
+    const course = doc.courses[0]!.id;
+    const radius = 2.5 * 7500 / 15000;
+    expect(detailCircleCenters(doc).some(c => c.id === detailGapKey(id, radius))).toBe(false);
+    const radii = detailCircleCenters(doc, [7500]).filter(c => c.id.startsWith(`${id}@`)).map(c => c.radiusMm).sort((x, y) => x - y);
+    expect(radii).toHaveLength(3);
+    expect(radii[0]).toBeCloseTo(radius, 6);
+    const own = { startDegrees: 30, endDegrees: 40 };
+    expect(ringOf(layoutOverprint(doc, { course, printScale: 7500, detailGaps: { [detailGapKey(id, radius)]: [own] } }), doc, id).gaps).toEqual([own]);
+  });
+
   it("målets inre ring får sina egna detaljgap", () => {
     const { b, finish } = lineCourse(1, { mapScale: 15000 });
     const doc = withCutting(b.document, false, true);

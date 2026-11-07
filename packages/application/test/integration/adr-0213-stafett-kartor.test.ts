@@ -32,7 +32,7 @@ afterAll(async () => {
 }, 60_000);
 
 describe("stafetten i Kartor till starten (ADR-0213)", { timeout: 120_000 }, () => {
-  it("en klass per sträcka med sträckans bana, löparna med lag och sträcka, i lagnummerordning", async () => {
+  it("en klass per sträcka med sträckans bana, löparna med lag och sträcka, i lagnummerordning; rogaining som ogafflad grupp", async () => {
     const account = await registerUserAccount(db, { formatVersion: 1, email: `adr0213.${randomUUID().slice(0, 8)}@test.o-tid.se`, displayName: "Arrangör",
       password: "hemligt-lösen" });
     if (account.status !== "authenticated") throw new Error("Kontot kunde inte skapas");
@@ -75,5 +75,22 @@ describe("stafetten i Kartor till starten (ADR-0213)", { timeout: 120_000 }, () 
     const kort = read.response.groups.find(group => group.courseName === "Kort")!;
     expect(kort.runnerCount).toBe(2);
     expect(kort.items[0]).toMatchObject({ kind: "RUNNER", team: { name: "OK Natt 1" }, leg: 2 });
+
+    // Rogaining ingår som en ogafflad grupp (tryckantal och löparkartor), inte tyst utesluten.
+    const score = await course("Poäng", [51, 52, 53]);
+    const [scoreClass] = (await pool.query<{ id: string }>("select c.id from class c join course_version v on v.id = c.course_version_id where v.course_id = $1",
+      [score])).rows;
+    await pool.query("update class set rogaining_time_limit_seconds = 3600, rogaining_penalty_points_per_minute = 1, max_time_minutes = null where id = $1",
+      [scoreClass!.id]);
+    for (const given of ["Ada", "Bo"]) {
+      await pool.query("insert into entry (race_id, class_id, given_name, family_name) values ($1, $2, $3, 'Poäng')", [proof.raceId, scoreClass!.id, given]);
+    }
+    const withScore = await readMapBundlesAsAdmin(db, proof);
+    if (withScore.status !== "ok") throw new Error(withScore.status);
+    const poang = withScore.response.groups.find(group => group.courseName === "Poäng")!;
+    expect(poang).toMatchObject({ variantCode: null, runnerCount: 2 });
+    expect(poang.printCount).toBeGreaterThanOrEqual(2);
+    expect(withScore.response.rows.filter(row => row.className === "Klass Poäng").map(row => row.name)).toEqual(["Ada Poäng", "Bo Poäng"]);
+    expect(withScore.response.classes.find(row => row.name === "Klass Poäng")).toMatchObject({ variantCodes: [] });
   });
 });

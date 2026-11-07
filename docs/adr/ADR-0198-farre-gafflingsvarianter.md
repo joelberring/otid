@@ -71,3 +71,15 @@ ger åtta varianter, fyra med fyra 256; tävlingen tar högst 100 per bana.
     inte heller tillbaka dem; från banläggningen gäller banläggningens bortval (`fromCourseSetting` i projektionen).
 11. **Utskrift**: en bortvald variant skrivs aldrig ut, inte heller som reserv; finns den i kartbuntarna (tävlingen inte
     överförd än) sägs det som problem på utskriftssidan. Avläsningens besked (beslut 6) är oförändrat.
+
+## Tillägg 2026-11-07 (grenen a6-bortvalda, ägarens beslut "bortvalda ska inte in i tävlingen igen utan är bortvalda")
+
+12. **Bortvalda påverkar inget i banläggningen.** Ändrat 2026-11-07: kontrollerna "sträcka genom förbjudet område" och
+    "kontroll i förbjudet område" och nivåstödet (ADR-0212) räknar bara kontroller och sträckor som finns i någon variant
+    som används (`activeParts`, `activeControlOrders`). **Banans längd** har en regel och en funktion, `courseLength` i
+    `@o-tid/course-setting`: fast längd (`lengthOverrideMeters`) går före, för banan och för varje variant; annars är banans
+    längd den längsta varianten som är kvar (bortvalda räknas inte) och en vald variant har sin uppmätta längd. Den används
+    av banlistan och egenskaperna (`courseSummaries`), kontrollbeskrivningens rubrik, utskriftens rubrik, textmakrot
+    `$(CourseLength)`, pappersramens `{längd}` och överföringen till tävlingen. Avrundningen är oförändrad och görs där
+    längden visas: 0,1 km i texterna, 100 m i överföringen. Förut räknade utskriftens rubrik, `$(CourseLength)` och
+    `{längd}` med alla varianter, också bortvalda.

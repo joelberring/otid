@@ -65,6 +65,8 @@ export interface RaceMapSourceUpload {
   readonly metadata: unknown;
   /** Kvoten (förval ur miljön, ADR-0189 beslut 3). */
   readonly quota?: MapStorageQuota;
+  /** Mer som sparas i samma transaktion som kartan (t.ex. kartavtalet vid "Använd igen"); ett fel rullar tillbaka allt. */
+  readonly alsoSave?: (tx: Transaction) => Promise<void>;
 }
 
 /**
@@ -120,6 +122,7 @@ export async function saveRaceMapSourceAsAdmin(db: Database, input: RaceSessionP
     await audit(tx, raceId, actorId, "RACE_MAP_SOURCE_SAVED", { fileName, format: source.format, version: source.version, sha256: fileHash,
       byteLength: source.byteLength, scale: source.scale, image: { sha256: imageHash, width: image.width, height: image.height },
       tiePoints: map.tiePoints });
+    if (input.alsoSave) await input.alsoSave(tx);
     return { status: "ok" as const, georeferenced: transform !== null };
   }).catch((error: unknown) => {
     if (error instanceof QuotaRollback) return { status: "problem" as const, problem: "STORAGE_QUOTA_EXCEEDED" as const, quota: error.quota };

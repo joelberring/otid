@@ -119,7 +119,15 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     const view = await readClub(db, { ...owner.proof, clubId }, NOW);
     if (view.status !== "ok") throw new Error("Ingen vy");
     expect(view.view.members.map(member => member.role).sort()).toEqual(["ADMIN", "OWNER", "READER"]);
+    expect(view.view.members.filter(member => member.you).map(member => member.role)).toEqual(["OWNER"]);
     expect(view.view.invitations).toHaveLength(1);
+    // ADR-0209 beslut 5–6: läsaren (och ledaren) får bara sin egen rad, utan konto-id och adresser.
+    const readerView = await readClub(db, { ...reader.proof, clubId }, NOW);
+    if (readerView.status !== "ok") throw new Error(readerView.status);
+    expect(readerView.view.members).toEqual([expect.objectContaining({ role: "READER", you: true, email: "" })]);
+    expect(JSON.stringify(readerView.view)).not.toContain(owner.accountId);
+    expect(JSON.stringify(readerView.view)).not.toContain(unverified.accountId);
+    expect(JSON.stringify(readerView.view.members)).not.toContain("accountId");
     // En administratör gör ingen till ägare; sista ägaren tas inte bort.
     const ownerMember = view.view.members.find(member => member.role === "OWNER")!;
     expect((await setClubMemberRole(db, { ...unverified.proof, clubId, request: { formatVersion: 1, memberId: ownerMember.memberId, role: "READER" } }, NOW))
@@ -279,6 +287,43 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     expect(head.status).toBe("ok");
     expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content where sha256 = $1", [sha(omap)])).rows[0]?.n).toBe(1);
   });
+  it("Använd igen: kartan och kartavtalet sparas tillsammans; misslyckas avtalet sparas ingenting", async () => {
+    const { owner, clubId } = await clubWithOwner();
+    const omap = await fixture("maps/kartfil.omap");
+    const uploaded = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: null, newMapName: "Avtalsskogen", fileName: "Avtalsskogen.omap",
+      versionDate: "2021-05-01", note: null, body: chunks(omap) }, NOW);
+    if (uploaded.status !== "created") throw new Error("Ingen karta");
+    const created = await createOrganizerEvent(db, { ...owner.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+      readBody: async () => ({ formatVersion: 1, eventName: "Avtalsträning", raceName: "Träning", raceDate: "2026-11-11",
+        timeZone: "Europe/Stockholm", raceType: "TRAINING" }) }, NOW);
+    if (created.status !== "created") throw new Error("Ingen tävling");
+    const raceId = created.response.raceId;
+    const metadata: RaceMapSourceMetadata = { formatVersion: 1, format: "OMAP", version: "Mapper v9", scale: 10_000,
+      bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 }, georeference: null, render: { pxPerMm: 8, originX: -2, originY: 102 },
+      summary: { objectCount: 11, warnings: [], simplifications: [] }, tiePoints: null };
+    const png = new Uint8Array(80);
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(png.buffer).setUint32(16, 992); new DataView(png.buffer).setUint32(20, 832);
+    const input = { ...owner.proof, clubId, versionId: uploaded.versionId, raceId, image: png, metadata };
+    const saved = async () => (await pool.query<{ maps: number; sources: number; agreements: number; contents: number }>(`select
+      (select count(*)::int from race_map where race_id = $1) as maps, (select count(*)::int from race_map_source where race_id = $1) as sources,
+      (select count(*)::int from race_map_agreement where race_id = $1) as agreements, (select count(*)::int from map_content) as contents`, [raceId])).rows[0]!;
+    const before = await saved();
+    await pool.query(`create function test_fail_agreement() returns trigger language plpgsql as $$ begin raise exception 'avtalet kunde inte sparas'; end $$`);
+    await pool.query("create trigger test_fail_agreement before insert or update on race_map_agreement for each row execute function test_fail_agreement()");
+    try {
+      await expect(saveClubMapVersionToRace(db, input, NOW)).rejects.toThrow();
+    } finally {
+      await pool.query("drop trigger test_fail_agreement on race_map_agreement");
+      await pool.query("drop function test_fail_agreement()");
+    }
+    expect(await saved()).toEqual(before);
+    expect(before).toMatchObject({ maps: 0, sources: 0, agreements: 0 });
+    // Utan felet sparas båda.
+    expect(await saveClubMapVersionToRace(db, input, NOW)).toEqual({ status: "ok", georeferenced: false });
+    expect(await saved()).toMatchObject({ maps: 1, sources: 1, agreements: 1 });
+  });
+
   it("gruppens kartbibliotek pekar på klubbens karta: rättigheterna följer med och en ny version syns", async () => {
     const { owner, clubId } = await clubWithOwner();
     const omap = await fixture("maps/kartfil.omap");
@@ -315,5 +360,17 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     const after = await library();
     expect(after).toHaveLength(1);
     expect(after[0]).toMatchObject({ clubMap: { latest: true }, source: { fileName: "Skogen V2.omap" } });
+
+    // ADR-0210: "senaste" som i arkivet, året först. En version med det inskrivna året 2026 (men ett äldre datum) är nyare än 2024-05-01.
+    const third = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: uploaded.mapId, newMapName: null, fileName: "Skogen ny.omap",
+      versionDate: "2019-01-01", note: null, body: chunks(new TextEncoder().encode(new TextDecoder().decode(omap).replace(/<notes>[^<]*<\/notes>/, "<notes>2026</notes>"))) }, NOW);
+    if (third.status !== "created") throw new Error("Ingen tredje version");
+    await pool.query("update club_map_version set version_year = 2026 where id = $1", [third.versionId]);
+    const archive = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
+    expect(archive.status === "ok" && archive.list.maps.find(map => map.name === "Skogen")!.latestVersionId).toBe(third.versionId);
+    expect((await library())[0]?.clubMap?.latest).toBe(false);
+    expect(await saveClubMapToGroupLibrary(db, { ...owner.proof, clubId, versionId: third.versionId, groupId, image: png, metadata }, NOW))
+      .toMatchObject({ status: "saved", updated: true });
+    expect((await library())[0]?.clubMap?.latest).toBe(true);
   });
 });

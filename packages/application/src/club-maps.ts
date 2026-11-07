@@ -10,14 +10,12 @@ import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type C
 import { mergeClubMapInto } from "./club-map-merge";
 import { mayUseClubMap } from "./club-map-use";
 import { clubLinkFacts } from "./club-affiliation-access";
-import { lockRaceForMutation } from "./concurrency";
 import { imageDimensions } from "./image-dimensions";
 import {
   contentHead, contentLength, discardStagedMapContent, MAP_CONTENT_HEAD_BYTES, mapStorageQuota, stageMapContent, storeMapContent,
   type MapContentInput, type MapQuotaExceeded, type StagedMapContent
 } from "./map-content";
 import { mapFileFormatOf, saveRaceMapSourceAsAdmin } from "./race-map-source";
-import { requireRaceRole } from "./race-session";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 import { leaderMembership } from "./training-group-access";
@@ -255,19 +253,14 @@ export async function saveClubMapVersionToRace(db: Database, input: ClubProof & 
     return file ? { status: "ok", row, file } as const : { status: "not-found" } as const;
   });
   if (found.status !== "ok") return found;
-  const saved = await saveRaceMapSourceAsAdmin(db, { raceId: input.raceId, sessionToken: input.sessionToken, csrfCookie: input.csrfCookie ?? null,
-    csrfHeader: input.csrfHeader ?? null, file: found.file, fileName: found.row.version.fileName, image: input.image, metadata: input.metadata }, now);
-  if (saved.status !== "ok") return saved;
-  await db.transaction(async tx => {
-    const auth = await requireRaceRole(tx, { raceId: input.raceId, sessionToken: input.sessionToken, csrfCookie: input.csrfCookie ?? null,
-      csrfHeader: input.csrfHeader ?? null, role: "ADMIN", requireCsrf: true }, now, "update");
-    if (auth.status !== "authenticated") return;
-    await lockRaceForMutation(tx, input.raceId);
-    const values = { sourceMapId: null, mapName: found.row.map.name, ...agreementOf(found.row.map), updatedAt: now };
-    await tx.insert(schema.raceMapAgreements).values({ raceId: input.raceId, ...values })
-      .onConflictDoUpdate({ target: schema.raceMapAgreements.raceId, set: { ...values, publicUseAcknowledgedAt: null, publicUseAcknowledgedBy: null } });
-  });
-  return saved;
+  // Kartan och kartavtalet i samma transaktion: misslyckas avtalet sparas inte kartan heller.
+  const values = { sourceMapId: null, mapName: found.row.map.name, ...agreementOf(found.row.map), updatedAt: now };
+  return saveRaceMapSourceAsAdmin(db, { raceId: input.raceId, sessionToken: input.sessionToken, csrfCookie: input.csrfCookie ?? null,
+    csrfHeader: input.csrfHeader ?? null, file: found.file, fileName: found.row.version.fileName, image: input.image, metadata: input.metadata,
+    alsoSave: async tx => {
+      await tx.insert(schema.raceMapAgreements).values({ raceId: input.raceId, ...values })
+        .onConflictDoUpdate({ target: schema.raceMapAgreements.raceId, set: { ...values, publicUseAcknowledgedAt: null, publicUseAcknowledgedBy: null } });
+    } }, now);
 }
 
 export type ClubMapToGroupResult = ClubFailure | { status: "problem"; problem: RaceMapProblem } | { status: "quota"; quota: MapQuotaExceeded }

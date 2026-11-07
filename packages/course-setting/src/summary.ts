@@ -1,6 +1,7 @@
 /** Varianter, längder och nästa lediga kod. */
 import type { Course, CourseSettingDocument, CourseSummary, CourseVariant } from "./types";
 import { CourseSettingEditError } from "./types";
+import { legKey } from "./ppen-common";
 import { enumerateCourseControls, findCourse, measuredLengthMeters, variations } from "./walk";
 
 function variant(document: CourseSettingDocument, courseId: string, code: string, choices: readonly string[] | null): CourseVariant {
@@ -36,6 +37,60 @@ export function courseVariantList(document: CourseSettingDocument, courseId: str
   return allCourseVariantList(document, courseId).filter(row => !row.excluded);
 }
 
+/** Banans längd i meter, före avrundning (ADR-0198 tillägg 12). */
+export interface CourseLength {
+  /** Längden som gäller: den fasta (inskrivna) längden, annars den längsta kvarvarande varianten (eller den valda). */
+  readonly meters: number;
+  /** Kortaste och längsta kvarvarande variant (samma som `meters` med fast längd eller en vald variant). */
+  readonly min: number;
+  readonly max: number;
+  /** Banläggaren har skrivit in längden (`lengthOverrideMeters`). */
+  readonly fixed: boolean;
+}
+
+function lengthOf(course: Course, all: readonly CourseVariant[], variant: string | undefined): CourseLength {
+  const fixed = course.lengthOverrideMeters;
+  if (fixed !== undefined) return { meters: fixed, min: fixed, max: fixed, fixed: true };
+  const chosen = variant === undefined ? undefined : all.find(row => row.code === variant);
+  const lengths = chosen ? [chosen.lengthMeters] : all.filter(row => !row.excluded).map(row => row.lengthMeters);
+  const min = Math.min(...lengths), max = Math.max(...lengths);
+  return { meters: max, min, max, fixed: false };
+}
+
+/**
+ * ADR-0198 tillägg 12: banans längd, den enda regeln i banläggningen (banlistan, egenskaperna, kontrollbeskrivningen,
+ * rubriken och textmakron på utskriften, pappersramens variabel och överföringen till tävlingen). Fast längd går före; annars
+ * den längsta varianten som är kvar (bortvalda räknas inte), med `variant` den variantens uppmätta längd (en okänd kod ger
+ * banans). Avrundningen gör den som visar längden.
+ */
+export function courseLength(document: CourseSettingDocument, courseId: string, options: { readonly variant?: string | undefined } = {}): CourseLength {
+  return lengthOf(findCourse(document, courseId), allCourseVariantList(document, courseId), options.variant);
+}
+
+/** Banans kontroller i ordning för varje variant som används (bortvalda tas inte med); en ogafflad bana eller poängbana ger en. */
+export function activeControlOrders(document: CourseSettingDocument, courseId: string): (readonly string[])[] {
+  return courseVariantList(document, courseId).map(row => row.courseControls);
+}
+
+/**
+ * ADR-0198 tillägg 12: kontrollerna (`controls`) och sträckorna (`legKey` av kontrollerna) som finns i någon variant som
+ * används. `undefined` när inget är bortvalt (då gäller alla grenar, som `enumerateLegs`).
+ */
+export function activeParts(document: CourseSettingDocument, courseId: string): { readonly controls: ReadonlySet<string>; readonly legs: ReadonlySet<string> } | undefined {
+  if (excludedVariantCodes(document, courseId).size === 0) return undefined;
+  const controls = new Set<string>(), legs = new Set<string>();
+  for (const order of activeControlOrders(document, courseId)) {
+    const ids = order.map(id => document.courseControls[id]?.control);
+    ids.forEach((id, index) => {
+      if (id === undefined) return;
+      controls.add(id);
+      const previous = index > 0 ? ids[index - 1] : undefined;
+      if (previous !== undefined) legs.add(legKey(previous, id));
+    });
+  }
+  return { controls, legs };
+}
+
 /** Koderna för banans bortvalda varianter som gäller. */
 export function excludedVariantCodes(document: CourseSettingDocument, courseId: string): Set<string> {
   const course = document.courses.find(row => row.id === courseId);
@@ -57,15 +112,12 @@ export function summaries(document: CourseSettingDocument): CourseSummary[] {
   return [...document.courses].sort((a, b) => a.order - b.order).map(course => {
     const all = allCourseVariantList(document, course.id);
     const variants = all.filter(row => !row.excluded);
-    const lengths = variants.map(v => v.lengthMeters);
-    const min = Math.min(...lengths);
-    const max = Math.max(...lengths);
-    const override = course.lengthOverrideMeters;
+    const length = lengthOf(course, all, undefined);
     return {
       course: course.id,
       name: course.name,
-      lengthMeters: override ?? max,
-      ...(variants.length > 1 ? { lengthRangeMeters: override !== undefined ? { min: override, max: override } : { min, max } } : {}),
+      lengthMeters: length.meters,
+      ...(variants.length > 1 ? { lengthRangeMeters: { min: length.min, max: length.max } } : {}),
       ...(course.climbMeters !== undefined ? { climbMeters: course.climbMeters } : {}),
       controlCount: Math.max(...variants.map(v => v.controlCodes.length)),
       variants,

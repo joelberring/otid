@@ -68,6 +68,10 @@ undre lila (COURSE_LOWER) ritas efter kartan, inte under kartans svarta (med öv
 men på kontorsskrivaren täcker lilan svart); bilder skrivs i RGB som de är och WebP/SVG utelämnas; textbredderna i
 banpåtrycket kommer ur Roboto, inte ur skärmens uppskattning.
 
+*Ändrat 2026-11-07 (städrundan, grenen `a3-tryck`):* servern litar inte på klientens lista: en bortvald gafflingsvariant
+(ADR-0198 beslut 5) tas bort ur jobbet och notiserna säger vilka ("Bortvalda varianter skrivs inte ut: …"); är alla valda
+bortvalda misslyckas jobbet med "Inget att skriva ut". Kartbytets del och dubbelsidigt följer med i förfrågan (ADR-0203).
+
 ## Risker och öppna frågor
 
 - **Provtryck:** dekorfärgernas alternativ, övertrycket och bilderna måste provas hos tryckeriet.

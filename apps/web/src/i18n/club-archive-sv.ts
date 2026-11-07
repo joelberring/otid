@@ -162,6 +162,7 @@ export const clubArchiveSv = {
     GEOREFERENCED: "Kartversionerna har olika georeferens i samma koordinatsystem. Kontrollerna flyttas via koordinaterna så att de hamnar på samma plats i terrängen.",
     MANUAL: {
       NO_GEOREFERENCE: "En av kartversionerna saknar georeferens, så O-Tid kan inte se om kartan har flyttats. Kontrollera banan på den nya kartan och justera vid behov.",
+      UNKNOWN_CRS: "Minst en av kartversionerna har ett okänt koordinatsystem, så O-Tid kan inte se om kartan har flyttats. Kontrollera banan på den nya kartan och justera vid behov.",
       DIFFERENT_CRS: "Kartversionerna har olika koordinatsystem. Kontrollera banan på den nya kartan och justera vid behov."
     } as const,
     outside: "Några kontroller hamnar utanför den nya kartan.",
@@ -210,6 +211,7 @@ export const clubArchiveSv = {
   members: {
     title: "Medlemmar",
     help: "Bjud in med en eller flera e-postadresser. Med e-post på servern får varje person ett mejl med en länk. Personen blir medlem när hen loggar in med adressen och har bekräftat den.",
+    readerHelp: "Medlemslistan visas för klubbens ägare och administratörer. Här står din egen roll.",
     invite: "Bjud in",
     email: "E-postadress",
     role: "Roll",

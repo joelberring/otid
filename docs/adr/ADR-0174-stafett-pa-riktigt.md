@@ -30,6 +30,9 @@ En sträcka där någon löpare har resultat går inte att ta bort. Nya sträcko
 Lag: ändra namn, klubb och lagnummer; ta bort ett lag utan resultat (laget, löparna och brickkopplingarna); stryk ett lag
 med resultat (`team.struck_at` och `entry.struck_at`, brickorna släpps, revisionerna står kvar, auditpost); "Hela laget
 ej start" sätter ej start på sträckor utan resultat. "Byt variant" per sträcka i lagkortet, med samma besked.
+Ändrat 2026-11-07: ny bana eller fast variant på en sträcka skriver om sträcklöparnas variant med ny version och en
+auditpost (`RELAY_LEG_VARIANTS_ASSIGNED_BY_ADMIN`, före och efter per löpare), och avläsningens paket ger sträckans fasta
+variant till en sträcklöpare som saknar egen (som Kartor till starten).
 
 ### 3. Omstart och placering
 - Fast omstart (`RESTART`): som förut; tiden kan ändras på tävlingsdagen under Start och berörda sträckor räknas om.

@@ -206,6 +206,12 @@ export function scoreDuplicatePair(a: DuplicateCandidate, b: DuplicateCandidate)
   const reasons: DuplicateReason[] = [];
   let score = 0;
   const content = compareContent(a.fingerprints, b.fingerprints);
+  const name = bestName(a, b);
+  const right = new Set(b.entryIds);
+  const shared = new Set(a.entryIds.filter(id => right.has(id))).size;
+  // Pappersytan (ogeorefererade kartor) säger lite i sig: samma A4-format är vanligt. Den räknas bara med minst svag
+  // namnlikhet eller en gemensam träning, annars blir två olika kartor med samma symboler och skala "kanske samma".
+  const extentCounts = name >= t.weakName || shared > 0;
   if (content.geo) {
     const { iou, contained } = content.geo;
     // Båda georefererade i samma koordinatsystem utan att mötas: olika områden, vad de än heter.
@@ -213,21 +219,18 @@ export function scoreDuplicatePair(a: DuplicateCandidate, b: DuplicateCandidate)
     if (iou >= t.sameArea || contained >= t.sameAreaContained) score += WEIGHTS.sameArea;
     else if (iou >= t.someArea || contained >= t.someAreaContained) score += WEIGHTS.someArea;
     if (iou >= t.someArea || contained >= t.someAreaContained) reasons.push({ kind: "AREA", overlap: round(iou), contained: round(Math.min(contained, 1)) });
-  } else if (content.extent >= t.sameExtent) {
+  } else if (extentCounts && content.extent >= t.sameExtent) {
     score += WEIGHTS.sameExtent;
     reasons.push({ kind: "SAME_EXTENT" });
-  } else if (content.extent >= t.sameExtent / 2) {
+  } else if (extentCounts && content.extent >= t.sameExtent / 2) {
     score += WEIGHTS.someExtent;
   }
-  const name = bestName(a, b);
   if (name >= t.sameName) { score += WEIGHTS.sameName; reasons.push({ kind: "SAME_NAME" }); }
   else if (name >= t.similarName) { score += WEIGHTS.similarName; reasons.push({ kind: "SIMILAR_NAME" }); }
   else if (name >= t.weakName) score += WEIGHTS.weakName;
   if (content.symbols >= t.sameSymbols) { score += WEIGHTS.sameSymbols; reasons.push({ kind: "SAME_SYMBOLS" }); }
   else if (content.symbols >= t.similarSymbols) { score += WEIGHTS.similarSymbols; reasons.push({ kind: "SIMILAR_SYMBOLS" }); }
   if (content.sameScale) { score += WEIGHTS.sameScale; reasons.push({ kind: "SAME_SCALE" }); }
-  const right = new Set(b.entryIds);
-  const shared = new Set(a.entryIds.filter(id => right.has(id))).size;
   if (shared > 0) {
     score += WEIGHTS.sharedTraining + (shared >= 3 ? WEIGHTS.manySharedTrainings : 0);
     reasons.push({ kind: "SHARED_TRAININGS", count: shared });

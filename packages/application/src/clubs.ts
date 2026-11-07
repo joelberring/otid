@@ -89,11 +89,14 @@ export async function clubUsage(tx: DbExecutor, clubId: string): Promise<ClubUsa
 async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId: string; role: ClubRole }): Promise<ClubView | undefined> {
   const [club] = await tx.select().from(schema.clubs).where(eq(schema.clubs.id, clubId));
   if (!club) return undefined;
+  const admin = clubRoleAtLeast(viewer.role, "ADMIN");
+  // ADR-0209 beslut 5–6: medlemslistan bara för ägare och administratörer; läsare och ledare ser bara sin egen rad (namnen på
+  // andra bekräftade medlemmar finns bara i väljaren "Från klubben").
   const members = await tx.select({ memberId: schema.clubMembers.id, accountId: schema.clubMembers.accountId, email: schema.userAccounts.email,
     displayName: schema.userAccounts.displayName, role: schema.clubMembers.role, addedAt: schema.clubMembers.addedAt })
     .from(schema.clubMembers).innerJoin(schema.userAccounts, eq(schema.userAccounts.id, schema.clubMembers.accountId))
-    .where(eq(schema.clubMembers.clubId, clubId)).orderBy(asc(schema.clubMembers.addedAt)).limit(2000);
-  const admin = clubRoleAtLeast(viewer.role, "ADMIN");
+    .where(and(eq(schema.clubMembers.clubId, clubId), admin ? undefined : eq(schema.clubMembers.accountId, viewer.accountId)))
+    .orderBy(asc(schema.clubMembers.addedAt)).limit(2000);
   const invitations = admin ? await tx.select({ invitationId: schema.clubInvitations.id, email: schema.clubInvitations.email,
     role: schema.clubInvitations.role, createdAt: schema.clubInvitations.createdAt }).from(schema.clubInvitations)
     .where(and(eq(schema.clubInvitations.clubId, clubId), isNull(schema.clubInvitations.acceptedAt), isNull(schema.clubInvitations.revokedAt)))
@@ -111,9 +114,9 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     .innerJoin(schema.organisations, eq(schema.organisations.id, schema.clubSettings.organisationId)).where(eq(schema.clubSettings.clubId, clubId));
   return {
     formatVersion: 1, clubId, name: club.name, viewer, eventorClub: linked?.name ?? null,
-    // Läsare ser medlemmarnas namn men inte adresserna; ADR-0209: inte heller den som kom "Från klubben".
-    members: members.map(member => ({ ...member, email: admin && !fromClub.accounts.has(member.accountId) ? member.email : "",
-      addedAt: member.addedAt.toISOString() })),
+    // Administratören ser adresserna, utom för den som kom "Från klubben" (ADR-0209). Inget konto-id i svaret.
+    members: members.map(({ accountId, ...member }) => ({ ...member, email: admin && !fromClub.accounts.has(accountId) ? member.email : "",
+      addedAt: member.addedAt.toISOString(), you: accountId === viewer.accountId })),
     invitations: invitations.map(row => ({ ...row, createdAt: row.createdAt.toISOString(), sentAt: sent.get(row.invitationId)?.toISOString() ?? null,
       ...(fromClub.invitations.has(row.invitationId) ? { email: "", displayName: fromClub.invitations.get(row.invitationId)! } : {}) })),
     usage: await clubUsage(tx, clubId),

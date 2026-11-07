@@ -51,7 +51,7 @@ export const raceBackupSv = {
     peopleNone: "Kopian har inga andra personer med behörighet.",
     roles: { ADMIN: "administratör", FUNCTIONARY: "funktionär", COURSE_EDIT: "banläggning", COURSE_SUGGEST: "banläggning (föreslå)",
       COURSE_COMMENT: "banläggning (kommentera)", COURSE_MAP: "kartritare" } as Record<string, string>,
-    noAccount: "saknar konto här",
+    fromClub: "En person från klubben (adressen följer inte med och får ingen behörighet här)",
     personalData: "Filen innehåller personuppgifter. Den nya tävlingen får samma uppgifter som kopian.",
     submit: "Skapa tävlingen",
     restoring: "Återställer …",

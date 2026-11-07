@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { MapBundleResponse, MapBundleRowDto, MapPrintList, MapReserveDto } from "@o-tid/contracts";
-import { mapBackPages, mapBundlesByClass, mapBundlesByTime, joinRaceParts, raceTitle } from "@o-tid/domain";
+import { mapBackPages, mapBundlesByClass, mapBundlesByTime, joinRaceParts, raceTitle, type MapBundleClassKey } from "@o-tid/domain";
 import { mapBundlesSv as text } from "../../i18n/map-bundles-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { toCsv } from "../../lib/lists/csv";
@@ -205,10 +205,15 @@ function Counts({ data, raceId, onSaved }: { data: MapBundleResponse; raceId: st
   </section>;
 }
 
+/** Varianternas ordning per klass och (stafett) sträcka, så att sträckor med samma koder inte blandas. */
+function variantOrderOf(data: MapBundleResponse): (key: MapBundleClassKey) => readonly string[] {
+  const variants = new Map(data.classes.map(row => [`${row.classId}:${row.leg ?? ""}`, row.variantCodes]));
+  return key => variants.get(`${key.classId}:${key.leg ?? ""}`) ?? [];
+}
+
 function orderedRows(data: MapBundleResponse, order: Order): MapBundleRowDto[] {
   if (order === "TIME") return data.rows;
-  const variants = new Map(data.classes.map(row => [row.name, row.variantCodes]));
-  return mapBundlesByClass(data.rows, name => variants.get(name) ?? []).flatMap(group => group.rows);
+  return mapBundlesByClass(data.rows, variantOrderOf(data)).flatMap(group => group.rows);
 }
 
 function bundleCsv(rows: readonly MapBundleRowDto[], clock: (instant: string | null) => string): string {
@@ -218,12 +223,12 @@ function bundleCsv(rows: readonly MapBundleRowDto[], clock: (instant: string | n
 
 function BundleTable({ data, order, clock }: { data: MapBundleResponse; order: Order; clock: (instant: string | null) => string }) {
   if (data.rows.length === 0) return <p>{text.bundleEmpty}</p>;
-  const variants = new Map(data.classes.map(row => [row.name, row.variantCodes]));
   const groups = order === "TIME"
     ? mapBundlesByTime(data.rows).map(group => ({ key: `${group.startTime}-${group.rows[0]!.classId}`,
       title: group.startTime ? clock(group.startTime) : `${text.freeStart} · ${group.rows[0]!.className}`, rows: group.rows }))
-    : mapBundlesByClass(data.rows, name => variants.get(name) ?? []).map(group => ({ key: `${group.className}-${group.variantCode}`,
-      title: `${group.className}${group.variantCode ? ` · ${group.variantCode}` : ""} · ${group.rows.length}`, rows: group.rows }));
+    : mapBundlesByClass(data.rows, variantOrderOf(data)).map(group => ({ key: `${group.className}-${group.leg ?? ""}-${group.variantCode}`,
+      title: `${group.className}${group.leg !== undefined ? ` · ${text.leg(group.leg)}` : ""}${group.variantCode ? ` · ${group.variantCode}` : ""} · ${group.rows.length}`,
+      rows: group.rows }));
   return <div className={styles.tableScroll}><table className={styles.table} aria-label={text.bundleTitle} data-testid="map-bundle-list">
     <thead><tr><th scope="col" className={styles.num}>{text.number}</th><th scope="col">{text.startTime}</th><th scope="col">{text.className}</th>
       <th scope="col">{text.variant}</th><th scope="col">{text.name}</th><th scope="col">{text.club}</th></tr></thead>

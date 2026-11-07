@@ -93,16 +93,18 @@ export const LOGGED_OUT_EVERYWHERE_PATH = "/organizer?utloggad=alla";
 
 /**
  * Loggar ut: servern spärrar sessionen (`/api/organizer/logout`, eller alla med `everywhere`), webbläsarens data tas bort och
- * sidan går till inloggningen. 401 betyder att sessionen redan var slut; det räknas som utloggad.
+ * sidan går till inloggningen. 401 betyder att sessionen redan var slut; det räknas som utloggad. "Du är utloggad" visas först
+ * när servern har svarat så (städrundan 2026-11-07): sessionskakan är HttpOnly och kan bara tas bort av servern. Utloggningen
+ * skickas också utan CSRF-kakan (servern kräver då exakt Origin); "från alla enheter" kräver kakan och ger annars ett fel (403).
+ * Ett nätverksfel kastas till anroparen.
  */
 export async function logOut(options: { everywhere?: boolean } = {}): Promise<{ ok: true } | { ok: false; status: number }> {
   let csrf = "";
   try { csrf = readOrganizerCsrf(document.cookie, new URL(window.location.href)); } catch { csrf = ""; }
-  if (csrf) {
-    const response = await fetch(options.everywhere ? "/api/account/logout-all" : "/api/organizer/logout",
-      { method: "POST", credentials: "same-origin", cache: "no-store", headers: { "x-otid-csrf": csrf } });
-    if (!response.ok && response.status !== 401) return { ok: false, status: response.status };
-  }
+  if (options.everywhere && !csrf) return { ok: false, status: 403 };
+  const response = await fetch(options.everywhere ? "/api/account/logout-all" : "/api/organizer/logout",
+    { method: "POST", credentials: "same-origin", cache: "no-store", headers: csrf ? { "x-otid-csrf": csrf } : {} });
+  if (!response.ok && response.status !== 401) return { ok: false, status: response.status };
   await clearPersonalBrowserData();
   window.location.assign(options.everywhere ? LOGGED_OUT_EVERYWHERE_PATH : LOGGED_OUT_PATH);
   return { ok: true };

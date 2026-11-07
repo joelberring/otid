@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { applyEdit, readPpen, writeIofCourseData } from "@o-tid/course-setting";
+import { allCourseVariants, applyEdit, readPpen, writeIofCourseData } from "@o-tid/course-setting";
 import { parseIofXml } from "@o-tid/iof-xml";
 import { classNamesOf, courseSettingProjection, scoreControlPoints } from "../src/course-setting-transfer";
 
@@ -121,5 +121,27 @@ describe("banläggningen som banfil", () => {
     const other = courseSettingProjection(document);
     if (!("projection" in other)) throw new Error(other.problem.error);
     expect(other.projection.data.controlPoints).toBeUndefined();
+  });
+
+  it("ADR-0198 tillägg 12: familjens längd är den längsta varianten som är kvar; fast längd går före för alla", async () => {
+    const ppen = await readFile(new URL("../../../fixtures/course-setting/gaffling-urval.ppen", import.meta.url), "utf8");
+    let document = readPpen(ppen).document;
+    const natt = document.courses.find(course => course.name === "Natt")!.id;
+    const all = allCourseVariants(document, natt);
+    const bdf = all.find(row => row.code === "BDF")!;
+    document = applyEdit(document, { type: "UPDATE_COURSE", course: natt, changes: { excludedVariants: [{ code: "BDF", controls: [...bdf.controlCodes] }] } }).document;
+    const kept = Math.max(...all.filter(row => row.code !== "BDF").map(row => row.lengthMeters));
+    const built = courseSettingProjection(document);
+    if (!("projection" in built)) throw new Error(built.problem.error);
+    const family = built.projection.data.courses.find(course => course.name === "Natt")!;
+    expect(family.lengthMeters).toBe(Math.round(kept / 100) * 100);
+    expect(family.lengthMeters).toBeLessThan(Math.round(bdf.lengthMeters / 100) * 100);
+    expect(family.variants!.map(variant => variant.code)).not.toContain("BDF");
+    const fixed = applyEdit(document, { type: "UPDATE_COURSE", course: natt, changes: { lengthOverrideMeters: 4321 } }).document;
+    const again = courseSettingProjection(fixed);
+    if (!("projection" in again)) throw new Error(again.problem.error);
+    const fixedFamily = again.projection.data.courses.find(course => course.name === "Natt")!;
+    expect(fixedFamily.lengthMeters).toBe(4300);
+    expect(new Set(fixedFamily.variants!.map(variant => variant.lengthMeters))).toEqual(new Set([4300]));
   });
 });

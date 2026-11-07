@@ -9,8 +9,8 @@ const LIFETIME_MS = 24 * 60 * 60 * 1000;
 export interface InvitationHandoff { email: string; next: string; mode: "register" | "login"; expiresAt: number }
 
 const sameEmail = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-/** Bara en sökväg i O-Tid (aldrig en annan webbplats). */
-const safePath = (path: unknown): path is string => typeof path === "string" && /^\/[A-Za-z0-9/_-]{1,200}$/.test(path);
+/** Bara en sökväg i O-Tid (aldrig en annan webbplats; `//värd` vore en adress till en annan värd). */
+export const safePath = (path: unknown): path is string => typeof path === "string" && /^\/(?!\/)[A-Za-z0-9/_-]{1,200}$/.test(path);
 
 function storage(): Storage | undefined {
   try { return window.localStorage; } catch { return undefined; }

@@ -9,7 +9,7 @@ import { anchorToPaper, PAPER_CORNERS, type PaperAnchor, type PaperRect } from "
 import type { TrainingMapPass } from "./training-types";
 import type { CourseSettingDocument, MapRect, PartOverlap } from "./types";
 import { CourseSettingEditError } from "./types";
-import { measuredLengthMeters, variations } from "./walk";
+import { courseLength } from "./summary";
 import { shapeParts, shapeSize, validateShapeItem, validateWhiteAreas } from "./paper-shapes";
 
 export type PaperAlign = "left" | "center" | "right";
@@ -470,9 +470,7 @@ const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").r
 function lengthMeters(document: CourseSettingDocument, course: string, variant: string | undefined): number | undefined {
   const found = document.courses.find(item => item.id === course);
   if (!found) return undefined;
-  if (found.lengthOverrideMeters !== undefined) return found.lengthOverrideMeters;
-  const all = variations(document, course).filter(item => variant === undefined || item.code === variant);
-  return Math.max(...(all.length > 0 ? all.map(item => measuredLengthMeters(document, course, item.choices)) : [measuredLengthMeters(document, course, null)]));
+  return courseLength(document, found.id, { variant }).meters;
 }
 
 /** Variablernas värden för ramen. */

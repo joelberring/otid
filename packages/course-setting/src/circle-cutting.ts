@@ -189,8 +189,11 @@ function allControlsScale(document: CourseSettingDocument): number {
   return document.event.allControlsPrintScale ?? document.event.mapScale;
 }
 
-/** Utskriftsskalorna där kontrollen syns: banornas och alla kontrollers. */
-function printScalesOf(document: CourseSettingDocument): (control: string) => number[] {
+/**
+ * Utskriftsskalorna där kontrollen syns: banornas och alla kontrollers, och `extra` (kartor med egen skala i utskriften,
+ * `SheetItem.printScale`, gäller alla kontroller: ringarna är då större eller mindre än i banans skala).
+ */
+function printScalesOf(document: CourseSettingDocument, extra: readonly number[] = []): (control: string) => number[] {
   const out = new Map<string, Set<number>>();
   for (const course of document.courses) {
     const scale = course.printScale ?? document.event.mapScale;
@@ -199,8 +202,8 @@ function printScalesOf(document: CourseSettingDocument): (control: string) => nu
       if (control) out.set(control, (out.get(control) ?? new Set()).add(scale));
     }
   }
-  const all = allControlsScale(document);
-  return control => [...new Set([...(out.get(control) ?? []), all])].sort((a, b) => a - b);
+  const all = [allControlsScale(document), ...extra.filter(scale => Number.isFinite(scale) && scale > 0)];
+  return control => [...new Set([...(out.get(control) ?? []), ...all])].sort((a, b) => a - b);
 }
 
 /** Ringarnas radier (kontroll en, mål två, yttre först) och linjebredd vid en utskriftsskala. */
@@ -213,8 +216,8 @@ function ringsAt(document: CourseSettingDocument, kind: ControlPoint["kind"], sc
  * Ringarna som detaljgapen räknas för: alla vanliga kontroller och mål, en ring per storlek som syns i banornas och alla
  * kontrollers utskriftsskalor (id = `detailGapKey`), med vinklarna där sträckorna går ut på någon bana.
  */
-export function detailCircles(document: CourseSettingDocument): DetailCircle[] {
-  const scalesOf = printScalesOf(document);
+export function detailCircles(document: CourseSettingDocument, extraScales: readonly number[] = []): DetailCircle[] {
+  const scalesOf = printScalesOf(document, extraScales);
   const legs = legAnglesByControl(document);
   const out: DetailCircle[] = [];
   for (const control of Object.values(document.controls)) {

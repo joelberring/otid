@@ -90,6 +90,13 @@ describe("scoreDuplicatePair", () => {
     expect(scoreDuplicatePair(candidate("a", "Karta 1", { fileNames: ["Älvsjöskogen.ocd"] }), candidate("b", "Älvsjöskogen"))?.level).toBe("MEDIUM");
   });
 
+  it("utan georeferens: samma pappersyta, symboler och skala räcker inte utan namnlikhet eller gemensam träning", () => {
+    const flat = (id: string, name: string, entries: string[] = []) => candidate(id, name, { fingerprints: [fingerprint(null)], entryIds: entries });
+    expect(scoreDuplicatePair(flat("a", "Solberga"), flat("b", "Hammarbyskogen"))).toBeNull();
+    // Med en gemensam träning räknas ytan (som förut).
+    expect(scoreDuplicatePair(flat("a", "Solberga", ["t1"]), flat("b", "Hammarbyskogen", ["t1"]))?.reasons).toContainEqual({ kind: "SAME_EXTENT" });
+  });
+
   it("parets ordning är densamma åt båda hållen", () => {
     const left = candidate("b", "Skogen");
     const right = candidate("a", "Skogen 2020");

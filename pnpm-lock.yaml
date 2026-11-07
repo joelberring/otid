@@ -90,6 +90,9 @@ importers:
       '@o-tid/map-file':
         specifier: workspace:*
         version: link:../../packages/map-file
+      '@o-tid/map-revision':
+        specifier: workspace:*
+        version: link:../../packages/map-revision
       '@o-tid/route-choice':
         specifier: workspace:*
         version: link:../../packages/route-choice

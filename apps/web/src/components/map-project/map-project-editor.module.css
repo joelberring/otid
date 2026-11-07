@@ -1,0 +1,48 @@
+/* ADR-0219 (K1): kartprojektets editor. Kartan fyller fönstret; verktygen överst, symbolerna och lagren i en sidopanel. */
+/* Som banläggningens editor: hela fönstret, ovanpå sidans rubrik. */
+.page { position: fixed; inset: 0; z-index: 10; width: 100%; max-width: none; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+  overscroll-behavior: none; background: var(--surface); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: .5rem 1rem; flex-wrap: wrap; padding: 8px 12px;
+  border-bottom: 1px solid var(--line); }
+.title { display: grid; gap: 0; min-width: 0; }
+.title a { font-size: var(--text-xs); color: var(--muted); }
+.title h1 { margin: 0; font-size: var(--text-lg, 1.25rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync { margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); }
+.notice { padding: 6px 12px 0; }
+.workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; }
+.toolbar { grid-column: 1; display: flex; flex-wrap: wrap; gap: .4rem; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.hint { grid-column: 1; margin: 0; padding: 4px 12px; color: var(--muted); font-size: var(--text-sm, .9rem); min-height: 1.6em; }
+.mapArea { grid-column: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+/* Kartvyn fyller rutan på alla bredder (banläggningens telefonregel för kartans ram gäller inte här). */
+.frame, .frame > div { position: absolute; inset: 0; }
+.loading { position: absolute; inset: auto 0 50% 0; text-align: center; color: var(--muted); z-index: 1; }
+.sidebar { grid-column: 2; grid-row: 1 / span 3; overflow: auto; border-left: 1px solid var(--line); padding: 8px 12px 24px; display: grid;
+  align-content: start; gap: 16px; }
+.panel h2 { margin: 0 0 .35rem; font-size: var(--text-md, 1rem); }
+.muted { margin: .2rem 0 .5rem; color: var(--muted); font-size: var(--text-sm, .9rem); }
+.search input { width: 100%; min-height: 40px; }
+.palette { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: 2px; max-height: 50dvh; overflow: auto; }
+.symbol { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 40px; padding: 2px 6px; border: 1px solid transparent;
+  border-radius: 6px; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.symbol:hover { background: var(--surface-2, #f3f3f3); }
+.symbol[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-2, #f3f3f3); }
+.symbol span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon { display: inline-block; width: 32px; height: 32px; flex: none; background: #fff; border: 1px solid var(--line); border-radius: 4px; }
+.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.rows li { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.actions { display: flex; gap: .35rem; flex-wrap: wrap; }
+.check { display: flex; gap: .5rem; align-items: center; min-height: 36px; }
+.check input { width: 20px; height: 20px; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.panelToggle { display: none; }
+
+@media (max-width: 760px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); position: relative; }
+  .panelToggle { display: inline-flex; }
+  /* Panelen ligger över kartans nedre del när den är öppen. */
+  .sidebar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; grid-column: 1; grid-row: 1 / span 3; max-height: 60dvh; border-left: 0;
+    border-top: 1px solid var(--line-strong); background: var(--surface); box-shadow: 0 -4px 16px rgb(0 0 0 / 12%); }
+  .sidebar[data-open="false"] { display: none; }
+  .hint { font-size: var(--text-xs, .8rem); }
+}

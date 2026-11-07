@@ -16,7 +16,9 @@ export type MapRenderRequest =
       readonly onlyColors?: readonly number[] | undefined;
       readonly background?: boolean | undefined;
       /** Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter. */
-      readonly passes?: readonly TrainingMapPass[] | undefined }
+      readonly passes?: readonly TrainingMapPass[] | undefined;
+      /** ADR-0219 (K1): symbolerna (id) som inte ritas; bara kartprojektets Worker läser det. */
+      readonly hiddenSymbols?: readonly string[] | undefined }
   /** Träningsläget: kartans symboler med grupp och antal (symbolfiltrets val per symbol). */
   | { readonly type: "symbols"; readonly id: number }
   /** Ringklipp (ADR-0180 beslut 10): detaljgapen för ringarna, räknade på kartfilen som redan är inläst. */

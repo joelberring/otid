@@ -1,0 +1,114 @@
+import type { MapObject, Path, Point } from "@o-tid/map-file";
+import { vertices, type VertexAddress } from "@o-tid/map-revision";
+import { toScreen, type Viewport } from "./course-setting-viewport";
+import type { CatalogSymbol } from "./map-project-protocol";
+
+/**
+ * ADR-0219 (K1): det som ritas ovanpå kartan i editorn och aldrig hamnar i kartfilen: markerat objekt med brytpunkter, objektet
+ * som dras eller ritas (med symbolens förenklade stil), utkastets punkter och objektet under pekaren.
+ */
+type Context = CanvasRenderingContext2D;
+
+const SELECT = "#1a5fd0";
+
+function tracePath(ctx: Context, view: Viewport, path: Path) {
+  for (const command of path) {
+    const end = toScreen(view, command);
+    if (command.type === "M") ctx.moveTo(end.x, end.y);
+    else if (command.type === "L") ctx.lineTo(end.x, end.y);
+    else {
+      const c1 = toScreen(view, { x: command.x1, y: command.y1 }), c2 = toScreen(view, { x: command.x2, y: command.y2 });
+      ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+    }
+  }
+}
+
+function traceObject(ctx: Context, view: Viewport, object: MapObject) {
+  ctx.beginPath();
+  if (object.kind === "line") tracePath(ctx, view, object.path);
+  else if (object.kind === "area") for (const ring of object.rings) { tracePath(ctx, view, ring); ctx.closePath(); }
+}
+
+/** Objektet ungefär som symbolen: ytans färg, linjens färg och bredd, en prick för punkter. */
+export function drawPreview(ctx: Context, view: Viewport, object: MapObject, symbol: CatalogSymbol | undefined) {
+  ctx.save();
+  if (object.kind === "point" || object.kind === "text") {
+    const at = toScreen(view, object.at);
+    ctx.fillStyle = symbol?.fill ?? "#333";
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, Math.max(3, 0.4 * view.pxPerMm), 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    traceObject(ctx, view, object);
+    if (object.kind === "area") {
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = symbol?.fill ?? "#999";
+      ctx.fill("evenodd");
+      ctx.globalAlpha = 1;
+    }
+    const width = (symbol?.width ?? (object.kind === "area" ? 0 : 0.18)) * view.pxPerMm;
+    if (width > 0 || object.kind === "line") {
+      ctx.lineWidth = Math.max(1, width);
+      ctx.strokeStyle = symbol?.stroke ?? "#333";
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function handle(ctx: Context, at: { x: number; y: number }, curve: boolean, active: boolean) {
+  const size = active ? 7 : 5;
+  ctx.beginPath();
+  if (curve) ctx.arc(at.x, at.y, size, 0, Math.PI * 2);
+  else ctx.rect(at.x - size, at.y - size, size * 2, size * 2);
+  ctx.fillStyle = active ? SELECT : "#fff";
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = SELECT;
+  ctx.stroke();
+}
+
+/** Markerat objekt: kontur och brytpunkter (fyrkant = hörn, ring = kurva), vald punkt ifylld. */
+export function drawSelection(ctx: Context, view: Viewport, object: MapObject, activeVertex: VertexAddress | undefined) {
+  ctx.save();
+  if (object.kind === "point" || object.kind === "text") {
+    const at = toScreen(view, object.at);
+    ctx.strokeStyle = SELECT; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(at.x, at.y, Math.max(10, 1.2 * view.pxPerMm), 0, Math.PI * 2); ctx.stroke();
+    // Vridningens riktning.
+    const angle = -object.angle * Math.PI / 180, reach = Math.max(18, 2 * view.pxPerMm);
+    ctx.beginPath(); ctx.moveTo(at.x, at.y); ctx.lineTo(at.x + Math.cos(angle) * reach, at.y + Math.sin(angle) * reach); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  traceObject(ctx, view, object);
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 5; ctx.stroke();
+  ctx.strokeStyle = SELECT; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+  for (const vertex of vertices(object)) {
+    handle(ctx, toScreen(view, vertex.at), vertex.curve, !!activeVertex && activeVertex.part === vertex.part && activeVertex.index === vertex.index);
+  }
+  ctx.restore();
+}
+
+/** Utkastets punkter (och linjen till pekaren medan man ritar). */
+export function drawDraftPoints(ctx: Context, view: Viewport, points: readonly { at: Point; handle?: Point | undefined }[], cursor: Point | undefined) {
+  ctx.save();
+  const last = points[points.length - 1];
+  if (last && cursor) {
+    const from = toScreen(view, last.at), to = toScreen(view, cursor);
+    ctx.strokeStyle = SELECT; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (const point of points) {
+    const at = toScreen(view, point.at);
+    if (point.handle) {
+      const tip = toScreen(view, { x: point.at.x + point.handle.x / 3, y: point.at.y + point.handle.y / 3 });
+      const back = toScreen(view, { x: point.at.x - point.handle.x / 3, y: point.at.y - point.handle.y / 3 });
+      ctx.strokeStyle = SELECT; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(back.x, back.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+    }
+    handle(ctx, at, !!point.handle, false);
+  }
+  ctx.restore();
+}

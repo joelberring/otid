@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { invitationMailOutcomeSchema, type MapProjectOutputResponse, type MapProjectRole, type MapProjectView } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
+import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { invitationMailNote } from "../../i18n/invitation-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase, mapProjectFailure } from "../../lib/map-project-client";
@@ -91,7 +92,9 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
           <dt>{text.page.base}</dt><dd>{project.base.mapName} · {project.base.fileName}{project.base.versionDate ? ` · ${project.base.versionDate}` : ""}</dd>
           <dt>{text.page.changes}</dt><dd>{text.page.changed(project.changedObjects)}</dd>
         </dl>
-        <p className={styles.muted}>{text.page.drawingSoon}</p>
+        <div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
+          data-testid="map-project-open-map">{mapProjectEditorSv.openMap}</Link></div>
+        <p className={styles.muted}>{mapProjectEditorSv.openMapHelp}</p>
         {project.base.format === "OCD" && <p className={styles.muted}>{text.page.ocadLater}</p>}
         <div className={styles.actions}>
           <a className={styles.buttonLink} href={`${base}/source`} download>{text.page.download}</a>

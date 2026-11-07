@@ -1,0 +1,117 @@
+import type { MapColor, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
+import type { KeyedState, ObjectKey, ObjectRef } from "@o-tid/map-revision";
+import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
+import type { Bounds } from "./course-setting-viewport";
+
+/**
+ * ADR-0219 (K1): kartprojektets karta ritas i en egen Worker (`map-project-worker.ts`). Den läser grundfilen en gång (med
+ * objektens källor), lägger projektets ändringar ovanpå (`editedObjects`) och ritar vyn med samma ritare som annars. Samma
+ * beställning av en bild som banläggningens (`render`), så att kartvyn (`CourseSettingMap`) kan användas som den är.
+ */
+export type SymbolGroup = "LANDFORMS" | "ROCK" | "WATER" | "VEGETATION" | "MANMADE" | "TECHNICAL" | "COURSE" | "OTHER";
+
+/** En symbol i paletten: vad den ritar, gruppen (lagren) och en förenklad stil för förhandsvisningen medan man drar. */
+export interface CatalogSymbol {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly kind: MapObject["kind"];
+  readonly group: SymbolGroup;
+  /** Förhandsvisningen: linjens färg och bredd (mm), ytans fyllning (CSS-färg). */
+  readonly stroke?: string | undefined;
+  readonly width?: number | undefined;
+  readonly fill?: string | undefined;
+  /** Liten bild av symbolen (PNG). */
+  readonly icon?: Blob | undefined;
+  /** Hur många objekt i kartan som har symbolen. */
+  readonly count: number;
+}
+
+export interface ProjectHit {
+  readonly key: ObjectKey;
+  /** Grundfilens objekt (null för ett nytt objekt). */
+  readonly ref: ObjectRef | null;
+  readonly object: MapObject;
+  readonly distance: number;
+}
+
+export type MapProjectRequest =
+  | { readonly type: "load"; readonly bytes: ArrayBuffer; readonly fileName: string; readonly sha256: string }
+  | Extract<MapRenderRequest, { type: "render" }>
+  /** Projektets objekt som inte är som i grundfilen (hela listan varje gång). */
+  | { readonly type: "states"; readonly states: readonly (readonly [ObjectKey, KeyedState])[] }
+  | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
+  | { readonly type: "catalog"; readonly id: number };
+
+export type MapProjectResponse =
+  | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
+      readonly colors: readonly MapColor[]; readonly objects: number }
+  | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
+  | { readonly type: "hit"; readonly id: number; readonly hits: readonly ProjectHit[] }
+  | { readonly type: "catalog"; readonly id: number; readonly symbols: readonly CatalogSymbol[] }
+  | { readonly type: "error"; readonly code: MapRenderErrorCode };
+
+/** Workern sedd från sidan. Bara det senaste svaret på varje slags fråga används. */
+export class MapProjectSession {
+  private readonly worker: Worker;
+  private latest = 0;
+  private onRendered: ((id: number, bitmap: ImageBitmap) => void) | undefined;
+  private latestHit = 0;
+  private onHit: ((hits: readonly ProjectHit[]) => void) | undefined;
+  private latestCatalog = 0;
+  private onCatalog: ((symbols: readonly CatalogSymbol[]) => void) | undefined;
+
+  constructor(createWorker: () => Worker, onLoaded: (loaded: Extract<MapProjectResponse, { type: "loaded" }>) => void,
+    onError: (code: MapRenderErrorCode) => void) {
+    this.worker = createWorker();
+    this.worker.onmessage = (event: MessageEvent<MapProjectResponse>) => {
+      const message = event.data;
+      if (message.type === "loaded") onLoaded(message);
+      else if (message.type === "error") onError(message.code);
+      else if (message.type === "hit") { if (message.id === this.latestHit) this.onHit?.(message.hits); }
+      else if (message.type === "catalog") { if (message.id === this.latestCatalog) this.onCatalog?.(message.symbols); }
+      else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
+      else message.bitmap.close();
+    };
+    this.worker.onerror = event => { event.preventDefault(); onError("FAILED"); };
+  }
+
+  private post(message: MapProjectRequest, transfer: Transferable[] = []) { this.worker.postMessage(message, transfer); }
+
+  load(bytes: ArrayBuffer, fileName: string, sha256: string) { this.post({ type: "load", bytes, fileName, sha256 }, [bytes]); }
+
+  render(request: Omit<Extract<MapRenderRequest, { type: "render" }>, "type" | "id">, onRendered: (id: number, bitmap: ImageBitmap) => void): number {
+    const id = ++this.latest;
+    this.onRendered = onRendered;
+    this.post({ type: "render", id, ...request });
+    return id;
+  }
+
+  states(states: ReadonlyMap<ObjectKey, KeyedState>) { this.post({ type: "states", states: [...states] }); }
+
+  hit(point: Point, tolerance: number, hidden: readonly string[], onHit: (hits: readonly ProjectHit[]) => void) {
+    const id = ++this.latestHit;
+    this.onHit = onHit;
+    this.post({ type: "hit", id, point, tolerance, hidden });
+  }
+
+  catalog(onCatalog: (symbols: readonly CatalogSymbol[]) => void) {
+    const id = ++this.latestCatalog;
+    this.onCatalog = onCatalog;
+    this.post({ type: "catalog", id });
+  }
+
+  close() { this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.worker.terminate(); }
+}
+
+/** Symbolens grupp efter ISOM/ISSprOM-numret (lagren i editorn). */
+export function symbolGroup(main: number): SymbolGroup {
+  if (main >= 100 && main < 200) return "LANDFORMS";
+  if (main >= 200 && main < 300) return "ROCK";
+  if (main >= 300 && main < 400) return "WATER";
+  if (main >= 400 && main < 500) return "VEGETATION";
+  if (main >= 500 && main < 600) return "MANMADE";
+  if (main >= 600 && main < 700) return "TECHNICAL";
+  if (main >= 700 && main < 800) return "COURSE";
+  return "OTHER";
+}

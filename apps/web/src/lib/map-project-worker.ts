@@ -1,0 +1,177 @@
+/// <reference lib="webworker" />
+import { drawMap, MapFileError, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
+import {
+  baseKeys, editedObjects, hitTest, objectBox, objectRefFor, symbolObjectKind, type Box, type KeyedState, type ObjectKey, type ObjectRef
+} from "@o-tid/map-revision";
+import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
+import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
+
+/**
+ * ADR-0219 (K1): kartprojektets karta i webbläsaren. Grundfilen läses en gång med objektens källor; projektets ändringar
+ * (`states`) läggs ovanpå med `editedObjects` och kartan ritas med `drawMap` som annars (bara objekten i bild, rumsligt index
+ * per version av kartan). Träffarna på kartan räknas här, så att sidan aldrig behöver hela kartan.
+ */
+declare const self: DedicatedWorkerGlobalScope;
+
+const post = (message: MapProjectResponse, transfer: Transferable[] = []) => self.postMessage(message, transfer);
+
+let base: ParsedMap | undefined;
+let sha256 = "";
+let keys: ObjectKey[] = [];
+const refs = new Map<ObjectKey, ObjectRef>();
+/** Kartan med ändringarna, nycklarna i samma ordning och objektens rutor (för träffarna). */
+let current: { map: ParsedMap; keys: readonly ObjectKey[]; boxes: Box[] } | undefined;
+let queued: Extract<MapProjectRequest, { type: "render" }> | undefined;
+let drawing = false;
+
+function rebuild(states: ReadonlyMap<ObjectKey, KeyedState>) {
+  if (!base) return;
+  const edited = editedObjects(base, states, keys);
+  current = { map: { ...base, objects: edited.objects }, keys: edited.keys, boxes: edited.objects.map(objectBox) };
+}
+
+function render(request: Extract<MapProjectRequest, { type: "render" }>) {
+  if (!current) return;
+  const width = Math.max(1, Math.min(MAX_RENDER_SIDE, Math.round(request.width)));
+  const height = Math.max(1, Math.min(MAX_RENDER_SIDE, Math.round(request.height)));
+  const canvas = new OffscreenCanvas(width, height);
+  const context = canvas.getContext("2d");
+  if (!context) { post({ type: "error", code: "NO_CANVAS" }); return; }
+  drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true,
+    ...(request.hiddenSymbols?.length ? { hiddenSymbols: new Set(request.hiddenSymbols) } : {}) });
+  const bitmap = canvas.transferToImageBitmap();
+  post({ type: "rendered", id: request.id, bitmap }, [bitmap]);
+}
+
+function drain() {
+  if (drawing) return;
+  drawing = true;
+  setTimeout(() => {
+    try {
+      const next = queued;
+      queued = undefined;
+      if (next) render(next);
+    } catch (error) {
+      console.error("Kartan kunde inte ritas", error);
+      post({ type: "error", code: "FAILED" });
+    } finally {
+      drawing = false;
+      if (queued) drain();
+    }
+  }, 0);
+}
+
+const hex = (rgb: { r: number; g: number; b: number }) =>
+  `#${[rgb.r, rgb.g, rgb.b].map(value => Math.round(Math.max(0, Math.min(1, value)) * 255).toString(16).padStart(2, "0")).join("")}`;
+
+/** Förenklad stil för förhandsvisningen: huvudlinjens färg och bredd, ytans fyllning, punktens första färg. */
+function previewStyle(map: ParsedMap, symbol: MapSymbol, depth = 0): Pick<CatalogSymbol, "stroke" | "width" | "fill"> {
+  const color = (id: number | undefined) => {
+    const found = id === undefined ? undefined : map.colors.find(row => row.id === id);
+    return found ? hex(found.rgb) : undefined;
+  };
+  switch (symbol.kind) {
+    case "LINE": {
+      const main = [...symbol.strokes].sort((a, b) => b.width - a.width)[0];
+      return { stroke: color(main?.color) ?? "#333333", width: main?.width ?? 0.2 };
+    }
+    case "AREA": return { fill: color(symbol.fill ?? symbol.hatches[0]?.color ?? symbol.pattern?.elements[0]?.color), stroke: color(symbol.border?.[0]?.color),
+      width: symbol.border?.[0]?.width };
+    case "POINT": return { fill: color(symbol.elements[0]?.color) ?? "#333333" };
+    case "TEXT": return { fill: color(symbol.color) };
+    case "COMBINED": {
+      if (depth > 4) return {};
+      const parts = symbol.parts.map(id => map.symbols.get(id)).filter((part): part is MapSymbol => !!part).map(part => previewStyle(map, part, depth + 1));
+      return { fill: parts.find(part => part.fill)?.fill, stroke: parts.find(part => part.stroke)?.stroke, width: parts.find(part => part.width)?.width };
+    }
+  }
+}
+
+const ICON_PX = 32;
+
+/** Ett exempelobjekt för symbolens lilla bild (8 mm i rutan). */
+function sample(kind: MapObject["kind"], symbol: string): MapObject | undefined {
+  if (kind === "point") return { kind: "point", symbol, at: { x: 0, y: 0 }, angle: 0 };
+  if (kind === "line") return { kind: "line", symbol, path: [{ type: "M", x: -3.4, y: -1.2 }, { type: "C", x1: -1.2, y1: 2.2, x2: 1.2, y2: -2.2, x: 3.4, y: 1.2 }] };
+  if (kind === "area") return { kind: "area", symbol, angle: 0, rings: [[{ type: "M", x: -3.2, y: -3.2 }, { type: "L", x: 3.2, y: -3.2 },
+    { type: "L", x: 3.2, y: 3.2 }, { type: "L", x: -3.2, y: 3.2 }]] };
+  return undefined;
+}
+
+async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
+  const counts = new Map<string, number>();
+  for (const object of current?.map.objects ?? map.objects) counts.set(object.symbol, (counts.get(object.symbol) ?? 0) + 1);
+  const out: CatalogSymbol[] = [];
+  for (const symbol of map.symbols.values()) {
+    if (symbol.hidden) continue;
+    const kind = symbolObjectKind(map, symbol);
+    let icon: Blob | undefined;
+    const object = sample(kind, symbol.id);
+    if (object) {
+      try {
+        const canvas = new OffscreenCanvas(ICON_PX, ICON_PX);
+        const context = canvas.getContext("2d");
+        if (context) {
+          drawMap(context, { ...map, objects: [object] }, { pxPerMm: ICON_PX / 8, origin: { x: -4, y: 4 }, background: false });
+          icon = await canvas.convertToBlob({ type: "image/png" });
+        }
+      } catch { icon = undefined; }
+    }
+    out.push({ id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol), icon,
+      count: counts.get(symbol.id) ?? 0 });
+  }
+  return out.sort((a, b) => a.code.localeCompare(b.code, "sv", { numeric: true }));
+}
+
+self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
+  const request = event.data;
+  if (request.type === "load") {
+    try {
+      base = readMapFile(new Uint8Array(request.bytes), request.fileName, { sources: true });
+    } catch (error) {
+      if (error instanceof MapFileError) post({ type: "error", code: error.code });
+      else { console.error("Kartfilen kunde inte läsas", error); post({ type: "error", code: "FAILED" }); }
+      return;
+    }
+    sha256 = request.sha256;
+    keys = baseKeys(base);
+    refs.clear();
+    base.objects.forEach((object, index) => {
+      const ref = objectRefFor(sha256, object);
+      if (ref) refs.set(keys[index]!, ref);
+    });
+    rebuild(new Map());
+    const bounds = base.bounds ?? { minX: -100, minY: -100, maxX: 100, maxY: 100 };
+    post({ type: "loaded", bounds, scale: base.scale, georeference: base.georeference, colors: base.colors, objects: base.objects.length });
+    return;
+  }
+  if (request.type === "states") { rebuild(new Map(request.states)); return; }
+  if (request.type === "render") { queued = request; drain(); return; }
+  if (request.type === "hit") {
+    const hits: ProjectHit[] = [];
+    if (current) {
+      const hidden = new Set(request.hidden);
+      const symbols = hidden.size === 0 ? current.map.symbols
+        : new Map([...current.map.symbols].map(([id, symbol]) => [id, hidden.has(id) ? { ...symbol, hidden: true } : symbol]));
+      const objects = current.map.objects;
+      for (const candidate of hitTest({ objects, keys: current.keys, boxes: current.boxes, symbols }, request.point, request.tolerance)) {
+        const index = current.keys.indexOf(candidate.key);
+        const object = objects[index];
+        if (!object) continue;
+        // Källan i grundfilen följer inte med till sidan (bara referensen).
+        const plain = { ...object, source: undefined } as MapObject;
+        delete (plain as { source?: unknown }).source;
+        hits.push({ key: candidate.key, ref: refs.get(candidate.key) ?? null, object: plain, distance: candidate.distance });
+      }
+    }
+    post({ type: "hit", id: request.id, hits });
+    return;
+  }
+  if (request.type === "catalog") {
+    if (!base) { post({ type: "catalog", id: request.id, symbols: [] }); return; }
+    catalog(base).then(symbols => post({ type: "catalog", id: request.id, symbols }), error => {
+      console.error("Symbolerna kunde inte listas", error);
+      post({ type: "catalog", id: request.id, symbols: [] });
+    });
+  }
+};

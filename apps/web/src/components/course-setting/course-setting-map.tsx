@@ -84,8 +84,10 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  * ett eget lager som bara finns på skärmen; en dragning med fingret lyfts ovanför fingret (`liftedPoint`).
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts, others, marks, analysis, label, cursor, handlers, handle, noteMarks,
-  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra, sketches, mapPasses }: {
-  session: MapRenderSession | undefined;
+  selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra, sketches, mapPasses, renderKey,
+  hiddenSymbols }: {
+  /** Bara `render` används (kartprojektets editor har en egen Worker med samma beställning, ADR-0219). */
+  session: Pick<MapRenderSession, "render"> | undefined;
   mapBounds: Bounds | undefined;
   primitives: readonly OverprintPrimitive[];
   faded: readonly OverprintPrimitive[];
@@ -121,6 +123,13 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   sketches?: SketchLayer | undefined;
   /** Träningsläget (ADR-0192): kartan i pass med klippning och filter (före och efter syns direkt). */
   mapPasses?: readonly TrainingMapPass[] | undefined;
+  /**
+   * ADR-0219 (K1): kartan har ändrats (kartprojektets ändringar): ny bild för samma vy, och översikten gäller inte längre.
+   * Vilket värde som helst; en ändring räcker.
+   */
+  renderKey?: unknown;
+  /** ADR-0219 (K1): symbolerna (id) som inte ritas (lagren i kartprojektets editor). */
+  hiddenSymbols?: readonly string[] | undefined;
 }) {
   const [imageVersion, setImageVersion] = useState(0);
   const [hoverCursor, setHoverCursor] = useState<string>();
@@ -131,7 +140,13 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   const screen = useRef<HTMLCanvasElement>(null);
   /** Fingret under en lyft dragning (skärmpixlar), för linjen till kontrollen. */
   const [finger, setFinger] = useState<{ x: number; y: number }>();
-  const [view, setView] = useState<Viewport>();
+  const [view, setViewState] = useState<Viewport>();
+  /**
+   * Kartan har inte flyttats eller zoomats av användaren: en ny storlek på rutan passar in hela kartan igen (t.ex. när
+   * sidans stilar laddas efter första mätningen, eller telefonen vrids). Annars behålls mitten och skalan.
+   */
+  const untouched = useRef(true);
+  const setView: typeof setViewState = next => { untouched.current = false; setViewState(next); };
   const drawn = useRef<Drawn | undefined>(undefined);
   const overview = useRef<Drawn | undefined>(undefined);
   const staleOverview = useRef(false);
@@ -168,7 +183,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const observer = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
       if (width < 1 || height < 1) return;
-      setView(current => current ? resize(current, width, height) : mapBounds ? fitBounds(mapBounds, width, height, undefined, insets()) : current);
+      setViewState(current => current && !untouched.current ? resize(current, width, height)
+        : mapBounds ? fitBounds(mapBounds, width, height, undefined, insets()) : current ? resize(current, width, height) : current);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -177,7 +193,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const element = box.current;
     if (!mapBounds || !element || view) return;
     const { width, height } = element.getBoundingClientRect();
-    if (width > 0 && height > 0) setView(fitBounds(mapBounds, width, height, undefined, insets()));
+    if (width > 0 && height > 0) setViewState(fitBounds(mapBounds, width, height, undefined, insets()));
   }, [mapBounds, view]);
 
   useImperativeHandle(handle, () => ({
@@ -206,7 +222,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const timer = setTimeout(() => {
       const ratio = Math.min(window.devicePixelRatio || 1, MAX_RENDER_SIDE / Math.max(view.width, view.height));
       const request = { width: view.width * ratio, height: view.height * ratio, pxPerMm: view.pxPerMm * ratio, origin: topLeft(view),
-        ...(mapPasses ? { passes: mapPasses } : {}) };
+        ...(mapPasses ? { passes: mapPasses } : {}), ...(hiddenSymbols ? { hiddenSymbols } : {}) };
       session.render(request, (_id, bitmap) => {
         const next = { bitmap, view, passes: mapPasses?.length ?? 0 };
         if (staleOverview.current) {
@@ -224,14 +240,16 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       });
     }, 120);
     return () => clearTimeout(timer);
-  }, [session, view, mapPasses]);
-  // En ny träning: översiktsbilden gäller inte längre (den ritades med de gamla passen) och byts mot nästa bild.
-  const passesRef = useRef(mapPasses);
+  }, [session, view, mapPasses, renderKey, hiddenSymbols]);
+  // En ny träning, ändrad karta eller andra lager: översiktsbilden gäller inte längre (den ritades med det gamla) och byts mot
+  // nästa bild.
+  const passesRef = useRef<unknown[]>([mapPasses, renderKey, hiddenSymbols]);
   useEffect(() => {
-    if (passesRef.current === mapPasses) return;
-    passesRef.current = mapPasses;
+    const [passes, key, hidden] = passesRef.current;
+    if (passes === mapPasses && key === renderKey && hidden === hiddenSymbols) return;
+    passesRef.current = [mapPasses, renderKey, hiddenSymbols];
     staleOverview.current = true;
-  }, [mapPasses]);
+  }, [mapPasses, renderKey, hiddenSymbols]);
   useEffect(() => () => {
     if (drawn.current && drawn.current !== overview.current) drawn.current.bitmap.close();
     overview.current?.bitmap.close();
@@ -463,7 +481,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       <Button variant="secondary" aria-label={text.zoomIn} title={text.zoomIn} onClick={() => zoom(1.5)}>+</Button>
       <Button variant="secondary" aria-label={text.zoomOut} title={text.zoomOut} onClick={() => zoom(1 / 1.5)}>−</Button>
       <Button variant="secondary" aria-label={text.fit} title={text.fit} disabled={!mapBounds}
-        onClick={() => setView(previous => previous && mapBounds ? fitBounds(mapBounds, previous.width, previous.height, undefined, insets()) : previous)}>⤢</Button>
+        onClick={() => { setViewState(previous => previous && mapBounds ? fitBounds(mapBounds, previous.width, previous.height, undefined, insets()) : previous);
+          untouched.current = true; }}>⤢</Button>
     </div>
   </div>;
 }

@@ -5,13 +5,14 @@ import { mapPointToProjected, projectedToMapPoint, type Point } from "@o-tid/map
 /**
  * ADR-0194 beslut 4: "Flytta banorna till senaste kartversionen". Jämför kartversionernas georeferens (koordinatsystem,
  * referenspunkt, vridning, skala) och yta. Samma georeferens: kontrollerna behåller sina lägen. Olika georeferens i samma
- * koordinatsystem: lägena räknas om via terrängens koordinater. Annars (ingen georeferens eller olika koordinatsystem):
- * arrangören ser banan på den nya kartan och kan förskjuta den innan den används.
+ * koordinatsystem: lägena räknas om via terrängens koordinater. Annars (ingen georeferens, okänt koordinatsystem eller olika
+ * koordinatsystem): arrangören ser banan på den nya kartan och kan förskjuta den innan den används. Okänt koordinatsystem
+ * (OCAD 8, OCAD 9–11 utan kod) jämförs aldrig på beskrivningen: två olika okända system kan ha samma text (ADR-0196).
  */
 export type VersionFacts = Pick<RaceMapSourceMetadata, "bounds" | "georeference">;
 type Georeference = NonNullable<RaceMapSourceMetadata["georeference"]>;
 
-export type AlignmentKind = { kind: "SAME" } | { kind: "GEOREFERENCED" } | { kind: "MANUAL"; reason: "NO_GEOREFERENCE" | "DIFFERENT_CRS" };
+export type AlignmentKind = { kind: "SAME" } | { kind: "GEOREFERENCED" } | { kind: "MANUAL"; reason: "NO_GEOREFERENCE" | "UNKNOWN_CRS" | "DIFFERENT_CRS" };
 export interface AlignmentCheck {
   readonly alignment: AlignmentKind;
   readonly extentChanged: boolean;
@@ -21,10 +22,9 @@ export interface AlignmentCheck {
 
 const close = (a: number, b: number, tolerance: number) => Math.abs(a - b) <= tolerance;
 
+/** Bara kända (EPSG) koordinatsystem kan vara samma; okända jämförs inte. */
 function sameCrs(a: Georeference, b: Georeference): boolean {
-  if (a.crs.kind !== b.crs.kind) return false;
-  return a.crs.kind === "EPSG" ? a.crs.code === (b.crs as { code: number }).code
-    : a.crs.description === (b.crs as { description: string }).description;
+  return a.crs.kind === "EPSG" && b.crs.kind === "EPSG" && a.crs.code === b.crs.code;
 }
 
 export function sameGeoreference(a: Georeference, b: Georeference): boolean {
@@ -38,6 +38,9 @@ export function checkAlignment(from: VersionFacts, to: VersionFacts): AlignmentC
     && close(from.bounds.minY, to.bounds.minY, 0.5) && close(from.bounds.maxY, to.bounds.maxY, 0.5));
   const identity = (point: Point) => point;
   if (!from.georeference || !to.georeference) return { alignment: { kind: "MANUAL", reason: "NO_GEOREFERENCE" }, extentChanged, move: identity };
+  if (from.georeference.crs.kind === "UNKNOWN" || to.georeference.crs.kind === "UNKNOWN") {
+    return { alignment: { kind: "MANUAL", reason: "UNKNOWN_CRS" }, extentChanged, move: identity };
+  }
   if (!sameCrs(from.georeference, to.georeference)) return { alignment: { kind: "MANUAL", reason: "DIFFERENT_CRS" }, extentChanged, move: identity };
   if (sameGeoreference(from.georeference, to.georeference)) return { alignment: { kind: "SAME" }, extentChanged, move: identity };
   const source = from.georeference, target = to.georeference;

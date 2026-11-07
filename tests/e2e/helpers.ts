@@ -249,7 +249,8 @@ export async function warmUpload(page: Page, path: string): Promise<void> {
  */
 export async function warmCourseSetting(page: Page, raceId: string): Promise<void> {
   const admin = `/api/admin/races/${raceId}/administrator`;
-  for (const path of ["course-setting", "map/source", "route-choice", "course-setting/notes", "course-setting/suggestions", "course-setting/inspections"]) {
+  for (const path of ["course-setting", "map/source", `map/source/${"0".repeat(64)}`, "route-choice", "course-setting/notes", "course-setting/suggestions",
+    "course-setting/inspections"]) {
     await warmRoute(page, `${admin}/${path}`);
   }
   for (const path of ["course-setting/import", "course-setting/edits", "course-setting/notes", "course-setting/transfer"]) await warmRoute(page, `${admin}/${path}`, "POST");

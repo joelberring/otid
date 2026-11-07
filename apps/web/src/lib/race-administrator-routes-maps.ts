@@ -27,6 +27,30 @@ function problem(error: RaceMapProblem, quota?: MapQuotaExceeded): Response {
     usedMb: Math.ceil(quota.usedBytes / MB), limitMb: Math.floor(quota.limitBytes / MB), neededMb: Math.ceil(quota.neededBytes / MB) } } : {}) }), 422);
 }
 
+/**
+ * ADR-0218: hur länge webbläsaren använder sin kopia av en kartfil som hämtats med sin sha256 i adressen utan att fråga (ett
+ * dygn, som papperets bilder). Sedan frågar den med ETag: behörigheten prövas och svaret är 304 utan filen.
+ */
+export const MAP_SOURCE_MAX_AGE_SECONDS = 24 * 60 * 60;
+const SHA256 = /^[a-f0-9]{64}$/;
+
+/** Värdet i If-None-Match (`"sha"` eller `W/"sha"`), eller undefined när det inte är en sha256. */
+export function etagValue(header: string | null): string | undefined {
+  const value = /^(?:W\/)?"([a-f0-9]{64})"$/.exec((header ?? "").trim())?.[1];
+  return value && SHA256.test(value) ? value : undefined;
+}
+
+/**
+ * ADR-0218: kartfilen är oföränderlig när adressen bär dess sha256 (`map/source/<sha256>` lika med filens). Då får webbläsaren behålla
+ * den (`private`: aldrig i en delad cache; `immutable`: ingen ny fråga under tiden) med ETag, och bara för samma kakor
+ * (`Vary: Cookie`, en annan inloggning i samma webbläsare hämtar och prövas på nytt). Utan sha256 eller med en annan (filen
+ * har bytts) sparas inget, som förut.
+ */
+export function mapSourceCacheHeaders(requested: string | null, sha256: string): Record<string, string> {
+  if (requested === null || !SHA256.test(requested) || requested !== sha256) return { ...privateHeaders };
+  return { ...privateHeaders, "cache-control": `private, max-age=${MAP_SOURCE_MAX_AGE_SECONDS}, immutable`, etag: `"${sha256}"`, vary: "Cookie" };
+}
+
 /** Filens namn i en header (URI-kodad); ett trasigt namn ger fallback i stället för fel. */
 function headerFileName(request: Request): string {
   const raw = request.headers.get("x-otid-file-name") ?? "";
@@ -102,11 +126,13 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
     // Steg 59 (ADR-0179): kartfilen (OCAD eller Mapper) med bilden ritad i webbläsaren, i en uppladdning.
     case "race-map-source": {
       if (request.method === "GET") {
-        const result = await dependencies.raceMapSourceFile(db, input);
-        if (result.status !== "ok") return resultFailure(result.status);
+        const result = await dependencies.raceMapSourceFile(db, input, undefined, { ifNoneMatch: etagValue(request.headers.get("if-none-match")) });
+        if (result.status !== "ok" && result.status !== "not-modified") return resultFailure(result.status);
+        const headers = mapSourceCacheHeaders(action.sha256 ?? null, result.sha256);
+        if (result.status === "not-modified") return new Response(null, { status: 304, headers });
         const extension = result.format === "OCD" ? "ocd" : "omap";
         const name = result.fileName.replace(/[^\p{L}\p{N} ._-]/gu, "_").replace(/\.(ocd|omap|xmap)$/i, "") || "karta";
-        return new Response(new Uint8Array(result.file), { headers: { ...privateHeaders, "content-type": "application/octet-stream",
+        return new Response(new Uint8Array(result.file), { headers: { ...headers, "content-type": "application/octet-stream",
           "content-disposition": `attachment; filename="karta.${extension}"; filename*=UTF-8''${encodeURIComponent(`${name}.${extension}`)}`,
           "content-length": String(result.file.byteLength) } });
       }

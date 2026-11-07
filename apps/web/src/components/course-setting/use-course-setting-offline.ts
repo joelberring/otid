@@ -31,10 +31,11 @@ export { fieldStore };
 
 /**
  * Kartfilen: från telefonen när den sparade är samma fil som på servern (ingen ny hämtning av 5–60 MB), annars från
- * servern; utan nät den sparade även om den är äldre (`onOlder` säger det).
+ * servern; utan nät den sparade även om den är äldre (`onOlder` säger det). Från servern med filens sha256 i adressen, så
+ * att webbläsaren inte hämtar samma fil igen nästa gång (ADR-0218); `onProgress` får andelen som hämtats.
  */
-export async function loadMapFile(raceId: string, sha256: string, storage: FieldStore, signal: AbortSignal, onOlder: () => void)
-  : Promise<{ bytes: ArrayBuffer; fileName: string }> {
+export async function loadMapFile(raceId: string, sha256: string, storage: FieldStore, signal: AbortSignal, onOlder: () => void,
+  onProgress?: (fraction: number) => void): Promise<{ bytes: ArrayBuffer; fileName: string }> {
   const stored = await storage.mapInfo(raceId).catch(() => undefined);
   const fromPhone = async () => {
     const map = await storage.readMap(raceId);
@@ -45,7 +46,7 @@ export async function loadMapFile(raceId: string, sha256: string, storage: Field
     if (map) return map;
   }
   try {
-    return await fetchMapSource(raceId, signal);
+    return await fetchMapSource(raceId, signal, { sha256, onProgress });
   } catch (error) {
     const map = stored && !signal.aborted ? await fromPhone().catch(() => undefined) : undefined;
     if (!map) throw error;

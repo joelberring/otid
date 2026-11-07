@@ -31,7 +31,7 @@
 
 @media print {
   body:has(.sheet) { background: #fff; }
-  body:has(.sheet) > header, body:has(.sheet) > .site-footer, .tools { display: none !important; }
+  body:has(.sheet) > header, body:has(.sheet) > :global(.site-footer), .tools { display: none !important; }
   body:has(.sheet) main { max-width: none; margin: 0; padding: 0; }
   .page { display: block; padding: 0; }
   .sheet { width: 210mm; height: 297mm; min-height: 0; max-width: none; margin: 0; border: 0;

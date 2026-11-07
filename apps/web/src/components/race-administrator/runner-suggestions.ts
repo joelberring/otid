@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { runnerSearchResponseSchema, type RunnerClub, type RunnerSearchRequest, type RunnerSuggestion } from "@o-tid/contracts";
+import { foldForSearch } from "@o-tid/domain";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 
 /**
@@ -10,10 +11,6 @@ import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
  * serverfel blir det inga förslag; formuläret fungerar som vanligt.
  */
 const DEBOUNCE_MS = 250;
-
-function fold(value: string): string {
-  return value.toLocaleLowerCase("sv").normalize("NFD").replace(/\p{M}/gu, "").trim();
-}
 
 async function search(base: string, request: RunnerSearchRequest, signal: AbortSignal) {
   const token = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
@@ -60,10 +57,10 @@ export function useRunnerSuggestions(raceId: string, name: string, club: string,
 /** Eventors id gäller bara så länge namnet är löparens och klubben löparens eller en vald klubb ur Eventor. */
 export function registrationEventorIds(fields: { givenName: string; familyName: string; organisationName: string },
   runner: RunnerSuggestion | undefined, clubs: readonly RunnerClub[]): { eventorPersonId?: string; eventorOrganisationId?: string } {
-  const sameName = runner && fold(runner.givenName) === fold(fields.givenName) && fold(runner.familyName) === fold(fields.familyName);
-  const club = fold(fields.organisationName);
-  const clubId = !club ? undefined : runner?.clubId && runner.club && fold(runner.club) === club ? runner.clubId
-    : clubs.find((row) => fold(row.name) === club)?.id;
+  const sameName = runner && foldForSearch(runner.givenName) === foldForSearch(fields.givenName) && foldForSearch(runner.familyName) === foldForSearch(fields.familyName);
+  const club = foldForSearch(fields.organisationName);
+  const clubId = !club ? undefined : runner?.clubId && runner.club && foldForSearch(runner.club) === club ? runner.clubId
+    : clubs.find((row) => foldForSearch(row.name) === club)?.id;
   return { ...(sameName && runner.personId ? { eventorPersonId: runner.personId } : {}), ...(clubId ? { eventorOrganisationId: clubId } : {}) };
 }
 

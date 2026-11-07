@@ -1,9 +1,11 @@
+import { plural } from "./plural";
+
 /** ADR-0211 beslut 6: "Färger för tryck" på utskriftssidan (profil, norm, banans färg, förslaget och färgerna för hand). */
 export const printColorsSv = {
   heading: "Färger för tryck",
   /** ADR-0215: statusraden, lägena och Avancerat. */
   statusMapOwn: (total: number, over: number) => total === 0 ? "Färger: kartans egna, i normens ordning"
-    : `Färger: kartans egna, i normens ordning (${total} ${total === 1 ? "färg" : "färger"}, ${over} över banan)`,
+    : `Färger: kartans egna, i normens ordning (${plural(total, "färg", "färger")}, ${over} över banan)`,
   statusBl: (family: "FOREST" | "SPRINT", pending: number, total: number) => `Färger: tryck hos BL (${family === "SPRINT" ? "sprint" : "skog"}), ${
     total === 0 ? "kartan läses" : pending === 0 ? "alla godkända" : pending === 1 ? "1 färg kvar att godkänna" : `${pending} färger kvar att godkänna`}`,
   statusCustom: (name: string) => `Färger: Egna inställningar (Avancerat) – ${name}`,

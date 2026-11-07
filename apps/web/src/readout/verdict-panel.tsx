@@ -1,7 +1,8 @@
 /** Avläsningens besked (stort, med sträcktider, stafett, rogaining och placering) och raderna i Senaste avläsningar. */
 import { useMemo } from "react";
 import type { ReadoutPackage } from "@o-tid/contracts";
-import { evaluateLocally, formatRunningTime, type LocalVerdict } from "./evaluate";
+import { formatDuration } from "@o-tid/domain";
+import { evaluateLocally, type LocalVerdict } from "./evaluate";
 import type { QueuedReadout, QueuedRegistration } from "./store";
 import { RegistrationStatus } from "./registration-form";
 import { startPunchText } from "../lib/start-punch-text";
@@ -48,7 +49,7 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
     {verdict?.rogaining && verdict.elapsedMs !== undefined ? <Rogaining score={verdict.rogaining} elapsedMs={verdict.elapsedMs}
       splits={verdict.splits} />
       : verdict?.elapsedMs !== undefined && (verdict.status === "OK" || verdict.status === "OVERTIME")
-        ? <p className="time">{formatRunningTime(verdict.elapsedMs)}</p> : null}
+        ? <p className="time">{formatDuration(verdict.elapsedMs)}</p> : null}
     {verdict?.status === "OK" && (!server || server === "OK") ? <Placement item={item} online={online} /> : null}
     {/* Minutstart (PLAN.md steg 25): sen eller tidig startstämpling är en varning, inte en ny status. */}
     {verdict?.startNote ? <p className="start-note" role="note" data-testid="verdict-start-punch" data-kind={verdict.startNote.kind}>
@@ -61,7 +62,7 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
     {!verdict ? <p>{t.noPackage}</p> : null}
     {verdict && !verdict.rogaining && verdict.splits.length > 0 ? <ol className="splits" aria-label={t.splits}>
       {verdict.splits.map((split, index) => <li key={index}>
-        <span>{split.controlCode}</span> <span>{formatRunningTime(split.legMs)}</span> <span>({formatRunningTime(split.elapsedMs)})</span>
+        <span>{split.controlCode}</span> <span>{formatDuration(split.legMs)}</span> <span>({formatDuration(split.elapsedMs)})</span>
       </li>)}
     </ol> : null}
     {current.invalid ? <p>{t.localInvalid}</p> : null}
@@ -117,12 +118,12 @@ function Rogaining({ score, elapsedMs, splits }: { score: NonNullable<LocalVerdi
   return <>
     <p className="time" data-testid="verdict-total">{t.rogainingTotal(score.total)}</p>
     <p className="breakdown" data-testid="verdict-breakdown"><span>{t.rogainingBreakdown(score.controlPoints, score.penalty)}</span>
-      {" · "}<span>{t.rogainingTime(formatRunningTime(elapsedMs), formatRunningTime(score.timeLimitMs))}</span></p>
+      {" · "}<span>{t.rogainingTime(formatDuration(elapsedMs), formatDuration(score.timeLimitMs))}</span></p>
     {score.overtimeMinutes > 0 ? <p className="late" data-testid="verdict-late">! {t.rogainingLate(score.overtimeMinutes)}</p> : null}
     {score.controls.length > 0 ? <ol className="splits" aria-label={t.rogainingControls}>
       {score.controls.map((control) => <li key={control.controlCode}>
         <span>{control.controlCode}</span> <span>{t.rogainingPoints(control.points)}</span>
-        {times.has(control.controlCode) ? <> <span>({formatRunningTime(times.get(control.controlCode)!)})</span></> : null}
+        {times.has(control.controlCode) ? <> <span>({formatDuration(times.get(control.controlCode)!)})</span></> : null}
       </li>)}
     </ol> : null}
   </>;
@@ -134,7 +135,7 @@ function RelayLine({ relay }: { relay: NonNullable<LocalVerdict["relay"]> }) {
   const last = own === relay.legCount;
   const team = relay.team;
   const outcome = !last ? t.relayNext(own + 1)
-    : team.status === "OK" && team.elapsedMs !== undefined ? `${t.relayLast} – ${t.relayTeamTime(formatRunningTime(team.elapsedMs))}`
+    : team.status === "OK" && team.elapsedMs !== undefined ? `${t.relayLast} – ${t.relayTeamTime(formatDuration(team.elapsedMs))}`
       : team.status === "RUNNING" ? `${t.relayLast} – ${t.relayTeamWaiting}` : `${t.relayLast} – ${t.relayTeamStatus[team.status]}`;
   // Steg 48: teamsprint – "Sträcka 1 och 3 av 4"; saknad växlingsstämpling sägs tydligt. Steg 50: utläsning efter varje
   // sträcka – "Lag 12 Ek – sträcka 3 (Ada Ek, andra sträckan)".

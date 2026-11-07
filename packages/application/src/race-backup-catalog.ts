@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { BackupColumnType } from "@o-tid/contracts";
+import { ANY_UUID_SOURCE, type BackupColumnType } from "@o-tid/contracts";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -48,7 +48,7 @@ export async function loadBackupCatalog(tx: DbExecutor, tables: readonly string[
 }
 
 /** Ett id i text: gemener, som PostgreSQL skriver dem. */
-export const UUID_IN_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+export const UUID_IN_TEXT = new RegExp(ANY_UUID_SOURCE, "g");
 
 /** Byter varje id i `map` mot sitt nya värde, också i nycklar och inuti text (t.ex. IOF XML och kanonisk JSON). */
 export function remapDeep(value: unknown, map: ReadonlyMap<string, string>): unknown {

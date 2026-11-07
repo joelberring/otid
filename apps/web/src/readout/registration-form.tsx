@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { ReadoutPackage, RunnerSearchRequest, RunnerSearchResponse, RunnerSuggestion, SportidentReadoutPayload } from "@o-tid/contracts";
+import { foldForSearch } from "@o-tid/domain";
 import { validateReadoutRegistration, type FieldErrors, type ReadoutRegistrationInput } from "../lib/form-validation";
 import type { QueuedReadout, QueuedRegistration } from "./store";
 import {
-  classSuggestions, clubByName, entrySuggestions, foldText, runnerForCard, runnerIndex, runnerLabel, searchRunners, type EntrySuggestion
+  classSuggestions, clubByName, entrySuggestions, runnerForCard, runnerIndex, runnerLabel, searchRunners, type EntrySuggestion
 } from "./runner-lookup";
 import { readoutText as t } from "./text-sv";
 
@@ -26,8 +27,8 @@ function fromRunner(runner: RunnerSuggestion, classId: string): Fields {
 
 /** Eventors id gäller bara så länge fälten är som löparen i databasen (och klubben som en känd klubb). */
 function eventorIds(pkg: ReadoutPackage, fields: Fields, chosen: RunnerSuggestion | undefined) {
-  const sameName = chosen && foldText(chosen.givenName) === foldText(fields.givenName) && foldText(chosen.familyName) === foldText(fields.familyName);
-  const clubId = chosen?.clubId && chosen.club && foldText(chosen.club) === foldText(fields.club) ? chosen.clubId : clubByName(pkg, fields.club)?.id;
+  const sameName = chosen && foldForSearch(chosen.givenName) === foldForSearch(fields.givenName) && foldForSearch(chosen.familyName) === foldForSearch(fields.familyName);
+  const clubId = chosen?.clubId && chosen.club && foldForSearch(chosen.club) === foldForSearch(fields.club) ? chosen.clubId : clubByName(pkg, fields.club)?.id;
   return { ...(sameName && chosen.personId ? { eventorPersonId: chosen.personId } : {}), ...(clubId ? { eventorOrganisationId: clubId } : {}) };
 }
 

@@ -1,5 +1,5 @@
 import type { ReadoutPlacement, ReadoutStandingSummary } from "@o-tid/contracts";
-import { formatRunningTime } from "./evaluate";
+import { formatDuration } from "@o-tid/domain";
 import type { QueuedReadout } from "./store";
 
 /**
@@ -21,7 +21,7 @@ export function placeOrdinal(position: number): string {
   return `${position}:${(last === 1 || last === 2) && lastTwo !== 11 && lastTwo !== 12 ? "a" : "e"}`;
 }
 
-const plus = (ms: number) => `+${formatRunningTime(ms)}`;
+const plus = (ms: number) => `+${formatDuration(ms)}`;
 const points = (value: number) => `${value} p`;
 
 /** Rangen: "3:a av 12 i mål", "Delad 3:e av 12 i mål". `suffix` byter "i mål" (stafett: "efter sträcka 2"). */
@@ -33,7 +33,7 @@ function rank(standing: ReadoutStandingSummary, suffix: string): string {
 function distance(standing: ReadoutStandingSummary, secondName: string): string | undefined {
   if (standing.ahead) {
     if (standing.ahead.points !== undefined) return `${points(standing.ahead.points)} före ${secondName}`;
-    return standing.ahead.ms !== undefined ? `${formatRunningTime(standing.ahead.ms)} före ${secondName}` : undefined;
+    return standing.ahead.ms !== undefined ? `${formatDuration(standing.ahead.ms)} före ${secondName}` : undefined;
   }
   const leader = standing.leader;
   if (!leader) return undefined;
@@ -64,9 +64,9 @@ export function relayTeamPlacementText(standing: ReadoutStandingSummary, leg: nu
 
 /** Sträcktiden: "Sträcktid 23:10 · 4:e av 10 på sträckan · +1:02 efter bästa", "Sträcktid 23:10 · bäst på sträckan". */
 export function relayLegPlacementText(standing: ReadoutStandingSummary & { elapsedMs: number }): string {
-  const time = `Sträcktid ${formatRunningTime(standing.elapsedMs)}`;
+  const time = `Sträcktid ${formatDuration(standing.elapsedMs)}`;
   if (standing.position === 1 && !standing.tied) {
-    const ahead = standing.ahead?.ms !== undefined && standing.finished > 1 ? ` (${formatRunningTime(standing.ahead.ms)} före tvåan)` : "";
+    const ahead = standing.ahead?.ms !== undefined && standing.finished > 1 ? ` (${formatDuration(standing.ahead.ms)} före tvåan)` : "";
     return `${time} · bäst på sträckan${ahead}`;
   }
   if (standing.position === 1) return `${time} · delad bästa på sträckan`;

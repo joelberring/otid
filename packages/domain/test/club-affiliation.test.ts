@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  affiliationConfirmedIn, CLUB_AREA_DEFAULTS, clubAreaAllowed, clubInitials, clubSearchMatches, clubSearchRank, clubSearchText, clubSearchTokens, derivedClubRole,
+  affiliationConfirmedIn, CLUB_AREA_DEFAULTS, CLUB_ROLE_RANK, clubAreaAllowed, clubInitials, clubSearchMatches, clubSearchRank, clubSearchText, clubSearchTokens, derivedClubRole,
   effectiveClubRole, normalizeClubSearch, raceFinishedForArchive
 } from "../src";
 
@@ -94,5 +94,13 @@ describe("ADR-0209: vad en tillhörighet ger", () => {
     expect(raceFinishedForArchive({ raceDate: "2026-11-03", today: "2026-11-03", coursesPublic: false })).toBe(false);
     expect(raceFinishedForArchive({ raceDate: "2026-11-03", today: "2026-11-04", coursesPublic: false })).toBe(true);
     expect(raceFinishedForArchive({ raceDate: "2026-11-03", today: "2026-11-02", coursesPublic: true })).toBe(true);
+  });
+});
+
+describe("klubbrollernas rang", () => {
+  it("läsare < ledare < administratör < ägare", () => {
+    const roles: (keyof typeof CLUB_ROLE_RANK)[] = ["OWNER", "READER", "ADMIN", "LEADER"];
+    const order = roles.sort((a, b) => CLUB_ROLE_RANK[a] - CLUB_ROLE_RANK[b]);
+    expect(order).toEqual(["READER", "LEADER", "ADMIN", "OWNER"]);
   });
 });

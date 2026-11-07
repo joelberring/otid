@@ -10,12 +10,12 @@ export const classTableSv = {
   readOutValue: (readOut: number, results: number) => `${readOut} / ${results}`,
   loading: "Läser in klasserna…", retryList: "Läs in klasserna igen",
   statusNoEntries: "Inga anmälda",
-  statusMissingStartTimes: (count: number) => count === 1 ? "1 saknar starttid" : `${count} saknar starttid`,
+  statusMissingStartTimes: (count: number) => `${count} saknar starttid`,
   statusMissingStartTimesOpen: (name: string, count: number) => `Visa de ${count} i ${name} som saknar starttid`,
   /** ADR-0188 beslut 4: inte klar så länge någon i en gafflad klass saknar variant. */
-  statusMissingVariants: (count: number) => count === 1 ? "Inte klar: 1 saknar variant" : `Inte klar: ${count} saknar variant`,
+  statusMissingVariants: (count: number) => `Inte klar: ${count} saknar variant`,
   statusAllReadOut: "Alla har läst ut",
-  statusWaiting: (count: number) => count === 1 ? "1 har inte läst ut" : `${count} har inte läst ut`,
+  statusWaiting: (count: number) => `${count} har inte läst ut`,
   statusReady: "Klar för start",
   fieldName: "Klassnamn", fieldCourse: "Bana", fieldStartRule: rule.label,
   /** Maxtid (PLAN.md steg 25): tomt = ingen gräns. */

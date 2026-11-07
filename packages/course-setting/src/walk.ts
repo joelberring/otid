@@ -3,7 +3,7 @@
  * Pens QueryEvent.cs (EnumCourseControlsToJoin, EnumLegs, GetVariantCodeMapping, GetVariations, GetAllVariations; BSD,
  * Peter Golde), så att koderna blir exakt desamma som i Purple Pens IOF-export.
  */
-import type { Point } from "@o-tid/map-file";
+import { polylineLength, type Point } from "@o-tid/map-file";
 import { invalid, legKey } from "./ppen-common";
 import type { Course, CourseControl, CourseSettingDocument } from "./types";
 import { CourseSettingEditError } from "./types";
@@ -164,17 +164,11 @@ export function legPath(document: CourseSettingDocument, fromControl: string, to
   return [from.at, ...bends, to.at];
 }
 
-export function pathLength(points: readonly Point[]): number {
-  let length = 0;
-  for (let i = 1; i < points.length; i++) length += Math.hypot(points[i]!.x - points[i - 1]!.x, points[i]!.y - points[i - 1]!.y);
-  return length;
-}
-
 /** Längden i meter för en variant (eller alla grenar) med kartans skala (QueryEvent.ComputeLegLength). */
 export function measuredLengthMeters(document: CourseSettingDocument, courseId: string, choices: readonly string[] | null): number {
   let mm = 0;
   for (const [a, b] of enumerateLegs(document, courseId, choices)) {
-    mm += pathLength(legPath(document, document.courseControls[a]!.control, document.courseControls[b]!.control));
+    mm += polylineLength(legPath(document, document.courseControls[a]!.control, document.courseControls[b]!.control));
   }
   return mm * document.event.mapScale / 1000;
 }

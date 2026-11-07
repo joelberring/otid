@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UUID_PATTERN, prefixedUuidPattern } from "./ids";
+import { UUID_PATTERN, prefixedUuidPattern, sha256HexSchema } from "./ids";
 
 export const IOF_IMPORT_CONTENT_TYPE = "application/xml" as const;
 export const IOF_IMPORT_MIN_BYTES = 1;
@@ -69,7 +69,7 @@ export const iofImportResponseSchema = z.object({
   requestId: iofImportRequestIdSchema,
   raceId: iofImportRequestIdSchema,
   importFileId: iofImportRequestIdSchema,
-  contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+  contentHash: sha256HexSchema,
   byteCount: z.number().int().min(IOF_IMPORT_MIN_BYTES).max(IOF_IMPORT_MAX_BYTES),
   report: iofImportReportSchema
 }).strict();

@@ -13,7 +13,7 @@ import { ManualFinishTimeCorrection, ManualFinishTimeCorrectionWithdrawal, Manua
   ManualPunchStartTimeCorrectionWithdrawal } from "../manual-time-correction";
 import { ParticipantReadoutReread } from "../readout-reread";
 import { ManualResult } from "./manual-result";
-import { Button } from "../ui";
+import { Button, Disclosure } from "../ui";
 import type { StatusAttempt } from "./result-decisions";
 import { participantFixId } from "./types";
 import type { Workspace } from "./workspace-state";
@@ -53,8 +53,7 @@ export function ParticipantFix({ ws, result }: { ws: Workspace; result: Administ
       </div>
       {selectedClass && selectedClass.courseVariants.length > 0 && <ParticipantVariant ws={ws} />}
     </div>
-    {!functionary && <details className={styles.disclosure}>
-      <summary>{fixText.more}</summary>
+    {!functionary && <Disclosure className={styles.disclosure} summary={fixText.more}>
       <div className={styles.disclosureBody}>
         <p className={styles.workflowHelp}>{fixText.moreHelp}</p>
         <div className={styles.disclosureList}>
@@ -68,7 +67,7 @@ export function ParticipantFix({ ws, result }: { ws: Workspace; result: Administ
             timeZone={data.timeZone} onPendingChange={ws.setStartWithdrawalPending} onSaved={ws.reloadQuietly} />
         </div>
       </div>
-    </details>}
+    </Disclosure>}
   </section>;
 }
 

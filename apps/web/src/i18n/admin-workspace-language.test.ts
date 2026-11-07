@@ -57,7 +57,9 @@ const adminFiles = [
   // ADR-0209: klubbtillhörigheten (Inställningar → Klubben och klubbarkivet, Från klubben) och klubbytans roller.
   "club-affiliation-sv.ts", "club-archive-sv.ts",
   // ADR-0206: inbjudningar med e-post (Personer med behörighet).
-  "invitation-sv.ts"
+  "invitation-sv.ts",
+  // Den gemensamma plural(): "1 bana", "3 banor".
+  "plural.ts"
 ];
 /** Delade textfiler (även publika sidor): bara nycklarna som arbetsytan läser granskas. */
 const sharedFiles = ["sv.ts", "account-sv.ts"];

@@ -7,7 +7,7 @@ import { controlMapSv as text } from "../../i18n/control-map-sv";
 import { forkingSv } from "../../i18n/forking-sv";
 import { controlMapView, loadLevel, typicalSpacing } from "../../lib/control-map";
 import { ForkingDiagram } from "../forking/forking-diagram";
-import { Button, Notice } from "../ui";
+import { Button, Dialog, Notice } from "../ui";
 import type { Workspace } from "../race-administrator/workspace-state";
 import { adminDrawing } from "./control-map-drawing";
 import { ControlMapSvg } from "./control-map-svg";
@@ -39,7 +39,6 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
   const [metric, setMetric] = useState<"planned" | "punched">("planned");
   const [courseId, setCourseId] = useState<string>("");
   const [variant, setVariant] = useState<string | null>(null);
-  useEffect(() => { const element = dialog.current; if (element && !element.open) element.showModal(); }, []);
   async function load() {
     setFailed(false);
     const op = beginRequest();
@@ -73,8 +72,7 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
   const letters = useMemo(() => course?.forking ? forkingLetters({ items: course.forking.items }) : undefined, [course]);
   const choices = course?.forking && variant ? course.forking.variants.find(row => row.code === variant)?.choices : undefined;
 
-  return <dialog ref={dialog} className={styles.dialog} aria-labelledby={titleId} onClose={onClose}
-    onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+  return <Dialog dialogRef={dialog} className={styles.dialog} labelledBy={titleId} onClose={onClose} closeOnBackdrop>
     <div className={styles.panel}>
       <header className={styles.head}>
         <h2 id={titleId}>{text.title}</h2>
@@ -142,5 +140,5 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
         </div>}
       </>}
     </div>
-  </dialog>;
+  </Dialog>;
 }

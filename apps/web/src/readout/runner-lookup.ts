@@ -1,5 +1,5 @@
 import type { ReadoutPackage, RunnerClub, RunnerSuggestion, SportidentReadoutPayload } from "@o-tid/contracts";
-import { rankClassesByCourseFit, type ClassCourseFit, type RaceSnapshot } from "@o-tid/domain";
+import { foldForSearch, rankClassesByCourseFit, type ClassCourseFit, type RaceSnapshot } from "@o-tid/domain";
 import type { QueuedReadout, QueuedRegistration } from "./store";
 
 /**
@@ -7,11 +7,6 @@ import type { QueuedReadout, QueuedRegistration } from "./store";
  * `runnerLookup`), klassen vars bana stämplingarna passar och anmälda utan bricka eller utan avläsning i de klasserna.
  * Allt är förslag; funktionären väljer alltid själv.
  */
-
-/** Gemener utan diakritiska tecken, så att "asa" hittar "Åsa" och "oberg" hittar "Öberg". */
-export function foldText(value: string): string {
-  return value.toLocaleLowerCase("sv").normalize("NFD").replace(/\p{M}/gu, "").trim();
-}
 
 export interface RunnerIndex {
   readonly byCard: ReadonlyMap<string, RunnerSuggestion>;
@@ -31,7 +26,7 @@ export function runnerIndex(pkg: ReadoutPackage | undefined): RunnerIndex {
   const byCard = new Map<string, RunnerSuggestion>();
   for (const runner of lookup.runners) for (const card of runner.cards) if (!byCard.has(card)) byCard.set(card, runner);
   const index: RunnerIndex = { byCard, clubs: lookup.clubs,
-    runners: lookup.runners.map((runner) => ({ runner, words: foldText(`${runner.givenName} ${runner.familyName}`).split(/[\s-]+/) })) };
+    runners: lookup.runners.map((runner) => ({ runner, words: foldForSearch(`${runner.givenName} ${runner.familyName}`).split(/[\s-]+/) })) };
   cache.set(lookup, index);
   return index;
 }
@@ -42,7 +37,7 @@ export function runnerForCard(pkg: ReadoutPackage | undefined, cardNumber: strin
 
 /** Löpare vars namn börjar med varje skrivet ord (för- eller efternamn, eller del av dubbelnamn). */
 export function searchRunners(pkg: ReadoutPackage | undefined, text: string, limit = 6): RunnerSuggestion[] {
-  const words = foldText(text).split(/\s+/).filter(Boolean);
+  const words = foldForSearch(text).split(/\s+/).filter(Boolean);
   if (words.length === 0 || words.join("").length < 2) return [];
   const found: RunnerSuggestion[] = [];
   for (const { runner, words: names } of runnerIndex(pkg).runners) {
@@ -54,10 +49,10 @@ export function searchRunners(pkg: ReadoutPackage | undefined, text: string, lim
 
 /** Klubben med exakt det namnet (eller kortnamnet), för Eventors id vid IOF-exporten. */
 export function clubByName(pkg: ReadoutPackage | undefined, name: string): RunnerClub | undefined {
-  const folded = foldText(name);
+  const folded = foldForSearch(name);
   if (!folded) return undefined;
   const clubs = runnerIndex(pkg).clubs;
-  return clubs.find((club) => foldText(club.name) === folded) ?? clubs.find((club) => club.shortName && foldText(club.shortName) === folded);
+  return clubs.find((club) => foldForSearch(club.name) === folded) ?? clubs.find((club) => club.shortName && foldForSearch(club.shortName) === folded);
 }
 
 /** "Testa Testsson · OK Skogsfalken · 1975 · bricka 8100101" utan tomma delar. */
@@ -132,13 +127,13 @@ export function entrySuggestions(pkg: ReadoutPackage, classes: readonly ClassSug
   for (const item of items) { const owner = ownerOfCard.get(item.payload.cardNumber); if (owner) readOut.add(owner); }
   for (const row of registrations) if (row.status !== "rejected" && "target" in row.request) readOut.add(row.request.entryId);
   const order = new Map(fitting.map((row, index) => [row.fit.classId, index]));
-  const wanted = runner ? foldText(`${runner.givenName} ${runner.familyName}`) : undefined;
+  const wanted = runner ? foldForSearch(`${runner.givenName} ${runner.familyName}`) : undefined;
   const rows = snapshot.entries.flatMap((entry): { suggestion: EntrySuggestion; rank: number }[] => {
     const position = order.get(entry.classId);
     if (position === undefined || readOut.has(entry.id)) return [];
     const name = `${entry.givenName} ${entry.familyName}`.trim();
     const cardNumber = cards.get(entry.id);
-    const sameName = wanted !== undefined && foldText(name) === wanted;
+    const sameName = wanted !== undefined && foldForSearch(name) === wanted;
     return [{ rank: (sameName ? 0 : cardNumber ? 2 : 1) * 1_000 + position, suggestion: { entryId: entry.id, classId: entry.classId, name,
       className: fitting[position]!.className, ...(cardNumber ? { cardNumber } : {}), sameName } }];
   });

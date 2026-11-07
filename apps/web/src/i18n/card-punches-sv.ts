@@ -1,6 +1,7 @@
 import type { CardPunchList, CardPunchPlacement as Placement } from "@o-tid/domain";
 import { formatClockTime } from "../lib/clock-time";
 import { raceCorrectionsSv } from "./race-corrections-sv";
+import { plural } from "./plural";
 
 /** "ons 14 okt" för ett datum (ÅÅÅÅ-MM-DD), utan tidszon eftersom datumet redan är tävlingens. */
 export function formatPunchDate(date: string): string {
@@ -35,7 +36,7 @@ export const cardPunchesSv = {
   oldCardHint: "Brickan har troligen inte tömts före loppet.",
   table: "Brickans stämplingar i ordning",
   adjusted: (labels: readonly string[]) => `Tiden är justerad för hela tävlingen: ${labels.join(", ")}.`,
-  ignored: (count: number) => `${count} ${count === 1 ? "gammal stämpling" : "gamla stämplingar"} räknades inte (brickan var inte tömd).`
+  ignored: (count: number) => `${plural(count, "gammal stämpling", "gamla stämplingar")} räknades inte (brickan var inte tömd).`
 } as const;
 
 /**

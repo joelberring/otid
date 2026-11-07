@@ -23,7 +23,7 @@ export const relayFormSv = {
     LINE: "Linjestafett: 5 sträckor. Lag som är mer än 60 minuter efter ledaren startar i flygande omstart. Välj bana för varje sträcka."
   } satisfies Record<RelayTemplateId, string>,
   // Fel
-  summary: (count: number) => count === 1 ? "Rätta 1 fält innan du sparar:" : `Rätta ${count} fält innan du sparar:`,
+  summary: (count: number) => `Rätta ${count} fält innan du sparar:`,
   name: "Skriv klassens namn.",
   tooLong: (max: number) => `Högst ${max} tecken.`,
   course: (leg: number) => `Välj bana för sträcka ${leg}.`,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 
 /**
  * Rättningar för hela tävlingen (PLAN.md steg 31): tidsjustering för en station, kontroll ur funktion, flytta en klass
@@ -8,7 +8,6 @@ import { uuidSchema as uuid } from "./ids";
  */
 const reason = z.string().trim().min(1).max(500);
 const controlCode = z.number().int().min(1).max(9999);
-const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const offsetSeconds = z.number().int().min(-86_400).max(86_400).refine((value) => value !== 0, "Ange en ändring");
 const resultStatus = z.enum(["OK", "OVERTIME", "MP", "UNKNOWN_CARD"]);
 
@@ -29,7 +28,7 @@ export type RaceCorrectionAction = z.infer<typeof raceCorrectionActionSchema>;
 export const raceCorrectionPreviewRequestSchema = z.object({ formatVersion: z.literal(1), correction: raceCorrectionActionSchema }).strict();
 
 export const raceCorrectionCommitRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, expectedPreviewHash: hash, correction: raceCorrectionActionSchema
+  formatVersion: z.literal(1), requestId: uuid, expectedPreviewHash: sha256HexSchema, correction: raceCorrectionActionSchema
 }).strict();
 
 const changeSchema = z.object({
@@ -55,7 +54,7 @@ export const raceCorrectionSummarySchema = z.object({
 }).strict();
 
 export const raceCorrectionPreviewResponseSchema = z.object({
-  formatVersion: z.literal(1), raceId: uuid, previewHash: hash, correction: raceCorrectionActionSchema,
+  formatVersion: z.literal(1), raceId: uuid, previewHash: sha256HexSchema, correction: raceCorrectionActionSchema,
   summary: raceCorrectionSummarySchema
 }).strict();
 export type RaceCorrectionPreviewResponse = z.infer<typeof raceCorrectionPreviewResponseSchema>;

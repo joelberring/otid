@@ -1,6 +1,7 @@
 import {
   IOF_IMPORT_CONTENT_TYPE,
   IOF_IMPORT_MAX_BYTES,
+  SHORT_SESSION_LIFETIME_MS,
   UUID_SOURCE,
   accountErrorResponseSchema,
   entryClassAdminErrorResponseSchema,
@@ -186,12 +187,10 @@ export async function hasNoRequestBody(request: Request): Promise<boolean> {
  * ADR-0205 tillägg: en session som gäller högst tolv timmar (inloggning utan "Kom ihåg mig på den här datorn") får en
  * sessionskaka utan `Expires`, som webbläsaren glömmer när den stängs. Servern stänger sessionen efter tolv timmar ändå.
  */
-const SHORT_SESSION_MS = 12 * 60 * 60 * 1000;
-
 function cookie(name: string, value: string, policy: SecurityPolicy, expiresAt: string, httpOnly: boolean, now = Date.now()): string {
   const expires = new Date(expiresAt);
   if (!COOKIE_VALUE.test(value) || !Number.isFinite(expires.getTime())) throw new SecurityConfigurationError("Ogiltig kaka");
-  const persistent = expires.getTime() - now > SHORT_SESSION_MS + 60_000;
+  const persistent = expires.getTime() - now > SHORT_SESSION_LIFETIME_MS + 60_000;
   const attributes = [`${name}=${value}`, "Path=/", ...(persistent ? [`Expires=${expires.toUTCString()}`] : []), "SameSite=Strict"];
   if (httpOnly) attributes.push("HttpOnly");
   if (policy.secureCookies) attributes.push("Secure");

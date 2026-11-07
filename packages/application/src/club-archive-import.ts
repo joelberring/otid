@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES, CLUB_ARCHIVE_MAP_MAX_BYTES, CLUB_IMPORT_TOKEN_PATTERN, clubImportBatchRequestSchema, clubImportCheckRequestSchema,
-  type ClubImportBatchResponse, type ClubImportCheckResponse, type ClubImportContentResponse, type ClubImportCourseFile
+  type ClubImportBatchResponse, type ClubImportCheckResponse, type ClubImportContentResponse, type ClubImportCourseFile, SHA256_HEX_PATTERN
 } from "@o-tid/contracts";
 import { courseSummaries, readPpen } from "@o-tid/course-setting";
 import { schema, type ClubCourseFileSummary, type Database } from "@o-tid/database";
@@ -108,7 +108,7 @@ export type ImportContentResult = ImportFailure | { status: "problem"; problem: 
  */
 export async function importMapContent(db: Database, input: ImportCaller & { clubId: string; sha256: string;
   body: AsyncIterable<Uint8Array>; quota?: MapStorageQuota }, now = new Date()): Promise<ImportContentResult> {
-  if (!/^[a-f0-9]{64}$/.test(input.sha256)) return { status: "invalid-request" };
+  if (!SHA256_HEX_PATTERN.test(input.sha256)) return { status: "invalid-request" };
   const first = await db.transaction(tx => authenticateImporter(tx, input, now));
   if (first.status !== "ok") return first;
   const staged = await stageMapContent(db, input.body, { maxBytes: CLUB_ARCHIVE_MAP_MAX_BYTES, now });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { courseSettingParts as part } from "./course-setting";
 import { courseSettingSketchSchema, mapMakerVerdictSchema } from "./course-setting-collaboration";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 
 /**
  * ADR-0214: länken till kartritaren. Banläggaren skapar den i Kartfel; kartritaren öppnar den utan konto och ser bara
@@ -66,7 +66,7 @@ export const mapLinkViewSchema = z.object({
   /** Tävlingens namn bara när banläggaren valt "Visa tävlingens namn". */
   raceName: z.string().max(400).nullable(),
   /** Kartfilen som sidan ritar (null = tävlingen har ingen kartfil). */
-  map: z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), georeferenced: z.boolean() }).strict().nullable(),
+  map: z.object({ sha256: sha256HexSchema, georeferenced: z.boolean() }).strict().nullable(),
   mapErrors: z.array(mapLinkErrorSchema).max(5000)
 }).strict();
 export type MapLinkView = z.infer<typeof mapLinkViewSchema>;

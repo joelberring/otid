@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { canonicalJsonBytes } from "./canonical-json";
-import { UUID_PATTERN } from "./ids";
+import { UUID_PATTERN, sha256HexSchema } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
   UUID_PATTERN,
@@ -8,7 +8,6 @@ const canonicalUuidSchema = z.string().regex(
 );
 const postgresIntegerSchema = z.number().int().positive().max(2_147_483_647);
 const nonnegativePostgresIntegerSchema = z.number().int().min(0).max(2_147_483_647);
-const contentHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 const canonicalUtcMillisecondSchema = z.string().regex(
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
@@ -66,7 +65,7 @@ export const StartCheckinOperationSchema = StartCheckinOperationObjectSchema.sup
 
 export const StartCheckinSyncRequestSchema = z.object({
   operation: StartCheckinOperationSchema,
-  contentHash: contentHashSchema
+  contentHash: sha256HexSchema
 }).strict();
 
 const appliedEffectSchema = z.object({
@@ -101,7 +100,7 @@ export const StartCheckinReceiptSchema = z.object({
   raceId: canonicalUuidSchema,
   entryId: canonicalUuidSchema,
   localSequence: postgresIntegerSchema,
-  contentHash: contentHashSchema,
+  contentHash: sha256HexSchema,
   receivedAt: canonicalUtcMillisecondSchema,
   effect: z.discriminatedUnion("kind", [
     appliedEffectSchema,

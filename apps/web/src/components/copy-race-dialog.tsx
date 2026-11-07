@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { defaultRaceCopyDate, raceCopyResponseSchema, type RaceCopyResponse } from "@o-tid/contracts";
 import { raceCopySv as text } from "../i18n/race-copy-sv";
@@ -8,7 +8,7 @@ import { accountRequest } from "../lib/account-client";
 import { formErrorsSv } from "../i18n/form-errors-sv";
 import { hasErrors, isIsoDate, isRaceName, type FieldErrors } from "../lib/form-validation";
 import { raceTitle } from "@o-tid/domain";
-import { Button, DateInput, Field, Notice, focusFirstError } from "./ui";
+import { Button, DateInput, Dialog, Field, Notice, focusFirstError } from "./ui";
 import styles from "./copy-race-dialog.module.css";
 
 export interface CopySource { raceId: string; eventName: string; raceName: string; raceDate: string }
@@ -60,11 +60,6 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
   const [opening, setOpening] = useState(false);
   const [errors, setErrors] = useState<FieldErrors<"eventName" | "raceName" | "raceDate">>({});
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
-
   function change(patch: Partial<Form>) {
     setForm(current => ({ ...current, ...patch })); setErrors({});
     // Ändrat innehåll är ett nytt försök.
@@ -101,7 +96,7 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
   }
 
   const titleId = `copy-race-${source.raceId}-title`;
-  return <dialog ref={dialogRef} className={styles.dialog} aria-labelledby={titleId} onClose={onClose}>
+  return <Dialog dialogRef={dialogRef} className={styles.dialog} labelledBy={titleId} onClose={onClose}>
     <h2 id={titleId}>{text.title}</h2>
     {!result && <form className={styles.form} noValidate onSubmit={event => void submit(event)}>
       <p className={styles.intro}>{text.intro(raceTitle(source.eventName, source.raceName))}</p>
@@ -138,5 +133,5 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
         <Button variant="secondary" disabled={opening} onClick={() => dialogRef.current?.close()}>{text.close}</Button>
       </div>
     </div>}
-  </dialog>;
+  </Dialog>;
 }

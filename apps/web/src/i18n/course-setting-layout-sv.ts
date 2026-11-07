@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** ADR-0217: Layout som egen flik i banläggningen. */
 export const courseSettingTabsSv = {
   label: "Banläggningens delar",
@@ -29,7 +31,7 @@ export const layoutSv = {
     noClasses: "Inga klasser",
     status: { FITS: "Får plats", OUTSIDE: "Går utanför – välj utsnitt", OWN_AREA: "Eget utsnitt", PARTS: "Kartbyte" } as Record<string, string>,
     parts: (count: number) => `Kartbyte: ${count} delar`,
-    adjustments: (count: number) => `${count} ${count === 1 ? "justering" : "justeringar"}`
+    adjustments: (count: number) => plural(count, "justering", "justeringar")
   },
   layouts: {
     heading: "Layouter",
@@ -60,7 +62,7 @@ export const layoutSv = {
     adjust: (scale: string) => `Justera för ${scale}`,
     adjustHelp: "Dra ett nummer på arket för att flytta det bara i den här layouten. Ring- och sträckavbrotten gäller layoutens alla ark.",
     adjustMain: "Huvudlayouten är banläggningen: nummer och ringavbrott ändras i Banläggning.",
-    adjustments: (count: number) => count === 0 ? "Inga justeringar: allt följer banläggningen." : `${count} ${count === 1 ? "justering" : "justeringar"} i layouten`,
+    adjustments: (count: number) => count === 0 ? "Inga justeringar: allt följer banläggningen." : `${plural(count, "justering", "justeringar")} i layouten`,
     clear: "Ta bort justeringar",
     numberLabel: (code: string) => `Nummer ${code}`,
     numberReset: "Som i banläggningen",

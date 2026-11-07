@@ -1,4 +1,5 @@
 import type { RadioErrorCode, RadioSource } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 /** Namnet på en radiokontroll: det valda namnet, annars "kontroll 31". */
 export function radioControlName(code: number, label: string | null, capital = false): string {
@@ -44,9 +45,9 @@ export const radioSv = {
     lastFetch: (time: string) => `Senaste lyckade hämtning ${time}`,
     neverFetched: "Inget hämtat än.",
     counts: (punches: number, unknown: number, other: number) =>
-      [`${punches} ${punches === 1 ? "stämpling" : "stämplingar"}`, `${unknown} med okänd bricka`,
+      [plural(punches, "stämpling", "stämplingar"), `${unknown} med okänd bricka`,
         ...(other > 0 ? [`${other} på andra kontroller`] : [])].join(" · "),
-    malformed: (count: number) => `${count} ${count === 1 ? "rad" : "rader"} från tjänsten gick inte att läsa och hoppades över.`,
+    malformed: (count: number) => `${plural(count, "rad", "rader")} från tjänsten gick inte att läsa och hoppades över.`,
     lastError: (time: string, text: string) => `Fel ${time}: ${text}`,
     retrying: (failures: number) => failures > 1 ? `${failures} försök i rad har misslyckats. Servern försöker igen med längre mellanrum.` : "",
     errors: {
@@ -74,7 +75,7 @@ export const radioSv = {
     finished: "i mål",
     noneFinished: "Ingen har läst av än",
     leader: (name: string, time: string) => `Ledare: ${name} ${time}`,
-    controlHeading: (control: string, count: number) => `${control} · ${count} ${count === 1 ? "passerad" : "passerade"}`,
+    controlHeading: (control: string, count: number) => `${control} · ${plural(count, "passerad", "passerade")}`,
     noTime: "–",
     name: "Namn",
     time: "Tid",

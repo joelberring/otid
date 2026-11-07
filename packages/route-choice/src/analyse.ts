@@ -4,10 +4,10 @@
  * redan hittats och söka igen, och osäkerheten genom att räkna om med farterna ändrade ±15 % mellan snabba och
  * långsamma klasser.
  */
-import type { Point } from "@o-tid/map-file";
+import { distance, polylineLength, type Point } from "@o-tid/map-file";
 import { preparedOf, withBarriers, type PreparedModel } from "./cost-model";
 import { climbCostPerUnit, RUNNABLE_CLASSES, type ResolvedSettings, type RunnableClass, resolveSettings } from "./defaults";
-import { distance, distanceToPolyline, polylineLength, simplify } from "./geometry";
+import { distanceToPolyline, simplify } from "./geometry";
 import { cellCenter, cellOf, legFrame, NO_TRACK, paceField, rasterize, strokeLine, type Grid } from "./raster";
 import { backtrack, minimumPace, pathCost, search, SearchWorkspace, type SearchGrid, type SearchResult } from "./search";
 import { polylineCost, straighten } from "./smooth";

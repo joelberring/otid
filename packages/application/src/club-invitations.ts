@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { schema } from "@o-tid/database";
+import { CLUB_ROLE_RANK } from "@o-tid/domain";
 import type { DbExecutor } from "./snapshot";
 
 /** ADR-0194 beslut 1: klubbens roller (rangordnade) och journalen. Egen fil utan inloggningen (som training-group-invitations). */
 export type ClubRole = "OWNER" | "ADMIN" | "LEADER" | "READER";
-const RANK: Record<ClubRole, number> = { READER: 0, LEADER: 1, ADMIN: 2, OWNER: 3 };
 
 export async function clubJournal(tx: DbExecutor, input: { clubId: string; action: string; actorAccountId: string | null;
   details: Record<string, unknown>; now: Date }): Promise<void> {
@@ -37,7 +37,7 @@ export async function acceptClubInvitations(tx: DbExecutor, accountId: string, n
     if (!member) {
       await tx.insert(schema.clubMembers).values({ id: randomUUID(), clubId: invitation.clubId, accountId, role: invitation.role, addedAt: now,
         addedBy: invitation.actorAccountId, requestId: invitation.requestId });
-    } else if (RANK[invitation.role] > RANK[member.role]) {
+    } else if (CLUB_ROLE_RANK[invitation.role] > CLUB_ROLE_RANK[member.role]) {
       await tx.update(schema.clubMembers).set({ role: invitation.role }).where(eq(schema.clubMembers.id, member.id));
     }
     await clubJournal(tx, { clubId: invitation.clubId, action: "CLUB_INVITATION_ACCEPTED", actorAccountId: accountId,

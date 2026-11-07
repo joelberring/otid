@@ -1,5 +1,6 @@
 /** ADR-0213: en karta per löpare – baksidan, urvalet och "Kontrollera kopplingen". */
 import type { CheckColumn, CheckWarning } from "../lib/course-setting-runner-select";
+import { plural } from "./plural";
 
 export const runnerPrintSv = {
   back: "Baksida med löparens uppgifter",
@@ -14,7 +15,7 @@ export const runnerPrintSv = {
   searchHint: "Skriv namnet, startnumret eller lagnumret.",
   add: (name: string) => `Lägg till ${name}`,
   remove: (name: string) => `Ta bort ${name}`,
-  chosenRunners: (count: number) => count === 0 ? "Inga valda löpare" : count === 1 ? "1 vald löpare" : `${count} valda löpare`,
+  chosenRunners: (count: number) => count === 0 ? "Inga valda löpare" : plural(count, "vald löpare", "valda löpare"),
   teams: "Lagnummer (komma mellan)",
   teamsHint: "T.ex. 12 eller 12, 14",
   leg: "Sträcka",

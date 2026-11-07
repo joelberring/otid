@@ -1,16 +1,9 @@
 import { paperImageSchema, paperLibrarySchema, PAPER_IMAGE_MAX_BYTES, type PaperImageResponse, type PaperLibrary } from "@o-tid/contracts";
 import { specialImage, type CourseSettingDocument, type PaperTemplate, type SpecialObject } from "@o-tid/course-setting";
 import { courseSettingBase, HttpError } from "./course-setting-api";
-import { readAccountCsrfCookie } from "./organizer-account-cookies";
-import { fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
+import { adminFetch, fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
 
 /** ADR-0197: papperets bilder och kontots mallbibliotek. */
-function csrf(): string {
-  const value = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-  if (!value) throw new Error("csrf");
-  return value;
-}
-
 /**
  * Bilder som laddats upp i den här fliken (sha256 → objekt-URL). Arket visar den nya bilden innan dokumentet som pekar på den
  * är sparat; har ett annat konto laddat upp samma bild svarar servern 404 tills dess (ADR-0197 beslut 5), så bilden visas ur
@@ -52,8 +45,7 @@ export async function uploadPaperImage(raceId: string, file: File): Promise<Uplo
   const type = svg ? "image/png" : file.type === "image/jpg" ? "image/jpeg" : file.type;
   if (type !== "image/png" && type !== "image/jpeg") return { kind: "invalid" };
   if (body.size > PAPER_IMAGE_MAX_BYTES) return { kind: "too-large" };
-  const response = await fetchUntilReached(`${courseSettingBase(raceId)}/course-setting/paper-images`, { method: "POST", credentials: "same-origin",
-    headers: { "content-type": type, "x-otid-csrf": csrf() }, body });
+  const response = await adminFetch(`${courseSettingBase(raceId)}/course-setting/paper-images`, { method: "POST", headers: { "content-type": type }, body }, fetchUntilReached);
   if (response.status === 413) return { kind: "too-large" };
   if (response.status === 400) return { kind: "invalid" };
   if (!response.ok) throw new HttpError(response.status);
@@ -79,15 +71,13 @@ export async function fetchPaperLibrary(raceId: string): Promise<PaperLibrary> {
 }
 
 export async function savePaperLibrary(raceId: string, template: PaperTemplate): Promise<PaperLibrary> {
-  const response = await fetchUntilReached(`${courseSettingBase(raceId)}/course-setting/paper-library`, { method: "POST", credentials: "same-origin",
-    headers: { "content-type": "application/json", "x-otid-csrf": csrf() }, body: JSON.stringify({ formatVersion: 1, name: template.name, template }) });
+  const response = await adminFetch(`${courseSettingBase(raceId)}/course-setting/paper-library`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ formatVersion: 1, name: template.name, template }) }, fetchUntilReached);
   if (!response.ok) throw new HttpError(response.status);
   return paperLibrarySchema.parse(await response.json());
 }
 
 export async function deletePaperLibrary(raceId: string, id: string): Promise<PaperLibrary> {
-  const response = await fetchUntilReached(`${courseSettingBase(raceId)}/course-setting/paper-library/${encodeURIComponent(id)}`, { method: "DELETE",
-    credentials: "same-origin", headers: { "x-otid-csrf": csrf() } });
+  const response = await adminFetch(`${courseSettingBase(raceId)}/course-setting/paper-library/${encodeURIComponent(id)}`, { method: "DELETE" }, fetchUntilReached);
   if (!response.ok) throw new HttpError(response.status);
   return paperLibrarySchema.parse(await response.json());
 }

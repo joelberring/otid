@@ -2,18 +2,14 @@
  * ADR-0209: klubbtillhörighet. Ren logik utan I/O: sökningen i klubblistan (Eventors organisationer) och vad en anmäld
  * tillhörighet ger i ett klubbarkiv.
  */
-
-/** Bokstäver som inte delas upp av Unicode-normaliseringen. */
-const FOLD: Readonly<Record<string, string>> = { "ø": "o", "æ": "ae", "œ": "oe", "ß": "ss", "ð": "d", "þ": "th", "ł": "l", "đ": "d", "ı": "i" };
+import { foldForSearch } from "./search-fold";
 
 /**
  * Text för jämförelse: gemener, utan accenter (å → a, ä → a, ö → o) och utan allt som inte är bokstav eller siffra.
  * "OK Älvsjö-Örby" → "okalvsjoorby".
  */
 export function normalizeClubSearch(value: string): string {
-  return value.toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "")
-    .replace(/[øæœßðþłđı]/g, letter => FOLD[letter] ?? letter)
-    .replace(/[^\p{L}\p{N}]+/gu, "");
+  return foldForSearch(value).replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 /**
@@ -86,13 +82,14 @@ export function derivedClubRole(affiliations: readonly ClubAffiliationFacts[], l
   return affiliations.some(affiliation => affiliationConfirmedIn(affiliation, link)) ? "READER" : undefined;
 }
 
-const RANK: Readonly<Record<ClubSpaceRole, number>> = { READER: 0, LEADER: 1, ADMIN: 2, OWNER: 3 };
+/** Klubbrollerna i rangordning (ADR-0194 beslut 1): läsare < ledare < administratör < ägare. */
+export const CLUB_ROLE_RANK: Readonly<Record<ClubSpaceRole, number>> = { READER: 0, LEADER: 1, ADMIN: 2, OWNER: 3 };
 
 /** Rollen som gäller: den uttryckliga (inbjudan) eller den härledda, den högsta av dem. */
 export function effectiveClubRole(explicit: ClubSpaceRole | undefined, derived: ClubSpaceRole | undefined): ClubSpaceRole | undefined {
   if (!explicit) return derived;
   if (!derived) return explicit;
-  return RANK[explicit] >= RANK[derived] ? explicit : derived;
+  return CLUB_ROLE_RANK[explicit] >= CLUB_ROLE_RANK[derived] ? explicit : derived;
 }
 
 /** "Vem ser vad": alla medlemmar, eller bara ledare och administratörer. */
@@ -104,7 +101,7 @@ export type ClubArea = "ARCHIVE" | "MAP_BANK";
  * nedladdning). Kartans egna rättigheter (ADR-0196) gäller ovanpå; den strängaste vinner.
  */
 export function clubAreaAllowed(role: ClubSpaceRole, access: ClubAreaAccess): boolean {
-  return access === "MEMBERS" || RANK[role] >= RANK.LEADER;
+  return access === "MEMBERS" || CLUB_ROLE_RANK[role] >= CLUB_ROLE_RANK.LEADER;
 }
 
 /**

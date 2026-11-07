@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** ADR-0190: banans egenskaper i editorn (stigning, fast längd, banslag, poäng och ordning) och exporten av banor. */
 const km = (meters: number) => `${(meters / 1000).toFixed(1).replace(".", ",")} km`;
 
@@ -18,7 +20,7 @@ export const coursePropertiesSv = {
   save: "Spara egenskaperna",
   saved: "Sparat",
   invalid: "Skriv ett heltal i meter (eller lämna tomt).",
-  scoreTotal: (points: number, controls: number) => `${points} poäng på ${controls} ${controls === 1 ? "kontroll" : "kontroller"}`,
+  scoreTotal: (points: number, controls: number) => `${points} poäng på ${plural(controls, "kontroll", "kontroller")}`,
   points: (code: string) => `Poäng för ${code}`,
   /** Tomt fält: kodens första siffra (tiotalet) ger poängen, som i tävlingens rogaining. */
   pointsDefault: (code: string, points: number) => `Poäng för ${code}. Tomt = ${points} (kodens första siffra).`,
@@ -51,14 +53,14 @@ export const coursePropertiesSv = {
     partial: (done: number, total: number) => `${done} av ${total} sträckor räknade.`,
     done: (best: number, straight: number, percent: number) => `Längs bästa vägval ${km(best)}, fågelvägen ${km(straight)}` +
       (percent > 0 ? ` (${percent} % längre).` : "."),
-    noRoute: (legs: number) => `${legs} ${legs === 1 ? "sträcka" : "sträckor"} saknar väg på kartan; längden kan inte räknas.`,
+    noRoute: (legs: number) => `${plural(legs, "sträcka", "sträckor")} saknar väg på kartan; längden kan inte räknas.`,
     noMap: "Längd längs vägval räknas på kartfilen. Ladda upp kartfilen först.",
     failed: "Vägvalen kunde inte räknas.",
     noLegs: "Banan har inga sträckor än."
   },
   /** Ångra efter omladdning. */
   history: {
-    restored: (steps: number) => `Ångra fungerar för ${steps} ${steps === 1 ? "ändring" : "ändringar"} från förra gången.`,
-    dropped: (steps: number) => `${steps} ${steps === 1 ? "ändring" : "ändringar"} från förra gången går inte att ångra: någon annan har ändrat samma sak sedan dess.`
+    restored: (steps: number) => `Ångra fungerar för ${plural(steps, "ändring", "ändringar")} från förra gången.`,
+    dropped: (steps: number) => `${plural(steps, "ändring", "ändringar")} från förra gången går inte att ångra: någon annan har ändrat samma sak sedan dess.`
   }
 };

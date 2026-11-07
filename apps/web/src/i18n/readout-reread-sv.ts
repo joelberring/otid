@@ -1,4 +1,5 @@
 import { formatDuration } from "../lib/clock-time";
+import { plural } from "./plural";
 
 /** Läs om avläsningar från rådata (PLAN.md steg 36). */
 type Status = "OK" | "OVERTIME" | "MP" | "UNKNOWN_CARD";
@@ -6,7 +7,7 @@ type ManualDecision = "DSQ" | "APPROVAL" | "DNF" | "OOC" | "NT" | "FINISH_TIME" 
   "MP_CONFIRMED";
 
 const status: Record<Status, string> = { OK: "Godkänd", OVERTIME: "Maxtid", MP: "Felstämplad", UNKNOWN_CARD: "Okänd bricka" };
-const punches = (count: number) => `${count} ${count === 1 ? "stämpling" : "stämplingar"}`;
+const punches = (count: number) => plural(count, "stämpling", "stämplingar");
 
 export const readoutRereadSv = {
   title: "Läs om avläsningar från rådata",
@@ -15,9 +16,9 @@ export const readoutRereadSv = {
   confirm: "Spara och räkna om",
   cancel: "Avbryt",
   retry: "Försök igen",
-  checked: (count: number) => `${count} ${count === 1 ? "avläsning lästes" : "avläsningar lästes"} om.`,
+  checked: (count: number) => `${plural(count, "avläsning lästes", "avläsningar lästes")} om.`,
   noChanges: "Ingen avläsning blir annorlunda.",
-  changes: (count: number) => `${count} ${count === 1 ? "avläsning blir annorlunda" : "avläsningar blir annorlunda"}:`,
+  changes: (count: number) => `${plural(count, "avläsning blir annorlunda", "avläsningar blir annorlunda")}:`,
   choose: "Läs om",
   side: (count: number, value: Status, elapsedMs: number | null) =>
     `${punches(count)}, ${status[value]}${elapsedMs !== null ? ` ${formatDuration(elapsedMs)}` : ""}`,
@@ -34,7 +35,7 @@ export const readoutRereadSv = {
   unreadableReasons: { FRAMES: "råa data går inte att avkoda", TIME: "tiderna går inte att placera", PAYLOAD: "råa data saknas" },
   notSaved: "Inget är sparat än.",
   noneChosen: "Välj minst en avläsning.",
-  saved: (count: number) => `Sparat. ${count} ${count === 1 ? "avläsning lästes" : "avläsningar lästes"} om och räknades om.`,
+  saved: (count: number) => `Sparat. ${plural(count, "avläsning lästes", "avläsningar lästes")} om och räknades om.`,
   conflict: "Något har ändrats sedan du tryckte på Visa vad som händer. Visa igen.",
   invalid: "Förfrågan gick inte att tolka. Visa igen.",
   unreachable: "Servern svarar inte. Inget är bekräftat sparat; försök igen.",

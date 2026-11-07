@@ -5,6 +5,8 @@
  * träningarna som använder båda. Paren blir grupper med en säkerhet; inget slås ihop utan att någon väljer det.
  * Ren funktion utan I/O.
  */
+import { foldForSearch } from "./search-fold";
+
 export interface MapExtent { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
 
 /** Det som sparas när en kartversion kontrolleras (ritas i webbläsaren), så att servern aldrig läser om stora filer. */
@@ -92,17 +94,12 @@ const NOISE_PATTERN = /^(?:v|ver|rev|r)\d+$|^\d+$/;
 const EXTENSION = /\.(?:ocd|omap|xmap|ocad|ppen|xml|zip)$/i;
 const DATES = [/(?<!\d)(?:19|20)\d{2}[-_.]?\d{2}[-_.]?\d{2}(?!\d)/g, /(?<!\d)\d{1,2}[-_.]\d{1,2}(?!\d)/g, /(?<!\d)(?:19|20)\d{2}(?!\d)/g];
 
-/** Bokstäverna utan accenter: å, ä → a, ö → o, é → e. */
-export function stripAccents(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}+/gu, "").replace(/ø/g, "o").replace(/æ/g, "ae").replace(/ß/g, "ss");
-}
-
 /**
  * Namnets ord: gemener, utan accenter, filändelse, datum och år, och utan ord som ny, rev, reviderad, version, v2, karta,
  * ocad, final, kopia och siffror. "Älvsjöskogen rev 2021.omap" → ["alvsjoskogen"].
  */
 export function normalizeMapName(name: string): string[] {
-  let text = stripAccents(name.normalize("NFC").trim().replace(/^.*[\\/]/, "").replace(EXTENSION, "").toLocaleLowerCase("sv-SE"));
+  let text = foldForSearch(name.normalize("NFC").trim().replace(/^.*[\\/]/, "").replace(EXTENSION, ""));
   for (const pattern of DATES) text = text.replace(pattern, " ");
   return text.split(/[^\p{L}\p{N}]+/u).filter(token => token.length > 0 && !NOISE_TOKENS.has(token) && !NOISE_PATTERN.test(token));
 }

@@ -26,7 +26,7 @@ export const partyPublicSv = {
   firstFinish: "Först till målenheten",
   lastOut: "Sista kvar",
   guestsTitle: "Kvällens gäster",
-  purchases: (count: number) => count === 1 ? "1 köp" : `${count} köp`,
+  purchases: (count: number) => `${count} köp`,
   barLabel: "Kvällen",
   /** Steg 46: syns när festen visar namn publikt. */
   namesShown: "Dina köp visas med ditt visningsnamn på den här sidan.",

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import React, { useMemo, useState, type ReactNode } from "react";
 import { listsSv as text } from "../../i18n/lists-sv";
-import { formatDuration } from "../../lib/clock-time";
+import { formatDayMonthTime, formatDuration } from "@o-tid/domain";
 import { resultListCsv, type ResultView } from "../../lib/lists/csv";
 import { clubSummary, clubSummaryTotal, courseLine, filterResults, resultClassNames, resultClubs, resultsByClub, splitGroups, type RelayClass,
   type RelayTeam, type ResultClass, type ResultListModel, type ResultRow } from "../../lib/lists/result-list-model";
@@ -387,9 +387,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
 function Standing({ model }: { model: ResultListModel }) {
   if (!model.standing) return null;
   const label = model.standing.kind === "OFFICIAL"
-    ? t.official(new Intl.DateTimeFormat("sv-SE", { timeZone: model.standing.timeZone, day: "numeric", month: "short",
-      hour: "2-digit", minute: "2-digit" })
-      .format(new Date(model.standing.finalizedAt)))
+    ? t.official(formatDayMonthTime(model.standing.finalizedAt, model.standing.timeZone))
     : t.preliminary;
   return <p className={styles.standing} data-standing={model.standing.kind} data-testid="result-standing">{label}</p>;
 }

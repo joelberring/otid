@@ -3,7 +3,7 @@ import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { acceptClubInvitations } from "./club-invitations";
 import { applyEventorMemberships, clubLinkFacts, derivedClubMembership } from "./club-affiliation-access";
-import { clubAreaAllowed, type ClubArea } from "@o-tid/domain";
+import { CLUB_ROLE_RANK, clubAreaAllowed, type ClubArea } from "@o-tid/domain";
 import { UUID_PATTERN } from "./serialization";
 import {
   authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead, type UserAccountSessionProof
@@ -20,7 +20,6 @@ export type ClubTransaction = Parameters<Parameters<Database["transaction"]>[0]>
 export type ClubFailure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "name-taken" };
 export type ClubProof = UserAccountSessionProof;
 
-export const CLUB_ROLE_RANK: Record<ClubRole, number> = { READER: 0, LEADER: 1, ADMIN: 2, OWNER: 3 };
 export const clubRoleAtLeast = (role: ClubRole, minimum: ClubRole) => CLUB_ROLE_RANK[role] >= CLUB_ROLE_RANK[minimum];
 
 /**

@@ -1,23 +1,5 @@
-/** Steg 60: små geometrifunktioner i kartans mm. */
-import type { Point } from "@o-tid/map-file";
-
-export function distance(a: Point, b: Point): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-/** Avståndet från punkten till sträckan a–b. */
-export function distanceToSegment(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x, dy = b.y - a.y;
-  const lengthSquared = dx * dx + dy * dy;
-  const t = lengthSquared > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared)) : 0;
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
-}
-
-export function polylineLength(points: readonly Point[]): number {
-  let total = 0;
-  for (let index = 1; index < points.length; index += 1) total += distance(points[index - 1]!, points[index]!);
-  return total;
-}
+/** Steg 60: förenkling av linjer och avstånd till en linje, i kartans mm. */
+import { distance, distanceToSegment, type Point } from "@o-tid/map-file";
 
 /** Douglas–Peucker: punkter som avviker mindre än `tolerance` från den förenklade linjen tas bort. */
 export function simplify(points: readonly Point[], tolerance: number): Point[] {

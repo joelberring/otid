@@ -6,6 +6,7 @@ import { raceCorrectionsSv as text } from "../i18n/race-corrections-sv";
 import { applyRaceCorrection, fetchRaceCorrections, previewRaceCorrection, type RaceCorrectionFailure } from "../lib/race-corrections-client";
 import { formatClockTime } from "../lib/clock-time";
 import styles from "./race-administrator-workspace.module.css";
+import { Disclosure } from "./ui";
 
 /**
  * Rättningar för hela tävlingen (PLAN.md steg 31): varje åtgärd visas först ("Visa vad som händer": hur många som
@@ -100,8 +101,7 @@ function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () =
   }
   const locked = flow.busy || !!flow.attempt;
   const [open, setOpen] = useState(false);
-  return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{text.timeTitle}</summary>
+  return <Disclosure className={styles.disclosure} open={open || !!flow.attempt} onToggle={setOpen} summary={text.timeTitle}>
     <form className={styles.disclosureBody} onSubmit={submit} noValidate>
       <p>{text.timeHelp}</p>
       <div className={styles.toolbarRow}>
@@ -128,7 +128,7 @@ function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () =
         offsetSeconds * 1000)}`} />
       <RaceCorrectionMessages flow={flow} />
     </form>
-  </details>;
+  </Disclosure>;
 }
 
 /** "Kontroll ur funktion": koden krävs inte på någon bana. */
@@ -142,8 +142,7 @@ function OutOfOrderForm({ raceId, onSaved }: { raceId: string; onSaved: () => Pr
     event.preventDefault();
     if (valid) void flow.show({ action: "ADD_CONTROL_OUT_OF_ORDER", controlCode, reason: reason.trim() });
   }
-  return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{text.outTitle}</summary>
+  return <Disclosure className={styles.disclosure} open={open || !!flow.attempt} onToggle={setOpen} summary={text.outTitle}>
     <form className={styles.disclosureBody} onSubmit={submit} noValidate>
       <p>{text.outHelp}</p>
       <label>{text.controlCode}<input type="text" inputMode="numeric" value={code} disabled={locked}
@@ -154,7 +153,7 @@ function OutOfOrderForm({ raceId, onSaved }: { raceId: string; onSaved: () => Pr
       <RaceCorrectionReview flow={flow} title={`${text.outTitle}: ${text.outLabel(controlCode)}`} />
       <RaceCorrectionMessages flow={flow} />
     </form>
-  </details>;
+  </Disclosure>;
 }
 
 /** Aktiva rättningar med "Ta bort" (räknar om tillbaka) och de borttagna som historik. */
@@ -171,9 +170,9 @@ function CorrectionList({ raceId, corrections, onSaved }: { raceId: string; corr
     </li>)}</ul>}
     {removing && <RaceCorrectionReview flow={flow} title={text.removeReview(correctionLabel(removing))} />}
     <RaceCorrectionMessages flow={flow} />
-    {removed.length > 0 && <details className={styles.disclosure}><summary>{text.history} ({removed.length})</summary>
+    {removed.length > 0 && <Disclosure className={styles.disclosure} summary={<>{text.history} ({removed.length})</>}>
       <ul className={styles.followUpList}>{removed.map(row => <li key={row.id}>{correctionLabel(row)} · {row.reason}</li>)}</ul>
-    </details>}
+    </Disclosure>}
   </div>;
 }
 
@@ -214,8 +213,7 @@ export function ShiftStartTimes({ raceId, classes, timeZone, onChanged }: { race
   }
   const times = flow.attempt?.preview.summary.startTimes;
   const clock = (value: string | null) => value ? formatClockTime(value, timeZone) : "–";
-  return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{text.shiftTitle}</summary>
+  return <Disclosure className={styles.disclosure} open={open || !!flow.attempt} onToggle={setOpen} summary={text.shiftTitle}>
     <form className={styles.disclosureBody} onSubmit={submit} noValidate>
       <p>{text.shiftHelp}</p>
       {fixed.length === 0 ? <p>{text.shiftNoClasses}</p> : <>
@@ -241,15 +239,14 @@ export function ShiftStartTimes({ raceId, classes, timeZone, onChanged }: { race
         </div>} />
       <RaceCorrectionMessages flow={flow} />
     </form>
-  </details>;
+  </Disclosure>;
 }
 
 /** "Räkna om hela tävlingen" (PLAN.md steg 31) under Resultat → Efterarbete: alla med avläsning, efter en förhandsvisning. */
 export function RecalculateRace({ raceId, onChanged }: { raceId: string; onChanged?: () => Promise<void> }) {
   const flow = useRaceCorrection(raceId, onChanged);
   const [open, setOpen] = useState(false);
-  return <details className={styles.disclosure} open={open || !!flow.attempt} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>{text.recalculateTitle}</summary>
+  return <Disclosure className={styles.disclosure} open={open || !!flow.attempt} onToggle={setOpen} summary={text.recalculateTitle}>
     <div className={styles.disclosureBody}>
       <p>{text.recalculateHelp}</p>
       {!flow.attempt && <button type="button" className="secondary" disabled={flow.busy}
@@ -257,5 +254,5 @@ export function RecalculateRace({ raceId, onChanged }: { raceId: string; onChang
       <RaceCorrectionReview flow={flow} title={text.recalculateTitle} />
       <RaceCorrectionMessages flow={flow} />
     </div>
-  </details>;
+  </Disclosure>;
 }

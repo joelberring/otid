@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import {
   raceBackupPreviewSchema, raceBackupProblemSchema, raceRestoreResponseSchema, type RaceBackupPreview, type RaceRestoreResponse
@@ -8,7 +8,7 @@ import {
 import { raceTitle } from "@o-tid/domain";
 import { raceBackupSv } from "../i18n/race-backup-sv";
 import { readOrganizerCsrf } from "../lib/organizer-client";
-import { Button, Field, Notice } from "./ui";
+import { Button, Dialog, Field, Notice } from "./ui";
 import styles from "./copy-race-dialog.module.css";
 
 const text = raceBackupSv.restore;
@@ -55,11 +55,6 @@ function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void
   const [result, setResult] = useState<RaceRestoreResponse>();
   const [opening, setOpening] = useState(false);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
-
   function choose(next: File | undefined) {
     setFile(next); setPreview(undefined); setProblem(undefined); setRequestId(crypto.randomUUID());
   }
@@ -92,7 +87,7 @@ function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void
 
   const titleId = "restore-race-title";
   const others = preview?.people ?? [];
-  return <dialog ref={dialogRef} className={styles.dialog} aria-labelledby={titleId} onClose={onClose}>
+  return <Dialog dialogRef={dialogRef} className={styles.dialog} labelledBy={titleId} onClose={onClose}>
     <h2 id={titleId}>{text.title}</h2>
     {!preview && !result && <form className={styles.form} noValidate onSubmit={event => void check(event)}>
       <p className={styles.intro}>{text.intro}</p>
@@ -145,5 +140,5 @@ function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void
         <Button variant="secondary" disabled={opening} onClick={() => dialogRef.current?.close()}>{text.close}</Button>
       </div>
     </div>}
-  </dialog>;
+  </Dialog>;
 }

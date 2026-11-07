@@ -44,5 +44,6 @@ kartfiler varje timme (48 timdumpar och 14 dagliga), så säkerhetskopiorna väx
 
 - Inget måste läggas till i `.env`; efter den vanliga uppdateringen fungerar allt med förvalen. Den första rapporten kommer
   söndagen efter, och prognosen när det finns två dygns mätningar.
-- Första dumpen efter uppdateringen sparar allt kartinnehåll en gång (tar några sekunder extra).
+- Första dumpen efter uppdateringen (`backup-before-migrate`) sparar allt kartinnehåll en gång, två korta `psql` per innehåll;
+  med några hundra kartor tar uppdateringen upp till någon minut längre den gången.
 - Den gamla återställningen utan `restore-map-content` ger kartor utan bild och fil tills steget körs.

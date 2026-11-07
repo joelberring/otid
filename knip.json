@@ -26,11 +26,9 @@
   },
   "ignore": [
     "**/*.test.ts", "**/*.test.tsx", "**/test/**", "**/__tests__/**",
-    // Städrundan 2026-11-07: andra grenar ändrar de här filerna just nu (utskriften, säkerhetskopian och superadmin).
-    // Kvar: REFERENCE_TABLES, inCourseLayer, PrintJobStatus, PrintJobItem, RaceRestoreOptions, RaceBackupStatus och
-    // SuperadminActionResponse är oanvända. Ta bort raderna och det döda när grenarna är inne.
-    "packages/course-setting/src/print-reference.ts", "packages/print-pdf/src/write-pdf.ts",
-    "packages/contracts/src/course-setting-print.ts", "packages/contracts/src/race-backup.ts", "packages/contracts/src/superadmin.ts"
+    // Städrundan 2026-11-07: en annan gren ändrar de här filerna just nu (säkerhetskopian och superadmin). Kvar:
+    // RaceRestoreOptions, RaceBackupStatus och SuperadminActionResponse är oanvända. Ta bort raden och det döda sedan.
+    "packages/contracts/src/race-backup.ts", "packages/contracts/src/superadmin.ts"
   ],
   "playwright": false,
   "ignoreExportsUsedInFile": true,

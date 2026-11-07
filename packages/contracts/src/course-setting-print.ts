@@ -11,7 +11,6 @@ import { uuidSchema as uuid } from "./ids";
 export const printJobKindSchema = z.enum(["PRESS", "PROCESS", "OFFICE"]);
 export type PrintJobKind = z.infer<typeof printJobKindSchema>;
 export const printJobStatusSchema = z.enum(["QUEUED", "RUNNING", "DONE", "FAILED", "EXPIRED"]);
-export type PrintJobStatus = z.infer<typeof printJobStatusSchema>;
 
 /** Högst så många kartor (banor, varianter eller löpare) i ett jobb. */
 export const PRINT_JOB_MAX_ITEMS = 2000;
@@ -40,7 +39,6 @@ export const printJobItemSchema = z.object({
   training: z.object({ view: z.enum(["RUNNER", "CONTROLLER"]).optional(), pairMap: z.enum(["COMMON", "A", "B"]).optional(),
     section: z.object({ from: z.number().int().min(0).max(10_000), to: z.number().int().min(0).max(10_000) }).strict().optional() }).strict().optional()
 }).strict();
-export type PrintJobItem = z.infer<typeof printJobItemSchema>;
 
 export const printJobRequestSchema = z.object({
   formatVersion: z.literal(1),

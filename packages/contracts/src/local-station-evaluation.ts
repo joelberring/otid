@@ -1,8 +1,8 @@
 import { z } from "zod";
+import { sha256HexSchema } from "./ids";
 import { rogainingScoreSchema } from "./rogaining";
 
 const uuidSchema = z.uuid();
-const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const codesSchema = z.array(z.number().int().positive()).max(1_000);
 const splitSchema = z.object({
   controlCode: z.number().int().positive(),
@@ -87,7 +87,7 @@ export const localStationEvaluationSchema = z.object({
   localSequence: z.number().int().positive(),
   raceId: uuidSchema,
   packageVersion: z.number().int().positive(),
-  packagePayloadSha256: sha256Schema,
+  packagePayloadSha256: sha256HexSchema,
   engineVersion: z.string().trim().min(1).max(64),
   snapshotVersion: z.number().int().positive(),
   evaluation: evaluationResultSchema

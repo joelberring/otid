@@ -1,3 +1,4 @@
+import { foldForSearch } from "@o-tid/domain";
 import type { ClubArchiveEntryStatus, ClubArchiveListItem } from "@o-tid/contracts";
 
 /**
@@ -16,12 +17,10 @@ export interface ArchiveFilter {
 
 export const EMPTY_FILTER: ArchiveFilter = { text: "", year: "", mapId: "", tag: "", leader: "", status: "" };
 
-export const fold = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-
 const yearOf = (entry: ClubArchiveListItem) => entry.trainingDate?.slice(0, 4) ?? (entry.year === null ? "" : String(entry.year));
 
 export function filterArchive(entries: readonly ClubArchiveListItem[], filter: ArchiveFilter): ClubArchiveListItem[] {
-  const words = fold(filter.text).split(/\s+/).filter(Boolean);
+  const words = foldForSearch(filter.text).split(/\s+/).filter(Boolean);
   return entries.filter(entry => {
     if (filter.year && yearOf(entry) !== filter.year) return false;
     if (filter.mapId && !entry.maps.some(map => map.mapId === filter.mapId)) return false;
@@ -29,7 +28,7 @@ export function filterArchive(entries: readonly ClubArchiveListItem[], filter: A
     if (filter.leader && entry.leader !== filter.leader) return false;
     if (filter.status && entry.status !== filter.status) return false;
     if (words.length === 0) return true;
-    const haystack = fold([entry.place, entry.title, entry.leader ?? "", ...entry.tags, ...entry.courseNames, ...entry.maps.map(map => map.name),
+    const haystack = foldForSearch([entry.place, entry.title, entry.leader ?? "", ...entry.tags, ...entry.courseNames, ...entry.maps.map(map => map.name),
       entry.trainingDate ?? ""].join(" "));
     return words.every(word => haystack.includes(word));
   });

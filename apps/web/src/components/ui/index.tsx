@@ -111,3 +111,18 @@ export function Table({ children, className, ...props }: TableHTMLAttributes<HTM
 
 /** Klass för högerställda siffror i tabeller. */
 export const numeric = styles.num;
+
+/**
+ * Ett avsnitt som fälls ut (`<details>`): rubriken i `<summary>`, innehållet under. `open` och `onToggle` för de som styr
+ * läget själva; `className` ger vyns eget utseende.
+ */
+export function Disclosure({ summary, summaryClassName, className, open, onToggle, children }: { summary: ReactNode;
+  summaryClassName?: string | undefined; className?: string | undefined; open?: boolean | undefined;
+  onToggle?: ((open: boolean) => void) | undefined; children?: ReactNode }) {
+  return <details className={className} open={open} onToggle={onToggle && (event => onToggle(event.currentTarget.open))}>
+    <summary className={summaryClassName}>{summary}</summary>
+    {children}
+  </details>;
+}
+
+export { CopyButton, copyText, Dialog } from "./interactive";

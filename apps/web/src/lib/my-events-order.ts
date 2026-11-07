@@ -3,13 +3,14 @@
  * arrangemang med flera lopp sorteras efter sitt närmaste kommande lopp, annars efter sitt senaste. "Idag" räknas i
  * arrangemangets tidszon. Loppen inom ett arrangemang följer samma ordning.
  */
+import { zonedDate } from "@o-tid/domain";
 type Race = { raceDate: string };
 type EventWithRaces<R extends Race> = { timeZone: string; startsOn: string; races: readonly R[] };
 
 /** Dagens datum (ÅÅÅÅ-MM-DD) i tidszonen; webbläsarens tid om zonen är okänd. */
 export function todayIn(timeZone: string, now: Date): string {
   try {
-    return new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    return zonedDate(now, timeZone);
   } catch {
     return new Intl.DateTimeFormat("sv-SE", { year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   }

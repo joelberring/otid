@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** En banfil (IOF XML) utan .ppen i banläggningen, och besked när en ändring i banläggningen inte sparades. */
 export const courseDataSv = {
   /** Banor → Banfil, efter att banfilen lästs in i tävlingen. */
@@ -21,7 +23,7 @@ export const courseDataSv = {
   },
   /** Beskedet i editorn efter Använd igen eller Banfil. */
   fromCourseData: (courses: number, controls: number) =>
-    `Banorna kommer från banfilen (${courses} ${courses === 1 ? "bana" : "banor"}, ${controls} ${controls === 1 ? "kontroll" : "kontroller"}). Kontrollbeskrivningarna är tomma.`,
+    `Banorna kommer från banfilen (${plural(courses, "bana", "banor")}, ${plural(controls, "kontroll", "kontroller")}). Kontrollbeskrivningarna är tomma.`,
   /** Ett sparande som servern inte tog emot (efter ett tyst nytt försök). */
   saveFailed: "Ändringen sparades inte – försök igen.",
   retry: "Försök igen",

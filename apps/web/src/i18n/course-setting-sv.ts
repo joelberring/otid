@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** Steg 62 (ADR-0180): banläggningen i webben. Enkel svenska; kontroller nämns med kod ("kontroll 31"), inga interna id. */
 const meters = (value: number) => value >= 10_000 ? `${(value / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(value)} m`;
 
@@ -35,9 +37,9 @@ export const courseSettingSv = {
   courses: {
     heading: "Banor",
     all: "Alla kontroller",
-    allSummary: (count: number) => `${count} ${count === 1 ? "kontroll" : "kontroller"}`,
+    allSummary: (count: number) => plural(count, "kontroll", "kontroller"),
     summary: (length: string, controls: number, variants: number, excluded = 0) =>
-      `${length} · ${controls} ${controls === 1 ? "kontroll" : "kontroller"}${variants > 1 || excluded > 0 ? ` · ${variants} ${variants === 1 ? "variant" : "varianter"}` : ""}` +
+      `${length} · ${plural(controls, "kontroll", "kontroller")}${variants > 1 || excluded > 0 ? ` · ${plural(variants, "variant", "varianter")}` : ""}` +
       (excluded > 0 ? ` (${excluded} bortvald${excluded === 1 ? "" : "a"})` : ""),
     length: (min: number, max: number) => min === max ? meters(min) : `${meters(min)}–${meters(max)}`,
     add: "Ny bana",
@@ -51,7 +53,7 @@ export const courseSettingSv = {
     variant: "Variant",
     allVariants: "Alla grenar",
     /** ADR-0180 beslut 14: variantväljaren med antal kontroller. */
-    variantOption: (code: string, controls: number) => `${code} · ${controls} ${controls === 1 ? "kontroll" : "kontroller"}`,
+    variantOption: (code: string, controls: number) => `${code} · ${plural(controls, "kontroll", "kontroller")}`,
     classes: "Klasser (som i Purple Pen, t.ex. H21, D21)"
   },
   tools: {
@@ -215,7 +217,7 @@ export const courseSettingSv = {
     reading: "Läser filen …",
     invalid: "Filen kunde inte läsas som en Purple Pen-fil.",
     tooLarge: "Filen är för stor.",
-    imported: (courses: number, controls: number) => `Inläst: ${courses} ${courses === 1 ? "bana" : "banor"} och ${controls} kontroller.`,
+    imported: (courses: number, controls: number) => `Inläst: ${plural(courses, "bana", "banor")} och ${controls} kontroller.`,
     warnings: "Att veta om filen",
     download: "Ladda ned .ppen",
     downloadOriginal: (name: string) => `Ladda ned den inlästa filen (${name})`,

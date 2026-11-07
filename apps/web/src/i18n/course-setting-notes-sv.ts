@@ -1,6 +1,5 @@
 import { COURSE_SETTING_SKETCH_MAX_POINTS } from "@o-tid/contracts";
-
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+import { plural } from "./plural";
 
 /** ADR-0181 beslut 8: notiser med ritning, kartfel, borttagning och exporten till kartritaren. */
 export const notesSv = {

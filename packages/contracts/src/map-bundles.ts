@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { courseVariantCodeSchema } from "./course-edit";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 import { raceNameSchema } from "./race-name";
 
 /**
@@ -62,7 +62,7 @@ export const mapBundleResponseSchema = z.object({
   eventName: name, raceName: raceNameSchema, raceDate: z.iso.date(), timeZone: z.string().min(1).max(100),
   reserve: mapReserveSchema,
   /** Hash av listans innehåll; utskriften sparas bara mot det innehåll som visades. */
-  stateHash: z.string().regex(/^[a-f0-9]{64}$/),
+  stateHash: sha256HexSchema,
   /** En rad per klass; stafett: en per sträcka (`leg`) med sträckans varianter. */
   classes: z.array(z.object({ classId: uuid, name, courseName: name, variantCodes: z.array(courseVariantCodeSchema).max(100),
     startMode: mapStartModeSchema, leg: leg.optional(), layout: layout.optional() }).strict()).max(1000),
@@ -73,7 +73,7 @@ export const mapBundleResponseSchema = z.object({
 }).strict();
 
 export const mapPrintRequestSchema = z.object({ formatVersion: z.literal(1), list: mapPrintListSchema,
-  stateHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
+  stateHash: sha256HexSchema }).strict();
 export const mapPrintResponseSchema = z.object({ formatVersion: z.literal(1), raceId: uuid, list: mapPrintListSchema, printedAt: instant }).strict();
 export const mapReserveRequestSchema = z.object({ formatVersion: z.literal(1), reserve: mapReserveSchema }).strict();
 export const mapReserveResponseSchema = z.object({ formatVersion: z.literal(1), raceId: uuid, reserve: mapReserveSchema }).strict();

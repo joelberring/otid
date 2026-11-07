@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** "Resultaten är klara" (PLAN.md steg 27): en knapp i stället för fastställande i två steg. */
 export const resultsOfficialSv = {
   title: "Resultaten är klara",
@@ -27,7 +29,7 @@ export const resultsOfficialSv = {
     STALE_RESULT_SNAPSHOT: "har ett resultat som bygger på en äldre bana eller klass. Räkna om från avläsningen i deltagarkortet."
   } as Partial<Record<string, string>>,
   /** Steg 38: felstämplade som inte är bekräftade stoppar inte, men visas som information. */
-  unconfirmedMispunched: (count: number) => `${count} ${count === 1 ? "felstämplad är inte bekräftad" : "felstämplade är inte bekräftade"}. Det stoppar inte att resultaten blir klara.`,
+  unconfirmedMispunched: (count: number) => `${plural(count, "felstämplad är inte bekräftad", "felstämplade är inte bekräftade")}. Det stoppar inte att resultaten blir klara.`,
   openEntry: "Öppna",
   openEntryFor: (name: string) => `Öppna deltagarkortet för ${name}`,
   unknownCards: "Det finns okända brickor som inte är hanterade. Koppla dem till en deltagare eller direktanmäl under Avläsning → Okända brickor.",

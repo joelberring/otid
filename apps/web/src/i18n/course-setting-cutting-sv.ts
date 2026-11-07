@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** Ringklipp i banläggningen (ADR-0180 beslut 10). */
 export const courseSettingCuttingSv = {
   heading: "Ringklipp",
@@ -10,5 +12,5 @@ export const courseSettingCuttingSv = {
   failed: "Klippen över detaljer kunde inte räknas ur kartfilen. Ringarna ritas hela.",
   bake: "Gör klippen fasta (för Purple Pen)",
   bakeHelp: "Klippen över detaljer sparas då i kontrollerna och följer med i .ppen-filen. Överlappsklippen beror på banan och sparas inte.",
-  baked: (count: number) => count === 0 ? "Klippen var redan fasta." : `${count} ${count === 1 ? "kontroll" : "kontroller"} fick fasta klipp.`
+  baked: (count: number) => count === 0 ? "Klippen var redan fasta." : `${plural(count, "kontroll", "kontroller")} fick fasta klipp.`
 };

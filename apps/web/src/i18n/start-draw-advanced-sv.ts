@@ -1,7 +1,9 @@
+import { plural } from "./plural";
+
 /** Lottningens "Avancerat" och förhandsvisningens regelbrott (PLAN.md steg 26). Tider skrivs som klockslag. */
 const names = (list: readonly string[]) =>
   list.length <= 1 ? list.join("") : `${list.slice(0, -1).join(", ")} och ${list[list.length - 1]}`;
-const minutes = (count: number) => count === 1 ? "1 minut" : `${count} minuter`;
+const minutes = (count: number) => plural(count, "minut", "minuter");
 
 export const startDrawAdvancedSv = {
   title: "Avancerat",
@@ -37,12 +39,12 @@ export const startDrawAdvancedSv = {
   seedClass: "Visa löpare i klassen",
   seedRank: "Seedning (1 = bäst)",
   seedLabel: (name: string) => `Seedning ${name}`,
-  seededCount: (count: number) => count === 1 ? "1 seedad" : `${count} seedade`,
+  seededCount: (count: number) => plural(count, "seedad", "seedade"),
   noEntries: "Inga anmälda i klassen.",
   name: "Namn", club: "Klubb", card: "Bricka", none: "–",
   importLabel: "Importera ranking (CSV)",
   importHelp: "En rad per löpare: placering och namn, gärna klubb och bricka (till exempel Placering;Namn;Klubb;Bricka). Löparna matchas på bricka, annars på namn och klubb.",
-  imported: (count: number) => count === 1 ? "1 löpare fick seedning från filen." : `${count} löpare fick seedning från filen.`,
+  imported: (count: number) => `${count} löpare fick seedning från filen.`,
   importUnmatched: (count: number) => count === 1 ? "1 rad passade ingen anmäld:" : `${count} rader passade ingen anmäld:`,
   importLine: (line: number, text: string) => `rad ${line}: ${text}`,
   importError: "Filen kunde inte läsas. Spara den som CSV (semikolon eller komma) och försök igen.",
@@ -68,7 +70,7 @@ export const startDrawAdvancedSv = {
     `${names(classNames)} har redan tider i samma startgrupp samma minut (${minutes(count)}, första ${first}).`,
   existingTitle: "Behåller sina tider",
   existingClass: (className: string, count: number, first: string, last: string) =>
-    `${className} (${count === 1 ? "1 start" : `${count} starter`} ${first === last ? first : `${first}–${last}`})`,
+    `${className} (${plural(count, "start", "starter")} ${first === last ? first : `${first}–${last}`})`,
   timelineTitle: "Minut för minut",
   timelineHelp: "Var de nya tiderna hamnar bland de befintliga. Nya tider är märkta Ny.",
   timelineTime: "Minut", timelineStarts: "Starter",

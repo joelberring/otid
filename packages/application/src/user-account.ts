@@ -6,7 +6,9 @@ import {
   organizerAccountLoginResponseSchema,
   organizerAccountRegistrationRequestSchema,
   type OrganizerAccountLoginRequest,
-  type OrganizerAccountLoginResponse
+  type OrganizerAccountLoginResponse,
+  SHA256_HEX_PATTERN,
+  SHORT_SESSION_LIFETIME_MS
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
@@ -17,17 +19,13 @@ import { verificationForUnverifiedLogin, type EmailVerificationDelivery } from "
 
 const TOKEN_PREFIX = "otid_user_session_v1";
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const DUMMY_ID = "00000000-0000-4000-8000-000000000000";
 const DUMMY_SALT = Buffer.alloc(16);
 const DUMMY_HASH = Buffer.alloc(32);
 // ADR-0168: en inloggning ska räcka en hel tävlingshelg ("Kom ihåg mig på den här datorn").
 export const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
-/**
- * ADR-0205 tillägg: utan "Kom ihåg mig" gäller inloggningen tolv timmar (en tävlingsdag) och kakan är en sessionskaka som
- * webbläsaren glömmer när den stängs, för klubbens och tävlingens lånade datorer.
- */
-export const SHORT_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000;
+/** ADR-0205 tillägg: den korta sessionen (tolv timmar), samma värde som kakans gräns i webben. */
+export { SHORT_SESSION_LIFETIME_MS };
 /**
  * Inloggningsspärren: 5 fel för en e-postadress inom 15 minuter spärrar adressen i 15 minuter (tidsbegränsat, aldrig för
  * alltid). Steg 46: dessutom spärras en klientadress (IP) i 15 minuter efter 30 fel inom 15 minuter, oavsett e-postadress,
@@ -127,14 +125,14 @@ function parseToken(value: string | null): ParsedToken | undefined {
 
 function hashMatches(secret: Buffer, storedHash: string | undefined): boolean {
   const actual = Buffer.from(sha256(secret), "hex");
-  const expected = storedHash && HASH_PATTERN.test(storedHash) ? Buffer.from(storedHash, "hex") : DUMMY_HASH;
+  const expected = storedHash && SHA256_HEX_PATTERN.test(storedHash) ? Buffer.from(storedHash, "hex") : DUMMY_HASH;
   return timingSafeEqual(actual, expected);
 }
 
 function csrfMatches(cookie: string | null | undefined, header: string | null | undefined, storedHash: string): boolean {
   const cookieBytes = cookie && SECRET_PATTERN.test(cookie) ? Buffer.from(cookie, "base64url") : Buffer.alloc(32);
   const headerBytes = header && SECRET_PATTERN.test(header) ? Buffer.from(header, "base64url") : Buffer.alloc(32);
-  const expected = HASH_PATTERN.test(storedHash) ? Buffer.from(storedHash, "hex") : DUMMY_HASH;
+  const expected = SHA256_HEX_PATTERN.test(storedHash) ? Buffer.from(storedHash, "hex") : DUMMY_HASH;
   return timingSafeEqual(Buffer.from(sha256(cookieBytes), "hex"), expected) &&
     timingSafeEqual(Buffer.from(sha256(headerBytes), "hex"), expected) &&
     timingSafeEqual(cookieBytes, headerBytes);
@@ -173,7 +171,7 @@ export async function userAccountPasswordMatches(
   password: string
 ): Promise<boolean> {
   const derived = await scryptVerifier(password, verifier?.saltHex ? Buffer.from(verifier.saltHex, "hex") : DUMMY_SALT);
-  const expected = verifier?.verifierHex && HASH_PATTERN.test(verifier.verifierHex)
+  const expected = verifier?.verifierHex && SHA256_HEX_PATTERN.test(verifier.verifierHex)
     ? Buffer.from(verifier.verifierHex, "hex") : DUMMY_HASH;
   return timingSafeEqual(derived, expected) && !!verifier;
 }

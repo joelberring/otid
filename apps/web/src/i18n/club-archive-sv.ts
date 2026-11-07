@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** ADR-0194: klubben och klubbarkivet. */
 const mb = (bytes: number) => bytes > 0 && bytes < 100 * 1024
   ? `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("sv-SE")} kB`
@@ -18,7 +20,7 @@ export const clubArchiveSv = {
     nameTaken: "Du har redan en klubb med det namnet. Öppna den i listan ovan eller välj ett annat namn.",
     createButton: "Skapa klubben",
     open: "Öppna arkivet",
-    entries: (count: number) => count === 1 ? "1 träning" : `${count} träningar`,
+    entries: (count: number) => plural(count, "träning", "träningar"),
     failed: "Klubben kunde inte skapas. Försök igen."
   },
   /** ADR-0209 beslut C: Medlem (bekräftad eller inbjuden), Ledare, Administratör och Ägare. */
@@ -35,7 +37,7 @@ export const clubArchiveSv = {
   loading: "Hämtar arkivet …",
   loadFailed: "Arkivet kunde inte hämtas. Är du inloggad och med i klubben?",
   usage: (bytes: number, maps: number, versions: number, entries: number) =>
-    `${mb(bytes)} · ${maps} ${maps === 1 ? "karta" : "kartor"} (${versions} ${versions === 1 ? "version" : "versioner"}) · ${entries} ${entries === 1 ? "träning" : "träningar"}`,
+    `${mb(bytes)} · ${plural(maps, "karta", "kartor")} (${plural(versions, "version", "versioner")}) · ${plural(entries, "träning", "träningar")}`,
   filters: {
     search: "Sök",
     searchPlaceholder: "Plats, övning, bana …",
@@ -66,7 +68,7 @@ export const clubArchiveSv = {
     readOnlyHint: "Arkivet visar träningen som den gjordes. Vill du ändra banorna: Använd igen – då öppnas en kopia i banläggningen.",
     courses: "Banor",
     noCourses: "Inga banfiler i den här träningen.",
-    courseCount: (count: number) => count === 1 ? "1 bana" : `${count} banor`,
+    courseCount: (count: number) => plural(count, "bana", "banor"),
     controls: (count: number) => `${count} kontroller`,
     length: (meters: number) => `${(meters / 1000).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} km`,
     mapVersion: "Kartversion",
@@ -179,8 +181,8 @@ export const clubArchiveSv = {
     title: "Kartor",
     help: "En karta är ett område med versioner. Gamla träningar visar versionen de gjordes på; Använd igen väljer den senaste.",
     empty: "Inga kartor än.",
-    versions: (count: number) => count === 1 ? "1 version" : `${count} versioner`,
-    trainings: (count: number) => count === 1 ? "1 träning" : `${count} träningar`,
+    versions: (count: number) => plural(count, "version", "versioner"),
+    trainings: (count: number) => plural(count, "träning", "träningar"),
     latest: "senaste",
     rename: "Namn och rättigheter",
     move: "Flytta versionen till …",

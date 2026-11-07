@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** Rättningar för hela tävlingen (PLAN.md steg 31). */
 type Station = "START" | "FINISH" | "CONTROL" | "ALL";
 
@@ -43,14 +45,14 @@ export const raceCorrectionsSv = {
     `${raceCorrectionsSv.stationLabel(station, controlCode)}: ${signedMinutes(offsetMs)}`,
   outLabel: (controlCode: number | null) => `Kontroll ${controlCode ?? ""} ur funktion`,
   signedMinutes,
-  readOut: (count: number) => `${count} ${count === 1 ? "löpare har" : "löpare har"} läst ut.`,
+  readOut: (count: number) => `${count} löpare har läst ut.`,
   affected: (count: number) => count === 0 ? "Ingen får ny tid eller ny status." :
-    `${count} ${count === 1 ? "löpare får" : "löpare får"} ny tid eller ny status.`,
+    `${count} löpare får ny tid eller ny status.`,
   statusChanges: "Byter status",
   noStatusChanges: "Ingen byter status.",
-  notRecalculated: (count: number) => `${count} ${count === 1 ? "löpare har" : "löpare har"} manuellt rättad tid och räknas inte om. Ta bort rättningen i deltagarkortet om den nya tiden ska gälla.`,
+  notRecalculated: (count: number) => `${count} löpare har manuellt rättad tid och räknas inte om. Ta bort rättningen i deltagarkortet om den nya tiden ska gälla.`,
   notSaved: "Inget är sparat än.",
-  saved: (count: number) => `Sparat. ${count} ${count === 1 ? "resultat räknades" : "resultat räknades"} om.`,
+  saved: (count: number) => `Sparat. ${count} resultat räknades om.`,
   conflict: "Något har ändrats sedan du tryckte på Visa vad som händer. Visa igen.",
   duplicate: "Det finns redan en sådan rättning. Ta bort den först.",
   invalid: "Kontrollera uppgifterna. En kontroll ur funktion måste finnas på någon bana.",
@@ -64,7 +66,7 @@ export const raceCorrectionsSv = {
   shiftChooseClass: "Välj klass",
   shiftReasonPlaceholder: "T.ex. starten kom igång fem minuter sent",
   shiftReview: (className: string, offset: string) => `Flytta starttider: ${className} ${offset}`,
-  shiftCount: (count: number) => `${count} ${count === 1 ? "starttid flyttas" : "starttider flyttas"}.`,
+  shiftCount: (count: number) => `${plural(count, "starttid flyttas", "starttider flyttas")}.`,
   shiftFirst: "Första start",
   shiftLast: "Sista start",
   shiftSaved: (count: number) => `Sparat. ${count} resultat räknades om. Publicera startlistan igen så att den visar de nya tiderna.`,

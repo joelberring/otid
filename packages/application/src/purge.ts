@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { ANY_UUID_PATTERN } from "@o-tid/contracts";
 import { sql } from "drizzle-orm";
 import type { DbExecutor } from "./snapshot";
 
@@ -24,7 +25,6 @@ export class PurgeProtectedError extends Error {
 
 interface ForeignKey { child: string; parent: string; childColumns: string[]; parentColumns: string[]; deferrable: boolean }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const quote = (identifier: string) => `"${identifier.replaceAll("\"", "\"\"")}"`;
 
 async function foreignKeys(tx: DbExecutor): Promise<ForeignKey[]> {
@@ -50,7 +50,7 @@ async function foreignKeys(tx: DbExecutor): Promise<ForeignKey[]> {
  */
 export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly string[],
   options: { readonly protect?: readonly string[] } = {}): Promise<Map<string, number>> {
-  for (const id of ids) if (!UUID_PATTERN.test(id)) throw new Error("Ogiltigt id för borttagning");
+  for (const id of ids) if (!ANY_UUID_PATTERN.test(id)) throw new Error("Ogiltigt id för borttagning");
   const deleted = new Map<string, number>();
   if (ids.length === 0) return deleted;
   await tx.execute(sql`select set_config('otid.purge', 'on', true)`);

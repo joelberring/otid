@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
+import { prefixedUuidPattern, uuidSchema as uuid, sha256HexSchema } from "./ids";
 
 const positive = z.number().int().positive();
-const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const engine = z.string().trim().min(1).max(64);
 
 export const classResultRecalculationReadinessSchema = z.enum([
@@ -18,7 +17,7 @@ export const classResultRecalculationCandidateEntrySchema = z.object({
 
 export const classResultRecalculationCandidateResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, classId: uuid, className: z.string().trim().min(1).max(160),
-  snapshotVersion: positive, engineVersion: engine, manifestHash: hash,
+  snapshotVersion: positive, engineVersion: engine, manifestHash: sha256HexSchema,
   entries: z.array(classResultRecalculationCandidateEntrySchema).max(10_000)
 }).strict().superRefine((value, ctx) => {
   if (new Set(value.entries.map((entry) => entry.id)).size !== value.entries.length) {
@@ -28,7 +27,7 @@ export const classResultRecalculationCandidateResponseSchema = z.object({
 
 export const classResultRecalculationRequestSchema = z.object({
   formatVersion: z.literal(1), classId: uuid, engineVersion: engine,
-  manifestHash: hash, entryIds: z.array(uuid).min(1).max(100)
+  manifestHash: sha256HexSchema, entryIds: z.array(uuid).min(1).max(100)
 }).strict().superRefine((value, ctx) => {
   if (new Set(value.entryIds).size !== value.entryIds.length) ctx.addIssue({ code: "custom", path: ["entryIds"], message: "Deltagare måste vara unika" });
   if (value.entryIds.join("\0") !== [...value.entryIds].sort().join("\0")) ctx.addIssue({ code: "custom", path: ["entryIds"], message: "Deltagare måste vara kanoniskt UUID-sorterade" });
@@ -41,7 +40,7 @@ export const classResultRecalculationIdempotencyKeySchema = z.string().regex(
 const itemSchema = z.object({ entryId: uuid, resultRevisionId: uuid, revision: positive }).strict();
 export const classResultRecalculationResponseSchema = z.object({
   formatVersion: z.literal(1), replayed: z.boolean(), requestId: uuid, raceId: uuid, classId: uuid,
-  manifestHash: hash, snapshotVersion: positive, engineVersion: engine,
+  manifestHash: sha256HexSchema, snapshotVersion: positive, engineVersion: engine,
   recalculatedAt: z.iso.datetime({ offset: true }), items: z.array(itemSchema).min(1).max(100)
 }).strict();
 

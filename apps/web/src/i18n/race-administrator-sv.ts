@@ -1,4 +1,5 @@
 import { startRuleSv as rule } from "./start-rule-sv";
+import { plural } from "./plural";
 
 export const raceAdministratorSv = {
   courseClassSave: "Spara bana och klass",
@@ -138,12 +139,12 @@ export const raceAdministratorSv = {
   remainingTitle: "Markera alla kvar i skogen som ej start",
   remainingHelp: "Löpare utan avläsning och utan beslut blir ej start. De som stämplat vid en radiokontroll eller prickats av vid starten ändras inte; de listas för kontroll.",
   remainingLoad: "Visa vilka som berörs",
-  remainingDidNotStart: (count: number) => count === 1 ? "1 löpare blir ej start" : `${count} löpare blir ej start`,
+  remainingDidNotStart: (count: number) => `${count} löpare blir ej start`,
   remainingNone: "Ingen saknar avläsning. Inget att markera.",
   remainingMissing: (count: number) => `Saknas i mål – kontrollera (${count})`,
   remainingMissingHelp: "De här har startat men inte läst ut. Leta efter dem, eller sätt status i deltagarkortet.",
   remainingEvidence: { RADIO: "stämplat vid radiokontroll", START_CHECKIN: "avprickad vid starten" } as const,
-  remainingConfirm: (count: number) => count === 1 ? "Markera 1 som ej start" : `Markera ${count} som ej start`,
+  remainingConfirm: (count: number) => `Markera ${count} som ej start`,
   remainingCancel: "Avbryt",
   remainingSaved: (marked: number, skipped: number) => `Klart: ${marked} löpare är ej start.` +
     (skipped > 0 ? ` ${skipped} hade läst ut eller fått status under tiden och ändrades inte.` : ""),
@@ -359,7 +360,7 @@ export const raceAdministratorSv = {
   identityInvalid: "Ändra minst ett fält. Namn krävs och får vara högst 160 tecken vardera; ny klubb högst 200 tecken.",
   identityConflict: "Rättningen gick inte: deltagaren har ändrats under tiden. Försök igen.",
   classFacts: (entries: number, max: number | null, rule: string) =>
-    `${entries} ${entries === 1 ? "anmäld" : "anmälda"}${max === null ? "" : ` av högst ${max}`} · ${rule}`,
+    `${plural(entries, "anmäld", "anmälda")}${max === null ? "" : ` av högst ${max}`} · ${rule}`,
   newParticipant: "Ny deltagare", registrationTitle: "Ny deltagare", registrationClass: "Klass", registrationCard: "Bricka (valfritt)",
   registrationInspect: "Lägg till", registrationReview: "Finns deltagaren redan?", registrationConfirm: "Lägg till ändå",
   registrationSaved: "Deltagaren är anmäld.", registrationAdded: (name: string, className: string) => `${name} är anmäld i ${className}.`,

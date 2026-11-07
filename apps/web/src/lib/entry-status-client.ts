@@ -2,8 +2,7 @@ import {
   entryStatusReceiptSchema, entryStatusResponseSchema,
   type EntryStatusDecision, type EntryStatusReceipt, type EntryStatusRequest, type EntryStatusResponse
 } from "@o-tid/contracts";
-import { readAccountCsrfCookie } from "./organizer-account-cookies";
-import { fetchWithRetry } from "./retrying-fetch";
+import { adminFetch, fetchWithRetry } from "./retrying-fetch";
 
 /** Arbetsytans anrop mot löparens status (ADR-0173 beslut 1: ett statusflöde, en route). */
 function statusUrl(raceId: string, entryId: string): string {
@@ -25,11 +24,9 @@ export function entryStatusRequest(status: EntryStatusResponse, decision: EntryS
 /** Skickar beslutet. "conflict": underlaget har ändrats sedan läget lästes. Kastar när utfallet är okänt. */
 export async function postEntryStatus(raceId: string, entryId: string, request: EntryStatusRequest):
   Promise<{ status: "decided"; receipt: EntryStatusReceipt } | { status: "conflict" }> {
-  const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-  if (!csrf) throw new Error("csrf");
-  const response = await fetchWithRetry(statusUrl(raceId, entryId), { method: "POST", credentials: "same-origin",
-    headers: { "content-type": "application/json", "x-otid-csrf": csrf, "idempotency-key": `entry-status:${request.requestId}` },
-    body: JSON.stringify(request) });
+  const response = await adminFetch(statusUrl(raceId, entryId), { method: "POST",
+    headers: { "content-type": "application/json", "idempotency-key": `entry-status:${request.requestId}` },
+    body: JSON.stringify(request) }, fetchWithRetry);
   if (response.status === 409) return { status: "conflict" };
   if (!response.ok) throw new Error("commit");
   const receipt = entryStatusReceiptSchema.parse(await response.json());

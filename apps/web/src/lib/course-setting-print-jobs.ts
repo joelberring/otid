@@ -6,8 +6,7 @@ import {
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { courseSettingBase, HttpError } from "./course-setting-api";
-import { readAccountCsrfCookie } from "./organizer-account-cookies";
-import { fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
+import { adminFetch, fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
 
 /**
  * Steg 65 (ADR-0184): PDF för tryck från förhandsvisningen. Förfrågan beskriver samma ark som förhandsvisningen visar
@@ -66,12 +65,6 @@ export function pdfAllowed(report: PreflightReport | undefined, warningsConfirme
   return warningsConfirmed || !report.findings.some(finding => finding.severity === "WARNING");
 }
 
-function csrf(): string {
-  const value = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-  if (!value) throw new Error("csrf");
-  return value;
-}
-
 export async function fetchPrintJobs(raceId: string, signal?: AbortSignal): Promise<PrintJobs> {
   const response = await fetchWithRetry(`${courseSettingBase(raceId)}/course-setting/print-jobs`, { credentials: "same-origin", cache: "no-store", signal: signal ?? null });
   if (!response.ok) throw new HttpError(response.status);
@@ -81,16 +74,14 @@ export async function fetchPrintJobs(raceId: string, signal?: AbortSignal): Prom
 }
 
 export async function createPrintJob(raceId: string, request: PrintJobRequest): Promise<{ kind: "ok"; job: PrintJob } | { kind: "problem"; problem: PrintJobProblem }> {
-  const response = await fetchUntilReached(`${courseSettingBase(raceId)}/course-setting/print-jobs`, { method: "POST", credentials: "same-origin",
-    headers: { "content-type": "application/json", "x-otid-csrf": csrf() }, body: JSON.stringify(request) });
+  const response = await adminFetch(`${courseSettingBase(raceId)}/course-setting/print-jobs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) }, fetchUntilReached);
   if (response.status === 422) return { kind: "problem", problem: printJobProblemSchema.parse(await response.json()) };
   if (!response.ok) throw new HttpError(response.status);
   return { kind: "ok", job: printJobSchema.parse(await response.json()) };
 }
 
 export async function deletePrintJob(raceId: string, jobId: string): Promise<void> {
-  const response = await fetchUntilReached(`${courseSettingBase(raceId)}/course-setting/print-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE",
-    credentials: "same-origin", headers: { "x-otid-csrf": csrf() } });
+  const response = await adminFetch(`${courseSettingBase(raceId)}/course-setting/print-jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" }, fetchUntilReached);
   if (!response.ok && response.status !== 404) throw new HttpError(response.status);
 }
 

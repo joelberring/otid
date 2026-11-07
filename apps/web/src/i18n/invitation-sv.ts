@@ -1,4 +1,5 @@
 import type { InvitationKind, InvitationMailOutcome, InvitationRole } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 /** ADR-0206: inbjudningar med e-post – mejlet, länksidan, listornas "Skicka igen"/"Kopiera länken" och flera adresser på en gång. */
 
@@ -74,7 +75,6 @@ export const invitationSv = {
 
 export interface InvitationTally { sent: number; saved: number; throttled: number; failed: number; invalid: number; existing: number; other: number }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const notSent = (n: number) => n === 1 ? "1 inbjudan sparad men inte skickad" : `${n} inbjudningar sparade men inte skickade`;
 
 /**

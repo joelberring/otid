@@ -6,7 +6,7 @@ import type { MapLinkState } from "@o-tid/contracts";
 import { mapLinkSv } from "../../i18n/map-link-sv";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { createMapLink, fetchMapLinkState, mapLinkUrl, revokeMapLink } from "../../lib/map-link-api";
-import { Button, DateInput, Notice } from "../ui";
+import { Button, CopyButton, DateInput, Notice } from "../ui";
 import styles from "./map-link-panel.module.css";
 
 const text = mapLinkSv.share;
@@ -46,10 +46,6 @@ export function MapLinkPanel({ raceId, nearCount }: { raceId: string; nearCount:
     const { token: value, ...next } = created;
     setState(next); setToken(value); setForm(false);
   });
-  async function copy(url: string) {
-    try { await navigator.clipboard.writeText(url); setMessage({ tone: "ok", text: text.copied }); }
-    catch { setMessage({ tone: "error", text: text.copyFailed }); }
-  }
 
   if (!state) return <section className={styles.panel} aria-labelledby="map-link-title"><h2 id="map-link-title">{text.heading}</h2>
     {message ? <Notice tone="error">{message.text}</Notice> : <p role="status">{text.loading}</p>}</section>;
@@ -61,7 +57,8 @@ export function MapLinkPanel({ raceId, nearCount }: { raceId: string; nearCount:
     {nearCount > 0 && <p className={styles.warning} role="note">{text.near(nearCount)}</p>}
     {url && <div className={styles.created}>
       <label>{text.linkLabel}<input type="text" readOnly value={url} data-testid="map-link-url" onFocus={event => event.target.select()} /></label>
-      <Button onClick={() => void copy(url)}>{text.copy}</Button>
+      <CopyButton value={url} onResult={ok => setMessage(ok ? { tone: "ok", text: text.copied } : { tone: "error", text: text.copyFailed })}>
+        {text.copy}</CopyButton>
       <p className={styles.muted}>{text.shownOnce}</p>
     </div>}
     {link && !form && <div className={styles.status} data-testid="map-link-status" data-status={link.status}>

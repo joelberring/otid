@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** Rogaining (ADR-0170 beslut 5, PLAN.md steg 15): "Kontroller & poäng" och ny bana med klass i en rogainingtävling. */
 const points = (value: number) => `${value} p`;
 
@@ -30,7 +32,7 @@ export const rogainingSv = {
   invalid: "Ange hela poäng 0–1000, tidsgräns 1–2880 minuter och straff 0–1000 poäng.",
   missingRules: "Ange både tidsgräns och straff för klassen.",
   nobodyReadOut: "Ingen i de berörda klasserna har läst ut. Ändringen sparas direkt.",
-  noResultChange: (count: number) => `${count} ${count === 1 ? "avläst löpare räknas" : "avlästa löpare räknas"} om. Ingen får ändrad status eller summa.`,
+  noResultChange: (count: number) => `${plural(count, "avläst löpare räknas", "avlästa löpare räknas")} om. Ingen får ändrad status eller summa.`,
   changesTitle: (count: number) => `${count} löpare får ändrat resultat`,
   confirmHelp: "Resultaten räknas om när du sparar. Historiken finns kvar.",
   notRecalculated: (count: number) => `${count} med manuellt rättad tid räknas inte om.`,

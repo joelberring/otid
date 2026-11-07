@@ -20,7 +20,7 @@ import { RemovalReview } from "./removal-review";
 import { DecisionReviewNotice } from "./decision-review";
 import { ParticipantFix } from "./participant-fix";
 import { removalSv as removalText } from "../../i18n/removal-sv";
-import { Button } from "../ui";
+import { Button, Disclosure } from "../ui";
 import type { Workspace } from "./workspace-state";
 
 /**
@@ -138,15 +138,14 @@ function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveRes
 function EntryChanges({ ws }: { ws: Workspace }) {
   const { action, chooseAction, disabled, entryChanges, loadHistory, selected } = ws;
   if (!selected) return null;
-  return <details className={styles.disclosure} open={action === "HISTORY" || undefined}
-    onToggle={event => { if (event.currentTarget.open && action !== "HISTORY") chooseAction("HISTORY"); }}>
-    <summary>{text.entryChanges}</summary>
+  return <Disclosure className={styles.disclosure} open={action === "HISTORY" || undefined}
+    onToggle={open => { if (open && action !== "HISTORY") chooseAction("HISTORY"); }} summary={text.entryChanges}>
     {entryChanges?.entryId === selected.id ? <>
       <AdministratorEntryChanges data={entryChanges} />
       {entryChanges.nextBeforeVersion !== null && <button type="button" className="secondary" disabled={disabled}
         onClick={() => void loadHistory(selected.id, entryChanges.nextBeforeVersion ?? undefined)}>{adminText.historyOlder}</button>}
     </> : <p>{adminText.historyNotLoaded}</p>}
-  </details>;
+  </Disclosure>;
 }
 
 /**

@@ -2,8 +2,7 @@ import {
   mapLinkCreatedSchema, mapLinkStateSchema, mapLinkViewSchema, type MapLinkCreated, type MapLinkState, type MapLinkView, type MapMakerVerdict
 } from "@o-tid/contracts";
 import { courseSettingBase } from "./course-setting-api";
-import { readAccountCsrfCookie } from "./organizer-account-cookies";
-import { fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
+import { adminFetch, fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
 
 /**
  * ADR-0214: anropen för kartritarens länk. Banläggaren (inloggad, CSRF) läser läget, skapar och stänger av länken.
@@ -18,15 +17,9 @@ async function parsed<T>(response: Response, schema: { parse: (value: unknown) =
   return schema.parse(await response.json());
 }
 
-function csrf(): string {
-  const value = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-  if (!value) throw new Error("csrf");
-  return value;
-}
-
 const adminUrl = (raceId: string) => `${courseSettingBase(raceId)}/course-setting/map-link`;
-const adminWrite = (raceId: string, method: "POST" | "DELETE", body: unknown) => fetchUntilReached(adminUrl(raceId), { method,
-  credentials: "same-origin", headers: { "content-type": "application/json", "x-otid-csrf": csrf() }, body: JSON.stringify(body) });
+const adminWrite = (raceId: string, method: "POST" | "DELETE", body: unknown) => adminFetch(adminUrl(raceId), { method,
+  headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, fetchUntilReached);
 
 export async function fetchMapLinkState(raceId: string): Promise<MapLinkState> {
   return parsed(await fetchWithRetry(adminUrl(raceId), { credentials: "same-origin", cache: "no-store" }), mapLinkStateSchema);

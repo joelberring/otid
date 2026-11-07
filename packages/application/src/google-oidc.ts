@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { ANY_UUID_PATTERN } from "@o-tid/contracts";
 import { createRemoteJWKSet, errors as joseErrors, jwtVerify, type JWTVerifyGetKey } from "jose";
 
 /**
@@ -51,14 +52,13 @@ export interface GoogleLoginState {
 /** Hur länge en påbörjad inloggning gäller. */
 export const GOOGLE_LOGIN_STATE_LIFETIME_MS = 10 * 60 * 1000;
 const RANDOM = /^[A-Za-z0-9_-]{43}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const random = () => randomBytes(32).toString("base64url");
 
 const bound = (mode: GoogleLoginState["mode"]): mode is "link" | "delete" => mode === "link" || mode === "delete";
 
 export function newGoogleLoginState(now = new Date(), options: Pick<GoogleLoginState, "mode" | "sessionId" | "remember"> = {}): GoogleLoginState {
-  if (bound(options.mode) && !(options.sessionId && UUID.test(options.sessionId))) throw new Error("Kopplingen kräver sessionens id");
+  if (bound(options.mode) && !(options.sessionId && ANY_UUID_PATTERN.test(options.sessionId))) throw new Error("Kopplingen kräver sessionens id");
   return { state: random(), nonce: random(), codeVerifier: random(), createdAt: now.getTime(),
     ...(bound(options.mode) ? { mode: options.mode, sessionId: options.sessionId } : {}),
     ...(options.remember ? { remember: true } : {}) };
@@ -102,7 +102,7 @@ export function parseGoogleLoginState(value: string | null | undefined, now = ne
   if (typeof state !== "string" || typeof nonce !== "string" || typeof codeVerifier !== "string" || typeof createdAt !== "number") return undefined;
   if (![state, nonce, codeVerifier].every(part => RANDOM.test(part))) return undefined;
   if ((mode !== "login" && mode !== "link" && mode !== "delete") || typeof sessionId !== "string" || (remember !== 0 && remember !== 1)) return undefined;
-  if (bound(mode) ? !UUID.test(sessionId) : sessionId !== "") return undefined;
+  if (bound(mode) ? !ANY_UUID_PATTERN.test(sessionId) : sessionId !== "") return undefined;
   const age = now.getTime() - createdAt;
   if (!Number.isFinite(age) || age < -60_000 || age > GOOGLE_LOGIN_STATE_LIFETIME_MS) return undefined;
   return { state, nonce, codeVerifier, createdAt, ...(bound(mode) ? { mode, sessionId } : {}), ...(remember === 1 ? { remember: true } : {}) };

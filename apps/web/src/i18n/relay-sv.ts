@@ -34,7 +34,7 @@ export const relaySv = {
   saveEdit: "Spara ändringen",
   editSaved: (name: string, count: number) => count > 0 ? `${name} är ändrad. ${count} sträckor räknades om.` : `${name} är ändrad.`,
   editConfirmTitle: "Ändringen påverkar resultat",
-  editConfirmChanges: (count: number) => count === 1 ? "1 löpare byter status:" : `${count} löpare byter status:`,
+  editConfirmChanges: (count: number) => `${count} löpare byter status:`,
   editConfirmChange: (team: number, leg: number, name: string, before: string, after: string) => `Lag ${team} sträcka ${leg}, ${name}: ${before} → ${after}`,
   editConfirmRemoved: (legs: readonly number[]) => `Sträcka ${legs.join(", ")} tas bort med löparna (ingen har resultat).`,
   editConfirmRecalculated: (count: number) => `${count} avlästa sträckor räknas om.`,
@@ -173,7 +173,7 @@ export const relaySv = {
   controlRestartFlying: (leg: number, time: string, leader: string, minutes: number) =>
     `Sträcka ${leg}: omstart kl. ${time} (ledaren växlade ${leader} + ${minutes} min)`,
   controlRestartWaiting: (leg: number, minutes: number) => `Sträcka ${leg}: flygande omstart ${minutes} min efter ledaren – ingen har växlat än`,
-  controlNotChanged: (count: number) => count === 1 ? "1 lag har inte växlat:" : `${count} lag har inte växlat:`,
+  controlNotChanged: (count: number) => `${count} lag har inte växlat:`,
   controlAllChanged: "Alla lag har växlat.",
   loading: "Läser in lagen …",
   loadError: "Lagen kunde inte läsas in. Försök igen.",

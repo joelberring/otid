@@ -6,7 +6,7 @@ import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
 import { startRuleSv } from "../../i18n/start-rule-sv";
 import type { ManualClassCreateRequest } from "@o-tid/contracts";
-import { Button, Field, Notice } from "../ui";
+import { Button, Disclosure, Field, Notice } from "../ui";
 import { ClassTable } from "./class-table";
 import { RelayClassForm } from "./relay-class-form";
 import type { Workspace } from "./workspace-state";
@@ -23,8 +23,7 @@ export function PreparationClasses({ ws }: { ws: Workspace }) {
     {visible && <ClassTable ws={ws} visible={visible} />}
     {profile.features.relay && <RelayClassForm ws={ws} visible={visible} />}
     <ManualClassForm ws={ws} />
-    {hasClasses && <details className={styles.disclosure} open={capacityAttempt ? true : undefined}>
-      <summary>{text.capacityTitle}{capacityClass && text.classOverviewSelected(capacityClass.name)}</summary>
+    {hasClasses && <Disclosure className={styles.disclosure} open={capacityAttempt ? true : undefined} summary={<>{text.capacityTitle}{capacityClass && text.classOverviewSelected(capacityClass.name)}</>}>
       <div className={styles.disclosureBody}>
         <p className={styles.workflowHelp}>{text.capacityHelp}</p>
         {capacityAttempt && unknown ? <Notice tone="attention" role="alert">
@@ -46,7 +45,7 @@ export function PreparationClasses({ ws }: { ws: Workspace }) {
           {capacityClass && <p className={styles.workflowHelp}>{text.capacityCount}: {capacityClass.entryCount} / {capacityClass.maxEntries ?? text.unlimited}</p>}
         </form>}
       </div>
-    </details>}
+    </Disclosure>}
   </section>;
 }
 

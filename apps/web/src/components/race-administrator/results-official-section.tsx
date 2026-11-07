@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { formatDayMonthTime } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import { resultsOfficialSv as text } from "../../i18n/results-official-sv";
 import { sv } from "../../i18n/sv";
@@ -8,11 +9,6 @@ import { mispunchedEntries } from "../../lib/section-status";
 import { Button, Notice, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
 
-/** Datum och klockslag för när resultaten blev klara, i tävlingens tidszon ("19 okt. 21:05"). */
-function when(instant: string, timeZone: string) {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-    .format(new Date(instant));
-}
 
 /**
  * "Resultaten är klara" (PLAN.md steg 27): en knapp som fastställer hela loppet, märker listorna Officiella resultat och ger
@@ -38,8 +34,8 @@ export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
   return <Section id={`results-official-${raceId}`} title={text.title} help={official?.current ? undefined : text.help}>
     <div className={styles.disclosureBody} data-testid="results-official">
       {!resultsOfficial ? <p className={styles.muted} role="status">{text.loading}</p>
-        : official?.current ? <Notice tone="ok">{text.official(when(official.finalizedAt, timeZone))}</Notice>
-          : official ? <Notice tone="attention">{text.changed(when(official.finalizedAt, timeZone))}</Notice>
+        : official?.current ? <Notice tone="ok">{text.official(formatDayMonthTime(official.finalizedAt, timeZone))}</Notice>
+          : official ? <Notice tone="attention">{text.changed(formatDayMonthTime(official.finalizedAt, timeZone))}</Notice>
             : <p className={styles.muted}>{text.preliminary}</p>}
       {unconfirmed > 0 && !official?.current && <p className={styles.muted} role="note" data-testid="unconfirmed-mispunched">
         {text.unconfirmedMispunched(unconfirmed)}</p>}

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { normalizeAccountEmail } from "@o-tid/contracts";
+import { ANY_UUID_PATTERN, normalizeAccountEmail } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import type { GoogleIdentity } from "./google-oidc";
@@ -26,7 +26,6 @@ import {
  * - Kopplingen tas bort under Mitt konto, men inte om kontot då saknar sätt att logga in (inget känt lösenord).
  */
 const SUB = /^[A-Za-z0-9_-]{1,255}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Hur nyss en inloggning ska vara för att räcka som bekräftelse när kontot saknar känt lösenord. */
 export const GOOGLE_MOVE_RECENT_LOGIN_MS = 10 * 60 * 1000;
 /** Hur länge en påbörjad flytt (kakan efter återkomsten från Google) gäller. */
@@ -54,7 +53,7 @@ const OWN_ROWS_FILTER: Readonly<Record<string, Readonly<Record<string, string>>>
 
 /** Hur mycket som hänger på kontot: rader i andra tabeller som pekar på det (kolumner `…account_id` och `…_by`). */
 export async function accountUsage(tx: DbExecutor, accountId: string): Promise<{ rows: number; tables: number; superadmin: boolean; blocked: boolean }> {
-  if (!UUID.test(accountId)) throw new Error("Ogiltigt konto-id");
+  if (!ANY_UUID_PATTERN.test(accountId)) throw new Error("Ogiltigt konto-id");
   const columns = await tx.execute<{ table_name: string; column_name: string }>(sql`
     select c.table_name, c.column_name from information_schema.columns c
     join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
@@ -118,7 +117,7 @@ export function parseGoogleMovePending(value: string | null | undefined, now = n
   if (!Array.isArray(parsed) || parsed.length !== 5) return undefined;
   const [sub, googleEmail, sourceAccountId, sessionId, expiresAt] = parsed as unknown[];
   if (typeof sub !== "string" || !SUB.test(sub) || typeof googleEmail !== "string" || typeof sourceAccountId !== "string"
-    || !UUID.test(sourceAccountId) || typeof sessionId !== "string" || !UUID.test(sessionId) || typeof expiresAt !== "number") return undefined;
+    || !ANY_UUID_PATTERN.test(sourceAccountId) || typeof sessionId !== "string" || !ANY_UUID_PATTERN.test(sessionId) || typeof expiresAt !== "number") return undefined;
   if (expiresAt <= now.getTime() || expiresAt > now.getTime() + GOOGLE_MOVE_LIFETIME_MS + 60_000) return undefined;
   return { sub, googleEmail, sourceAccountId, sessionId, expiresAt };
 }

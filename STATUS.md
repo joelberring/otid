@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – En hjälpare per sak (grenen c2-hjalpare, ingen migration, ingen ADR)
+- `foldForSearch` i domain ersätter sex accentvikningar (ø→o, æ→ae, ß→ss överallt; hjälpsökningen gav förut æ→a). `plural()` i `i18n/plural.ts` ersätter tio kopior och de raka inline-ternärerna.
+- Tidsformat i domain: `formatDuration` (ersätter `formatRunningTime` i avläsningen; skalet byggt, 67 byte mindre), `formatClockTime`, `formatHourMinute`, `zonedDate`, `formatDayMonthTime`.
+- contracts: `sha256HexSchema`/`SHA256_HEX_PATTERN`, `ANY_UUID_PATTERN` (lika lös som de gamla kopiorna), `SHORT_SESSION_LIFETIME_MS`. domain: `CLUB_ROLE_RANK`. database: `bytea` i `schema/types.ts`.
+- `distance`, `nearestOnSegment`, `distanceToSegment`, `polylineLength` i map-file (banläggning och vägval).
+- `adminFetch` (CSRF + credentials) ersätter tio `csrf()`-omslag. UI: `Dialog` (fyra dialoger), `CopyButton`/`copyText` (tre kopieringar), `Disclosure` (elva `<details>` med `styles.disclosure`), samma DOM och CSS.
+- Verifierat: lint, typecheck och enhetstester i berörda paket; avläsningsskalet byggt.
+
 ### 2026-11-07 – Stora kartor laddar snabbare (grenen b5-stora-kartor, ADR-0218, ingen migration)
 - Mätt med en syntetisk skogskarta (50 000 objekt, 11 MB OCAD): tolkningen 0,2–0,35 s, att läsa en tolkad karta ur IndexedDB 0,4–1 s (därför ingen sådan cache), hämtningen och ritningen dominerar. Siffror före/efter i ADR-0218.
 - Kartfilen sparas i webbläsaren per sha256 (IndexedDB `otid-map-cache`, tre filer, töms vid utloggning); andra öppningen hämtar inget. `map/source/<sha256>` ger `private, max-age=86400, immutable`, ETag och `Vary: Cookie`; 304 efter behörigheten.

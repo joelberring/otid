@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PartyStateResponse, ReadoutPackage } from "@o-tid/contracts";
-import { PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName, partyDisplayName } from "@o-tid/domain";
-import { foldText, runnerForCard, searchRunners } from "./runner-lookup";
+import { foldForSearch, PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName, partyDisplayName } from "@o-tid/domain";
+import { runnerForCard, searchRunners } from "./runner-lookup";
 import { partyText as t } from "./party-text-sv";
 
 /**
@@ -32,11 +32,11 @@ export function PartyNameBox({ card, pkg, server, current, closesInMs, onSave, o
   const suggestions = useMemo(() => {
     const rows: Suggestion[] = [];
     if (exact) rows.push({ key: "exact", name: `${exact.givenName} ${exact.familyName}`, club: exact.club ?? null, exact: true });
-    const words = foldText(query).split(/\s+/).filter(Boolean);
+    const words = foldForSearch(query).split(/\s+/).filter(Boolean);
     if (words.length > 0 && words.join("").length >= 2) {
       for (const guest of server?.guests ?? []) {
         if (!guest.name || guest.cardNumber === card) continue;
-        const names = foldText(guest.name).split(/[\s-]+/);
+        const names = foldForSearch(guest.name).split(/[\s-]+/);
         if (words.every(word => names.some(name => name.startsWith(word)))) {
           // Steg 41: kvällens gäster visas med visningsnamnet på kioskskärmen; det fulla namnet sparas.
           rows.push({ key: `guest:${guest.cardNumber}`, name: guest.name, label: partyDisplayName(guest), club: guest.club ?? null, exact: false,

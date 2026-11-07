@@ -1,5 +1,6 @@
+import { plural } from "./plural";
+
 /** Steg 66 (ADR-0181): samarbetet och arbetsytan i banläggningen. Enkel svenska. */
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const time = (value: string) => new Date(value).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
 
 export const collaborationSv = {

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { HelpArticle, HelpView } from "../i18n/help-sv";
 import { helpArticles } from "../i18n/help-sv";
-import { foldForSearch, helpArticleText, helpTextParts, listHelpArticles } from "./help-search";
+import { foldForSearch } from "@o-tid/domain";
+import { helpArticleText, helpTextParts, listHelpArticles } from "./help-search";
 
 const articles: HelpArticle[] = [
   { id: "a", title: "Läs om avläsningar", views: ["READOUT"], body: ["Tryck på ”Läs om”."] },
@@ -11,7 +12,7 @@ const articles: HelpArticle[] = [
 
 describe("sökningen i hjälpen", () => {
   it("bortser från versaler och å, ä och ö", () => {
-    expect(foldForSearch("ÅÄÖ åäö Øæ")).toBe("aao aao oa");
+    expect(foldForSearch("ÅÄÖ åäö Øæ")).toBe("aao aao oae");
     expect(listHelpArticles(articles, "START", "LASA").here).toEqual([]);
     expect(listHelpArticles(articles, "START", "las om").rest.map(row => row.id)).toEqual(["a"]);
     expect(listHelpArticles(articles, "START", "läs OM").rest.map(row => row.id)).toEqual(["a"]);

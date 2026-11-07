@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** Steg 68 (ADR-0182): texterna för träningsgrupperna – Mina grupper, ledarnas vy, gruppsidan och kartans avtal. */
 export const trainingGroupSv = {
   myGroups: {
@@ -15,7 +17,7 @@ export const trainingGroupSv = {
     open: "Öppna gruppen",
     publicPage: "Gruppens sida",
     role: { LEADER: "Ledare", MEMBER: "Medlem" } as Record<"LEADER" | "MEMBER", string>,
-    sessions: (count: number) => count === 1 ? "1 tillfälle" : `${count} tillfällen`,
+    sessions: (count: number) => plural(count, "tillfälle", "tillfällen"),
     errors: { invalid: "Kontrollera namnet och kortnamnet.", taken: "Kortnamnet är upptaget. Välj ett annat.", generic: "Gruppen kunde inte skapas." }
   },
   leader: {
@@ -58,7 +60,7 @@ export const trainingGroupSv = {
     removeSession: "Ta bort",
     removeSessionConfirm: "Ta bort tillfället? Det går bara när ingen är anmäld.",
     removed: "Tillfället är borttaget.",
-    entries: (count: number) => count === 1 ? "1 anmäld" : `${count} anmälda`,
+    entries: (count: number) => plural(count, "anmäld", "anmälda"),
     notPublished: "Inte publicerad",
     template: "Mall",
     seriesRow: (weekday: string, time: string, first: string, last: string, count: number) =>

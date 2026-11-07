@@ -1,10 +1,10 @@
 import { mb } from "@o-tid/club-archive";
+import { plural } from "./plural";
 
 /**
  * ADR-0204: importen till klubbarkivet i webbläsaren (fliken Import). Enkel svenska för den som inte kan Git: välj mappen,
  * förhandsgranska, importera.
  */
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 export const clubWebImportSv = {
   title: "Importera klubbens gamla träningar",

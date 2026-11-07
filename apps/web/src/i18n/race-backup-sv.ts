@@ -1,7 +1,7 @@
 import type { RaceBackupCounts, RaceBackupProblem } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 const dateTime = (value: Date) => value.toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" });
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const megabytes = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} kB`
   : `${(bytes / 1024 / 1024).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
 

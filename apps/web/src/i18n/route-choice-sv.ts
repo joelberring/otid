@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** Steg 60 (ADR-0179 beslut 7–13): vägvalsanalysen i kontrollkartan. Enkel svenska, inga interna id. */
 const place = (key: string) => key === "S" ? "start" : key === "F" ? "mål" : key.split(".")[0]!;
 const meters = (value: number) => value >= 10_000 ? `${(value / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(value)} m`;
@@ -13,7 +15,7 @@ export const routeChoiceSv = {
   courseOption: (course: string, variant: string | null) => variant ? `${course}, variant ${variant}` : course,
   reading: "Läser kartfilen …",
   analysing: (done: number, total: number) => `Räknar vägvalen … ${done} av ${total} sträckor`,
-  done: (total: number) => `Klart: ${total} ${total === 1 ? "sträcka" : "sträckor"}.`,
+  done: (total: number) => `Klart: ${plural(total, "sträcka", "sträckor")}.`,
   failed: "Vägvalen kunde inte räknas. Försök igen.",
   readFailed: "Kartfilen kunde inte läsas för vägvalen.",
   retry: "Försök igen",
@@ -71,7 +73,7 @@ export const routeChoiceSv = {
     unknownHeading: "Symboler som inte finns i tabellen",
     unknownHelp: "De räknas som vanlig skog. Välj hur de ska räknas.",
     unknownNone: "Alla symboler på kartan finns i tabellen.",
-    unknownRow: (code: string, name: string, objects: number) => `${code} ${name} (${objects} ${objects === 1 ? "objekt" : "objekt"})`,
+    unknownRow: (code: string, name: string, objects: number) => `${code} ${name} (${objects} objekt)`,
     classLabel: (code: string) => `Hur symbol ${code} ska räknas`
   },
   classes: {
@@ -88,7 +90,7 @@ export const routeChoiceSv = {
   calibration: {
     heading: "Farterna mot löparnas rutter",
     button: "Justera farterna efter de här rutterna",
-    help: (runners: number) => `${runners} ${runners === 1 ? "löpare" : "löpare"} med resultat på banan har en uppladdad GPS-rutt. ` +
+    help: (runners: number) => `${runners} löpare med resultat på banan har en uppladdad GPS-rutt. ` +
       "Rutterna räknas i webbläsaren och skickas inte någonstans.",
     none: "Inga uppladdade GPS-rutter för löpare med resultat på banan än.",
     running: "Jämför farterna med rutterna …",
@@ -96,7 +98,7 @@ export const routeChoiceSv = {
     kind: "Mark",
     before: "Före",
     after: "Efter",
-    samples: (count: number) => `Räknat på ${count} ${count === 1 ? "sträcka" : "sträckor"}.`,
+    samples: (count: number) => `Räknat på ${plural(count, "sträcka", "sträckor")}.`,
     reliability: { NONE: "För lite data: farterna ändras inte.", LOW: "Lite data: se förslaget som en fingervisning.",
       MEDIUM: "Ganska mycket data.", HIGH: "Mycket data." },
     save: "Spara",

@@ -1,4 +1,5 @@
 import type { CourseLevel, LevelRank, LevelRuleId, LevelValues } from "@o-tid/course-setting";
+import { plural } from "./plural";
 
 /**
  * Nivåstödet (ADR-0212): texterna. Varje regel i paketets regeltabell (`ALL_LEVEL_RULES`) har ett skäl (varför kontrollen
@@ -95,12 +96,12 @@ export const courseSettingLevelSv = {
     summary: (typical: string, low: string, high: string) => low === high ? `Banan motsvarar ungefär ${typical}.`
       : `Banan motsvarar ungefär ${typical} (${low}–${high}).`,
     harder: (legs: number, controls: number, level: string) => {
-      const parts = [legs > 0 ? `${legs} ${legs === 1 ? "sträcka" : "sträckor"}` : "", controls > 0 ? `${controls} ${controls === 1 ? "kontroll" : "kontroller"}` : ""]
+      const parts = [legs > 0 ? plural(legs, "sträcka", "sträckor") : "", controls > 0 ? plural(controls, "kontroll", "kontroller") : ""]
         .filter(Boolean);
       if (parts.length === 0) return `Inget är svårare än ${level}.`;
       return `${capitalFirst(parts.join(" och "))} är svårare än ${level}.`;
     },
-    easier: (count: number, level: string) => `${count} ${count === 1 ? "kontroll eller sträcka" : "kontroller och sträckor"} är tydligt lättare än ${level}.`,
+    easier: (count: number, level: string) => `${plural(count, "kontroll eller sträcka", "kontroller och sträckor")} är tydligt lättare än ${level}.`,
     target: (level: string) => `Målnivå: ${level}`,
     noTarget: "Ingen målnivå vald (sätts i banans egenskaper).",
     details: (count: number) => `Kontroller och sträckor (${count})`,

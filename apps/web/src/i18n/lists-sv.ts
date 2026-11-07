@@ -1,6 +1,7 @@
 import { startRuleSv as rule } from "./start-rule-sv";
+import { plural } from "./plural";
+
 /** Start- och resultatlistorna (PLAN.md steg 13): verktygsraden, vyerna, utskriften och CSV-exporten. */
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 export const listsSv = {
   toolbar: "Listans verktyg",

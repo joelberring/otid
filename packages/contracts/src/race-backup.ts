@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uuidSchema } from "./ids";
+import { ANY_UUID_PATTERN, sha256HexSchema, uuidSchema } from "./ids";
 
 /**
  * Säkerhetskopia av en tävling (ADR-0187): en zip med `manifest.json`, en JSON-fil per tabell (`data/<tabell>.json`),
@@ -26,13 +26,11 @@ export const RACE_BACKUP_MAX_ENTRIES = 10_000;
 export const RACE_BACKUP_MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
 
 export const BACKUP_TABLE_NAME = /^[a-z][a-z0-9_]{0,62}$/;
-const SHA256 = /^[a-f0-9]{64}$/;
 export const backupDataPath = (table: string) => `data/${table}.json`;
 export const backupBinaryPath = (sha256: string) => `filer/${sha256}`;
 export const BACKUP_PEOPLE_PATH = "personer.json";
 export const BACKUP_MANIFEST_PATH = "manifest.json";
 
-const sha256Schema = z.string().regex(SHA256);
 const count = z.number().int().nonnegative();
 
 /** Det första som läses: känner servern inte igen formatet eller versionen avvisas filen med ett begripligt besked. */
@@ -63,11 +61,11 @@ export const raceBackupManifestSchema = z.object({
    * Resultatrevisionerna (id i kopian) vars underlag inte längre gällde när kopian togs. De behåller sin hash vid återställningen
    * och förblir inaktuella (ADR-0187 beslut 5). Saknas i kopior från före 2026-11-03; då räknas alla som aktuella.
    */
-  staleResultRevisions: z.array(z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)).max(1_000_000).optional(),
-  tables: z.array(z.object({ name: z.string().regex(BACKUP_TABLE_NAME), rows: count, sha256: sha256Schema, bytes: count }).strict())
+  staleResultRevisions: z.array(z.string().regex(ANY_UUID_PATTERN)).max(1_000_000).optional(),
+  tables: z.array(z.object({ name: z.string().regex(BACKUP_TABLE_NAME), rows: count, sha256: sha256HexSchema, bytes: count }).strict())
     .max(200),
-  people: z.object({ sha256: sha256Schema, bytes: count }).strict(),
-  files: z.array(z.object({ sha256: sha256Schema, bytes: count }).strict()).max(RACE_BACKUP_MAX_ENTRIES)
+  people: z.object({ sha256: sha256HexSchema, bytes: count }).strict(),
+  files: z.array(z.object({ sha256: sha256HexSchema, bytes: count }).strict()).max(RACE_BACKUP_MAX_ENTRIES)
 }).strict();
 export type RaceBackupManifest = z.infer<typeof raceBackupManifestSchema>;
 
@@ -83,14 +81,14 @@ export const raceBackupPeopleSchema = z.array(raceBackupPersonSchema).max(10_000
 export type RaceBackupPerson = z.infer<typeof raceBackupPersonSchema>;
 
 /** Binärdata i en rad: filen i arkivet. */
-export const backupBinaryRefSchema = z.object({ fil: sha256Schema }).strict();
+export const backupBinaryRefSchema = z.object({ fil: sha256HexSchema }).strict();
 
 /** Kolumnens typ i PostgreSQL (`information_schema.columns`), för den strikta kontrollen av varje rad. */
 export type BackupColumnType = "uuid" | "text" | "integer" | "smallint" | "bigint" | "double precision" | "boolean" | "date" |
   "timestamp with time zone" | "jsonb" | "bytea" | "text[]" | "enum";
 
 /** Lösare än `uuidSchema`: id från enheter och äldre rader behöver inte ha version 1–8. */
-const anyUuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+const anyUuid = z.string().regex(ANY_UUID_PATTERN);
 const int = (bits: 16 | 32) => z.number().int().min(-(2 ** (bits - 1))).max(2 ** (bits - 1) - 1);
 
 export function backupColumnSchema(type: BackupColumnType): z.ZodType {
@@ -126,7 +124,7 @@ export const raceBackupPreviewSchema = z.object({
   race: raceBackupManifestSchema.shape.race,
   counts: raceBackupCountsSchema,
   staleResults: count,
-  sha256: sha256Schema,
+  sha256: sha256HexSchema,
   bytes: count,
   /** Adressen (null = "Från klubben") och rollen. Inget om huruvida adressen har ett konto här (filen är inte signerad). */
   people: z.array(z.object({ email: z.string().nullable(), role: z.string() }).strict()).max(10_000),

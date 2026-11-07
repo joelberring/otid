@@ -12,8 +12,7 @@ import {
 } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { HttpStatusError } from "./course-setting-sync";
-import { readAccountCsrfCookie } from "./organizer-account-cookies";
-import { fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
+import { adminFetch, fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
 export type SaveOutcome<C> = { readonly kind: "saved"; readonly version: number } | { readonly kind: "conflict"; readonly conflict: C }
   | { readonly kind: "too-large" };
 
@@ -24,19 +23,13 @@ export type SaveOutcome<C> = { readonly kind: "saved"; readonly version: number 
 export const courseSettingBase = (raceId: string) => `/api/admin/races/${encodeURIComponent(raceId)}/administrator`;
 const base = courseSettingBase;
 
-function csrf(): string {
-  const value = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-  if (!value) throw new Error("csrf");
-  return value;
-}
-
 export class HttpError extends Error {
   constructor(readonly status: number) { super(String(status)); }
 }
 
 /** Skrivningarna: ett svar som aldrig nådde routen (utvecklingsserverns 404-sida) skickas om (`fetchUntilReached`). */
-const write = (raceId: string, path: string, method: string, body: unknown) => fetchUntilReached(`${base(raceId)}${path}`, { method,
-  credentials: "same-origin", headers: { "content-type": "application/json", "x-otid-csrf": csrf() }, body: JSON.stringify(body) });
+const write = (raceId: string, path: string, method: string, body: unknown) => adminFetch(`${base(raceId)}${path}`, { method,
+  headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, fetchUntilReached);
 
 export async function fetchCourseSetting(raceId: string, signal?: AbortSignal): Promise<CourseSettingState> {
   const response = await fetchWithRetry(`${base(raceId)}/course-setting`, { credentials: "same-origin", cache: "no-store", signal: signal ?? null });

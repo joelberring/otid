@@ -1,3 +1,5 @@
+import { readAccountCsrfCookie } from "./organizer-account-cookies";
+
 /**
  * Automatiska omförsök för arbetsytans anrop (ADR-0169 beslut 4: appen gör omförsök själv).
  *
@@ -72,4 +74,22 @@ export async function fetchUntilReached(input: string, init: RequestInit,
     console.warn("Anropet nådde inte routen (404 utan JSON); försöker igen", input);
     await wait(delays[attempt]!, init.signal);
   }
+}
+
+/** Kontots CSRF-token ur cookien. Saknas den (inte inloggad på den här adressen) kastas ett fel. */
+function accountCsrf(): string {
+  const value = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
+  if (!value) throw new Error("csrf");
+  return value;
+}
+
+type AdminInit = Omit<RequestInit, "credentials" | "headers"> & { headers?: Record<string, string> };
+
+/**
+ * Ett anrop till arbetsytans eller banläggningens API med kontots cookie (credentials same-origin) och CSRF-headern.
+ * `fetchImpl` väljer hur det skickas: `fetch` (standard), `fetchWithRetry` eller `fetchUntilReached`.
+ */
+export async function adminFetch(path: string, init: AdminInit = {},
+  fetchImpl: (input: string, init: RequestInit) => Promise<Response> = fetch): Promise<Response> {
+  return fetchImpl(path, { ...init, credentials: "same-origin", headers: { ...init.headers, "x-otid-csrf": accountCsrf() } });
 }

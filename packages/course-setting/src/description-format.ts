@@ -9,7 +9,8 @@ import type { SymbolData } from "./description-symbols";
 import { descriptionContext, formatDecimal, format, symbolIds, columnFText, Textifier, type DescriptionContext } from "./description-text";
 import type { ControlKind, ControlPoint, Course, CourseControl, CourseSettingDocument } from "./types";
 import { CourseSettingEditError } from "./types";
-import { enumerateCourseControls, findCourse, legPath, pathLength, variations } from "./walk";
+import { pathLength } from "./geometry";
+import { enumerateCourseControls, findCourse, legPath, variations } from "./walk";
 import { courseParts } from "./course-parts";
 
 export type DescriptionLineKind = "TITLE" | "SECONDARY_TITLE" | "HEADER_3" | "HEADER_2" | "NORMAL" | "DIRECTIVE" | "TEXT" | "KEY";

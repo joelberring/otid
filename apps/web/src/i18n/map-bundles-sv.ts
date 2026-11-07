@@ -1,8 +1,9 @@
 /** Steg 61: kartor till starten – tryckantal, kartbuntslistan och baksidorna. */
 import type { MapPrintChangeDto } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 const variantName = (code: string | null) => code ?? "ingen variant";
-const maps = (count: number) => count === 1 ? "1 karta" : `${count} kartor`;
+const maps = (count: number) => plural(count, "karta", "kartor");
 
 export const mapBundlesSv = {
   title: "Kartor till starten",
@@ -31,7 +32,7 @@ export const mapBundlesSv = {
   course: "Bana", variant: "Variant", runners: "Löpare", vacancies: "Lediga tider", reserveColumn: "Reserv", print: "Att trycka",
   noVariant: "–",
   total: "Totalt",
-  missingVariantTitle: (count: number) => count === 1 ? "1 löpare saknar variant och får ingen karta än" : `${count} löpare saknar variant och får ingen karta än`,
+  missingVariantTitle: (count: number) => `${count} löpare saknar variant och får ingen karta än`,
   missingVariantHelp: "Fördela gafflingarna under Klasser först.",
   // Kartbuntslistan
   bundleTitle: "Kartor i ordning",
@@ -80,5 +81,5 @@ export const mapBundlesSv = {
   dividerHelp: (variant: string | null) => `Lägg kartbunt ${variant ?? "utan variant"} här`,
   reservePage: (variant: string | null) => variant ? `Reserv · variant ${variant}` : "Reserv",
   vacantPage: (time: string) => `Ledig tid ${time}`,
-  pages: (count: number) => count === 1 ? "1 sida" : `${count} sidor`
+  pages: (count: number) => plural(count, "sida", "sidor")
 } as const;

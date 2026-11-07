@@ -1,4 +1,5 @@
 import type { RaceCopySummary } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 /** "Ny tävling som …" (PLAN.md steg 21): dialogen i Mina tävlingar och under Inställningar. */
 export const raceCopySv = {
@@ -27,10 +28,10 @@ export const raceCopySv = {
   close: "Stäng",
   created: "Kopian är skapad.",
   summary: (copied: RaceCopySummary) => [
-    `${copied.courses} ${copied.courses === 1 ? "bana" : "banor"}`,
-    `${copied.classes} ${copied.classes === 1 ? "klass" : "klasser"}`,
-    `${copied.controls} ${copied.controls === 1 ? "kontroll" : "kontroller"}`,
-    ...(copied.people > 0 ? [`${copied.people} ${copied.people === 1 ? "person" : "personer"} med behörighet`] : []),
+    plural(copied.courses, "bana", "banor"),
+    plural(copied.classes, "klass", "klasser"),
+    plural(copied.controls, "kontroll", "kontroller"),
+    ...(copied.people > 0 ? [`${plural(copied.people, "person", "personer")} med behörighet`] : []),
     ...(copied.map ? ["karta"] : [])
   ].join(" · "),
   eventorNote: "Källan var kopplad till Eventor. Välj Eventor-tävling för kopian under Inställningar om anmälningarna ska hämtas därifrån.",

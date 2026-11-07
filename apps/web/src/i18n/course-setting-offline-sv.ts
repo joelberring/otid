@@ -1,5 +1,6 @@
+import { plural } from "./plural";
+
 /** Steg 67 (ADR-0181 beslut 6–7): kollad, notis i fältet, utan täckning och kompassen. Enkel svenska. */
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const clock = (value: string) => new Date(value).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 const when = (value: string) => {
   const date = new Date(value);

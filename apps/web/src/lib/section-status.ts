@@ -3,6 +3,7 @@ import { raceDayStarted } from "@o-tid/domain";
 import { raceTypeSv } from "../i18n/race-type-sv";
 import { publicRaceSv } from "../i18n/public-race-sv";
 import type { Section } from "./race-sections";
+import { plural } from "../i18n/plural";
 
 /**
  * Status per del i sidopanelen (ADR-0169 beslut 4, ADR-0170 beslut 2): en kort rad i ord, t.ex.
@@ -74,8 +75,6 @@ export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "
     publication: data.publication?.hiddenBySuperadmin ? "HIDDEN" : data.publication?.publishedAt ? "PUBLISHED" : "UNPUBLISHED"
   };
 }
-
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 /** Delens status i ord. Namnet på delen (t.ex. "Lag" i stället för "Anmälda") avgör hur antalet skrivs. */
 export function sectionStatus(section: Pick<Section, "id" | "label">, facts: SectionFacts, raceType: RaceType): { tone: SectionTone; text: string } {

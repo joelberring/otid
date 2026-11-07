@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 /** ADR-0180 beslut 14: paletten med objekt, vridning, kopia av bana, fångst av befintliga kontroller och gafflingarna. */
 const list = (codes: readonly string[]) => codes.length <= 12 ? codes.join(", ") : `${codes.slice(0, 12).join(", ")} och ${codes.length - 12} till`;
 
@@ -78,7 +80,7 @@ export const courseSettingUxSv = {
     courseHeading: (name: string) => `Kontroller i ${name}`,
     empty: "Inga kontroller än. Välj Kontroll i verktygen och klicka på kartan.",
     onlyUnused: "Bara oanvända",
-    unusedCount: (count: number) => count === 1 ? "1 oanvänd" : `${count} oanvända`,
+    unusedCount: (count: number) => plural(count, "oanvänd", "oanvända"),
     noUnused: "Alla kontroller används i någon bana.",
     unused: "oanvänd",
     removeUnused: "Ta bort alla oanvända",
@@ -102,6 +104,6 @@ export const courseSettingUxSv = {
     work: (letter: string) => `Arbeta i gren ${letter}`,
     variants: "Varianter",
     allVariants: "Alla grenar",
-    variant: (controls: number, length: string) => `${controls} ${controls === 1 ? "kontroll" : "kontroller"} · ${length}`
+    variant: (controls: number, length: string) => `${plural(controls, "kontroll", "kontroller")} · ${length}`
   }
 };

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { courseVariantCodeSchema } from "./course-edit";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 import { legKeySchema } from "./race-map";
 import { raceMapSourceGeoreferenceSchema, raceMapSourceRenderSchema } from "./race-map-source";
 
@@ -16,7 +16,6 @@ export const ROUTE_CHOICE_PUBLISH_MAX_BYTES = 512 * 1024;
 export const ROUTE_CHOICE_SETTINGS_MAX_BYTES = 64 * 1024;
 
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
 const mm = z.number().finite().min(-1_000_000).max(1_000_000);
 const count = z.number().int().nonnegative().max(1_000_000);
 const code = z.number().int().positive().max(100_000);
@@ -61,7 +60,7 @@ export const adminRouteChoiceSchema = z.object({
   settings: routeChoiceSettingsSchema,
   /** null = ingen kartfil; analysen kräver kartfilen. */
   mapFile: z.object({
-    sha256,
+    sha256: sha256HexSchema,
     scale: z.number().int().min(100).max(1_000_000),
     render: raceMapSourceRenderSchema,
     georeference: raceMapSourceGeoreferenceSchema.nullable(),
@@ -76,7 +75,7 @@ export const adminRouteChoiceSchema = z.object({
   courses: z.array(z.object({ courseId: uuid, start: paper.nullable(), finish: paper.nullable(), routeRunners: count }).strict()).max(1000),
   published: z.array(routeChoicePublishedCourseSchema).max(5000),
   /** Kartfilen som de publicerade linjerna räknades på; skiljer den sig från dagens kartfil visas de inte publikt. */
-  publishedMapSha256: sha256.nullable()
+  publishedMapSha256: sha256HexSchema.nullable()
 }).strict();
 export type AdminRouteChoice = z.infer<typeof adminRouteChoiceSchema>;
 
@@ -84,7 +83,7 @@ export const routeChoiceSettingsRequestSchema = z.object({ formatVersion: z.lite
 
 export const routeChoicePublishRequestSchema = z.discriminatedUnion("kind", [
   z.object({
-    formatVersion: z.literal(1), kind: z.literal("PUBLISH"), mapSha256: sha256, courseId: uuid, variantCode: courseVariantCodeSchema.nullable(),
+    formatVersion: z.literal(1), kind: z.literal("PUBLISH"), mapSha256: sha256HexSchema, courseId: uuid, variantCode: courseVariantCodeSchema.nullable(),
     legs: z.array(z.object({ key: legKeySchema, points: routeChoiceLineSchema }).strict()).min(1).max(300)
   }).strict(),
   z.object({ formatVersion: z.literal(1), kind: z.literal("WITHDRAW"), courseId: uuid, variantCode: courseVariantCodeSchema.nullable() }).strict()

@@ -17,13 +17,18 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Servern: kartväljaren utan frågor per klubb, dubblettförslagen med namnen normaliserade en gång (400 kartor 12,8 → 1,9 s) och sparade per klubb, kartbuntarna grupperade en gång.
 - Verifierat: enhetstester (index, cache, adress/ETag, förlopp, kartbuntar, dubbletter), prestandatest för tolkningen, integrationstester (steg-59, adr-0210 med frågeräkning, 0189, 0194, 0196, 0209), E2E `banlaggning-kartcache`.
 
+### 2026-11-07 – Layout fas 3: papperet bara i Layout (grenen b3-layout-fas3, ADR-0217, ingen migration)
+- Papperets redigering flyttad från utskriftssidan till Layout-fliken (`LayoutSheets`): banor, baksidan per löpare, kartbytets delar, översikt, papper och kartram, Kartor per ark, papperets element, beskrivningen. Utskrift har bara vad, antal, färger och PDF/skrivare, och visar arken utan redigering.
+- "Papper och kartram" i en annan layout än huvudlayouten visar layoutens skala och "Ändra i layouten".
+- Sträckavbrott per layout: `PrintLayout.legGaps`, edit `SET_LAYOUT_LEG_GAPS`, rader i "Justera för 1:…"; "Ta bort justeringar" tar dem också.
+- `paperUndoFor` behåller `part` vid ångra av SET_PAPER_LAYOUT och DELETE_PAPER_TEMPLATE (test `course-setting-paper-undo.test.ts`).
+- Specarna pappersrum, utskrift-omtag, kartbyte, hittbarhet, löparkartor, utskrift och layout arbetar i Layout-fliken; hjälpen ändrad och hjälpknapp i Layout.
 ### 2026-11-07 – Teststabilitet och behörighetstester (grenen c6-tester, C6, inga produktändringar)
 - E2E: `readExercise`/`expectVerdictFor` i `tests/e2e/helpers.ts` väntar på "Bricka <nr>" för just den brickan, sedan status och "Sparad."; alla specar som läser av med övningsstationen använder den (20 specar).
 - `placering.spec.ts`: Adas tider från en och samma hela sekund (gav ibland "+4:59"). `live.spec.ts`: Live väntar 20 s (en väckning under en pågående hämtning tas först vid nästa hämtning, 10 s med öppen ström).
 - `waitForTimeout` i flödet ersatt med tillstånd: `mapSettled` (kartan ritad och stilla), `courseSettingInPhone` (posten, kön och ångra-historiken i IndexedDB före omladdning), festens hämtning, kartfilens uppladdning. Kvar: `ux-flode` före breddmätningen (två "Hämtar …" stod kvar i CI), väntor före skärmdumpar bakom E2E_SCREENSHOT_DIR, Högdalen-testerna, pekgesternas 16 ms och notisens foto (ingen synlig signal).
 - `stafett-steg47`: `compileRoutes` hoppas över mot driftbygget (E2E_BASE_URL).
 - Nytt `apps/web/src/lib/organizer-roles.test.ts`: tabell över vad ägare/admin/ledare/medlem i klubben, ledare/medlem i gruppen, utomstående, superadmin, utloggad och importnyckeln får på varje route och metod under organizer/clubs, organizer/groups, account, club-import och superadmin (81 metoder, ~650 anrop mot en egen PostgreSQL-databas; körs när TEST_DATABASE_URL finns). En route som saknas i tabellen fäller testet. Inga felaktiga behörigheter hittades; Google-routes prövas inte (inte inställt i testet).
-
 
 ### 2026-11-07 – Död kod bort och knip i CI (grenen c1-dod-kod, ingen migration)
 - Gamla versionsscheman (resultOutcomeV1–V8, storedResult*V4/V6, publicResult*V1–V6, V9-alias) bort; gällande namn kvar. `publicResultListResponseSchema` är format 7.

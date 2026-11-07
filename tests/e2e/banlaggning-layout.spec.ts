@@ -111,7 +111,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await cell("Lång", elite!).click();
   const sheet = owner.getByTestId("layout-sheet");
   await expect(sheet).toHaveAttribute("data-layout", elite!);
-  await expect(sheet.getByTestId("layout-sheet-view").first()).toHaveAttribute("data-scale", "15000");
+  await expect(sheet.getByTestId("print-sheet").first()).toHaveAttribute("data-scale", "15000");
   await sheet.getByTestId("sheet-paper-area-manual").check();
   await expect.poll(async () => (await doc()).event.layoutSheets?.[elite!]?.[ids.Lång!]?.printArea?.automatic).toBe(false);
   await expect(cell("Lång", elite!)).toHaveAttribute("data-status", "OWN_AREA");
@@ -121,14 +121,18 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   // 6. Justerat nummer i 1:7 500 (Mellan i Äldre A4): dra numret på arket.
   await cell("Mellan", old!).click();
   await expect(sheet).toHaveAttribute("data-layout", old!);
-  await expect(sheet.getByTestId("layout-sheet-view").first()).toHaveAttribute("data-scale", "7500");
+  await expect(sheet.getByTestId("print-sheet").first()).toHaveAttribute("data-scale", "7500");
+  // Skalan är layoutens och ändras i layouten (inte i banans egenskaper).
+  await expect(sheet.getByTestId("sheet-paper-scale")).toContainText("Skala för layouten Äldre A4 1:7 500.");
+  await sheet.getByTestId("sheet-paper-scale-layout").click();
+  await expect(owner.locator(`[data-testid=layout-entry][data-layout="${old}"] [data-testid=layout-scale]`)).toBeFocused();
   await expect(sheet.getByTestId("layout-adjust-count")).toHaveText("Inga justeringar: allt följer banläggningen.");
   const number = sheet.getByTestId("layout-number").first();
   await number.scrollIntoViewIfNeeded();
   const box = (await number.boundingBox())!;
   // Handtaget ligger på numret på arket.
   const ref = (await number.getAttribute("data-ref"))!;
-  const drawn = (await sheet.getByTestId("layout-sheet-view").first().locator(`text[data-role=NUMBER][data-ref="${ref}"]`).boundingBox())!;
+  const drawn = (await sheet.getByTestId("print-sheet").first().locator(`text[data-role=NUMBER][data-ref="${ref}"]`).boundingBox())!;
   expect(Math.abs(drawn.x + drawn.width / 2 - (box.x + box.width / 2))).toBeLessThan(6);
   expect(Math.abs(drawn.y + drawn.height / 2 - (box.y + box.height / 2))).toBeLessThan(6);
   await owner.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

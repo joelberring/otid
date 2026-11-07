@@ -281,6 +281,7 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "SET_PRINT_AREA": case "SET_PAPER_LAYOUT": return edit.course === "ALL_CONTROLS" ? [] : [["courses", edit.course]];
     case "PUT_LAYOUT_SHEET": case "CLEAR_LAYOUT_ADJUSTMENTS": return edit.course === "ALL_CONTROLS" ? [] : [["courses", edit.course]];
     case "SET_LAYOUT_CIRCLE_GAPS": return [["controls", edit.control]];
+    case "SET_LAYOUT_LEG_GAPS": return [["controls", edit.from], ["controls", edit.to]];
     case "PUT_OBJECTS": {
       const refs: [Kind, string][] = [];
       for (const [id, control] of Object.entries(edit.controls ?? {})) { refs.push(["controls", id]); if (control) refs.push(["controls", control.id]); }
@@ -371,6 +372,7 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
     case "SET_PRINT_AREA": case "SET_PAPER_LAYOUT": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
     case "PUT_LAYOUT_SHEET": case "CLEAR_LAYOUT_ADJUSTMENTS": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
     case "SET_LAYOUT_CIRCLE_GAPS": return { ...edit, control: c(edit.control) };
+    case "SET_LAYOUT_LEG_GAPS": return { ...edit, from: c(edit.from), to: c(edit.to) };
     case "PUT_TRAINING": return { ...remapTrainingPatch(edit, { control: c, courseControl: cc, course: co }), type: "PUT_TRAINING" };
     default: return edit;
   }

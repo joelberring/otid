@@ -40,6 +40,7 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   };
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
 
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
@@ -59,15 +60,15 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   const chooser = parts.getByTestId("course-setting-part");
   await expect(chooser.locator("option")).toHaveText(["Hela banan", "Del 1", "Del 2"]);
   await chooser.selectOption("1");
-  await expect(parts.getByTestId("course-setting-part-area")).toHaveText("Delen har banans tryckyta tills du ändrar den i utskriften.");
+  await expect(parts.getByTestId("course-setting-part-area")).toHaveText("Delen har banans tryckyta tills du ändrar den i Layout.");
   await expect(print.getByLabel("Riktning")).toHaveCount(0);
   await shot(owner, "07-kartbyte-editor");
   await reviewScreenshots(owner, "07-kartbyte-editor-hela");
 
-  // 2. Utskriften: del 2 med egen tryckyta (liggande) och "Visa överlapp" under Papper och kartram för delens ark.
+  // 2. Layout: del 2 med egen tryckyta (liggande) och "Visa överlapp" under Papper och kartram för delens ark (ADR-0217 fas 3).
   // Inga fel i webbläsaren: en banas två delar fick förut samma nyckel i översikten (dev-överläggets "1 Issue").
-  const errors = browserErrors(owner, /\/course-setting\/print$/);
-  await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
+  const layoutErrors = browserErrors(owner, /\/course-setting\/layout$/);
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=1`);
   const sheets = owner.getByTestId("print-sheet");
   await expect(sheets).toHaveCount(2, { timeout: 60_000 });
   await owner.getByTestId("print-card").nth(1).getByTestId("print-card-open").click();
@@ -82,6 +83,12 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   expect((await doc()).courses.find(row => row.id === "1")!.partPrintAreas?.["0"]).toBeUndefined();
   await paper.getByTestId("sheet-paper-overlap").selectOption("PREVIOUS_PART");
   await expect.poll(async () => (await doc()).event.paperLayouts?.["1"]?.overlap).toBe("PREVIOUS_PART");
+  layoutErrors.check("fliken Layout med kartbyten");
+
+  // Utskriften: delarna fram och bak, del 2 liggande, överlappet och numren.
+  const errors = browserErrors(owner, /\/course-setting\/print$/);
+  await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
+  await expect(sheets).toHaveCount(2, { timeout: 60_000 });
   await expect(sheets.first()).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   await expect(sheets.nth(0)).toHaveAttribute("aria-label", /Lång – del 1/);
   await expect(sheets.nth(1)).toHaveAttribute("aria-label", /Lång – del 2/);

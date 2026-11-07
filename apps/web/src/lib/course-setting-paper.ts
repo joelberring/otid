@@ -1,5 +1,5 @@
 import {
-  applyPaperTemplate, effectivePaper, newPaperItemId, runnerBackOf, withPaperItem, RUNNER_BACK, type PaperSource, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
+  applyPaperTemplate, effectivePaper, paperPartKey, newPaperItemId, runnerBackOf, withPaperItem, RUNNER_BACK, type PaperSource, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
   type PaperItemKind, type PaperRect,
   type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
@@ -81,13 +81,18 @@ export function resizedPaperItem(item: PaperItem, placed: SheetPaperItem, refere
  */
 export function paperUndoFor(document: CourseSettingDocument, edits: readonly CourseSettingEdit[]): CourseSettingEdit[] {
   const out: CourseSettingEdit[] = [];
-  const layout = (course: string): CourseSettingEdit => {
-    const before = document.event.paperLayouts?.[course];
-    return { type: "SET_PAPER_LAYOUT", course, layout: before ?? null };
+  // Banans papper eller (kartbyten, ADR-0203) delens, med delen i ändringen: utan den återställdes hela banans papper.
+  const layout = (course: string, part?: number): CourseSettingEdit => {
+    const before = document.event.paperLayouts?.[part !== undefined ? paperPartKey(course, part) : course];
+    return { type: "SET_PAPER_LAYOUT", course, layout: before ?? null, ...(part !== undefined ? { part } : {}) };
+  };
+  const ofKey = (key: string): CourseSettingEdit => {
+    const [course, part] = key.split("#");
+    return layout(course!, part === undefined ? undefined : Number(part));
   };
   for (const edit of edits) {
     switch (edit.type) {
-      case "SET_PAPER_LAYOUT": out.push(layout(edit.course)); break;
+      case "SET_PAPER_LAYOUT": out.push(layout(edit.course, edit.part)); break;
       // Mallens papper (ADR-0211 beslut 9) och papperet och kartramen på arket: tryckytan som den var (banans, delens
       // eller Alla kontrollers).
       case "SET_PRINT_AREA": {
@@ -105,7 +110,7 @@ export function paperUndoFor(document: CourseSettingDocument, edits: readonly Co
       case "DELETE_PAPER_TEMPLATE": {
         const before = document.event.paperTemplates?.find(row => row.id === edit.id);
         if (before) out.push({ type: "PUT_PAPER_TEMPLATE", template: before });
-        for (const [course, row] of Object.entries(document.event.paperLayouts ?? {})) if (row.template === edit.id) out.push(layout(course));
+        for (const [key, row] of Object.entries(document.event.paperLayouts ?? {})) if (row.template === edit.id) out.push(ofKey(key));
         break;
       }
       // ADR-0213: baksidan per löpare som den var (eller förvalet).

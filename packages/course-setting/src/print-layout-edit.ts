@@ -8,12 +8,13 @@ import { BUILT_IN_TEMPLATES } from "./layout-template";
 import { validatePaperLayout, type CoursePaperLayout } from "./paper-items";
 import { restoreLayoutState, snapshotLayoutState, type LayoutState } from "./print-layout-states";
 import {
-  courseControlIds, findPrintLayout, LAYOUT_LIMITS, MAIN_LAYOUT, validateArcs, validateLayoutSheet, validatePrintLayout, validatePrintPage,
-  type LayoutArc, type LayoutSheet, type MainLayoutSettings, type PrintLayout, type PrintPage
+  courseControlIds, courseLegKeys, findPrintLayout, LAYOUT_LIMITS, MAIN_LAYOUT, validateArcs, validateLayoutSheet, validateLegGaps, validatePrintLayout,
+  validatePrintPage, type LayoutArc, type LayoutLegGap, type LayoutSheet, type MainLayoutSettings, type PrintLayout, type PrintPage
 } from "./print-layouts";
 import type { CourseSettingDocument, EditResult, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
 import type { Point } from "@o-tid/map-file";
+import { legKey } from "./ppen-common";
 
 /** Ändringarna av en layout (null tar bort mallen). Huvudlayouten har bara namn och "Kartor per ark". */
 export interface LayoutChanges {
@@ -33,7 +34,9 @@ export type LayoutEdit =
   | { readonly type: "PUT_LAYOUT_SHEET"; readonly layout: string; readonly course: string; readonly sheet: LayoutSheet | null }
   /** Ringavbrotten för en kontroll i layouten; null = som banläggningen igen. */
   | { readonly type: "SET_LAYOUT_CIRCLE_GAPS"; readonly layout: string; readonly control: string; readonly gaps: readonly LayoutArc[] | null }
-  /** "Ta bort justeringar" på arket: arkets nummer och layoutens ringavbrott för banans kontroller. */
+  /** Avbrotten i en sträcka (`legKey`) i layouten; null = som banläggningen igen. */
+  | { readonly type: "SET_LAYOUT_LEG_GAPS"; readonly layout: string; readonly from: string; readonly to: string; readonly gaps: readonly LayoutLegGap[] | null }
+  /** "Ta bort justeringar" på arket: arkets nummer och layoutens ring- och sträckavbrott för banans kontroller och sträckor. */
   | { readonly type: "CLEAR_LAYOUT_ADJUSTMENTS"; readonly layout: string; readonly course: string }
   /** Klassernas layout per klassnamn (null eller "MAIN" = huvudlayouten). */
   | { readonly type: "SET_CLASS_LAYOUTS"; readonly classes: Readonly<Record<string, string | null>> }
@@ -209,6 +212,13 @@ export function applyLayoutEdit(document: CourseSettingDocument, edit: LayoutEdi
       const circleGaps = setRecord(layout.circleGaps, edit.control, gaps);
       return { document: putLayout(document, circleGaps ? { ...layout, circleGaps } : withoutKey(layout, "circleGaps")) };
     }
+    case "SET_LAYOUT_LEG_GAPS": {
+      const layout = requireLayout(document, edit.layout);
+      if (!document.controls[edit.from] || !document.controls[edit.to]) throw notFound("Sträckans kontroller finns inte");
+      const key = legKey(edit.from, edit.to);
+      const legGaps = setRecord(layout.legGaps, key, edit.gaps === null ? undefined : validateLegGaps(edit.gaps));
+      return { document: putLayout(document, legGaps ? { ...layout, legGaps } : withoutKey(layout, "legGaps")) };
+    }
     case "CLEAR_LAYOUT_ADJUSTMENTS": {
       const layout = requireLayout(document, edit.layout);
       requireCourse(document, edit.course);
@@ -220,6 +230,12 @@ export function applyLayoutEdit(document: CourseSettingDocument, edit: LayoutEdi
           : new Set([...courseControlIds(document, edit.course)].map(id => document.courseControls[id]!.control));
         const kept = Object.fromEntries(Object.entries(layout.circleGaps).filter(([control]) => !controls.has(control)));
         next = putLayout(next, Object.keys(kept).length > 0 ? { ...layout, circleGaps: kept } : withoutKey(layout, "circleGaps"));
+      }
+      const current = requireLayout(next, edit.layout);
+      if (current.legGaps && edit.course !== "ALL_CONTROLS") {
+        const legs = new Set(courseLegKeys(document, edit.course));
+        const kept = Object.fromEntries(Object.entries(current.legGaps).filter(([leg]) => !legs.has(leg)));
+        next = putLayout(next, Object.keys(kept).length > 0 ? { ...current, legGaps: kept } : withoutKey(current, "legGaps"));
       }
       return { document: next };
     }
@@ -272,7 +288,9 @@ export function layoutEditTouches(edit: LayoutEdit): string[] {
     case "DELETE_LAYOUT": return [`event:layouts:${edit.layout}`, `event:layoutSheets:${edit.layout}`, "event:classLayouts"];
     case "PUT_LAYOUT_SHEET": return [`event:layoutSheets:${edit.layout}:${edit.course}`];
     case "SET_LAYOUT_CIRCLE_GAPS": return [`event:layouts:${edit.layout}:circleGaps:${edit.control}`];
-    case "CLEAR_LAYOUT_ADJUSTMENTS": return [`event:layoutSheets:${edit.layout}:${edit.course}:numbers`, `event:layouts:${edit.layout}:circleGaps`];
+    case "SET_LAYOUT_LEG_GAPS": return [`event:layouts:${edit.layout}:legGaps:${legKey(edit.from, edit.to)}`];
+    case "CLEAR_LAYOUT_ADJUSTMENTS": return [`event:layoutSheets:${edit.layout}:${edit.course}:numbers`, `event:layouts:${edit.layout}:circleGaps`,
+      `event:layouts:${edit.layout}:legGaps`];
     case "SET_CLASS_LAYOUTS": return Object.keys(edit.classes).sort().map(name => `event:classLayouts:${name}`);
     case "SAVE_LAYOUT_STATE": case "DELETE_LAYOUT_STATE": return [`event:layoutStates:${edit.id}`];
     case "RESTORE_LAYOUT_STATE": return ["event:layouts", "event:layoutSheets", "event:classLayouts", "event:mainLayout", "event:paperLayouts", "event:paperTemplates",

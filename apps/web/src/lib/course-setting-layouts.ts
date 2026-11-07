@@ -103,7 +103,7 @@ export function layoutMatrix(document: CourseSettingDocument, bundles: Bundles |
     const adjust = layoutAdjustments(document, column.id, course.id);
     return { layout: column.id, course: course.id, exists, classes: cellClasses, ...maps, ...(status ? { status } : {}), parts,
       scale: sheets?.[0]?.frames[0]?.printScale, ...(sheets?.[0] ? { paper: paperText(sheets[0].paper) } : {}),
-      adjustments: adjust.numbers.length + adjust.circleGaps.length };
+      adjustments: adjust.numbers.length + adjust.circleGaps.length + adjust.legGaps.length };
   }) }));
   return { columns, rows };
 }

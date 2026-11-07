@@ -57,7 +57,7 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
     try { return await read(); } catch { return await read(); }
   };
   await warmCourseSetting(owner, raceId);
-  await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
   await warmRoute(owner, `${admin}/course-setting/paper-library`);
 
   // Kartfil och .ppen (syntetiska).
@@ -70,8 +70,8 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await owner.getByRole("button", { name: "Läs in .ppen" }).click();
   await expect(owner.getByTestId("course-setting-course").first()).toBeVisible({ timeout: 60_000 });
 
-  // Förhandsvisningen med banan Lång.
-  await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
+  // Papperet redigeras i fliken Layout (ADR-0217 fas 3): arken i huvudlayouten med banan Lång.
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=1`);
   const sheet = owner.getByTestId("print-sheet").first();
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   const panel = owner.getByTestId("paper-space");
@@ -233,13 +233,16 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   const template = saved.event.paperTemplates!.find(row => row.name === "Klubbens träningsmall")!;
   expect(template.items.map(item => item.kind).sort()).toEqual(["IMAGE", "IMAGE", "NORTH_ARROW", "SCALE_BAR", "TEXT"]);
   expect(saved.event.paperLayouts!["1"]!.template).toBe(template.id);
-  // Alla banor i förhandsvisningen och mallen på alla.
-  await owner.goto(`/admin/${raceId}/course-setting/print`);
+  // Alla banor i Layout och mallen på alla.
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=1`);
+  await owner.getByTestId("layout-courses").getByLabel("Alla", { exact: true }).check();
+  // "Alla" tar med "Alla kontroller"; mallen ska bara till banorna.
+  await owner.getByTestId("layout-courses").getByLabel("Alla kontroller", { exact: true }).uncheck();
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   await expect(panel.getByTestId("paper-course")).toHaveValue("1");
   await panel.getByTestId("paper-template-apply-all").click();
   await expect.poll(async () => Object.values((await doc()).event.paperLayouts ?? {}).filter(layout => layout.template === template.id).length)
-    .toBe(saved.courses.length + 0);
+    .toBe(saved.courses.length);
   const other = saved.courses.find(row => row.id !== "1")!;
   const otherText = owner.locator(`[data-testid=print-sheet][data-course="${other.id}"] [data-testid=paper-item][data-kind=TEXT]`).first();
   await expect(otherText).toContainText(`Bana ${other.name}`, { timeout: 30_000 });

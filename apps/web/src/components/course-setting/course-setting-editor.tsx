@@ -670,7 +670,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         onCourseProperties={() => setTab("courses")}
         onPart={next => setPartChoice(next === undefined ? undefined : { view, part: next })}
         onEdits={edits => edit(current => applySteps(current, edits, applyEdit))}
-        onPreview={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print?course=${encodeURIComponent(view)}`))} />;
+        onPreview={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print?course=${encodeURIComponent(view)}`))}
+        onLayout={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/layout?course=${encodeURIComponent(view)}`))} />;
       case "checks": return <ChecksPanel groups={checks.groups} accepted={checks.accepted} readOnly={readOnly}
         routes={{ pending: forbidden.missing.length, running: forbiddenRun.running, failed: forbiddenRun.failed }}
         onAccept={rows => edit(current => applySteps(current, [(_created, doc) => acceptChecksEdit(doc, rows.flatMap(row => row.checks))], applyEdit))}

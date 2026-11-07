@@ -12,6 +12,8 @@
 .card[data-selected] { outline: 3px solid #1d6fd1; outline-offset: -1px; }
 .open { display: grid; gap: 4px; padding: 8px; text-align: left; background: none; border: 0; font: inherit; color: inherit; cursor: pointer; }
 .open:focus-visible { outline: 2px solid #1d6fd1; }
+/* Den globala `button:hover` gör knappar svarta; kortet ska behålla papperets bakgrund. */
+.open:hover:not(:disabled) { background: var(--canvas); }
 .thumb { display: block; aspect-ratio: 210 / 297; overflow: hidden; background: #f4f4f4; }
 .thumb svg { width: 100% !important; height: 100% !important; box-shadow: none; }
 .title { font-weight: 700; }

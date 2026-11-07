@@ -54,7 +54,7 @@ describe("Färger för tryck (ADR-0215)", () => {
 describe("fliken Utskrift (skalan)", () => {
   it("Alla kontroller väljer bland samma skalor som banans egenskaper (COURSE_PRINT_SCALES), också 1:3 000", () => {
     const html = renderToStaticMarkup(<PrintPanel document={emptyDocument({ title: "Skala", mapScale: 10000 })} view={ALL_CONTROLS} readOnly={false}
-      onEdits={() => undefined} onPreview={() => undefined} />);
+      onEdits={() => undefined} onPreview={() => undefined} onLayout={() => undefined} />);
     const options = [...html.matchAll(/<option value="(\d+)"/g)].map(match => Number(match[1]));
     expect(options).toEqual([15000, 10000, 7500, 5000, 4000, 3000]);
   });

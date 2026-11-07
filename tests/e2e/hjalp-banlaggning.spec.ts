@@ -4,7 +4,7 @@ import { createRace, registerAccount, today, unique, warmCourseSetting, warmRout
 
 /**
  * Grenen hjalp-banlaggning: Hjälp i banläggningen (flikens artiklar först), sökning med synonymer (kartdef), länkar
- * mellan artiklarna, ett "?" vid en svår ruta på utskriftssidan, Hjälp i klubbarkivet och allt på 390 px.
+ * mellan artiklarna, ett "?" vid en svår ruta i Layout, Hjälp i klubbarkivet och allt på 390 px.
  * Skärmbilder i 1280 och 390 px till E2E_SCREENSHOT_DIR (hjalp-*.png).
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
@@ -26,7 +26,7 @@ async function expectNoHorizontalScroll(page: Page) {
 const summaries = (page: Page) => page.getByRole("dialog", { name: "Hjälp" }).getByRole("region", { name: "Hjälp för den här sidan" })
   .locator("details > summary");
 
-test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ browser }) => {
+test("hjälp i banläggningen, i Layout och i klubbarkivet", async ({ browser }) => {
   test.setTimeout(600_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `hjalpbana.${suffix}@exempel.se`, "Hanna Hjälp");
@@ -35,7 +35,7 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   await warmRoute(owner, "/api/admin/races/00000000-0000-4000-8000-000000000000/administrator/session");
   const raceId = await createRace(owner, `Hjälpbanan ${suffix}`, today(), "Tävling");
   await warmCourseSetting(owner, raceId);
-  await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
 
   // Före kartfilen: Hjälp med banläggningens början först.
   await owner.goto(`/admin/${raceId}/course-setting`);
@@ -111,14 +111,14 @@ test("hjälp i banläggningen, på utskriftssidan och i klubbarkivet", async ({ 
   await owner.keyboard.press("Escape");
   await owner.setViewportSize({ width: 1280, height: 720 });
 
-  // Utskriftssidan: Hjälp och "?" vid kontrollbeskrivningen på kartan.
-  await owner.goto(`/admin/${raceId}/course-setting/print`);
-  await expect(owner.getByRole("checkbox", { name: "Alla", exact: true })).toBeVisible({ timeout: 60_000 });
+  // Papperet redigeras i Layout (ADR-0217 fas 3): "?" vid kontrollbeskrivningen på kartan.
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=1`);
+  await expect(owner.getByTestId("layout-courses").getByRole("checkbox", { name: "Alla", exact: true })).toBeVisible({ timeout: 60_000 });
   await owner.getByRole("button", { name: "Hjälp: Kontrollbeskrivningen på kartan" }).click();
   const placement = panel.locator("details[data-help-article='beskrivning-pa-kartan']");
   await expect(placement).toHaveAttribute("open", "");
   await expect(summaries(owner).first()).toHaveText("Kontrollbeskrivningen på kartan");
-  await shot(owner, "utskriftssidan");
+  await shot(owner, "layout-papperet");
   await owner.keyboard.press("Escape");
   // Papperet (texter, bilder, skalstock, nordpil): "?" vid rutan öppnar artikeln, som länkar till mallarna.
   await owner.getByRole("button", { name: "Hjälp: Papperet: texter, bilder, skalstock och nordpil" }).click();

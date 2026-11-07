@@ -61,6 +61,7 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
   const doc = async (): Promise<Doc> => {
     const read = async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: Doc } }).setting.document;
     try { return await read(); } catch { return await read(); }
@@ -102,6 +103,14 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
     return Math.max(0, ...paths);
   }, { timeout: 60_000 }).toBeGreaterThanOrEqual(2);
 
+  errors.check("utskriftssidan");
+
+  // ADR-0217 fas 3: översikten och redigeringen av papperet finns i fliken Layout (arken i huvudlayouten, banan Lång).
+  const layoutErrors = browserErrors(owner, /\/course-setting\/layout$/);
+  await owner.getByTestId("course-setting-tab-layout").click();
+  await expect(owner.getByTestId("layout-page")).toBeVisible({ timeout: 60_000 });
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=1`);
+  await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   // Översikten: ett kort per ark; ett klick öppnar arket för redigering.
   const cards = owner.getByTestId("print-card");
   await expect(cards).toHaveCount(1);
@@ -179,7 +188,7 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   // Samma sak med samma namn i panelen och i översikten.
   await expect(panel.getByRole("combobox", { name: "Mall för papperet" })).toHaveValue(/^t/);
   await expect(owner.getByTestId("print-overview").getByRole("combobox", { name: "Mall för papperet" })).toHaveValue(/^t/);
-  await owner.getByTestId("print-output").getByLabel("Alla", { exact: true }).check();
+  await owner.getByTestId("layout-courses").getByLabel("Alla", { exact: true }).check();
   await expect(cards).toHaveCount(courses.length + 1);
   await owner.getByTestId("print-overview-apply-all").click();
   await expect.poll(async () => {
@@ -219,11 +228,11 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
   await sheetPaper.getByTestId("sheet-paper-reset").click();
   await expect.poll(async () => (await area()) ?? null, { timeout: 30_000 }).toBeNull();
   await expect(owner.getByTestId("paper-frame-move")).toHaveCount(0);
-  errors.check("utskriftssidan");
+  layoutErrors.check("fliken Layout");
 
-  // PDF:en för kontorsskrivaren har ringklippen (öppna bågar "c S") och den vita ytan.
-  await owner.getByTestId("print-output").getByLabel("Alla", { exact: true }).uncheck();
-  await owner.getByTestId("print-output").getByLabel("Lång", { exact: true }).check();
+  // PDF:en för kontorsskrivaren (fliken Utskrift, banan Lång) har ringklippen (öppna bågar "c S") och den vita ytan.
+  await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
+  await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   const pdfPanel = owner.getByTestId("print-pdf");
   await pdfPanel.getByTestId("print-pdf-office").click();
   const job = pdfPanel.locator("[data-testid=print-job][data-kind=OFFICE]").first();
@@ -242,7 +251,7 @@ test("utskrift-omtag i telefonen: listan, tryck på ett element och dra det", as
   const raceId = await createRace(owner, `Omtag tel ${suffix}`, today(), "Tävling");
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmCourseSetting(owner, raceId);
-  await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
   await owner.getByLabel(/^Kartfil \(/).setInputFiles(fixture("maps/kartfil.omap"));
@@ -254,8 +263,8 @@ test("utskrift-omtag i telefonen: listan, tryck på ett element och dra det", as
 
   const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 }, hasTouch: true });
   const phone = await phoneContext.newPage();
-  const errors = browserErrors(phone, /\/course-setting\/print$/);
-  await phone.goto(`/admin/${raceId}/course-setting/print?course=1`);
+  const errors = browserErrors(phone, /\/course-setting\/layout$/);
+  await phone.goto(`/admin/${raceId}/course-setting/layout?course=1`);
   const sheet = phone.getByTestId("print-sheet").first();
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   await expect(phone.getByTestId("print-card")).toHaveCount(1);
@@ -283,6 +292,6 @@ test("utskrift-omtag i telefonen: listan, tryck på ett element och dra det", as
     return read.event.paperLayouts?.["1"]?.items?.find(item => item.kind === "NORTH_ARROW")?.at;
   }, { timeout: 30_000 }).not.toMatchObject({ corner: "TOP_RIGHT", x: 3, y: 30 });
   if (shots) await phone.screenshot({ path: `${shots}/2-telefon-390.png`, fullPage: true });
-  errors.check("utskriftssidan i telefonen");
+  errors.check("fliken Layout i telefonen");
   await phoneContext.close();
 });

@@ -24,6 +24,13 @@ async function shot(page: Page, name: string, part?: Locator) {
 
 const saved = (page: Page) => expect(page.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
 
+/** Arken i Layout med bara en bana (`?course=` väljer den, som länken från editorns Utskrift; ADR-0217 fas 3). */
+async function layoutOnly(page: Page, raceId: string, course: string) {
+  await page.goto(`/admin/${raceId}/course-setting/layout?course=${course}`);
+  await expect(page.getByTestId("layout-courses").getByRole("checkbox", { name: "Alla", exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
+}
+
 /** Förhandsvisningen med bara en bana (`?course=` väljer den, som länken från editorns Utskrift). */
 async function printOnly(page: Page, raceId: string, course: string) {
   await page.goto(`/admin/${raceId}/course-setting/print?course=${course}`);
@@ -45,6 +52,7 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
 
   // Kartfil och .ppen (syntetiska).
   await owner.goto(`/admin/${raceId}/course-setting`);
@@ -93,8 +101,8 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await owner.goto("/organizer");
   await expect(owner.getByRole("button", { name: "Banläggning", exact: true })).toBeVisible({ timeout: 30_000 });
 
-  // 2. Kontrollbeskrivningen på papperet: på från början, automatiskt i ett fritt hörn, dras och sparas.
-  await printOnly(owner, raceId, "1");
+  // 2. Kontrollbeskrivningen på papperet (fliken Layout): på från början, automatiskt i ett fritt hörn, dras och sparas.
+  await layoutOnly(owner, raceId, "1");
   const sheet = owner.getByTestId("print-sheet").first();
   const description = sheet.getByTestId("print-description");
   await expect(description).toHaveCount(1);
@@ -123,7 +131,7 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   const moved = await onSheet();
   expect(moved.x - (box.x - (await sheet.boundingBox())!.x)).toBeGreaterThan(40);
   // Efter omladdning står den kvar där den släpptes.
-  await printOnly(owner, raceId, "1");
+  await layoutOnly(owner, raceId, "1");
   await expect(description).toHaveAttribute("data-source", "PLACED");
   const reloaded = await onSheet();
   expect(Math.abs(reloaded.x - moved.x)).toBeLessThan(3);
@@ -142,7 +150,8 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await shot(owner, "05-utskrift-panel", owner.getByTestId("paper-descriptions"));
 
   // 3. BL-förslaget: Godta syns som nedtryckt "✓ Godtagen" med ett besked vid raden, sparas (omladdning) och kan ångras.
-  // ADR-0215: "Tryck hos BL" visar bara de tveksamma färgerna (blått att bekräfta är en av dem).
+  // ADR-0215: "Tryck hos BL" visar bara de tveksamma färgerna (blått att bekräfta är en av dem). Färgerna finns i Utskrift.
+  await printOnly(owner, raceId, "1");
   await owner.getByTestId("print-colors-mode-bl").check();
   const proposal = owner.getByTestId("bl-doubtful");
   await expect(proposal).toBeVisible({ timeout: 30_000 });

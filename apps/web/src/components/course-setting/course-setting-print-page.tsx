@@ -5,11 +5,9 @@ import { AccountMenu } from "../account-menu";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  exchangeAfterPart, expandPartItems, printAreaOf, RUNNER_BACK, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, MAP_OWN_PRINT_PROFILE_ID, printSheetGroups, layoutEntries, layoutTemplateOfLayout, MAIN_LAYOUT,
-  type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect, type PaperTemplate,
-  type PaperRect, type Sheet, type SheetDescription, type SheetFrame, type SheetItem
+  exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, descriptionSymbols, printSheetGroups, layoutEntries,
+  layoutTemplateOfLayout, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
-import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { layoutTemplateSv } from "../../i18n/course-setting-print-profile-sv";
 import { formatClockTime } from "../../lib/clock-time";
@@ -17,8 +15,7 @@ import { fetchCourseSetting, saveCourseSettingEdits } from "../../lib/course-set
 import { saveOnLatest, serialSaves } from "../../lib/course-setting-save-latest";
 import { SaveFailed } from "./save-failed";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
-import { MapRenderSession } from "../../lib/course-setting-map-protocol";
-import { mapRenderRequest, pageStyles } from "../../lib/course-setting-print";
+import { pageStyles } from "../../lib/course-setting-print";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { safely } from "../../lib/course-setting-safely";
 import { trainingSv } from "../../i18n/course-setting-training-sv";
@@ -27,35 +24,24 @@ import { ALL_RUNNERS, runnerCheckRows, runnerPages, selectRunnerItems, type Chec
 import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
 import { RunnerControls, type BackMode } from "./course-setting-runner-panel";
 import { RunnerCheckTable } from "./course-setting-runner-check";
-import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
 import { classItems, layoutItems, proofItems, withCopies, type PrintCount } from "../../lib/course-setting-print-what";
 import { layoutSv as layoutText, printWhatSv as whatText } from "../../i18n/course-setting-layout-sv";
 import { CourseSettingTabs } from "./course-setting-tabs";
+import { usePrintColors, usePrintMap, useSheetImages } from "./use-print-map";
 import { PrintWhat } from "./course-setting-print-what";
-import { fetchMapSource } from "../../lib/route-choice-api";
-import { RenderQueue } from "../../lib/course-setting-bl-proposal";
-import { pressLayersFor, pressNormOf } from "../../lib/course-setting-press-layers";
+import { pressNormOf } from "../../lib/course-setting-press-layers";
 import { Button, Notice } from "../ui";
 import { BlProposalPanel } from "./course-setting-bl-proposal";
-import type { RenderImage, RenderView } from "./course-setting-bl-compare";
 import { PrintColors } from "./course-setting-print-colors";
-import { PrintOverview } from "./course-setting-print-overview";
-import { sheetCards, type SheetCard } from "../../lib/course-setting-print-overview";
 import { printOutputSv as outputText } from "../../i18n/course-setting-print-overview-sv";
-import { templateEdits } from "../../lib/course-setting-paper";
 import { PdfPanel } from "./course-setting-pdf-panel";
 import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
-import { LayoutTemplatePanel } from "./course-setting-print-template";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
-import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
 import { HelpButton, HelpLink } from "../help/help-panel";
-import { PaperSpacePanel } from "./course-setting-paper-space";
-import { SheetPaperPanel, type SheetTarget } from "./course-setting-sheet-paper";
-import type { FrameChange } from "./course-setting-paper-items";
-import { movedFrameArea, pageOfSheet, printAreaEdit, resizedFrameArea } from "../../lib/course-setting-sheet-frame";
 import { useDetailGaps } from "./course-setting-circle-cutting";
-import { usePaperSpace } from "./use-paper-space";
+import { readOnlyPaper } from "./course-setting-paper-items";
+import { paperImageUrl } from "../../lib/course-setting-paper-api";
 import styles from "./course-setting-print-page.module.css";
 
 /** PDF-jobbet får löparens uppgifter för kartan men inte deltagarens id (det behövs bara för urvalet på sidan, ADR-0213). */
@@ -66,26 +52,8 @@ function withoutEntry(item: SheetItem): SheetItem {
   return { ...item, runner };
 }
 
-// Steg 67: styrd av service workern när banläggningen är sparad för offline (`controlledWorker`).
-const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
-
 type Mode = "COURSES" | "RUNNERS" | "CLASSES" | "PROOF";
 interface Printed { readonly key: string; readonly sheet: Sheet; readonly label: string }
-type Adjust = Readonly<Record<number, MapColorAdjust>>;
-
-/**
- * En kartbild som bild-URL (ritad av Workern med `drawMap`). Workern ritar bara den senaste beställningen, så alla bilder
- * går genom en kö (`RenderQueue`): BL-förslagets små kartbitar före arkens stora bilder.
- */
-async function renderView(session: MapRenderSession, request: RenderView): Promise<string> {
-  const bitmap = await new Promise<ImageBitmap>(resolve => session.render(request, (_id, image) => resolve(image)));
-  const canvas = window.document.createElement("canvas");
-  canvas.width = bitmap.width; canvas.height = bitmap.height;
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-  bitmap.close();
-  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/png"));
-  return blob ? URL.createObjectURL(blob) : canvas.toDataURL("image/png");
-}
 
 const clockIn = (timeZone: string) => (instant: string | null) => {
   if (!instant) return "";
@@ -110,8 +78,6 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const [eachVariant, setEachVariant] = useState(false);
   const [header, setHeader] = useState(false);
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [templateId, setTemplateId] = useState("NONE");
-  const [draftTemplate, setDraftTemplate] = useState<LayoutTemplate>();
   const [fill, setFill] = useState<"FILL" | "REPEAT">("FILL");
   const [profileId, setProfileId] = useState<string>();
   const [order, setOrder] = useState<"BUNDLE" | "START">("BUNDLE");
@@ -148,30 +114,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   }, [raceId]);
   useEffect(() => { void load(true); }, [load]);
 
-  // Kartfilen i en Worker; sidornas bilder ritas en i taget.
-  const [session, setSession] = useState<MapRenderSession>();
-  const [mapState, setMapState] = useState<"none" | "reading" | "ready" | "failed">("none");
-  const [colors, setColors] = useState<readonly MapColor[]>([]);
-  const [usage, setUsage] = useState<ReadonlyMap<number, ColorUsage>>(new Map());
-  const [mapScale, setMapScale] = useState<number>();
-  const queue = useRef(new RenderQueue());
-  const renderImage = useCallback<RenderImage>((view, priority) => {
-    if (!session) return Promise.reject(new Error("Kartan är inte inläst"));
-    return queue.current.add(() => renderView(session, view), priority);
-  }, [session]);
-  useEffect(() => {
-    if (!hasMap) return;
-    const controller = new AbortController();
-    let created: MapRenderSession | undefined;
-    setMapState("reading");
-    void fetchMapSource(raceId, controller.signal).then(file => {
-      created = new MapRenderSession(createMapWorker, (bounds, scale, _georeference, mapColors, mapUsage) => {
-        setMapBounds(current => current ?? bounds); setColors(mapColors); setUsage(mapUsage); setMapScale(scale); setSession(created); setMapState("ready");
-      }, () => setMapState("failed"));
-      created.load(file.bytes, file.fileName);
-    }, () => { if (!controller.signal.aborted) setMapState("failed"); });
-    return () => { controller.abort(); created?.close(); };
-  }, [raceId, hasMap]);
+  // Kartfilen i en Worker; sidornas bilder ritas en i taget (gemensamt med Layout).
+  const map = usePrintMap(raceId, hasMap, bounds => setMapBounds(current => current ?? bounds));
+  const { session, mapState, colors, usage, mapScale, renderImage } = map;
 
   // Kartbuntarna (steg 61) när en karta per löpare skrivs ut.
   const [bundles, setBundles] = useState<MapBundleResponse>();
@@ -213,13 +158,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     return ok;
   }, [save]);
 
-  // Papperet (ADR-0197): texter, bilder, skalstock, nordpil, klippning och mallar per bana. Medan papperets ändringar sparas
-  // visas dokumentet med dem (`view`).
-  // En karta per löpare: alla banor att redigera papperet för, och baksidan när den skrivs dubbelsidigt (ADR-0213).
-  const paperChosen = useMemo(() => mode === "RUNNERS" ? (loaded?.courses ?? []).map(course => course.id) : chosen, [mode, loaded, chosen]);
-  const paperExtra = useMemo(() => mode === "RUNNERS" && duplex ? [{ id: RUNNER_BACK, name: runnerText.backCourse }] : [], [mode, duplex]);
-  const paperSpace = usePaperSpace({ raceId, document: loaded, save, canEdit, chosen: paperChosen, extra: paperExtra });
-  const document = paperSpace.view ?? loaded;
+  // ADR-0217 (fas 3): papperet redigeras i Layout; här bara vad, antal, färger och PDF/skrivare.
+  const document = loaded;
 
   // Ringklippen över detaljer (ADR-0211 beslut 1): samma gap som i editorn, räknade av kartans Worker. Saknades förut, så
   // förhandsvisningen och PDF:en ritade hela ringar där editorn visade avbrott.
@@ -232,16 +172,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const courses = useMemo(() => [...(document?.courses ?? [])].sort((a, b) => a.order - b.order), [document]);
 
   // Utskriftsprofilen: vald här, annars tävlingens, annars kartans egna färger i normens ordning (ADR-0215 beslut 1).
-  const savedProfiles = useMemo(() => document?.event.printProfiles ?? [], [document]);
-  const activeProfileId = profileId ?? document?.event.printProfileId ?? MAP_OWN_PRINT_PROFILE_ID;
-  const profile = [...BUILT_IN_PRINT_PROFILES, ...savedProfiles].find(item => item.id === activeProfileId)
-    ?? BUILT_IN_PRINT_PROFILES.find(item => item.id === MAP_OWN_PRINT_PROFILE_ID)!;
-  const adjust = useMemo<Adjust>(() => mapColorAdjust(profile, colors), [profile, colors]);
-  // Normens färgordning (ADR-0211 beslut 3): kartan under banan, banans undre lila, kartan över (multiplicerad), övre lila.
-  const pressLayers = useMemo(() => pressLayersFor(profile, colors, usage, mapScale), [profile, colors, usage, mapScale]);
-  const pressNorm = pressNormOf(profile, mapScale, usage);
-  const colorsKey = useMemo(() => JSON.stringify(adjust) + (pressLayers ? `|${pressLayers.over.join(",")}` : ""), [adjust, pressLayers]);
-  const courseColor = cmykToCss(profile.course.cmyk);
+  const printColors = usePrintColors(document, profileId, map);
+  const { savedProfiles, profile, pressLayers, pressNorm, colorsKey, courseColor } = printColors;
   function chooseProfile(wanted: string) {
     // En BL-profil som redan godkänts för tävlingen: välj kopian med besluten.
     const id = savedProfiles.find(item => item.basedOn === wanted && item.reference)?.id ?? wanted;
@@ -249,12 +181,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     if (canEdit && id !== document?.event.printProfileId) void saveShown([{ type: "SET_EVENT", changes: { printProfileId: id } }]);
   }
 
-  const savedTemplates = useMemo(() => document?.event.layoutTemplates ?? [], [document]);
-  const runnerDefault = duplex ? "a4-one" : "a4-strip";
-  const chosenTemplateId = mode === "RUNNERS" && templateId === "NONE" ? runnerDefault : templateId;
-  // ADR-0217: huvudlayoutens "Kartor per ark" ur Layout gäller när inget annat valts här.
-  const template = draftTemplate ?? [...BUILT_IN_TEMPLATES, ...savedTemplates].find(item => item.id === chosenTemplateId)
-    ?? (document && mode !== "RUNNERS" ? layoutTemplateOfLayout(document, MAIN_LAYOUT) : undefined);
+  // ADR-0217 (fas 3): "Kartor per ark" väljs i Layout (huvudlayoutens); en karta per löpare utan sådan får en karta per A4.
+  const mainTemplate = document ? layoutTemplateOfLayout(document, MAIN_LAYOUT) : undefined;
+  const template = mode === "RUNNERS" ? mainTemplate ?? BUILT_IN_TEMPLATES.find(item => item.id === (duplex ? "a4-one" : "a4-strip")) : mainTemplate;
 
   const runners = useMemo<RunnerPrint | undefined>(() => document && bundles
     ? runnerPrintItems(document, bundles, clockIn(bundles.timeZone), order) : undefined, [document, bundles, order]);
@@ -331,63 +260,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     return { sheets: out, errors: bad, perItem };
   }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, chosenRunners, duplex, bundles, pieces, partsDuplex, mapAids]);
 
-  // Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång).
-  const [images, setImages] = useState<Readonly<Record<string, string>>>({});
-  const urls = useRef<string[]>([]);
-  const started = useRef(new Set<string>());
-  useEffect(() => {
-    if (!session) return;
-    let cancelled = false;
-    void (async () => {
-      for (const { sheet } of sheets) for (const frame of sheet.frames) {
-        const key = frameImageKey(frame, colorsKey);
-        if (cancelled) return;
-        if (started.current.has(key)) continue;
-        started.current.add(key);
-        try {
-          const request = { ...mapRenderRequest(frame), ...(Object.keys(adjust).length > 0 ? { colorAdjust: adjust } : {}) };
-          // Normens ordning: två bilder, färgerna under banan och färgerna över (utan vit bakgrund).
-          const url = await renderImage(pressLayers ? { ...request, onlyColors: pressLayers.under } : request, 0);
-          const over = pressLayers ? await renderImage({ ...request, onlyColors: pressLayers.overInk, background: false }, 0) : undefined;
-          // Vitt över banan slår ut (som i PDF:en): en egen bild utan multiplicering.
-          const overWhite = pressLayers && pressLayers.overWhite.length > 0
-            ? await renderImage({ ...request, onlyColors: pressLayers.overWhite, background: false }, 0) : undefined;
-          urls.current.push(url, ...(over ? [over] : []), ...(overWhite ? [overWhite] : []));
-          // Bilden gäller sin nyckel (utsnitt och färger) även om arken ändrats under tiden: en senare körning hoppar över
-          // nyckeln medan den ritas, så den måste sparas här (annars väntar arket för alltid).
-          setImages(current => ({ ...current, ...(over ? { [`${key}|OVER`]: over } : {}), ...(overWhite ? { [`${key}|OVERWHITE`]: overWhite } : {}), [key]: url }));
-        } catch (error) { started.current.delete(key); console.error("Kartan kunde inte ritas", error); }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [session, sheets, adjust, colorsKey, renderImage, pressLayers]);
-  useEffect(() => () => { for (const url of urls.current) if (url.startsWith("blob:")) URL.revokeObjectURL(url); }, []);
-
-  // Översikten (ADR-0211 beslut 7): arket som redigeras och "Skriv ut markerade" (bara de markerade arken skrivs ut).
+  const images = useSheetImages(map, sheets, printColors);
+  // Löparens ark ur kontrolltabellen (ADR-0213): markerat bland arken.
   const [openKey, setOpenKey] = useState<string>();
-  const [printOnly, setPrintOnly] = useState<ReadonlySet<string>>();
-  // Kartramens handtag på arket (ADR-0211 tillägg), för arket som är öppet.
-  const [frameEditing, setFrameEditing] = useState(false);
-  useEffect(() => {
-    if (!printOnly) return;
-    const done = () => setPrintOnly(undefined);
-    window.addEventListener("afterprint", done, { once: true });
-    const timer = setTimeout(() => window.print(), 50);
-    return () => { clearTimeout(timer); window.removeEventListener("afterprint", done); };
-  }, [printOnly]);
-
-  // Papperet: första beskrivningen per bana (panelens status och varning) och dra-och-släpp på arket.
-  const placedDescriptions = useMemo(() => {
-    const out = new Map<string, SheetDescription>();
-    for (const { sheet } of sheets) for (const item of sheet.descriptions) if (item.course && !out.has(item.course)) out.set(item.course, item);
-    return out;
-  }, [sheets]);
-  const placeDescription = useCallback((item: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => {
-    if (!document || !item.course) return;
-    const settings = document.event.paperLayouts?.[item.course]?.descriptions ?? {};
-    void saveShown([paperDescriptionEdit(document, item.course, { ...settings, show: true, at: paperAnchorOf(rect, frame.clip),
-      boxMm: Math.max(3, Math.min(10, boxMm)) })]);
-  }, [document, saveShown]);
 
   const toggle = (id: string, on: boolean) => setChosen(current => on ? [...current, id] : current.filter(item => item !== id));
   const allIds = [ALL_CONTROLS, ...courses.map(course => course.id)];
@@ -396,7 +271,6 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     <div><Button variant="secondary" onClick={() => void load(true)}>{text.page.retry}</Button></div></Notice></div></main>;
   if (document === undefined) return <main className={styles.page}><div className={styles.controls}>{back}<p role="status">{text.page.loading}</p></div></main>;
   if (document === null) return <main className={styles.page}><div className={styles.controls}>{back}<p>{text.page.noSetting}</p></div></main>;
-  const paperPanel = paperSpace.panel(sheets);
   const frameCount = sheets.reduce((sum, item) => sum + item.sheet.frames.length, 0);
   const waiting = mapState === "reading" || (mapState === "ready" && sheets.some(item => item.sheet.frames.some(frame => !images[frameImageKey(frame, colorsKey)])));
   // Hela utskriften stoppas av felen mot Kartor till starten; ett urval (en löpare som skrivs om) varnas bara i tabellen.
@@ -410,38 +284,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     const index = sheets.findIndex(item => item.key === key);
     window.document.getElementById(`print-sheet-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  const cards = sheetCards(document, sheets, template?.name);
-  const openCard = (card: SheetCard) => {
-    setOpenKey(card.key);
-    if (card.course && card.course !== ALL_CONTROLS) paperPanel?.onCourse(card.course);
-    window.document.getElementById(`print-sheet-${card.index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  const applyTemplate = (chosenTemplate: PaperTemplate, list: readonly string[] | "ALL") => {
-    const ids = list === "ALL" ? courses.map(course => course.id) : list;
-    void saveShown(ids.flatMap(id => templateEdits(document, id, chosenTemplate)));
-  };
   const runnerMode = mode === "RUNNERS";
-  // Arket som redigeras: det öppna om det hör till papperets bana, annars banans första (ADR-0211 tillägg: papper och ram).
-  const editing = mode === "COURSES" && !pieces && !template && paperPanel;
-  const open = sheets.find(item => item.key === openKey);
-  const targetSlot = !editing ? undefined : open && open.sheet.frames[0]?.course === paperPanel.course ? open
-    : sheets.find(item => item.sheet.frames[0]?.course === paperPanel.course);
-  const target: SheetTarget | undefined = targetSlot?.sheet.frames[0]
-    ? { course: targetSlot.sheet.frames[0].course, part: targetSlot.sheet.frames[0].part, label: targetSlot.label, sheet: targetSlot.sheet } : undefined;
-  const onFrame = (sheet: Sheet, frame: SheetFrame, change: FrameChange) => {
-    if (!paperPanel) return;
-    const area = printAreaOf(document, frame.course, frame.part);
-    const page = pageOfSheet(area, sheet);
-    const next = change.kind === "MOVE" ? movedFrameArea(area, page, frame, change.dx, change.dy)
-      : resizedFrameArea(area, page, frame, sheet, change.width, change.height);
-    void paperPanel.onSave([printAreaEdit(frame.course, frame.part, next)]);
-  };
-  const interaction = editing && frameEditing && target && canEdit
-    ? { ...paperSpace.interaction, frame: { course: target.course, part: target.part }, onFrame } : paperSpace.interaction;
-  const choosePaperCourse = (id: string) => {
-    paperPanel?.onCourse(id);
-    setOpenKey(sheets.find(item => item.sheet.frames[0]?.course === id)?.key);
-  };
+  const shownPaper = readOnlyPaper(sha => paperImageUrl(raceId, sha));
   const saveProfile = async (edits: CourseSettingEdit[]) => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; };
   const blPanel = { profile, builtIn: BUILT_IN_PRINT_PROFILES, colors, usage, readOnly: !canEdit, frame: sheets[0]?.sheet.frames[0], symbols, render: renderImage,
     norm: pressNorm, onSave: saveProfile };
@@ -459,13 +303,13 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       <section className={styles.panel} aria-labelledby="print-output" data-testid="print-output">
         <h2 id="print-output">{outputText.heading} <HelpLink article="utskrift" view={["CS_PRINT_PAGE", "CS_PRINT"]} /></h2>
         <div className={styles.row} role="radiogroup" aria-label={text.page.mode}>
-          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "COURSES"} onChange={() => { setMode("COURSES"); setDraftTemplate(undefined); }} />
+          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "COURSES"} onChange={() => { setMode("COURSES") }} />
             {text.page.modeCourses}</label>
-          <label className={styles.check}><input type="radio" name="print-mode" checked={runnerMode} onChange={() => { setMode("RUNNERS"); setDraftTemplate(undefined); }}
+          <label className={styles.check}><input type="radio" name="print-mode" checked={runnerMode} onChange={() => { setMode("RUNNERS") }}
             data-testid="print-mode-runners" />{text.page.modeRunners}</label>
-          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "CLASSES"} onChange={() => { setMode("CLASSES"); setDraftTemplate(undefined); }}
+          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "CLASSES"} onChange={() => { setMode("CLASSES") }}
             data-testid="print-mode-classes" />{whatText.modeClasses}</label>
-          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "PROOF"} onChange={() => { setMode("PROOF"); setDraftTemplate(undefined); }}
+          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "PROOF"} onChange={() => { setMode("PROOF") }}
             data-testid="print-mode-proof" />{whatText.modeProof}</label>
         </div>
         {mode !== "RUNNERS" && <PrintWhat raceId={raceId} mode={mode} entries={layoutEntries(document, layoutText.mainName)} layout={printLayout} onLayout={setPrintLayout}
@@ -503,8 +347,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           </div>
           <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}
             blockedText={blocked ? pdfText.runnerBlocked : undefined} heading={outputText.pdf} help={outputText.pdfHelp}
-            selection={{ items: mode === "RUNNERS" ? chosenRunners.map(withoutEntry) : courseItems, template, templateIsDraft: draftTemplate !== undefined,
-              savedTemplateIds: savedTemplates.map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex: mode === "RUNNERS" ? duplex : partsDuplex,
+            selection={{ items: mode === "RUNNERS" ? chosenRunners.map(withoutEntry) : courseItems, template, templateIsDraft: false,
+              savedTemplateIds: (document.event.layoutTemplates ?? []).map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex: mode === "RUNNERS" ? duplex : partsDuplex,
               pieces: mode === "COURSES" && pieces,
               ...(bundles ? { date: bundles.raceDate } : {}) }} />
         </div>
@@ -515,36 +359,12 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       {errors.map(name => <Notice key={name} tone="error">{text.page.failedCourse(name)}</Notice>)}
       {runnerMode && runners && <RunnerCheckTable rows={checkRows} onPreview={previewRow} selected={undefined} />}
     </div>
-    {/* ADR-0211 beslut 7: översikten över alla ark är sidans huvudvy. */}
-    <PrintOverview cards={cards} selected={openKey} onOpen={openCard} templates={document.event.paperTemplates ?? []} readOnly={!canEdit || runnerMode}
-      onApplyTemplate={applyTemplate} onPrintMarked={keys => setPrintOnly(new Set(keys))}
-      thumb={card => <SheetView sheet={sheets[card.index]!.sheet} index={1000 + card.index} symbols={symbols} images={images} colorsKey={colorsKey}
-        courseColor={courseColor} label={card.label} pressLayers={pressLayers} testId="print-thumb"
-        paper={{ ...paperSpace.interaction, editable: false }} />} />
-    {/* ADR-0211 tillägg: Redigera arket, arken först och panelerna bredvid (på datorn) eller under (i telefonen). */}
-    <section className={styles.editor} aria-labelledby="print-editor" data-testid="print-editor">
-      <div className={styles.controls}>
-        <h2 id="print-editor" className={styles.sectionTitle}>{outputText.editor}</h2>
-        <p className={styles.muted}>{outputText.editorHelp}</p>
-      </div>
-      <div className={styles.editorBody}>
-        <div className={styles.sheets}>
-          {sheets.map((item, index) => <div key={item.key} id={`print-sheet-${index}`} className={styles.sheetSlot}
-            data-open={openKey === item.key ? "" : undefined} data-target={targetSlot === item ? "" : undefined}
-            data-noprint={printOnly && !printOnly.has(item.key) ? "" : undefined}>
-            <SheetView sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
-              courseColor={courseColor} label={item.label} onPlace={canEdit ? placeDescription : undefined} paper={interaction} pressLayers={pressLayers} /></div>)}
-        </div>
-        <div className={`${styles.controls} ${styles.editorPanels}`} data-testid="print-editor-panels">
-          {editing && <SheetPaperPanel raceId={raceId} document={document} target={target} readOnly={!canEdit} onSave={paperPanel.onSave}
-            frameEditing={frameEditing} onFrameEditing={setFrameEditing} />}
-          <LayoutTemplatePanel key={mode} saved={savedTemplates} selectedId={chosenTemplateId} readOnly={!canEdit}
-            onSelect={id => { setTemplateId(id); setDraftTemplate(undefined); }} onDraft={setDraftTemplate} onSave={save} />
-          {(mode === "RUNNERS" || !pieces) && paperPanel && <PaperSpacePanel raceId={raceId} document={document} readOnly={!canEdit} {...paperPanel}
-            onCourse={choosePaperCourse} />}
-          {mode === "COURSES" && !pieces && <PaperDescriptionsPanel document={document} courses={paperCourses(document, chosen)} placed={placedDescriptions}
-            readOnly={!canEdit} onSave={save} />}
-        </div>
+    {/* Arken som skrivs ut (förhandsvisningen); papperet redigeras i Layout (ADR-0217 fas 3). */}
+    <section className={styles.editor} aria-label={outputText.preview} data-testid="print-preview">
+      <div className={styles.sheets}>
+        {sheets.map((item, index) => <div key={item.key} id={`print-sheet-${index}`} className={styles.sheetSlot} data-open={openKey === item.key ? "" : undefined}>
+          <SheetView sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
+            courseColor={courseColor} label={item.label} pressLayers={pressLayers} paper={shownPaper} /></div>)}
       </div>
     </section>
   </main>;

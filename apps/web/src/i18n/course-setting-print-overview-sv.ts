@@ -27,6 +27,8 @@ export const printOutputSv = {
   pdf: "Skapa PDF för tryckeriet",
   pdfHelp: "Servern skriver en PDF med kartan som vektorer, dekorfärger och övertryck.",
   editor: "Redigera arket",
+  /** ADR-0217 fas 3: arken som skrivs ut (papperet redigeras i Layout). */
+  preview: "Arken som skrivs ut",
   editorHelp: "Markera, dra och ändra direkt på arket; fälten står bredvid (under arket i telefonen)."
 } as const;
 
@@ -42,6 +44,9 @@ export const sheetPaperSv = {
   margins: "Marginal (mm)",
   scale: (scale: string) => `Skala för banan 1:${scale}.`,
   scaleChange: "Ändra i banans egenskaper",
+  /** ADR-0217: ett ark i en annan layout än huvudlayouten har layoutens skala. */
+  layoutScale: (scale: string, layout: string) => `Skala för layouten ${layout} 1:${scale}.`,
+  layoutScaleChange: "Ändra i layouten",
   area: "Tryckyta",
   automatic: "Automatisk (som Purple Pen)",
   manual: "Fast ram",

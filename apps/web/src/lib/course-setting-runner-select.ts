@@ -48,7 +48,7 @@ export function searchRunners(items: readonly SheetItem[], query: string, limit 
   }).slice(0, limit);
 }
 
-export type CheckWarning = "NO_VARIANT" | "EXCLUDED_VARIANT" | "COUNT" | "DUPLICATE_NUMBER";
+export type CheckWarning = "NO_VARIANT" | "EXCLUDED_VARIANT" | "COUNT";
 
 /** En rad i "Kontrollera kopplingen": en karta (med sidan i PDF:en) eller en löpare som inte får någon karta. */
 export interface CheckRow {
@@ -91,14 +91,8 @@ export function runnerCheckRows(print: Pick<RunnerPrint, "excluded" | "problems"
     variant: row.variantCode, startTime: row.runner.startTime ?? "", warnings: ["EXCLUDED_VARIANT"] }));
   missingVariant.forEach((row, index) => rows.push({ key: `m${index}`, page: undefined, item: undefined, number: null, name: row.name, club: "", className: row.className,
     team: row.team ? text.team(row.team, row.leg) : "", courseName: "", variant: "", startTime: "", warnings: ["NO_VARIANT"] }));
-  // Samma nummer två gånger: utom inom samma lag (sträckorna) och reserverna (inget nummer).
-  const byNumber = new Map<number, Set<string>>();
-  rows.forEach(row => {
-    if (row.number === null) return;
-    const owner = items[row.item ?? -1]?.runner?.team?.number;
-    byNumber.set(row.number, (byNumber.get(row.number) ?? new Set()).add(owner !== undefined ? `t${owner}` : row.key));
-  });
-  return rows.map(row => row.number !== null && (byNumber.get(row.number)?.size ?? 0) > 1 ? { ...row, warnings: [...row.warnings, "DUPLICATE_NUMBER"] } : row);
+  // Startnumren är kartbuntens löpnummer (unika i planen); det finns inget eget nummerlappsfält att jämföra.
+  return rows;
 }
 
 export type CheckColumn = "page" | "number" | "name" | "club" | "className" | "team" | "courseName" | "variant" | "startTime";

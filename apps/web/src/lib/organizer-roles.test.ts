@@ -119,9 +119,10 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   "organizer/clubs/[clubId]/archive/[entryId]": { GET: { allow: CLUB_MEMBERS, real: true },
     PUT: { allow: CLUB_ADMINS, real: true, body: { formatVersion: 1, trainingDate: null, place: "", title: "Träning", leader: null, tags: [], notes: null } },
     DELETE: { allow: CLUB_ADMINS } },
-  // Bilden och kontrollen räknas i en administratörs webbläsare och sparas av den (requireClubRole ADMIN).
+  // Bilden och kontrollen räknas i en medlems webbläsare och sparas av den (ändrat 2026-11-07: alla som får se arkivet; förvalet
+  // i Vem ser vad är alla medlemmar).
   "organizer/clubs/[clubId]/archive/[entryId]/thumbnail": { GET: { allow: CLUB_MEMBERS, real: true },
-    PUT: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, readerVersion: 1, status: "MAP_FAILED", detail: null, mapVersionId: id(),
+    PUT: { allow: CLUB_MEMBERS, body: () => ({ formatVersion: 1, readerVersion: 1, status: "MAP_FAILED", detail: null, mapVersionId: id(),
       courseName: null, image: null }) } },
   "organizer/clubs/[clubId]/course-files/[courseFileId]": { GET: { allow: CLUB_MEMBERS, real: true },
     PUT: { allow: CLUB_ADMINS, real: true, body: { formatVersion: 1, mapVersionId: null } } },
@@ -145,7 +146,7 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   "organizer/clubs/[clubId]/map-versions/[versionId]": { GET: { allow: CLUB_MEMBERS, real: true },
     PUT: { allow: CLUB_ADMINS, real: true, body: { formatVersion: 1, versionDate: null, note: null } } },
   "organizer/clubs/[clubId]/map-versions/[versionId]/check": { GET: { allow: CLUB_MEMBERS, real: true },
-    PUT: { allow: CLUB_ADMINS, real: true, body: { formatVersion: 1, readerVersion: 1, status: "FAILED", detail: null, fileVersion: null, thumbnail: null } } },
+    PUT: { allow: CLUB_MEMBERS, real: true, body: { formatVersion: 1, readerVersion: 1, status: "FAILED", detail: null, fileVersion: null, thumbnail: null } } },
   "organizer/clubs/[clubId]/map-versions/[versionId]/move": { POST: { allow: CLUB_ADMINS, body: { formatVersion: 1, targetMapId: null, newMapName: "Ny karta" } } },
   // "Använd igen": läsare i klubben (kartbanken) och därefter admin på tävlingen eller ledare i gruppen; här finns varken
   // tävlingen eller gruppen, så den som får når 404 efter klubbens kontroll.

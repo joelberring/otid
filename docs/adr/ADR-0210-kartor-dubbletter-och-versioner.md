@@ -87,3 +87,9 @@ tävling skapas, i stället för att ladda upp kartfilen igen.
 - Gränserna är provade lokalt mot klubbarkivets riktiga OCAD-filer (som inte committas): samma karta i tre filer gav 0,95–1,25,
   två filer med samma yta men olika innehåll 0,65, och en OCAD 8-fil utan koordinatsystem med 86 % samma kartyta och 85 %
   samma symboler som en nyare version 0,45. Inga andra par av de 66 nådde 0,45.
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`, ägarens beslut): kartornas kontroll och träningarnas små bilder (PUT `check`
+och `thumbnail`) sparas av alla medlemmar som får se dem, inte bara administratörer: bilden av alla som ser träningsarkivet,
+kontrollen av alla som ser arkivet eller kartbanken ("Vem ser vad", ADR-0209). Det är medlemmarnas webbläsare som ritar dem
+(den som ser arkivet och får hämta kartfilerna); servern prövar innehållet som förut (PNG, storlek, att versionen och träningen
+hör till klubben). "Kontrollera alla kartor igen" är kvar hos administratörerna.

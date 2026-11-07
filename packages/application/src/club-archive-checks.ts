@@ -4,17 +4,18 @@ import {
   type ClubEntryThumbnailView, type ClubMapCheckView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { clubAreaAccess, clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
 import { courseFileSummary } from "./club-archive-import";
 import { imageDimensions } from "./image-dimensions";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
 /**
- * ADR-0196: kontrollen av kartversionerna och de små bilderna i klubbarkivet. Kartorna ritas i en administratörs webbläsare
+ * ADR-0196: kontrollen av kartversionerna och de små bilderna i klubbarkivet. Kartorna ritas i en medlems webbläsare
  * (servern ritar inga kartor, ADR-0179 beslut 2); servern sparar beskedet och bilden en gång och kontrollerar att bilden är
- * en PNG av angiven storlek. Bilderna är härledda och går alltid att rita om; de skrivs inte i klubbens journal. Läsare ser
- * dem, administratörer sparar dem.
+ * en PNG av angiven storlek. Bilderna är härledda och går alltid att rita om; de skrivs inte i klubbens journal. Ändrat
+ * 2026-11-07 (ägarens beslut): alla medlemmar som får se arkivet sparar träningarnas bilder, och de som får se arkivet eller
+ * kartbanken sparar kartornas kontroll ("Vem ser vad", ADR-0209), inte bara administratörer.
  */
 const validId = (id: string) => UUID_PATTERN.test(id);
 
@@ -57,8 +58,10 @@ export async function saveClubMapVersionCheck(db: Database, input: ClubProof & {
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubMapVersionCheckRequestSchema.safeParse(input.request);
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "ADMIN", now, true);
+    const member = await requireClubRole(tx, input, "READER", now, true);
     if (member.status !== "ok") return member;
+    const access = await clubAreaAccess(tx, input.clubId, member.role);
+    if (!access.archive && !access.mapBank) return { status: "forbidden" } as const;
     // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
     if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" } as const;
     const check = parsed.data;
@@ -80,7 +83,7 @@ export async function saveClubEntryThumbnail(db: Database, input: ClubProof & { 
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubEntryThumbnailRequestSchema.safeParse(input.request);
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "ADMIN", now, true);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, true);
     if (member.status !== "ok") return member;
     // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
     if (!parsed.success || !validId(input.entryId)) return { status: "invalid-request" } as const;

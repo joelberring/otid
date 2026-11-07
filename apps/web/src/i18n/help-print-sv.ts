@@ -55,15 +55,19 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     views: ["CS_PRINT", "CS_PRINT_PAGE"],
     body: [
       "Skalan hör till banan: ”Skala för banan” under fliken ”Banor” i banans egenskaper. Välj den tidigt, för ringarnas storlek och numren följer den. Fliken ”Utskrift” visar den och har ”Ändra i banans egenskaper”.",
-      "Fliken ”Utskrift” i banläggningen har ”Förhandsvisning och utskrift”, som öppnar utskriftssidan. Där står, uppifrån:",
+      "Fliken ”Utskrift” i banläggningen har ”Förhandsvisning och utskrift”, som öppnar utskriftssidan, och ”Papperet i Layout”. Utskriftssidan har bara vad som skrivs ut, hur många, färgerna och PDF eller skrivare, uppifrån:",
       [
         "”Färger för tryck”: en rad om färgerna med ”Visa”, och ”Kartans egna färger” eller ”Tryck hos BL”. Se [Färger för tryck](#bl-farger).",
-        "”Skriv ut”: välj ”Banor” eller ”En karta per löpare (i samma ordning som Kartor till starten)”, och vilka banor.",
+        "”Skriv ut”: välj ”Banor”, ”En karta per löpare (i samma ordning som Kartor till starten)”, ”Klasser” eller ”Provark (ett av varje)”, och vilka banor.",
         "”Skriv ut på skrivare”: ett snabbt utkast på din egen skrivare; färgerna är inte tryckkvalitet.",
         "”Skapa PDF för tryckeriet”, bredvid: PDF:en med dekorfärger och övertryck.",
+        "Under dem står arken som de skrivs ut. De går inte att ändra här."
+      ],
+      "Papperet redigeras i fliken ”Layout”, där en ruta i ”Överblick” öppnar arken för banan i den layouten:",
+      [
         "Översikten: ett kort per ark med skala, papper, mall och varningar. Klicka på ett kort för att redigera arket.",
         "Markera kort för ”Skriv ut markerade” eller för att ge dem en ”Mall för papperet”.",
-        "”Redigera arket”: arken först och fälten bredvid, i telefonen under arken.",
+        "Arken först och fälten bredvid, i telefonen under arken.",
         "Fälten: ”Papper och kartram”, ”Kartor per ark”, papperets texter och bilder och ”Kontrollbeskrivning på kartan”."
       ],
       "Mer:",
@@ -81,7 +85,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     title: "Papper och kartram",
     views: ["CS_PRINT_PAGE"],
     body: [
-      "”Papper och kartram” under ”Redigera arket” gäller arket som är öppet (klicka på ett kort i översikten). Allt sparas i banans tryckyta och skrivs till .ppen som Purple Pens print-area.",
+      "”Papper och kartram” i fliken ”Layout” gäller arket som är öppet (klicka på ett kort i översikten). Allt sparas i banans tryckyta och skrivs till .ppen som Purple Pens print-area.",
       [
         "”Papper” (A3, A4, A5), ”Riktning” och ”Marginal (mm)”.",
         "”Tryckyta”: ”Automatisk (som Purple Pen)” lägger banan mitt på papperet. ”Fast ram” låser ramen där den står.",
@@ -90,6 +94,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "Kartbyten: varje del har ett eget kort. ”Visa överlapp” väljer hur mycket av föregående del som syns.",
         "En fast ram kan också dras på kartan i banläggningen, med fliken ”Utskrift” öppen."
       ],
+      "I en annan layout än huvudlayouten visar den layoutens skala, med ”Ändra i layouten”.",
       "Använder utskriften ”Kartor per ark” bestämmer den mallen papperet i stället."
     ]
   },
@@ -130,7 +135,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     title: "Papperet: texter, bilder, skalstock och nordpil",
     views: ["CS_PRINT_PAGE", "CS_PRINT"],
     body: [
-      "Klicka på ett kort i översikten för att redigera arket. Det som står på papperet syns inte i banläggningen.",
+      "Papperet redigeras i fliken ”Layout”, med ett klick på ett kort i översikten. Det som står på papperet syns inte i banläggningen.",
       [
         "”+ Text”, ”+ Bild …”, ”+ Skalstock”, ”+ Nordpil”, ”+ Ram” och ”+ Linje” lägger till element.",
         "Dubbelklicka på en text för att skriva i den på arket. ”Infoga variabel” lägger in t.ex. {bana} eller {datum}.",
@@ -231,7 +236,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "Texter på papperet kan ha löparens variabler: {namn} {startnummer} {klubb} {klass} {starttid} {variant}, och för stafett {lag} {lagnummer} {sträcka}.",
         "Exempel på framsidan: Lag {lagnummer} · Sträcka {sträcka} · {variant}. I utskriften av banor syns variablerna som platshållare.",
         "”Baksida med löparens uppgifter”: dubbelsidigt i samma PDF, eller separat körning under Kartor till starten → Baksidor.",
-        "Baksidan redigeras på arket: välj ”Baksidan (per löpare)” under ”Bana” i papperets fält. Förvalet är samma som Kartor till startens baksida.",
+        "Baksidan redigeras i fliken ”Layout”: kryssa i ”Baksidan (per löpare)” bland banorna. Förvalet är samma som Kartor till startens baksida.",
         "”Vilka som skrivs ut”: alla, valda klasser, valda löpare (sök på namn eller nummer) eller valda lag med alla sträckor eller en sträcka.",
         "”Kontrollera kopplingen” visar sidan i PDF:en, löparen, klassen, laget, banan, varianten och starttiden. Klicka på en rad för att se arket.",
         "Varningarna: ingen variant, bortvald variant, antalet stämmer inte med Kartor till starten, samma startnummer två gånger. ”Spara som CSV” sparar tabellen."
@@ -247,7 +252,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
       "En bana med kartbyte delas i delar som i Purple Pen. Del 2 börjar vid kartbytet, som ritas som en start, och numren fortsätter.",
       [
         "”Del” under ”Kartbyten” i fliken ”Utskrift”: ”Hela banan” eller en av delarna (Del 1, Del 2 …). Kartan i banläggningen visar den delen.",
-        "Varje del får en egen tryckyta när du ändrar papperet eller ramen för delens ark i utskriften (”Papper och kartram”). ”Som banans igen” tar bort delens egen.",
+        "Varje del får en egen tryckyta när du ändrar delens ark under ”Papper och kartram” i fliken ”Layout”. ”Som banans igen” tar bort delens egen.",
         "”Visa överlapp” under ”Papper och kartram”: ”Ingen”, ”Sista sträckan” eller ”Hela föregående del”, tonat och utan nummer.",
         "I förhandsvisningen står varje del på ett eget ark med delens kontrollbeskrivning.",
         "”Dubbelsidigt: del 2 på baksidan av del 1 (kartbyte)”: ordningen som skrivaren behöver, med en tom baksida vid udda antal.",

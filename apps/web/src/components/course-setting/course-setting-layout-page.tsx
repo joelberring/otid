@@ -13,6 +13,7 @@ import { symbolLookup } from "../../lib/course-setting-description-draw";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
 import { classRows, layoutMatrix } from "../../lib/course-setting-layouts";
 import { AccountMenu } from "../account-menu";
+import { HelpButton } from "../help/help-panel";
 import { Button, Notice } from "../ui";
 import { CourseSettingTabs } from "./course-setting-tabs";
 import { LayoutMatrix } from "./course-setting-layout-matrix";
@@ -113,6 +114,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
     <CourseSettingTabs raceId={raceId} current="LAYOUT" />
     <span className={styles.spacer} />
     {canEdit && <Button variant="secondary" disabled={undoCount === 0} onClick={onUndo} data-testid="layout-undo">{text.states.undo}</Button>}
+    <HelpButton view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} />
     <AccountMenu />
   </div>;
   if (failed) return <main className={styles.page}>{head}<Notice tone="error" role="alert"><p>{text.failed}</p>

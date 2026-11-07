@@ -357,13 +357,12 @@ function validateFrozenIofPerson(result: FrozenPersonValidationValue, context: z
 }
 
 /** Den frysta personraden (IOF 3.0 PersonResult) i nuvarande format (9). */
-export const frozenIofPersonProjectionV9Schema = z.object({
+export const frozenIofPersonProjectionSchema = z.object({
   ...frozenIofPersonCommonFields,
   /** Steg 35: NT = "Deltog utan tid" (exporteras som NotCompeting utan tid). */
   status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]),
   manualApprovalProof: frozenManualApprovalProofSchema.nullable()
 }).strict().superRefine(validateFrozenIofPerson);
-export const frozenIofPersonProjectionSchema = frozenIofPersonProjectionV9Schema;
 
 const frozenSourceBase = {
   entryId: canonicalUuidSchema,
@@ -424,7 +423,7 @@ const EXPECTED_STATUSES: Record<z.infer<typeof frozenManualDecisionCauseSchema>,
 
 export const frozenFinalizationResultV9Schema = z.object({
   source: frozenFinalizationResultSourceV9Schema,
-  personResult: frozenIofPersonProjectionV9Schema
+  personResult: frozenIofPersonProjectionSchema
 }).strict().superRefine((result, context) => {
   const source = result.source;
   const expectedStatuses = source.kind === "START_CHECKIN_DID_NOT_START" ? ["DNS"]
@@ -474,7 +473,7 @@ export const frozenClassDataV9Schema = z.object({
  * Private persisted CLASS projection. It intentionally contains the PII and
  * source IDs needed to reproduce a result document; it is never an HTTP DTO.
  */
-export const frozenClassFinalizationProjectionV9Schema = z.object({
+export const frozenClassFinalizationProjectionSchema = z.object({
   formatVersion: z.literal(9),
   scope: z.literal("CLASS"),
   raceId: canonicalUuidSchema,
@@ -483,7 +482,6 @@ export const frozenClassFinalizationProjectionV9Schema = z.object({
   basisSha256: sha256Schema,
   class: frozenClassDataV9Schema
 }).strict();
-export const frozenClassFinalizationProjectionSchema = frozenClassFinalizationProjectionV9Schema;
 
 const selectedFrozenClassV9Schema = z.object({
   classFinalizationId: canonicalUuidSchema,
@@ -528,7 +526,7 @@ function validateFrozenRaceProjection(
  * than joined at export time, so later display/control changes cannot rewrite
  * the saved Complete document.
  */
-export const frozenRaceFinalizationProjectionV9Schema = z.object({
+export const frozenRaceFinalizationProjectionSchema = z.object({
   formatVersion: z.literal(9),
   scope: z.literal("RACE"),
   raceId: canonicalUuidSchema,
@@ -537,11 +535,10 @@ export const frozenRaceFinalizationProjectionV9Schema = z.object({
   eventName: z.string().trim().min(1).max(160),
   classes: z.array(selectedFrozenClassV9Schema).min(1).max(1_000)
 }).strict().superRefine(validateFrozenRaceProjection);
-export const frozenRaceFinalizationProjectionSchema = frozenRaceFinalizationProjectionV9Schema;
 
 export const frozenResultFinalizationProjectionSchema = z.union([
-  frozenClassFinalizationProjectionV9Schema,
-  frozenRaceFinalizationProjectionV9Schema
+  frozenClassFinalizationProjectionSchema,
+  frozenRaceFinalizationProjectionSchema
 ]);
 
 export const resultFinalizationAdminErrorCodeSchema = z.enum([
@@ -570,13 +567,10 @@ export type ResultFinalizationCandidateResponse = z.infer<typeof resultFinalizat
 export type ResultFinalizationRequest = z.infer<typeof resultFinalizationRequestSchema>;
 export type ResultFinalizationResponse = z.infer<typeof resultFinalizationResponseSchema>;
 export type FrozenRaceFinalizationListResponse = z.infer<typeof frozenRaceFinalizationListResponseSchema>;
-export type FrozenIofPersonProjectionV9 = z.infer<typeof frozenIofPersonProjectionV9Schema>;
 export type FrozenIofPersonProjection = z.infer<typeof frozenIofPersonProjectionSchema>;
 export type FrozenManualDecisionCause = z.infer<typeof frozenManualDecisionCauseSchema>;
 export type FrozenFinalizationResultSourceV9 = z.infer<typeof frozenFinalizationResultSourceV9Schema>;
-export type FrozenClassFinalizationProjectionV9 = z.infer<typeof frozenClassFinalizationProjectionV9Schema>;
 export type FrozenClassFinalizationProjection = z.infer<typeof frozenClassFinalizationProjectionSchema>;
-export type FrozenRaceFinalizationProjectionV9 = z.infer<typeof frozenRaceFinalizationProjectionV9Schema>;
 export type FrozenRaceFinalizationProjection = z.infer<typeof frozenRaceFinalizationProjectionSchema>;
 export type FrozenResultFinalizationProjection = z.infer<typeof frozenResultFinalizationProjectionSchema>;
 export type ResultFinalizationAdminErrorCode = z.infer<typeof resultFinalizationAdminErrorCodeSchema>;

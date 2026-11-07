@@ -193,49 +193,7 @@ export const outOfCompetitionResultSchema = z.union([
   }
 });
 
-/** TASK 006E persisted-result format, retained for formatVersion 1 readers. */
-export const resultOutcomeV1Schema = z.union([
-  evaluationResultSchema,
-  didNotStartResultSchema
-]);
-
-/** TASK 006G persisted-result format, retained for formatVersion 2 readers. */
-export const resultOutcomeV2Schema = z.union([
-  evaluationResultSchema,
-  didNotStartResultSchema,
-  disqualifiedResultSchema
-]);
-
-/** Valid only for current persisted result revisions, never station evaluations. */
-export const resultOutcomeV3Schema = z.union([
-  evaluationResultSchema,
-  didNotStartResultSchema,
-  disqualifiedResultSchema,
-  manualApprovedResultSchema
-]);
-
-/** TASK 006I persisted-result format. Earlier formats remain readable. */
-export const resultOutcomeV4Schema = z.union([
-  evaluationResultSchema,
-  didNotStartResultSchema,
-  didNotFinishResultSchema,
-  disqualifiedResultSchema,
-  manualApprovedResultSchema
-]);
-
-/** TASK 006K persisted-result format. Earlier formats remain readable. */
-export const resultOutcomeV5Schema = z.union([
-  evaluationResultSchema,
-  didNotStartResultSchema,
-  didNotFinishResultSchema,
-  outOfCompetitionResultSchema,
-  disqualifiedResultSchema,
-  manualApprovedResultSchema
-]);
-/** TASK 006L adds provenance only; its restored outcome remains exact OK/MP. */
-export const resultOutcomeV6Schema = resultOutcomeV5Schema;
-/** TASK 006M persisted-result format. Earlier formats remain readable. */
-export const resultOutcomeV7Schema = z.union([
+export const resultOutcomeSchema = z.union([
   evaluationResultSchema,
   didNotStartResultSchema,
   didNotFinishResultSchema,
@@ -244,15 +202,9 @@ export const resultOutcomeV7Schema = z.union([
   disqualifiedResultSchema,
   manualApprovedResultSchema
 ]);
-/** TASK 006N adds revision provenance only; the stored outcome union is unchanged. */
-export const resultOutcomeV8Schema = resultOutcomeV7Schema;
-export const resultOutcomeSchema = resultOutcomeV8Schema;
 
-export const storedResultStatusV4Schema = z.enum(["OK", "MP", "DSQ", "DNF", "DNS"]);
-/** TASK 006K/006L status union, retained for historical format readers. */
-export const storedResultStatusV6Schema = z.enum(["OK", "MP", "DSQ", "DNF", "OOC", "DNS"]);
 export const storedResultStatusSchema = z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "NT", "DNS"]);
-export const storedResultReasonV4Schema = z.enum([
+export const storedResultReasonSchema = z.enum([
   "COMPLETE",
   "MISSING_START",
   "MISSING_FINISH",
@@ -262,15 +214,8 @@ export const storedResultReasonV4Schema = z.enum([
   "DID_NOT_START",
   "DID_NOT_FINISH",
   "MANUAL_DISQUALIFICATION",
-  "MANUAL_APPROVAL"
-]);
-/** TASK 006K/006L reason union, retained for historical format readers. */
-export const storedResultReasonV6Schema = z.enum([
-  ...storedResultReasonV4Schema.options,
-  "OUT_OF_COMPETITION"
-]);
-export const storedResultReasonSchema = z.enum([
-  ...storedResultReasonV6Schema.options,
+  "MANUAL_APPROVAL",
+  "OUT_OF_COMPETITION",
   "WITHOUT_TIMING",
   "MAX_TIME_EXCEEDED"
 ]);

@@ -41,10 +41,13 @@ export type MapLinkCreateRequest = z.infer<typeof mapLinkCreateRequestSchema>;
 export const mapLinkCreatedSchema = mapLinkStateSchema.extend({ token: mapLinkTokenSchema }).strict();
 export type MapLinkCreated = z.infer<typeof mapLinkCreatedSchema>;
 
-/** Ett svar i tråden som kartritaren ser: text, när, och vem (visningsnamnet, eller kartritaren och namnet hen skrev). */
+/**
+ * Ett svar i tråden som kartritaren ser. ADR-0214 beslut 4: ett svar med konto har bara rollen (`mapMaker`: kartritare med
+ * konto, annars banläggaren), inget namn och ingen tid; kartritarens svar med länken har tiden och namnet hen skrev.
+ */
 export const mapLinkReplySchema = z.object({
-  id: uuid, text: z.string().max(2000), createdAt: instant,
-  /** Visningsnamnet för den som svarade med konto, eller namnet kartritaren skrev (null = "Kartritaren"). */
+  id: uuid, text: z.string().max(2000), createdAt: instant.nullable(),
+  /** Namnet kartritaren skrev med länken; null = rollen ("Kartritaren" eller "Banläggaren"). */
   author: name,
   mapMaker: z.boolean(),
   verdict: mapMakerVerdictSchema.nullable(),

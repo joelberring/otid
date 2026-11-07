@@ -120,8 +120,8 @@ function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void
       <fieldset className={styles.form}>
         <legend>{text.peopleTitle}</legend>
         {others.length === 0 && <p className={styles.intro}>{text.peopleNone}</p>}
-        {others.length > 0 && <ul className={styles.intro}>{others.map(person => <li key={person.email}>{person.email} · {person.role.split(",")
-          .map(role => text.roles[role] ?? role).join(", ")}{person.hasAccount ? "" : ` (${text.noAccount})`}</li>)}</ul>}
+        {others.length > 0 && <ul className={styles.intro}>{others.map((person, index) => <li key={index}>{person.email ?? text.fromClub} · {person.role.split(",")
+          .map(role => text.roles[role] ?? role).join(", ")}</li>)}</ul>}
         {others.length > 0 && <>
           <label className={styles.check}><input type="radio" name="restore-people" checked={people === "link"} disabled={busy}
             onChange={() => { setPeople("link"); setRequestId(crypto.randomUUID()); }} /><span><strong>{text.peopleLink}</strong></span></label>

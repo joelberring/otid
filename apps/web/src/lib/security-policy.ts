@@ -264,8 +264,22 @@ export function clientAddress(request: Request): string {
   return clientAddressFrom(request.headers);
 }
 
-/** Samma adress ur en sidas huvuden (`headers()` i en serverkomponent). */
-export function clientAddressFrom(headers: Pick<Headers, "get">): string {
+let missingForwardedWarned = false;
+
+/**
+ * Samma adress ur en sidas huvuden (`headers()` i en serverkomponent). Saknas adressen i drift över https (Caddy sätter den
+ * alltid) delar alla klienter samma spärr; det skrivs en gång i loggen (städrundan 2026-11-07).
+ */
+export function clientAddressFrom(headers: Pick<Headers, "get">, environment: Partial<Record<string, string | undefined>> = process.env): string {
   const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || headers.get("x-real-ip")?.trim() || "okänd";
+  const address = forwarded || headers.get("x-real-ip")?.trim();
+  if (address) return address;
+  if (!missingForwardedWarned && environment.O_TID_PUBLIC_ORIGIN?.startsWith("https://")) {
+    missingForwardedWarned = true;
+    console.warn("O-Tid: en spärrad begäran saknar X-Forwarded-For; alla klienter delar spärren. Går Next via Caddy?");
+  }
+  return "okänd";
 }
+
+/** Bara för testerna: varningen kan skrivas igen. */
+export function resetMissingForwardedWarning(): void { missingForwardedWarned = false; }

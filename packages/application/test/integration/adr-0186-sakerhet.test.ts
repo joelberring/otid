@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDatabase, migrate } from "@o-tid/database";
+import { eq } from "drizzle-orm";
+import { createDatabase, migrate, schema } from "@o-tid/database";
 import type { PublicStartListResponse } from "@o-tid/contracts";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { loginUserAccount, registerUserAccount } from "../../src/user-account";
@@ -240,7 +241,12 @@ describe("ADR-0186: behörigheter kräver bekräftad e-post", () => {
     // väljer lösenordet; den andras lösenord gäller aldrig efter bekräftelsen.
     const second = await registerUserAccountWithVerification(db, { formatVersion: 1, email, displayName: "Någon annan", password: "annat-lösen-9" });
     if (second.delivery?.kind !== "VERIFY" || first.delivery?.kind !== "VERIFY") throw new Error("Länken saknas");
+    // Mejlet hälsar med namnet från den här registreringen, och kontot har det senaste namnet (städrundan 2026-11-07).
+    expect(second.delivery.displayName).toBe("Någon annan");
+    expect((await db.select({ name: schema.userAccounts.displayName }).from(schema.userAccounts).where(eq(schema.userAccounts.email, email)))[0]?.name)
+      .toBe("Någon annan");
     expect(await checkEmailVerificationToken(db, { formatVersion: 1, token: second.delivery.token })).toEqual({ status: "checked", state: "valid" });
+    // Den som öppnar den första länken får namnet från sin egen registrering.
     const verified = await verifyEmailAndLogIn(db, { formatVersion: 1, token: first.delivery.token, password: PASSWORD });
     expect(verified).toMatchObject({ status: "authenticated", response: { email, emailVerified: true, displayName: "Bekräfta" } });
     // Alla länkar är förbrukade och adressen är bekräftad; den andras lösenord gäller aldrig.

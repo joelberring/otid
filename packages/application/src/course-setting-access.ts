@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { acceptInvitationsForRace } from "./account-arrival";
 import { schema } from "@o-tid/database";
 import type { CourseSettingLevel } from "@o-tid/contracts";
 import { activeEventAdministrationGrant, type RaceRoleLock, type RaceSessionProof } from "./race-session";
@@ -59,8 +59,8 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
     const [row] = lock === "share" ? await query.for("share") : lock === "update" ? await query.for("update") : await query;
     if (row) principal = { accountId, displayName: named?.displayName ?? "", raceId: race.id, eventId: race.eventId, level: row.level, admin: false };
   }
-  // ADR-0188 beslut 6: en behörighet sparad för kontots adress på tävlingen gäller från första besöket.
-  if (!principal && !accepted && await acceptRacePersonInvitations(tx, accountId, now, race.id) > 0) {
+  // ADR-0188 beslut 6: en behörighet sparad för kontots adress på tävlingen (eller dess träningsgrupp) gäller från första besöket.
+  if (!principal && !accepted && await acceptInvitationsForRace(tx, accountId, now, race.id) > 0) {
     return authorize(tx, request, now, lock, true);
   }
   // Funktionären utan banläggning är inloggad på tävlingen men får inte se banorna (403); övriga har ingen roll (401).

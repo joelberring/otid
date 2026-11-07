@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { acceptAllInvitations } from "./account-arrival";
 import { defaultRaceOrganiser } from "./race-club-archive";
 import { sql } from "drizzle-orm";
 import {
@@ -123,8 +123,8 @@ export async function listMyEvents(
   return db.transaction(async (tx) => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, proof, validDate(now));
     if (auth.status !== "authenticated") return auth;
-    // ADR-0188 beslut 6: behörigheter sparade för kontots adress gäller från nu.
-    await acceptRacePersonInvitations(tx, auth.principal.accountId, validDate(now));
+    // ADR-0188 beslut 6, ADR-0189 beslut 9: Mina tävlingar är en ankomst; alla inbjudningar för kontots adress gäller från nu.
+    await acceptAllInvitations(tx, auth.principal.accountId, validDate(now));
     const grants = await tx.select({ id: schema.eventAdministrationGrants.id,
       eventId: schema.eventAdministrationGrants.eventId,
       role: schema.eventAdministrationGrants.role })

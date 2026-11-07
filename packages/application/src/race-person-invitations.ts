@@ -2,8 +2,6 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
-import { acceptGroupInvitations } from "./training-group-invitations";
-import { acceptClubInvitations } from "./club-invitations";
 
 /**
  * ADR-0188 beslut 6: en behörighet som en administratör ger sparas för e-postadressen, oavsett om adressen har ett konto,
@@ -44,18 +42,15 @@ async function covered(tx: DbExecutor, input: { accountId: string; eventId: stri
 }
 
 /**
- * Gör kontots öppna inbjudningar till behörigheter (alla, eller bara på `raceId`). Kräver bekräftad e-post och ett konto
- * som inte är spärrat. Returnerar antalet som togs.
+ * Gör kontots öppna inbjudningar till tävlingars behörigheter (alla, eller bara på `raceId`). Kräver bekräftad e-post och ett
+ * konto som inte är spärrat. Returnerar antalet som togs. Anropas via account-arrival.ts, som bestämmer när.
  */
 export async function acceptRacePersonInvitations(tx: DbExecutor, accountId: string, now: Date, raceId?: string): Promise<number> {
   const [account] = await tx.select({ email: schema.userAccounts.email, verifiedAt: schema.userAccounts.emailVerifiedAt,
     blockedAt: schema.userAccounts.blockedAt }).from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId));
   if (!account || !account.verifiedAt || account.blockedAt) return 0;
-  // ADR-0189 beslut 9: träningsgruppernas inbjudningar tas samtidigt (inloggning, bekräftelse, Mina tävlingar, tävlingen; en
-  // ledare i gruppen är administratör på gruppens tävlingar).
-  let accepted = await acceptGroupInvitations(tx, accountId, now);
-  // ADR-0194 beslut 1: klubbens inbjudningar på samma tillfällen.
-  accepted += await acceptClubInvitations(tx, accountId, now);
+  // Bara tävlingens inbjudningar; grupper och klubbar tas i account-arrival.ts (städrundan C4).
+  let accepted = 0;
   const pending = await tx.select({ id: invitations.id }).from(invitations)
     .where(and(eq(invitations.email, account.email), open, raceId ? eq(invitations.raceId, raceId) : undefined))
     .orderBy(asc(invitations.createdAt)).limit(200);

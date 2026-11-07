@@ -41,6 +41,9 @@ var en egen tävlingstyp och att formuläret för behörigheter avslöjade om en
 6. **Behörigheter avslöjar inga konton.** "Lägg till person" svarar likadant oavsett om adressen har ett konto: behörigheten
    sparas för adressen och gäller när personen loggar in med den och har bekräftat den (ADR-0186). Listan visar adressen som
    "väntar på inloggning" tills dess. När ett konto skapas och adressen bekräftas får kontot de väntande behörigheterna.
+   Ändrat 2026-11-07 (städrundan C4): inbjudningar av alla slag (tävling, träningsgrupp, klubb) tas på ett ställe,
+   `account-arrival.ts`: vid inloggning och Mina tävlingar alla, när en tävling öppnas bara tävlingens och dess träningsgrupps.
+   En behörighetskontroll tar aldrig en klubbinbjudan eller en inbjudan till något annat än det den kontrollerar.
 
 ## Konsekvenser
 

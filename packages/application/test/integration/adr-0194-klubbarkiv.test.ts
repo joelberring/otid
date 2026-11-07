@@ -8,7 +8,7 @@ import { readRaceMapSourceFileAsAdmin } from "../../src/race-map-source";
 import { listGroupLibraryMaps, readRaceMapAgreementAsAdmin } from "../../src/training-group-maps";
 import { createTrainingGroup } from "../../src/training-groups";
 import { purgeRows } from "../../src/purge";
-import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
+import { acceptAllInvitations } from "../../src/account-arrival";
 import { createClub, createClubImportToken, inviteClubMember, listMyClubs, readClub, removeClubMember, revokeClubImportToken, setClubMemberRole } from "../../src/clubs";
 import { readClubArchive, readClubArchiveEntry, readClubCourseFile, setClubCourseFileMap, updateClubArchiveEntry } from "../../src/club-archive";
 import { importBatch, importCheck, importMapContent } from "../../src/club-archive-import";
@@ -116,7 +116,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     await invite(unverified.email, "ADMIN");
     expect((await readClub(db, { ...unverified.proof, clubId }, NOW)).status).toBe("not-found");
     await verifyTestAccount(db, unverified.accountId, NOW);
-    await db.transaction(tx => acceptRacePersonInvitations(tx, unverified.accountId, NOW));
+    await db.transaction(tx => acceptAllInvitations(tx, unverified.accountId, NOW));
     const view = await readClub(db, { ...owner.proof, clubId }, NOW);
     if (view.status !== "ok") throw new Error("Ingen vy");
     expect(view.view.members.map(member => member.role).sort()).toEqual(["ADMIN", "OWNER", "READER"]);

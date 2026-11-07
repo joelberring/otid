@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { acceptRacePersonInvitations } from "./race-person-invitations";
+import { acceptInvitationsForRace } from "./account-arrival";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { authorizeUserAccountSession } from "./user-account";
@@ -126,8 +126,8 @@ async function authorize(tx: DbExecutor, request: RaceRoleRequest, now: Date, lo
   const grant = await activeEventAdministrationGrant(tx, { accountId: account.principal.accountId, eventId: race.eventId,
     roles: ["OWNER", "ADMIN", "FUNCTIONARY"] }, lock);
   if (!grant) {
-    // ADR-0188 beslut 6: en behörighet sparad för kontots adress på tävlingen gäller från första besöket.
-    if (!accepted && await acceptRacePersonInvitations(tx, account.principal.accountId, now, race.id) > 0) {
+    // ADR-0188 beslut 6: en behörighet sparad för kontots adress på tävlingen (eller dess träningsgrupp) gäller från första besöket.
+    if (!accepted && await acceptInvitationsForRace(tx, account.principal.accountId, now, race.id) > 0) {
       return authorize(tx, request, now, lock, true);
     }
     return { status: "unauthorized" };

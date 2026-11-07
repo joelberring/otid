@@ -16,6 +16,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Döda Drizzle-tabeller (`shortenedCourseClassTransfer*`, `mapContentParts`; SQL-tabellerna kvar), Google-kakans gamla format, `POST …/maps/{mapId}/merge` (ADR-0210 ändrad).
 - 82 oanvända i18n-nycklar och 18 CSS-modulklasser bort; `i18n/unused-keys.test.ts` kräver att varje toppnyckel används.
 - `pnpm lint:dead` (knip 5.60, `knip.json`) körs i CI-jobbet verify. Undantag med kommentar i `knip.json` (B4-filer, pg, typsnitt).
+### 2026-11-07 – Serverrapport, larm, mindre säkerhetskopior, belastningstest (grenen b4-serverrapport, ADR-0216, migration 0085)
+- Veckorapport söndag kl. 19 och larm (disk, kartkvot, backup, hälsokontroll, minne; högst ett per sort och dygn, "löst" när det gått över) till superadmin via mail.ts, från `web` (`lib/server-watch-runner.ts`, `application/server-report.ts` + `server-status.ts`). Tabellerna `server_sample`, `server_notice`, `server_notice_log`. `node superadmin.mjs server-report` visar rapporten.
+- `monitor.sh` skriver `./status/monitor.log`, `backup.sh` `./backups/.backup-status`; `web` monterar `./backups` och `./status` skrivskyddat (compose). Inget nytt i `.env` krävs.
+- Backup: kartinnehållet en gång per innehåll i `./backups/map-content`, miniatyrer och kartkontroller utesluts, 24 timdumpar; `sh /backup.sh restore-map-content` efter pg_restore. Dump och återställning provade lokalt (md5 lika, även omtagen dump).
+- `pnpm load-test` (N samtidiga tävlingar via API:t) och bedömning för CX23 i docs/drift.md.
+- Tester: `server-report.test.ts` (16), `adr-0216-serverrapport.test.ts` (integration), `server-watch-runner.test.ts`; CI kör `server-report` i driftjobbet.
 
 ### 2026-11-07 – Förenklade färger för tryck (grenen b2-tryckfarger, ADR-0215, ingen migration)
 - Ny förvald profil "Kartans egna färger" (`map-own`): kartfilens färger i normens ordning utan att någon gör något. En tävling som valt en profil behåller den; en som aldrig valt får normens ordning i nästa PDF.

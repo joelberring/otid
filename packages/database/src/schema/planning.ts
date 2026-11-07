@@ -2,8 +2,6 @@ import {
   boolean,
   bigint,
   check,
-  customType,
-  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -12,7 +10,6 @@ import {
   primaryKey,
   text,
   timestamp,
-  unique,
   uniqueIndex,
   uuid
 } from "drizzle-orm/pg-core";
@@ -192,100 +189,6 @@ export const raceSettingsRequests = pgTable("race_settings_request", {
   response: jsonb("response").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 }, (table) => [index("race_settings_request_race_idx").on(table.raceId)]);
-
-/** Binära filer (kartbild, GPX) lagras i PostgreSQL; node-postgres ger och tar emot Buffer. */
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
-
-/** Kartans georeferens (ADR-0171): tre punkter med pixel och WGS84 och den affina transformen pixel → lon/lat. */
-export type RaceMapTiePoint = { pixelX: number; pixelY: number; longitude: number; latitude: number };
-export type RaceMapTransform = { a: number; b: number; c: number; d: number; e: number; f: number };
-
-/** PLAN.md steg 16 (migration 0098): tävlingens karta för vägval, en per lopp. Bilden ligger i databasen. */
-export const raceMaps = pgTable("race_map", {
-  raceId: uuid("race_id").primaryKey().references(() => races.id),
-  fileName: text("file_name").notNull(),
-  mediaType: text("media_type").$type<"image/png" | "image/jpeg">().notNull(),
-  /** Gamla rader (före migration 0044); nya har `contentSha256` (ADR-0189). Aldrig båda. */
-  image: bytea("image"),
-  contentSha256: text("content_sha256"),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  width: integer("width").notNull(),
-  height: integer("height").notNull(),
-  tiePoints: jsonb("tie_points").$type<RaceMapTiePoint[]>(),
-  transform: jsonb("transform").$type<RaceMapTransform>(),
-  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull(),
-  georeferencedAt: timestamp("georeferenced_at", { withTimezone: true })
-});
-
-/** Steg 59: kartfilens georeferens (mm → projicerade meter), samma fält som `MapGeoreference` i `@o-tid/map-file`. */
-export type RaceMapSourceGeoreference = {
-  scale: number;
-  crs: { kind: "EPSG"; code: number } | { kind: "UNKNOWN"; description: string };
-  refPoint: { easting: number; northing: number };
-  mapRefPoint: { x: number; y: number };
-  grivationDegrees: number;
-  combinedScaleFactor: number;
-};
-/** Bildens upplösning och kartans punkt (mm, y uppåt) i bildens övre vänstra hörn. */
-export type RaceMapSourceRender = { pxPerMm: number; originX: number; originY: number };
-export type RaceMapSourceBounds = { minX: number; minY: number; maxX: number; maxY: number };
-/** Det som arbetsytan visar efter uppladdningen. */
-export type RaceMapSourceSummary = { objectCount: number; warnings: { code: string; count: number; text: string }[]; simplifications: string[] };
-
-/**
- * Steg 59 (migration 0028, ADR-0179): banläggarens kartfil orörd (OCAD eller Mapper, högst 60 MB). Bilden i `race_map`
- * är ritad ur den i webbläsaren; `render` kopplar kartans mm till bildens pixlar.
- */
-export const raceMapSources = pgTable("race_map_source", {
-  raceId: uuid("race_id").primaryKey().references(() => races.id),
-  fileName: text("file_name").notNull(),
-  format: text("format").$type<"OCD" | "OMAP">().notNull(),
-  version: text("version").notNull(),
-  /** Gamla rader (före migration 0044); nya har `contentSha256` (ADR-0189). Aldrig båda. */
-  file: bytea("file"),
-  contentSha256: text("content_sha256"),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  scale: integer("scale").notNull(),
-  bounds: jsonb("bounds").$type<RaceMapSourceBounds>().notNull(),
-  georeference: jsonb("georeference").$type<RaceMapSourceGeoreference>(),
-  render: jsonb("render").$type<RaceMapSourceRender>().notNull(),
-  summary: jsonb("summary").$type<RaceMapSourceSummary>().notNull(),
-  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull()
-});
-
-/**
- * ADR-0189 (migration 0044): kartbilder och kartfiler lagras en gång, adresserade med sha256, i delar om högst 1 MiB. Raderna i
- * `race_map`, `race_map_source` och träningsgruppens bibliotek pekar hit med `content_sha256`. Innehållet tas bort av en
- * utlösare när den sista referensen försvinner. `uploadedBy` är kontot vars kvot innehållet räknas mot.
- */
-export const mapContents = pgTable("map_content", {
-  sha256: text("sha256").primaryKey(),
-  contentId: uuid("content_id").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  uploadedBy: uuid("uploaded_by"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
-});
-
-/** PLAN.md steg 16 (migration 0098): löparens GPS-rutt. Punkterna är [tid ms, lat, lon] i tidsordning. */
-export const participantRoutes = pgTable("participant_route", {
-  entryId: uuid("entry_id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  fileName: text("file_name").notNull(),
-  gpx: bytea("gpx").notNull(),
-  sha256: text("sha256").notNull(),
-  byteLength: integer("byte_length").notNull(),
-  points: jsonb("points").$type<(readonly [number, number, number])[]>().notNull(),
-  pointCount: integer("point_count").notNull(),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull()
-}, (table) => [
-  index("participant_route_race_idx").on(table.raceId),
-  foreignKey({ name: "participant_route_entry_scope_fk", columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] })
-]);
-
 /** ADR-0172 beslut 5 (migration 0102): radiokontroller via ROC eller OResults. */
 export type RadioSourceValue = "ROC" | "ORESULTS";
 export type RadioErrorValue = "INVALID_INPUT" | "INVALID_RESPONSE" | "UPSTREAM_UNAVAILABLE" | "REJECTED" | "NOT_FOUND" |
@@ -332,68 +235,6 @@ export const radioPunches = pgTable("radio_punch", {
   uniqueIndex("radio_punch_content_uidx").on(table.raceId, table.cardNumber, table.controlCode, table.punchedAt),
   index("radio_punch_race_time_idx").on(table.raceId, table.punchedAt)
 ]);
-
-/**
- * Steg 61 (migration 0029): senaste utskriften av kartbuntslistan (`BUNDLE`) eller baksidorna (`BACKS`) med läget då
- * (domänens `PrintedMapState`), för "N ändringar sedan listan skrevs ut". Skrivs över vid nästa utskrift.
- */
-export const mapPrints = pgTable("map_print", {
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  list: text("list").$type<"BUNDLE" | "BACKS">().notNull(),
-  printedAt: timestamp("printed_at", { withTimezone: true }).notNull(),
-  state: jsonb("state").$type<Record<string, unknown>>().notNull()
-}, (table) => [
-  primaryKey({ columns: [table.raceId, table.list] }),
-  check("map_print_list_check", sql`${table.list} IN ('BUNDLE', 'BACKS')`)
-]);
-
-/** Steg 60: en publicerad bästa väg per sträcka (kartfilens mm), för en bana eller variant. */
-export type RouteChoicePublishedCourse = {
-  courseId: string; variantCode: string | null; publishedAt: string; legs: Record<string, [number, number][]>;
-};
-export type RouteChoicePublished = { mapSha256: string; courses: RouteChoicePublishedCourse[] };
-
-/**
- * Steg 60 (migration 0030, ADR-0179 beslut 11–12): vägvalsanalysens inställningar (`RouteChoiceSettings`) och de bästa
- * vägar som arrangören publicerat, med kartfilen (sha256) som de räknades på.
- */
-export const raceRouteChoices = pgTable("race_route_choice", {
-  raceId: uuid("race_id").primaryKey().references(() => races.id),
-  settings: jsonb("settings").$type<Record<string, unknown> & { version: 1 }>().notNull(),
-  published: jsonb("published").$type<RouteChoicePublished>(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
-});
-
-/**
- * Steg 62 (migration 0031, ADR-0180 beslut 1): banläggningens dokument (`CourseSettingDocument` i @o-tid/course-setting)
- * med version för att två flikar inte ska skriva över varandra. `originalPpen` = senast inlästa .ppen orörd.
- * `updatedBy` är kontots id utan främmande nyckel (ett borttaget hjälpkonto tar inte dokumentet med sig).
- */
-export const courseSettings = pgTable("course_setting", {
-  raceId: uuid("race_id").primaryKey().references(() => races.id),
-  document: jsonb("document").$type<Record<string, unknown> & { version: 1 }>().notNull(),
-  version: integer("version").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  updatedBy: uuid("updated_by").notNull(),
-  originalPpen: text("original_ppen"),
-  originalFileName: text("original_file_name"),
-  originalImportedAt: timestamp("original_imported_at", { withTimezone: true }),
-  /** Steg 66: arbetssättet ("Huvudbanläggare" eller "Gemensamt"). */
-  mode: text("mode").$type<"LEAD" | "SHARED">().notNull().default("LEAD")
-});
-
-/** Steg 66 (migration 0033): behörighet för banläggningen per person och tävling (ägare och admin har EDIT utan rad). */
-export const courseSettingGrants = pgTable("course_setting_grant", {
-  id: uuid("id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  level: text("level").$type<"EDIT" | "SUGGEST" | "COMMENT" | "MAP">().notNull(),
-  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull(),
-  grantedBy: uuid("granted_by").notNull(),
-  requestId: uuid("request_id").notNull()
-}, (table) => [uniqueIndex("course_setting_grant_race_account_key").on(table.raceId, table.accountId),
-  uniqueIndex("course_setting_grant_request_key").on(table.requestId)]);
-
 /**
  * ADR-0188 beslut 6 (migration 0043): en behörighet sparad för en e-postadress. Den blir en vanlig behörighet när ett konto
  * med adressen och bekräftad e-post loggar in eller öppnar tävlingen; svaret avslöjar aldrig om adressen har ett konto.
@@ -405,191 +246,14 @@ export const racePersonInvitations = pgTable("race_person_invitation", {
   eventId: uuid("event_id").notNull().references(() => events.id),
   email: text("email").notNull(),
   role: text("role").$type<"ADMIN" | "FUNCTIONARY" | "COURSE_EDIT" | "COURSE_SUGGEST" | "COURSE_COMMENT" | "COURSE_MAP">().notNull(),
-  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
+  /** Administratören som bjöd in. Utan främmande nyckel sedan migration 0088 (som K4): kan peka på ett konto som tagits bort. */
+  actorAccountId: uuid("actor_account_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),
   acceptedGrantId: uuid("accepted_grant_id"),
   revokedAt: timestamp("revoked_at", { withTimezone: true })
 }, (table) => [index("race_person_invitation_race_idx").on(table.raceId, table.createdAt)]);
-
-/** Steg 66: vad varje version ändrade (konflikter) och svaret på sparningen (idempotens). */
-export const courseSettingChanges = pgTable("course_setting_change", {
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  version: integer("version").notNull(),
-  touches: jsonb("touches").$type<string[] | "ALL">().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  createdBy: uuid("created_by").notNull(),
-  requestId: uuid("request_id"),
-  result: jsonb("result").$type<Record<string, unknown>>()
-}, (table) => [primaryKey({ columns: [table.raceId, table.version] })]);
-
-/** Steg 66: notiser på kartan och i banorna, utanför dokumentet. */
-export const courseSettingNotes = pgTable("course_setting_note", {
-  id: uuid("id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  target: text("target").$type<"POINT" | "CONTROL" | "LEG" | "COURSE" | "SKETCH">().notNull(),
-  /** ADR-0181 beslut 8: banläggning eller kartfel (bara på punkt eller ritning) och ritningens linjer och ytor (mm). */
-  kind: text("kind").$type<"COURSE_SETTING" | "MAP_ERROR">().notNull().default("COURSE_SETTING"),
-  sketch: jsonb("sketch").$type<unknown[]>(),
-  atX: doublePrecision("at_x"),
-  atY: doublePrecision("at_y"),
-  controlId: text("control_id"),
-  fromControlId: text("from_control_id"),
-  toControlId: text("to_control_id"),
-  courseId: text("course_id"),
-  text: text("text").notNull(),
-  status: text("status").$type<"OPEN" | "DONE">().notNull().default("OPEN"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  createdBy: uuid("created_by").notNull(),
-  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
-  resolvedBy: uuid("resolved_by"),
-  /** ADR-0214: kartritaren gjorde kartfelet klart med länken ("Åtgärdat i kartan"); då är `resolvedBy` tom. */
-  resolvedMapLinkId: uuid("resolved_map_link_id"),
-  photo: bytea("photo"),
-  photoMediaType: text("photo_media_type"),
-  requestId: uuid("request_id").notNull(),
-  /** ADR-0214 beslut 9: när texten senast redigerades (den tidigare texten i `course_setting_note_edit`). */
-  editedAt: timestamp("edited_at", { withTimezone: true })
-});
-
-export const courseSettingNoteReplies = pgTable("course_setting_note_reply", {
-  id: uuid("id").primaryKey(),
-  noteId: uuid("note_id").notNull().references(() => courseSettingNotes.id),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  text: text("text").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  /** Kontot som skrev svaret; tomt när kartritaren svarade med länken (ADR-0214, då finns `mapLinkId`). */
-  createdBy: uuid("created_by"),
-  requestId: uuid("request_id").notNull(),
-  /** ADR-0214: länken som svaret skrevs med (ingen främmande nyckel: svaret följer med kopia och säkerhetskopia). */
-  mapLinkId: uuid("map_link_id"),
-  /** Namnet kartritaren skrev (valfritt; annars visas "Kartritaren"). */
-  authorName: text("author_name"),
-  /** Kartritarens besked: åtgärdat i kartan eller inte åtgärdat. */
-  verdict: text("verdict").$type<"FIXED" | "NOT_FIXED">(),
-  editedAt: timestamp("edited_at", { withTimezone: true })
-});
-
-/** ADR-0214 beslut 9: tidigare texter för en notis eller ett svar som redigerats (bara för historiken, inte publikt). */
-export const courseSettingNoteEdits = pgTable("course_setting_note_edit", {
-  id: uuid("id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  noteId: uuid("note_id").notNull().references(() => courseSettingNotes.id),
-  replyId: uuid("reply_id").references(() => courseSettingNoteReplies.id),
-  previousText: text("previous_text").notNull(),
-  editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
-  editedBy: uuid("edited_by").notNull()
-});
-
-/**
- * ADR-0214: länken till kartritaren (kartfelen utan konto). Bara nyckelns sha256 sparas; högst en länk som inte är
- * avstängd per tävling. Ingen IP-adress eller webbläsare, bara när länken senast öppnades.
- */
-export const courseSettingMapLinks = pgTable("course_setting_map_link", {
-  id: uuid("id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  tokenHash: text("token_hash").notNull(),
-  createdBy: uuid("created_by").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }),
-  showRaceName: boolean("show_race_name").notNull().default(false),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }),
-  revokedBy: uuid("revoked_by"),
-  lastOpenedAt: timestamp("last_opened_at", { withTimezone: true })
-});
-
-/** Steg 66: förslag (åtgärder mot en version) som den med EDIT godkänner helt, delvis eller avböjer. */
-export const courseSettingSuggestions = pgTable("course_setting_suggestion", {
-  id: uuid("id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  baseVersion: integer("base_version").notNull(),
-  edits: jsonb("edits").$type<unknown[]>().notNull(),
-  created: jsonb("created").$type<unknown[]>().notNull(),
-  comment: text("comment").notNull(),
-  status: text("status").$type<"OPEN" | "APPROVED" | "PARTIAL" | "DECLINED">().notNull().default("OPEN"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  createdBy: uuid("created_by").notNull(),
-  decidedAt: timestamp("decided_at", { withTimezone: true }),
-  decidedBy: uuid("decided_by"),
-  decisionComment: text("decision_comment"),
-  result: jsonb("result").$type<Record<string, unknown>>(),
-  requestId: uuid("request_id").notNull()
-});
-
-/** Steg 67: "kollad" per kontroll (fältläget), utanför dokumentet; `checked` false = avbockad (den senaste vinner). */
-export const courseSettingInspections = pgTable("course_setting_inspection", {
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  controlId: text("control_id").notNull(),
-  checked: boolean("checked").notNull(),
-  changedAt: timestamp("changed_at", { withTimezone: true }).notNull(),
-  changedBy: uuid("changed_by").notNull(),
-  atX: doublePrecision("at_x"),
-  atY: doublePrecision("at_y")
-}, (table) => [primaryKey({ columns: [table.raceId, table.controlId] })]);
-
-/**
- * Steg 65 (ADR-0184): PDF för tryck som jobb i en kö. `document` är banläggningen när jobbet skapades; `pdf` finns bara
- * när jobbet är klart (DONE) och rensas efter en tid (EXPIRED). Tas inte med i säkerhetskopian (deploy/backup.sh).
- */
-export const courseSettingPrintJobs = pgTable("course_setting_print_job", {
-  id: uuid("id").primaryKey(),
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  requestId: uuid("request_id").notNull(),
-  kind: text("kind").$type<"PRESS" | "PROCESS" | "OFFICE">().notNull(),
-  status: text("status").$type<"QUEUED" | "RUNNING" | "DONE" | "FAILED" | "EXPIRED">().notNull().default("QUEUED"),
-  label: text("label").notNull(),
-  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
-  document: jsonb("document").$type<Record<string, unknown>>().notNull(),
-  documentVersion: integer("document_version").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  createdBy: uuid("created_by").notNull(),
-  startedAt: timestamp("started_at", { withTimezone: true }),
-  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
-  finishedAt: timestamp("finished_at", { withTimezone: true }),
-  attempts: integer("attempts").notNull().default(0),
-  worker: text("worker"),
-  error: text("error"),
-  pdf: bytea("pdf"),
-  byteLength: integer("byte_length"),
-  pages: integer("pages"),
-  sha256: text("sha256"),
-  report: jsonb("report").$type<{ plates: string[]; overprint: boolean; notes: string[]; mapForms: number; milliseconds: number }>()
-}, (table) => [unique("course_setting_print_job_request_unique").on(table.raceId, table.requestId)]);
-
-/**
- * ADR-0197 (migration 0063): papperets bilder (logotyper, sponsorer), en gång per innehåll (sha256). PNG eller JPEG, högst
- * 2 MB. Dokumentet pekar på bilden med dess sha256; utskriftsarbetaren läser bilderna för PDF:en.
- */
-export const courseSettingPaperImages = pgTable("course_setting_paper_image", {
-  sha256: text("sha256").primaryKey(),
-  mediaType: text("media_type").notNull(),
-  image: bytea("image").notNull(),
-  width: integer("width").notNull(),
-  height: integer("height").notNull(),
-  uploadedBy: uuid("uploaded_by").notNull().references(() => userAccounts.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
-});
-
-/** ADR-0197: papperets mallar i kontots bibliotek, för andra tävlingar (namnet unikt per konto). */
-export const courseSettingPaperTemplates = pgTable("course_setting_paper_template", {
-  id: uuid("id").primaryKey(),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
-  name: text("name").notNull(),
-  template: jsonb("template").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
-}, (table) => [unique("course_setting_paper_template_name_unique").on(table.accountId, table.name)]);
-
-/** Steg 62: tidigare versioner av banläggningen (de senaste 50). */
-export const courseSettingRevisions = pgTable("course_setting_revision", {
-  raceId: uuid("race_id").notNull().references(() => races.id),
-  version: integer("version").notNull(),
-  kind: text("kind").$type<"SAVE" | "IMPORT" | "RESTORE">().notNull(),
-  document: jsonb("document").$type<Record<string, unknown> & { version: 1 }>().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  createdBy: uuid("created_by").notNull()
-}, (table) => [primaryKey({ columns: [table.raceId, table.version] })]);
-
 /** PLAN.md steg 21 (migration 0103): "Ny tävling som …" – idempotent journal över kopior och deras källa. */
 export const raceCopyRequests = pgTable("race_copy_request", {
   requestId: uuid("request_id").primaryKey(),

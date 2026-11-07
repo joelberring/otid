@@ -25,14 +25,14 @@ import {
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { UUID_PATTERN, sha256Hex as sha256Bytes } from "./serialization";
 
+import { buildFinalizationBasis } from "./result-finalization-basis";
 import {
   FinalizationTooLarge,
   StoredFinalizationConflict,
   asIofClass,
-  buildFinalizationBasis,
   finalizationMetadata,
   ResultFinalizationRow
-} from "./result-finalization-basis";
+} from "./result-finalization-projection";
 
 export type ResultFinalizationCandidateResult =
   | { status: "unauthorized" | "forbidden" | "not-found" | "conflict" | "too-large" }

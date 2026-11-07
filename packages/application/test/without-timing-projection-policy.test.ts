@@ -19,7 +19,7 @@ describe("TASK 006M projection policy", () => {
     // Steg 38: med avläsning har NotCompeting sträcktiderna fram till sista stämplade kontrollen, aldrig tid.
     expect(resultList).toContain('row.evaluation.status === "NT" ? statusOnly ? { ...shared, status: "OOC", expectedControls: [], splits: [] }');
     expect(resultList).toContain(': { ...shared, status: "OOC", ...partial }');
-    const finalization = source("result-finalization-basis.ts");
+    const finalization = source("result-finalization-basis.ts") + source("result-finalization-projection.ts");
     expect(finalization).not.toContain('revisionState.governing === "NT"');
     expect(finalization).toContain('if (result.status === "NT") return { ...identity, status: "OOC", ...(result.splits.length === 0 ? { expectedControls: [], splits: [] } : partial) };');
   });

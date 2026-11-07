@@ -203,9 +203,6 @@ function withLayout(snapshot: RaceSnapshot, layout: ReadonlyMap<string, TeamSpri
   return { ...snapshot, entries: snapshot.entries.map((entry) => layout.has(entry.id) ? { ...entry, teamSprint: layout.get(entry.id)! } : entry) };
 }
 
-/** Löptid som t:mm:ss eller m:ss (avläsningsvyn i app.tsx läser den här; regeln finns i domänen). */
-export { formatDuration as formatRunningTime } from "@o-tid/domain";
-
 /** Sträckans nummer för en sträcklöpare. */
 function legOf(pkg: ReadoutPackage, entryId: string): number {
   for (const team of pkg.relay?.teams ?? []) {

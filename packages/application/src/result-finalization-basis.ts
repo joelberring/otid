@@ -1,50 +1,35 @@
-import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
-  classResultFinalizationMetadataSchema,
   frozenClassFinalizationProjectionSchema,
   frozenManualDecisionCauseSchema,
   frozenRaceFinalizationProjectionSchema,
-  raceResultFinalizationMetadataSchema,
   resultFinalizationCandidateResponseSchema,
-  type ClassResultFinalizationMetadata,
   type FrozenClassFinalizationProjection,
   type FrozenFinalizationResultSourceV9,
   type FrozenManualDecisionCause,
   type FrozenIofPersonProjection,
   type FrozenRaceFinalizationProjection,
-  type RaceResultFinalizationMetadata,
   type ResultFinalizationBlockerCode,
   type ResultFinalizationCandidateResponse
 } from "@o-tid/contracts";
-import type { Database } from "@o-tid/database";
-import { schema } from "@o-tid/database";
+import type { schema } from "@o-tid/database";
 import { ClassRankingError, compareResultStatuses, rankClassResults } from "@o-tid/domain";
-import {
-  type IofResultListClass, type IofResultListCourse,
-  type IofResultListPersonResult
-} from "@o-tid/iof-xml";
-import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { StoredResultRevisionConflict, parseStrictStoredResultRevision } from "./stored-result-revision";
-import { isEffectiveResultCurrent, loadResultBasisHashes } from "./result-basis";
-import { loadCourseVersionVariants } from "./course-variants";
-import { canonicalHash, compareText, sha256Hex as sha256Bytes } from "./serialization";
+import { isEffectiveResultCurrent } from "./result-basis";
+import { canonicalHash, compareText } from "./serialization";
+import {
+  StoredFinalizationConflict, expectedControls, finalizationMetadata, frozenCourse, iofIdentity
+} from "./result-finalization-projection";
+import { loadFinalizationSources, type DatabaseTransaction, type LockedRace } from "./result-finalization-load";
 
-
-export class StoredFinalizationConflict extends Error {}
-export class FinalizationTooLarge extends Error {}
-
-/** Underlaget för ett fastställande: blockerare, frysta resultat och hashar (delad från result-finalization.ts). */
-const MAX_CLASSES = 1_000;
-const MAX_RESULTS = 10_000;
-const MAX_EXPECTED_CONTROLS = 256;
+/**
+ * Underlaget för ett fastställande: blockerare, frysta resultat och hashar (delad från result-finalization.ts). Läsningen ur
+ * databasen står i `result-finalization-load.ts` och den frysta projektionen (IOF, metadata) i `result-finalization-projection.ts`.
+ */
 /**
  * Beslut som fryses som eget underlag. Steg 38: alla avgjorda beslut, även manuell tid, godkända kontroller och rättad
  * tid (de saknar avläsning på revisionen och blockerade förut fastställandet som "kan inte kontrolleras").
  */
 const MANUAL_SOURCE_CAUSES: ReadonlySet<string> = new Set<FrozenManualDecisionCause>(frozenManualDecisionCauseSchema.options);
-
-type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-export type ResultFinalizationRow = typeof schema.resultFinalizations.$inferSelect;
 
 const BLOCKER_ORDER: readonly ResultFinalizationBlockerCode[] = [
   "EMPTY_CLASS",
@@ -96,148 +81,6 @@ function resultRevisionBasis(revision: Omit<typeof schema.resultRevisions.$infer
   };
 }
 
-/** Banan i den fastställda filen: variantens namn i en gafflad klass ("Lång-AC"), längd och stigning. */
-function frozenCourse(raceClass: { courseName: string; lengthMeters: number | null; climbMeters: number | null }, variantCode: string | undefined) {
-  return { name: variantCode ? `${raceClass.courseName}-${variantCode}` : raceClass.courseName,
-    ...(raceClass.lengthMeters === null ? {} : { lengthMeters: raceClass.lengthMeters }),
-    ...(raceClass.climbMeters === null ? {} : { climbMeters: raceClass.climbMeters }) };
-}
-
-/** Eventors person- och klubb-id, brickan och löparens bana för IOF-filen (PLAN.md steg 25). */
-function iofIdentity(entry: { eventorPersonId: string | null; eventorOrganisationId: string | null }, cardNumber: string | undefined,
-  course: ReturnType<typeof frozenCourse> | undefined) {
-  return { ...(entry.eventorPersonId ? { personEventorId: entry.eventorPersonId } : {}),
-    ...(entry.eventorOrganisationId ? { organisationEventorId: entry.eventorOrganisationId } : {}),
-    ...(cardNumber ? { cardNumber } : {}), ...(course ? { course } : {}) };
-}
-
-function expectedControls(rows: readonly { sequence: number; controlCode: number }[]) {
-  const occurrences = new Map<number, number>();
-  return rows.map((row, index) => {
-    if (!Number.isSafeInteger(row.sequence) || row.sequence !== index + 1 ||
-        !Number.isSafeInteger(row.controlCode) || row.controlCode < 1) {
-      throw new StoredFinalizationConflict("Ogiltig bankontroll");
-    }
-    const occurrence = (occurrences.get(row.controlCode) ?? 0) + 1;
-    occurrences.set(row.controlCode, occurrence);
-    return { controlCode: row.controlCode, occurrence };
-  });
-}
-
-function asIofPerson(result: FrozenIofPersonProjection): IofResultListPersonResult {
-  const identity = {
-    givenName: result.givenName,
-    familyName: result.familyName,
-    ...(result.entryExternalId === null ? {} : { entryExternalId: result.entryExternalId }),
-    ...(result.organisationName === null ? {} : { organisationName: result.organisationName }),
-    ...(result.personEventorId === undefined ? {} : { personEventorId: result.personEventorId }),
-    ...(result.organisationEventorId === undefined ? {} : { organisationEventorId: result.organisationEventorId }),
-    ...(result.cardNumber === undefined ? {} : { cardNumber: result.cardNumber }),
-    ...(result.course === undefined ? {} : { course: result.course })
-  };
-  // Steg 38: brutit med avläsning har starten och sträcktiderna fram till sista stämplade kontrollen, aldrig tid.
-  const partial = { expectedControls: result.expectedControls, splits: result.splits,
-    ...(result.startTime === null ? {} : { startTime: result.startTime }) };
-  if (result.status === "DNF") return result.splits.length === 0 ? { ...identity, status: "DNF" } : { ...identity, status: "DNF", ...partial };
-  // Steg 35: "Deltog utan tid" har ingen egen IOF 3.0-status och skrivs som NotCompeting utan tid (steg 38: med sträcktider).
-  if (result.status === "NT") return { ...identity, status: "OOC", ...(result.splits.length === 0 ? { expectedControls: [], splits: [] } : partial) };
-  if (result.status === "OOC") {
-    return {
-      ...identity,
-      status: "OOC",
-      expectedControls: result.expectedControls,
-      splits: result.splits,
-      ...(result.startTime === null ? {} : { startTime: result.startTime }),
-      ...(result.finishTime === null ? {} : { finishTime: result.finishTime }),
-      ...(result.elapsedMs === null ? {} : { elapsedMs: result.elapsedMs })
-    };
-  }
-  // Ett tekniskt godkänt resultat saknar inga kontroller: en förväntad kontroll utan split stämplades utan giltig tid
-  // (före start eller efter mål) och skrivs som SplitTime utan Time (PLAN.md steg 13).
-  const approved = "manualApprovalProof" in result && result.manualApprovalProof !== null;
-  const timed = new Set(result.splits.map((split) => `${split.controlCode}:${split.occurrence}`));
-  const untimed = result.status === "OK" && !approved
-    ? result.expectedControls.filter((control) => !timed.has(`${control.controlCode}:${control.occurrence}`)) : [];
-  return {
-    ...identity,
-    status: result.status,
-    expectedControls: result.expectedControls,
-    splits: result.splits,
-    ...(untimed.length === 0 ? {} : { untimedControls: untimed }),
-    ...(result.startTime === null ? {} : { startTime: result.startTime }),
-    ...(result.finishTime === null ? {} : { finishTime: result.finishTime }),
-    ...(result.elapsedMs === null ? {} : { elapsedMs: result.elapsedMs }),
-    ...(result.position === null ? {} : { position: result.position }),
-    ...(result.timeBehindMs === null ? {} : { timeBehindMs: result.timeBehindMs }),
-    ...("manualApprovalProof" in result && result.manualApprovalProof !== null
-      ? { manualApprovalProof: result.manualApprovalProof }
-      : {})
-  };
-}
-
-export function asIofClass(value: { name: string; externalId: string | null; course?: IofResultListCourse | undefined;
-  results: readonly { personResult: FrozenIofPersonProjection }[] }): IofResultListClass {
-  return {
-    className: value.name,
-    ...(value.course === undefined ? {} : { course: value.course }),
-    results: value.results.map((result) => asIofPerson(result.personResult)),
-    ...(value.externalId === null ? {} : { classExternalId: value.externalId })
-  };
-}
-
-export function finalizationMetadata(row: ResultFinalizationRow): ClassResultFinalizationMetadata | RaceResultFinalizationMetadata {
-  const frozenProjectionHash = canonicalHash(row.frozenProjection);
-  if (row.scope === "CLASS") {
-    const projection = frozenClassFinalizationProjectionSchema.parse(row.frozenProjection);
-    if (row.classId === null || projection.raceId !== row.raceId || projection.classId !== row.classId ||
-        projection.snapshotVersion !== row.sourceSnapshotVersion || projection.basisSha256 !== row.sourceHash ||
-        row.completeXml !== null || row.completeXmlHash !== null) {
-      throw new StoredFinalizationConflict("Klassfinaliseringen motsäger sin frysta projektion");
-    }
-    return classResultFinalizationMetadataSchema.parse({
-      id: row.id,
-      raceId: row.raceId,
-      scope: "CLASS",
-      classId: row.classId,
-      scopeRevision: row.scopeRevision,
-      sourceSnapshotVersion: row.sourceSnapshotVersion,
-      basisHash: row.sourceHash,
-      frozenProjectionHash,
-      entryCount: projection.class.results.length,
-      classCount: 1,
-      completeXmlSha256: null,
-      finalizedAt: row.finalizedAt.toISOString()
-    });
-  }
-
-  const projection = frozenRaceFinalizationProjectionSchema.parse(row.frozenProjection);
-  if (row.classId !== null || projection.raceId !== row.raceId ||
-      projection.snapshotVersion !== row.sourceSnapshotVersion || projection.basisSha256 !== row.sourceHash ||
-      row.completeXml === null || row.completeXmlHash === null || sha256Bytes(row.completeXml) !== row.completeXmlHash) {
-    throw new StoredFinalizationConflict("Loppsfinaliseringen motsäger sin frysta projektion eller XML");
-  }
-  return raceResultFinalizationMetadataSchema.parse({
-    id: row.id,
-    raceId: row.raceId,
-    scope: "RACE",
-    classId: null,
-    scopeRevision: row.scopeRevision,
-    sourceSnapshotVersion: row.sourceSnapshotVersion,
-    basisHash: row.sourceHash,
-    frozenProjectionHash,
-    entryCount: projection.classes.reduce((total, raceClass) => total + raceClass.class.results.length, 0),
-    classCount: projection.classes.length,
-    completeXmlSha256: row.completeXmlHash,
-    finalizedAt: row.finalizedAt.toISOString()
-  });
-}
-
-interface LockedRace {
-  readonly id: string;
-  readonly eventId: string;
-  readonly snapshotVersion: number;
-}
-
 /** Steg 38: löparen som ett hinder gäller, så att arrangören kan öppna deltagarkortet. */
 export interface FinalizationEntryIssue {
   readonly entryId: string;
@@ -254,142 +97,10 @@ interface BuiltBasis {
 }
 
 export async function buildFinalizationBasis(tx: DatabaseTransaction, race: LockedRace): Promise<BuiltBasis> {
-  const [eventRows, siblingRaces, classRows, entryRows, latestRows, unresolvedRows, finalizationRows] = await Promise.all([
-    tx.select({ name: schema.events.name }).from(schema.events)
-      .where(eq(schema.events.id, race.eventId)).limit(1),
-    tx.select({ id: schema.races.id }).from(schema.races)
-      .where(eq(schema.races.eventId, race.eventId)).orderBy(asc(schema.races.id)).limit(2),
-    tx.select({
-      id: schema.classes.id,
-      name: schema.classes.name,
-      courseVersionId: schema.classes.courseVersionId,
-      externalSource: schema.classes.externalSource,
-      externalId: schema.classes.externalId,
-      courseName: schema.courses.name,
-      lengthMeters: schema.courses.lengthMeters,
-      climbMeters: schema.courses.climbMeters
-    }).from(schema.classes)
-      .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
-      .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
-      .where(eq(schema.classes.raceId, race.id))
-      .orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(MAX_CLASSES + 1),
-    tx.select({
-      id: schema.entries.id,
-      classId: schema.entries.classId,
-      givenName: schema.entries.givenName,
-      familyName: schema.entries.familyName,
-      organisationName: schema.entries.organisationName,
-      externalSource: schema.entries.externalSource,
-      externalId: schema.entries.externalId,
-      eventorPersonId: schema.entries.eventorPersonId,
-      eventorOrganisationId: schema.entries.eventorOrganisationId,
-      courseVariantCode: schema.entries.courseVariantCode,
-      // Steg 47: stafettsträckans egen bana (null = klassens).
-      legCourseVersionId: schema.relayLegs.courseVersionId
-    }).from(schema.entries)
-      .leftJoin(schema.relayLegs, and(eq(schema.relayLegs.classId, schema.entries.classId), eq(schema.relayLegs.leg, schema.entries.relayLeg)))
-      .where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt)))
-      .orderBy(asc(schema.entries.classId), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id))
-      .limit(MAX_RESULTS + 1),
-    tx.selectDistinctOn([schema.resultRevisions.entryId], {
-      id: schema.resultRevisions.id,
-      raceId: schema.resultRevisions.raceId,
-      entryId: schema.resultRevisions.entryId,
-      revision: schema.resultRevisions.revision,
-      status: schema.resultRevisions.status,
-      reason: schema.resultRevisions.reason,
-      cause: schema.resultRevisions.cause,
-      readoutId: schema.resultRevisions.readoutId,
-      startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
-      shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
-      evaluation: schema.resultRevisions.evaluation,
-      engineVersion: schema.resultRevisions.engineVersion,
-      snapshotVersion: schema.resultRevisions.snapshotVersion,
-      basisHash: schema.resultRevisions.basisHash,
-      courseVersionId: schema.resultRevisions.courseVersionId,
-      published: schema.resultRevisions.published,
-      createdAt: schema.resultRevisions.createdAt
-    }).from(schema.resultRevisions)
-      .innerJoin(schema.entries, and(
-        eq(schema.resultRevisions.entryId, schema.entries.id),
-        eq(schema.entries.raceId, race.id),
-        isNull(schema.entries.struckAt)
-      ))
-      .where(eq(schema.resultRevisions.raceId, race.id))
-      .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id))
-      .limit(MAX_RESULTS + 1),
-    tx.select({ value: count(schema.cardReadouts.id) }).from(schema.cardReadouts)
-      .innerJoin(schema.deviceIngestOutcomes, eq(schema.cardReadouts.rawMessageId, schema.deviceIngestOutcomes.rawMessageId))
-      .leftJoin(schema.resultRevisions, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
-      .leftJoin(schema.unknownReadoutResolutions,
-        eq(schema.cardReadouts.id, schema.unknownReadoutResolutions.readoutId))
-      .where(and(
-        eq(schema.cardReadouts.raceId, race.id),
-        sql`${schema.deviceIngestOutcomes.serverResult}->>'status' = 'UNKNOWN_CARD'`,
-        isNull(schema.resultRevisions.id),
-        isNull(schema.unknownReadoutResolutions.requestId)
-      )),
-    tx.select().from(schema.resultFinalizations)
-      .where(eq(schema.resultFinalizations.raceId, race.id))
-      .orderBy(asc(schema.resultFinalizations.scope), asc(schema.resultFinalizations.classId), desc(schema.resultFinalizations.scopeRevision))
-  ]);
-
-  if (!eventRows[0]) throw new StoredFinalizationConflict("Eventet saknas");
-  if (classRows.length > MAX_CLASSES || entryRows.length > MAX_RESULTS || latestRows.length > MAX_RESULTS) {
-    throw new FinalizationTooLarge();
-  }
-
-  const latestStates = await resolveStoredResultHeadStates(tx, race.id, latestRows);
-  const basisHashes = await loadResultBasisHashes(tx, race.id);
-  const latestStateByEntry = new Map(latestStates.map((state) => [state.head.entryId, state]));
-
-  const legCourseIds = [...new Set(entryRows.flatMap((entry) => entry.legCourseVersionId ? [entry.legCourseVersionId] : []))];
-  const courseVersionIds = [...new Set([...classRows.map((raceClass) => raceClass.courseVersionId), ...legCourseIds])];
-  const legCourses = new Map((legCourseIds.length === 0 ? [] : await tx.select({ id: schema.courseVersions.id, courseName: schema.courses.name,
-    lengthMeters: schema.courses.lengthMeters, climbMeters: schema.courses.climbMeters }).from(schema.courseVersions)
-    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
-    .where(and(inArray(schema.courseVersions.id, legCourseIds), eq(schema.courses.raceId, race.id)))).map((row) => [row.id, row]));
-  const controlRows = courseVersionIds.length === 0 ? [] : await tx.select({
-    courseVersionId: schema.courseControls.courseVersionId,
-    sequence: schema.courseControls.sequence,
-    controlCode: schema.controls.code,
-    controlRaceId: schema.controls.raceId
-  }).from(schema.courseControls)
-    .innerJoin(schema.controls, eq(schema.courseControls.controlId, schema.controls.id))
-    .where(inArray(schema.courseControls.courseVersionId, courseVersionIds))
-    .orderBy(asc(schema.courseControls.courseVersionId), asc(schema.courseControls.sequence), asc(schema.courseControls.id));
-
-  const controlsByVersion = new Map<string, Array<{ sequence: number; controlCode: number }>>();
-  for (const row of controlRows) {
-    if (row.controlRaceId !== race.id) throw new StoredFinalizationConflict("Bankontrollen tillhör ett annat lopp");
-    const controls = controlsByVersion.get(row.courseVersionId) ?? [];
-    controls.push({ sequence: row.sequence, controlCode: row.controlCode });
-    if (controls.length > MAX_EXPECTED_CONTROLS) throw new FinalizationTooLarge();
-    controlsByVersion.set(row.courseVersionId, controls);
-  }
-
-  // Gafflad bana: varje löpare har sin variants kontroller (ADR-0169 beslut 2).
-  const variantsByVersion = await loadCourseVersionVariants(tx, courseVersionIds);
-  const entriesByClass = new Map<string, typeof entryRows>();
-  for (const entry of entryRows) {
-    const entries = entriesByClass.get(entry.classId) ?? [];
-    entries.push(entry);
-    entriesByClass.set(entry.classId, entries);
-  }
-  const latestByEntry = new Map(latestRows.map((row) => [row.entryId, row]));
-  // PLAN.md steg 25: brickan i den fastställda IOF-filen (ControlCard).
-  const cardRows = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber })
-    .from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true)));
-  const cardByEntry = new Map(cardRows.filter((row) => /^[1-9][0-9]{0,31}$/.test(row.cardNumber)).map((row) => [row.entryId, row.cardNumber]));
-
-  const latestClassFinalizationByClass = new Map<string, ResultFinalizationRow>();
-  let latestRaceFinalization: ResultFinalizationRow | undefined;
-  for (const row of finalizationRows) {
-    if (row.scope === "CLASS" && row.classId !== null && !latestClassFinalizationByClass.has(row.classId)) {
-      latestClassFinalizationByClass.set(row.classId, row);
-    }
-    if (row.scope === "RACE" && latestRaceFinalization === undefined) latestRaceFinalization = row;
-  }
+  const {
+    eventName, siblingRaces, classRows, entryRows, unresolvedRows, latestStateByEntry, basisHashes, legCourses, controlsByVersion,
+    variantsByVersion, entriesByClass, latestByEntry, cardByEntry, latestClassFinalizationByClass, latestRaceFinalization
+  } = await loadFinalizationSources(tx, race);
 
   const classProjectionById = new Map<string, FrozenClassFinalizationProjection>();
   const entryIssuesByClass = new Map<string, FinalizationEntryIssue[]>();
@@ -701,7 +412,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
     kind: "RACE_FINALIZATION_BASIS",
     raceId: race.id,
     snapshotVersion: race.snapshotVersion,
-    eventName: eventRows[0].name,
+    eventName,
     siblingRaceIds: siblingRaces.map((sibling) => sibling.id),
     unresolvedUnknownCardReadoutCount,
     classes: raceBasisClasses
@@ -715,7 +426,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
       raceId: race.id,
       snapshotVersion: race.snapshotVersion,
       basisSha256: raceBasisHash,
-      eventName: eventRows[0].name,
+      eventName,
       classes: selectedClasses
     });
   }

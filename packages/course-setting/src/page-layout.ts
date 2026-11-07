@@ -6,7 +6,8 @@
  */
 import { layout, printScaleOf } from "./overprint";
 import { placeDescription, type SheetDescription } from "./paper-layout";
-import { paperLayoutOf, sheetPaperItems, type SheetPaperItem } from "./paper-items";
+import { paperLayoutOf } from "./paper-items";
+import { sheetPaperItems, type SheetPaperItem } from "./paper-sheet";
 import { countCourseParts } from "./course-parts";
 import { courseLength, excludedVariantCodes } from "./summary";
 import { variations } from "./walk";

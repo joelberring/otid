@@ -1,8 +1,8 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 
+export { serializeIofResultList } from "./export-result-list";
 export {
   IofResultListSerializationError,
-  serializeIofResultList,
   type IofResultListClass,
   type IofResultListCourse,
   type IofResultListCompleteProjection,
@@ -21,7 +21,7 @@ export {
   type IofResultListTeamMemberResult,
   type IofResultListTeamResult,
   type IofResultListTeamStatus
-} from "./export-result-list";
+} from "./result-list-types";
 
 export {
   IofStartListSerializationError,

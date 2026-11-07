@@ -74,6 +74,9 @@ function Part({ part, imageUrl }: { part: PaperPart; imageUrl: (sha256: string) 
 const noop: PaperInteraction = { editable: false, selected: undefined, imageUrl: () => "", onSelect: () => undefined, onMove: () => undefined,
   onResize: () => undefined, onDelete: () => undefined };
 
+/** Papperet som bara visas (Utskrift, ADR-0217 fas 3): bilderna ur bildlagret, inget går att markera eller flytta. */
+export const readOnlyPaper = (imageUrl: (sha256: string) => string): PaperInteraction => ({ ...noop, imageUrl });
+
 const keyOf = (item: { course: string; id: string }) => `${item.course}:${item.id}`;
 
 /**

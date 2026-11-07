@@ -41,6 +41,7 @@ test("löparkartor: variablerna på arket, två valda löpare, baksidan i samma 
   }
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
   await warmRoute(owner, `${admin}/map-bundles`);
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
@@ -52,9 +53,9 @@ test("löparkartor: variablerna på arket, två valda löpare, baksidan i samma 
   await expect(owner.getByTestId("course-setting-course").first()).toBeVisible({ timeout: 60_000 });
   const doc = async (): Promise<Doc> => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: Doc } }).setting.document;
 
-  // 1. Banornas förhandsvisning: {namn} {startnummer} på arket står som platshållare, med en rad om var de fylls i.
-  const errors = browserErrors(owner, /\/course-setting\/print$/);
-  await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
+  // 1. Papperet i Layout (ADR-0217 fas 3): {namn} {startnummer} på arket står som platshållare, med en rad om var de fylls i.
+  const layoutErrors = browserErrors(owner, /\/course-setting\/layout$/);
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=1`);
   const sheet = owner.getByTestId("print-sheet").first();
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
   const panel = owner.getByTestId("paper-space");
@@ -72,6 +73,16 @@ test("löparkartor: variablerna på arket, två valda löpare, baksidan i samma 
   await expect.poll(async () => (await doc()).event.paperLayouts?.["1"]?.items?.find(item => item.kind === "TEXT")?.text, { timeout: 30_000 }).toBe("{namn} {startnummer}");
   await expect(text).toContainText("{namn} {startnummer}");
   await expect(owner.getByTestId("paper-runner-hint")).toBeVisible();
+  // Baksidan per löpare redigeras också i Layout: den visas med platshållarna.
+  await owner.getByTestId("layout-runner-back").check();
+  await expect(owner.locator("[data-testid=print-sheet][data-back]")).toHaveCount(1, { timeout: 30_000 });
+  await expect(owner.getByTestId("paper-course").locator("option", { hasText: "Baksidan (per löpare)" })).toHaveCount(1);
+  layoutErrors.check("fliken Layout");
+
+  // Utskriften (fliken Utskrift).
+  const errors = browserErrors(owner, /\/course-setting\/print$/);
+  await owner.goto(`/admin/${raceId}/course-setting/print?course=1`);
+  await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
 
   // 2. En karta per löpare: två valda löpare (sök på namn och på startnummer), baksidan dubbelsidigt.
   await owner.getByTestId("print-mode-runners").check();

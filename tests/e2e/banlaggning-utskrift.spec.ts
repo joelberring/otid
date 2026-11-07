@@ -28,6 +28,7 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
+  await warmRoute(owner, `/admin/${raceId}/course-setting/layout`);
 
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.waitForLoadState("networkidle");
@@ -77,7 +78,9 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   const lang = before.courses.find(item => item.name === "Lång")!;
   await owner.waitForURL(`**/admin/${raceId}/course-setting/print?course=${lang.id}`);
   await expect(owner.getByTestId("print-draft")).toContainText("färgerna är inte tryckkvalitet");
-  await expect(owner.getByRole("checkbox", { name: "Kontrollbeskrivning på kartan för Lång" })).toBeChecked();
+  // Papperet ställs in i fliken Layout (ADR-0217 fas 3).
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=${lang.id}`);
+  await expect(owner.getByRole("checkbox", { name: "Kontrollbeskrivning på kartan för Lång" })).toBeChecked({ timeout: 60_000 });
   const sheetPaper = owner.getByTestId("sheet-paper");
   await sheetPaper.getByTestId("sheet-paper-size").selectOption("A4");
   await sheetPaper.getByTestId("sheet-paper-orientation").selectOption("landscape");
@@ -92,8 +95,9 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   expect(area.points).toHaveLength(3);
   expect(area.courses).toEqual([]);
   expect(document.specialObjects.some(item => item.kind === "descriptions")).toBe(false);
+  await owner.goto(`/admin/${raceId}/course-setting/print?course=${lang.id}`);
   const sheet = owner.getByTestId("print-sheet");
-  await expect(sheet).toHaveCount(1);
+  await expect(sheet).toHaveCount(1, { timeout: 60_000 });
   await expect(sheet).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await expect(sheet).toHaveAttribute("width", /^296\.9\d*mm$/);
   await expect(sheet).toHaveAttribute("data-scale", "10000");
@@ -109,7 +113,13 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await expect(sheet).toHaveCount(document.courses.length + 1);
 
   // Layoutmallen (ADR-0183): fyra kartor per A4 i ordning, med skärmarker; webbläsarens utskrift fungerar som utkast.
-  await owner.getByTestId("layout-template-select").selectOption("a4-four");
+  // "Kartor per ark" hör till layouten (fliken Layout, huvudlayouten).
+  await owner.goto(`/admin/${raceId}/course-setting/layout`);
+  await owner.locator("[data-testid=layout-entry][data-layout=MAIN]").getByTestId("layout-per-sheet").selectOption("a4-four");
+  await expect.poll(async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: { event: { mainLayout?: { layoutTemplate?: string } } } } })
+    .setting.document.event.mainLayout?.layoutTemplate, { timeout: 15_000 }).toBe("a4-four");
+  await owner.goto(`/admin/${raceId}/course-setting/print`);
+  await owner.getByLabel("Alla", { exact: true }).check();
   await expect(sheet).toHaveCount(Math.ceil((document.courses.length + 1) / 4));
   await expect(sheet.first()).toHaveAttribute("data-frames", String(Math.min(4, document.courses.length + 1)));
   await expect(sheet.first().getByTestId("print-frame")).toHaveCount(Math.min(4, document.courses.length + 1));

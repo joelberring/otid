@@ -40,6 +40,8 @@ import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
 import { HelpButton, HelpLink } from "../help/help-panel";
 import { useDetailGaps } from "./course-setting-circle-cutting";
+import { readOnlyPaper } from "./course-setting-paper-items";
+import { paperImageUrl } from "../../lib/course-setting-paper-api";
 import styles from "./course-setting-print-page.module.css";
 
 /** PDF-jobbet får löparens uppgifter för kartan men inte deltagarens id (det behövs bara för urvalet på sidan, ADR-0213). */
@@ -283,6 +285,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     window.document.getElementById(`print-sheet-${index}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const runnerMode = mode === "RUNNERS";
+  const shownPaper = readOnlyPaper(sha => paperImageUrl(raceId, sha));
   const saveProfile = async (edits: CourseSettingEdit[]) => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; };
   const blPanel = { profile, builtIn: BUILT_IN_PRINT_PROFILES, colors, usage, readOnly: !canEdit, frame: sheets[0]?.sheet.frames[0], symbols, render: renderImage,
     norm: pressNorm, onSave: saveProfile };
@@ -361,7 +364,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       <div className={styles.sheets}>
         {sheets.map((item, index) => <div key={item.key} id={`print-sheet-${index}`} className={styles.sheetSlot} data-open={openKey === item.key ? "" : undefined}>
           <SheetView sheet={item.sheet} index={index} symbols={symbols} images={images} colorsKey={colorsKey}
-            courseColor={courseColor} label={item.label} pressLayers={pressLayers} /></div>)}
+            courseColor={courseColor} label={item.label} pressLayers={pressLayers} paper={shownPaper} /></div>)}
       </div>
     </section>
   </main>;

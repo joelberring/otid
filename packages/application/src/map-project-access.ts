@@ -8,8 +8,9 @@ import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessi
 
 /**
  * ADR-0219 beslut 2–3: behörigheten i kartprojekten finns bara här.
- * - Ägare (`OWNER`) hanterar medlemmar, byter namn, avslutar och öppnar igen; Ändra (`EDIT`) ändrar kartan; Läsa (`READ`) ser
- *   kartan, ändringarna och vem som gjort dem.
+ * - Ägare (`OWNER`) hanterar medlemmar, byter namn, avslutar och öppnar igen, byter arbetssätt, hanterar delområden och avgör
+ *   förslag; Ändra (`EDIT`) ändrar kartan (direkt eller som förslag, `editRoute` i map-revision); Föreslå (`SUGGEST`, K1) ritar
+ *   bara förslag; Läsa (`READ`) ser kartan, ändringarna, förslagen och vem som gjort dem.
  * - Ett projekt ägs av sina medlemmar; klubben är valfri (rättelsen 2026-11-07). Hör projektet till en klubb har klubbens
  *   administratörer och ägare samma rätt som projektets ägare, så att det aldrig blir utan någon som kan hantera det. Ett eget
  *   projekt kan inte bli utan ägare: den sista ägaren kan inte lämna och inte ta bort sitt konto medan andra är med
@@ -19,9 +20,9 @@ import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessi
  */
 export type MapProjectTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type MapProjectRow = typeof schema.mapProjects.$inferSelect;
-export type MapProjectNeed = "view" | "edit" | "manage";
+export type MapProjectNeed = "view" | "propose" | "edit" | "manage";
 
-const RANK: Record<MapProjectRole, number> = { READ: 0, EDIT: 1, OWNER: 2 };
+const RANK: Record<MapProjectRole, number> = { READ: 0, SUGGEST: 1, EDIT: 2, OWNER: 3 };
 export const mapProjectRoleAtLeast = (role: MapProjectRole, minimum: MapProjectRole) => RANK[role] >= RANK[minimum];
 const higher = (a: MapProjectRole | undefined, b: MapProjectRole | undefined) => !a ? b : !b ? a : RANK[a] >= RANK[b] ? a : b;
 
@@ -80,9 +81,10 @@ export async function mapProjectCanArchive(tx: DbExecutor, accountId: string, pr
   return !!club && clubRoleAtLeast(club.role, "ADMIN");
 }
 
-/** Vad rollen får i projektet (Ändra bara när projektet är öppet). */
+/** Vad rollen får i projektet (Föreslå och Ändra bara när projektet är öppet). */
 export function mapProjectAllows(role: MapProjectRole, project: Pick<MapProjectRow, "status">, need: MapProjectNeed): boolean {
   if (need === "view") return true;
+  if (need === "propose") return project.status === "OPEN" && mapProjectRoleAtLeast(role, "SUGGEST");
   if (need === "edit") return project.status === "OPEN" && mapProjectRoleAtLeast(role, "EDIT");
   return role === "OWNER";
 }

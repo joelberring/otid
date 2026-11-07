@@ -13,17 +13,20 @@ import {
   addMapProjectMember, mapProjectAllows, mapProjectBaseFileName, mapProjectCanArchive, mapProjectJournal, mapProjectRoleOf, openMapProjectInvitations,
   requireMapProject, type MapProjectRow
 } from "./map-project-access";
+import { clearAreaAssignee, mapProjectAreaViews } from "./map-project-areas";
+import { openProposalCount } from "./map-project-proposals";
 import { contentHead, contentLength, discardStagedMapContent, mapStorageQuota, storeMapContent, type MapContentInput } from "./map-content";
 import { mapFileFormatOf } from "./race-map-source";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
 import type { DbExecutor } from "./snapshot";
 
 /**
- * ADR-0219: kartprojekten – lista, starta, läsa, byta namn, avsluta och medlemmarna. Synken finns i `map-project-sync.ts`,
- * den nya kartversionen och exporten i `map-project-output.ts`. Behörigheten avgörs i `map-project-access.ts`.
+ * ADR-0219: kartprojekten – lista, starta, läsa, byta namn, avsluta, arbetssättet och medlemmarna. Synken finns i
+ * `map-project-sync.ts`, den nya kartversionen och exporten i `map-project-output.ts`, delområdena i `map-project-areas.ts` och
+ * förslagen i `map-project-proposals.ts`. Behörigheten avgörs i `map-project-access.ts`.
  */
 const LIST_LIMIT = 200;
-const ROLE_ORDER: Record<MapProjectRole, number> = { OWNER: 0, EDIT: 1, READ: 2 };
+const ROLE_ORDER: Record<MapProjectRole, number> = { OWNER: 0, EDIT: 1, SUGGEST: 2, READ: 3 };
 
 async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: ReadonlyMap<string, MapProjectRole>): Promise<MapProjectSummary[]> {
   if (rows.length === 0) return [];
@@ -178,14 +181,16 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
     const sent = await invitationSentTimes(tx, "MAP_PROJECT", open.map(row => row.id));
     return { status: "ok", view: { ...summary, formatVersion: 1,
       viewer: { accountId, canEdit: mapProjectAllows(role, project, "edit"), canManage, canWriteVersion: canManage,
-        canArchive: canManage && await mapProjectCanArchive(tx, accountId, project) },
+        canArchive: canManage && await mapProjectCanArchive(tx, accountId, project), canPropose: mapProjectAllows(role, project, "propose"),
+        canDecide: canManage },
+      mode: project.mode ?? "SHARED", areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
       readerVersion: project.readerVersion, seq: project.seq, members: await members(tx, project),
       invitations: open.map(row => ({ invitationId: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString(),
         sentAt: sent.get(row.id)?.toISOString() ?? null })) } } as const;
   });
 }
 
-/** Byt namn, avsluta eller öppna igen (projektets ägare). */
+/** Byt namn, avsluta eller öppna igen, eller byt arbetssätt (projektets ägare). */
 export async function updateMapProject(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = mapProjectUpdateRequestSchema.safeParse(input.request);
@@ -193,13 +198,15 @@ export async function updateMapProject(db: Database, input: ClubProof & { projec
     const access = await requireMapProject(tx, input, now, "manage", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    const { name, status } = parsed.data;
+    const { name, status, mode } = parsed.data;
     const closing = status && status !== access.project.status ? status : undefined;
-    await tx.update(schema.mapProjects).set({ ...(name ? { name } : {}),
+    // Gemensamt lagras som null (rader från före 0091 har null).
+    await tx.update(schema.mapProjects).set({ ...(name ? { name } : {}), ...(mode ? { mode: mode === "SHARED" ? null : mode } : {}),
       ...(closing === "CLOSED" ? { status: "CLOSED", closedAt: now, closedBy: access.accountId } : {}),
       ...(closing === "OPEN" ? { status: "OPEN", closedAt: null, closedBy: null } : {}) }).where(eq(schema.mapProjects.id, access.project.id));
     await mapProjectJournal(tx, access.project, { action: closing === "CLOSED" ? "MAP_PROJECT_CLOSED" : closing === "OPEN"
-      ? "MAP_PROJECT_REOPENED" : "MAP_PROJECT_RENAMED", actorAccountId: access.accountId, details: { projectId: access.project.id }, now });
+      ? "MAP_PROJECT_REOPENED" : name ? "MAP_PROJECT_RENAMED" : "MAP_PROJECT_MODE_CHANGED", actorAccountId: access.accountId,
+      details: { projectId: access.project.id, ...(mode ? { mode } : {}) }, now });
     return { status: "ok" } as const;
   });
 }
@@ -269,7 +276,7 @@ export async function setMapProjectMemberRole(db: Database, input: ClubProof & {
 
 /**
  * Ta bort en medlem eller en öppen inbjudan (projektets ägare; var och en kan också lämna själv). Den sista ägaren kan inte tas
- * bort. Medlemmens ändringar står kvar i projektet.
+ * bort. Medlemmens ändringar och förslag står kvar i projektet; delområden som medlemmen fått blir inte utdelade.
  */
 export async function removeMapProjectMember(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "removed" }> {
@@ -296,6 +303,7 @@ export async function removeMapProjectMember(db: Database, input: ClubProof & { 
     if (!member) return { status: "not-found" } as const;
     if (member.role === "OWNER" && await ownerCount(tx, projectId) <= 1) return { status: "conflict" } as const;
     await tx.delete(members).where(where);
+    await clearAreaAssignee(tx, member.accountId, now, projectId);
     await mapProjectJournal(tx, access.project, { action: "MAP_PROJECT_MEMBER_REMOVED", actorAccountId: access.accountId,
       details: { projectId, accountId: member.accountId, role: member.role }, now });
     return { status: "removed" } as const;

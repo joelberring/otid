@@ -261,11 +261,12 @@ export function buildOcd8(spec: Ocd8Spec): Uint8Array {
 
 /** Ytsymbolens kropp i version 8 ur version 12:s: FillOn som 16 bit vid +2 och ritdatan 4 byte tidigare. */
 export function areaBody8(body: Uint8Array): Uint8Array {
-  const out = areaBodyBefore12(body);
+  // Version 9–11:s kropp utan kantlinjen (AreaFlags och FillOn i stället) och utan byten FillOn/BorderOn (814–815).
+  const before = areaBodyBefore12(body);
   const fillOn = body.length > 18 ? body[18]! : 0;
+  const out = before.length > 20 ? concat(before.subarray(0, 18), before.subarray(20)) : before.slice(0, Math.min(before.length, 18));
   out.fill(0, 0, 4);
   out[2] = fillOn;
-  if (out.length > 19) { out[18] = 0; out[19] = 0; }
   return out;
 }
 

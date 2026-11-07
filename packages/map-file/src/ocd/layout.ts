@@ -90,7 +90,10 @@ export interface OcdVariant {
   readonly description: { readonly at: number; readonly kind: "PASCAL" | "UTF16" };
   /** Ytsymbolens datastorlek och ritdata, i samma räkning som `AREA` (från 796). */
   readonly areaData: { readonly dataSize: number; readonly elements: number };
-  /** Ytsymbolens fält före mönstret i v8: AreaFlags, FillOn (16 bit), FillColor, sedan raster. Saknar kantlinje. */
+  /**
+   * Ytsymbolen i v8: AreaFlags, FillOn (16 bit), FillColor, raster och sedan direkt StructMode. Saknar kantlinje och
+   * byten FillOn/BorderOn (814–815 i v9+), så mönstrets fält ligger 2 byte tidigare (T2 i översynen 2026-11-07).
+   */
   readonly areaV8: boolean;
   /** Linjesymbolens flaggor för sekundär-, hörn-, start- och slutsymbol finns (v11+). Annars används de som har data. */
   readonly lineSymbolFlags: boolean;
@@ -131,7 +134,7 @@ export const VARIANT_V9: OcdVariant = {
 
 export const VARIANT_V8: OcdVariant = {
   version: 8, symbolBody: 348, symbolHeader: "V8", description: { at: 52, kind: "PASCAL" },
-  areaData: { dataSize: 826, elements: 828 }, areaV8: true, lineSymbolFlags: false,
+  areaData: { dataSize: 824, elements: 826 }, areaV8: true, lineSymbolFlags: false,
   index: { blockSize: 4 + 256 * 24, entrySize: 24, position: 16, length: 20, lengthInCoords: true, symbol: 22, symbol16: true, status: null },
   object: { symbol16: true, type: 2, angle: 8, coordCount: 4, coordCount16: true, textCount: 6, coords: 32, unicodeFlag: 3 }
 };

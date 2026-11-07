@@ -274,13 +274,15 @@ function areaSymbol(
   }
   // Mönster 1 = raka rader, 2 = varannan rad förskjuten en halv ruta. Det senare blir en dubbelt så hög ruta med
   // elementen två gånger, så att modellen bara behöver ett rakt rutnät.
+  // Version 8 saknar FillOn/BorderOn som byte före mönstret: fälten ligger 2 byte tidigare (T2).
   let pattern: AreaSymbol["pattern"];
-  const structureMode = bytes.u8(at + AREA.structureMode);
+  const shift = variant.areaV8 ? -2 : 0;
+  const structureMode = bytes.u8(at + AREA.structureMode + shift);
   if (structureMode === 1 || structureMode === 2) {
-    const dx = bytes.u16(at + AREA.structureWidth) * UNIT;
-    const dy = bytes.u16(at + AREA.structureHeight) * UNIT;
+    const dx = bytes.u16(at + AREA.structureWidth + shift) * UNIT;
+    const dy = bytes.u16(at + AREA.structureHeight + shift) * UNIT;
     const elements = readElements(bytes, at + variant.areaData.elements, bytes.u16(at + variant.areaData.dataSize), end, warnings);
-    const angle = normalizeAngle(bytes.i16(at + AREA.structureAngle) / 10);
+    const angle = normalizeAngle(bytes.i16(at + AREA.structureAngle + shift) / 10);
     if (elements.length > 0 && dx > 0 && dy > 0) {
       pattern = structureMode === 1
         ? { elements, dx, dy, angle }

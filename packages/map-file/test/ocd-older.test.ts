@@ -47,6 +47,25 @@ describe("OCAD 9–11", () => {
     }
   });
 
+  it("läser ytsymbolens mönster i version 8 (T2: StructMode vid 814, DataSize vid 824)", () => {
+    // OCAD 8:s ytsymbol saknar kantlinje och FillOn/BorderOn som byte: AreaFlags, FillOn (16 bit), FillCol, raster,
+    // StructMode, StructWidth, StructHeight, StructAngle, StructRes, DataSize och sedan ritdata. Positioner från 796.
+    const pattern = element(4, 2, 0, 20, [ocdCoord(0, 0)]);
+    const fields = new Uint8Array(30);
+    const view = new DataView(fields.buffer);
+    view.setUint16(2, 1, true); // FillOn
+    view.setInt16(4, 34, true); // FillCol
+    view.setInt16(18, 1, true); // StructMode
+    view.setInt16(20, 100, true); // StructWidth
+    view.setInt16(22, 150, true); // StructHeight
+    view.setInt16(24, 300, true); // StructAngle 30°
+    view.setUint16(28, pattern.length / 8, true); // DataSize
+    const spec: Ocd8Spec = { colors: [{ number: 34, name: "Gul", cmyk: [0, 14, 40, 0] }], symbols: [{ number: 4040, type: 3, body: concat(fields, pattern) }] };
+    expect(readMapFile(buildOcd8(spec)).symbols.get("404000")).toMatchObject({
+      kind: "AREA", fill: 34, pattern: { dx: 1, dy: 1.5, angle: 30, elements: [{ kind: "dot", diameter: 0.2 }] }
+    });
+  });
+
   it("använder linjesymbolens hörn- och slutsymboler utan flaggor före version 11", () => {
     const corner = element(4, 2, 0, 40, [ocdCoord(0, 0)]);
     const body = concat(symbolBody(76, { 796: 2, 798: 20, 864: corner.length / 8 }), corner);

@@ -6,7 +6,7 @@ import {
   type StartDrawRules, type StartDrawSavedSettings, type StartDrawSetupResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { drawStartTimes, StartDrawError, withProposedEntryVariants, withProposedStartTimes, type StartDrawExistingClass,
+import { drawStartTimes, formatHourMinute, StartDrawError, withProposedEntryVariants, withProposedStartTimes, type StartDrawExistingClass,
   type StartDrawResult } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
@@ -322,8 +322,7 @@ export async function commitStartDrawAsAdmin(db: Database, input: Authentication
       actorAccountId: auth.principal.accountId, snapshotVersionBefore: race.snapshotVersion, response, now });
     // ADR-0188 beslut 2: lottningens första start är tävlingens första start (samma värde som Inställningar visar).
     const { timeZone } = await raceMetadata(tx, raceId);
-    const firstStartClock = new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-      .format(new Date(intent.firstStartTime));
+    const firstStartClock = formatHourMinute(intent.firstStartTime, timeZone);
     await tx.update(schema.races).set({ firstStartTime: firstStartClock }).where(eq(schema.races.id, raceId));
     await bumpReadoutPackageVersion(tx, raceId);
     // Omräkning mot det sparade läget; databasen sätter varje ny revisions underlagshash.

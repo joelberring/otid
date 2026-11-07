@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { publicPartyResponseSchema, type PublicPartyResponse } from "@o-tid/contracts";
+import { formatHourMinute } from "@o-tid/domain";
 import { partyLook, partyThemeStyle } from "../../lib/party-theme-style";
 import { partyPublicSv as text } from "../../i18n/party-public-sv";
 import { SelfRegistrationForm } from "../self-registration/self-registration-form";
@@ -13,9 +14,6 @@ import styles from "./party-public.module.css";
  * rolig statistik. Hämtas om var tionde sekund. Inga belopp eller bricknummer; namn bara när festen visar namn.
  */
 const POLL_MS = 10_000;
-function clock(value: string, timeZone: string) {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
-}
 
 function duration(seconds: number): string {
   if (seconds < 90) return `${seconds} sekunder`;
@@ -42,7 +40,7 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
   }, [raceId]);
 
   const zone = party?.timeZone ?? "Europe/Stockholm";
-  const at = (value: string | undefined) => value ? clock(value, zone) : "–";
+  const at = (value: string | undefined) => value ? formatHourMinute(value, zone) : "–";
   const title = party?.theme.title ?? eventName;
   const max = Math.max(1, ...(party?.quarters.map(row => row.count) ?? [1]));
   return <main className={styles.page} style={partyThemeStyle(party?.theme)} data-look={partyLook(party?.theme)} data-testid="party-public">
@@ -79,7 +77,7 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
         </ol>}
       </section>
 
-      <PartySplits rows={party.splits} showNames={party.showNames} clock={value => clock(value, zone)} />
+      <PartySplits rows={party.splits} showNames={party.showNames} clock={value => formatHourMinute(value, zone)} />
 
       <section className={styles.panel} aria-labelledby="party-quarters">
         <h2 id="party-quarters">{text.quartersTitle}</h2>

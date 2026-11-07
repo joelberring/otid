@@ -1,3 +1,5 @@
+import { formatDayMonthTime, zonedDate } from "@o-tid/domain";
+
 /**
  * Datum och adresser på den publika ytan (ADR-0172 beslut 4). Ren formatering utan I/O, så att startsidan,
  * tävlingssidan, QR-sidan och arbetsytan skriver samma sak.
@@ -13,16 +15,11 @@ export function formatRaceDate(raceDate: string, today?: string): string {
 }
 
 /** Ett ögonblick som "5 okt. 18:02" i tävlingens tidszon. */
-export function formatRaceInstant(instant: string, timeZone: string): string {
-  const date = new Date(instant);
-  if (!Number.isFinite(date.getTime())) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { timeZone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-    hourCycle: "h23" }).format(date);
-}
+export const formatRaceInstant = (instant: string, timeZone: string): string => formatDayMonthTime(instant, timeZone);
 
 /** Dagens datum (ÅÅÅÅ-MM-DD) i en tidszon. */
 export function todayIn(timeZone: string, now = new Date()): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return zonedDate(now, timeZone);
 }
 
 /** Tävlingssidans korta adress. */

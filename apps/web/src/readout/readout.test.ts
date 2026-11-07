@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { deviceEventSchema, sportidentReadoutPayloadSchema, type DeviceBatch } from "@o-tid/contracts";
 import type { SiCardData } from "@o-tid/sportident";
-import { evaluateLocally, formatRunningTime } from "./evaluate";
+import { formatDuration } from "@o-tid/domain";
+import { evaluateLocally } from "./evaluate";
 import { cardTypeForNumber, simulatedRun, stationClock } from "@o-tid/sportident";
 import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow } from "./exercise";
 import { FakeStationTransport } from "./fake-transport";
@@ -55,8 +56,8 @@ describe("avläsning i webbläsaren", () => {
     expect(payload.startPunchedAt).toBe("2026-10-01T17:14:55.000Z");
     const verdict = evaluateLocally(payload, pkg);
     expect(verdict).toMatchObject({ status: "OK", name: "Anna Berg", className: "Lång", elapsedMs: 30 * 60_000 });
-    expect(formatRunningTime(verdict.elapsedMs!)).toBe("30:00");
-    expect(verdict.splits.map((split) => [split.controlCode, formatRunningTime(split.elapsedMs)])).toEqual([[31, "7:30"], [32, "15:00"], [33, "22:30"]]);
+    expect(formatDuration(verdict.elapsedMs!)).toBe("30:00");
+    expect(verdict.splits.map((split) => [split.controlCode, formatDuration(split.elapsedMs)])).toEqual([[31, "7:30"], [32, "15:00"], [33, "22:30"]]);
   });
 
   it("gafflad bana: övningsstationen stämplar löparens variant och beskedet visar varianten", async () => {

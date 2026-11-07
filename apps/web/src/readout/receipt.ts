@@ -1,9 +1,9 @@
 import QRCode from "qrcode";
 import type { ReadoutPackage } from "@o-tid/contracts";
-import { formatRunningTime, type LocalVerdict } from "./evaluate";
+import type { LocalVerdict } from "./evaluate";
 import { readoutText } from "./text-sv";
 import { placementText } from "./placement-text";
-import { raceDetails } from "@o-tid/domain";
+import { formatDayMonthTime, formatDuration, raceDetails } from "@o-tid/domain";
 
 /**
  * Sträcktidskvitto efter avläsning (PLAN.md steg 21). Byggs helt av det lokala beskedet och avläsningspaketet, så
@@ -88,7 +88,7 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
   const lines = score && verdict.elapsedMs !== undefined ? [
     { label: t.controlPoints, value: readoutText.rogainingPoints(score.controlPoints) },
     { label: t.penalty, value: score.penalty > 0 ? `−${readoutText.rogainingPoints(score.penalty)}` : readoutText.rogainingPoints(0) },
-    { label: t.time, value: t.timeOfLimit(formatRunningTime(verdict.elapsedMs), formatRunningTime(score.timeLimitMs)) }
+    { label: t.time, value: t.timeOfLimit(formatDuration(verdict.elapsedMs), formatDuration(score.timeLimitMs)) }
   ] : [];
   if (score && score.overtimeMinutes > 0) notes.push(readoutText.rogainingLate(score.overtimeMinutes));
   if (score?.ignoredAfterFinish?.length) notes.push(readoutText.rogainingAfterFinish(score.ignoredAfterFinish));
@@ -103,25 +103,24 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
     status: readoutText.verdict[verdict.status],
     ...(score ? { result: readoutText.rogainingTotal(score.total) }
       : (verdict.status === "OK" || verdict.status === "OVERTIME") && verdict.elapsedMs !== undefined
-        ? { result: formatRunningTime(verdict.elapsedMs) } : {}),
+        ? { result: formatDuration(verdict.elapsedMs) } : {}),
     notes,
     lines,
     columns: score ? t.rogainingColumns : t.columns,
     rows: score ? rogainingRows(verdict) : splitRows(verdict),
     qr: receiptLink(pkg, verdict.entryId, origin),
-    printedAt: t.printedAt(new Intl.DateTimeFormat("sv-SE", { timeZone: pkg.event.timeZone, day: "numeric", month: "short",
-      hour: "2-digit", minute: "2-digit" }).format(printedAt))
+    printedAt: t.printedAt(formatDayMonthTime(printedAt, pkg.event.timeZone))
   };
 }
 
 /** Sträcktider i stämplad ordning och sist sträckan till mål, när målstämplingen finns. */
 function splitRows(verdict: LocalVerdict): ReceiptRow[] {
   const rows: ReceiptRow[] = verdict.splits.map((split, index) => ({ index: String(index + 1), code: String(split.controlCode),
-    leg: formatRunningTime(split.legMs), total: formatRunningTime(split.elapsedMs) }));
+    leg: formatDuration(split.legMs), total: formatDuration(split.elapsedMs) }));
   if (verdict.elapsedMs !== undefined) {
     const last = verdict.splits.at(-1)?.elapsedMs ?? 0;
     if (verdict.elapsedMs >= last) {
-      rows.push({ index: "", code: t.finish, leg: formatRunningTime(verdict.elapsedMs - last), total: formatRunningTime(verdict.elapsedMs) });
+      rows.push({ index: "", code: t.finish, leg: formatDuration(verdict.elapsedMs - last), total: formatDuration(verdict.elapsedMs) });
     }
   }
   return rows;
@@ -133,7 +132,7 @@ function rogainingRows(verdict: LocalVerdict): ReceiptRow[] {
   return (verdict.rogaining?.controls ?? []).map((control, index) => {
     const elapsed = times.get(control.controlCode);
     return { index: String(index + 1), code: String(control.controlCode), leg: readoutText.rogainingPoints(control.points),
-      total: elapsed === undefined ? "" : formatRunningTime(elapsed) };
+      total: elapsed === undefined ? "" : formatDuration(elapsed) };
   });
 }
 

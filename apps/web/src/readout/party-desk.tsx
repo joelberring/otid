@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PartyPackage, PartyStateResponse, ReadoutPackage } from "@o-tid/contracts";
-import { formatPartyKronor, type PartyPurchase } from "@o-tid/domain";
+import { formatHourMinute, formatPartyKronor, type PartyPurchase } from "@o-tid/domain";
 import { stationClock, type SimulatedCard } from "@o-tid/sportident";
 import type { FakeStationTransport } from "./fake-transport";
 import { cardEvening, cardNearlyFull, decideReadouts, guestName, type DeskKnowledge, type DeskMode, type DeskOutcome } from "./party-logic";
@@ -40,9 +40,6 @@ export interface PartyDeskProps {
   readonly statusArea: ReactNode;
 }
 
-function time(value: string, timeZone: string): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
-}
 
 export function PartyDesk(props: PartyDeskProps) {
   const { raceId, pkg, items, actions, addAction, play } = props;
@@ -160,7 +157,7 @@ export function PartyDesk(props: PartyDeskProps) {
   const outcome = shown === undefined ? undefined : outcomes.get(shown);
   const shownItem = shown === undefined ? undefined : items.find(item => item.localSequence === shown);
   const startsAt = effectiveParty.startsAt;
-  const notStarted = startsAt && Date.parse(startsAt) > Date.now() ? time(startsAt, timeZone) : undefined;
+  const notStarted = startsAt && Date.parse(startsAt) > Date.now() ? formatHourMinute(startsAt, timeZone) : undefined;
   const kiosk = mode === "AUTO" && !staff;
 
   async function saveName(card: string, name: string, club: string | null, displayName: string | null) {
@@ -220,11 +217,11 @@ function Outcome({ outcome, item, knowledge, timeZone, onRename }: { outcome: De
   const full = cardNearlyFull(item);
   const checkedOut = outcome.checkedOutAt ?? knowledge.server?.guests.find(guest => guest.cardNumber === outcome.cardNumber)?.checkout?.at;
   const headline = outcome.kind === "WELCOME" ? `✓ ${t.welcome(name)}`
-    : outcome.kind === "ALREADY_IN" ? t.alreadyIn(time(outcome.checkedInAt!, timeZone))
-    : outcome.kind === "CHECKED_OUT" ? `✓ ${t.checkedOut(time(outcome.checkedOutAt!, timeZone))}`
+    : outcome.kind === "ALREADY_IN" ? t.alreadyIn(formatHourMinute(outcome.checkedInAt!, timeZone))
+    : outcome.kind === "CHECKED_OUT" ? `✓ ${t.checkedOut(formatHourMinute(outcome.checkedOutAt!, timeZone))}`
     : outcome.kind === "NO_NEW" ? t.noNew : `✓ ${t.newPurchases(outcome.newPurchases.length)}`;
   const row = (purchase: PartyPurchase) => <li key={`${purchase.code}-${purchase.punchedAt}`} data-voided={purchase.voided ? "true" : undefined}>
-    <span>{purchase.itemName}</span> <span>{formatPartyKronor(purchase.priceOre)} kr</span> <span>{time(purchase.punchedAt, timeZone)}</span>
+    <span>{purchase.itemName}</span> <span>{formatPartyKronor(purchase.priceOre)} kr</span> <span>{formatHourMinute(purchase.punchedAt, timeZone)}</span>
     {purchase.voided ? <small> ({t.voided})</small> : null}
     {checkedOut && Date.parse(purchase.punchedAt) > Date.parse(checkedOut) ? <small> ({t.afterCheckout})</small> : null}
   </li>;
@@ -234,7 +231,7 @@ function Outcome({ outcome, item, knowledge, timeZone, onRename }: { outcome: De
       {name ? <> · <button type="button" className="link" onClick={onRename}>{t.notYou}</button></> : null}</p>
     {outcome.newPurchases.length > 0 ? <ul className="party-new" data-testid="party-new">
       {outcome.newPurchases.map(purchase => <li key={`${purchase.code}-${purchase.punchedAt}`}>
-        {t.newRow(purchase.itemName, time(purchase.punchedAt, timeZone))}</li>)}</ul> : null}
+        {t.newRow(purchase.itemName, formatHourMinute(purchase.punchedAt, timeZone))}</li>)}</ul> : null}
     <p className="party-total" data-testid="party-total">{t.total(formatPartyKronor(evening.totalOre))}</p>
     {earlier.length > 0 ? <><h2>{t.earlier}</h2><ul className="party-earlier">{earlier.map(row)}</ul></> : null}
     {full ? <p className="notice" role="alert">{t.nearlyFull(full.punches, full.capacity)}</p> : null}

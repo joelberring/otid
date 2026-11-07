@@ -203,6 +203,9 @@ function withLayout(snapshot: RaceSnapshot, layout: ReadonlyMap<string, TeamSpri
   return { ...snapshot, entries: snapshot.entries.map((entry) => layout.has(entry.id) ? { ...entry, teamSprint: layout.get(entry.id)! } : entry) };
 }
 
+/** Löptid som t:mm:ss eller m:ss (avläsningsvyn i app.tsx läser den här; regeln finns i domänen). */
+export { formatDuration as formatRunningTime } from "@o-tid/domain";
+
 /** Sträckans nummer för en sträcklöpare. */
 function legOf(pkg: ReadoutPackage, entryId: string): number {
   for (const team of pkg.relay?.teams ?? []) {
@@ -212,12 +215,3 @@ function legOf(pkg: ReadoutPackage, entryId: string): number {
   return 0;
 }
 
-/** Löptid som t:mm:ss eller m:ss. */
-export function formatRunningTime(elapsedMs: number): string {
-  const seconds = Math.floor(elapsedMs / 1000);
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-}

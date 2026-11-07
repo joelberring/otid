@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { invitationResendResponseSchema } from "@o-tid/contracts";
+import { formatDayMonthTime } from "@o-tid/domain";
 import { invitationSv } from "../i18n/invitation-sv";
 import { accountRequest } from "../lib/account-client";
 import { Button } from "./ui";
 import styles from "./invitation-actions.module.css";
 
 const text = invitationSv.list;
-const time = (iso: string) => new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-  timeZone: "Europe/Stockholm" }).format(new Date(iso));
+const time = (iso: string) => formatDayMonthTime(iso, "Europe/Stockholm");
 
 /** När inbjudan senast mejlades ("skickad 3 nov. 14:02") eller "inte skickad"; inget utan e-post på servern. */
 export function invitationSentText(sentAt: string | null | undefined, mailEnabled: boolean): string | undefined {

@@ -352,5 +352,17 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     const after = await library();
     expect(after).toHaveLength(1);
     expect(after[0]).toMatchObject({ clubMap: { latest: true }, source: { fileName: "Skogen V2.omap" } });
+
+    // ADR-0210: "senaste" som i arkivet, året först. En version med det inskrivna året 2026 (men ett äldre datum) är nyare än 2024-05-01.
+    const third = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: uploaded.mapId, newMapName: null, fileName: "Skogen ny.omap",
+      versionDate: "2019-01-01", note: null, body: chunks(new TextEncoder().encode(new TextDecoder().decode(omap).replace(/<notes>[^<]*<\/notes>/, "<notes>2026</notes>"))) }, NOW);
+    if (third.status !== "created") throw new Error("Ingen tredje version");
+    await pool.query("update club_map_version set version_year = 2026 where id = $1", [third.versionId]);
+    const archive = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
+    expect(archive.status === "ok" && archive.list.maps.find(map => map.name === "Skogen")!.latestVersionId).toBe(third.versionId);
+    expect((await library())[0]?.clubMap?.latest).toBe(false);
+    expect(await saveClubMapToGroupLibrary(db, { ...owner.proof, clubId, versionId: third.versionId, groupId, image: png, metadata }, NOW))
+      .toMatchObject({ status: "saved", updated: true });
+    expect((await library())[0]?.clubMap?.latest).toBe(true);
   });
 });

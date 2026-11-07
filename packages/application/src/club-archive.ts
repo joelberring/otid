@@ -4,12 +4,13 @@ import {
   type ClubArchiveEntryView, type ClubArchiveList, type ClubArchiveListItem, type ClubMapVersionView, type ClubMapView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { guessVersionYear, versionYearSpan } from "@o-tid/domain";
+import { versionYearSpan } from "@o-tid/domain";
 import { clubAreaAccess, clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
 import { entryThumbnails, forgetEntryThumbnail, mapChecks } from "./club-archive-checks";
 import { courseDataPoints, courseFileSummary } from "./club-archive-import";
 import { leaderGroups } from "./club-maps";
 import { mapMergeHistory } from "./club-map-merge";
+import { versionOrder, versionYearOf } from "./club-map-version-order";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
@@ -20,13 +21,6 @@ import type { DbExecutor } from "./snapshot";
 type MapRow = typeof schema.clubMaps.$inferSelect;
 type VersionRow = typeof schema.clubMapVersions.$inferSelect;
 
-/** ADR-0210: versionens år, inskrivet eller gissat (filnamnet, mapparna, årsmappen, datumet, uppladdningen). */
-export const versionYearOf = (version: VersionRow) => guessVersionYear({ fileName: version.fileName, sourcePath: version.sourcePath,
-  versionDate: version.versionDate, uploadedAt: version.uploadedAt, manualYear: version.versionYear });
-
-/** Nyaste först: året, sedan datumet och uppladdningen. */
-const versionOrder = (a: VersionRow, b: VersionRow) => versionYearOf(b).year - versionYearOf(a).year
-  || (b.versionDate ?? "").localeCompare(a.versionDate ?? "") || b.uploadedAt.getTime() - a.uploadedAt.getTime() || a.fileName.localeCompare(b.fileName);
 
 /** Kartorna med versionerna (senaste först) och hur många träningar som använder varje version. */
 export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: readonly string[]): Promise<ClubMapView[]> {

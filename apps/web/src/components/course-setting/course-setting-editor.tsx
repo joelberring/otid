@@ -41,6 +41,7 @@ import { toScreen, type Bounds, type Viewport } from "../../lib/course-setting-v
 import { drawPrintFrame, drawSpecialEditing } from "../../lib/course-setting-draw-special";
 import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHandles } from "../../lib/course-setting-specials";
 import { PrintPanel } from "./course-setting-print-panel";
+import { CourseSettingTabs } from "./course-setting-tabs";
 import { SpecialsPanel } from "./course-setting-specials";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { describeEdit } from "../../lib/course-setting-suggestion";
@@ -760,7 +761,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         data-testid="course-setting-status">{shownStatus}</p>}
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu}
-      admin={access.admin} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)} />
+      admin={access.admin} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)}
+      tabs={<CourseSettingTabs raceId={raceId} current="SETTING" onLeave={href => void flush().finally(() => router.push(href))} />} />
     {/* Telefonen: verktygen och flikarna (även Objekt och Utskrift) bakom "Mer"; medan ett specialobjekt ritas syns
         verktygsraden och fliken Objekt (Klar och Avbryt). */}
     <div className={styles.stage} data-compact={field.narrow && !field.expanded && editor.tool !== "SPECIAL" ? "true" : undefined}>

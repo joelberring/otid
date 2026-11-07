@@ -1,0 +1,54 @@
+/* ADR-0217: fliken Layout. Samma ton som utskriftssidan; på telefonen (390 px) listor i stället för matrisen. */
+.page { display: grid; gap: 14px; padding: 12px 16px 32px; min-width: 0; }
+.page h1 { margin: 0; font-size: var(--text-xl, 1.5rem); }
+.page p { margin: 0; }
+.topLine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.back { color: var(--muted); text-decoration: none; padding: 4px 6px; }
+.muted { color: var(--muted); font-size: var(--text-sm); }
+.row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 14px; }
+.stack { display: grid; gap: 8px; }
+.field { display: inline-grid; gap: 2px; font-size: var(--text-sm); }
+.field input, .field select { min-height: 32px; max-width: 100%; }
+.list { margin: 0; padding-left: 1.1rem; display: grid; gap: 6px; }
+.panel { display: grid; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); align-content: start; }
+.panel h2 { margin: 0; font-size: var(--text-lg, 1.15rem); }
+.panel h3 { margin: 0; font-size: var(--text-md, 1rem); }
+.panelWide { composes: panel; }
+.headRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.columns { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); align-items: start; }
+.layoutRow { margin: 0; padding: 6px 8px; border: 1px solid var(--line); min-width: 0; display: grid; gap: 6px; }
+
+.matrixWrap { overflow-x: auto; max-width: 100%; }
+.matrix, .classTable { border-collapse: collapse; font-size: var(--text-sm); }
+.matrix th, .matrix td, .classTable th, .classTable td { border: 1px solid var(--line); padding: 4px; text-align: left; vertical-align: top; }
+.matrix td { min-width: 11rem; }
+.cell, .addCell { display: grid; gap: 2px; width: 100%; text-align: left; padding: 6px; border: 1px solid transparent; border-radius: 4px;
+  background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; min-height: 44px; }
+.cell:hover { border-color: var(--line-strong, var(--line)); }
+.cell[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.addCell { color: var(--muted); border: 1px dashed var(--line); place-items: center; }
+.cellClasses { font-weight: 600; }
+.badge { justify-self: start; font-size: var(--text-xs, .75rem); padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); }
+.badge[data-status="OUTSIDE"] { border-color: #b00020; color: #b00020; }
+.badge[data-status="FITS"] { border-color: var(--green, #1b7a3a); color: var(--green-dark, #1b7a3a); }
+.badge[data-status="ADJUSTED"] { border-style: dashed; }
+.matrixList { display: none; margin: 0; padding: 0; list-style: none; gap: 10px; }
+.matrixList > li { display: grid; gap: 4px; }
+.matrixList h3 { margin: 0; font-size: var(--text-md, 1rem); }
+.matrixList ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.listLayout { display: block; font-size: var(--text-sm); color: var(--muted); }
+
+.sheetBody { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.sheetSlot { display: grid; gap: 10px; min-width: 0; }
+.sheetWrap { position: relative; justify-self: start; max-width: 100%; }
+.sheetWrap > svg:first-child { display: block; max-width: 100%; height: auto; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
+.numberLayer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.numberLayer rect { pointer-events: all; }
+.sheetPanels { display: grid; gap: 10px; min-width: 0; align-content: start; }
+@media (min-width: 1100px) { .sheetBody { grid-template-columns: minmax(0, 1fr) 26rem; } }
+@media (max-width: 640px) {
+  .page { padding: 10px 16px 24px; }
+  .matrixWrap:has(.matrix) { display: none; }
+  .matrixList { display: grid; }
+}

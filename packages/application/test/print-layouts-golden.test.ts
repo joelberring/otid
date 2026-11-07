@@ -70,6 +70,10 @@ describe("PDF-jobbet med layouter (ADR-0217)", () => {
       request: { formatVersion: 1, requestId: "00000000-0000-4000-8000-000000000002", kind: "OFFICE", profileId: "office",
         layout: { kind: "PAGES", header: false }, perRunner: false, duplex: false, items: [{ course }, { course, layout: "elit" }], warningsConfirmed: true } });
     expect(result.pages).toBe(2);
+    // Sidorna: A4 stående (banans papper) och A3 liggande (Elit, 420 × 297 mm = 1191 × 842 pt).
+    const boxes = [...Buffer.from(result.bytes).toString("latin1").matchAll(/\/MediaBox \[\s*0 0 ([\d.]+) ([\d.]+)\s*\]/g)]
+      .map(match => [Math.round(Number(match[1])), Math.round(Number(match[2]))]);
+    expect(boxes).toContainEqual([1191, 842]);
     const sheets = printSheetGroups(document, { kind: "COURSE" }, [{ course }, { course, layout: "elit" }], { mapBounds: MAP_BOUNDS }).flatMap(group => group.sheets);
     // A3 liggande (420 × 297 mm) för Elit; skalan per ark.
     expect(Math.round(sheets[1]!.paper.widthMm)).toBe(420);

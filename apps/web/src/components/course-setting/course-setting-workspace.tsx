@@ -24,12 +24,14 @@ export type TopBarProps = {
   canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; menu: readonly { label: string; onClick: () => void }[];
   /** Admin har arbetsytan att gå tillbaka till; andra går till Mina tävlingar. */
   admin: boolean;
+  /** ADR-0217: flikarna Banläggning | Layout | Utskrift. */
+  tabs?: ReactNode;
   /** Hjälpens vyer: fältläget, den öppna fliken och banläggningen i stort (`courseSettingHelpViews`). */
   help: readonly HelpView[];
 };
 
 export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu, admin,
-  help }: TopBarProps) {
+  help, tabs }: TopBarProps) {
   const [open, setOpen] = useState(false);
   // Menyn ligger fast i fönstret under knappen, högerjusterad mot knappen så att den aldrig hamnar utanför bild.
   const [menuAt, setMenuAt] = useState<{ top: number; right: number }>();
@@ -52,6 +54,7 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
     {/* Tillbaka tydligt (ägaren 2026-11-03): pilen och vart den går, kort på telefonen. */}
     <Link className={styles.back} href={admin ? `/admin/${raceId}/manage` : "/organizer"} title={admin ? text.back : text.backToEvents}
       data-testid="course-setting-back">← {admin ? text.backShort : text.backShortEvents}</Link>
+    {tabs}
     <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.course}</span>
       <select value={view} onChange={event => onView(event.target.value)} data-testid="course-setting-view">
         <option value={ALL_CONTROLS}>{text.courses.all}</option>

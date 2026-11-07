@@ -1,0 +1,6 @@
+.tabs { display: inline-flex; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; background: var(--surface); }
+.tab { padding: 4px 10px; border-radius: 4px; color: var(--ink); text-decoration: none; font-size: var(--text-sm); white-space: nowrap; min-height: 28px;
+  display: inline-flex; align-items: center; }
+.tab[aria-current="page"] { background: var(--ink); color: var(--paper, #fff); font-weight: 600; }
+.tab:not([aria-current="page"]):hover { background: var(--subtle, rgba(0, 0, 0, .06)); }
+@media (max-width: 480px) { .tab { padding: 4px 6px; } }

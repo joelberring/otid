@@ -26,6 +26,23 @@ export function timerShouldFetch(streamOpen: boolean, lastFetchAt: number, now: 
 }
 
 /**
+ * En hämtning i taget. En väckning (`refresh(true)`: resultatströmmen, nätet tillbaka) som kommer medan en hämtning pågår
+ * tappas inte: sidan hämtar igen direkt efter, så att det nya resultatet syns utan att vänta på nästa intervall (städrundan
+ * 2026-11-07). `run` svarar "busy" när servern bad sidan vänta (503); då hämtas inte igen direkt.
+ */
+export function serialRefresh(run: () => Promise<"done" | "busy">): (wake?: boolean) => Promise<void> {
+  let running = false, again = false;
+  const refresh = async (wake = false): Promise<void> => {
+    if (running) { if (wake) again = true; return; }
+    running = true;
+    try { if (await run() === "busy") again = false; }
+    finally { running = false; }
+    if (again) { again = false; await refresh(); }
+  };
+  return refresh;
+}
+
+/**
  * Publikt innehåll som uppdateras av sig självt (resultatlistan, Live): hämtas var femte sekund när sidan syns och
  * direkt när resultatströmmen säger att något ändrats. Ett misslyckat försök visas (`failed`) och senast hämtade data
  * ligger kvar; nästa försök sker vid nästa intervall eller väckning. `online` följer webbläsarens nätstatus.
@@ -35,7 +52,7 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
   const [data, setData] = useState<T | undefined>(initial);
   const [failed, setFailed] = useState(false);
   const [online, setOnline] = useState(true);
-  const running = useRef(false), warned = useRef(false), streamOpen = useRef(false), lastFetch = useRef(0);
+  const warned = useRef(false), streamOpen = useRef(false), lastFetch = useRef(0);
   const reader = useRef(read);
   reader.current = read;
   useEffect(() => {
@@ -47,9 +64,8 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
       retry = window.setTimeout(() => { retry = undefined; void refresh(); },
         (retryMs ?? STALE_RETRY_MS.minMs) + Math.random() * STALE_RETRY_MS.spreadMs);
     };
-    const refresh = async () => {
-      if (running.current || stopped) return;
-      running.current = true;
+    const refresh = serialRefresh(async () => {
+      if (stopped) return "done";
       lastFetch.current = Date.now();
       try {
         const value = await reader.current(raceId, retryStale);
@@ -57,14 +73,15 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
         if (!stopped) { setData(value); setFailed(false); }
       } catch (error) {
         // Steg 54: servern har många besökare (503). Det som visas ligger kvar utan felbesked; nytt försök efter Retry-After.
-        if (error instanceof PublicBusyError) { retryStale(error.retryAfterMs); return; }
+        if (error instanceof PublicBusyError) { retryStale(error.retryAfterMs); return "busy"; }
         // Visas som besked på sidan; senast hämtade data ligger kvar och nästa försök sker av sig självt.
         // Loggas en gång per avbrott, inte var femte sekund.
         if (!warned.current) console.warn("Publika uppgifter kunde inte hämtas", error);
         warned.current = true;
         if (!stopped) setFailed(true);
-      } finally { running.current = false; }
-    };
+      }
+      return "done";
+    });
     if (initial === undefined) void refresh();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;
@@ -72,11 +89,11 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
       void refresh();
     }, intervalMs);
     const stopStream = typeof window.EventSource === "function"
-      ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(); }, undefined, (open) => { streamOpen.current = open; })
+      ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(true); }, undefined, (open) => { streamOpen.current = open; })
       : undefined;
     const network = () => {
       setOnline(navigator.onLine);
-      if (navigator.onLine) void refresh();
+      if (navigator.onLine) void refresh(true);
     };
     setOnline(navigator.onLine);
     window.addEventListener("online", network); window.addEventListener("offline", network);

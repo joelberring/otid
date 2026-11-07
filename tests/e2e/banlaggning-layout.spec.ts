@@ -126,6 +126,11 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   const number = sheet.getByTestId("layout-number").first();
   await number.scrollIntoViewIfNeeded();
   const box = (await number.boundingBox())!;
+  // Handtaget ligger på numret på arket.
+  const ref = (await number.getAttribute("data-ref"))!;
+  const drawn = (await sheet.getByTestId("layout-sheet-view").first().locator(`text[data-role=NUMBER][data-ref="${ref}"]`).boundingBox())!;
+  expect(Math.abs(drawn.x + drawn.width / 2 - (box.x + box.width / 2))).toBeLessThan(6);
+  expect(Math.abs(drawn.y + drawn.height / 2 - (box.y + box.height / 2))).toBeLessThan(6);
   await owner.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await owner.mouse.down();
   await owner.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 + 30, { steps: 6 });

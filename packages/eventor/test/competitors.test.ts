@@ -193,6 +193,14 @@ describe("ADR-0209: klubbens medlemslista (bara id och hash av adressen)", () =>
       <EMail>inte-en-adress</EMail></Person></PersonList>`;
     expect(await parseEventorMemberStream(textChunks(xml), hash)).toEqual([{ personId: "9", emailHashes: ["h(a@b.se)"] }]);
     expect(normalizeMemberEmail(" X@Y.se ")).toBe("x@y.se");
+    // Som kontots adress (normalizeAccountEmail): NFC, så att å som a + ring blir samma adress och samma hash.
+    expect(normalizeMemberEmail(" A\u030Asa@Klubb.se")).toBe("\u00e5sa@klubb.se");
+    expect(normalizeMemberEmail("a@b")).toBeUndefined();
+  });
+
+  it("hashar Eventors adress i NFC (ändrat 2026-11-07)", async () => {
+    const xml = `<PersonList><Person><Id>7</Id><Tele mailAddress="A\u030Asa@Klubb.se"/></Person></PersonList>`;
+    expect(await parseEventorMemberStream(textChunks(xml), hash)).toEqual([{ personId: "7", emailHashes: ["h(\u00e5sa@klubb.se)"] }]);
   });
 
   it("frågar med klubbens id och includeContactDetails, nyckeln bara i headern", async () => {

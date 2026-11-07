@@ -9,6 +9,8 @@ import {
   unlinkGoogleFromAccount, GOOGLE_MOVE_RECENT_LOGIN_MS, type GoogleMovePending
 } from "../../src/google-link";
 import { readAccountProfile, changeAccountPassword } from "../../src/account-self-service";
+import { answerAccountClubStep } from "../../src/club-affiliations";
+import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { grantRacePersonAsAdmin } from "../../src/race-people";
 import { registerTestAccount, TEST_PASSWORD } from "./accounts";
@@ -170,9 +172,65 @@ describe("ADR-0205 tillägg: Koppla Google-konto", () => {
       idempotencyKey: `organizer-event-create:${randomUUID()}`, readBody: async () => ({ formatVersion: 1, eventName: "Gmail-tävlingen",
         raceName: "", raceDate: "2026-11-20", timeZone: "Europe/Stockholm" }) });
     expect(created.status).toBe("created");
-    expect(await linkAs(joel, { sub: id, email: google, email_verified: true })).toEqual({ status: "in-use", googleEmail: google });
+    expect(await linkAs(joel, { sub: id, email: google, email_verified: true })).toEqual({ status: "in-use", googleEmail: google, sourceHasPassword: false });
     expect(await accountExists(used.response.accountId)).toBe(true);
     expect((await googleLogin({ sub: id, email: google, email_verified: true })).response.accountId).toBe(used.response.accountId);
+  }, 60_000);
+
+  it("ändrat 2026-11-07: en dubblett som har svarat på Vilken klubb tillhör du? är tom och går att flytta; svaren tas bort", async () => {
+    const joel = await registerTestAccount(db);
+    const id = sub();
+    const google = gmail();
+    const duplicate = await googleLogin({ sub: id, email: google, email_verified: true });
+    const proof = { sessionToken: duplicate.sessionToken, csrfCookie: duplicate.csrfToken, csrfHeader: duplicate.csrfToken };
+    // Ägarens fall: dubbletten fick frågan direkt och svarade (en klubb ur listan och fritext). Inget arkiv har bekräftat.
+    const [organisation] = (await pool.query<{ id: string }>(`insert into organisation (id, eventor_id, name, type, search_text, updated_at)
+      values ($1, $2, 'OK Syntet', 'CLUB', 'ok syntet', now()) returning id`, [randomUUID(), `a4-${randomUUID().slice(0, 8)}`])).rows;
+    expect((await answerAccountClubStep(db, { ...proof, request: { formatVersion: 1, organisationIds: [organisation!.id], freeText: "Annan klubb" } }))
+      .status).toBe("ok");
+    expect((await pool.query("select 1 from account_club_membership where account_id = $1", [duplicate.response.accountId])).rowCount).toBe(2);
+    const linked = await linkAs(joel, { sub: id, email: google, email_verified: true });
+    if (linked.status !== "move-needed") throw new Error(`Väntade en flytt: ${linked.status}`);
+    expect(await moveGoogleLinkToAccount(db, { proof: joel.proof, pending: linked.pending, password: TEST_PASSWORD }))
+      .toEqual({ status: "moved", googleEmail: google, sourceEmail: google });
+    expect(await accountExists(duplicate.response.accountId)).toBe(false);
+    expect((await pool.query("select 1 from account_club_membership where account_id = $1", [duplicate.response.accountId])).rowCount).toBe(0);
+    expect((await googleLogin({ sub: id, email: google, email_verified: true })).response.accountId).toBe(joel.accountId);
+
+    // En tillhörighet som ett klubbarkiv har avgjort för hand gör att kontot används.
+    const otherId = sub();
+    const decided = await googleLogin({ sub: otherId, email: gmail(), email_verified: true });
+    await pool.query(`insert into account_club_membership (id, account_id, organisation_id, free_text, club_id, status, created_at, decided_by, decided_at)
+      values ($1, $2, null, 'Annan klubb', null, 'DECLINED', now(), $3, now())`, [randomUUID(), decided.response.accountId, joel.accountId]);
+    expect(await linkAs(joel, { sub: otherId, email: gmail(), email_verified: true })).toMatchObject({ status: "in-use" });
+  }, 60_000);
+
+  it("ändrat 2026-11-07: ett konto i bruk utan eget lösenord ger ett besked som går att följa (Glömt lösenordet, sedan ta bort)", async () => {
+    const joel = await registerTestAccount(db);
+    const id = sub();
+    const google = gmail();
+    const used = await googleLogin({ sub: id, email: google, email_verified: true });
+    const usedProof = { sessionToken: used.sessionToken, csrfCookie: used.csrfToken, csrfHeader: used.csrfToken };
+    await createOrganizerEvent(db, { ...usedProof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+      readBody: async () => ({ formatVersion: 1, eventName: "Utan lösenord", raceName: "", raceDate: "2026-11-22", timeZone: "Europe/Stockholm" }) });
+    expect(await linkAs(joel, { sub: id, email: google, email_verified: true }))
+      .toEqual({ status: "in-use", googleEmail: google, sourceHasPassword: false });
+    // Vägen i beskedet: på det kontot vägras Ta bort kopplingen tills det har ett lösenord (Glömt lösenordet), sedan går det.
+    expect(await unlinkGoogleFromAccount(db, usedProof)).toEqual({ status: "last-login-method" });
+    const requested = await requestPasswordReset(db, { formatVersion: 1, email: google });
+    if (requested.status !== "accepted" || !requested.delivery) throw new Error("Återställningslänken saknas");
+    const done = await completePasswordReset(db, { formatVersion: 1, token: requested.delivery.token, password: "eget-lösen-12" });
+    if (done.status !== "authenticated") throw new Error(`Inget nytt lösenord: ${done.status}`);
+    const after = { sessionToken: done.sessionToken, csrfCookie: done.csrfToken, csrfHeader: done.csrfToken };
+    expect(await unlinkGoogleFromAccount(db, after)).toEqual({ status: "unlinked" });
+    expect(await linkAs(joel, { sub: id, email: google, email_verified: true })).toEqual({ status: "linked", googleEmail: google });
+    // Ett konto i bruk med eget lösenord: det vanliga beskedet.
+    const otherId = sub();
+    const withPassword = await registerTestAccount(db);
+    expect(await linkAs(withPassword, { sub: otherId, email: gmail(), email_verified: true })).toMatchObject({ status: "linked" });
+    await createOrganizerEvent(db, { ...withPassword.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+      readBody: async () => ({ formatVersion: 1, eventName: "Med lösenord", raceName: "", raceDate: "2026-11-23", timeZone: "Europe/Stockholm" }) });
+    expect(await linkAs(joel, { sub: otherId, email: gmail(), email_verified: true })).toMatchObject({ status: "in-use", sourceHasPassword: true });
   }, 60_000);
 
   it("Ta bort kopplingen vägras när kontot då saknar sätt att logga in, men inte med ett eget lösenord", async () => {

@@ -76,6 +76,11 @@ loggar in på klubbens och tävlingens lånade datorer.
    Google-kontot ändå kan logga in på det; de spärras vid flytten. Väntande inbjudningar till adressen lämnas; de gäller adressen.
    Används kontot vägras kopplingen ("… Logga in på det och ta bort kopplingen där först"); superadmin kan flytta med
    `node superadmin.mjs google move <källa> <mål> [--delete-source-if-empty]` (docs/drift.md).
+   Ändrat 2026-11-07: kontots egna klubbsvar (`account_club_membership` utan `decided_by`, alltså väntande eller bekräftade via
+   Eventors medlemslista) räknas också som tomt och tas bort med dubbletten; bara en tillhörighet som ett klubbarkiv har avgjort
+   för hand gör att kontot används. Används ett konto utan eget lösenord säger beskedet i stället att man först väljer ett med
+   Glömt lösenordet till det kontots adress, loggar in där och tar bort kopplingen (`?google=upptaget-utan-losenord`); kopplingen
+   flyttas inte från ett konto som används.
 9. **Kontomenyn.** Varje inloggad sida har namnet (initialerna på telefonen) i överlisten med Mina tävlingar, Mina klubbar, Mina
    grupper, Mitt konto och Logga ut. Utloggningen spärrar sessionen (samma route som förut), tar bort det som webbläsaren sparat om
    tävlingar och personer (banläggningens kopia med service workerns sidor, inbjudan, följda löpare, självregistreringens namn och

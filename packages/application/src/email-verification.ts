@@ -6,6 +6,7 @@ import { schema, type Database } from "@o-tid/database";
 import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR } from "./account-throttle";
 import { sha256Hex as sha256 } from "./serialization";
 import type { DbExecutor } from "./snapshot";
+import { normalizeAccountEmail } from "@o-tid/contracts";
 import {
   appendUserAccountPasswordVerifier, clearUserAccountLoginThrottle, currentUserAccountVerifier, issueUserAccountSession,
   revokeAllUserAccountSessions, scryptVerifier, type UserAccountLoginResult, type UserAccountRuntimeOptions
@@ -189,7 +190,8 @@ export async function consumeEmailVerificationTokens(tx: DbExecutor, accountId: 
 /** Superadmin bekräftar adressen med kommando på servern (`node superadmin.mjs verify <e-post>`), t.ex. utan e-post. */
 export async function markEmailVerifiedByCommand(db: Database, email: string, now = new Date())
   : Promise<{ status: "not-found" | "unchanged" | "verified" }> {
-  const normalized = email.trim().toLowerCase();
+  const normalized = normalizeAccountEmail(email);
+  if (!normalized) return { status: "not-found" };
   return db.transaction(async tx => {
     const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.email, normalized)).for("update");
     if (!account) return { status: "not-found" } as const;

@@ -9,6 +9,8 @@ import { createOrganizerEvent, listMyEvents } from "../../src/organizer-events";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { isRacePubliclyVisible } from "../../src/public-race-visibility";
 import { listPublicRaces } from "../../src/public-races";
+import { createClub } from "../../src/clubs";
+import { createTrainingGroup } from "../../src/training-groups";
 import { grantRacePerson, registerTestAccount, setRacePublished, TEST_PASSWORD, accountOnRace } from "./accounts";
 
 /**
@@ -211,6 +213,39 @@ describe("ADR-0172 konton", () => {
     // Adressen är ledig igen.
     expect((await registerUserAccount(db, { formatVersion: 1, email: leaving.email, displayName: "Ny", password: "hemligt-lösen" })).status)
       .toBe("authenticated");
+  });
+
+  it("ändrat 2026-11-07: vägrar ta bort kontot när det är ensam ägare av en klubb eller ensam ledare av en träningsgrupp", async () => {
+    const leaving = await registerTestAccount(db, `ensam.${suffix()}`);
+    const other = await registerTestAccount(db, `annan.${suffix()}`);
+    const club = await createClub(db, { ...leaving.proof, request: { formatVersion: 1, requestId: randomUUID(), name: "OK Ensam" } });
+    if (club.status !== "created") throw new Error(club.status);
+    const group = await createTrainingGroup(db, { ...leaving.proof, request: { formatVersion: 1, requestId: randomUUID(), name: "Ungdomsgruppen",
+      code: `ensam-${suffix()}` } });
+    if (group.status !== "created") throw new Error(group.status);
+    // Den andra är vanlig medlem i båda: de skulle bli utan ägare och ledare.
+    await pool.query("insert into club_member (id, club_id, account_id, role, added_at, added_by, request_id) values ($1, $2, $3, 'READER', now(), $4, $5)",
+      [randomUUID(), club.club.clubId, other.accountId, leaving.accountId, randomUUID()]);
+    await pool.query(`insert into training_group_member (id, group_id, account_id, role, added_at, added_by, request_id)
+      values ($1, $2, $3, 'MEMBER', now(), $4, $5)`, [randomUUID(), group.group.groupId, other.accountId, leaving.accountId, randomUUID()]);
+
+    const profile = await readAccountProfile(db, leaving.proof);
+    expect(profile.status === "ok" && profile.response.soleOwnerOf).toEqual([
+      { kind: "CLUB", id: club.club.clubId, name: "OK Ensam" }, { kind: "TRAINING_GROUP", id: group.group.groupId, name: "Ungdomsgruppen" }]);
+    expect(await deleteOwnAccount(db, leaving.proof, { formatVersion: 1, password: "fel-lösen" })).toEqual({ status: "wrong-password" });
+    expect(await deleteOwnAccount(db, leaving.proof, { formatVersion: 1, password: TEST_PASSWORD })).toMatchObject({ status: "sole-owner",
+      soleOwnerOf: [{ kind: "CLUB", name: "OK Ensam" }, { kind: "TRAINING_GROUP", name: "Ungdomsgruppen" }] });
+    expect(await db.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, leaving.accountId))).toHaveLength(1);
+    expect((await pool.query("select 1 from club_member where club_id = $1 and account_id = $2", [club.club.clubId, leaving.accountId])).rowCount).toBe(1);
+
+    // Ägarskapet överlämnat (en ägare till och en ledare till): kontot går att ta bort, och klubben och gruppen har kvar sin ägare och ledare.
+    await pool.query("update club_member set role = 'OWNER' where club_id = $1 and account_id = $2", [club.club.clubId, other.accountId]);
+    await pool.query("update training_group_member set role = 'LEADER' where group_id = $1 and account_id = $2", [group.group.groupId, other.accountId]);
+    const after = await readAccountProfile(db, leaving.proof);
+    expect(after.status === "ok" && after.response.soleOwnerOf).toEqual([]);
+    expect(await deleteOwnAccount(db, leaving.proof, { formatVersion: 1, password: TEST_PASSWORD })).toEqual({ status: "deleted" });
+    expect((await pool.query("select role from club_member where club_id = $1", [club.club.clubId])).rows).toEqual([{ role: "OWNER" }]);
+    expect((await pool.query("select role from training_group_member where group_id = $1", [group.group.groupId])).rows).toEqual([{ role: "LEADER" }]);
   });
 
   it("superadmin tar bort konto och tävling efter bekräftelse, skapar återställningslänk och loggar allt", async () => {

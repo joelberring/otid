@@ -23,7 +23,7 @@ import { resendClubInvitation } from "../../src/invitation-resend";
 import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
 import { listRacePeopleAsAdmin } from "../../src/race-people";
 import { registerTestAccount } from "./accounts";
-import { registerUserAccountWithVerification } from "../../src/email-verification";
+import { markEmailVerifiedByCommand, registerUserAccountWithVerification } from "../../src/email-verification";
 import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
 import { signInWithGoogle } from "../../src/google-login";
 import { exportRaceAsAdmin } from "../../src/race-export";
@@ -270,6 +270,39 @@ describe("ADR-0209: kopplingen med klubbens Eventor-nyckel och medlemslistan", {
     expect(await readAccountClubs(db, maja.proof, NOW)).toMatchObject({ response: { memberships: [] } });
     expect((await readClub(db, { ...manual.proof, clubId }, NOW)).status).toBe("ok");
     await unlink();
+  });
+  it("ändrat 2026-11-07: hämtningen använder konfigurationen den körs med; utan masternyckeln i miljön står bekräftelserna kvar", async () => {
+    const maja = await registerTestAccount(db, `maja.${randomUUID().slice(0, 6)}`, NOW);
+    const { clubId, fetch, unlink } = await linkedSpace({ emails: [maja.email] });
+    const rows = async () => db.select().from(schema.accountClubMemberships).where(eq(schema.accountClubMemberships.accountId, maja.accountId));
+    const before = await rows();
+    expect(before).toMatchObject([{ status: "CONFIRMED", confirmedVia: "EVENTOR", clubId }]);
+    const saved = process.env.OTID_EVENTOR_MASTER_KEY;
+    delete process.env.OTID_EVENTOR_MASTER_KEY;
+    try {
+      expect(await syncClubEventorMembers(db, { clubId, configuration, fetch }, new Date(NOW.getTime() + 2 * 3_600_000)))
+        .toEqual({ status: "synced", members: 1, confirmed: 0, withdrawn: 0 });
+      expect(await rows()).toEqual(before);
+    } finally {
+      process.env.OTID_EVENTOR_MASTER_KEY = saved;
+      // Kopplingen frigörs också om testet fallerar (en kopplad klubb per test).
+      await unlink();
+    }
+  });
+
+  it("ändrat 2026-11-07: Eventors adress normaliseras som kontots (NFC), så ett å skrivet som a + ring matchar", async () => {
+    const name = `\u00e5sa.${randomUUID().slice(0, 6)}`;
+    const asa = await registerTestAccount(db, name, NOW);
+    expect(asa.email.normalize("NFC")).toBe(asa.email);
+    const decomposed = asa.email.normalize("NFD");
+    expect(decomposed).not.toBe(asa.email);
+    const { clubId, unlink } = await linkedSpace({ emails: [` ${decomposed.toUpperCase()} `] });
+    expect((await readClub(db, { ...asa.proof, clubId }, NOW)).status).toBe("ok");
+    expect(await readAccountClubs(db, asa.proof, NOW)).toMatchObject({ response: { memberships: [{ status: "CONFIRMED", via: "EVENTOR" }] } });
+    await unlink();
+    // Serverkommandot `verify` normaliserar likadant.
+    const unverified = await registerTestAccount(db, `\u00e5ke.${randomUUID().slice(0, 6)}`, NOW, { verified: false });
+    expect(await markEmailVerifiedByCommand(db, unverified.email.normalize("NFD").toUpperCase(), NOW)).toEqual({ status: "verified" });
   });
 });
 

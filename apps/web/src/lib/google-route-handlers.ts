@@ -36,7 +36,7 @@ export const GOOGLE_CALLBACK_PATH = "/api/account/google/callback";
 /** Felkoderna som inloggningssidan visar (`/organizer?google=…`). */
 export type GoogleLoginProblem = "avbruten" | "obekraftad" | "sparrad" | "fel";
 /** ADR-0205 tillägg: beskeden efter "Koppla Google-konto" (`/konto?google=…`). */
-export type GoogleLinkOutcome = "kopplat" | "upptaget" | "obekraftad" | "sessionen" | "avbruten" | "fel";
+export type GoogleLinkOutcome = "kopplat" | "upptaget" | "upptaget-utan-losenord" | "obekraftad" | "sessionen" | "avbruten" | "fel";
 /** Sidan som bekräftar en flytt av kopplingen från ett tomt konto. */
 export const GOOGLE_MOVE_PAGE = "/konto/flytta-google";
 
@@ -157,7 +157,7 @@ async function linkCallback(db: Database, request: Request, configured: { policy
       boundSessionId: login.sessionId!, identity }, now);
     switch (result.status) {
       case "linked": return done("kopplat");
-      case "in-use": return done("upptaget");
+      case "in-use": return done(result.sourceHasPassword ? "upptaget" : "upptaget-utan-losenord");
       case "email-not-verified": return done("obekraftad");
       case "move-needed":
         return redirect(`${policy.publicOrigin}${GOOGLE_MOVE_PAGE}`, [clear,

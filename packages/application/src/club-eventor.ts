@@ -134,16 +134,17 @@ async function forgetEventorMembers(tx: DbExecutor, clubId: string, now: Date): 
 
 /**
  * Tar tillbaka det som Eventor gav i arkivet (för alla, eller för konton som inte längre finns i listan): rader som listan
- * skapade tas bort, egna anmälningar blir väntande igen. Journalförs per konto.
+ * skapade tas bort, egna anmälningar blir väntande igen. Journalförs per konto. `keep` har listans hashar och konfigurationen
+ * som de räknades med (ändrat 2026-11-07: förut lästes den ur miljön, och utan masternyckeln där togs alla bekräftelser bort).
  */
-async function withdrawEventorConfirmations(tx: DbExecutor, clubId: string, keep: ReadonlySet<string> | null, now: Date): Promise<number> {
+async function withdrawEventorConfirmations(tx: DbExecutor, clubId: string, keep: { hashes: ReadonlySet<string>; config: Configured } | null,
+  now: Date): Promise<number> {
   const rows = await tx.select({ id: memberships.id, accountId: memberships.accountId, origin: memberships.origin, email: schema.userAccounts.email })
     .from(memberships).innerJoin(schema.userAccounts, eq(schema.userAccounts.id, memberships.accountId))
     .where(and(eq(memberships.clubId, clubId), eq(memberships.status, "CONFIRMED"), eq(memberships.confirmedVia, "EVENTOR")));
-  const config = keep ? configured() : undefined;
   let withdrawn = 0;
   for (const row of rows) {
-    if (keep && config && keep.has(memberEmailHash(config, row.email))) continue;
+    if (keep && keep.hashes.has(memberEmailHash(keep.config, row.email))) continue;
     if (row.origin === "EVENTOR") await tx.delete(memberships).where(eq(memberships.id, row.id));
     else await tx.update(memberships).set({ status: "PENDING", clubId: null, confirmedVia: null, decidedBy: null, decidedAt: null }).where(eq(memberships.id, row.id));
     await clubJournal(tx, { clubId, action: "CLUB_AFFILIATION_WITHDRAWN_BY_EVENTOR", actorAccountId: null, details: { membershipId: row.id,
@@ -193,7 +194,7 @@ export async function syncClubEventorMembers(db: Database, input: { clubId: stri
     for (const member of members) for (const hash of member.emailHashes) if (!rows.has(hash)) rows.set(hash, member.personId);
     const values = [...rows].map(([emailHmac, eventorPersonId]) => ({ clubId: input.clubId, emailHmac, eventorPersonId, keyId: config.keyId }));
     for (let at = 0; at < values.length; at += 1000) await tx.insert(schema.clubEventorMembers).values(values.slice(at, at + 1000));
-    const withdrawn = await withdrawEventorConfirmations(tx, input.clubId, new Set(rows.keys()), now);
+    const withdrawn = await withdrawEventorConfirmations(tx, input.clubId, { hashes: new Set(rows.keys()), config }, now);
     const confirmed = await confirmMatchingAccounts(tx, { clubId: input.clubId, organisationId: setting.organisationId!, hashes: new Set(rows.keys()),
       config, now });
     await tx.insert(schema.clubEventorSyncs).values({ clubId: input.clubId, attemptedAt: now, syncedAt: now, members: members.length, problem: null })

@@ -44,7 +44,10 @@ const omap = (scale: number) => `<?xml version="1.0" encoding="UTF-8"?>
 const profile: PrintProfile = { ...BUILT_IN_PRINT_PROFILES.find(item => item.id === "as-file")!, id: "norm", courseLayer: "REFERENCE", processColors: true,
   course: { cmyk: { c: 20, m: 100, y: 0, k: 0 }, spotName: "Purple", overprint: true, process: true } };
 
-function sheetsFor(scale: number) {
+/** En bild (1 × 1 PNG) och ett vitt specialobjekt (white-out) över kontrollen, för ordningen under banan. */
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+function sheetsFor(scale: number, specials = false) {
   let document: CourseSettingDocument = emptyDocument({ title: "Norm", mapScale: scale, sprint: scale <= 5000 });
   const edit = (change: CourseSettingEdit) => { const result = applyEdit(document, change); document = result.document; return result.created ?? ""; };
   const start = edit({ type: "ADD_CONTROL", kind: "START", at: { x: 20, y: 20 } });
@@ -52,12 +55,16 @@ function sheetsFor(scale: number) {
   const finish = edit({ type: "ADD_CONTROL", kind: "FINISH", at: { x: 80, y: 20 } });
   const course = edit({ type: "ADD_COURSE", name: "A" });
   for (const id of [start, control, finish]) edit({ type: "INSERT_COURSE_CONTROL", course, control: id });
+  if (specials) {
+    edit({ type: "ADD_SPECIAL", special: { kind: "white-out", points: [{ x: 40, y: 40 }, { x: 60, y: 40 }, { x: 60, y: 60 }, { x: 40, y: 60 }] } });
+    edit({ type: "ADD_SPECIAL", special: { kind: "image", points: [{ x: 25, y: 35 }, { x: 35, y: 25 }], image: { format: "png", data: PNG } } });
+  }
   const map = readMapFile(new TextEncoder().encode(omap(scale)), "norm.omap");
   return { map, sheets: layoutCoursePage(document, { course, mapBounds: map.bounds ?? undefined }).map(sheetOfPage) };
 }
 
-async function pdfFor(scale: number, chosen: PrintProfile = profile) {
-  const { map, sheets } = sheetsFor(scale);
+async function pdfFor(scale: number, chosen: PrintProfile = profile, specials = false) {
+  const { map, sheets } = sheetsFor(scale, specials);
   const result = await writeSheetsPdf({ sheets, map, profile: chosen, mode: "PRESS", fonts: fontFiles(), title: "Norm" });
   const pdf = await parsePdf(result.bytes);
   const content = pdf.pages[0]!.content;
@@ -108,5 +115,28 @@ describe("normens färgordning i PDF:en (ADR-0211 beslut 3)", () => {
   it("normen kan väljas i profilen", async () => {
     const { map } = sheetsFor(10000);
     expect(pressNormFor(map, { ...profile, pressNorm: "ISSPROM" })).toBe("ISSPROM");
+  });
+
+  it("vita specialobjekt och bilder under banan: före undre lila, och kartans färger över banan ritas inte i dem (städrundan 2026-11-07)", async () => {
+    for (const scale of [10000, 4000]) {
+      const pdf = await pdfFor(scale, profile, true);
+      // Vitt (CMYK 0) fylls och bilden ritas efter kartan under banan och före ringen; förut kom de efter kartans färger över banan.
+      const white = pdf.content.indexOf("0 0 0 0 k");
+      const image = pdf.content.indexOf("/Im0 Do");
+      expect(white).toBeGreaterThan(pdf.at.under);
+      expect(image).toBeGreaterThan(pdf.at.under);
+      expect(white).toBeLessThan(pdf.at.circle);
+      expect(image).toBeLessThan(pdf.at.circle);
+      // Ramens innehåll efter ringen (undre lila, kartan över banan, övre lila) har varken vitt eller bilden; vitt efter ramen
+      // är beskrivningens bakgrund på papperet.
+      const placed = pdf.content.indexOf("\nQ\n", pdf.at.over) + 3;
+      const frameEnd = pdf.content.startsWith("q\n", placed) ? pdf.content.indexOf("\nQ\n", placed) : placed;
+      const after = pdf.content.slice(pdf.at.circle, frameEnd);
+      expect(after).not.toContain("0 0 0 0 k");
+      expect(after).not.toContain("/Im0 Do");
+      // Kartans färger över banan klipps bort i båda ytorna: två jämn–udda-klippningar före utsnittet.
+      const before = pdf.content.slice(pdf.content.lastIndexOf("q", pdf.at.over), pdf.at.over);
+      expect(before.match(/W\* n/g)).toHaveLength(2);
+    }
   });
 });

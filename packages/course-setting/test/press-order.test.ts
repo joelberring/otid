@@ -1,7 +1,7 @@
 /** ADR-0211 beslut 3: färgordningen i trycket enligt IOF:s bilaga (ISOM 2017-2 och ISSprOM 2019-2), övre och undre lila. */
 import type { ColorUsage } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { detectPressNorm, lowerPurple, officePrintProfile, pressColorKind, pressOrder, type OverprintPrimitive, type SourceMapColor } from "../src";
+import { courseLayerOf, detectPressNorm, lowerPurple, officePrintProfile, pressColorKind, pressOrder, type OverprintPrimitive, type SourceMapColor } from "../src";
 
 const usage = (kinds: ColorUsage["kinds"], mains: number[]): ColorUsage =>
   ({ objects: 3, kinds, codes: mains.map(main => `${main}`), mains });
@@ -166,6 +166,21 @@ describe("övre och undre lila (lowerPurple)", () => {
   it("ISSprOM: numren alltid i övre lila (704 finns inte i listan för undre lila)", () => {
     expect(lowerPurple(figure("NUMBER", "text"), "ISSPROM")).toBe(false);
     expect(lowerPurple(figure("NUMBER", "text"), "ISSPROM", false)).toBe(false);
+  });
+});
+
+describe("vita specialobjekt och bilder under banan (courseLayerOf, städrundan 2026-11-07)", () => {
+  it("white-out och bilder under banan; andra markeringar övre lila, ringar undre", () => {
+    const whiteOut: OverprintPrimitive = { kind: "polygon", role: "SPECIAL", color: "WHITE", rings: [[{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }]], ref: "1" };
+    const image: OverprintPrimitive = { kind: "image", role: "SPECIAL", rect: { minX: 0, minY: 0, maxX: 1, maxY: 1 }, mediaType: "image/png", data: "", ref: "2" };
+    const hatch: OverprintPrimitive = { kind: "polyline", role: "SPECIAL", color: "COURSE", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], width: 0.2, ref: "3" };
+    const ring: OverprintPrimitive = { kind: "circle", role: "CONTROL", color: "COURSE", center: { x: 0, y: 0 }, diameter: 5, lineWidth: 0.35 };
+    for (const norm of ["ISOM", "ISSPROM"] as const) for (const top of [false, true]) {
+      expect(courseLayerOf(whiteOut, norm, top)).toBe("BENEATH");
+      expect(courseLayerOf(image, norm, top)).toBe("BENEATH");
+      expect(courseLayerOf(hatch, norm, top)).toBe("UPPER");
+      expect(courseLayerOf(ring, norm, top)).toBe("LOWER");
+    }
   });
 });
 

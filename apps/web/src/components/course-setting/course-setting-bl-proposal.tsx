@@ -9,6 +9,7 @@ import {
   type ProposalState
 } from "../../lib/course-setting-bl-proposal";
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
+import { doubtfulRows } from "../../lib/course-setting-print-colors-mode";
 import { Button, Notice } from "../ui";
 import { BlCompare, BlLayers, type RenderImage } from "./course-setting-bl-compare";
 import { HelpLink } from "../help/help-panel";
@@ -20,11 +21,13 @@ import styles from "./course-setting-bl-proposal.module.css";
  * står i en liten rad under. Överst hela kartan före och efter med ett reglage och ordningen som en enkel bild. Varje
  * beslut sparas genast i tävlingens kopia av profilen (kartfilen ändras inte).
  */
-export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, frame, symbols, render, onSave, norm }: {
+export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, frame, symbols, render, onSave, norm, variant = "ALL" }: {
   profile: PrintProfile; builtIn: readonly PrintProfile[]; colors: readonly MapColor[]; usage: ReadonlyMap<number, ColorUsage>; readOnly: boolean;
   /** Normen för färgordningen (ADR-0211 beslut 3). */
   norm: PressNorm;
   frame: SheetFrame | undefined; symbols: SymbolLookup; render: RenderImage; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
+  /** ADR-0215 beslut 2: hela listan (under Avancerat) eller bara de tveksamma färgerna (läget "Tryck hos BL"). */
+  variant?: "ALL" | "DOUBTFUL";
 }) {
   const [decisions, setDecisions] = useState<readonly ColorDecision[]>(profile.colorDecisions ?? []);
   const [layer, setLayer] = useState(profile.courseLayer ?? "TOP");
@@ -40,6 +43,8 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
   useEffect(() => { setDecisions(profile.colorDecisions ?? []); setLayer(profile.courseLayer ?? "TOP"); }, [profile]);
   const working = useMemo<PrintProfile>(() => ({ ...profile, colorDecisions: decisions, courseLayer: layer }), [profile, decisions, layer]);
   const state = useMemo(() => colors.length > 0 ? proposalState(working, colors, usage) : undefined, [working, colors, usage]);
+  const doubtful = useMemo(() => state ? new Map(doubtfulRows(state, norm, layer === "REFERENCE").map(item => [item.row.proposal.color.ocadId, item.reasons])) : undefined,
+    [state, norm, layer]);
 
   async function save(next: readonly ColorDecision[], nextLayer = layer, row?: { ocadId: number; done: string }) {
     const previous = decisions, previousLayer = layer;
@@ -73,6 +78,32 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
   const table = profile.reference;
   if (!table) return null;
   const safeLeft = state?.rows.filter(row => row.status === "PENDING" && row.proposal.confidence === "SAFE").length ?? 0;
+  const acceptSafe = !readOnly && <Button onClick={() => act({ kind: "ACCEPT_SAFE" })} disabled={busy || safeLeft === 0} data-testid="bl-accept-safe">
+    {safeLeft === 0 ? text.acceptSafeNone : `${text.acceptSafe} (${safeLeft})`}</Button>;
+  const item = (row: ProposalRow) => <ProposalItem key={row.proposal.color.ocadId} row={row} state={state!} colors={colors} render={render} readOnly={readOnly}
+    busy={busy} act={act} flash={flash?.ocadId === row.proposal.color.ocadId ? flash : undefined}
+    wrongSide={doubtful?.get(row.proposal.color.ocadId)?.includes("SIDE") ?? false} />;
+  if (variant === "DOUBTFUL") {
+    const rows = state?.rows.filter(row => doubtful?.has(row.proposal.color.ocadId)) ?? [];
+    return <section className={styles.panel} aria-labelledby="bl-doubtful" data-testid="bl-doubtful" data-pending={state?.counts.pending ?? ""}>
+      <div className={styles.head}>
+        <h3 id="bl-doubtful">{text.doubtfulHeading(rows.length)}</h3>
+        <p className={styles.muted}>{text.source(table.sourceDate, table.effectiveFrom)} · <a href={table.sourceUrl} target="_blank" rel="noreferrer">{text.sourceLink}</a></p>
+        {state && <p>{text.doubtfulIntro(state.rows.length - rows.length)} <HelpLink article="bl-farger" view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /></p>}
+      </div>
+      {!state ? <p role="status" className={styles.muted}>{text.noColors}</p> : <>
+        <div className={styles.bar}>
+          <span className={styles.progress} data-testid="bl-progress">{text.progress(state.counts.decided, state.rows.length)}</span>
+          {acceptSafe}
+          {busy && <span role="status">{text.saving}</span>}
+        </div>
+        {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
+        {message && <Notice tone={message.tone === "ok" ? "ok" : "error"} role="status"><p>{message.text}</p></Notice>}
+        {rows.length === 0 ? <p className={styles.muted} data-testid="bl-doubtful-none">{text.doubtfulNone}</p>
+          : <ol className={styles.rows} aria-label={text.doubtfulHeading(rows.length)}>{rows.map(item)}</ol>}
+      </>}
+    </section>;
+  }
   return <section className={styles.panel} aria-labelledby="bl-proposal" data-testid="bl-proposal" data-pending={state?.counts.pending ?? ""}>
     <div className={styles.head}>
       <h2 id="bl-proposal">{text.heading(baseName(profile, builtIn))}</h2>
@@ -83,8 +114,7 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
       <div className={styles.bar}>
         <span className={styles.progress} data-testid="bl-progress">{text.progress(state.counts.decided, state.rows.length)}</span>
         <span className={styles.tally}><span>{text.counts(state.counts.SAFE, state.counts.CONFIRM, state.counts.AMBIGUOUS)}</span></span>
-        {!readOnly && <Button onClick={() => act({ kind: "ACCEPT_SAFE" })} disabled={busy || safeLeft === 0} data-testid="bl-accept-safe">
-          {safeLeft === 0 ? text.acceptSafeNone : `${text.acceptSafe} (${safeLeft})`}</Button>}
+        {acceptSafe}
         {busy && <span role="status">{text.saving}</span>}
       </div>
       {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
@@ -92,8 +122,7 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
       {frame && <BlCompare frame={frame} profile={working} state={state} colors={colors} symbols={symbols} render={render} norm={norm} />}
       <BlLayers profile={working} state={state} norm={norm} />
       <ol className={styles.rows} aria-label={text.heading(baseName(profile, builtIn))}>
-        {state.rows.map(row => <ProposalItem key={row.proposal.color.ocadId} row={row} state={state} colors={colors} render={render} readOnly={readOnly}
-          busy={busy} act={act} flash={flash?.ocadId === row.proposal.color.ocadId ? flash : undefined} />)}
+        {state.rows.map(item)}
       </ol>
       {state.unused.length > 0 && <details>
         <summary className={styles.muted}>{text.unused(state.unused.length)}</summary>
@@ -112,9 +141,11 @@ const baseName = (profile: PrintProfile, builtIn: readonly PrintProfile[]) => bu
 
 const STATUS_ICON = { ACCEPTED: "✓", KEPT: "✓", PENDING: "○" } as const;
 
-function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash }: {
+function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash, wrongSide }: {
   row: ProposalRow; state: ProposalState; colors: readonly MapColor[]; render: RenderImage; readOnly: boolean; busy: boolean; act: (action: Action) => void;
   flash: { tone: "ok" | "error"; text: string } | undefined;
+  /** BL:s rad ligger på andra sidan banan än normen lägger färgen (ADR-0215 beslut 2). */
+  wrongSide: boolean;
 }) {
   const { proposal } = row;
   const color = proposal.color;
@@ -158,7 +189,8 @@ function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash }
           <span aria-hidden="true">{STATUS_ICON[row.status]} </span>{text.status[row.status]}</span>
         {row.byHand && <span className={styles.state} data-testid="bl-by-hand">{text.byHand}</span>}
       </div>
-      <ul className={styles.reasons}>{proposal.reasons.slice(0, 3).map(reason => <li key={reason}>{reason}</li>)}</ul>
+      <ul className={styles.reasons}>{proposal.reasons.slice(0, 3).map(reason => <li key={reason}>{reason}</li>)}
+        {wrongSide && <li data-testid="bl-wrong-side">{text.doubtSide}</li>}</ul>
       <div className={styles.numbers}>{text.numbers(cmykText(color.cmyk), target?.cmyk ? cmykText(target.cmyk) : undefined, color.ocadId)}
         {color.usage ? ` · ${text.used(color.usage.codes.slice(0, 5).join(", ") + (color.usage.codes.length > 5 ? " …" : ""))}` : ""}
         {target?.emptyCells ? ` · ${text.emptyCells(target.emptyCells.join(", ").toUpperCase())}` : ""}

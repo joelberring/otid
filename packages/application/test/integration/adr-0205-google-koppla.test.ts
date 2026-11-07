@@ -5,7 +5,7 @@ import { authenticateUserAccountSession, loginUserAccount, logoutAllUserAccountS
   from "../../src/user-account";
 import { signInWithGoogle } from "../../src/google-login";
 import {
-  linkGoogleToAccount, moveGoogleLinkByCommand, moveGoogleLinkToAccount, parseGoogleMovePending, readGoogleMove, serializeGoogleMovePending,
+  deleteAccountConfirmedWithGoogle, GOOGLE_DELETE_MAX_AGE_MS, linkGoogleToAccount, moveGoogleLinkByCommand, moveGoogleLinkToAccount, parseGoogleMovePending, readGoogleMove, serializeGoogleMovePending,
   unlinkGoogleFromAccount, GOOGLE_MOVE_RECENT_LOGIN_MS, type GoogleMovePending
 } from "../../src/google-link";
 import { readAccountProfile, changeAccountPassword } from "../../src/account-self-service";
@@ -14,6 +14,7 @@ import { completePasswordReset, requestPasswordReset } from "../../src/password-
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { grantRacePersonAsAdmin } from "../../src/race-people";
 import { registerTestAccount, TEST_PASSWORD } from "./accounts";
+import { createTrainingGroup } from "../../src/training-groups";
 import { startFakeGoogle, type FakeGoogle } from "./fake-google";
 
 /**
@@ -323,5 +324,45 @@ describe("ADR-0205 tillägg: Kom ihåg mig och Logga ut från alla enheter", () 
     expect(await logoutAllUserAccountSessions(db, proof)).toEqual({ status: "logged-out", sessions: 2 });
     expect((await authenticateUserAccountSession(db, { sessionToken: phone.sessionToken })).status).toBe("unauthorized");
     expect((await authenticateUserAccountSession(db, { sessionToken: changed.sessionToken })).status).toBe("unauthorized");
+  }, 60_000);
+});
+
+describe("ändrat 2026-11-07: Ta bort kontot med en ny inloggning hos Google (kontot har inget eget lösenord)", () => {
+  it("tas bort bara för samma session, samma Google-konto och en inloggning hos Google nyss; ensam ledare vägras först", async () => {
+    const id = sub(), google = gmail();
+    const account = await googleLogin({ sub: id, email: google, email_verified: true });
+    const accountId = account.response.accountId;
+    const proof = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
+    const boundSessionId = sessionIdOf(account.sessionToken);
+    const now = new Date();
+    const seconds = (date: Date) => Math.floor(date.getTime() / 1000);
+    const confirm = async (claims: Record<string, unknown>, bound = boundSessionId, at = now) => deleteAccountConfirmedWithGoogle(db,
+      { proof, boundSessionId: bound, identity: await provider.identity({ sub: id, email: google, email_verified: true, ...claims }) }, at);
+    // En annan inloggning än den som började, ett annat Google-konto, en gammal eller saknad inloggning hos Google: inget händer.
+    expect(await confirm({ auth_time: seconds(now) }, randomUUID())).toEqual({ status: "session-mismatch" });
+    expect(await confirm({ sub: sub(), auth_time: seconds(now) })).toEqual({ status: "other-google" });
+    expect(await confirm({})).toEqual({ status: "stale-login" });
+    expect(await confirm({ auth_time: seconds(new Date(now.getTime() - GOOGLE_DELETE_MAX_AGE_MS - 60_000)) })).toEqual({ status: "stale-login" });
+    expect(["stale-login", "unauthorized"]).toContain((await confirm({ auth_time: seconds(now) }, boundSessionId,
+      new Date(now.getTime() + GOOGLE_DELETE_MAX_AGE_MS + 60_000))).status);
+    // K3: ensam ledare i en grupp får lämna över först.
+    const group = await createTrainingGroup(db, { ...proof, request: { formatVersion: 1, requestId: randomUUID(), name: "Googlegruppen",
+      code: `google-${randomUUID().slice(0, 8)}` } }, now);
+    if (group.status !== "created") throw new Error(group.status);
+    expect(await confirm({ auth_time: seconds(now) })).toMatchObject({ status: "sole-owner", soleOwnerOf: [{ kind: "TRAINING_GROUP", name: "Googlegruppen" }] });
+    expect(await accountExists(accountId)).toBe(true);
+    await pool.query("delete from training_group_member where group_id = $1", [group.group.groupId]);
+    expect(await confirm({ auth_time: seconds(now) })).toEqual({ status: "deleted" });
+    expect(await accountExists(accountId)).toBe(false);
+  }, 60_000);
+
+  it("ett konto med eget lösenord bekräftar med lösenordet, inte med Google", async () => {
+    const joel = await registerTestAccount(db);
+    const id = sub(), google = gmail();
+    expect((await linkAs(joel, { sub: id, email: google, email_verified: true })).status).toBe("linked");
+    const result = await deleteAccountConfirmedWithGoogle(db, { proof: joel.proof, boundSessionId: sessionIdOf(joel.proof.sessionToken),
+      identity: await provider.identity({ sub: id, email: google, email_verified: true, auth_time: Math.floor(Date.now() / 1000) }) });
+    expect(result).toEqual({ status: "has-password" });
+    expect(await accountExists(joel.accountId)).toBe(true);
   }, 60_000);
 });

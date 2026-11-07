@@ -103,3 +103,11 @@ kontots visningsnamn, och mejlet hälsar med namnet från den registreringen. Be
 databasen och står kvar. Utloggningen (`/api/organizer/logout`) kräver exakt Origin och sessionskakan men inte CSRF-kakan, så att
 sessionen alltid spärras på servern; "Du är utloggad" visas först när servern svarat (annars ett fel). "Från alla enheter" kräver
 CSRF som förut.
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`, ägarens beslut "dubbelinloggning med Google verkar ok om det beskrivs
+tydligt"): ett konto som bara loggar in med Google (inget känt lösenord, en Google-koppling) tar bort sig självt under Mitt konto
+med en ny inloggning hos Google i stället för lösenordet. `POST /api/account/google/delete` börjar en inloggning med
+`prompt=login` och `max_age=0`, bunden till sessionen och syftet `delete` i den kortlivade kakan (som läget `link`). Efter
+återkomsten (`steg=2` från O-Tids egen sida) prövas att det är samma session, att `sub` är kontots koppling och att `auth_time` är
+högst fem minuter gammal (`deleteAccountConfirmedWithGoogle`); sedan samma regler som med lösenordet, också att den som ensam
+äger en klubb eller leder en grupp lämnar över först. Ett konto med eget lösenord bekräftar som förut med lösenordet.

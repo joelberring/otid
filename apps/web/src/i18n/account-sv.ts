@@ -85,6 +85,19 @@ export const accountSv = {
     soleOwnerClub: (name: string) => `Klubben ${name} – du är enda ägaren`,
     soleOwnerGroup: (name: string) => `Träningsgruppen ${name} – du är enda ledaren`,
     deleted: "Kontot är borttaget.",
+    /** Ändrat 2026-11-07 (ADR-0205): ett konto som bara loggar in med Google bekräftar borttagningen med en ny Google-inloggning. */
+    deleteWithGoogle: "Du loggar in med Google och har inget eget lösenord. Bekräfta genom att logga in med Google en gång till – sedan tas kontot bort direkt.",
+    deleteWithGoogleButton: "Logga in med Google och ta bort kontot",
+    deleteGoing: "Går till Google …",
+    deleteDone: {
+      "annat-konto": "Kontot är inte borttaget: du loggade in med ett annat Google-konto än det som är kopplat hit.",
+      "for-gammal": "Kontot är inte borttaget: Google bekräftade inte en ny inloggning. Försök igen och logga in hos Google när du blir ombedd.",
+      "ensam-agare": "Kontot är inte borttaget: lämna över ägarskapet först (se ovan).",
+      losenord: "Kontot har ett eget lösenord. Bekräfta borttagningen med lösenordet.",
+      sessionen: "Borttagningen gällde en annan inloggning. Försök igen härifrån.",
+      avbruten: "Inloggningen hos Google avbröts. Kontot är inte borttaget.",
+      fel: "Borttagningen med Google misslyckades. Kontot är inte borttaget. Försök igen."
+    } as Record<string, string>,
     /** ADR-0205 tillägg: Koppla Google-konto. Kontots adress ändras inte; Googles visas bara som kopplingen. */
     google: "Inloggning med Google",
     googleHelp: "Koppla ditt Google-konto, också om det har en annan e-postadress än kontot. Sedan kan du logga in med Google. Kontots e-postadress ändras inte.",

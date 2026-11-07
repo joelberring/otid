@@ -5,7 +5,7 @@ import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import type { GoogleIdentity } from "./google-oidc";
 import { accountHasKnownPassword } from "./google-login";
-import { deleteAccountWithOwnedEvents } from "./account-self-service";
+import { deleteAccountWithOwnedEvents, soleOwnerships } from "./account-self-service";
 import { throttleSecret } from "./account-throttle";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin";
 import {
@@ -299,4 +299,47 @@ export async function moveGoogleLinkByCommand(db: Database, input: { source: str
     return { status: "moved", googleEmail, sourceEmail: source.email, targetEmail: target.email,
       replacedTargetLink: !!previous, sourceDeleted, sourceUsage: { rows: usage.rows, tables: usage.tables } } as const;
   });
+}
+
+/** Hur färsk inloggningen hos Google ska vara när den bekräftar "Ta bort kontot" (ADR-0205, ändrat 2026-11-07). */
+export const GOOGLE_DELETE_MAX_AGE_MS = 5 * 60 * 1000;
+
+export type GoogleDeleteResult =
+  | Failure
+  /**
+   * `session-mismatch`: en annan inloggning än den som började; `other-google`: ett annat Google-konto än kontots koppling;
+   * `stale-login`: Google säger inte att personen loggade in nyss; `has-password`: kontot har ett eget lösenord (bekräfta med det).
+   */
+  | { status: "session-mismatch" | "other-google" | "stale-login" | "has-password" | "deleted" }
+  | { status: "sole-owner"; soleOwnerOf: Awaited<ReturnType<typeof soleOwnerships>> };
+
+/**
+ * "Ta bort kontot" för ett konto som bara loggar in med Google (inget eget lösenord): återkomsten från en ny inloggning hos Google
+ * (`prompt=login`, `max_age=0`) bekräftar borttagningen i stället för lösenordet. Gäller bara sessionen som började den
+ * (`boundSessionId` ur kakan), samma Google-konto som kontots koppling (`sub`) och en inloggning hos Google högst fem minuter
+ * gammal (`auth_time`). Sedan samma regler som med lösenordet: den som ensam äger en klubb eller leder en grupp får lämna över först.
+ */
+export async function deleteAccountConfirmedWithGoogle(db: Database, input: { proof: UserAccountSessionProof; boundSessionId: string;
+  identity: GoogleIdentity }, now = new Date()): Promise<GoogleDeleteResult> {
+  return db.transaction(async tx => {
+    const auth = await authenticateUserAccountSessionForMutation(tx, { ...input.proof, requireCsrf: false }, now);
+    if (auth.status !== "authenticated") return auth;
+    if (auth.principal.sessionId !== input.boundSessionId) return { status: "session-mismatch" } as const;
+    const accountId = auth.principal.accountId;
+    const [link] = await tx.select({ sub: schema.userAccountGoogleIdentities.googleSub }).from(schema.userAccountGoogleIdentities)
+      .where(eq(schema.userAccountGoogleIdentities.accountId, accountId));
+    if (!link || !SUB.test(input.identity.sub) || !sameText(link.sub, input.identity.sub)) return { status: "other-google" } as const;
+    const at = input.identity.authTime;
+    if (at === undefined || now.getTime() - at > GOOGLE_DELETE_MAX_AGE_MS || at - now.getTime() > 60_000) return { status: "stale-login" } as const;
+    if (await accountHasKnownPassword(tx, accountId)) return { status: "has-password" } as const;
+    const soleOwnerOf = await soleOwnerships(tx, accountId, true);
+    if (soleOwnerOf.length > 0) return { status: "sole-owner", soleOwnerOf } as const;
+    await deleteAccountWithOwnedEvents(tx, accountId, now);
+    return { status: "deleted" } as const;
+  });
+}
+
+function sameText(expected: string, actual: string): boolean {
+  const a = Buffer.from(expected), b = Buffer.from(actual);
+  return a.length === b.length && timingSafeEqual(a, b);
 }

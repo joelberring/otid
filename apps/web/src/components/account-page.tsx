@@ -32,6 +32,7 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
   const [passwordMessage, setPasswordMessage] = useState<Message>();
   const [deleteMessage, setDeleteMessage] = useState<Message>();
   const [deleted, setDeleted] = useState(false);
+  const [googleOutcome, setGoogleOutcome] = useState<string>();
 
   async function load() {
     try {
@@ -43,7 +44,18 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
       setDisplayName(parsed.data.displayName);
     } catch (error) { setLoadError(error instanceof Error ? error.message : accountSv.networkError); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    // Ändrat 2026-11-07 (ADR-0205): beskedet efter "Ta bort kontot" med Google (`/konto?radera=…`), som sedan tas bort ur adressen.
+    const url = new URL(window.location.href);
+    const outcome = url.searchParams.get("radera");
+    if (outcome !== null) {
+      url.searchParams.delete("radera");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+      if (outcome === "borttaget") { setDeleted(true); return; }
+      setGoogleOutcome(outcome);
+    }
+    void load();
+  }, []);
 
   async function run(action: () => Promise<Message>, set: (message: Message) => void) {
     setBusy(true);
@@ -93,6 +105,17 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
       return { tone: "ok", text: text.deleted };
     }, setDeleteMessage);
   }
+
+  function deleteWithGoogle() {
+    void run(async () => {
+      const response = await accountRequest("/api/account/google/delete", { method: "POST", csrf: true, body: { formatVersion: 1 } });
+      const location = (response.json as { location?: unknown } | undefined)?.location;
+      if (response.status === 200 && typeof location === "string") { window.location.assign(location); return { tone: "ok", text: text.deleteGoing }; }
+      return failure(response.status);
+    }, setDeleteMessage);
+  }
+  const googleOnly = googleEnabled && profile?.hasPassword === false && Boolean(profile.google);
+  const googleMessage: Message = googleOutcome ? { tone: "error", text: text.deleteDone[googleOutcome] ?? text.deleteDone.fel! } : undefined;
 
   const soleOwnerOf = profile?.soleOwnerOf ?? [];
   const notice = (message: Message) => message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>;
@@ -150,14 +173,19 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
               {item.kind === "CLUB" ? text.soleOwnerClub(item.name) : text.soleOwnerGroup(item.name)}</Link></li>)}</ul>
           <span className={styles.muted}>{text.deleteHandOverAlone}</span>
         </Notice>}
-        <form className={styles.form} onSubmit={deleteAccount}>
+        {googleOnly ? <div className={styles.form} data-testid="account-delete-google">
+          <p>{text.deleteWithGoogle}</p>
+          <Button type="button" className={styles.danger} disabled={busy || soleOwnerOf.length > 0} aria-busy={busy}
+            onClick={deleteWithGoogle}>{text.deleteWithGoogleButton}</Button>
+          {notice(deleteMessage ?? googleMessage)}
+        </div> : <form className={styles.form} onSubmit={deleteAccount}>
           <Field label={text.deletePassword}>
             <input type="password" autoComplete="current-password" value={deletePassword} required disabled={busy}
               onChange={event => setDeletePassword(event.target.value)} />
           </Field>
           <Button type="submit" className={styles.danger} disabled={busy || !deletePassword || soleOwnerOf.length > 0}>{text.deleteButton}</Button>
-          {notice(deleteMessage)}
-        </form>
+          {notice(deleteMessage ?? googleMessage)}
+        </form>}
       </Section>
     </>}
   </main>;

@@ -104,6 +104,7 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   "account/google/callback": { GET: { allow: "PUBLIC", untested: NO_GOOGLE } },
   "account/google/start": { GET: { allow: "PUBLIC", untested: NO_GOOGLE } },
   "account/google/link": { POST: { allow: LOGGED_IN, untested: NO_GOOGLE } },
+  "account/google/delete": { POST: { allow: LOGGED_IN, untested: NO_GOOGLE } },
   "account/google/unlink": { POST: { allow: LOGGED_IN, untested: NO_GOOGLE } },
   "account/google/move": { GET: { allow: LOGGED_IN, untested: NO_GOOGLE }, POST: { allow: LOGGED_IN, untested: NO_GOOGLE },
     DELETE: { allow: LOGGED_IN, untested: NO_GOOGLE } },

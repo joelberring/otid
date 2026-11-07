@@ -38,7 +38,11 @@ export interface GoogleLoginState {
    * ADR-0205 tillägg: "login" (förval) loggar in; "link" kopplar Google-kontot till det inloggade kontot under Mitt konto.
    * Kopplingen är bunden till sessionen som började den (`sessionId`), så att återkomsten bara gäller samma inloggning.
    */
-  mode?: "login" | "link";
+  mode?: "login" | "link" | "delete";
+  /**
+   * Sessionen som började kopplingen eller borttagningen. Ändrat 2026-11-07 (ADR-0205): "delete" är "Ta bort kontot" för ett
+   * konto som bara loggar in med Google; Google frågar då efter inloggningen igen (`prompt=login`, `max_age=0`).
+   */
   sessionId?: string;
   /** "Kom ihåg mig på den här datorn" vid inloggningen (lång session); annars en kort session och en sessionskaka. */
   remember?: boolean;
@@ -51,10 +55,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const random = () => randomBytes(32).toString("base64url");
 
+const bound = (mode: GoogleLoginState["mode"]): mode is "link" | "delete" => mode === "link" || mode === "delete";
+
 export function newGoogleLoginState(now = new Date(), options: Pick<GoogleLoginState, "mode" | "sessionId" | "remember"> = {}): GoogleLoginState {
-  if (options.mode === "link" && !(options.sessionId && UUID.test(options.sessionId))) throw new Error("Kopplingen kräver sessionens id");
+  if (bound(options.mode) && !(options.sessionId && UUID.test(options.sessionId))) throw new Error("Kopplingen kräver sessionens id");
   return { state: random(), nonce: random(), codeVerifier: random(), createdAt: now.getTime(),
-    ...(options.mode === "link" ? { mode: "link" as const, sessionId: options.sessionId } : {}),
+    ...(bound(options.mode) ? { mode: options.mode, sessionId: options.sessionId } : {}),
     ...(options.remember ? { remember: true } : {}) };
 }
 
@@ -74,15 +80,16 @@ export function googleAuthorizationUrl(config: GoogleOidcConfig, login: GoogleLo
     nonce: login.nonce,
     code_challenge: pkceChallenge(login.codeVerifier),
     code_challenge_method: "S256",
-    prompt: "select_account"
+    // Borttagningen kräver en ny inloggning hos Google (inte en sparad), som `auth_time` sedan visar.
+    ...(login.mode === "delete" ? { prompt: "login", max_age: "0" } : { prompt: "select_account" })
   }).toString();
   return url.href;
 }
 
 /** Kakans värde: base64url av JSON (bara tecken som får stå i en kaka). */
 export function serializeGoogleLoginState(login: GoogleLoginState): string {
-  return Buffer.from(JSON.stringify([login.state, login.nonce, login.codeVerifier, login.createdAt, login.mode === "link" ? "link" : "login",
-    login.mode === "link" ? login.sessionId : "", login.remember ? 1 : 0])).toString("base64url");
+  return Buffer.from(JSON.stringify([login.state, login.nonce, login.codeVerifier, login.createdAt, bound(login.mode) ? login.mode : "login",
+    bound(login.mode) ? login.sessionId : "", login.remember ? 1 : 0])).toString("base64url");
 }
 
 /** Kakans värde tillbaka, eller undefined om det är trasigt eller äldre än tio minuter. */
@@ -94,11 +101,11 @@ export function parseGoogleLoginState(value: string | null | undefined, now = ne
   const [state, nonce, codeVerifier, createdAt, mode, sessionId, remember] = parsed as unknown[];
   if (typeof state !== "string" || typeof nonce !== "string" || typeof codeVerifier !== "string" || typeof createdAt !== "number") return undefined;
   if (![state, nonce, codeVerifier].every(part => RANDOM.test(part))) return undefined;
-  if ((mode !== "login" && mode !== "link") || typeof sessionId !== "string" || (remember !== 0 && remember !== 1)) return undefined;
-  if (mode === "link" ? !UUID.test(sessionId) : sessionId !== "") return undefined;
+  if ((mode !== "login" && mode !== "link" && mode !== "delete") || typeof sessionId !== "string" || (remember !== 0 && remember !== 1)) return undefined;
+  if (bound(mode) ? !UUID.test(sessionId) : sessionId !== "") return undefined;
   const age = now.getTime() - createdAt;
   if (!Number.isFinite(age) || age < -60_000 || age > GOOGLE_LOGIN_STATE_LIFETIME_MS) return undefined;
-  return { state, nonce, codeVerifier, createdAt, ...(mode === "link" ? { mode, sessionId } : {}), ...(remember === 1 ? { remember: true } : {}) };
+  return { state, nonce, codeVerifier, createdAt, ...(bound(mode) ? { mode, sessionId } : {}), ...(remember === 1 ? { remember: true } : {}) };
 }
 
 /** Jämför `state` från Google med kakans i konstant tid. */
@@ -115,6 +122,8 @@ export interface GoogleIdentity {
   email: string;
   emailVerified: boolean;
   name?: string;
+  /** När personen senast loggade in hos Google (`auth_time`, ms), när Google anger det. */
+  authTime?: number;
 }
 
 export class GoogleOidcError extends Error {
@@ -176,8 +185,9 @@ export async function exchangeGoogleCode(config: GoogleOidcConfig, input: { code
 
 /** Personen ur ID-tokens påståenden (redan kontrollerade). `email_verified` måste vara sant för att adressen ska godtas. */
 export function googleIdentityFromClaims(claims: Record<string, unknown>): GoogleIdentity {
-  const { sub, email, email_verified: verified, name } = claims;
+  const { sub, email, email_verified: verified, name, auth_time: authTime } = claims;
   if (typeof sub !== "string" || typeof email !== "string") throw new GoogleOidcError("id-token");
   return { sub, email, emailVerified: verified === true || verified === "true",
-    ...(typeof name === "string" && name.trim() ? { name: name.trim() } : {}) };
+    ...(typeof name === "string" && name.trim() ? { name: name.trim() } : {}),
+    ...(typeof authTime === "number" && Number.isFinite(authTime) ? { authTime: authTime * 1000 } : {}) };
 }

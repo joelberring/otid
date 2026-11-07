@@ -12,10 +12,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ### 2026-11-07 – Småfel och två ägarbeslut (grenen d-smafixar, migration 0088, ingen ny ADR)
 - Återställningen ger ingen annan konto behörighet: adresserna i kopian får vanliga inbjudningar, svaret bara antalet (ADR-0187).
-- Migration 0088: `race_person_invitation.actor_account_id` och `invitation_link.issued_by` utan nyckel; inbjudan och länken överlever avsändarens borttagning (ADR-0188/0206). Drizzle `racePersonInvitations` (schema/planning.ts, C3) har kvar `.references` – ta bort den där.
+- Migration 0088: `race_person_invitation.actor_account_id` och `invitation_link.issued_by` utan nyckel; inbjudan och länken överlever avsändarens borttagning (ADR-0188/0206). Drizzle utan `.references` som migrationen.
 - Kartritarlänkens "Åtgärdat" skriver inte över kontots stängning (ADR-0214). Klubb, grupp, konto, superadmin och Eventor-kopplingen prövar inloggning/behörighet före kroppen (401 i stället för 400/422).
 - Livesidan hämtar igen direkt efter en väckning under pågående hämtning. CSS `:global(.site-footer)` och `button:global(.secondary)`.
-- Layout och Kartfel hämtar kartfilen med sha256 och lagret (`cachedMapFile`); Utskriften (course-setting-print-page.tsx, C3) behöver skicka sha256 till `usePrintMap`.
+- Utskrift, Layout och Kartfel hämtar kartfilen med sha256 och webbläsarens lager (`cachedMapFile`, som banläggningen).
 - E2E väntar på kartans `data-drawn`. Bortvalda varianter i kontrollerna, ringarnas gap och IOF-längden (ADR-0198). `scripts/` typkontrolleras och lintas.
 - Ägarbeslut: klubbarkivets bilder och kartkontroller sparas av medlemmar som ser dem (ADR-0194/0196/0210); ett konto som bara loggar in med Google tas bort efter en ny Google-inloggning (`prompt=login`, `auth_time` ≤ 5 min, ADR-0205).
 

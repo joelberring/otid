@@ -14,6 +14,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.
 - Tester: `print-scale-default.test.ts` (ny bana, banfil, rundtripp med fixturen och med en annan skala); A3:s rundtripptest förväntar nu ingen skala efter återinläsning.
 
+### 2026-11-07 – Kom igång i klubbytan (grenen b1-kom-igang, ändringsmening i ADR-0209, ingen migration)
+- "Kom igång" överst i klubbytan för ägare och administratörer: koppla till Eventor med klubbens API-nyckel, bjud in fler ledare/admin, kartor eller import, Vem ser vad (förval). Försvinner vid koppling + minst en karta; "Dölj" i localStorage per klubbyta. En ny klubbyta säger "Nästa steg: koppla klubbytan till Eventor".
+- "Be klubbens Eventor-administratör koppla" (i kortet och i kopplingsrutan): text att kopiera eller öppna i e-post utan mottagare; ingen nyckel i texten.
+- Var nyckeln finns: Eventor → Klubb → Klubbinställningar (Eventors guide: Club → Club settings) i kopplingsrutan, hjälpen och tävlingens Eventor-ruta (`EVENTOR_KEY_PLACE`). Ny hjälpartikel "Kom igång med klubbytan".
+- Verifierat: enhetstester (`lib/club-start.test.ts`), `klubbtillhorighet.spec.ts` (kortet för ägaren, inte för medlemmen, dialogen, Dölj).
+
 ### 2026-11-07 – Bortvalda varianter påverkar inte banläggningen, en regel för banans längd (grenen a6-bortvalda, ADR-0198 tillägg 12)
 - B5: "sträcka/kontroll i förbjudet område" och nivåstödet räknar bara kontroller och sträckor i varianter som används (`activeParts`, `activeControlOrders`).
 - Banans längd: `courseLength` (fast längd först, annars längsta kvarvarande variant, eller den valda varianten) i banlistan, beskrivningen, utskriftens rubrik, `$(CourseLength)`, `{längd}` och överföringen. Rubriken, makrot och `{längd}` räknade förut med bortvalda.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { ClubArchiveList, ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
@@ -12,7 +12,8 @@ import { ClubImportPanel } from "./club-import-panel";
 import { ClubMapsPanel } from "./club-maps-panel";
 import { ClubMembersPanel } from "./club-members-panel";
 import { useArchiveChecks } from "./use-archive-checks";
-import { ClubSpacePanel } from "../club-affiliation/club-space-panel";
+import { ClubSpacePanel, type ClubSpaceFocus } from "../club-affiliation/club-space-panel";
+import { ClubStartCard, type ClubStartTarget } from "./club-start-card";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
@@ -39,6 +40,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
   const [club, setClub] = useState<ClubView>();
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState<Tab>("trainings");
+  const [focus, setFocus] = useState<ClubSpaceFocus>();
+  const tabs = useRef<HTMLDivElement>(null);
   useEffect(() => { setTab(initialTab()); }, []);
 
   const load = useCallback(async () => {
@@ -53,6 +56,16 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
   const choose = (next: Tab) => {
     setTab(next);
     try { window.history.replaceState(null, "", `#${next}`); } catch { /* adressen är bara en bekvämlighet */ }
+  };
+  /** Kom igång: en flik, eller en ruta under Klubben (kopplingen eller Vem ser vad), som rullas fram när den är hämtad. */
+  const go = (target: ClubStartTarget) => {
+    if (target === "eventor" || target === "access") {
+      choose("club");
+      setFocus(current => ({ target, seq: (current?.seq ?? 0) + 1 }));
+      return;
+    }
+    choose(target);
+    tabs.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
   const admin = club ? club.viewer.role === "OWNER" || club.viewer.role === "ADMIN" : false;
   // ADR-0196: kartornas kontroll och bilderna ritas i bakgrunden när en administratör har arkivet öppet.
@@ -79,9 +92,10 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
         <AccountMenu />
       </div>
     </header>
-    <div className={styles.tabs} role="tablist" aria-label={text.title}>
+    <ClubStartCard club={club} clubName={list.clubName} onGo={go} />
+    <div ref={tabs} className={styles.tabs} role="tablist" aria-label={text.title}>
       {TABS.filter(name => admin || name !== "club").map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}
-        onClick={() => choose(name)}>{text.tabs[name]}</button>)}
+        onClick={() => { setFocus(undefined); choose(name); }}>{text.tabs[name]}</button>)}
     </div>
     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
       {tab === "trainings" && (list.viewer.access.archive ? <ArchiveList clubId={clubId} list={list} admin={admin} />
@@ -89,7 +103,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       {tab === "maps" && (list.viewer.access.archive ? <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} mapBank={list.viewer.access.mapBank}
         onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationSv.space.archiveClosed}</Notice>)}
       {tab === "members" && <ClubMembersPanel club={club} onChanged={load} />}
-      {tab === "club" && admin && <ClubSpacePanel clubId={clubId} />}
+      {tab === "club" && admin && <ClubSpacePanel clubId={clubId} clubName={list.clubName} focus={focus} onInvite={() => choose("members")}
+        onChanged={load} />}
       {tab === "import" && <ClubImportPanel club={club} onChanged={load} />}
     </div>
   </main>;

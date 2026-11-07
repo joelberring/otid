@@ -1,3 +1,4 @@
+import { EVENTOR_KEY_PLACE } from "./club-affiliation-sv";
 import type { EventorConnectionOutcome, RunnerDatabaseRefreshOutcome, SyncField, SyncNote, SyncRow } from "@o-tid/contracts";
 
 /** ADR-0170 beslut 4: Eventor och banfiler, med skillnader som godkänns. */
@@ -8,7 +9,7 @@ export const sourcesSv = {
     serverMissing: "Eventor är inte påslaget på den här servern. Den som driver O-Tid behöver slå på det (se drift-instruktionen).",
     serverInvalid: "Eventor är felinställt på den här servern. Den som driver O-Tid behöver rätta det (se drift-instruktionen).",
     keyLabel: "Klubbens API-nyckel",
-    keyHelp: "Finns i Eventor under klubbens administration. Nyckeln sparas krypterad och visas aldrig igen.",
+    keyHelp: `Finns i Eventor under ${EVENTOR_KEY_PLACE} (bara klubbens administratörer i Eventor kommer åt den). Nyckeln sparas krypterad och visas aldrig igen.`,
     saveKey: "Spara nyckel",
     keySaved: "Nyckel sparad",
     keyUnreadable: "Den sparade nyckeln kan inte läsas eftersom serverns masternyckel har bytts. Spara klubbens nyckel igen.",

@@ -55,7 +55,11 @@ export function LayoutList({ document, entries, readOnly, save, sheetCount, onCr
   </section>;
 }
 
-function PageFields({ page, onChange }: { page: PrintPage; onChange: (page: PrintPage) => void }) {
+function PageFields({ page: saved, onChange: save }: { page: PrintPage; onChange: (page: PrintPage) => void }) {
+  // Det senaste valet gäller direkt (ett nytt val innan det förra sparats bygger på det, inte på det sparade).
+  const [page, setPage] = useState(saved);
+  useEffect(() => setPage(saved), [saved]);
+  const onChange = (next: PrintPage) => { setPage(next); save(next); };
   const name = paperNameOf(page);
   return <>
     <label className={styles.field}>{text.layouts.paper}

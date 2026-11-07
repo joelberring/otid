@@ -50,7 +50,7 @@ export const layoutSv = {
     onePerSheet: "En bana per ark",
     remove: "Ta bort layouten",
     removeConfirm: (name: string) => `Ta bort layouten ”${name}”? Klasserna som har den får huvudlayouten.`,
-    main: "Huvudlayout (skrivs till .ppen)",
+    main: "banornas skala och papper, skrivs till .ppen",
     sheets: (count: number) => `${count} ark`
   },
   sheet: {

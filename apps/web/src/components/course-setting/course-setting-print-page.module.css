@@ -5,7 +5,7 @@
 .controls p { margin: 0; }
 .back { color: var(--muted); font-size: var(--text-sm); }
 /* Tillbaka till vänster, Hjälp till höger. */
-.topLine { display: flex; align-items: center; justify-content: space-between; gap: 8px; justify-self: stretch; }
+.topLine { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; justify-self: stretch; }
 .muted { color: var(--muted); }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .check { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }

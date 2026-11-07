@@ -11,10 +11,12 @@ import { addCourseAndClass, addEntry, browserErrors, createRace, registerAccount
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 const shots = process.env.E2E_SCREENSHOT_DIR;
 
-async function shot(page: Page, name: string) {
+async function shot(page: Page, name: string, testId: string) {
   if (!shots) return;
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
+    await page.getByTestId(testId).first().scrollIntoViewIfNeeded();
+    await page.evaluate(id => document.querySelector(`[data-testid="${id}"]`)?.scrollIntoView({ block: "start" }), testId);
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${shots}/layout-${name}-${width}.png`, fullPage: width === 390 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${name} i ${width} px`).toBeLessThanOrEqual(0);
@@ -44,7 +46,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
   await warmRoute(owner, `${admin}/map-bundles`);
   await owner.goto(`/admin/${raceId}/course-setting`);
-  await owner.waitForLoadState("networkidle");
+  await expect(owner.getByLabel(/^Kartfil \(/)).toBeAttached({ timeout: 120_000 });
   await owner.getByLabel(/^Kartfil \(/).setInputFiles(fixture("maps/kartfil.omap"));
   await owner.getByRole("button", { name: "Ladda upp kartfil (OCAD eller Mapper)" }).click();
   await expect(owner.getByRole("heading", { name: "Ingen banläggning än" })).toBeVisible({ timeout: 60_000 });
@@ -101,9 +103,11 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await expect(cell("Lång", elite!)).toContainText("H21");
   await expect(cell("Lång", elite!)).toContainText("A3 liggande");
   await expect(owner.locator(`[data-testid=layout-add-sheet][data-course="${ids.Lång}"][data-layout="${old}"]`)).toBeVisible();
-  await shot(owner, "overblick");
+  await shot(owner, "overblick", "layout-overview");
 
   // 5. Eget utsnitt på arket Lång i Elit A3.
+  const mainArea = async () => JSON.stringify(((await doc()) as unknown as { courses: { id: string; printArea?: unknown }[] }).courses.find(course => course.id === ids.Lång)?.printArea);
+  const mainBefore = await mainArea();
   await cell("Lång", elite!).click();
   const sheet = owner.getByTestId("layout-sheet");
   await expect(sheet).toHaveAttribute("data-layout", elite!);
@@ -112,7 +116,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await expect.poll(async () => (await doc()).event.layoutSheets?.[elite!]?.[ids.Lång!]?.printArea?.automatic).toBe(false);
   await expect(cell("Lång", elite!)).toHaveAttribute("data-status", "OWN_AREA");
   // Huvudlayoutens ark (banans tryckyta) är orört.
-  expect(((await doc()) as unknown as { courses: { id: string; printArea?: unknown }[] }).courses.find(course => course.id === ids.Lång)?.printArea).toBeUndefined();
+  expect(await mainArea()).toBe(mainBefore);
 
   // 6. Justerat nummer i 1:7 500 (Mellan i Äldre A4): dra numret på arket.
   await cell("Mellan", old!).click();
@@ -120,6 +124,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await expect(sheet.getByTestId("layout-sheet-view").first()).toHaveAttribute("data-scale", "7500");
   await expect(sheet.getByTestId("layout-adjust-count")).toHaveText("Inga justeringar: allt följer banläggningen.");
   const number = sheet.getByTestId("layout-number").first();
+  await number.scrollIntoViewIfNeeded();
   const box = (await number.boundingBox())!;
   await owner.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await owner.mouse.down();
@@ -128,7 +133,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await expect.poll(async () => Object.keys((await doc()).event.layoutSheets?.[old!]?.[ids.Mellan!]?.numbers ?? {}).length).toBe(1);
   await expect(sheet.getByTestId("layout-adjust-count")).toHaveText("1 justering i layouten");
   await expect(cell("Mellan", old!)).toContainText("1 justering");
-  await shot(owner, "ark");
+  await shot(owner, "ark", "layout-sheet");
 
   // 7. Spara läge, ändra en klass, jämför och återställ (och ångra).
   const states = owner.getByTestId("layout-states");
@@ -144,7 +149,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await saved.getByTestId("layout-state-restore").click();
   await expect.poll(async () => (await doc()).event.classLayouts).toEqual({ H70: old, H21: elite });
   await expect(classes.locator("[data-testid=layout-class-row][data-class=H70]")).toHaveAttribute("data-layout", old!);
-  await shot(owner, "klasser");
+  await shot(owner, "klasser", "layout-classes");
   errors.check("layoutfliken");
 
   // 8. Utskrift: provark (ett av varje ark) med layoutens skala och papper per ark, och PDF:en.
@@ -155,7 +160,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await expect(sheets).toHaveCount(4, { timeout: 60_000 });
   const scales = await sheets.evaluateAll(list => list.map(item => item.getAttribute("data-scale")));
   expect(scales.slice(2).sort()).toEqual(["15000", "7500"]);
-  await shot(owner, "utskrift");
+  await shot(owner, "utskrift", "print-output");
   const panel = owner.getByTestId("print-pdf");
   await panel.getByTestId("print-pdf-office").click();
   const job = panel.locator("[data-testid=print-job][data-kind=OFFICE]").first();

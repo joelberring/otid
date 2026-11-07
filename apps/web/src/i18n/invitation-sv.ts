@@ -1,17 +1,19 @@
-import type { InvitationKind, InvitationMailOutcome, InvitationRole } from "@o-tid/contracts";
+import type { ClubRole, GroupMemberRole, InvitationKind, InvitationMailOutcome, InvitationRole, RaceInvitationRole } from "@o-tid/contracts";
 import { plural } from "./plural";
 
 /** ADR-0206: inbjudningar med e-post – mejlet, länksidan, listornas "Skicka igen"/"Kopiera länken" och flera adresser på en gång. */
 
 /** Rollen i ord, i mejlet och på länksidan. */
-export const invitationRoleWords: Record<InvitationKind, Partial<Record<InvitationRole, string>>> = {
+export const invitationRoleWords: { CLUB: Record<ClubRole, string>; RACE: Record<RaceInvitationRole, string>;
+  GROUP: Record<GroupMemberRole, string> } = {
   CLUB: { OWNER: "ägare", ADMIN: "administratör", LEADER: "ledare", READER: "medlem" },
   RACE: { ADMIN: "administratör", FUNCTIONARY: "funktionär", COURSE_EDIT: "banläggare – kan ändra",
     COURSE_SUGGEST: "banläggare – kan föreslå ändringar", COURSE_COMMENT: "banläggare – kan läsa och kommentera",
     COURSE_MAP: "kartritare – ser kartan och kartfelen" },
   GROUP: { LEADER: "ledare", MEMBER: "medlem" }
 };
-export const invitationRoleWord = (kind: InvitationKind, role: InvitationRole) => invitationRoleWords[kind][role] ?? role.toLowerCase();
+export const invitationRoleWord = (kind: InvitationKind, role: InvitationRole) =>
+  (invitationRoleWords[kind] as Partial<Record<InvitationRole, string>>)[role] ?? role.toLowerCase();
 
 const longDate = (isoDate: string) => new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
   .format(new Date(`${isoDate}T12:00:00Z`));

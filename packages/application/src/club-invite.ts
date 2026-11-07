@@ -24,11 +24,6 @@ import { addGroupMember, requireGroupLeader } from "./training-groups";
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" };
 type Kind = "RACE_PERSON" | "CLUB" | "TRAINING_GROUP";
 const KIND: Record<ClubInviteContext["kind"], Kind> = { RACE: "RACE_PERSON", CLUB: "CLUB", TRAINING_GROUP: "TRAINING_GROUP" };
-const ROLES: Record<ClubInviteContext["kind"], readonly string[]> = {
-  RACE: ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"],
-  CLUB: ["OWNER", "ADMIN", "LEADER", "READER"],
-  TRAINING_GROUP: ["LEADER", "MEMBER"]
-};
 
 /** Kontrollerar att den inloggade får bjuda in i sammanhanget. */
 async function inviter(tx: DbExecutor & Parameters<Parameters<Database["transaction"]>[0]>[0], proof: ClubProof, context: ClubInviteContext, now: Date)
@@ -117,7 +112,8 @@ function personRequestId(requestId: string, ref: string): string {
 export async function inviteFromClub(db: Database, input: ClubProof & { request: unknown }, now = new Date(), mailer?: InvitationMailer)
   : Promise<Failure | { status: "ok"; response: ClubInviteFromClubResponse }> {
   const parsed = clubInviteFromClubRequestSchema.safeParse(input.request);
-  if (!parsed.success || !ROLES[parsed.data.context.kind].includes(parsed.data.role)) return { status: "invalid-request" };
+  // Rollen hör till sammanhanget (kontraktet, `invitationRoleFits`).
+  if (!parsed.success) return { status: "invalid-request" };
   const { context, role, requestId } = parsed.data;
   const chosen = await db.transaction(async tx => {
     const actor = await inviter(tx, input, context, now);

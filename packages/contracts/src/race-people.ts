@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema, storedAccountEmailSchema } from "./account";
 import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
-import { invitationMailOutcomeSchema } from "./invitations";
+import { invitationMailOutcomeSchema, raceInvitationRoleSchema } from "./invitations";
 
 /**
  * Personer med behörighet på tävlingen (ADR-0172 beslut 3): ägaren, administratörer och funktionärer.
@@ -17,7 +17,7 @@ const instantSchema = z.iso.datetime({ offset: true });
  */
 export const racePersonRoleSchema = z.enum(["OWNER", "ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"]);
 /** Roller som kan läggas till. Ägaren finns från början och kan inte läggas till eller tas bort här. */
-export const racePersonGrantableRoleSchema = z.enum(["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"]);
+export const racePersonGrantableRoleSchema = raceInvitationRoleSchema;
 
 /** ADR-0209: tom adress = personen kom "Från klubben"; den som bjöd in ser bara namnet. */
 const shownEmailSchema = storedAccountEmailSchema.or(z.literal(""));

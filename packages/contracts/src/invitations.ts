@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema, passwordResetTokenSchema } from "./account";
+import { clubRoleSchema } from "./club-archive";
+import { groupMemberRoleSchema } from "./training-group";
 
 /**
  * ADR-0206: inbjudningar med e-post. En sparad inbjudan (klubb, tävling eller träningsgrupp, ADR-0188 beslut 6) får en länk
@@ -11,8 +13,14 @@ export const INVITATION_LINK_LIFETIME_DAYS = 14;
 export const INVITATION_BULK_MAX = 100;
 
 export const invitationKindSchema = z.enum(["CLUB", "RACE", "GROUP"]);
-export const invitationRoleSchema = z.enum(["OWNER", "ADMIN", "READER", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT",
-  "COURSE_MAP", "LEADER", "MEMBER"]);
+/** Tävlingens roller som går att bjuda in till (administratör, funktionär, banläggning, kartritare). */
+export const raceInvitationRoleSchema = z.enum(["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"]);
+/** Rollerna per slag av inbjudan: klubbens (lagrat READER heter Medlem i UI), tävlingens och träningsgruppens. */
+const invitationRoleSchemas = { CLUB: clubRoleSchema, RACE: raceInvitationRoleSchema, GROUP: groupMemberRoleSchema } as const;
+/** Någon av rollerna, oavsett slag (trådformatet är ett `role`-fält); `invitationRoleFits` säger om den hör till slaget. */
+export const invitationRoleSchema = z.union([clubRoleSchema, raceInvitationRoleSchema, groupMemberRoleSchema]);
+export const invitationRoleFits = (kind: z.infer<typeof invitationKindSchema>, role: string): boolean =>
+  invitationRoleSchemas[kind].safeParse(role).success;
 /**
  * Vad som hände med mejlet när inbjudan sparades eller skickades igen: skickat, gick inte att skicka, spärrat (för många) eller
  * ingen e-post på servern.
@@ -45,13 +53,14 @@ export const invitationLinkViewSchema = z.discriminatedUnion("status", [
     /** Sidan personen hamnar på efter inloggningen (en sökväg i O-Tid). */
     next: z.string().regex(/^\/[A-Za-z0-9/_-]{1,200}$/),
     expiresAt: instantSchema
-  }).strict(),
+  }).strict().refine(view => invitationRoleFits(view.kind, view.role), { path: ["role"], message: "Rollen hör inte till inbjudans slag" }),
   /** Okänd, ersatt, gammal eller återkallad länk: samma svar. */
   z.object({ formatVersion: z.literal(1), status: z.literal("invalid") }).strict()
 ]);
 
 export type InvitationKind = z.infer<typeof invitationKindSchema>;
 export type InvitationRole = z.infer<typeof invitationRoleSchema>;
+export type RaceInvitationRole = z.infer<typeof raceInvitationRoleSchema>;
 export type InvitationMailOutcome = z.infer<typeof invitationMailOutcomeSchema>;
 export type InvitationResendResponse = z.infer<typeof invitationResendResponseSchema>;
 export type InvitationLinkView = z.infer<typeof invitationLinkViewSchema>;

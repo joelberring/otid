@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { uuidSchema } from "./ids";
+import { invitationRoleFits, invitationRoleSchema } from "./invitations";
 
 /**
  * ADR-0209: klubbtillhörighet. Klubblistan (Eventors organisationer), Mina klubbar på kontot, klubbarkivets koppling och
@@ -105,8 +106,10 @@ export const clubInviteFromClubRequestSchema = z.object({
   requestId: uuidSchema,
   context: clubInviteContextSchema,
   refs: z.array(uuidSchema).min(1).max(CLUB_INVITE_MAX),
-  role: z.enum(["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP", "OWNER", "READER", "LEADER", "MEMBER"])
-}).strict();
+  /** En roll som hör till sammanhanget (`invitationRoleFits`, TRAINING_GROUP = GROUP). */
+  role: invitationRoleSchema
+}).strict().refine(request => invitationRoleFits(request.context.kind === "TRAINING_GROUP" ? "GROUP" : request.context.kind, request.role),
+  { path: ["role"], message: "Rollen hör inte till sammanhanget" });
 export interface ClubInviteFromClubResponse { formatVersion: 1; invited: number; already: number; failed: number }
 
 // --- Tävlingen och klubbarkivet ---------------------------------------------------------------------------------------------------

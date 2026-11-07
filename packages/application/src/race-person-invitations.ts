@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { schema } from "@o-tid/database";
+import type { RaceInvitationRole } from "@o-tid/contracts";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -9,7 +10,6 @@ import type { DbExecutor } from "./snapshot";
  * bekräftad e-post (ADR-0186) loggar in, bekräftar adressen, öppnar Mina tävlingar eller tävlingen. Ett spärrat konto får
  * inget. Två samtidiga anrop tar inbjudan bara en gång (raden markeras först, med villkoret att den är öppen).
  */
-export type InvitationRole = "ADMIN" | "FUNCTIONARY" | "COURSE_EDIT" | "COURSE_SUGGEST" | "COURSE_COMMENT" | "COURSE_MAP";
 const COURSE_LEVELS = { COURSE_EDIT: "EDIT", COURSE_SUGGEST: "SUGGEST", COURSE_COMMENT: "COMMENT", COURSE_MAP: "MAP" } as const;
 type CourseRole = keyof typeof COURSE_LEVELS;
 const isCourseRole = (role: string): role is CourseRole => role in COURSE_LEVELS;
@@ -24,7 +24,7 @@ export async function openRacePersonInvitations(tx: DbExecutor, raceId: string) 
 }
 
 /** Har kontot redan en gällande behörighet på eventet eller i banläggningen som täcker rollen? */
-async function covered(tx: DbExecutor, input: { accountId: string; eventId: string; raceId: string; role: InvitationRole }): Promise<string | undefined> {
+async function covered(tx: DbExecutor, input: { accountId: string; eventId: string; raceId: string; role: RaceInvitationRole }): Promise<string | undefined> {
   const grants = await tx.select({ id: schema.eventAdministrationGrants.id, role: schema.eventAdministrationGrants.role })
     .from(schema.eventAdministrationGrants)
     .leftJoin(schema.eventAdministrationGrantRevocations, eq(schema.eventAdministrationGrantRevocations.grantId, schema.eventAdministrationGrants.id))
@@ -59,7 +59,7 @@ export async function acceptRacePersonInvitations(tx: DbExecutor, accountId: str
     const [invitation] = await tx.update(invitations).set({ acceptedAt: now, acceptedAccountId: accountId })
       .where(and(eq(invitations.id, id), open)).returning();
     if (!invitation) continue;
-    const role = invitation.role as InvitationRole;
+    const role = invitation.role as RaceInvitationRole;
     const existing = await covered(tx, { accountId, eventId: invitation.eventId, raceId: invitation.raceId, role });
     let grantId = existing;
     if (!existing && isCourseRole(role)) {
@@ -92,7 +92,7 @@ export async function acceptRacePersonInvitations(tx: DbExecutor, accountId: str
 
 /** Behörigheten gäller tävlingen (administratör, funktionär) eller bara banläggningen. */
 export type InvitationKind = "EVENT" | "COURSE";
-export const invitationKind = (role: InvitationRole): InvitationKind => isCourseRole(role) ? "COURSE" : "EVENT";
+export const invitationKind = (role: RaceInvitationRole): InvitationKind => isCourseRole(role) ? "COURSE" : "EVENT";
 
 /** Finns det en öppen inbjudan av samma slag till adressen på tävlingen? (Samma adress läggs inte till två gånger.) */
 export async function hasOpenInvitation(tx: DbExecutor, raceId: string, email: string, kind: InvitationKind): Promise<boolean> {

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, customType, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { races } from "./core";
+import { bytea } from "./types";
 
 /**
  * Fest med bardisk (migration 0016, PLAN.md steg 40). Köpen står på brickorna (stämplingar på varornas koder) och räknas
@@ -106,8 +107,6 @@ export const partyPresenceVoids = pgTable("party_presence_void", {
   index("party_presence_void_race_idx").on(table.raceId, table.cardNumber),
   check("party_presence_void_kind_check", sql`${table.kind} IN ('CHECK_IN', 'CHECK_OUT')`)
 ]);
-
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 /** Festens logga (PNG eller JPEG, högst 1 MB), som kartbilderna. */
 export const partyLogos = pgTable("party_logo", {

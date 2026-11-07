@@ -7,7 +7,8 @@ import {
   organizerAccountRegistrationRequestSchema,
   type OrganizerAccountLoginRequest,
   type OrganizerAccountLoginResponse,
-  SHA256_HEX_PATTERN
+  SHA256_HEX_PATTERN,
+  SHORT_SESSION_LIFETIME_MS
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { schema } from "@o-tid/database";
@@ -23,11 +24,8 @@ const DUMMY_SALT = Buffer.alloc(16);
 const DUMMY_HASH = Buffer.alloc(32);
 // ADR-0168: en inloggning ska räcka en hel tävlingshelg ("Kom ihåg mig på den här datorn").
 export const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
-/**
- * ADR-0205 tillägg: utan "Kom ihåg mig" gäller inloggningen tolv timmar (en tävlingsdag) och kakan är en sessionskaka som
- * webbläsaren glömmer när den stängs, för klubbens och tävlingens lånade datorer.
- */
-export const SHORT_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000;
+/** ADR-0205 tillägg: den korta sessionen (tolv timmar), samma värde som kakans gräns i webben. */
+export { SHORT_SESSION_LIFETIME_MS };
 /**
  * Inloggningsspärren: 5 fel för en e-postadress inom 15 minuter spärrar adressen i 15 minuter (tidsbegränsat, aldrig för
  * alltid). Steg 46: dessutom spärras en klientadress (IP) i 15 minuter efter 30 fel inom 15 minuter, oavsett e-postadress,

@@ -12,6 +12,12 @@ import { raceNameSchema } from "./race-name";
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
 const instant = z.iso.datetime({ offset: true });
 
+/**
+ * ADR-0205 tillägg: utan "Kom ihåg mig" gäller inloggningen tolv timmar (en tävlingsdag) och kakan är en sessionskaka som
+ * webbläsaren glömmer när den stängs, för klubbens och tävlingens lånade datorer.
+ */
+export const SHORT_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000;
+
 /** Inloggning med e-post och lösenord (ADR-0172 beslut 1). */
 export const organizerAccountLoginRequestSchema = z.object({
   formatVersion: z.literal(1),

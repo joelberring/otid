@@ -1,6 +1,7 @@
-import { boolean, customType, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { MapFingerprint } from "@o-tid/domain";
 import { userAccounts } from "./accounts";
+import { bytea } from "./types";
 
 /**
  * ADR-0194 (migration 0059–0061): klubben och klubbarkivet. Kartversionernas filer ligger i `map_content` (ADR-0189);
@@ -10,8 +11,6 @@ export type ClubRole = "OWNER" | "ADMIN" | "LEADER" | "READER";
 export type ClubMapFormat = "OCD" | "OMAP";
 export type ClubCourseFileKind = "PPEN" | "COURSE_DATA";
 export type ClubMapResolution = "FOLDER" | "NAME" | "MANUAL" | "MISSING" | "NONE";
-
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 export const clubs = pgTable("club", {
   id: uuid("id").primaryKey(),

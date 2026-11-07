@@ -71,11 +71,17 @@ async function partShots(page: Page, part: Locator, name: string): Promise<void>
   await page.setViewportSize({ width: 1280, height: 720 });
 }
 
-async function chooseBlForest(owner: Page, raceId: string): Promise<void> {
+async function chooseBlForest(owner: Page, raceId: string, advanced = true): Promise<void> {
   await owner.goto(`/admin/${raceId}/course-setting/print`);
   await expect(owner.getByTestId("print-sheet").first()).toHaveAttribute("data-map", "ready", { timeout: 120_000 });
-  await owner.getByTestId("print-profile-select").selectOption({ label: "BL skog" });
+  // ADR-0215: läget "Tryck hos BL" visar bara de tveksamma färgerna; BL:s hela lista står under Avancerat.
+  await owner.getByTestId("print-colors-mode-bl").check();
+  await expect(owner.getByTestId("bl-doubtful")).toBeVisible({ timeout: 30_000 });
+  await expect(owner.getByTestId("print-profile-status")).toContainText("Färger: tryck hos BL (skog)");
+  if (!advanced) return;
+  await owner.getByTestId("print-colors-edit").click();
   await expect(owner.getByTestId("bl-proposal")).toBeVisible({ timeout: 30_000 });
+  await expect(owner.getByTestId("bl-doubtful")).toHaveCount(0);
 }
 
 test("utskrift-bl: BL skog, förslaget godkänns visuellt och PDF:en får BL:s violett", async ({ browser }) => {
@@ -86,7 +92,14 @@ test("utskrift-bl: BL skog, förslaget godkänns visuellt och PDF:en får BL:s v
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `/admin/${raceId}/course-setting/print`);
   await uploadFiles(owner, raceId, fixture("maps/kartfil.omap"), fixture("course-setting/kartfil.ppen"));
-  await chooseBlForest(owner, raceId);
+  await chooseBlForest(owner, raceId, false);
+  // Bara de tveksamma: blått att bekräfta och grönt tvetydigt; de tre säkra godtas med en knapp.
+  const doubtful = owner.getByTestId("bl-doubtful");
+  await expect(doubtful.getByTestId("bl-row")).toHaveCount(2);
+  await expect(doubtful.locator("[data-testid=bl-row][data-confidence=SAFE]")).toHaveCount(0);
+  await expect(doubtful.getByTestId("bl-accept-safe")).toHaveText("Godta alla säkra (3)");
+  await expect(owner.getByTestId("print-profile-status")).toHaveText("Färger: tryck hos BL (skog), 5 färger kvar att godkänna");
+  await owner.getByTestId("print-colors-edit").click();
 
   const proposal = owner.getByTestId("bl-proposal");
   const rows = proposal.getByTestId("bl-row");

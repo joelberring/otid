@@ -1,12 +1,11 @@
 "use client";
 
-import { partsForChooser, type CourseSettingDocument, type CourseSettingEdit } from "@o-tid/course-setting";
+import { COURSE_PRINT_SCALES, partsForChooser, type CourseSettingDocument, type CourseSettingEdit } from "@o-tid/course-setting";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
-const SCALES = [15000, 10000, 7500, 5000, 4000];
 const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
 
 /**
@@ -26,7 +25,7 @@ export function PrintPanel({ document, view, readOnly, onEdits, onPreview, part,
   const partOwnArea = part !== undefined ? document.courses.find(item => item.id === view)?.partPrintAreas?.[String(part)] : undefined;
   const course = document.courses.find(item => item.id === view);
   const scale = view === ALL_CONTROLS ? document.event.allControlsPrintScale ?? document.event.mapScale : course?.printScale ?? document.event.mapScale;
-  const scales = [...new Set([document.event.mapScale, ...SCALES, scale])].sort((a, b) => b - a);
+  const scales = [...new Set([document.event.mapScale, ...COURSE_PRINT_SCALES, scale])].sort((a, b) => b - a);
   const setScale = (value: number) => onEdits([{ type: "SET_EVENT", changes: { allControlsPrintScale: value } }]);
   return <section className={styles.panel} aria-labelledby="course-setting-print" data-testid="course-setting-print">
     <h2 id="course-setting-print">{text.print.heading}: {course?.name ?? text.print.allControls}</h2>

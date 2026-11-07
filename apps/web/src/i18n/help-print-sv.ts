@@ -57,7 +57,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
       "Skalan hör till banan: ”Skala för banan” under fliken ”Banor” i banans egenskaper. Välj den tidigt, för ringarnas storlek och numren följer den. Fliken ”Utskrift” visar den och har ”Ändra i banans egenskaper”.",
       "Fliken ”Utskrift” i banläggningen har ”Förhandsvisning och utskrift”, som öppnar utskriftssidan. Där står, uppifrån:",
       [
-        "”Färger för tryck”: färgprofilen på en rad med ”Redigera färger”. Se [Färger för tryck](#bl-farger).",
+        "”Färger för tryck”: en rad om färgerna med ”Visa”, och ”Kartans egna färger” eller ”Tryck hos BL”. Se [Färger för tryck](#bl-farger).",
         "”Skriv ut”: välj ”Banor” eller ”En karta per löpare (i samma ordning som Kartor till starten)”, och vilka banor.",
         "”Skriv ut på skrivare”: ett snabbt utkast på din egen skrivare; färgerna är inte tryckkvalitet.",
         "”Skapa PDF för tryckeriet”, bredvid: PDF:en med dekorfärger och övertryck.",
@@ -176,7 +176,15 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     views: ["CS_PRINT_PAGE", "CS_PRINT"],
     body: [
       "Under ”Färger för tryck” på utskriftssidan bestäms hur kartans och banans färger trycks. Kartfilen ändras aldrig.",
-      "Raden överst visar ”Färgprofil” och om den är ”Godkänd”. ”Redigera färger” öppnar hela flödet; det är öppet tills profilen är godkänd. ”Ny profil” gör en egen kopia.",
+      "Raden överst säger vilka färger som gäller. ”Visa” visar normen, banans färg och vilka av kartans färger som ligger över och under banan.",
+      [
+        "”Kartans egna färger” är förvalt: kartfilens färger i normens färgordning. Inget att ställa in.",
+        "”Tryck hos BL”: BL:s färgtabell ger CMYK. Bara de tveksamma färgerna visas.",
+        "Tveksam: ingen säker rad i tabellen, eller osäkert om färgen ligger över eller under banan.",
+        "”Godta alla säkra” godkänner resten på en gång.",
+        "Har tävlingen egna inställningar står det Egna inställningar på raden; de gäller tills du väljer ett av lägena."
+      ],
+      "Under ”Avancerat” finns allt annat: ”Färgprofil”, ”Ny profil” (en egen kopia) och:",
       [
         "”Banans färg”: CMYK, ”Dekorfärg” och ”Övertryck”.",
         "”Lägg banan i normens färgordning”: ringar och linjer under svart och 100 %-färger, över asfalt, byggnadsytor och raster.",
@@ -186,7 +194,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”Norm”: skog (ISOM) eller sprint (ISSprOM), förvalt ur kartan.",
         "I skog ligger numren under kurvor, svart och blått som i normen, så att de ser lite genomsiktliga ut.",
         "”Kontrollnummer och texter överst” lägger dem över kartans färger. I sprint ligger de alltid överst.",
-        "Med BL skog eller BL sprint får varje färg ett kort: ”Säker”, ”Bekräfta” eller ”Tvetydig”.",
+        "Med BL skog eller BL sprint står BL:s hela lista: varje färg får ett kort med ”Säker”, ”Bekräfta” eller ”Tvetydig”.",
         "”Godta”, ”Behåll filens” eller ”Välj BL-rad …”. ”Godta alla säkra” tar alla säkra på en gång.",
         "”Justera färger för hand”: samma värden per färg i en tabell. En ändring där syns på kortet som ”Ändrad för hand”.",
         "”Mer”: ladda ned eller läs in profilen som JSON och tabellens källa."

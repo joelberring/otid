@@ -142,8 +142,9 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await shot(owner, "05-utskrift-panel", owner.getByTestId("paper-descriptions"));
 
   // 3. BL-förslaget: Godta syns som nedtryckt "✓ Godtagen" med ett besked vid raden, sparas (omladdning) och kan ångras.
-  await owner.getByTestId("print-profile-select").selectOption({ label: "BL skog" });
-  const proposal = owner.getByTestId("bl-proposal");
+  // ADR-0215: "Tryck hos BL" visar bara de tveksamma färgerna (blått att bekräfta är en av dem).
+  await owner.getByTestId("print-colors-mode-bl").check();
+  const proposal = owner.getByTestId("bl-doubtful");
   await expect(proposal).toBeVisible({ timeout: 30_000 });
   const blue = proposal.locator("[data-testid=bl-row][data-confidence=CONFIRM]").first();
   const color = await blue.getAttribute("data-color");
@@ -158,17 +159,17 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await expect(blue.getByTestId("bl-flash")).toContainText("Det valet gäller redan");
   await shot(owner, "06-bl-godtagen", blue);
   await owner.reload();
-  const again = owner.getByTestId("bl-proposal").locator(`[data-testid=bl-row][data-color="${color}"]`);
+  const again = owner.getByTestId("bl-doubtful").locator(`[data-testid=bl-row][data-color="${color}"]`);
   await expect(again).toHaveAttribute("data-status", "ACCEPTED", { timeout: 60_000 });
   await expect(again.getByTestId("bl-accept")).toHaveAttribute("aria-pressed", "true");
   await again.getByTestId("bl-undo").click();
   await expect(again).toHaveAttribute("data-status", "PENDING", { timeout: 30_000 });
   await expect(again.getByTestId("bl-accept")).toHaveAttribute("aria-pressed", "false");
   await owner.reload();
-  await expect(owner.getByTestId("bl-proposal").locator(`[data-testid=bl-row][data-color="${color}"]`)).toHaveAttribute("data-status", "PENDING",
+  await expect(owner.getByTestId("bl-doubtful").locator(`[data-testid=bl-row][data-color="${color}"]`)).toHaveAttribute("data-status", "PENDING",
     { timeout: 60_000 });
-  // Tillbaka till "som i filen" så att kepsens ark nedan har vanliga färger.
-  await owner.getByTestId("print-profile-select").selectOption({ index: 0 });
+  // Tillbaka till kartans egna färger så att kepsens ark nedan har vanliga färger.
+  await owner.getByTestId("print-colors-mode-map").check();
 
   // 4. Keps på Lång (A och B): förklaringen står under banan, aldrig över mål, kontroller, nummer eller sträckor.
   await owner.goto(`/admin/${raceId}/course-setting`);

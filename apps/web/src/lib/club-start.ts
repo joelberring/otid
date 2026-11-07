@@ -23,7 +23,7 @@ const isAdmin = (role: ClubView["viewer"]["role"]) => role === "OWNER" || role =
 export function clubStartStatus(club: ClubView): ClubStartStatus {
   const eventor = club.eventorClub !== null;
   // Fler som kan leda klubbytan: någon annan än den inloggade som ledare, administratör eller ägare (med eller inbjuden).
-  const people = club.members.some(member => member.accountId !== club.viewer.accountId && member.role !== "READER")
+  const people = club.members.some(member => !member.you && member.role !== "READER")
     || club.invitations.some(invitation => invitation.role !== "READER");
   const maps = club.usage.maps > 0;
   const done: Record<ClubStartStep, boolean> = { eventor, people, maps, access: true };

@@ -10,7 +10,7 @@ const me = "00000000-0000-4000-8000-000000000001";
 function club(change: Partial<ClubView> = {}): ClubView {
   return {
     formatVersion: 1, clubId: "00000000-0000-4000-8000-0000000000c1", name: "Klubben", viewer: { accountId: me, role: "OWNER" }, eventorClub: null,
-    members: [{ memberId: "m1", accountId: me, email: "agare@exempel.se", displayName: "Ägaren", role: "OWNER", addedAt: "2026-11-07T10:00:00Z" }],
+    members: [{ memberId: "m1", you: true, email: "agare@exempel.se", displayName: "Ägaren", role: "OWNER", addedAt: "2026-11-07T10:00:00Z" }],
     invitations: [], usage: { mapBytes: 0, courseFileBytes: 0, maps: 0, versions: 0, entries: 0, courseFiles: 0 }, tokens: [],
     quota: { accountLimitBytes: null, accountUsedBytes: 0 }, ...change
   };
@@ -43,8 +43,13 @@ describe("Kom igång i klubbytan", () => {
     expect(showClubStart(club({ usage: usage(3) }), false)).toBe(true);
   });
 
+  it("den inloggade ägaren ensam räknas inte som fler ledare (raden med `you`)", () => {
+    expect(clubStartStatus(club()).done.people).toBe(false);
+    expect(clubStartStatus(club({ members: [{ ...club().members[0]!, you: false }] })).done.people).toBe(true);
+  });
+
   it("fler ledare: en annan ledare eller administratör, eller en inbjudan som sådan; medlemmar räknas inte", () => {
-    const other = { memberId: "m2", accountId: "00000000-0000-4000-8000-000000000002", email: "", displayName: "Annan", addedAt: "2026-11-07T10:00:00Z" };
+    const other = { memberId: "m2", you: false, email: "", displayName: "Annan", addedAt: "2026-11-07T10:00:00Z" };
     expect(clubStartStatus(club({ members: [...club().members, { ...other, role: "READER" }] })).done.people).toBe(false);
     expect(clubStartStatus(club({ members: [...club().members, { ...other, role: "LEADER" }] })).done.people).toBe(true);
     const invitation = { invitationId: "i1", email: "ny@exempel.se", createdAt: "2026-11-07T10:00:00Z", sentAt: null };

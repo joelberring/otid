@@ -51,9 +51,10 @@ export function parseGoogleMoveArguments(args: readonly string[]): { source: str
 
 /** Beskedet efter `google move`: bara antal och adresser. */
 export function googleMoveReport(result: GoogleMoveCommandResult, deleteSourceIfEmpty: boolean): string {
-  if (result.status === "source-not-found") throw new Error("Ingen Google-koppling hittades för källadressen (Googles adress eller kontots).");
-  if (result.status === "target-not-found") throw new Error("Det finns inget konto med måladressen.");
-  if (result.status === "same-account") throw new Error("Google-kontot är redan kopplat till målkontot.");
+  if (result.status !== "moved") {
+    throw new Error(result.status === "source-not-found" ? "Ingen Google-koppling hittades för källadressen (Googles adress eller kontots)."
+      : result.status === "target-not-found" ? "Det finns inget konto med måladressen." : "Google-kontot är redan kopplat till målkontot.");
+  }
   const google = result.googleEmail ? ` (${result.googleEmail})` : "";
   const lines = [`Klart: Google-kontot${google} är flyttat från ${result.sourceEmail} till ${result.targetEmail}.` +
     (result.replacedTargetLink ? " Målkontots tidigare Google-koppling ersattes." : "")];

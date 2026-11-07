@@ -46,7 +46,7 @@ export const raceBackupSv = {
     radio: "Radiokontrollerna är avstängda tills du slår på dem under Inställningar.",
     unpublished: "Den nya tävlingen är opublicerad och får en egen kort adress. Publicera den när du har kontrollerat den.",
     peopleTitle: "Personer med behörighet",
-    peopleLink: "Ge dem samma behörighet här (de med konto på den här servern)",
+    peopleLink: "Bjud in dem med samma roller (de får ett mejl och behörigheten när de loggar in med adressen)",
     peopleSkip: "Bara jag får behörighet",
     peopleNone: "Kopian har inga andra personer med behörighet.",
     roles: { ADMIN: "administratör", FUNCTIONARY: "funktionär", COURSE_EDIT: "banläggning", COURSE_SUGGEST: "banläggning (föreslå)",
@@ -58,7 +58,8 @@ export const raceBackupSv = {
     cancel: "Avbryt",
     close: "Stäng",
     restored: "Tävlingen är återställd.",
-    missing: (emails: readonly string[]) => `Saknar konto här och fick ingen behörighet: ${emails.join(", ")}.`,
+    invited: (count: number) => `${plural(count, "inbjudan", "inbjudningar")} har skapats. Behörigheten gäller när personen loggar in ` +
+      "med adressen. Du ser inbjudningarna under Personer med behörighet.",
     openRace: "Öppna tävlingen",
     opening: "Öppnar …",
     problems: {

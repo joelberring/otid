@@ -75,9 +75,15 @@ export async function acceptRacePersonInvitations(tx: DbExecutor, accountId: str
         .returning({ id: schema.eventAdministrationGrants.id });
       if (!grant) throw new Error("Behörigheten kunde inte sparas");
       grantId = grant.id;
-      await tx.insert(schema.eventAdministrationAccessRequests).values({ requestId: invitation.requestId,
-        action: role === "ADMIN" ? "GRANT_ADMIN" : "GRANT_FUNCTIONARY", actorAccountId: invitation.actorAccountId,
-        eventId: invitation.eventId, targetAccountId: accountId, grantId: grant.id, reason: null, createdAt: now });
+      // Den som bjöd in kan ha tagits bort (ingen främmande nyckel sedan migration 0088); journalraden har kvar sin nyckel
+      // till kontot och skrivs då inte. Journalen i audit_event nedan har avsändarens id som förut.
+      const [actor] = await tx.select({ id: schema.userAccounts.id }).from(schema.userAccounts)
+        .where(eq(schema.userAccounts.id, invitation.actorAccountId));
+      if (actor) {
+        await tx.insert(schema.eventAdministrationAccessRequests).values({ requestId: invitation.requestId,
+          action: role === "ADMIN" ? "GRANT_ADMIN" : "GRANT_FUNCTIONARY", actorAccountId: invitation.actorAccountId,
+          eventId: invitation.eventId, targetAccountId: accountId, grantId: grant.id, reason: null, createdAt: now });
+      }
       await tx.insert(schema.auditEvents).values({ raceId: invitation.raceId, entityType: "event_administration_grant", entityId: grant.id,
         action: role === "ADMIN" ? "EVENT_ADMIN_GRANTED" : "EVENT_FUNCTIONARY_GRANTED", actorKind: "USER_ACCOUNT",
         actorId: invitation.actorAccountId, requestId: invitation.requestId,

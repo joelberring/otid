@@ -136,7 +136,10 @@ export type RaceBackupPreview = z.infer<typeof raceBackupPreviewSchema>;
 
 export const raceRestoreOptionsSchema = z.object({
   requestId: uuidSchema,
-  /** "link": behörigheterna kopplas till konton med samma e-post på den här servern; "skip": bara du får behörighet. */
+  /**
+   * "link": adresserna i kopian får vanliga inbjudningar med sina roller (gäller när någon loggar in med adressen); "skip": bara
+   * du får behörighet. Inget annat konto får behörighet direkt (ADR-0187, ändrat 2026-11-07).
+   */
   people: z.enum(["link", "skip"])
 }).strict();
 export type RaceRestoreOptions = z.infer<typeof raceRestoreOptionsSchema>;
@@ -148,9 +151,8 @@ export const raceRestoreResponseSchema = z.object({
   eventId: uuidSchema,
   raceId: uuidSchema,
   counts: raceBackupCountsSchema,
-  /** Personer som fick sin behörighet igen och de som saknar konto här. */
-  linkedPeople: count,
-  missingPeople: z.array(z.string()).max(10_000),
+  /** Antal inbjudningar som skapades till adresserna i kopian. Säger inget om vilka adresser som har konto här. */
+  invitations: count,
   createdAt: z.iso.datetime({ offset: true })
 }).strict();
 export type RaceRestoreResponse = z.infer<typeof raceRestoreResponseSchema>;

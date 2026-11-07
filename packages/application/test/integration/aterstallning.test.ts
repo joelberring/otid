@@ -20,6 +20,8 @@ import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { createRelayClassAsAdmin, registerRelayTeamAsAdmin } from "../../src/relay-admin";
 import { publicRelayResults } from "../../src/relay-results";
 import { purgeRows } from "../../src/purge";
+import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
+import type { InvitationMail } from "../../src/invitation-links";
 import { accountOnRace, registerTestAccount } from "./accounts";
 import { ingest, NOW, RACE_DATE, run, seedRace } from "./steg-25-fixtures";
 
@@ -110,7 +112,8 @@ describe("ADR-0187: säkerhetskopia och återställning", () => {
     if (restored.status !== "restored") throw new Error(JSON.stringify(restored));
     const copy = restored.response.raceId;
     expect(copy).not.toBe(ids.race);
-    expect(restored.response).toMatchObject({ linkedPeople: 2, missingPeople: [gone.email] });
+    // Ändrat 2026-11-07: tre inbjudningar (också till den spärrade), ingen koppling till kontona.
+    expect(restored.response).toMatchObject({ invitations: 3 });
 
     // Nya id genomgående, opublicerad och egen kort adress; Eventor utan nyckel och radion avstängd.
     const ids0 = await pool.query<{ id: string }>(`select id from entry where race_id = $1 union all select id from card_readout where race_id = $1
@@ -149,10 +152,13 @@ describe("ADR-0187: säkerhetskopia och återställning", () => {
     const official0 = await readResultsOfficialAsAdmin(db, admin, LATER);
     expect(official1.status === "ok" && withoutIds(official1.response.official)).toBe(official0.status === "ok" && withoutIds(official0.response.official));
 
-    // Personerna: ägare är den som återställde, funktionären har kontot här, den spärrade fick ingen behörighet.
-    const people = await pool.query<{ account_id: string; role: string }>(`select account_id, role from event_administration_grant g
-      join race r on r.event_id = g.event_id where r.id = $1 order by role`, [copy]);
-    expect(people.rows).toEqual([{ account_id: restorer.accountId, role: "OWNER" }, { account_id: admin.accountId, role: "ADMIN" },
+    // Personerna: ägare är den som återställde och ingen annan har behörighet förrän den loggar in med adressen; den spärrade
+    // får ingen behörighet då heller.
+    const grantsOf = async () => (await pool.query<{ account_id: string; role: string }>(`select account_id, role from event_administration_grant g
+      join race r on r.event_id = g.event_id where r.id = $1 order by role`, [copy])).rows;
+    expect(await grantsOf()).toEqual([{ account_id: restorer.accountId, role: "OWNER" }]);
+    for (const person of [admin, functionary, gone]) await db.transaction(tx => acceptRacePersonInvitations(tx, person.accountId, LATER));
+    expect(await grantsOf()).toEqual([{ account_id: restorer.accountId, role: "OWNER" }, { account_id: admin.accountId, role: "ADMIN" },
       { account_id: functionary.accountId, role: "FUNCTIONARY" }]);
     expect((await pool.query("select action from audit_event where race_id = $1 and action = 'RACE_RESTORED_FROM_BACKUP'", [copy])).rowCount).toBe(1);
 
@@ -407,6 +413,54 @@ describe("ADR-0187: säkerhetskopia och återställning", () => {
     // Samma svar för en adress med och utan konto, utom adressen själv och filens kontrollsumma och storlek.
     const comparable = (preview: typeof known) => ({ ...preview, people: preview.people.map(person => ({ ...person, email: "" })), sha256: "", bytes: 0 });
     expect(comparable(known)).toEqual(comparable(unknown));
+  }, 30_000);
+
+  it("ändrat 2026-11-07: återställningen med inbjudningar svarar likadant för en adress med och utan konto och ger ingen behörighet direkt", async () => {
+    const { admin } = await racePrepared();
+    const exported = await exportRaceAsAdmin(db, admin, LATER);
+    if (exported.status !== "ok") throw new Error(exported.status);
+    const zip = new ZipReader(exported.bytes, { maxEntries: 100, maxEntryBytes: () => 10_000_000, maxTotalBytes: 50_000_000, name: /./ });
+    const entries = [...zip.entries.keys()].map(name => ({ name, data: zip.extract(name)! }));
+    const manifest = JSON.parse(new TextDecoder().decode(entries.find(entry => entry.name === "manifest.json")!.data)) as Record<string, unknown>;
+    const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
+    const crafted = (email: string) => {
+      const people = json([{ ref: randomUUID(), email, eventRole: "ADMIN", courseSettingLevel: "EDIT" },
+        { ref: randomUUID(), email: `annan-${randomUUID()}@exempel.se`, eventRole: "FUNCTIONARY", courseSettingLevel: "MAP" }]);
+      return writeZip(entries.map(entry => entry.name === "personer.json" ? { name: entry.name, data: people }
+        : entry.name === "manifest.json" ? { name: entry.name, data: json({ ...manifest, people: { sha256: sha256Hex(people), bytes: people.byteLength } }) }
+          : entry));
+    };
+    const victim = await registerTestAccount(db, undefined, NOW);
+    const prober = await registerTestAccount(db, undefined, NOW);
+    const mails: InvitationMail[] = [];
+    const restore = async (email: string) => {
+      const restored = await restoreRaceBackup(db, { ...prober.proof, bytes: crafted(email),
+        options: { requestId: randomUUID(), people: "link" } }, LATER, async mail => { mails.push(mail); });
+      if (restored.status !== "restored") throw new Error(JSON.stringify(restored));
+      return restored.response;
+    };
+    const known = await restore(victim.email);
+    const unknown = await restore(`ingen-${randomUUID()}@exempel.se`);
+    // Samma svar utom id och begäran: bara antalet inbjudningar (administratören en, funktionären två).
+    const comparable = (response: typeof known) => ({ ...response, requestId: "", eventId: "", raceId: "" });
+    expect(comparable(known)).toEqual(comparable(unknown));
+    expect(known.invitations).toBe(3);
+    expect(Object.keys(known)).not.toEqual(expect.arrayContaining(["linkedPeople"]));
+    // Ingen behörighet direkt: bara den som återställde, och ingen banläggningsbehörighet alls.
+    for (const response of [known, unknown]) {
+      expect((await pool.query("select account_id, role from event_administration_grant where event_id = $1", [response.eventId])).rows)
+        .toEqual([{ account_id: prober.accountId, role: "OWNER" }]);
+      expect((await pool.query("select 1 from course_setting_grant where race_id = $1", [response.raceId])).rowCount).toBe(0);
+      expect((await pool.query("select role from race_person_invitation where race_id = $1 and accepted_at is null order by role",
+        [response.raceId])).rows.map(row => (row as { role: string }).role)).toEqual(["ADMIN", "COURSE_MAP", "FUNCTIONARY"]);
+    }
+    // Mejlen går till adresserna oavsett konto, som en vanlig inbjudan.
+    expect(mails.map(mail => mail.to)).toEqual(expect.arrayContaining([victim.email]));
+    expect(mails).toHaveLength(6);
+    // Offret får behörigheten först när det själv loggar in med adressen.
+    await db.transaction(tx => acceptRacePersonInvitations(tx, victim.accountId, LATER, known.raceId));
+    expect((await pool.query("select role from event_administration_grant where event_id = $1 and account_id = $2", [known.eventId, victim.accountId])).rows)
+      .toEqual([{ role: "ADMIN" }]);
   }, 30_000);
 
   it("varje tabell med race_id är med eller uttryckligen utanför, i en ordning som följer de främmande nycklarna", async () => {

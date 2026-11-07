@@ -54,6 +54,21 @@ describe("Google OpenID Connect", () => {
     expect(parseGoogleLoginState(forged("admin", ""), now)).toBeUndefined();
   });
 
+  it("ändrat 2026-11-07: Ta bort kontot med Google kräver en ny inloggning (prompt=login, max_age=0) och är bunden till sessionen", () => {
+    const now = new Date("2026-11-07T10:00:00Z");
+    const sessionId = "6f0c1a52-3b9e-4c55-8d7e-1f2a3b4c5d6e";
+    const remove = newGoogleLoginState(now, { mode: "delete", sessionId });
+    expect(parseGoogleLoginState(serializeGoogleLoginState(remove), now)).toEqual({ ...remove, mode: "delete", sessionId });
+    expect(() => newGoogleLoginState(now, { mode: "delete" })).toThrow();
+    const url = new URL(googleAuthorizationUrl({ clientId: "klient", clientSecret: "hemlig", redirectUri: "https://otid.berring.se/cb" }, remove));
+    expect([url.searchParams.get("prompt"), url.searchParams.get("max_age")]).toEqual(["login", "0"]);
+    const forged = Buffer.from(JSON.stringify([remove.state, remove.nonce, remove.codeVerifier, remove.createdAt, "delete", "", 0])).toString("base64url");
+    expect(parseGoogleLoginState(forged, now)).toBeUndefined();
+    // auth_time (sekunder) blir millisekunder; saknas den finns inget.
+    expect(googleIdentityFromClaims({ sub: "1", email: "a@b.se", auth_time: 1_794_000_000 }).authTime).toBe(1_794_000_000_000);
+    expect(googleIdentityFromClaims({ sub: "1", email: "a@b.se" })).not.toHaveProperty("authTime");
+  });
+
   it("jämför state exakt", () => {
     const { state } = newGoogleLoginState();
     expect(sameState(state, state)).toBe(true);

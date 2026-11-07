@@ -59,7 +59,7 @@ test("banläggning: passager och vridning, paletten, duplicera, fånga befintlig
   await owner.getByRole("button", { name: "Läs in .ppen" }).click();
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   const map = owner.getByTestId("course-setting-map");
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   await expect(owner.getByTestId("course-setting-control-list")).toContainText("Kontroller i Lång");
 
   // 1. Obligatorisk passage efter 32: den vrids efter sträckan 32–33 automatiskt (in och ut åt samma håll: −104,8° → 255°).

@@ -17,7 +17,7 @@ import type { Point } from "@o-tid/map-file";
 import { courseViewForExport } from "./description-format";
 import { scorePoints, sortedCourses } from "./course-properties";
 import type { ControlKind, Course, CourseSettingDocument, MapRect } from "./types";
-import { excludedVariantCodes } from "./summary";
+import { courseLength, excludedVariantCodes } from "./summary";
 import { enumerateCourseControls, variations } from "./walk";
 
 export interface IofCourseDataOptions {
@@ -149,8 +149,8 @@ function writeCourse(w: Writer, document: CourseSettingDocument, course: Course,
   w.text("Name", name);
   if (family !== undefined) w.text("CourseFamily", family);
   if (!score) {
-    const measured = views.reduce((sum, view) => sum + (view.legLengthMeters ?? 0), 0);
-    w.text("Length", String(roundHalfEven((course.lengthOverrideMeters ?? measured) / 100) * 100));
+    // ADR-0198 tillägg 12: banans längd har en regel (`courseLength`): fast längd, annars variantens (eller banans) uppmätta.
+    w.text("Length", String(roundHalfEven(courseLength(document, course.id, { variant }).meters / 100) * 100));
     const climb = course.climbMeters ?? 0;
     if (climb > 0) w.text("Climb", String(Math.sign(climb / 5) * Math.round(Math.abs(climb / 5)) * 5));
   }

@@ -25,11 +25,12 @@ const mapRowOf = (json: Record<string, unknown>): MapRow => ({ ...json, createdA
 
 export async function mergeClubMaps(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date()): Promise<MergeResult> {
   const parsed = clubMapsMergeRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const { keepMapId, mapIds } = parsed.data;
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const { keepMapId, mapIds } = parsed.data;
     const maps = await tx.select().from(schema.clubMaps).where(and(eq(schema.clubMaps.clubId, input.clubId), inArray(schema.clubMaps.id, mapIds)))
       .for("update");
     if (maps.length !== mapIds.length) return { status: "not-found" } as const;

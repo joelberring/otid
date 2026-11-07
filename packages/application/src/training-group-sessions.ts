@@ -50,14 +50,15 @@ async function sourceRace(tx: Transaction, groupId: string, intent: GroupSession
 export async function createGroupSessions(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date())
   : Promise<GroupSessionsResult> {
   const parsed = groupSessionCreateRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const intent = parsed.data;
-  const dates = intent.repeat ? repetitionDates({ weekday: intent.repeat.weekday, firstDate: intent.raceDate, lastDate: intent.repeat.lastDate })
-    : [intent.raceDate];
-  if (!dates || dates.length === 0) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const intent = parsed.data;
+    const dates = intent.repeat ? repetitionDates({ weekday: intent.repeat.weekday, firstDate: intent.raceDate, lastDate: intent.repeat.lastDate })
+      : [intent.raceDate];
+    if (!dates || dates.length === 0) return { status: "invalid-request" } as const;
     const accountId = leader.accountId;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"training-group-sessions:" + intent.requestId}, 0))`);
     const [prior] = await tx.select().from(schema.trainingGroupRequests).where(eq(schema.trainingGroupRequests.requestId, intent.requestId));

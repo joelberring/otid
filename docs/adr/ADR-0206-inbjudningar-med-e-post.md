@@ -68,3 +68,8 @@ behörighet när ett konto med adressen och bekräftad e-post loggar in. Men ing
 räknas i `account_request_throttle` (`INVITATION_RECIPIENT_HOUR/DAY`, `INVITATION_ISSUER_HOUR/DAY`, nyckeln som HMAC, fast
 fönster) i stället för i `invitation_link`, vars rader försvinner när tävlingen, klubben, gruppen eller kontot tas bort och då
 nollställde spärren. Kopierade länkar och "Skicka igen" (tio minuter) räknas som förut i `invitation_link`.
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`, migration 0088): `invitation_link.issued_by` och
+`race_person_invitation.actor_account_id` har ingen främmande nyckel längre (som gruppens inbjudan i 0087), så att borttagningen
+av avsändarens konto inte tar bort tävlingens öppna inbjudningar och länkarna i skickade mejl. Länksidan visar då inbjudan utan
+avsändarens namn (`inviterName: null`, "Du har bjudits in till …").

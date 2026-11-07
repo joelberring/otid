@@ -14,6 +14,7 @@ import { angleDegrees, distance, nearestOnSegment } from "./geometry";
 import { legKey } from "./ppen-common";
 import type { CircleGap, ControlPoint, CourseSettingDocument, CourseSettingEdit } from "./types";
 import { enumerateCourseControls, enumerateLegs } from "./walk";
+import { activeParts } from "./summary";
 
 /** Gränsvärdena för överlappsklippen. */
 export const OVERLAP_CUT_LIMITS = {
@@ -161,15 +162,19 @@ export function detailGapsForView(detail: readonly Arc[], overlap: readonly Arc[
   return kept;
 }
 
-/** Vinklarna där sträckorna går ut ur kontrollerna, på alla banor (mot första brytpunkten eller nästa kontroll). */
+/**
+ * Vinklarna där sträckorna går ut ur kontrollerna, på alla banor (mot första brytpunkten eller nästa kontroll). Sträckor som
+ * bara finns i bortvalda varianter räknas inte (ADR-0198 tillägg 12).
+ */
 function legAnglesByControl(document: CourseSettingDocument): Map<string, number[]> {
   const out = new Map<string, number[]>();
   const add = (control: string, angle: number) => out.set(control, [...(out.get(control) ?? []), angle]);
   for (const course of document.courses) {
+    const active = activeParts(document, course.id);
     for (const [a, b] of enumerateLegs(document, course.id)) {
       const from = document.controls[document.courseControls[a]?.control ?? ""];
       const to = document.controls[document.courseControls[b]?.control ?? ""];
-      if (!from || !to || from.id === to.id) continue;
+      if (!from || !to || from.id === to.id || (active && !active.legs.has(legKey(from.id, to.id)))) continue;
       const bends = document.legs[legKey(from.id, to.id)]?.bends ?? [];
       const first = bends[0] ?? to.at, last = bends[bends.length - 1] ?? from.at;
       if (distance(from.at, first) > 0) add(from.id, angleDegrees(from.at, first));
@@ -197,9 +202,11 @@ function printScalesOf(document: CourseSettingDocument, extra: readonly number[]
   const out = new Map<string, Set<number>>();
   for (const course of document.courses) {
     const scale = course.printScale ?? document.event.mapScale;
+    // ADR-0198 tillägg 12: en kontroll som bara finns i bortvalda varianter syns inte i banans skala.
+    const active = activeParts(document, course.id);
     for (const id of enumerateCourseControls(document, course.id)) {
       const control = document.courseControls[id]?.control;
-      if (control) out.set(control, (out.get(control) ?? new Set()).add(scale));
+      if (control && (!active || active.controls.has(control))) out.set(control, (out.get(control) ?? new Set()).add(scale));
     }
   }
   const all = [allControlsScale(document), ...extra.filter(scale => Number.isFinite(scale) && scale > 0)];

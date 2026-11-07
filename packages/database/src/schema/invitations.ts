@@ -1,5 +1,4 @@
 import { index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { userAccounts } from "./accounts";
 import { clubInvitations } from "./clubs";
 import { trainingGroupInvitations } from "./groups";
 import { racePersonInvitations } from "./planning";
@@ -17,7 +16,11 @@ export const invitationLinks = pgTable("invitation_link", {
   groupInvitationId: uuid("group_invitation_id").references(() => trainingGroupInvitations.id),
   tokenHash: text("token_hash").notNull(),
   recipientKey: text("recipient_key").notNull(),
-  issuedBy: uuid("issued_by").notNull().references(() => userAccounts.id),
+  /**
+   * Kontot som skickade eller kopierade länken. Utan främmande nyckel sedan migration 0088 (som K4): borttagningen av ett konto
+   * följer nycklarna och tog annars bort länkarna i mejl som kontot skickat. Kan alltså peka på ett konto som inte finns.
+   */
+  issuedBy: uuid("issued_by").notNull(),
   delivery: text("delivery").$type<InvitationLinkDelivery>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  allCourseVariants, applyEdit, controlsInForbidden, courseLength, courseSummaries, expandText, forbiddenLegs, layoutCoursePage,
-  levelControls, levelLegPairs, paperTextValues, readPpen, routeBarriers, type CourseSettingDocument
+  allCourseVariants, applyEdit, checkDocument, controlsInForbidden, courseLength, courseSummaries, detailCircleCenters, expandText, forbiddenLegs,
+  layoutCoursePage, levelControls, levelLegPairs, paperTextValues, readPpen, routeBarriers, writeIofCourseData, type CourseSettingDocument
 } from "../src";
 import { lineCourse } from "./build";
 
@@ -103,5 +103,48 @@ describe("B11: förbjuden väg (krysset) spärrar så stort som det ritas", () =
     expect(crossAt(0, 5000).half).toBeCloseTo(1.06, 6);
     expect(crossAt(1, 5000).hits).toBe(1);
     expect(crossAt(1.3, 5000).hits).toBe(0);
+  });
+});
+
+describe("bortvalda varianter i kontrollerna, ringarna och IOF-exporten (städrundan 2026-11-07)", () => {
+  it("en kontroll som bara finns i bortvalda varianter är oanvänd; en sträcka bara där ger ingen varning", () => {
+    const unused = (document: CourseSettingDocument) => checkDocument(document).filter(check => check.kind === "UNUSED_CONTROL")
+      .map(check => (check as { control: string }).control);
+    expect(unused(base)).not.toContain(control("42"));
+    expect(unused(withoutB(base))).toContain(control("42"));
+    // Samma kontroll två gånger i rad (31 → 31) bara i B-grenen (42 byts mot 31 där): ingen varning när B är bortvald.
+    const [branchB] = Object.entries(base.courseControls).find(([, row]) => row.control === control("42"))!;
+    const twice: CourseSettingDocument = { ...base, courseControls: { ...base.courseControls,
+      [branchB]: { ...base.courseControls[branchB]!, control: control("31") } } };
+    const sameTwice = (document: CourseSettingDocument) => checkDocument(document).some(check => check.kind === "SAME_CONTROL_TWICE_IN_ROW");
+    expect(sameTwice(twice)).toBe(true);
+    expect(sameTwice(withoutB(twice))).toBe(false);
+  });
+
+  it("ringarna: en kontroll bara i bortvalda varianter får inte banans skala, och en sträcka bara där spärrar inget gap", () => {
+    const scaled = applyEdit(base, { type: "UPDATE_COURSE", course: natt, changes: { printScale: 7500 } }).document;
+    const circles = (document: CourseSettingDocument, code: string) => detailCircleCenters(document).filter(circle => circle.id.startsWith(`${control(code)}@`));
+    // 42 syns i Natts skala (1:7 500) och i alla kontrollers (1:10 000): två ringar; sträckorna 31–42 och 42–32 spärrar gap.
+    expect(circles(scaled, "42")).toHaveLength(2);
+    expect(circles(scaled, "42")[0]!.blockedDegrees).toHaveLength(2);
+    const pruned = withoutB(scaled);
+    expect(circles(pruned, "42")).toHaveLength(1);
+    expect(circles(pruned, "42")[0]!.blockedDegrees).toBeUndefined();
+    // 31: sträckan mot 42 räknas inte längre (en färre vinkel i Natts ring).
+    const at31 = (document: CourseSettingDocument) => circles(document, "31").find(circle => circle.blockedDegrees)!.blockedDegrees!.length;
+    expect(at31(pruned)).toBe(at31(scaled) - 1);
+  });
+
+  it("IOF-exporten skriver längden med courseLength: variantens uppmätta, fast längd före", () => {
+    const document = exclude(base, ["BDF"]);
+    const xmlOut = writeIofCourseData(document);
+    const lengthOf = (name: string) => Number(new RegExp(`<Name>${name}</Name>(?:\\s*<CourseFamily>[^<]*</CourseFamily>)?\\s*<Length>(\\d+)</Length>`).exec(xmlOut)?.[1]);
+    for (const row of allCourseVariants(document, natt).filter(variant => !variant.excluded)) {
+      expect(lengthOf(`Natt ${row.code}`)).toBe(Math.round(courseLength(document, natt, { variant: row.code }).meters / 100) * 100);
+    }
+    expect(xmlOut).not.toContain("<Name>Natt BDF</Name>");
+    const fixed = applyEdit(document, { type: "UPDATE_COURSE", course: natt, changes: { lengthOverrideMeters: 4321 } }).document;
+    expect(lengthOf("Natt ACE")).toBeGreaterThan(0);
+    expect(new RegExp("<Name>Natt ACE</Name>\\s*<CourseFamily>Natt</CourseFamily>\\s*<Length>4300</Length>").test(writeIofCourseData(fixed))).toBe(true);
   });
 });

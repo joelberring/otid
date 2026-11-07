@@ -53,6 +53,10 @@ ska kunna redigera texten.
 "Kartritaren" för ett konto med behörigheten Kartritare) utan visningsnamn och utan tid; kartritarens svar med länken har kvar
 namnet hen skrev och tiden. "(ändrad …)" visas som förut (beslut 9).
 
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`): kartritarens besked med länken ("Åtgärdat i kartan" och "Inte åtgärdat")
+ändrar bara ett kartfel som är öppet eller stängdes via länken. Har ett konto stängt det står stängningen kvar med kontot som
+den som stängde; beskedet syns ändå som svar i tråden.
+
 **Konsekvenser.** Migration 0083 bara med tillägg och lösare regler: tabellerna `course_setting_map_link` och
 `course_setting_note_edit`, kolumnerna ovan, `created_by` på svar får vara tom, svarets text får vara tom i ett besked, en klar
 notis kan vara klar av länken, och spärrens och journalens nya värden. Under driftsättningen kan en äldre instans inte läsa

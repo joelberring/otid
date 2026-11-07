@@ -15,15 +15,19 @@ import { sha256Hex } from "./serialization";
 import { authenticateUserAccountSessionForMutation, type UserAccountSessionProof } from "./user-account";
 import type { DbExecutor } from "./snapshot";
 import { mapStorageQuota, mapStorageUsage, storeInlineMapContentForRace, type MapStorageQuota } from "./map-content";
+import { deliverPrepared, prepareIfMail, type InvitationMailer, type PreparedInvitationMail } from "./invitation-links";
+import type { RaceInvitationRole } from "@o-tid/contracts";
 
 /**
  * "Återställ tävling från säkerhetskopia" (ADR-0187). Filen läses och kontrolleras strikt (zip-arkivets gränser, formatversion,
  * sha256 per fil, zod per rad efter databasens katalog) och blir en NY tävling: alla id byts (också inuti JSON och text),
  * ingen befintlig tävling skrivs över. Avläsningar, resultatrevisioner och fastställanden läses in som de är, så resultaten och
- * sträcktiderna blir desamma (integrationstestet `aterstallning`). Den som återställer blir ägare; med `people: "link"` får
- * personerna i kopian sina behörigheter igen om det finns ett konto med samma e-post här (per referens i kopian; en person
- * "Från klubben" har ingen adress i kopian och kopplas aldrig). Förhandsvisningen säger inte vilka adresser som har konto här:
- * filen är inte signerad, så en hemmagjord kopia skulle annars fråga ut servern. Den nya tävlingen är opublicerad och
+ * sträcktiderna blir desamma (integrationstestet `aterstallning`). Den som återställer blir ägare och den enda med behörighet;
+ * med `people: "link"` får adresserna i kopian vanliga inbjudningar med sina roller (ADR-0188 beslut 6, mejl med spärrarna i
+ * ADR-0206), som blir behörigheter när någon loggar in med adressen. Varken förhandsvisningen eller svaret säger vilka adresser
+ * som har konto här, och inget annat konto får behörighet direkt: filen är inte signerad, så en hemmagjord kopia skulle annars
+ * fråga ut servern och ge konton behörighet i tävlingen. En person "Från klubben" har ingen adress i kopian och bjuds aldrig
+ * in. Den nya tävlingen är opublicerad och
  * radiohämtningen är avstängd tills arrangören slår på den. Bara inloggade konton (samma krav som för att skapa en tävling).
  */
 type Row = Record<string, unknown>;
@@ -193,12 +197,14 @@ function personRole(person: RaceBackupPerson): string {
     .filter(Boolean).join(",");
 }
 
-async function accountsByEmail(tx: DbExecutor, emails: readonly string[]): Promise<Map<string, string>> {
-  if (emails.length === 0) return new Map();
-  const rows = await tx.execute<{ id: string; email: string }>(sql`select id, email from user_account
-    where email = any(${`{${emails.map(email => `"${email.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`).join(",")}}`}::text[])
-      and blocked_at is null`);
-  return new Map(rows.rows.map(row => [row.email, row.id]));
+/**
+ * Inbjudningarna en person i kopian får: rollen på tävlingen och nivån i banläggningen. En administratör har redan
+ * banläggningen, så den får bara en.
+ */
+function personInvitationRoles(person: RaceBackupPerson): RaceInvitationRole[] {
+  const event = person.eventRole ? ROLE_NAMES[person.eventRole] : null;
+  const course = person.courseSettingLevel && event !== "ADMIN" ? `COURSE_${person.courseSettingLevel}` as const : null;
+  return [event, course].filter(role => role !== null);
 }
 
 export type RaceBackupPreviewResult = { status: "unauthorized" | "forbidden" } | BackupFailure | { status: "ok"; preview: RaceBackupPreview };
@@ -288,12 +294,13 @@ async function insertRows(tx: Transaction, backup: OpenedBackup, table: string, 
 /** Läser in kopian som en ny tävling. Samma `requestId` ger samma tävling (ett omförsök skapar aldrig två). */
 export async function restoreRaceBackup(db: Database,
   input: UserAccountSessionProof & { bytes: Uint8Array; options: unknown; quota?: MapStorageQuota },
-  now = new Date()): Promise<RaceRestoreResult> {
+  now = new Date(), mailer?: InvitationMailer): Promise<RaceRestoreResult> {
   const options = raceRestoreOptionsSchema.safeParse(input.options);
   if (!options.success) return { status: "invalid-request" };
   const { requestId, people: peopleMode } = options.data;
+  let result: RaceRestoreResult & { prepared?: PreparedInvitationMail[] };
   try {
-    return await db.transaction(async tx => {
+    result = await db.transaction(async (tx): Promise<RaceRestoreResult & { prepared?: PreparedInvitationMail[] }> => {
       const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
       if (auth.status !== "authenticated") return auth;
       const accountId = auth.principal.accountId;
@@ -302,7 +309,7 @@ export async function restoreRaceBackup(db: Database,
       const [prior] = await tx.select().from(schema.raceRestoreRequests).where(eq(schema.raceRestoreRequests.requestId, requestId));
       if (prior) {
         if (prior.actorAccountId !== accountId || prior.fileSha256 !== fileSha256 || prior.people !== peopleMode) return { status: "conflict" } as const;
-        return { status: "restored", response: { ...raceRestoreResponseSchema.parse(prior.response), replayed: true } } as const;
+        return { status: "restored", response: { ...storedResponse(prior.response), replayed: true } } as const;
       }
       const { backup, catalog, ids } = await checkBackup(tx, input.bytes);
       // Alla främmande nycklar som går att skjuta upp (fastställandet på loppet, avpricknings- och kortbanejournalerna)
@@ -315,18 +322,12 @@ export async function restoreRaceBackup(db: Database,
       // Kartinnehållet före återställningen, för kvoten (ADR-0189 beslut 3).
       const before = await mapStorageUsage(tx, accountId);
 
-      // Nya id för allt; kontonas referenser blir konton med samma e-post här när personerna kopplas. Kopplingen gäller
-      // referensen (en person utan adress, "Från klubben", kopplas aldrig).
-      const byEmail = peopleMode === "link"
-        ? await accountsByEmail(tx, backup.people.flatMap(person => person.email === null ? [] : [person.email])) : new Map<string, string>();
-      const linked = new Map<string, string>();
-      for (const person of backup.people) {
-        const account = person.email === null ? undefined : byEmail.get(person.email);
-        if (account) linked.set(person.ref, account);
-      }
+      // Nya id för allt, också för kontonas referenser. Bara referensen med den återställandes egen adress blir det egna kontot
+      // (det avslöjar inget: adressen och kontot är ens egna); andra konton kopplas aldrig (ADR-0187, ändrat 2026-11-07).
+      const [self] = await tx.select({ email: schema.userAccounts.email }).from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId));
       const map = new Map<string, string>([...ids].map(id => [id, randomUUID()]));
-      const linkedAccounts = new Set<string>();
-      for (const [ref, account] of linked) { map.set(ref, account); linkedAccounts.add(account); }
+      const own = self ? backup.people.find(person => person.email === self.email) : undefined;
+      if (own) map.set(own.ref, accountId);
       const startDraws: { id: string; drawId: string }[] = [];
       let eventId = "", raceId = "";
       for (const table of RACE_BACKUP_TABLES) {
@@ -366,8 +367,8 @@ export async function restoreRaceBackup(db: Database,
             rows = rows.map(row => ({ ...row, enabled: false }));
             break;
           case "course_setting_grant":
-            // Banläggningens behörigheter gäller bara konton som finns här (och bara när personerna kopplas).
-            rows = rows.filter(row => linkedAccounts.has(row.account_id as string) && row.account_id !== accountId);
+            // Banläggningens behörigheter blir inbjudningar (nedan); den som återställer är ägare och har redan banläggningen.
+            rows = [];
             break;
           case "result_revision":
             // Underlaget räknas om för den nya tävlingen; bara de revisioner som var inaktuella när kopian togs behåller sin
@@ -405,36 +406,51 @@ export async function restoreRaceBackup(db: Database,
         throw new BackupRejected(problem("STORAGE_QUOTA_EXCEEDED", `servern: ${Math.ceil(after.totalBytes / MB)} av ${Math.floor(quota.totalBytes / MB)} MB`));
       }
 
-      // Den som återställer blir ägare; personerna i kopian får sina roller igen när de har konto här.
+      // Den som återställer blir ägare och den enda med behörighet. Personerna i kopian får vanliga inbjudningar (ADR-0188
+      // beslut 6) till adressen, likadant oavsett om adressen har ett konto här; mejlen med spärrarna i ADR-0206.
       await tx.insert(schema.eventAdministrationGrants).values({ eventId, accountId, role: "OWNER", grantedAt: now });
-      const granted = new Set<string>();
-      for (const person of backup.people) {
-        const account = linked.get(person.ref);
-        if (!account || account === accountId) continue;
-        if (person.eventRole) {
-          await tx.insert(schema.eventAdministrationGrants).values({ eventId, accountId: account,
-            role: person.eventRole === "FUNCTIONARY" ? "FUNCTIONARY" : "ADMIN", grantedAt: now });
-          granted.add(account);
+      const prepared: PreparedInvitationMail[] = [];
+      let invitations = 0;
+      for (const person of peopleMode === "link" ? backup.people : []) {
+        if (person.email === null || person.email === self?.email) continue;
+        for (const role of personInvitationRoles(person)) {
+          const id = randomUUID();
+          await tx.insert(schema.racePersonInvitations).values({ id, requestId: randomUUID(), raceId, eventId, email: person.email, role,
+            actorAccountId: accountId, createdAt: now });
+          await tx.insert(schema.auditEvents).values({ raceId, entityType: "race_person_invitation", entityId: id,
+            action: "RACE_PERSON_INVITED", actorKind: "USER_ACCOUNT", actorId: accountId, requestId,
+            after: { invitationId: id, role, invitedAt: now.toISOString(), restored: true } });
+          const mail = await prepareIfMail(tx, mailer, { kind: "RACE", invitationId: id }, accountId, now);
+          if (mail) prepared.push(mail);
+          invitations += 1;
         }
-        if (person.courseSettingLevel) granted.add(account);
       }
-      const missingPeople = peopleMode === "link"
-        ? backup.people.flatMap(person => person.email !== null && !linked.has(person.ref) ? [person.email] : []) : [];
       const response = raceRestoreResponseSchema.parse({ formatVersion: 1, replayed: false, requestId, eventId, raceId,
-        counts: backup.manifest.counts, linkedPeople: granted.size, missingPeople, createdAt: now.toISOString() });
+        counts: backup.manifest.counts, invitations, createdAt: now.toISOString() });
       await tx.insert(schema.raceRestoreRequests).values({ requestId, actorAccountId: accountId, eventId, raceId, fileSha256,
         people: peopleMode, response: response as unknown as Record<string, unknown>, createdAt: now });
       // Journalen: kontrollsumma, tid och antal, inga namn eller adresser.
       await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, action: "RACE_RESTORED_FROM_BACKUP",
         actorKind: "USER_ACCOUNT", actorId: accountId, requestId, createdAt: now,
         after: { fileSha256, backupFormatVersion: backup.manifest.formatVersion, backupCreatedAt: backup.manifest.createdAt,
-          counts: backup.manifest.counts, people: peopleMode, linkedPeople: granted.size, missingPeople: missingPeople.length } });
-      return { status: "restored", response } as const;
+          counts: backup.manifest.counts, people: peopleMode, invitations } });
+      return { status: "restored", response, prepared } as const;
     });
   } catch (error) {
     if (error instanceof BackupRejected) return error.failure;
     throw error;
   }
+  if (result.status !== "restored") return result;
+  // Mejlen efter commit (som när en administratör bjuder in); ett misslyckat mejl ändrar inte svaret, inbjudan står kvar.
+  for (const mail of result.prepared ?? []) await deliverPrepared(db, mail, mailer, now);
+  return { status: "restored", response: result.response };
+}
+
+/** Kvittot från en tidigare återställning. Kvitton från före 2026-11-07 har `linkedPeople` och `missingPeople`. */
+function storedResponse(stored: unknown): RaceRestoreResponse {
+  const { linkedPeople, missingPeople, ...rest } = stored as Record<string, unknown>;
+  const legacy = (typeof linkedPeople === "number" ? linkedPeople : 0) + (Array.isArray(missingPeople) ? missingPeople.length : 0);
+  return raceRestoreResponseSchema.parse({ invitations: legacy, ...rest });
 }
 
 /** Databasens felbesked utan värden (bara villkorets eller kolumnens namn). */

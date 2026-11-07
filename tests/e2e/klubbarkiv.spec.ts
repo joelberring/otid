@@ -161,7 +161,7 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
       if (course) await reader.getByTestId("course-setting-view").selectOption({ label: course });
       const map = reader.getByRole("img", { name: `Karta med banpåtryck: ${course ?? "Alla kontroller"}` });
       await expect(map).toBeVisible({ timeout: 30_000 });
-      await expect(reader.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+      await expect(reader.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
       const mapBox = (await map.boundingBox())!;
       const [centerX, centerY] = (await map.getAttribute("data-center"))!.split(",").map(Number) as [number, number];
       const pxPerMm = Number(await map.getAttribute("data-px-per-mm"));

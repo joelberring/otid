@@ -35,6 +35,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
   const [canEdit, setCanEdit] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapRect>();
   const [hasMap, setHasMap] = useState(false);
+  const [mapSha256, setMapSha256] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [open, setOpen] = useState<{ course: string; layout: string }>();
@@ -51,7 +52,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
       setDocument(next); documentRef.current = next;
       versionRef.current = state.setting?.version;
       setCanEdit(state.access.level === "EDIT");
-      setHasMap(state.mapFile !== null);
+      setHasMap(state.mapFile !== null); setMapSha256(state.mapFile?.sha256);
       if (state.mapFile?.bounds) setMapBounds(state.mapFile.bounds);
     } catch { setFailed(true); }
   }, [raceId]);
@@ -68,7 +69,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
   useEffect(() => { fetchMapBundles(raceId).then(setBundles, () => setBundles(undefined)); }, [raceId]);
 
   // Kartan och färgerna som i Utskrift (ADR-0217 fas 3: arken redigeras här).
-  const map = usePrintMap(raceId, hasMap, bounds => setMapBounds(current => current ?? bounds));
+  const map = usePrintMap(raceId, hasMap && (mapSha256 ?? true), bounds => setMapBounds(current => current ?? bounds));
 
   const save = useCallback((edits: CourseSettingEdit[], record = true): Promise<boolean> => serial(async () => {
     let attempts = 0;

@@ -246,7 +246,8 @@ export const racePersonInvitations = pgTable("race_person_invitation", {
   eventId: uuid("event_id").notNull().references(() => events.id),
   email: text("email").notNull(),
   role: text("role").$type<"ADMIN" | "FUNCTIONARY" | "COURSE_EDIT" | "COURSE_SUGGEST" | "COURSE_COMMENT" | "COURSE_MAP">().notNull(),
-  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
+  /** Administratören som bjöd in. Utan främmande nyckel sedan migration 0088 (som K4): kan peka på ett konto som tagits bort. */
+  actorAccountId: uuid("actor_account_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),

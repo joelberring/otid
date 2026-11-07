@@ -118,11 +118,12 @@ export async function performSuperadminAction(
   now = new Date()
 ): Promise<SuperadminActionResult> {
   const parsed = superadminActionRequestSchema.safeParse(request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const action = parsed.data;
   return db.transaction(async (tx): Promise<SuperadminActionResult> => {
     const auth = await requireSuperadmin(tx, proof, now, "mutation");
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const action = parsed.data;
     const actor = { actorAccountId: auth.principal.accountId, actorLabel: auth.principal.email, reason: action.reason };
 
     if ("raceId" in action) {

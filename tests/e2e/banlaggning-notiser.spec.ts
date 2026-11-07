@@ -74,7 +74,7 @@ async function openEditor(page: Page, raceId: string) {
   await page.goto(`/admin/${raceId}/course-setting`);
   const map = page.getByTestId("course-setting-map");
   await expect(map).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
+  await expect(page.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
   return map;
 }

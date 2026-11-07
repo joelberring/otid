@@ -57,7 +57,7 @@ test("banläggning: .ppen in, flytta, ny bana med klick, ångra, sparat efter om
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   const map = owner.getByRole("img", { name: "Karta med banpåtryck: Lång" });
   await expect(map).toBeVisible();
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   await expect(owner.getByTestId("course-setting-course").filter({ hasText: "Lång" })).toContainText("6 kontroller");
   // Steg 66: arbetsytan fyller fönstret och sidan skrollar inte.
   expect(await owner.evaluate(() => document.scrollingElement!.scrollHeight <= window.innerHeight + 1)).toBe(true);

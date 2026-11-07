@@ -109,10 +109,11 @@ async function runJob(clubId: string, job: Job, signal: AbortSignal): Promise<bo
 }
 
 /**
- * Kör kontrollen i bakgrunden när en administratör öppnar arkivet och ger "Kontrollera alla kartor igen". `reload` hämtar
+ * Kör kontrollen i bakgrunden när en medlem som får rita kartorna (`canCheck`) öppnar arkivet, och ger "Kontrollera alla kartor
+ * igen" (bara administratörer, som också räknar om banfilernas sammanfattningar). `reload` hämtar
  * arkivet på nytt efter varje kartversion, så att bilderna och märkena syns efter hand.
  */
-export function useArchiveChecks(clubId: string, list: ClubArchiveList | undefined, admin: boolean, reload: () => Promise<void>) {
+export function useArchiveChecks(clubId: string, list: ClubArchiveList | undefined, canCheck: boolean, reload: () => Promise<void>) {
   const [state, setState] = useState<ChecksState>({ running: false });
   const controller = useRef<AbortController | null>(null);
   const started = useRef(false);
@@ -146,10 +147,10 @@ export function useArchiveChecks(clubId: string, list: ClubArchiveList | undefin
   }, [clubId, reload]);
 
   useEffect(() => {
-    if (!admin || !list || started.current) return;
+    if (!canCheck || !list || started.current) return;
     started.current = true;
     void run(false);
-  }, [admin, list, run]);
+  }, [canCheck, list, run]);
 
   useEffect(() => () => controller.current?.abort(), []);
 

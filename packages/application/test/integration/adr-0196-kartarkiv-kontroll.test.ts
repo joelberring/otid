@@ -10,6 +10,7 @@ import {
 import { importBatch, importMapContent } from "../../src/club-archive-import";
 import { updateClubMap } from "../../src/club-maps";
 import { listMyClubs } from "../../src/clubs";
+import { setClubAccessSettings } from "../../src/club-access";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -91,12 +92,24 @@ async function archive() {
 }
 
 describe("ADR-0196: kartornas kontroll och bilder i klubbarkivet", { timeout: 120_000 }, () => {
-  it("kontrollen sparas av administratörer, syns i listan och bilden läses av läsare", async () => {
+  it("kontrollen sparas av medlemmar som ser arkivet eller kartbanken, syns i listan och bilden läses av läsare", async () => {
     const { owner, reader, clubId, list } = await archive();
     const version = list.maps[0]!.versions[0]!;
     expect(version.check).toBeNull();
     const ok = { formatVersion: 1, readerVersion: 2, status: "OK", detail: null, fileVersion: "Mapper v9", thumbnail: { pngBase64: png(40, 30), width: 40, height: 30 } };
+    // Ändrat 2026-11-07 (ägarens beslut): medlemmarnas webbläsare ritar kontrollen; bara den som ser varken arkivet eller kartbanken
+    // ("Vem ser vad": ledare och administratörer) får 403, och den som inte är medlem 404.
+    const access = (archive: "MEMBERS" | "LEADERS", mapBank: "MEMBERS" | "LEADERS") => setClubAccessSettings(db, { ...owner.proof, clubId,
+      request: { formatVersion: 1, archive, mapBank } }, NOW);
+    expect((await access("LEADERS", "LEADERS")).status).toBe("ok");
     expect((await saveClubMapVersionCheck(db, { ...reader.proof, clubId, versionId: version.versionId, request: ok }, NOW)).status).toBe("forbidden");
+    const outsider = await registerTestAccount(db, undefined, NOW);
+    expect((await saveClubMapVersionCheck(db, { ...outsider.proof, clubId, versionId: version.versionId, request: ok }, NOW)).status).toBe("not-found");
+    expect((await access("LEADERS", "MEMBERS")).status).toBe("ok");
+    expect(await saveClubMapVersionCheck(db, { ...reader.proof, clubId, versionId: version.versionId, request: ok }, NOW)).toEqual({ status: "ok" });
+    expect((await saveClubMapVersionCheck(db, { ...reader.proof, clubId, versionId: version.versionId,
+      request: { ...ok, thumbnail: { pngBase64: png(40, 30), width: 41, height: 30 } } }, NOW)).status).toBe("invalid-request");
+    expect((await access("MEMBERS", "MEMBERS")).status).toBe("ok");
     // Bilden måste vara en PNG av angiven storlek, och ett fel har ingen bild.
     expect((await saveClubMapVersionCheck(db, { ...owner.proof, clubId, versionId: version.versionId,
       request: { ...ok, thumbnail: { pngBase64: png(40, 30), width: 41, height: 30 } } }, NOW)).status).toBe("invalid-request");
@@ -128,7 +141,15 @@ describe("ADR-0196: kartornas kontroll och bilder i klubbarkivet", { timeout: 12
     expect(entry.thumbnailSource?.courseFileId).toBe(ppen.courseFileId);
     const request = { formatVersion: 1, readerVersion: 2, status: "OK", detail: null, mapVersionId: versionId, courseName: "Lång",
       image: { pngBase64: png(360, 240), width: 360, height: 240 } };
+    // Ändrat 2026-11-07: alla som ser arkivet sparar bilden; med arkivet bara för ledare får läsaren 403.
+    expect((await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "LEADERS", mapBank: "MEMBERS" } }, NOW))
+      .status).toBe("ok");
     expect((await saveClubEntryThumbnail(db, { ...reader.proof, clubId, entryId: entry.entryId, request }, NOW)).status).toBe("forbidden");
+    expect((await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "MEMBERS", mapBank: "MEMBERS" } }, NOW))
+      .status).toBe("ok");
+    expect((await saveClubEntryThumbnail(db, { ...reader.proof, clubId, entryId: entry.entryId, request: { ...request,
+      image: { pngBase64: png(360, 240), width: 300, height: 240 } } }, NOW)).status).toBe("invalid-request");
+    expect(await saveClubEntryThumbnail(db, { ...reader.proof, clubId, entryId: entry.entryId, request }, NOW)).toEqual({ status: "ok" });
     expect((await saveClubEntryThumbnail(db, { ...owner.proof, clubId, entryId: entry.entryId, request: { ...request, mapVersionId: randomUUID() } }, NOW)).status)
       .toBe("not-found");
     expect(await saveClubEntryThumbnail(db, { ...owner.proof, clubId, entryId: entry.entryId, request }, NOW)).toEqual({ status: "ok" });

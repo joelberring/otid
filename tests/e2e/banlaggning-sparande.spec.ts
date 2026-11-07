@@ -46,7 +46,7 @@ test("utan nät: många ändringar, en bock och en notis sparas i ordning när n
   const phone = await phoneContext.newPage();
   await phone.goto(`/admin/${raceId}/course-setting`);
   await expect(phone.getByTestId("course-setting-field")).toBeVisible({ timeout: 30_000 });
-  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
+  await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
   await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();

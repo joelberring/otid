@@ -109,10 +109,11 @@ export async function changeAccountDisplayName(
   db: Database, proof: UserAccountSessionProof, request: unknown, now = new Date()
 ): Promise<Failure | { status: "changed"; displayName: string }> {
   const parsed = accountDisplayNameChangeSchema.safeParse(request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async (tx) => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     await tx.update(schema.userAccounts).set({ displayName: parsed.data.displayName })
       .where(eq(schema.userAccounts.id, auth.principal.accountId));
     return { status: "changed", displayName: parsed.data.displayName } as const;
@@ -124,10 +125,11 @@ export async function changeAccountPassword(
   db: Database, proof: UserAccountSessionProof, request: unknown, now = new Date()
 ): Promise<Failure | { status: "wrong-password" } | Extract<UserAccountLoginResult, { status: "authenticated" }>> {
   const parsed = accountPasswordChangeSchema.safeParse(request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async (tx) => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, auth.principal.accountId));
     const verifier = await currentUserAccountVerifier(tx, auth.principal.accountId);
     if (!account || !verifier) return { status: "unauthorized" } as const;
@@ -146,10 +148,11 @@ export async function deleteOwnAccount(
   db: Database, proof: UserAccountSessionProof, request: unknown, now = new Date()
 ): Promise<Failure | { status: "wrong-password" | "deleted" } | { status: "sole-owner"; soleOwnerOf: Awaited<ReturnType<typeof soleOwnerships>> }> {
   const parsed = accountDeleteRequestSchema.safeParse(request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async (tx) => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const verifier = await currentUserAccountVerifier(tx, auth.principal.accountId);
     if (!await userAccountPasswordMatches(verifier, parsed.data.password)) return { status: "wrong-password" } as const;
     const soleOwnerOf = await soleOwnerships(tx, auth.principal.accountId, true);
@@ -164,10 +167,11 @@ export async function deleteEventAsOwner(
   db: Database, proof: UserAccountSessionProof & { raceId: string }, request: unknown, now = new Date()
 ): Promise<Failure | { status: "not-found" | "confirmation-mismatch" | "deleted"; eventId?: string }> {
   const parsed = eventDeleteRequestSchema.safeParse(request);
-  if (!parsed.success || !/^[0-9a-f-]{36}$/.test(proof.raceId)) return { status: "invalid-request" };
   return db.transaction(async (tx) => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !/^[0-9a-f-]{36}$/.test(proof.raceId)) return { status: "invalid-request" } as const;
     const [race] = await tx.select({ eventId: schema.races.eventId, eventName: schema.events.name })
       .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
       .where(eq(schema.races.id, proof.raceId));

@@ -71,3 +71,9 @@ journalerna för begäranden, festen), skrev binärdata i base64 i en enda JSON 
 En person med behörighet som bjöds in "Från klubben" följer med utan adress (`email: null`, ADR-0209 beslut 7) och kopplas aldrig
 vid återställningen; kopplingen görs per referens i kopian. (Själva återställningen med "Ge dem samma behörighet" säger
 fortfarande vilka adresser som saknar konto; se slutrapporten.)
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`, ersätter beslut 7:s "Ge dem samma behörighet här"): återställningen ger inget
+annat konto än den som återställer behörighet direkt. Valet heter "Bjud in dem med samma roller" (`people: "link"`) och skapar
+vanliga inbjudningar (ADR-0188 beslut 6, mejl med spärrarna i ADR-0206) till adresserna i `personer.json`; svaret säger bara
+antalet (`invitations`, i stället för `linkedPeople`/`missingPeople`), likadant för en adress med och utan konto. Banläggningens
+behörigheter i kopian blir inbjudningar på samma sätt. Bara referensen med den återställandes egen adress kopplas till kontot.

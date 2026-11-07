@@ -221,10 +221,11 @@ export async function readClubArchiveEntry(db: Database, input: ClubProof & { cl
 export async function updateClubArchiveEntry(db: Database, input: ClubProof & { clubId: string; entryId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubArchiveEntryUpdateRequestSchema.safeParse(input.request);
-  if (!parsed.success || !UUID_PATTERN.test(input.entryId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !UUID_PATTERN.test(input.entryId)) return { status: "invalid-request" } as const;
     const data = parsed.data;
     const [row] = await tx.update(schema.clubArchiveEntries).set({ trainingDate: data.trainingDate,
       year: data.trainingDate ? Number(data.trainingDate.slice(0, 4)) : sql`${schema.clubArchiveEntries.year}`, place: data.place, title: data.title,
@@ -275,10 +276,11 @@ export async function readClubCourseFile(db: Database, input: ClubProof & { club
 export async function setClubCourseFileMap(db: Database, input: ClubProof & { clubId: string; courseFileId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubCourseFileMapRequestSchema.safeParse(input.request);
-  if (!parsed.success || !UUID_PATTERN.test(input.courseFileId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !UUID_PATTERN.test(input.courseFileId)) return { status: "invalid-request" } as const;
     if (parsed.data.mapVersionId) {
       const [version] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)
         .where(and(eq(schema.clubMapVersions.id, parsed.data.mapVersionId), eq(schema.clubMapVersions.clubId, input.clubId)));

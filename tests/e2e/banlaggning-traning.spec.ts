@@ -74,7 +74,7 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   await owner.getByRole("button", { name: "Läs in .ppen" }).click();
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   const map = owner.getByTestId("course-setting-map");
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   await drawnWith(map, 0);
   const panel = owner.getByTestId("course-setting-training");
 
@@ -193,7 +193,7 @@ test("banläggning: träningsläget med avsnitt, sista säkra, område, stjärna
   await owner.getByTestId("course-setting-view").selectOption({ label: "Lång" });
   await owner.setViewportSize({ width: 390, height: 844 });
   await owner.reload();
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   // På telefonen är banväljaren i fältets rad (överst är den dold under 700 px).
   await owner.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   const more = owner.getByTestId("course-setting-field-more");

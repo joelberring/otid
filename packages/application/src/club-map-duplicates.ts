@@ -116,10 +116,11 @@ export async function readClubMapDuplicates(db: Database, input: ClubProof & { c
 export async function dismissClubMapDuplicates(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; pairs: number }> {
   const parsed = clubMapDuplicateDismissRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const maps = await tx.select({ id: schema.clubMaps.id }).from(schema.clubMaps)
       .where(and(eq(schema.clubMaps.clubId, input.clubId), inArray(schema.clubMaps.id, parsed.data.mapIds)));
     if (maps.length !== parsed.data.mapIds.length) return { status: "not-found" } as const;
@@ -138,13 +139,14 @@ export async function dismissClubMapDuplicates(db: Database, input: ClubProof & 
 export async function copyClubMapVersionFields(db: Database, input: ClubProof & { clubId: string; mapId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; updated: number }> {
   const parsed = clubMapVersionsCopyRequestSchema.safeParse(input.request);
-  if (!parsed.success || !UUID_PATTERN.test(input.mapId)) return { status: "invalid-request" };
-  const { fromVersionId, fields, versionIds } = parsed.data;
-  // Kartan har bara kartritaren av versionernas fält.
-  if (fromVersionId === null && fields.some(field => field !== "maker")) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !UUID_PATTERN.test(input.mapId)) return { status: "invalid-request" } as const;
+    const { fromVersionId, fields, versionIds } = parsed.data;
+    // Kartan har bara kartritaren av versionernas fält.
+    if (fromVersionId === null && fields.some(field => field !== "maker")) return { status: "invalid-request" } as const;
     const [map] = await tx.select().from(schema.clubMaps).where(and(eq(schema.clubMaps.id, input.mapId), eq(schema.clubMaps.clubId, input.clubId))).for("update");
     if (!map) return { status: "not-found" } as const;
     const versions = await tx.select({ id: schema.clubMapVersions.id, maker: schema.clubMapVersions.maker, note: schema.clubMapVersions.note })

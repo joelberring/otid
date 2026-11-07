@@ -52,7 +52,7 @@
   color: var(--ink);
   font-weight: 650;
 }
-.page :is(:global(.import-admin), :global(.eventor-entry-import)) button.secondary {
+.page :is(:global(.import-admin), :global(.eventor-entry-import)) button:global(.secondary) {
   border-color: var(--line);
   background: white;
   color: var(--ink);

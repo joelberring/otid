@@ -66,11 +66,12 @@ export function groupCodeSlug(code: string): string {
 export async function createTrainingGroup(db: Database, input: Proof & { request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "created"; replayed: boolean; group: GroupSummary }> {
   const parsed = groupCreateRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const intent = parsed.data;
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const intent = parsed.data;
     const accountId = auth.principal.accountId;
     // ADR-0189 beslut 8: arrangörens kortnamn och en slumpad del (40 bitar), så att länken (/g/<kod>) inte går att gissa.
     const slug = groupCodeSlug(intent.code);
@@ -201,11 +202,12 @@ export async function readGroupAsLeader(db: Database, input: Proof & { groupId: 
 export async function updateGroupSettings(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "ok"; settingsVersion: number }> {
   const parsed = groupSettingsRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const intent = parsed.data;
   return db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const intent = parsed.data;
     if (intent.templateRaceId) {
       const [inGroup] = await tx.select({ id: schema.races.id }).from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
         .where(and(eq(schema.races.id, intent.templateRaceId), eq(schema.events.trainingGroupId, input.groupId)));
@@ -223,11 +225,12 @@ export async function updateGroupSettings(db: Database, input: Proof & { groupId
 export async function addGroupMember(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date(),
   mailer?: InvitationMailer): Promise<GroupFailure | { status: "added"; replayed: boolean; member: GroupMember; mail: InvitationMailOutcome }> {
   const parsed = groupMemberAddRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const intent = parsed.data;
   const result = await db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const intent = parsed.data;
     // ADR-0189 beslut 9: sparas för adressen, samma svar med och utan konto. Personen blir medlem när den loggar in med adressen.
     const view = (row: typeof schema.trainingGroupInvitations.$inferSelect): GroupMember => ({ memberId: row.id, accountId: null, email: row.email,
       displayName: null, role: row.role, addedAt: row.createdAt.toISOString(), pending: true, sentAt: null });
@@ -257,10 +260,11 @@ export async function addGroupMember(db: Database, input: Proof & { groupId: str
 export async function removeGroupMember(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "removed" }> {
   const parsed = groupMemberRemoveRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     // Gruppens alla ledarrader låses, så att två ledare inte tar bort varandra samtidigt.
     const leaders = await tx.select({ id: schema.trainingGroupMembers.id }).from(schema.trainingGroupMembers)
       .where(and(eq(schema.trainingGroupMembers.groupId, input.groupId), eq(schema.trainingGroupMembers.role, "LEADER"))).for("update");
@@ -294,11 +298,12 @@ export async function removeGroupMember(db: Database, input: Proof & { groupId: 
 export async function setRaceGroup(db: Database, input: Proof & { raceId: string; request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "ok"; groupId: string | null }> {
   const parsed = raceGroupAttachRequestSchema.safeParse(input.request);
-  if (!parsed.success || !UUID_PATTERN.test(input.raceId)) return { status: "invalid-request" };
-  const groupId = parsed.data.groupId;
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !UUID_PATTERN.test(input.raceId)) return { status: "invalid-request" } as const;
+    const groupId = parsed.data.groupId;
     const accountId = auth.principal.accountId;
     const [race] = await tx.select({ eventId: schema.races.eventId, groupId: schema.events.trainingGroupId }).from(schema.races)
       .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, input.raceId));

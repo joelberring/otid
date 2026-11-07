@@ -1,5 +1,5 @@
 import {
-  exchangeGoogleCode, googleAuthorizationUrl, GoogleOidcError, linkGoogleToAccount, newGoogleLoginState, parseGoogleLoginState, sameState,
+  deleteAccountConfirmedWithGoogle, exchangeGoogleCode, googleAuthorizationUrl, GoogleOidcError, linkGoogleToAccount, newGoogleLoginState, parseGoogleLoginState, sameState,
   serializeGoogleLoginState, serializeGoogleMovePending, signInWithGoogle, GOOGLE_MOVE_LIFETIME_MS, type GoogleEndpoints, type GoogleLoginState, type GoogleOidcConfig
 } from "@o-tid/application";
 import { organizerAccountLoginResponseSchema } from "@o-tid/contracts";
@@ -7,7 +7,8 @@ import type { Database } from "@o-tid/database";
 import { googleLoginEnabled } from "./google-login-enabled";
 import { googleLoginCookieName, googleMoveCookieName } from "./organizer-account-cookies";
 import {
-  SecurityConfigurationError, clientAddress, privateHeaders, readUniqueCookie, securityPolicy, sessionProof, setSessionCookies, type SecurityPolicy
+  SecurityConfigurationError, clearSessionCookies, clientAddress, privateHeaders, readUniqueCookie, securityPolicy, sessionProof, setSessionCookies,
+  type SecurityPolicy
 } from "./security-policy";
 import { logServerError } from "./server-error-log";
 
@@ -37,6 +38,11 @@ export const GOOGLE_CALLBACK_PATH = "/api/account/google/callback";
 export type GoogleLoginProblem = "avbruten" | "obekraftad" | "sparrad" | "fel";
 /** ADR-0205 tillägg: beskeden efter "Koppla Google-konto" (`/konto?google=…`). */
 export type GoogleLinkOutcome = "kopplat" | "upptaget" | "upptaget-utan-losenord" | "obekraftad" | "sessionen" | "avbruten" | "fel";
+/**
+ * Ändrat 2026-11-07: beskeden efter "Ta bort kontot" med Google (`/konto?radera=…`). `borttaget`: kontot är borttaget och
+ * sessionens kakor är tömda.
+ */
+export type GoogleDeleteOutcome = "borttaget" | "annat-konto" | "for-gammal" | "ensam-agare" | "losenord" | "sessionen" | "avbruten" | "fel";
 /** Sidan som bekräftar en flytt av kopplingen från ett tomt konto. */
 export const GOOGLE_MOVE_PAGE = "/konto/flytta-google";
 
@@ -90,6 +96,7 @@ export interface GoogleCallbackDependencies {
   exchange?: typeof exchangeGoogleCode;
   signIn?: typeof signInWithGoogle;
   link?: typeof linkGoogleToAccount;
+  remove?: typeof deleteAccountConfirmedWithGoogle;
   now?: Date;
 }
 
@@ -109,6 +116,7 @@ export async function googleCallbackRoute(db: Database, request: Request, enviro
   const now = dependencies.now ?? new Date();
   const login = parseGoogleLoginState(readUniqueCookie(request, googleLoginCookieName(policy.secureCookies)), now);
   if (login?.mode === "link") return linkCallback(db, request, configured, login, dependencies);
+  if (login?.mode === "delete") return deleteCallback(db, request, configured, login, dependencies);
   if (params.get("error")) return back(params.get("error") === "access_denied" ? "avbruten" : "fel");
   const code = params.get("code");
   if (!login || !code || code.length > 2048 || !sameState(login.state, params.get("state"))) return back("fel");
@@ -168,6 +176,44 @@ async function linkCallback(db: Database, request: Request, configured: { policy
   } catch (error) {
     if (error instanceof GoogleOidcError) { console.error(`Google-kopplingen avvisades (${error.code}).`); return done("fel"); }
     logServerError("account", "googleLinkCallback", error);
+    return done("fel");
+  }
+}
+
+/**
+ * Ändrat 2026-11-07 (ADR-0205): tillbaka från Google i läget "delete" (Ta bort kontot för ett konto som bara loggar in med
+ * Google). Som kopplingen: första besöket går vidare med `steg=2` från O-Tids egen sida så att sessionens kakor följer med, och
+ * borttagningen gäller bara sessionen som började den, samma Google-konto och en ny inloggning hos Google (`auth_time`).
+ */
+async function deleteCallback(db: Database, request: Request, configured: { policy: SecurityPolicy; config: GoogleOidcConfig },
+  login: GoogleLoginState, dependencies: GoogleCallbackDependencies): Promise<Response> {
+  const { policy, config } = configured;
+  const params = new URL(request.url).searchParams;
+  const clear = loginCookie(policy, "deleted", 0);
+  const done = (outcome: GoogleDeleteOutcome) => redirect(`${policy.publicOrigin}/konto?radera=${outcome}`, [clear]);
+  if (params.get("error")) return done(params.get("error") === "access_denied" ? "avbruten" : "fel");
+  const code = params.get("code");
+  if (!code || code.length > 2048 || !sameState(login.state, params.get("state"))) return done("fel");
+  if (params.get("steg") !== "2") {
+    const next = new URLSearchParams({ code, state: params.get("state")!, steg: "2" });
+    return continueToPage(`${GOOGLE_CALLBACK_PATH}?${next.toString()}`, "Tar bort kontot …", "Fortsätt");
+  }
+  const now = dependencies.now ?? new Date();
+  try {
+    const identity = await (dependencies.exchange ?? exchangeGoogleCode)(config, { code, login }, { now });
+    const result = await (dependencies.remove ?? deleteAccountConfirmedWithGoogle)(db, { proof: sessionProof(request, policy, false),
+      boundSessionId: login.sessionId!, identity }, now);
+    switch (result.status) {
+      case "deleted": console.info("Ett konto togs bort efter en ny inloggning med Google."); return clearSessionCookies(done("borttaget"), policy);
+      case "other-google": return done("annat-konto");
+      case "stale-login": return done("for-gammal");
+      case "sole-owner": return done("ensam-agare");
+      case "has-password": return done("losenord");
+      default: return done("sessionen");
+    }
+  } catch (error) {
+    if (error instanceof GoogleOidcError) { console.error(`Borttagningen med Google avvisades (${error.code}).`); return done("fel"); }
+    logServerError("account", "googleDeleteCallback", error);
     return done("fel");
   }
 }

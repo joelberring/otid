@@ -93,10 +93,11 @@ export async function clubAreaAccess(tx: DbExecutor, clubId: string, role: ClubR
 export async function setClubAccessSettings(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; response: ClubAccessSettingsResponse }> {
   const parsed = clubAccessSettingsRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const actor = await requireClubRole(tx, input, "ADMIN", now, true);
     if (actor.status !== "ok") return actor;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const before = await clubLinkFacts(tx, input.clubId);
     const values = { archiveVisibility: parsed.data.archive, mapBankAccess: parsed.data.mapBank, updatedBy: actor.accountId, updatedAt: now };
     await tx.insert(schema.clubSettings).values({ clubId: input.clubId, ...values })

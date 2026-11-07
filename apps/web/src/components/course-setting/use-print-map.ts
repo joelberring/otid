@@ -9,6 +9,7 @@ import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { mapRenderRequest } from "../../lib/course-setting-print";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapSource } from "../../lib/route-choice-api";
+import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { RenderQueue } from "../../lib/course-setting-bl-proposal";
 import { pressLayersFor, pressNormOf } from "../../lib/course-setting-press-layers";
 import type { RenderImage, RenderView } from "./course-setting-bl-compare";
@@ -41,8 +42,14 @@ export interface PrintMap {
   readonly renderImage: RenderImage;
 }
 
-/** Kartfilen i en Worker (kartans gränser till `onBounds` när de inte är kända). */
-export function usePrintMap(raceId: string, hasMap: boolean, onBounds: (bounds: MapRect) => void): PrintMap {
+/**
+ * Kartfilen i en Worker (kartans gränser till `onBounds` när de inte är kända). `map` är kartfilens sha256 ur banläggningens
+ * tillstånd (filen hämtas då ur webbläsarens lager eller en gång per sha256, ADR-0218), `true` för en karta med okänd sha256
+ * (hämtas utan cache) eller `false` för ingen karta.
+ */
+export function usePrintMap(raceId: string, map: boolean | string, onBounds: (bounds: MapRect) => void): PrintMap {
+  const hasMap = map !== false && map !== "";
+  const sha256 = typeof map === "string" ? map : undefined;
   const [session, setSession] = useState<MapRenderSession>();
   const [mapState, setMapState] = useState<PrintMap["mapState"]>("none");
   const [colors, setColors] = useState<readonly MapColor[]>([]);
@@ -60,14 +67,14 @@ export function usePrintMap(raceId: string, hasMap: boolean, onBounds: (bounds: 
     const controller = new AbortController();
     let created: MapRenderSession | undefined;
     setMapState("reading");
-    void fetchMapSource(raceId, controller.signal).then(file => {
+    void cachedMapFile(mapFileCache, sha256, known => fetchMapSource(raceId, controller.signal, { sha256: known }), controller.signal).then(file => {
       created = new MapRenderSession(createMapWorker, (bounds, scale, _georeference, mapColors, mapUsage) => {
         boundsRef.current(bounds); setColors(mapColors); setUsage(mapUsage); setMapScale(scale); setSession(created); setMapState("ready");
       }, () => setMapState("failed"));
       created.load(file.bytes, file.fileName);
     }, () => { if (!controller.signal.aborted) setMapState("failed"); });
     return () => { controller.abort(); created?.close(); };
-  }, [raceId, hasMap]);
+  }, [raceId, hasMap, sha256]);
   return { session, mapState, colors, usage, mapScale, renderImage };
 }
 

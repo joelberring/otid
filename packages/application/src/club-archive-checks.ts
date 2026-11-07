@@ -4,17 +4,18 @@ import {
   type ClubEntryThumbnailView, type ClubMapCheckView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { clubAreaAccess, clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
 import { courseFileSummary } from "./club-archive-import";
 import { imageDimensions } from "./image-dimensions";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
 /**
- * ADR-0196: kontrollen av kartversionerna och de små bilderna i klubbarkivet. Kartorna ritas i en administratörs webbläsare
+ * ADR-0196: kontrollen av kartversionerna och de små bilderna i klubbarkivet. Kartorna ritas i en medlems webbläsare
  * (servern ritar inga kartor, ADR-0179 beslut 2); servern sparar beskedet och bilden en gång och kontrollerar att bilden är
- * en PNG av angiven storlek. Bilderna är härledda och går alltid att rita om; de skrivs inte i klubbens journal. Läsare ser
- * dem, administratörer sparar dem.
+ * en PNG av angiven storlek. Bilderna är härledda och går alltid att rita om; de skrivs inte i klubbens journal. Ändrat
+ * 2026-11-07 (ägarens beslut): alla medlemmar som får se arkivet sparar träningarnas bilder, och de som får se arkivet eller
+ * kartbanken sparar kartornas kontroll ("Vem ser vad", ADR-0209), inte bara administratörer.
  */
 const validId = (id: string) => UUID_PATTERN.test(id);
 
@@ -56,13 +57,16 @@ export async function entryThumbnails(tx: DbExecutor, sources: ReadonlyMap<strin
 export async function saveClubMapVersionCheck(db: Database, input: ClubProof & { clubId: string; versionId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubMapVersionCheckRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" };
-  const check = parsed.data;
-  const thumbnail = check.thumbnail ? decodePng(check.thumbnail) : null;
-  if (thumbnail === undefined) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "ADMIN", now, true);
+    const member = await requireClubRole(tx, input, "READER", now, true);
     if (member.status !== "ok") return member;
+    const access = await clubAreaAccess(tx, input.clubId, member.role);
+    if (!access.archive && !access.mapBank) return { status: "forbidden" } as const;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" } as const;
+    const check = parsed.data;
+    const thumbnail = check.thumbnail ? decodePng(check.thumbnail) : null;
+    if (thumbnail === undefined) return { status: "invalid-request" } as const;
     const [version] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)
       .where(and(eq(schema.clubMapVersions.id, input.versionId), eq(schema.clubMapVersions.clubId, input.clubId)));
     if (!version) return { status: "not-found" } as const;
@@ -78,13 +82,14 @@ export async function saveClubMapVersionCheck(db: Database, input: ClubProof & {
 export async function saveClubEntryThumbnail(db: Database, input: ClubProof & { clubId: string; entryId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubEntryThumbnailRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.entryId)) return { status: "invalid-request" };
-  const thumbnail = parsed.data;
-  const image = thumbnail.image ? decodePng(thumbnail.image) : null;
-  if (image === undefined) return { status: "invalid-request" };
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, input, "ADMIN", now, true);
+    const member = await requireClubArea(tx, input, "ARCHIVE", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !validId(input.entryId)) return { status: "invalid-request" } as const;
+    const thumbnail = parsed.data;
+    const image = thumbnail.image ? decodePng(thumbnail.image) : null;
+    if (image === undefined) return { status: "invalid-request" } as const;
     const [entry] = await tx.select({ id: schema.clubArchiveEntries.id }).from(schema.clubArchiveEntries)
       .where(and(eq(schema.clubArchiveEntries.id, input.entryId), eq(schema.clubArchiveEntries.clubId, input.clubId)));
     const [version] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)

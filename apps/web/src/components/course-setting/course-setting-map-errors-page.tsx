@@ -22,6 +22,7 @@ import {
 import type { NoteFilter } from "../../lib/course-setting-note-marks";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapSource } from "../../lib/route-choice-api";
+import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { Button, Notice } from "../ui";
 import { MapLinkPanel } from "./map-link-panel";
 import { EditableText, editOutcome, replyAuthor, VerdictBadge } from "./note-text";
@@ -75,6 +76,8 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
   const [notes, setNotes] = useState<readonly CourseSettingNote[]>();
   const [failed, setFailed] = useState(false);
   const [hasMap, setHasMap] = useState(false);
+  // Kartfilens sha256 ur banläggningens tillstånd (ADR-0218); kartritaren utan banläggning hämtar filen utan cache.
+  const [mapSha256, setMapSha256] = useState<string>();
   const [mapMaker, setMapMaker] = useState(false);
   /** Den inloggade i banläggningen (null för kartritaren med behörigheten MAP, som inte får läget). */
   const [access, setAccess] = useState<{ accountId: string; level: string } | null>(null);
@@ -90,6 +93,7 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
         if (!state) { setMapMaker(true); setDocument(null); setHasMap(true); }
         else {
           setDocument((state.setting?.document ?? null) as unknown as CourseSettingDocument | null); setHasMap(state.mapFile !== null);
+          setMapSha256(state.mapFile?.sha256);
           setAccess({ accountId: state.access.accountId, level: state.access.level });
         }
         await reload();
@@ -116,7 +120,7 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
     const controller = new AbortController();
     let created: MapRenderSession | undefined;
     setMapState("reading");
-    void fetchMapSource(raceId, controller.signal).then(file => {
+    void cachedMapFile(mapFileCache, mapSha256, known => fetchMapSource(raceId, controller.signal, { sha256: known }), controller.signal).then(file => {
       created = new MapRenderSession(createMapWorker, (_bounds, _scale, georef) => { setGeoreference(georef); setSession(created); setMapState("ready"); },
         () => setMapState("failed"));
       created.load(file.bytes, file.fileName);
@@ -125,7 +129,7 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
       if (error instanceof Error && error.message === "404") { setHasMap(false); setMapState("none"); } else setMapState("failed");
     });
     return () => { controller.abort(); created?.close(); };
-  }, [raceId, hasMap]);
+  }, [raceId, hasMap, mapSha256]);
 
   const [status, setStatus] = useState<NoteFilter>("OPEN");
   const [seed] = useState(() => crypto.getRandomValues(new Uint32Array(1))[0]! || 1);

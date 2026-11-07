@@ -85,7 +85,7 @@ test("banfil utan .ppen: Använd igen öppnar banläggningen, starten flyttas oc
     if (course) await owner.getByTestId("course-setting-view").selectOption({ label: course });
     const map = owner.getByRole("img", { name: `Karta med banpåtryck: ${course ?? "Alla kontroller"}` });
     await expect(map).toBeVisible({ timeout: 30_000 });
-    await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+    await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
     const box = (await map.boundingBox())!;
     const [centerX, centerY] = (await map.getAttribute("data-center"))!.split(",").map(Number) as [number, number];
     const pxPerMm = Number(await map.getAttribute("data-px-per-mm"));

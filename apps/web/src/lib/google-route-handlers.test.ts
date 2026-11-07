@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  GoogleOidcError, newGoogleLoginState, parseGoogleMovePending, parseGoogleLoginState, serializeGoogleLoginState, type linkGoogleToAccount,
+  GoogleOidcError, newGoogleLoginState, type deleteAccountConfirmedWithGoogle, parseGoogleMovePending, parseGoogleLoginState, serializeGoogleLoginState, type linkGoogleToAccount,
   type signInWithGoogle
 } from "@o-tid/application";
 import type { Database } from "@o-tid/database";
@@ -158,5 +158,33 @@ describe("ADR-0205 tillägg: Koppla Google-konto och Kom ihåg mig", () => {
     expect(location(await googleCallbackRoute(db, callback(`code=kod&state=${"A".repeat(43)}&steg=2`, cookie), env,
       { exchange, link: link as unknown as typeof linkGoogleToAccount, now }))).toBe("https://otid.example/konto?google=fel");
     expect(link).toHaveBeenCalledTimes(5);
+  });
+
+  it("ändrat 2026-11-07: Ta bort kontot med Google – vidare från O-Tids sida, sedan borttaget och sessionens kakor tömda; annars besked", async () => {
+    const login = newGoogleLoginState(now, { mode: "delete", sessionId });
+    const cookie = `__Host-otid-google-login=${serializeGoogleLoginState(login)}`;
+    const exchange = vi.fn().mockResolvedValue({ ...identity, authTime: now.getTime() });
+    const remove = vi.fn();
+    const run = (query: string) => googleCallbackRoute(db, callback(query, `${cookie}; __Host-otid-organizer-session=${sessionToken}`), env,
+      { exchange, remove: remove as unknown as typeof deleteAccountConfirmedWithGoogle, now });
+    const first = await run(`code=kod&state=${login.state}`);
+    expect(await first.text()).toContain("steg=2");
+    expect(remove).not.toHaveBeenCalled();
+    remove.mockResolvedValueOnce({ status: "deleted" });
+    const done = await run(`code=kod&state=${login.state}&steg=2`);
+    expect(location(done)).toBe("https://otid.example/konto?radera=borttaget");
+    expect(cookies(done).some(value => value.startsWith("__Host-otid-organizer-session=deleted"))).toBe(true);
+    const [, input] = remove.mock.calls[0]! as [unknown, { boundSessionId: string; proof: { sessionToken: string } }];
+    expect([input.boundSessionId, input.proof.sessionToken]).toEqual([sessionId, sessionToken]);
+    for (const [status, outcome] of [["other-google", "annat-konto"], ["stale-login", "for-gammal"], ["has-password", "losenord"],
+      ["session-mismatch", "sessionen"]] as const) {
+      remove.mockResolvedValueOnce({ status });
+      const response = await run(`code=kod&state=${login.state}&steg=2`);
+      expect(location(response)).toBe(`https://otid.example/konto?radera=${outcome}`);
+      expect(cookies(response).some(value => value.startsWith("__Host-otid-organizer-session=deleted"))).toBe(false);
+    }
+    remove.mockResolvedValueOnce({ status: "sole-owner", soleOwnerOf: [] });
+    expect(location(await run(`code=kod&state=${login.state}&steg=2`))).toBe("https://otid.example/konto?radera=ensam-agare");
+    expect(location(await run(`error=access_denied&state=${login.state}`))).toBe("https://otid.example/konto?radera=avbruten");
   });
 });

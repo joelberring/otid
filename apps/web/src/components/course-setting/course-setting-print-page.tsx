@@ -73,6 +73,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const [canEdit, setCanEdit] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapRect>();
   const [hasMap, setHasMap] = useState(false);
+  // ADR-0218: kartfilens sha256, så att förhandsvisningen hämtar filen ur webbläsarens lager som banläggningen.
+  const [mapSha256, setMapSha256] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [chosen, setChosen] = useState<readonly string[]>([]);
   const [eachVariant, setEachVariant] = useState(false);
@@ -103,7 +105,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       setDocument(next);
       versionRef.current = state.setting?.version;
       setCanEdit(state.access.level === "EDIT");
-      setHasMap(state.mapFile !== null);
+      setHasMap(state.mapFile !== null); setMapSha256(state.mapFile?.sha256);
       if (state.mapFile?.bounds) setMapBounds(state.mapFile.bounds);
       if (next && first) {
         const wanted = new URLSearchParams(window.location.search).get("course");
@@ -115,7 +117,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   useEffect(() => { void load(true); }, [load]);
 
   // Kartfilen i en Worker; sidornas bilder ritas en i taget (gemensamt med Layout).
-  const map = usePrintMap(raceId, hasMap, bounds => setMapBounds(current => current ?? bounds));
+  const map = usePrintMap(raceId, hasMap && (mapSha256 ?? true), bounds => setMapBounds(current => current ?? bounds));
   const { session, mapState, colors, usage, mapScale, renderImage } = map;
 
   // Kartbuntarna (steg 61) när en karta per löpare skrivs ut.

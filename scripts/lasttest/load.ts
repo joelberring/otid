@@ -25,7 +25,8 @@ import { parseArgs } from "node:util";
 import { readoutEvent } from "./common.ts";
 import { averages, CgroupMeter, Client, percentile, Recorder, sleep, summarize, table } from "./measure.ts";
 
-const { values: args } = parseArgs({ options: {
+// `pnpm lasttest:load -- --base …`: pnpm skickar med "--" (som i scripts/load-test.ts).
+const { values: args } = parseArgs({ args: process.argv.slice(2).filter(arg => arg !== "--"), options: {
   base: { type: "string", default: "http://127.0.0.1:3000" },
   /** Steg 54: `web-public` (a,b för två; publika sidor och API:er utan inloggning, som Caddy delar upp). Tom = allt till --base. */
   "public-base": { type: "string", default: "" },

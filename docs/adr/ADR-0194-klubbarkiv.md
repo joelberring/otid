@@ -83,3 +83,9 @@ inte via Claude eller någon tredje part.
 arkivets kartfiler (CLUB_ARCHIVE_MAP_MAX_BYTES), så att en ofärdig Mapper-fil på 72 MB kan användas. Så stora kartor är
 inte målet: gränsen är tillfällig och kan sänkas igen. `map_content` behåller villkoret från migration 0061 (100 MB), så
 ingen ny migration behövs; Caddy tillåter 110 MB för tävlingens uppladdning (kartfil och bild) och 80 MB för arkivet.
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`, ägarens beslut): kartornas kontroll och träningarnas små bilder (PUT `check`
+och `thumbnail`) sparas av alla medlemmar som får se dem, inte bara administratörer: bilden av alla som ser träningsarkivet,
+kontrollen av alla som ser arkivet eller kartbanken ("Vem ser vad", ADR-0209). Det är medlemmarnas webbläsare som ritar dem
+(den som ser arkivet och får hämta kartfilerna); servern prövar innehållet som förut (PNG, storlek, att versionen och träningen
+hör till klubben). "Kontrollera alla kartor igen" är kvar hos administratörerna.

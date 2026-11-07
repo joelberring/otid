@@ -183,7 +183,7 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   // 4. Keps på Lång (A och B): förklaringen står under banan, aldrig över mål, kontroller, nummer eller sträckor.
   await owner.goto(`/admin/${raceId}/course-setting`);
   await owner.getByTestId("course-setting-view").selectOption({ label: "Lång" });
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   await owner.getByTestId("course-setting-training-tool").click();
   const panel = owner.getByTestId("course-setting-training");
   await panel.getByTestId("training-add-PAIRS").click();

@@ -74,7 +74,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await phone.goto(`/admin/${raceId}/course-setting`);
   const map = phone.getByTestId("course-setting-map");
   await expect(phone.getByTestId("course-setting-field")).toBeVisible({ timeout: 30_000 });
-  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
+  await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
@@ -180,7 +180,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
     await phone.reload();
     await expect(phone.getByText(/Utan nät: banläggningen från telefonen/)).toBeVisible({ timeout: 30_000 });
     await expect(phone.getByTestId("course-setting-field")).toBeVisible();
-    await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+    await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
     await expect(phone.getByText(/Kartfilen kunde inte läsas/)).toHaveCount(0);
     await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
     await expect(status).toHaveText("Utan nät – 3 ändringar väntar", { timeout: 15_000 });
@@ -211,7 +211,7 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   // 7. Hos bankontrollanten: flytten, notiserna och bockarna.
   await kim.goto(`/admin/${raceId}/course-setting`);
   await expect(kim.getByTestId("course-setting-map")).toBeVisible({ timeout: 30_000 });
-  await expect(kim.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(kim.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   await kim.getByRole("tab", { name: /Notiser/ }).click();
   const notes = kim.getByTestId("course-setting-notes");
   await notes.getByRole("button", { name: "Alla" }).click();

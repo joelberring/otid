@@ -293,3 +293,31 @@ test("ägarens fall: Google skapade en dubblett med Gmail-adressen; kopplingen f
   await page.getByRole("link", { name: "Logga in med Google" }).click();
   await expect(menuButton(page)).toHaveAccessibleName("Konto: Ägaren Själv", { timeout: 30_000 });
 });
+
+test("ändrat 2026-11-07: ett konto som bara loggar in med Google tas bort efter en ny inloggning hos Google", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const suffix = unique();
+  const gmail = `bara.google.${suffix}@gmail.test`;
+  const sub = `bortgang${suffix}`;
+  const page = await browser.newPage();
+  await page.goto("/organizer");
+  await nextGoogleIdentity({ sub, email: gmail, name: "Bara Google" });
+  await page.getByRole("link", { name: "Logga in med Google" }).click();
+  await expect(menuButton(page)).toHaveAccessibleName("Konto: Bara Google", { timeout: 30_000 });
+  await page.goto("/konto");
+  const section = page.getByTestId("account-delete-google");
+  await expect(section).toContainText("Du loggar in med Google och har inget eget lösenord.");
+  await expect(page.getByLabel("Skriv ditt lösenord för att bekräfta")).toHaveCount(0);
+  // Ett annat Google-konto vid den nya inloggningen: inget tas bort.
+  await nextGoogleIdentity({ sub: `annan${suffix}`, email: `annan.${suffix}@gmail.test` });
+  await section.getByRole("button", { name: "Logga in med Google och ta bort kontot" }).click();
+  await expect(page.getByText("Kontot är inte borttaget: du loggade in med ett annat Google-konto")).toBeVisible({ timeout: 30_000 });
+  for (const width of WIDTHS) { await page.setViewportSize({ width, height: 900 }); await noSidewaysScroll(page); await shot(page, "konto-ta-bort-google"); }
+  // Samma Google-konto (den falska leverantören anger en ny inloggning när O-Tid ber om prompt=login): kontot tas bort.
+  await nextGoogleIdentity({ sub, email: gmail });
+  await page.getByTestId("account-delete-google").getByRole("button", { name: "Logga in med Google och ta bort kontot" }).click();
+  await expect(page.getByText("Kontot är borttaget.")).toBeVisible({ timeout: 30_000 });
+  await shot(page, "konto-borttaget-google");
+  expect((await page.request.get("/api/account")).status()).toBe(401);
+  await page.close();
+});

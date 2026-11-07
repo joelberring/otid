@@ -48,3 +48,9 @@ fungerar och hittade inte var kartans rättigheter ändras.
 - Kartor från OCAD 8 och kartor från 9–11 utan koordinatsystemets kod (bara "r1" och x/y) har en georeferens med okänt
   koordinatsystem; banor flyttas då som "kontrollera själv" (ADR-0194 beslut 4).
 - Första besöket efter uppdateringen ritar bilderna efter hand (sex kartversioner per besök) eller allt med en knapptryckning.
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`, ägarens beslut): kartornas kontroll och träningarnas små bilder (PUT `check`
+och `thumbnail`) sparas av alla medlemmar som får se dem, inte bara administratörer: bilden av alla som ser träningsarkivet,
+kontrollen av alla som ser arkivet eller kartbanken ("Vem ser vad", ADR-0209). Det är medlemmarnas webbläsare som ritar dem
+(den som ser arkivet och får hämta kartfilerna); servern prövar innehållet som förut (PNG, storlek, att versionen och träningen
+hör till klubben). "Kontrollera alla kartor igen" är kvar hos administratörerna.

@@ -117,7 +117,7 @@ a.hubLink:hover strong { text-decoration: underline; }
 
 @media print {
   body:has(.sheet) { background: #fff; }
-  body:has(.sheet) > header, body:has(.sheet) > .site-footer, .qrTools { display: none !important; }
+  body:has(.sheet) > header, body:has(.sheet) > :global(.site-footer), .qrTools { display: none !important; }
   body:has(.sheet) main { max-width: none; margin: 0; padding: 0; }
   .qrPage { display: block; max-width: none; }
   .sheet { max-width: none; margin: 0 auto; border: 0; padding: 10mm 0 0; }

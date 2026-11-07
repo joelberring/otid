@@ -68,8 +68,9 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     tabs.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
   const admin = club ? club.viewer.role === "OWNER" || club.viewer.role === "ADMIN" : false;
-  // ADR-0196: kartornas kontroll och bilderna ritas i bakgrunden när en administratör har arkivet öppet.
-  const checks = useArchiveChecks(clubId, list, admin, load);
+  // ADR-0196: kartornas kontroll och bilderna ritas i bakgrunden när en medlem som får se arkivet och hämta kartfilerna
+  // (kartbanken) har arkivet öppet (ändrat 2026-11-07; förut bara administratörer).
+  const checks = useArchiveChecks(clubId, list, admin || Boolean(list?.viewer.access.archive && list.viewer.access.mapBank), load);
   const usage = useMemo(() => club ? text.usage(club.usage.mapBytes + club.usage.courseFileBytes, club.usage.maps, club.usage.versions,
     club.usage.entries) : "", [club]);
 

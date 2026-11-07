@@ -38,6 +38,19 @@ const authFailure = (status: string) => status === "forbidden" ? accountFailure(
   ? accountFailure(400, "INVALID_REQUEST") : accountFailure(401, "UNAUTHORIZED");
 
 export async function googleLinkStartRoute(db: Database, request: Request, environment: Environment = process.env, now = new Date()): Promise<Response> {
+  return startBound(db, request, "link", environment, now);
+}
+
+/**
+ * Ändrat 2026-11-07 (ADR-0205): "Ta bort kontot" för ett konto som bara loggar in med Google. Svarar med adressen till Google
+ * (en ny inloggning, `prompt=login`) och sparar sessionens id och syftet i den kortlivade kakan; återkomsten tar bort kontot.
+ */
+export async function googleDeleteStartRoute(db: Database, request: Request, environment: Environment = process.env, now = new Date())
+  : Promise<Response> {
+  return startBound(db, request, "delete", environment, now);
+}
+
+async function startBound(db: Database, request: Request, mode: "link" | "delete", environment: Environment, now: Date): Promise<Response> {
   const configured = configuration(environment);
   if (!configured) return notFound();
   const input = await guardedWrite(request, configured.policy, "json");
@@ -45,11 +58,11 @@ export async function googleLinkStartRoute(db: Database, request: Request, envir
   try {
     const auth = await authenticateUserAccountSession(db, input.proof, now);
     if (auth.status !== "authenticated") return authFailure(auth.status);
-    const started = googleRedirect(configured, newGoogleLoginState(now, { mode: "link", sessionId: auth.principal.sessionId }));
+    const started = googleRedirect(configured, newGoogleLoginState(now, { mode, sessionId: auth.principal.sessionId }));
     const response = privateJson({ formatVersion: 1, location: started.location });
     response.headers.append("set-cookie", started.cookie);
     return response;
-  } catch (error) { logServerError("account", "googleLinkStartRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
+  } catch (error) { logServerError("account", `google-${mode}-start`, error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 function pendingMove(request: Request, policy: SecurityPolicy, now: Date) {

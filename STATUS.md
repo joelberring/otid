@@ -16,6 +16,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Backup: kartinnehållet en gång per innehåll i `./backups/map-content`, miniatyrer och kartkontroller utesluts, 24 timdumpar; `sh /backup.sh restore-map-content` efter pg_restore. Dump och återställning provade lokalt (md5 lika, även omtagen dump).
 - `pnpm load-test` (N samtidiga tävlingar via API:t) och bedömning för CX23 i docs/drift.md.
 - Tester: `server-report.test.ts` (16), `adr-0216-serverrapport.test.ts` (integration), `server-watch-runner.test.ts`; CI kör `server-report` i driftjobbet.
+
 ### 2026-11-07 – Förenklade färger för tryck (grenen b2-tryckfarger, ADR-0215, ingen migration)
 - Ny förvald profil "Kartans egna färger" (`map-own`): kartfilens färger i normens ordning utan att någon gör något. En tävling som valt en profil behåller den; en som aldrig valt får normens ordning i nästa PDF.
 - "Färger för tryck": en statusrad ("Färger: kartans egna, i normens ordning (32 färger, 3 över banan)") med "Visa", lägena "Kartans egna färger" och "Tryck hos BL". BL visar bara de tveksamma färgerna (ingen säker rad eller fel sida mot normen) och "Godta alla säkra".

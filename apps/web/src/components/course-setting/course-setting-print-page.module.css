@@ -121,3 +121,5 @@
 .sortButton { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; text-decoration: underline dotted; }
 .warnRow td { background: color-mix(in srgb, var(--attention, #8a5a00) 10%, transparent); }
 .table tr[data-selected] td { outline: 2px solid #1d6fd1; }
+/* En länk som gör något på sidan (ADR-0217: "Ändra i layouten"). */
+.linkButton { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }

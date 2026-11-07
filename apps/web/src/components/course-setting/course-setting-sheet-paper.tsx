@@ -23,9 +23,11 @@ export interface SheetTarget { readonly course: string; readonly part: number | 
  * kartbytets överlapp. "Flytta ramen på arket" visar ramens handtag på arket. Allt sparas i banans (eller delens) tryckyta,
  * som skrivs till .ppen som förut.
  */
-export function SheetPaperPanel({ raceId, document, target, readOnly, onSave, frameEditing, onFrameEditing }: {
+export function SheetPaperPanel({ raceId, document, target, readOnly, onSave, frameEditing, onFrameEditing, layout }: {
   raceId: string; document: CourseSettingDocument; target: SheetTarget | undefined; readOnly: boolean;
   onSave: (edits: CourseSettingEdit[]) => Promise<boolean>; frameEditing: boolean; onFrameEditing: (on: boolean) => void;
+  /** ADR-0217: arket i en annan layout än huvudlayouten: skalan är layoutens och ändras i layouten (`onEdit`). */
+  layout?: { readonly name: string; readonly onEdit: () => void } | undefined;
 }) {
   const [failed, setFailed] = useState(false);
   if (!target) return null;
@@ -54,8 +56,10 @@ export function SheetPaperPanel({ raceId, document, target, readOnly, onSave, fr
           <select value={page.landscape ? "landscape" : "portrait"} data-testid="sheet-paper-orientation" onChange={event => withPage({ landscape: event.target.value === "landscape" })}>
             <option value="portrait">{text.portrait}</option><option value="landscape">{text.landscape}</option></select></label>
         <MarginField value={Math.round(page.margins * HUNDREDTH_INCH_MM)} onCommit={mm => withPage({ margins: Math.round(mm / HUNDREDTH_INCH_MM) })} />
-        {scale !== undefined && <span className={styles.muted} data-testid="sheet-paper-scale">{text.scale(thousands(scale))}{" "}
-          {course !== "ALL_CONTROLS" && <Link href={`/admin/${raceId}/course-setting`}>{text.scaleChange}</Link>}</span>}
+        {scale !== undefined && (layout ? <span className={styles.muted} data-testid="sheet-paper-scale">{text.layoutScale(thousands(scale), layout.name)}{" "}
+          <button type="button" className={styles.linkButton} onClick={layout.onEdit} data-testid="sheet-paper-scale-layout">{text.layoutScaleChange}</button></span>
+          : <span className={styles.muted} data-testid="sheet-paper-scale">{text.scale(thousands(scale))}{" "}
+          {course !== "ALL_CONTROLS" && <Link href={`/admin/${raceId}/course-setting`}>{text.scaleChange}</Link>}</span>)}
       </div>
       <div className={styles.row} role="radiogroup" aria-label={text.area}>
         <span>{text.area}:</span>

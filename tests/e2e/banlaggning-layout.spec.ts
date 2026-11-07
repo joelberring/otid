@@ -122,6 +122,10 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await cell("Mellan", old!).click();
   await expect(sheet).toHaveAttribute("data-layout", old!);
   await expect(sheet.getByTestId("layout-sheet-view").first()).toHaveAttribute("data-scale", "7500");
+  // Skalan är layoutens och ändras i layouten (inte i banans egenskaper).
+  await expect(sheet.getByTestId("sheet-paper-scale")).toContainText("Skala för layouten Äldre A4 1:7 500.");
+  await sheet.getByTestId("sheet-paper-scale-layout").click();
+  await expect(owner.locator(`[data-testid=layout-entry][data-layout="${old}"] [data-testid=layout-scale]`)).toBeFocused();
   await expect(sheet.getByTestId("layout-adjust-count")).toHaveText("Inga justeringar: allt följer banläggningen.");
   const number = sheet.getByTestId("layout-number").first();
   await number.scrollIntoViewIfNeeded();

@@ -42,6 +42,9 @@ export const sheetPaperSv = {
   margins: "Marginal (mm)",
   scale: (scale: string) => `Skala för banan 1:${scale}.`,
   scaleChange: "Ändra i banans egenskaper",
+  /** ADR-0217: ett ark i en annan layout än huvudlayouten har layoutens skala. */
+  layoutScale: (scale: string, layout: string) => `Skala för layouten ${layout} 1:${scale}.`,
+  layoutScaleChange: "Ändra i layouten",
   area: "Tryckyta",
   automatic: "Automatisk (som Purple Pen)",
   manual: "Fast ram",

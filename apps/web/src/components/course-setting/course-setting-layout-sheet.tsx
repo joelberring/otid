@@ -114,6 +114,7 @@ export function LayoutSheetEditor({ raceId, document, layout, course, canEdit, s
       <div className={styles.sheetPanels}>
         <AdjustPanel document={document} layout={layout} course={course} scale={scale} canEdit={canEdit} save={save} />
         {target && <SheetPaperPanel raceId={raceId} document={view} target={target} readOnly={!canEdit} onSave={edits => panel ? panel.onSave(edits) : Promise.resolve(false)}
+          layout={layout !== MAIN_LAYOUT ? { name: layoutName, onEdit: () => focusLayoutScale(layout) } : undefined}
           frameEditing={frameEditing} onFrameEditing={setFrameEditing} />}
         {panel && <PaperSpacePanel raceId={raceId} document={view} readOnly={!canEdit} {...panel} />}
         <PaperDescriptionsPanel document={view} courses={paperCourses(view, chosen)} placed={placed} readOnly={!canEdit}
@@ -203,4 +204,11 @@ function GapRow({ code, value, disabled, onSave }: { code: string; value: readon
       onClick={() => onSave(parsed.map(([start, end]) => ({ startDegrees: start!, endDegrees: end! })))}>{text.sheet.gapsSave}</Button>
     {value && <Button variant="quiet" disabled={disabled} onClick={() => onSave(null)}>{text.sheet.gapsReset}</Button>}
   </div>;
+}
+
+/** "Ändra i layouten": layoutens skala i listan, i bild och markerad. */
+function focusLayoutScale(layout: string) {
+  const field = window.document.querySelector<HTMLInputElement>(`[data-testid=layout-entry][data-layout="${CSS.escape(layout)}"] [data-testid=layout-scale]`);
+  field?.scrollIntoView({ behavior: "smooth", block: "center" });
+  field?.focus();
 }

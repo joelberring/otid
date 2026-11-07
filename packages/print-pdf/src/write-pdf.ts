@@ -85,6 +85,18 @@ export function inCourseLayer(figure: OverprintPrimitive, norm: PressNorm = "ISO
   return lowerPurple(figure, norm, numbersOnTop);
 }
 
+/**
+ * Vändningskanten för dubbelsidigt. Kartbytets delar (ADR-0203 beslut 7): alltid långsidan, också liggande delar och
+ * blandade riktningar. Löparnas baksidor (ADR-0213): långsidan, eller kortsidan när alla baksidor är liggande, så att
+ * texten inte hamnar upp och ned. Inga baksidor = inget förslag.
+ */
+export function duplexEdge(sheets: readonly Pick<Sheet, "back" | "paper" | "frames">[]): "LONG" | "SHORT" | undefined {
+  const backs = sheets.filter(sheet => sheet.back);
+  if (backs.length === 0) return undefined;
+  if (backs.some(sheet => sheet.frames.some(frame => frame.part !== undefined))) return "LONG";
+  return backs.every(sheet => sheet.paper.widthMm > sheet.paper.heightMm) ? "SHORT" : "LONG";
+}
+
 const base64Bytes = (data: string): Uint8Array => {
   const binary = atob(data);
   const out = new Uint8Array(binary.length);
@@ -495,12 +507,9 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   const pageResources = context.register(context.obj({ ...shared, XObject: context.register(context.obj(xobjects)) }));
   for (const page of pages) page.node.set(PDFName.of("Resources"), pageResources);
 
-  // Dubbelsidigt: utskriftsdialogen föreslår vändning på långsidan (baksidorna ligger rätt i samma riktning som framsidan).
-  // Dubbelsidigt: baksidan står rätt när arket vänds kring långsidan (stående) eller kortsidan (liggande, ADR-0213), så att
-  // texten inte hamnar upp och ned; alla baksidor liggande = kortsidan.
-  const backs = input.sheets.filter(sheet => sheet.back);
-  if (backs.length > 0) document.catalog.getOrCreateViewerPreferences().setDuplex(backs.every(sheet => sheet.paper.widthMm > sheet.paper.heightMm)
-    ? Duplex.DuplexFlipShortEdge : Duplex.DuplexFlipLongEdge);
+  // Dubbelsidigt: utskriftsdialogens förslag på vändningskant (`duplexEdge`).
+  const edge = duplexEdge(input.sheets);
+  if (edge) document.catalog.getOrCreateViewerPreferences().setDuplex(edge === "LONG" ? Duplex.DuplexFlipLongEdge : Duplex.DuplexFlipShortEdge);
 
   const bytes = await document.save({ useObjectStreams: false });
   if (multiplyUsed) notes.add("Kontorsskrivaren: kartans färger över banan är multiplicerade, så att lila syns genom dem som på tryck.");

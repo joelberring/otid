@@ -27,6 +27,14 @@ describe("PDF för tryck: förfrågan och förhandskontrollen (steg 65)", () => 
       warningsConfirmed: true, confirmedRules: ["black"] });
   });
 
+  it("kartbyten (ADR-0203): delen följer med och dubbelsidigt gäller delarna utan löpare", () => {
+    const parts = printJobRequest({ ...selection, header: false, duplex: true, items: [{ course: "1", part: 0 }, { course: "1", part: 1 }] }, "PRESS", "as-file",
+      { warnings: true, rules: [] });
+    expect(printJobRequestSchema.parse(parts)).toMatchObject({ perRunner: false, duplex: true, items: [{ course: "1", part: 0 }, { course: "1", part: 1 }] });
+    // Utan dubbelsidigt valt blir det inte dubbelsidigt.
+    expect(printJobRequest({ ...selection, items: [{ course: "1", part: 1 }] }, "PRESS", "as-file", { warnings: true, rules: [] }).duplex).toBe(false);
+  });
+
   it("förhandskontrollen mot PDF:en: övertryck går, PDF/X stoppar, varningar måste bekräftas", () => {
     const bl = BUILT_IN_PRINT_PROFILES.find(item => item.id === "bl-forest-2026-08-27")!;
     const colors = [color(1, "Svart", { c: 0, m: 0, y: 0, k: 0.9 })];

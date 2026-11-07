@@ -201,7 +201,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "class-result-recalculation"; classId: string } | { kind: "effective-result"; entryId: string } | { kind: "speaker-board" } |
   { kind: "identity-candidates" } | { kind: "identity"; entryId: string } | { kind: "registration" } | { kind: "registration-candidates" } |
   { kind: "changes"; entryId: string } |
-  { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "race-map-source" } | { kind: "participant-route" } |
+  { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "race-map-source"; sha256?: string } | { kind: "participant-route" } |
   { kind: "route-choice" } | { kind: "route-choice-settings" } | { kind: "route-choice-published" } | { kind: "route-choice-calibration"; courseId: string } |
   { kind: "course-setting" } | { kind: "course-setting-import" } | { kind: "course-setting-revisions" } |
   { kind: "course-setting-revision"; version: number } | { kind: "course-setting-restore" } | { kind: "course-setting-original" } |

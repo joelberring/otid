@@ -18,6 +18,8 @@ export const courseSettingSv = {
   retry: "Försök igen",
   noMapFile: "Banläggningen ritas på kartfilen (OCAD eller Mapper). Ladda upp kartfilen först.",
   readingMap: "Läser kartfilen …",
+  /** ADR-0218: medan en stor kartfil hämtas. */
+  readingMapProgress: (percent: number) => `Läser kartfilen … ${percent}\u00a0%`,
   mapFailed: "Kartfilen kunde inte läsas i webbläsaren. Banorna går ändå att ändra.",
   mapSaved: "Kartfilen är sparad.",
   start: {

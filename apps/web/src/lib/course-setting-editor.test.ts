@@ -9,13 +9,19 @@ import { checkRows } from "./course-setting-checks";
 import { controlLabel, legInput, minutes } from "./course-setting-text";
 import { applyEdit as apply } from "@o-tid/course-setting";
 import { testDocument } from "./course-setting-test-document";
-import { bitmapPlacement, fitBounds, panBy, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt } from "./course-setting-viewport";
+import { bitmapPlacement, fitBounds, panBy, resize, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt } from "./course-setting-viewport";
 
 /** Steg 62: banläggningens rena moduler – kartvyn (mm ↔ skärm, y uppåt), träff-test, editorn, autosparandet och texterna. */
 const view = { centerX: 50, centerY: 40, pxPerMm: 4, width: 400, height: 300 };
 const nextCode = () => "40";
 
 describe("kartvyn", () => {
+  it("ADR-0218: samma storlek ger samma vy, så att ingen ny bild av kartan beställs", () => {
+    const view = fitBounds({ minX: 0, minY: 0, maxX: 100, maxY: 80 }, 800, 600);
+    expect(resize(view, 800, 600)).toBe(view);
+    expect(resize(view, 801, 600)).toEqual({ ...view, width: 801 });
+  });
+
   it("räknar mm till skärm och tillbaka med y uppåt i kartan", () => {
     expect(toScreen(view, { x: 50, y: 40 })).toEqual({ x: 200, y: 150 });
     expect(toScreen(view, { x: 60, y: 50 })).toEqual({ x: 240, y: 110 });

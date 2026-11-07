@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
@@ -134,6 +134,12 @@ describe("steg 59: kartfilen", () => {
     const original = await readRaceMapSourceFileAsAdmin(db, proof);
     expect(original.status === "ok" && Buffer.compare(original.file, Buffer.from(omap))).toBe(0);
     expect(await readRaceMapSourceFileAsAdmin(db, functionary)).toEqual({ status: "forbidden" });
+    // ADR-0218: webbläsarens ETag (filens sha256) ger "inte ändrad" utan innehållet, men bara efter behörigheten.
+    const sha256 = createHash("sha256").update(omap).digest("hex");
+    expect(original.status === "ok" && original.sha256).toBe(sha256);
+    expect(await readRaceMapSourceFileAsAdmin(db, proof, undefined, { ifNoneMatch: sha256 })).toEqual({ status: "not-modified", sha256 });
+    expect(await readRaceMapSourceFileAsAdmin(db, functionary, undefined, { ifNoneMatch: sha256 })).toEqual({ status: "forbidden" });
+    expect((await readRaceMapSourceFileAsAdmin(db, proof, undefined, { ifNoneMatch: "0".repeat(64) })).status).toBe("ok");
 
     // Kontrollerna: kartlägena direkt i bildens pixlar ((x + 2)·8, (102 − y)·8).
     const map = await readControlMapAsAdmin(db, proof);

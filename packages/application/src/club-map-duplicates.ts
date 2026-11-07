@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   CLUB_MAP_COPY_FIELDS, clubMapDuplicateDismissRequestSchema, clubMapVersionsCopyRequestSchema, UUID_PATTERN, type ClubMapCopyField,
@@ -31,8 +32,14 @@ async function candidates(tx: DbExecutor, clubId: string) {
     const mapId = mapOfVersion.get(use.version_id);
     if (mapId) entries.set(mapId, (entries.get(mapId) ?? new Set()).add(use.entry_id));
   }
+  // Versionerna per karta en gång (B5), inte en genomgång av alla versioner per karta.
+  const versionsOf = new Map<string, typeof versions>();
+  for (const version of versions) {
+    const list = versionsOf.get(version.mapId);
+    if (list) list.push(version); else versionsOf.set(version.mapId, [version]);
+  }
   return maps.flatMap(map => {
-    const own = versions.filter(version => version.mapId === map.id);
+    const own = versionsOf.get(map.id) ?? [];
     if (own.length === 0) return [];
     const candidate: DuplicateCandidate = { mapId: map.id, name: map.name, fileNames: own.map(version => version.fileName),
       fingerprints: own.flatMap(version => version.fingerprint ? [version.fingerprint] : []), entryIds: [...entries.get(map.id) ?? []] };
@@ -50,6 +57,48 @@ function extentOf(mapId: string, fingerprint: MapFingerprint | null): ClubMapDup
     paper: { width: Math.round(bounds.maxX - bounds.minX), height: Math.round(bounds.maxY - bounds.minY), scale } };
 }
 
+type Found = Awaited<ReturnType<typeof candidates>>;
+type Clusters = ClubMapDuplicatesResponse["clusters"];
+
+/** Grupperna ur kartorna och de bortvalda paren (alla par jämförs, `findDuplicatePairs`). */
+function clusterCandidates(found: Found, dismissed: ReadonlySet<string>): Clusters {
+  const byId = new Map(found.map(item => [item.candidate.mapId, item]));
+  return clusterDuplicates(findDuplicatePairs(found.map(item => item.candidate), dismissed)).map(cluster => {
+    // Förvalet: kartan med flest träningar, sedan den med nyaste versionen.
+    const keep = [...cluster.mapIds].map(id => byId.get(id)!).sort((a, b) => b.trainings - a.trainings || b.newest - a.newest
+      || a.name.localeCompare(b.name, "sv"))[0]!;
+    return { mapIds: [...cluster.mapIds], keepMapId: keep.candidate.mapId, level: cluster.level, reasons: cluster.reasons.map(reason => ({ ...reason })),
+      unchecked: cluster.mapIds.filter(id => byId.get(id)!.candidate.fingerprints.length === 0),
+      extents: cluster.mapIds.map(id => extentOf(id, byId.get(id)!.fingerprint)) };
+  });
+}
+
+/** Så många klubbars förslag sparas i serverns minne (de senast använda). */
+const CACHED_CLUBS = 32;
+const clusterCache = new Map<string, { readonly key: string; readonly clusters: Clusters }>();
+
+/**
+ * B5 (ADR-0218): jämförelsen av alla par växer med kvadraten på antalet kartor och gjordes vid varje öppning av fliken
+ * Kartor. Förslagen sparas per klubb med en nyckel ur allt som jämförelsen bygger på (kartorna, versionernas namn,
+ * fingeravtryck och år, träningarna och de bortvalda paren); ändras något av det räknas de om. Inget annat än det som
+ * jämförs avgör svaret, så en sparad lista kan inte bli inaktuell.
+ */
+export function cachedDuplicateClusters(clubId: string, found: Found, dismissed: ReadonlySet<string>,
+  compute: (found: Found, dismissed: ReadonlySet<string>) => Clusters = clusterCandidates): Clusters {
+  const key = createHash("sha256").update(JSON.stringify([found, [...dismissed].sort()])).digest("hex");
+  const cached = clusterCache.get(clubId);
+  if (cached?.key === key) {
+    clusterCache.delete(clubId);
+    clusterCache.set(clubId, cached);
+    return cached.clusters;
+  }
+  const clusters = compute(found, dismissed);
+  clusterCache.delete(clubId);
+  clusterCache.set(clubId, { key, clusters });
+  while (clusterCache.size > CACHED_CLUBS) clusterCache.delete(clusterCache.keys().next().value!);
+  return clusters;
+}
+
 export async function readClubMapDuplicates(db: Database, input: ClubProof & { clubId: string }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; response: ClubMapDuplicatesResponse }> {
   return db.transaction(async tx => {
@@ -58,15 +107,7 @@ export async function readClubMapDuplicates(db: Database, input: ClubProof & { c
     const found = await candidates(tx, input.clubId);
     const dismissed = new Set((await tx.select({ a: schema.clubMapDuplicateDismissals.mapA, b: schema.clubMapDuplicateDismissals.mapB })
       .from(schema.clubMapDuplicateDismissals).where(eq(schema.clubMapDuplicateDismissals.clubId, input.clubId))).map(row => duplicatePairKey(row.a, row.b)));
-    const byId = new Map(found.map(item => [item.candidate.mapId, item]));
-    const clusters = clusterDuplicates(findDuplicatePairs(found.map(item => item.candidate), dismissed)).map(cluster => {
-      // Förvalet: kartan med flest träningar, sedan den med nyaste versionen.
-      const keep = [...cluster.mapIds].map(id => byId.get(id)!).sort((a, b) => b.trainings - a.trainings || b.newest - a.newest
-        || a.name.localeCompare(b.name, "sv"))[0]!;
-      return { mapIds: [...cluster.mapIds], keepMapId: keep.candidate.mapId, level: cluster.level, reasons: cluster.reasons.map(reason => ({ ...reason })),
-        unchecked: cluster.mapIds.filter(id => byId.get(id)!.candidate.fingerprints.length === 0),
-        extents: cluster.mapIds.map(id => extentOf(id, byId.get(id)!.fingerprint)) };
-    });
+    const clusters = cachedDuplicateClusters(input.clubId, found, dismissed);
     return { status: "ok", response: { formatVersion: 1, clusters } } as const;
   });
 }

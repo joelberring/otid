@@ -187,5 +187,7 @@ const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>
 };
 
 function allowedMethods(action: Action): string[] {
+  // B5: en sparad kartfil (`race-map-source` med sha256) går bara att läsa.
+  if (action.kind === "race-map-source" && action.sha256 !== undefined) return ["GET"];
   return [...(ROUTE_METHODS[action.kind] ?? ("entryId" in action || action.kind === "capacity" ? ["PATCH"] : ["GET"]))];
 }

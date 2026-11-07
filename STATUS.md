@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Stora kartor laddar snabbare (grenen b5-stora-kartor, ADR-0218, ingen migration)
+- Mätt med en syntetisk skogskarta (50 000 objekt, 11 MB OCAD): tolkningen 0,2–0,35 s, att läsa en tolkad karta ur IndexedDB 0,4–1 s (därför ingen sådan cache), hämtningen och ritningen dominerar. Siffror före/efter i ADR-0218.
+- Kartfilen sparas i webbläsaren per sha256 (IndexedDB `otid-map-cache`, tre filer, töms vid utloggning); andra öppningen hämtar inget. `map/source/<sha256>` ger `private, max-age=86400, immutable`, ETag och `Vary: Cookie`; 304 efter behörigheten.
+- Rumsligt index i `drawMap` (`cull`, bara banläggningens Worker): inzoomat planeras 17 % av objekten, bilden blir densamma. Workern startar under hämtningen och samma vy ritas inte två gånger. "Läser kartfilen … 43 %" under hämtningen.
+- Servern: kartväljaren utan frågor per klubb, dubblettförslagen med namnen normaliserade en gång (400 kartor 12,8 → 1,9 s) och sparade per klubb, kartbuntarna grupperade en gång.
+- Verifierat: enhetstester (index, cache, adress/ETag, förlopp, kartbuntar, dubbletter), prestandatest för tolkningen, integrationstester (steg-59, adr-0210 med frågeräkning, 0189, 0194, 0196, 0209), E2E `banlaggning-kartcache`.
+
 ### 2026-11-07 – Layout fas 3: papperet bara i Layout (grenen b3-layout-fas3, ADR-0217, ingen migration)
 - Papperets redigering flyttad från utskriftssidan till Layout-fliken (`LayoutSheets`): banor, baksidan per löpare, kartbytets delar, översikt, papper och kartram, Kartor per ark, papperets element, beskrivningen. Utskrift har bara vad, antal, färger och PDF/skrivare, och visar arken utan redigering.
 - "Papper och kartram" i en annan layout än huvudlayouten visar layoutens skala och "Ändra i layouten".

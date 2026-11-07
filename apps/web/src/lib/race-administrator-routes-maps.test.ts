@@ -177,7 +177,7 @@ describe("administratörsroutes: kartfilen", () => {
 
   it("ger originalfilen som nedladdning och tar bort kartfilen", async () => {
     const raceMapSourceFile = vi.fn<typeof Application.readRaceMapSourceFileAsAdmin>()
-      .mockResolvedValue({ status: "ok", fileName: "Djurgården 2025.ocd", format: "OCD", file: Buffer.from([0xad, 0x0c, 7]) });
+      .mockResolvedValue({ status: "ok", fileName: "Djurgården 2025.ocd", format: "OCD", sha256: "a".repeat(64), file: Buffer.from([0xad, 0x0c, 7]) });
     const raceMapSourceRemove = vi.fn<typeof Application.removeRaceMapSourceAsAdmin>().mockResolvedValue({ status: "ok" });
     const services = { ...dependencies(), raceMapSourceFile, raceMapSourceRemove };
     const get = new Request("https://otid.example/api/admin", { headers: { cookie: `__Host-otid-organizer-session=${token}` } });
@@ -191,6 +191,41 @@ describe("administratörsroutes: kartfilen", () => {
     expect((await raceAdministratorRoute(db, remove, id, action, services, environment)).status).toBe(204);
     raceMapSourceFile.mockResolvedValueOnce({ status: "not-found" });
     expect((await raceAdministratorRoute(db, get, id, action, services, environment)).status).toBe(404);
+  });
+
+  it("ADR-0218: med filens sha256 i adressen får webbläsaren behålla filen privat med ETag; If-None-Match ger 304 efter behörigheten", async () => {
+    const sha = "b".repeat(64);
+    const raceMapSourceFile = vi.fn<typeof Application.readRaceMapSourceFileAsAdmin>()
+      .mockResolvedValue({ status: "ok", fileName: "skog.ocd", format: "OCD", sha256: sha, file: Buffer.from([0xad, 0x0c, 7]) });
+    const services = { ...dependencies(), raceMapSourceFile };
+    const get = (headers: Record<string, string> = {}) => new Request("https://otid.example/api/admin",
+      { headers: { cookie: `__Host-otid-organizer-session=${token}`, ...headers } });
+    const addressed = await raceAdministratorRoute(db, get(), id, { kind: "race-map-source", sha256: sha }, services, environment);
+    expect(addressed.status).toBe(200);
+    expect(addressed.headers.get("cache-control")).toBe("private, max-age=86400, immutable");
+    expect(addressed.headers.get("etag")).toBe(`"${sha}"`);
+    expect(addressed.headers.get("vary")).toBe("Cookie");
+    expect(raceMapSourceFile.mock.calls[0]![3]).toEqual({ ifNoneMatch: undefined });
+    // Filen har bytts sedan adressen skrevs: den nya filen, men inte i webbläsarens cache.
+    const other = await raceAdministratorRoute(db, get(), id, { kind: "race-map-source", sha256: "c".repeat(64) }, services, environment);
+    expect(other.status).toBe(200);
+    expect(other.headers.get("cache-control")).toBe("private, no-store");
+    expect(other.headers.get("etag")).toBeNull();
+    // Webbläsaren frågar med sin ETag: tjänsten (som prövar behörigheten först) säger att filen är densamma.
+    raceMapSourceFile.mockResolvedValueOnce({ status: "not-modified", sha256: sha });
+    const again = await raceAdministratorRoute(db, get({ "if-none-match": `W/"${sha}"` }), id, { kind: "race-map-source", sha256: sha }, services, environment);
+    expect(again.status).toBe(304);
+    expect(again.headers.get("etag")).toBe(`"${sha}"`);
+    expect(raceMapSourceFile.mock.calls[2]![3]).toEqual({ ifNoneMatch: sha });
+    // Utan behörighet hjälper ingen ETag.
+    raceMapSourceFile.mockResolvedValueOnce({ status: "forbidden" });
+    expect((await raceAdministratorRoute(db, get({ "if-none-match": `"${sha}"` }), id, { kind: "race-map-source", sha256: sha }, services, environment)).status)
+      .toBe(403);
+    // Adressen med sha256 tar bara emot GET.
+    const remove = new Request("https://otid.example/api/admin", { method: "DELETE", headers: { origin: environment.O_TID_PUBLIC_ORIGIN,
+      "x-otid-csrf": csrf, cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}` } });
+    expect((await raceAdministratorRoute(db, remove, id, { kind: "race-map-source", sha256: sha }, services, environment)).status).toBe(405);
+    expect((await raceAdministratorRoute(db, get(), id, { kind: "race-map-source", sha256: "XYZ" }, services, environment)).status).toBe(400);
   });
 
   it("kräver administratör för att ladda upp; originalfilen kräver banläggningens behörighet (steg 66, kartritaren räcker)", async () => {

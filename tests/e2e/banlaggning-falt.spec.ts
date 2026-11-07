@@ -148,7 +148,14 @@ test("fältläget: kollad, notis med foto och ändringar utan nät som sparas n�
   await phone.getByRole("button", { name: "Min position" }).click();
   await expect(phone.getByTestId("course-setting-position-info")).toHaveText("Position ±6 m", { timeout: 15_000 });
   // Kompassen (Android: absolut riktning moturs) ger konen; sämre än 15 m ger en varning.
-  await phone.evaluate(() => window.dispatchEvent(Object.assign(new Event("deviceorientationabsolute"), { alpha: 90, absolute: true })));
+  // Nyare Chromium (Playwright 1.65) skickar egna orienteringshändelser från en tom sensor (alpha 0 eller null); de stoppas,
+  // så att bara testets händelse når kartan.
+  await phone.evaluate(() => {
+    for (const type of ["deviceorientationabsolute", "deviceorientation"]) {
+      window.addEventListener(type, event => { if (event.isTrusted) event.stopImmediatePropagation(); }, { capture: true });
+    }
+    window.dispatchEvent(Object.assign(new Event("deviceorientationabsolute"), { alpha: 90, absolute: true }));
+  });
   await expect(map).toHaveAttribute("data-heading", "270");
   await phoneContext.setGeolocation({ latitude: wgs.latitude, longitude: wgs.longitude, accuracy: 25 });
   await expect(phone.getByTestId("course-setting-position-info")).toHaveText(/^Position ±25 m – osäker/, { timeout: 15_000 });

@@ -24,10 +24,11 @@ import type { DbExecutor } from "./snapshot";
 export async function createClub(db: Database, input: ClubProof & { request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "created"; replayed: boolean; club: ClubSummary }> {
   const parsed = clubCreateRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const accountId = auth.principal.accountId;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`club-create:${parsed.data.requestId}`}, 0))`);
     const [prior] = await tx.select().from(schema.clubs).where(eq(schema.clubs.requestId, parsed.data.requestId));
@@ -144,11 +145,12 @@ export async function readClub(db: Database, input: ClubProof & { clubId: string
 export async function inviteClubMember(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date(),
   mailer?: InvitationMailer): Promise<ClubFailure | { status: "invited"; replayed: boolean; invitationId: string; mail: InvitationMailOutcome }> {
   const parsed = clubMemberInviteRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const { requestId, email, role } = parsed.data;
   const result = await db.transaction(async tx => {
     const actor = await requireClubRole(tx, input, "ADMIN", now, true);
     if (actor.status !== "ok") return actor;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const { requestId, email, role } = parsed.data;
     if (role === "OWNER" && actor.role !== "OWNER") return { status: "forbidden" } as const;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`club-invitation:${input.clubId}:${email}`}, 0))`);
     const [prior] = await tx.select().from(schema.clubInvitations).where(eq(schema.clubInvitations.requestId, requestId));
@@ -184,10 +186,11 @@ export async function inviteClubMember(db: Database, input: ClubProof & { clubId
 export async function removeClubMember(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "removed" }> {
   const parsed = clubMemberRemoveRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const actor = await requireClubRole(tx, input, "ADMIN", now, true);
     if (actor.status !== "ok") return actor;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     if (parsed.data.invitationId) {
       const [row] = await tx.update(schema.clubInvitations).set({ revokedAt: now })
         .where(and(eq(schema.clubInvitations.id, parsed.data.invitationId), eq(schema.clubInvitations.clubId, input.clubId),
@@ -226,10 +229,11 @@ async function ownerCount(tx: ClubTransaction, clubId: string): Promise<number> 
 export async function setClubMemberRole(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubMemberRoleRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const actor = await requireClubRole(tx, input, "ADMIN", now, true);
     if (actor.status !== "ok") return actor;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const [member] = await tx.select().from(schema.clubMembers)
       .where(and(eq(schema.clubMembers.id, parsed.data.memberId), eq(schema.clubMembers.clubId, input.clubId))).for("update");
     if (!member) return { status: "not-found" } as const;

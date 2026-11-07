@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Database } from "@o-tid/database";
 import {
-  clubCreateRoute, clubImportBatchRoute, clubImportContentRoute, clubMapVersionTargetRoute, clubWebImportBatchRoute, clubWebImportCheckRoute,
+  clubCreateRoute, clubImportBatchRoute, clubImportCheckRoute, clubImportContentRoute, clubMapVersionTargetRoute, clubWebImportBatchRoute, clubWebImportCheckRoute,
   clubWebImportContentRoute
 } from "./club-route-handlers";
 
@@ -40,6 +40,11 @@ describe("klubbarkivets anrop", () => {
     const batch = await clubImportBatchRoute(db, new Request(`https://tid.klubb.se/api/club-import/${club}/batch`, { method: "POST",
       headers: { ...bearer, "content-type": "text/plain" }, body: "{}" }), club);
     expect(batch.status).toBe(400);
+    // Städrundan 2026-11-07: utan nyckel 401 före kroppen, också för kontrollen och omgången.
+    for (const route of [clubImportBatchRoute, clubImportCheckRoute]) {
+      expect((await route(db, new Request(`https://tid.klubb.se/api/club-import/${club}/batch`, { method: "POST",
+        headers: { "content-type": "text/plain" }, body: "inte json" }), club)).status).toBe(401);
+    }
   });
 
   it("importen i webbläsaren (ADR-0204): rätt Origin krävs, ingen importnyckel tas emot, en för stor fil 422 – innan något läses", async () => {
@@ -52,8 +57,13 @@ describe("klubbarkivets anrop", () => {
       expect((await route(db, new Request(`${url}/check`, { method: "POST", headers: { ...json, authorization: `Bearer otid-imp-${"A".repeat(43)}` },
         body: "{}" }), club, env)).status).toBe(403);
     }
+    // Städrundan 2026-11-07: utan session 401 före innehållstypen; med en session (som tjänsten prövar sedan) prövas typen och storleken.
+    const session = { cookie: "__Host-otid-organizer-session=s; __Host-otid-organizer-csrf=c", "x-otid-csrf": "c" };
+    const bare = new Request(`${url}/content/${"a".repeat(64)}`, { method: "PUT", headers: { origin: env.O_TID_PUBLIC_ORIGIN, "content-type": "text/plain" },
+      body: "x" });
+    expect((await clubWebImportContentRoute(db, bare, club, "a".repeat(64), env)).status).toBe(401);
     const put = (headers: Record<string, string>) => new Request(`${url}/content/${"a".repeat(64)}`,
-      { method: "PUT", headers: { origin: env.O_TID_PUBLIC_ORIGIN, ...headers }, body: "x" });
+      { method: "PUT", headers: { origin: env.O_TID_PUBLIC_ORIGIN, ...session, ...headers }, body: "x" });
     expect((await clubWebImportContentRoute(db, put({ "content-type": "text/plain" }), club, "a".repeat(64), env)).status).toBe(400);
     const large = await clubWebImportContentRoute(db, put({ "content-type": "application/octet-stream", "content-length": String(200 * 1024 * 1024) }),
       club, "a".repeat(64), env);

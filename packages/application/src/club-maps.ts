@@ -38,12 +38,13 @@ async function propagateAgreement(tx: DbExecutor, clubMapId: string, agreement: 
 export async function updateClubMap(db: Database, input: ClubProof & { clubId: string; mapId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubMapUpdateRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.mapId)) return { status: "invalid-request" };
-  const agreement = parsed.data.agreement.ownership === "CLUB" ? { ...parsed.data.agreement, ownerKind: parsed.data.agreement.ownerKind ?? "CLUB" }
-    : parsed.data.agreement;
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !validId(input.mapId)) return { status: "invalid-request" } as const;
+    const agreement = parsed.data.agreement.ownership === "CLUB" ? { ...parsed.data.agreement, ownerKind: parsed.data.agreement.ownerKind ?? "CLUB" }
+      : parsed.data.agreement;
     const texts = { ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {}),
       ...(parsed.data.maker !== undefined ? { maker: parsed.data.maker } : {}) };
     const [row] = await tx.update(schema.clubMaps).set({ name: parsed.data.name, ...agreement, ...texts, updatedAt: now })
@@ -72,10 +73,11 @@ async function removeIfEmpty(tx: ClubTransaction, mapId: string, replacement: st
 export async function moveClubMapVersion(db: Database, input: ClubProof & { clubId: string; versionId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; mapId: string }> {
   const parsed = clubMapVersionMoveRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" } as const;
     const [version] = await tx.select().from(schema.clubMapVersions)
       .where(and(eq(schema.clubMapVersions.id, input.versionId), eq(schema.clubMapVersions.clubId, input.clubId))).for("update");
     if (!version) return { status: "not-found" } as const;
@@ -102,10 +104,11 @@ export async function moveClubMapVersion(db: Database, input: ClubProof & { club
 export async function updateClubMapVersion(db: Database, input: ClubProof & { clubId: string; versionId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubMapVersionUpdateRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" } as const;
     const extra = { ...(parsed.data.versionYear !== undefined ? { versionYear: parsed.data.versionYear } : {}),
       ...(parsed.data.maker !== undefined ? { maker: parsed.data.maker } : {}) };
     const [row] = await tx.update(schema.clubMapVersions).set({ versionDate: parsed.data.versionDate, note: parsed.data.note, ...extra })

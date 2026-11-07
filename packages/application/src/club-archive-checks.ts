@@ -56,13 +56,14 @@ export async function entryThumbnails(tx: DbExecutor, sources: ReadonlyMap<strin
 export async function saveClubMapVersionCheck(db: Database, input: ClubProof & { clubId: string; versionId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubMapVersionCheckRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" };
-  const check = parsed.data;
-  const thumbnail = check.thumbnail ? decodePng(check.thumbnail) : null;
-  if (thumbnail === undefined) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" } as const;
+    const check = parsed.data;
+    const thumbnail = check.thumbnail ? decodePng(check.thumbnail) : null;
+    if (thumbnail === undefined) return { status: "invalid-request" } as const;
     const [version] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)
       .where(and(eq(schema.clubMapVersions.id, input.versionId), eq(schema.clubMapVersions.clubId, input.clubId)));
     if (!version) return { status: "not-found" } as const;
@@ -78,13 +79,14 @@ export async function saveClubMapVersionCheck(db: Database, input: ClubProof & {
 export async function saveClubEntryThumbnail(db: Database, input: ClubProof & { clubId: string; entryId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok" }> {
   const parsed = clubEntryThumbnailRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.entryId)) return { status: "invalid-request" };
-  const thumbnail = parsed.data;
-  const image = thumbnail.image ? decodePng(thumbnail.image) : null;
-  if (image === undefined) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const member = await requireClubRole(tx, input, "ADMIN", now, true);
     if (member.status !== "ok") return member;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !validId(input.entryId)) return { status: "invalid-request" } as const;
+    const thumbnail = parsed.data;
+    const image = thumbnail.image ? decodePng(thumbnail.image) : null;
+    if (image === undefined) return { status: "invalid-request" } as const;
     const [entry] = await tx.select({ id: schema.clubArchiveEntries.id }).from(schema.clubArchiveEntries)
       .where(and(eq(schema.clubArchiveEntries.id, input.entryId), eq(schema.clubArchiveEntries.clubId, input.clubId)));
     const [version] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)

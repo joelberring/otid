@@ -79,12 +79,13 @@ async function raceInGroup(tx: Transaction, raceId: string, groupId: string) {
 export async function saveRaceMapToLibrary(db: Database, input: Proof & { groupId: string; request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "saved"; replayed: boolean; mapId: string }> {
   const parsed = groupMapSaveRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const intent = parsed.data;
-  const agreement = normalizedAgreement(intent.agreement);
   return db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const intent = parsed.data;
+    const agreement = normalizedAgreement(intent.agreement);
     const [prior] = await tx.select({ id: schema.trainingGroupMaps.id, groupId: schema.trainingGroupMaps.groupId,
       sourceRaceId: schema.trainingGroupMaps.sourceRaceId }).from(schema.trainingGroupMaps).where(eq(schema.trainingGroupMaps.requestId, intent.requestId));
     if (prior) {
@@ -130,11 +131,12 @@ async function writeRaceAgreement(tx: DbExecutor, raceId: string, map: { mapId: 
 export async function updateLibraryMap(db: Database, input: Proof & { groupId: string; mapId: string; request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "ok"; races: number }> {
   const parsed = groupMapUpdateRequestSchema.safeParse(input.request);
-  if (!parsed.success || !UUID_PATTERN.test(input.mapId)) return { status: "invalid-request" };
-  const agreement = normalizedAgreement(parsed.data.agreement);
   return db.transaction(async tx => {
     const leader = await requireGroupLeader(tx, input, now, true);
     if (leader.status !== "ok") return leader;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success || !UUID_PATTERN.test(input.mapId)) return { status: "invalid-request" } as const;
+    const agreement = normalizedAgreement(parsed.data.agreement);
     const [map] = await tx.update(schema.trainingGroupMaps).set({ name: parsed.data.name, ...agreement, updatedAt: now })
       .where(and(eq(schema.trainingGroupMaps.id, input.mapId), eq(schema.trainingGroupMaps.groupId, input.groupId)))
       .returning({ id: schema.trainingGroupMaps.id });
@@ -256,10 +258,11 @@ export async function readRaceMapAgreementAsAdmin(db: Database, input: Omit<Race
 export async function acknowledgeRaceMapPublicUse(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
   : Promise<GroupFailure | { status: "ok"; agreement: RaceMapAgreementView }> {
   const parsed = raceMapAgreementAcknowledgeRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const [row] = await tx.update(schema.raceMapAgreements).set(parsed.data.acknowledge
       ? { publicUseAcknowledgedAt: now, publicUseAcknowledgedBy: auth.principal.accountId }
       : { publicUseAcknowledgedAt: null, publicUseAcknowledgedBy: null })

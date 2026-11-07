@@ -83,10 +83,11 @@ async function addMembership(tx: DbExecutor, accountId: string, input: { organis
 export async function addAccountClub(db: Database, input: ClubProof & { request: unknown }, now = new Date())
   : Promise<Failure | { status: "added"; response: AccountClubsResponse }> {
   const parsed = accountClubAddRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return { status: "unauthorized" } as const;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const accountId = auth.principal.accountId;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`account-club:${accountId}`}, 0))`);
     const added = await addMembership(tx, accountId, parsed.data, now);
@@ -103,10 +104,11 @@ export async function addAccountClub(db: Database, input: ClubProof & { request:
 export async function answerAccountClubStep(db: Database, input: ClubProof & { request: unknown }, now = new Date())
   : Promise<Failure | { status: "ok"; response: AccountClubsResponse }> {
   const parsed = accountClubStepRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return { status: "unauthorized" } as const;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const accountId = auth.principal.accountId;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`account-club:${accountId}`}, 0))`);
     for (const organisationId of new Set(parsed.data.organisationIds)) {
@@ -128,10 +130,11 @@ class NotFoundRollback extends Error {}
 export async function removeAccountClub(db: Database, input: ClubProof & { request: unknown }, now = new Date())
   : Promise<Failure | { status: "removed"; response: AccountClubsResponse }> {
   const parsed = accountClubRemoveRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return { status: "unauthorized" } as const;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const accountId = auth.principal.accountId;
     const [row] = await tx.delete(memberships).where(and(eq(memberships.id, parsed.data.membershipId), eq(memberships.accountId, accountId))).returning();
     if (!row) return { status: "not-found" } as const;
@@ -204,10 +207,11 @@ export async function readClubAffiliation(db: Database, input: ClubProof & { clu
 export async function setClubAccessSettings(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; view: ClubAffiliationView }> {
   const parsed = clubAccessSettingsRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const actor = await requireClubRole(tx, input, "ADMIN", now, true);
     if (actor.status !== "ok") return actor;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const before = await clubLinkFacts(tx, input.clubId);
     const values = { archiveVisibility: parsed.data.archive, mapBankAccess: parsed.data.mapBank, updatedBy: actor.accountId, updatedAt: now };
     await tx.insert(schema.clubSettings).values({ clubId: input.clubId, ...values })
@@ -227,10 +231,11 @@ export async function setClubAccessSettings(db: Database, input: ClubProof & { c
 export async function decideClubAffiliation(db: Database, input: ClubProof & { clubId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; view: ClubAffiliationView }> {
   const parsed = clubAffiliationDecisionRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const actor = await requireClubRole(tx, input, "ADMIN", now, true);
     if (actor.status !== "ok") return actor;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const view = await affiliationView(tx, input.clubId);
     if (!view) return { status: "not-found" } as const;
     const { membershipId, decision } = parsed.data;

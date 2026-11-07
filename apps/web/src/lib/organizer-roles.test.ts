@@ -15,7 +15,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
  *
  * "Får" = svaret är inte 401 eller 403 (ett tillåtet anrop med påhittade id:n slutar ofta i 404 eller 409). "Får inte" =
  * 401 (utloggad), 403 (inloggad utan rätt roll) eller 404 (inte medlem: klubbens och gruppens existens röjs inte).
- * Kroppen i tabellen är giltig för routens schema, eftersom tjänsterna prövar kroppen före behörigheten.
+ * Kroppen i tabellen är giltig för routens schema. Den som inte får prövas också med en ogiltig kropp: inloggningen och
+ * behörigheten prövas före kroppen, så utloggad får 401 och inte 400 eller 422 (städrundan 2026-11-07, paket D).
  *
  * Körs när TEST_DATABASE_URL finns (CI och lokalt med en test-databas); annars bara kontrollen att tabellen är komplett.
  */
@@ -306,7 +307,7 @@ describe.skipIf(!target)("behörighet per route för klubben, gruppen, kontot, i
   }, 180_000);
   afterAll(async () => { await close(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
-  async function call(path: string, handler: Handler, method: Method, rule: Rule, persona: Persona): Promise<number> {
+  async function call(path: string, handler: Handler, method: Method, rule: Rule, persona: Persona, invalidBody = false): Promise<number> {
     const session = persona === "SELF" ? await newSession() : sessions.get(persona);
     const other = id();
     const fixed: Record<string, string> = { clubId, groupId, sha256: "a".repeat(64), ...(rule.real ? { ...real,
@@ -315,7 +316,7 @@ describe.skipIf(!target)("behörighet per route för klubben, gruppen, kontot, i
     const url = path.replaceAll(/\[([a-zA-Z0-9]+)\]/g, (_, name: string) => value(name));
     const params = Promise.resolve(Object.fromEntries(["clubId", "groupId", "sha256", "entryId", "courseFileId", "tokenId", "invitationId", "versionId",
       "mapId", "mergeId", "seriesId", "raceId"].map(name => [name, value(name)])));
-    const body = typeof rule.body === "function" ? (rule.body as () => unknown)() : rule.body;
+    const body = invalidBody ? { formatVersion: 0 } : typeof rule.body === "function" ? (rule.body as () => unknown)() : rule.body;
     const headers: Record<string, string> = { origin, ...rule.headers };
     if (session) {
       headers.cookie = `otid_organizer_session=${session.sessionToken}; otid_organizer_csrf=${session.csrfToken}`;
@@ -323,6 +324,7 @@ describe.skipIf(!target)("behörighet per route för klubben, gruppen, kontot, i
     }
     if (persona === "IMPORT_TOKEN") headers.authorization = `Bearer ${importToken}`;
     if (body !== undefined) headers["content-type"] = "application/json";
+    if (invalidBody) headers["content-type"] = "application/json";
     const payload: BodyInit | undefined = body !== undefined ? JSON.stringify(body) : typeof rule.raw === "string" ? rule.raw
       : rule.raw ? new Blob([new Uint8Array(rule.raw)]) : undefined;
     const response = await handler(new Request(`${origin}/api/${url}`, { method, headers, ...(payload !== undefined ? { body: payload } : {}) }), { params });
@@ -348,6 +350,13 @@ describe.skipIf(!target)("behörighet per route för klubben, gruppen, kontot, i
             : persona === "LOGGED_OUT" || persona === "IMPORT_TOKEN" ? status === 401 : [401, 403, 404].includes(status);
           if (!ok || process.env.OTID_ROLLER_MATRIS) lines.push(`${ok ? "  " : "✗ "}${method} /api/${route.path} som ${persona}: ${status} (${may ? "får" : "får inte"})`);
           checked += 1;
+          // Den som inte får avvisas på samma sätt med en ogiltig kropp (behörigheten före kroppen). Utloggad också där kroppen
+          // är en fil (som får fel typ här); en inloggad får där 400 för fel typ före tjänsten, vilket inte röjer något.
+          if (!may && (rule.body !== undefined || (rule.raw !== undefined && persona === "LOGGED_OUT"))) {
+            const invalid = await call(route.path, handlers[method]!, method, rule, persona, true);
+            const denied = persona === "LOGGED_OUT" || persona === "IMPORT_TOKEN" ? invalid === 401 : [401, 403, 404].includes(invalid);
+            if (!denied) lines.push(`✗ ${method} /api/${route.path} som ${persona} med ogiltig kropp: ${invalid} (får inte)`);
+          }
         }
       }
     }

@@ -103,9 +103,9 @@ export async function clubEventorRoute(db: Database, request: Request, clubId: s
   if ("response" in input) return input.response;
   return guarded(async () => {
     if (request.method === "PUT") {
+      // En ogiltig kropp prövas som en ogiltig nyckel i tjänsten, efter behörigheten.
       const parsed = clubEventorLinkRequestSchema.safeParse(input.body);
-      if (!parsed.success) return problem("INVALID_KEY", 422);
-      const result = await linkClubToEventor(db, { ...input.proof, clubId, apiKey: parsed.data.apiKey, configuration });
+      const result = await linkClubToEventor(db, { ...input.proof, clubId, apiKey: parsed.success ? parsed.data.apiKey : "", configuration });
       if (result.status === "problem") return problem(result.problem, result.problem === "ALREADY_LINKED" ? 409 : 422);
       return result.status === "linked" ? privateJson({ formatVersion: 1, organisationName: result.organisationName }) : failure(result.status);
     }

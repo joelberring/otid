@@ -43,12 +43,13 @@ export type ClubEventorLinkResult = ClubFailure | { status: "problem"; problem: 
 /** "Koppla till Eventor" eller "Byt nyckel". Svaret säger bara klubben; nyckeln skickas aldrig tillbaka. */
 export async function linkClubToEventor(db: Database, input: ClubProof & { clubId: string; apiKey: string;
   configuration?: EventorServerConfiguration; fetch?: typeof fetch }, now = new Date()): Promise<ClubEventorLinkResult> {
+  // Behörigheten först (städrundan 2026-11-07): utloggad får 401 och den som inte är administratör 403/404, inte 422.
+  const before = await db.transaction(tx => requireClubRole(tx, input, "ADMIN", now, true));
+  if (before.status !== "ok") return before;
   const config = configured(input.configuration);
   if (!config) return { status: "problem", problem: "NOT_CONFIGURED" };
   const apiKey = input.apiKey.trim();
   if (!isPlausibleEventorApiKey(apiKey)) return { status: "problem", problem: "INVALID_KEY" };
-  const before = await db.transaction(tx => requireClubRole(tx, input, "ADMIN", now, true));
-  if (before.status !== "ok") return before;
   let organisation: { id: string; name: string };
   try {
     organisation = await eventorClient({ apiKey, ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}), ...(input.fetch ? { fetch: input.fetch } : {}) })

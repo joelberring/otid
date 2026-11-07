@@ -58,11 +58,14 @@ export async function mutation(request: Request, environment: Environment, body:
   const configured = policy(environment);
   if ("response" in configured) return configured;
   if (!hasExpectedOrigin(request, configured.value)) return { response: accountFailure(403, "FORBIDDEN") };
+  const proof = sessionProof(request, configured.value, true);
+  // Utan session 401 före kroppen och dess typ (städrundan 2026-11-07); tjänsterna prövar sedan inloggningen före kroppen.
+  if (!proof.sessionToken) return { response: accountFailure(401, "UNAUTHORIZED") };
   let parsed: unknown = undefined;
   if (body === "json") {
     try { parsed = await readJsonBody(request, maxBytes); } catch { return { response: accountFailure(400, "INVALID_REQUEST") }; }
   } else if (body === "none" && !await hasNoRequestBody(request)) return { response: accountFailure(400, "INVALID_REQUEST") };
-  return { body: parsed, proof: sessionProof(request, configured.value, true) };
+  return { body: parsed, proof };
 }
 
 export async function readProof(request: Request, environment: Environment): Promise<{ response: Response } | { proof: Proof }> {
@@ -415,6 +418,7 @@ export async function clubImportTokenRoute(db: Database, request: Request): Prom
 
 export async function clubImportCheckRoute(db: Database, request: Request, clubId: string): Promise<Response> {
   const token = bearerToken(request.headers.get("authorization"));
+  if (!token) return importFailure("unauthorized");
   let body: unknown;
   try { body = await importJson(request); } catch { return importFailure("invalid-request"); }
   return guarded(async () => {
@@ -439,6 +443,7 @@ export async function clubImportContentRoute(db: Database, request: Request, clu
 
 export async function clubImportBatchRoute(db: Database, request: Request, clubId: string): Promise<Response> {
   const token = bearerToken(request.headers.get("authorization"));
+  if (!token) return importFailure("unauthorized");
   let body: unknown;
   try { body = await importJson(request); } catch { return importFailure("invalid-request"); }
   return guarded(async () => {

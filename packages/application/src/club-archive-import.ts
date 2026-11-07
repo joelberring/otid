@@ -80,10 +80,11 @@ export async function importTokenClub(db: Database, input: { token: string | nul
 export async function importCheck(db: Database, input: ImportCaller & { clubId: string; request: unknown }, now = new Date())
   : Promise<ImportFailure | { status: "ok"; response: ClubImportCheckResponse }> {
   const parsed = clubImportCheckRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const importer = await authenticateImporter(tx, input, now);
     if (importer.status !== "ok") return importer;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
     const wanted = [...new Set(parsed.data.sha256)];
     const known = wanted.length === 0 ? [] : (await tx.execute<{ sha256: string }>(sql`select c.sha256 from map_content c
       where c.sha256 = any(${sql.param(wanted)}::text[]) and (c.uploaded_by = ${importer.accountId}::uuid or exists (select 1 from club_map_version v
@@ -203,11 +204,12 @@ class InvalidBatch extends Error {}
 export async function importBatch(db: Database, input: ImportCaller & { clubId: string; request: unknown }, now = new Date())
   : Promise<ImportFailure | { status: "ok"; response: ClubImportBatchResponse }> {
   const parsed = clubImportBatchRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  const batch = parsed.data;
   return db.transaction(async tx => {
     const importer = await authenticateImporter(tx, input, now);
     if (importer.status !== "ok") return importer;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const batch = parsed.data;
     const clubId = importer.clubId;
     // Importerna i en klubb körs en i taget (två körningar samtidigt ska inte göra två kartor av samma namn).
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`club-import:${clubId}`}, 0))`);

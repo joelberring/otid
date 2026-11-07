@@ -12,7 +12,9 @@ O-Tid körs med `docker-compose.prod.yml` på en vanlig VPS:
   Se [Tävlingen först](#tävlingen-först),
 - Caddy (HTTPS med Let's Encrypt och HSTS, skickar publika anrop till `web-public`/`web-public2` och allt annat till `web`),
 - utskriftsarbetaren `print-worker`,
-- en backuptjänst (dump varje timme, valfri krypterad kopia utanför servern) och hälsokontrollen `monitor` (ADR-0186).
+- en backuptjänst (dump varje timme, valfri krypterad kopia utanför servern) och hälsokontrollen `monitor` (ADR-0186),
+- serverns bevakning i `web` (ADR-0216): veckorapport och larm till superadmin per e-post (se
+  [Serverrapport och larm](#serverrapport-och-larm)).
 
 All data, även kartbilder, kartfiler från OCAD och Mapper (steg 59, högst 75 MB per tävling) och GPS-rutter för vägval
 (PLAN.md steg 16), ligger i PostgreSQL och kommer med i backupen. MinIO behövs inte. Kartfilens uppladdning är den enda
@@ -288,6 +290,8 @@ docker compose -f docker-compose.prod.yml exec web node superadmin.mjs revoke an
 Ett skäl kan läggas sist (`… grant anna@exempelklubb.se "Driftansvarig"`); det syns i loggen på
 `/superadmin` med "Serverkommando" som utförare. Lokalt: `pnpm account:superadmin grant <e-post>`.
 
+Superadmin får också serverns veckorapport och larm per e-post (ADR-0216, [Serverrapport och larm](#serverrapport-och-larm)).
+
 ## E-post och glömt lösenord
 
 Med e-post inställd skickar O-Tid en återställningslänk till den som har glömt sitt lösenord. Länken gäller
@@ -425,14 +429,25 @@ Tjänsten `backup` (`deploy/backup.sh`, avbildningen `otid-backup` = `postgres:1
 `pg_dump` direkt vid start och sedan varje hel timme **dygnet runt** (ADR-0186; tidigare bara 08–23). Före varje start av
 webben tar `backup-before-migrate` dessutom en dump (`./backups/fore-migrering/`, de 10 senaste).
 
-- `./backups/hourly/otid-<tid>.dump`: de 48 senaste timdumparna (två dygn).
+- `./backups/hourly/otid-<tid>.dump`: de 24 senaste timdumparna (ett dygn; ADR-0216, tidigare 48).
 - `./backups/daily/otid-<datum>.dump`: dagens senaste dump, sparad i 14 dagar.
+- `./backups/map-content/<id>.copy` (ADR-0216): kartfilerna och kartbilderna (`map_content_part`), **en fil per innehåll**. De
+  ändras aldrig, så de sparas en gång i stället för i varje dump; dumparna har bara tabellens struktur. Bredvid varje dump står
+  `<dump>.contents` med innehållen den pekar på, och en fil tas bort först när varken databasen eller någon sparad dump pekar på
+  den. Hinner ett innehåll tas bort under dumpen tas dumpen om med kartinnehållet i, så varje dump går att återställa.
+- Inte med i dumparna (går att skapa igen): utskriftsjobbens PDF:er (steg 65) och klubbarkivets miniatyrer och kartkontroller
+  (`club_archive_entry_thumbnail`, `club_map_version_check`; ADR-0196 – de ritas om i en administratörs webbläsare när
+  klubbarkivet öppnas, högst sex kartversioner per besök).
+- `./backups/.backup-status`: resultatet av senaste körningen (läses av serverns bevakning).
 - En dump skrivs först till en dold fil (`.….partial`) och byter namn när `pg_dump` är klar, så en avbruten dump ser
   aldrig ut som en hel.
 - Ett misslyckat försök loggas som `BACKUP MISSLYCKADES` i `docker compose -f docker-compose.prod.yml logs backup` och
   görs om nästa timme. Med bevakning (nedan) får du också ett mejl.
 
-Intervallet och antalen ställs in i `.env` (`BACKUP_INTERVAL_MINUTES`, förval 60; `BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS`).
+Intervallet och antalen ställs in i `.env` (`BACKUP_INTERVAL_MINUTES`, förval 60; `BACKUP_KEEP_HOURLY`, förval 24;
+`BACKUP_KEEP_DAYS`, förval 14). Före ADR-0216 hade varje dump alla kartfiler, så 48 + 14 dumpar tog 62 gånger kartornas storlek;
+nu tar kartinnehållet sin storlek en gång. Gamla timdumpar (med kartinnehållet i) gallras som vanligt inom ett dygn efter
+uppdateringen och dagsbackuperna inom 14 dagar; de går att återställa precis som förut.
 Dumpar från före steg 45 ligger kvar direkt i `./backups/` och tas inte bort av tjänsten.
 
 **Dump nu** (före och efter ett arrangemang):
@@ -510,17 +525,107 @@ mkdir -p ~/otid-backup
 rsync -av otid@tid.exempelklubb.se:otid/backups/ ~/otid-backup/
 ```
 
+## Serverrapport och larm
+
+ADR-0216: `web` (tävlingens instans) mäter servern var 15:e minut (`OTID_HEALTH_INTERVAL_MINUTES`) och mejlar kontona med
+**superadmin** (systemrollen, se [Superadmin](#superadmin); spärrade konton får inget) med den vanliga e-posten (`OTID_SMTP_URL`).
+Utan e-post skrivs larmen och rapporten i `logs web` i stället. Inget behöver läggas till i `.env`: allt har förval, och efter
+den vanliga uppdateringen (`git pull`, `pull`, `up -d`) ser `web` säkerhetskopiorna (`./backups`, skrivskyddat) och
+hälsokontrollens resultat (`./status/monitor.log`, som `monitor` skriver). Katalogen `./status` skapas av Docker vid `up -d`.
+
+**Veckorapporten** går söndag kl. 19 (svensk tid). Den första går söndagen efter uppdateringen (en ny version mejlar inte mitt i
+veckan), och den skickas inte två gånger efter en omstart (tiden sparas i databasen, migration 0085). Innehåll:
+
+- disken: använt, ledigt och **prognosen**: tillväxten per vecka (ur mätningarna de senaste fyra veckorna) och ungefär hur
+  många veckor det är kvar till full disk med den takten, med ett råd om större disk behövs,
+- kartornas kvot (`OTID_MAP_QUOTA_TOTAL_MB`) och om den ryms på disken (varje GB kartor tar ungefär 2 GB: databasen och
+  säkerhetskopiornas kartinnehåll),
+- databasens storlek uppdelad: kartfiler och kartbilder, bilder och miniatyrer, utskrifter och resten,
+- säkerhetskopiornas totala storlek (dumpar och kartinnehåll) och senaste dump,
+- antal konton (nya senaste veckan), klubbar och tävlingar, och tävlingarna de kommande 14 dagarna (antal, publicerade,
+  anmälda; inga namn),
+- larm och "löst" senaste veckan och hur många hälsokontroller som misslyckades,
+- belastningens topp (1 minut, mätt varje minut; 2 = båda kärnorna fullt använda) och minst ledigt minne.
+
+Se rapporten som den ser ut just nu (skickar och sparar inget):
+`docker compose -f docker-compose.prod.yml exec web node superadmin.mjs server-report`.
+
+**Larm** (ett mejl per varv med alla nya larm och "löst"): högst ett larm per sort och dygn (står problemet kvar kommer en
+påminnelse efter ett dygn) och ett "löst" när problemet har gått över, om det larmades.
+
+| Sort | Larmar när | Inställning (förval) |
+|---|---|---|
+| Disken | fullare än gränsen (samma som hälsokontrollens df) | `OTID_DISK_ALERT_PERCENT` (80) |
+| Kartornas kvot | kartorna tar minst så stor del av `OTID_MAP_QUOTA_TOTAL_MB` | `OTID_MAP_QUOTA_ALERT_PERCENT` (90) |
+| Säkerhetskopian | senaste körningen misslyckades, ingen dump finns eller den senaste är äldre än gränsen | `OTID_BACKUP_ALERT_HOURS` (3) |
+| Hälsokontrollen | `monitor` har misslyckats tre gånger i rad (webben, databasen, publiken, utskriftskön) eller inte rapporterat på en timme | – |
+| Minnet | mindre ledigt minne (MemAvailable, hela servern) än gränsen | `OTID_MEMORY_ALERT_PERCENT` (10) |
+
+Disken och säkerhetskopian larmar bara här, inte också som "hälsokontrollen". Går hela servern eller `web` ner kan inget mejlas:
+det fångar bevakningstjänsten (OTID_HEARTBEAT_HEALTH_URL, [Bevakning](#bevakning-valfri)).
+
+Valfritt i `.env` (sedan `docker compose -f docker-compose.prod.yml up -d`): `OTID_SERVER_REPORT_DAY` (1 = måndag … 7 = söndag) och
+`OTID_SERVER_REPORT_HOUR` (0–23); `OTID_SERVER_REPORT=off` stänger av rapporten, `OTID_SERVER_ALERTS=off` larmen och
+`OTID_SERVER_WATCH=off` hela bevakningen. Ett ogiltigt värde skrivs som KONFIGURATIONSFEL i `logs web` och förvalet används.
+
+**Disken** (ägarens fråga "ska jag köpa större disk redan nu?"): svaret står i rapporten varje vecka. Före ADR-0216 var
+säkerhetskopiorna det som växte snabbast (varje dump hade alla kartor); nu tar de ungefär databasens storlek utan kartor gånger
+antalet dumpar plus kartorna en gång. Behövs mer plats: ta bort gamla dumpar från före steg 45 direkt i `./backups/`, kör
+`docker image prune -a` (gamla avbildningar) eller köp en Hetzner Volume eller större server. Kvoten för kartor (förval 20 GB)
+ryms inte på CX23:s disk om klubbarna fyller den; rapporten säger vilken kvot som ryms.
+
+## Belastningstest
+
+ADR-0216: `scripts/load-test.ts` simulerar N samtidiga tävlingar mot en server och mäter svarstiderna. Bara Node (fetch), körs
+från din dator (inte på servern, så att lastgeneratorn inte stjäl processorn). Per tävling skapas ett lopp med en bana, en
+klass och påhittade löpare, som publiceras; sedan, samtidigt i alla tävlingar: avläsningar (`--readouts-per-minute`, samma API
+som avläsningssidan), besökare (`--visitors`, var och en hämtar resultatlistan eller Live var femte sekund och laddar om sidan
+varje minut) och speakerskärmar (`--speakers`, speakerlistan och Kvar i skogen var tionde sekund). Efteråt skrivs en tabell med
+antal, fel och p50/p95/p99 per slags anrop, och tävlingarna tas bort (`--keep` behåller dem).
+
+Kör en vardagskväll (inte på en tävlingsdag), med ett vanligt konto på servern:
+
+```bash
+git clone https://github.com/joelberring/otid.git && cd otid && pnpm install
+export LOADTEST_EMAIL=<konto> LOADTEST_PASSWORD=<lösenord>
+# Börja smått, öka sedan --races tills p95 för avläsningen går över 1 s eller fel dyker upp.
+pnpm load-test -- --base https://<OTID_DOMAIN> --races 2 --minutes 5 --runners 150 --readouts-per-minute 20 --visitors 30
+pnpm load-test -- --base https://<OTID_DOMAIN> --races 6 --minutes 5 --out lasttest-6.json
+```
+
+Titta samtidigt på servern med `docker stats` och `uptime`. Lokalt mot en databas utan e-post: `--register` skapar ett konto.
+Mätningen och siffrorna nedan står i [docs/lasttest.md](lasttest.md#adr-0216-samtidiga-arrangemang).
+
+**Grov bedömning för en CX23 (2 kärnor, 4 GB)** utifrån mätningarna i docs/lasttest.md (steg 51, 54 och 57; ADR-0174:
+25 sträckor × 300 lag): en målrusning med 3 000 löpare och 1 000 besökare använde ungefär 1,5 kärnor (publiken 1,0, tävlingen
+0,3 med två arbetsytor, två speakerskärmar och 150 avläsningar på 5 minuter, databasen 0,2), alltså ungefär 0,001 kärna per
+besökare.
+Ett vanligt klubbarrangemang (100–300 löpare, 50–100 besökare, högst 20 avläsningar per minut) blir då 0,15–0,25 kärnor, och med
+marginal (högst 1,4 kärnor sammanlagt) klarar servern **ungefär 5–6 sådana samtidigt**, eller 15–20 små träningar (under 50
+löpare och 20 besökare). Ett stort arrangemang (1 000 besökare, 3 000 löpare) tar ensamt det mesta; två samtidigt blir långsamma
+för publiken, men avläsningen går före (steg 54). En stafett med många samtidiga växlingar (25-manna, 300 lag) är tyngst per
+avläsning. Minnet (4 GB) räcker för detta; tjänsternas tak står i `docker-compose.prod.yml`. Kör testet ovan på servern för en
+riktig siffra.
+
 ## Återställa
 
 Provat lokalt 2026-10-03 och 2026-11-02 (dagens schema med migration 0040, dump som ägarrollen `otid_owner`, återställd i en
-tom databas: samma antal anmälda, konton, avläsningar, resultatrevisioner och tävlingar). Så här gör du på samma server:
+tom databas: samma antal anmälda, konton, avläsningar, resultatrevisioner och tävlingar). ADR-0216, provat lokalt 2026-11-07
+(migration 0085, `deploy/backup.sh dump` och återställning i en tom databas): samma kartinnehåll byte för byte (md5 över alla
+delar), också för en dump som togs om med kartinnehållet i. Så här gör du på samma server:
 
 ```bash
 docker compose -f docker-compose.prod.yml stop web web-public web-public2 print-worker
 docker compose -f docker-compose.prod.yml exec -T backup \
   pg_restore --clean --if-exists --no-owner -d otid /backups/daily/otid-<datum>.dump
+docker compose -f docker-compose.prod.yml exec -T backup sh /backup.sh restore-map-content
 docker compose -f docker-compose.prod.yml start web web-public web-public2 print-worker
 ```
+
+`restore-map-content` (ADR-0216) läser in kartinnehållet ur `./backups/map-content/` för varje karta i databasen som saknar sitt
+innehåll och skriver `Kartinnehåll inläst: N, saknas: 0.` Det går att köra flera gånger. En dump från före ADR-0216 (eller en som
+togs om med kartinnehållet i) har innehållet själv; då läses inget in. Glömmer du steget fungerar allt utom kartorna, som
+saknar bild och fil tills du kör det.
 
 Välj en fil i `/backups/hourly/` för en senare tidpunkt samma dag. `pg_restore -l <fil> | head` visar när dumpen togs.
 Efter övergången till databasroller körs kommandot som `otid_owner` (backuptjänstens användare); kör sedan
@@ -531,14 +636,16 @@ Efter övergången till databasroller körs kommandot som `otid_owner` (backuptj
 1. Skapa servern och starta O-Tid enligt [Starta](#starta) med **samma** `.env` som den gamla servern (spara den, och
    `OTID_EVENTOR_MASTER_KEY`, utanför servern) men **utan** raderna `OTID_DB_*`: rollerna finns inte än i en ny databas.
    Vänta tills sidan svarar. Databasen är då tom men migrerad.
-2. Hämta dumpen till `./backups/` på den nya servern: från din Mac (`scp ~/otid-backup/daily/otid-<datum>.dump
-   otid@<ny-server>:otid/backups/`) eller från kopian utanför servern:
+2. Hämta dumpen och kartinnehållet till `./backups/` på den nya servern: från din Mac (`scp ~/otid-backup/daily/otid-<datum>.dump
+   otid@<ny-server>:otid/backups/daily/` och `rsync -av ~/otid-backup/map-content/ otid@<ny-server>:otid/backups/map-content/`)
+   eller från kopian utanför servern:
 
    ```bash
    docker compose -f docker-compose.prod.yml run --rm --entrypoint restic backup snapshots
    docker compose -f docker-compose.prod.yml run --rm --entrypoint restic -v ./backups/aterstallt:/aterstallt backup \
-     restore latest --target /aterstallt --include /backups/daily
+     restore latest --target /aterstallt --include /backups/daily --include /backups/map-content
    ls backups/aterstallt/backups/daily/       # dagsbackuperna; flytta den du vill ha till backups/daily/
+   mkdir -p backups/map-content && mv backups/aterstallt/backups/map-content/* backups/map-content/
    ```
 
 3. Återställ som superusern i en tom databas och starta webben:
@@ -548,6 +655,7 @@ Efter övergången till databasroller körs kommandot som `otid_owner` (backuptj
    docker compose -f docker-compose.prod.yml exec postgres dropdb -U otid otid
    docker compose -f docker-compose.prod.yml exec postgres createdb -U otid otid
    docker compose -f docker-compose.prod.yml exec -T postgres pg_restore -U otid --no-owner -d otid < backups/daily/otid-<datum>.dump
+   docker compose -f docker-compose.prod.yml run --rm backup restore-map-content   # kartinnehållet (ADR-0216)
    sh deploy/db-roles.sh setup      # skapar rollerna igen (nya lösenord i .env) och ger dem ägarskap och rättigheter
    docker compose -f docker-compose.prod.yml up -d
    ```

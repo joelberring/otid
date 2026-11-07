@@ -35,17 +35,19 @@ export const coursePrintSv = {
   },
   print: {
     heading: "Utskrift",
-    help: "Papper, riktning, marginal och kartram ställs in på arket i utskriften; en fast ram kan också dras här på kartan.",
+    help: "Papper, riktning, marginal och kartram ställs in på arket i fliken Layout; en fast ram kan också dras här på kartan.",
     scale: "Utskriftsskala",
     mapScale: (scale: string) => `Kartans (1:${scale})`,
     scaleChange: "Ändra i banans egenskaper",
     preview: "Förhandsvisning och utskrift",
+    /** ADR-0217 fas 3: papperet redigeras i fliken Layout. */
+    layout: "Papperet i Layout",
     allControls: "Alla kontroller",
     parts: "Kartbyten",
     part: "Del",
     wholeCourse: "Hela banan",
     partName: (n: number) => `Del ${n}`,
-    partInherits: "Delen har banans tryckyta tills du ändrar den i utskriften.",
+    partInherits: "Delen har banans tryckyta tills du ändrar den i Layout.",
     partOwnArea: "Delen har en egen tryckyta.",
   },
   /** Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan. */

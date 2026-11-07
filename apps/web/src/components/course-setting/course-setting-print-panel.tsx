@@ -13,9 +13,9 @@ const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").r
  * riktning, marginal och kartramen ställs in på arket. Här finns bara det som styr kartan i editorn: kartbytets del (kartan
  * visar delen och dess ram) och skalan (den hör till banan, ADR-0211 beslut 5). En fast ram dras på kartan som förut.
  */
-export function PrintPanel({ document, view, readOnly, onEdits, onPreview, part, onPart, onCourseProperties }: {
+export function PrintPanel({ document, view, readOnly, onEdits, onPreview, onLayout, part, onPart, onCourseProperties }: {
   document: CourseSettingDocument; view: string; readOnly: boolean;
-  onEdits: (edits: readonly CourseSettingEdit[]) => void; onPreview: () => void;
+  onEdits: (edits: readonly CourseSettingEdit[]) => void; onPreview: () => void; onLayout: () => void;
   /** Kartbyten (ADR-0203): vald del (undefined = hela banan) och väljaren. */
   part?: number | undefined; onPart?: ((part: number | undefined) => void) | undefined;
   /** Skalan hör till banan (ADR-0211 beslut 5): öppnar banans egenskaper. */
@@ -30,7 +30,8 @@ export function PrintPanel({ document, view, readOnly, onEdits, onPreview, part,
   return <section className={styles.panel} aria-labelledby="course-setting-print" data-testid="course-setting-print">
     <h2 id="course-setting-print">{text.print.heading}: {course?.name ?? text.print.allControls}</h2>
     <p className={styles.muted}>{text.print.help}</p>
-    <div className={styles.row}><Button onClick={onPreview}>{text.print.preview}</Button></div>
+    <div className={styles.row}><Button onClick={onPreview}>{text.print.preview}</Button>
+      <Button variant="secondary" onClick={onLayout} data-testid="course-setting-print-layout">{text.print.layout}</Button></div>
     {parts > 1 && <fieldset className={styles.stack} data-testid="course-setting-parts">
       <legend>{text.print.parts}</legend>
       <label className={styles.stack}>{text.print.part}

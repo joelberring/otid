@@ -27,6 +27,8 @@ export const printOutputSv = {
   pdf: "Skapa PDF för tryckeriet",
   pdfHelp: "Servern skriver en PDF med kartan som vektorer, dekorfärger och övertryck.",
   editor: "Redigera arket",
+  /** ADR-0217 fas 3: arken som skrivs ut (papperet redigeras i Layout). */
+  preview: "Arken som skrivs ut",
   editorHelp: "Markera, dra och ändra direkt på arket; fälten står bredvid (under arket i telefonen)."
 } as const;
 

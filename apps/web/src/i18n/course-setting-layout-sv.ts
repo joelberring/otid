@@ -54,7 +54,7 @@ export const layoutSv = {
     sheets: (count: number) => `${count} ark`
   },
   sheet: {
-    heading: (course: string, layout: string) => `Arket: ${course} i ${layout}`,
+    heading: (layout: string) => `Arken i ${layout}`,
     none: "Välj ett ark i överblicken.",
     close: "Stäng arket",
     adjust: (scale: string) => `Justera för ${scale}`,

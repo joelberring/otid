@@ -10,22 +10,19 @@ import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
 import { fetchCourseSetting, saveCourseSettingEdits } from "../../lib/course-setting-api";
 import { saveOnLatest, serialSaves } from "../../lib/course-setting-save-latest";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
-import { MapRenderSession } from "../../lib/course-setting-map-protocol";
-import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
-import { fetchMapSource } from "../../lib/route-choice-api";
 import { classRows, layoutMatrix } from "../../lib/course-setting-layouts";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
 import { CourseSettingTabs } from "./course-setting-tabs";
 import { LayoutMatrix } from "./course-setting-layout-matrix";
 import { LayoutList } from "./course-setting-layout-list";
-import { LayoutSheetEditor } from "./course-setting-layout-sheet";
+import { LayoutSheets } from "./course-setting-layout-sheets";
+import { usePrintMap } from "./use-print-map";
 import { LayoutClasses } from "./course-setting-layout-classes";
 import { LayoutStates } from "./course-setting-layout-states";
 import styles from "./course-setting-layout.module.css";
 
-const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
 /**
  * ADR-0217: `/admin/[raceId]/course-setting/layout`, fliken Layout (paper space). Överblicken (banor × layouter), layouterna,
@@ -69,20 +66,8 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
   const [bundles, setBundles] = useState<MapBundleResponse>();
   useEffect(() => { fetchMapBundles(raceId).then(setBundles, () => setBundles(undefined)); }, [raceId]);
 
-  const [session, setSession] = useState<MapRenderSession>();
-  const [mapState, setMapState] = useState<"none" | "reading" | "ready" | "failed">("none");
-  useEffect(() => {
-    if (!hasMap) return;
-    const controller = new AbortController();
-    let created: MapRenderSession | undefined;
-    setMapState("reading");
-    void fetchMapSource(raceId, controller.signal).then(file => {
-      created = new MapRenderSession(createMapWorker, bounds => { setMapBounds(current => current ?? bounds); setSession(created); setMapState("ready"); },
-        () => setMapState("failed"));
-      created.load(file.bytes, file.fileName);
-    }, () => { if (!controller.signal.aborted) setMapState("failed"); });
-    return () => { controller.abort(); created?.close(); };
-  }, [raceId, hasMap]);
+  // Kartan och färgerna som i Utskrift (ADR-0217 fas 3: arken redigeras här).
+  const map = usePrintMap(raceId, hasMap, bounds => setMapBounds(current => current ?? bounds));
 
   const save = useCallback((edits: CourseSettingEdit[], record = true): Promise<boolean> => serial(async () => {
     let attempts = 0;
@@ -145,11 +130,11 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
     <h1>{text.title}</h1>
     <p className={styles.muted}>{canEdit ? text.intro : text.readOnly}</p>
     {saveFailed && <Notice tone="error" role="alert"><p>{text.saveFailed}</p></Notice>}
-    {mapState === "reading" && <p className={styles.muted} role="status">{text.readingMap}</p>}
+    {map.mapState === "reading" && <p className={styles.muted} role="status">{text.readingMap}</p>}
     <LayoutMatrix columns={matrix.columns} rows={matrix.rows} open={shown} readOnly={!canEdit}
       onOpen={(course, layout) => setOpen({ course, layout })} onAdd={(course, layout) => void addSheet(course, layout)} />
-    {shown && <LayoutSheetEditor key={`${shown.layout}|${shown.course}`} raceId={raceId} document={document} layout={shown.layout} course={shown.course}
-      canEdit={canEdit} save={save} session={session} mapBounds={mapBounds} symbols={symbols} onClose={() => setOpen(undefined)} />}
+    {shown && <LayoutSheets key={shown.layout} raceId={raceId} document={document} layout={shown.layout} focus={shown.course} layoutName={layoutName(shown.layout)}
+      canEdit={canEdit} save={save} map={map} mapBounds={mapBounds} symbols={symbols} onClose={() => setOpen(undefined)} />}
     <div className={styles.columns}>
       <LayoutList document={document} entries={entries} readOnly={!canEdit} save={save}
         sheetCount={id => matrix.rows.filter(row => row.cells.some(cell => cell.layout === id && cell.exists)).length} />

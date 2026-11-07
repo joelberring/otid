@@ -32,9 +32,7 @@ export const entryRegistrationResponseSchema = z.object({ formatVersion: z.liter
 }).strict().refine((row) => row.snapshotVersionAfter === row.snapshotVersionBefore + 1 &&
   (row.cardNumber === null) === (row.assignmentId === null) && (!row.startTimeAssigned || row.fixedStartTime !== null));
 export { entryClassAdminErrorResponseSchema as entryRegistrationAdminErrorResponseSchema } from "./entry-class-admin";
-export type EntryRegistrationClassesResponse = z.infer<typeof entryRegistrationClassesResponseSchema>;
 export type EntryRegistrationRequest = z.infer<typeof entryRegistrationRequestSchema>;
-export type EntryRegistrationResponse = z.infer<typeof entryRegistrationResponseSchema>;
 
 export const entryRegistrationCandidatesRequestSchema = z.object({
   formatVersion: z.literal(1),   givenName: z.string().trim().min(1).max(160),

@@ -171,4 +171,3 @@ export function createClassEditActions(ws: Base & RaceDataActions & CourseEditAc
   }
   return { startClassEdit, cancelClassEdit, changeClassEdit, previewClassEdit, saveClassEdit };
 }
-export type ClassEditActions = ReturnType<typeof createClassEditActions>;

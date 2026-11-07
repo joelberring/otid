@@ -1,22 +1,18 @@
 /* Steg 68: träningsgruppernas vyer – Mina grupper, ledarnas vy och gruppsidan. */
-.myGroups { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
-.myGroups h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
 .muted { margin: .25rem 0 .65rem; color: var(--muted); }
-.groupList, .sessionList, .plainList { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.groupList > li, .sessionList > li, .plainList > li {
+.sessionList, .plainList { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.sessionList > li, .plainList > li {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .35rem 1rem;
   min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--line);
 }
-.groupList > li > div:first-child, .sessionList > li > div:first-child, .plainList > li > div:first-child { display: grid; gap: .1rem; min-width: 0; }
-.groupList span, .sessionList span, .plainList span { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.sessionList > li > div:first-child, .plainList > li > div:first-child { display: grid; gap: .1rem; min-width: 0; }
+.sessionList span, .plainList span { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .rowActions { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .8rem; }
 .rowActions a { display: inline-flex; align-items: center; min-height: 44px; }
 .buttonLink {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line-strong);
   border-radius: var(--radius); color: var(--ink); text-decoration: none; font-weight: 550;
 }
-.createGroup { margin-top: 12px; }
-.createGroup > summary { display: flex; align-items: center; min-height: 44px; font-weight: 600; cursor: pointer; }
 .form { display: grid; gap: .65rem; max-width: 40rem; }
 .form input:not([type="radio"]):not([type="checkbox"]), .form select, .form textarea { width: 100%; min-height: 44px; }
 .form textarea { min-height: 5rem; }

@@ -7,6 +7,7 @@ import { pageContentSecurityPolicy } from "./lib/content-security-policy";
  * (rotlayouten väntar på förfrågan). API-rutterna, Nexts statiska filer, avläsningsskalet under /readout/ och
  * banläggningens service worker går inte hit;
  * deras huvuden står i next.config.ts och security-policy.ts.
+ * @public Next läser `proxy` och `config`.
  */
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");
@@ -19,6 +20,7 @@ export function proxy(request: NextRequest) {
   return response;
 }
 
+/** @public */
 export const config = {
   matcher: [{
     source: "/((?!api/|_next/static|_next/image|readout/|course-setting-sw.js|favicon.ico|robots.txt).*)",

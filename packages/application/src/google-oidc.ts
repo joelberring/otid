@@ -90,9 +90,8 @@ export function parseGoogleLoginState(value: string | null | undefined, now = ne
   if (!value || value.length > 400 || !/^[A-Za-z0-9_-]+$/.test(value)) return undefined;
   let parsed: unknown;
   try { parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")); } catch { return undefined; }
-  // Fyra delar: en inloggning som började före ADR-0205 tillägg (kakan gäller tio minuter).
-  if (!Array.isArray(parsed) || (parsed.length !== 4 && parsed.length !== 7)) return undefined;
-  const [state, nonce, codeVerifier, createdAt, mode = "login", sessionId = "", remember = 0] = parsed as unknown[];
+  if (!Array.isArray(parsed) || parsed.length !== 7) return undefined;
+  const [state, nonce, codeVerifier, createdAt, mode, sessionId, remember] = parsed as unknown[];
   if (typeof state !== "string" || typeof nonce !== "string" || typeof codeVerifier !== "string" || typeof createdAt !== "number") return undefined;
   if (![state, nonce, codeVerifier].every(part => RANDOM.test(part))) return undefined;
   if ((mode !== "login" && mode !== "link") || typeof sessionId !== "string" || (remember !== 0 && remember !== 1)) return undefined;

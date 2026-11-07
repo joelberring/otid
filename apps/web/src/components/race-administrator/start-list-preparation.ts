@@ -87,4 +87,3 @@ export function createStartListActions(ws: Base & RaceDataActions) {
   }
   return { loadPublication, preparePublication, submitPublication, downloadStartList };
 }
-export type StartListActions = ReturnType<typeof createStartListActions>;

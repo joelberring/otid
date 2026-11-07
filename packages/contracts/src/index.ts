@@ -134,18 +134,6 @@ export const deviceBatchSchema = z.object({
   }
 });
 
-export const evaluationStatusSchema = z.enum(["OK", "OVERTIME", "MP", "UNKNOWN_CARD"]);
-export const evaluationReasonSchema = z.enum([
-  "COMPLETE",
-  "UNKNOWN_CARD",
-  "MISSING_START",
-  "MISSING_FINISH",
-  "MISSING_CONTROL",
-  "WRONG_ORDER",
-  "INVALID_TIME_ORDER",
-  "MAX_TIME_EXCEEDED"
-]);
-
 const serverResultVersionFields = {
   engineVersion: z.string().trim().min(1),
   snapshotVersion: z.number().int().positive(),
@@ -263,7 +251,6 @@ export const deviceBatchAcknowledgementSchema = z.object({
 });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
-export type SimulatorPayload = z.infer<typeof simulatorPayloadSchema>;
 export type DeviceBatch = z.infer<typeof deviceBatchSchema>;
 export type ServerResultSummary = z.infer<typeof serverResultSummarySchema>;
 export type ReadoutPlacement = z.infer<typeof readoutPlacementSchema>;

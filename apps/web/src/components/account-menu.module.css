@@ -33,7 +33,6 @@
 .confirm { display: grid; gap: .5rem; padding: .6rem; border-radius: 4px; background: var(--attention-tint); font-size: var(--text-sm); }
 .confirm p { margin: 0; }
 .confirm div { display: flex; flex-wrap: wrap; gap: .5rem; }
-.status { margin: 0; padding: .4rem .6rem; color: var(--muted); font-size: var(--text-sm); }
 .error { margin: 0; padding: .4rem .6rem; color: var(--mp); font-size: var(--text-sm); }
 @media (max-width: 640px) {
   .name, .caret { display: none; }

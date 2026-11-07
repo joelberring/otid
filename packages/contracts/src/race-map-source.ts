@@ -76,5 +76,4 @@ export const adminRaceMapSourceSchema = z.object({
 }).strict();
 
 export type RaceMapSourceMetadata = z.infer<typeof raceMapSourceMetadataSchema>;
-export type RaceMapSourceGeoreference = z.infer<typeof raceMapSourceGeoreferenceSchema>;
 export type AdminRaceMapSource = z.infer<typeof adminRaceMapSourceSchema>;

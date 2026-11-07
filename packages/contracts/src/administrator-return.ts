@@ -26,7 +26,6 @@ export function canonicalAdministratorReturnRequest(value: unknown): Uint8Array 
 }
 
 export type AdministratorReturnRequest = z.infer<typeof administratorReturnRequestSchema>;
-export type AdministratorReturnResponse = z.infer<typeof administratorReturnResponseSchema>;
 
 /** Explicit administrative start observation, never a start timestamp. */
 export const administratorStartCorrectionRequestSchema = administratorReturnRequestSchema

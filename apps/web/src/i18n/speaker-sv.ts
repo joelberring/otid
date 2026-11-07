@@ -2,7 +2,6 @@
 export const speakerSv = {
   title: "Speaker",
   updatedAt: (time: string) => `Uppdaterad ${time}`,
-  updating: "Uppdaterar …",
   offline: "Ingen anslutning – visar senast hämtade",
   stale: "Kunde inte uppdatera – visar senast hämtade",
   loading: "Hämtar läget …",
@@ -23,7 +22,6 @@ export const speakerSv = {
   relayTitle: "Lag per sträcka",
   relayOut: (leg: number, count: number) => `Ute på sträcka ${leg}: ${count}`,
   relayFinished: (count: number) => `I mål: ${count}`,
-  relayNone: "Inga lag ute.",
   team: (number: number, name: string) => `${number} ${name}`,
   /** Steg 47: stafettsträckan på raden i "Senast i mål". */
   relayLeg: (number: number, name: string, leg: number, variant: string | null, restarted: boolean) =>

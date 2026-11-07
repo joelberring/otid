@@ -25,6 +25,4 @@ export const courseForkingViewSchema = z.object({
 }).strict();
 
 export type CourseForkingItem = z.infer<typeof courseForkingItemSchema>;
-export type CourseForkingValue = z.infer<typeof courseForkingSchema>;
 export type CourseForkingView = z.infer<typeof courseForkingViewSchema>;
-export type ForkingChoiceValue = z.infer<typeof forkingChoiceSchema>;

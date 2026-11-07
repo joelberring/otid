@@ -151,4 +151,3 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
   }
   return { saveManualClass, submitManualClass, saveCapacity, submitCapacity };
 }
-export type ClassPreparationActions = ReturnType<typeof createClassPreparationActions>;

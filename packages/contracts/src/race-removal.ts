@@ -44,9 +44,6 @@ export const entryRemovalResponseSchema = z.object({ ...receipt, request: entryR
 export const classRemovalResponseSchema = z.object({ ...receipt, request: classRemovalRequestSchema, result: outcome }).strict();
 export const courseRemovalResponseSchema = z.object({ ...receipt, request: courseRemovalRequestSchema, result: outcome }).strict();
 
-export type EntryRemovalRequest = z.infer<typeof entryRemovalRequestSchema>;
-export type ClassRemovalRequest = z.infer<typeof classRemovalRequestSchema>;
-export type CourseRemovalRequest = z.infer<typeof courseRemovalRequestSchema>;
 export type RemovalBlocker = z.infer<typeof removalBlockerSchema>;
 export type RemovalOutcome = z.infer<typeof outcome>;
 export type EntryRemovalResponse = z.infer<typeof entryRemovalResponseSchema>;

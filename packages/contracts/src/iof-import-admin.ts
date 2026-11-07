@@ -15,8 +15,6 @@ export const iofImportIdempotencyKeySchema = z.string().regex(
   "Idempotency-Key måste vara iof-import:<kanoniskt request-uuid>"
 );
 
-
-
 const warningSchema = z.string().min(1).max(500);
 
 export const iofCourseDataImportReportSchema = z.object({
@@ -116,11 +114,6 @@ export const iofImportErrorResponseSchema = z.object({
 }).strict();
 export type IofEntryListChange = z.infer<typeof iofEntryListChangeSchema>;
 
-export type IofImportRequestId = z.infer<typeof iofImportRequestIdSchema>;
-export type IofCourseDataImportReport = z.infer<typeof iofCourseDataImportReportSchema>;
-export type IofEntryListImportReport = z.infer<typeof iofEntryListImportReportSchema>;
-export type IofStartListImportReport = z.infer<typeof iofStartListImportReportSchema>;
 export type IofImportReport = z.infer<typeof iofImportReportSchema>;
 export type IofImportResponse = z.infer<typeof iofImportResponseSchema>;
 export type IofImportErrorCode = z.infer<typeof iofImportErrorCodeSchema>;
-export type IofImportErrorResponse = z.infer<typeof iofImportErrorResponseSchema>;

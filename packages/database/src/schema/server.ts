@@ -20,7 +20,11 @@ export const serverSamples = pgTable("server_sample", {
   memoryAvailableMinBytes: bigint("memory_available_min_bytes", { mode: "number" })
 });
 
-/** Läget per sorts larm och när veckorapporten senast skickades. */
+/**
+ * Läget per sorts larm och när veckorapporten senast skickades. Läses och skrivs med rå SQL (`server-status.ts`, låsning
+ * med `for update`); tabellen står här för schemats skull.
+ * @public
+ */
 export const serverNotices = pgTable("server_notice", {
   kind: text("kind").$type<ServerNoticeKind>().primaryKey(),
   activeSince: timestamp("active_since", { withTimezone: true }),

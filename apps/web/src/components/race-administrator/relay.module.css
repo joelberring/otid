@@ -27,7 +27,6 @@
 .teamTable tbody tr { cursor: pointer; }
 .teamTable tr[data-selected="true"] > * { background: var(--subtle); }
 .teamNumber { font-variant-numeric: tabular-nums; font-weight: 700; width: 3rem; }
-.teamName { display: block; font-weight: 700; }
 .muted { color: var(--muted); font-size: 0.85rem; }
 .legList { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; font-size: 0.88rem; }
 .legList li { display: flex; flex-wrap: wrap; column-gap: 0.4rem; }

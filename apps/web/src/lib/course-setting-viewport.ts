@@ -32,12 +32,6 @@ export function topLeft(view: Viewport): Point {
   return { x: view.centerX - view.width / 2 / view.pxPerMm, y: view.centerY + view.height / 2 / view.pxPerMm };
 }
 
-/** Kartytan som syns, i mm. */
-export function visibleBounds(view: Viewport): Bounds {
-  const origin = topLeft(view);
-  return { minX: origin.x, maxY: origin.y, maxX: origin.x + view.width / view.pxPerMm, minY: origin.y - view.height / view.pxPerMm };
-}
-
 /** Hela ytan i vyn med marginal (px) på alla sidor. */
 /** Det som ligger ovanpå kartan vid kanterna (verktygsraden, telefonens rader), i px. */
 export interface Insets { readonly left: number; readonly right: number; readonly top: number; readonly bottom: number }

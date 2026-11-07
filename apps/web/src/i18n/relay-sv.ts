@@ -180,23 +180,9 @@ export const relaySv = {
   retry: "Försök igen",
   // Publika resultat och startlista
   publicTitle: "Stafett",
-  publicTeams: (className: string) => `Lagresultat ${className}`,
-  publicLegs: "Sträckresultat",
-  publicLegTitle: (className: string, leg: number) => `${className} sträcka ${leg}`,
-  publicPosition: "Plac",
-  publicTeam: "Lag",
   publicRunner: "Löpare",
-  publicTime: "Tid",
-  publicStatus: "Status",
-  publicShowLegs: "Visa sträckor",
-  publicLegPosition: (position: number) => `(${position})`,
   publicLegCount: (count: number) => `${count} sträckor`,
-  publicVariant: (code: string) => `variant ${code}`,
-  publicRestarted: "omstart",
-  publicEmpty: "Inga lag ännu.",
   publicRefreshFailed: "Lagresultaten kunde inte uppdateras. Försöker igen.",
-  startTeam: (number: number, name: string) => `${number} ${name}`,
-  startLeg: (leg: number) => `Sträcka ${leg}`,
   // Import
   importTeams: (legs: number) => legs === 1 ? "1 sträcka fick sin variant" : `${legs} sträckor fick sin variant`
 } as const;

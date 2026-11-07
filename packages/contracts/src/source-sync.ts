@@ -135,7 +135,6 @@ export type SyncField = z.infer<typeof syncFieldSchema>;
 export type SyncNote = z.infer<typeof syncNoteSchema>;
 export type SyncConsequence = z.infer<typeof syncConsequenceSchema>;
 export type SyncPreviewResponse = z.infer<typeof syncPreviewResponseSchema>;
-export type EventorSyncProblem = z.infer<typeof eventorSyncProblemSchema>;
 export type SyncConsequenceResponse = z.infer<typeof syncConsequenceResponseSchema>;
 export type SyncApplyRequest = z.infer<typeof syncApplyRequestSchema>;
 export type SyncApplyResponse = z.infer<typeof syncApplyResponseSchema>;

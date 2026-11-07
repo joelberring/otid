@@ -2,7 +2,6 @@ import {
   createCaptureManifestV1,
   encodeCaptureBytesBase64,
   encodeCaptureTimelineNdjson,
-  encodeCaptureWalNdjson,
   sha256Hex,
   type CaptureDirection,
   type CaptureMarkerKind,
@@ -14,6 +13,11 @@ import {
 export type FixtureEvent =
   | { readonly type: "bytes"; readonly direction: CaptureDirection; readonly at: number; readonly bytes: readonly number[] }
   | { readonly type: "marker"; readonly marker: CaptureMarkerKind; readonly at: number };
+
+/** WAL:en som NDJSON (inspelningen skriver den rad för rad; här hela på en gång). */
+function encodeCaptureWalNdjson(entries: readonly CaptureWalEntryV1[]): string {
+  return entries.length === 0 ? "" : `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`;
+}
 
 export function makeCapture(events: readonly FixtureEvent[]): LoadedCaptureV1 {
   const chunks = events.filter((event) => event.type === "bytes").map((event) => Uint8Array.from(event.bytes));

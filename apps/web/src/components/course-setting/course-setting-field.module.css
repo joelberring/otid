@@ -18,9 +18,6 @@
 .toolLines { display: grid; gap: 2px; flex-basis: 100%; max-width: 360px; }
 .arrows { display: inline-flex; gap: 4px; }
 
-.notice { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--attention, #b26a00); border-left-width: 6px; background: var(--surface); }
-.row { display: flex; flex-wrap: wrap; gap: 8px; }
-
 /* Smal skärm: raden nertill (i arbetsytans stapel ovanför bladet); den skrollar bara på höjden, kartan inte alls. */
 .bar, .sheet { touch-action: pan-y; }
 .select { min-height: 44px; font-size: 1rem; padding: 0 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }

@@ -49,5 +49,3 @@ export const manualCourseClassCreateResponseSchema = z.object({
   }
 });
 
-export type ManualCourseClassCreateRequest = z.infer<typeof manualCourseClassCreateRequestSchema>;
-export type ManualCourseClassCreateResponse = z.infer<typeof manualCourseClassCreateResponseSchema>;

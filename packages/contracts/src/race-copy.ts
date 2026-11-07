@@ -16,7 +16,6 @@ export const raceCopyRequestSchema = z.object({
   raceDate: z.iso.date(),
   includePeople: z.boolean()
 }).strict();
-export type RaceCopyRequest = z.infer<typeof raceCopyRequestSchema>;
 
 /** Vad kopian fick: antal och om kartan och radiokontrollerna kom med. */
 export const raceCopySummarySchema = z.object({

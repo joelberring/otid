@@ -24,8 +24,8 @@ describe("startsättens ord", () => {
     expect([listsSv.csv.free, listsSv.csv.minute, listsSv.csv.mass]).toEqual(["Fri start", "Minutstart", "Masstart"]);
     expect(relaySv.methods).toBe(startRuleSv.relay);
     expect([raceAdministratorSv.courseStartRule, raceAdministratorSv.courseFreeStart, raceAdministratorSv.courseFixedStart,
-      raceAdministratorSv.rosterFreeStart, raceAdministratorSv.rosterFixedStart, raceAdministratorSv.fixed, raceAdministratorSv.punch])
-      .toEqual(["Startsätt", "Fri start", "Minutstart", "Fri start", "Minutstart", "Minutstart", "Fri start"]);
+      raceAdministratorSv.rosterFreeStart, raceAdministratorSv.fixed, raceAdministratorSv.punch])
+      .toEqual(["Startsätt", "Fri start", "Minutstart", "Fri start", "Minutstart", "Fri start"]);
     expect(raceWorkflowDetailSv.free).toBe("Fri start");
     expect(forestWatchSv.punch).toBe("Fri start");
   });

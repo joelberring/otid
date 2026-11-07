@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Död kod bort och knip i CI (grenen c1-dod-kod, ingen migration)
+- Gamla versionsscheman (resultOutcomeV1–V8, storedResult*V4/V6, publicResult*V1–V6, V9-alias) bort; gällande namn kvar. `publicResultListResponseSchema` är format 7.
+- Oanvända exporter, konstanter och ~150 exporterade typer bort; `distributeRelayVariants` och `encodeCaptureWalNdjson` flyttade till testerna.
+- Döda Drizzle-tabeller (`shortenedCourseClassTransfer*`, `mapContentParts`; SQL-tabellerna kvar), Google-kakans gamla format, `POST …/maps/{mapId}/merge` (ADR-0210 ändrad).
+- 82 oanvända i18n-nycklar och 18 CSS-modulklasser bort; `i18n/unused-keys.test.ts` kräver att varje toppnyckel används.
+- `pnpm lint:dead` (knip 5.60, `knip.json`) körs i CI-jobbet verify. Undantag med kommentar i `knip.json` (B4-filer, pg, typsnitt).
 ### 2026-11-07 – Layout som egen flik (grenen b3-layoutflik, ADR-0217, ingen migration)
 - Flikarna Banläggning | Layout | Utskrift. Layout: överblick banor × layouter (telefon: lista), layouterna (papper, skala, mall, Kartor per ark), arket öppnat (utsnitt, klippning, papperets element, kartbytets delar, "Justera för 1:7 500": dra nummer, ringavbrott per kontroll, "Ta bort justeringar"), klasstabell med massval, lägen (spara, jämför, återställ, ångra).
 - Modell: `event.layouts`, `layoutSheets`, `classLayouts`, `mainLayout`, `layoutStates`; huvudlayouten är banans fält och den enda i .ppen. Utskriften räknar arket genom `layoutDocument` (golden-test: gamla dokument ger byte-identisk PDF). Läget "Från Purple Pen" vid inläsning.

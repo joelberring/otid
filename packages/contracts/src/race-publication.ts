@@ -16,7 +16,6 @@ export const racePublicationStateSchema = z.object({
   /** Superadmin har dolt tävlingen: den syns inte publikt även om den är publicerad. */
   hiddenBySuperadmin: z.boolean()
 }).strict();
-export type RacePublicationState = z.infer<typeof racePublicationStateSchema>;
 
 export const racePublicationResponseSchema = z.object({
   formatVersion: z.literal(1),

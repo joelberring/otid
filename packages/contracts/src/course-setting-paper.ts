@@ -36,4 +36,3 @@ export const paperLibrarySaveRequestSchema = z.object({
   name: z.string().trim().min(1).max(80),
   template: z.object({ schemaVersion: z.number().int(), id: z.string() }).loose()
 }).strict();
-export type PaperLibrarySaveRequest = z.infer<typeof paperLibrarySaveRequestSchema>;

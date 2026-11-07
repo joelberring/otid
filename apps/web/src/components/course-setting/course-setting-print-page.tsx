@@ -5,7 +5,7 @@ import { AccountMenu } from "../account-menu";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  exchangeAfterPart, expandPartItems, printAreaOf, RUNNER_BACK, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, MAP_OWN_PRINT_PROFILE_ID, printSheetGroups, printVariants,
+  exchangeAfterPart, expandPartItems, printAreaOf, RUNNER_BACK, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, MAP_OWN_PRINT_PROFILE_ID, printSheetGroups, layoutEntries, layoutTemplateOfLayout, MAIN_LAYOUT,
   type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect, type PaperTemplate,
   type PaperRect, type Sheet, type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
@@ -29,6 +29,10 @@ import { RunnerControls, type BackMode } from "./course-setting-runner-panel";
 import { RunnerCheckTable } from "./course-setting-runner-check";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
+import { classItems, layoutItems, proofItems, withCopies, type PrintCount } from "../../lib/course-setting-print-what";
+import { layoutSv as layoutText, printWhatSv as whatText } from "../../i18n/course-setting-layout-sv";
+import { CourseSettingTabs } from "./course-setting-tabs";
+import { PrintWhat } from "./course-setting-print-what";
 import { fetchMapSource } from "../../lib/route-choice-api";
 import { RenderQueue } from "../../lib/course-setting-bl-proposal";
 import { pressLayersFor, pressNormOf } from "../../lib/course-setting-press-layers";
@@ -65,7 +69,7 @@ function withoutEntry(item: SheetItem): SheetItem {
 // Steg 67: styrd av service workern när banläggningen är sparad för offline (`controlledWorker`).
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
-type Mode = "COURSES" | "RUNNERS";
+type Mode = "COURSES" | "RUNNERS" | "CLASSES" | "PROOF";
 interface Printed { readonly key: string; readonly sheet: Sheet; readonly label: string }
 type Adjust = Readonly<Record<number, MapColorAdjust>>;
 
@@ -118,6 +122,10 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   // Träningsläget (ADR-0192): kartbitar och kontrollantens karta i linjeorienteringen.
   const [pieces, setPieces] = useState(false);
   const [controllerMaps, setControllerMaps] = useState(false);
+  // ADR-0217 beslut 8: layouten för "alla ark i en layout", klasserna och antalet.
+  const [printLayout, setPrintLayout] = useState(MAIN_LAYOUT);
+  const [count, setCount] = useState<PrintCount>({ kind: "OWN", copies: 1 });
+  const [chosenClasses, setChosenClasses] = useState<string[]>([]);
   // Senaste versionen för nästa sparande (inte den som fanns när knappen ritades).
   const versionRef = useRef<number>(undefined);
   const serial = useMemo(() => serialSaves(), []);
@@ -169,10 +177,11 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const [bundles, setBundles] = useState<MapBundleResponse>();
   const [bundlesState, setBundlesState] = useState<"none" | "reading" | "ready" | "failed">("none");
   useEffect(() => {
-    if (mode !== "RUNNERS" || bundlesState !== "none") return;
+    // Kartbuntarna behövs för löparna, klasserna, antalet och layouternas klasser (ADR-0217).
+    if ((mode === "COURSES" && count.kind === "OWN" && printLayout === MAIN_LAYOUT) || bundlesState !== "none") return;
     setBundlesState("reading");
     fetchMapBundles(raceId).then(data => { setBundles(data); setBundlesState("ready"); }, () => setBundlesState("failed"));
-  }, [mode, bundlesState, raceId]);
+  }, [mode, bundlesState, raceId, count.kind, printLayout]);
 
   /**
    * Sparar en ändring i taget, alltid på senaste versionen (`saveOnLatest`). Ägarens fel 2026-11-03 ("Godkänd" sparades inte):
@@ -243,7 +252,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const savedTemplates = useMemo(() => document?.event.layoutTemplates ?? [], [document]);
   const runnerDefault = duplex ? "a4-one" : "a4-strip";
   const chosenTemplateId = mode === "RUNNERS" && templateId === "NONE" ? runnerDefault : templateId;
-  const template = draftTemplate ?? [...BUILT_IN_TEMPLATES, ...savedTemplates].find(item => item.id === chosenTemplateId);
+  // ADR-0217: huvudlayoutens "Kartor per ark" ur Layout gäller när inget annat valts här.
+  const template = draftTemplate ?? [...BUILT_IN_TEMPLATES, ...savedTemplates].find(item => item.id === chosenTemplateId)
+    ?? (document && mode !== "RUNNERS" ? layoutTemplateOfLayout(document, MAIN_LAYOUT) : undefined);
 
   const runners = useMemo<RunnerPrint | undefined>(() => document && bundles
     ? runnerPrintItems(document, bundles, clockIn(bundles.timeZone), order) : undefined, [document, bundles, order]);
@@ -251,22 +262,27 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   // Kartorna i banläget (samma som arken nedan) för PDF:en.
   // Översynen 2026-11-02: en bana vars varianter inte går att räkna hoppas inte tyst över (felet visas med de andra).
   const { courseItems, variantErrors } = useMemo(() => {
-    const items: SheetItem[] = [], failed: string[] = [];
+    let items: SheetItem[] = [];
+    const failed: string[] = [];
     if (!document) return { courseItems: items, variantErrors: failed };
-    for (const course of [ALL_CONTROLS, ...courses.map(item => item.id)].filter(id => chosen.includes(id))) {
+    if (mode === "CLASSES") items = safely("Klassernas kartor", () => classItems(document, bundles, chosenClasses, count), () => []);
+    else if (mode === "PROOF") items = safely("Provarken", () => proofItems(document, bundles), () => []);
+    else for (const course of [ALL_CONTROLS, ...courses.map(item => item.id)].filter(id => chosen.includes(id))) {
       try {
-        for (const variant of printVariants(document, course, eachVariant)) items.push({ course, ...(variant ? { variant } : {}) });
+        items.push(...layoutItems(document, printLayout, [course], eachVariant, bundles));
       } catch (error) {
         console.error("Varianterna misslyckades", error);
         failed.push(course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course);
       }
     }
+    // Antalet (ADR-0217): varje karta i följd så många gånger som antalet säger (klasserna har redan sitt).
+    if (mode === "COURSES" && !(count.kind === "OWN" && count.copies === 1)) items = withCopies(document, bundles, items, count);
     // Stjärnans uddar, kepsens kartor och kontrollantens karta (ADR-0192 beslut 6).
     const expanded = safely("Träningens kartor", () => expandTrainingItems(document, items, { controllerMaps }), () => items);
     // Kartbyten (ADR-0203): varje del på ett eget ark.
     const parted = safely("Banans delar", () => expandPartItems(document, expanded), () => expanded);
     return { courseItems: parted, variantErrors: failed };
-  }, [document, courses, chosen, eachVariant, controllerMaps]);
+  }, [document, courses, chosen, eachVariant, controllerMaps, mode, bundles, chosenClasses, count, printLayout]);
   const trainingChosen = useMemo(() => document ? chosen.filter(id => document.training?.courses[id]) : [], [document, chosen]);
   // Kartbyten (ADR-0203): "Dubbelsidigt" lägger del 2 på baksidan av del 1; förval på när en vald bana vänder kartan (map-flip).
   const withParts = courseItems.some(item => item.part !== undefined);
@@ -303,7 +319,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       group.sheets.forEach((sheet, part) => {
         const page = group.pages?.[part];
         // Kartbytets del hör till nyckeln: utan den fick en banas två delar samma nyckel (dev-överläggets "1 Issue").
-        if (page && row) out.push({ key: `${row.course}|${row.variant ?? ""}|${row.part ?? ""}|${JSON.stringify(row.training ?? {})}|${page.sheet}`, sheet,
+        // ADR-0217: layouten och kartans plats (antalet ger samma karta flera gånger) hör också till nyckeln.
+        if (page && row) out.push({ key: `${row.course}|${row.variant ?? ""}|${row.part ?? ""}|${JSON.stringify(row.training ?? {})}|${row.layout ?? ""}|${group.item}|${page.sheet}`, sheet,
           label: text.page.sheet(page.title, page.sheet, page.sheets) });
         // En löpare per ark: remsan och baksidan gäller arkets löpare.
         else if (runnerMode && row) out.push({ key: `r${group.item}|${part}`, sheet,
@@ -431,7 +448,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   return <main className={styles.page}>
     <style>{pageStyles(sheets.map(item => item.sheet))}</style>
     <div className={styles.controls}>
-      <div className={styles.topLine}>{back}<HelpButton view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /><AccountMenu /></div>
+      <div className={styles.topLine}>{back}<CourseSettingTabs raceId={raceId} current="PRINT" /><HelpButton view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /><AccountMenu /></div>
       <h1>{text.page.title}</h1>
       {/* ADR-0215: färgerna som en statusrad med två lägen; hela flödet (ADR-0211 beslut 6) under Avancerat. */}
       <PrintColors saved={savedProfiles} profile={profile} colors={colors} usage={usage} norm={pressNorm} detectedNorm={pressNormOf({}, mapScale, usage)}
@@ -446,8 +463,14 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
             {text.page.modeCourses}</label>
           <label className={styles.check}><input type="radio" name="print-mode" checked={runnerMode} onChange={() => { setMode("RUNNERS"); setDraftTemplate(undefined); }}
             data-testid="print-mode-runners" />{text.page.modeRunners}</label>
+          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "CLASSES"} onChange={() => { setMode("CLASSES"); setDraftTemplate(undefined); }}
+            data-testid="print-mode-classes" />{whatText.modeClasses}</label>
+          <label className={styles.check}><input type="radio" name="print-mode" checked={mode === "PROOF"} onChange={() => { setMode("PROOF"); setDraftTemplate(undefined); }}
+            data-testid="print-mode-proof" />{whatText.modeProof}</label>
         </div>
-        {mode === "COURSES" ? <>
+        {mode !== "RUNNERS" && <PrintWhat raceId={raceId} mode={mode} entries={layoutEntries(document, layoutText.mainName)} layout={printLayout} onLayout={setPrintLayout}
+          count={count} onCount={setCount} classes={[...new Set((bundles?.classes ?? []).map(row => row.name))]} chosenClasses={chosenClasses} onClasses={setChosenClasses} />}
+        {mode === "CLASSES" || mode === "PROOF" ? null : mode === "COURSES" ? <>
           <fieldset className={styles.courses}>
             <legend>{text.page.courses}</legend>
             <label><input type="checkbox" checked={allIds.every(id => chosen.includes(id))} onChange={event => setChosen(event.target.checked ? allIds : [])} />{text.page.all}</label>

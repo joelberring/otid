@@ -21,6 +21,12 @@ import { applyTrainingPatch } from "./training-edit";
 import { setAcceptedChecks } from "./check-accept";
 import { enumerateCourseControls, findCourse } from "./walk";
 import { el } from "./xml";
+import { applyLayoutEdit, setLayoutSheetArea, setLayoutSheetNumber, setLayoutSheetPaper, type LayoutEdit } from "./print-layout-edit";
+import { MAIN_LAYOUT } from "./print-layouts";
+
+const LAYOUT_EDIT_TYPES: ReadonlySet<string> = new Set(["ADD_LAYOUT", "UPDATE_LAYOUT", "DELETE_LAYOUT", "PUT_LAYOUT_SHEET", "SET_LAYOUT_CIRCLE_GAPS",
+  "CLEAR_LAYOUT_ADJUSTMENTS", "SET_CLASS_LAYOUTS", "SAVE_LAYOUT_STATE", "RESTORE_LAYOUT_STATE", "DELETE_LAYOUT_STATE"]);
+export const isLayoutEdit = (edit: CourseSettingEdit): edit is LayoutEdit => LAYOUT_EDIT_TYPES.has(edit.type);
 
 interface Draft {
   event: CourseSettingDocument["event"];
@@ -426,6 +432,13 @@ export function normalizeDegrees(degrees: number): number {
 
 /** Gör en ändring. */
 export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
+  if (isLayoutEdit(edit)) return applyLayoutEdit(document, edit);
+  // ADR-0217: ett ark i en annan layout än huvudlayouten (huvudlayoutens ark är banans fält som förut).
+  if ((edit.type === "SET_PRINT_AREA" || edit.type === "SET_PAPER_LAYOUT" || edit.type === "MOVE_NUMBER") && edit.printLayout !== undefined && edit.printLayout !== MAIN_LAYOUT) {
+    if (edit.type === "SET_PRINT_AREA") return { document: setLayoutSheetArea(document, edit.printLayout, edit.course, edit.area, edit.part) };
+    if (edit.type === "SET_PAPER_LAYOUT") return { document: setLayoutSheetPaper(document, edit.printLayout, edit.course, edit.layout, edit.part) };
+    return { document: setLayoutSheetNumber(document, edit.printLayout, edit.course, edit.courseControl, edit.at) };
+  }
   if (edit.type === "PUT_OBJECTS") return { document: putObjects(document, edit) };
   if (edit.type === "SET_APPEARANCE") return { document: setAppearance(document, edit.changes) };
   if (edit.type === "ADD_SPECIAL" || edit.type === "MOVE_SPECIAL" || edit.type === "UPDATE_SPECIAL" || edit.type === "DELETE_SPECIAL" ||

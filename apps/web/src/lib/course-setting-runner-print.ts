@@ -14,7 +14,8 @@ export type RunnerPrintProblem =
   | { readonly kind: "UNKNOWN_VARIANT"; readonly courseName: string; readonly variantCode: string }
   /** ADR-0198: varianten är bortvald i banläggningen; inga kartor (inte heller reserver) skrivs ut för den. */
   | { readonly kind: "EXCLUDED_VARIANT"; readonly courseName: string; readonly variantCode: string; readonly count: number }
-  | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly expected: number; readonly actual: number };
+  | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly expected: number; readonly actual: number;
+      readonly layout?: string | undefined };
 
 /** ADR-0213: en löpare med en bortvald variant (skrivs inte ut men står i kontrolltabellen). */
 export interface ExcludedRunner {
@@ -26,7 +27,7 @@ export interface RunnerPrint {
   readonly excluded: readonly ExcludedRunner[];
   readonly problems: readonly RunnerPrintProblem[];
   /** Kartor per variant (för översikten). */
-  readonly counts: readonly { readonly courseName: string; readonly variantCode: string | null; readonly count: number }[];
+  readonly counts: readonly { readonly courseName: string; readonly variantCode: string | null; readonly count: number; readonly layout?: string | undefined }[];
 }
 
 /** Startordningen: löpare och lediga med starttid först, fri start sedan, reserverna sist. */
@@ -40,7 +41,9 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
   clock: (instant: string | null) => string, order: "BUNDLE" | "START" = "BUNDLE"): RunnerPrint {
   const problems: RunnerPrintProblem[] = bundles.missingVariant.map(row => ({ kind: "MISSING_VARIANT", name: row.name, className: row.className }));
   const items: SheetItem[] = [];
-  const counts = new Map<string, { courseName: string; variantCode: string | null; count: number }>();
+  const counts = new Map<string, { courseName: string; variantCode: string | null; count: number; layout?: string }>();
+  // ADR-0217: gruppens layout (klassens) följer med till kartan; tryckantalet räknas per bana, variant och layout.
+  const countKey = (courseName: string, variantCode: string | null, layout: { id: string } | undefined) => `${courseName}|${variantCode ?? ""}|${layout?.id ?? ""}`;
   const known = new Set<string>();
   const instants: (string | null)[] = [];
   const excludedPages = new Map<string, { kind: "EXCLUDED_VARIANT"; courseName: string; variantCode: string; count: number }>();
@@ -78,18 +81,20 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
       if (!codes.includes(variant)) problems.push({ kind: "UNKNOWN_VARIANT", courseName: page.courseName, variantCode: variant });
     }
     const runner = runnerOf(page, clock);
-    items.push({ course: course.id, ...(variant ? { variant } : {}), runner });
+    items.push({ course: course.id, ...(variant ? { variant } : {}), runner, ...(page.layout ? { layout: page.layout.id } : {}) });
     instants.push(page.kind === "RESERVE" ? null : page.item.startTime);
-    const count = counts.get(key) ?? { courseName: page.courseName, variantCode: page.variantCode, count: 0 };
+    const layoutKey = countKey(page.courseName, page.variantCode, page.layout);
+    const count = counts.get(layoutKey) ?? { courseName: page.courseName, variantCode: page.variantCode, count: 0, ...(page.layout ? { layout: page.layout.name } : {}) };
     count.count += 1;
-    counts.set(key, count);
+    counts.set(layoutKey, count);
   }
   problems.push(...[...excludedPages.values()].filter(row => row.count > 0));
   for (const group of bundles.groups) {
     if (excludedPages.has(`${group.courseName}|${group.variantCode ?? ""}`)) continue;
-    const actual = counts.get(`${group.courseName}|${group.variantCode ?? ""}`)?.count ?? 0;
+    const actual = counts.get(countKey(group.courseName, group.variantCode, group.layout))?.count ?? 0;
     if (group.printCount > 0 && actual !== group.printCount && document.courses.some(row => row.name === group.courseName)) {
-      problems.push({ kind: "COUNT", courseName: group.courseName, variantCode: group.variantCode, expected: group.printCount, actual });
+      problems.push({ kind: "COUNT", courseName: group.courseName, variantCode: group.variantCode, expected: group.printCount, actual,
+        ...(group.layout ? { layout: group.layout.name } : {}) });
     }
   }
   const ordered = order === "BUNDLE" ? items : items.map((item, index) => ({ item, index, at: instants[index] ?? null }))

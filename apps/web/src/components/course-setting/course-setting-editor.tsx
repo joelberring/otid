@@ -7,7 +7,7 @@ import type {
 } from "@o-tid/contracts";
 import {
   acceptChecksEdit, applyEdit, carryCourseLevels, carryExcludedVariants, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
-  keepAcceptedChecks, keepPaperOnImport, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
+  keepAcceptedChecks, keepPaperOnImport, withPpenState, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
   type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { LegAnalysis } from "@o-tid/route-choice";
@@ -39,6 +39,8 @@ import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import { drawPrintFrame, drawSpecialEditing } from "../../lib/course-setting-draw-special";
 import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHandles } from "../../lib/course-setting-specials";
 import { PrintPanel } from "./course-setting-print-panel";
+import { CourseSettingTabs } from "./course-setting-tabs";
+import { courseSettingTabsSv as layoutTabsSv } from "../../i18n/course-setting-layout-sv";
 import { SpecialsPanel } from "./course-setting-specials";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
@@ -525,8 +527,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       carried = carryCourseLevels(document, carryExcludedVariants(document, carried));
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
-      const imported = keepPaperOnImport(document, carried, await importedImageHashes(carried),
-        (doc, course) => layoutCoursePage(doc, { course, mapBounds })[0]);
+      // ADR-0217: layouterna, arken, klassernas val och lägena följer med; läget "Från Purple Pen" sparas automatiskt.
+      const imported = withPpenState(keepPaperOnImport(document, carried, await importedImageHashes(carried),
+        (doc, course) => layoutCoursePage(doc, { course, mapBounds })[0]), new Date().toISOString(), text.file.ppenState);
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }
@@ -719,6 +722,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     { label: copy.topbar.settings, onClick: () => setTab("settings") },
     // Utskriftens sidor direkt från Fil (ägaren 2026-11-03), efter att det osparade skickats.
     { label: text.printMenu, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/print${view !== ALL_CONTROLS ? `?course=${encodeURIComponent(view)}` : ""}`)) },
+    // ADR-0217: fliken Layout (på telefonen finns flikarna bara här, raden överst är full).
+    { label: layoutTabsSv.layout, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/layout`)) },
     { label: text.descriptionsMenu, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`)) },
     { label: `${offlineSv.panel.heading} …`, onClick: () => setOfflineDialog(true) }];
   // `course-setting-shell` (globals.css): sidan under arbetsytan skrollar och studsar aldrig.
@@ -730,7 +735,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         data-testid="course-setting-status">{shownStatus}</p>}
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu}
-      admin={access.admin} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)} />
+      admin={access.admin} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)}
+      tabs={<CourseSettingTabs raceId={raceId} current="SETTING" className={styles.tabsWide} onLeave={href => void flush().finally(() => router.push(href))} />} />
     {/* Telefonen: verktygen och flikarna (även Objekt och Utskrift) bakom "Mer"; medan ett specialobjekt ritas syns
         verktygsraden och fliken Objekt (Klar och Avbryt). */}
     <div className={styles.stage} data-compact={field.narrow && !field.expanded && editor.tool !== "SPECIAL" ? "true" : undefined}>

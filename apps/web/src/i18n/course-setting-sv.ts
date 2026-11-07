@@ -210,6 +210,8 @@ export const courseSettingSv = {
     importLabel: "Purple Pen-fil (.ppen)",
     importHelp: "Filen läses i webbläsaren. Det som O-Tid inte tolkar sparas orört och skrivs tillbaka.",
     replaceConfirm: "Ersätta banläggningen med filen? Den nuvarande sparas som en tidigare version.",
+    /** ADR-0217: läget som sparas automatiskt när en .ppen läses in. */
+    ppenState: "Från Purple Pen",
     reading: "Läser filen …",
     invalid: "Filen kunde inte läsas som en Purple Pen-fil.",
     tooLarge: "Filen är för stor.",

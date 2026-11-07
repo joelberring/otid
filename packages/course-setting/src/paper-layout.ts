@@ -272,7 +272,9 @@ export function keepPaperOnImport(current: CourseSettingDocument, imported: Cour
   const event = { ...imported.event,
     ...(Object.keys(kept).length > 0 ? { paperLayouts: kept } : {}),
     ...(current.event.paperTemplates ? { paperTemplates: current.event.paperTemplates } : {}),
-    ...(current.event.paperValues ? { paperValues: current.event.paperValues } : {}) };
+    ...(current.event.paperValues ? { paperValues: current.event.paperValues } : {}),
+    // ADR-0217: layouterna, arken för banor som finns kvar, klassernas val och lägena står bara i O-Tid.
+    ...layoutFieldsOnImport(current, imported) };
   const ours = (special: SpecialObject): boolean => {
     if ((special.kind !== "text" && special.kind !== "image") || special.courses.length !== 1) return false;
     const id = special.courses[0]!;
@@ -317,4 +319,15 @@ export function withoutAutomaticDescriptions(document: CourseSettingDocument, fr
     if (near(topLeft.x, special.points[0]!.x) && near(topLeft.y, special.points[0]!.y) && near(cell, fileCell)) out = without;
   }
   return out;
+}
+
+/** Layout-flikens fält (ADR-0217) som följer med en ny banfil: arken bara för banor som finns kvar. */
+function layoutFieldsOnImport(current: CourseSettingDocument, imported: CourseSettingDocument): Partial<CourseSettingDocument["event"]> {
+  const event = current.event;
+  const courses = new Set(["ALL_CONTROLS", ...imported.courses.map(course => course.id)]);
+  const sheets = Object.fromEntries(Object.entries(event.layoutSheets ?? {}).map(([layout, byCourse]) =>
+    [layout, Object.fromEntries(Object.entries(byCourse).filter(([course]) => courses.has(course)))] as const).filter(([, byCourse]) => Object.keys(byCourse).length > 0));
+  return { ...(event.layouts ? { layouts: event.layouts } : {}), ...(Object.keys(sheets).length > 0 ? { layoutSheets: sheets } : {}),
+    ...(event.classLayouts ? { classLayouts: event.classLayouts } : {}), ...(event.mainLayout ? { mainLayout: event.mainLayout } : {}),
+    ...(event.layoutStates ? { layoutStates: event.layoutStates } : {}) };
 }

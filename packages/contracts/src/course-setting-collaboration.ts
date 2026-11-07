@@ -79,7 +79,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("REMOVE_COURSE_CONTROL"), course: id, courseControl: id }).strict(),
   z.object({ type: z.literal("ADD_SPLIT"), course: id, at: id, kind: z.enum(["FORK", "LOOP"]), branches: z.number().int().min(1).max(20) }).strict(),
   z.object({ type: z.literal("REMOVE_SPLIT"), course: id, at: id }).strict(),
-  z.object({ type: z.literal("MOVE_NUMBER"), course: id, courseControl: id, at: point.nullable() }).strict(),
+  // ADR-0217: `printLayout` = ett ark i en annan layout än huvudlayouten.
+  z.object({ type: z.literal("MOVE_NUMBER"), course: id, courseControl: id, at: point.nullable(), printLayout: id.optional() }).strict(),
   z.object({ type: z.literal("SET_LEG_BENDS"), from: id, to: id, bends: z.array(point).max(1000) }).strict(),
   z.object({ type: z.literal("SET_LEG_GAPS"), from: id, to: id, gaps: z.array(z.object({ start: z.number().finite(), length: z.number().finite() })
     .strict()).max(1000) }).strict(),
@@ -110,7 +111,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("MOVE_SPECIAL"), special: id, points: z.array(point).min(1).max(10_000) }).strict(),
   z.object({ type: z.literal("UPDATE_SPECIAL"), special: id, changes: specialFields.extend({ courses: z.array(id).max(1000).optional() }).strict() }).strict(),
   z.object({ type: z.literal("DELETE_SPECIAL"), special: id }).strict(),
-  z.object({ type: z.literal("SET_PRINT_AREA"), course: id, area: printArea.nullable(), part: z.number().int().min(0).max(50).optional() }).strict(),
+  z.object({ type: z.literal("SET_PRINT_AREA"), course: id, area: printArea.nullable(), part: z.number().int().min(0).max(50).optional(),
+    printLayout: id.optional() }).strict(),
   // Utskriftsprofil och layoutmall (ADR-0183); formen kontrolleras av paketet (validatePrintProfile, validateLayoutTemplate).
   z.object({ type: z.literal("PUT_PRINT_PROFILE"), profile: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
   z.object({ type: z.literal("DELETE_PRINT_PROFILE"), id }).strict(),
@@ -118,7 +120,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("DELETE_LAYOUT_TEMPLATE"), id }).strict(),
   // Papperet per bana (kontrollbeskrivningen på kartan); formen kontrolleras av paketet (validatePaperLayout).
   z.object({ type: z.literal("SET_PAPER_LAYOUT"), course: id, layout: z.object({ descriptions: z.object({}).loose().optional(),
-    items: z.array(z.object({}).loose()).max(40).optional() }).loose().nullable(), part: z.number().int().min(0).max(50).optional() }).strict(),
+    items: z.array(z.object({}).loose()).max(40).optional() }).loose().nullable(), part: z.number().int().min(0).max(50).optional(),
+    printLayout: id.optional() }).strict(),
   // Baksidan per löpare (ADR-0213); formen kontrolleras av paketet (validateRunnerBack).
   z.object({ type: z.literal("SET_RUNNER_BACK"), back: z.object({ items: z.array(z.object({}).loose()).max(40) }).strict().nullable() }).strict(),
   // Papperets mallar (ADR-0197); formen kontrolleras av paketet (validatePaperTemplate).
@@ -134,6 +137,21 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     training: z.object(trainingPatch).strict().optional()
   }).strict(),
   z.object({ type: z.literal("PUT_TRAINING"), ...trainingPatch }).strict(),
+  // ADR-0217: Layout-fliken; formen kontrolleras av paketet (validatePrintLayout, validateLayoutSheet).
+  z.object({ type: z.literal("ADD_LAYOUT"), layout: z.object({ id }).loose() }).strict(),
+  z.object({ type: z.literal("UPDATE_LAYOUT"), layout: id, changes: z.object({ name: z.string().max(200).optional(), scale: z.number().finite().optional(),
+    page: z.object({ width: z.number().int(), height: z.number().int(), margins: z.number().int(), landscape: z.boolean() }).strict().optional(),
+    paperTemplate: id.nullable().optional(), layoutTemplate: z.string().max(200).nullable().optional() }).strict() }).strict(),
+  z.object({ type: z.literal("DELETE_LAYOUT"), layout: id }).strict(),
+  z.object({ type: z.literal("PUT_LAYOUT_SHEET"), layout: id, course: id, sheet: z.object({}).loose().nullable() }).strict(),
+  z.object({ type: z.literal("SET_LAYOUT_CIRCLE_GAPS"), layout: id, control: id, gaps: z.array(z.object({ startDegrees: z.number().finite(),
+    endDegrees: z.number().finite() }).strict()).max(100).nullable() }).strict(),
+  z.object({ type: z.literal("CLEAR_LAYOUT_ADJUSTMENTS"), layout: id, course: id }).strict(),
+  z.object({ type: z.literal("SET_CLASS_LAYOUTS"), classes: z.record(z.string().min(1).max(200), id.nullable())
+    .refine(record => Object.keys(record).length <= 2000) }).strict(),
+  z.object({ type: z.literal("SAVE_LAYOUT_STATE"), id, name: z.string().max(200), savedAt: instant }).strict(),
+  z.object({ type: z.literal("RESTORE_LAYOUT_STATE"), id }).strict(),
+  z.object({ type: z.literal("DELETE_LAYOUT_STATE"), id }).strict(),
   // ADR-0199: godtagna varningar per nyckel (null = ångra); nyckeln och lägena kontrolleras av paketet.
   z.object({ type: z.literal("SET_ACCEPTED_CHECKS"), checks: z.record(z.string().min(1).max(400),
     z.object({ at: z.record(z.string().min(1).max(80), point).refine(record => Object.keys(record).length <= 20) }).strict().nullable())

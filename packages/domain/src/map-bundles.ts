@@ -32,7 +32,12 @@ export interface MapBundleClassInput {
   readonly vacancies: readonly string[];
   /** Stafett (ADR-0213): sträckan som klassen står för. */
   readonly leg?: number | undefined;
+  /** ADR-0217: klassens layout i banläggningen (saknas = huvudlayouten). Grupperna delas per layout. */
+  readonly layout?: MapBundleLayout | undefined;
 }
+
+/** ADR-0217: en layout i banläggningen (papper och skala) som en klass skrivs ut i. */
+export interface MapBundleLayout { readonly id: string; readonly name: string }
 
 /** Stafett (ADR-0213): laget som kartan gäller. */
 export interface MapBundleTeam { readonly number: number; readonly name: string }
@@ -85,6 +90,8 @@ export interface MapBundleGroup {
   readonly reserveCount: number;
   /** Tryckantal = löpare + lediga tider + reserv. */
   readonly printCount: number;
+  /** ADR-0217: layouten (saknas = huvudlayouten). */
+  readonly layout?: MapBundleLayout | undefined;
 }
 
 /** En rad i kartbuntslistan: en karta som ska ligga i bunten. */
@@ -179,13 +186,17 @@ export function planMapBundles(input: {
     startMode: slot.raceClass.startMode, ...(slot.entry?.team ? { team: slot.entry.team } : {}),
     ...(slot.raceClass.leg !== undefined ? { leg: slot.raceClass.leg } : {}) }));
 
-  const groups = new Map<string, { courseVersionId: string; courseName: string; variantCode: string | null; order: number; items: MapBundleItem[] }>();
+  const groups = new Map<string, { courseVersionId: string; courseName: string; variantCode: string | null; order: number; items: MapBundleItem[];
+    layout?: MapBundleLayout }>();
+  // ADR-0217: en grupp per bana, variant och layout (reserverna följer klassens layout).
+  const layoutOf = (raceClass: MapBundleClassInput) => raceClass.layout ? { layout: raceClass.layout } : {};
   const variantOrder = new Map<string, readonly string[]>(classes.map((row) => [row.courseVersionId, row.variantCodes]));
   for (const [index, slot] of slots.entries()) {
     const row = rows[index]!;
-    const key = `${slot.raceClass.courseVersionId}:${slot.variantCode ?? ""}`;
+    const key = `${slot.raceClass.courseVersionId}:${slot.variantCode ?? ""}:${slot.raceClass.layout?.id ?? ""}`;
     const group = groups.get(key) ?? { courseVersionId: slot.raceClass.courseVersionId, courseName: slot.raceClass.courseName,
-      variantCode: slot.variantCode, order: (variantOrder.get(slot.raceClass.courseVersionId) ?? []).indexOf(slot.variantCode ?? ""), items: [] };
+      variantCode: slot.variantCode, order: (variantOrder.get(slot.raceClass.courseVersionId) ?? []).indexOf(slot.variantCode ?? ""), items: [],
+      ...layoutOf(slot.raceClass) };
     group.items.push(slot.entry ? { kind: "RUNNER", number: row.number, entryId: slot.entry.id, name: slot.entry.name,
       club: slot.entry.club, className: slot.raceClass.name, startTime: row.startTime, ...(slot.entry.team ? { team: slot.entry.team } : {}),
       ...(slot.raceClass.leg !== undefined ? { leg: slot.raceClass.leg } : {}) }
@@ -194,19 +205,20 @@ export function planMapBundles(input: {
   }
   // Gafflade varianter utan löpare får också en grupp, så att tryckantalet visar dem (reserv eller noll).
   for (const raceClass of classes) for (const code of raceClass.variantCodes) {
-    const key = `${raceClass.courseVersionId}:${code}`;
+    const key = `${raceClass.courseVersionId}:${code}:${raceClass.layout?.id ?? ""}`;
     if (!groups.has(key)) groups.set(key, { courseVersionId: raceClass.courseVersionId, courseName: raceClass.courseName,
-      variantCode: code, order: raceClass.variantCodes.indexOf(code), items: [] });
+      variantCode: code, order: raceClass.variantCodes.indexOf(code), items: [], ...layoutOf(raceClass) });
   }
   const ordered = [...groups.values()].sort((left, right) => compare(left.courseName, right.courseName) ||
-    compare(left.courseVersionId, right.courseVersionId) || left.order - right.order);
+    compare(left.courseVersionId, right.courseVersionId) || Number(left.layout !== undefined) - Number(right.layout !== undefined) ||
+    compare(left.layout?.name ?? "", right.layout?.name ?? "") || compare(left.layout?.id ?? "", right.layout?.id ?? "") || left.order - right.order);
   return {
     groups: ordered.map((group) => {
       const runnerCount = group.items.filter((item) => item.kind === "RUNNER").length;
       const vacancyCount = group.items.length - runnerCount;
       const reserveCount = mapReserveCount(group.items.length, input.reserve);
       return { courseVersionId: group.courseVersionId, courseName: group.courseName, variantCode: group.variantCode, items: group.items,
-        runnerCount, vacancyCount, reserveCount, printCount: group.items.length + reserveCount };
+        runnerCount, vacancyCount, reserveCount, printCount: group.items.length + reserveCount, ...(group.layout ? { layout: group.layout } : {}) };
     }),
     rows,
     missingVariant: missingVariant.sort((left, right) => compare(left.className, right.className) || compare(left.name, right.name))
@@ -253,19 +265,21 @@ export function mapBundlesByClass(rows: readonly MapBundleRow[], variantOrder: (
 }
 
 /** En sida i baksidesutskriften: avdelare före varje variant, en sida per karta och reservsidor. */
+/** ADR-0217: `layout` = gruppens layout (saknas = huvudlayouten). */
+interface MapBackBase { readonly courseName: string; readonly variantCode: string | null; readonly layout?: MapBundleLayout | undefined }
 export type MapBackPage =
-  | { readonly kind: "DIVIDER"; readonly courseName: string; readonly variantCode: string | null; readonly printCount: number }
-  | { readonly kind: "RUNNER"; readonly courseName: string; readonly variantCode: string | null; readonly item: MapBundleRunnerItem }
-  | { readonly kind: "VACANT"; readonly courseName: string; readonly variantCode: string | null; readonly item: MapBundleVacantItem }
-  | { readonly kind: "RESERVE"; readonly courseName: string; readonly variantCode: string | null; readonly index: number };
+  | (MapBackBase & { readonly kind: "DIVIDER"; readonly printCount: number })
+  | (MapBackBase & { readonly kind: "RUNNER"; readonly item: MapBundleRunnerItem })
+  | (MapBackBase & { readonly kind: "VACANT"; readonly item: MapBundleVacantItem })
+  | (MapBackBase & { readonly kind: "RESERVE"; readonly index: number });
 
 /** Baksidorna i kartbuntens ordning: per variant en avdelare och sedan exakt tryckantalet sidor. */
-export function mapBackPages(groups: readonly Pick<MapBundleGroup, "courseName" | "variantCode" | "items" | "reserveCount" | "printCount">[]):
+export function mapBackPages(groups: readonly Pick<MapBundleGroup, "courseName" | "variantCode" | "items" | "reserveCount" | "printCount" | "layout">[]):
   MapBackPage[] {
   const pages: MapBackPage[] = [];
   for (const group of groups) {
     if (group.printCount === 0) continue;
-    const base = { courseName: group.courseName, variantCode: group.variantCode };
+    const base = { courseName: group.courseName, variantCode: group.variantCode, ...(group.layout ? { layout: group.layout } : {}) };
     pages.push({ kind: "DIVIDER", ...base, printCount: group.printCount });
     for (const item of group.items) pages.push(item.kind === "RUNNER" ? { kind: "RUNNER", ...base, item } : { kind: "VACANT", ...base, item });
     for (let index = 1; index <= group.reserveCount; index += 1) pages.push({ kind: "RESERVE", ...base, index });
@@ -285,14 +299,17 @@ export interface PrintedMapRow {
   readonly variantCode: string | null;
   readonly startTime: string | null;
 }
-export interface PrintedMapCount { readonly courseName: string; readonly variantCode: string | null; readonly printCount: number }
+export interface PrintedMapCount { readonly courseName: string; readonly variantCode: string | null; readonly printCount: number;
+  /** ADR-0217: layoutens namn (saknas = huvudlayouten). */
+  readonly layout?: string | undefined }
 export interface PrintedMapState { readonly rows: readonly PrintedMapRow[]; readonly counts: readonly PrintedMapCount[] }
 
 export function printedMapState(plan: MapBundlePlan): PrintedMapState {
   return {
     rows: plan.rows.flatMap((row) => row.entryId === null || row.name === null ? [] : [{ entryId: row.entryId, number: row.number, name: row.name,
       className: row.className, courseName: row.courseName, variantCode: row.variantCode, startTime: row.startTime }]),
-    counts: plan.groups.map((group) => ({ courseName: group.courseName, variantCode: group.variantCode, printCount: group.printCount }))
+    counts: plan.groups.map((group) => ({ courseName: group.courseName, variantCode: group.variantCode, printCount: group.printCount,
+      ...(group.layout ? { layout: group.layout.name } : {}) }))
   };
 }
 
@@ -302,7 +319,8 @@ export type MapPrintChange =
   | { readonly kind: "VARIANT"; readonly name: string; readonly className: string; readonly from: string | null; readonly to: string | null }
   | { readonly kind: "CLASS"; readonly name: string; readonly from: string; readonly to: string; readonly variantCode: string | null }
   | { readonly kind: "START_TIME"; readonly name: string; readonly className: string; readonly from: string | null; readonly to: string | null }
-  | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly from: number; readonly to: number }
+  | { readonly kind: "COUNT"; readonly courseName: string; readonly variantCode: string | null; readonly from: number; readonly to: number;
+      readonly layout?: string | undefined }
   /** Startnumret har flyttats för så många löpare som fanns förut (t.ex. efter en efteranmälan med fri start). */
   | { readonly kind: "NUMBERS"; readonly count: number };
 
@@ -328,15 +346,16 @@ export function mapPrintChanges(printed: PrintedMapState, current: PrintedMapSta
     if (!after.has(row.entryId)) changes.push({ kind: "REMOVED", name: row.name, className: row.className, variantCode: row.variantCode });
   }
   if (options.counts) {
-    const key = (row: PrintedMapCount) => `${row.courseName}\u0000${row.variantCode ?? ""}`;
+    const key = (row: PrintedMapCount) => `${row.courseName}\u0000${row.variantCode ?? ""}\u0000${row.layout ?? ""}`;
     const old = new Map(printed.counts.map((row) => [key(row), row.printCount]));
     for (const row of current.counts) {
       const from = old.get(key(row)) ?? 0;
-      if (from !== row.printCount) changes.push({ kind: "COUNT", courseName: row.courseName, variantCode: row.variantCode, from, to: row.printCount });
+      if (from !== row.printCount) changes.push({ kind: "COUNT", courseName: row.courseName, variantCode: row.variantCode, from, to: row.printCount,
+        ...(row.layout ? { layout: row.layout } : {}) });
     }
     const now = new Set(current.counts.map(key));
     for (const row of printed.counts) if (!now.has(key(row)) && row.printCount > 0) {
-      changes.push({ kind: "COUNT", courseName: row.courseName, variantCode: row.variantCode, from: row.printCount, to: 0 });
+      changes.push({ kind: "COUNT", courseName: row.courseName, variantCode: row.variantCode, from: row.printCount, to: 0, ...(row.layout ? { layout: row.layout } : {}) });
     }
   }
   return changes;

@@ -7,6 +7,7 @@ import { nextId } from "./ppen-common";
 import { BUILT_IN_TEMPLATES, validateLayoutTemplate } from "./layout-template";
 import { PAPER_LIMITS, paperPartKey, validatePaperLayout, validatePaperTemplate, type CoursePaperLayout } from "./paper-items";
 import { validateRunnerBack } from "./runner-back";
+import { withoutTemplateInLayouts } from "./print-layout-edit";
 import { newSpecial } from "./ppen-special";
 import { BUILT_IN_PRINT_PROFILES, validatePrintProfile } from "./print-profile";
 import type { CourseSettingDocument, EditResult, PrintArea, SpecialEdit, SpecialKind, SpecialObject } from "./types";
@@ -128,7 +129,8 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       if (!list.some(row => row.id === edit.id)) throw new CourseSettingEditError("NOT_FOUND", `${edit.id} finns inte`);
       const event = { ...document.event, [key]: list.filter(row => row.id !== edit.id) };
       if (key === "printProfiles" && event.printProfileId === edit.id) delete (event as { printProfileId?: string }).printProfileId;
-      return { document: { ...document, event } };
+      // ADR-0217: layouterna som använde layoutmallen får en bana per ark.
+      return { document: key === "layoutTemplates" ? withoutTemplateInLayouts({ ...document, event }, "LAYOUT", edit.id) : { ...document, event } };
     }
     case "SET_PAPER_LAYOUT": {
       if (edit.course !== "ALL_CONTROLS" && !document.courses.some(item => item.id === edit.course)) {
@@ -177,7 +179,8 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       const event = { ...document.event, paperTemplates: list.filter(row => row.id !== edit.id) };
       delete event.paperLayouts;
       if (event.paperTemplates.length === 0) delete (event as { paperTemplates?: unknown }).paperTemplates;
-      return { document: { ...document, event: Object.keys(layouts).length > 0 ? { ...event, paperLayouts: layouts } : event } };
+      // ADR-0217: layouterna och arken som ärvde av mallen står kvar utan mall.
+      return { document: withoutTemplateInLayouts({ ...document, event: Object.keys(layouts).length > 0 ? { ...event, paperLayouts: layouts } : event }, "PAPER", edit.id) };
     }
     case "SET_PRINT_AREA": {
       // En automatisk yta med rektangeln 0,0,0,0 (ur en .ppen som lästes in före städrundan 2026-11-07) har ingen rektangel.

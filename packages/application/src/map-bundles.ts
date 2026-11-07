@@ -8,6 +8,7 @@ import {
   DEFAULT_MAP_RESERVE, mapPrintChanges, planMapBundles, printedMapState, type MapBundleClassInput, type MapBundleEntryInput, type MapBundlePlan,
   type MapReserve
 } from "@o-tid/domain";
+import { classLayoutMap } from "@o-tid/course-setting";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { loadCourseVersionVariants } from "./course-variants";
 import { loadStartListFacts } from "./start-draw-basis";
@@ -46,12 +47,16 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
   if (classRows.length > 1000) throw new Error("För många klasser");
   const variants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
   const facts = await loadStartListFacts(tx, raceId);
+  // ADR-0217: klassens layout i banläggningen; grupperna delas per layout (reserverna följer klassen).
+  const [setting] = await tx.select({ document: schema.courseSettings.document }).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
+  const layouts = classLayoutMap(setting?.document);
+  const layoutOf = (name: string) => { const found = layouts.get(name); return found ? { layout: found } : {}; };
   const classes: MapBundleClassInput[] = classRows.map(row => {
     const fact = facts.get(row.id);
     const startMode = row.startRule === "PUNCH" ? "FREE" : fact?.drawMethod === "MASS" ? "MASS" : "MINUTE";
     return { id: row.id, name: row.name, courseVersionId: row.courseVersionId, courseName: row.courseName,
       variantCodes: row.rogaining ? [] : (variants.get(row.courseVersionId) ?? []).map(variant => variant.code), startMode,
-      vacancies: startMode === "MINUTE" ? fact?.vacancies ?? [] : [] };
+      vacancies: startMode === "MINUTE" ? fact?.vacancies ?? [] : [], ...layoutOf(row.name) };
   });
   const ids = new Set(classes.map(row => row.id));
   const entries = (await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
@@ -62,7 +67,7 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
   if (entries.length > 20_000) throw new Error("För många deltagare");
   const startRule = new Map(classRows.map(row => [row.id, row.startRule]));
   const reserve = race.reserve ?? DEFAULT_MAP_RESERVE;
-  const relay = await loadRelayBasis(tx, raceId);
+  const relay = await loadRelayBasis(tx, raceId, layoutOf);
   const plan = planMapBundles({ classes: [...classes, ...relay.classes], reserve, entries: [...entries.map(row => ({ id: row.id, name: `${row.givenName} ${row.familyName}`.trim(),
     club: row.club, classId: row.classId, variantCode: row.variantCode,
     startTime: startRule.get(row.classId) === "FIXED" ? row.startTime?.toISOString() ?? null : null })), ...relay.entries] });
@@ -74,7 +79,8 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
  * löparna med lag, sträcka och lagets variant. Masstartens tid för sträckor med masstart; växling och omstart har ingen
  * lottad tid. Rogaining ingår som ogafflade sträckor (som de individuella).
  */
-async function loadRelayBasis(tx: DbExecutor, raceId: string): Promise<{ classes: MapBundleClassInput[]; entries: MapBundleEntryInput[] }> {
+async function loadRelayBasis(tx: DbExecutor, raceId: string, layoutOf: (name: string) => Pick<MapBundleClassInput, "layout">):
+  Promise<{ classes: MapBundleClassInput[]; entries: MapBundleEntryInput[] }> {
   const legs = await tx.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg, startMethod: schema.relayLegs.startMethod,
     startTime: schema.relayLegs.startTime, fixedVariant: schema.relayLegs.courseVariantCode, legCourseVersionId: schema.relayLegs.courseVersionId,
     className: schema.classes.name, classCourseVersionId: schema.classes.courseVersionId,
@@ -96,7 +102,7 @@ async function loadRelayBasis(tx: DbExecutor, raceId: string): Promise<{ classes
     const codes = leg.rogaining ? [] : (variants.get(versionOf(leg)) ?? []).map(variant => variant.code);
     return [{ id: leg.classId, name: leg.className, courseVersionId: versionOf(leg), courseName, leg: leg.leg,
       variantCodes: leg.fixedVariant !== null && codes.includes(leg.fixedVariant) ? [leg.fixedVariant] : codes,
-      startMode: leg.startMethod === "MASS_START" ? "MASS" as const : "FREE" as const, vacancies: [] }];
+      startMode: leg.startMethod === "MASS_START" ? "MASS" as const : "FREE" as const, vacancies: [], ...layoutOf(leg.className) }];
   });
   const legOf = new Map(legs.map(leg => [`${leg.classId}:${leg.leg}`, leg]));
   const rows = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName, familyName: schema.entries.familyName,
@@ -143,9 +149,10 @@ export async function readMapBundlesAsAdmin(db: Database, input: Authentication,
     return { status: "ok", response: mapBundleResponseSchema.parse({ formatVersion: 1, raceId, snapshotVersion: race.snapshotVersion,
       eventName: race.eventName, raceName: race.raceName, raceDate: race.raceDate, timeZone: race.timeZone, reserve, stateHash: stateHash(basis),
       classes: classes.map(row => ({ classId: row.id, name: row.name, courseName: row.courseName, variantCodes: row.variantCodes,
-        startMode: row.startMode, ...(row.leg !== undefined ? { leg: row.leg } : {}) })),
+        startMode: row.startMode, ...(row.leg !== undefined ? { leg: row.leg } : {}), ...(row.layout ? { layout: row.layout } : {}) })),
       groups: plan.groups.map(group => ({ courseName: group.courseName, variantCode: group.variantCode, items: group.items,
-        runnerCount: group.runnerCount, vacancyCount: group.vacancyCount, reserveCount: group.reserveCount, printCount: group.printCount })), rows: plan.rows, missingVariant: plan.missingVariant, prints }) };
+        runnerCount: group.runnerCount, vacancyCount: group.vacancyCount, reserveCount: group.reserveCount, printCount: group.printCount,
+        ...(group.layout ? { layout: group.layout } : {}) })), rows: plan.rows, missingVariant: plan.missingVariant, prints }) };
   }, { isolationLevel: "repeatable read" });
 }
 

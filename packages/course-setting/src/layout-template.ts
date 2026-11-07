@@ -89,6 +89,8 @@ export interface SheetItem {
   readonly runner?: RunnerInfo | undefined;
   /** Träningsläget (ADR-0192 beslut 7): vy, kepsens karta och avsnitt. Ett avsnitt ger automatisk tryckyta kring avsnittet. */
   readonly training?: OverprintTraining | undefined;
+  /** ADR-0217: arkets layout (bana × layout); saknas eller "MAIN" = huvudlayouten (banans skala, tryckyta och papper). */
+  readonly layout?: string | undefined;
 }
 
 export interface SheetText {

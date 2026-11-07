@@ -72,4 +72,24 @@ describe("banläggningens åtgärder", () => {
     expect(parse({ type: "PUT_OBJECTS", training: { courses: { "1": null } } })).toBe(true);
     expect(parse({ type: "PUT_OBJECTS", training: { lines: {} } })).toBe(false);
   });
+
+  it("tar Layout-flikens ändringar (ADR-0217)", () => {
+    const ok = (edit: unknown) => expect(courseSettingEditSchema.safeParse(edit).success, JSON.stringify(edit)).toBe(true);
+    const page = { width: 1169, height: 1654, margins: 28, landscape: true };
+    ok({ type: "ADD_LAYOUT", layout: { id: "elit", name: "Elit A3", scale: 15000, page } });
+    ok({ type: "UPDATE_LAYOUT", layout: "MAIN", changes: { name: "Huvud", layoutTemplate: null } });
+    ok({ type: "UPDATE_LAYOUT", layout: "elit", changes: { scale: 10000, page, paperTemplate: "mall" } });
+    ok({ type: "DELETE_LAYOUT", layout: "elit" });
+    ok({ type: "PUT_LAYOUT_SHEET", layout: "elit", course: "3", sheet: {} });
+    ok({ type: "SET_LAYOUT_CIRCLE_GAPS", layout: "elit", control: "4", gaps: [{ startDegrees: 10, endDegrees: 40 }] });
+    ok({ type: "CLEAR_LAYOUT_ADJUSTMENTS", layout: "elit", course: "3" });
+    ok({ type: "SET_CLASS_LAYOUTS", classes: { H21: "elit", D21: null } });
+    ok({ type: "SAVE_LAYOUT_STATE", id: "s1", name: "Före provtryck", savedAt: "2026-11-07T10:00:00.000Z" });
+    ok({ type: "RESTORE_LAYOUT_STATE", id: "s1" });
+    ok({ type: "DELETE_LAYOUT_STATE", id: "s1" });
+    ok({ type: "MOVE_NUMBER", course: "3", courseControl: "7", at: { x: 1, y: 2 }, printLayout: "elit" });
+    ok({ type: "SET_PRINT_AREA", course: "3", area: null, printLayout: "elit" });
+    ok({ type: "SET_PAPER_LAYOUT", course: "3", layout: null, part: 1, printLayout: "elit" });
+    expect(courseSettingEditSchema.safeParse({ type: "SET_LAYOUT_CIRCLE_GAPS", layout: "elit", control: "4", gaps: [{ scale: 1, startDegrees: 1, endDegrees: 2 }] }).success).toBe(false);
+  });
 });

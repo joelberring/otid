@@ -61,7 +61,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
       edits: areas.map(points => ({ type: "ADD_SPECIAL", special: { kind: "out-of-bounds", points } })) } });
   expect(saved.status()).toBe(200);
   await owner.reload();
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
 
   // Varningar: medan vägvalen räknas står fågelvägarna som notiser; sedan bara sträckorna utan laglig väg, som fel.
   await badge(owner).click();
@@ -109,7 +109,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await expect.poll(async () => (await courseSettingInPhone(owner, raceId)).history?.acceptedChecks, { timeout: 15_000 })
     .toEqual(["LEG_NO_ROUTE/7/9"]);
   await owner.reload();
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
   await badge(owner).click();
   await expect(panel.getByTestId("course-setting-checks-accepted").locator("summary")).toHaveText("Godtagna (1)", { timeout: 120_000 });
   await expect(badge(owner)).toHaveAttribute("data-count", String(before - 1), { timeout: 120_000 });
@@ -147,7 +147,7 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await phone.goto(`/admin/${raceId}/course-setting`);
   const phoneMap = phone.getByTestId("course-setting-map");
   await expect(phone.getByTestId("course-setting-field")).toBeVisible({ timeout: 30_000 });
-  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
+  await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
   await mapSettled(phoneMap);

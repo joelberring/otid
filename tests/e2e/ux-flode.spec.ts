@@ -212,7 +212,7 @@ test("banläggningen: hela fliknamn, fältknappar bara i fältet och inga dubble
   await expect(owner.getByText(/Inläst: 2 banor och 9 kontroller\./)).toBeVisible();
   await owner.setViewportSize({ width: 1280, height: 900 });
   await owner.reload();
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   // Hela namn, inget avkortat.
   for (const name of ["Banor", "Beskrivning", "Vald", "Objekt", "Utskrift", "Varningar", "Notiser", "Kollat", "Förslag", "Inställningar"]) {
     const tab = owner.getByRole("tab", { name: new RegExp(`^${name}`) });
@@ -228,7 +228,7 @@ test("banläggningen: hela fliknamn, fältknappar bara i fältet och inga dubble
   const phone = await (await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },
     hasTouch: true, isMobile: true })).newPage();
   await phone.goto(`/admin/${raceId}/course-setting`);
-  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await expect(phone.locator("[role=status]:visible", { hasText: /^Sparat$/ })).toHaveCount(1);
   await phone.getByTestId("course-setting-field-more").click();

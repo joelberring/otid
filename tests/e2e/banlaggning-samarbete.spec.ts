@@ -33,7 +33,7 @@ async function openLong(page: Page) {
   await page.getByTestId("course-setting-view").selectOption({ label: "Lång" });
   const map = page.getByRole("img", { name: "Karta med banpåtryck: Lång" });
   await expect(map).toBeVisible();
-  await expect(page.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   return map;
 }
 

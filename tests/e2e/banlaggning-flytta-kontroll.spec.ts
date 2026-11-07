@@ -77,7 +77,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   const map = owner.getByRole("img", { name: "Karta med banpåtryck: Lång" });
   await expect(map).toBeVisible();
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const question = owner.getByTestId("course-setting-move-question");
   let current = await documentNow();
   expect(codes(current, "Lång")).toEqual(["·", "31", "32", "33", "34", "35", "36", "·"]);
@@ -126,7 +126,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await owner.reload();
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   await expect(owner.getByTestId("course-setting-course").filter({ hasText: "Lång" })).toBeVisible();
-  await expect(owner.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 60_000 });
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   current = await documentNow();
   expect(codes(current, "Lång")).toEqual(["·", "38", "32", "33", "34", "35", "36", "·"]);
   expect(codes(current, "Mellan")[1]).toBe("31");
@@ -174,7 +174,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await phone.goto(`/admin/${raceId}/course-setting`);
   const phoneMap = phone.getByTestId("course-setting-map");
   await expect(phone.getByTestId("course-setting-field")).toBeVisible({ timeout: 30_000 });
-  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 90_000 });
+  await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
   await expect(phoneMap).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();

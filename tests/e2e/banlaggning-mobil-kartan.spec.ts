@@ -48,7 +48,7 @@ test("kartan på telefonen: ett finger flyttar kartan, två fingrar zoomar", asy
   expect(page!.headers()["permissions-policy"]).toBe("camera=(), geolocation=(self), microphone=()");
   await expect(phone.getByTestId("course-setting-field")).toBeVisible();
   const map = phone.getByTestId("course-setting-map");
-  await expect(phone.getByText("Läser kartfilen …")).toHaveCount(0, { timeout: 30_000 });
+  await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   await expect(map).toHaveAttribute("data-px-per-mm", /\d/);
   await mapSettled(map);
 

@@ -60,6 +60,17 @@ kör alltså uppdateringen först när arbetsflödet `Avbildningar` för den com
 versionens avbildning med den nya compose-filen. `pull` krävs: `up -d` ensam byter inte en avbildning som redan finns på
 servern.
 
+**Ändrad `deploy/Caddyfile`:** `up -d` startar inte om Caddy när bara Caddyfile har ändrats, och Caddy ser inte den nya filen
+(den är monterad som en enskild fil, och `git pull` skriver en ny fil i stället för att ändra den gamla, så `caddy reload` i
+behållaren läser fortfarande den gamla). Kör därför efter uppdateringen:
+
+```bash
+docker compose -f docker-compose.prod.yml restart caddy
+```
+
+Det tar någon sekund och är ofarligt även när filen inte ändrats; `git diff --stat ORIG_HEAD HEAD -- deploy/Caddyfile` efter
+`git pull` visar om den gjort det.
+
 ADR-0186: `up` tar först en dump (`./backups/fore-migrering/`, de 10 senaste sparas) och kör sedan nya migreringar i tjänsten
 `migrate`; först därefter startas den nya webben. Misslyckas dumpen eller en migrering fortsätter den gamla webben att köra
 (se [Om en migrering misslyckas](#om-en-migrering-misslyckas)); `docker compose -f docker-compose.prod.yml logs backup-before-migrate migrate`
@@ -146,7 +157,8 @@ avläsningen, arbetsytan och funktionärerna fungera som vanligt, och resultatre
 långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå före:
 
 - **Uppdelning (Caddy, `deploy/Caddyfile`):** publika sökvägar (`/`, `/om`, `/integritet`, `/results/…`, `/starts/…`, `/t/…`,
-  `/fest/…`, `/api/public/…`, den publika startlistan och Nexts statiska filer) går till `web-public` eller `web-public2`
+  `/fest/…`, `/g/…`, `/kartfel/…`, `/api/public/…`, den publika startlistan, Nexts statiska filer, ikonerna och manifestet;
+  listan är `PUBLIC_PATHS` i `apps/web/src/lib/public-paths.ts`, och ett test kräver att Caddyfile har samma) går till `web-public` eller `web-public2`
   (färst pågående anrop; svarar den ena inte prövas den andra) för den som inte är inloggad. Allt annat, och allt för
   den som är inloggad (arrangörer och funktionärer, även speakern och de publika sidorna), går till `web`. Varje instans
   klarar alla sökvägar: lokalt och med `pnpm dev` finns bara en (`OTID_INSTANCE_ROLE` saknas, `all`).
@@ -701,6 +713,32 @@ och den gamla kör vidare om den var igång (annars svarar sidan 502). En dump t
    `./backups/fore-migrering/` enligt [Återställa](#återställa), med förra versionen igång.
 4. Skicka felet till den som driver O-Tid. När det är rättat: `git checkout main`, ta bort raden `OTID_TAG`, och
    [uppdatera](#uppdatera) när rättelsens avbildning finns.
+
+## Miljövariabler
+
+`deploy/prod.env.example` har de vanliga. Övriga, med förval när de saknas eller är tomma. Variabler som `docker-compose.prod.yml`
+inte skickar vidare (markerade "ej i compose") gäller i drift först när de läggs under tjänstens `environment` där.
+
+| Namn | Förval | Vad den gör |
+| --- | --- | --- |
+| `OTID_IMAGE`, `OTID_BACKUP_IMAGE` | `ghcr.io/joelberring/otid-web`, `…/otid-backup` | Avbildningarnas namn; lokala namn när servern bygger själv ([reserv](#bygga-på-servern-reserv)). |
+| `OTID_DB_OWNER_USER`/`_PASSWORD`, `OTID_DB_APP_*`, `OTID_DB_PRINT_*` | `otid` och `POSTGRES_PASSWORD` | Databasrollerna; skrivs av `deploy/db-roles.sh setup` ([Databasroller](#databasroller)). |
+| `BACKUP_INTERVAL_MINUTES`, `BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS` | 60, 48, 14 | Dumpens intervall och hur många tim- och dagsdumpar som sparas ([Backup](#backup)). |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | tomma | restic-kopian till S3 ([Kopia utanför servern](#kopia-utanför-servern-valfri-krypterad)). |
+| `OTID_HEALTH_INTERVAL_MINUTES`, `OTID_DISK_ALERT_PERCENT` | 15, 80 | Hälsokontrollens intervall och diskens larmgräns i procent ([Bevakning](#bevakning-valfri)). |
+| `OTID_EVENTOR_API_KEY` | tom (en nyckel som ett klubbarkiv sparat) | Klubbens Eventor-nyckel för klubblistan, bara i `web` ([Eventor](#eventor)). |
+| `OTID_REGISTRATION_LIMIT_PER_HOUR` | 10 | Nya konton per IP-adress och timme. |
+| `OTID_RADIO_POLLER` | på (`off` i publikens instanser) | `off` = instansen hämtar inga radiostämplingar. |
+| `OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB` | 2048, 20480 | Kartornas kvot per konto och för servern; 0 = ingen gräns ([Kartornas lagring](#kartornas-lagring)). |
+| `OTID_RETENTION`, `OTID_RETENTION_MONTHS` | av, 24 | Gallring av gamla tävlingar (`anonymize` eller `delete`) ([Gallring](#gallring)). |
+| `OTID_PRINT_JOB_TIMEOUT_MS` | 600000 | Tidsgräns för ett utskriftsjobb. |
+| `OTID_PRINT_JOB_MEMORY_MB` | 256 (minst 64) | Minnestak för ett utskriftsjobbs barnprocess. Ej i compose. |
+| `OTID_PRINT_POLL_MS` | 2000 (minst 200) | Hur ofta utskriftsarbetaren tittar efter nya jobb. Ej i compose. |
+| `OTID_PRINT_FONT_DIR` | `fonts` bredvid `print-worker.mjs`, annars `packages/print-pdf/fonts` | Mappen med PDF:ens typsnitt. Ej i compose. |
+| `OTID_PRINT_WORKER` | på | Bara lokalt: `off` = `pnpm dev` startar ingen utskriftsarbetare. |
+| `OTID_MAINTENANCE` | på i `web` (aldrig i publikens instanser) | `off` = instansen kör inget underhåll (kartinnehåll utan tävling, gallringen, klubbarnas medlemslistor). Ej i compose. |
+| `OTID_IMPORT_TOKEN` | tom (fråga) | Bara på datorn som kör `pnpm archive-import`: klubbarkivets importnyckel (annars `--nyckel-fil` eller en fråga). |
+| `OTID_EVENTOR_BASE_URL`, `OTID_ROC_BASE_URL`, `OTID_GOOGLE_BASE_URL`, `OTID_GOOGLE_AUTHORIZE_URL` | tomma = de riktiga tjänsterna | Endast test: CI pekar på falska tjänster. Lämna tomma i drift. |
 
 ## Prova driftuppsättningen lokalt
 

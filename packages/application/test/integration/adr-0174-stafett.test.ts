@@ -336,6 +336,41 @@ describe("steg 47 stafett", () => {
     expect(live.finishes.some(row => row.relay?.leg === 3)).toBe(true);
   });
 
+  it("omstart flyttad till en hel minut mellan lagens växlingar efter avläsningen: laget med vanlig växling placeras först", async () => {
+    // Samma läge som E2E-testet i tests/e2e/stafett-steg47.spec.ts: masstart sex timmar före avläsningen, lagen i fart 97 % och
+    // 94 % av fönstret (sträcktider på hela sekunder), omstarten först efter alla växlingar och sedan flyttad till en hel
+    // minut mellan lagens växlingar till sträcka 3.
+    const proof = await race();
+    const long = await course(proof, "Lång", LONG);
+    const short = await course(proof, "Kort", SHORT);
+    const massStart = Date.parse(at("04:04"));
+    const window = minutes(360) + 31_000;
+    const time = (pace: number, fraction: number) => new Date(massStart + Math.floor(window * pace * fraction / 1_000) * 1_000).toISOString();
+    const classId = await relayClass(proof, long, [{ startMethod: "MASS_START", startTime: at("04:04") },
+      { startMethod: "CHANGEOVER", courseId: short }, { startMethod: "RESTART", startTime: at("09:59") }]);
+    const late = await team(proof, classId, "OK Linje 1", ["9501", "9502", "9503"]);
+    const normal = await team(proof, classId, "OK Linje 2", ["9511", "9512", "9513"]);
+    for (const leg of [1, 2, 3]) {
+      for (const [pace, prefix] of [[0.97, "950"], [0.94, "951"]] as const) {
+        expect(await readout(proof, `${prefix}${leg}`, time(pace, leg / 3), leg === 2 ? SHORT : LONG, time(pace, (leg - 1) / 3)))
+          .toMatchObject({ status: "OK" });
+      }
+    }
+    const early = Date.parse(time(0.94, 2 / 3)), lateChangeover = Date.parse(time(0.97, 2 / 3));
+    const restartAt = Math.round((early + lateChangeover) / 2 / 60_000) * 60_000;
+    expect(restartAt).toBeGreaterThan(early);
+    expect(restartAt).toBeLessThan(lateChangeover);
+    const requestId = randomUUID();
+    const moved = await setRelayStartTimesAsAdmin(db, { ...proof, idempotencyKey: `relay-start-times:${requestId}`, request: {
+      formatVersion: 1, requestId, classId, legs: [{ leg: 1, startTime: at("04:04") }, { leg: 3, startTime: new Date(restartAt).toISOString() }] } });
+    expect(moved).toMatchObject({ status: "saved", response: { recalculatedCount: 1 } });
+    const view = await overview(proof);
+    expect(view.teams.find(row => row.id === normal.teamId)).toMatchObject({ status: "OK", restarted: false, position: 1 });
+    expect(view.teams.find(row => row.id === late.teamId)).toMatchObject({ status: "OK", restarted: true, position: 2 });
+    const listed = (await publicRelayResults(db, proof.raceId)).classes[0]!.teams;
+    expect(listed.map(row => [row.number, row.position, row.restarted])).toEqual([[normal.number, 1, false], [late.number, 2, true]]);
+  });
+
   it("flygande omstart: ledarens växling plus gränsen, ändras när ledarens tid rättas, blandat med växling och fast omstart", async () => {
     const proof = await race();
     const long = await course(proof, "Lång", LONG);

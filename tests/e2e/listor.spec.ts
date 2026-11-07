@@ -187,6 +187,9 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
     await owner.getByLabel("Deltagare").selectOption({ label: `${runner.givenName} ${runner.familyName} · ${runner.className} · ${runner.card}` });
     const missing = runner.givenName === "Cia";
     await owner.getByRole("button", { name: missing ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" }).click();
+    // Beskedet gäller den här brickan: förra löparens "GODKÄND" och "Sparad." står kvar tills brickan är avläst, och nästa
+    // bricka (eller att sidan lämnas) tar annars ur den här mitt i avläsningen (Eva saknades i resultatlistan).
+    await expect(owner.getByTestId("verdict")).toContainText(`Bricka ${runner.card} · ${runner.givenName} ${runner.familyName}`);
     await expect(owner.getByTestId("verdict")).toContainText(missing ? "FELSTÄMPLAD" : "GODKÄND");
     // Steg 58: servern har tagit emot avläsningen innan nästa (ett "0 väntar" ensamt kan vara gammalt).
     await expectSaved(owner);
@@ -219,6 +222,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
   await owner.getByLabel("Deltagare").selectOption({ label: "Filip Ås · H16 · 8301006" });
   await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
+  await expect(owner.getByTestId("verdict")).toContainText("Bricka 8301006 · Filip Ås");
   await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
   await expectSaved(owner);
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });

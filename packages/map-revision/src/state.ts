@@ -1,4 +1,4 @@
-import type { MapObject, Path, PathCommand } from "@o-tid/map-file";
+import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
 import { objectRefKey, parseObjectRef, type ObjectRef } from "./contract";
 
 /**
@@ -34,6 +34,11 @@ export interface RevisionEdit {
   readonly kind: EditKind;
   /** När ändringen gjordes (klientens klocka, ISO 8601). */
   readonly at: string;
+  /**
+   * Valfritt: var ändringen gjordes (kartans mm, y uppåt), när läget självt inte har någon plats (borttagning av ett objekt som
+   * servern bara har i grundfilen). Servern använder den bara för att avgöra om ändringen ligger i ett delområde (`editRoute`).
+   */
+  readonly point?: Point;
 }
 
 /** Objektets läge på servern. */
@@ -119,6 +124,8 @@ export function editProblem(edit: unknown): string | undefined {
   if (typeof value.kind !== "string" || !(EDIT_KINDS as readonly string[]).includes(value.kind)) return "kind";
   if (typeof value.at !== "string" || Number.isNaN(Date.parse(value.at))) return "at";
   if (!validState(value.state)) return "state";
+  if (value.point !== undefined && !validPoint(value.point)) return "point";
+  if (value.point !== undefined && Object.keys(value.point as object).length !== 2) return "point";
   if (value.key.startsWith("n:")) {
     if (value.ref !== null || !UUID.test(value.key.slice(2))) return "key";
     if (value.state.kind === "UNCHANGED") return "state";

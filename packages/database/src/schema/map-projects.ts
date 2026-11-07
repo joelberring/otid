@@ -12,8 +12,13 @@ import { mapContents } from "./map-content";
  * Rollerna och lägena bestäms i koden (`mapProjectRoleSchema` i contracts; ändringarnas slag `EDIT_KINDS` i map-revision);
  * databasen kräver bara formen, som spärrtyperna i 0087.
  */
-/** Lagrade roller; i UI Ägare, Ändra och Läsa. Förslag (`SUGGEST`) kommer i K1. */
-export type MapProjectRole = "OWNER" | "EDIT" | "READ";
+/** Lagrade roller; i UI Ägare, Ändra, Föreslå och Läsa (Föreslå sedan K1, ingen migration). */
+export type MapProjectRole = "OWNER" | "EDIT" | "SUGGEST" | "READ";
+/** Arbetssätten (0091): Gemensamt och Huvudkartritare; null i kolumnen = Gemensamt. */
+export type MapProjectMode = "SHARED" | "LEAD";
+export type MapProjectAreaStatus = "BASE" | "DRAFTED" | "SURVEYED" | "DONE";
+export type MapProjectProposalStatus = "OPEN" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+export type MapProjectProposalSource = "PERSON" | "AI";
 export type MapProjectStatus = "OPEN" | "CLOSED";
 export type MapProjectEditStatus = "APPLIED" | "CONFLICT";
 
@@ -37,7 +42,9 @@ export const mapProjects = pgTable("map_project", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   closedBy: uuid("closed_by"),
   closedAt: timestamp("closed_at", { withTimezone: true }),
-  requestId: uuid("request_id").notNull()
+  requestId: uuid("request_id").notNull(),
+  /** Arbetssättet (0091); null = Gemensamt. */
+  mode: text("mode").$type<MapProjectMode>()
 });
 
 export const mapProjectMembers = pgTable("map_project_member", {
@@ -88,8 +95,58 @@ export const mapProjectEdits = pgTable("map_project_edit", {
   authorAccountId: uuid("author_account_id").notNull(),
   clientId: text("client_id").notNull(),
   editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
-  receivedAt: timestamp("received_at", { withTimezone: true }).notNull()
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+  /** Förslaget ändringen kom genom och ägaren som godkände det (0091); `authorAccountId` är den som föreslog. */
+  proposalId: uuid("proposal_id").references(() => mapProjectProposals.id),
+  acceptedBy: uuid("accepted_by")
 });
+
+/**
+ * Delområden (0091): polygon i kartans mm med y uppåt. Den som fått området har ingen främmande nyckel; den nollställs i koden när
+ * kontot tas bort eller personen tas bort ur projektet.
+ */
+export const mapProjectAreas = pgTable("map_project_area", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  name: text("name").notNull(),
+  polygon: jsonb("polygon").$type<{ x: number; y: number }[][]>().notNull(),
+  assigneeAccountId: uuid("assignee_account_id"),
+  status: text("status").$type<MapProjectAreaStatus>().notNull(),
+  sort: integer("sort").notNull().default(0),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  requestId: uuid("request_id").notNull()
+});
+
+/** Förslag (0091): en grupp ändringar som en ägare godkänner eller avvisar; författaren och den som avgjorde har ingen nyckel. */
+export const mapProjectProposals = pgTable("map_project_proposal", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  requestId: uuid("request_id").notNull(),
+  authorAccountId: uuid("author_account_id").notNull(),
+  source: text("source").$type<MapProjectProposalSource>().notNull(),
+  note: text("note"),
+  status: text("status").$type<MapProjectProposalStatus>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  decidedBy: uuid("decided_by"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decisionNote: text("decision_note")
+});
+
+export const mapProjectProposalEdits = pgTable("map_project_proposal_edit", {
+  proposalId: uuid("proposal_id").notNull().references(() => mapProjectProposals.id),
+  position: integer("position").notNull(),
+  editId: uuid("edit_id").notNull(),
+  objectKey: text("object_key").notNull(),
+  ref: jsonb("ref").$type<unknown>(),
+  baseEditId: uuid("base_edit_id"),
+  kind: text("kind").notNull(),
+  state: jsonb("state").$type<unknown>().notNull(),
+  point: jsonb("point").$type<{ x: number; y: number }>(),
+  editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
+  outcome: text("outcome").$type<"APPLIED" | "CONFLICT">()
+}, table => [primaryKey({ columns: [table.proposalId, table.position] })]);
 
 export const mapProjectOutputs = pgTable("map_project_output", {
   id: uuid("id").primaryKey(),

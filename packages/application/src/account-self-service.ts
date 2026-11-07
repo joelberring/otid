@@ -13,6 +13,7 @@ import type { DbExecutor } from "./snapshot";
 import { activeEventAdministrationGrant } from "./race-session";
 import { purgeRows } from "./purge";
 import { readGoogleLink } from "./google-link";
+import { clearAreaAssignee } from "./map-project-areas";
 import {
   appendUserAccountPasswordVerifier,
   authenticateUserAccountSessionForMutation,
@@ -60,6 +61,8 @@ export async function deleteAccountWithOwnedEvents(tx: DbExecutor, accountId: st
     and exists (select 1 from map_project_member m where m.project_id = p.id and m.account_id = ${accountId})
     and not exists (select 1 from map_project_member m where m.project_id = p.id and m.account_id <> ${accountId})`)).rows.map(row => row.id);
   await purgeRows(tx, "map_project", solo);
+  // Delområden som kontot fått har ingen nyckel till kontot (0091); de blir inte utdelade. Kontots förslag står kvar.
+  await clearAreaAssignee(tx, accountId, now);
   await purgeRows(tx, "user_account", [accountId]);
   return { eventIds: events.map((event) => event.eventId) };
 }

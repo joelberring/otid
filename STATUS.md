@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – K1: arbetssätt Gemensamt/Huvudkartritare, förslag och delområden (grenen k1-forslag, migration 0091, ADR-0219 tillägg)
+- 0091 (bara tillägg): `map_project.mode`, `map_project_area`, `map_project_proposal`, `map_project_proposal_edit`, `map_project_edit.proposal_id`/`accepted_by`.
+- Rollen Föreslå (`SUGGEST`); regeln direkt eller förslag (`editRoute` i map-revision, enhetstestad) avgörs bara på servern; ändringens valfria `point` för borttagning.
+- Synken gör ändringar som inte får göras direkt till ett förslag per anrop (`PROPOSED`, `openProposals`); klientens `proposed` och `keepOpenProposals`.
+- Förslag: lista, skapa med anteckning, godkänna (samma väg som synken, gjord eller krock), avvisa, dra tillbaka. Delområden: CRUD för ägarna, status för den som fått området; nollställs när personen eller kontot tas bort.
+- API: `…/[projectId]/areas`, `areas/[areaId]`, `proposals`, `proposals/[proposalId]`, `mode` med PUT på projektet.
+- Verifierat: typecheck (contracts, map-revision, application, database, web), lint, `lint:dead`, enhetstester, databasens tester, integration `adr-0219-forslag` (4), `adr-0219-kartprojekt` (5), `schemadrift`.
+- Återstår: ritytan (förslag streckade, listan att godkänna, områden på kartan) i editorn.
+
 ### 2026-11-07 – K0 rättat: kartprojekt ägs av sina medlemmar, klubben valfri (migration 0090, ADR-0219 tillägg)
 - Granskningen mot planen: projekten krävde en kartversion i klubbarkivet och klubbens administratör, vilket stänger ute nya kartor (Kungshatt) och vanliga konton. Ägaren valde "konto, klubb valfri".
 - 0090 (bara lättnader): `club_id`/`base_version_id` nullbara, `base_file_name`, `base_source`, resultatens eget innehåll och filnamn (`map_project_output.content_sha256`, `file_name`, `version_id` nullbar).

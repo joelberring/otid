@@ -66,6 +66,7 @@
     { "idx": 61, "version": "7", "when": 1804867200000, "tag": "0087_databas_stadning", "breakpoints": true },
     { "idx": 62, "version": "7", "when": 1804953600000, "tag": "0088_avsandare_utan_nyckel", "breakpoints": true },
     { "idx": 63, "version": "7", "when": 1805040000000, "tag": "0089_kartprojekt", "breakpoints": true },
-    { "idx": 64, "version": "7", "when": 1805126400000, "tag": "0090_kartprojekt_konto", "breakpoints": true }
+    { "idx": 64, "version": "7", "when": 1805126400000, "tag": "0090_kartprojekt_konto", "breakpoints": true },
+    { "idx": 65, "version": "7", "when": 1805212800000, "tag": "0091_kartprojekt_forslag", "breakpoints": true }
   ]
 }

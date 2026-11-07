@@ -68,18 +68,20 @@ describe("ringklippen i utskriften (ADR-0211 beslut 1)", () => {
   });
 
   it("PDF-jobbet räknar gapen på kartfilen och skriver ringen i bågar", async () => {
-    const run = async (details: boolean) => {
+    const run = async (details: boolean, printScale?: number) => {
       const document = documentWith(details);
       const course = [...document.courses].sort((a, b) => a.order - b.order)[0]!.id;
       const result = await renderPrintJob({ document, map: { bytes: mapBytes(), fileName: "kartfil.omap", bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 } },
         fonts: fonts(), maxPages: 10, title: "Ringklipp", now: new Date("2026-11-03T12:00:00Z"),
         request: { formatVersion: 1, requestId: crypto.randomUUID(), kind: "OFFICE", profileId: "office", layout: { kind: "PAGES", header: false },
-          perRunner: false, duplex: false, items: [{ course }], warningsConfirmed: true } });
+          perRunner: false, duplex: false, items: [{ course, ...(printScale ? { printScale } : {}) }], warningsConfirmed: true } });
       return pageContent(result.bytes);
     };
     // En hel ring stängs med "h" före "S"; en klippt ring är öppna bågar. Med klippen blir de hela ringarna färre.
     const closed = (content: string) => (content.match(/ h S\b/g) ?? []).length;
     const on = await run(true), off = await run(false);
     expect(closed(on)).toBe(closed(off) - 1);
+    // En karta med egen skala (1:7 500 i stället för banans 1:10 000): ringen är större och får sina egna gap (städrundan 2026-11-07).
+    expect(closed(await run(true, 7500))).toBe(closed(await run(false, 7500)) - 1);
   });
 });

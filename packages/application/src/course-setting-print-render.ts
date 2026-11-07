@@ -91,7 +91,9 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
     preflight.push(...warnings.map(finding => `Förhandskontroll: ${finding.text}`));
   }
   // Ringklippen över detaljer räknas på kartfilen här, som editorns Worker gör (ADR-0211 beslut 1).
-  const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map) : undefined,
+  // Kartor med egen skala (`printScale` per karta) får ringklipp i den skalan också.
+  const ownScales = [...new Set(request.items.flatMap(item => item.printScale ? [item.printScale] : []))];
+  const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map, ownScales) : undefined,
     map ? printNumberObstacles(document, map) : undefined);
   const { skipped } = printableItems(document, request.items as readonly SheetItem[]);
   if (skipped.length > 0) preflight.push(`Bortvalda varianter skrivs inte ut: ${skipped.slice(0, 20).join(", ")}${skipped.length > 20 ? " …" : ""}.`);

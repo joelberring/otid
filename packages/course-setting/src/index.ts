@@ -133,14 +133,15 @@ export function detailCircleGaps(map: ParsedMap, centers: readonly DetailCircle[
  * Ringarna att räkna detaljgap för: kontroller och mål, en per ringstorlek i banornas och alla kontrollers skalor (id =
  * `detailGapKey(kontroll, radie)`), med sträckornas vinklar på alla banor.
  */
-export function detailCircleCenters(document: CourseSettingDocument): DetailCircle[] { return detailCircles(document); }
+export function detailCircleCenters(document: CourseSettingDocument, extraScales: readonly number[] = []): DetailCircle[] { return detailCircles(document, extraScales); }
 /**
  * Detaljgapen för utskriften (ADR-0211 beslut 1): när "klipp över detaljer" är på, samma gap som editorns Worker räknar,
- * för alla ringar i banornas och alla kontrollers skalor. Ges till `printSheetGroups` som `detailGaps`; av = undefined.
+ * för alla ringar i banornas och alla kontrollers skalor och i kartornas egna skalor (`extraScales`, `SheetItem.printScale`).
+ * Ges till `printSheetGroups` som `detailGaps`; av = undefined.
  */
-export function printDetailGaps(document: CourseSettingDocument, map: ParsedMap): Record<string, CircleArc[]> | undefined {
+export function printDetailGaps(document: CourseSettingDocument, map: ParsedMap, extraScales: readonly number[] = []): Record<string, CircleArc[]> | undefined {
   if (!document.event.circleCutting?.details) return undefined;
-  return computeDetailCircleGaps(map, detailCircles(document), { sprint: document.event.overprintStandard === "ISSPROM2019" });
+  return computeDetailCircleGaps(map, detailCircles(document, extraScales), { sprint: document.event.overprintStandard === "ISSPROM2019" });
 }
 /** Kontrollerna vars nummer kan placeras (för `computeNumberObstacles`): alla vanliga kontroller. */
 export function numberObstaclePoints(document: CourseSettingDocument): { id: string; at: { x: number; y: number } }[] {

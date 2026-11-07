@@ -1,7 +1,7 @@
 import type { Point } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
 import { LEG_CIRCLE_GAP_MM, OVERPRINT_SIZES, applyEdit, layoutOverprint, readPpen, writePpen, type OverprintPrimitive } from "../src";
-import { lineCourse } from "./build";
+import { Builder, lineCourse } from "./build";
 
 type Circle = Extract<OverprintPrimitive, { kind: "circle" }>;
 type Line = Extract<OverprintPrimitive, { kind: "polyline" }>;
@@ -149,5 +149,37 @@ describe("layoutOverprint", () => {
     const p = layoutOverprint(readPpen(xml).document, { course });
     expect(circles(p).find(c => c.role === "CONTROL")!.gaps).toEqual([{ startDegrees: 80, endDegrees: 100 }]);
     expect(lines(p).find(l => l.role === "FLAGGING")!.dash).toEqual([2, 0.5]);
+  });
+});
+
+describe("fasta avbrott i sträckan och mellanrummet vid ringen (ISOM 705, ADR-0211 beslut 2; städrundan 2026-11-07)", () => {
+  /** Två kontroller på x-axeln (vanlig kontroll i 0,0 och nästa i 60,0) med ett fast avbrott 20–22 mm från kontrollens mitt. */
+  function legPieces(gapMm: number) {
+    const b = new Builder({ mapScale: 15000 });
+    const start = b.control("START", -40, 0);
+    const first = b.control("NORMAL", 0, 0, "31");
+    const second = b.control("NORMAL", 60, 0, "32");
+    const finish = b.control("FINISH", 60, 40);
+    const course = b.course("A");
+    for (const id of [start, first, second, finish]) b.insert(course, id);
+    b.edit({ type: "SET_LEG_GAPS", from: first, to: second, gaps: [{ start: 20, length: 2 }] });
+    b.edit({ type: "SET_EVENT", changes: { legCircleGapMm: gapMm } });
+    const legs = lines(layoutOverprint(b.document, { course })).filter(line => line.role === "LEG" && line.points.every(p => Math.abs(p.y) < 1e-9 && p.x >= 0));
+    return legs.map(line => [line.points[0]!.x, line.points[line.points.length - 1]!.x]).sort((x, y) => x[0]! - y[0]!);
+  }
+
+  it("avbrottet räknas från kontrollens mitt och står still på kartan när mellanrummet ändras; bara sträckans ändar flyttas", () => {
+    const sizes = OVERPRINT_SIZES.ISOM2017;
+    const outer = sizes.controlOutside / 2;
+    for (const gap of [0, LEG_CIRCLE_GAP_MM, 2]) {
+      const pieces = legPieces(gap);
+      expect(pieces).toHaveLength(2);
+      // Mellanrummet räknas från ringens ytterkant (5,35 mm ytterdiameter), inte från linjens mitt.
+      expect(pieces[0]![0]).toBeCloseTo(outer + gap, 6);
+      expect(pieces[1]![1]).toBeCloseTo(60 - outer - gap, 6);
+      // Det fasta avbrottet: 20–22 mm från kontrollens mitt, oavsett mellanrummet.
+      expect(pieces[0]![1]).toBeCloseTo(20, 6);
+      expect(pieces[1]![0]).toBeCloseTo(22, 6);
+    }
   });
 });

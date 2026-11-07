@@ -69,6 +69,8 @@ function findSpecial(document: CourseSettingDocument, id: string): SpecialObject
   return found;
 }
 
+const isEmptyRect = (rect: NonNullable<PrintArea["rect"]>) => rect.minX === rect.maxX || rect.minY === rect.maxY;
+
 function checkPrintArea(area: PrintArea): void {
   if (typeof area.automatic !== "boolean" || typeof area.restrictToPageSize !== "boolean") throw invalid("Tryckytan anges med automatisk och fast storlek");
   if (area.rect) {
@@ -178,9 +180,11 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       return { document: { ...document, event: Object.keys(layouts).length > 0 ? { ...event, paperLayouts: layouts } : event } };
     }
     case "SET_PRINT_AREA": {
-      if (edit.area) checkPrintArea(edit.area);
-      const area = edit.area ? defined({ automatic: edit.area.automatic, restrictToPageSize: edit.area.restrictToPageSize, rect: edit.area.rect,
-        page: edit.area.page }) : undefined;
+      // En automatisk yta med rektangeln 0,0,0,0 (ur en .ppen som lästes in före städrundan 2026-11-07) har ingen rektangel.
+      const given = edit.area && edit.area.automatic && edit.area.rect && isEmptyRect(edit.area.rect) ? { ...edit.area, rect: undefined } : edit.area;
+      if (given) checkPrintArea(given);
+      const area = given ? defined({ automatic: given.automatic, restrictToPageSize: given.restrictToPageSize, rect: given.rect,
+        page: given.page }) : undefined;
       if (edit.course === "ALL_CONTROLS") {
         const event = { ...document.event };
         delete event.printArea;

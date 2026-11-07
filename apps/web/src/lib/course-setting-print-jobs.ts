@@ -37,8 +37,11 @@ export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind
     formatVersion: 1, requestId, kind, profileId, ...(profile ? { profile } : {}),
     layout: selection.pieces ? { kind: "PIECES" } : template ? { kind: "TEMPLATE", template: known ? template.id : template, fill: selection.fill }
       : { kind: "PAGES", header: selection.header },
-    perRunner: selection.perRunner, duplex: selection.perRunner && selection.duplex,
-    items: selection.items.map(item => ({ course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.printScale ? { printScale: item.printScale } : {}),
+    // Dubbelsidigt gäller löparnas baksidor och kartbytets delar (ADR-0203: del 2 på baksidan av del 1).
+    perRunner: selection.perRunner, duplex: selection.duplex,
+    // Kartbytets del följer med (ADR-0203); utan den skrev servern hela banan en gång per del.
+    items: selection.items.map(item => ({ course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.part !== undefined ? { part: item.part } : {}),
+      ...(item.printScale ? { printScale: item.printScale } : {}),
       ...(item.printArea ? { printArea: item.printArea } : {}), ...(item.runner ? { runner: { ...item.runner, club: item.runner.club ?? null } } : {}),
       ...(item.training ? { training: item.training } : {}) })),
     ...(selection.date ? { date: selection.date } : {}),

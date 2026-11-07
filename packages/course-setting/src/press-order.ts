@@ -153,6 +153,21 @@ export function lowerPurple(figure: OverprintPrimitive, norm: PressNorm, numbers
 }
 
 /**
+ * Specialobjekt under banans lila (städrundan 2026-11-07, ändrar ADR-0211 beslut 3): vita ytor (white-out, en karträttelse)
+ * och bilder (illustrationer). De ritas över hela kartan och under banan, som i Purple Pen där banan och dess vita och bilder
+ * ligger över kartan i den ordningen: kartans färger över banan ritas inte i dem, och ringar, sträckor och nummer står över.
+ * I övre lila raderade vitt sträck och ringar och bilderna täckte banan.
+ */
+export function beneathCourse(figure: OverprintPrimitive): boolean {
+  return figure.role === "SPECIAL" && (figure.kind === "image" || figure.color === "WHITE");
+}
+
+/** Figurens lager i normens färgordning: under banan (`beneathCourse`), undre lila (`lowerPurple`) eller övre lila. */
+export function courseLayerOf(figure: OverprintPrimitive, norm: PressNorm, numbersOnTop = false): "BENEATH" | "LOWER" | "UPPER" {
+  return beneathCourse(figure) ? "BENEATH" : lowerPurple(figure, norm, numbersOnTop) ? "LOWER" : "UPPER";
+}
+
+/**
  * Profilen för "Skapa PDF för kontorsskrivare": kontorsskrivarens färger (ljusare grönt och gult) med tävlingsprofilens
  * färgordning (normen, banan i färgordningen och numren), så att kontors-PDF:en har samma lager som förhandsvisningen och
  * trycket. Övertrycket blir multiplicering i PDF:en (ADR-0211 beslut 11).

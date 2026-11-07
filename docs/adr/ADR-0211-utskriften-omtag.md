@@ -155,6 +155,23 @@ ställen och papperet redigerades i en ruta bredvid arket.
       banan, kontors-PDF:en multiplicerar, och med Ghostscript (övertrycket simulerat) är ringen grön, järnvägen svart och
       kurvorna korsar numret. Före och efter med pdftoppm på samma karta: förut vit skiva, vit järnväg och heltäckande nummer.
 
+12. **Ändrat 2026-11-07 (städrundan, grenen `a3-tryck`).** Ingen migration.
+    - *Vita specialobjekt och bilder under banan* (ändrar beslut 3, där bilder räknades till övre lila, och beslut 11, som inte
+      sa något om dem): white-out är en karträttelse och en bild en illustration; i övre lila raderade vitt ringar och sträckor
+      och bilderna täckte banan. Nu (`courseLayerOf`/`beneathCourse`) ritas de efter kartans färger under banan och före undre
+      lila, och kartans färger över banan ritas inte i deras ytor (en jämn–udda-klippning per yta; papperets klippning gäller
+      också ytan), så att de ligger över hela kartan och under banan som i Purple Pen. Samma i PDF:en och förhandsvisningen
+      (en mask för kartans bild över banan).
+    - *Fasta avbrott i sträckor* (beslut 2, sista meningen förtydligad): `<gap start>` räknas från kontrollens mitt längs sträckan,
+      och avbrottet står still på kartan när mellanrummet vid ringen ändras; mellanrummet räknas från ringens ytterkant.
+      Testet i `overprint.test.ts` fixerar det.
+    - *Ringklipp i en egen skala:* en karta med `printScale` i jobbet (annan än banans) får detaljgap för sin ringstorlek
+      (`printDetailGaps(…, extraScales)`).
+    - *.ppen:* en automatisk tryckyta skrivs som Purple Pen (rektangeln 0,0,0,0) och läses nu tillbaka utan rektangel (förut
+      `{0,0,0,0}` och "Tryckytan är ingen rektangel" vid nästa ändring); en sådan yta i redan sparade dokument tas emot.
+      `<options>` skrivs alltid, med kartans skala som `print-scale` när banan saknar egen (förut tappades hela elementet med
+      stigning, längd och score-column).
+
 ## Inte gjort (för senare)
 
 - Vridning av texter och bilder. Ramen kan inte flyttas bort från papperets mitt (Purple Pens tryckyta har ingen plats för det).

@@ -163,15 +163,17 @@ function delta(at: number, numberAt: number): string {
   return formatFloat32(value);
 }
 
-function courseElement(course: Course): XmlElement {
+function courseElement(course: Course, mapScale: number): XmlElement {
   const defaultLabel = course.kind === "SCORE" ? "CODE" : "SEQUENCE";
   const parts = {
     name: (s: XmlElement | undefined) => merge("name", s ? el("name", s.attrs) : undefined, [], course.name === "" ? [] : [course.name]),
     labels: (s: XmlElement | undefined) => !s && course.labelKind === defaultLabel ? null
       : merge("labels", s, [["label-kind", s && attr(s, "label-kind") !== undefined && course.labelKind === "SEQUENCE" ? undefined : LABEL_KIND_TEXT[course.labelKind]]]),
     first: (s: XmlElement | undefined) => course.first === undefined ? null : merge("first", s, [["course-control", course.first]]),
-    options: (s: XmlElement | undefined) => course.printScale === undefined ? null : merge("options", s, [
-      ["print-scale", num(course.printScale)], ["climb", num(course.climbMeters)], ["course-length", num(course.lengthOverrideMeters)]
+    // Alltid `<options>` (Purple Pen kräver print-scale): utan banans egen skala kartans, så att Purple Pen inte läser banan
+    // i 1:15 000; stigningen, längden och resten av elementet (score-column …) följer med (förut tappades hela elementet).
+    options: (s: XmlElement | undefined) => merge("options", s, [
+      ["print-scale", num(course.printScale ?? mapScale)], ["climb", num(course.climbMeters)], ["course-length", num(course.lengthOverrideMeters)]
     ]),
     relay: (s: XmlElement | undefined) => !course.relay ? null
       : merge("relay", s, [["teams", String(course.relay.teams)], ["legs", String(course.relay.legs)]])
@@ -261,7 +263,7 @@ export function writePpenDocument(document: CourseSettingDocument): string {
   const rootStub = raws.find(element => element.name === ROOT);
   const kids: XmlElement[] = [eventElement(document)];
   for (const control of Object.values(document.controls)) kids.push(controlElement(control));
-  for (const course of document.courses) kids.push(courseElement(course));
+  for (const course of document.courses) kids.push(courseElement(course, document.event.mapScale));
   for (const cc of Object.values(document.courseControls)) kids.push(courseControlElement(cc, document.controls[cc.control]));
   const legId = (leg: Leg) => {
     const own = leg.raw?.map(fromRaw).find(e => e.name === "leg");

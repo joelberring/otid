@@ -11,11 +11,13 @@ import { RACE_BACKUP_TABLES } from "./race-backup-tables";
 import { loadBackupCatalog, quoteIdentifier, remapDeep } from "./race-backup-catalog";
 import { writeZip, type ZipEntry } from "./race-backup-zip";
 import { sha256Hex } from "./serialization";
+import { clubSourcedInContext } from "./club-invite";
 
 /**
  * "Ladda ner säkerhetskopia" (ADR-0187, ersätter steg 27:s JSON-export): allt om tävlingen i en zip som kan återställas som en
  * ny tävling på samma eller en annan server (`race-restore.ts`). Raderna skrivs som databasen har dem (kolumnnamn i snake_case),
- * binärdata som egna filer och kontonas id som slumpade referenser; personer med behörighet följer med som e-post och roll.
+ * binärdata som egna filer och kontonas id som slumpade referenser; personer med behörighet följer med som e-post och roll,
+ * utom adressen för den som bjöds in "Från klubben" (ADR-0209 beslut 7: den som bjöd in ser aldrig adressen).
  * Konton, lösenord, sessioner och Eventor-nycklar följer aldrig med. Läser i en ögonblicksbild (repeatable read); när kopian
  * är klar sparas tiden (`race.last_backup_at`) och en rad i journalen utan personuppgifter, i en egen kort transaktion.
  * Bara administratören.
@@ -96,16 +98,19 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
     const accounts = new Map<string, string>([...referenced.map(row => row.id), ...grants.map(row => row.accountId),
       ...courseGrants.map(row => row.accountId)].map(id => [id, randomUUID()]));
     const people = new Map<string, RaceBackupPerson>();
+    // ADR-0209 beslut 7: personer "Från klubben" följer med utan adress (rollen står kvar, kopplas inte vid återställningen).
+    const fromClub = (await clubSourcedInContext(tx, "RACE_PERSON", raceId)).accounts;
+    const emailOf = (accountId: string, email: string) => fromClub.has(accountId) ? null : email;
     const strength = { OWNER: 0, ADMIN: 1, FUNCTIONARY: 2 } as const;
     for (const grant of grants) {
       const ref = accounts.get(grant.accountId)!;
-      const person = people.get(ref) ?? { ref, email: grant.email, eventRole: null, courseSettingLevel: null };
+      const person = people.get(ref) ?? { ref, email: emailOf(grant.accountId, grant.email), eventRole: null, courseSettingLevel: null };
       if (person.eventRole === null || strength[grant.role] < strength[person.eventRole]) person.eventRole = grant.role;
       people.set(ref, person);
     }
     for (const grant of courseGrants) {
       const ref = accounts.get(grant.accountId)!;
-      people.set(ref, { ...(people.get(ref) ?? { ref, email: grant.email, eventRole: null }), courseSettingLevel: grant.level });
+      people.set(ref, { ...(people.get(ref) ?? { ref, email: emailOf(grant.accountId, grant.email), eventRole: null }), courseSettingLevel: grant.level });
     }
     for (const [name, rows] of tables) tables.set(name, rows.map(row => remapDeep(row, accounts) as Row));
 

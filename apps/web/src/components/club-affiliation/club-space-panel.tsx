@@ -6,6 +6,8 @@ import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { clubBase, clubFailure } from "../../lib/club-archive-client";
 import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Field, Notice } from "../ui";
+import { EventorRequestDialog } from "../club-archive/club-start-card";
+import { clubStartSv } from "../../i18n/club-start-sv";
 import styles from "./club-affiliation.module.css";
 
 const text = clubAffiliationSv.space;
@@ -16,9 +18,17 @@ const problemText = (json: unknown, status: number) => {
 };
 const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
 
-/** Kopplingen med klubbens Eventor-nyckel: klistra in, byt, ta bort, och medlemslistan (bara siffror). */
-function EventorCard({ view, clubId, onChanged }: { view: ClubAffiliationView; clubId: string; onChanged: () => Promise<void> }) {
+/** Kom igång kan be panelen rulla fram kopplingen eller Vem ser vad; `seq` gör att samma val fungerar igen. */
+export type ClubSpaceFocus = { target: "eventor" | "access"; seq: number };
+
+/**
+ * Kopplingen med klubbens Eventor-nyckel: klistra in, byt, ta bort, och medlemslistan (bara siffror). Utan koppling också "Be
+ * klubbens Eventor-administratör koppla" för den som inte har nyckeln själv.
+ */
+function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: ClubAffiliationView; clubId: string; clubName: string;
+  onChanged: () => Promise<void>; onInvite: (() => void) | undefined }) {
   const [key, setKey] = useState("");
+  const [asking, setAsking] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState<Message>();
@@ -65,6 +75,11 @@ function EventorCard({ view, clubId, onChanged }: { view: ClubAffiliationView; c
       </Field>
       <div className={styles.actions}><Button type="submit" disabled={busy !== "" || key.trim().length < 16}>{busy === "link" ? text.linking : text.link}</Button></div>
     </form>}
+    {!eventor.linked && <div className={styles.actions}>
+      <span className={styles.muted}>{clubStartSv.steps.eventor.noKey}</span>
+      <Button variant="secondary" onClick={() => setAsking(true)}>{clubStartSv.ask.open}</Button>
+    </div>}
+    {asking && <EventorRequestDialog clubId={clubId} clubName={clubName} onClose={() => setAsking(false)} onInvite={onInvite} />}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
   </section>;
 }
@@ -108,7 +123,10 @@ function AccessCard({ view, clubId, onSaved }: { view: ClubAffiliationView; club
  * ADR-0209: fliken Klubben i klubbytan (ägare och administratörer): Koppla till Eventor, Vem ser vad, Väntar på bekräftelse
  * med Bekräfta och Avböj, och Bekräftade medlemmar. Bara namn, aldrig adresser.
  */
-export function ClubSpacePanel({ clubId }: { clubId: string }) {
+export function ClubSpacePanel({ clubId, clubName, focus, onInvite, onChanged }: { clubId: string; clubName: string;
+  focus?: ClubSpaceFocus | undefined; onInvite?: () => void;
+  /** Kopplingen ändrades: sidan hämtar klubbytan igen (märket i rubriken och Kom igång). */
+  onChanged?: () => Promise<void> }) {
   const [view, setView] = useState<ClubAffiliationView>();
   const [failed, setFailed] = useState<number>();
   const [busy, setBusy] = useState(false);
@@ -121,6 +139,14 @@ export function ClubSpacePanel({ clubId }: { clubId: string }) {
     setView(result.json as ClubAffiliationView);
   }, [clubId]);
   useEffect(() => { void load(); }, [load]);
+  // Kom igång: rulla fram rutan när vyn finns, och lägg markören i nyckelfältet.
+  const loaded = view !== undefined;
+  useEffect(() => {
+    if (!focus || !loaded) return;
+    const section = document.getElementById(focus.target === "eventor" ? "club-eventor" : "club-access")?.closest("section");
+    section?.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (focus.target === "eventor") section?.querySelector<HTMLInputElement>("input[type=password]")?.focus({ preventScroll: true });
+  }, [focus, loaded]);
 
   async function decide(person: ClubAffiliationPerson, decision: "CONFIRM" | "DECLINE" | "REMOVE") {
     if (decision === "REMOVE" && !window.confirm(text.removeConfirm(person.displayName))) return;
@@ -141,7 +167,7 @@ export function ClubSpacePanel({ clubId }: { clubId: string }) {
     <span>{[row.freeText ? text.freeText(row.freeText) : "", row.via ? clubAffiliationSv.confirmedVia[row.via] : ""].filter(Boolean).join(" · ")}</span>
   </div>;
   return <div className={styles.form} style={{ maxWidth: "48rem" }}>
-    <EventorCard view={view} clubId={clubId} onChanged={load} />
+    <EventorCard view={view} clubId={clubId} clubName={clubName} onChanged={async () => { await load(); await onChanged?.(); }} onInvite={onInvite} />
     {/* Ingen key på valen: en ändring som sparas byter view.access, och en ny komponent tappade beskedet "Vem ser vad är sparat." */}
     <AccessCard view={view} clubId={clubId} onSaved={setView} />
     <section className={styles.panel} aria-labelledby="club-pending">

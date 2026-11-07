@@ -9,7 +9,7 @@ import {
   isMapLinkToken, localRaceDate, mapLinkExpiresAt, mapLinkOpenJournaled, mapLinkStatus, mapMakerName, raceTitle
 } from "@o-tid/domain";
 import { consumeAccountRequestAllowance } from "./account-throttle";
-import { actors, courseSettingRead, courseSettingWrite, type Failure, type ReadProof, type Transaction } from "./course-setting";
+import { courseSettingRead, courseSettingWrite, type Failure, type ReadProof, type Transaction } from "./course-setting";
 import { rowContent } from "./map-content";
 import type { RaceSessionProof } from "./race-session";
 import { sha256Hex } from "./serialization";
@@ -170,7 +170,12 @@ async function viewOf(tx: Transaction, link: LinkRow, now: Date): Promise<MapLin
   const ids = rows.map(row => row.id);
   const answers = ids.length === 0 ? [] : await tx.select().from(replies).where(inArray(replies.noteId, ids))
     .orderBy(asc(replies.createdAt), asc(replies.id));
-  const names = await actors(tx, answers.flatMap(answer => answer.createdBy ? [answer.createdBy] : []));
+  // ADR-0214 beslut 4: inget om vem i banläggningen som skrev eller när. Ett svar med konto visas med rollen (kartritare med
+  // konto som "Kartritaren", övriga som "Banläggaren" i sidan) och utan tid; kartritarens svar med länken har namnet hen skrev.
+  const authors = [...new Set(answers.flatMap(answer => answer.createdBy ? [answer.createdBy] : []))];
+  const mapMakers = authors.length === 0 ? new Set<string>() : new Set((await tx.select({ accountId: schema.courseSettingGrants.accountId })
+    .from(schema.courseSettingGrants).where(and(eq(schema.courseSettingGrants.raceId, link.raceId), eq(schema.courseSettingGrants.level, "MAP"),
+      inArray(schema.courseSettingGrants.accountId, authors)))).map(row => row.accountId));
   const [map] = await tx.select({ sha256: schema.raceMapSources.sha256, georeference: schema.raceMapSources.georeference })
     .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, link.raceId));
   const dates = link.showRaceName ? await raceDates(tx, link.raceId, now) : undefined;
@@ -180,8 +185,9 @@ async function viewOf(tx: Transaction, link: LinkRow, now: Date): Promise<MapLin
       point: row.target === "POINT" && row.atX !== null && row.atY !== null ? { x: row.atX, y: row.atY } : null,
       shapes: row.target === "SKETCH" ? row.sketch : null, editedAt: row.editedAt?.toISOString() ?? null,
       replies: answers.filter(answer => answer.noteId === row.id).map(answer => ({ id: answer.id, text: answer.text,
-        createdAt: answer.createdAt.toISOString(), mapMaker: answer.mapLinkId !== null,
-        author: answer.mapLinkId !== null ? answer.authorName : names.get(answer.createdBy ?? "") ?? null,
+        createdAt: answer.mapLinkId !== null ? answer.createdAt.toISOString() : null,
+        mapMaker: answer.mapLinkId !== null || mapMakers.has(answer.createdBy ?? ""),
+        author: answer.mapLinkId !== null ? answer.authorName : null,
         verdict: answer.verdict ?? null, editedAt: answer.editedAt?.toISOString() ?? null })) })) });
 }
 

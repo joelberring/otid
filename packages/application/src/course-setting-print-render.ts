@@ -1,6 +1,6 @@
 import type { PrintJobRequest } from "@o-tid/contracts";
 import {
-  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateLayoutTemplate,
+  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, excludedVariantCodes, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateLayoutTemplate,
   validatePrintProfile, type CourseSettingDocument, type LayoutTemplate, type MapRect, type PrintProfile, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { colorUsage, readMapFile } from "@o-tid/map-file";
@@ -32,10 +32,30 @@ export function layoutTemplateFor(document: CourseSettingDocument, template: unk
   return validateLayoutTemplate(template);
 }
 
+/**
+ * Kartorna som får skrivas ut: en bortvald gafflingsvariant (ADR-0198 beslut 5) skrivs aldrig ut, också om klientens lista
+ * har den (servern litar inte på listan). `skipped` säger vilka som togs bort ("Bana – ABC").
+ */
+export function printableItems(document: CourseSettingDocument, items: readonly SheetItem[]): { items: SheetItem[]; skipped: string[] } {
+  const cache = new Map<string, ReadonlySet<string>>();
+  const excluded = (course: string) => {
+    if (!cache.has(course)) cache.set(course, document.courses.some(row => row.id === course) ? excludedVariantCodes(document, course) : new Set());
+    return cache.get(course)!;
+  };
+  const kept: SheetItem[] = [], skipped = new Set<string>();
+  for (const item of items) {
+    if (item.variant && excluded(item.course).has(item.variant)) {
+      skipped.add(`${document.courses.find(row => row.id === item.course)?.name ?? item.course} – ${item.variant}`);
+    } else kept.push(item);
+  }
+  return { items: kept, skipped: [...skipped] };
+}
+
 /** Arken i samma ordning som förhandsvisningen (`printSheetGroups` i paketet, samma val för båda). */
 export function printJobSheets(document: CourseSettingDocument, request: PrintJobRequest, mapBounds: MapRect | undefined,
   detailGaps?: ReturnType<typeof printDetailGaps>, numberObstacles?: ReturnType<typeof printNumberObstacles>): Sheet[] {
-  const items = request.items as readonly SheetItem[];
+  const { items } = printableItems(document, request.items as readonly SheetItem[]);
+  if (items.length === 0) return [];
   const layout = request.layout.kind === "TEMPLATE"
     ? { kind: "TEMPLATE" as const, template: layoutTemplateFor(document, request.layout.template), perRunner: request.perRunner, duplex: request.duplex,
       fill: request.layout.fill }
@@ -71,9 +91,13 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
     preflight.push(...warnings.map(finding => `Förhandskontroll: ${finding.text}`));
   }
   // Ringklippen över detaljer räknas på kartfilen här, som editorns Worker gör (ADR-0211 beslut 1).
-  const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map) : undefined,
+  // Kartor med egen skala (`printScale` per karta) får ringklipp i den skalan också.
+  const ownScales = [...new Set(request.items.flatMap(item => item.printScale ? [item.printScale] : []))];
+  const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map, ownScales) : undefined,
     map ? printNumberObstacles(document, map) : undefined);
-  if (sheets.length === 0) throw new PrintJobError("Inget att skriva ut.");
+  const { skipped } = printableItems(document, request.items as readonly SheetItem[]);
+  if (skipped.length > 0) preflight.push(`Bortvalda varianter skrivs inte ut: ${skipped.slice(0, 20).join(", ")}${skipped.length > 20 ? " …" : ""}.`);
+  if (sheets.length === 0) throw new PrintJobError(skipped.length > 0 ? "Inget att skriva ut: alla valda varianter är bortvalda." : "Inget att skriva ut.");
   if (sheets.length > input.maxPages) throw new PrintJobError(`PDF:en skulle få ${sheets.length} sidor; högst ${input.maxPages} går i ett jobb.`);
   const result = await writeSheetsPdf({ sheets, map, profile, mode: request.kind, fonts: input.fonts,
     descriptionStandard: document.event.descriptionStandard, title: input.title, now: input.now, paperImages: input.paperImages });

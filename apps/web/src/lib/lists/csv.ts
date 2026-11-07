@@ -3,24 +3,10 @@ import { listsSv as text } from "../../i18n/lists-sv";
 import { classStartRows, groupByStartTime, startClub, startListByClub, type StartClass, type StartMode } from "./start-list-model";
 import { clubSummary, clubSummaryTotal, resultsByClub, splitGroups, type ResultListModel, type ResultRow, type ResultStatus } from "./result-list-model";
 
-/**
- * CSV för Excel (PLAN.md steg 13): UTF-8 med BOM så att å, ä och ö visas rätt, semikolon som avskiljare
- * (svensk Excel), radbrytning CRLF och svenska rubriker. Fält med semikolon, citattecken eller radbrytning
- * citeras. Text som börjar med = + - @ får en apostrof först så att Excel inte tolkar den som en formel.
- */
-export const CSV_BOM = "﻿";
-export type CsvCell = string | number | null | undefined;
+import { toCsv, type CsvCell } from "@o-tid/domain";
 
-export function csvCell(value: CsvCell): string {
-  if (value === null || value === undefined) return "";
-  let cell = String(value);
-  if (typeof value === "string" && /^[=+\-@\t\r]/.test(cell)) cell = `'${cell}`;
-  return /[;"\r\n]/.test(cell) ? `"${cell.replace(/"/g, "\"\"")}"` : cell;
-}
-
-export function toCsv(header: readonly string[], rows: readonly (readonly CsvCell[])[]): string {
-  return CSV_BOM + [header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n") + "\r\n";
-}
+/** CSV för Excel: `toCsv` i `@o-tid/domain` (BOM, semikolon, CRLF och formelskydd), svenska rubriker här. */
+export { CSV_BOM, csvCell, toCsv, type CsvCell } from "@o-tid/domain";
 
 const duration = (ms: number | null) => ms === null ? "" : formatDuration(ms);
 const status = (value: ResultStatus) => text.results.status[value];

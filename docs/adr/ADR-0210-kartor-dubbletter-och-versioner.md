@@ -25,6 +25,8 @@ tävling skapas, i stället för att ladda upp kartfilen igen.
      som inte liknar det andra ("norra" mot "södra") blir likheten högst 0,6. Versionernas filnamn jämförs också.
    - **Innehållet:** utan jämförbar georeferens kartytan i kartans mm med samma skala (≥ 0,6 +0,3), symbolerna (samma
      +0,15, Jaccard ≥ 0,8 +0,1) och samma skala (+0,05).
+     Ändrat 2026-11-07: kartytan i mm räknas bara med minst svag namnlikhet (≥ 0,5) eller en gemensam träning; annars
+     blev två olika ogeorefererade kartor med samma format, symboler och skala "Kanske samma" (0,50).
    - **Träningarna** som använder båda kartorna: +0,1 (+0,05 till vid tre eller fler).
 
    Poängen ≥ 0,75 är "Troligen samma karta", ≥ 0,45 "Kanske samma". Paren blir grupper (sammanhängande par); gruppen är

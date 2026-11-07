@@ -145,6 +145,9 @@ describe("fest: CSV", () => {
   it("formler i fält oskadliggörs och kronor formateras", () => {
     const evil = partyLedger({ startsAt, items, readouts: [], guests: [{ cardNumber: "5", name: "=SUMMA(A1)" }] });
     expect(partySummaryCsv(evil, "Europe/Stockholm")).toContain("'=SUMMA(A1)");
+    // Städrundan 2026-11-07: samma skydd som listorna (`toCsv`), också tab först.
+    const tab = partyLedger({ startsAt, items, readouts: [], guests: [{ cardNumber: "6", name: "\tHEMLIGT" }] });
+    expect(partySummaryCsv(tab, "Europe/Stockholm")).toContain("'\tHEMLIGT");
     expect(formatPartyKronor(4_050)).toBe("40,50");
     expect(formatPartyKronor(5)).toBe("0,05");
   });

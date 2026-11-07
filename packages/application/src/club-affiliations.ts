@@ -145,10 +145,14 @@ export async function removeAccountClub(db: Database, input: ClubProof & { reque
 
 // --- Klubbarkivet: Klubben i Eventor och bekräftelser --------------------------------------------------------------------------------
 
-/** Fritexter som liknar klubbens namn: arkivets namn, klubbens namn eller kortnamn i listan (normaliserade, lika). */
-function freeTextCandidates(names: readonly (string | null | undefined)[]) {
-  const keys = [...new Set(names.flatMap(name => name ? clubSearchText(name).split(" ") : []).filter(key => key.length >= 3))];
-  return keys;
+/**
+ * Fritexter som liknar klubbens namn: den Eventor-kopplade klubbens namn, kortnamn eller initialer (normaliserade, lika). Bara
+ * för en klubbyta som är kopplad med klubbens nyckel: arkivets namn väljer vem som helst, så det röjer ingen (städrundan
+ * 2026-11-07).
+ */
+function freeTextCandidates(organisation: { name: string; shortName: string | null } | undefined): string[] {
+  if (!organisation) return [];
+  return [...new Set(clubSearchText(organisation.name, organisation.shortName).split(" ").filter(key => key.length >= 3))];
 }
 
 async function affiliationView(tx: DbExecutor, clubId: string): Promise<ClubAffiliationView | undefined> {
@@ -162,12 +166,12 @@ async function affiliationView(tx: DbExecutor, clubId: string): Promise<ClubAffi
       via: row.via ?? null });
   const columns = { id: memberships.id, displayName: schema.userAccounts.displayName, freeText: memberships.freeText, at: memberships.decidedAt,
     createdAt: memberships.createdAt, organisationId: memberships.organisationId, via: memberships.confirmedVia };
-  // Väntar: anmälda till den kopplade klubben, och fritexter (utan arkiv) som liknar namnet.
+  // Väntar: anmälda till den kopplade klubben, och fritexter (utan arkiv) som liknar den kopplade klubbens namn.
   const pendingDirectory = link.organisationId ? await tx.select(columns).from(memberships)
     .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, memberships.accountId))
     .where(and(eq(memberships.organisationId, link.organisationId), eq(memberships.status, "PENDING"), isNull(schema.userAccounts.blockedAt)))
     .orderBy(asc(memberships.createdAt)).limit(500) : [];
-  const keys = freeTextCandidates([club.name, organisation?.name, organisation?.shortName]);
+  const keys = freeTextCandidates(link.organisationId ? organisation : undefined);
   const freeRows = keys.length === 0 ? [] : await tx.select(columns).from(memberships)
     .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, memberships.accountId))
     .where(and(isNotNull(memberships.freeText), eq(memberships.status, "PENDING"), isNull(schema.userAccounts.blockedAt)))

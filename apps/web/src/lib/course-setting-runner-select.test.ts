@@ -52,16 +52,20 @@ describe("Kontrollera kopplingen", () => {
     expect(rows.find(row => row.name === "Hans Holm")!.warnings).toEqual(["NO_VARIANT"]);
     // Antalet för Lång AD stämmer inte med Kartor till starten.
     expect(rows.find(row => row.variant === "AD")!.warnings).toContain("COUNT");
-    // 141 två gånger (Ada och Gun); lagets sträckor har egna nummer här och varnas inte.
-    expect(rows.filter(row => row.warnings.includes("DUPLICATE_NUMBER")).map(row => row.name)).toEqual(["Ada Ek", "Gun Ek"]);
+    // Numren är kartbuntens löpnummer (unika); ingen egen varning för samma nummer, bara de tre ovan.
+    expect(rows.find(row => row.name === "Ada Ek")!.warnings).toEqual([]);
+    expect(new Set(rows.flatMap(row => row.warnings))).toEqual(new Set(["EXCLUDED_VARIANT", "NO_VARIANT", "COUNT"]));
   });
 
   it("sorteras, filtreras och sparas som CSV", () => {
     expect(sortCheckRows(rows, "name", false, "", false).slice(0, 3).map(row => row.name)).toEqual(["Ada Ek", "Bo Lind", "Cia Holm"]);
     expect(sortCheckRows(rows, "number", true, "", false)[0]!.number).toBe(147);
     expect(sortCheckRows(rows, "page", false, "stafett", false).map(row => row.name)).toEqual(["Dan Berg", "Eva Sjö", "Fia Strand"]);
-    expect(sortCheckRows(rows, "page", false, "", true).map(row => row.name)).toEqual(["Ada Ek", "Ledig", "Gun Ek", "Hans Holm"]);
+    expect(sortCheckRows(rows, "page", false, "", true).map(row => row.name)).toEqual(["Ledig", "Gun Ek", "Hans Holm"]);
     const csv = checkRowsCsv(rows.slice(0, 1), ["PDF-sida", "Nr", "Namn", "Klubb", "Klass", "Lag/Sträcka", "Bana", "Variant", "Starttid", "Varningar"], warning => warning);
-    expect(csv).toBe("PDF-sida;Nr;Namn;Klubb;Klass;Lag/Sträcka;Bana;Variant;Starttid;Varningar\r\n1;141;Ada Ek;OK Natt;H21;;Lång;AC;18:30;DUPLICATE_NUMBER\r\n");
+    expect(csv).toBe("\uFEFFPDF-sida;Nr;Namn;Klubb;Klass;Lag/Sträcka;Bana;Variant;Starttid;Varningar\r\n1;141;Ada Ek;OK Natt;H21;;Lång;AC;18:30;\r\n");
+    // Städrundan 2026-11-07: namn från startlistan som Excel skulle läsa som formel får en apostrof först.
+    const evil = checkRowsCsv([{ ...rows[0]!, name: "=HYPERLINK(\"x\")", club: "@SUMMA" }], ["Namn"], warning => warning);
+    expect(evil).toContain(";\"'=HYPERLINK(\"\"x\"\")\";'@SUMMA;");
   });
 });

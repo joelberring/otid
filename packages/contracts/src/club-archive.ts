@@ -134,7 +134,11 @@ export type ClubArchiveEntryUpdateRequest = z.infer<typeof clubArchiveEntryUpdat
 /** `pending`: för ägare och administratörer, hur många som väntar på bekräftelse som medlemmar. */
 export interface ClubSummary { clubId: string; name: string; role: ClubRole; entries: number; pending?: number }
 
-export interface ClubMember { memberId: string; accountId: string; email: string; displayName: string; role: ClubRole; addedAt: string }
+/**
+ * En rad i klubbens medlemslista. ADR-0209 beslut 5–6: bara ägare och administratörer får hela listan; läsare och ledare får
+ * bara sin egen rad. Inget konto-id (`you` = raden är den inloggades).
+ */
+export interface ClubMember { memberId: string; email: string; displayName: string; role: ClubRole; addedAt: string; you: boolean }
 /**
  * ADR-0206: `sentAt` = när inbjudan senast mejlades (null = aldrig). ADR-0209: tom adress och `displayName` = inbjuden
  * "Från klubben".

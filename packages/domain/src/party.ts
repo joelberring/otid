@@ -1,3 +1,5 @@
+import { toCsv } from "./csv";
+
 /**
  * Fest med bardisk (PLAN.md steg 40). Gästen stämplar själv på kontrollenheten med varans kod (t.ex. 31 = "Öl 40 kr")
  * och läser ut brickan vid bardisken. Köpen räknas fram ur brickornas stämplingar; inget annat skapar ett köp.
@@ -343,17 +345,9 @@ export function formatPartyTime(value: string, timeZone: string): string {
   return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
-const BOM = "﻿";
-
-/** Ett fält i CSV: citeras när det innehåller avgränsare, citattecken eller radbrytning. Formler oskadliggörs. */
-function field(value: string | number): string {
-  let text = String(value);
-  if (/^[=+\-@]/.test(text) && typeof value === "string") text = `'${text}`;
-  return /[";\r\n]/.test(text) ? `"${text.replaceAll("\"", "\"\"")}"` : text;
-}
-
+/** Hela filen med `toCsv` (BOM, semikolon, formelskydd): första raden är rubrikerna. */
 function csv(rows: readonly (readonly (string | number)[])[]): string {
-  return BOM + rows.map(row => row.map(field).join(";")).join("\r\n") + "\r\n";
+  return toCsv(rows[0] ?? [], rows.slice(1));
 }
 
 export const PARTY_SOURCE_SV: Record<PartyPresenceSource, string> = { START: "Start", FINISH: "Mål", DESK: "Bardisken", SELF: "Fest-sidan" };

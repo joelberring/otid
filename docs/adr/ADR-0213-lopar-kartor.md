@@ -37,11 +37,16 @@ sträcka igen, och få baksidan i samma PDF. Stafettklasserna fanns inte alls i 
    efter de individuella, per klass, sträcka, lagnummer och ordning inom sträckan, så att de individuellas nummer inte
    ändras. Kartorna, raderna och "saknar variant" har laget och sträckan (`team`, `leg`, valfria fält i kontraktet).
    Kartbuntslistan visar "lag 12, sträcka 2" vid klassen. Exporten av lagens gafflingar till IOF ingår inte.
+   Ändrat 2026-11-07: listan per klass har en grupp per sträcka och variant (rubriken "sträcka 2"), så att sträckor med
+   samma variantkoder inte slås ihop; `classes` i kontraktet har `leg`. Rogaining ingår som ogafflade grupper (individuellt
+   och stafett), med tryckantal och löparkartor som andra klasser.
 5. **Kontrollera kopplingen** i läget En karta per löpare: PDF-sida, Nr, Namn, Klubb, Klass, Lag/Sträcka, Bana, Variant och
    Starttid, sorterbar och filtrerbar (text eller "Bara rader med varning"), med varningarna ingen variant, bortvald variant
    (ADR-0198), antalet stämmer inte med Kartor till starten och samma startnummer två gånger (utom inom ett lag). Löpare
    utan karta (ingen eller bortvald variant) står med utan sida. Ett klick på en rad visar löparens ark; "Spara som CSV"
    (semikolon, UTF-8). Kartor till starten länkar till tabellen.
+   Ändrat 2026-11-07: varningen "samma startnummer två gånger" är borttagen; numren är kartbuntens löpnummer och alltid
+   unika, och det finns inget eget nummerlappsfält.
 6. **Integriteten**: mallarna, "Mitt bibliotek" och klubbarkivet får bara variablerna. Löparna finns bara i kartbuntarna
    som läses när sidan visas, och i PDF-jobbets urval som förut (steg 64).
 

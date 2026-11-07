@@ -10,6 +10,7 @@ export const mapBundlesSv = {
   printLink: "Skriv ut en karta per löpare",
   /** ADR-0213: kontrolltabellen i utskriften och stafettens lag och sträcka. */
   checkLink: "Kontrollera kopplingen",
+  leg: (leg: number) => `sträcka ${leg}`,
   teamLeg: (team: number, leg: number | undefined) => leg !== undefined ? `lag ${team}, sträcka ${leg}` : `lag ${team}`,
   back: "Tillbaka till arbetsytan",
   loading: "Läser in kartorna …",

@@ -6,6 +6,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { mapAgreementIssues, mapPublicUseBlocked, type MapAgreementFacts } from "@o-tid/domain";
+import { latestClubMapVersion } from "./club-map-version-order";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import type { DbExecutor } from "./snapshot";
@@ -45,18 +46,26 @@ export async function listGroupLibraryMaps(tx: DbExecutor, groupId: string): Pro
     .where(inArray(schema.trainingGroupMapCourseSettings.mapId, ids))).map(row => row.mapId));
   // ADR-0194 beslut 5: kartor från klubbarkivet och om klubben har en nyare version än den i biblioteket.
   const clubMapIds = [...new Set(rows.flatMap(row => row.clubMapId ? [row.clubMapId] : []))];
-  const clubMaps = new Map(clubMapIds.length === 0 ? [] : (await tx.execute<{ map_id: string; club_id: string; club_name: string; latest: string | null }>(sql`
-    select m.id as map_id, c.id as club_id, c.name as club_name,
-      (select v.content_sha256 from club_map_version v where v.map_id = m.id
-        order by v.version_date desc nulls last, v.uploaded_at desc limit 1) as latest
-    from club_map m join club c on c.id = m.club_id where m.id = any(${sql.param(clubMapIds)}::uuid[])`)).rows.map(row => [row.map_id, row]));
+  // Den senaste versionen i samma ordning som klubbarkivet (ADR-0210: året först, sedan datumet och uppladdningen).
+  const clubMaps = new Map(clubMapIds.length === 0 ? [] : (await tx.select({ mapId: schema.clubMaps.id, clubId: schema.clubs.id, clubName: schema.clubs.name })
+    .from(schema.clubMaps).innerJoin(schema.clubs, eq(schema.clubs.id, schema.clubMaps.clubId)).where(inArray(schema.clubMaps.id, clubMapIds)))
+    .map(row => [row.mapId, { ...row, latest: null as string | null }]));
+  if (clubMapIds.length > 0) {
+    const versions = await tx.select({ mapId: schema.clubMapVersions.mapId, contentSha256: schema.clubMapVersions.contentSha256,
+      fileName: schema.clubMapVersions.fileName, sourcePath: schema.clubMapVersions.sourcePath, versionDate: schema.clubMapVersions.versionDate,
+      uploadedAt: schema.clubMapVersions.uploadedAt, versionYear: schema.clubMapVersions.versionYear })
+      .from(schema.clubMapVersions).where(inArray(schema.clubMapVersions.mapId, clubMapIds));
+    for (const club of clubMaps.values()) {
+      club.latest = latestClubMapVersion(versions.filter(version => version.mapId === club.mapId))?.contentSha256 ?? null;
+    }
+  }
   return rows.map(row => {
     const source = sources.get(row.id);
     const club = row.clubMapId ? clubMaps.get(row.clubMapId) : undefined;
     return { mapId: row.id, name: row.name, fileName: row.fileName, width: row.width, height: row.height, georeferenced: row.transform !== null,
       source: source ? { fileName: source.fileName, format: source.format, scale: source.scale } : null, courseSetting: settings.has(row.id),
       createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), ...agreementOf(row),
-      clubMap: club ? { clubId: club.club_id, clubName: club.club_name, latest: club.latest === (source?.contentSha256 ?? null) } : null };
+      clubMap: club ? { clubId: club.clubId, clubName: club.clubName, latest: club.latest === (source?.contentSha256 ?? null) } : null };
   });
 }
 

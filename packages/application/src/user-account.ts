@@ -455,6 +455,11 @@ export async function authenticateUserAccountSessionForProtectedRead(
   return authorizeUserAccountSession(tx, proof, validDate(now), "share");
 }
 
+/**
+ * Spärrar sessionen. CSRF-nyckeln krävs om inte anroparen uttryckligen säger `requireCsrf: false`: utloggningens route kräver
+ * i stället exakt Origin (städrundan 2026-11-07), så att sessionen alltid kan spärras även när CSRF-kakan saknas. Att logga ut
+ * någon är ofarligt, och en annan webbplats kan inte skicka exakt Origin.
+ */
 export async function logoutUserAccountSession(
   db: Database,
   proof: UserAccountSessionProof,
@@ -462,7 +467,7 @@ export async function logoutUserAccountSession(
 ): Promise<{ status: "unauthorized" | "forbidden" | "logged-out" | "already-logged-out" }> {
   const loggedOutAt = validDate(now);
   return db.transaction(async (tx) => {
-    const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, loggedOutAt);
+    const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: proof.requireCsrf !== false }, loggedOutAt);
     if (auth.status !== "authenticated") return auth;
     const [existing] = await tx.select({ id: schema.userAccountSessionRevocations.id })
       .from(schema.userAccountSessionRevocations)

@@ -115,10 +115,12 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
     if (view.status !== "ok") throw new Error(`Länken gick inte att läsa: ${view.status}`);
     expect(view.response).toMatchObject({ raceName: null, map: null, mapErrors: [
       { id: sketch.note.id, number: 1, text: "Stigen saknas", status: "OPEN", point: null, shapes: [stig],
-        replies: [{ text: "Gäller den gamla stigen", author: "Bea Banläggare", mapMaker: false, verdict: null }] },
+        replies: [{ text: "Gäller den gamla stigen", author: null, createdAt: null, mapMaker: false, verdict: null }] },
       { id: point.note.id, number: 2, text: "Sten saknas", point: { x: 40, y: 30 }, shapes: null, replies: [] }] });
     const json = JSON.stringify(view.response);
+    // Svarets författare: rollen (sidan skriver "Banläggaren"), inte namnet eller kontot, och ingen tid (ADR-0214 beslut 4).
     for (const value of [secret.note.id, "Flytta kontrollen", course.name, `"${course.id}"`, "photo", "image/jpeg", "createdBy", "Syntetiska",
+      "Bea Banläggare", owner.accountId,
       "Kartritartest", "2026-11-20", ...Object.values(document.controls).flatMap(row => [`"${row.id}"`, ...(row.code ? [`"${row.code}"`] : [])])]) {
       expect(json, value).not.toContain(value);
     }
@@ -193,10 +195,11 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
 
   it("utgången, avstängd och ersatt länk avvisas likadant som en okänd, och avstängningen gäller direkt", async () => {
     // Tiderna räknas från nu (sessionerna prövas vid tiden): tävlingen i dag, länken till och med i dag.
-    const now = new Date();
-    const today = localRaceDate(now, "Europe/Stockholm");
+    const today = localRaceDate(new Date(), "Europe/Stockholm");
     const owner = await race(today);
     await setUp(owner);
+    // Efter att sessionen skapats: en tid före sessionen godtas inte (gav "unauthorized" när testet gick snabbt).
+    const now = new Date();
     const limited = await newLink(owner, { lastDay: today }, now);
     const expiresAt = mapLinkExpiresAt(today, "Europe/Stockholm")!;
     const state = await created(readMapLinkAsAdmin(db, owner, now));
@@ -298,7 +301,7 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
     const token = await newLink(owner);
     const view = await readMapLinkView(db, link(token));
     expect(view.status === "ok" && view.response.mapErrors[0]).toMatchObject({ text: "Stigen saknas norr om kullen", editedAt: t1.toISOString(),
-      replies: [{ text: "Rättat i kartfilen", editedAt: t1.toISOString() }] });
+      replies: [{ text: "Rättat i kartfilen", editedAt: t1.toISOString(), author: null, createdAt: null, mapMaker: true }] });
     expect(JSON.stringify(view)).not.toContain("\"Rättat\"");
 
     // Kopian tar med kartritarens svar med länken; ägaren tar fortfarande bort notisen (med historiken).

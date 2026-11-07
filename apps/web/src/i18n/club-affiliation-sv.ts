@@ -1,3 +1,9 @@
+/**
+ * Var klubbens API-nyckel finns i Eventor (Eventors guide "Get data via API": Club → Club settings; svenska Eventor: Klubb →
+ * Klubbinställningar). Samma väg i kopplingsrutan, hjälpen, tävlingens Eventor-ruta och texten till klubbens Eventor-administratör.
+ */
+export const EVENTOR_KEY_PLACE = "Klubb → Klubbinställningar";
+
 /** ADR-0209: klubbtillhörighet – Mina klubbar, klubben i Eventor, Vem ser vad, Från klubben och tävlingen i klubbarkivet. */
 export const clubAffiliationSv = {
   picker: {
@@ -52,7 +58,7 @@ export const clubAffiliationSv = {
     unlinkedHelp: "Klubbytan är inte bevisad med klubbens Eventor-nyckel. Medlemmarna vet då inte att den är klubbens egen.",
     linkedBadge: (club: string) => `Kopplad till Eventor · ${club}`,
     eventorTitle: "Koppla till Eventor",
-    eventorHelp: "Klistra in klubbens API-nyckel från Eventor (bara en administratör i klubben i Eventor kan skapa den: Eventor → Klubbens sidor → API-nyckel). O-Tid frågar Eventor vilken klubb nyckeln tillhör. Nyckeln sparas krypterad och visas aldrig igen.",
+    eventorHelp: `Klistra in klubbens API-nyckel. Den finns i Eventor under ${EVENTOR_KEY_PLACE}, och bara klubbens administratörer i Eventor kommer åt den. O-Tid frågar Eventor vilken klubb nyckeln tillhör. Nyckeln sparas krypterad och visas aldrig igen.`,
     key: "Klubbens API-nyckel",
     link: "Koppla till Eventor",
     linking: "Kopplar …",

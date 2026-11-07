@@ -1,4 +1,5 @@
 import type { SheetItem } from "@o-tid/course-setting";
+import { toCsv } from "@o-tid/domain";
 import type { RunnerPrint, RunnerPrintProblem } from "./course-setting-runner-print";
 
 /**
@@ -48,7 +49,7 @@ export function searchRunners(items: readonly SheetItem[], query: string, limit 
   }).slice(0, limit);
 }
 
-export type CheckWarning = "NO_VARIANT" | "EXCLUDED_VARIANT" | "COUNT" | "DUPLICATE_NUMBER";
+export type CheckWarning = "NO_VARIANT" | "EXCLUDED_VARIANT" | "COUNT";
 
 /** En rad i "Kontrollera kopplingen": en karta (med sidan i PDF:en) eller en löpare som inte får någon karta. */
 export interface CheckRow {
@@ -91,14 +92,8 @@ export function runnerCheckRows(print: Pick<RunnerPrint, "excluded" | "problems"
     variant: row.variantCode, startTime: row.runner.startTime ?? "", warnings: ["EXCLUDED_VARIANT"] }));
   missingVariant.forEach((row, index) => rows.push({ key: `m${index}`, page: undefined, item: undefined, number: null, name: row.name, club: "", className: row.className,
     team: row.team ? text.team(row.team, row.leg) : "", courseName: "", variant: "", startTime: "", warnings: ["NO_VARIANT"] }));
-  // Samma nummer två gånger: utom inom samma lag (sträckorna) och reserverna (inget nummer).
-  const byNumber = new Map<number, Set<string>>();
-  rows.forEach(row => {
-    if (row.number === null) return;
-    const owner = items[row.item ?? -1]?.runner?.team?.number;
-    byNumber.set(row.number, (byNumber.get(row.number) ?? new Set()).add(owner !== undefined ? `t${owner}` : row.key));
-  });
-  return rows.map(row => row.number !== null && (byNumber.get(row.number)?.size ?? 0) > 1 ? { ...row, warnings: [...row.warnings, "DUPLICATE_NUMBER"] } : row);
+  // Startnumren är kartbuntens löpnummer (unika i planen); det finns inget eget nummerlappsfält att jämföra.
+  return rows;
 }
 
 export type CheckColumn = "page" | "number" | "name" | "club" | "className" | "team" | "courseName" | "variant" | "startTime";
@@ -121,10 +116,9 @@ export function sortCheckRows(rows: readonly CheckRow[], column: CheckColumn, de
     }).map(entry => entry.row);
 }
 
-/** CSV med semikolon (svensk Excel), rubrikerna och en rad per tabellrad; varningarna sist. */
+/** CSV för Excel (`toCsv`: BOM, semikolon, formelskydd), rubrikerna och en rad per tabellrad; varningarna sist. */
 export function checkRowsCsv(rows: readonly CheckRow[], header: readonly string[], warningText: (warning: CheckWarning) => string): string {
-  const cell = (value: string | number | null | undefined) => { const raw = value === undefined || value === null ? "" : String(value); return /[";\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw; };
-  return [header.map(cell).join(";"), ...rows.map(row => [...CHECK_COLUMNS.map(key => cell(row[key])), cell(row.warnings.map(warningText).join(", "))].join(";"))].join("\r\n") + "\r\n";
+  return toCsv(header, rows.map(row => [...CHECK_COLUMNS.map(key => row[key]), row.warnings.map(warningText).join(", ")]));
 }
 
 /**

@@ -11,6 +11,7 @@ import { place } from "./geometry";
 import { legKey } from "./ppen-common";
 import { printScaleOf } from "./overprint";
 import { specialVisible } from "./specials";
+import { activeParts } from "./summary";
 import type { CourseSettingDocument, SpecialObject } from "./types";
 import { enumerateCourseControls, enumerateLegs } from "./walk";
 
@@ -27,6 +28,19 @@ const AREA_KINDS = new Set(["out-of-bounds", "dangerous-area", "temporary-constr
 export const BARRIER_KINDS = new Set([...AREA_KINDS, "boundary", "forbidden-route", "optional-crossing-point"]);
 
 /**
+ * Figurernas skala i kartans mm per mm på papperet (ringstorleken och banans utskriftsskala): samma som banpåtrycket ritar
+ * specialobjekten med (`specials.ts`). Okänd bana eller bara de som syns på alla banor: kartans skala.
+ */
+function figureScale(document: CourseSettingDocument, course: string | undefined): number {
+  const scale = course === undefined || (course !== "ALL_CONTROLS" && !document.courses.some(item => item.id === course))
+    ? document.event.mapScale : printScaleOf(document, course);
+  return sizesFor(document, scale).ratio * appearanceOf(document).circleSize;
+}
+
+/** Kryssets halva bredd och höjd (förbjuden väg, ISOM 711) som det ritas: armarna 1,5 mm från mitten på papperet. */
+const CROSS_HALF = 1.06;
+
+/**
  * Spärrarna och öppningarna som gäller banan ("ALL_CONTROLS" = Alla kontroller; `undefined` = bara de som syns på alla
  * banor), i kartans mm. Linjernas bredd är banpåtryckets bredd i utskriftsskalan, minst 1 m i terrängen.
  */
@@ -38,7 +52,7 @@ export function routeBarriers(document: CourseSettingDocument, course: string | 
   const scale = course === undefined || (course !== "ALL_CONTROLS" && !document.courses.some(item => item.id === course))
     ? document.event.mapScale : printScaleOf(document, course);
   const sizes = sizesFor(document, scale);
-  const k = sizes.ratio * appearanceOf(document).circleSize;
+  const k = figureScale(document, course);
   const meter = 1000 / document.event.mapScale;
   for (const special of visible) {
     const at = special.points[0]!;
@@ -48,7 +62,7 @@ export function routeBarriers(document: CourseSettingDocument, course: string | 
         break;
       case "forbidden-route":
         // Krysset spärrar vägen där det står (armarna 1,5 mm från mitten).
-        for (const [a, b] of [[{ x: -1.06, y: -1.06 }, { x: 1.06, y: 1.06 }], [{ x: 1.06, y: -1.06 }, { x: -1.06, y: 1.06 }]] as const) {
+        for (const [a, b] of [[{ x: -CROSS_HALF, y: -CROSS_HALF }, { x: CROSS_HALF, y: CROSS_HALF }], [{ x: CROSS_HALF, y: -CROSS_HALF }, { x: -CROSS_HALF, y: CROSS_HALF }]] as const) {
           lines.push({ points: [{ x: at.x + a.x * k, y: at.y + a.y * k }, { x: at.x + b.x * k, y: at.y + b.y * k }], widthMm: Math.max(meter, 0.35 * k) });
         }
         break;
@@ -81,8 +95,11 @@ function segmentsCross(p: Point, q: Point, r: Point, s: Point): boolean {
   return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0)) && d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0;
 }
 
-/** Går linjen (sträckans) genom ytan eller över spärrlinjen? Sträckans ändar (kontrollerna) räknas inte. */
-export function pathHitsBarrier(path: readonly Point[], special: SpecialObject): boolean {
+/**
+ * Går linjen (sträckans) genom ytan eller över spärrlinjen? Sträckans ändar (kontrollerna) räknas inte. `k` är figurernas
+ * skala (`figureScale`): krysset är lika stort som det ritas på banans utskrift.
+ */
+export function pathHitsBarrier(path: readonly Point[], special: SpecialObject, k: number): boolean {
   const segments: [Point, Point][] = [];
   for (let i = 1; i < path.length; i += 1) segments.push([path[i - 1]!, path[i]!]);
   if (AREA_KINDS.has(special.kind)) {
@@ -95,7 +112,7 @@ export function pathHitsBarrier(path: readonly Point[], special: SpecialObject):
     return false;
   }
   const lines = special.kind === "boundary" ? [special.points] : special.kind === "forbidden-route" ? (() => {
-    const at = special.points[0]!, r = 1.5;
+    const at = special.points[0]!, r = CROSS_HALF * k;
     return [[{ x: at.x - r, y: at.y - r }, { x: at.x + r, y: at.y + r }], [{ x: at.x + r, y: at.y - r }, { x: at.x - r, y: at.y + r }]];
   })() : [];
   for (const line of lines) for (let i = 1; i < line.length; i += 1) for (const [a, b] of segments) if (segmentsCross(a, b, line[i - 1]!, line[i]!)) return true;
@@ -116,38 +133,45 @@ export function insideBarrierArea(special: SpecialObject, point: Point): boolean
 /**
  * Sträckorna på banan vars fågelväg (med böjar) går genom ett förbjudet område eller över en spärr (kontrollen
  * LEG_THROUGH_FORBIDDEN). Ligger en ände i området räknas det som kontrollen i området (`controlsInForbidden`), inte här.
+ * Sträckor som bara finns i bortvalda varianter räknas inte (ADR-0198 tillägg 12).
  */
 export function forbiddenLegs(document: CourseSettingDocument, course: string): { from: string; to: string; special: string }[] {
   const specials = blockingSpecials(document, course);
   if (specials.length === 0) return [];
   const out: { from: string; to: string; special: string }[] = [];
   const seen = new Set<string>();
+  const active = activeParts(document, course);
+  const k = figureScale(document, course);
   for (const [a, b] of enumerateLegs(document, course)) {
     const from = document.courseControls[a]!.control, to = document.courseControls[b]!.control;
     const key = legKey(from, to);
-    if (seen.has(key) || from === to) continue;
+    if (seen.has(key) || from === to || (active && !active.legs.has(key))) continue;
     seen.add(key);
     const start = document.controls[from], end = document.controls[to];
     if (!start || !end) continue;
     const path = [start.at, ...(document.legs[key]?.bends ?? []), end.at];
     for (const special of specials) {
       if (insideBarrierArea(special, start.at) || insideBarrierArea(special, end.at)) continue;
-      if (pathHitsBarrier(path, special)) out.push({ from, to, special: special.id });
+      if (pathHitsBarrier(path, special, k)) out.push({ from, to, special: special.id });
     }
   }
   return out;
 }
 
-/** ADR-0199: banans kontroller som ligger i ett förbjudet område som syns på banan (kontrollen CONTROL_IN_FORBIDDEN). */
+/**
+ * ADR-0199: banans kontroller som ligger i ett förbjudet område som syns på banan (kontrollen CONTROL_IN_FORBIDDEN).
+ * Kontroller som bara finns i bortvalda varianter räknas inte (ADR-0198 tillägg 12).
+ */
 export function controlsInForbidden(document: CourseSettingDocument, course: string): { control: string; special: string }[] {
   const areas = blockingSpecials(document, course).filter(special => AREA_KINDS.has(special.kind));
   if (areas.length === 0) return [];
   const out: { control: string; special: string }[] = [];
   const seen = new Set<string>();
+  const active = activeParts(document, course);
   for (const id of enumerateCourseControls(document, course)) {
     const control = document.courseControls[id]?.control;
     const point = control === undefined ? undefined : document.controls[control];
-    if (!point || seen.has(point.id)) continue;
+    if (!point || seen.has(point.id) || (active && !active.controls.has(point.id))) continue;
     seen.add(point.id);
     for (const special of areas) if (insideBarrierArea(special, point.at)) out.push({ control: point.id, special: special.id });
   }

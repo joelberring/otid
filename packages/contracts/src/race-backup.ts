@@ -74,7 +74,8 @@ export type RaceBackupManifest = z.infer<typeof raceBackupManifestSchema>;
 /** En person med behörighet: referensen som tabellerna använder i stället för kontots id, e-post och roller. */
 export const raceBackupPersonSchema = z.object({
   ref: uuidSchema,
-  email: z.string().trim().toLowerCase().min(3).max(254).regex(/^[^@\s]+@[^@\s]+$/),
+  /** Null för den som bjöds in "Från klubben" (ADR-0209 beslut 7: den som bjöd in ser aldrig adressen); kopplas aldrig. */
+  email: z.string().trim().toLowerCase().min(3).max(254).regex(/^[^@\s]+@[^@\s]+$/).nullable(),
   eventRole: z.enum(["OWNER", "ADMIN", "FUNCTIONARY"]).nullable(),
   courseSettingLevel: z.enum(["EDIT", "SUGGEST", "COMMENT", "MAP"]).nullable()
 }).strict();
@@ -127,7 +128,8 @@ export const raceBackupPreviewSchema = z.object({
   staleResults: count,
   sha256: sha256Schema,
   bytes: count,
-  people: z.array(z.object({ email: z.string(), role: z.string(), hasAccount: z.boolean() }).strict()).max(10_000),
+  /** Adressen (null = "Från klubben") och rollen. Inget om huruvida adressen har ett konto här (filen är inte signerad). */
+  people: z.array(z.object({ email: z.string().nullable(), role: z.string() }).strict()).max(10_000),
   eventorLinked: z.boolean(),
   radioLinked: z.boolean(),
   map: z.boolean()

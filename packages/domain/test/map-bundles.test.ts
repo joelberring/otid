@@ -142,4 +142,13 @@ describe("kartbuntsplan för stafett (ADR-0213)", () => {
     // Lag 7 saknar variant på den gafflade sträckan.
     expect(plan.missingVariant).toEqual([{ entryId: "r7a", name: "Löpare r7a", className: "H21 stafett", team: { number: 7, name: "Lag 7" }, leg: 1 }]);
   });
+  it("listan per klass: sträckor med samma variantkoder slås inte ihop, varianterna i varje sträckas ordning", () => {
+    // Sträcka 1 har ordningen B, A; sträcka 2 A, B; båda sträckorna har samma bokstäver.
+    const plan = planMapBundles({ classes: [legClass(1, ["B", "A"]), legClass(2, ["A", "B"])], reserve: { kind: "COUNT", value: 0 },
+      entries: [legRunner("r1a", 1, 1, "A"), legRunner("r2a", 2, 1, "B"), legRunner("r1b", 1, 2, "B"), legRunner("r2b", 2, 2, "A")] });
+    const order = new Map([["c-staf:1", ["B", "A"]], ["c-staf:2", ["A", "B"]]]);
+    const groups = mapBundlesByClass(plan.rows, key => order.get(`${key.classId}:${key.leg}`) ?? []);
+    expect(groups.map(group => [group.leg, group.variantCode, group.rows.map(row => row.entryId)])).toEqual([
+      [1, "B", ["r2a"]], [1, "A", ["r1a"]], [2, "A", ["r2b"]], [2, "B", ["r1b"]]]);
+  });
 });

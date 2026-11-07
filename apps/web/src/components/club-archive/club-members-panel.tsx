@@ -17,7 +17,7 @@ const ROLES: readonly ClubRole[] = ["READER", "LEADER", "ADMIN", "OWNER"];
 
 /**
  * ADR-0194 beslut 1: klubbens medlemmar och inbjudningar. Bjud in med e-postadressen (samma svar med och utan konto); listan
- * visar adressen som "väntar på inloggning" tills personen loggat in med den. Läsare ser bara namnen.
+ * visar adressen som "väntar på inloggning" tills personen loggat in med den. Läsare och ledare ser bara sin egen rad (ADR-0209).
  */
 export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChanged: () => Promise<void> }) {
   const [email, setEmail] = useState("");
@@ -81,13 +81,13 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   return <section className={styles.cards} aria-labelledby="club-members">
     <div>
       <h2 id="club-members">{text.title}</h2>
-      {admin && <p className={styles.muted}>{text.help}</p>}
+      <p className={styles.muted}>{admin ? text.help : text.readerHelp}</p>
     </div>
     <ul className={styles.list} data-testid="club-members">
       {club.members.map(member => <li key={member.memberId}>
-        <div><strong>{member.displayName}{member.accountId === club.viewer.accountId ? ` (${text.you})` : ""}</strong>
+        <div><strong>{member.displayName}{member.you ? ` (${text.you})` : ""}</strong>
           <span>{clubArchiveSv.roles[member.role]}{member.email ? ` · ${member.email}` : ""}</span></div>
-        {admin && member.accountId !== club.viewer.accountId && (owner || member.role !== "OWNER") && <div className={styles.actions}>
+        {admin && !member.you && (owner || member.role !== "OWNER") && <div className={styles.actions}>
           <select aria-label={`${text.changeRole}: ${member.displayName}`} value={member.role} disabled={busy}
             onChange={event => void run(() => clubRequest(`${clubBase(club.clubId)}/members`, "PUT", { formatVersion: 1, memberId: member.memberId,
               role: event.target.value }), clubArchiveSv.entry.saved, text.lastOwner)}>

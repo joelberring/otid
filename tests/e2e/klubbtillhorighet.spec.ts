@@ -55,6 +55,29 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   const clubId = /clubs\/([0-9a-f-]+)/.exec(admin.url())![1]!;
   await expect(admin.getByTestId("club-eventor-badge")).toHaveText("Inte kopplad till Eventor");
 
+  // Kom igång (ADR-0209, ändrat 2026-11-07): den nya klubbytan säger att nästa steg är kopplingen till Eventor.
+  const start = admin.getByTestId("club-start");
+  await expect(start).toHaveAttribute("data-fresh", "true");
+  await expect(start.getByTestId("club-start-intro")).toContainText("Nästa steg: koppla klubbytan till Eventor med klubbens API-nyckel.");
+  await expect(start.getByTestId("club-start-eventor")).toHaveAttribute("data-done", "false");
+  await expect(start.getByTestId("club-start-eventor")).toContainText("Klubb → Klubbinställningar");
+  await expect(start.getByTestId("club-start-access")).toHaveAttribute("data-done", "true");
+  await reviewScreenshots(admin, "kom-igang-inget-gjort");
+  await fitsPhone(admin);
+  // Den som inte har nyckeln: en färdig text utan nyckel, och en mejllänk utan mottagare.
+  await start.getByRole("button", { name: "Be klubbens Eventor-administratör koppla" }).click();
+  const ask = admin.getByRole("dialog", { name: "Be klubbens Eventor-administratör koppla" });
+  const askText = ask.getByLabel("Texten att skicka");
+  await expect(askText).toHaveValue(/gå till Klubb → Klubbinställningar/);
+  await expect(askText).toHaveValue(new RegExp(`/organizer/clubs/${clubId}#club`));
+  await expect(ask.getByRole("link", { name: "Öppna i e-post" })).toHaveAttribute("href", /^mailto:\?subject=Koppla%20OK%20%C3%84lvsj%C3%B6-%C3%96rby/);
+  await reviewScreenshots(admin, "kom-igang-be-eventor-admin");
+  await ask.getByRole("button", { name: "Stäng" }).click();
+  await expect(ask).toBeHidden();
+  // "Klistra in nyckeln" leder till nyckelfältet under Klubben.
+  await start.getByRole("button", { name: "Klistra in nyckeln" }).click();
+  await expect(admin.getByTestId("club-eventor").getByLabel("Klubbens API-nyckel")).toBeFocused();
+
   // 2. Koppla till Eventor med klubbens nyckel; nyckeln visas aldrig igen.
   const eventor = admin.getByTestId("club-eventor");
   await eventor.getByLabel("Klubbens API-nyckel").fill(FAKE_EVENTOR_OKAO_KEY);
@@ -62,6 +85,17 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await expect(admin.getByTestId("club-eventor-linked")).toHaveText(`Kopplad till Eventor · OK Älvsjö-Örby · nyckel …${FAKE_EVENTOR_OKAO_KEY.slice(-4)}`);
   await expect(admin.getByTestId("club-eventor-counts")).toHaveText("2 medlemmar i Eventor, 0 har O-Tid och är bekräftade");
   expect(await admin.content()).not.toContain(FAKE_EVENTOR_OKAO_KEY);
+  // Kom igång står kvar tills klubbytan har en karta; kopplingen är klar.
+  await expect(start.getByTestId("club-start-eventor")).toHaveAttribute("data-done", "true");
+  await expect(start).toHaveAttribute("data-fresh", "false");
+  await expect(start.getByTestId("club-start-maps")).toHaveAttribute("data-done", "false");
+  await reviewScreenshots(admin, "kom-igang-kopplad");
+  // Kom igång kan döljas (sparas i webbläsaren för klubbytan).
+  await start.getByRole("button", { name: "Dölj Kom igång" }).click();
+  await expect(start).toHaveCount(0);
+  await admin.reload();
+  await expect(admin.getByTestId("club-eventor-badge")).toHaveText("Kopplad till Eventor · OK Älvsjö-Örby");
+  await expect(admin.getByTestId("club-start")).toHaveCount(0);
 
   // Medlemmen registrerar sig och väljer klubben (adressen finns inte i Eventors lista: väntar).
   const member = await registerAccount(browser, `medlem.${suffix}@exempel.se`, `Maja Medlem ${suffix}`);
@@ -91,6 +125,8 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await expect(member.getByTestId("club-eventor-badge")).toHaveText("Kopplad till Eventor · OK Älvsjö-Örby");
   await expect(member.getByText("Arkivet är tomt")).toBeVisible();
   await expect(member.getByRole("tab", { name: "Klubben" })).toHaveCount(0);
+  // Kom igång är bara för ägare och administratörer.
+  await expect(member.getByTestId("club-start")).toHaveCount(0);
 
   // 4. Administratören skapar en tävling i går (arrangörsklubben är förvald) och bjuder in medlemmen "Från klubben".
   await admin.goto("/organizer");

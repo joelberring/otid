@@ -233,9 +233,11 @@ export async function organizerLogoutRoute(
   if ("response" in configured) return configured.response;
   if (!hasExpectedOrigin(request, configured.value)) return organizerFailure(403, "FORBIDDEN");
   if (!await hasNoRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
-  const proof = sessionProof(request, configured.value, true);
+  // Städrundan 2026-11-07: exakt Origin och sessionskakan räcker för att logga ut (utan CSRF-kakan), så att sessionen alltid
+  // spärras på servern. En annan webbplats kan inte sätta Origin, och utloggning ger ingen behörighet.
+  const proof = sessionProof(request, configured.value, false);
   try {
-    const result = await logout(db, { ...proof, requireCsrf: true }, undefined);
+    const result = await logout(db, { ...proof, requireCsrf: false }, undefined);
     if (result.status === "unauthorized") return clearSessionCookies(organizerFailure(401, "UNAUTHORIZED"), configured.value);
     if (result.status === "forbidden") return organizerFailure(403, "FORBIDDEN");
     return clearSessionCookies(new Response(null, { status: 204, headers: privateHeaders }), configured.value);

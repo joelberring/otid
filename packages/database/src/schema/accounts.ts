@@ -75,13 +75,16 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
 /** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */
 export const accountRequestThrottles = pgTable("account_request_throttle", {
   scope: text("scope").$type<"REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL"
-    | "GROUP_CODE_IP" | "MAP_LINK_IP" | "MAP_LINK_TOKEN">().notNull(),
+    | "GROUP_CODE_IP" | "MAP_LINK_IP" | "MAP_LINK_TOKEN" | "INVITATION_RECIPIENT_HOUR" | "INVITATION_RECIPIENT_DAY" | "INVITATION_ISSUER_HOUR"
+    | "INVITATION_ISSUER_DAY">().notNull(),
   keyHash: text("key_hash").notNull(),
   windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
   attempts: integer("attempts").notNull()
 }, (table) => [
   primaryKey({ columns: [table.scope, table.keyHash] }),
-  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL', 'SELF_REGISTRATION_IP', 'SELF_REGISTRATION_RACE', 'VERIFY_EMAIL')`),
+  check("account_request_throttle_scope_check", sql`${table.scope} IN ('REGISTER_IP', 'RESET_IP', 'RESET_EMAIL', 'SELF_REGISTRATION_IP', 'SELF_REGISTRATION_RACE', 'VERIFY_EMAIL',
+    'GROUP_CODE_IP', 'MAP_LINK_IP', 'MAP_LINK_TOKEN', 'INVITATION_RECIPIENT_HOUR', 'INVITATION_RECIPIENT_DAY', 'INVITATION_ISSUER_HOUR',
+    'INVITATION_ISSUER_DAY')`),
   check("account_request_throttle_key_check", sql`${table.keyHash} ~ '^[a-f0-9]{64}$'`),
   check("account_request_throttle_attempts_check", sql`${table.attempts} >= 0`)
 ]);
@@ -112,7 +115,9 @@ export const emailVerificationTokens = pgTable("email_verification_token", {
   verifierHex: text("verifier_hex").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  usedAt: timestamp("used_at", { withTimezone: true })
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  /** Visningsnamnet från registreringen som skapade länken (migration 0084); null = kontots namn. */
+  displayName: text("display_name")
 }, (table) => [
   uniqueIndex("email_verification_token_hash_uidx").on(table.tokenHash),
   index("email_verification_token_account_idx").on(table.accountId, table.createdAt),

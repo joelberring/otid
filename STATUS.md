@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Drift: publika sökvägar, beroenden, hälsokontroll (grenen a2-drift, ingen migration, ingen ny ADR)
+- Caddy: `/g/…` (träningsgrupperna), `/icon.svg`, `/apple-icon.png`, `/manifest.webmanifest` och `/icons/…` till publikens instanser. Listan står en gång i koden (`PUBLIC_PATHS`, `apps/web/src/lib/public-paths.ts`); testet kräver att Caddyfiles `@public` är samma, att varje sida med `publicDb` är publik och att inget av admin, konto, arbetsytan eller deras API:er är det. ADR-0177 har en mening om det.
+- Beroenden: `@playwright/test` 1.55.0 → 1.65.0 (GHSA-7mvr-c777-76hp, hög), next 16.4.5, pg 8.23.1, jose 6.2.15. `pnpm audit` 19 → 18 fynd (kvar: vitest/tinypool/vite, brace-expansion, minimatch i utvecklingsverktygen).
+- Hälsokontrollen i `docker-compose.prod.yml`: web, web-public och web-public2 frågar `/api/health` var 30:e sekund (timeout 5 s, start_period 120 s, retries 10) i stället för `/organizer` och `/om` var 5:e. `up -d` väntar därför upp till ~30 s längre på varje steg (web, sedan publikens instanser).
+- docs/drift.md: Caddyfile-ändringar kräver `docker compose -f docker-compose.prod.yml restart caddy` (filen är monterad som enskild fil); tabell över miljövariablerna som saknas i `prod.env.example`.
+- Servern: `git pull && dc pull && dc up -d && dc restart caddy` räcker; inget mer krävs.
+
 ### 2026-11-05 – Länken till kartritaren och redigera egna notiser (grenen kartritare-lank, ADR-0214, migration 0083)
 - Kartfel → "Dela med kartritaren" (den som får ändra): länk med 256-bitars nyckel, bara hashen sparas, visas en gång med "Kopiera länken"; "Begränsa tiden" (förslag tävlingsdagen + 7), "Visa tävlingens namn", "Senast öppnad", "Stäng av länken", "Skapa ny länk".
 - `/kartfel/<nyckel>` utan konto: kartan (kartfilen ritas i webbläsaren) med kartfelen och löpnummer, listan, tråden, svar, "Åtgärdat i kartan"/"Inte åtgärdat", "Min position". Inga banor, kontroller, foton eller deltagare. Ogiltig/avstängd/utgången länk: samma besked.

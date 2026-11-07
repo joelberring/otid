@@ -115,8 +115,8 @@ describe("ADR-0216: serverrapporten och larmen", () => {
     const report = sent.at(-1)!.message;
     expect(report.subject).toMatch(/^O-Tid test: veckorapport vecka \d+/);
     expect(report.text).toContain("larm (säkerhetskopian)");
-    expect(report.text).toContain("Kommande 14 dagar: 1 tävlingar (0 publicerade)");
-    expect(report.text).toContain("1 dumpar");
+    expect(report.text).toContain("Kommande 14 dagar: 1 tävling (0 publicerade)");
+    expect(report.text).toContain("1 dump ");
     expect(report.text).not.toContain(superadmin.email);
 
     const rows = await pool.query<{ samples: number; log: string[] }>(`select (select count(*)::int from server_sample) as samples,

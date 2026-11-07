@@ -34,9 +34,10 @@ x-backup-environment: &backup-environment
   PGDATABASE: otid
   BACKUP_DIR: /backups
   TZ: Europe/Stockholm
-  # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23); de 48 senaste och en dagsbackup i 14 dagar.
+  # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23) och en dagsbackup i 14 dagar. ADR-0216: de 24 senaste
+  # timdumparna (tidigare 48); kartinnehållet sparas en gång i ./backups/map-content i stället för i varje dump.
   BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
-  BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-48}
+  BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-24}
   BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
   # Valfri krypterad kopia utanför servern med restic (docs/drift.md, Kopia utanför servern). Tomt = ingen kopia.
   RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
@@ -154,7 +155,23 @@ services:
       OTID_RETENTION_MONTHS: ${OTID_RETENTION_MONTHS:-}
       OTID_INSTANCE_ROLE: competition
       NODE_OPTIONS: --max-old-space-size=768
+      # ADR-0216: serverns bevakning i web – veckorapport (söndag kl. 19) och larm till superadmin via e-posten ovan. Allt har
+      # förval; tomt = förvalet. OTID_SERVER_REPORT=off / OTID_SERVER_ALERTS=off stänger av, OTID_SERVER_WATCH=off allt.
+      OTID_SERVER_WATCH: ${OTID_SERVER_WATCH:-}
+      OTID_SERVER_REPORT: ${OTID_SERVER_REPORT:-}
+      OTID_SERVER_REPORT_DAY: ${OTID_SERVER_REPORT_DAY:-}
+      OTID_SERVER_REPORT_HOUR: ${OTID_SERVER_REPORT_HOUR:-}
+      OTID_SERVER_ALERTS: ${OTID_SERVER_ALERTS:-}
+      OTID_HEALTH_INTERVAL_MINUTES: ${OTID_HEALTH_INTERVAL_MINUTES:-15}
+      OTID_DISK_ALERT_PERCENT: ${OTID_DISK_ALERT_PERCENT:-80}
+      OTID_BACKUP_ALERT_HOURS: ${OTID_BACKUP_ALERT_HOURS:-}
+      OTID_MEMORY_ALERT_PERCENT: ${OTID_MEMORY_ALERT_PERCENT:-}
+      OTID_MAP_QUOTA_ALERT_PERCENT: ${OTID_MAP_QUOTA_ALERT_PERCENT:-}
     command: ["node", "apps/web/server.js"]
+    # ADR-0216: säkerhetskopiorna (storlek och ålder) och hälsokontrollens resultat (./status/monitor.log), skrivskyddat.
+    volumes:
+      - ./backups:/backups:ro
+      - ./status:/status:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -270,7 +287,7 @@ services:
 
   # ADR-0186: hälsokontrollen var 15:e minut – webben och databasen (/api/health), publikens instanser, utskriftskön, disken
   # (larm över 80 %) och att den senaste dumpen är färsk. Pingar OTID_HEARTBEAT_HEALTH_URL när allt är bra och .../fail med
-  # beskrivningen annars; skriver alltid i loggen (`logs monitor`).
+  # beskrivningen annars; skriver alltid i loggen (`logs monitor`) och (ADR-0216) i ./status/monitor.log till web.
   monitor:
     logging: *logging
     image: *backup-image
@@ -290,6 +307,8 @@ services:
     volumes:
       - ./backups:/backups:ro
       - ./deploy/monitor.sh:/monitor.sh:ro
+      # ADR-0216: en rad per kontroll i ./status/monitor.log, som web läser (larm efter tre misslyckade i rad).
+      - ./status:/status
     entrypoint: ["/bin/sh", "/monitor.sh"]
 
 volumes:

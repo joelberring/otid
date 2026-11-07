@@ -385,7 +385,7 @@ export function weeklyReport(snapshot: ServerSnapshot, history: WeeklyHistory, s
   const backups = snapshot.backups;
   if (!backups) lines.push("- Katalogen backups syns inte för webben (se docs/drift.md, Serverrapport och larm).");
   else {
-    lines.push(`- Totalt ${bytes(backups.totalBytes)}: ${backups.dumps} dumpar ${bytes(backups.dumpBytes)}, kartinnehåll ${bytes(backups.mapContentBytes)}.`);
+    lines.push(`- Totalt ${bytes(backups.totalBytes)}: ${count(backups.dumps, "dump", "dumpar")} ${bytes(backups.dumpBytes)}, kartinnehåll ${bytes(backups.mapContentBytes)}.`);
     const status = backups.status ? `${backups.status.ok ? "lyckades" : "MISSLYCKADES"} ${dateTime(backups.status.at)}` : null;
     lines.push(`- Senaste dump: ${backups.newestAt ? dateTime(backups.newestAt) : "ingen"}${status ? `; senaste körningen ${status}` : ""}.`);
   }
@@ -393,8 +393,9 @@ export function weeklyReport(snapshot: ServerSnapshot, history: WeeklyHistory, s
 
   const counts = snapshot.counts;
   lines.push("ANVÄNDNING",
-    `- ${counts.accounts} konton (${counts.accountsNew} nya senaste veckan), ${counts.clubs} klubbar, ${counts.events} evenemang med ${counts.races} tävlingar.`,
-    `- Kommande 14 dagar: ${counts.upcomingRaces} tävlingar (${counts.upcomingPublished} publicerade), ${counts.upcomingEntries} anmälda` +
+    `- ${count(counts.accounts, "konto", "konton")} (${counts.accountsNew} nya senaste veckan), ${count(counts.clubs, "klubb", "klubbar")}, ` +
+      `${counts.events} evenemang med ${count(counts.races, "tävling", "tävlingar")}.`,
+    `- Kommande 14 dagar: ${count(counts.upcomingRaces, "tävling", "tävlingar")} (${counts.upcomingPublished} publicerade), ${counts.upcomingEntries} anmälda` +
       `${counts.upcomingRaces > 0 ? `, störst ${counts.upcomingMaxEntries} anmälda` : ""}.`, "");
 
   lines.push("LARM OCH FEL SENASTE VECKAN");
@@ -419,6 +420,8 @@ export function weeklyReport(snapshot: ServerSnapshot, history: WeeklyHistory, s
   const cpus = snapshot.load?.cpus ?? 2;
   if (peak) {
     lines.push(`- Högsta belastning (1 min): ${number(peak.loadMax!)} ${dateTime(peak.loadMaxAt ?? peak.at)} (${cpus} kärnor; ${cpus} = fullt utnyttjad).`);
+  } else if (snapshot.load) {
+    lines.push(`- Belastning just nu (1 min): ${number(snapshot.load.max)} (${cpus} kärnor); topparna kommer när bevakningen har mätt en vecka.`);
   } else lines.push("- Inga mätningar av belastningen ännu.");
   const lowest = week7.filter(row => row.memoryAvailableMinBytes !== null && row.memoryTotalBytes)
     .sort((a, b) => a.memoryAvailableMinBytes! - b.memoryAvailableMinBytes!)[0];
@@ -431,6 +434,8 @@ export function weeklyReport(snapshot: ServerSnapshot, history: WeeklyHistory, s
 }
 
 // ---- Format
+
+const count = (value: number, one: string, many: string) => `${value} ${value === 1 ? one : many}`;
 
 const one = new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 1, minimumFractionDigits: 0 });
 export function number(value: number): string {

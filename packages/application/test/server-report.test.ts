@@ -198,7 +198,7 @@ describe("prognosen och rapporten", () => {
     expect(text).toContain("för få mätningar ännu");
     expect(text).toContain("Katalogen backups syns inte");
     expect(text).toContain("- Inga larm.");
-    expect(text).toContain("Inga mätningar av belastningen ännu");
+    expect(text).toContain("Belastning just nu (1 min): 0,4");
   });
 
   it("en disk som knappt växer behöver ingen större disk", () => {

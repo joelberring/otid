@@ -1,12 +1,12 @@
 /**
  * ADR-0217 beslut 8: sparade lägen. Ett läge är en namngiven ögonblicksbild av allt i Layout-fliken: layouterna, arken
  * (huvudlayoutens tryckytor och papper och de andra layouternas ark med justeringar), klassernas val, mallarna och
- * färgprofilen (vald profil och tävlingens kopia). Banorna ingår inte. "Återställ" är en vanlig ändring (kan ångras) och
+ * färgprofilen (vald profil och tävlingens egna profiler). Banorna ingår inte. "Återställ" är en vanlig ändring (kan ångras) och
  * "Jämför" säger vad som skiljer.
  */
 import type { LayoutTemplate } from "./layout-template";
 import type { CoursePaperLayout, PaperTemplate } from "./paper-items";
-import { BUILT_IN_PRINT_PROFILES, type PrintProfile } from "./print-profile";
+import type { PrintProfile } from "./print-profile";
 import { MAIN_LAYOUT, type LayoutSheet, type MainLayoutSettings, type PrintLayout } from "./print-layouts";
 import type { CourseSettingDocument, PrintArea } from "./types";
 
@@ -33,8 +33,8 @@ export interface LayoutState {
   readonly mainAreas: Readonly<Record<string, LayoutStateAreas>>;
   readonly allControlsArea?: PrintArea | undefined;
   readonly printProfileId?: string | undefined;
-  /** Tävlingens kopia av den valda profilen (inte en färdig). */
-  readonly printProfile?: PrintProfile | undefined;
+  /** Tävlingens egna profiler (kopiorna med besluten; de färdiga ändras aldrig). */
+  readonly printProfiles?: readonly PrintProfile[] | undefined;
 }
 
 /** Händelsens fält som ett läge sätter (saknas i läget = tas bort). */
@@ -46,11 +46,9 @@ export function snapshotLayoutState(document: CourseSettingDocument, meta: { id:
   const fields = Object.fromEntries(STATE_EVENT_FIELDS.flatMap(key => event[key] !== undefined ? [[key, event[key]]] : []));
   const mainAreas = Object.fromEntries(document.courses.map(course => [course.id, {
     ...(course.printArea ? { printArea: course.printArea } : {}), ...(course.partPrintAreas ? { partPrintAreas: course.partPrintAreas } : {}) }]));
-  const builtIn = BUILT_IN_PRINT_PROFILES.some(profile => profile.id === event.printProfileId);
-  const profile = builtIn ? undefined : event.printProfiles?.find(item => item.id === event.printProfileId);
   return { id: meta.id, name: meta.name, savedAt: meta.savedAt, ...(meta.source ? { source: meta.source } : {}), ...fields, mainAreas,
     ...(event.printArea ? { allControlsArea: event.printArea } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
-    ...(profile ? { printProfile: profile } : {}) };
+    ...(event.printProfiles && event.printProfiles.length > 0 ? { printProfiles: event.printProfiles } : {}) };
 }
 
 /** Dokumentet med läget återställt. Banor som inte fanns när läget sparades rörs inte; övriga profiler står kvar. */
@@ -63,10 +61,12 @@ export function restoreLayoutState(document: CourseSettingDocument, state: Layou
   if (state.allControlsArea) event.printArea = state.allControlsArea;
   else delete event.printArea;
   if (state.printProfileId) event.printProfileId = state.printProfileId;
-  if (state.printProfile) {
-    const profiles = document.event.printProfiles ?? [];
-    event.printProfiles = profiles.some(item => item.id === state.printProfile!.id)
-      ? profiles.map(item => item.id === state.printProfile!.id ? state.printProfile! : item) : [...profiles, state.printProfile];
+  // Lägets egna profiler som de var; profiler som gjorts efter läget står kvar.
+  if (state.printProfiles && state.printProfiles.length > 0) {
+    const saved = new Map(state.printProfiles.map(profile => [profile.id, profile]));
+    const current = document.event.printProfiles ?? [];
+    event.printProfiles = [...current.map(profile => saved.get(profile.id) ?? profile),
+      ...state.printProfiles.filter(profile => !current.some(item => item.id === profile.id))];
   }
   const courses = document.courses.map(course => {
     const areas = state.mainAreas[course.id];
@@ -129,6 +129,8 @@ export function compareLayoutState(document: CourseSettingDocument, state: Layou
     if (from !== to) out.push({ kind: "CLASS", className, from, to });
   }
   if (!same(state.paperTemplates, now.paperTemplates) || !same(state.layoutTemplates, now.layoutTemplates)) out.push({ kind: "TEMPLATES" });
-  if (state.printProfileId !== now.printProfileId || !same(state.printProfile, now.printProfile)) out.push({ kind: "PROFILE" });
+  const ownBefore = new Map((state.printProfiles ?? []).map(profile => [profile.id, profile]));
+  const profileChanged = [...ownBefore].some(([id, profile]) => !same(profile, (now.printProfiles ?? []).find(item => item.id === id)));
+  if (state.printProfileId !== now.printProfileId || profileChanged) out.push({ kind: "PROFILE" });
   return out;
 }

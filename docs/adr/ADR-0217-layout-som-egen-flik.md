@@ -38,7 +38,7 @@ en skala, en tryckyta och ett papper per bana, och papperet redigeras på utskri
    `SET_CLASS_LAYOUTS`, `SAVE_LAYOUT_STATE`, `RESTORE_LAYOUT_STATE`, `DELETE_LAYOUT_STATE`; `SET_PRINT_AREA`,
    `SET_PAPER_LAYOUT` och `MOVE_NUMBER` har `printLayout` för ett ark i en annan layout än huvudlayouten.
 8. **Sparat läge** (`event.layoutStates[]`): namngiven ögonblicksbild av layouterna, arken (också huvudlayoutens tryckytor
-   och papper), justeringarna, klassernas val, mallarna och färgprofilen (vald profil och tävlingens kopia). Inte banorna.
+   och papper), justeringarna, klassernas val, mallarna och färgprofilen (`printProfileId` och tävlingens egna profiler). Inte banorna.
    "Återställ" är en ändring som kan ångras; "Jämför" listar layouter, ark och klasser som skiljer. Vid inläsning av en .ppen
    görs läget "Från Purple Pen" automatiskt (ersätter det förra).
 9. **Gamla dokument** läses utan migration: saknade fält = bara huvudlayouten, och utskriften är identisk (golden-test på ark

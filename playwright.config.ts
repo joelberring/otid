@@ -62,7 +62,7 @@ export default defineConfig({
       env: { ...process.env, DATABASE_URL: database!, O_TID_PUBLIC_ORIGIN: origin,
         OTID_EVENTOR_MASTER_KEY: randomBytes(32).toString("base64"), OTID_EVENTOR_BASE_URL: `http://127.0.0.1:${eventorPort}`,
         OTID_SMTP_URL: `smtp://127.0.0.1:${smtpPort}`, OTID_MAIL_FROM: "O-Tid test <noreply@o-tid.test>",
-        OTID_REGISTRATION_LIMIT_PER_HOUR: "1000", OTID_ROC_BASE_URL: `http://127.0.0.1:${rocPort}`,
+        OTID_REGISTRATION_LIMIT_PER_HOUR: "1000", OTID_SERVER_WATCH: "off", OTID_ROC_BASE_URL: `http://127.0.0.1:${rocPort}`,
         OTID_GOOGLE_CLIENT_ID: "otid-e2e.apps.googleusercontent.com", OTID_GOOGLE_CLIENT_SECRET: "endast-for-test",
         OTID_GOOGLE_BASE_URL: `http://127.0.0.1:${googlePort}`, OTID_GOOGLE_AUTHORIZE_URL: `http://127.0.0.1:${googlePort}/auth` }
     }

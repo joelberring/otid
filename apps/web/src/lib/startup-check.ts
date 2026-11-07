@@ -1,4 +1,4 @@
-import { mapStorageQuotaProblems, retentionSettingsProblems } from "@o-tid/application";
+import { mapStorageQuotaProblems, retentionSettingsProblems, serverWatchSettingsProblems } from "@o-tid/application";
 import { mailConfiguration } from "./mail";
 import { SecurityConfigurationError, securityPolicy } from "./security-policy";
 
@@ -34,6 +34,7 @@ export function configurationProblems(environment: Partial<Record<string, string
   problems.push(...mapStorageQuotaProblems(environment).map(problem => `${problem}.`));
   // ADR-0189 beslut 6: gallringen.
   problems.push(...retentionSettingsProblems(environment).map(problem => `${problem}.`));
+  problems.push(...serverWatchSettingsProblems(environment).map(problem => `${problem}.`));
   return problems;
 }
 

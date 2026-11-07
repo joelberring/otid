@@ -108,7 +108,9 @@ describe("ADR-0205 tillägg: Koppla Google-konto", () => {
     const value = serializeGoogleMovePending(pending, "hemlighet");
     expect(parseGoogleMovePending(value, new Date(), "hemlighet")).toEqual(pending);
     expect(parseGoogleMovePending(value, new Date(), "en-annan")).toBeUndefined();
-    expect(parseGoogleMovePending(`${value.slice(0, 10)}A${value.slice(11)}`, new Date(), "hemlighet")).toBeUndefined();
+    // Byt ett tecken mot ett annat (aldrig samma tecken, annars är värdet oförändrat).
+    const flipped = value[10] === "A" ? "B" : "A";
+    expect(parseGoogleMovePending(`${value.slice(0, 10)}${flipped}${value.slice(11)}`, new Date(), "hemlighet")).toBeUndefined();
     expect(parseGoogleMovePending(value, new Date(Date.now() + 120_000), "hemlighet")).toBeUndefined();
     expect(await moveGoogleLinkToAccount(db, { proof: other.proof, pending, password: TEST_PASSWORD })).toEqual({ status: "session-mismatch" });
   }, 60_000);

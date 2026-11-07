@@ -23,7 +23,7 @@
     "@o-tid/roc": "workspace:*",
     "@o-tid/sportident": "workspace:*",
     "drizzle-orm": "0.45.4",
-    "jose": "6.2.12"
+    "jose": "6.2.15"
   },
   "devDependencies": { "tsx": "4.20.5" }
 }

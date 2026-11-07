@@ -7,6 +7,9 @@
 #   - backupen: den senaste dumpen i ./backups/hourly får inte vara äldre än två intervall.
 # När allt är bra pingas OTID_HEARTBEAT_HEALTH_URL; annars pingas .../fail med vad som är fel. Uteblir pingarna (servern eller
 # tjänsten är nere) larmar bevakningstjänsten själv. Loggen (`logs monitor`) säger alltid vad som kontrollerades.
+# ADR-0216: varje kontroll skrivs också som en rad i $OTID_STATUS_DIR/monitor.log (förval /status, ./status på servern, de
+# senaste 1 000 raderna): `<epok>\t<ok|fail>\t<koder>\t<text>`. Webben läser filen (skrivskyddat) och mejlar superadmin när
+# kontrollen misslyckats tre gånger i rad, och veckorapporten räknar de misslyckade. Saknas katalogen skrivs ingen fil.
 #
 #   sh /monitor.sh          tjänsten (kör tills den stoppas)
 #   sh /monitor.sh once     en kontroll nu, sedan klart (avslutas med fel om något är fel)
@@ -20,34 +23,49 @@ backup_interval="${BACKUP_INTERVAL_MINUTES:-60}"
 case "$backup_interval" in ''|*[!0-9]*) backup_interval=60 ;; esac
 web="${OTID_MONITOR_WEB:-http://web:3000}"
 publics="${OTID_MONITOR_PUBLIC:-http://web-public:3000 http://web-public2:3000}"
+status_dir="${OTID_STATUS_DIR:-/status}"
+
+# Raden till webbens serverbevakning (ADR-0216); tabbar och radbrytningar i texten blir mellanslag.
+record() {
+  [ -d "$status_dir" ] && [ -w "$status_dir" ] || return 0
+  file="$status_dir/monitor.log"
+  printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$1" "$2" "$(printf '%s' "$3" | tr '\t\n' '  ')" >> "$file"
+  if [ "$(wc -l < "$file")" -gt 1200 ]; then
+    tail -n 1000 "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+  fi
+}
 
 check() {
   problems=""
-  add() { problems="${problems}${problems:+; }$1"; }
-  health=$(curl -fsS -m 10 "$web/api/health" 2>/dev/null) || { add "webben eller databasen svarar inte ($web/api/health)"; health=""; }
+  codes=""
+  # add <kod> <text>: koden (web, db, print, public, disk, backup) säger webben vilket slags fel det är.
+  add() { problems="${problems}${problems:+; }$2"; case ",$codes," in *",$1,"*) ;; *) codes="${codes}${codes:+,}$1" ;; esac; }
+  health=$(curl -fsS -m 10 "$web/api/health" 2>/dev/null) || { add web "webben eller databasen svarar inte ($web/api/health)"; health=""; }
   if [ -n "$health" ]; then
-    case "$health" in *'"database":true'*) ;; *) add "webben når inte databasen" ;; esac
+    case "$health" in *'"database":true'*) ;; *) add db "webben når inte databasen" ;; esac
     waiting=$(printf '%s' "$health" | sed -n 's/.*"oldestQueuedSeconds":\([0-9]*\).*/\1/p')
-    if [ -n "$waiting" ] && [ "$waiting" -gt 900 ]; then add "ett utskriftsjobb har väntat $((waiting / 60)) min (står utskriftsarbetaren still?)"; fi
+    if [ -n "$waiting" ] && [ "$waiting" -gt 900 ]; then add print "ett utskriftsjobb har väntat $((waiting / 60)) min (står utskriftsarbetaren still?)"; fi
   fi
   for base in $publics; do
-    curl -fsS -m 10 -o /dev/null "$base/om" 2>/dev/null || add "publikens instans svarar inte ($base)"
+    curl -fsS -m 10 -o /dev/null "$base/om" 2>/dev/null || add public "publikens instans svarar inte ($base)"
   done
   used=$(df -P "$dir" 2>/dev/null | awk 'NR==2 { gsub("%", "", $5); print $5 }')
-  if [ -z "$used" ]; then add "diskens fyllnadsgrad kunde inte läsas"
-  elif [ "$used" -gt "$disk_limit" ]; then add "disken är ${used} % full (gräns ${disk_limit} %)"; fi
+  if [ -z "$used" ]; then add disk "diskens fyllnadsgrad kunde inte läsas"
+  elif [ "$used" -gt "$disk_limit" ]; then add disk "disken är ${used} % full (gräns ${disk_limit} %)"; fi
   newest=$(find "$dir/hourly" -maxdepth 1 -type f -name 'otid-*.dump' -exec stat -c %Y {} \; 2>/dev/null | sort -n | tail -n 1)
-  if [ -z "$newest" ]; then add "ingen dump i $dir/hourly"
+  if [ -z "$newest" ]; then add backup "ingen dump i $dir/hourly"
   else
     age=$(( $(date +%s) - newest ))
-    if [ "$age" -gt $((backup_interval * 120 + 600)) ]; then add "senaste dumpen är $((age / 60)) min gammal"; fi
+    if [ "$age" -gt $((backup_interval * 120 + 600)) ]; then add backup "senaste dumpen är $((age / 60)) min gammal"; fi
   fi
   if [ -z "$problems" ]; then
     echo "Hälsokontroll ok $(date +%FT%T%z): webben, databasen, publiken, utskriftskön, disken ${used:-?} %, backupen."
+    record ok "" "disken ${used:-?} %"
     [ -n "${OTID_HEARTBEAT_HEALTH_URL:-}" ] && { curl -fsS -m 10 --retry 3 -o /dev/null "$OTID_HEARTBEAT_HEALTH_URL" || echo "Bevakningens ping misslyckades." >&2; }
     return 0
   fi
   echo "HÄLSOKONTROLL MISSLYCKADES $(date +%FT%T%z): $problems" >&2
+  record fail "$codes" "$problems"
   [ -n "${OTID_HEARTBEAT_HEALTH_URL:-}" ] && { curl -fsS -m 10 --retry 3 -o /dev/null --data-raw "$problems" "$OTID_HEARTBEAT_HEALTH_URL/fail" || echo "Bevakningens ping misslyckades." >&2; }
   return 1
 }

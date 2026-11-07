@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyEdit, RUNNER_BACK, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, CourseSettingEditError, fillPlaceholders, gridTemplate, layoutTemplateSheets,
-  mapColorAdjust, parseLayoutTemplate, parsePrintProfile, readPpen, sourceMapColors, toPage, writePpen, type PrintProfile
+  applyEdit, RUNNER_BACK, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, colorPreflight, CourseSettingEditError, fillPlaceholders, gridTemplate, sheetLayoutSheets,
+  mapColorAdjust, parseSheetLayout, parsePrintProfile, readPpen, sourceMapColors, toPage, writePpen, type PrintProfile
 } from "../src";
 import { lineCourse } from "./build";
 
@@ -62,7 +62,7 @@ describe("utskriftsprofilen (steg 64, ADR-0183)", () => {
     expect(() => applyEdit(b.document, { type: "PUT_PRINT_PROFILE", profile: office })).toThrow(/inbyggd/);
     b.edit({ type: "PUT_PRINT_PROFILE", profile: { ...office, id: "kontoret", name: "Kontoret" } });
     b.edit({ type: "SET_EVENT", changes: { printProfileId: "kontoret" } });
-    b.edit({ type: "PUT_LAYOUT_TEMPLATE", template: { ...BUILT_IN_TEMPLATES[1]!, id: "mina", name: "Mina" } });
+    b.edit({ type: "PUT_LAYOUT_TEMPLATE", template: { ...BUILT_IN_SHEET_LAYOUTS[1]!, id: "mina", name: "Mina" } });
     expect(b.document.event.printProfiles?.map(profile => profile.id)).toEqual(["kontoret"]);
     expect(b.document.event.layoutTemplates?.map(template => template.id)).toEqual(["mina"]);
     expect(writePpen(b.document)).not.toContain("kontoret");
@@ -76,9 +76,9 @@ describe("layoutmallen (paperspace, steg 64)", () => {
   it("fyra kartor per A4: fyll sidan i ordning, ramarnas transform och skärmarker", () => {
     const { b, course } = lineCourse(3);
     const other = b.course("B");
-    const template = BUILT_IN_TEMPLATES.find(item => item.id === "a4-four")!;
+    const template = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-four")!;
     const items = [{ course }, { course: other }, { course }, { course: other }, { course }];
-    const sheets = layoutTemplateSheets(b.document, template, items, { mode: "FILL" });
+    const sheets = sheetLayoutSheets(b.document, template, items, { mode: "FILL" });
     expect(sheets.map(sheet => sheet.frames.length)).toEqual([4, 1]);
     const frame = sheets[0]!.frames[0]!;
     // Ramen är kartans utsnitt i 1:10 000 (kartans mm = papperets mm).
@@ -91,17 +91,17 @@ describe("layoutmallen (paperspace, steg 64)", () => {
     expect(sheets[0]!.texts.map(text => text.text.split(" ")[0])).toEqual(["A", "B", "A", "B"]);
     expect(sheets[0]!.texts[0]!.text).toMatch(/^A {2}\d+,\d km {2}1:10 000$/);
     // Upprepa: varje bana i alla ramar på sitt eget ark.
-    expect(layoutTemplateSheets(b.document, template, [{ course }], { mode: "REPEAT" })[0]!.frames.map(row => row.course)).toEqual([course, course, course, course]);
+    expect(sheetLayoutSheets(b.document, template, [{ course }], { mode: "REPEAT" })[0]!.frames.map(row => row.course)).toEqual([course, course, course, course]);
   });
 
   it("platshållare, logotyp, beskrivning, remsan och baksidan per löpare", () => {
     const { b, course } = lineCourse(3);
     const runner = { kind: "RUNNER" as const, name: "Anna Andersson", club: "OK Ravinen", className: "D21", startTime: "18:32", startNumber: 112 };
-    const strip = BUILT_IN_TEMPLATES.find(item => item.id === "a4-strip")!;
+    const strip = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-strip")!;
     const template = { ...strip, texts: [{ x: 10, y: 15, text: "{tävling} {datum}", sizeMm: 5 }],
       images: [{ x: 170, y: 8, width: 30, height: 12, mediaType: "image/png", data: "iVBORw0KGgo=" }],
       descriptions: [{ frame: 0, x: 150, y: 30, boxMm: 5 }] };
-    const sheets = layoutTemplateSheets(b.document, template, [{ course, runner }, { course, runner: { kind: "RESERVE" as const, name: null, className: "D21",
+    const sheets = sheetLayoutSheets(b.document, template, [{ course, runner }, { course, runner: { kind: "RESERVE" as const, name: null, className: "D21",
       startTime: null, startNumber: null } }], { mode: "FILL", date: "2026-12-09", duplexBacks: true });
     expect(sheets.map(sheet => sheet.back === true)).toEqual([false, true, false, true]);
     const front = sheets[0]!;
@@ -120,8 +120,8 @@ describe("layoutmallen (paperspace, steg 64)", () => {
 
   it("avvisar okänd schemaVersion och fel delar", () => {
     const template = gridTemplate("x", "X", "A5", false, 1, 1);
-    expect(parseLayoutTemplate(JSON.stringify(template))).toEqual(template);
-    expect(() => parseLayoutTemplate(JSON.stringify({ ...template, schemaVersion: 9 }))).toThrow(/schemaVersion/);
-    expect(() => parseLayoutTemplate(JSON.stringify({ ...template, frames: [{ x: 0, y: 0, width: -1, height: 2 }] }))).toThrow(/rektangel/);
+    expect(parseSheetLayout(JSON.stringify(template))).toEqual(template);
+    expect(() => parseSheetLayout(JSON.stringify({ ...template, schemaVersion: 9 }))).toThrow(/schemaVersion/);
+    expect(() => parseSheetLayout(JSON.stringify({ ...template, frames: [{ x: 0, y: 0, width: -1, height: 2 }] }))).toThrow(/rektangel/);
   });
 });

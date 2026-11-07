@@ -1,7 +1,7 @@
 /**
  * Steg 65: banpåtrycket (`OverprintPrimitive` i kartans mm) och kontrollbeskrivningarna (`DescriptionLayout` i mm med y
  * nedåt) som PDF-operatorer, med samma mått som förhandsvisningens SVG (`apps/web/src/lib/course-setting-print.ts`).
- * Ingenting räknas om: figurerna kommer ur `layoutTemplateSheets`/`layoutCoursePage` som de är.
+ * Ingenting räknas om: figurerna kommer ur `sheetLayoutSheets`/`layoutCoursePage` som de är.
  */
 import { circleArcs, type DescriptionLayout, type DescriptionSymbol, type OverprintPrimitive, type SymbolShape } from "@o-tid/course-setting";
 import { num, type Content } from "./content";

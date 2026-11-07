@@ -24,7 +24,7 @@ kod är tagen ur PDFsharp eller andra tredjepartsbibliotek; idéerna kommer ur m
    BLOCKING per regel: träff, avvikande CMYK, "behöver bekräftas" (namnet stämmer inte exakt, arrangören bekräftar),
    "tvetydig" (flera kandidater) och fel ordning. Den ändrar ingenting. Webbläsarens utskrift kan inte dekorfärger,
    övertryck, PDF/X eller ICC; kontrollen säger det när profilen kräver det.
-3. **Layoutmall** (`LayoutTemplate`, `schemaVersion` 1) är papperet som "paperspace": papper och riktning, marginal, en
+3. **Layoutmall** (`SheetLayout`, `schemaVersion` 1) är papperet som "paperspace": papper och riktning, marginal, en
    eller flera kartramar, texter med platshållare ({tävling} {bana} {variant} {längd} {stigning} {skala} {datum} {klasser}
    {löpare} {klubb} {klass} {starttid} {startnummer}), logotyp som bild (högst 300 kB), beskrivningens plats och rutstorlek,
    remsa för rullad karta (kant och bredd valbara) och skärmarker. Samma mall gäller alla valda banor. Mallarna sparas per

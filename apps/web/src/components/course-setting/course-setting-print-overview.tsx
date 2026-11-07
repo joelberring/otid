@@ -52,7 +52,7 @@ export function PrintOverview({ cards, thumb, selected, onOpen, templates, readO
         <button type="button" className={styles.open} onClick={() => onOpen(card)} aria-label={text.open(card.label)} data-testid="print-card-open">
           <span className={styles.thumb} aria-hidden="true">{thumb(card)}</span>
           <span className={styles.title}>{card.label}</span>
-          <span className={styles.facts}>{[card.scale ? `1:${thousands(card.scale)}` : "", card.paper, card.layoutTemplate ? text.layout(card.layoutTemplate) : ""]
+          <span className={styles.facts}>{[card.scale ? `1:${thousands(card.scale)}` : "", card.paper, card.sheetLayout ? text.layout(card.sheetLayout) : ""]
             .filter(Boolean).join(" · ")}</span>
           <span className={styles.badges}>
             {card.paperTemplate && <span className={styles.badge} data-testid="print-card-template">{text.follows(card.paperTemplate)}</span>}

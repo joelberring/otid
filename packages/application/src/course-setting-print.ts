@@ -6,7 +6,7 @@ import {
 import { paperImageHashes, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import { courseSettingRead, courseSettingWrite, loadRow, type Failure, type ReadProof } from "./course-setting";
-import { layoutTemplateFor, PrintJobError, printProfileFor, renderPrintJob } from "./course-setting-print-render";
+import { sheetLayoutFor, PrintJobError, printProfileFor, renderPrintJob } from "./course-setting-print-render";
 import type { RaceSessionProof } from "./race-session";
 import { sha256Hex } from "./serialization";
 import { rowContent } from "./map-content";
@@ -104,7 +104,7 @@ export async function createPrintJobAsAdmin(db: Database, input: RaceSessionProo
     let profile;
     try { profile = printProfileFor(document, request); } catch (error) { return problem("INVALID_PROFILE", (error as Error).message); }
     if (request.layout.kind === "TEMPLATE") {
-      try { layoutTemplateFor(document, request.layout.template); } catch (error) { return problem("INVALID_TEMPLATE", (error as Error).message); }
+      try { sheetLayoutFor(document, request.layout.template); } catch (error) { return problem("INVALID_TEMPLATE", (error as Error).message); }
     }
     const missing = [profile.requirements.pdfX && !PDF_CAPABILITIES.pdfX ? "PDF/X" : "", profile.requirements.icc && !PDF_CAPABILITIES.icc ? "ICC-profil" : ""]
       .filter(Boolean);

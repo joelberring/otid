@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyEdit, BUILT_IN_TEMPLATES, defaultRunnerBack, expandPaperText, layoutCoursePage, layoutTemplateSheets, paperTemplateFromCourse, printSheetGroups,
+  applyEdit, BUILT_IN_SHEET_LAYOUTS, defaultRunnerBack, expandPaperText, layoutCoursePage, sheetLayoutSheets, paperTemplateFromCourse, printSheetGroups,
   runnerBackSheet, RUNNER_BACK, validateRunnerBack, type PaperItem, type RunnerInfo, type Sheet
 } from "../src";
 import { lineCourse } from "./build";
@@ -42,7 +42,7 @@ describe("löparens variabler och baksidan (ADR-0213)", () => {
     const { b, course } = lineCourse(3);
     const document = applyEdit(b.document, { type: "SET_PAPER_LAYOUT", course, layout: { items: [{ ...front, text: "Lag {lagnummer} · Sträcka {sträcka}" }] } }).document;
     const runners = [anna, leg2, { ...anna, name: "Cecilia Carlsson", startNumber: 113, entryId: "e3" }];
-    const template = BUILT_IN_TEMPLATES.find(item => item.id === "a4-one")!;
+    const template = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one")!;
     const groups = printSheetGroups(document, { kind: "TEMPLATE", template, perRunner: true, duplex: true }, runners.map(runner => ({ course, runner })));
     const sheets = groups.flatMap(group => group.sheets);
     expect(sheets.map(sheet => sheet.back === true)).toEqual([false, true, false, true, false, true]);
@@ -66,7 +66,7 @@ describe("löparens variabler och baksidan (ADR-0213)", () => {
     expect(() => validateRunnerBack({ items: [front, front] })).toThrow(/samma id/);
     // Integriteten: dokumentet och mallen har aldrig löparens namn, bara variablerna.
     const withFront = applyEdit(document, { type: "SET_PAPER_LAYOUT", course, layout: { items: [{ ...front, text: "{namn}" }] } }).document;
-    layoutTemplateSheets(withFront, BUILT_IN_TEMPLATES.find(item => item.id === "a4-one")!, [{ course, runner: anna }], { duplexBacks: true });
+    sheetLayoutSheets(withFront, BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one")!, [{ course, runner: anna }], { duplexBacks: true });
     expect(JSON.stringify(withFront)).not.toContain("Anna");
     expect(JSON.stringify(paperTemplateFromCourse(withFront, course, "t", "Mall"))).not.toContain("Anna");
     expect(defaultRunnerBack(true).items.map(item => item.kind === "TEXT" ? item.text : "")).toContain("Lag {lagnummer} · Sträcka {sträcka}");

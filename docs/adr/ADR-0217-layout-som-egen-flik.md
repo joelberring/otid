@@ -29,7 +29,7 @@ en skala, en tryckyta och ett papper per bana, och papperet redigeras på utskri
    inte är justerat följer banläggningen, också när den ändras.
 5. **Utskriften räknar arket genom en projektion** (`layoutDocument(dokument, layout)`): dokumentet med layoutens skala,
    arkets utsnitt med layoutens papper, arkets papper och justeringarna i banans och kontrollernas vanliga fält. Allt efter det
-   (`layoutCoursePage`, `layoutTemplateSheets`, papperet, klippningen, delarna, PDF:en) är oförändrat. `SheetItem.layout` och
+   (`layoutCoursePage`, `sheetLayoutSheets`, papperet, klippningen, delarna, PDF:en) är oförändrat. `SheetItem.layout` och
    PDF-jobbets `items[].layout` säger arkets layout; utan den (eller "MAIN") är resultatet byte för byte som förut.
 6. **Klassens layout** (`event.classLayouts[klassnamn] = layout`): en klass har en layout, reserverna följer klassen. Banan
    kommer från tävlingen som förut. Kartor till starten delar grupperna per bana, variant *och* layout (`group.layout`),

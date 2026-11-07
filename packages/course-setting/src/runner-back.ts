@@ -6,7 +6,7 @@
  */
 import { validatePaperItem, PAPER_LIMITS, type PaperItem } from "./paper-items";
 import { placePaperItem, type SheetPaperItem } from "./paper-sheet";
-import type { RunnerInfo, Sheet } from "./layout-template";
+import type { RunnerInfo, Sheet } from "./sheet-layout";
 import { CourseSettingEditError, type CourseSettingDocument, type RunnerBackLayout } from "./types";
 
 /** `SheetPaperItem.course` för baksidans element (redigeras på arket som en banas element). */

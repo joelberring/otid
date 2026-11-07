@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUILT_IN_TEMPLATES, circleArcs, layoutCoursePage, printSheetGroups, sheetOfPage } from "../src";
+import { BUILT_IN_SHEET_LAYOUTS, circleArcs, layoutCoursePage, printSheetGroups, sheetOfPage } from "../src";
 import { lineCourse } from "./build";
 
 /** Översynen 2026-11-02: arkvalet och ringens bågar finns på ett ställe för förhandsvisningen och PDF:en. */
@@ -25,7 +25,7 @@ describe("printSheetGroups", () => {
 
   it("mallen: alla banor i ramarna (en grupp) eller en löpare per ark", () => {
     const { b, course } = lineCourse(2);
-    const template = BUILT_IN_TEMPLATES[0]!;
+    const template = BUILT_IN_SHEET_LAYOUTS[0]!;
     const all = printSheetGroups(b.document, { kind: "TEMPLATE", template }, [{ course }, { course }]);
     expect(all).toHaveLength(1);
     expect(all[0]!.item).toBeUndefined();

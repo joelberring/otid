@@ -4,7 +4,7 @@
  * Ångra går som för andra ändringar (`objectPatch` på händelsens fält); kollaborationsnycklarna (`layoutEditTouches`) är per
  * layout, ark, kontroll, klass och läge.
  */
-import { BUILT_IN_TEMPLATES } from "./layout-template";
+import { BUILT_IN_SHEET_LAYOUTS } from "./sheet-layout";
 import { validatePaperLayout, type CoursePaperLayout } from "./paper-items";
 import { restoreLayoutState, snapshotLayoutState, type LayoutState } from "./print-layout-states";
 import {
@@ -75,11 +75,11 @@ function checkTemplates(document: CourseSettingDocument, layout: Pick<PrintLayou
   if (layout.paperTemplate !== undefined && !(document.event.paperTemplates ?? []).some(item => item.id === layout.paperTemplate)) {
     throw notFound(`Mallen ${layout.paperTemplate} finns inte`);
   }
-  if (layout.layoutTemplate !== undefined && !layoutTemplateKnown(document, layout.layoutTemplate)) throw notFound(`Layoutmallen ${layout.layoutTemplate} finns inte`);
+  if (layout.layoutTemplate !== undefined && !sheetLayoutKnown(document, layout.layoutTemplate)) throw notFound(`Layoutmallen ${layout.layoutTemplate} finns inte`);
 }
 
-function layoutTemplateKnown(document: CourseSettingDocument, id: string): boolean {
-  return [...BUILT_IN_TEMPLATES, ...(document.event.layoutTemplates ?? [])].some(item => item.id === id);
+function sheetLayoutKnown(document: CourseSettingDocument, id: string): boolean {
+  return [...BUILT_IN_SHEET_LAYOUTS, ...(document.event.layoutTemplates ?? [])].some(item => item.id === id);
 }
 
 const putLayout = (document: CourseSettingDocument, layout: PrintLayout) =>

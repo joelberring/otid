@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  anchorToPaper, applyEdit, editTouches, gridTemplate, layoutCoursePage, layoutOverprint, layoutTemplateSheets, paperAnchorOf, ppenWithPaperLayout,
+  anchorToPaper, applyEdit, editTouches, gridTemplate, layoutCoursePage, layoutOverprint, sheetLayoutSheets, paperAnchorOf, ppenWithPaperLayout,
   readPpen, toPage, writePpen, type CourseSettingDocument
 } from "../src";
 import { lineCourse } from "./build";
@@ -115,7 +115,7 @@ describe("papperet: kontrollbeskrivningen på kartan", () => {
     const other = b.course("B");
     b.insert(other, Object.keys(b.document.controls).find(key => b.document.controls[key]!.kind === "NORMAL")!);
     const template = gridTemplate("two", "Två", "A4", true, 1, 2);
-    const [sheet] = layoutTemplateSheets(b.document, template, [{ course: id }, { course: other }]);
+    const [sheet] = sheetLayoutSheets(b.document, template, [{ course: id }, { course: other }]);
     expect(sheet!.descriptions.map(item => [item.course, item.frame])).toEqual([[id, 0], [other, 1]]);
     for (const item of sheet!.descriptions) {
       const frame = sheet!.frames[item.frame]!;

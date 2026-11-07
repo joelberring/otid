@@ -4,7 +4,7 @@
  * en sida per bana ur `layoutCoursePage`. Arken grupperas per bana (eller per löpare, eller hela mallen), så att
  * förhandsvisningen kan märka dem och säga vilken bana som inte gick; utan `onError` kastas felet.
  */
-import { layoutTemplateSheets, sheetOfPage, type LayoutTemplate, type Sheet, type SheetItem } from "./layout-template";
+import { sheetLayoutSheets, sheetOfPage, type SheetLayout, type Sheet, type SheetItem } from "./sheet-layout";
 import { countCourseParts } from "./course-parts";
 import { layoutCoursePage, type CoursePage } from "./page-layout";
 import type { MapRect, OverprintOptions } from "./types";
@@ -14,10 +14,10 @@ import { effectivePaper } from "./paper-items";
 import { clipMapPasses, clipMarkings, paperClipRing } from "./paper-sheet";
 import { whiteAreasOnFrame } from "./paper-white";
 import { trainingPieceSheets } from "./training-print";
-import { findPrintLayout, layoutDocument, layoutTemplateOfLayout, MAIN_LAYOUT, singleMapTemplate } from "./print-layouts";
+import { findPrintLayout, layoutDocument, sheetLayoutOfLayout, MAIN_LAYOUT, singleMapTemplate } from "./print-layouts";
 
-export type SheetLayout =
-  | { readonly kind: "TEMPLATE"; readonly template: LayoutTemplate; readonly perRunner?: boolean | undefined; readonly duplex?: boolean | undefined;
+export type PrintSheetsLayout =
+  | { readonly kind: "TEMPLATE"; readonly template: SheetLayout; readonly perRunner?: boolean | undefined; readonly duplex?: boolean | undefined;
       readonly fill?: "FILL" | "REPEAT" | undefined }
   /** `duplex` (ADR-0203): en banas delar fram och bak (del 2 på baksidan av del 1), en tom baksida där det behövs. */
   | { readonly kind: "COURSE"; readonly header?: boolean | undefined; readonly duplex?: boolean | undefined }
@@ -48,7 +48,7 @@ export interface SheetGroupOptions {
   readonly runnerPlaceholders?: boolean | undefined;
 }
 
-export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: SheetLayout, items: readonly SheetItem[],
+export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: PrintSheetsLayout, items: readonly SheetItem[],
   options: SheetGroupOptions = {}): SheetGroup[] {
   if (!items.some(item => item.layout !== undefined && item.layout !== MAIN_LAYOUT)) return withMapPasses(document, sheetGroups(document, layout, items, options));
   // ADR-0217: arken per layout. Varje följd av kartor i samma layout läggs ut på dokumentet som utskriften ser det för
@@ -69,7 +69,7 @@ export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0
     }
     const onError = options.onError ? (failed: { item?: number | undefined; error: unknown }) =>
       options.onError!({ item: failed.item === undefined ? undefined : failed.item + offset, error: failed.error }) : undefined;
-    const groups = withMapPasses(projected, sheetGroups(projected, sheetLayoutFor(document, id, layout), run, { ...options, onError }));
+    const groups = withMapPasses(projected, sheetGroups(projected, printSheetsLayoutFor(document, id, layout), run, { ...options, onError }));
     out.push(...groups.map(group => group.item === undefined ? group : { ...group, item: group.item + offset }));
   }
   return out;
@@ -80,10 +80,10 @@ export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0
  * annars en bana per ark på layoutens papper. En karta per löpare utan "Kartor per ark" får en karta på layoutens papper
  * med utskriftens remsa.
  */
-function sheetLayoutFor(document: Parameters<typeof layoutCoursePage>[0], id: string, chosen: SheetLayout): SheetLayout {
+function printSheetsLayoutFor(document: Parameters<typeof layoutCoursePage>[0], id: string, chosen: PrintSheetsLayout): PrintSheetsLayout {
   if (id === MAIN_LAYOUT || chosen.kind === "PIECES") return chosen;
   const found = findPrintLayout(document, id);
-  const template = layoutTemplateOfLayout(document, id);
+  const template = sheetLayoutOfLayout(document, id);
   const perRunner = chosen.kind === "TEMPLATE" && chosen.perRunner === true;
   if (template) return { kind: "TEMPLATE", template, perRunner, duplex: chosen.duplex, ...(chosen.kind === "TEMPLATE" && chosen.fill ? { fill: chosen.fill } : {}) };
   if (perRunner && found) return { kind: "TEMPLATE", template: singleMapTemplate(found, chosen.kind === "TEMPLATE" ? chosen.template.strips : []), perRunner, duplex: chosen.duplex };
@@ -127,7 +127,7 @@ function withMapPasses(document: Parameters<typeof layoutCoursePage>[0], groups:
   }) })) }));
 }
 
-function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: SheetLayout, items: readonly SheetItem[],
+function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: PrintSheetsLayout, items: readonly SheetItem[],
   options: SheetGroupOptions): SheetGroup[] {
   const groups: SheetGroup[] = [];
   const attempt = (item: number | undefined, make: () => SheetGroup) => {
@@ -146,9 +146,9 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: S
   if (layout.kind === "TEMPLATE") {
     if (layout.perRunner) {
       items.forEach((item, index) => attempt(index, () => ({ item: index,
-        sheets: layoutTemplateSheets(document, layout.template, [item], { ...common, duplexBacks: layout.duplex }) })));
+        sheets: sheetLayoutSheets(document, layout.template, [item], { ...common, duplexBacks: layout.duplex }) })));
     } else {
-      attempt(undefined, () => ({ sheets: layoutTemplateSheets(document, layout.template, items, { ...common, mode: layout.fill }) }));
+      attempt(undefined, () => ({ sheets: sheetLayoutSheets(document, layout.template, items, { ...common, mode: layout.fill }) }));
     }
     return groups;
   }

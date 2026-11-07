@@ -128,7 +128,7 @@ test("utskrift-omtag: färgerna på en rad, översikten, papperet direkt på ark
     "Kontrollbeskrivning på kartan"]);
   // De sällan använda delarna är hopfällda.
   for (const fold of ["paper-clip-fold", "paper-white-fold", "paper-values-fold", "paper-library-fold"]) await expect(owner.getByTestId(fold)).not.toHaveAttribute("open", "");
-  await expect(owner.getByTestId("layout-template-select").locator("option:checked")).toHaveText("En bana per ark (tryckytan som i Purple Pen)");
+  await expect(owner.getByTestId("sheet-layout-select").locator("option:checked")).toHaveText("En bana per ark (tryckytan som i Purple Pen)");
 
   // Text: läggs till, dubbelklick skriver i den på arket med en variabel.
   const panel = owner.getByTestId("paper-space");

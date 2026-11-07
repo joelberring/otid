@@ -5,11 +5,11 @@ import { AccountMenu } from "../account-menu";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, descriptionSymbols, printSheetGroups, layoutEntries,
-  layoutTemplateOfLayout, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect, type Sheet, type SheetItem
+  exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, descriptionSymbols, printSheetGroups, layoutEntries,
+  sheetLayoutOfLayout, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
-import { layoutTemplateSv } from "../../i18n/course-setting-print-profile-sv";
+import { sheetLayoutSv } from "../../i18n/course-setting-print-profile-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { fetchCourseSetting, saveCourseSettingEdits } from "../../lib/course-setting-api";
 import { saveOnLatest, serialSaves } from "../../lib/course-setting-save-latest";
@@ -64,7 +64,7 @@ const clockIn = (timeZone: string) => (instant: string | null) => {
 /**
  * Steg 64 (ADR-0180 beslut 11, ADR-0183): `/admin/[raceId]/course-setting/print`. Arken för valda banor (och varianter)
  * eller en karta per löpare ur kartbuntarna, utlagda som i Purple Pen (`layoutCoursePage`) eller i en layoutmall
- * (`layoutTemplateSheets`), med kartan ritad av Workern i utskriftsprofilens färger och banpåtrycket som SVG i papperets
+ * (`sheetLayoutSheets`), med kartan ritad av Workern i utskriftsprofilens färger och banpåtrycket som SVG i papperets
  * mm. Webbläsarens utskrift ger ett utkast; steg 65: "Skapa PDF för tryck" lägger samma ark i serverns kö och ger en PDF med
  * kartan som vektorer, dekorfärger och övertryck (`PdfPanel`).
  */
@@ -182,8 +182,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   }
 
   // ADR-0217 (fas 3): "Kartor per ark" väljs i Layout (huvudlayoutens); en karta per löpare utan sådan får en karta per A4.
-  const mainTemplate = document ? layoutTemplateOfLayout(document, MAIN_LAYOUT) : undefined;
-  const template = mode === "RUNNERS" ? mainTemplate ?? BUILT_IN_TEMPLATES.find(item => item.id === (duplex ? "a4-one" : "a4-strip")) : mainTemplate;
+  const mainTemplate = document ? sheetLayoutOfLayout(document, MAIN_LAYOUT) : undefined;
+  const template = mode === "RUNNERS" ? mainTemplate ?? BUILT_IN_SHEET_LAYOUTS.find(item => item.id === (duplex ? "a4-one" : "a4-strip")) : mainTemplate;
 
   const runners = useMemo<RunnerPrint | undefined>(() => document && bundles
     ? runnerPrintItems(document, bundles, clockIn(bundles.timeZone), order) : undefined, [document, bundles, order]);
@@ -331,13 +331,13 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
               onChange={event => setPartsDuplex(event.target.checked)} />{text.page.partsDuplex}</label>}
             {lineChosen && <label className={styles.check}><input type="checkbox" checked={controllerMaps} data-testid="print-controller"
               onChange={event => setControllerMaps(event.target.checked)} />{trainingSv.print.controller}</label>}
-            {template && template.frames.length > 1 && <label className={styles.field}>{layoutTemplateSv.mode}
+            {template && template.frames.length > 1 && <label className={styles.field}>{sheetLayoutSv.mode}
               <select value={fill} onChange={event => setFill(event.target.value as "FILL" | "REPEAT")} data-testid="print-fill">
                 <option value="FILL">{text.page.fill}</option><option value="REPEAT">{text.page.repeat}</option></select></label>}
           </div>
         </> : <RunnerControls bundlesState={bundlesState} runners={runners} raceId={raceId} order={order} setOrder={setOrder} backMode={backMode} setBackMode={setBackMode}
           selection={selection} setSelection={setSelection} chosen={chosenRunners.length} />}
-        <span role="status" data-testid="print-count">{sheets.length === 0 ? text.page.none : frameCount > sheets.length ? `${text.page.sheets(sheets.length)}, ${layoutTemplateSv.frames(frameCount)}`
+        <span role="status" data-testid="print-count">{sheets.length === 0 ? text.page.none : frameCount > sheets.length ? `${text.page.sheets(sheets.length)}, ${sheetLayoutSv.frames(frameCount)}`
           : text.page.pages(sheets.length)}{waiting ? ` – ${text.page.readingMap}` : ""}</span>
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
         <div className={styles.outputs}>

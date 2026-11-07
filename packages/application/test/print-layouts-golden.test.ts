@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyEdit, BUILT_IN_TEMPLATES, printDetailGaps, printNumberObstacles, printSheetGroups, readPpen, type CourseSettingDocument } from "@o-tid/course-setting";
+import { applyEdit, BUILT_IN_SHEET_LAYOUTS, printDetailGaps, printNumberObstacles, printSheetGroups, readPpen, type CourseSettingDocument } from "@o-tid/course-setting";
 import { readMapFile } from "@o-tid/map-file";
 import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "@o-tid/print-pdf";
 import { renderPrintJob } from "../src/course-setting-print-render";
@@ -32,8 +32,8 @@ function sheetsHash(file: string): string {
   const all = [
     printSheetGroups(document, { kind: "COURSE", header: true }, [...items, { course: "ALL_CONTROLS" }], options),
     printSheetGroups(document, { kind: "COURSE", duplex: true }, items.map(item => ({ ...item, part: 0 })), options),
-    printSheetGroups(document, { kind: "TEMPLATE", template: BUILT_IN_TEMPLATES[1]! }, items, options),
-    printSheetGroups(document, { kind: "TEMPLATE", template: BUILT_IN_TEMPLATES[4]!, perRunner: true, duplex: true },
+    printSheetGroups(document, { kind: "TEMPLATE", template: BUILT_IN_SHEET_LAYOUTS[1]! }, items, options),
+    printSheetGroups(document, { kind: "TEMPLATE", template: BUILT_IN_SHEET_LAYOUTS[4]!, perRunner: true, duplex: true },
       items.map(item => ({ ...item, runner: { kind: "RUNNER" as const, name: "Löpare", className: "H21", startTime: "18:32", startNumber: 7 } })), options)
   ];
   return sha(JSON.stringify(all));

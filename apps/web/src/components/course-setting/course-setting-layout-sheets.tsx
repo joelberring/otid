@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  expandPartItems, layoutDocument, layoutTemplateOfLayout, MAIN_LAYOUT, paperAnchorOf, printAreaOf, printSheetGroups, runnerBackSheet, RUNNER_BACK,
-  type CourseSettingDocument, type CourseSettingEdit, type LayoutTemplate, type MapRect, type PaperRect, type PaperTemplate, type Sheet,
+  expandPartItems, layoutDocument, sheetLayoutOfLayout, MAIN_LAYOUT, paperAnchorOf, printAreaOf, printSheetGroups, runnerBackSheet, RUNNER_BACK,
+  type CourseSettingDocument, type CourseSettingEdit, type SheetLayout, type MapRect, type PaperRect, type PaperTemplate, type Sheet,
   type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
 import { coursePrintSv as printText } from "../../i18n/course-setting-print-sv";
@@ -22,7 +22,7 @@ import { SheetView } from "./course-setting-sheet";
 import { SheetPaperPanel, type SheetTarget } from "./course-setting-sheet-paper";
 import { PaperSpacePanel } from "./course-setting-paper-space";
 import { paperCourses, paperDescriptionEdit, PaperDescriptionsPanel } from "./course-setting-paper-panel";
-import { LayoutTemplatePanel } from "./course-setting-print-template";
+import { SheetLayoutPanel } from "./course-setting-sheet-layout";
 import { PrintOverview } from "./course-setting-print-overview";
 import type { FrameChange } from "./course-setting-paper-items";
 import { usePaperSpace } from "./use-paper-space";
@@ -56,8 +56,8 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
   const view = paperSpace.view ?? projected;
   const aids = useDetailGaps(map.session, view).options;
   const colors = usePrintColors(view, undefined, map);
-  const [draft, setDraft] = useState<LayoutTemplate>();
-  const template = draft ?? layoutTemplateOfLayout(document, layout);
+  const [draft, setDraft] = useState<SheetLayout>();
+  const template = draft ?? sheetLayoutOfLayout(document, layout);
   const courses = useMemo(() => [...view.courses].sort((a, b) => a.order - b.order), [view]);
 
   // Arken: de valda banorna (med kartbytenas delar) och, med baksidan vald, baksidan efter första arket.
@@ -178,7 +178,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
       <div className={`${printStyles.controls} ${printStyles.editorPanels}`} data-testid="print-editor-panels">
         {editing && <SheetPaperPanel raceId={raceId} document={view} target={target} readOnly={!canEdit} onSave={panel.onSave}
           frameEditing={frameEditing} onFrameEditing={setFrameEditing} layout={adjustable ? { name: layoutName, onEdit: () => focusLayoutScale(layout) } : undefined} />}
-        <LayoutTemplatePanel saved={document.event.layoutTemplates ?? []} selectedId={layoutTemplateId(document, layout)} readOnly={!canEdit}
+        <SheetLayoutPanel saved={document.event.layoutTemplates ?? []} selectedId={sheetLayoutId(document, layout)} readOnly={!canEdit}
           onSelect={id => { setDraft(undefined); void save([{ type: "UPDATE_LAYOUT", layout, changes: { layoutTemplate: id === "NONE" ? null : id } }]); }}
           onDraft={setDraft} onSave={save} />
         {panel && <PaperSpacePanel raceId={raceId} document={view} readOnly={!canEdit} {...panel} onCourse={choosePaperCourse} />}
@@ -190,7 +190,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
 }
 
 /** "Kartor per ark" för layouten som id i mallpanelen ("NONE" = en bana per ark). */
-function layoutTemplateId(document: CourseSettingDocument, layout: string): string {
+function sheetLayoutId(document: CourseSettingDocument, layout: string): string {
   return (layout === MAIN_LAYOUT ? document.event.mainLayout?.layoutTemplate : document.event.layouts?.find(row => row.id === layout)?.layoutTemplate) ?? "NONE";
 }
 

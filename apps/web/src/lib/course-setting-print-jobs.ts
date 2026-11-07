@@ -2,7 +2,7 @@ import {
   printJobProblemSchema, printJobSchema, printJobsSchema, type PrintJob, type PrintJobKind, type PrintJobProblem, type PrintJobRequest, type PrintJobs
 } from "@o-tid/contracts";
 import {
-  BUILT_IN_TEMPLATES, colorPreflight, MAIN_LAYOUT, PDF_PRINT_CAPABILITIES, sourceMapColors, type LayoutTemplate, type PreflightReport, type PrintProfile, type SheetItem
+  BUILT_IN_SHEET_LAYOUTS, colorPreflight, MAIN_LAYOUT, PDF_PRINT_CAPABILITIES, sourceMapColors, type SheetLayout, type PreflightReport, type PrintProfile, type SheetItem
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { courseSettingBase, HttpError } from "./course-setting-api";
@@ -15,7 +15,7 @@ import { adminFetch, fetchUntilReached, fetchWithRetry } from "./retrying-fetch"
 export interface PrintJobSelection {
   readonly items: readonly SheetItem[];
   /** Mallen som visas (osparad som hela mallen, annars dess id), eller ingen = Purple Pens en bana per sida. */
-  readonly template: LayoutTemplate | undefined;
+  readonly template: SheetLayout | undefined;
   readonly templateIsDraft: boolean;
   readonly savedTemplateIds: readonly string[];
   readonly header: boolean;
@@ -31,7 +31,7 @@ export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind
   requestId: string = crypto.randomUUID(), profile?: PrintProfile): PrintJobRequest {
   const template = selection.template;
   const known = template && !selection.templateIsDraft
-    && (BUILT_IN_TEMPLATES.some(item => item.id === template.id) || selection.savedTemplateIds.includes(template.id));
+    && (BUILT_IN_SHEET_LAYOUTS.some(item => item.id === template.id) || selection.savedTemplateIds.includes(template.id));
   return {
     formatVersion: 1, requestId, kind, profileId, ...(profile ? { profile } : {}),
     layout: selection.pieces ? { kind: "PIECES" } : template ? { kind: "TEMPLATE", template: known ? template.id : template, fill: selection.fill }

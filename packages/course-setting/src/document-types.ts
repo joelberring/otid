@@ -1,5 +1,5 @@
 import type { Point } from "@o-tid/map-file";
-import type { LayoutTemplate } from "./layout-template";
+import type { SheetLayout } from "./sheet-layout";
 import type { CoursePaperLayout, PaperItem, PaperTemplate, PaperValues } from "./paper-items";
 import type { PrintProfile } from "./print-profile";
 import type { LayoutSheet, MainLayoutSettings, PrintLayout } from "./print-layouts";
@@ -277,7 +277,8 @@ export interface CourseSettingDocument {
      */
     readonly printProfiles?: readonly PrintProfile[] | undefined;
     readonly printProfileId?: string | undefined;
-    readonly layoutTemplates?: readonly LayoutTemplate[] | undefined;
+    /** "Kartor per ark" i UI, `SheetLayout` i koden; nyckeln heter som förut eftersom den är lagrad (docs/domain-rules.md, Ordlista). */
+    readonly layoutTemplates?: readonly SheetLayout[] | undefined;
     /**
      * Papperet per bana (nyckel = banans id eller "ALL_CONTROLS"): kontrollbeskrivningen på kartan och senare andra element
      * på arket (`paper-layout.ts`). Bara O-Tid; en utplacerad beskrivning skrivs till .ppen som Purple Pens `descriptions`.

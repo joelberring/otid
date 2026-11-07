@@ -4,7 +4,7 @@ import { uuidSchema as uuid } from "./ids";
 /**
  * Steg 65 (ADR-0184): PDF för tryck som jobb på servern. Förhandsvisningen skickar vad som ska skrivas ut (banor eller
  * en karta per löpare, mallen, profilen); servern lägger jobbet i kön och skriver PDF:en med låg prioritet. Mallen och
- * profilen kontrolleras av `@o-tid/course-setting` i servern (`validateLayoutTemplate`, `validatePrintProfile`).
+ * profilen kontrolleras av `@o-tid/course-setting` i servern (`validateSheetLayout`, `validatePrintProfile`).
  */
 
 /** PRESS = tryckeri med kartans och banans dekorfärger; PROCESS = tryckeri med kartan i CMYK; OFFICE = kontorsskrivare. */
@@ -49,7 +49,7 @@ export const printJobRequestSchema = z.object({
   /** Profilen: en färdig eller sparad (`profileId`) eller en osparad (`profile`, kontrolleras i servern). OFFICE använder "office" om inget anges. */
   profileId: text(200).min(1),
   profile: z.unknown().optional(),
-  /** PAGES = Purple Pens en bana per sida (`layoutCoursePage`); TEMPLATE = layoutmallen (`layoutTemplateSheets`). */
+  /** PAGES = Purple Pens en bana per sida (`layoutCoursePage`); TEMPLATE = layoutmallen (`sheetLayoutSheets`). */
   layout: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("PAGES"), header: z.boolean() }).strict(),
     z.object({ kind: z.literal("TEMPLATE"), template: z.unknown(), fill: z.enum(["FILL", "REPEAT"]) }).strict(),

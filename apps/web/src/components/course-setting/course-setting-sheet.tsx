@@ -17,7 +17,7 @@ export function frameImageKey(frame: Pick<SheetFrame, "mapArea" | "clip" | "tran
 }
 
 /**
- * Steg 64: ett ark (`Sheet` ur `layoutCoursePage`/`layoutTemplateSheets`) som SVG i papperets mm: per kartram kartbilden
+ * Steg 64: ett ark (`Sheet` ur `layoutCoursePage`/`sheetLayoutSheets`) som SVG i papperets mm: per kartram kartbilden
  * och banpåtrycket klippta till ramen, sedan vita ytor (remsan), logotyper, beskrivningar, texter och skärmarker, och
  * raden om att det är ett utkast. Webbläsarens utskrift ger ett ark per sida (`@page` per pappersstorlek).
  */

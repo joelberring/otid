@@ -2,7 +2,7 @@
  * Steg 64 (ADR-0183): layoutmallen på utskriftssidan, sedan ADR-0211 tillägg "Kartor per ark" (det den gör: flera kartor
  * på ett ark, eller en karta med remsa). Inte samma sak som "Mall för papperet" (ADR-0197, papperets element per bana).
  */
-export const layoutTemplateSv = {
+export const sheetLayoutSv = {
   heading: "Kartor per ark",
   help: "Flera banor på samma ark, eller en karta med remsa för rullad karta; gäller alla valda banor.",
   choose: "Kartor per ark",

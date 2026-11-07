@@ -37,7 +37,7 @@ av den andra sidan syns.
    ADR-0197 punkt 11 per del: banan står alltid hel.
 7. **Utskriften**: `expandPartItems` delar varje bana med kartbyten i en karta per del (förhandsvisningen och PDF-jobbet,
    `SheetItem.part`), med delens tryckyta, beskrivning och papper; titeln "Bana – del 2". "Dubbelsidigt: del 2 på baksidan
-   av del 1 (kartbyte)" (`SheetLayout COURSE duplex`, PDF-jobbets `duplex`) lägger en banas ark fram–bak–fram …; har banan ett
+   av del 1 (kartbyte)" (`PrintSheetsLayout COURSE duplex`, PDF-jobbets `duplex`) lägger en banas ark fram–bak–fram …; har banan ett
    udda antal ark följer en tom baksida så att nästa bana börjar på en framsida. Baksidorna märks `back` och PDF:en föreslår
    vändning på långsidan. Dubbelsidigt är förvalt när en vald bana vänder kartan (`map-flip`) och kan stängas av.
 8. **Editorn**: fliken Utskrift har "Kartbyten" för banor med fler än en del: "Del" (Hela banan / Del 1 / Del 2 …) som visar

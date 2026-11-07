@@ -8,7 +8,7 @@
  * utan layouter ger samma ark och samma PDF som förut.
  */
 import type { Point } from "@o-tid/map-file";
-import { BUILT_IN_TEMPLATES, type LayoutTemplate } from "./layout-template";
+import { BUILT_IN_SHEET_LAYOUTS, type SheetLayout } from "./sheet-layout";
 import { HUNDREDTH_INCH_MM } from "./page-layout";
 import { legKey } from "./ppen-common";
 import { validatePaperLayout, type CoursePaperLayout } from "./paper-items";
@@ -32,7 +32,7 @@ export interface PrintLayout {
   readonly page: PrintPage;
   /** Mall för papperet (ADR-0197) som arken ärver tills de ändras. */
   readonly paperTemplate?: string | undefined;
-  /** "Kartor per ark" (ADR-0183, en layoutmall); saknas = en bana per ark. */
+  /** "Kartor per ark" (ADR-0183, `SheetLayout`; lagrat namn `layoutTemplate`); saknas = en bana per ark. */
   readonly layoutTemplate?: string | undefined;
   /** Justerade ringavbrott per kontroll; saknas = banläggningens. Tom lista = inga avbrott i layouten. */
   readonly circleGaps?: Readonly<Record<string, readonly LayoutArc[]>> | undefined;
@@ -59,6 +59,7 @@ export interface LayoutSheet {
 /** Huvudlayoutens namn och "Kartor per ark" (resten är banans fält). */
 export interface MainLayoutSettings {
   readonly name?: string | undefined;
+  /** "Kartor per ark" (`SheetLayout`); lagrat namn. */
   readonly layoutTemplate?: string | undefined;
 }
 
@@ -240,13 +241,13 @@ export function courseControlIds(document: CourseSettingDocument, course: string
 }
 
 /** "Kartor per ark" för en layout (huvudlayoutens eller layoutens), om den finns. */
-export function layoutTemplateOfLayout(document: CourseSettingDocument, layout: string): LayoutTemplate | undefined {
+export function sheetLayoutOfLayout(document: CourseSettingDocument, layout: string): SheetLayout | undefined {
   const id = layout === MAIN_LAYOUT ? document.event.mainLayout?.layoutTemplate : findPrintLayout(document, layout)?.layoutTemplate;
-  return id === undefined ? undefined : [...BUILT_IN_TEMPLATES, ...(document.event.layoutTemplates ?? [])].find(template => template.id === id);
+  return id === undefined ? undefined : [...BUILT_IN_SHEET_LAYOUTS, ...(document.event.layoutTemplates ?? [])].find(template => template.id === id);
 }
 
 /** En layoutmall med en karta på layoutens papper (för en karta per löpare när layouten inte har "Kartor per ark"). */
-export function singleMapTemplate(layout: PrintLayout, strips: LayoutTemplate["strips"] = []): LayoutTemplate {
+export function singleMapTemplate(layout: PrintLayout, strips: SheetLayout["strips"] = []): SheetLayout {
   const widthMm = layout.page.width * HUNDREDTH_INCH_MM, heightMm = layout.page.height * HUNDREDTH_INCH_MM;
   const margin = layout.page.margins * HUNDREDTH_INCH_MM;
   const [w, h] = layout.page.landscape ? [heightMm, widthMm] : [widthMm, heightMm];

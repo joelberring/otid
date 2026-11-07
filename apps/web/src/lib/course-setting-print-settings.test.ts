@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEdit, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, layoutTemplateSheets, mapColorAdjust, printSheetGroups } from "@o-tid/course-setting";
+import { applyEdit, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, sheetLayoutSheets, mapColorAdjust, printSheetGroups } from "@o-tid/course-setting";
 import type { MapBundleResponse } from "@o-tid/contracts";
 import { gridOf, parseCmyk, regrid, withColorRow } from "./course-setting-print-settings";
 import { runnerPrintItems } from "./course-setting-runner-print";
@@ -30,7 +30,7 @@ describe("utskriftsprofilen på utskriftssidan (steg 64)", () => {
 
 describe("layoutmallen på utskriftssidan (steg 64)", () => {
   it("lägger om rutnätet och rubrikerna när papper, rader eller kolumner ändras", () => {
-    const four = BUILT_IN_TEMPLATES.find(template => template.id === "a4-four")!;
+    const four = BUILT_IN_SHEET_LAYOUTS.find(template => template.id === "a4-four")!;
     expect(gridOf(four)).toEqual({ rows: 2, columns: 2 });
     const six = regrid(four, { rows: 3 });
     expect(gridOf(six)).toEqual({ rows: 3, columns: 2 });
@@ -78,8 +78,8 @@ describe("en karta per löpare (steg 64)", () => {
     expect(result.problems).toEqual([]);
     expect(result.items.map(item => [item.course, item.variant, item.runner?.kind])).toEqual([["k", undefined, "RUNNER"], ["k", undefined, "VACANT"],
       ["k", undefined, "RESERVE"]]);
-    const strip = BUILT_IN_TEMPLATES.find(template => template.id === "a4-strip")!;
-    expect(layoutTemplateSheets(score, strip, [result.items[0]!])[0]!.texts.map(text => text.text)).toContain("Anna Andersson  D21  10:32  nr 101");
+    const strip = BUILT_IN_SHEET_LAYOUTS.find(template => template.id === "a4-strip")!;
+    expect(sheetLayoutSheets(score, strip, [result.items[0]!])[0]!.texts.map(text => text.text)).toContain("Anna Andersson  D21  10:32  nr 101");
   });
 
   it("varnar när en bana saknas i banläggningen eller varianten inte finns", () => {
@@ -93,12 +93,12 @@ describe("en karta per löpare (steg 64)", () => {
   it("ger remsan med löparens uppgifter enkelsidigt och en baksida dubbelsidigt", () => {
     const document = testDocument();
     const { items } = runnerPrintItems(document, bundles(3), clock);
-    const strip = BUILT_IN_TEMPLATES.find(template => template.id === "a4-strip")!;
-    const [single] = layoutTemplateSheets(document, strip, [items[0]!]);
+    const strip = BUILT_IN_SHEET_LAYOUTS.find(template => template.id === "a4-strip")!;
+    const [single] = sheetLayoutSheets(document, strip, [items[0]!]);
     expect(single!.boxes).toHaveLength(1);
     expect(single!.texts.map(text => text.text)).toContain("Anna Andersson  D21  10:32  nr 101");
-    const one = BUILT_IN_TEMPLATES.find(template => template.id === "a4-one")!;
-    const duplex = layoutTemplateSheets(document, one, [items[1]!], { duplexBacks: true });
+    const one = BUILT_IN_SHEET_LAYOUTS.find(template => template.id === "a4-one")!;
+    const duplex = sheetLayoutSheets(document, one, [items[1]!], { duplexBacks: true });
     expect(duplex).toHaveLength(2);
     expect(duplex[1]!.back).toBe(true);
     // ADR-0213: baksidan är papperets element (förvalet som Kartor till startens baksida).
@@ -118,7 +118,7 @@ describe("löparkartor per layout", () => {
     expect(result.items.map(item => item.layout ?? "")).toEqual(["", "", "", "aldre", "aldre", "aldre"]);
     expect(result.counts).toEqual([{ courseName: "Lång", variantCode: null, count: 3 }, { courseName: "Lång", variantCode: null, count: 3, layout: "Äldre A4" }]);
     expect(result.problems).toEqual([]);
-    const one = BUILT_IN_TEMPLATES.find(template => template.id === "a4-one")!;
+    const one = BUILT_IN_SHEET_LAYOUTS.find(template => template.id === "a4-one")!;
     const groups = printSheetGroups(document, { kind: "TEMPLATE", template: one, perRunner: true }, result.items);
     expect(groups.map(group => group.sheets[0]!.frames[0]!.printScale)).toEqual([document.event.mapScale, document.event.mapScale, document.event.mapScale, 7500, 7500, 7500]);
   });

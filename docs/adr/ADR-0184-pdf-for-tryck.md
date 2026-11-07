@@ -11,7 +11,7 @@ ICC påstås inte förrän de är verifierade, och källkartan skrivs aldrig om.
 
 **Beslut.**
 1. **Paketet `@o-tid/print-pdf`** (ren TypeScript utan I/O) skriver arken som PDF: `writeSheetsPdf({ sheets, map, profile,
-   mode, fonts })`. Ingenting räknas om; arken kommer ur `layoutCoursePage`/`layoutTemplateSheets` som i förhandsvisningen.
+   mode, fonts })`. Ingenting räknas om; arken kommer ur `layoutCoursePage`/`sheetLayoutSheets` som i förhandsvisningen.
 2. **Bibliotek: pdf-lib 1.17.1 (MIT) med @pdf-lib/fontkit 1.1.1 (MIT).** pdf-lib sköter filens struktur (objekt, xref,
    komprimering), inbäddning av TrueType som delmängd med ToUnicode, och PNG/JPEG. Dekorfärger och övertryck har pdf-lib inget
    API för, men låga objekt (`context.obj`, `context.stream`) räcker: färgrymderna, funktionerna, ExtGState och alla

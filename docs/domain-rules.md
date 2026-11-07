@@ -110,7 +110,7 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - **Ark** = bana × layout: utsnitt, klippning, kartbyten (delar) och papperets element. Justerade nummer per ark och ringavbrott
   per layout; det som inte är justerat följer banläggningen.
 - **Tryckyta** = `printArea` (Purple Pens `print-area`); i UI på arket heter den **utsnitt**. **Kartram** = `SheetFrame`, ytan på
-  papperet där kartan står. **Mall för papperet** = `PaperTemplate` (ADR-0197); **Kartor per ark** = `LayoutTemplate` (ADR-0183).
+  papperet där kartan står. **Mall för papperet** = `PaperTemplate` (ADR-0197); **Kartor per ark** = `SheetLayout` (ADR-0183).
 
 ## Banhemlighet (steg 52, ADR-0176)
 

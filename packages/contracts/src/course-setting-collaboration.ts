@@ -113,7 +113,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("DELETE_SPECIAL"), special: id }).strict(),
   z.object({ type: z.literal("SET_PRINT_AREA"), course: id, area: printArea.nullable(), part: z.number().int().min(0).max(50).optional(),
     printLayout: id.optional() }).strict(),
-  // Utskriftsprofil och layoutmall (ADR-0183); formen kontrolleras av paketet (validatePrintProfile, validateLayoutTemplate).
+  // Utskriftsprofil och "Kartor per ark" (ADR-0183); formen kontrolleras av paketet (validatePrintProfile, validateSheetLayout).
+  // `…_LAYOUT_TEMPLATE` och `layoutTemplate` är lagrade namn (historiken, dokumentet); i koden heter det SheetLayout.
   z.object({ type: z.literal("PUT_PRINT_PROFILE"), profile: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),
   z.object({ type: z.literal("DELETE_PRINT_PROFILE"), id }).strict(),
   z.object({ type: z.literal("PUT_LAYOUT_TEMPLATE"), template: z.object({ schemaVersion: z.number().int(), id }).loose() }).strict(),

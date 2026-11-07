@@ -1,4 +1,4 @@
-import { gridTemplate, type Cmyk100, type LayoutTemplate, type MapColorSetting, type PaperName, type PrintProfile } from "@o-tid/course-setting";
+import { gridTemplate, type Cmyk100, type SheetLayout, type MapColorSetting, type PaperName, type PrintProfile } from "@o-tid/course-setting";
 
 /** Steg 64 (ADR-0183): hjälpfunktionerna för utskriftsprofilen och layoutmallen på utskriftssidan. */
 
@@ -22,14 +22,14 @@ export function withColorRow(profile: PrintProfile, id: number, change: Partial<
 }
 
 /** Ramarnas rutnät ur mallen (rader och kolumner gissas ur ramarnas lägen). */
-export function gridOf(template: LayoutTemplate): { rows: number; columns: number } {
+export function gridOf(template: SheetLayout): { rows: number; columns: number } {
   const rows = new Set(template.frames.map(frame => Math.round(frame.y))).size || 1;
   const columns = new Set(template.frames.map(frame => Math.round(frame.x))).size || 1;
   return { rows, columns };
 }
 
 /** Mallen med nytt papper eller rutnät; texter, logotyper och remsor står kvar, beskrivningen följer första ramen. */
-export function regrid(template: LayoutTemplate, change: { paper?: PaperName; landscape?: boolean; marginMm?: number; rows?: number; columns?: number; gapMm?: number }): LayoutTemplate {
+export function regrid(template: SheetLayout, change: { paper?: PaperName; landscape?: boolean; marginMm?: number; rows?: number; columns?: number; gapMm?: number }): SheetLayout {
   const grid = gridOf(template);
   const paper = change.paper ?? (template.paper.name === "CUSTOM" ? "A4" : template.paper.name);
   // Rubriker per ram (de färdiga mallarna) läggs om med ramarna; övriga texter står kvar.

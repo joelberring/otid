@@ -1,6 +1,6 @@
 import { PDFDocument, PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { applyEdit, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, printSheetGroups, readPpen, type CourseSettingDocument, type RunnerInfo } from "@o-tid/course-setting";
+import { applyEdit, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, printSheetGroups, readPpen, type CourseSettingDocument, type RunnerInfo } from "@o-tid/course-setting";
 import { writeSheetsPdf } from "../src";
 import { fixture, fontFiles, parsePdf } from "./helpers";
 
@@ -18,7 +18,7 @@ describe("en karta per löpare med baksidan i samma PDF", () => {
     const runner = (name: string, startNumber: number): RunnerInfo => ({ kind: "RUNNER", name, club: "OK Natt", className: "H21", startTime: "18:3" + startNumber,
       startNumber, entryId: `e${startNumber}` });
     const items = [runner("Ada Ek", 1), runner("Bo Lind", 2), runner("Cia Holm", 3)].map(item => ({ course, runner: item }));
-    const template = BUILT_IN_TEMPLATES.find(item => item.id === "a4-one")!;
+    const template = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one")!;
     const sheets = printSheetGroups(document, { kind: "TEMPLATE", template, perRunner: true, duplex: true }, items).flatMap(group => group.sheets);
     expect(sheets.map(sheet => (sheet.back ? "b" : "f") + (sheet.frames[0]?.runner?.startNumber ?? ""))).toEqual(["f1", "b", "f2", "b", "f3", "b"]);
     const result = await writeSheetsPdf({ sheets, map: null, profile: BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!, mode: "OFFICE", fonts: fontFiles() });

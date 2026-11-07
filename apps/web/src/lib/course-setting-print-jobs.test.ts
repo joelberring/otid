@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type * as Application from "@o-tid/application";
 import { printJobRequestSchema } from "@o-tid/contracts";
-import { BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, type LayoutTemplate } from "@o-tid/course-setting";
+import { BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, type SheetLayout } from "@o-tid/course-setting";
 import type { MapColor } from "@o-tid/map-file";
 import { pdfAllowed, pdfPreflight, printJobRequest } from "./course-setting-print-jobs";
 import { raceAdministratorRoute } from "./race-administrator-route-handlers";
@@ -16,9 +16,9 @@ describe("PDF för tryck: förfrågan och förhandskontrollen (steg 65)", () => 
   it("beskriver samma ark som förhandsvisningen: banor per sida, färdig mall som id, osparad mall hel, löpare med baksidor", () => {
     const pages = printJobRequest(selection, "PRESS", "as-file", { warnings: false, rules: [] }, "11111111-1111-4111-8111-111111111111");
     expect(printJobRequestSchema.parse(pages)).toMatchObject({ kind: "PRESS", layout: { kind: "PAGES", header: true }, items: [{ course: "1" }, { course: "2", variant: "AB" }] });
-    const template = BUILT_IN_TEMPLATES.find(item => item.id === "a4-four")!;
+    const template = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-four")!;
     expect(printJobRequest({ ...selection, template }, "OFFICE", "office", { warnings: true, rules: [] }).layout).toEqual({ kind: "TEMPLATE", template: "a4-four", fill: "FILL" });
-    const draft: LayoutTemplate = { ...template, id: "egen", name: "Egen" };
+    const draft: SheetLayout = { ...template, id: "egen", name: "Egen" };
     expect(printJobRequest({ ...selection, template: draft, templateIsDraft: true }, "PRESS", "as-file", { warnings: false, rules: [] }).layout)
       .toMatchObject({ kind: "TEMPLATE", template: { id: "egen" } });
     const runners = printJobRequest({ ...selection, template, perRunner: true, duplex: true, items: [{ course: "1",

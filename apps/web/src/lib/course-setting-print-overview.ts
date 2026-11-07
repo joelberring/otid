@@ -12,9 +12,9 @@ export interface SheetCard {
   readonly label: string;
   readonly scale: number | undefined;
   readonly paper: string;
-  /** Papperets mall som banan följer (ADR-0197), och layoutmallen om sidan har en. */
+  /** Papperets mall som banan följer (ADR-0197), och "Kartor per ark" om sidan har en. */
   readonly paperTemplate: string | undefined;
-  readonly layoutTemplate: string | undefined;
+  readonly sheetLayout: string | undefined;
   /** Banan har egna element eller ändringar utöver mallen. */
   readonly changed: boolean;
   readonly warnings: readonly ("DESCRIPTION_COVERS_MAP" | "COURSE_OUTSIDE_FRAME")[];
@@ -42,7 +42,7 @@ export function courseOutsideFrame(figures: readonly OverprintPrimitive[], area:
   return false;
 }
 
-export function sheetCards(document: CourseSettingDocument, sheets: readonly { key: string; sheet: Sheet; label: string }[], layoutTemplate?: string): SheetCard[] {
+export function sheetCards(document: CourseSettingDocument, sheets: readonly { key: string; sheet: Sheet; label: string }[], sheetLayout?: string): SheetCard[] {
   return sheets.map(({ key, sheet, label }, index) => {
     const frame = sheet.frames[0];
     const course = frame?.course;
@@ -53,6 +53,6 @@ export function sheetCards(document: CourseSettingDocument, sheets: readonly { k
     if (sheet.descriptions.some(item => (item.overlaps ?? 0) > 0)) warnings.push("DESCRIPTION_COVERS_MAP");
     if (sheet.frames.some(item => courseOutsideFrame(item.figures, item.mapArea))) warnings.push("COURSE_OUTSIDE_FRAME");
     return { key, index, course, part: frame?.part, label, scale: frame?.printScale, paper: paperText(sheet.paper), paperTemplate: paper?.template?.name,
-      layoutTemplate, changed: Boolean(paper?.template) && changed, warnings, back: sheet.back === true };
+      sheetLayout, changed: Boolean(paper?.template) && changed, warnings, back: sheet.back === true };
   });
 }

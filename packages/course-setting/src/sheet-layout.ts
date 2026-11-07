@@ -1,5 +1,5 @@
 /**
- * Steg 64 (ADR-0183): layoutmallen som "paperspace". Mallen är papperet (format, riktning, marginal), en eller flera
+ * Steg 64 (ADR-0183): "Kartor per ark" (`SheetLayout`, förut `LayoutTemplate`; i ADR-0183 "layoutmall") som "paperspace". Den är papperet (format, riktning, marginal), en eller flera
  * kartramar och det som står på papperet: texter med platshållare, logotyper, beskrivningens plats, remsan med löparens
  * namn för en ihoprullad karta och skärmarker. Kartan med banpåtrycket ("modelspace") läggs i ramarna per bana, variant
  * eller löpare. Allt är data i papperets mm (y nedåt) som förhandsvisningen och steg 65:s PDF ritar likadant.
@@ -16,7 +16,7 @@ import { figureBounds, HUNDREDTH_INCH_MM, PAPER_SIZES, printAreaOf, printRectang
 import type { CourseSettingDocument, MapRect, OverprintOptions, OverprintPrimitive, PrintArea } from "./types";
 import { CourseSettingEditError } from "./types";
 
-export const LAYOUT_TEMPLATE_SCHEMA_VERSION = 1;
+export const SHEET_LAYOUT_SCHEMA_VERSION = 1;
 
 export interface TemplateRect { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
@@ -49,7 +49,7 @@ export interface TemplateStrip {
   readonly frame?: number | undefined;
 }
 
-export interface LayoutTemplate {
+export interface SheetLayout {
   readonly schemaVersion: 1;
   readonly id: string;
   readonly name: string;
@@ -144,7 +144,7 @@ const finite = (value: unknown): value is number => typeof value === "number" &&
 
 /** Mall med `rows` × `columns` lika stora ramar och `gapMm` mellan dem. */
 export function gridTemplate(id: string, name: string, paper: PaperName, landscape: boolean, rows: number, columns: number,
-  options: { marginMm?: number; gapMm?: number; title?: boolean; strip?: boolean } = {}): LayoutTemplate {
+  options: { marginMm?: number; gapMm?: number; title?: boolean; strip?: boolean } = {}): SheetLayout {
   const size = PAPER_SIZES[paper];
   const widthMm = Math.round(size.width * HUNDREDTH_INCH_MM), heightMm = Math.round(size.height * HUNDREDTH_INCH_MM);
   const [w, h] = landscape ? [heightMm, widthMm] : [widthMm, heightMm];
@@ -164,7 +164,7 @@ export function gridTemplate(id: string, name: string, paper: PaperName, landsca
 }
 
 /** Färdiga mallar: en karta, två och fyra kartor per A4, två per A3 och en karta med remsa för rullad karta. */
-export const BUILT_IN_TEMPLATES: readonly LayoutTemplate[] = [
+export const BUILT_IN_SHEET_LAYOUTS: readonly SheetLayout[] = [
   gridTemplate("a4-one", "A4, en karta", "A4", false, 1, 1),
   gridTemplate("a4-two", "A4 liggande, två kartor", "A4", true, 1, 2, { title: true }),
   gridTemplate("a4-four", "A4, fyra kartor", "A4", false, 2, 2, { title: true }),
@@ -173,10 +173,10 @@ export const BUILT_IN_TEMPLATES: readonly LayoutTemplate[] = [
 ];
 
 /** Kontrollerar en mall (ur JSON eller en ändring). Okänd `schemaVersion` avvisas. */
-export function validateLayoutTemplate(value: unknown): LayoutTemplate {
+export function validateSheetLayout(value: unknown): SheetLayout {
   if (typeof value !== "object" || value === null) throw invalid("inte ett objekt");
-  const template = value as LayoutTemplate;
-  if (template.schemaVersion !== LAYOUT_TEMPLATE_SCHEMA_VERSION) throw invalid(`schemaVersion ${String(template.schemaVersion)} stöds inte`);
+  const template = value as SheetLayout;
+  if (template.schemaVersion !== SHEET_LAYOUT_SCHEMA_VERSION) throw invalid(`schemaVersion ${String(template.schemaVersion)} stöds inte`);
   if (typeof template.id !== "string" || template.id === "" || typeof template.name !== "string") throw invalid("saknar id eller namn");
   const paper = template.paper;
   if (!paper || !finite(paper.widthMm) || !finite(paper.heightMm) || paper.widthMm < 50 || paper.heightMm < 50 || paper.widthMm > 1200 || paper.heightMm > 1200) {
@@ -202,10 +202,10 @@ export function validateLayoutTemplate(value: unknown): LayoutTemplate {
 }
 
 /** En mall ur JSON. */
-export function parseLayoutTemplate(json: string): LayoutTemplate {
+export function parseSheetLayout(json: string): SheetLayout {
   let value: unknown;
   try { value = JSON.parse(json); } catch { throw invalid("inte JSON"); }
-  return validateLayoutTemplate(value);
+  return validateSheetLayout(value);
 }
 
 export interface SheetOptions {
@@ -287,8 +287,8 @@ function stripParts(strip: TemplateStrip, paper: { widthMm: number; heightMm: nu
  * Arken för mallen och de valda banorna (eller löparna). FILL lägger dem i ramarna i ordning (sista arket kan ha tomma
  * ramar); REPEAT ger ett ark per bana med banan i alla ramar. Med `duplexBacks` följer en baksida varje ark med löpare.
  */
-export function layoutTemplateSheets(document: CourseSettingDocument, template: LayoutTemplate, items: readonly SheetItem[], options: SheetOptions = {}): Sheet[] {
-  validateLayoutTemplate(template);
+export function sheetLayoutSheets(document: CourseSettingDocument, template: SheetLayout, items: readonly SheetItem[], options: SheetOptions = {}): Sheet[] {
+  validateSheetLayout(template);
   const paper = { widthMm: template.paper.landscape ? template.paper.heightMm : template.paper.widthMm,
     heightMm: template.paper.landscape ? template.paper.widthMm : template.paper.heightMm, landscape: template.paper.landscape, marginMm: template.marginMm };
   const margin = template.marginMm;

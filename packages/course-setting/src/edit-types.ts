@@ -1,7 +1,7 @@
 import type { Point } from "@o-tid/map-file";
 import type { Appearance } from "./appearance";
 import type { DescriptionEdit } from "./description-types";
-import type { LayoutTemplate } from "./layout-template";
+import type { SheetLayout } from "./sheet-layout";
 import type { CoursePaperLayout, PaperTemplate } from "./paper-items";
 import type { PrintProfile } from "./print-profile";
 import type { LayoutEdit } from "./print-layout-edit";
@@ -107,10 +107,13 @@ export type SpecialEdit =
   | { readonly type: "DELETE_SPECIAL"; readonly special: string }
   /** ADR-0217: med `printLayout` (inte huvudlayouten) arkets utsnitt i den layouten (papperet är layoutens). */
   | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null; readonly part?: number | undefined; readonly printLayout?: string | undefined }
-  /** Utskriftsprofil och layoutmall (ADR-0183): lägg till eller ersätt per id, ta bort. */
+  /**
+   * Utskriftsprofil och "Kartor per ark" (ADR-0183, `SheetLayout`): lägg till eller ersätt per id, ta bort. Åtgärdernas namn
+   * (`…_LAYOUT_TEMPLATE`) står kvar eftersom de lagras i banläggningens historik.
+   */
   | { readonly type: "PUT_PRINT_PROFILE"; readonly profile: PrintProfile }
   | { readonly type: "DELETE_PRINT_PROFILE"; readonly id: string }
-  | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: LayoutTemplate }
+  | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: SheetLayout }
   | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string }
   /** Papperet för en bana (eller "ALL_CONTROLS"): ersätts helt; null = som förval. */
   | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null; readonly part?: number | undefined;

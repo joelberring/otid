@@ -1,14 +1,14 @@
 import type { PrintJobRequest } from "@o-tid/contracts";
 import {
-  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, excludedVariantCodes, layoutScaleOf, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateLayoutTemplate,
-  validatePrintProfile, type CourseSettingDocument, type LayoutTemplate, type MapRect, type PrintProfile, type Sheet, type SheetItem
+  BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, colorPreflight, excludedVariantCodes, layoutScaleOf, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateSheetLayout,
+  validatePrintProfile, type CourseSettingDocument, type SheetLayout, type MapRect, type PrintProfile, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { colorUsage, readMapFile } from "@o-tid/map-file";
 import { PDF_CAPABILITIES, writeSheetsPdf, type FontFiles, type WritePdfResult } from "@o-tid/print-pdf";
 
 /**
  * Steg 65 (ADR-0184): ett utskriftsjobb blir en PDF. Ren beräkning utan databas: arken läggs ut som i förhandsvisningen
- * (`printSheetGroups`: `layoutCoursePage` eller `layoutTemplateSheets`, en löpare per ark med baksida), förhandskontrollen görs mot kartans
+ * (`printSheetGroups`: `layoutCoursePage` eller `sheetLayoutSheets`, en löpare per ark med baksida), förhandskontrollen görs mot kartans
  * färger och PDF:en skrivs med `@o-tid/print-pdf`. Körs bara i utskriftsarbetaren (låg prioritet), aldrig i webben.
  */
 export class PrintJobError extends Error {}
@@ -23,13 +23,13 @@ export function printProfileFor(document: CourseSettingDocument, request: Pick<P
 }
 
 /** Mallen för jobbet: färdig eller sparad (id) eller hela mallen (osparad i förhandsvisningen). */
-export function layoutTemplateFor(document: CourseSettingDocument, template: unknown): LayoutTemplate {
+export function sheetLayoutFor(document: CourseSettingDocument, template: unknown): SheetLayout {
   if (typeof template === "string") {
-    const found = [...BUILT_IN_TEMPLATES, ...(document.event.layoutTemplates ?? [])].find(item => item.id === template);
+    const found = [...BUILT_IN_SHEET_LAYOUTS, ...(document.event.layoutTemplates ?? [])].find(item => item.id === template);
     if (!found) throw new PrintJobError(`Layoutmallen ${template} finns inte`);
     return found;
   }
-  return validateLayoutTemplate(template);
+  return validateSheetLayout(template);
 }
 
 /**
@@ -57,7 +57,7 @@ export function printJobSheets(document: CourseSettingDocument, request: PrintJo
   const { items } = printableItems(document, request.items as readonly SheetItem[]);
   if (items.length === 0) return [];
   const layout = request.layout.kind === "TEMPLATE"
-    ? { kind: "TEMPLATE" as const, template: layoutTemplateFor(document, request.layout.template), perRunner: request.perRunner, duplex: request.duplex,
+    ? { kind: "TEMPLATE" as const, template: sheetLayoutFor(document, request.layout.template), perRunner: request.perRunner, duplex: request.duplex,
       fill: request.layout.fill }
     : request.layout.kind === "PIECES" ? { kind: "PIECES" as const } : { kind: "COURSE" as const, header: request.layout.header, duplex: request.duplex };
   return printSheetGroups(document, layout, items, { mapBounds, ...(request.date ? { date: request.date } : {}), ...(detailGaps ? { detailGaps } : {}), ...(numberObstacles ? { numberObstacles } : {}) })

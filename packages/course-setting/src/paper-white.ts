@@ -3,7 +3,7 @@
  * kartfilen ändras. Banans figurer står kvar hela ovanpå; markeringarna följer klippningens regel (ADR-0197 punkt 11): en
  * punktsymbol i en vit yta står inte alls, övriga markeringar ritas inte i ytan (renderarna klipper dem jämn–udda).
  */
-import type { SheetFrame } from "./layout-template";
+import type { SheetFrame } from "./sheet-layout";
 import type { PaperShape } from "./paper-items";
 import { POINT_MARKINGS } from "./paper-sheet";
 import { insidePolygon, shapePoints } from "./paper-shapes";

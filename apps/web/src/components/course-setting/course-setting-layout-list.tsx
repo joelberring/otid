@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  BUILT_IN_TEMPLATES, HUNDREDTH_INCH_MM, PAPER_SIZES, type CourseSettingDocument, type CourseSettingEdit, type LayoutEntry, type PaperName, type PrintPage
+  BUILT_IN_SHEET_LAYOUTS, HUNDREDTH_INCH_MM, PAPER_SIZES, type CourseSettingDocument, type CourseSettingEdit, type LayoutEntry, type PaperName, type PrintPage
 } from "@o-tid/course-setting";
 import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
 import { newLayout, scaleText } from "../../lib/course-setting-layouts";
@@ -20,7 +20,7 @@ export function LayoutList({ document, entries, readOnly, save, sheetCount, onCr
   document: CourseSettingDocument; entries: readonly LayoutEntry[]; readOnly: boolean; save: (edits: CourseSettingEdit[]) => Promise<boolean>;
   sheetCount: (layout: string) => number; onCreated?: ((id: string) => void) | undefined;
 }) {
-  const templates = [...BUILT_IN_TEMPLATES, ...(document.event.layoutTemplates ?? [])];
+  const templates = [...BUILT_IN_SHEET_LAYOUTS, ...(document.event.layoutTemplates ?? [])];
   const paperTemplates = document.event.paperTemplates ?? [];
   const add = async () => {
     const layout = newLayout(document, `${text.layouts.newName} ${entries.length}`);

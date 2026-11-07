@@ -26,7 +26,7 @@ sträcka igen, och få baksidan i samma PDF. Stafettklasserna fanns inte alls i 
    variant och nummer stort, namn, klubb, klass och starttid uppe till höger (bakom kartans övre vänstra hörn när arket vänds
    kring långsidan; stafett får en rad med lag och sträcka). Baksidan har framsidans papper; PDF:en föreslår vändning på
    långsidan, eller kortsidan när alla baksidor är liggande, så att texten står rätt. Den fasta baksidan (`runnerBack` i
-   `layout-template.ts`) är borttagen.
+   `sheet-layout.ts`) är borttagen.
 3. **Vilka som skrivs ut**: alla, valda klasser (löpare och lediga tider), valda löpare (sök på namn, startnummer eller
    lagnummer) eller valda lag (lagnummer) med alla sträckor eller en sträcka (`selectRunnerItems`). Framsidan och baksidan
    följer urvalet, i förhandsvisningen och i PDF-jobbet. Felen mot Kartor till starten stoppar bara utskriften av alla; i ett

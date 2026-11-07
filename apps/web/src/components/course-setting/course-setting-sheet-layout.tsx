@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import {
-  BUILT_IN_TEMPLATES, type CourseSettingEdit, type LayoutTemplate, type PaperName, type TemplateStrip, type TemplateText
+  BUILT_IN_SHEET_LAYOUTS, type CourseSettingEdit, type SheetLayout, type PaperName, type TemplateStrip, type TemplateText
 } from "@o-tid/course-setting";
-import { layoutTemplateSv as text } from "../../i18n/course-setting-print-profile-sv";
+import { sheetLayoutSv as text } from "../../i18n/course-setting-print-profile-sv";
 import { gridOf, regrid } from "../../lib/course-setting-print-settings";
 import { Button, Notice } from "../ui";
 import { HelpLink } from "../help/help-panel";
@@ -18,18 +18,18 @@ const LOGO_MAX_BYTES = 300 * 1024;
  * papper, kartramar (rader × kolumner), texter med platshållare, logotyp, remsan för rullad karta och skärmarker
  * (kontrollbeskrivningen ställs in per bana). Fälten är hopfällda; mallen sparas i tävlingens banläggning.
  */
-export function LayoutTemplatePanel({ saved, selectedId, readOnly, onSelect, onDraft, onSave }: {
-  saved: readonly LayoutTemplate[]; selectedId: string; readOnly: boolean;
-  onSelect: (id: string) => void; onDraft: (template: LayoutTemplate | undefined) => void; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
+export function SheetLayoutPanel({ saved, selectedId, readOnly, onSelect, onDraft, onSave }: {
+  saved: readonly SheetLayout[]; selectedId: string; readOnly: boolean;
+  onSelect: (id: string) => void; onDraft: (template: SheetLayout | undefined) => void; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
-  const all = useMemo(() => [...BUILT_IN_TEMPLATES, ...saved], [saved]);
+  const all = useMemo(() => [...BUILT_IN_SHEET_LAYOUTS, ...saved], [saved]);
   const active = all.find(template => template.id === selectedId);
-  const [draft, setDraftState] = useState<LayoutTemplate>();
+  const [draft, setDraftState] = useState<SheetLayout>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  const setDraft = (next: LayoutTemplate | undefined) => { setDraftState(next); onDraft(next); };
+  const setDraft = (next: SheetLayout | undefined) => { setDraftState(next); onDraft(next); };
   const template = draft ?? active;
   const isSaved = template ? saved.some(item => item.id === template.id) : false;
-  const edit = (next: LayoutTemplate) => { if (!readOnly) setDraft(next); };
+  const edit = (next: SheetLayout) => { if (!readOnly) setDraft(next); };
   const copy = () => { if (template) setDraft({ ...template, id: `mall-${Date.now()}`, name: `${template.name} (kopia)` }); };
   async function save(edits: CourseSettingEdit[], done: string) {
     const ok = await onSave(edits);
@@ -37,7 +37,7 @@ export function LayoutTemplatePanel({ saved, selectedId, readOnly, onSelect, onD
     if (ok) setDraft(undefined);
     return ok;
   }
-  const builtIn = template ? BUILT_IN_TEMPLATES.some(item => item.id === template.id) : false;
+  const builtIn = template ? BUILT_IN_SHEET_LAYOUTS.some(item => item.id === template.id) : false;
   const editable = Boolean(template && !readOnly && !builtIn);
   const grid = template ? gridOf(template) : { rows: 1, columns: 1 };
   const setText = (index: number, change: Partial<TemplateText>) => template && edit({ ...template, texts: template.texts.map((row, i) => i === index ? { ...row, ...change } : row) });
@@ -52,12 +52,12 @@ export function LayoutTemplatePanel({ saved, selectedId, readOnly, onSelect, onD
     edit({ ...template, images: [{ x: paperWidth - template.marginMm - 30, y: template.marginMm, width: 30, height: 15, mediaType: file.type || "image/png", data }] });
   }
   const number = (value: string, fallback: number) => { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; };
-  return <section className={styles.panel} aria-labelledby="layout-template" data-testid="layout-template">
-    <h2 id="layout-template">{text.heading}</h2>
+  return <section className={styles.panel} aria-labelledby="sheet-layout" data-testid="sheet-layout">
+    <h2 id="sheet-layout">{text.heading}</h2>
     <p className={styles.muted}>{text.help} <HelpLink article="kartor-per-ark" view={["CS_PRINT_PAGE", "CS_PRINT"]} /></p>
     <div className={styles.row}>
       <label className={styles.field}>{text.choose}
-        <select value={draft ? "" : selectedId} onChange={event => { setDraft(undefined); onSelect(event.target.value); }} data-testid="layout-template-select">
+        <select value={draft ? "" : selectedId} onChange={event => { setDraft(undefined); onSelect(event.target.value); }} data-testid="sheet-layout-select">
           {draft && <option value="">{draft.name}</option>}
           <option value="NONE">{text.none}</option>
           {all.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -68,9 +68,9 @@ export function LayoutTemplatePanel({ saved, selectedId, readOnly, onSelect, onD
         .then(ok => { if (ok) onSelect("NONE"); })}>{text.remove}</Button>}
     </div>
     {message && <Notice tone={message.tone === "ok" ? "ok" : "error"}><p>{message.text}</p></Notice>}
-    {template && <details className={styles.fold} open={draft !== undefined || undefined} data-testid="layout-template-edit">
+    {template && <details className={styles.fold} open={draft !== undefined || undefined} data-testid="sheet-layout-edit">
       <summary>{text.edit}</summary>
-      <fieldset className={styles.stack} disabled={!editable} data-testid="layout-template-fields">
+      <fieldset className={styles.stack} disabled={!editable} data-testid="sheet-layout-fields">
       <div className={styles.row}>
         <label className={styles.field}>{text.name}<input value={template.name} onChange={event => edit({ ...template, name: event.target.value })} /></label>
         <label className={styles.field}>{text.paper}<select value={template.paper.name} onChange={event => edit(regrid(template, { paper: event.target.value as PaperName }))}>
@@ -105,7 +105,7 @@ export function LayoutTemplatePanel({ saved, selectedId, readOnly, onSelect, onD
       {/* Kontrollbeskrivningen ställs in per bana (Kontrollbeskrivning på kartan); en äldre mall med plats för den används
           bara för banor som inte har en utplacerad. */}
       <div className={styles.row}>
-        <label className={styles.check}><input type="checkbox" checked={Boolean(strip)} onChange={event => setStrip(event.target.checked ? {} : null)} data-testid="layout-template-strip" />
+        <label className={styles.check}><input type="checkbox" checked={Boolean(strip)} onChange={event => setStrip(event.target.checked ? {} : null)} data-testid="sheet-layout-strip" />
           {text.strip}</label>
         {strip && <>
           <label className={styles.field}>{text.edge}<select value={strip.edge} onChange={event => setStrip({ edge: event.target.value as TemplateStrip["edge"] })}>

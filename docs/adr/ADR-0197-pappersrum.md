@@ -29,7 +29,7 @@ Steg 1 (hittbarhet) flyttade kontrollbeskrivningen dit; det här är steg 2.
    `{ekvidistans}` står inte i någon fil och sätts i `event.paperValues.contourInterval` (`SET_EVENT`). Okända lämnas kvar.
    Layoutmallarnas platshållare använder samma funktion (`expandPaperText`).
 4. **Arket får `paperItems`** (`SheetPaperItem`: plats, källa och delar) av `layoutCoursePage` (första sidan) och
-   `layoutTemplateSheets` (per ram; arkets element bara i första ramen). Delarna (`PaperPart`: rektangel, polygon, text,
+   `sheetLayoutSheets` (per ram; arkets element bara i första ramen). Delarna (`PaperPart`: rektangel, polygon, text,
    bild) är svartvita vektorer i papperets mm och ritas likadant av förhandsvisningen (SVG) och PDF:en (`write-pdf.ts`;
    täckningen som ExtGState `ca/CA`). Målningsordning: kartor och banor, vita ytor, layoutmallens bilder, papperets element,
    beskrivningar, texter.

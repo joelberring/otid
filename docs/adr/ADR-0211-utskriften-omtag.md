@@ -18,7 +18,7 @@ ställen och papperet redigerades i en ruta bredvid arket.
 1. **Ringklippen följer med till papperet.** *Orsaken:* detaljgapen (ADR-0180 beslut 10, "klipp över detaljer") räknas på
    kartfilen och fanns bara i editorn, där kartans Worker räknade dem och gav dem till `layoutOverprint`. `printSheetGroups`
    hade inget sätt att få dem, så både förhandsvisningen och serverns PDF-jobb lade ut ringarna hela (`layoutCoursePage` och
-   `layoutTemplateSheets` tog emot `detailGaps` men fick dem aldrig). Nu har `printSheetGroups` `detailGaps` (och
+   `sheetLayoutSheets` tog emot `detailGaps` men fick dem aldrig). Nu har `printSheetGroups` `detailGaps` (och
    `numberObstacles`, beslut 4); förhandsvisningen använder samma `useDetailGaps` som editorn och utskriftsarbetaren räknar
    dem på kartfilen med `printDetailGaps` (samma ren funktion som Workern). Överlappsklippen och fasta ringavbrott räknades
    redan i utläggningen och påverkades inte.

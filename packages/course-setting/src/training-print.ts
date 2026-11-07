@@ -4,7 +4,7 @@
  */
 import type { MapRect } from "./types";
 import type { CourseSettingDocument } from "./types";
-import type { Sheet, SheetFrame, SheetItem, SheetText } from "./layout-template";
+import type { Sheet, SheetFrame, SheetItem, SheetText } from "./sheet-layout";
 import { layout, printScaleOf } from "./overprint";
 import { figureBounds, printRectangle } from "./page-layout";
 import type { PieceTraining } from "./training-types";

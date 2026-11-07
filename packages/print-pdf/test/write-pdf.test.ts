@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { PDFDict, PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import {
-  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, layoutCoursePage, layoutTemplateSheets, readPpen, sheetOfPage, type CourseSettingDocument, type LayoutTemplate,
+  BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, layoutCoursePage, sheetLayoutSheets, readPpen, sheetOfPage, type CourseSettingDocument, type SheetLayout,
   type PrintProfile, type Sheet
 } from "@o-tid/course-setting";
 import { readMapFile, type ParsedMap } from "@o-tid/map-file";
@@ -145,10 +145,10 @@ describe("PDF för tryck (steg 65)", () => {
   });
 
   it("en karta per löpare dubbelsidigt: baksidan efter varje karta i samma format, utsnittet skrivs en gång, vändning på långsidan", async () => {
-    const template = BUILT_IN_TEMPLATES.find(item => item.id === "a4-one")!;
+    const template = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one")!;
     const runners = ["Anna", "Bertil", "Cecilia"].map((name, index) => ({ course: courses[0]!.id,
       runner: { kind: "RUNNER" as const, name, club: "OK", className: "D21", startTime: `18:0${index}`, startNumber: 10 + index } }));
-    const sheets = runners.flatMap(item => layoutTemplateSheets(document, template, [item], { duplexBacks: true, mapBounds: ocd.bounds ?? undefined }));
+    const sheets = runners.flatMap(item => sheetLayoutSheets(document, template, [item], { duplexBacks: true, mapBounds: ocd.bounds ?? undefined }));
     const { result, pdf } = await write(ocd, "PRESS", profile("as-file"), sheets);
     expect(result.pages).toBe(6);
     expect(result.mapForms).toBe(1);
@@ -163,10 +163,10 @@ describe("PDF för tryck (steg 65)", () => {
 
   it("layoutmall: skärmarker i registerfärgen, logotyp och remsa", async () => {
     const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-    const base = BUILT_IN_TEMPLATES.find(item => item.id === "a4-four")!;
-    const template: LayoutTemplate = { ...base, id: "t", images: [{ x: 10, y: 280, width: 20, height: 10, mediaType: "image/png", data: png }],
+    const base = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-four")!;
+    const template: SheetLayout = { ...base, id: "t", images: [{ x: 10, y: 280, width: 20, height: 10, mediaType: "image/png", data: png }],
       strips: [{ edge: "bottom", depthMm: 10, text: "{bana}", sizeMm: 5 }] };
-    const sheets = layoutTemplateSheets(document, template, courses.map(course => ({ course: course.id })), { mapBounds: ocd.bounds ?? undefined });
+    const sheets = sheetLayoutSheets(document, template, courses.map(course => ({ course: course.id })), { mapBounds: ocd.bounds ?? undefined });
     const { pdf } = await write(ocd, "PRESS", profile("as-file"), sheets);
     const all = [...pdf.colorSpaces].find(([, space]) => space.names[0] === "All");
     expect(all?.[1]).toMatchObject({ kind: "Separation", c1: [1, 1, 1, 1] });

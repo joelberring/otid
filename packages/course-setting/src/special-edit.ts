@@ -4,7 +4,7 @@
  */
 import type { Point } from "@o-tid/map-file";
 import { nextId } from "./ppen-common";
-import { BUILT_IN_TEMPLATES, validateLayoutTemplate } from "./layout-template";
+import { BUILT_IN_SHEET_LAYOUTS, validateSheetLayout } from "./sheet-layout";
 import { PAPER_LIMITS, paperPartKey, validatePaperLayout, validatePaperTemplate, type CoursePaperLayout } from "./paper-items";
 import { validateRunnerBack } from "./runner-back";
 import { withoutTemplateInLayouts } from "./print-layout-edit";
@@ -22,7 +22,7 @@ const LINE_KINDS = new Set(["boundary", "line"]);
 const AREA_KINDS = new Set(["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"]);
 
 const invalid = (message: string) => new CourseSettingEditError("INVALID", message);
-const BUILT_IN_IDS = new Set([...BUILT_IN_PRINT_PROFILES.map(profile => profile.id), ...BUILT_IN_TEMPLATES.map(template => template.id)]);
+const BUILT_IN_IDS = new Set([...BUILT_IN_PRINT_PROFILES.map(profile => profile.id), ...BUILT_IN_SHEET_LAYOUTS.map(template => template.id)]);
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 /** Antalet punkter som slaget ska ha (Special.Validate). */
@@ -116,7 +116,7 @@ export function applySpecialEdit(document: CourseSettingDocument, edit: SpecialE
       return { document: { ...document, specialObjects: specials.filter(item => item.id !== edit.special) } };
     case "PUT_PRINT_PROFILE": case "PUT_LAYOUT_TEMPLATE": {
       const key = edit.type === "PUT_PRINT_PROFILE" ? "printProfiles" : "layoutTemplates";
-      const item = edit.type === "PUT_PRINT_PROFILE" ? validatePrintProfile(edit.profile) : validateLayoutTemplate(edit.template);
+      const item = edit.type === "PUT_PRINT_PROFILE" ? validatePrintProfile(edit.profile) : validateSheetLayout(edit.template);
       if (BUILT_IN_IDS.has(item.id)) throw invalid("En inbyggd profil eller mall ändras genom att kopieras med nytt id");
       const list = (document.event[key] ?? []) as readonly { id: string }[];
       if (list.length >= 50 && !list.some(row => row.id === item.id)) throw invalid("Högst 50 profiler eller mallar");

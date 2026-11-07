@@ -4,7 +4,7 @@
  * färgprofilen (vald profil och tävlingens egna profiler). Banorna ingår inte. "Återställ" är en vanlig ändring (kan ångras) och
  * "Jämför" säger vad som skiljer.
  */
-import type { LayoutTemplate } from "./layout-template";
+import type { SheetLayout } from "./sheet-layout";
 import type { CoursePaperLayout, PaperTemplate } from "./paper-items";
 import type { PrintProfile } from "./print-profile";
 import { MAIN_LAYOUT, type LayoutSheet, type MainLayoutSettings, type PrintLayout } from "./print-layouts";
@@ -28,7 +28,7 @@ export interface LayoutState {
   readonly mainLayout?: MainLayoutSettings | undefined;
   readonly paperLayouts?: Readonly<Record<string, CoursePaperLayout>> | undefined;
   readonly paperTemplates?: readonly PaperTemplate[] | undefined;
-  readonly layoutTemplates?: readonly LayoutTemplate[] | undefined;
+  readonly layoutTemplates?: readonly SheetLayout[] | undefined;
   /** Huvudlayoutens tryckytor per bana (alla banor som fanns; tomt = automatisk) och Alla kontrollers. */
   readonly mainAreas: Readonly<Record<string, LayoutStateAreas>>;
   readonly allControlsArea?: PrintArea | undefined;

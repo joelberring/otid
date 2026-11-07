@@ -79,7 +79,7 @@ export * from "./print-reference";
 export * from "./color-match";
 export * from "./press-order";
 export * from "./number-obstacles";
-export * from "./layout-template";
+export * from "./sheet-layout";
 // ADR-0190: banorna som IOF XML 3.0 CourseData (som Purple Pens export).
 export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";
 // Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan; senare fler element på arket.
@@ -90,7 +90,7 @@ export * from "./paper-sheet";
 export * from "./runner-back";
 export * from "./paper-shapes";
 export * from "./paper-white";
-export { expandPartItems, printSheetGroups, type SheetGroup, type SheetGroupOptions, type SheetLayout } from "./print-sheets";
+export { expandPartItems, printSheetGroups, type SheetGroup, type SheetGroupOptions, type PrintSheetsLayout } from "./print-sheets";
 export * from "./print-layouts";
 export * from "./print-layout-edit";
 export * from "./print-layout-states";

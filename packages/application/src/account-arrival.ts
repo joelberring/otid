@@ -5,12 +5,13 @@ import { acceptRacePersonInvitations } from "./race-person-invitations";
 import { acceptGroupInvitations } from "./training-group-invitations";
 import { acceptClubInvitations } from "./club-invitations";
 import { applyEventorMemberships } from "./club-affiliation-access";
+import { acceptMapProjectInvitations } from "./map-project-access";
 
 /**
  * Den enda vägen där inbjudningar av alla slag tas (städrundan C4). Varje `accept*` tar bara sitt eget slag; här bestäms när.
  *
  * - Ankomst (inloggning, bekräftelselänken, återställningslänken, Google och Mina tävlingar): tävlingens behörigheter
- *   (ADR-0188 beslut 6), träningsgrupperna (ADR-0189 beslut 9) och klubbarna (ADR-0194 beslut 1).
+ *   (ADR-0188 beslut 6), träningsgrupperna (ADR-0189 beslut 9), klubbarna (ADR-0194 beslut 1) och kartprojekten (ADR-0219).
  * - En tävling som öppnas: bara inbjudningarna som gäller den tävlingen, dvs. tävlingens egna och dess träningsgrupps (en ledare
  *   i gruppen är administratör på gruppens tävlingar). En behörighetskontroll tar aldrig en klubbinbjudan eller en inbjudan
  *   till en annan tävling eller grupp.
@@ -19,7 +20,7 @@ import { applyEventorMemberships } from "./club-affiliation-access";
  */
 export async function acceptAllInvitations(tx: DbExecutor, accountId: string, now: Date): Promise<number> {
   return await acceptRacePersonInvitations(tx, accountId, now) + await acceptGroupInvitations(tx, accountId, now)
-    + await acceptClubInvitations(tx, accountId, now);
+    + await acceptClubInvitations(tx, accountId, now) + await acceptMapProjectInvitations(tx, accountId, now);
 }
 
 /** Inbjudningarna som gäller tävlingen `raceId` (dess egna och dess träningsgrupps). Ger antalet som togs. */

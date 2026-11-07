@@ -9,7 +9,7 @@ import { sha256Hex } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
 /**
- * ADR-0206: länkar till sparade inbjudningar (klubb, tävling, träningsgrupp). Nyckeln är 32 slumpade byte (base64url) och bara
+ * ADR-0206: länkar till sparade inbjudningar (klubb, tävling, träningsgrupp, kartprojekt sedan ADR-0219). Nyckeln är 32 slumpade byte (base64url) och bara
  * dess sha256 sparas. Länken gäller 14 dagar, tills den ersätts ("Skicka igen") eller inbjudan tas bort. Länken ger ingenting
  * själv: inbjudan blir som förut en behörighet när ett konto med exakt adressen och bekräftad e-post loggar in (ADR-0188
  * beslut 6). Länksidan svarar likadant oavsett om adressen har ett konto.
@@ -32,7 +32,8 @@ export interface InvitationRef { kind: InvitationKind; invitationId: string }
 export type InvitationTarget =
   | { kind: "CLUB"; clubId: string; name: string }
   | { kind: "RACE"; raceId: string; name: string; raceDate: string }
-  | { kind: "GROUP"; groupId: string; name: string };
+  | { kind: "GROUP"; groupId: string; name: string }
+  | { kind: "MAP_PROJECT"; projectId: string; name: string };
 
 /** Det mejlet behöver: mottagaren, länkens nyckel, vem som bjuder in, till vad och som vad. Inget annat om någon. */
 export interface InvitationMail {
@@ -44,8 +45,9 @@ export type InvitationMailer = (mail: InvitationMail) => Promise<void>;
 interface LoadedInvitation { ref: InvitationRef; email: string; role: InvitationRole; acceptedAt: Date | null; revokedAt: Date | null;
   target: InvitationTarget }
 
-const linkColumn = (kind: InvitationKind) => kind === "CLUB" ? schema.invitationLinks.clubInvitationId
-  : kind === "RACE" ? schema.invitationLinks.raceInvitationId : schema.invitationLinks.groupInvitationId;
+const LINK_COLUMNS = { CLUB: schema.invitationLinks.clubInvitationId, RACE: schema.invitationLinks.raceInvitationId,
+  GROUP: schema.invitationLinks.groupInvitationId, MAP_PROJECT: schema.invitationLinks.mapProjectInvitationId } as const;
+const linkColumn = (kind: InvitationKind) => LINK_COLUMNS[kind];
 
 /** Inbjudan med det den gäller, eller undefined. */
 export async function loadInvitation(tx: DbExecutor, ref: InvitationRef): Promise<LoadedInvitation | undefined> {
@@ -66,6 +68,14 @@ export async function loadInvitation(tx: DbExecutor, ref: InvitationRef): Promis
     return row && { ref, email: row.email, role: row.role, acceptedAt: row.acceptedAt, revokedAt: row.revokedAt,
       target: { kind: "RACE", raceId: row.raceId, name: raceTitle(row.eventName, row.raceName), raceDate: row.raceDate } };
   }
+  if (ref.kind === "MAP_PROJECT") {
+    const table = schema.mapProjectInvitations;
+    const [row] = await tx.select({ email: table.email, role: table.role, acceptedAt: table.acceptedAt, revokedAt: table.revokedAt,
+      projectId: schema.mapProjects.id, name: schema.mapProjects.name }).from(table)
+      .innerJoin(schema.mapProjects, eq(schema.mapProjects.id, table.projectId)).where(eq(table.id, ref.invitationId));
+    return row && { ref, email: row.email, role: row.role, acceptedAt: row.acceptedAt, revokedAt: row.revokedAt,
+      target: { kind: "MAP_PROJECT", projectId: row.projectId, name: row.name } };
+  }
   const table = schema.trainingGroupInvitations;
   const [row] = await tx.select({ email: table.email, role: table.role, acceptedAt: table.acceptedAt, revokedAt: table.revokedAt,
     groupId: schema.trainingGroups.id, name: schema.trainingGroups.name }).from(table)
@@ -74,10 +84,11 @@ export async function loadInvitation(tx: DbExecutor, ref: InvitationRef): Promis
     target: { kind: "GROUP", groupId: row.groupId, name: row.name } };
 }
 
-/** Sidan personen hamnar på efter inloggningen: klubben, gruppen, tävlingen (banläggningen för banläggare och kartritare). */
+/** Sidan personen hamnar på efter inloggningen: klubben, gruppen, kartprojektet, tävlingen (banläggningen för banläggare och kartritare). */
 export function invitationNext(target: InvitationTarget, role: InvitationRole): string {
   if (target.kind === "CLUB") return `/organizer/clubs/${target.clubId}`;
   if (target.kind === "GROUP") return role === "LEADER" ? `/organizer/groups/${target.groupId}` : "/organizer";
+  if (target.kind === "MAP_PROJECT") return `/organizer/map-projects/${target.projectId}`;
   if (role === "COURSE_MAP") return `/admin/${target.raceId}/course-setting/map-errors`;
   if (role.startsWith("COURSE_")) return `/admin/${target.raceId}/course-setting`;
   return `/admin/${target.raceId}/manage`;
@@ -145,7 +156,8 @@ export async function issueInvitationLink(tx: DbExecutor, input: { ref: Invitati
     createdAt: input.now, expiresAt,
     clubInvitationId: input.ref.kind === "CLUB" ? input.ref.invitationId : null,
     raceInvitationId: input.ref.kind === "RACE" ? input.ref.invitationId : null,
-    groupInvitationId: input.ref.kind === "GROUP" ? input.ref.invitationId : null });
+    groupInvitationId: input.ref.kind === "GROUP" ? input.ref.invitationId : null,
+    mapProjectInvitationId: input.ref.kind === "MAP_PROJECT" ? input.ref.invitationId : null });
   return { linkId, token, expiresAt };
 }
 
@@ -195,7 +207,9 @@ export async function readInvitationLink(db: Database, token: string, now = new 
     const [link] = await tx.select().from(schema.invitationLinks).where(eq(schema.invitationLinks.tokenHash, sha256Hex(token)));
     if (!link || link.replacedAt || link.expiresAt.getTime() <= now.getTime()) return invalid;
     const ref: InvitationRef = link.clubInvitationId ? { kind: "CLUB", invitationId: link.clubInvitationId }
-      : link.raceInvitationId ? { kind: "RACE", invitationId: link.raceInvitationId } : { kind: "GROUP", invitationId: link.groupInvitationId! };
+      : link.raceInvitationId ? { kind: "RACE", invitationId: link.raceInvitationId }
+      : link.mapProjectInvitationId ? { kind: "MAP_PROJECT", invitationId: link.mapProjectInvitationId }
+      : { kind: "GROUP", invitationId: link.groupInvitationId! };
     const invitation = await loadInvitation(tx, ref);
     if (!invitation || invitation.revokedAt) return invalid;
     // Avsändarens konto kan ha tagits bort (ingen främmande nyckel sedan migration 0088); inbjudan gäller ändå, utan namnet.

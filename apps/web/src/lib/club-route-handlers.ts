@@ -103,7 +103,7 @@ function headerText(request: Request, name: string, max: number): string | null 
   try { return decodeURIComponent(raw).replace(/\p{Cc}/gu, "").trim().slice(0, max) || null; } catch { return null; }
 }
 
-const attachment = (fileName: string, fallback: string) => {
+export const attachment = (fileName: string, fallback: string) => {
   const safe = fileName.replace(/[^\p{L}\p{N} ._()-]/gu, "_") || fallback;
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(safe)}`;
 };

@@ -1,0 +1,96 @@
+import { bigint, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { userAccounts } from "./accounts";
+import { clubMapVersions, clubs } from "./clubs";
+import { mapContents } from "./map-content";
+
+/**
+ * ADR-0219 (migration 0089): kartprojekten. Ett projekt utgår från en kartversion i klubbarkivet; ändringarna lagras per objekt
+ * (`map_project_object`) med en logg över varje ändring som kom fram (`map_project_edit`). Författare och avsändare har ingen
+ * främmande nyckel; medlemskap och tagna inbjudningar har den och försvinner med kontot.
+ *
+ * Rollerna och lägena bestäms i koden (`mapProjectRoleSchema` i contracts; ändringarnas slag `EDIT_KINDS` i map-revision);
+ * databasen kräver bara formen, som spärrtyperna i 0087.
+ */
+/** Lagrade roller; i UI Ägare, Ändra och Läsa. Förslag (`SUGGEST`) kommer i K1. */
+export type MapProjectRole = "OWNER" | "EDIT" | "READ";
+export type MapProjectStatus = "OPEN" | "CLOSED";
+export type MapProjectEditStatus = "APPLIED" | "CONFLICT";
+
+export const mapProjects = pgTable("map_project", {
+  id: uuid("id").primaryKey(),
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  name: text("name").notNull(),
+  baseVersionId: uuid("base_version_id").notNull().references(() => clubMapVersions.id),
+  baseSha256: text("base_sha256").notNull().references(() => mapContents.sha256),
+  baseFormat: text("base_format").$type<"OCD" | "OMAP">().notNull(),
+  readerVersion: integer("reader_version").notNull(),
+  status: text("status").$type<MapProjectStatus>().notNull(),
+  seq: bigint("seq", { mode: "number" }).notNull().default(0),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  closedBy: uuid("closed_by"),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  requestId: uuid("request_id").notNull()
+});
+
+export const mapProjectMembers = pgTable("map_project_member", {
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
+  role: text("role").$type<MapProjectRole>().notNull(),
+  addedBy: uuid("added_by").notNull(),
+  addedAt: timestamp("added_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+}, table => [primaryKey({ columns: [table.projectId, table.accountId] })]);
+
+export const mapProjectInvitations = pgTable("map_project_invitation", {
+  id: uuid("id").primaryKey(),
+  requestId: uuid("request_id").notNull(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  email: text("email").notNull(),
+  role: text("role").$type<MapProjectRole>().notNull(),
+  actorAccountId: uuid("actor_account_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),
+  revokedAt: timestamp("revoked_at", { withTimezone: true })
+});
+
+export const mapProjectObjects = pgTable("map_project_object", {
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  objectKey: text("object_key").notNull(),
+  ref: jsonb("ref").$type<unknown>(),
+  state: jsonb("state").$type<unknown>().notNull(),
+  lastEditId: uuid("last_edit_id").notNull(),
+  version: integer("version").notNull(),
+  seq: bigint("seq", { mode: "number" }).notNull(),
+  authorAccountId: uuid("author_account_id").notNull(),
+  editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull()
+}, table => [primaryKey({ columns: [table.projectId, table.objectKey] })]);
+
+export const mapProjectEdits = pgTable("map_project_edit", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  editId: uuid("edit_id").notNull(),
+  objectKey: text("object_key").notNull(),
+  baseEditId: uuid("base_edit_id"),
+  kind: text("kind").notNull(),
+  status: text("status").$type<MapProjectEditStatus>().notNull(),
+  state: jsonb("state").$type<unknown>().notNull(),
+  seq: bigint("seq", { mode: "number" }),
+  authorAccountId: uuid("author_account_id").notNull(),
+  clientId: text("client_id").notNull(),
+  editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull()
+});
+
+export const mapProjectOutputs = pgTable("map_project_output", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  versionId: uuid("version_id").notNull().references(() => clubMapVersions.id),
+  seq: bigint("seq", { mode: "number" }).notNull(),
+  changes: integer("changes").notNull(),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  requestId: uuid("request_id").notNull()
+});

@@ -1,5 +1,5 @@
 import {
-  readInvitationLink, resendClubInvitation, resendGroupInvitation, type InvitationMailer,
+  readInvitationLink, resendClubInvitation, resendGroupInvitation, resendMapProjectInvitation, type InvitationMailer,
   type InvitationResendResult
 } from "@o-tid/application";
 import { invitationLinkRequestSchema, invitationLinkViewSchema, invitationResendResponseSchema, UUID_PATTERN } from "@o-tid/contracts";
@@ -12,7 +12,7 @@ import { logServerError } from "./server-error-log";
 
 /**
  * ADR-0206: länksidans fråga (POST /api/invitation med nyckeln i kroppen, utan inloggning) och "Skicka igen"/"Kopiera länken"
- * i klubbens och gruppens listor (inloggad administratör, exakt Origin och CSRF; tävlingens går genom arbetsytans route).
+ * i klubbens, gruppens och kartprojektets listor (inloggad administratör, exakt Origin och CSRF; tävlingens går genom arbetsytans route).
  * Svaren är privata och cachas inte.
  */
 type Environment = Record<string, string | undefined>;
@@ -64,12 +64,12 @@ export function invitationResendResponse(result: InvitationResendResult): Respon
   }
 }
 
-type Scope = { kind: "CLUB"; clubId: string } | { kind: "GROUP"; groupId: string };
+type Scope = { kind: "CLUB"; clubId: string } | { kind: "GROUP"; groupId: string } | { kind: "MAP_PROJECT"; projectId: string };
 
 /** POST …/invitations/{invitationId} med `{ delivery: "MAIL" | "LINK" }`. */
 export async function invitationResendRoute(db: Database, request: Request, scope: Scope, invitationId: string,
   environment: Environment = process.env): Promise<Response> {
-  const scopeId = scope.kind === "CLUB" ? scope.clubId : scope.groupId;
+  const scopeId = scope.kind === "CLUB" ? scope.clubId : scope.kind === "GROUP" ? scope.groupId : scope.projectId;
   if (!UUID_PATTERN.test(scopeId) || !UUID_PATTERN.test(invitationId)) return accountFailure(404, "NOT_FOUND");
   const configured = policy(environment);
   if (!configured) return accountFailure(500, "INTERNAL_ERROR");
@@ -81,7 +81,8 @@ export async function invitationResendRoute(db: Database, request: Request, scop
   try {
     const input = { ...proof, invitationId, request: body };
     const result = scope.kind === "CLUB" ? await resendClubInvitation(db, { ...input, clubId: scope.clubId }, mailer)
-      : await resendGroupInvitation(db, { ...input, groupId: scope.groupId }, mailer);
+      : scope.kind === "GROUP" ? await resendGroupInvitation(db, { ...input, groupId: scope.groupId }, mailer)
+      : await resendMapProjectInvitation(db, { ...input, projectId: scope.projectId }, mailer);
     return invitationResendResponse(result);
   } catch (error) {
     logServerError("invitation", "resend", error);

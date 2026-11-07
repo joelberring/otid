@@ -8,6 +8,7 @@ import {
 } from "./invitation-links";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { requireGroupLeader } from "./training-groups";
+import { requireMapProject } from "./map-project-access";
 
 /**
  * ADR-0206: "Skicka igen" (ny nyckel som ersätter de tidigare, spärrad) och "Kopiera länken" (utan e-post på servern) i listorna
@@ -28,6 +29,8 @@ type Authorize = (tx: Transaction) => Promise<Failure | { status: "ok"; accountI
 const SOURCE_KIND = { CLUB: "CLUB", RACE: "RACE_PERSON", GROUP: "TRAINING_GROUP" } as const;
 
 async function fromClub(tx: Transaction, ref: InvitationRef): Promise<boolean> {
+  // Kartprojektens inbjudningar kommer aldrig "Från klubben".
+  if (ref.kind === "MAP_PROJECT") return false;
   const sources = schema.invitationClubSources;
   const [row] = await tx.select({ id: sources.id }).from(sources)
     .where(and(eq(sources.kind, SOURCE_KIND[ref.kind]), eq(sources.invitationId, ref.invitationId))).limit(1);
@@ -96,5 +99,16 @@ export async function resendGroupInvitation(db: Database, input: ClubProof & { g
     if (leader.status !== "ok") return failure(leader.status);
     return { status: "ok", accountId: leader.accountId, permits: invitation =>
       invitation.target.kind !== "GROUP" || invitation.target.groupId !== input.groupId ? { status: "not-found" } : undefined };
+  }, mailer, now);
+}
+
+/** Kartprojektets inbjudan (Medlemmar, ADR-0219), av projektets ägare. */
+export async function resendMapProjectInvitation(db: Database, input: ClubProof & { projectId: string; invitationId: string; request: unknown },
+  mailer?: InvitationMailer, now = new Date()): Promise<InvitationResendResult> {
+  return resend(db, { kind: "MAP_PROJECT", invitationId: input.invitationId }, input.request, async tx => {
+    const access = await requireMapProject(tx, input, now, "manage", true);
+    if (access.status !== "ok") return failure(access.status);
+    return { status: "ok", accountId: access.accountId, permits: invitation =>
+      invitation.target.kind !== "MAP_PROJECT" || invitation.target.projectId !== input.projectId ? { status: "not-found" } : undefined };
   }, mailer, now);
 }

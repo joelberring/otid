@@ -263,6 +263,7 @@ export async function sweepMapContent(tx: DbExecutor, now: Date): Promise<{ cont
       and not exists (select 1 from training_group_map where content_sha256 = c.sha256)
       and not exists (select 1 from training_group_map_source where content_sha256 = c.sha256)
       and not exists (select 1 from club_map_version where content_sha256 = c.sha256)
+      and not exists (select 1 from map_project where base_sha256 = c.sha256)
     limit 100`)).rows;
   for (const row of contents) await tx.execute(sql`select otid_map_content_release(${row.sha256})`);
   const parts = await tx.execute(sql`delete from map_content_part p where p.created_at < ${new Date(now.getTime() - 24 * 60 * 60_000)}

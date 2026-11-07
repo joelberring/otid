@@ -176,7 +176,9 @@ export {
   INVITATION_LINK_LIFETIME_MS, INVITATION_MAILS_PER_INVITER, INVITATION_MAILS_PER_RECIPIENT, INVITATION_RESEND_INTERVAL_MS,
   invitationNext, readInvitationLink, type InvitationMail, type InvitationMailer, type InvitationTarget
 } from "./invitation-links";
-export { resendClubInvitation, resendGroupInvitation, resendRacePersonInvitation, type InvitationResendResult } from "./invitation-resend";
+export {
+  resendClubInvitation, resendGroupInvitation, resendMapProjectInvitation, resendRacePersonInvitation, type InvitationResendResult
+} from "./invitation-resend";
 export * from "./club-invite";
 export {
   ALERT_KINDS, alertMessage, diskForecast, evaluateAlerts, lastReportSlot, serverProblems, serverWatchSettings, serverWatchSettingsProblems,
@@ -187,3 +189,9 @@ export {
   collectServerSnapshot, hostPaths, readHost, readMemory, runServerWatch, superadminRecipients
 } from "./server-status";
 export type { HostPaths, HostReadings, ServerMailer, ServerMessage, ServerWatchResult } from "./server-status";
+export {
+  createMapProject, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole,
+  updateMapProject
+} from "./map-projects";
+export { syncMapProject } from "./map-project-sync";
+export { exportMapProjectChanges, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";

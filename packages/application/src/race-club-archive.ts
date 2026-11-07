@@ -275,8 +275,11 @@ export async function removeRaceFromClubArchive(db: Database, input: RaceSession
 /** Kartversionen och kartan som inlyftet skapade tas bort när inget annat i arkivet eller någon grupp använder dem. */
 async function dropUnusedCreated(tx: DbExecutor, versionId: string | null, mapId: string | null): Promise<void> {
   if (versionId) {
+    // ADR-0219: ett kartprojekt som utgår från versionen, eller en version som skrivits ur ett projekt, håller den kvar.
     const [used] = (await tx.execute<{ used: boolean }>(sql`select exists (select 1 from club_archive_entry_map where version_id = ${versionId})
-      or exists (select 1 from club_archive_course_file where map_version_id = ${versionId}) as used`)).rows;
+      or exists (select 1 from club_archive_course_file where map_version_id = ${versionId})
+      or exists (select 1 from map_project where base_version_id = ${versionId})
+      or exists (select 1 from map_project_output where version_id = ${versionId}) as used`)).rows;
     if (!used?.used) {
       await tx.delete(schema.clubArchiveEntryThumbnails).where(eq(schema.clubArchiveEntryThumbnails.mapVersionId, versionId));
       await tx.delete(schema.clubMapVersionChecks).where(eq(schema.clubMapVersionChecks.versionId, versionId));

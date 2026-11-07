@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema, passwordResetTokenSchema } from "./account";
 import { clubRoleSchema } from "./club-archive";
+import { mapProjectRoleSchema } from "./map-project";
 import { groupMemberRoleSchema } from "./training-group";
 
 /**
@@ -12,13 +13,15 @@ export const INVITATION_LINK_LIFETIME_DAYS = 14;
 /** Så många adresser går att klistra in på en gång. */
 export const INVITATION_BULK_MAX = 100;
 
-export const invitationKindSchema = z.enum(["CLUB", "RACE", "GROUP"]);
+/** ADR-0219: också kartprojekt (`MAP_PROJECT`). */
+export const invitationKindSchema = z.enum(["CLUB", "RACE", "GROUP", "MAP_PROJECT"]);
 /** Tävlingens roller som går att bjuda in till (administratör, funktionär, banläggning, kartritare). */
 export const raceInvitationRoleSchema = z.enum(["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"]);
-/** Rollerna per slag av inbjudan: klubbens (lagrat READER heter Medlem i UI), tävlingens och träningsgruppens. */
-const invitationRoleSchemas = { CLUB: clubRoleSchema, RACE: raceInvitationRoleSchema, GROUP: groupMemberRoleSchema } as const;
+/** Rollerna per slag av inbjudan: klubbens (lagrat READER heter Medlem i UI), tävlingens, träningsgruppens och kartprojektets. */
+const invitationRoleSchemas = { CLUB: clubRoleSchema, RACE: raceInvitationRoleSchema, GROUP: groupMemberRoleSchema,
+  MAP_PROJECT: mapProjectRoleSchema } as const;
 /** Någon av rollerna, oavsett slag (trådformatet är ett `role`-fält); `invitationRoleFits` säger om den hör till slaget. */
-export const invitationRoleSchema = z.union([clubRoleSchema, raceInvitationRoleSchema, groupMemberRoleSchema]);
+export const invitationRoleSchema = z.union([clubRoleSchema, raceInvitationRoleSchema, groupMemberRoleSchema, mapProjectRoleSchema]);
 export const invitationRoleFits = (kind: z.infer<typeof invitationKindSchema>, role: string): boolean =>
   invitationRoleSchemas[kind].safeParse(role).success;
 /**

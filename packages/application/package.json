@@ -19,6 +19,7 @@
     "@o-tid/eventor": "workspace:*",
     "@o-tid/iof-xml": "workspace:*",
     "@o-tid/map-file": "workspace:*",
+    "@o-tid/map-revision": "workspace:*",
     "@o-tid/print-pdf": "workspace:*",
     "@o-tid/roc": "workspace:*",
     "@o-tid/sportident": "workspace:*",

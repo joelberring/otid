@@ -21,8 +21,6 @@ import { relayTeamOfEntry } from "./relay-model";
 import { lockRelayClassOfEntry, synchronizeRelayTeams } from "./relay-sync";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
 
-export type AckStatus = DeviceEventAcknowledgement["status"];
-
 async function findPersistedServerResult(
   tx: DbExecutor,
   rawMessageId: string

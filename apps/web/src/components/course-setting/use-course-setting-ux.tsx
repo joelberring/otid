@@ -252,4 +252,3 @@ function safe<T>(compute: () => T, fallback: T): T {
   try { return compute(); } catch (error) { console.error("Banläggningen", error); return fallback; }
 }
 
-export type CourseSettingUx = ReturnType<typeof useCourseSettingUx>;

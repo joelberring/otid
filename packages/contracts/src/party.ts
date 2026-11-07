@@ -120,7 +120,6 @@ export const partyDeskEventResponseSchema = z.object({
   kind: z.enum(["CHECK_IN", "CHECK_OUT"]), status: z.enum(["stored", "duplicate"])
 }).strict();
 
-export type PartyItemContract = z.infer<typeof partyItemSchema>;
 export type PartyPackage = z.infer<typeof partyPackageSchema>;
 export type PartyStateResponse = z.infer<typeof partyStateResponseSchema>;
 export type PartyChangeRequest = z.infer<typeof partyChangeRequestSchema>;
@@ -148,7 +147,6 @@ export const publicPartySplitRowSchema = z.object({
   purchases: z.array(splitEvent.extend({ itemName, group: itemGroup.optional() }).strict()).min(1).max(1_000),
   checkout: splitEvent.optional()
 }).strict();
-
 
 export const publicPartyResponseSchema = z.object({
   formatVersion: z.literal(1),

@@ -30,4 +30,3 @@ export const entryCardRentalReuseResponseSchema = z.object({
   row.snapshotVersionAfter === row.snapshotVersionBefore + 1);
 
 export type EntryCardRentalReuseRequest = z.infer<typeof entryCardRentalReuseRequestSchema>;
-export type EntryCardRentalReuseResponse = z.infer<typeof entryCardRentalReuseResponseSchema>;

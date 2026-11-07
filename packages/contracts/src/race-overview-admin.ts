@@ -11,8 +11,6 @@ const aggregateCountSchema = z.number().int().nonnegative();
 const nameSchema = z.string().trim().min(1).max(160);
 const instantSchema = z.iso.datetime({ offset: true });
 
-
-
 const raceOverviewRaceSchema = z.object({
   id: canonicalUuidSchema,
   eventName: nameSchema,
@@ -92,5 +90,3 @@ export const raceOverviewAdminErrorResponseSchema = z.object({
 }).strict();
 
 export type RaceOverviewResponse = z.infer<typeof raceOverviewResponseSchema>;
-export type RaceOverviewAdminErrorCode = z.infer<typeof raceOverviewAdminErrorCodeSchema>;
-export type RaceOverviewAdminErrorResponse = z.infer<typeof raceOverviewAdminErrorResponseSchema>;

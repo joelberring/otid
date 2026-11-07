@@ -251,7 +251,6 @@ export const deviceBatchAcknowledgementSchema = z.object({
 });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
-export type SimulatorPayload = z.infer<typeof simulatorPayloadSchema>;
 export type DeviceBatch = z.infer<typeof deviceBatchSchema>;
 export type ServerResultSummary = z.infer<typeof serverResultSummarySchema>;
 export type ReadoutPlacement = z.infer<typeof readoutPlacementSchema>;

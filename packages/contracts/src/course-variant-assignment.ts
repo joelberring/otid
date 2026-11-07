@@ -67,7 +67,6 @@ export const classVariantDistributionResponseSchema = z.object({
   }
 });
 
-export type EntryVariantPreviewRequest = z.infer<typeof entryVariantPreviewRequestSchema>;
 export type EntryVariantPreviewResponse = z.infer<typeof entryVariantPreviewResponseSchema>;
 export type EntryVariantRequest = z.infer<typeof entryVariantRequestSchema>;
 export type EntryVariantResponse = z.infer<typeof entryVariantResponseSchema>;

@@ -226,4 +226,3 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   }
   return { ...createStartDrawAdvancedActions(ws), changeDrawCommon, applyDrawCommonTo, selectAllDrawRows, loadDrawSetup, changeDrawRow, changeDrawSettings, previewDraw, saveDraw, cancelDrawPreview };
 }
-export type StartDrawActions = ReturnType<typeof createStartDrawActions>;

@@ -98,7 +98,6 @@ export interface PartyPresence {
   readonly at: string;
   readonly source: PartyPresenceSource;
 }
-export type PartyCheckout = PartyPresence;
 
 export interface PartyPurchase {
   readonly cardNumber: string;

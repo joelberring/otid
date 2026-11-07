@@ -53,6 +53,5 @@ export const invitationLinkViewSchema = z.discriminatedUnion("status", [
 export type InvitationKind = z.infer<typeof invitationKindSchema>;
 export type InvitationRole = z.infer<typeof invitationRoleSchema>;
 export type InvitationMailOutcome = z.infer<typeof invitationMailOutcomeSchema>;
-export type InvitationResendRequest = z.infer<typeof invitationResendRequestSchema>;
 export type InvitationResendResponse = z.infer<typeof invitationResendResponseSchema>;
 export type InvitationLinkView = z.infer<typeof invitationLinkViewSchema>;

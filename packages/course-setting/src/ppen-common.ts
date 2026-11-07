@@ -1,5 +1,5 @@
 /** Det som läsaren och skrivaren av .ppen delar: namn på slag, tal, ringavbrott och råa element. */
-import type { CircleGap, ControlKind, Course, CourseSettingDocument, Leg, OverprintStandard, RawXml } from "./types";
+import type { CircleGap, ControlKind, Course, Leg, OverprintStandard, RawXml } from "./types";
 import { CourseSettingEditError } from "./types";
 import { el, parseXml, serializeXml, type XmlElement } from "./xml";
 
@@ -211,4 +211,3 @@ export function nextId(ids: Iterable<string>): string {
   return String(max + 1);
 }
 
-export type MutableDocument = { -readonly [K in keyof CourseSettingDocument]: CourseSettingDocument[K] };

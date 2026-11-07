@@ -1,17 +1,6 @@
 import type { EvaluationResult, ManuallyApprovedResult, SplitTime } from "./types";
 import { UUID_PATTERN as CANONICAL_UUID } from "./types";
 
-export type ManuallyApprovableResult = EvaluationResult & {
-  readonly status: "MP";
-  readonly reason: "MISSING_CONTROL" | "WRONG_ORDER";
-  readonly entryId: string;
-  readonly classId: string;
-  readonly courseVersionId: string;
-  readonly startTime: string;
-  readonly finishTime: string;
-  readonly elapsedMs: number;
-};
-
 export type ResultApprovalErrorCode =
   | "UNSUPPORTED_SOURCE_STATUS"
   | "UNSUPPORTED_SOURCE_REASON"

@@ -7,8 +7,6 @@ const canonicalUuidSchema = z.string().regex(
 );
 const positiveVersionSchema = z.number().int().positive();
 
-
-
 const entryClassAdminClassSchema = z.object({
   id: canonicalUuidSchema,
   name: z.string().trim().min(1).max(160)
@@ -106,7 +104,5 @@ export const entryClassAdminErrorResponseSchema = z.object({
 // pekar på det nya strikta kontraktet och låter därför inte den gamla bodyn
 // `{classId}` mutera något.
 export type EntryClassAdminListResponse = z.infer<typeof entryClassAdminListResponseSchema>;
-export type EntryClassChangeRequest = z.infer<typeof entryClassChangeRequestSchema>;
 export type EntryClassChangeResponse = z.infer<typeof entryClassChangeResponseSchema>;
 export type EntryClassAdminErrorCode = z.infer<typeof entryClassAdminErrorCodeSchema>;
-export type EntryClassAdminErrorResponse = z.infer<typeof entryClassAdminErrorResponseSchema>;

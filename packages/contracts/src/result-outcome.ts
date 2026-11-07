@@ -8,10 +8,6 @@ const canonicalUuidSchema = z.string().regex(
   "Id måste vara ett kanoniskt gemener-UUID"
 );
 
-/** The first and only manual result-decision policy in TASK 006E. */
-export const DID_NOT_START_DECISION_POLICY_VERSION = "did-not-start-v1";
-export const didNotStartDecisionPolicyVersionSchema = z.literal(DID_NOT_START_DECISION_POLICY_VERSION);
-
 /**
  * A status-only manual result. It intentionally is not accepted by the local
  * station evaluation schema, since a card readout cannot prove absence.
@@ -248,11 +244,4 @@ export function isValidStoredResultPair(
   return reason === "DID_NOT_START";
 }
 
-export type DidNotStartResult = z.infer<typeof didNotStartResultSchema>;
-export type DidNotFinishResult = z.infer<typeof didNotFinishResultSchema>;
-export type WithoutTimingResult = z.infer<typeof withoutTimingResultSchema>;
-export type OutOfCompetitionResult = z.infer<typeof outOfCompetitionResultSchema>;
-export type DisqualifiedResult = z.infer<typeof disqualifiedResultSchema>;
-export type ManualApprovedResult = z.infer<typeof manualApprovedResultSchema>;
 export type ResultOutcome = z.infer<typeof resultOutcomeSchema>;
-export type DidNotStartDecisionPolicyVersion = z.infer<typeof didNotStartDecisionPolicyVersionSchema>;

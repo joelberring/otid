@@ -22,7 +22,6 @@ export const resultNotesSchema = z.object({
   /** ADR-0198: stämplingarna passar en variant som banläggningen valt bort. Bara ett besked. */
   excludedVariant: z.object({ codes: z.array(z.string().min(1).max(32)).min(1).max(100) }).strict().optional()
 }).strict();
-export type StartPunchNoteDto = z.infer<typeof startPunchNoteSchema>;
 export type ResultNotes = z.infer<typeof resultNotesSchema>;
 const selected = z.object({ id: uuid, revision: version }).strict();
 export const administratorControlDetailsSchema = z.object({

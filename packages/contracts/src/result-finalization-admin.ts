@@ -10,8 +10,6 @@ const positiveVersionSchema = z.number().int().positive();
 const boundedCountSchema = z.number().int().min(0).max(10_000);
 const instantSchema = z.iso.datetime({ offset: true });
 
-export const resultFinalizationScopeSchema = z.enum(["CLASS", "RACE"]);
-
 /**
  * These codes describe why an otherwise read-only finalization candidate is
  * not safe to freeze. They deliberately do not encode a new result status.
@@ -56,8 +54,6 @@ const raceBlockerCodes = new Set<z.infer<typeof resultFinalizationBlockerCodeSch
   "CLASS_FINALIZATION_OUTDATED",
   "MULTI_RACE_EVENT"
 ]);
-
-
 
 const finalizationCommonMetadata = {
   id: canonicalUuidSchema,
@@ -556,13 +552,9 @@ export const resultFinalizationAdminErrorResponseSchema = z.object({
   error: resultFinalizationAdminErrorCodeSchema
 }).strict();
 
-export type ResultFinalizationScope = z.infer<typeof resultFinalizationScopeSchema>;
 export type ResultFinalizationBlockerCode = z.infer<typeof resultFinalizationBlockerCodeSchema>;
 export type ClassResultFinalizationMetadata = z.infer<typeof classResultFinalizationMetadataSchema>;
 export type RaceResultFinalizationMetadata = z.infer<typeof raceResultFinalizationMetadataSchema>;
-export type ResultFinalizationMetadata = z.infer<typeof resultFinalizationMetadataSchema>;
-export type ResultFinalizationClassCandidate = z.infer<typeof resultFinalizationClassCandidateSchema>;
-export type ResultFinalizationRaceCandidate = z.infer<typeof resultFinalizationRaceCandidateSchema>;
 export type ResultFinalizationCandidateResponse = z.infer<typeof resultFinalizationCandidateResponseSchema>;
 export type ResultFinalizationRequest = z.infer<typeof resultFinalizationRequestSchema>;
 export type ResultFinalizationResponse = z.infer<typeof resultFinalizationResponseSchema>;
@@ -572,5 +564,3 @@ export type FrozenManualDecisionCause = z.infer<typeof frozenManualDecisionCause
 export type FrozenFinalizationResultSourceV9 = z.infer<typeof frozenFinalizationResultSourceV9Schema>;
 export type FrozenClassFinalizationProjection = z.infer<typeof frozenClassFinalizationProjectionSchema>;
 export type FrozenRaceFinalizationProjection = z.infer<typeof frozenRaceFinalizationProjectionSchema>;
-export type FrozenResultFinalizationProjection = z.infer<typeof frozenResultFinalizationProjectionSchema>;
-export type ResultFinalizationAdminErrorCode = z.infer<typeof resultFinalizationAdminErrorCodeSchema>;

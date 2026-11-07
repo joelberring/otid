@@ -6,7 +6,6 @@ import { uuidSchema } from "./ids";
  * ingen deltagare är kvar, när resultaten är fastställda eller när arrangören valt "Visa banorna publikt nu".
  */
 export const coursePublicReasonSchema = z.enum(["REVEALED", "FINALIZED", "ALL_FINISHED"]);
-export type CoursePublicReasonValue = z.infer<typeof coursePublicReasonSchema>;
 
 /**
  * ADR-0186: före start. Varianten publikt efter löparens start (förval) eller alltid; kartbilden publikt efter tävlingens
@@ -15,7 +14,6 @@ export type CoursePublicReasonValue = z.infer<typeof coursePublicReasonSchema>;
 export const publicVariantTimingSchema = z.enum(["AFTER_START", "ALWAYS"]);
 export const publicMapTimingSchema = z.enum(["AFTER_START", "ON_PUBLISH"]);
 export const publicTimingSchema = z.object({ variant: publicVariantTimingSchema, map: publicMapTimingSchema }).strict();
-export type PublicTimingValue = z.infer<typeof publicTimingSchema>;
 
 export const courseSecrecyStateSchema = z.object({
   public: z.boolean(),

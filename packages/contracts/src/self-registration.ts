@@ -59,8 +59,6 @@ export const selfRegistrationErrorResponseSchema = z.object({
   fields: z.array(z.enum(["cardNumber", "givenName", "familyName", "club", "classId", "displayName"])).max(6).optional()
 }).strict();
 
-export type SelfRegistrationRequest = z.infer<typeof selfRegistrationRequestSchema>;
 export type SelfRegistrationInfoResponse = z.infer<typeof selfRegistrationInfoResponseSchema>;
 export type SelfRegistrationResponse = z.infer<typeof selfRegistrationResponseSchema>;
 export type SelfRegistrationErrorCode = (typeof selfRegistrationErrorCodes)[number];
-export type SelfRegistrationErrorResponse = z.infer<typeof selfRegistrationErrorResponseSchema>;

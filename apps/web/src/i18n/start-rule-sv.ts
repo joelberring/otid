@@ -38,6 +38,3 @@ export const startRuleSv = {
   }
 } as const;
 
-export type ClassStartRule = keyof typeof startRuleSv.rules;
-export type DrawMethod = keyof typeof startRuleSv.methods;
-export type RelayLegMethod = keyof typeof startRuleSv.relay;

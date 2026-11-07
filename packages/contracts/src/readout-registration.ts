@@ -66,6 +66,5 @@ export const readoutRegistrationResponseSchema = z.object({
 }).strict();
 
 export type ReadoutRegistrationRequest = z.infer<typeof readoutRegistrationRequestSchema>;
-export type ReadoutNewEntryRequest = z.infer<typeof newEntryRequestSchema>;
 export type ReadoutExistingEntryRequest = z.infer<typeof existingEntryRequestSchema>;
 export type ReadoutRegistrationResponse = z.infer<typeof readoutRegistrationResponseSchema>;

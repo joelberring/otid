@@ -124,10 +124,7 @@ export interface ClubImportContentResponse { formatVersion: 1; sha256: string; b
 
 export type ClubRole = z.infer<typeof clubRoleSchema>;
 export type ClubImportBatchRequest = z.infer<typeof clubImportBatchRequestSchema>;
-export type ClubImportMap = z.infer<typeof clubImportMapSchema>;
-export type ClubImportEntry = z.infer<typeof clubImportEntrySchema>;
 export type ClubImportCourseFile = z.infer<typeof clubImportCourseFileSchema>;
-export type ClubArchiveEntryUpdateRequest = z.infer<typeof clubArchiveEntryUpdateRequestSchema>;
 
 // --- Vyerna ----------------------------------------------------------------------------------------------------------------
 

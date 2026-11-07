@@ -19,7 +19,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
-const { values: args } = parseArgs({ options: {
+// `pnpm load-test -- --base …`: pnpm skickar med "--".
+const { values: args } = parseArgs({ args: process.argv.slice(2).filter(arg => arg !== "--"), options: {
   base: { type: "string", default: "http://127.0.0.1:3000" },
   races: { type: "string", default: "2" },
   minutes: { type: "string", default: "3" },
@@ -84,7 +85,7 @@ class Browser {
     if (cookie) headers.cookie = cookie;
     if (method !== "GET") {
       headers.origin = origin;
-      headers["content-type"] = "application/json";
+      if (init.body !== undefined) headers["content-type"] = "application/json";
       const csrf = [...this.cookies].find(([name]) => name.endsWith("csrf"))?.[1];
       if (csrf) headers["x-otid-csrf"] = csrf;
     }
@@ -137,18 +138,20 @@ async function signIn(admin: Browser): Promise<void> {
   await must(admin, "Inloggningen", "/api/organizer/login", { method: "POST", body: { formatVersion: 1, email, password } });
 }
 
-async function createRace(admin: Browser, index: number): Promise<Race> {
+async function createRace(admin: Browser, index: number, races: Race[]): Promise<void> {
   const eventName = `Lasttest ${new Date().toISOString().slice(0, 16)} nr ${index + 1}`;
   const created = await must(admin, "Ny tävling", "/api/organizer/events", { method: "POST",
     headers: { "idempotency-key": `organizer-event-create:${randomUUID()}` },
     body: { formatVersion: 1, eventName, raceName: "Lasttest", raceDate: today, timeZone: TIME_ZONE, raceType: "STANDARD" } });
   const raceId = String(created.raceId);
+  const cards: string[] = [];
+  // Med i listan direkt, så att den tas bort också om något nedan misslyckas.
+  races.push({ raceId, eventName, cards });
   const admin_ = `/api/admin/races/${raceId}/administrator`;
   const requestId = randomUUID();
   const course = await must(admin, "Ny bana och klass", `${admin_}/course-classes`, { method: "POST",
     headers: { "idempotency-key": `manual-course-class-create:${requestId}` },
     body: { formatVersion: 1, requestId, courseName: "Lång", className: "Öppen", startRule: "PUNCH", controlCodes: CONTROLS } });
-  const cards: string[] = [];
   for (let runner = 0; runner < RUNNERS; runner += 1) {
     const cardNumber = String(7_000_000 + index * 10_000 + runner);
     await must(admin, "Anmälan", `${admin_}/registration`, { method: "POST", headers: { "idempotency-key": `entry-registration:${randomUUID()}` },
@@ -158,7 +161,6 @@ async function createRace(admin: Browser, index: number): Promise<Race> {
     cards.push(cardNumber);
   }
   await must(admin, "Publiceringen", `${admin_}/race-publication`, { method: "PUT" });
-  return { raceId, eventName, cards };
 }
 
 // ---- Lasten
@@ -179,16 +181,18 @@ async function readoutStation(station: Browser, race: Race, until: number): Prom
   const deviceId = randomUUID();
   const gap = 60_000 / READOUTS_PER_MINUTE;
   let sequence = 0;
+  const pending: Promise<unknown>[] = [];
   await sleep(Math.random() * gap);
   while (Date.now() < until && sequence < race.cards.length) {
     const payload = readoutPayload(race.cards[sequence]!, new Date(Date.now() - 10_000));
     sequence += 1;
-    void station.request("avläsning (kvitto)", `/api/admin/races/${race.raceId}/administrator/readouts`, { method: "POST",
+    pending.push(station.request("avläsning (kvitto)", `/api/admin/races/${race.raceId}/administrator/readouts`, { method: "POST",
       body: { deviceId, sessionId: deviceId, packageVersion: 1, firstSequence: sequence, lastSequence: sequence, events: [{ localSequence: sequence,
         stationReceivedAt: new Date().toISOString(), transport: "sportident", payload,
-        contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") }] } });
+        contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") }] } }));
     await sleep(gap * (0.5 + Math.random()));
   }
+  await Promise.all(pending);
 }
 
 async function visitor(race: Race, index: number, until: number): Promise<void> {
@@ -226,7 +230,7 @@ async function main(): Promise<void> {
   const races: Race[] = [];
   try {
     for (let index = 0; index < RACES; index += 1) {
-      races.push(await createRace(admin, index));
+      await createRace(admin, index, races);
       process.stdout.write(`Tävling ${index + 1} klar (${RUNNERS} anmälda, publicerad).\n`);
     }
     measuring = true;

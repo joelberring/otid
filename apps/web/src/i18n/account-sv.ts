@@ -77,6 +77,13 @@ export const accountSv = {
     deleteOthers: "Tävlingar där du är medadministratör finns kvar hos sina ägare; du försvinner bara som administratör.",
     deletePassword: "Skriv ditt lösenord för att bekräfta",
     deleteButton: "Ta bort mitt konto",
+    /** Ändrat 2026-11-07: ensam ägare av en klubb eller ensam ledare av en träningsgrupp. */
+    deleteHandOver: (names: readonly string[]) => `Lämna över ägarskapet för ${names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " och " + names.at(-1)} först. `
+      + "Kontot kan inte tas bort så länge ingen annan kan sköta dem.",
+    deleteHandOverAlone: "Gör någon annan till ägare (klubb) eller ledare (grupp) under Medlemmar. Är du ensam där: kontakta den som driver O-Tid.",
+    deleteSoleOwner: "Kontot är inte borttaget: lämna över ägarskapet först (se ovan).",
+    soleOwnerClub: (name: string) => `Klubben ${name} – du är enda ägaren`,
+    soleOwnerGroup: (name: string) => `Träningsgruppen ${name} – du är enda ledaren`,
     deleted: "Kontot är borttaget.",
     /** ADR-0205 tillägg: Koppla Google-konto. Kontots adress ändras inte; Googles visas bara som kopplingen. */
     google: "Inloggning med Google",

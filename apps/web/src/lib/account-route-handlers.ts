@@ -162,6 +162,7 @@ export async function accountDeleteRoute(db: Database, request: Request, environ
   if ("response" in input) return input.response;
   try {
     const result = await deleteOwnAccount(db, input.proof, input.body);
+    if (result.status === "sole-owner") return accountFailure(409, "SOLE_OWNER");
     if (result.status !== "deleted") return failure(result.status);
     return clearSessionCookies(privateJson(deletedResponseSchema.parse({ formatVersion: 1, status: "deleted" })), input.policy);
   } catch (error) { logServerError("account", "accountDeleteRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }

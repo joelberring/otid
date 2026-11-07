@@ -58,6 +58,35 @@ export async function deleteAccountWithOwnedEvents(tx: DbExecutor, accountId: st
   return { eventIds: events.map((event) => event.eventId) };
 }
 
+/**
+ * Klubbar där kontot är ensam ägare och träningsgrupper där det är ensam ledare (ändrat 2026-11-07). Att ta bort kontot vägras
+ * då, som när en ägare tas bort ur klubben (`removeClubMember`) eller den sista ledaren ur gruppen; superadmin kan fortfarande
+ * ta bort kontot. `lock` låser ägarnas rader så att två ägare inte kan lämna samtidigt.
+ */
+export async function soleOwnerships(tx: DbExecutor, accountId: string, lock = false)
+  : Promise<{ kind: "CLUB" | "TRAINING_GROUP"; id: string; name: string }[]> {
+  const result: { kind: "CLUB" | "TRAINING_GROUP"; id: string; name: string }[] = [];
+  const members = schema.clubMembers;
+  const clubs = await tx.select({ id: schema.clubs.id, name: schema.clubs.name }).from(members)
+    .innerJoin(schema.clubs, eq(schema.clubs.id, members.clubId)).where(and(eq(members.accountId, accountId), eq(members.role, "OWNER")));
+  if (clubs.length > 0) {
+    const query = tx.select({ clubId: members.clubId }).from(members)
+      .where(and(inArray(members.clubId, clubs.map(club => club.id)), eq(members.role, "OWNER")));
+    const owners = lock ? await query.for("update") : await query;
+    for (const club of clubs) if (owners.filter(row => row.clubId === club.id).length <= 1) result.push({ kind: "CLUB", ...club });
+  }
+  const leaders = schema.trainingGroupMembers;
+  const groups = await tx.select({ id: schema.trainingGroups.id, name: schema.trainingGroups.name }).from(leaders)
+    .innerJoin(schema.trainingGroups, eq(schema.trainingGroups.id, leaders.groupId)).where(and(eq(leaders.accountId, accountId), eq(leaders.role, "LEADER")));
+  if (groups.length > 0) {
+    const query = tx.select({ groupId: leaders.groupId }).from(leaders)
+      .where(and(inArray(leaders.groupId, groups.map(group => group.id)), eq(leaders.role, "LEADER")));
+    const rows = lock ? await query.for("update") : await query;
+    for (const group of groups) if (rows.filter(row => row.groupId === group.id).length <= 1) result.push({ kind: "TRAINING_GROUP", ...group });
+  }
+  return result.sort((a, b) => a.name.localeCompare(b.name, "sv"));
+}
+
 export async function readAccountProfile(
   db: Database, proof: UserAccountSessionProof, now = new Date()
 ): Promise<Failure | { status: "ok"; response: AccountProfile }> {
@@ -70,7 +99,8 @@ export async function readAccountProfile(
     const login = await readGoogleLink(tx, account.id, account.email);
     return { status: "ok", response: accountProfileSchema.parse({
       formatVersion: 1, accountId: account.id, email: account.email, displayName: account.displayName,
-      superadmin: account.isSuperadmin, createdAt: account.createdAt.toISOString(), ownedEvents: events, ...login
+      superadmin: account.isSuperadmin, createdAt: account.createdAt.toISOString(), ownedEvents: events, ...login,
+      soleOwnerOf: await soleOwnerships(tx, account.id)
     }) } as const;
   });
 }
@@ -114,7 +144,7 @@ export async function changeAccountPassword(
 
 export async function deleteOwnAccount(
   db: Database, proof: UserAccountSessionProof, request: unknown, now = new Date()
-): Promise<Failure | { status: "wrong-password" | "deleted" }> {
+): Promise<Failure | { status: "wrong-password" | "deleted" } | { status: "sole-owner"; soleOwnerOf: Awaited<ReturnType<typeof soleOwnerships>> }> {
   const parsed = accountDeleteRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async (tx) => {
@@ -122,6 +152,8 @@ export async function deleteOwnAccount(
     if (auth.status !== "authenticated") return auth;
     const verifier = await currentUserAccountVerifier(tx, auth.principal.accountId);
     if (!await userAccountPasswordMatches(verifier, parsed.data.password)) return { status: "wrong-password" } as const;
+    const soleOwnerOf = await soleOwnerships(tx, auth.principal.accountId, true);
+    if (soleOwnerOf.length > 0) return { status: "sole-owner", soleOwnerOf } as const;
     await deleteAccountWithOwnedEvents(tx, auth.principal.accountId, now);
     return { status: "deleted" } as const;
   });

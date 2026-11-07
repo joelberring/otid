@@ -83,12 +83,18 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
     void run(async () => {
       const response = await accountRequest("/api/account/delete", { method: "POST", csrf: true, body: { formatVersion: 1, password: deletePassword } });
       setDeletePassword("");
+      // Ensam ägare (ändrat 2026-11-07): listan visas ovanför; läs om profilen så att den stämmer.
+      if (response.status === 409 && (response.json as { error?: unknown } | undefined)?.error === "SOLE_OWNER") {
+        void load();
+        return { tone: "error", text: text.deleteSoleOwner };
+      }
       if (response.status !== 200) return failure(response.status);
       setDeleted(true);
       return { tone: "ok", text: text.deleted };
     }, setDeleteMessage);
   }
 
+  const soleOwnerOf = profile?.soleOwnerOf ?? [];
   const notice = (message: Message) => message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>;
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}>
@@ -137,12 +143,19 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
           <ul className={styles.list}>{profile.ownedEvents.map(event => <li key={event.eventId}>{event.eventName} ({event.startsOn})</li>)}</ul>
           <p className={styles.muted}>{text.deleteOthers}</p>
         </div> : <p className={styles.muted}>{text.deleteNoEvents}</p>}
+        {soleOwnerOf.length > 0 && <Notice tone="attention" role="status">
+          <span data-testid="account-sole-owner">{text.deleteHandOver(soleOwnerOf.map(item => item.name))}</span>
+          <ul className={styles.list}>{soleOwnerOf.map(item => <li key={`${item.kind}:${item.id}`}>
+            <Link href={item.kind === "CLUB" ? `/organizer/clubs/${item.id}` : `/organizer/groups/${item.id}`}>
+              {item.kind === "CLUB" ? text.soleOwnerClub(item.name) : text.soleOwnerGroup(item.name)}</Link></li>)}</ul>
+          <span className={styles.muted}>{text.deleteHandOverAlone}</span>
+        </Notice>}
         <form className={styles.form} onSubmit={deleteAccount}>
           <Field label={text.deletePassword}>
             <input type="password" autoComplete="current-password" value={deletePassword} required disabled={busy}
               onChange={event => setDeletePassword(event.target.value)} />
           </Field>
-          <Button type="submit" className={styles.danger} disabled={busy || !deletePassword}>{text.deleteButton}</Button>
+          <Button type="submit" className={styles.danger} disabled={busy || !deletePassword || soleOwnerOf.length > 0}>{text.deleteButton}</Button>
           {notice(deleteMessage)}
         </form>
       </Section>

@@ -19,6 +19,7 @@ import { canonicalHash, UUID_PATTERN as uuid } from "./serialization";
  * `planMapBundles`, plus senaste utskriften per lista (`map_print`) och vad som ändrats sedan dess. Funktionären vid
  * starten läser och skriver ut; reserven ställs in av administratören. Stafett (ADR-0213): en klass per sträcka med
  * sträckans bana och lagens varianter (lagens gafflingar, eller sträckans fasta variant), efter de individuella.
+ * Rogaining ingår som ogafflade grupper (poängbanan är en karta per löpare; varianter används inte).
  */
 type Authentication = RaceSessionProof;
 const notRelayClass = sql`not exists (select 1 from relay_leg rl where rl.class_id = ${schema.classes.id})`;
@@ -36,10 +37,11 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
     .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
   if (!race) return undefined;
   const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
-    courseVersionId: schema.classes.courseVersionId, courseName: schema.courses.name }).from(schema.classes)
+    courseVersionId: schema.classes.courseVersionId, courseName: schema.courses.name,
+    rogaining: sql<boolean>`${schema.classes.rogainingTimeLimitSeconds} is not null` }).from(schema.classes)
     .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
     .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
-    .where(and(eq(schema.classes.raceId, raceId), notRelayClass, isNull(schema.classes.rogainingTimeLimitSeconds)))
+    .where(and(eq(schema.classes.raceId, raceId), notRelayClass))
     .orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(1001);
   if (classRows.length > 1000) throw new Error("För många klasser");
   const variants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
@@ -48,7 +50,7 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
     const fact = facts.get(row.id);
     const startMode = row.startRule === "PUNCH" ? "FREE" : fact?.drawMethod === "MASS" ? "MASS" : "MINUTE";
     return { id: row.id, name: row.name, courseVersionId: row.courseVersionId, courseName: row.courseName,
-      variantCodes: (variants.get(row.courseVersionId) ?? []).map(variant => variant.code), startMode,
+      variantCodes: row.rogaining ? [] : (variants.get(row.courseVersionId) ?? []).map(variant => variant.code), startMode,
       vacancies: startMode === "MINUTE" ? fact?.vacancies ?? [] : [] };
   });
   const ids = new Set(classes.map(row => row.id));
@@ -70,14 +72,15 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
 /**
  * Stafettens sträckor som klasser (ADR-0213): sträckans bana (eller klassens), dess varianter och sträckans fasta variant;
  * löparna med lag, sträcka och lagets variant. Masstartens tid för sträckor med masstart; växling och omstart har ingen
- * lottad tid. Rogaining ingår inte (som de individuella).
+ * lottad tid. Rogaining ingår som ogafflade sträckor (som de individuella).
  */
 async function loadRelayBasis(tx: DbExecutor, raceId: string): Promise<{ classes: MapBundleClassInput[]; entries: MapBundleEntryInput[] }> {
   const legs = await tx.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg, startMethod: schema.relayLegs.startMethod,
     startTime: schema.relayLegs.startTime, fixedVariant: schema.relayLegs.courseVariantCode, legCourseVersionId: schema.relayLegs.courseVersionId,
-    className: schema.classes.name, classCourseVersionId: schema.classes.courseVersionId })
+    className: schema.classes.name, classCourseVersionId: schema.classes.courseVersionId,
+    rogaining: sql<boolean>`${schema.classes.rogainingTimeLimitSeconds} is not null` })
     .from(schema.relayLegs).innerJoin(schema.classes, eq(schema.classes.id, schema.relayLegs.classId))
-    .where(and(eq(schema.relayLegs.raceId, raceId), isNull(schema.classes.rogainingTimeLimitSeconds)))
+    .where(eq(schema.relayLegs.raceId, raceId))
     .orderBy(asc(schema.classes.name), asc(schema.relayLegs.leg)).limit(2001);
   if (legs.length === 0) return { classes: [], entries: [] };
   if (legs.length > 2000) throw new Error("För många sträckor");
@@ -90,7 +93,7 @@ async function loadRelayBasis(tx: DbExecutor, raceId: string): Promise<{ classes
   const classes: MapBundleClassInput[] = legs.flatMap(leg => {
     const courseName = names.get(versionOf(leg));
     if (!courseName) return [];
-    const codes = (variants.get(versionOf(leg)) ?? []).map(variant => variant.code);
+    const codes = leg.rogaining ? [] : (variants.get(versionOf(leg)) ?? []).map(variant => variant.code);
     return [{ id: leg.classId, name: leg.className, courseVersionId: versionOf(leg), courseName, leg: leg.leg,
       variantCodes: leg.fixedVariant !== null && codes.includes(leg.fixedVariant) ? [leg.fixedVariant] : codes,
       startMode: leg.startMethod === "MASS_START" ? "MASS" as const : "FREE" as const, vacancies: [] }];

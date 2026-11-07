@@ -272,7 +272,10 @@ export async function setVerdictViaMapLink(db: Database, input: MapLinkInput & {
         requestId: parsed.data.requestId, mapLinkId: link.id, authorName: mapMakerName(parsed.data.name), verdict: parsed.data.verdict });
       await tx.update(notes).set({ status: fixed ? "DONE" : "OPEN", resolvedAt: fixed ? now : null, resolvedBy: null,
         resolvedMapLinkId: fixed ? link.id : null })
-        .where(and(eq(notes.id, input.noteId), eq(notes.raceId, link.raceId)));
+        // Ändrat 2026-11-07: "Inte åtgärdat" öppnar bara en notis som är öppen eller stängdes via länken; har ett konto stängt
+        // den står det kvar (svaret syns ändå i tråden).
+        .where(and(eq(notes.id, input.noteId), eq(notes.raceId, link.raceId),
+          fixed ? undefined : sql`(${notes.status} = 'OPEN' or ${notes.resolvedMapLinkId} is not null)`));
       await audit(tx, link.raceId, { type: "course_setting_note", id: input.noteId }, "MAP_LINK_VERDICT",
         { kind: "COURSE_SETTING_MAP_LINK", id: link.id }, { replyId: id, verdict: parsed.data.verdict }, now);
     }

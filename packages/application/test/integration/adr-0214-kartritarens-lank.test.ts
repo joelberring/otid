@@ -9,7 +9,7 @@ import { registerUserAccount } from "../../src/user-account";
 import { importCourseSettingAsAdmin } from "../../src/course-setting";
 import {
   createCourseSettingNoteAsAdmin, deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin, editCourseSettingNoteAsAdmin,
-  listCourseSettingNotesAsAdmin, replyCourseSettingNoteAsAdmin
+  listCourseSettingNotesAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin
 } from "../../src/course-setting-notes";
 import {
   createMapLinkAsAdmin, readMapLinkAsAdmin, readMapLinkMapFile, readMapLinkView, replyViaMapLink, revokeMapLinkAsAdmin, setVerdictViaMapLink
@@ -164,10 +164,17 @@ describe("kartritarens länk (ADR-0214)", { timeout: 180_000 }, () => {
     const again = (await created(listCourseSettingNotesAsAdmin(db, owner))).response.notes.find(row => row.id === noteId)!;
     expect(again.status).toBe("OPEN");
     expect(again.replies.at(-1)).toMatchObject({ verdict: "NOT_FIXED", text: "Stigen finns inte i terrängen", mapMaker: { name: "Kim" } });
+    // Ändrat 2026-11-07: har banläggaren själv stängt kartfelet öppnar "Inte åtgärdat" det inte igen (svaret syns ändå i tråden).
+    expect((await setCourseSettingNoteStatusAsAdmin(db, { ...owner, noteId, request: { formatVersion: 1, status: "DONE" } })).status).toBe("ok");
+    expect((await setVerdictViaMapLink(db, { ...link(token), noteId, request: { formatVersion: 1, requestId: randomUUID(), verdict: "NOT_FIXED",
+      text: "Fortfarande fel", name: "Kim" } })).status).toBe("ok");
+    const closed = (await created(listCourseSettingNotesAsAdmin(db, owner))).response.notes.find(row => row.id === noteId)!;
+    expect(closed).toMatchObject({ status: "DONE", resolvedBy: { displayName: "Bea Banläggare" } });
+    expect(closed.replies.at(-1)).toMatchObject({ verdict: "NOT_FIXED", text: "Fortfarande fel" });
     // Kartritaren med länken ser samma tråd; den som tar bort kan fortfarande ta bort kartritarens svar.
     const view = await readMapLinkView(db, link(token));
     expect(view.status === "ok" && view.response.mapErrors[0]!.replies.map(row => [row.author, row.mapMaker, row.verdict])).toEqual([
-      ["Kim Karta", true, null], [null, true, "FIXED"], ["Kim", true, "NOT_FIXED"]]);
+      ["Kim Karta", true, null], [null, true, "FIXED"], ["Kim", true, "NOT_FIXED"], ["Kim", true, "NOT_FIXED"]]);
     expect((await deleteCourseSettingNoteReplyAsAdmin(db, { ...owner, noteId, replyId: again.replies[0]!.id })).status).toBe("ok");
 
     const audit = await pool.query<{ action: string; actor_kind: string | null; after: unknown }>(

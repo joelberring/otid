@@ -16,6 +16,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Hälsokontrollen i `docker-compose.prod.yml`: web, web-public och web-public2 frågar `/api/health` var 30:e sekund (timeout 5 s, start_period 120 s, retries 10) i stället för `/organizer` och `/om` var 5:e. `up -d` väntar därför upp till ~30 s längre på varje steg (web, sedan publikens instanser).
 - docs/drift.md: Caddyfile-ändringar kräver `docker compose -f docker-compose.prod.yml restart caddy` (filen är monterad som enskild fil); tabell över miljövariablerna som saknas i `prod.env.example`.
 - Servern: `git pull && dc pull && dc up -d && dc restart caddy` räcker; inget mer krävs.
+### 2026-11-07 – Saknad skala för banan är kartans, också i .ppen (grenen a6-tryckskala, ADR-0211 beslut 13)
+- En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.
+- Tester: `print-scale-default.test.ts` (ny bana, banfil, rundtripp med fixturen och med en annan skala); A3:s rundtripptest förväntar nu ingen skala efter återinläsning.
 
 ### 2026-11-07 – Kom igång i klubbytan (grenen b1-kom-igang, ändringsmening i ADR-0209, ingen migration)
 - "Kom igång" överst i klubbytan för ägare och administratörer: koppla till Eventor med klubbens API-nyckel, bjud in fler ledare/admin, kartor eller import, Vem ser vad (förval). Försvinner vid koppling + minst en karta; "Dölj" i localStorage per klubbyta. En ny klubbyta säger "Nästa steg: koppla klubbytan till Eventor".

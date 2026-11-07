@@ -65,7 +65,9 @@ describe("banans <options> i .ppen (B10)", () => {
     expect(options).toMatch(/climb="85"/);
     expect(options).toMatch(/course-length="4300"/);
     const read = roundTrip(document).courses.find(row => row.id === course)!;
-    expect(read).toMatchObject({ printScale: 10000, climbMeters: 85, lengthOverrideMeters: 4300 });
+    // ADR-0211 beslut 5 (ändrat 2026-11-07): print-scale lika med kartans läses tillbaka som saknad.
+    expect(read).toMatchObject({ climbMeters: 85, lengthOverrideMeters: 4300 });
+    expect(read.printScale).toBeUndefined();
   });
 
   it("score-column och andra okända attribut i <options> följer med också utan banans skala", () => {

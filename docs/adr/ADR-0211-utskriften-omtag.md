@@ -172,6 +172,12 @@ ställen och papperet redigerades i en ruta bredvid arket.
       `<options>` skrivs alltid, med kartans skala som `print-scale` när banan saknar egen (förut tappades hela elementet med
       stigning, längd och score-column).
 
+13. **Ändrat 2026-11-07 (grenen `a6-tryckskala`; beslut 5): saknad skala är kartans, åt båda hållen.** En ny bana
+    (`ADD_COURSE`) och en bana ur en banfil (IOF XML) får ingen skala inskriven, och `.ppen`-läsaren läser `print-scale` lika
+    med kartans skala som saknad. Banan följer då kartans skala om den ändras, och `writePpen` skriver tillbaka samma
+    `print-scale` (kartans), så att Purple Pen får exakt samma `<options>`. En annan skala än kartans sparas som förut. Väljer
+    banläggaren kartans skala i egenskaperna sparas den uttryckligen tills filen läses in igen.
+
 ## Inte gjort (för senare)
 
 - Vridning av texter och bilder. Ramen kan inte flyttas bort från papperets mitt (Purple Pens tryckyta har ingen plats för det).

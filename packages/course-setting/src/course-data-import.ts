@@ -280,7 +280,7 @@ export function courseDataDocument(layout: CourseDataLayout, options: CourseData
     }
     const climb = Math.max(0, ...members.map(member => member.climbMeters ?? 0));
     courses.push({ id: String(courses.length + 1), name, kind: score ? "SCORE" : "NORMAL", order: courses.length + 1, ...(first ? { first: mapped(first) } : {}),
-      labelKind: score ? "CODE" : "SEQUENCE", printScale: mapScale, ...(classNames.length > 0 ? { secondaryTitle: classNames.join(", ") } : {}),
+      labelKind: score ? "CODE" : "SEQUENCE", ...(classNames.length > 0 ? { secondaryTitle: classNames.join(", ") } : {}),
       ...(climb > 0 ? { climbMeters: climb } : {}) });
   };
 

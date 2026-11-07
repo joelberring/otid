@@ -33,4 +33,4 @@
 .dialogBody { display: grid; gap: .75rem; padding: 18px; }
 .dialogBody h2 { font-size: var(--text-lg); }
 .textLabel { font-size: var(--text-sm); font-weight: 600; }
-.textLabel textarea { min-height: 14rem; font-size: var(--text-sm); line-height: 1.4; resize: vertical; }
+.textLabel textarea { min-height: 14rem; font-size: var(--text-sm); font-weight: 400; line-height: 1.4; resize: vertical; }

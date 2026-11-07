@@ -23,7 +23,6 @@ export const offlineSv = {
   },
   storageFailed: "Telefonen kunde inte spara ändringarna (lagringen kan vara full). Ladda inte om sidan: anslut till nätet så att ändringarna sparas på servern, eller frigör plats (ta bort sparade kartor eller bilder).",
   accessGone: "Du har inte längre tillgång till banläggningen. Kopian i telefonen är borttagen.",
-  targetGone: "pekar på en kontroll eller bana som inte finns längre",
   back: (parts: readonly string[]) => `Nätet är tillbaka: ${parts.join(", ")} sparade.`,
   backEdits: (count: number) => plural(count, "ändring på kartan", "ändringar på kartan"),
   backNotes: (count: number) => plural(count, "notis", "notiser"),

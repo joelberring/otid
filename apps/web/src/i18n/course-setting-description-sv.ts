@@ -44,7 +44,6 @@ export const courseSettingDescriptionSv = {
     stored: "Språk och visningssätt sparas i den här webbläsaren för tävlingen."
   },
   print: "Skriv ut beskrivningar",
-  textDescription: "Beskrivning i text",
   page: {
     title: "Kontrollbeskrivningar",
     back: "Tillbaka till banläggningen",

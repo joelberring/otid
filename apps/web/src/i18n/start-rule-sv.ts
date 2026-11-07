@@ -24,7 +24,6 @@ export const startRuleSv = {
   relay: { MASS_START: "Masstart", CHANGEOVER: "Växling", RESTART: "Omstart", FLYING_RESTART: "Flygande omstart" },
   startTime: "Starttid",
   noStartTime: "Ingen starttid",
-  noStartTimeYet: "Lottas senare",
   /**
    * Startstämplingen vid minutstart (PLAN.md steg 25): varning när den avviker mer än en minut från den lottade tiden,
    * och notis när starttiden kom från stämplingen eftersom lottad tid saknades. Bara i arbetsytan och avläsningen.

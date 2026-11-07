@@ -15,10 +15,6 @@ export const courseVariantsSv = {
   editVariantLabel: (course: string, code: string) => `Redigera variant ${code} på ${course}`,
   editingVariant: (code: string) => `Variant ${code}`,
   variantSummaryNote: "Beskedet gäller löparna på varianten. Alla avlästa på banan räknas om när du sparar.",
-  unevenLegs: (legs: readonly { from: LegPoint; to: LegPoint; variantCodes: readonly string[] }[]) =>
-    `Varianterna täcker inte samma sträckor: ${legs.slice(0, 6).map(leg =>
-      `${point(leg.from)}–${point(leg.to)} (${[...new Set(leg.variantCodes)].join(", ")})`).join("; ")}${legs.length > 6 ? " …" : ""}`,
-  evenLegs: "Alla varianter täcker samma sträckor.",
   // Klasser
   distribute: "Fördela gafflingar",
   distributeLabel: (className: string) => `Fördela gafflingar i ${className}`,

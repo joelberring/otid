@@ -6,7 +6,6 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 export const notesSv = {
   kind: { label: "Slag", COURSE_SETTING: "Banläggning", MAP_ERROR: "Kartfel" } as Record<string, string>,
   kindFilter: { label: "Slag", ALL: "Båda slagen", COURSE_SETTING: "Banläggning", MAP_ERROR: "Kartfel" } as Record<string, string>,
-  mapErrorHelp: "Ett kartfel sitter på en punkt eller en ritning, aldrig på en kontroll eller sträcka, så att det kan lämnas till kartritaren utan banorna.",
   sketchTarget: "Ritning på kartan",
   delete: "Ta bort",
   deleteConfirm: "Ta bort notisen? Svaren och fotot tas också bort. Det går inte att ångra.",

@@ -23,7 +23,6 @@ export const blProposalSv = {
   before: "Före (filen)",
   after: "Efter (BL)",
   keepFile: "Filens färg",
-  noRow: "Ingen BL-rad",
   accept: "Godta",
   accepted: "Godtagen",
   keep: "Behåll filens",

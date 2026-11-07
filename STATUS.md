@@ -5,10 +5,17 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): steg K0 är klart, nästa är K1. Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): steg K0 är klart och rättat (projekten ägs av sina medlemmar, klubben valfri, 0090); K1 pågår. Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-07 – K0 rättat: kartprojekt ägs av sina medlemmar, klubben valfri (migration 0090, ADR-0219 tillägg)
+- Granskningen mot planen: projekten krävde en kartversion i klubbarkivet och klubbens administratör, vilket stänger ute nya kartor (Kungshatt) och vanliga konton. Ägaren valde "konto, klubb valfri".
+- 0090 (bara lättnader): `club_id`/`base_version_id` nullbara, `base_file_name`, `base_source`, resultatens eget innehåll och filnamn (`map_project_output.content_sha256`, `file_name`, `version_id` nullbar).
+- Eget projekt från en kartfil (`POST /api/organizer/map-projects/upload`, formuläret i Mina kartprojekt); från arkivet får alla som läser det starta. Nya versioner sparas i projektet och laddas ner (`…/outputs/[outputId]`); "Lägg också i klubbarkivet" för klubbens administratörer.
+- Konto: ensam ägare av ett eget projekt med andra medlemmar kan inte ta bort kontot; ensam medlem tar projektet med sig.
+- Verifierat: typecheck, lint, `lint:dead`, databasens tester, integration `adr-0219-kartprojekt` (5, nytt: eget projekt) och `schemadrift`; E2E `kartprojekt` (2, nytt: eget projekt).
 
 ### 2026-11-07 – Steg K0: kartprojekt och säker tillbakaskrivning (grenen k0-kartritning, ADR-0219, migration 0089)
 - Kartfilen: läsarna anger varifrån varje objekt kom (`readMapFile(…, { sources: true })`); `applyMapRevision` lappar Mapper-filer (bara ändrade `<object>`, `<objects count>`, ångra-historiken bort vid ändring), läser om och kontrollerar objekt för objekt, tom sats ger samma bytes; OCAD vägras tills K7. `MAP_READER_VERSION` 3.

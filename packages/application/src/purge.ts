@@ -13,7 +13,7 @@ import type { DbExecutor } from "./snapshot";
  * nycklar kommer därför med automatiskt. Skyddstriggrarna släpper igenom DELETE bara när
  * `otid.purge` är satt i samma transaktion (migration 0099).
  */
-export type PurgeRoot = "event" | "user_account" | "entry" | "class" | "course" | "team";
+export type PurgeRoot = "event" | "user_account" | "entry" | "class" | "course" | "team" | "map_project";
 
 /**
  * Borttagningen skulle ta rader i en skyddad tabell (`table`), till exempel resultatrevisioner eller råa avläsningar när en

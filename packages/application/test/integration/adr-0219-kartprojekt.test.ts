@@ -11,12 +11,12 @@ import { readClubMapVersionHead, uploadClubMapVersion } from "../../src/club-map
 import { readInvitationLink, type InvitationMail } from "../../src/invitation-links";
 import { readMapContent, sweepMapContent } from "../../src/map-content";
 import {
-  createMapProject, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole,
-  updateMapProject
+  createMapProject, createMapProjectFromUpload, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember,
+  setMapProjectMemberRole, updateMapProject
 } from "../../src/map-projects";
 import { syncMapProject } from "../../src/map-project-sync";
-import { exportMapProjectChanges, revisionNote, writeMapProjectVersion } from "../../src/map-project-output";
-import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
+import { exportMapProjectChanges, readMapProjectOutput, revisionNote, writeMapProjectVersion } from "../../src/map-project-output";
+import { deleteAccountWithOwnedEvents, soleOwnerships } from "../../src/account-self-service";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -106,7 +106,7 @@ describe("ADR-0219 kartprojekt", () => {
       next: `/organizer/map-projects/${s.projectId}` });
     await db.transaction(tx => acceptAllInvitations(tx, s.mapper.accountId, NOW));
     const mapper = await readMapProject(db, { ...s.mapper.proof, projectId: s.projectId }, NOW);
-    expect(mapper.status === "ok" && mapper.view.viewer).toMatchObject({ canEdit: true, canManage: false, canWriteVersion: false });
+    expect(mapper.status === "ok" && mapper.view.viewer).toMatchObject({ canEdit: true, canManage: false, canWriteVersion: false, canArchive: false });
     expect(mapper.status === "ok" && mapper.view.invitations).toEqual([]);
     // Läsaren tar inbjudan när projektet öppnas.
     const reader = await readMapProject(db, { ...s.reader.proof, projectId: s.projectId }, NOW);
@@ -123,7 +123,8 @@ describe("ADR-0219 kartprojekt", () => {
     }
     // Ägaren ser inbjudningarna; Ändra hanterar inte medlemmar och skapar inga projekt eller versioner.
     const owner = await readMapProject(db, { ...s.owner.proof, projectId: s.projectId }, NOW);
-    expect(owner.status === "ok" && owner.view.viewer).toMatchObject({ canManage: true, canWriteVersion: true });
+    expect(owner.status === "ok" && owner.view.viewer).toMatchObject({ canManage: true, canWriteVersion: true, canArchive: true });
+    expect(owner.status === "ok" && owner.view.base).toMatchObject({ source: "ARCHIVE", versionId: s.versionId, mapName: "Skogen" });
     expect(owner.status === "ok" && owner.view.members.map(member => member.role)).toEqual(["OWNER", "EDIT", "READ"]);
     expect((await inviteMapProjectMember(db, { ...s.mapper.proof, projectId: s.projectId, request: { formatVersion: 1, requestId: randomUUID(),
       email: "ny@test.o-tid.se", role: "EDIT" } }, NOW)).status).toBe("forbidden");
@@ -141,6 +142,15 @@ describe("ADR-0219 kartprojekt", () => {
     expect((await removeMapProjectMember(db, { ...s.reader.proof, projectId: s.projectId, request: { formatVersion: 1, accountId: s.reader.accountId,
       invitationId: null } }, NOW)).status).toBe("removed");
     expect((await readMapProject(db, { ...s.reader.proof, projectId: s.projectId }, NOW)).status).toBe("not-found");
+    // En vanlig medlem i klubben får starta ett eget projekt ur arkivet (rättelsen 2026-11-07); det hör till klubben, så
+    // klubbens administratör är ägare där också.
+    const own = await createMapProject(db, { ...s.clubMember.proof, request: { formatVersion: 1, requestId: randomUUID(), clubId: s.clubId,
+      baseVersionId: s.versionId, name: "Medlemmens rekning" } }, NOW);
+    if (own.status !== "created") throw new Error(own.status);
+    const mine = await readMapProject(db, { ...s.clubMember.proof, projectId: own.projectId }, NOW);
+    expect(mine.status === "ok" && mine.view).toMatchObject({ role: "OWNER", viewer: { canWriteVersion: true, canArchive: false } });
+    const asAdmin = await readMapProject(db, { ...s.owner.proof, projectId: own.projectId }, NOW);
+    expect(asAdmin.status === "ok" && asAdmin.view).toMatchObject({ role: "OWNER", viewer: { canArchive: true } });
   });
 
   it("klubbens administratörer är ägare, och ett borttaget konto lämnar projektet med någon som kan hantera det", async () => {
@@ -204,10 +214,12 @@ describe("ADR-0219 kartprojekt", () => {
     await sync(s.owner.proof, s.projectId, [edit(baseKey(POINT_REF), moved(7), null), edit(baseKey(LINE_REF), { kind: "DELETED" }, null, "DELETE"),
       edit(newKey(randomUUID()), added(12), null, "ADD")]);
     const requestId = randomUUID();
-    const written = await writeMapProjectVersion(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, requestId } }, NOW);
+    const written = await writeMapProjectVersion(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, requestId,
+      archive: true } }, NOW);
     expect(written).toMatchObject({ status: "ok", replayed: false, response: { status: "created", changes: 3, added: 1, modified: 1, deleted: 1 } });
     if (written.status !== "ok" || written.response.status !== "created") throw new Error("ingen version");
-    const versionId = written.response.versionId;
+    const versionId = written.response.versionId!;
+    expect(versionId).toBeTruthy();
     expect(written.response.fileName).toBe("Skogen reviderad 2026-11-07.omap");
     const [version] = await db.select().from(schema.clubMapVersions).where(eq(schema.clubMapVersions.id, versionId));
     expect(version).toMatchObject({ mapId: s.mapId, note: revisionNote([`Arrangör ${s.owner.email.split("@")[0]}`], 3) });
@@ -221,7 +233,7 @@ describe("ADR-0219 kartprojekt", () => {
     const head = await readClubMapVersionHead(db, { ...s.owner.proof, clubId: s.clubId, versionId: s.versionId }, NOW);
     expect(head.status === "ok" && head.sha256).toBe(SHA);
     // Samma begäran igen, och en ny begäran utan nya ändringar, ger samma version.
-    expect(await writeMapProjectVersion(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, requestId } }, NOW))
+    expect(await writeMapProjectVersion(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, requestId, archive: true } }, NOW))
       .toMatchObject({ status: "ok", replayed: true, response: { versionId } });
     expect(await writeMapProjectVersion(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, requestId: randomUUID() } }, NOW))
       .toMatchObject({ status: "ok", replayed: true, response: { versionId } });
@@ -233,5 +245,51 @@ describe("ADR-0219 kartprojekt", () => {
     expect(omap.status === "ok" && readMapFile(new TextEncoder().encode(omap.body)).objects).toHaveLength(3);
     const geo = await exportMapProjectChanges(db, { ...s.reader.proof, projectId: s.projectId, format: "geojson" }, NOW);
     expect(geo.status === "ok" && (JSON.parse(geo.body) as { features: unknown[] }).features).toHaveLength(3);
+  });
+
+  it("eget projekt från en uppladdad fil: utan klubb, resultatet sparas i projektet, och kontot kan inte lämna andra utan ägare", async () => {
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const other = await registerTestAccount(db, undefined, NOW);
+    const requestId = randomUUID();
+    const metadata = { formatVersion: 1, requestId, name: "Kungshatt", fileName: "Kungshatt.omap" };
+    const created = await createMapProjectFromUpload(db, { ...owner.proof, metadata, file: mapBytes }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    expect(await createMapProjectFromUpload(db, { ...owner.proof, metadata, file: mapBytes }, NOW)).toMatchObject({ status: "created", replayed: true,
+      projectId: created.projectId });
+    expect((await createMapProjectFromUpload(db, { ...other.proof, metadata, file: mapBytes }, NOW)).status).toBe("conflict");
+    expect((await createMapProjectFromUpload(db, { ...owner.proof, metadata: { ...metadata, requestId: randomUUID() },
+      file: new TextEncoder().encode("inte en karta") }, NOW)).status).toBe("unsupported-file");
+    const projectId = created.projectId;
+    const view = await readMapProject(db, { ...owner.proof, projectId }, NOW);
+    expect(view.status === "ok" && view.view).toMatchObject({ club: null, role: "OWNER",
+      base: { source: "UPLOAD", versionId: null, mapId: null, mapName: "Kungshatt", fileName: "Kungshatt.omap", format: "OMAP", sha256: SHA },
+      viewer: { canWriteVersion: true, canArchive: false } });
+    expect(await readMapProjectSource(db, { ...owner.proof, projectId }, NOW)).toMatchObject({ status: "ok", fileName: "Kungshatt.omap", sha256: SHA });
+    // Ny version: i projektet, aldrig i något arkiv.
+    await sync(owner.proof, projectId, [edit(baseKey(POINT_REF), moved(5), null)]);
+    expect((await writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID(), archive: true } },
+      NOW)).status).toBe("forbidden");
+    const written = await writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, NOW);
+    if (written.status !== "ok" || written.response.status !== "created") throw new Error("ingen version");
+    expect(written.response).toMatchObject({ versionId: null, fileName: "Kungshatt reviderad 2026-11-07.omap", changes: 1 });
+    const output = await readMapProjectOutput(db, { ...owner.proof, projectId, outputId: written.response.outputId }, NOW);
+    if (output.status !== "ok") throw new Error(output.status);
+    const reread = readMapFile(new Uint8Array((await readMapContent(db, output.sha256))!), output.fileName);
+    expect(reread.objects).toHaveLength(parsed.objects.length);
+    expect((await readMapProjectOutput(db, { ...other.proof, projectId, outputId: written.response.outputId }, NOW)).status).toBe("not-found");
+    // Underhållet tar varken grundfilen eller resultatet.
+    await db.transaction(tx => sweepMapContent(tx, new Date(NOW.getTime() + 2 * 3600_000)));
+    expect(await readMapContent(db, output.sha256)).toBeDefined();
+    // Med en annan medlem kan den ensamma ägaren inte ta bort sitt konto; utan andra tas projektet bort med kontot.
+    expect((await inviteMapProjectMember(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID(), email: other.email,
+      role: "EDIT" } }, NOW)).status).toBe("invited");
+    expect((await readMapProject(db, { ...other.proof, projectId }, NOW)).status).toBe("ok");
+    expect(await db.transaction(tx => soleOwnerships(tx, owner.accountId))).toEqual([{ kind: "MAP_PROJECT", id: projectId, name: "Kungshatt" }]);
+    expect((await removeMapProjectMember(db, { ...other.proof, projectId, request: { formatVersion: 1, accountId: other.accountId, invitationId: null } },
+      NOW)).status).toBe("removed");
+    expect(await db.transaction(tx => soleOwnerships(tx, owner.accountId))).toEqual([]);
+    await db.transaction(tx => deleteAccountWithOwnedEvents(tx, owner.accountId, NOW));
+    const [gone] = await db.select().from(schema.mapProjects).where(eq(schema.mapProjects.id, projectId));
+    expect(gone).toBeUndefined();
   });
 });

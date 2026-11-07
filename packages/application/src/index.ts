@@ -190,8 +190,9 @@ export {
 } from "./server-status";
 export type { HostPaths, HostReadings, ServerMailer, ServerMessage, ServerWatchResult } from "./server-status";
 export {
-  createMapProject, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole,
+  createMapProject, createMapProjectFromUpload, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole,
   updateMapProject
 } from "./map-projects";
 export { syncMapProject } from "./map-project-sync";
-export { exportMapProjectChanges, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";
+export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";
+export type { MapProjectUploadFailure } from "./map-projects";

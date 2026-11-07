@@ -1,19 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
-  mapProjectCreateRequestSchema, mapProjectInviteRequestSchema, mapProjectMemberRemoveRequestSchema, mapProjectMemberRoleRequestSchema,
-  mapProjectUpdateRequestSchema, type InvitationMailOutcome, type MapProjectList, type MapProjectMemberView, type MapProjectRole,
-  type MapProjectSummary, type MapProjectView
+  CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectCreateRequestSchema, mapProjectInviteRequestSchema, mapProjectMemberRemoveRequestSchema,
+  mapProjectMemberRoleRequestSchema, mapProjectUpdateRequestSchema, mapProjectUploadMetadataSchema, type InvitationMailOutcome, type MapProjectList,
+  type MapProjectMemberView, type MapProjectRole, type MapProjectSummary, type MapProjectView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
-import { clubJournal, clubMembership, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import {
-  addMapProjectMember, mapProjectAllows, mapProjectRoleOf, openMapProjectInvitations, requireMapProject,
-  type MapProjectRow
+  addMapProjectMember, mapProjectAllows, mapProjectBaseFileName, mapProjectCanArchive, mapProjectJournal, mapProjectRoleOf, openMapProjectInvitations,
+  requireMapProject, type MapProjectRow
 } from "./map-project-access";
-import { authenticateUserAccountSessionForProtectedRead } from "./user-account";
+import { contentHead, contentLength, discardStagedMapContent, mapStorageQuota, storeMapContent, type MapContentInput } from "./map-content";
+import { mapFileFormatOf } from "./race-map-source";
+import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -26,36 +28,45 @@ const ROLE_ORDER: Record<MapProjectRole, number> = { OWNER: 0, EDIT: 1, READ: 2 
 async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: ReadonlyMap<string, MapProjectRole>): Promise<MapProjectSummary[]> {
   if (rows.length === 0) return [];
   const ids = rows.map(row => row.id);
-  const versions = new Map((await tx.select({ id: schema.clubMapVersions.id, mapId: schema.clubMapVersions.mapId, fileName: schema.clubMapVersions.fileName,
-    format: schema.clubMapVersions.format, versionDate: schema.clubMapVersions.versionDate, mapName: schema.clubMaps.name })
+  const versionIds = [...new Set(rows.flatMap(row => row.baseVersionId ? [row.baseVersionId] : []))];
+  const versions = new Map(versionIds.length === 0 ? [] : (await tx.select({ id: schema.clubMapVersions.id, mapId: schema.clubMapVersions.mapId,
+    fileName: schema.clubMapVersions.fileName, format: schema.clubMapVersions.format, versionDate: schema.clubMapVersions.versionDate,
+    mapName: schema.clubMaps.name })
     .from(schema.clubMapVersions).innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
-    .where(inArray(schema.clubMapVersions.id, [...new Set(rows.map(row => row.baseVersionId))]))).map(row => [row.id, row]));
-  const clubs = new Map((await tx.select({ id: schema.clubs.id, name: schema.clubs.name }).from(schema.clubs)
-    .where(inArray(schema.clubs.id, [...new Set(rows.map(row => row.clubId))]))).map(row => [row.id, row.name]));
+    .where(inArray(schema.clubMapVersions.id, versionIds))).map(row => [row.id, row]));
+  const clubIds = [...new Set(rows.flatMap(row => row.clubId ? [row.clubId] : []))];
+  const clubs = new Map(clubIds.length === 0 ? [] : (await tx.select({ id: schema.clubs.id, name: schema.clubs.name }).from(schema.clubs)
+    .where(inArray(schema.clubs.id, clubIds))).map(row => [row.id, row.name]));
   // Nya objekt som tagits bort igen och objekt som är tillbaka som i grundfilen räknas inte.
   const changed = new Map((await tx.select({ id: schema.mapProjectObjects.projectId, value: count() }).from(schema.mapProjectObjects)
     .where(and(inArray(schema.mapProjectObjects.projectId, ids),
       sql`not (${schema.mapProjectObjects.objectKey} like 'n:%' and ${schema.mapProjectObjects.state}->>'kind' = 'DELETED')`,
       sql`${schema.mapProjectObjects.state}->>'kind' <> 'UNCHANGED'`))
     .groupBy(schema.mapProjectObjects.projectId)).map(row => [row.id, row.value]));
-  const outputs = await tx.select({ projectId: schema.mapProjectOutputs.projectId, versionId: schema.mapProjectOutputs.versionId,
-    changes: schema.mapProjectOutputs.changes, createdAt: schema.mapProjectOutputs.createdAt, fileName: schema.clubMapVersions.fileName })
-    .from(schema.mapProjectOutputs).innerJoin(schema.clubMapVersions, eq(schema.clubMapVersions.id, schema.mapProjectOutputs.versionId))
+  // Äldre resultat (0089) har bara kartversionen; nyare har sitt eget filnamn.
+  const outputs = await tx.select({ id: schema.mapProjectOutputs.id, projectId: schema.mapProjectOutputs.projectId,
+    versionId: schema.mapProjectOutputs.versionId, changes: schema.mapProjectOutputs.changes, createdAt: schema.mapProjectOutputs.createdAt,
+    fileName: schema.mapProjectOutputs.fileName, versionFileName: schema.clubMapVersions.fileName })
+    .from(schema.mapProjectOutputs).leftJoin(schema.clubMapVersions, eq(schema.clubMapVersions.id, schema.mapProjectOutputs.versionId))
     .where(inArray(schema.mapProjectOutputs.projectId, ids)).orderBy(asc(schema.mapProjectOutputs.createdAt));
   return rows.flatMap(row => {
-    const base = versions.get(row.baseVersionId);
+    const version = row.baseVersionId ? versions.get(row.baseVersionId) : undefined;
     const role = roles.get(row.id);
-    if (!base || !role) return [];
-    return [{ projectId: row.id, name: row.name, status: row.status, role, club: { clubId: row.clubId, name: clubs.get(row.clubId) ?? "" },
-      base: { versionId: base.id, mapId: base.mapId, mapName: base.mapName, fileName: base.fileName, format: base.format,
-        versionDate: base.versionDate, sha256: row.baseSha256 },
+    if (!role || (row.baseVersionId && !version)) return [];
+    const base: MapProjectSummary["base"] = version
+      ? { source: "ARCHIVE", versionId: version.id, mapId: version.mapId, mapName: version.mapName, fileName: version.fileName, format: version.format,
+        versionDate: version.versionDate, sha256: row.baseSha256 }
+      : { source: row.baseSource === "NEW" ? "NEW" : "UPLOAD", versionId: null, mapId: null, mapName: row.name, fileName: row.baseFileName ?? "",
+        format: row.baseFormat, versionDate: null, sha256: row.baseSha256 };
+    return [{ projectId: row.id, name: row.name, status: row.status, role,
+      club: row.clubId ? { clubId: row.clubId, name: clubs.get(row.clubId) ?? "" } : null, base,
       createdAt: row.createdAt.toISOString(), closedAt: row.closedAt?.toISOString() ?? null, changedObjects: changed.get(row.id) ?? 0,
-      outputs: outputs.filter(output => output.projectId === row.id).map(output => ({ versionId: output.versionId, fileName: output.fileName,
-        changes: output.changes, createdAt: output.createdAt.toISOString() })) }];
+      outputs: outputs.filter(output => output.projectId === row.id).map(output => ({ outputId: output.id, versionId: output.versionId,
+        fileName: output.fileName ?? output.versionFileName ?? "", changes: output.changes, createdAt: output.createdAt.toISOString() })) }];
   });
 }
 
-/** Kontots projekt (som medlem eller som administratör i projektets klubb), nyaste först. Tar inbjudningar först. */
+/** Kontots projekt (som medlem, eller som administratör i projektets klubb), nyaste först. Tar inbjudningar först. */
 export async function listMapProjects(db: Database, input: ClubProof, now = new Date()): Promise<ClubFailure | { status: "ok"; list: MapProjectList }> {
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, input, now);
@@ -76,14 +87,17 @@ export async function listMapProjects(db: Database, input: ClubProof, now = new 
   });
 }
 
-/** Nytt projekt från en kartversion i klubbens arkiv (klubbens administratörer och ägare). Idempotent på `requestId`. */
+/**
+ * Nytt projekt från en kartversion i klubbens arkiv: alla som får läsa arkivet (medlemmar, också Eventor-bekräftade).
+ * Projektet hör till klubben, så klubbens administratörer räknas som ägare. Idempotent på `requestId`.
+ */
 export async function createMapProject(db: Database, input: ClubProof & { request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "created"; replayed: boolean; projectId: string }> {
   const parsed = mapProjectCreateRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   const { requestId, clubId, baseVersionId, name } = parsed.data;
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, { ...input, clubId }, "ADMIN", now, true);
+    const member = await requireClubRole(tx, { ...input, clubId }, "READER", now, true);
     if (member.status !== "ok") return member;
     const [prior] = await tx.select().from(schema.mapProjects).where(eq(schema.mapProjects.requestId, requestId));
     if (prior) {
@@ -94,12 +108,48 @@ export async function createMapProject(db: Database, input: ClubProof & { reques
       .where(and(eq(schema.clubMapVersions.id, baseVersionId), eq(schema.clubMapVersions.clubId, clubId)));
     if (!version) return { status: "not-found" } as const;
     const projectId = randomUUID();
-    await tx.insert(schema.mapProjects).values({ id: projectId, clubId, name, baseVersionId, baseSha256: version.contentSha256,
+    await tx.insert(schema.mapProjects).values({ id: projectId, clubId, name, baseVersionId, baseSource: "ARCHIVE", baseSha256: version.contentSha256,
       baseFormat: version.format, readerVersion: MAP_READER_VERSION, status: "OPEN", seq: 0, createdBy: member.accountId, createdAt: now, requestId });
     await addMapProjectMember(tx, { projectId, accountId: member.accountId, role: "OWNER", addedBy: member.accountId, now });
-    await clubJournal(tx, { clubId, action: "MAP_PROJECT_CREATED", actorAccountId: member.accountId, details: { projectId, baseVersionId }, now });
+    await mapProjectJournal(tx, { clubId }, { action: "MAP_PROJECT_CREATED", actorAccountId: member.accountId, details: { projectId, baseVersionId }, now });
     return { status: "created", replayed: false, projectId } as const;
   });
+}
+
+export type MapProjectUploadFailure = ClubFailure | { status: "quota" } | { status: "unsupported-file" } | { status: "too-large" };
+
+/**
+ * Nytt eget projekt från en uppladdad kartfil (OCAD eller Mapper; alla inloggade, ingen klubb). Filen räknas mot kontots kvot.
+ * Idempotent på `requestId`. Det uppladdade innehållet tas bort om projektet inte skapas.
+ */
+export async function createMapProjectFromUpload(db: Database, input: ClubProof & { metadata: unknown; file: MapContentInput }, now = new Date())
+  : Promise<MapProjectUploadFailure | { status: "created"; replayed: boolean; projectId: string }> {
+  const parsed = mapProjectUploadMetadataSchema.safeParse(input.metadata);
+  const result = await db.transaction(async (tx): Promise<MapProjectUploadFailure | { status: "created"; replayed: boolean; projectId: string }> => {
+    const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
+    if (auth.status !== "authenticated") return auth;
+    if (!parsed.success) return { status: "invalid-request" };
+    const accountId = auth.principal.accountId;
+    const { requestId, name, fileName } = parsed.data;
+    const [prior] = await tx.select().from(schema.mapProjects).where(eq(schema.mapProjects.requestId, requestId));
+    if (prior) {
+      return prior.createdBy === accountId && prior.clubId === null ? { status: "created", replayed: true, projectId: prior.id } : { status: "conflict" };
+    }
+    if (contentLength(input.file) > CLUB_ARCHIVE_MAP_MAX_BYTES) return { status: "too-large" };
+    const format = mapFileFormatOf(contentHead(input.file));
+    if (format !== "OCD" && format !== "OMAP") return { status: "unsupported-file" };
+    const stored = await storeMapContent(tx, input.file, accountId, now, mapStorageQuota());
+    if (stored.status === "quota") return { status: "quota" };
+    const projectId = randomUUID();
+    await tx.insert(schema.mapProjects).values({ id: projectId, clubId: null, name, baseVersionId: null, baseFileName: fileName, baseSource: "UPLOAD", baseSha256: stored.sha256,
+      baseFormat: format, readerVersion: MAP_READER_VERSION, status: "OPEN", seq: 0, createdBy: accountId, createdAt: now, requestId });
+    await addMapProjectMember(tx, { projectId, accountId, role: "OWNER", addedBy: accountId, now });
+    return { status: "created", replayed: false, projectId };
+  });
+  if (result.status !== "created" || result.replayed) {
+    if (!(input.file instanceof Uint8Array)) await discardStagedMapContent(db, input.file.contentId);
+  }
+  return result;
 }
 
 async function members(tx: DbExecutor, project: MapProjectRow): Promise<MapProjectMemberView[]> {
@@ -126,9 +176,9 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
     const canManage = mapProjectAllows(role, project, "manage");
     const open = canManage ? await openMapProjectInvitations(tx, project.id) : [];
     const sent = await invitationSentTimes(tx, "MAP_PROJECT", open.map(row => row.id));
-    const club = await clubMembership(tx, { accountId, clubId: project.clubId }, "none");
     return { status: "ok", view: { ...summary, formatVersion: 1,
-      viewer: { accountId, canEdit: mapProjectAllows(role, project, "edit"), canManage, canWriteVersion: canManage && !!club && clubRoleAtLeast(club.role, "ADMIN") },
+      viewer: { accountId, canEdit: mapProjectAllows(role, project, "edit"), canManage, canWriteVersion: canManage,
+        canArchive: canManage && await mapProjectCanArchive(tx, accountId, project) },
       readerVersion: project.readerVersion, seq: project.seq, members: await members(tx, project),
       invitations: open.map(row => ({ invitationId: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString(),
         sentAt: sent.get(row.id)?.toISOString() ?? null })) } } as const;
@@ -148,7 +198,7 @@ export async function updateMapProject(db: Database, input: ClubProof & { projec
     await tx.update(schema.mapProjects).set({ ...(name ? { name } : {}),
       ...(closing === "CLOSED" ? { status: "CLOSED", closedAt: now, closedBy: access.accountId } : {}),
       ...(closing === "OPEN" ? { status: "OPEN", closedAt: null, closedBy: null } : {}) }).where(eq(schema.mapProjects.id, access.project.id));
-    await clubJournal(tx, { clubId: access.project.clubId, action: closing === "CLOSED" ? "MAP_PROJECT_CLOSED" : closing === "OPEN"
+    await mapProjectJournal(tx, access.project, { action: closing === "CLOSED" ? "MAP_PROJECT_CLOSED" : closing === "OPEN"
       ? "MAP_PROJECT_REOPENED" : "MAP_PROJECT_RENAMED", actorAccountId: access.accountId, details: { projectId: access.project.id }, now });
     return { status: "ok" } as const;
   });
@@ -179,7 +229,7 @@ export async function inviteMapProjectMember(db: Database, input: ClubProof & { 
     if (openInvitation || existing) return { status: "conflict" } as const;
     const invitationId = randomUUID();
     await tx.insert(table).values({ id: invitationId, requestId, projectId, email, role, actorAccountId: access.accountId, createdAt: now });
-    await clubJournal(tx, { clubId: access.project.clubId, action: "MAP_PROJECT_MEMBER_INVITED", actorAccountId: access.accountId,
+    await mapProjectJournal(tx, access.project, { action: "MAP_PROJECT_MEMBER_INVITED", actorAccountId: access.accountId,
       details: { projectId, invitationId, role }, now });
     const prepared = await prepareIfMail(tx, mailer, { kind: "MAP_PROJECT", invitationId }, access.accountId, now);
     return { status: "invited", replayed: false, invitationId, prepared } as const;
@@ -211,7 +261,7 @@ export async function setMapProjectMemberRole(db: Database, input: ClubProof & {
     if (!member) return { status: "not-found" } as const;
     if (member.role === "OWNER" && parsed.data.role !== "OWNER" && await ownerCount(tx, access.project.id) <= 1) return { status: "conflict" } as const;
     await tx.update(members).set({ role: parsed.data.role }).where(where);
-    await clubJournal(tx, { clubId: access.project.clubId, action: "MAP_PROJECT_MEMBER_ROLE_CHANGED", actorAccountId: access.accountId,
+    await mapProjectJournal(tx, access.project, { action: "MAP_PROJECT_MEMBER_ROLE_CHANGED", actorAccountId: access.accountId,
       details: { projectId: access.project.id, accountId: member.accountId, from: member.role, to: parsed.data.role }, now });
     return { status: "ok" } as const;
   });
@@ -236,7 +286,7 @@ export async function removeMapProjectMember(db: Database, input: ClubProof & { 
       const [row] = await tx.update(table).set({ revokedAt: now }).where(and(eq(table.id, parsed.data.invitationId), eq(table.projectId, projectId),
         isNull(table.acceptedAt), isNull(table.revokedAt))).returning({ id: table.id });
       if (!row) return { status: "not-found" } as const;
-      await clubJournal(tx, { clubId: access.project.clubId, action: "MAP_PROJECT_INVITATION_REVOKED", actorAccountId: access.accountId,
+      await mapProjectJournal(tx, access.project, { action: "MAP_PROJECT_INVITATION_REVOKED", actorAccountId: access.accountId,
         details: { projectId, invitationId: row.id }, now });
       return { status: "removed" } as const;
     }
@@ -246,7 +296,7 @@ export async function removeMapProjectMember(db: Database, input: ClubProof & { 
     if (!member) return { status: "not-found" } as const;
     if (member.role === "OWNER" && await ownerCount(tx, projectId) <= 1) return { status: "conflict" } as const;
     await tx.delete(members).where(where);
-    await clubJournal(tx, { clubId: access.project.clubId, action: "MAP_PROJECT_MEMBER_REMOVED", actorAccountId: access.accountId,
+    await mapProjectJournal(tx, access.project, { action: "MAP_PROJECT_MEMBER_REMOVED", actorAccountId: access.accountId,
       details: { projectId, accountId: member.accountId, role: member.role }, now });
     return { status: "removed" } as const;
   });
@@ -258,10 +308,11 @@ export async function readMapProjectSource(db: Database, input: ClubProof & { pr
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
-    const [row] = await tx.select({ fileName: schema.clubMapVersions.fileName, format: schema.clubMapVersions.format,
-      byteLength: schema.mapContents.byteLength, contentId: schema.mapContents.contentId, sha256: schema.mapContents.sha256 })
-      .from(schema.clubMapVersions).innerJoin(schema.mapContents, eq(schema.mapContents.sha256, access.project.baseSha256))
-      .where(eq(schema.clubMapVersions.id, access.project.baseVersionId));
-    return row ? { status: "ok", ...row } as const : { status: "not-found" } as const;
+    const { project } = access;
+    const [content] = await tx.select({ byteLength: schema.mapContents.byteLength, contentId: schema.mapContents.contentId,
+      sha256: schema.mapContents.sha256 }).from(schema.mapContents).where(eq(schema.mapContents.sha256, project.baseSha256));
+    const fileName = await mapProjectBaseFileName(tx, project);
+    return content && fileName ? { status: "ok", fileName, format: project.baseFormat, ...content } as const : { status: "not-found" } as const;
   });
 }
+

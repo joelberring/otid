@@ -1,12 +1,15 @@
 import {
-  createMapProject, exportMapProjectChanges, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember,
-  setMapProjectMemberRole, streamMapContentParts, syncMapProject, updateMapProject, writeMapProjectVersion
+  createMapProject, createMapProjectFromUpload, discardStagedMapContent, exportMapProjectChanges, inviteMapProjectMember, listMapProjects,
+  readMapProject, readMapProjectOutput, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole, stageMapContent, streamMapContentParts,
+  syncMapProject, updateMapProject, writeMapProjectVersion
 } from "@o-tid/application";
-import { MAP_PROJECT_SYNC_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
+import { CLUB_ARCHIVE_MAP_MAX_BYTES, MAP_PROJECT_SYNC_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { attachment, failure, guarded, mutation, readProof, type ClubEnvironment } from "./club-route-handlers";
+import {
+  attachment, failure, guarded, headerText, mutation, problem, readProof, streamChunks, type ClubEnvironment
+} from "./club-route-handlers";
 import { mailAvailable, routeMailer } from "./invitation-route-handlers";
-import { privateHeaders, privateJson } from "./security-policy";
+import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
 import { logServerError } from "./server-error-log";
 
 /**
@@ -16,7 +19,7 @@ import { logServerError } from "./server-error-log";
 type Environment = ClubEnvironment;
 const validId = (id: string) => UUID_PATTERN.test(id);
 
-/** GET kontots projekt, POST nytt projekt från en kartversion i klubbarkivet. */
+/** GET kontots projekt, POST nytt projekt från en kartversion i klubbarkivet (ett eget projekt från en fil: `mapProjectUploadRoute`). */
 export async function mapProjectsRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
   if (request.method === "GET") {
     const input = await readProof(request, environment);
@@ -77,6 +80,65 @@ export async function mapProjectMembersRoute(db: Database, request: Request, pro
   });
 }
 
+/**
+ * POST ett eget projekt från en kartfil (kroppen, `application/octet-stream`; uppgifterna i rubrikerna). Filen strömmas till
+ * kartinnehållet först och tas bort igen om projektet inte skapas.
+ */
+export async function mapProjectUploadRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
+  const input = await mutation(request, environment, "stream");
+  if ("response" in input) return input.response;
+  if (request.headers.get("content-type") !== "application/octet-stream" || !request.body) return failure("invalid-request");
+  if (!validDeclaredLength(request, CLUB_ARCHIVE_MAP_MAX_BYTES)) return problem("MAP_FILE_TOO_LARGE");
+  const metadata = { formatVersion: 1, requestId: headerText(request, "x-otid-request-id", 64) ?? "", name: headerText(request, "x-otid-name", 120) ?? "",
+    fileName: headerText(request, "x-otid-file-name", 200) ?? "" };
+  const body = request.body;
+  return guarded(async () => {
+    const staged = await stageMapContent(db, streamChunks(body), { maxBytes: CLUB_ARCHIVE_MAP_MAX_BYTES });
+    if (staged.kind === "too-large") return problem("MAP_FILE_TOO_LARGE");
+    if (staged.kind === "empty") return failure("invalid-request");
+    let result: Awaited<ReturnType<typeof createMapProjectFromUpload>>;
+    try { result = await createMapProjectFromUpload(db, { ...input.proof, metadata, file: staged }); }
+    catch (error) { await discardStagedMapContent(db, staged.contentId); throw error; }
+    if (result.status === "created") return privateJson({ formatVersion: 1, projectId: result.projectId }, result.replayed ? 200 : 201);
+    if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED");
+    if (result.status === "unsupported-file") return problem("UNSUPPORTED_MAP_FILE");
+    if (result.status === "too-large") return problem("MAP_FILE_TOO_LARGE");
+    return failure(result.status);
+  });
+}
+
+/** GET ett resultat ur projektet (strömmas, oföränderligt per sha256). */
+export async function mapProjectOutputRoute(db: Database, request: Request, projectId: string, outputId: string,
+  environment: Environment = process.env): Promise<Response> {
+  if (!validId(projectId) || !validId(outputId)) return failure("not-found");
+  const input = await readProof(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const head = await readMapProjectOutput(db, { ...input.proof, projectId, outputId });
+    if (head.status !== "ok") return failure(head.status);
+    return contentResponse(db, head, head.fileName.toLowerCase().endsWith(".ocd") ? "karta.ocd" : "karta.omap");
+  });
+}
+
+/** Innehållet som en ström (privat, med filnamn och storlek). */
+function contentResponse(db: Database, head: { contentId: string; fileName: string; byteLength: number; sha256: string }, fallback: string): Response {
+  const parts = streamMapContentParts(db, head.contentId);
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await parts.next();
+        if (next.done) controller.close(); else controller.enqueue(next.value);
+      } catch (error) {
+        logServerError("map-project", "content", error);
+        controller.error(error);
+      }
+    },
+    async cancel() { await parts.return(undefined); }
+  });
+  return new Response(stream, { headers: { ...privateHeaders, "content-type": "application/octet-stream",
+    "content-disposition": attachment(head.fileName, fallback), "content-length": String(head.byteLength), etag: `"${head.sha256}"` } });
+}
+
 /** GET grundfilen (strömmas, oföränderlig per sha256). */
 export async function mapProjectSourceRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env)
   : Promise<Response> {
@@ -86,22 +148,7 @@ export async function mapProjectSourceRoute(db: Database, request: Request, proj
   return guarded(async () => {
     const head = await readMapProjectSource(db, { ...input.proof, projectId });
     if (head.status !== "ok") return failure(head.status);
-    const parts = streamMapContentParts(db, head.contentId);
-    const stream = new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        try {
-          const next = await parts.next();
-          if (next.done) controller.close(); else controller.enqueue(next.value);
-        } catch (error) {
-          logServerError("map-project", "source", error);
-          controller.error(error);
-        }
-      },
-      async cancel() { await parts.return(undefined); }
-    });
-    return new Response(stream, { headers: { ...privateHeaders, "content-type": "application/octet-stream",
-      "content-disposition": attachment(head.fileName, head.format === "OCD" ? "karta.ocd" : "karta.omap"), "content-length": String(head.byteLength),
-      etag: `"${head.sha256}"` } });
+    return contentResponse(db, head, head.format === "OCD" ? "karta.ocd" : "karta.omap");
   });
 }
 

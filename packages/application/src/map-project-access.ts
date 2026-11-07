@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { MapProjectRole } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { clubMembership, clubRoleAtLeast, type ClubFailure, type ClubProof } from "./club-access";
+import { clubJournal, clubMembership, clubRoleAtLeast, type ClubFailure, type ClubProof } from "./club-access";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
@@ -10,8 +10,10 @@ import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessi
  * ADR-0219 beslut 2–3: behörigheten i kartprojekten finns bara här.
  * - Ägare (`OWNER`) hanterar medlemmar, byter namn, avslutar och öppnar igen; Ändra (`EDIT`) ändrar kartan; Läsa (`READ`) ser
  *   kartan, ändringarna och vem som gjort dem.
- * - Klubbens administratörer och ägare har samma rätt som projektets ägare i klubbens projekt, så att ett projekt aldrig blir
- *   utan någon som kan hantera det (t.ex. när ett konto tas bort).
+ * - Ett projekt ägs av sina medlemmar; klubben är valfri (rättelsen 2026-11-07). Hör projektet till en klubb har klubbens
+ *   administratörer och ägare samma rätt som projektets ägare, så att det aldrig blir utan någon som kan hantera det. Ett eget
+ *   projekt kan inte bli utan ägare: den sista ägaren kan inte lämna och inte ta bort sitt konto medan andra är med
+ *   (`soleOwnerships`); är ägaren ensam tas projektet bort med kontot.
  * - En som inte är medlem får "not-found" (projektets existens röjs inte).
  * Inbjudningar till projektet tas när projektet öppnas, som för klubbar och grupper.
  */
@@ -62,13 +64,20 @@ export async function acceptMapProjectInvitations(tx: DbExecutor, accountId: str
   return accepted;
 }
 
-/** Kontots roll i projektet: medlemskapet, eller ägare för klubbens administratörer och ägare. Undefined = ingen. */
+/** Kontots roll i projektet: medlemskapet, eller ägare för administratörer och ägare i projektets klubb. Undefined = ingen. */
 export async function mapProjectRoleOf(tx: DbExecutor, accountId: string, project: Pick<MapProjectRow, "id" | "clubId">)
   : Promise<MapProjectRole | undefined> {
   const [member] = await tx.select({ role: schema.mapProjectMembers.role }).from(schema.mapProjectMembers)
     .where(and(eq(schema.mapProjectMembers.projectId, project.id), eq(schema.mapProjectMembers.accountId, accountId)));
-  const club = await clubMembership(tx, { accountId, clubId: project.clubId }, "none");
+  const club = project.clubId ? await clubMembership(tx, { accountId, clubId: project.clubId }, "none") : undefined;
   return higher(member?.role, club && clubRoleAtLeast(club.role, "ADMIN") ? "OWNER" : undefined);
+}
+
+/** Får kontot lägga projektets resultat i klubbarkivet (projektet hör till en klubb och kontot är administratör där)? */
+export async function mapProjectCanArchive(tx: DbExecutor, accountId: string, project: Pick<MapProjectRow, "clubId">): Promise<boolean> {
+  if (!project.clubId) return false;
+  const club = await clubMembership(tx, { accountId, clubId: project.clubId }, "none");
+  return !!club && clubRoleAtLeast(club.role, "ADMIN");
 }
 
 /** Vad rollen får i projektet (Ändra bara när projektet är öppet). */
@@ -101,4 +110,21 @@ export async function addMapProjectMember(tx: DbExecutor, input: { projectId: st
   now: Date }): Promise<void> {
   await tx.insert(schema.mapProjectMembers).values({ projectId: input.projectId, accountId: input.accountId, role: input.role,
     addedBy: input.addedBy, addedAt: input.now }).onConflictDoNothing();
+}
+
+/**
+ * Händelsen i klubbens journal när projektet hör till en klubb. Ett eget projekt har ingen journal utöver ändringsloggen
+ * (`map_project_edit`) och medlemslistan.
+ */
+export async function mapProjectJournal(tx: DbExecutor, project: Pick<MapProjectRow, "clubId">, entry: { action: string; actorAccountId: string;
+  details: Record<string, unknown>; now: Date }): Promise<void> {
+  if (project.clubId) await clubJournal(tx, { clubId: project.clubId, ...entry });
+}
+
+/** Grundfilens namn: kartversionens i arkivet eller projektets eget. */
+export async function mapProjectBaseFileName(tx: DbExecutor, project: MapProjectRow): Promise<string | undefined> {
+  if (!project.baseVersionId) return project.baseFileName ?? undefined;
+  const [version] = await tx.select({ fileName: schema.clubMapVersions.fileName }).from(schema.clubMapVersions)
+    .where(eq(schema.clubMapVersions.id, project.baseVersionId));
+  return version?.fileName;
 }

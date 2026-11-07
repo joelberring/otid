@@ -43,3 +43,23 @@ kartprojekt med egna medlemmar i stället.
 (`race_map_source`) är fortfarande orörd. Läsarna kan ange varifrån varje objekt kom (`readMapFile(…, { sources: true })`),
 vilket kostar en hash per objekt och bara används av kartprojekten. `MAP_READER_VERSION` räknas upp när läsarna ändras; ett
 projekt minns versionen den startade med, så att objektens platser kan jämföras.
+
+## Tillägg 2026-11-07 (kväll): projektet ägs av sina medlemmar, klubben är valfri (migration 0090)
+
+Granskningen mot planen visade att beslut 1 och 3 var för snäva: ett projekt måste utgå från en kartversion i klubbarkivet och
+bara klubbens administratörer kunde starta det. Det fungerar inte för en ny karta (piloten Kungshatt har ingen grundfil) och
+inte med ägarens beslut att inloggningen ska fungera som i resten av O-Tid. Ägaren valde 2026-11-07 "konto, klubb valfri".
+
+1. **Beslut 1 ändras:** ett kartprojekt ägs av sina medlemmar. Grundfilen är en kartversion i klubbarkivet (`ARCHIVE`), en egen
+   uppladdad kartfil (`UPLOAD`) eller en ny tom karta (`NEW`, K1). `club_id` och `base_version_id` är nullbara;
+   `base_file_name` och `base_source` beskriver grundfilen när den inte kommer från arkivet.
+2. **Beslut 3 ändras:** alla inloggade kan starta ett eget projekt från en fil. Från klubbarkivet kan alla som får läsa arkivet
+   starta (också Eventor-bekräftade medlemmar); projektet hör då till klubben och klubbens administratörer räknas som ägare.
+3. **Nya versioner sparas alltid i projektet** (`map_project_output` med eget innehåll och filnamn) och kan laddas ner av alla
+   medlemmar. Projektets ägare skapar dem. När projektet hör till en klubb och den som skriver är administratör där kan versionen
+   också läggas i klubbarkivet som en ny version av samma karta (`archive` i begäran).
+4. **Ett eget projekt blir aldrig utan ägare:** den sista ägaren kan inte lämna, och kan inte ta bort sitt konto medan andra är
+   med (`soleOwnerships`, slaget `MAP_PROJECT`). Är ägaren ensam medlem tas projektet bort med kontot. Ett eget projekt har ingen
+   klubbjournal; ändringsloggen och medlemslistan finns kvar.
+5. Underhållet tar inte innehåll som ett resultat i ett projekt använder (`sweepMapContent`).
+

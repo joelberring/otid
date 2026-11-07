@@ -7,18 +7,19 @@ import {
   changeCounts, changeList, changesGeoJson, mapperChangesFile, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
   type ObjectKey
 } from "@o-tid/map-revision";
-import { clubJournal, clubMembership, clubRoleAtLeast, type ClubFailure, type ClubProof } from "./club-access";
+import { type ClubFailure, type ClubProof } from "./club-access";
 import { mapStorageQuota, readMapContent, storeMapContent } from "./map-content";
-import { requireMapProject, type MapProjectRow } from "./map-project-access";
+import { mapProjectBaseFileName, mapProjectCanArchive, mapProjectJournal, requireMapProject, type MapProjectRow } from "./map-project-access";
 import { mapFileFormatOf } from "./race-map-source";
 import type { DbExecutor } from "./snapshot";
 
 /**
  * ADR-0219 beslut 5–6: "Skapa ny kartversion" och "Exportera ändringarna". Servern bygger ändringarna ur det som är sparat
  * (inte ur det klienten skickar) och ger dem till skrivaren (`applyMapRevision`), som lappar grundfilen, läser den igen och
- * vägrar om något inte stämmer. Resultatet blir en **ny** version av samma karta i klubbarkivet med anteckningen
- * "Reviderad av …, n ändringar". Grundversionen ändras aldrig och projektet fortsätter (en senare version innehåller alla
- * ändringar fram till dess).
+ * vägrar om något inte stämmer. Resultatet sparas alltid i projektet (`map_project_output` med eget innehåll), och när
+ * projektet hör till en klubb kan en administratör där också lägga det som en **ny** version av samma karta i klubbarkivet med
+ * anteckningen "Reviderad av …, n ändringar". Grundfilen ändras aldrig och projektet fortsätter (en senare version innehåller
+ * alla ändringar fram till dess).
  *
  * Skrivaren körs utanför transaktionen. Har någon ändrat under tiden (projektets löpnummer har ändrats) sparas inget och
  * svaret säger det. Vägrar skrivaren sparas inget och skälen visas som de är; exporten finns kvar.
@@ -57,15 +58,15 @@ async function savedChanges(tx: DbExecutor, project: MapProjectRow): Promise<{ c
   return { changes, authors: [...new Set(changes.map(change => change.author))] };
 }
 
-async function canWriteVersion(tx: DbExecutor, accountId: string, project: MapProjectRow): Promise<boolean> {
-  const club = await clubMembership(tx, { accountId, clubId: project.clubId }, "none");
-  return !!club && clubRoleAtLeast(club.role, "ADMIN");
-}
+interface BaseFile { fileName: string; mapId: string | null; bytes: Uint8Array }
 
-async function baseFile(tx: DbExecutor, project: MapProjectRow) {
-  const [base] = await tx.select().from(schema.clubMapVersions).where(eq(schema.clubMapVersions.id, project.baseVersionId));
+async function baseFile(tx: DbExecutor, project: MapProjectRow): Promise<BaseFile | undefined> {
+  const [version] = project.baseVersionId ? await tx.select({ mapId: schema.clubMapVersions.mapId }).from(schema.clubMapVersions)
+    .where(eq(schema.clubMapVersions.id, project.baseVersionId)) : [];
+  const fileName = await mapProjectBaseFileName(tx, project);
   const bytes = await readMapContent(tx, project.baseSha256);
-  return base && bytes ? { base, bytes: new Uint8Array(bytes) } : undefined;
+  if (!fileName || !bytes || (project.baseVersionId && !version)) return undefined;
+  return { fileName, mapId: version?.mapId ?? null, bytes: new Uint8Array(bytes) };
 }
 
 function readBase(bytes: Uint8Array, fileName: string): ParsedMap | undefined {
@@ -78,32 +79,34 @@ function readBase(bytes: Uint8Array, fileName: string): ParsedMap | undefined {
 
 type OutputResult = ClubFailure | { status: "ok"; replayed: boolean; response: MapProjectOutputResponse };
 type Prepared = { status: "replayed"; response: MapProjectOutputResponse }
-  | { status: "ready"; project: MapProjectRow; base: typeof schema.clubMapVersions.$inferSelect; bytes: Uint8Array; changes: ObjectChange[];
-    names: string[] };
+  | { status: "ready"; project: MapProjectRow; base: BaseFile; bytes: Uint8Array; changes: ObjectChange[]; names: string[] };
 
-async function outputResponse(tx: DbExecutor, versionId: string, changes: number): Promise<MapProjectOutputResponse> {
-  const [version] = await tx.select({ fileName: schema.clubMapVersions.fileName }).from(schema.clubMapVersions).where(eq(schema.clubMapVersions.id, versionId));
-  return { formatVersion: 1, status: "created", versionId, fileName: version?.fileName ?? "", changes, added: 0, modified: 0, deleted: 0 };
+async function outputResponse(tx: DbExecutor, output: typeof schema.mapProjectOutputs.$inferSelect): Promise<MapProjectOutputResponse> {
+  const [version] = output.versionId ? await tx.select({ fileName: schema.clubMapVersions.fileName }).from(schema.clubMapVersions)
+    .where(eq(schema.clubMapVersions.id, output.versionId)) : [];
+  return { formatVersion: 1, status: "created", outputId: output.id, versionId: output.versionId, fileName: output.fileName ?? version?.fileName ?? "",
+    changes: output.changes, added: 0, modified: 0, deleted: 0 };
 }
 
-async function prepare(tx: DbExecutor, access: { accountId: string; project: MapProjectRow }, requestId: string)
+async function prepare(tx: DbExecutor, access: { accountId: string; project: MapProjectRow }, requestId: string, archive: boolean)
   : Promise<ClubFailure | Prepared | { status: "ok"; replayed: boolean; response: MapProjectOutputResponse }> {
   const { project } = access;
-  if (!await canWriteVersion(tx, access.accountId, project)) return { status: "forbidden" };
+  if (archive && !await mapProjectCanArchive(tx, access.accountId, project)) return { status: "forbidden" };
   const outputs = schema.mapProjectOutputs;
   const [prior] = await tx.select().from(outputs).where(eq(outputs.requestId, requestId));
-  if (prior) return prior.projectId === project.id ? { status: "replayed", response: await outputResponse(tx, prior.versionId, prior.changes) }
-    : { status: "conflict" };
-  // Inget har ändrats sedan förra versionen: samma version igen i stället för en dubblett.
+  if (prior) return prior.projectId === project.id ? { status: "replayed", response: await outputResponse(tx, prior) } : { status: "conflict" };
+  // Inget har ändrats sedan förra versionen: samma version igen i stället för en dubblett (om den inte ska läggas i arkivet nu).
   const [latest] = await tx.select().from(outputs).where(eq(outputs.projectId, project.id)).orderBy(desc(outputs.createdAt)).limit(1);
-  if (latest && latest.seq === project.seq) return { status: "ok", replayed: true, response: await outputResponse(tx, latest.versionId, latest.changes) };
+  if (latest && latest.seq === project.seq && (!archive || latest.versionId)) {
+    return { status: "ok", replayed: true, response: await outputResponse(tx, latest) };
+  }
   const { changes, authors } = await savedChanges(tx, project);
   if (changes.length === 0) return { status: "ok", replayed: false, response: { formatVersion: 1, status: "empty" } };
   const file = await baseFile(tx, project);
   if (!file) return { status: "not-found" };
   const names = authors.length ? (await tx.select({ name: schema.userAccounts.displayName }).from(schema.userAccounts)
     .where(inArray(schema.userAccounts.id, authors))).map(row => row.name).sort((a, b) => a.localeCompare(b, "sv")) : [];
-  return { status: "ready", project, ...file, changes, names };
+  return { status: "ready", project, base: file, bytes: file.bytes, changes, names };
 }
 
 export async function writeMapProjectVersion(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date())
@@ -114,12 +117,13 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
     const access = await requireMapProject(tx, input, now, "manage", false);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    return prepare(tx, access, parsed.data.requestId);
+    return prepare(tx, access, parsed.data.requestId, parsed.data.archive === true);
   });
   if (prepared.status === "replayed") return { status: "ok", replayed: true, response: prepared.response };
   if (prepared.status !== "ready") return prepared;
 
   const { project, base, bytes, changes, names } = prepared;
+  const archive = parsed.success && parsed.data.archive === true;
   const refused = (code: string, message: string): OutputResult => ({ status: "ok", replayed: false,
     response: { formatVersion: 1, status: "refused", refusals: [{ code, message }] } });
   const map = readBase(bytes, base.fileName);
@@ -141,21 +145,25 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
   return db.transaction(async (tx): Promise<OutputResult> => {
     const access = await requireMapProject(tx, input, now, "manage", true);
     if (access.status !== "ok") return access;
-    if (!await canWriteVersion(tx, access.accountId, access.project)) return { status: "forbidden" };
+    if (archive && !await mapProjectCanArchive(tx, access.accountId, access.project)) return { status: "forbidden" };
     // Någon hann ändra medan filen skrevs: inget sparas (försök igen så kommer ändringen med).
     if (access.project.seq !== project.seq) return { status: "conflict" };
     const stored = await storeMapContent(tx, written.bytes, access.accountId, now, mapStorageQuota());
     if (stored.status === "quota") return refused("QUOTA", "Kvoten för kartfiler är full.");
-    const versionId = randomUUID();
-    await tx.insert(schema.clubMapVersions).values({ id: versionId, clubId: project.clubId, mapId: base.mapId, contentSha256: stored.sha256, fileName,
-      format: project.baseFormat, byteLength: written.bytes.byteLength, versionDate: date, note, uploadedBy: access.accountId, uploadedAt: now,
-      sourcePath: null });
-    await tx.insert(schema.mapProjectOutputs).values({ id: randomUUID(), projectId: project.id, versionId, seq: project.seq, changes: counts.total,
-      createdBy: access.accountId, createdAt: now, requestId: parsed.success ? parsed.data.requestId : randomUUID() });
-    await clubJournal(tx, { clubId: project.clubId, action: "MAP_PROJECT_VERSION_CREATED", actorAccountId: access.accountId,
-      details: { projectId: project.id, baseVersionId: project.baseVersionId, versionId, changes: counts.total, edits: report.edits.length,
+    const versionId = archive && project.clubId && base.mapId ? randomUUID() : null;
+    if (versionId && project.clubId && base.mapId) {
+      await tx.insert(schema.clubMapVersions).values({ id: versionId, clubId: project.clubId, mapId: base.mapId, contentSha256: stored.sha256, fileName,
+        format: project.baseFormat, byteLength: written.bytes.byteLength, versionDate: date, note, uploadedBy: access.accountId, uploadedAt: now,
+        sourcePath: null });
+    }
+    const outputId = randomUUID();
+    await tx.insert(schema.mapProjectOutputs).values({ id: outputId, projectId: project.id, versionId, contentSha256: stored.sha256, fileName,
+      seq: project.seq, changes: counts.total, createdBy: access.accountId, createdAt: now,
+      requestId: parsed.success ? parsed.data.requestId : randomUUID() });
+    await mapProjectJournal(tx, project, { action: "MAP_PROJECT_VERSION_CREATED", actorAccountId: access.accountId,
+      details: { projectId: project.id, baseVersionId: project.baseVersionId, outputId, versionId, changes: counts.total, edits: report.edits.length,
         identicalBytes: report.verification.identicalBytes }, now });
-    return { status: "ok", replayed: false, response: { formatVersion: 1, status: "created", versionId, fileName, changes: counts.total,
+    return { status: "ok", replayed: false, response: { formatVersion: 1, status: "created", outputId, versionId, fileName, changes: counts.total,
       added: report.added, modified: report.modified, deleted: report.deleted } };
   });
 }
@@ -174,12 +182,13 @@ export async function exportMapProjectChanges(db: Database, input: ClubProof & {
     if (input.format === "omap" && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
     const file = await baseFile(tx, access.project);
     if (!file) return { status: "not-found" } as const;
-    return { status: "ready", project: access.project, ...file, changes: (await savedChanges(tx, access.project)).changes } as const;
+    return { status: "ready", project: access.project, fileName: file.fileName, bytes: file.bytes,
+      changes: (await savedChanges(tx, access.project)).changes } as const;
   });
   if (loaded.status !== "ready") return loaded;
-  const map = readBase(loaded.bytes, loaded.base.fileName);
+  const map = readBase(loaded.bytes, loaded.fileName);
   if (!map) return { status: "not-found" };
-  const stem = loaded.base.fileName.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120) || "karta";
+  const stem = loaded.fileName.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120) || "karta";
   if (input.format === "geojson") {
     return { status: "ok", fileName: `${stem} ändringar.geojson`, contentType: "application/geo+json",
       body: JSON.stringify(changesGeoJson(map, loaded.changes, stem)) };
@@ -190,3 +199,23 @@ export async function exportMapProjectChanges(db: Database, input: ClubProof & {
     : { status: "ok", fileName: `${stem} ändringar.xmap`, contentType: "application/xml", body };
 }
 
+
+/** Ett resultat i projektet (alla medlemmar): innehållets id för strömmen och filnamnet. */
+export async function readMapProjectOutput(db: Database, input: ClubProof & { projectId: string; outputId: string }, now = new Date())
+  : Promise<ClubFailure | { status: "ok"; fileName: string; byteLength: number; contentId: string; sha256: string }> {
+  return db.transaction(async tx => {
+    const access = await requireMapProject(tx, input, now, "view", false);
+    if (access.status !== "ok") return access;
+    const outputs = schema.mapProjectOutputs;
+    const [output] = await tx.select().from(outputs).where(eq(outputs.id, input.outputId));
+    if (!output || output.projectId !== access.project.id) return { status: "not-found" } as const;
+    const [version] = output.versionId ? await tx.select({ sha256: schema.clubMapVersions.contentSha256, fileName: schema.clubMapVersions.fileName })
+      .from(schema.clubMapVersions).where(eq(schema.clubMapVersions.id, output.versionId)) : [];
+    const sha256 = output.contentSha256 ?? version?.sha256;
+    const fileName = output.fileName ?? version?.fileName;
+    if (!sha256 || !fileName) return { status: "not-found" } as const;
+    const [content] = await tx.select({ byteLength: schema.mapContents.byteLength, contentId: schema.mapContents.contentId })
+      .from(schema.mapContents).where(eq(schema.mapContents.sha256, sha256));
+    return content ? { status: "ok", fileName, sha256, ...content } as const : { status: "not-found" } as const;
+  });
+}

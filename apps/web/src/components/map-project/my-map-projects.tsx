@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import type { MapProjectList } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { mapProjectFailure, mapProjectsBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
-import { Notice } from "../ui";
+import { Button, Field, Notice } from "../ui";
 import styles from "./map-project.module.css";
 
 const text = mapProjectSv.list;
 
-/** ADR-0219: kontots kartprojekt (som medlem eller som administratör i projektets klubb). */
+/** ADR-0219: kontots kartprojekt (som medlem, eller som administratör i projektets klubb) och ett nytt eget projekt från en fil. */
 export function MyMapProjects() {
   const [list, setList] = useState<MapProjectList>();
   const [problem, setProblem] = useState("");
@@ -33,9 +33,57 @@ export function MyMapProjects() {
     {list && list.projects.length > 0 && <ul className={styles.list} data-testid="map-projects">
       {list.projects.map(project => <li key={project.projectId}>
         <div><Link href={`/organizer/map-projects/${project.projectId}`}>{project.name}</Link>
-          <span>{[project.club.name, project.base.fileName, mapProjectSv.roles[project.role], text.changed(project.changedObjects),
+          <span>{[project.club?.name ?? text.own, project.base.fileName, mapProjectSv.roles[project.role], text.changed(project.changedObjects),
             project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
       </li>)}
     </ul>}
+    {!problem && <UploadProject />}
   </main>;
+}
+
+const upload = mapProjectSv.upload;
+
+/** Nytt eget projekt (ingen klubb) från en kartfil; filen strömmas som kroppen och uppgifterna står i rubrikerna. */
+function UploadProject() {
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File>();
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function start(event: FormEvent) {
+    event.preventDefault();
+    if (!file) return;
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch(`${mapProjectsBase}/upload`, { method: "POST", credentials: "same-origin", body: file,
+        headers: { "content-type": "application/octet-stream", "x-otid-csrf": csrf() ?? "", "x-otid-request-id": requestId,
+          "x-otid-name": encodeURIComponent(name.trim().slice(0, 120)), "x-otid-file-name": encodeURIComponent(file.name.slice(0, 200)) } });
+      if (response.status === 200 || response.status === 201) {
+        const body = await response.json() as { projectId: string };
+        window.location.assign(`/organizer/map-projects/${encodeURIComponent(body.projectId)}`);
+        return;
+      }
+      setRequestId(crypto.randomUUID());
+      const error = response.status === 422 ? (await response.json().catch(() => ({})) as { error?: string }).error : undefined;
+      setMessage(error === "MAP_FILE_TOO_LARGE" ? upload.tooLarge : error === "UNSUPPORTED_MAP_FILE" ? upload.unsupported
+        : error === "STORAGE_QUOTA_EXCEEDED" ? upload.quota : mapProjectFailure(response.status));
+    } finally { setBusy(false); }
+  }
+
+  return <section aria-labelledby="map-project-upload">
+    <h2 id="map-project-upload">{upload.title}</h2>
+    <p className={styles.muted}>{upload.help}</p>
+    <form className={styles.form} onSubmit={event => void start(event)} aria-label={upload.title}>
+      <Field label={upload.name}><input value={name} maxLength={120} required onChange={event => setName(event.target.value)} /></Field>
+      <Field label={upload.file}><input type="file" accept=".omap,.xmap,.ocd" required
+        onChange={event => {
+          const chosen = event.target.files?.[0];
+          setFile(chosen);
+          if (chosen && !name.trim()) setName(chosen.name.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120));
+        }} /></Field>
+      <div className={styles.actions}><Button type="submit" disabled={busy || !file || !name.trim()} aria-busy={busy}>{upload.button}</Button></div>
+      {message && <Notice tone="error" role="alert">{message}</Notice>}
+    </form>
+  </section>;
 }

@@ -84,6 +84,7 @@ export const accountSv = {
     deleteSoleOwner: "Kontot är inte borttaget: lämna över ägarskapet först (se ovan).",
     soleOwnerClub: (name: string) => `Klubben ${name} – du är enda ägaren`,
     soleOwnerGroup: (name: string) => `Träningsgruppen ${name} – du är enda ledaren`,
+    soleOwnerMapProject: (name: string) => `Kartprojektet ${name} – du är enda ägaren`,
     deleted: "Kontot är borttaget.",
     /** Ändrat 2026-11-07 (ADR-0205): ett konto som bara loggar in med Google bekräftar borttagningen med en ny Google-inloggning. */
     deleteWithGoogle: "Du loggar in med Google och har inget eget lösenord. Bekräfta genom att logga in med Google en gång till – sedan tas kontot bort direkt.",

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   accountDeleteRequestSchema,
   accountDisplayNameChangeSchema,
@@ -54,18 +54,25 @@ export async function deleteAccountWithOwnedEvents(tx: DbExecutor, accountId: st
   const events = await ownedEvents(tx, accountId);
   await revokeAllUserAccountSessions(tx, accountId, now, "ACCOUNT_DELETED");
   await purgeRows(tx, "event", events.map((event) => event.eventId));
+  // Egna kartprojekt (utan klubb) där kontot är ensam medlem tas bort med kontot; finns andra är kontot inte ensam ägare
+  // (`soleOwnerships` vägrar då) och projektet lever vidare med dem.
+  const solo = (await tx.execute<{ id: string }>(sql`select p.id from map_project p where p.club_id is null
+    and exists (select 1 from map_project_member m where m.project_id = p.id and m.account_id = ${accountId})
+    and not exists (select 1 from map_project_member m where m.project_id = p.id and m.account_id <> ${accountId})`)).rows.map(row => row.id);
+  await purgeRows(tx, "map_project", solo);
   await purgeRows(tx, "user_account", [accountId]);
   return { eventIds: events.map((event) => event.eventId) };
 }
 
 /**
- * Klubbar där kontot är ensam ägare och träningsgrupper där det är ensam ledare (ändrat 2026-11-07). Att ta bort kontot vägras
+ * Klubbar där kontot är ensam ägare, träningsgrupper där det är ensam ledare och egna kartprojekt där det är ensam ägare med
+ * andra medlemmar (ändrat 2026-11-07). Att ta bort kontot vägras
  * då, som när en ägare tas bort ur klubben (`removeClubMember`) eller den sista ledaren ur gruppen; superadmin kan fortfarande
  * ta bort kontot. `lock` låser ägarnas rader så att två ägare inte kan lämna samtidigt.
  */
 export async function soleOwnerships(tx: DbExecutor, accountId: string, lock = false)
-  : Promise<{ kind: "CLUB" | "TRAINING_GROUP"; id: string; name: string }[]> {
-  const result: { kind: "CLUB" | "TRAINING_GROUP"; id: string; name: string }[] = [];
+  : Promise<{ kind: "CLUB" | "TRAINING_GROUP" | "MAP_PROJECT"; id: string; name: string }[]> {
+  const result: { kind: "CLUB" | "TRAINING_GROUP" | "MAP_PROJECT"; id: string; name: string }[] = [];
   const members = schema.clubMembers;
   const clubs = await tx.select({ id: schema.clubs.id, name: schema.clubs.name }).from(members)
     .innerJoin(schema.clubs, eq(schema.clubs.id, members.clubId)).where(and(eq(members.accountId, accountId), eq(members.role, "OWNER")));
@@ -84,6 +91,14 @@ export async function soleOwnerships(tx: DbExecutor, accountId: string, lock = f
     const rows = lock ? await query.for("update") : await query;
     for (const group of groups) if (rows.filter(row => row.groupId === group.id).length <= 1) result.push({ kind: "TRAINING_GROUP", ...group });
   }
+  // Egna kartprojekt (utan klubb, ADR-0219 rättelsen) där kontot är ensam ägare och andra är medlemmar.
+  const projects = (await tx.execute<{ id: string; name: string }>(sql`select p.id, p.name from map_project p
+    join map_project_member m on m.project_id = p.id and m.account_id = ${accountId} and m.role = 'OWNER'
+    where p.club_id is null
+      and not exists (select 1 from map_project_member o where o.project_id = p.id and o.role = 'OWNER' and o.account_id <> ${accountId})
+      and exists (select 1 from map_project_member o where o.project_id = p.id and o.account_id <> ${accountId})
+    ${lock ? sql`for update of p` : sql``}`)).rows;
+  for (const project of projects) result.push({ kind: "MAP_PROJECT", ...project });
   return result.sort((a, b) => a.name.localeCompare(b.name, "sv"));
 }
 

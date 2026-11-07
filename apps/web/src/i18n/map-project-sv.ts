@@ -6,8 +6,9 @@ export const mapProjectSv = {
   title: "Kartprojekt",
   list: {
     title: "Mina kartprojekt",
-    hint: "Kartprojekt där flera ritar på samma kartversion. Ett projekt startas från en kartversion i klubbarkivet.",
-    empty: "Du är inte med i något kartprojekt än. En administratör i klubben startar ett från kartbanken i klubbarkivet.",
+    hint: "Kartprojekt där flera ritar på samma karta. Starta ett eget från en kartfil här, eller från en kartversion i klubbarkivets Kartor.",
+    empty: "Du är inte med i något kartprojekt än.",
+    own: "eget",
     changed: (count: number) => plural(count, "ändrat objekt", "ändrade objekt"),
     closed: "avslutat"
   },
@@ -17,8 +18,19 @@ export const mapProjectSv = {
     EDIT: "ritar och ändrar kartan",
     READ: "ser kartan och ändringarna"
   } satisfies Record<MapProjectRole, string>,
+  upload: {
+    title: "Nytt kartprojekt från en kartfil",
+    help: "Ett eget projekt, utan klubb. Filen (Mapper eller OCAD) blir grundfilen och ändras aldrig; nya versioner sparas i projektet.",
+    name: "Projektets namn",
+    file: "Kartfil (.omap, .xmap eller .ocd)",
+    button: "Starta projektet",
+    tooLarge: "Filen är för stor.",
+    unsupported: "Filen är inte en kartfil från Mapper eller OCAD.",
+    quota: "Kvoten för kartfiler är full."
+  },
   page: {
     kicker: "O-Tid · Kartprojekt",
+    ownProject: "Eget projekt (ingen klubb)",
     loading: "Hämtar kartprojektet …",
     base: "Grundversion",
     club: "Klubb",
@@ -28,6 +40,7 @@ export const mapProjectSv = {
     drawingSoon: "Att rita och ändra kartan i O-Tid kommer i nästa steg. Här finns projektet, medlemmarna och filerna.",
     ocadLater: "Grundfilen är en OCAD-fil. Att skriva tillbaka till OCAD kommer senare; exportera ändringarna som GeoJSON så länge.",
     download: "Ladda ner grundfilen",
+    downloadShort: "Ladda ner",
     exportMapper: "Exportera ändringarna (Mapper)",
     exportGeojson: "Exportera ändringarna (GeoJSON)",
     exportHelp: "En liten egen fil med bara de ändrade och nya objekten, att lägga in i kartan för hand.",
@@ -40,19 +53,25 @@ export const mapProjectSv = {
     saved: "Sparat.",
     outputs: "Versioner ur projektet",
     noOutputs: "Ingen ny kartversion har skapats ur projektet än.",
-    outputLine: (fileName: string, changes: number, date: string) => `${fileName} · ${plural(changes, "ändring", "ändringar")} · ${date}`
+    outputLine: (fileName: string, changes: number, date: string) => `${fileName} · ${plural(changes, "ändring", "ändringar")} · ${date}`,
+    inArchive: "i klubbarkivet",
+    downloadOutput: (fileName: string) => `Ladda ner ${fileName}`
   },
   version: {
     title: "Ny kartversion",
-    help: "Skriver ändringarna in i en kopia av grundfilen. Bara de ändrade objekten skrivs om, och filen kontrolleras efteråt. Grundversionen ändras aldrig; den nya versionen hamnar i klubbarkivet bredvid.",
+    help: "Skriver ändringarna in i en kopia av grundfilen. Bara de ändrade objekten skrivs om, och filen kontrolleras efteråt. Grundfilen ändras aldrig; den nya versionen sparas i projektet.",
+    archive: "Lägg också den nya versionen i klubbarkivet",
+    archiveHelp: "Som en ny version av samma karta, bredvid grundversionen.",
     button: "Skapa ny kartversion",
-    confirm: "Skapa en ny kartversion i klubbarkivet med projektets ändringar?",
-    created: (fileName: string) => `Ny kartversion i klubbarkivet: ${fileName}.`,
+    confirm: "Skapa en ny kartversion med projektets ändringar?",
+    confirmArchive: "Skapa en ny kartversion med projektets ändringar och lägga den i klubbarkivet?",
+    created: (fileName: string) => `Ny kartversion: ${fileName}.`,
+    createdArchive: (fileName: string) => `Ny kartversion i projektet och i klubbarkivet: ${fileName}.`,
     same: (fileName: string) => `Inget har ändrats sedan förra versionen (${fileName}).`,
     empty: "Det finns inga ändringar att skriva.",
     refused: "Ändringarna kunde inte skrivas in i kartfilen. Exportera dem i stället:",
     conflict: "Någon ändrade kartan medan filen skrevs. Försök igen.",
-    notAdmin: "Bara en ägare av projektet som också är administratör i klubben kan skapa en ny kartversion."
+    notOwner: "Bara projektets ägare skapar nya kartversioner."
   },
   members: {
     title: "Medlemmar",
@@ -73,7 +92,8 @@ export const mapProjectSv = {
     changeRole: "Byt roll",
     lastOwner: "Projektet måste ha minst en ägare.",
     edits: (count: number) => plural(count, "ändring", "ändringar"),
-    clubAdmins: "Klubbens administratörer och ägare har alltid samma rätt som projektets ägare."
+    clubAdmins: "Klubbens administratörer och ägare har alltid samma rätt som projektets ägare.",
+    lastOwnerOwn: "Ett eget projekt behöver minst en ägare. Gör någon annan till ägare innan du lämnar."
   },
   start: {
     button: "Starta kartprojekt",

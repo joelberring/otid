@@ -4,7 +4,8 @@ import { clubMapVersions, clubs } from "./clubs";
 import { mapContents } from "./map-content";
 
 /**
- * ADR-0219 (migration 0089): kartprojekten. Ett projekt utgår från en kartversion i klubbarkivet; ändringarna lagras per objekt
+ * ADR-0219 (migration 0089, 0090): kartprojekten. Ett projekt ägs av sina medlemmar; klubben är valfri. Grundfilen är en kartversion i
+ * klubbarkivet, en egen uppladdad fil eller en ny karta. Ändringarna lagras per objekt
  * (`map_project_object`) med en logg över varje ändring som kom fram (`map_project_edit`). Författare och avsändare har ingen
  * främmande nyckel; medlemskap och tagna inbjudningar har den och försvinner med kontot.
  *
@@ -18,9 +19,15 @@ export type MapProjectEditStatus = "APPLIED" | "CONFLICT";
 
 export const mapProjects = pgTable("map_project", {
   id: uuid("id").primaryKey(),
-  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  /** Klubben projektet hör till (valfri sedan 0090): dess administratörer räknas som ägare och kan lägga resultat i arkivet. */
+  clubId: uuid("club_id").references(() => clubs.id),
   name: text("name").notNull(),
-  baseVersionId: uuid("base_version_id").notNull().references(() => clubMapVersions.id),
+  /** Kartversionen i klubbarkivet som projektet utgår från; null för en egen uppladdad fil eller en ny karta (0090). */
+  baseVersionId: uuid("base_version_id").references(() => clubMapVersions.id),
+  /** Grundfilens namn när den inte kommer från arkivet (0090). */
+  baseFileName: text("base_file_name"),
+  /** Var grundfilen kom ifrån; null = kartversion i arkivet (rader från 0089). */
+  baseSource: text("base_source").$type<"ARCHIVE" | "UPLOAD" | "NEW">(),
   baseSha256: text("base_sha256").notNull().references(() => mapContents.sha256),
   baseFormat: text("base_format").$type<"OCD" | "OMAP">().notNull(),
   readerVersion: integer("reader_version").notNull(),
@@ -87,7 +94,11 @@ export const mapProjectEdits = pgTable("map_project_edit", {
 export const mapProjectOutputs = pgTable("map_project_output", {
   id: uuid("id").primaryKey(),
   projectId: uuid("project_id").notNull().references(() => mapProjects.id),
-  versionId: uuid("version_id").notNull().references(() => clubMapVersions.id),
+  /** Kartversionen i klubbarkivet när resultatet också lades där. */
+  versionId: uuid("version_id").references(() => clubMapVersions.id),
+  /** Resultatets innehåll och filnamn i projektet (0090; äldre rader har bara kartversionen). */
+  contentSha256: text("content_sha256").references(() => mapContents.sha256),
+  fileName: text("file_name"),
   seq: bigint("seq", { mode: "number" }).notNull(),
   changes: integer("changes").notNull(),
   createdBy: uuid("created_by").notNull(),

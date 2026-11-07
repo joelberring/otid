@@ -45,7 +45,7 @@ export function failure(status: string): Response {
 }
 
 /** 422 med felet; vid full kvot också gränsen och vad som används i hela MB (som kartfilens uppladdning, ADR-0189 beslut 3). */
-function problem(error: string, quota?: MapQuotaExceeded): Response {
+export function problem(error: string, quota?: MapQuotaExceeded): Response {
   return privateJson({ formatVersion: 1, error, ...(quota ? { quota: { scope: quota.scope, usedMb: Math.ceil(quota.usedBytes / MB),
     limitMb: Math.floor(quota.limitBytes / MB), neededMb: Math.ceil(quota.neededBytes / MB) } } : {}) }, 422);
 }
@@ -86,7 +86,7 @@ export async function guarded(run: () => Promise<Response>): Promise<Response> {
 const validId = (id: string) => UUID_PATTERN.test(id);
 
 /** Bodyn som bitar. */
-async function* streamChunks(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
+export async function* streamChunks(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
   const reader = body.getReader();
   try {
     for (;;) {
@@ -97,7 +97,7 @@ async function* streamChunks(body: ReadableStream<Uint8Array>): AsyncGenerator<U
   } finally { await reader.cancel().catch(() => undefined); }
 }
 
-function headerText(request: Request, name: string, max: number): string | null {
+export function headerText(request: Request, name: string, max: number): string | null {
   const raw = request.headers.get(name);
   if (raw === null) return null;
   try { return decodeURIComponent(raw).replace(/\p{Cc}/gu, "").trim().slice(0, max) || null; } catch { return null; }

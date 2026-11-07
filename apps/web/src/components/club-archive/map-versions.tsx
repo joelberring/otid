@@ -98,6 +98,9 @@ export function VersionDetails({ clubId, map, version, admin, onChanged, onMessa
         fields: version.maker ? ["maker"] : ["note"], versionIds: others, title: text.copyAllTitle(version.fileName) })}>{text.copyAll}</Button>}
       {map.maker && <Button variant="quiet" aria-label={text.fromMapTitle(version.fileName)} onClick={() => setCopy({ fromVersionId: null, fields: ["maker"],
         versionIds: [version.versionId], title: text.fromMapTitle(version.fileName) })}>{text.fromMap}</Button>}
+    </div>}
+    {/* ADR-0219 (rättelsen 2026-11-07): alla som ser kartbanken kan starta ett kartprojekt från en version. */}
+    {!editing && !copy && <div className={styles.buttons}>
       <StartMapProject clubId={clubId} versionId={version.versionId} mapName={map.name} fileName={version.fileName} />
     </div>}
     {editing && <form className={styles.versionForm} onSubmit={event => void save(event)} aria-label={text.editTitle(version.fileName)}>

@@ -169,8 +169,10 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
         {soleOwnerOf.length > 0 && <Notice tone="attention" role="status">
           <span data-testid="account-sole-owner">{text.deleteHandOver(soleOwnerOf.map(item => item.name))}</span>
           <ul className={styles.list}>{soleOwnerOf.map(item => <li key={`${item.kind}:${item.id}`}>
-            <Link href={item.kind === "CLUB" ? `/organizer/clubs/${item.id}` : `/organizer/groups/${item.id}`}>
-              {item.kind === "CLUB" ? text.soleOwnerClub(item.name) : text.soleOwnerGroup(item.name)}</Link></li>)}</ul>
+            <Link href={item.kind === "CLUB" ? `/organizer/clubs/${item.id}` : item.kind === "MAP_PROJECT" ? `/organizer/map-projects/${item.id}`
+              : `/organizer/groups/${item.id}`}>
+              {item.kind === "CLUB" ? text.soleOwnerClub(item.name) : item.kind === "MAP_PROJECT" ? text.soleOwnerMapProject(item.name)
+                : text.soleOwnerGroup(item.name)}</Link></li>)}</ul>
           <span className={styles.muted}>{text.deleteHandOverAlone}</span>
         </Notice>}
         {googleOnly ? <div className={styles.form} data-testid="account-delete-google">

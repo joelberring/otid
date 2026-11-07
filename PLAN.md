@@ -1183,6 +1183,8 @@ Bygger om det användbara från de pausade grenarna `kartfil-skrivning` och `kar
   kommer i K1.
 - [x] **Tester:** paketen (skrivaren, egenskapstest, riktiga fixturer), integration (behörighet, synk, krock, dubblett, ny
   version, inbjudan), schemadrift och `lint:dead`.
+- [x] **Rättat 2026-11-07 (migration 0090, ADR-0219 tillägg):** projektet ägs av sina medlemmar och klubben är valfri; eget
+  projekt från en kartfil för alla inloggade; versioner sparas i projektet och läggs i klubbarkivet bara på begäran.
 
 ## [ ] Steg K1 – Rita på datorn och flera samtidigt
 

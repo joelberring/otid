@@ -18,8 +18,9 @@ type Message = { tone: "ok" | "error"; text: string; refusals?: string[] };
 const day = (iso: string) => iso.slice(0, 10);
 
 /**
- * ADR-0219 (steg K0): kartprojektets sida. Grundversionen, filerna (grundfilen och exporten av ändringarna), medlemmarna och
- * "Skapa ny kartversion". Att rita kommer i K1. Behörigheten avgörs av API:et (404 för den som inte är med).
+ * ADR-0219 (steg K0): kartprojektets sida. Grundfilen, filerna (grundfilen, versionerna och exporten av ändringarna), medlemmarna
+ * och "Skapa ny kartversion" (i projektet, och i klubbens kartbank när projektet hör till en klubb). Att rita kommer i K1.
+ * Behörigheten avgörs av API:et (404 för den som inte är med).
  */
 export function MapProjectPage({ projectId }: { projectId: string }) {
   const [view, setView] = useState<MapProjectView>();
@@ -27,6 +28,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
   const [problem, setProblem] = useState("");
   const [message, setMessage] = useState<Message>();
   const [busy, setBusy] = useState(false);
+  const [archive, setArchive] = useState(true);
   const base = mapProjectBase(projectId);
 
   async function load() {
@@ -50,16 +52,17 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
   if (!view) return <main className={styles.page}><Notice tone="error" role="alert">{problem}</Notice>
     <p><Link href="/organizer/map-projects">{text.list.title}</Link></p></main>;
 
-  async function writeVersion() {
-    if (!window.confirm(text.version.confirm)) return;
+  async function writeVersion(toArchive: boolean) {
+    if (!window.confirm(toArchive ? text.version.confirmArchive : text.version.confirm)) return;
     setBusy(true); setMessage(undefined);
     try {
-      const result = await clubRequest(`${base}/versions`, "POST", { formatVersion: 1, requestId: crypto.randomUUID() });
+      const result = await clubRequest(`${base}/versions`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), archive: toArchive });
       if (result.status === 409) { setMessage({ tone: "error", text: text.version.conflict }); return; }
       if (result.status !== 200 && result.status !== 201) { setMessage({ tone: "error", text: mapProjectFailure(result.status) }); return; }
       const response = result.json as MapProjectOutputResponse;
       if (response.status === "created") {
-        setMessage({ tone: "ok", text: result.status === 201 ? text.version.created(response.fileName) : text.version.same(response.fileName) });
+        setMessage({ tone: "ok", text: result.status !== 201 ? text.version.same(response.fileName)
+          : response.versionId ? text.version.createdArchive(response.fileName) : text.version.created(response.fileName) });
       } else if (response.status === "empty") setMessage({ tone: "error", text: text.version.empty });
       else setMessage({ tone: "error", text: text.version.refused, refusals: response.refusals.map(refusal => refusal.message) });
       await load();
@@ -72,7 +75,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
   return <main className={styles.page}>
     <header className={styles.header}>
       <div>
-        <p className={styles.kicker}><Link href="/organizer/map-projects">{text.list.title}</Link> · {project.club.name}</p>
+        <p className={styles.kicker}><Link href="/organizer/map-projects">{text.list.title}</Link> · {project.club?.name ?? text.page.ownProject}</p>
         <h1>{project.name}</h1>
       </div>
       <AccountMenu />
@@ -84,7 +87,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
       <section aria-labelledby="map-project-base">
         <h2 id="map-project-base">{text.page.base}</h2>
         <dl className={styles.facts}>
-          <dt>{text.page.club}</dt><dd>{project.club.name}</dd>
+          <dt>{text.page.club}</dt><dd>{project.club?.name ?? text.page.ownProject}</dd>
           <dt>{text.page.base}</dt><dd>{project.base.mapName} · {project.base.fileName}{project.base.versionDate ? ` · ${project.base.versionDate}` : ""}</dd>
           <dt>{text.page.changes}</dt><dd>{text.page.changed(project.changedObjects)}</dd>
         </dl>
@@ -101,13 +104,20 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
       <section aria-labelledby="map-project-version">
         <h2 id="map-project-version">{text.version.title}</h2>
         <p className={styles.muted}>{text.version.help}</p>
-        {project.viewer.canWriteVersion
-          ? <Button disabled={busy || project.base.format !== "OMAP"} onClick={() => void writeVersion()}>{text.version.button}</Button>
-          : <p className={styles.muted}>{text.version.notAdmin}</p>}
+        {project.viewer.canWriteVersion ? <>
+          {project.viewer.canArchive && <label className={styles.check}>
+            <input type="checkbox" checked={archive} disabled={busy} onChange={event => setArchive(event.target.checked)} />
+            <span>{text.version.archive}<small className={styles.muted}> {text.version.archiveHelp}</small></span>
+          </label>}
+          <Button disabled={busy || project.base.format !== "OMAP"} onClick={() => void writeVersion(project.viewer.canArchive && archive)}>
+            {text.version.button}</Button>
+        </> : <p className={styles.muted}>{text.version.notOwner}</p>}
         <h3>{text.page.outputs}</h3>
         {project.outputs.length === 0 ? <p className={styles.muted}>{text.page.noOutputs}</p>
-          : <ul className={styles.list}>{project.outputs.map(output => <li key={output.versionId}>
-            <div><span>{text.page.outputLine(output.fileName, output.changes, day(output.createdAt))}</span></div></li>)}</ul>}
+          : <ul className={styles.list} data-testid="map-project-outputs">{project.outputs.map(output => <li key={output.outputId}>
+            <div><span>{text.page.outputLine(output.fileName, output.changes, day(output.createdAt))}{output.versionId ? ` · ${text.page.inArchive}` : ""}</span></div>
+            <div className={styles.actions}><a className={styles.buttonLink} href={`${base}/outputs/${encodeURIComponent(output.outputId)}`} download
+              aria-label={text.page.downloadOutput(output.fileName)}>{text.page.downloadShort}</a></div></li>)}</ul>}
       </section>
 
       <MembersSection view={project} base={base} busy={busy} mailEnabled={mailEnabled} run={run} onChanged={load} onMessage={setMessage} />
@@ -140,13 +150,14 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
 
   const remove = (who: string, body: { accountId: string | null; invitationId: string | null }, self = false) => {
     if (!window.confirm(self ? copy.leaveConfirm : copy.removeConfirm(who))) return;
-    void run(() => clubRequest(`${base}/members`, "DELETE", { formatVersion: 1, ...body }), text.page.saved, copy.lastOwner)
+    void run(() => clubRequest(`${base}/members`, "DELETE", { formatVersion: 1, ...body }), text.page.saved,
+      view.club ? copy.lastOwner : copy.lastOwnerOwn)
       .then(done => { if (done && self) window.location.assign("/organizer/map-projects"); });
   };
 
   return <section aria-labelledby="map-project-members">
     <h2 id="map-project-members">{copy.title}</h2>
-    <p className={styles.muted}>{manage ? copy.help : copy.readerHelp} {copy.clubAdmins}</p>
+    <p className={styles.muted}>{manage ? copy.help : copy.readerHelp} {view.club ? copy.clubAdmins : ""}</p>
     <ul className={styles.list} data-testid="map-project-members">
       {view.members.map(member => {
         const you = member.accountId === view.viewer.accountId;

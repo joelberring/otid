@@ -42,8 +42,9 @@
 	# en inte prövas den andra). Allt annat går till web.
 	# ADR-0214: kartritarens länk (/kartfel/<nyckel> och /api/public/map-link/…) läses på web-public; svaren och beskeden
 	# (/api/map-link/…) går till web, så att banläggningens ström når de öppna editorerna direkt.
+	# Samma lista som PUBLIC_PATHS i apps/web/src/lib/public-paths.ts (testet kräver det). Ändras den: `dc restart caddy`.
 	@public {
-		path / /om /integritet /results /results/* /starts /starts/* /t/* /fest/* /kartfel/* /api/public/* /api/races/*/start-list /api/races/*/start-list/* /_next/static/* /favicon.ico /robots.txt
+		path / /om /integritet /results /results/* /starts /starts/* /t/* /fest/* /g/* /kartfel/* /api/public/* /api/races/*/start-list /api/races/*/start-list/* /_next/static/* /favicon.ico /icon.svg /apple-icon.png /manifest.webmanifest /icons/* /robots.txt
 		not header_regexp Cookie (^|;\s*)(__Host-otid-organizer-session|otid_organizer_session)=
 	}
 	handle @public {

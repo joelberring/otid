@@ -60,6 +60,17 @@ kör alltså uppdateringen först när arbetsflödet `Avbildningar` för den com
 versionens avbildning med den nya compose-filen. `pull` krävs: `up -d` ensam byter inte en avbildning som redan finns på
 servern.
 
+**Ändrad `deploy/Caddyfile`:** `up -d` startar inte om Caddy när bara Caddyfile har ändrats, och Caddy ser inte den nya filen
+(den är monterad som en enskild fil, och `git pull` skriver en ny fil i stället för att ändra den gamla, så `caddy reload` i
+behållaren läser fortfarande den gamla). Kör därför efter uppdateringen:
+
+```bash
+docker compose -f docker-compose.prod.yml restart caddy
+```
+
+Det tar någon sekund och är ofarligt även när filen inte ändrats; `git diff --stat ORIG_HEAD HEAD -- deploy/Caddyfile` efter
+`git pull` visar om den gjort det.
+
 ADR-0186: `up` tar först en dump (`./backups/fore-migrering/`, de 10 senaste sparas) och kör sedan nya migreringar i tjänsten
 `migrate`; först därefter startas den nya webben. Misslyckas dumpen eller en migrering fortsätter den gamla webben att köra
 (se [Om en migrering misslyckas](#om-en-migrering-misslyckas)); `docker compose -f docker-compose.prod.yml logs backup-before-migrate migrate`
@@ -146,7 +157,8 @@ avläsningen, arbetsytan och funktionärerna fungera som vanligt, och resultatre
 långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå före:
 
 - **Uppdelning (Caddy, `deploy/Caddyfile`):** publika sökvägar (`/`, `/om`, `/integritet`, `/results/…`, `/starts/…`, `/t/…`,
-  `/fest/…`, `/api/public/…`, den publika startlistan och Nexts statiska filer) går till `web-public` eller `web-public2`
+  `/fest/…`, `/g/…`, `/kartfel/…`, `/api/public/…`, den publika startlistan, Nexts statiska filer, ikonerna och manifestet;
+  listan är `PUBLIC_PATHS` i `apps/web/src/lib/public-paths.ts`, och ett test kräver att Caddyfile har samma) går till `web-public` eller `web-public2`
   (färst pågående anrop; svarar den ena inte prövas den andra) för den som inte är inloggad. Allt annat, och allt för
   den som är inloggad (arrangörer och funktionärer, även speakern och de publika sidorna), går till `web`. Varje instans
   klarar alla sökvägar: lokalt och med `pnpm dev` finns bara en (`OTID_INSTANCE_ROLE` saknas, `all`).

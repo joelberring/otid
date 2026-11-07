@@ -36,7 +36,7 @@ en skala, en tryckyta och ett papper per bana, och papperet redigeras på utskri
 7. **Ändringar** (med ångra och kollaborationsnycklar per layout, ark, klass och läge): `ADD_LAYOUT` (id från klienten),
    `UPDATE_LAYOUT`, `DELETE_LAYOUT`, `PUT_LAYOUT_SHEET`, `SET_LAYOUT_CIRCLE_GAPS`, `CLEAR_LAYOUT_ADJUSTMENTS`,
    `SET_CLASS_LAYOUTS`, `SAVE_LAYOUT_STATE`, `RESTORE_LAYOUT_STATE`, `DELETE_LAYOUT_STATE`; `SET_PRINT_AREA`,
-   `SET_PAPER_LAYOUT` och `MOVE_NUMBER` har `layout` för ett annat ark än huvudlayoutens.
+   `SET_PAPER_LAYOUT` och `MOVE_NUMBER` har `printLayout` för ett ark i en annan layout än huvudlayouten.
 8. **Sparat läge** (`event.layoutStates[]`): namngiven ögonblicksbild av layouterna, arken (också huvudlayoutens tryckytor
    och papper), justeringarna, klassernas val, mallarna och färgprofilen (vald profil och tävlingens kopia). Inte banorna.
    "Återställ" är en ändring som kan ångras; "Jämför" listar layouter, ark och klasser som skiljer. Vid inläsning av en .ppen

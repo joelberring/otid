@@ -714,6 +714,32 @@ och den gamla kör vidare om den var igång (annars svarar sidan 502). En dump t
 4. Skicka felet till den som driver O-Tid. När det är rättat: `git checkout main`, ta bort raden `OTID_TAG`, och
    [uppdatera](#uppdatera) när rättelsens avbildning finns.
 
+## Miljövariabler
+
+`deploy/prod.env.example` har de vanliga. Övriga, med förval när de saknas eller är tomma. Variabler som `docker-compose.prod.yml`
+inte skickar vidare (markerade "ej i compose") gäller i drift först när de läggs under tjänstens `environment` där.
+
+| Namn | Förval | Vad den gör |
+| --- | --- | --- |
+| `OTID_IMAGE`, `OTID_BACKUP_IMAGE` | `ghcr.io/joelberring/otid-web`, `…/otid-backup` | Avbildningarnas namn; lokala namn när servern bygger själv ([reserv](#bygga-på-servern-reserv)). |
+| `OTID_DB_OWNER_USER`/`_PASSWORD`, `OTID_DB_APP_*`, `OTID_DB_PRINT_*` | `otid` och `POSTGRES_PASSWORD` | Databasrollerna; skrivs av `deploy/db-roles.sh setup` ([Databasroller](#databasroller)). |
+| `BACKUP_INTERVAL_MINUTES`, `BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS` | 60, 48, 14 | Dumpens intervall och hur många tim- och dagsdumpar som sparas ([Backup](#backup)). |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | tomma | restic-kopian till S3 ([Kopia utanför servern](#kopia-utanför-servern-valfri-krypterad)). |
+| `OTID_HEALTH_INTERVAL_MINUTES`, `OTID_DISK_ALERT_PERCENT` | 15, 80 | Hälsokontrollens intervall och diskens larmgräns i procent ([Bevakning](#bevakning-valfri)). |
+| `OTID_EVENTOR_API_KEY` | tom (en nyckel som ett klubbarkiv sparat) | Klubbens Eventor-nyckel för klubblistan, bara i `web` ([Eventor](#eventor)). |
+| `OTID_REGISTRATION_LIMIT_PER_HOUR` | 10 | Nya konton per IP-adress och timme. |
+| `OTID_RADIO_POLLER` | på (`off` i publikens instanser) | `off` = instansen hämtar inga radiostämplingar. |
+| `OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB` | 2048, 20480 | Kartornas kvot per konto och för servern; 0 = ingen gräns ([Kartornas lagring](#kartornas-lagring)). |
+| `OTID_RETENTION`, `OTID_RETENTION_MONTHS` | av, 24 | Gallring av gamla tävlingar (`anonymize` eller `delete`) ([Gallring](#gallring)). |
+| `OTID_PRINT_JOB_TIMEOUT_MS` | 600000 | Tidsgräns för ett utskriftsjobb. |
+| `OTID_PRINT_JOB_MEMORY_MB` | 256 (minst 64) | Minnestak för ett utskriftsjobbs barnprocess. Ej i compose. |
+| `OTID_PRINT_POLL_MS` | 2000 (minst 200) | Hur ofta utskriftsarbetaren tittar efter nya jobb. Ej i compose. |
+| `OTID_PRINT_FONT_DIR` | `fonts` bredvid `print-worker.mjs`, annars `packages/print-pdf/fonts` | Mappen med PDF:ens typsnitt. Ej i compose. |
+| `OTID_PRINT_WORKER` | på | Bara lokalt: `off` = `pnpm dev` startar ingen utskriftsarbetare. |
+| `OTID_MAINTENANCE` | på i `web` (aldrig i publikens instanser) | `off` = instansen kör inget underhåll (kartinnehåll utan tävling, gallringen, klubbarnas medlemslistor). Ej i compose. |
+| `OTID_IMPORT_TOKEN` | tom (fråga) | Bara på datorn som kör `pnpm archive-import`: klubbarkivets importnyckel (annars `--nyckel-fil` eller en fråga). |
+| `OTID_EVENTOR_BASE_URL`, `OTID_ROC_BASE_URL`, `OTID_GOOGLE_BASE_URL`, `OTID_GOOGLE_AUTHORIZE_URL` | tomma = de riktiga tjänsterna | Endast test: CI pekar på falska tjänster. Lämna tomma i drift. |
+
 ## Prova driftuppsättningen lokalt
 
 Sätt `OTID_DOMAIN=localhost` i `.env`. Caddy ger då ett lokalt certifikat.

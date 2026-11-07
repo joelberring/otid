@@ -14,6 +14,7 @@ import {
 import { fieldStore, forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
 import { refreshShell, removeShell, saveShell, shellSupported } from "../../lib/course-setting-offline-shell";
 import type { CourseSettingSync, EditorStore, SyncStatus } from "../../lib/course-setting-sync";
+import { mapFileCache } from "../../lib/map-file-cache";
 import { fetchMapSource } from "../../lib/route-choice-api";
 
 /**
@@ -31,10 +32,12 @@ export { fieldStore };
 
 /**
  * Kartfilen: från telefonen när den sparade är samma fil som på servern (ingen ny hämtning av 5–60 MB), annars från
- * servern; utan nät den sparade även om den är äldre (`onOlder` säger det).
+ * webbläsarens cache för kartfiler (samma sha256, ADR-0218), annars från servern med filens sha256 i adressen (som
+ * webbläsarens HTTP-cache också får spara); utan nät den sparade även om den är äldre (`onOlder` säger det). `onProgress`
+ * får andelen som hämtats.
  */
-export async function loadMapFile(raceId: string, sha256: string, storage: FieldStore, signal: AbortSignal, onOlder: () => void)
-  : Promise<{ bytes: ArrayBuffer; fileName: string }> {
+export async function loadMapFile(raceId: string, sha256: string, storage: FieldStore, signal: AbortSignal, onOlder: () => void,
+  onProgress?: (fraction: number) => void): Promise<{ bytes: ArrayBuffer; fileName: string }> {
   const stored = await storage.mapInfo(raceId).catch(() => undefined);
   const fromPhone = async () => {
     const map = await storage.readMap(raceId);
@@ -44,8 +47,12 @@ export async function loadMapFile(raceId: string, sha256: string, storage: Field
     const map = await fromPhone().catch(() => undefined);
     if (map) return map;
   }
+  // ADR-0218: samma fil har hämtats förut (sha256 ur banläggningens tillstånd, som servern lämnat ut efter behörigheten).
+  const cached = await mapFileCache.read(sha256);
+  if (cached) return cached;
   try {
-    return await fetchMapSource(raceId, signal);
+    // En hämtning per sha256 även när editorn och vägvalen ber om filen samtidigt; den sparas sedan i lagret.
+    return await mapFileCache.fetchOnce(sha256, progress => fetchMapSource(raceId, undefined, { sha256, onProgress: progress }), { signal, onProgress });
   } catch (error) {
     const map = stored && !signal.aborted ? await fromPhone().catch(() => undefined) : undefined;
     if (!map) throw error;

@@ -3,9 +3,9 @@ import type { UsableClubMap, UsableClubMapsResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { clubAreaAllowed } from "@o-tid/domain";
 import { acceptClubInvitations, type ClubFailure, type ClubProof, type ClubRole } from "./club-access";
-import { clubMapViews } from "./club-archive";
+import { clubMapViewsByClub } from "./club-archive";
 import { clubMapUseIssues, mayUseClubMap } from "./club-map-use";
-import { applyEventorMemberships, clubLinkFacts, derivedClubIds } from "./club-affiliation-access";
+import { applyEventorMemberships, clubLinkFactsMany, derivedClubIds } from "./club-affiliation-access";
 import type { DbExecutor } from "./snapshot";
 import { authenticateUserAccountSessionForProtectedRead } from "./user-account";
 
@@ -48,11 +48,15 @@ export async function listUsableClubMaps(db: Database, proof: ClubProof, now = n
     await applyEventorMemberships(tx, accountId, now);
     const today = now.toISOString().slice(0, 10);
     const maps: UsableClubMap[] = [];
-    for (const club of await memberClubs(tx, accountId)) {
-      const facts = { role: club.role, clubId: club.clubId, mapBank: (await clubLinkFacts(tx, club.clubId)).access.MAP_BANK };
-      // Kartbanken stängd för rollen: inga kartor att läsa in.
-      if (!clubAreaAllowed(facts.role, facts.mapBank)) continue;
-      for (const map of await clubMapViews(tx, club.clubId, undefined, { merges: false })) {
+    // B5: inställningarna och kartorna för alla klubbar i samma frågor, inte några frågor per klubb.
+    const clubs = await memberClubs(tx, accountId);
+    const links = await clubLinkFactsMany(tx, clubs.map(club => club.clubId));
+    const open = clubs.filter(club => clubAreaAllowed(club.role, links.get(club.clubId)!.access.MAP_BANK));
+    const views = await clubMapViewsByClub(tx, open.map(club => club.clubId), undefined, { merges: false });
+    for (const club of open) {
+      // Kartbanken stängd för rollen: inga kartor att läsa in (klubben är inte med i `open`).
+      const facts = { role: club.role, clubId: club.clubId, mapBank: links.get(club.clubId)!.access.MAP_BANK };
+      for (const map of views.get(club.clubId) ?? []) {
         if (map.versions.length === 0 || !mayUseClubMap(facts, map)) continue;
         maps.push({ clubId: club.clubId, clubName: club.name, map, issues: clubMapUseIssues(map, today) });
       }

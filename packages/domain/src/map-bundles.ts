@@ -138,8 +138,16 @@ export function planMapBundles(input: {
   const slots: Slot[] = [];
   const missingVariant: { entryId: string; name: string; className: string; team?: MapBundleTeam; leg?: number }[] = [];
   const classes = [...input.classes].sort((left, right) => compare(left.name, right.name) || compare(left.id, right.id) || (left.leg ?? 0) - (right.leg ?? 0));
+  // Deltagarna per klass (och sträcka) en gång, i inmatningens ordning, i stället för en genomgång av alla per klass.
+  const byClass = new Map<string, MapBundleEntryInput[]>();
+  const classKey = (classId: string, leg: number | null) => `${classId}|${leg ?? ""}`;
+  for (const entry of input.entries) {
+    const key = classKey(entry.classId, entry.leg ?? null);
+    const list = byClass.get(key);
+    if (list) list.push(entry); else byClass.set(key, [entry]);
+  }
   for (const raceClass of classes) {
-    const entries = input.entries.filter((entry) => entry.classId === raceClass.id && (entry.leg ?? null) === (raceClass.leg ?? null));
+    const entries = byClass.get(classKey(raceClass.id, raceClass.leg ?? null)) ?? [];
     const forked = raceClass.variantCodes.length > 0;
     const used: (string | null)[] = [];
     for (const entry of entries) {

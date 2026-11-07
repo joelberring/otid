@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   clusterDuplicates, extentIoU, extentOverlap, findDuplicatePairs, nameSimilarity, normalizeMapName, scoreDuplicatePair,
   symbolSetHash, type DuplicateCandidate, type MapFingerprint
@@ -137,5 +137,22 @@ describe("symbolSetHash", () => {
     expect(symbolSetHash(["101.0", "201.0"])).toBe(symbolSetHash(["201.0", "101.0", "101.0"]));
     expect(symbolSetHash(["101.0"])).not.toBe(symbolSetHash(["102.0"]));
     expect(symbolSetHash([])).toMatch(/^[0-9a-f]{8}$/);
+  });
+});
+
+describe("findDuplicatePairs med många kartor (B5)", () => {
+  it("normaliserar varje namn en gång, inte en gång per par", () => {
+    const words = ["Älvsjö", "skogen", "Solberga", "Kungshatt", "norra", "södra"];
+    const candidates = Array.from({ length: 60 }, (_, i) => ({ mapId: `m${String(i).padStart(3, "0")}`, name: `${words[i % 6]} ${words[(i * 5) % 6]} ${i}`,
+      fileNames: [`${words[(i + 1) % 6]}_2019 rev ${i}.ocd`], fingerprints: [], entryIds: [] }));
+    const expected = JSON.stringify(candidates.flatMap((a, i) => candidates.slice(i + 1).flatMap(b => scoreDuplicatePair(a, b) ?? [])));
+    const normalize = vi.spyOn(String.prototype, "normalize");
+    try {
+      const pairs = findDuplicatePairs(candidates);
+      // Två normaliseringar per namn (NFC och NFD); förut fyra per namnpar i varje par (ca 28 000).
+      expect(normalize.mock.calls.length).toBeLessThanOrEqual(2 * 120);
+      normalize.mockRestore();
+      expect(JSON.stringify(pairs)).toBe(expected);
+    } finally { normalize.mockRestore(); }
   });
 });

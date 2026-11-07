@@ -150,17 +150,23 @@ export async function removeRaceMapSourceAsAdmin(db: Database, input: RaceSessio
  * Originalfilen, för att rita och räkna vägval i webbläsaren. Steg 66: banläggningens behörighet (läsa och kommentera
  * räcker, ADR-0181 beslut 5), som ger admin och den som bara har banläggningen; aldrig publikt.
  */
-export async function readRaceMapSourceFileAsAdmin(db: Database, input: Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">, now = new Date())
-  : Promise<Failure | { status: "ok"; fileName: string; format: "OCD" | "OMAP"; file: Buffer }> {
+export async function readRaceMapSourceFileAsAdmin(db: Database, input: Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">, now = new Date(),
+  options: { readonly ifNoneMatch?: string | undefined } = {})
+  : Promise<Failure | { status: "ok"; fileName: string; format: "OCD" | "OMAP"; sha256: string; file: Buffer } | { status: "not-modified"; sha256: string }> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     // ADR-0181 beslut 8: också kartritaren (kartan är inte hemlig, banorna är det).
     const auth = await requireCourseSettingAccess(tx, { ...input, required: "MAP" }, now, "share");
     if (auth.status !== "authenticated") return auth;
-    const [row] = await tx.select({ fileName: schema.raceMapSources.fileName, format: schema.raceMapSources.format, inline: schema.raceMapSources.file,
+    const [row] = await tx.select({ fileName: schema.raceMapSources.fileName, format: schema.raceMapSources.format, sha256: schema.raceMapSources.sha256,
       contentSha256: schema.raceMapSources.contentSha256 }).from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));
-    const file = row ? await rowContent(tx, row) : undefined;
-    return row && file ? { status: "ok" as const, fileName: row.fileName, format: row.format, file } : { status: "not-found" as const };
+    if (!row) return { status: "not-found" as const };
+    // ADR-0218: webbläsaren har redan samma fil (behörigheten är prövad ovan); innehållet läses inte.
+    if (options.ifNoneMatch === row.sha256) return { status: "not-modified" as const, sha256: row.sha256 };
+    const inline = row.contentSha256 ? null : (await tx.select({ file: schema.raceMapSources.file }).from(schema.raceMapSources)
+      .where(eq(schema.raceMapSources.raceId, input.raceId)))[0]?.file ?? null;
+    const file = await rowContent(tx, { inline, contentSha256: row.contentSha256 });
+    return file ? { status: "ok" as const, fileName: row.fileName, format: row.format, sha256: row.sha256, file } : { status: "not-found" as const };
   });
 }
 

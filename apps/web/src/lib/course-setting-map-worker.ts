@@ -23,7 +23,8 @@ function render(request: Extract<MapRenderRequest, { type: "render" }>) {
   const context = canvas.getContext("2d");
   if (!context) { post({ type: "error", code: "NO_CANVAS" }); return; }
   // Träningsläget (ADR-0192): passen med klippning och filter; utan pass som vanligt.
-  drawTrainingMap(context, map, { pxPerMm: request.pxPerMm, origin: request.origin, ...(request.colorAdjust ? { colorAdjust: request.colorAdjust } : {}),
+  // ADR-0218: bara objekten som når in i bilden planeras och ritas (rumsligt index, byggt en gång per karta).
+  drawTrainingMap(context, map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, ...(request.colorAdjust ? { colorAdjust: request.colorAdjust } : {}),
     ...(request.onlyColors ? { onlyColors: new Set(request.onlyColors) } : {}), ...(request.background === false ? { background: false } : {}) }, request.passes);
   const bitmap = canvas.transferToImageBitmap();
   post({ type: "rendered", id: request.id, bitmap }, [bitmap]);

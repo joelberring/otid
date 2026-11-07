@@ -1,5 +1,6 @@
 /** ADR-0196: klubbarkivets kontroll av kartorna, bilderna och kartans rättigheter. */
 import type { ClubMapCheckStatus } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 export const clubArchiveChecksSv = {
   status: {
@@ -38,7 +39,7 @@ export const clubArchiveChecksSv = {
   progress: (done: number, total: number, label: string) => `Kontrollerar ${done + 1} av ${total}: ${label}`,
   progressAuto: (done: number, total: number) => `Ritar bilder av kartorna (${done} av ${total}) …`,
   finished: (versions: number, failed: number) => failed === 0
-    ? `Klart. ${versions} ${versions === 1 ? "kartversion fungerar" : "kartversioner fungerar"}.`
+    ? `Klart. ${plural(versions, "kartversion fungerar", "kartversioner fungerar")}.`
     : `Klart. ${versions - failed} av ${versions} kartversioner fungerar; se skälen vid versionerna.`,
   stopped: "Kontrollen avbröts. Det som hann bli klart är sparat.",
   summariesFailed: "Banfilernas sammanfattningar kunde inte räknas om.",

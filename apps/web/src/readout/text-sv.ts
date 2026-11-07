@@ -1,3 +1,4 @@
+import { plural } from "../i18n/plural";
 /** "3 h 20 min", "2 dygn 4 h" – en stor klockavvikelse i hela minuter. */
 function formatSkew(minutes: number): string {
   const total = Math.abs(minutes);
@@ -68,7 +69,7 @@ export const readoutText = {
   clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
   timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Läs om brickan. Går det inte: ange tiden manuellt i deltagarkortet. Brickan står i listan nedan.`,
   // Steg 45: även 400/404/409 hålls åt sidan, så att resten av kön går.
-  heldReadouts: (count: number, serverError: boolean) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} avvisades två gånger i rad (${serverError
+  heldReadouts: (count: number, serverError: boolean) => `${plural(count, "avläsning", "avläsningar")} avvisades två gånger i rad (${serverError
     ? "fel på servern" : "servern tog inte emot dem"}). De ligger kvar på den här datorn. Resten av kön skickas som vanligt.`,
   syncThrottled: "Servern ber oss vänta en stund. Kön ligger kvar och skickas igen strax.",
   heldRetry: "Försök igen",
@@ -80,7 +81,7 @@ export const readoutText = {
   sameRunner: "Det är samma löpare – använd den nya avläsningen",
   // ADR-0187: väntande avläsningar för en annan tävling (t.ex. tävlingen före en återställning från säkerhetskopia).
   elsewhereTitle: "Avläsningar till en annan tävling har inte skickats",
-  elsewhere: (count: number, name: string | undefined, date: string | undefined) => `${count} ${count === 1 ? "avläsning" : "avläsningar"} ` +
+  elsewhere: (count: number, name: string | undefined, date: string | undefined) => `${plural(count, "avläsning", "avläsningar")} ` +
     `på den här datorn hör till ${name ? `${name}${date ? ` (${date})` : ""}` : "en annan tävling"} och har inte kommit fram dit. ` +
     "De skickas aldrig till den här tävlingen, inte heller om den är återställd från en säkerhetskopia (den har nya id). De ligger kvar " +
     "på datorn. Läs ut brickorna igen här, eller ladda ner listan.",
@@ -119,7 +120,7 @@ export const readoutText = {
   // Hyrbricka och startstämpling (PLAN.md steg 25). Status med ord och symbol, inte bara färg.
   rental: "HYRBRICKA – samla in",
   /** Oröjd bricka (PLAN.md steg 31): stämplingar från ett tidigare lopp räknades inte, även när resultatet är godkänt. */
-  ignoredPunches: (count: number) => `${count} ${count === 1 ? "gammal stämpling" : "gamla stämplingar"} räknades inte (brickan var inte tömd).`,
+  ignoredPunches: (count: number) => `${plural(count, "gammal stämpling", "gamla stämplingar")} räknades inte (brickan var inte tömd).`,
   // Direktanmälan av okänd bricka (PLAN.md steg 25), även utan nät.
   register: {
     title: (card: string) => `Anmäl löparen med bricka ${card}`,
@@ -192,7 +193,7 @@ export const readoutText = {
   rogainingTime: (time: string, limit: string) => `Tid ${time} av ${limit}`,
   /** ADR-0190 beslut 7: mål är mål. */
   rogainingAfterFinish: (codes: readonly number[]) => `Efter målet, inga poäng: ${codes.join(", ")}`,
-  rogainingLate: (minutes: number) => `För sen: ${minutes} ${minutes === 1 ? "påbörjad minut" : "påbörjade minuter"} över tidsgränsen`,
+  rogainingLate: (minutes: number) => `För sen: ${plural(minutes, "påbörjad minut", "påbörjade minuter")} över tidsgränsen`,
   rogainingControls: "Räknade kontroller",
   rogainingPoints: (points: number) => `${points} p`,
   exerciseLate: "Läs av: för sen",

@@ -1,5 +1,5 @@
+import { plural } from "./plural";
 /** ADR-0214: länken till kartritaren (delningen i Kartfel och sidan som kartritaren öppnar) och redigering av notiser. */
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const time = (iso: string) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const day = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" });
 

@@ -1,3 +1,4 @@
+import { plural } from "./plural";
 /** Steg 64: specialobjekten och utskriften i banläggningen. */
 export const coursePrintSv = {
   tabs: { objects: "Objekt", print: "Utskrift" },
@@ -61,7 +62,7 @@ export const coursePrintSv = {
     corners: { TOP_LEFT: "övre vänstra hörnet", TOP_RIGHT: "övre högra hörnet", BOTTOM_LEFT: "nedre vänstra hörnet", BOTTOM_RIGHT: "nedre högra hörnet" } as Record<string, string>,
     source: (source: string | undefined, corner: string | undefined) => source === "AUTO" ? `Automatiskt i ${corner ?? "ett hörn"}`
       : source === "PLACED" ? "Utplacerad" : source === "FILE" ? "Där Purple Pen-filen har den" : source === "TEMPLATE" ? "Platsen i Kartor per ark" : "",
-    overlaps: (count: number) => `Ligger över ${count} ${count === 1 ? "kontroll, nummer eller sträcka" : "kontroller, nummer eller sträckor"}: dra den till en fri plats.`,
+    overlaps: (count: number) => `Ligger över ${plural(count, "kontroll, nummer eller sträcka", "kontroller, nummer eller sträckor")}: dra den till en fri plats.`,
     automatic: "Automatiskt igen",
     off: "Ingen beskrivning på kartan.",
     dragLabel: "Kontrollbeskrivningen: dra för att flytta, piltangenterna flyttar 1 mm",
@@ -112,7 +113,7 @@ export const coursePrintSv = {
       UNKNOWN_COURSE: (course: string) => `Banan ${course} finns inte i banläggningen.`,
       UNKNOWN_VARIANT: (course: string, variant: string) => `Variant ${variant} finns inte på ${course} i banläggningen.`,
       EXCLUDED_VARIANT: (course: string, variant: string, runners: number) => `Variant ${variant} på ${course} är bortvald i banläggningen och skrivs ` +
-        `inte ut, inte heller som reserv. ${runners} ${runners === 1 ? "löpare har" : "löpare har"} den: för över banorna och fördela om.`,
+        `inte ut, inte heller som reserv. ${runners} löpare har den: för över banorna och fördela om.`,
       COUNT: (course: string, expected: number, actual: number) => `${course}: Kartor till starten har ${expected} kartor, utskriften ${actual}.`
     },
     bundlesLink: "Kartor till starten",

@@ -1,5 +1,6 @@
 /** Steg 49: gafflingar som bild och struktur (enkel gaffling, fjäril) i arbetsytan och resultatlistorna. */
 import type { ForkingProblem } from "@o-tid/domain";
+import { plural } from "./plural";
 
 type LegPoint = "START" | "FINISH" | number;
 const point = (value: LegPoint) => value === "START" ? "Start" : value === "FINISH" ? "Mål" : String(value);
@@ -15,7 +16,7 @@ export const forkingSv = {
   branchButton: (letter: string, loop: boolean) => loop ? `Slinga ${letter}` : `Alternativ ${letter}`,
   branchCountShort: (entries: number, readOut: number) => `${entries}/${readOut}`,
   branchCountLong: (entries: number, readOut: number) =>
-    `${entries} ${entries === 1 ? "anmäld" : "anmälda"}, ${readOut} ${readOut === 1 ? "avläst" : "avlästa"}`,
+    `${plural(entries, "anmäld", "anmälda")}, ${plural(readOut, "avläst", "avlästa")}`,
   branchCount: (description: string) => `Gren ${description}`,
   // Banlistan
   variantsBelow: (count: number) => count === 1 ? "1 variant (se nedan)" : `${count} varianter (se nedan)`,
@@ -27,7 +28,7 @@ export const forkingSv = {
   convert: "Gör om till struktur",
   convertLabel: (course: string) => `Gör om ${course} till struktur`,
   convertHelp: (added: number) => added === 0 ? "Varianterna går att beskriva som gafflingar. Då kan du redigera dem i bilden."
-    : `Varianterna går att beskriva som gafflingar. Strukturen ger ${added} ${added === 1 ? "variant" : "varianter"} till.`,
+    : `Varianterna går att beskriva som gafflingar. Strukturen ger ${plural(added, "variant", "varianter")} till.`,
   derivedHelp: "Bilden är räknad ur banfilens varianter. Redigera varianterna var för sig.",
   mode: "Gafflingssätt",
   modes: { BALANCED: "Utjämnad", UNEQUAL: "Fulgaffling" },
@@ -65,14 +66,14 @@ export const forkingSv = {
   removeBranch: (letter: string) => `Ta bort ${letter}`,
   branchHelp: "Kontrollkoder med mellanslag, t.ex. 41 42.",
   selectionHelp: "Välj en kontroll eller sträcka i bilden.",
-  generated: (count: number) => count === 1 ? "1 variant" : `${count} varianter`,
+  generated: (count: number) => plural(count, "variant", "varianter"),
   generatedTitle: "Varianterna som banan ger",
   noForks: "Ingen gaffling än: banan sparas som en vanlig bana.",
   previewForking: (variants: number, removed: number, renamed: number, reassigned: number) => [
-    `${variants} ${variants === 1 ? "variant" : "varianter"}.`,
-    removed > 0 ? `${removed} ${removed === 1 ? "variant" : "varianter"} försvinner.` : "",
-    renamed > 0 ? `${renamed} ${renamed === 1 ? "löpare behåller" : "löpare behåller"} sin kontrollföljd under en ny kod.` : "",
-    reassigned > 0 ? `${reassigned} ${reassigned === 1 ? "löpare får" : "löpare får"} en ny variant genom fördelningen.` : ""
+    `${plural(variants, "variant", "varianter")}.`,
+    removed > 0 ? `${plural(removed, "variant", "varianter")} försvinner.` : "",
+    renamed > 0 ? `${renamed} löpare behåller sin kontrollföljd under en ny kod.` : "",
+    reassigned > 0 ? `${reassigned} löpare får en ny variant genom fördelningen.` : ""
   ].filter(Boolean).join(" "),
   // ADR-0198: bortvalda varianter ur banläggningen.
   previewExcluded: (codes: readonly string[]) =>
@@ -80,7 +81,7 @@ export const forkingSv = {
   previewStaleExcluded: (codes: readonly string[]) =>
     `Bortval i banläggningen som inte längre stämmer med någon variant: ${codes.join(", ")}. De gäller inte efter ändringen; ` +
     "välj bort på nytt i banläggningen om det behövs.",
-  saved: (recalculated: number) => recalculated === 0 ? "Gafflingarna är sparade." : `Gafflingarna är sparade. ${recalculated} ${recalculated === 1 ? "resultat räknades" : "resultat räknades"} om.`,
+  saved: (recalculated: number) => recalculated === 0 ? "Gafflingarna är sparade." : `Gafflingarna är sparade. ${recalculated} resultat räknades om.`,
   problem: (problem: ForkingProblem) => {
     switch (problem.kind) {
       case "EMPTY_COURSE": return "Banan behöver minst en kontroll.";

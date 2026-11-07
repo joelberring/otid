@@ -1,3 +1,4 @@
+import { plural } from "./plural";
 /** Steg 63 (ADR-0180): kontrollbeskrivningarna i banläggningen och på utskriftssidan. Kontroller nämns med kod. */
 export const courseSettingDescriptionSv = {
   heading: "Kontrollbeskrivning",
@@ -64,7 +65,7 @@ export const courseSettingDescriptionSv = {
     language: "Språk",
     printButton: "Skriv ut",
     download: (name: string) => `Ladda ned SVG: ${name}`,
-    pages: (count: number, items: number) => `${count} ${count === 1 ? "sida" : "sidor"}, ${items} ${items === 1 ? "beskrivning" : "beskrivningar"}.`,
+    pages: (count: number, items: number) => `${plural(count, "sida", "sidor")}, ${plural(items, "beskrivning", "beskrivningar")}.`,
     none: "Välj minst en bana.",
     scaled: "En beskrivning är större än sidan och har krympts.",
     sheet: (page: number, count: number) => `Sida ${page} av ${count}`,

@@ -1,3 +1,4 @@
+import { plural } from "./plural";
 /** Steg 45: avläsningar vars tider inte gick att tolka. */
 export const uninterpretedReadoutsSv = {
   title: "Otolkade avläsningar",
@@ -11,7 +12,7 @@ export const uninterpretedReadoutsSv = {
   givenTime: "Klockslag när brickan lästes ut",
   rereadGiven: "Läs om med angiven tid",
   invalidTime: "Skriv klockslaget som 18:45.",
-  read: (status: string, punches: number) => `Omläst: ${status}, ${punches} ${punches === 1 ? "stämpling" : "stämplingar"}.`,
+  read: (status: string, punches: number) => `Omläst: ${status}, ${plural(punches, "stämpling", "stämplingar")}.`,
   alreadyRead: (status: string) => `Omläst: ${status}.`,
   unreadable: (detail: string) => `Gick fortfarande inte att tolka (${detail}). Prova en angiven tid.`,
   conflict: "Avläsningen är redan omläst. Visa listan igen.",

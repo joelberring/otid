@@ -1,3 +1,4 @@
+import { plural } from "./plural";
 /**
  * Var klubbens API-nyckel finns i Eventor (Eventors guide "Get data via API": Club → Club settings; svenska Eventor: Klubb →
  * Klubbinställningar). Samma väg i kopplingsrutan, hjälpen, tävlingens Eventor-ruta och texten till klubbens Eventor-administratör.
@@ -109,7 +110,7 @@ export const clubAffiliationSv = {
     none: "Inga bekräftade medlemmar att bjuda in.",
     already: "redan med",
     invite: (count: number) => count === 1 ? "Bjud in 1 person" : `Bjud in ${count} personer`,
-    invited: (count: number, already: number) => `${count === 1 ? "1 inbjudan" : `${count} inbjudningar`} sparade.${already > 0 ? ` ${already} var redan med.` : ""}`,
+    invited: (count: number, already: number) => `${plural(count, "inbjudan", "inbjudningar")} sparade.${already > 0 ? ` ${already} var redan med.` : ""}`,
     failed: "Inbjudningarna kunde inte sparas. Försök igen.",
     open: "Från klubben",
     fromClubNote: "från klubben"

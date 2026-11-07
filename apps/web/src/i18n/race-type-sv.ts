@@ -46,7 +46,7 @@ export const raceTypeSv = {
       title: "Flytta tävlingen",
       summary: (from: string, to: string) => `Tävlingen flyttas från ${from} till ${to}. Starttiderna behåller sina klockslag.`,
       startTimes: (count: number, first: string, last: string) =>
-        `${count === 1 ? "1 löpare" : `${count} löpare`} med starttid ${first === last ? first : `${first}–${last}`} får samma tid det nya datumet.`,
+        `${count} löpare med starttid ${first === last ? first : `${first}–${last}`} får samma tid det nya datumet.`,
       drawClasses: (count: number) => count === 1 ? "Lottningen för 1 klass följer med, med vakanta tider." : `Lottningen för ${count} klasser följer med, med vakanta tider.`,
       relayLegs: (count: number) => count === 1 ? "1 stafettsträcka med masstart eller omstart följer med." : `${count} stafettsträckor med masstart eller omstart följer med.`,
       after: (firstDay: string, first: string, lastDay: string, last: string) => firstDay === lastDay

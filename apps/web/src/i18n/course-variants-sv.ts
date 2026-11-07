@@ -1,3 +1,4 @@
+import { plural } from "./plural";
 /** Gafflingar (ADR-0169 beslut 2): banvarianter, löparens variant och fördelning. */
 export const courseVariantsSv = {
   forked: (count: number) => count === 1 ? "Gafflad (1 variant)" : `Gafflad (${count} varianter)`,
@@ -14,8 +15,8 @@ export const courseVariantsSv = {
   // Klasser
   distribute: "Fördela gafflingar",
   distributeLabel: (className: string) => `Fördela gafflingar i ${className}`,
-  missingVariants: (count: number) => count === 1 ? "1 saknar variant" : `${count} saknar variant`,
-  distributed: (count: number) => count === 1 ? "1 löpare fick en variant." : `${count} löpare fick en variant.`,
+  missingVariants: (count: number) => `${count} saknar variant`,
+  distributed: (count: number) => `${count} löpare fick en variant.`,
   distributeError: "Gafflingarna kunde inte fördelas. Försök igen.",
   distributeConflict: "Tävlingen har ändrats under tiden. Klasserna är inlästa igen; försök en gång till.",
   // Deltagarkortet
@@ -50,7 +51,7 @@ export const courseVariantsSv = {
   excludedVariant: (codes: readonly string[]) =>
     `Stämplingarna passar ${codes.join(" och ")}, som är bortvald i banläggningen. Fick löparen fel karta? Rätta status eller variant för hand.`,
   excludedVariantShort: (codes: readonly string[]) => `Bortvald variant? Passar ${codes.join(", ")}`,
-  readinessExcluded: (count: number) => `${count} ${count === 1 ? "variant" : "varianter"} bortvald${count === 1 ? "" : "a"} i banläggningen`,
+  readinessExcluded: (count: number) => `${plural(count, "variant", "varianter")} bortvald${count === 1 ? "" : "a"} i banläggningen`,
   approveOn: (code: string) => `Godkänn på ${code}`,
   approveOnHelp: "Byter löparens variant och räknar om resultatet. Orsaken sparas i historiken.",
   // Startlista, avläsning och resultat

@@ -1,5 +1,6 @@
 import { EVENTOR_KEY_PLACE } from "./club-affiliation-sv";
 import type { EventorConnectionOutcome, RunnerDatabaseRefreshOutcome, SyncField, SyncNote, SyncRow } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 /** ADR-0170 beslut 4: Eventor och banfiler, med skillnader som godkänns. */
 export const sourcesSv = {
@@ -65,7 +66,7 @@ export const sourcesSv = {
     summary: (when: string, runners: number, cards: number, clubs: number, wholeCountry: boolean) =>
       `Uppdaterad ${when} · ${runners} löpare · ${cards} brickor · ${clubs} klubbar${wholeCountry ? " · hela Sverige" : ""}`,
     offline: (count: number, club: string, extra: number, truncated: boolean) => `Utan nät i avläsningen: ${count} löpare från ${club}` +
-      `${extra > 0 ? ` och ${extra} ${extra === 1 ? "klubb till" : "klubbar till"}` : ""}${truncated ? " (fler finns, de söks när nätet finns)" : ""}.`,
+      `${extra > 0 ? ` och ${plural(extra, "klubb till", "klubbar till")}` : ""}${truncated ? " (fler finns, de söks när nätet finns)" : ""}.`,
     wholeCountryOnline: "Övriga löpare i hela Sverige söks på servern när nätet finns.",
     extraTitle: "Fler klubbar i avläsningen",
     extraHelp: "Klubbar vars löpare också ska finnas med utan nät, t.ex. grannklubbar. Gäller från nästa uppdatering.",
@@ -146,8 +147,8 @@ export const sourcesSv = {
     cancel: "Avbryt",
     stale: "Något har ändrats under tiden. Läs in källan igen.",
     consequenceChanged: "Beskedet har ändrats. Granska det nya beskedet och godkänn igen.",
-    applied: (count: number, recalculated: number) => `${count === 1 ? "1 ändring" : `${count} ändringar`} har sparats` +
-      (recalculated > 0 ? `, ${recalculated === 1 ? "1 resultat har" : `${recalculated} resultat har`} räknats om.` : "."),
+    applied: (count: number, recalculated: number) => `${plural(count, "ändring", "ändringar")} har sparats` +
+      (recalculated > 0 ? `, ${recalculated} resultat har räknats om.` : "."),
     failed: "Ändringarna kunde inte sparas. Försök igen."
   }
 } as const;

@@ -4,6 +4,7 @@ import { courseSettingHelpArticles, gettingStartedHelpArticles, levelHelpArticle
 import { fieldPrintHelpArticles } from "./help-print-sv";
 import { clubHelpArticles } from "./help-club-sv";
 import { accountHelpArticles } from "./help-account-sv";
+import { plural } from "./plural";
 
 /**
  * Hjälpen i programmet (PLAN.md steg 37). Enkel svenska och korta meningar. Knappar och vägar står inom ”…” och heter
@@ -48,7 +49,7 @@ export const helpSv = {
   here: "Hjälp för den här sidan",
   all: "Alla hjälpartiklar",
   more: "Fler hjälpartiklar",
-  hits: (count: number) => count === 0 ? "Inga träffar." : count === 1 ? "1 träff" : `${count} träffar`,
+  hits: (count: number) => count === 0 ? "Inga träffar." : plural(count, "träff", "träffar"),
   noHits: "Pröva ett annat ord. Hittar du inte svaret: skicka ett mejl.",
   about: "Om O-Tid",
   film: "Se filmen (1 min)",

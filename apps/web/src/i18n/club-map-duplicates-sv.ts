@@ -1,8 +1,9 @@
 import type { ClubMapVersionYearSource } from "@o-tid/contracts";
+import { plural } from "./plural";
 
 /** ADR-0210: dubbletter och versioner av klubbarkivets kartor, och "Välj karta från klubbarkivet". */
 const percent = (value: number) => `${Math.round(value * 100)} %`;
-const versionsText = (count: number) => count === 1 ? "1 version" : `${count} versioner`;
+const versionsText = (count: number) => plural(count, "version", "versioner");
 
 export const clubMapDuplicatesSv = {
   duplicates: {
@@ -33,7 +34,7 @@ export const clubMapDuplicatesSv = {
     selection: {
       select: (name: string) => `Markera ${name}`,
       merge: "Slå ihop markerade",
-      count: (count: number) => count === 1 ? "1 karta markerad" : `${count} kartor markerade`,
+      count: (count: number) => plural(count, "karta markerad", "kartor markerade"),
       clear: "Avmarkera",
       title: "Slå ihop markerade kartor"
     },

@@ -1,3 +1,4 @@
+import { plural } from "./plural";
 /** Banans utseende och etiketten vid kontrollen (ADR-0180 beslut 12). */
 const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
 const STANDARD = { ISOM2017: "ISOM 2017-2", ISSPROM2019: "ISSprOM 2019-2" } as const;
@@ -59,5 +60,5 @@ export const labelSv = {
   sameFor: "Gör likadant på",
   relays: (count: number) => `alla stafettbanor (${count})`,
   all: (count: number) => `alla banor (${count})`,
-  done: (count: number) => count === 0 ? "Alla hade det redan." : `${count} ${count === 1 ? "bana" : "banor"} ändrades.`
+  done: (count: number) => count === 0 ? "Alla hade det redan." : `${plural(count, "bana", "banor")} ändrades.`
 };

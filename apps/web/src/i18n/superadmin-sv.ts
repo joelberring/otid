@@ -1,3 +1,4 @@
+import { plural } from "./plural";
 /** Superadminsidan (ADR-0172 beslut 2). */
 export const superadminSv = {
   kicker: "O-Tid · Drift",
@@ -8,11 +9,11 @@ export const superadminSv = {
   notLoggedIn: "Logga in med ett superadminkonto.",
   accounts: "Konton",
   accountsHelp: (shown: number, total: number) => shown < total ? `Visar de ${shown} senaste av ${total}. Sök för att hitta fler.`
-    : `${total} ${total === 1 ? "konto" : "konton"}, nyast först.`,
+    : `${plural(total, "konto", "konton")}, nyast först.`,
   searchAccounts: "Sök e-post eller namn",
   races: "Tävlingar",
   racesHelp: (shown: number, total: number) => shown < total ? `Visar de ${shown} senaste av ${total}. Sök för att hitta fler.`
-    : `${total} ${total === 1 ? "tävling" : "tävlingar"}, nyast först.`,
+    : `${plural(total, "tävling", "tävlingar")}, nyast först.`,
   searchRaces: "Sök tävling, lopp eller ägare",
   search: "Sök",
   noAccounts: "Inga konton matchar.",

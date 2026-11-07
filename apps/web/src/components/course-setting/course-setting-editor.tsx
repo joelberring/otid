@@ -7,7 +7,7 @@ import type {
 } from "@o-tid/contracts";
 import {
   acceptChecksEdit, applyEdit, carryCourseLevels, carryExcludedVariants, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
-  keepAcceptedChecks, keepPaperOnImport, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
+  keepAcceptedChecks, keepPaperOnImport, withPpenState, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
   type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
@@ -554,8 +554,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       carried = carryCourseLevels(document, carryExcludedVariants(document, carried));
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
-      const imported = keepPaperOnImport(document, carried, await importedImageHashes(carried),
-        (doc, course) => layoutCoursePage(doc, { course, mapBounds })[0]);
+      // ADR-0217: layouterna, arken, klassernas val och lägena följer med; läget "Från Purple Pen" sparas automatiskt.
+      const imported = withPpenState(keepPaperOnImport(document, carried, await importedImageHashes(carried),
+        (doc, course) => layoutCoursePage(doc, { course, mapBounds })[0]), new Date().toISOString(), text.file.ppenState);
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }

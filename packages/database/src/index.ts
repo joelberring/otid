@@ -65,5 +65,5 @@ export function retryTopLevelTransactions(db: { transaction: (...args: never[]) 
 }
 
 export * as schema from "./schema";
-export type { RouteChoicePublished, RouteChoicePublishedCourse } from "./schema/planning";
+export type { RouteChoicePublished, RouteChoicePublishedCourse } from "./schema/map-content";
 export { migrate } from "./migrator";

@@ -44,6 +44,15 @@ describe("kartversionerna jämförs", () => {
     expect(controlsOutside(moved, bounds)).toBe(false);
     expect(controlsOutside(alignedDocument(ppen, check, { dx: 500, dy: 0 }), bounds)).toBe(true);
   });
+
+  it("okänt koordinatsystem (OCAD 8, OCAD 9–11 utan kod): kontrollera själv, även när beskrivningen är samma", () => {
+    const unknown = (easting: number) => ({ ...georeference(easting), crs: { kind: "UNKNOWN" as const, description: "okänt" } });
+    for (const [from, to] of [[unknown(675_000), unknown(675_100)], [unknown(675_000), unknown(675_000)], [georeference(675_000), unknown(675_000)]] as const) {
+      const check = checkAlignment(facts(from), facts(to));
+      expect(check.alignment).toEqual({ kind: "MANUAL", reason: "UNKNOWN_CRS" });
+      expect(alignedDocument(ppen, check, { dx: 0, dy: 0 }).controls[first.id]!.at).toEqual(first.at);
+    }
+  });
 });
 
 describe("arkivets sökning och filter", () => {

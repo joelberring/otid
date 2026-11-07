@@ -61,8 +61,9 @@ export const mapBundleResponseSchema = z.object({
   reserve: mapReserveSchema,
   /** Hash av listans innehåll; utskriften sparas bara mot det innehåll som visades. */
   stateHash: z.string().regex(/^[a-f0-9]{64}$/),
+  /** En rad per klass; stafett: en per sträcka (`leg`) med sträckans varianter. */
   classes: z.array(z.object({ classId: uuid, name, courseName: name, variantCodes: z.array(courseVariantCodeSchema).max(100),
-    startMode: mapStartModeSchema }).strict()).max(1000),
+    startMode: mapStartModeSchema, leg: leg.optional() }).strict()).max(1000),
   groups: z.array(mapBundleGroupSchema).max(20_000),
   rows: z.array(mapBundleRowSchema).max(20_000),
   missingVariant: z.array(z.object({ entryId: uuid, name, className: name, team: team.optional(), leg: leg.optional() }).strict()).max(20_000),

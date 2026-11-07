@@ -28,8 +28,8 @@ export const runnerPrintSv = {
   columns: { page: "PDF-sida", number: "Nr", name: "Namn", club: "Klubb", className: "Klass", team: "Lag/Sträcka", courseName: "Bana", variant: "Variant",
     startTime: "Starttid" } as Record<CheckColumn, string>,
   warningsColumn: "Varningar",
-  warnings: { NO_VARIANT: "Ingen variant", EXCLUDED_VARIANT: "Bortvald variant", COUNT: "Antalet stämmer inte med Kartor till starten",
-    DUPLICATE_NUMBER: "Samma startnummer två gånger" } as Record<CheckWarning, string>,
+  warnings: { NO_VARIANT: "Ingen variant", EXCLUDED_VARIANT: "Bortvald variant", COUNT: "Antalet stämmer inte med Kartor till starten" } as
+    Record<CheckWarning, string>,
   filter: "Filtrera",
   warningsOnly: "Bara rader med varning",
   warningCount: (count: number) => count === 0 ? "Inga varningar." : count === 1 ? "1 rad med varning." : `${count} rader med varning.`,

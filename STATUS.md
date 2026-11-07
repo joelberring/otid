@@ -40,6 +40,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - .ppen: automatisk tryckyta (0,0,0,0 som Purple Pen) läses tillbaka utan rektangel; `<options>` skrivs alltid, med kartans skala när banan saknar egen.
 - Ringklipp också för kartor med egen skala i jobbet. Sträckans fasta avbrott räknas från kontrollens mitt (test fixerar konventionen, ingen kodändring).
 - Verifierat: enhetstester (course-setting, print-pdf, application, web), integration `steg-65-tryck`, lint och typecheck per paket, provark-PDF (syntetisk karta) renderad med pdftoppm och Ghostscript.
+### 2026-11-07 – Städrundan A5: tävlingsdag, stafett, rogaining, klubbarkiv (grenen a5-tavlingsdag, ingen migration)
+- Flytta banorna: okänt koordinatsystem (OCAD 8, OCAD 9–11 utan kod) ger alltid "kontrollera själv" (`UNKNOWN_CRS`), aldrig "Georefererad".
+- IOF XML-banor: poängbanans förvalda poäng (koden/10) skrivs som `Score`; ADR-0190 ändrad.
+- Kartor till starten: listan per klass skiljer stafettens sträckor (`leg` i grupp och kontrakt); rogaining ingår som ogafflade grupper. ADR-0213 ändrad.
+- Stafett: ny fast variant skriver om sträcklöparnas variant med ny version och auditpost; avläsningens paket ger sträckans fasta variant när löparens saknas. ADR-0174 ändrad.
+- Använd igen: kartan och kartavtalet i samma transaktion. Gruppens bibliotek: "senaste version" i arkivets ordning (året först).
+- Kontrollera kopplingen: död varning "samma startnummer" borttagen. Dubbletter: pappersytan kräver namnlikhet eller gemensam träning. ADR-0210 ändrad.
+- Verifierat: enhetstester, integration (`adr-0174-stafett`, `adr-0194-klubbarkiv`, `adr-0213-stafett-kartor`, `adr-0210-kartor-sammanfoga`), lint, typecheck.
 
 ### 2026-11-05 – Länken till kartritaren och redigera egna notiser (grenen kartritare-lank, ADR-0214, migration 0083)
 - Kartfel → "Dela med kartritaren" (den som får ändra): länk med 256-bitars nyckel, bara hashen sparas, visas en gång med "Kopiera länken"; "Begränsa tiden" (förslag tävlingsdagen + 7), "Visa tävlingens namn", "Senast öppnad", "Stäng av länken", "Skapa ny länk".

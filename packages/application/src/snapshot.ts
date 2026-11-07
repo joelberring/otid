@@ -170,8 +170,11 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
   // Steg 47: stafettsträckor med egen bana; sträcklöparen bär banan i paketet.
   const [anyLeg] = await db.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId)).limit(1);
   const legCourseRows = !anyLeg ? [] : await db.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg,
-    courseVersionId: schema.relayLegs.courseVersionId }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId));
+    courseVersionId: schema.relayLegs.courseVersionId, fixedVariant: schema.relayLegs.courseVariantCode }).from(schema.relayLegs)
+    .where(eq(schema.relayLegs.raceId, raceId));
   const legCourse = new Map(legCourseRows.flatMap((row) => row.courseVersionId ? [[`${row.classId}:${row.leg}`, row.courseVersionId] as const] : []));
+  // Sträckans fasta variant gäller en sträcklöpare som saknar egen (som Kartor till starten).
+  const legFixedVariant = new Map(legCourseRows.flatMap((row) => row.fixedVariant ? [[`${row.classId}:${row.leg}`, row.fixedVariant] as const] : []));
   // Steg 48: teamsprint – varje sträcklöpares del av brickan (löparens sträckor i ordning, växlingskontrollen).
   const teamSprint = !anyLeg ? new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>()
     : await loadTeamSprintParts(db, raceId, scoped);
@@ -242,7 +245,9 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
       familyName: row.familyName,
       ...(row.organisationName ? { organisationName: row.organisationName } : {}),
       ...(row.fixedStartTime ? { fixedStartTime: row.fixedStartTime.toISOString() } : {}),
-      ...(row.courseVariantCode ? { courseVariantCode: row.courseVariantCode } : {}),
+      ...(row.courseVariantCode ? { courseVariantCode: row.courseVariantCode }
+        : row.relayLeg !== null && legFixedVariant.has(`${row.classId}:${row.relayLeg}`)
+          ? { courseVariantCode: legFixedVariant.get(`${row.classId}:${row.relayLeg}`)! } : {}),
       ...(row.relayLeg !== null && legCourse.has(`${row.classId}:${row.relayLeg}`)
         ? { courseVersionId: legCourse.get(`${row.classId}:${row.relayLeg}`)! } : {}),
       ...(teamSprint.has(row.id) ? { teamSprint: teamSprint.get(row.id)! } : {}),

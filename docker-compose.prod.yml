@@ -157,11 +157,14 @@ services:
     command: ["node", "apps/web/server.js"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/organizer').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
-      interval: 5s
+    # Hälsokontrollen (2026-11-07): /api/health (en liten fråga mot databasen, ingen inloggning, ingen sidrendering) var 30:e
+    # sekund i stället för en hel sida var 5:e. Fel under de första 120 s räknas inte (start_period).
+    healthcheck: &web-healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
       timeout: 5s
-      retries: 60
+      start_period: 120s
+      retries: 10
 
   # Steg 54 (ADR-0177, docs/lasttest.md): publikens instanser – publika sidor och API:er, Live och resultatströmmen. Två,
   # eftersom en Node-process bara använder en kärna; Caddy fördelar publiken mellan dem. Lägre CPU-vikt än web och
@@ -192,11 +195,7 @@ services:
       OTID_INSTANCE_ROLE: public
       NODE_OPTIONS: --max-old-space-size=448
     command: ["node", "apps/web/server.js"]
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/om').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
-      interval: 5s
-      timeout: 5s
-      retries: 60
+    healthcheck: *web-healthcheck
 
   web-public2: *web-public
 

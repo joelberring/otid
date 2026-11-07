@@ -77,6 +77,13 @@ export const accountSv = {
     deleteOthers: "Tävlingar där du är medadministratör finns kvar hos sina ägare; du försvinner bara som administratör.",
     deletePassword: "Skriv ditt lösenord för att bekräfta",
     deleteButton: "Ta bort mitt konto",
+    /** Ändrat 2026-11-07: ensam ägare av en klubb eller ensam ledare av en träningsgrupp. */
+    deleteHandOver: (names: readonly string[]) => `Lämna över ägarskapet för ${names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " och " + names.at(-1)} först. `
+      + "Kontot kan inte tas bort så länge ingen annan kan sköta dem.",
+    deleteHandOverAlone: "Gör någon annan till ägare (klubb) eller ledare (grupp) under Medlemmar. Är du ensam där: kontakta den som driver O-Tid.",
+    deleteSoleOwner: "Kontot är inte borttaget: lämna över ägarskapet först (se ovan).",
+    soleOwnerClub: (name: string) => `Klubben ${name} – du är enda ägaren`,
+    soleOwnerGroup: (name: string) => `Träningsgruppen ${name} – du är enda ledaren`,
     deleted: "Kontot är borttaget.",
     /** ADR-0205 tillägg: Koppla Google-konto. Kontots adress ändras inte; Googles visas bara som kopplingen. */
     google: "Inloggning med Google",
@@ -88,10 +95,14 @@ export const accountSv = {
     googleNone: "Inget Google-konto är kopplat.",
     googleUnlink: "Ta bort kopplingen",
     googleUnlinked: "Kopplingen är borttagen. Du loggar in med e-postadressen och lösenordet.",
-    googleLastMethod: "Kopplingen kan inte tas bort: kontot har inget eget lösenord. Välj ett med Glömt lösenordet först.",
+    googleLastMethod: "Kopplingen kan inte tas bort: kontot har inget eget lösenord. Logga ut och välj ett med Glömt lösenordet (till kontots e-postadress) först.",
     googleDone: {
       kopplat: (email: string) => `Google-kontot (${email}) är kopplat – du kan logga in med Google.`,
       upptaget: "Google-kontot är kopplat till ett annat konto som används. Logga in på det och ta bort kopplingen där först.",
+      /** Ändrat 2026-11-07: det andra kontot skapades med Google och har inget eget lösenord, så kopplingen tas inte bort där direkt. */
+      "upptaget-utan-losenord": "Google-kontot är kopplat till ett annat konto som används och som inte har något eget lösenord. "
+        + "Logga ut och välj Glömt lösenordet med det kontots e-postadress (oftast Google-kontots) för att ge det ett lösenord. Logga sedan in "
+        + "på det, ta bort kopplingen under Mitt konto och koppla Google här igen.",
       obekraftad: "Google har inte bekräftat e-postadressen på Google-kontot. Bekräfta den hos Google och försök igen.",
       sessionen: "Kopplingen gällde en annan inloggning. Logga in igen och tryck på Koppla Google-konto en gång till.",
       avbruten: "Kopplingen avbröts hos Google. Inget är ändrat.",
@@ -110,7 +121,7 @@ export const accountSv = {
     title: "Flytta Google-kopplingen hit",
     loading: "Läser kopplingen …",
     what: (google: string, source: string, target: string) => `Google-kontot ${google} är kopplat till ett annat konto i O-Tid (${source}). `
-      + `Det kontot är tomt: inga tävlingar, behörigheter, klubbar eller arkivinnehåll. Kopplingen flyttas till ${target}, och du loggar sedan in med Google här.`,
+      + `Det kontot är tomt: inga tävlingar, behörigheter, klubbar eller arkivinnehåll (bara svaret på vilken klubb du tillhör). Kopplingen flyttas till ${target}, och du loggar sedan in med Google här.`,
     duplicate: (source: string, created: string) => `Kontot ${source} (skapat ${created}) tas bort som dubblett och loggas ut överallt. Inbjudningar till adressen väntar kvar.`,
     password: "Ditt lösenord",
     passwordHelp: "Bekräfta flytten med lösenordet till det här kontot.",

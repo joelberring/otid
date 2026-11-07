@@ -1,3 +1,4 @@
+import { normalizeAccountEmail } from "@o-tid/contracts";
 import { attribute, many, record, textOf, type XmlRecord } from "./xml";
 import { streamElements } from "./stream";
 
@@ -10,17 +11,19 @@ import { streamElements } from "./stream";
  */
 export const MAX_MEMBERS = 50_000;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
-const EMAIL = /^[^@\s]{1,64}@[^@\s]{1,190}$/;
 
 export interface EventorMemberHash {
   readonly personId: string;
   readonly emailHashes: readonly string[];
 }
 
-/** Normaliserad adress: utan blanktecken runt, gemener (som kontots adress). */
+/**
+ * Normaliserad adress, exakt som kontots (`normalizeAccountEmail`: NFC, utan blanktecken runt, gemener), så att hashen av
+ * Eventors adress och av kontots adress blir lika. Ändrat 2026-11-07: förut utan NFC, så ett å skrivet som a + ring i Eventor
+ * matchade inte kontot.
+ */
 export function normalizeMemberEmail(value: string): string | undefined {
-  const email = value.trim().toLowerCase();
-  return EMAIL.test(email) && email.length <= 254 ? email : undefined;
+  return normalizeAccountEmail(value);
 }
 
 function personId(person: XmlRecord): string | undefined {

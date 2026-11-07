@@ -140,8 +140,11 @@ describe("ADR-0205 tillägg: Koppla Google-konto och Kom ihåg mig", () => {
       { exchange, link: link as unknown as typeof linkGoogleToAccount, now });
     link.mockResolvedValueOnce({ status: "session-mismatch" });
     expect(location(await run())).toBe("https://otid.example/konto?google=sessionen");
-    link.mockResolvedValueOnce({ status: "in-use", googleEmail: "anna@klubb.se" });
+    link.mockResolvedValueOnce({ status: "in-use", googleEmail: "anna@klubb.se", sourceHasPassword: true });
     expect(location(await run())).toBe("https://otid.example/konto?google=upptaget");
+    // Det andra kontot saknar eget lösenord: beskedet säger hur man väljer ett först (Glömt lösenordet).
+    link.mockResolvedValueOnce({ status: "in-use", googleEmail: "anna@klubb.se", sourceHasPassword: false });
+    expect(location(await run())).toBe("https://otid.example/konto?google=upptaget-utan-losenord");
     link.mockResolvedValueOnce({ status: "email-not-verified" });
     expect(location(await run())).toBe("https://otid.example/konto?google=obekraftad");
     const pending = { sub: "123", googleEmail: "anna@klubb.se", sourceAccountId: accountId, sessionId, expiresAt: now.getTime() + 600_000 };
@@ -154,6 +157,6 @@ describe("ADR-0205 tillägg: Koppla Google-konto och Kom ihåg mig", () => {
     // Fel state i läget link: aldrig vidare till kodbytet.
     expect(location(await googleCallbackRoute(db, callback(`code=kod&state=${"A".repeat(43)}&steg=2`, cookie), env,
       { exchange, link: link as unknown as typeof linkGoogleToAccount, now }))).toBe("https://otid.example/konto?google=fel");
-    expect(link).toHaveBeenCalledTimes(4);
+    expect(link).toHaveBeenCalledTimes(5);
   });
 });

@@ -1,8 +1,4 @@
 /** Gafflingar (ADR-0169 beslut 2): banvarianter, löparens variant och fördelning. */
-type LegPoint = "START" | "FINISH" | number;
-
-const point = (value: LegPoint) => value === "START" ? "Start" : value === "FINISH" ? "Mål" : String(value);
-
 export const courseVariantsSv = {
   forked: (count: number) => count === 1 ? "Gafflad (1 variant)" : `Gafflad (${count} varianter)`,
   showVariants: (count: number) => count === 1 ? "Visa varianten" : `Visa ${count} varianter`,

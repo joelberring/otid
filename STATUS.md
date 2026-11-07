@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Stora kartor laddar snabbare (grenen b5-stora-kartor, ADR-0218, ingen migration)
+- Mätt med en syntetisk skogskarta (50 000 objekt, 11 MB OCAD): tolkningen 0,2–0,35 s, att läsa en tolkad karta ur IndexedDB 0,4–1 s (därför ingen sådan cache), hämtningen och ritningen dominerar. Siffror före/efter i ADR-0218.
+- Kartfilen sparas i webbläsaren per sha256 (IndexedDB `otid-map-cache`, tre filer, töms vid utloggning); andra öppningen hämtar inget. `map/source/<sha256>` ger `private, max-age=86400, immutable`, ETag och `Vary: Cookie`; 304 efter behörigheten.
+- Rumsligt index i `drawMap` (`cull`, bara banläggningens Worker): inzoomat planeras 17 % av objekten, bilden blir densamma. Workern startar under hämtningen och samma vy ritas inte två gånger. "Läser kartfilen … 43 %" under hämtningen.
+- Servern: kartväljaren utan frågor per klubb, dubblettförslagen med namnen normaliserade en gång (400 kartor 12,8 → 1,9 s) och sparade per klubb, kartbuntarna grupperade en gång.
+- Verifierat: enhetstester (index, cache, adress/ETag, förlopp, kartbuntar, dubbletter), prestandatest för tolkningen, integrationstester (steg-59, adr-0210 med frågeräkning, 0189, 0194, 0196, 0209), E2E `banlaggning-kartcache`.
+
 ### 2026-11-07 – Förenklade färger för tryck (grenen b2-tryckfarger, ADR-0215, ingen migration)
 - Ny förvald profil "Kartans egna färger" (`map-own`): kartfilens färger i normens ordning utan att någon gör något. En tävling som valt en profil behåller den; en som aldrig valt får normens ordning i nästa PDF.
 - "Färger för tryck": en statusrad ("Färger: kartans egna, i normens ordning (32 färger, 3 över banan)") med "Visa", lägena "Kartans egna färger" och "Tryck hos BL". BL visar bara de tveksamma färgerna (ingen säker rad eller fel sida mot normen) och "Godta alla säkra".

@@ -1,7 +1,7 @@
 /** Plangeometri i kartans mm (y uppåt). */
-import type { Point } from "@o-tid/map-file";
+import { distance, nearestOnSegment, polylineLength, type Point } from "@o-tid/map-file";
 
-export const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
+export { distance, nearestOnSegment };
 
 /** Vinkel i grader moturs från x-axeln. */
 export const angleDegrees = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
@@ -18,16 +18,6 @@ export function alongLine(from: Point, to: Point, length: number): Point {
   return { x: from.x + (to.x - from.x) * length / d, y: from.y + (to.y - from.y) * length / d };
 }
 
-/** Närmaste punkt på sträckan a–b och avståndet dit. */
-export function nearestOnSegment(p: Point, a: Point, b: Point): { point: Point; distance: number; t: number } {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const length2 = dx * dx + dy * dy;
-  const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2));
-  const point = { x: a.x + t * dx, y: a.y + t * dy };
-  return { point, distance: distance(p, point), t };
-}
-
 /** Avståndet från punkten till linjen och läget längs linjen (mm från början). */
 export function nearestOnPath(p: Point, path: readonly Point[]): { distance: number; along: number; point: Point } {
   let best = { distance: Infinity, along: 0, point: path[0]! };
@@ -42,11 +32,7 @@ export function nearestOnPath(p: Point, path: readonly Point[]): { distance: num
   return best;
 }
 
-export function pathLength(path: readonly Point[]): number {
-  let length = 0;
-  for (let i = 1; i < path.length; i++) length += distance(path[i - 1]!, path[i]!);
-  return length;
-}
+export const pathLength = polylineLength;
 
 /** Skärningspunkter mellan två linjer, med läget längs den första. */
 export function pathIntersections(a: readonly Point[], b: readonly Point[]): { point: Point; along: number }[] {

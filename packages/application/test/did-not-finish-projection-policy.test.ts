@@ -22,7 +22,8 @@ describe("TASK 006I/006J/006K/006M DNF projection policy", () => {
   });
 
   it("freezes current format 9 provenance including withdrawals and the absolute selected head", () => {
-    const finalization = source("result-finalization.ts") + source("result-finalization-basis.ts");
+    const finalization = source("result-finalization.ts") + source("result-finalization-basis.ts") +
+      source("result-finalization-projection.ts");
     expect(finalization).toContain('kind: "MANUAL_DECISION"');
     expect(finalization).toContain("absoluteResultRevisionId: absoluteRevision.id");
     expect(finalization).toContain("absoluteResultRevision: absoluteRevision.revision");

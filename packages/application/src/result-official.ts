@@ -8,7 +8,8 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { ClassRankingError } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
-import { buildFinalizationBasis, FinalizationTooLarge, finalizationMetadata, StoredFinalizationConflict } from "./result-finalization-basis";
+import { buildFinalizationBasis } from "./result-finalization-basis";
+import { FinalizationTooLarge, finalizationMetadata, StoredFinalizationConflict } from "./result-finalization-projection";
 import { insertResultFinalization } from "./result-finalization";
 import type { DbExecutor } from "./snapshot";
 

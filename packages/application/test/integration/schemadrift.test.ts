@@ -31,7 +31,13 @@ afterAll(async () => {
 
 /** Tabeller som bara finns i SQL (läses och skrivs med rå SQL eller bara av databasen själv). */
 const SQL_ONLY_TABLES: Record<string, string> = {
-  // Inga i dag: varje tabell i public har en Drizzle-tabell. Lägg till `tabell: "skäl"` om en tabell medvetet bara finns i SQL.
+  // Lägg till `tabell: "skäl"` om en tabell medvetet bara finns i SQL.
+  // Kartinnehållets delar (ADR-0189) skrivs och läses i delar om 1 MiB med rå SQL i application/src/map-content.ts.
+  map_content_part: "kartinnehållets delar, rå SQL i map-content.ts",
+  // Förkortad bana med klassbyte: ingen kod läser eller skriver tabellerna sedan omstarten; Drizzle-tabellerna togs bort i C1
+  // (städrundan 2026-11-07). SQL-tabellerna står kvar tills en migration tar bort dem (tvåstegsregeln).
+  shortened_course_class_transfer: "oanvänd sedan omstarten; tas bort med en senare migration",
+  shortened_course_class_transfer_item: "oanvänd sedan omstarten; tas bort med en senare migration"
 };
 
 /** Kolumner som bara finns i SQL, som `tabell.kolumn`. */

@@ -176,3 +176,12 @@ export {
 } from "./invitation-links";
 export { resendClubInvitation, resendGroupInvitation, resendRacePersonInvitation, type InvitationResendResult } from "./invitation-resend";
 export * from "./club-invite";
+export {
+  ALERT_KINDS, alertMessage, diskForecast, evaluateAlerts, lastReportSlot, serverProblems, serverWatchSettings, serverWatchSettingsProblems,
+  weeklyReport, weeklyReportDue
+} from "./server-report";
+export type { AlertKind, AlertMessage, NoticeState, ServerSnapshot, ServerWatchSettings } from "./server-report";
+export {
+  collectServerSnapshot, hostPaths, readHost, readMemory, runServerWatch, superadminRecipients
+} from "./server-status";
+export type { HostPaths, HostReadings, ServerMailer, ServerMessage, ServerWatchResult } from "./server-status";

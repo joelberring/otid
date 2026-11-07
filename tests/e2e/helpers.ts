@@ -50,7 +50,7 @@ export async function expectSaved(page: Page): Promise<void> {
 }
 
 /** Brickan i övningsstationens alternativ under "Deltagare", som slutar med den: "Ada Ek · H21 · 8571001" ger "8571001". */
-export function cardOf(label: string): string {
+function cardOf(label: string): string {
   const card = label.split(" · ").at(-1) ?? "";
   if (!/^\d+$/.test(card)) throw new Error(`Alternativet "${label}" slutar inte med en bricka`);
   return card;
@@ -62,7 +62,7 @@ export function cardOf(label: string): string {
  * medan brickan läses, och nästa bricka (eller att sidan lämnas) tar ur den mitt i avläsningen. Läses samma bricka två
  * gånger i rad med samma besked skiljer beskedet inte dem åt; vänta då på något annat (till exempel listan Senaste).
  */
-export async function expectVerdictFor(page: Page, card: string, status?: string): Promise<void> {
+async function expectVerdictFor(page: Page, card: string, status?: string): Promise<void> {
   const verdict = page.getByTestId("verdict");
   await expect(verdict).toContainText(new RegExp(`Bricka ${card}(?!\\d)`), { timeout: 30_000 });
   if (status) await expect(verdict).toContainText(status);

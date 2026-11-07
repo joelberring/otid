@@ -17,6 +17,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - `stafett-steg47`: `compileRoutes` hoppas över mot driftbygget (E2E_BASE_URL).
 - Nytt `apps/web/src/lib/organizer-roles.test.ts`: tabell över vad ägare/admin/ledare/medlem i klubben, ledare/medlem i gruppen, utomstående, superadmin, utloggad och importnyckeln får på varje route och metod under organizer/clubs, organizer/groups, account, club-import och superadmin (81 metoder, ~650 anrop mot en egen PostgreSQL-databas; körs när TEST_DATABASE_URL finns). En route som saknas i tabellen fäller testet. Inga felaktiga behörigheter hittades; Google-routes prövas inte (inte inställt i testet).
 
+### 2026-11-07 – Serverrapport, larm, mindre säkerhetskopior, belastningstest (grenen b4-serverrapport, ADR-0216, migration 0085)
+- Veckorapport söndag kl. 19 och larm (disk, kartkvot, backup, hälsokontroll, minne; högst ett per sort och dygn, "löst" när det gått över) till superadmin via mail.ts, från `web` (`lib/server-watch-runner.ts`, `application/server-report.ts` + `server-status.ts`). Tabellerna `server_sample`, `server_notice`, `server_notice_log`. `node superadmin.mjs server-report` visar rapporten.
+- `monitor.sh` skriver `./status/monitor.log`, `backup.sh` `./backups/.backup-status`; `web` monterar `./backups` och `./status` skrivskyddat (compose). Inget nytt i `.env` krävs.
+- Backup: kartinnehållet en gång per innehåll i `./backups/map-content`, miniatyrer och kartkontroller utesluts, 24 timdumpar; `sh /backup.sh restore-map-content` efter pg_restore. Dump och återställning provade lokalt (md5 lika, även omtagen dump).
+- `pnpm load-test` (N samtidiga tävlingar via API:t) och bedömning för CX23 i docs/drift.md.
+- Tester: `server-report.test.ts` (16), `adr-0216-serverrapport.test.ts` (integration), `server-watch-runner.test.ts`; CI kör `server-report` i driftjobbet.
+
 ### 2026-11-07 – Förenklade färger för tryck (grenen b2-tryckfarger, ADR-0215, ingen migration)
 - Ny förvald profil "Kartans egna färger" (`map-own`): kartfilens färger i normens ordning utan att någon gör något. En tävling som valt en profil behåller den; en som aldrig valt får normens ordning i nästa PDF.
 - "Färger för tryck": en statusrad ("Färger: kartans egna, i normens ordning (32 färger, 3 över banan)") med "Visa", lägena "Kartans egna färger" och "Tryck hos BL". BL visar bara de tveksamma färgerna (ingen säker rad eller fel sida mot normen) och "Godta alla säkra".

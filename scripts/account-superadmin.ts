@@ -11,6 +11,8 @@
  * `pnpm account:superadmin clubs import <fil.xml|->` – samma lista ur en fil (eller stdin), t.ex. hämtad på en annan dator.
  * `pnpm account:superadmin clubs unlink <eventor-id>` – tar bort en klubbytas koppling till klubben (fel klubbyta kopplad).
  * `pnpm account:superadmin clubs sync` – klubbarnas medlemslistor från Eventor som är äldre än ett dygn (görs också i underhållet).
+ * `pnpm account:superadmin server-report` – veckorapporten (ADR-0216) som den ser ut just nu, utan att skicka eller spara något:
+ *   disken, databasen, säkerhetskopiorna, antal och larm. Läser /backups och /status som webben (OTID_BACKUP_DIR, OTID_STATUS_DIR).
  * `pnpm account:superadmin google move <googles-eller-källkontots-adress> <målkontots-adress> [--delete-source-if-empty]` –
  *   flyttar en Google-koppling till ett annat konto (ADR-0205 tillägg), t.ex. när inloggning med Google skapade en dubblett. Med
  *   `--delete-source-if-empty` tas källkontot bort om det inte används. Skriver bara antal och adresser.
@@ -29,13 +31,15 @@ import { EventorAdapterError } from "../packages/eventor/src/index.ts";
 import { setSuperadmin } from "../packages/application/src/superadmin.ts";
 import { markEmailVerifiedByCommand } from "../packages/application/src/email-verification.ts";
 import { moveGoogleLinkByCommand, type GoogleMoveCommandResult } from "../packages/application/src/google-link.ts";
+import { serverWatchSettings, weeklyReport } from "../packages/application/src/server-report.ts";
+import { collectServerSnapshot, hostPaths, readHistory, readHost } from "../packages/application/src/server-status.ts";
 import {
   inlineMapContentRows, mapStorageQuota, mapStorageUsage, moveInlineMapContent, sweepMapContent
 } from "../packages/application/src/map-content.ts";
 
 const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl] | verify <e-postadress> | map-content status|move" +
   " | clubs refresh [--force] | clubs import <fil.xml|-> | clubs unlink <eventor-id> | clubs sync" +
-  " | google move <googles-eller-källkontots-adress> <målkontots-adress> [--delete-source-if-empty]";
+  " | google move <googles-eller-källkontots-adress> <målkontots-adress> [--delete-source-if-empty] | server-report";
 
 /** `google move`: argumenten (adresserna och flaggan i valfri ordning). */
 export function parseGoogleMoveArguments(args: readonly string[]): { source: string; target: string; deleteSourceIfEmpty: boolean } {
@@ -133,6 +137,17 @@ async function main(): Promise<void> {
       const quota = mapStorageQuota();
       process.stdout.write(`Kartor lagras: ${mb(usage.totalBytes)} (gräns ${quota.totalBytes === null ? "ingen" : mb(quota.totalBytes)}, ` +
         `per konto ${quota.accountBytes === null ? "ingen" : mb(quota.accountBytes)}). Rader kvar i de gamla kolumnerna: ${left}.\n`);
+    } finally { await pool.end(); }
+    return;
+  }
+  if (args[0] === "server-report") {
+    const { db, pool } = createDatabase(url);
+    try {
+      const now = new Date();
+      const snapshot = await collectServerSnapshot(db, await readHost(hostPaths(), now), now);
+      const origin = process.env.O_TID_PUBLIC_ORIGIN;
+      const report = weeklyReport(snapshot, await readHistory(db, now), serverWatchSettings(), origin ? new URL(origin).host : "servern");
+      process.stdout.write(`${report.subject}\n\n${report.text}\n`);
     } finally { await pool.end(); }
     return;
   }

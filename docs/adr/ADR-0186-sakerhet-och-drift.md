@@ -41,6 +41,8 @@ som går att räkna fram vid registreringen.
    hälsokontroll. Fel inställningar (t.ex. `O_TID_PUBLIC_ORIGIN`) skrivs i loggen vid start.
 8. **Backup.** En dump varje timme dygnet runt och en dump före varje start av webben (`backup-before-migrate`, misslyckas den
    startar ingen ny version). Valfri krypterad kopia utanför servern med restic (`RESTIC_REPOSITORY`, `RESTIC_PASSWORD`).
+   Ändrat 2026-11-07 (ADR-0216): 24 timdumpar i stället för 48, kartinnehållet sparas en gång per innehåll bredvid dumparna och
+   miniatyrerna tas inte med; hälsokontrollen skriver också sitt resultat till webben, som larmar superadmin per e-post.
 9. **Bekräftad e-post.** Behörigheter som andra delar ut med e-postadressen (administratör, funktionär, banläggning,
    gruppledare och gruppmedlem) gäller först när kontots adress är bekräftad; ägarskapet för det kontot självt skapat gäller
    alltid. Befintliga konton räknas som bekräftade. Med e-post på servern svarar registreringen likadant oavsett om adressen

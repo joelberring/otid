@@ -260,6 +260,34 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
     for (const role of ["ADMIN", "OWNER"] as const) expect(mayUseClubMap({ role, clubId, mapBank: "LEADERS" }, maps.a)).toBe(true);
   });
 
+  it("B5: Välj karta från klubbarkivet frågar databasen lika många gånger med en klubb som med sju", async () => {
+    const { reader, clubId } = await archive();
+    // En egen anslutning som räknar frågorna (varje ny klient i poolen räknas från början).
+    const counted = createDatabase(url.href, { max: 1 });
+    let queries = 0;
+    counted.pool.on("connect", client => {
+      const query = client.query.bind(client) as (...args: unknown[]) => unknown;
+      (client as unknown as { query: (...args: unknown[]) => unknown }).query = (...args: unknown[]) => { queries += 1; return query(...args); };
+    });
+    try {
+      const count = async () => {
+        queries = 0;
+        const listed = await listUsableClubMaps(counted.db, reader.proof, NOW);
+        if (listed.status !== "ok") throw new Error(listed.status);
+        return { queries, clubs: new Set(listed.response.maps.map(item => item.clubId)) };
+      };
+      const one = await count();
+      expect(one.clubs).toEqual(new Set([clubId]));
+      for (let index = 0; index < 6; index += 1) {
+        const created = await createClub(db, { ...reader.proof, request: { formatVersion: 1, requestId: randomUUID(), name: `OK Extra ${index}` } }, NOW);
+        expect(created.status).toBe("created");
+      }
+      const seven = await count();
+      // Förut två till fem frågor till per klubb (inställningarna och kartorna).
+      expect(seven.queries - one.queries).toBeLessThanOrEqual(1);
+    } finally { await counted.pool.end(); }
+  });
+
   it("ändrat 2026-11-07: en bekräftad medlem (utan uttryckligt medlemskap) ser kartorna, men inte när kartbanken är för ledare", async () => {
     const { owner, clubId } = await archive();
     const runner = await registerTestAccount(db, undefined, NOW);

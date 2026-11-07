@@ -116,31 +116,43 @@ function bigrams(text: string): Map<string, number> {
   return grams;
 }
 
-/** Sørensen–Dice på teckenpar (tål "alvsjo skogen" mot "alvsjoskogen" och ett stavfel). */
-function dice(a: string, b: string): number {
+/** Sørensen–Dice på teckenpar (tål "alvsjo skogen" mot "alvsjoskogen" och ett stavfel). Teckenparen kan vara räknade i förväg. */
+function dice(a: string, b: string, gramsA?: Map<string, number>, gramsB?: Map<string, number>): number {
   if (a === b) return a.length > 0 ? 1 : 0;
   if (a.length < 2 || b.length < 2) return 0;
-  const left = bigrams(a);
-  const right = bigrams(b);
+  const left = gramsA ?? bigrams(a);
+  const right = gramsB ?? bigrams(b);
   let shared = 0;
   for (const [gram, count] of left) shared += Math.min(count, right.get(gram) ?? 0);
   return (2 * shared) / (a.length - 1 + b.length - 1);
 }
 
+/** Ett namns ord med det som jämförelsen behöver, räknat en gång. */
+interface NameInfo { readonly tokens: ReadonlySet<string>; readonly joined: string; readonly grams: Map<string, number> }
+
+function nameInfo(tokens: readonly string[]): NameInfo {
+  const joined = tokens.join("");
+  return { tokens: new Set(tokens), joined, grams: bigrams(joined) };
+}
+
 /** Likheten mellan två namn (0–1): ordens överlapp eller teckenparen i de hopskrivna orden, det som är störst. */
 export function nameSimilarity(a: string, b: string): number {
-  const left = normalizeMapName(a);
-  const right = normalizeMapName(b);
-  if (left.length === 0 || right.length === 0) return 0;
-  const leftSet = new Set(left);
-  const rightSet = new Set(right);
-  const shared = [...leftSet].filter(token => rightSet.has(token)).length;
-  const tokens = shared / new Set([...leftSet, ...rightSet]).size;
-  const joined = dice(left.join(""), right.join(""));
+  return infoSimilarity(nameInfo(normalizeMapName(a)), nameInfo(normalizeMapName(b)));
+}
+
+function infoSimilarity(left: NameInfo, right: NameInfo): number {
+  const leftSet = left.tokens, rightSet = right.tokens;
+  if (leftSet.size === 0 || rightSet.size === 0) return 0;
+  let shared = 0;
+  for (const token of leftSet) if (rightSet.has(token)) shared += 1;
+  const tokens = shared / (leftSet.size + rightSet.size - shared);
+  const joined = dice(left.joined, right.joined, left.grams, right.grams);
   // Har båda namnen ett eget ord som inte liknar det andra ("Skogen norra" mot "Skogen södra") är det troligen olika kartor.
-  const ownLeft = [...leftSet].filter(token => !rightSet.has(token)).join("");
-  const ownRight = [...rightSet].filter(token => !leftSet.has(token)).join("");
-  if (ownLeft && ownRight && dice(ownLeft, ownRight) < 0.5) return Math.max(tokens, Math.min(joined, 0.6));
+  if (shared < leftSet.size && shared < rightSet.size) {
+    const ownLeft = [...leftSet].filter(token => !rightSet.has(token)).join("");
+    const ownRight = [...rightSet].filter(token => !leftSet.has(token)).join("");
+    if (ownLeft && ownRight && dice(ownLeft, ownRight) < 0.5) return Math.max(tokens, Math.min(joined, 0.6));
+  }
   return Math.max(tokens, joined);
 }
 
@@ -189,24 +201,37 @@ function compareContent(a: readonly MapFingerprint[], b: readonly MapFingerprint
   return { geo, extent, symbols: sameHash ? 1 : symbols, sameHash, sameScale };
 }
 
+/**
+ * Namnens ord och teckenpar, räknade en gång per namn (B5: `findDuplicatePairs` jämför varje karta med alla andra, och
+ * namnen normaliserades förut på nytt i varje par).
+ */
+export type NameTokens = Map<string, NameInfo>;
+
+function infoOf(name: string, memo: NameTokens | undefined): NameInfo {
+  if (!memo) return nameInfo(normalizeMapName(name));
+  let info = memo.get(name);
+  if (!info) { info = nameInfo(normalizeMapName(name)); memo.set(name, info); }
+  return info;
+}
+
 /** Bästa likheten mellan kartornas namn och versionernas filnamn. */
-function bestName(a: DuplicateCandidate, b: DuplicateCandidate): number {
-  const left = [a.name, ...a.fileNames];
-  const right = [b.name, ...b.fileNames];
+function bestName(a: DuplicateCandidate, b: DuplicateCandidate, memo?: NameTokens): number {
+  const left = [a.name, ...a.fileNames].map(name => infoOf(name, memo));
+  const right = [b.name, ...b.fileNames].map(name => infoOf(name, memo));
   let best = 0;
-  for (const x of left) for (const y of right) best = Math.max(best, nameSimilarity(x, y));
+  for (const x of left) for (const y of right) best = Math.max(best, infoSimilarity(x, y));
   return best;
 }
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
 /** Ett par: poängen, säkerheten och skälen, eller null när det inte är en trolig dubblett (eller olika områden). */
-export function scoreDuplicatePair(a: DuplicateCandidate, b: DuplicateCandidate): DuplicatePair | null {
+export function scoreDuplicatePair(a: DuplicateCandidate, b: DuplicateCandidate, names?: NameTokens): DuplicatePair | null {
   const t = DUPLICATE_THRESHOLDS;
   const reasons: DuplicateReason[] = [];
   let score = 0;
   const content = compareContent(a.fingerprints, b.fingerprints);
-  const name = bestName(a, b);
+  const name = bestName(a, b, names);
   const right = new Set(b.entryIds);
   const shared = new Set(a.entryIds.filter(id => right.has(id))).size;
   // Pappersytan (ogeorefererade kartor) säger lite i sig: samma A4-format är vanligt. Den räknas bara med minst svag
@@ -248,12 +273,13 @@ export const duplicatePairKey = (a: string, b: string) => a < b ? `${a}|${b}` : 
 /** Alla par i klubben utom de bortvalda ("Inte samma karta"). */
 export function findDuplicatePairs(candidates: readonly DuplicateCandidate[], dismissed: ReadonlySet<string> = new Set()): DuplicatePair[] {
   const pairs: DuplicatePair[] = [];
+  const names: NameTokens = new Map();
   for (let i = 0; i < candidates.length; i++) {
     for (let j = i + 1; j < candidates.length; j++) {
       const a = candidates[i]!;
       const b = candidates[j]!;
       if (dismissed.has(duplicatePairKey(a.mapId, b.mapId))) continue;
-      const pair = scoreDuplicatePair(a, b);
+      const pair = scoreDuplicatePair(a, b, names);
       if (pair) pairs.push(pair);
     }
   }

@@ -32,6 +32,22 @@ describe("kartbuntsplan (steg 61)", () => {
     expect(plan.groups.map(group => `${group.courseName}-${group.variantCode ?? ""}`)).toEqual(["Kort-", "Lång-AC", "Lång-AD", "Lång-BC", "Lång-BD"]);
   });
 
+  it("B5: går igenom deltagarna en gång, inte en gång per klass (många klasser och deltagare)", () => {
+    const classes: MapBundleClassInput[] = Array.from({ length: 200 }, (_, index) => ({ id: `c${index}`, name: `K${String(index).padStart(3, "0")}`,
+      courseVersionId: `v${index}`, courseName: `Bana ${index}`, variantCodes: [], startMode: "MINUTE", vacancies: [] }));
+    let reads = 0;
+    const many = Array.from({ length: 2000 }, (_, index) => {
+      const entry = runner(`e${index}`, `Löpare ${index}`, `c${index % 200}`, index % 60, null);
+      return Object.defineProperty({ ...entry }, "classId", { get: () => { reads += 1; return entry.classId; }, enumerable: true });
+    });
+    const plan = planMapBundles({ classes, entries: many, reserve: { kind: "COUNT", value: 0 } });
+    expect(plan.rows).toHaveLength(2000);
+    // Samma klass som förut för varje löpare.
+    expect(plan.rows.every(row => row.classId === `c${Number(row.entryId!.slice(1)) % 200}`)).toBe(true);
+    // Förut lästes klassen 200 × 2000 gånger.
+    expect(reads).toBeLessThan(10 * many.length);
+  });
+
   it("reserv i procent avrundas uppåt per grupp", () => {
     expect(mapReserveCount(23, { kind: "PERCENT", value: 10 })).toBe(3);
     expect(mapReserveCount(0, { kind: "PERCENT", value: 10 })).toBe(0);

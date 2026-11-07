@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { accountEmailSchema } from "./account";
-import { uuidSchema } from "./ids";
+import { uuidSchema, sha256HexSchema } from "./ids";
 import type { ClubEntryThumbnailSource, ClubEntryThumbnailView, ClubMapCheckView } from "./club-archive-checks";
 import type { ClubMapMergeView } from "./club-map-duplicates";
 import { mapAgreementSchema, type MapAgreement } from "./training-group";
@@ -10,7 +10,6 @@ import { mapAgreementSchema, type MapAgreement } from "./training-group";
  * idempotenta på innehållet (sha256) och källans sökväg.
  */
 const optionalText = (max: number) => z.string().trim().max(max).transform(value => value === "" ? null : value).nullable();
-const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 
 export const CLUB_ARCHIVE_MAP_MAX_BYTES = 75 * 1024 * 1024;
 export const CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES = 5 * 1024 * 1024;
@@ -73,13 +72,13 @@ export const clubCourseFileMapRequestSchema = z.object({ formatVersion: z.litera
  * `importKeys` (valfritt, ADR-0204): träningarnas nycklar, så att förhandsgranskningen i webbläsaren kan säga vilka träningar
  * som redan finns (`knownEntries`). Kommandot skickar dem inte och får samma svar som förut.
  */
-export const clubImportCheckRequestSchema = z.object({ formatVersion: z.literal(1), sha256: z.array(sha256Schema).max(1000),
+export const clubImportCheckRequestSchema = z.object({ formatVersion: z.literal(1), sha256: z.array(sha256HexSchema).max(1000),
   importKeys: z.array(z.string().min(1).max(500)).max(5000).optional() }).strict();
 export interface ClubImportCheckResponse { formatVersion: 1; clubId: string; clubName: string; known: string[]; knownEntries?: string[] }
 
 const importPathSchema = z.string().min(1).max(500);
 export const clubImportMapVersionSchema = z.object({
-  sha256: sha256Schema, fileName: z.string().min(1).max(200), format: z.enum(["OCD", "OMAP"]), versionDate: z.iso.date().nullable(),
+  sha256: sha256HexSchema, fileName: z.string().min(1).max(200), format: z.enum(["OCD", "OMAP"]), versionDate: z.iso.date().nullable(),
   sourcePath: importPathSchema.nullable()
 }).strict();
 export const clubImportMapSchema = z.object({
@@ -88,11 +87,11 @@ export const clubImportMapSchema = z.object({
 export const clubImportCourseFileSchema = z.object({
   fileName: z.string().min(1).max(200),
   kind: z.enum(["PPEN", "COURSE_DATA"]),
-  sha256: sha256Schema,
+  sha256: sha256HexSchema,
   /** Filen orörd i base64. */
   contentBase64: z.string().min(4).max(Math.ceil(CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES / 3) * 4),
   mapReference: z.string().min(1).max(500).nullable(),
-  mapSha256: sha256Schema.nullable(),
+  mapSha256: sha256HexSchema.nullable(),
   resolution: z.enum(["FOLDER", "NAME", "MISSING", "NONE"])
 }).strict();
 export const clubImportEntrySchema = z.object({
@@ -104,7 +103,7 @@ export const clubImportEntrySchema = z.object({
   leader: z.string().trim().min(1).max(200).nullable(),
   tags: z.array(clubTagSchema).max(30),
   sourcePath: importPathSchema,
-  mapSha256: z.array(sha256Schema).max(50),
+  mapSha256: z.array(sha256HexSchema).max(50),
   courseFiles: z.array(clubImportCourseFileSchema).max(100)
 }).strict();
 export const clubImportBatchRequestSchema = z.object({

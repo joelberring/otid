@@ -1,12 +1,11 @@
 import { z } from "zod";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 
 /**
  * Läs om avläsningar från rådata (PLAN.md steg 36): varje sparad riktig avläsning avkodas på nytt från råramarna med
  * den nuvarande brickavkodningen och samma tidsreferens som vid avläsningen. Förhandsvisningen listar bara avläsningar
  * där stämplingarna eller tiderna blir andra, och de som inte går att läsa om. Sparandet tar de valda med deras hash.
  */
-const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const cardNumber = z.string().regex(/^[1-9][0-9]{0,8}$/);
 const resultStatus = z.enum(["OK", "OVERTIME", "MP", "UNKNOWN_CARD"]);
 
@@ -28,7 +27,7 @@ export const readoutRereadItemSchema = z.object({
   before: sideSchema,
   after: sideSchema,
   manualDecision: readoutRereadManualDecisionSchema.nullable(),
-  itemHash: hash
+  itemHash: sha256HexSchema
 }).strict();
 export type ReadoutRereadItem = z.infer<typeof readoutRereadItemSchema>;
 
@@ -53,7 +52,7 @@ export type ReadoutRereadPreviewResponse = z.infer<typeof readoutRereadPreviewRe
 
 export const readoutRereadCommitRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid,
-  items: z.array(z.object({ readoutId: uuid, entryId: uuid, itemHash: hash }).strict()).min(1).max(1_000)
+  items: z.array(z.object({ readoutId: uuid, entryId: uuid, itemHash: sha256HexSchema }).strict()).min(1).max(1_000)
 }).strict().refine((value) => new Set(value.items.map((item) => `${item.readoutId}:${item.entryId}`)).size === value.items.length,
   { path: ["items"] });
 

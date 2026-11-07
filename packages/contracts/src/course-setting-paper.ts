@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 
 /**
  * ADR-0197: papperet i utskriften. Bilderna (logotyper) laddas upp en gång per innehåll (PNG eller JPEG, högst 2 MB) och
@@ -11,7 +11,7 @@ export const PAPER_TEMPLATE_MAX_BYTES = 64 * 1024;
 
 export const paperImageSchema = z.object({
   formatVersion: z.literal(1),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  sha256: sha256HexSchema,
   mediaType: z.enum(["image/png", "image/jpeg"]),
   width: z.number().int().min(1).max(20000),
   height: z.number().int().min(1).max(20000)

@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { UUID_PATTERN, prefixedUuidPattern } from "./ids";
+import { SHA256_HEX_PATTERN, UUID_PATTERN, prefixedUuidPattern } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
   UUID_PATTERN,
   "Id måste vara ett kanoniskt gemener-UUID"
 );
-const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/, "Hash måste vara SHA-256 i gemener");
+const sha256Schema = z.string().regex(SHA256_HEX_PATTERN, "Hash måste vara SHA-256 i gemener");
 const positiveVersionSchema = z.number().int().positive();
 const boundedCountSchema = z.number().int().min(0).max(10_000);
 const instantSchema = z.iso.datetime({ offset: true });

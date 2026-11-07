@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
-  PAPER_IMAGE_MAX_BYTES, paperImageSchema, paperLibrarySaveRequestSchema, paperLibrarySchema, type PaperImageResponse, type PaperLibrary
+  PAPER_IMAGE_MAX_BYTES, paperImageSchema, paperLibrarySaveRequestSchema, paperLibrarySchema, type PaperImageResponse, type PaperLibrary, SHA256_HEX_PATTERN
 } from "@o-tid/contracts";
 import { CourseSettingEditError, validatePaperTemplate } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
@@ -16,7 +16,6 @@ import type { RaceSessionProof } from "./race-session";
  */
 const images = schema.courseSettingPaperImages;
 const library = schema.courseSettingPaperTemplates;
-const SHA256 = /^[0-9a-f]{64}$/;
 const LIBRARY_MAX = 200;
 
 /** Bildens typ och storlek ur innehållet (PNG:s IHDR, JPEG:s SOF); annat ger undefined. */
@@ -60,7 +59,7 @@ export async function uploadPaperImageAsAdmin(db: Database, input: RaceSessionPr
 
 export async function readPaperImageAsAdmin(db: Database, input: ReadProof & { sha256: string }, now = new Date())
   : Promise<Failure | { status: "ok"; mediaType: string; image: Buffer }> {
-  if (!SHA256.test(input.sha256)) return { status: "invalid-request" };
+  if (!SHA256_HEX_PATTERN.test(input.sha256)) return { status: "invalid-request" };
   return courseSettingRead(db, input, now, async (tx, raceId, principal) => {
     const [row] = await tx.select({ mediaType: images.mediaType, image: images.image, uploadedBy: images.uploadedBy }).from(images)
       .where(eq(images.sha256, input.sha256));
@@ -79,7 +78,7 @@ export async function readPaperImageAsAdmin(db: Database, input: ReadProof & { s
 
 /** Bilderna för utskriftsarbetaren (PDF:en), per sha256. */
 export async function paperImagesFor(db: Database, hashes: readonly string[]): Promise<Map<string, { mediaType: string; bytes: Uint8Array }>> {
-  const wanted = [...new Set(hashes.filter(hash => SHA256.test(hash)))];
+  const wanted = [...new Set(hashes.filter(hash => SHA256_HEX_PATTERN.test(hash)))];
   if (wanted.length === 0) return new Map();
   const rows = await db.select({ sha256: images.sha256, mediaType: images.mediaType, image: images.image }).from(images).where(inArray(images.sha256, wanted));
   return new Map(rows.map(row => [row.sha256, { mediaType: row.mediaType, bytes: new Uint8Array(row.image) }]));

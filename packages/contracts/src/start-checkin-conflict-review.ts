@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { canonicalJsonBytes } from "./canonical-json";
 import { StartCheckinOperationSchema, StartCheckinReceiptSchema } from "./start-checkin";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 
-const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const counter = z.number().int().min(0).max(2_147_483_647);
 const timestamp = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/).refine(value => {
   const ms = Date.parse(value);
@@ -14,18 +13,18 @@ const conflictIds = z.array(uuid).min(1).max(1000).refine(ids => ids.every((id, 
 const decision = z.literal("KEEP_CURRENT_STATE");
 
 export const StartCheckinConflictReviewRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, entryId: uuid, sourceHash: hash,
+  formatVersion: z.literal(1), requestId: uuid, entryId: uuid, sourceHash: sha256HexSchema,
   conflictRequestIds: conflictIds, decision,
   reason: z.string().min(1).max(500).refine(value => value.trim() === value)
 }).strict();
 
 export const StartCheckinConflictReviewResponseSchema = z.object({
   formatVersion: z.literal(1), reviewId: uuid, requestId: uuid, raceId: uuid, entryId: uuid,
-  sourceHash: hash, conflictRequestIds: conflictIds, decision, reviewedAt: timestamp
+  sourceHash: sha256HexSchema, conflictRequestIds: conflictIds, decision, reviewedAt: timestamp
 }).strict();
 
 const conflict = z.object({
-  operation: StartCheckinOperationSchema, contentHash: hash, receipt: StartCheckinReceiptSchema,
+  operation: StartCheckinOperationSchema, contentHash: sha256HexSchema, receipt: StartCheckinReceiptSchema,
   deviceLabel: z.string().min(1).max(120)
 }).strict().superRefine((row, context) => {
   const op = row.operation, receipt = row.receipt;
@@ -55,7 +54,7 @@ export const StartCheckinConflictReviewSourceSchema = z.object({
 });
 
 export const StartCheckinConflictReviewCandidateSchema = z.object({
-  formatVersion: z.literal(1), sourceHash: hash, generatedAt: timestamp, source: StartCheckinConflictReviewSourceSchema
+  formatVersion: z.literal(1), sourceHash: sha256HexSchema, generatedAt: timestamp, source: StartCheckinConflictReviewSourceSchema
 }).strict();
 
 export const canonicalStartCheckinConflictReviewRequest = (value: unknown): Uint8Array => canonicalJsonBytes(StartCheckinConflictReviewRequestSchema.parse(value));

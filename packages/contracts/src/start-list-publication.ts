@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { courseVariantCodeSchema } from "./course-edit";
-import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
+import { prefixedUuidPattern, uuidSchema as uuid, sha256HexSchema } from "./ids";
 import { raceNameSchema } from "./race-name";
 const version = z.number().int().nonnegative().max(2147483647);
 const positive = z.number().int().positive().max(2147483647);
@@ -64,19 +64,19 @@ export const startListPublicationContentSchema = z.object({
         });
 });
 const latest = z.object({
-    revision: positive, action: z.enum(["PUBLISH", "WITHDRAW"]), decidedAt: instant, sourceSnapshotVersion: positive, sourceHash: z.string().regex(/^[a-f0-9]{64}$/).nullable()
+    revision: positive, action: z.enum(["PUBLISH", "WITHDRAW"]), decidedAt: instant, sourceSnapshotVersion: positive, sourceHash: sha256HexSchema.nullable()
 }).strict().refine((v) => (v.action === "PUBLISH") === (v.sourceHash !== null));
 export const startListPublicationPreviewResponseSchema = z.object({
-    formatVersion: z.literal(1), raceId: uuid, snapshotVersion: positive, sourceHash: z.string().regex(/^[a-f0-9]{64}$/).nullable(), latestDecision: latest.nullable(), content: startListPublicationContentSchema.nullable()
+    formatVersion: z.literal(1), raceId: uuid, snapshotVersion: positive, sourceHash: sha256HexSchema.nullable(), latestDecision: latest.nullable(), content: startListPublicationContentSchema.nullable()
 }).strict().refine((v) => (v.sourceHash === null) === (v.content === null));
 export const startListPublicationRequestSchema = z.discriminatedUnion("action", [z.object({
-        formatVersion: z.literal(1), action: z.literal("PUBLISH"), expectedSourceHash: z.string().regex(/^[a-f0-9]{64}$/), expectedRevision: version
+        formatVersion: z.literal(1), action: z.literal("PUBLISH"), expectedSourceHash: sha256HexSchema, expectedRevision: version
     }).strict(), z.object({
         formatVersion: z.literal(1), action: z.literal("WITHDRAW"), expectedRevision: positive
     }).strict()]);
 export const startListPublicationIdempotencyKeySchema = z.string().regex(prefixedUuidPattern("start-list-publication"));
 export const startListPublicationResponseSchema = z.object({
-    formatVersion: z.literal(1), raceId: uuid, requestId: uuid, replayed: z.boolean(), revision: positive, action: z.enum(["PUBLISH", "WITHDRAW"]), decidedAt: instant, sourceSnapshotVersion: positive, sourceHash: z.string().regex(/^[a-f0-9]{64}$/).nullable()
+    formatVersion: z.literal(1), raceId: uuid, requestId: uuid, replayed: z.boolean(), revision: positive, action: z.enum(["PUBLISH", "WITHDRAW"]), decidedAt: instant, sourceSnapshotVersion: positive, sourceHash: sha256HexSchema.nullable()
 }).strict().refine((v) => (v.action === "PUBLISH") === (v.sourceHash !== null));
 export const publicStartListResponseSchema = z.object({
     iofExportAvailable: z.boolean().default(false),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uuidSchema as uuid } from "./ids";
+import { uuidSchema as uuid, sha256HexSchema } from "./ids";
 import { raceMapSourceBoundsSchema } from "./race-map-source";
 import { raceTypeSchema } from "./race-settings";
 
@@ -87,7 +87,7 @@ export const courseSettingStateSchema = z.object({
     .strict().nullable(),
   /** Den senast inlästa .ppen-filen orörd (hämtas med `course-setting/original`). */
   original: z.object({ fileName, importedAt: instant }).strict().nullable(),
-  mapFile: z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), fileName, scale: z.number().int().min(100).max(1_000_000),
+  mapFile: z.object({ sha256: sha256HexSchema, fileName, scale: z.number().int().min(100).max(1_000_000),
     bounds: raceMapSourceBoundsSchema, georeferenced: z.boolean() }).strict().nullable(),
   /** Tävlingens typ: rogaining (poängbanor) och fest (inga banor i tävlingen) förklaras i editorn. Saknas i äldre svar. */
   raceType: raceTypeSchema.optional()

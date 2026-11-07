@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sha256HexSchema } from "./ids";
 import { raceNameSchema } from "./race-name";
 export * from "./administrator-effective-result";
 export * from "./manual-course-class";
@@ -99,15 +100,14 @@ export type SportidentReadoutPayload = z.infer<typeof sportidentReadoutPayloadSc
 
 const localSequenceSchema = z.number().int().positive();
 const stationReceivedAtSchema = z.iso.datetime({ offset: true });
-const eventContentHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 // Nyckelordningen (sekvens, tid, transport, nyttolast, hash) är en del av det
 // serialiserade formatet och får inte ändras.
 export const deviceEventSchema = z.discriminatedUnion("transport", [
   z.object({ localSequence: localSequenceSchema, stationReceivedAt: stationReceivedAtSchema,
-    transport: z.literal("simulator"), payload: simulatorPayloadSchema, contentHash: eventContentHashSchema }).strict(),
+    transport: z.literal("simulator"), payload: simulatorPayloadSchema, contentHash: sha256HexSchema }).strict(),
   z.object({ localSequence: localSequenceSchema, stationReceivedAt: stationReceivedAtSchema,
-    transport: z.literal("sportident"), payload: sportidentReadoutPayloadSchema, contentHash: eventContentHashSchema }).strict()
+    transport: z.literal("sportident"), payload: sportidentReadoutPayloadSchema, contentHash: sha256HexSchema }).strict()
 ]);
 
 export const deviceBatchSchema = z.object({
@@ -137,7 +137,7 @@ export const deviceBatchSchema = z.object({
 const serverResultVersionFields = {
   engineVersion: z.string().trim().min(1),
   snapshotVersion: z.number().int().positive(),
-  evaluationHash: z.string().regex(/^[a-f0-9]{64}$/)
+  evaluationHash: sha256HexSchema
 };
 
 const persistedServerResultFields = {
@@ -200,7 +200,7 @@ export const readoutPlacementSchema = z.discriminatedUnion("kind", [
 
 const acknowledgedDeviceEventSchema = z.object({
   localSequence: z.number().int().positive(),
-  contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+  contentHash: sha256HexSchema,
   rawMessageId: z.uuid(),
   serverResult: serverResultSummarySchema.optional(),
   placement: readoutPlacementSchema.optional()
@@ -211,7 +211,7 @@ export const deviceEventAcknowledgementSchema = z.discriminatedUnion("status", [
   acknowledgedDeviceEventSchema.extend({ status: z.literal("duplicate") }),
   z.object({
     localSequence: z.number().int().positive(),
-    contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+    contentHash: sha256HexSchema,
     status: z.literal("rejected"),
     reason: z.enum([
       "CONTENT_HASH_MISMATCH",

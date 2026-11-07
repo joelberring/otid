@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UUID_PATTERN } from "./ids";
+import { UUID_PATTERN, sha256HexSchema } from "./ids";
 
 const canonicalUuidSchema = z.string().regex(
   UUID_PATTERN,
@@ -16,7 +16,7 @@ export const iofResultListExportMetadataSchema = z.object({
   resultCount: z.number().int().min(0).max(10000),
   staleResultCount: z.number().int().min(0).max(10000),
   omittedEntryCount: z.number().int().min(0).max(10000),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/)
+  sha256: sha256HexSchema
 }).strict().superRefine((metadata, context) => {
   if (metadata.staleResultCount > metadata.resultCount) {
     context.addIssue({

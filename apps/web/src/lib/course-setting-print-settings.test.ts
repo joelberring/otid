@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, layoutTemplateSheets, mapColorAdjust } from "@o-tid/course-setting";
+import { applyEdit, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, layoutTemplateSheets, mapColorAdjust, printSheetGroups } from "@o-tid/course-setting";
 import type { MapBundleResponse } from "@o-tid/contracts";
 import { gridOf, parseCmyk, regrid, withColorRow } from "./course-setting-print-settings";
 import { runnerPrintItems } from "./course-setting-runner-print";
@@ -105,3 +105,22 @@ describe("en karta per löpare (steg 64)", () => {
     expect((duplex[1]!.paperItems ?? []).map(item => item.parts.flatMap(part => part.kind === "text" ? [part.text] : []).join(""))).toEqual(["102", "Ledig", "D21  10:30"]);
   });
 });
+
+/** ADR-0217: klassens layout styr löparkartorna (skala och papper) via Kartor till startens grupper. */
+describe("löparkartor per layout", () => {
+  const clock = (instant: string | null) => instant ? instant.slice(11, 16) : "";
+  it("en grupp i en annan layout ger kartor i den layouten med layoutens skala; tryckantalet per layout", () => {
+    const document = applyEdit(testDocument(), { type: "ADD_LAYOUT", layout: { id: "aldre", name: "Äldre A4", scale: 7500,
+      page: { width: 827, height: 1169, margins: 28, landscape: false } } }).document;
+    const base = bundles(3).groups[0]!;
+    const layered = { missingVariant: [], groups: [base, { ...base, layout: { id: "aldre", name: "Äldre A4" }, printCount: 3 }] } as unknown as Bundles;
+    const result = runnerPrintItems(document, layered, clock);
+    expect(result.items.map(item => item.layout ?? "")).toEqual(["", "", "", "aldre", "aldre", "aldre"]);
+    expect(result.counts).toEqual([{ courseName: "Lång", variantCode: null, count: 3 }, { courseName: "Lång", variantCode: null, count: 3, layout: "Äldre A4" }]);
+    expect(result.problems).toEqual([]);
+    const one = BUILT_IN_TEMPLATES.find(template => template.id === "a4-one")!;
+    const groups = printSheetGroups(document, { kind: "TEMPLATE", template: one, perRunner: true }, result.items);
+    expect(groups.map(group => group.sheets[0]!.frames[0]!.printScale)).toEqual([document.event.mapScale, document.event.mapScale, document.event.mapScale, 7500, 7500, 7500]);
+  });
+});
+

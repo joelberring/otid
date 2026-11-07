@@ -41,7 +41,7 @@ export function BackSheet({ page, settings, clock }: { page: MapBackPage | "TEST
   const content = page === "TEST" ? <span className={styles.labelName}>{text.testPageText}</span>
     : page.kind === "DIVIDER" ? <>
       <span className={styles.labelName}>{text.divider(page.variantCode, page.printCount)}</span>
-      <span className={styles.labelLine}>{page.courseName}</span>
+      <span className={styles.labelLine}>{page.courseName}{page.layout ? ` · ${page.layout.name}` : ""}</span>
       <span className={styles.labelLine}>{text.dividerHelp(page.variantCode)}</span>
     </> : page.kind === "RUNNER" ? <>
       {page.variantCode && <span className={styles.bigCode}>{page.variantCode}</span>}

@@ -13,6 +13,7 @@ import { trainingMapPasses } from "./training-passes";
 import { clipMapPasses, clipMarkings, effectivePaper, paperClipRing } from "./paper-items";
 import { whiteAreasOnFrame } from "./paper-white";
 import { trainingPieceSheets } from "./training-print";
+import { findPrintLayout, layoutDocument, layoutTemplateOfLayout, MAIN_LAYOUT, singleMapTemplate } from "./print-layouts";
 
 export type SheetLayout =
   | { readonly kind: "TEMPLATE"; readonly template: LayoutTemplate; readonly perRunner?: boolean | undefined; readonly duplex?: boolean | undefined;
@@ -48,7 +49,44 @@ export interface SheetGroupOptions {
 
 export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: SheetLayout, items: readonly SheetItem[],
   options: SheetGroupOptions = {}): SheetGroup[] {
-  return withMapPasses(document, sheetGroups(document, layout, items, options));
+  if (!items.some(item => item.layout !== undefined && item.layout !== MAIN_LAYOUT)) return withMapPasses(document, sheetGroups(document, layout, items, options));
+  // ADR-0217: arken per layout. Varje följd av kartor i samma layout läggs ut på dokumentet som utskriften ser det för
+  // layouten (`layoutDocument`: layoutens skala och papper, arkets utsnitt, papper och justeringar) med layoutens "Kartor per ark".
+  const out: SheetGroup[] = [];
+  let start = 0;
+  while (start < items.length) {
+    const id = items[start]!.layout ?? MAIN_LAYOUT;
+    let end = start;
+    while (end < items.length && (items[end]!.layout ?? MAIN_LAYOUT) === id) end += 1;
+    const run = items.slice(start, end), offset = start;
+    start = end;
+    let projected: Parameters<typeof layoutCoursePage>[0];
+    try { projected = layoutDocument(document, id); } catch (error) {
+      if (!options.onError) throw error;
+      run.forEach((_, index) => options.onError!({ item: offset + index, error }));
+      continue;
+    }
+    const onError = options.onError ? (failed: { item?: number | undefined; error: unknown }) =>
+      options.onError!({ item: failed.item === undefined ? undefined : failed.item + offset, error: failed.error }) : undefined;
+    const groups = withMapPasses(projected, sheetGroups(projected, sheetLayoutFor(document, id, layout), run, { ...options, onError }));
+    out.push(...groups.map(group => group.item === undefined ? group : { ...group, item: group.item + offset }));
+  }
+  return out;
+}
+
+/**
+ * Hur en layouts ark läggs ut (ADR-0217): huvudlayouten som valt i utskriften; en annan layout med sina "Kartor per ark",
+ * annars en bana per ark på layoutens papper. En karta per löpare utan "Kartor per ark" får en karta på layoutens papper
+ * med utskriftens remsa.
+ */
+function sheetLayoutFor(document: Parameters<typeof layoutCoursePage>[0], id: string, chosen: SheetLayout): SheetLayout {
+  if (id === MAIN_LAYOUT || chosen.kind === "PIECES") return chosen;
+  const found = findPrintLayout(document, id);
+  const template = layoutTemplateOfLayout(document, id);
+  const perRunner = chosen.kind === "TEMPLATE" && chosen.perRunner === true;
+  if (template) return { kind: "TEMPLATE", template, perRunner, duplex: chosen.duplex, ...(chosen.kind === "TEMPLATE" && chosen.fill ? { fill: chosen.fill } : {}) };
+  if (perRunner && found) return { kind: "TEMPLATE", template: singleMapTemplate(found, chosen.kind === "TEMPLATE" ? chosen.template.strips : []), perRunner, duplex: chosen.duplex };
+  return { kind: "COURSE", header: chosen.kind === "COURSE" ? chosen.header : false, duplex: chosen.kind === "COURSE" ? chosen.duplex : false };
 }
 
 /**

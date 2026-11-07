@@ -59,7 +59,7 @@ export const mapBundlesSv = {
       case "VARIANT": return `${change.name} (${change.className}): ${variantName(change.from)} → ${variantName(change.to)}`;
       case "CLASS": return `${change.name}: ${change.from} → ${change.to}`;
       case "START_TIME": return `${change.name} (${change.className}): start ${clock(change.from)} → ${clock(change.to)}`;
-      case "COUNT": return `${change.courseName}${change.variantCode ? ` ${change.variantCode}` : ""}: ${maps(change.from)} → ${maps(change.to)}`;
+      case "COUNT": return `${change.courseName}${change.variantCode ? ` ${change.variantCode}` : ""}${change.layout ? ` (${change.layout})` : ""}: ${maps(change.from)} → ${maps(change.to)}`;
       case "NUMBERS": return change.count === 1 ? "1 löpare har fått nytt nummer" : `${change.count} löpare har fått nya nummer`;
     }
   },

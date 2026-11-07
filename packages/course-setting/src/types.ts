@@ -14,6 +14,9 @@ import type { DescriptionEdit, DescriptionLayout } from "./description-types";
 import type { LayoutTemplate } from "./layout-template";
 import type { CoursePaperLayout, PaperItem, PaperTemplate, PaperValues } from "./paper-items";
 import type { PrintProfile } from "./print-profile";
+import type { LayoutSheet, MainLayoutSettings, PrintLayout } from "./print-layouts";
+import type { LayoutEdit } from "./print-layout-edit";
+import type { LayoutState } from "./print-layout-states";
 import type { OverprintTraining, TrainingPatch, TrainingSettings } from "./training-types";
 import type { CourseLevel, LevelRank } from "./level-types";
 import type { LevelRuleId } from "./level-rules";
@@ -310,6 +313,16 @@ export interface CourseSettingDocument {
      * i arket. Saknas = förvalet (som Kartor till startens baksida). Bara variablerna sparas, aldrig löparna. Bara O-Tid.
      */
     readonly runnerBack?: RunnerBackLayout | undefined;
+    /**
+     * ADR-0217: layouterna utom huvudlayouten, deras ark (layout → bana), klassernas layout (klassnamn → layout),
+     * huvudlayoutens namn och "Kartor per ark", och de sparade lägena. Bara O-Tid; skrivs inte till .ppen och följer med när
+     * en ny .ppen läses in. Saknas = bara huvudlayouten (banans fält).
+     */
+    readonly layouts?: readonly PrintLayout[] | undefined;
+    readonly layoutSheets?: Readonly<Record<string, Readonly<Record<string, LayoutSheet>>>> | undefined;
+    readonly classLayouts?: Readonly<Record<string, string>> | undefined;
+    readonly mainLayout?: MainLayoutSettings | undefined;
+    readonly layoutStates?: readonly LayoutState[] | undefined;
     /** Resten av `<event>` (utskriftsyta, kortlayout, färg …), orört. */
     readonly raw?: readonly RawXml[] | undefined;
   };
@@ -364,7 +377,8 @@ export type CourseSettingEdit =
   /** Gör en gaffling (2–N grenar) eller slinga vid banans kontroll; grenarna fylls sedan med INSERT_COURSE_CONTROL. */
   | { readonly type: "ADD_SPLIT"; readonly course: string; readonly at: string; readonly kind: "FORK" | "LOOP"; readonly branches: number }
   | { readonly type: "REMOVE_SPLIT"; readonly course: string; readonly at: string }
-  | { readonly type: "MOVE_NUMBER"; readonly course: string; readonly courseControl: string; readonly at: Point | null }
+  /** ADR-0217: med `printLayout` (inte huvudlayouten) ett justerat nummer på arket; null = som banläggningen. */
+  | { readonly type: "MOVE_NUMBER"; readonly course: string; readonly courseControl: string; readonly at: Point | null; readonly printLayout?: string | undefined }
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
@@ -379,6 +393,8 @@ export type CourseSettingEdit =
   | SpecialEdit
   /** Träningsläget (ADR-0192 beslut 11): hela delar per id, null = tas bort. */
   | ({ readonly type: "PUT_TRAINING" } & TrainingPatch)
+  /** ADR-0217: layouter, ark, justeringar, klassernas layout och sparade lägen. */
+  | LayoutEdit
   /** ADR-0199: godta (värdet) eller ångra (null) varningar per nyckel; övriga godtagna står kvar. */
   | { readonly type: "SET_ACCEPTED_CHECKS"; readonly checks: Readonly<Record<string, AcceptedCheck | null>> };
 
@@ -420,14 +436,17 @@ export type SpecialEdit =
   | { readonly type: "MOVE_SPECIAL"; readonly special: string; readonly points: readonly Point[] }
   | { readonly type: "UPDATE_SPECIAL"; readonly special: string; readonly changes: SpecialFields & { readonly courses?: readonly string[] | undefined } }
   | { readonly type: "DELETE_SPECIAL"; readonly special: string }
-  | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null; readonly part?: number | undefined }
+  /** ADR-0217: med `printLayout` (inte huvudlayouten) arkets utsnitt i den layouten (papperet är layoutens). */
+  | { readonly type: "SET_PRINT_AREA"; readonly course: string; readonly area: PrintArea | null; readonly part?: number | undefined; readonly printLayout?: string | undefined }
   /** Utskriftsprofil och layoutmall (ADR-0183): lägg till eller ersätt per id, ta bort. */
   | { readonly type: "PUT_PRINT_PROFILE"; readonly profile: PrintProfile }
   | { readonly type: "DELETE_PRINT_PROFILE"; readonly id: string }
   | { readonly type: "PUT_LAYOUT_TEMPLATE"; readonly template: LayoutTemplate }
   | { readonly type: "DELETE_LAYOUT_TEMPLATE"; readonly id: string }
   /** Papperet för en bana (eller "ALL_CONTROLS"): ersätts helt; null = som förval. */
-  | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null; readonly part?: number | undefined }
+  | { readonly type: "SET_PAPER_LAYOUT"; readonly course: string; readonly layout: CoursePaperLayout | null; readonly part?: number | undefined;
+      /** ADR-0217: arket i en annan layout än huvudlayouten (namnet `layout` är redan papperet). */
+      readonly printLayout?: string | undefined }
   /** ADR-0213: baksidan per löpare; null = förvalet igen. */
   | { readonly type: "SET_RUNNER_BACK"; readonly back: RunnerBackLayout | null }
   /** Papperets mall (ADR-0197): lägg till eller ersätt per id, ta bort (banorna som ärver av den står kvar utan mall). */

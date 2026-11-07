@@ -99,6 +99,18 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   (samma matchning, kontroller ur funktion och tidsrättningar som bedömningen). Bara ett besked; inget byts automatiskt.
 - Kontrollen före tävlingen (`forkingReadiness`): varianter utan löpare (väntat när löparna är färre än varianterna), löpare utan
   variant, ojämn fördelning per gafflingspunkt (mer än en löpare i skillnad), högst 100 varianter och 26 bokstäver.
+- Layouter (ADR-0217): en grupp per bana, variant *och* klassens layout i banläggningen (`event.classLayouts`, klassnamn →
+  layout); reserven räknas per grupp, så reserverna följer klassens layout. Utan val gäller huvudlayouten och grupperna är som förut.
+
+## Banläggningens utskrift: ordlista (ADR-0217)
+
+- **Model space** = fliken Banläggning (kartan och banorna, kartans mm). **Paper space** = fliken Layout (papperets mm).
+- **Layout** = papper (storlek, riktning, marginal), skala, mall för papperet och "Kartor per ark". **Huvudlayouten** är banans
+  egna fält (banans skala, tryckyta och papper) och den enda som skrivs till .ppen.
+- **Ark** = bana × layout: utsnitt, klippning, kartbyten (delar) och papperets element. Justerade nummer per ark och ringavbrott
+  per layout; det som inte är justerat följer banläggningen.
+- **Tryckyta** = `printArea` (Purple Pens `print-area`); i UI på arket heter den **utsnitt**. **Kartram** = `SheetFrame`, ytan på
+  papperet där kartan står. **Mall för papperet** = `PaperTemplate` (ADR-0197); **Kartor per ark** = `LayoutTemplate` (ADR-0183).
 
 ## Banhemlighet (steg 52, ADR-0176)
 

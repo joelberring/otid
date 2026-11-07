@@ -15,6 +15,8 @@ const variant = courseVariantCodeSchema.nullable();
 /** Stafett (ADR-0213): laget och sträckan för kartan. */
 const team = z.object({ number, name }).strict();
 const leg = z.number().int().positive().max(100);
+/** ADR-0217: banläggningens layout för klassen (saknas = huvudlayouten). */
+const layout = z.object({ id: z.string().min(1).max(64), name: z.string().min(1).max(200) }).strict();
 
 export const mapReserveSchema = z.object({ kind: z.enum(["PERCENT", "COUNT"]), value: z.number().int().min(0).max(1000) }).strict();
 export const mapPrintListSchema = z.enum(["BUNDLE", "BACKS"]);
@@ -28,7 +30,7 @@ const itemSchema = z.discriminatedUnion("kind", [
 
 export const mapBundleGroupSchema = z.object({
   courseName: name, variantCode: variant, items: z.array(itemSchema).max(20_000),
-  runnerCount: count, vacancyCount: count, reserveCount: count, printCount: count
+  runnerCount: count, vacancyCount: count, reserveCount: count, printCount: count, layout: layout.optional()
 }).strict();
 
 export const mapBundleRowSchema = z.object({
@@ -42,7 +44,7 @@ export const mapPrintChangeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("VARIANT"), name, className: name, from: variant, to: variant }).strict(),
   z.object({ kind: z.literal("CLASS"), name, from: name, to: name, variantCode: variant }).strict(),
   z.object({ kind: z.literal("START_TIME"), name, className: name, from: instant.nullable(), to: instant.nullable() }).strict(),
-  z.object({ kind: z.literal("COUNT"), courseName: name, variantCode: variant, from: count, to: count }).strict(),
+  z.object({ kind: z.literal("COUNT"), courseName: name, variantCode: variant, from: count, to: count, layout: name.optional() }).strict(),
   z.object({ kind: z.literal("NUMBERS"), count }).strict()
 ]);
 
@@ -50,7 +52,7 @@ export const mapPrintChangeSchema = z.discriminatedUnion("kind", [
 export const printedMapStateSchema = z.object({
   rows: z.array(z.object({ entryId: uuid, number, name, className: name, courseName: name, variantCode: variant,
     startTime: instant.nullable() }).strict()).max(20_000),
-  counts: z.array(z.object({ courseName: name, variantCode: variant, printCount: count }).strict()).max(20_000)
+  counts: z.array(z.object({ courseName: name, variantCode: variant, printCount: count, layout: name.optional() }).strict()).max(20_000)
 }).strict();
 
 const printSchema = z.object({ printedAt: instant, changes: z.array(mapPrintChangeSchema).max(40_000) }).strict();
@@ -63,7 +65,7 @@ export const mapBundleResponseSchema = z.object({
   stateHash: z.string().regex(/^[a-f0-9]{64}$/),
   /** En rad per klass; stafett: en per sträcka (`leg`) med sträckans varianter. */
   classes: z.array(z.object({ classId: uuid, name, courseName: name, variantCodes: z.array(courseVariantCodeSchema).max(100),
-    startMode: mapStartModeSchema, leg: leg.optional() }).strict()).max(1000),
+    startMode: mapStartModeSchema, leg: leg.optional(), layout: layout.optional() }).strict()).max(1000),
   groups: z.array(mapBundleGroupSchema).max(20_000),
   rows: z.array(mapBundleRowSchema).max(20_000),
   missingVariant: z.array(z.object({ entryId: uuid, name, className: name, team: team.optional(), leg: leg.optional() }).strict()).max(20_000),

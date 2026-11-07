@@ -116,6 +116,19 @@ export class MapFileCache {
   }
 }
 
+/**
+ * Kartfilen för en sida som vet filens sha256 (ur banläggningens tillstånd): ur lagret, annars en hämtning per sha256 med
+ * sha256 i adressen (`fetchFile(sha256)`, som webbläsarens HTTP-cache också får spara), som banläggningen gör. Utan känd
+ * sha256 hämtas filen som förut, utan cache (städrundan 2026-11-07: Utskrift, Layout och Kartfel).
+ */
+export async function cachedMapFile(cache: MapFileCache, sha256: string | undefined,
+  fetchFile: (sha256: string | undefined) => Promise<CachedMapFile>, signal?: AbortSignal): Promise<CachedMapFile> {
+  if (!sha256 || !SHA256.test(sha256)) return fetchFile(undefined);
+  const cached = await cache.read(sha256);
+  if (cached) return cached;
+  return cache.fetchOnce(sha256, () => fetchFile(sha256), { signal });
+}
+
 const DB_NAME = "otid-map-cache";
 
 function request<T>(value: IDBRequest<T>): Promise<T> {

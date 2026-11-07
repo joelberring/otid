@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { MapFileCache, type CachedMapFile, type MapCacheBackend, type MapCacheMeta } from "./map-file-cache";
+import { cachedMapFile, MapFileCache, type CachedMapFile, type MapCacheBackend, type MapCacheMeta } from "./map-file-cache";
 
 function memoryBackend() {
   const files = new Map<string, CachedMapFile>();
@@ -101,5 +101,27 @@ describe("kartfilerna i webbläsaren per sha256 (ADR-0218)", () => {
     release();
     await again;
     expect(fetchFile).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("städrundan 2026-11-07: Utskrift, Layout och Kartfel hämtar kartfilen som banläggningen", () => {
+  it("med känd sha256 en gång (adressen med sha256), sedan ur lagret; utan sha256 som förut, varje gång", async () => {
+    const { backend } = memoryBackend();
+    const cache = new MapFileCache(() => backend);
+    const one = file(2000, 7);
+    const fetched: (string | undefined)[] = [];
+    const fetchFile = async (sha256: string | undefined) => { fetched.push(sha256); return { bytes: one.bytes.slice(0), fileName: one.fileName }; };
+    // Förhandsvisningen och kartfelssidan samtidigt: en hämtning.
+    const [a, b] = await Promise.all([cachedMapFile(cache, one.sha256, fetchFile), cachedMapFile(cache, one.sha256, fetchFile)]);
+    expect(a.fileName).toBe(one.fileName);
+    expect(b.bytes.byteLength).toBe(2000);
+    await vi.waitFor(async () => expect(await cache.read(one.sha256)).toBeDefined());
+    const again = await cachedMapFile(cache, one.sha256, fetchFile);
+    expect([...new Uint8Array(again.bytes)]).toEqual([...new Uint8Array(one.bytes)]);
+    expect(fetched).toEqual([one.sha256]);
+    // Utan sha256 (kartritaren utan banläggning, eller en sida som inte vet den): utan cache, som förut.
+    await cachedMapFile(cache, undefined, fetchFile);
+    await cachedMapFile(cache, "inte-en-sha", fetchFile);
+    expect(fetched).toEqual([one.sha256, undefined, undefined]);
   });
 });

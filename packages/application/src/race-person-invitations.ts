@@ -59,7 +59,7 @@ export async function acceptRacePersonInvitations(tx: DbExecutor, accountId: str
     const [invitation] = await tx.update(invitations).set({ acceptedAt: now, acceptedAccountId: accountId })
       .where(and(eq(invitations.id, id), open)).returning();
     if (!invitation) continue;
-    const role = invitation.role as RaceInvitationRole;
+    const role = invitation.role;
     const existing = await covered(tx, { accountId, eventId: invitation.eventId, raceId: invitation.raceId, role });
     let grantId = existing;
     if (!existing && isCourseRole(role)) {

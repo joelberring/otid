@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { normalizeAccountEmail } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
@@ -49,6 +49,21 @@ export async function accountHasKnownPassword(tx: DbExecutor, accountId: string)
   return !link || verifier.createdAt.getTime() !== link.linkedAt.getTime();
 }
 
+/**
+ * Den enda funktionen som kopplar ett Google-konto (`sub`) till ett konto: inloggningen, Koppla Google-konto, flytten och
+ * superadmins kommando. Ett konto har en koppling; en ny ersätter den gamla. `linkedAt` står kvar för en befintlig rad, eftersom
+ * den visar om kontots lösenord är det slumpade från kopplingen (`accountHasKnownPassword`). `lastLoginAt` sätts vid inloggning
+ * och nollas när ett annat Google-konto ersätter kopplingen (den gällde det förra).
+ */
+export async function attachGoogleIdentity(tx: DbExecutor, input: { accountId: string; sub: string; googleEmail: string | null; now: Date;
+  login: boolean }): Promise<void> {
+  const identities = schema.userAccountGoogleIdentities;
+  const lastLoginAt = input.login ? input.now : null;
+  await tx.insert(identities).values({ accountId: input.accountId, googleSub: input.sub, linkedAt: input.now, lastLoginAt, googleEmail: input.googleEmail })
+    .onConflictDoUpdate({ target: identities.accountId, set: { googleSub: input.sub, googleEmail: input.googleEmail,
+      lastLoginAt: input.login ? input.now : sql`case when ${identities.googleSub} = excluded.google_sub then ${identities.lastLoginAt} end` } });
+}
+
 /** Ett lösenord som ingen känner till: tidigare lösenord och sessioner slutar gälla. */
 async function rotateToRandomPassword(tx: DbExecutor, accountId: string, now: Date): Promise<void> {
   const current = await currentUserAccountVerifier(tx, accountId);
@@ -83,15 +98,8 @@ export async function signInWithGoogle(db: Database, identity: GoogleIdentity, o
       await consumeEmailVerificationTokens(tx, account!.id, now);
     }
     const accountId = account!.id;
-    if (link) {
-      // ADR-0205 tillägg: Googles adress följer med (den kan ha bytts hos Google, och rader från före migration 0082 saknar den).
-      await tx.update(identities).set({ lastLoginAt: now, googleEmail: email }).where(eq(identities.accountId, accountId));
-    } else {
-      // Ett konto har en koppling: ett nytt Google-konto med samma bekräftade adress ersätter den gamla. `linkedAt` står kvar,
-      // eftersom den visar om kontots lösenord är det slumpade från kopplingen (`accountHasKnownPassword`).
-      await tx.insert(identities).values({ accountId, googleSub: identity.sub, linkedAt: now, lastLoginAt: now, googleEmail: email })
-        .onConflictDoUpdate({ target: identities.accountId, set: { googleSub: identity.sub, lastLoginAt: now, googleEmail: email } });
-    }
+    // ADR-0205 tillägg: Googles adress följer med (den kan ha bytts hos Google, och rader från före migration 0082 saknar den).
+    await attachGoogleIdentity(tx, { accountId, sub: identity.sub, googleEmail: email, now, login: true });
     const [loggedIn] = await tx.update(schema.userAccounts).set({ lastLoginAt: now })
       .where(eq(schema.userAccounts.id, accountId)).returning();
     // ADR-0188 beslut 6: behörigheter sparade för adressen gäller när personen loggar in med en bekräftad adress.

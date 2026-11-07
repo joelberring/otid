@@ -4,7 +4,7 @@ import { ANY_UUID_PATTERN, normalizeAccountEmail } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import type { GoogleIdentity } from "./google-oidc";
-import { accountHasKnownPassword } from "./google-login";
+import { accountHasKnownPassword, attachGoogleIdentity } from "./google-login";
 import { deleteAccountWithOwnedEvents } from "./account-self-service";
 import { throttleSecret } from "./account-throttle";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin";
@@ -78,13 +78,6 @@ export async function accountUsage(tx: DbExecutor, accountId: string): Promise<{
 
 const isEmpty = (usage: Awaited<ReturnType<typeof accountUsage>>) => usage.rows === 0 && !usage.superadmin && !usage.blocked;
 
-/** Kopplar `sub` till kontot (ersätter kontots tidigare koppling; `linkedAt` står kvar för en befintlig rad). */
-async function attach(tx: DbExecutor, accountId: string, sub: string, googleEmail: string | null, now: Date): Promise<void> {
-  const identities = schema.userAccountGoogleIdentities;
-  await tx.insert(identities).values({ accountId, googleSub: sub, linkedAt: now, googleEmail })
-    .onConflictDoUpdate({ target: identities.accountId, set: { googleSub: sub, googleEmail } });
-}
-
 /** Den påbörjade flytten mellan återkomsten från Google och bekräftelsen, signerad med serverns hemlighet (HttpOnly-kaka). */
 export interface GoogleMovePending {
   sub: string;
@@ -153,7 +146,7 @@ export async function linkGoogleToAccount(db: Database, input: { proof: UserAcco
     const identities = schema.userAccountGoogleIdentities;
     const [link] = await tx.select().from(identities).where(eq(identities.googleSub, identity.sub)).for("update");
     if (!link || link.accountId === accountId) {
-      await attach(tx, accountId, identity.sub, googleEmail, now);
+      await attachGoogleIdentity(tx, { accountId, sub: identity.sub, googleEmail, now, login: false });
       return { status: "linked", googleEmail } as const;
     }
     const usage = await accountUsage(tx, link.accountId);
@@ -219,7 +212,7 @@ export async function moveGoogleLinkToAccount(db: Database, input: { proof: User
     } else if (!check.details.recentLogin) return { status: "login-again" } as const;
     const sourceId = input.pending.sourceAccountId;
     await tx.delete(schema.userAccountGoogleIdentities).where(eq(schema.userAccountGoogleIdentities.accountId, sourceId));
-    await attach(tx, check.accountId, input.pending.sub, input.pending.googleEmail, now);
+    await attachGoogleIdentity(tx, { accountId: check.accountId, sub: input.pending.sub, googleEmail: input.pending.googleEmail, now, login: false });
     await deleteAccountWithOwnedEvents(tx, sourceId, now);
     await logAction(tx, { actorAccountId: check.accountId, actorLabel: check.accountEmail, action: "DELETE_ACCOUNT", targetType: "ACCOUNT",
       targetId: sourceId, targetLabel: check.details.sourceEmail,
@@ -288,7 +281,7 @@ export async function moveGoogleLinkByCommand(db: Database, input: { source: str
     // Före migration 0082 saknas Googles adress; ett konto som Google skapade har Googles adress.
     const googleEmail = link.googleEmail ?? (await accountHasKnownPassword(tx, source.id) ? null : source.email);
     await tx.delete(identities).where(eq(identities.accountId, source.id));
-    await attach(tx, target.id, link.googleSub, googleEmail, now);
+    await attachGoogleIdentity(tx, { accountId: target.id, sub: link.googleSub, googleEmail, now, login: false });
     const sourceDeleted = input.deleteSourceIfEmpty && isEmpty(usage);
     if (sourceDeleted) {
       await deleteAccountWithOwnedEvents(tx, source.id, now);

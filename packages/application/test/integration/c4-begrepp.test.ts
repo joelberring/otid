@@ -9,6 +9,8 @@ import { addGroupMember, createTrainingGroup } from "../../src/training-groups";
 import { requireRaceRole } from "../../src/race-session";
 import { requireCourseSettingAccess } from "../../src/course-setting-access";
 import { acceptAllInvitations } from "../../src/account-arrival";
+import { signInWithGoogle } from "../../src/google-login";
+import { moveGoogleLinkByCommand } from "../../src/google-link";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -85,5 +87,28 @@ describe("C4: en acceptansväg för inbjudningar", () => {
     expect(await db.transaction(tx => acceptAllInvitations(tx, person.accountId, NOW))).toBe(2);
     expect(await openClub()).toEqual(NOW);
     expect(await openGroup()).toEqual(NOW);
+  });
+});
+
+describe("C4: en funktion kopplar Google-kontot", () => {
+  it("inloggningen och flytten skriver samma kolumner; senaste inloggningen följer inte med till ett annat Google-konto", async () => {
+    const tag = randomUUID().slice(0, 8);
+    const first = { sub: `sub-a-${tag}`, email: `a.${tag}@gmail.example`, emailVerified: true, name: "Anna" };
+    const second = { sub: `sub-b-${tag}`, email: `b.${tag}@gmail.example`, emailVerified: true, name: "Anna B" };
+    const T1 = new Date(NOW.getTime() + 60_000);
+    const T2 = new Date(NOW.getTime() + 120_000);
+    const a = await signInWithGoogle(db, first, { now: NOW });
+    const b = await signInWithGoogle(db, second, { now: T1 });
+    if (a.status !== "authenticated" || b.status !== "authenticated") throw new Error("Ingen inloggning");
+    const row = async () => (await db.select().from(schema.userAccountGoogleIdentities)
+      .where(eq(schema.userAccountGoogleIdentities.accountId, a.response.accountId)))[0];
+    expect(await row()).toMatchObject({ googleSub: first.sub, googleEmail: first.email, linkedAt: NOW, lastLoginAt: NOW });
+    expect(await moveGoogleLinkByCommand(db, { source: second.email, target: first.email, deleteSourceIfEmpty: false }, T2))
+      .toMatchObject({ status: "moved", replacedTargetLink: true });
+    // Kopplingen är nu det andra Google-kontot: linkedAt står kvar, senaste inloggningen gällde det förra.
+    expect(await row()).toMatchObject({ googleSub: second.sub, googleEmail: second.email, linkedAt: NOW, lastLoginAt: null });
+    const again = await signInWithGoogle(db, second, { now: T2 });
+    expect(again.status === "authenticated" && again.response.accountId).toBe(a.response.accountId);
+    expect(await row()).toMatchObject({ googleSub: second.sub, lastLoginAt: T2 });
   });
 });

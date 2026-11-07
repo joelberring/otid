@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Layout fas 3: papperet bara i Layout (grenen b3-layout-fas3, ADR-0217, ingen migration)
+- Papperets redigering flyttad från utskriftssidan till Layout-fliken (`LayoutSheets`): banor, baksidan per löpare, kartbytets delar, översikt, papper och kartram, Kartor per ark, papperets element, beskrivningen. Utskrift har bara vad, antal, färger och PDF/skrivare, och visar arken utan redigering.
+- "Papper och kartram" i en annan layout än huvudlayouten visar layoutens skala och "Ändra i layouten".
+- Sträckavbrott per layout: `PrintLayout.legGaps`, edit `SET_LAYOUT_LEG_GAPS`, rader i "Justera för 1:…"; "Ta bort justeringar" tar dem också.
+- `paperUndoFor` behåller `part` vid ångra av SET_PAPER_LAYOUT och DELETE_PAPER_TEMPLATE (test `course-setting-paper-undo.test.ts`).
+- Specarna pappersrum, utskrift-omtag, kartbyte, hittbarhet, löparkartor, utskrift och layout arbetar i Layout-fliken; hjälpen ändrad och hjälpknapp i Layout.
 ### 2026-11-07 – Död kod bort och knip i CI (grenen c1-dod-kod, ingen migration)
 - Gamla versionsscheman (resultOutcomeV1–V8, storedResult*V4/V6, publicResult*V1–V6, V9-alias) bort; gällande namn kvar. `publicResultListResponseSchema` är format 7.
 - Oanvända exporter, konstanter och ~150 exporterade typer bort; `distributeRelayVariants` och `encodeCaptureWalNdjson` flyttade till testerna.

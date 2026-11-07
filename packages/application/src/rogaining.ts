@@ -18,7 +18,8 @@ import { UUID_PATTERN as uuid } from "./serialization";
  * Rogaining (ADR-0170 beslut 5, PLAN.md steg 15): kontrollernas poäng och klassernas tidsgräns och straff.
  * Poängen hör till kontrollkoden i hela tävlingen (NULL = förvalet). Före sparande prövas de avlästa löparna i
  * berörda klasser med resultatmotorn; ändras någons status eller summa visas beskedet och arrangören bekräftar.
- * Sparandet räknar om berörda resultat med nya revisioner i samma transaktion (som Redigera bana).
+ * Sparandet räknar om berörda resultat med nya revisioner i samma transaktion (som Redigera bana). Har tävlingen en
+ * banläggning sätts poängen där (städrundan C4); här ändras då bara tidsgräns och straff.
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Executor = Database | Transaction;
@@ -37,8 +38,18 @@ export async function loadRogainingSetup(tx: Executor, raceId: string, codes: re
   return {
     controls: unique.map(code => ({ code, points: points.get(code) ?? defaultRogainingPoints(code), defaultPoints: defaultRogainingPoints(code) })),
     classes: classes.map(row => ({ classId: row.id, rules: row.limit === null || row.penalty === null ? null
-      : { timeLimitMinutes: Math.round(row.limit / 60), penaltyPoints: row.penalty } }))
+      : { timeLimitMinutes: Math.round(row.limit / 60), penaltyPoints: row.penalty } })),
+    ...(await hasCourseSetting(tx, raceId) ? { pointsInCourseSetting: true } : {})
   };
+}
+
+/**
+ * Städrundan C4: med en banläggning sätts poängen där och följer med "Överför till tävlingen" (`course-file-diff.ts`), som
+ * annars skulle skriva över en ändring här. Tävlingssidan tar då inte emot ändrade poäng.
+ */
+async function hasCourseSetting(tx: Executor, raceId: string): Promise<boolean> {
+  const [row] = await tx.select({ raceId: schema.courseSettings.raceId }).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
+  return row !== undefined;
 }
 
 type Change = {
@@ -50,7 +61,10 @@ type Change = {
   classes: { id: string; name: string; courseVersionId: string }[];
 };
 
-/** Tolkar ändringen mot det som är sparat. Ger undefined om en kod eller klass inte finns, eller om inget ändras. */
+/**
+ * Tolkar ändringen mot det som är sparat. Ger undefined om en kod eller klass inte finns, om inget ändras, eller om poängen ändras
+ * fast tävlingen har en banläggning (där sätts de).
+ */
 async function planChange(tx: Transaction, raceId: string, intent: Pick<RogainingChangePreviewRequest, "controlPoints" | "classRules">,
   snapshot: RaceSnapshot): Promise<Change | undefined> {
   const codes = intent.controlPoints.map(row => row.code);
@@ -76,6 +90,7 @@ async function planChange(tx: Transaction, raceId: string, intent: Pick<Rogainin
     }
   }
   if (points.size === 0 && rules.size === 0) return undefined;
+  if (points.size > 0 && await hasCourseSetting(tx, raceId)) return undefined;
   const codesByVersion = new Map(snapshot.courses.flatMap(course => course.versions.map(version =>
     [version.id, new Set(version.controls.map(control => control.controlCode))] as const)));
   const classes = snapshot.classes.filter(raceClass => rules.has(raceClass.id) ||

@@ -8,6 +8,8 @@ import { registerUserAccount } from "../../src/user-account";
 import { applySyncAsAdmin } from "../../src/source-sync";
 import { importCourseSettingAsAdmin, previewCourseSettingTransferAsAdmin, saveCourseSettingAsAdmin } from "../../src/course-setting";
 import { loadRaceSnapshot } from "../../src/snapshot";
+import { listCoursesForEditAsAdmin } from "../../src/course-edit";
+import { previewRogainingChangeAsAdmin } from "../../src/rogaining";
 import { accountOnRace } from "./accounts";
 
 /**
@@ -106,6 +108,36 @@ describe("rogaining: poängen ur banläggningen", () => {
       ["33", { field: "POINTS", from: "8", to: "3" }], ["37", { field: "POINTS", from: "3", to: "12" }]]);
     await apply(proof, second.snapshotId);
     expect(await storedPoints(proof.raceId)).toEqual({ 33: null, 35: null, 37: 12 });
+  });
+
+  it("städrundan C4: med en banläggning sätts poängen bara där; tävlingssidan tar inte emot ändrade poäng", { timeout: 120_000 }, async () => {
+    const proof = await race("ROGAINING");
+    const pointsSource = async () => {
+      const listed = await listCoursesForEditAsAdmin(db, proof);
+      if (listed.status !== "ok") throw new Error(listed.status);
+      return listed.response.rogaining;
+    };
+    const previewPoints = async (code: number, points: number) => (await previewRogainingChangeAsAdmin(db, { ...proof,
+      request: { formatVersion: 1, controlPoints: [{ code, points }], classRules: [] } })).status;
+    // Utan banläggning: inget märke.
+    expect((await pointsSource()).pointsInCourseSetting).toBeUndefined();
+
+    const { document, ppen } = await scoreDocument();
+    expect((await importCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion: 0, document,
+      fileName: "kartfil.ppen", ppen } })).status).toBe("ok");
+    await apply(proof, (await preview(proof, 1)).snapshotId);
+    const setup = await pointsSource();
+    expect(setup.pointsInCourseSetting).toBe(true);
+    expect(setup.controls.find(control => control.code === 33)?.points).toBe(8);
+    // En ändring här skulle skrivas över vid nästa överföring: den vägras.
+    expect(await previewPoints(33, 5)).toBe("invalid-request");
+    expect(await storedPoints(proof.raceId)).toEqual({ 33: 8, 35: null, 37: null });
+    // Tidsgräns och straff ändras som förut.
+    const classId = setup.classes[0]?.classId;
+    if (classId) {
+      expect((await previewRogainingChangeAsAdmin(db, { ...proof, request: { formatVersion: 1, controlPoints: [],
+        classRules: [{ classId, timeLimitMinutes: 60, penaltyPoints: 2 }] } })).status).toBe("ok");
+    }
   });
 
   it("i en vanlig tävling följer inga poäng med", { timeout: 120_000 }, async () => {

@@ -23,6 +23,8 @@ export const rogainingSv = {
   notRogaining: "Bedöms som vanlig bana tills tidsgränsen är sparad.",
   controlsTitle: "Poäng per kontroll",
   controlLabel: (code: number) => `Poäng för kontroll ${code}`,
+  pointsInCourseSetting: "Poängen sätts i banläggningen. Ändra dem där och använd Överför till tävlingen.",
+  openCourseSetting: "Öppna banläggningen",
   changed: (defaultPoints: number) => `ändrad, förval ${defaultPoints}`,
   preview: "Visa vad som händer",
   save: "Spara poäng och tidsgräns",

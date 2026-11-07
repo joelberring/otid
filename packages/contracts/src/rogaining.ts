@@ -55,7 +55,12 @@ export const rogainingScoreSchema = z.object({
 export const rogainingSetupSchema = z.object({
   controls: z.array(z.object({ code: controlCode, points: rogainingPointsSchema, defaultPoints: rogainingPointsSchema }).strict())
     .max(1_000),
-  classes: z.array(z.object({ classId: uuid, rules: rogainingClassRulesInputSchema.nullable() }).strict()).max(1_000)
+  classes: z.array(z.object({ classId: uuid, rules: rogainingClassRulesInputSchema.nullable() }).strict()).max(1_000),
+  /**
+   * Städrundan C4: tävlingen har en banläggning, så poängen sätts där ("Överför till tävlingen" skriver över tävlingens). Fälten
+   * på tävlingssidan är då skrivskyddade och servern tar inte emot ändrade poäng; tidsgräns och straff ändras som förut.
+   */
+  pointsInCourseSetting: z.boolean().optional()
 }).strict();
 
 const unique = <T>(values: readonly T[]) => new Set(values).size === values.length;

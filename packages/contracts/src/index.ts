@@ -134,18 +134,6 @@ export const deviceBatchSchema = z.object({
   }
 });
 
-export const evaluationStatusSchema = z.enum(["OK", "OVERTIME", "MP", "UNKNOWN_CARD"]);
-export const evaluationReasonSchema = z.enum([
-  "COMPLETE",
-  "UNKNOWN_CARD",
-  "MISSING_START",
-  "MISSING_FINISH",
-  "MISSING_CONTROL",
-  "WRONG_ORDER",
-  "INVALID_TIME_ORDER",
-  "MAX_TIME_EXCEEDED"
-]);
-
 const serverResultVersionFields = {
   engineVersion: z.string().trim().min(1),
   snapshotVersion: z.number().int().positive(),

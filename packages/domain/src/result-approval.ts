@@ -1,8 +1,6 @@
 import type { EvaluationResult, ManuallyApprovedResult, SplitTime } from "./types";
 import { UUID_PATTERN as CANONICAL_UUID } from "./types";
 
-export const MANUAL_RESULT_APPROVAL_POLICY_VERSION = "manual-result-approval-v1";
-
 export type ManuallyApprovableResult = EvaluationResult & {
   readonly status: "MP";
   readonly reason: "MISSING_CONTROL" | "WRONG_ORDER";

@@ -15,8 +15,6 @@ export const HEADER = {
 export const SYMBOL_BLOCK_SIZE = 4 + 256 * 4;
 export const OBJECT_BLOCK_SIZE = 4 + 256 * 40;
 
-/** Objektindexets post (40 byte). */
-export const INDEX_ENTRY = { size: 40, position: 16, length: 20, symbol: 24, type: 28, status: 30 } as const;
 /** Objektets status i indexet. Bara 1 (normal) räknas; 2 är dolt och 0/3 borttaget. */
 export const STATUS_NORMAL = 1;
 
@@ -57,8 +55,6 @@ export const TEXT = { fontName: 796, fontNameCapacity: 31, color: 828, fontSize:
 
 export const RECTANGLE = { color: 796, width: 798 } as const;
 
-/** Objekt (version 12): huvud på 56 byte, koordinater och sedan text i UTF-16. */
-export const OBJECT = { symbol: 0, type: 4, angle: 6, color: 8, lineWidth: 12, coordCount: 44, textCount: 48, coords: 56 } as const;
 export const OBJECT_TYPE = { point: 1, line: 2, area: 3, text: 4, formattedText: 5, lineText: 6, rectangle: 7 } as const;
 
 /**

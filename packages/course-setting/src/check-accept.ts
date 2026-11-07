@@ -17,9 +17,6 @@ export const ACCEPT_MOVE_METERS = 25;
 /** Högst så många godtagna varningar i dokumentet. */
 export const ACCEPTED_CHECKS_MAX = 5000;
 
-const LEVEL_ORDER: Record<CheckLevel, number> = { ERROR: 0, WARNING: 1, NOTICE: 2 };
-export const compareLevels = (a: CheckLevel, b: CheckLevel) => LEVEL_ORDER[a] - LEVEL_ORDER[b];
-
 /**
  * Fel: det blir fel vid tävlingen (dubbla koder, kod saknas, start eller mål saknas, kontrollen går inte att nå lagligt).
  * Varning: troligen fel, men kan vara meningen. Notis: att känna till; räknas inte i fliken.

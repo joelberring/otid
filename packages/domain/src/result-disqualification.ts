@@ -1,7 +1,5 @@
 import type { DisqualifiedResult, EvaluationResult } from "./types";
 
-export const MANUAL_DISQUALIFICATION_POLICY_VERSION = "manual-disqualification-v1";
-
 export type DisqualifiableResult = EvaluationResult & {
   readonly status: "OK" | "OVERTIME" | "MP";
   readonly entryId: string;

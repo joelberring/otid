@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
-  courseLegPairs, distributeRelayVariants, evaluateCardReadout, fairRelayCombinations, planRelayTeamVariants, rankRelayTeams,
+  courseLegPairs, evaluateCardReadout, fairRelayCombinations, planRelayTeamVariants, rankRelayTeams,
   relayClassLegStarts, relayLegRuleProblem, relaySeedOf, relayTeamResult, unfairRelayTeams, withProposedCourseVersion,
-  type RaceSnapshot, type RelayLegCourse, type RelayLegRule, type RelayTeamChangeovers
+  type RaceSnapshot, type RelayForkingMode, type RelayLegCourse, type RelayLegRule, type RelayTeamChangeovers
 } from "../src";
+
+/** Hela klassens fördelning för `teamCount` lag, lag för lag (samma som efteranmälan i tur och ordning). */
+function distributeRelayVariants(input: { readonly seed: number; readonly legs: readonly RelayLegCourse[];
+  readonly teamCount: number; readonly mode: RelayForkingMode }): Map<number, string>[] {
+  const teams: Map<number, string>[] = [];
+  for (let index = 0; index < input.teamCount; index += 1) {
+    teams.push(planRelayTeamVariants({ seed: input.seed, legs: input.legs, existing: teams, mode: input.mode }));
+  }
+  return teams;
+}
 
 /** Steg 47: bana per sträcka, omstart (fast och flygande), placering med omstart och rättvis gafflad stafett. */
 const at = (clock: string) => `2026-10-08T${clock}.000Z`;

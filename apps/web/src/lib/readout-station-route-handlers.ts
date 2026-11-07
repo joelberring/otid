@@ -22,8 +22,8 @@ import { isDatabaseUnavailable, logServerError } from "./server-error-log";
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
 /** Steg 57: placeringen till kvittot ur de cachade listorna (inläst först här, så att testerna inte behöver cachen). */
 async function placeReadouts(db: Database, raceId: string, acknowledgement: DeviceBatchAcknowledgement): Promise<DeviceBatchAcknowledgement> {
-  const lists = await import("./public-race-data");
-  return withPlacements(db, raceId, acknowledgement, { results: lists.latestStaffResults, relay: lists.latestRelayResults });
+  const { latestStaffResults, latestRelayResults } = await import("./public-race-data");
+  return withPlacements(db, raceId, acknowledgement, { results: latestStaffResults, relay: latestRelayResults });
 }
 
 const services = { authenticate: requireRaceRole, readPackage: readReadoutPackageAsAdmin,

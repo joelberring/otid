@@ -15,7 +15,7 @@
  */
 import type { Point } from "@o-tid/map-file";
 import { courseViewForExport } from "./description-format";
-import { sortedCourses } from "./course-properties";
+import { scorePoints, sortedCourses } from "./course-properties";
 import type { ControlKind, Course, CourseSettingDocument, MapRect } from "./types";
 import { excludedVariantCodes } from "./summary";
 import { enumerateCourseControls, variations } from "./walk";
@@ -178,7 +178,8 @@ function writeCourse(w: Writer, document: CourseSettingDocument, course: Course,
       if (!score && view.ordinal > 0) w.text("MapText", String(view.ordinal));
       if (!score && control.kind !== "START") { w.text("LegLength", String(roundHalfEven(Math.fround(distance)))); distance = 0; }
       if (score && control.kind === "NORMAL") {
-        const points = view.courseControl !== undefined ? document.courseControls[view.courseControl]?.points ?? 0 : 0;
+        // Banläggarens poäng eller förvalet ur koden (samma som O-Tid visar och räknar), annars får MeOS/OLA en poänglös bana.
+        const points = view.courseControl !== undefined ? scorePoints(document, view.courseControl) : 0;
         if (points > 0) w.text("Score", String(points));
       }
       w.close("CourseControl");

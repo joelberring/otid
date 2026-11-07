@@ -1,16 +1,18 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { schema } from "@o-tid/database";
+import { ACCOUNT_REQUEST_THROTTLE_SCOPES, schema, type AccountRequestThrottleScope } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 
 /**
  * Spärr mot upprepade försök (ADR-0172 beslut 1): registreringar per IP och återställningsförfrågningar per
  * IP och e-post, räknade i ett fast fönster om en timme. Nyckeln lagras bara som HMAC med en serverhemlighet (steg 46),
  * så att en adress inte kan räknas fram ur databasen eller en backup. Rader äldre än två dygn tas bort vid nästa skrivning.
+ *
+ * Städrundan 2026-11-07 (C5, migration 0087): vilka scope som finns står bara i `ACCOUNT_REQUEST_THROTTLE_SCOPES` (databasens
+ * schema i Drizzle); databasen kräver bara formen. Ett nytt scope läggs till där, utan migration.
  */
-export type AccountThrottleScope = "REGISTER_IP" | "RESET_IP" | "RESET_EMAIL" | "SELF_REGISTRATION_IP" | "SELF_REGISTRATION_RACE" | "VERIFY_EMAIL"
-  | "GROUP_CODE_IP" | "MAP_LINK_IP" | "MAP_LINK_TOKEN" | "INVITATION_RECIPIENT_HOUR" | "INVITATION_RECIPIENT_DAY" | "INVITATION_ISSUER_HOUR"
-  | "INVITATION_ISSUER_DAY";
+export type AccountThrottleScope = AccountRequestThrottleScope;
+export const ACCOUNT_THROTTLE_SCOPES: readonly AccountThrottleScope[] = ACCOUNT_REQUEST_THROTTLE_SCOPES;
 export const ACCOUNT_THROTTLE_WINDOW_MS = 60 * 60 * 1000;
 export const DEFAULT_REGISTRATIONS_PER_HOUR = 10;
 export const RESET_REQUESTS_PER_IP_AND_HOUR = 10;
@@ -39,6 +41,8 @@ export function throttleHmac(text: string, secret: string | Buffer = throttleSec
 }
 
 export function throttleKeyHash(scope: AccountThrottleScope, key: string, secret?: string | Buffer): string {
+  // Typen räcker inte när scopet kommer från en sträng i körningen; databasen fångar bara fel form (migration 0087).
+  if (!ACCOUNT_THROTTLE_SCOPES.includes(scope)) throw new Error(`Okänt scope för spärren: ${String(scope)}`);
   return throttleHmac(`${scope}\u0000${key}`, secret);
 }
 

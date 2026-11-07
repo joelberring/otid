@@ -48,7 +48,11 @@ export const trainingGroupInvitations = pgTable("training_group_invitation", {
   groupId: uuid("group_id").notNull().references(() => trainingGroups.id),
   email: text("email").notNull(),
   role: text("role").$type<TrainingGroupMemberRole>().notNull(),
-  actorAccountId: uuid("actor_account_id").notNull().references(() => userAccounts.id),
+  /**
+   * Ledaren som bjöd in. Utan främmande nyckel sedan migration 0087 (K4, som klubbens inbjudan): borttagningen av ett konto följer
+   * nycklarna och tog annars bort inbjudningar som kontot skickat till andra. Kan alltså peka på ett konto som inte finns.
+   */
+  actorAccountId: uuid("actor_account_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),

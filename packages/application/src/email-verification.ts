@@ -41,15 +41,14 @@ export async function accountEmailVerified(tx: DbExecutor, accountId: string): P
 }
 
 /**
- * Ny bekräftelselänk. Bara hashen av nyckeln sparas. Lösenordets verifierare sparas med länken som förut (kolumnerna är
- * NOT NULL), men används inte längre vid bekräftelsen (ADR-0205).
+ * Ny bekräftelselänk. Bara hashen av nyckeln sparas. Lösenordets verifierare sparas inte längre med länken (migration 0087,
+ * kolumnerna är nullbara): den användes inte vid bekräftelsen sedan ADR-0205.
  */
-async function createVerificationToken(tx: DbExecutor, accountId: string, verifier: { saltHex: string; verifierHex: string }, now: Date,
+async function createVerificationToken(tx: DbExecutor, accountId: string, now: Date,
   displayName: string | null = null): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_LIFETIME_MS);
-  await tx.insert(schema.emailVerificationTokens).values({ accountId, tokenHash: sha256(token), saltHex: verifier.saltHex,
-    verifierHex: verifier.verifierHex, createdAt: now, expiresAt, displayName });
+  await tx.insert(schema.emailVerificationTokens).values({ accountId, tokenHash: sha256(token), createdAt: now, expiresAt, displayName });
   return { token, expiresAt };
 }
 
@@ -102,20 +101,19 @@ export async function registerUserAccountWithVerification(db: Database, request:
       // `created_at` skyddas av databasen (kontots identitet) och står kvar.
       await tx.update(schema.userAccounts).set({ displayName }).where(eq(schema.userAccounts.id, accountId));
     }
-    const { token, expiresAt } = await createVerificationToken(tx, accountId, verifier, now, displayName);
+    const { token, expiresAt } = await createVerificationToken(tx, accountId, now, displayName);
     return { status: "accepted", delivery: { kind: "VERIFY", email, displayName, token, expiresAt } } as const;
   });
 }
 
 /**
  * Inloggning på ett obekräftat konto med rätt lösenord när e-post är inställd: ingen inloggning (samma svar som fel lösenord,
- * se `loginUserAccount`), men en ny länk med kontots nuvarande lösenord skickas, så att ett konto från före e-posten kan
- * bekräftas.
+ * se `loginUserAccount`), men en ny länk skickas, så att ett konto från före e-posten kan bekräftas.
  */
 export async function verificationForUnverifiedLogin(tx: DbExecutor, account: { id: string; email: string; displayName: string },
-  verifier: { saltHex: string; verifierHex: string }, now: Date): Promise<EmailVerificationDelivery | undefined> {
+  now: Date): Promise<EmailVerificationDelivery | undefined> {
   if (!await verificationMailAllowed(tx, account.email, now)) return undefined;
-  const { token, expiresAt } = await createVerificationToken(tx, account.id, verifier, now);
+  const { token, expiresAt } = await createVerificationToken(tx, account.id, now);
   return { kind: "VERIFY", email: account.email, displayName: account.displayName, token, expiresAt };
 }
 

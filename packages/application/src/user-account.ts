@@ -322,7 +322,7 @@ export async function loginUserAccount(
     if (account.blockedAt) return { status: "blocked" } as const;
     // ADR-0186: samma svar som fel lösenord, så att registreringen inte avslöjar om adressen fanns; länken kommer med e-post.
     if (options.requireVerifiedEmail && !account.emailVerifiedAt) {
-      const verification = await verificationForUnverifiedLogin(tx, account, verifier, now);
+      const verification = await verificationForUnverifiedLogin(tx, account, now);
       return verification ? { status: "unauthorized", verification } as const : { status: "unauthorized" } as const;
     }
     await tx.update(schema.userAccounts).set({ lastLoginAt: now }).where(eq(schema.userAccounts.id, account.id));

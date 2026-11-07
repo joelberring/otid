@@ -50,6 +50,9 @@ som går att räkna fram vid registreringen.
    ingen få någon annans adress bekräftad med sitt lösenord). Glömt lösenord gör också arbetet efter svaret. Utan e-post
    loggar registreringen in direkt som förut, men adressen är obekräftad tills superadmin bekräftar den
    (`node superadmin.mjs verify <e-post>`) eller lösenordet byts med en återställningslänk.
+   Ändrat 2026-11-07 (städrundan C5, migration 0087): bekräftelselänken sparar inte längre registreringens lösenordsverifierare
+   (`email_verification_token.salt_hex`/`verifier_hex`, nullbara); den lästes inte sedan ADR-0205. Kolumnerna tas bort i en senare
+   driftsättning (steg 2).
 
 ## Följder
 

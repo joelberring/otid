@@ -23,6 +23,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Utskrift: alla ark i en layout, klasser, provark (ett av varje) och antal (anmälda + reserver eller eget); B2:s färgdel orörd.
 - Verifierat: enhetstester (course-setting, domain, contracts, application, web-lib), integration `adr-0217-layout-kartbuntar`, E2E `banlaggning-layout`.
 - Återstår: papperets redigering finns kvar också på utskriftssidan (specarna pappersrum, utskrift-omtag, kartbyte, hittbarhet, löparkartor och utskrift använder den; baksidan per löpare och kartbytets delmål finns bara där). Sträckavbrott per layout.
+### 2026-11-07 – Städrundan C5: databasen, säkrare migrationer och schema (grenen c5-databas, migration 0087, ändringsmeningar i ADR-0186 och ADR-0189)
+- Spärrens scope räknas inte längre upp i ett CHECK (skrevs om sex gånger): listan står i `ACCOUNT_REQUEST_THROTTLE_SCOPES` (schema/accounts.ts), `throttleKeyHash` vägrar andra, databasen kräver bara formen. Klubbens roller behåller sitt CHECK (ändrat en gång, sluten lista).
+- K4: `training_group_invitation.actor_account_id` utan främmande nyckel; ett borttaget konto tar inte med sig gruppinbjudningar till andra.
+- Bekräftelselänken skriver inte `salt_hex`/`verifier_hex` (nullbara, steg 1). Steg 2 (DROP COLUMN) under Idéer.
+- `club_map_merge`/`club_map_duplicate_dismissal` får inga nycklar (målet kan gå upp i en senare sammanslagning och komma tillbaka; `purgeRows` skulle radera klubbens historik via `user_account`); skälet i schema/clubs.ts och ett test.
+- Nya tester: `schemadrift.test.ts` (Drizzle mot `information_schema` efter alla migrationer, undantagslista), `c5-databas.test.ts`, kedjad sammanslagning i `adr-0210`. migrations/README.md: journalens ordning är körordningen, nya sist, undantaget i 0079 stängt.
+
 ### 2026-11-07 – Serverrapport, larm, mindre säkerhetskopior, belastningstest (grenen b4-serverrapport, ADR-0216, migration 0085)
 - Veckorapport söndag kl. 19 och larm (disk, kartkvot, backup, hälsokontroll, minne; högst ett per sort och dygn, "löst" när det gått över) till superadmin via mail.ts, från `web` (`lib/server-watch-runner.ts`, `application/server-report.ts` + `server-status.ts`). Tabellerna `server_sample`, `server_notice`, `server_notice_log`. `node superadmin.mjs server-report` visar rapporten.
 - `monitor.sh` skriver `./status/monitor.log`, `backup.sh` `./backups/.backup-status`; `web` monterar `./backups` och `./status` skrivskyddat (compose). Inget nytt i `.env` krävs.
@@ -1199,6 +1206,9 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Tvåstegsregelns steg 2 för migration 0087 (städrundan C5), i en driftsättning efter den med 0087: `ALTER TABLE email_verification_token
+  DROP COLUMN salt_hex, DROP COLUMN verifier_hex` (och kolumnerna ur schema/accounts.ts). Ingen kod läser eller skriver dem sedan 0087.
 
 - Steg 54: en utläsning i 25-manna gör 84 databasfrågor i följd (individuell 38); under last väntar varje fråga på
   processorn. Färre frågor (lagets sträckor, starter och resultat i en fråga) skulle ge snabbare kvitto vid täta växlingar.

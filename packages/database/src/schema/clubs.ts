@@ -182,7 +182,10 @@ export const clubArchiveEntryThumbnails = pgTable("club_archive_entry_thumbnail"
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 });
 
-/** ADR-0210: "Inte samma karta" för ett par (map_a < map_b). */
+/**
+ * ADR-0210: "Inte samma karta" för ett par (map_a < map_b). Kartorna och `created_by` har medvetet inga främmande nycklar (se
+ * `clubMapMerges`).
+ */
 export const clubMapDuplicateDismissals = pgTable("club_map_duplicate_dismissal", {
   clubId: uuid("club_id").notNull().references(() => clubs.id),
   mapA: uuid("map_a").notNull(),
@@ -198,7 +201,16 @@ export interface ClubMapMergeAbsorbed {
   readonly groupMapIds: readonly string[];
 }
 
-/** ADR-0210: en sammanslagning, så att den går att ångra tills något annat ändrar kartan. */
+/**
+ * ADR-0210: en sammanslagning, så att den går att ångra tills något annat ändrar kartan.
+ *
+ * Medvetet utan främmande nycklar på `target_map_id`, `created_by` och `undone_by` (prövat i städrundan 2026-11-07, C5):
+ * - Målet kan självt gå upp i en senare sammanslagning och tas bort; när den ångras kommer det tillbaka med samma id och
+ *   historiken (och ångra) ska gälla igen. En nyckel skulle stoppa den senare sammanslagningen, eller med ON DELETE CASCADE
+ *   radera historiken.
+ * - `purgeRows` följer nycklarna: en nyckel till `user_account` skulle låta borttagningen av ett konto radera klubbens
+ *   sammanslagningar (samma fel som K4). Aktören läses inte; historiken visar inte vem.
+ */
 export const clubMapMerges = pgTable("club_map_merge", {
   id: uuid("id").primaryKey(),
   clubId: uuid("club_id").notNull().references(() => clubs.id),

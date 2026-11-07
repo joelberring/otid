@@ -4,6 +4,7 @@ import * as schema from "./schema";
 
 export type { Pool, PoolClient } from "pg";
 export type { ClubCourseFileSummary, ClubMapMergeAbsorbed } from "./schema/clubs";
+export { ACCOUNT_REQUEST_THROTTLE_SCOPES, type AccountRequestThrottleScope } from "./schema/accounts";
 
 export type Database = ReturnType<typeof createDatabase>["db"];
 

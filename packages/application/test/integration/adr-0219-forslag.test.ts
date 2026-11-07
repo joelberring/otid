@@ -247,7 +247,8 @@ describe("ADR-0219 K1: arbetssätt, förslag och delområden", () => {
     const order = list.status === "ok" ? list.list.proposals.map(row => row.status) : [];
     expect([order[0], [...order.slice(1)].sort()]).toEqual(["OPEN", ["ACCEPTED", "REJECTED", "WITHDRAWN"]]);
     expect(list.status === "ok" && list.list.proposals[0]).toMatchObject({ proposalId: open.status === "created" && open.proposal.proposalId,
-      author: { accountId: s.editor2.accountId, name: expect.any(String) } });
+      author: { accountId: s.editor2.accountId } });
+    expect(list.status === "ok" && typeof list.list.proposals[0]!.author.name).toBe("string");
     // Ett avslutat projekt tar inte emot godkännanden.
     expect((await updateMapProject(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, status: "CLOSED" } }, NOW)).status).toBe("ok");
     expect((await decide(s.owner.proof, list.status === "ok" ? list.list.proposals[0]!.proposalId : "", "ACCEPT")).status).toBe("conflict");

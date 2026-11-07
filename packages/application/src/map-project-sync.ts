@@ -66,7 +66,7 @@ export async function syncMapProject(db: Database, input: ClubProof & { projectI
     const earlier = await proposedEditIds(tx, project.id, ids);
     const role = access.role as EditRole;
     const areas = role === "EDIT" ? await workAreas(tx, project.id) : [];
-    const current = role === "EDIT" ? await currentObjects(tx, project.id, valid.map(edit => edit.key)) : new Map();
+    const current = role === "EDIT" ? await currentObjects(tx, project.id, valid.map(edit => edit.key)) : new Map<string, { state: unknown }>();
     const direct: RevisionEdit[] = [], proposed: RevisionEdit[] = [];
     const proposedKeys = new Set<string>();
     for (const edit of valid) {

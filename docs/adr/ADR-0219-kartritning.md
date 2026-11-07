@@ -63,3 +63,29 @@ inte med ägarens beslut att inloggningen ska fungera som i resten av O-Tid. Äg
    klubbjournal; ändringsloggen och medlemslistan finns kvar.
 5. Underhållet tar inte innehåll som ett resultat i ett projekt använder (`sweepMapContent`).
 
+
+## Tillägg 2026-11-07 (natt): arbetssätt, förslag och delområden (steg K1, migration 0091)
+
+Ägarens beslut, som samarbetet i banläggningen (steg 66): ett kartprojekt har två arbetssätt och personer kan få delområden.
+
+1. **Arbetssätt** (`map_project.mode`, null = Gemensamt): *Gemensamt* (`SHARED`) – alla med Ändra ritar direkt; *Huvudkartritare*
+   (`LEAD`) – ägarna ritar direkt, andras ändringar blir förslag. Ägarna byter arbetssätt (`PUT` på projektet med `mode`).
+2. **Rollen Föreslå** (`SUGGEST`, rangordning Läsa < Föreslå < Ändra < Ägare): ritar, men allt blir förslag. Ingen migration
+   (rollerna bestäms i koden, beslut 2). Inbjudningar med Föreslå fungerar som de andra.
+3. **Delområden** (`map_project_area`): polygon i kartans mm med y uppåt (1–20 ringar, 3–2000 punkter), status underlag, grundritat,
+   rekat, klart. Ägarna skapar, ändrar och tar bort; den som fått området ändrar dess status. I det egna området ritar man direkt,
+   i någon annans blir ändringen ett förslag. Den som fått området har ingen främmande nyckel och nollställs i koden när personen
+   tas bort ur projektet eller kontot tas bort (som avsändarna i 0088).
+4. **Direkt eller förslag avgörs bara på servern** med `editRoute` i map-revision: ägare alltid direkt, Föreslå aldrig, Ändra i
+   Gemensamt direkt utom i någon annans område, Ändra i Huvudkartritare direkt bara i ett eget område. Platsen är objektets punkter
+   i det nya läget och i serverns nuvarande läge (en punkt i ett område räcker); för en borttagning av ett objekt som servern bara
+   har i grundfilen används ändringens valfria `point` (fältet `at` var redan tiden). En klient kan ljuga om `point` när den tar
+   bort ett grundfilsobjekt. Det godtas: ingenting når originalet utan att en ägare skriver en ny version (beslut 5), och loggen
+   visar vem som gjorde vad.
+5. **Förslag** (`map_project_proposal` och `map_project_proposal_edit`): en grupp ändringar med en kort anteckning, källa `PERSON`
+   eller `AI` (K2; AI lämnar bara förslag, beslut 8). Synken samlar ändringarna som inte får göras direkt i ett förslag per anrop
+   (utfallet `PROPOSED` med `proposalId`; samma ändring igen ger samma förslag) och svarar med kontots öppna förslag
+   (`openProposals`), så att klienten kan ta bort avgjorda ur sin lista. Förslag kan också skapas uttryckligen. Ägarna godkänner
+   (ändringarna görs genom samma väg som synken, var och en gjord eller krock) eller avvisar; den som föreslog kan dra tillbaka.
+   Loggen har den som föreslog som författare och den som godkände i `map_project_edit.accepted_by` (med `proposal_id`).
+   Förslag från en person som tagits bort står kvar.

@@ -105,9 +105,10 @@ export async function updateMapProjectArea(db: Database, input: ClubProof & { pr
     const [row] = await tx.select().from(areas).where(where).for("update");
     if (!row) return { status: "not-found" } as const;
     if (!parsed.success || (parsed.data.polygon && areaPolygonProblem(parsed.data.polygon))) return { status: "invalid-request" } as const;
-    const { formatVersion: _version, ...change } = parsed.data;
+    const { name, polygon, assigneeAccountId, status, sort } = parsed.data;
+    const change = { name, polygon, assigneeAccountId, status, sort };
     const owner = mapProjectAllows(access.role, access.project, "manage");
-    const onlyStatus = Object.keys(change).every(key => key === "status");
+    const onlyStatus = Object.entries(change).every(([key, value]) => key === "status" || value === undefined);
     const assignee = row.assigneeAccountId === access.accountId && mapProjectAllows(access.role, access.project, "propose");
     if (!owner && !(assignee && onlyStatus)) return { status: "forbidden" } as const;
     if (change.assigneeAccountId && !await isMember(tx, access.project.id, change.assigneeAccountId)) return { status: "invalid-request" } as const;

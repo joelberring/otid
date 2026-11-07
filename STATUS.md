@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Dela upp för stora filer (grenen c3-dela-filer, C3, ingen funktionsändring, ingen migration)
+- Schema: `planning.ts` (620 r.) → `planning.ts` 283 + `course-setting.ts` 159 + `print.ts` 71 + `map-content.ts` 110; samma exporter ur `schema.ts`. Gemensam `bytea` i `schema/types.ts` (C2 använder samma `bytea` från `./types` i clubs/party).
+- Banläggning: `types.ts` (652) → `document-types` 342, `edit-types` 162, `check-types` 79, `overprint-types` 83 (`types.ts` återexporterar). `paper-items.ts` (779) → `paper-items` 455 (modell, kontroll, arv), `paper-text` 96 (variablerna), `paper-sheet` 236 (arket, klippningen).
+- IOF: `export-result-list.ts` (798) → 122 + `result-list-types` 176, `-xml` 148, `-person` 329, `-team` 43. Fastställande: `result-finalization-basis.ts` (746) → 456 + `result-finalization-load` 164 (läsningen) + `-projection` 158 (frusen projektion, metadata).
+- Web: `entry-actions.ts` (538, 24 useState) → 47 + `entry-card-actions` 257, `entry-class-actions` 108, `entry-identity-actions` 78, `entry-registration-actions` 115. Avläsningen `readout/app.tsx` (856) → 398 + `use-station` 140, `use-readout-queue` 148, `use-readout-registration` 42, `use-current-verdict` 37, `use-readout-sound` 39, `verdict-panel.tsx` 150.
+- Adminroutes: `allowedMethods` (47 villkor) är en tabell per åtgärd; samma svar för alla 141 åtgärder (jämfört med den gamla funktionen). Tjänsteobjektet i `race-administrator-route-context.ts` (249 r.) är kvar: testerna ersätter tjänster i det och en uppdelning per ruttgrupp ger importcykler.
+- Banläggningens editor (811 efter B5) → 776 + `use-suggestion-review.ts` 55. `course-setting-print-page.tsx` (371) orörd.
+- Verifierat: lint/typecheck/test i berörda paket, schemadrift, fastställandets integrationstester, race-roles, E2E avlasaren, avlasning-ko, fest, lopardatabas och banlaggning-samarbete lokalt; knip.
+
 ### 2026-11-07 – Stora kartor laddar snabbare (grenen b5-stora-kartor, ADR-0218, ingen migration)
 - Mätt med en syntetisk skogskarta (50 000 objekt, 11 MB OCAD): tolkningen 0,2–0,35 s, att läsa en tolkad karta ur IndexedDB 0,4–1 s (därför ingen sådan cache), hämtningen och ritningen dominerar. Siffror före/efter i ADR-0218.
 - Kartfilen sparas i webbläsaren per sha256 (IndexedDB `otid-map-cache`, tre filer, töms vid utloggning); andra öppningen hämtar inget. `map/source/<sha256>` ger `private, max-age=86400, immutable`, ETag och `Vary: Cookie`; 304 efter behörigheten.

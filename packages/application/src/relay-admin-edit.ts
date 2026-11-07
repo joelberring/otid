@@ -82,25 +82,36 @@ async function recalculateChanged(tx: Transaction, input: { raceId: string; clas
   return { preview, recalculated: rows.length };
 }
 
-/** Varianterna för sträckorna `legs` för varje lag i nummerordning (rättvis fördelning, övriga sträckor oförändrade). */
-async function replanLegVariants(tx: Transaction, config: RelayClassConfig, legs: ReadonlySet<number>): Promise<void> {
-  if (legs.size === 0) return;
+/**
+ * Varianterna för sträckorna `legs` för varje lag i nummerordning (rättvis fördelning, övriga sträckor oförändrade; en
+ * sträcka med fast variant ger den). Sträcklöpare vars variant byts får ny version, som "Fördela gafflingar". Ger de bytta.
+ */
+async function replanLegVariants(tx: Transaction, config: RelayClassConfig, legs: ReadonlySet<number>)
+  : Promise<{ entryId: string; leg: number; from: string | null; to: string | null }[]> {
+  if (legs.size === 0) return [];
   const courses = await loadRelayLegCourses(tx, config);
   const plans = await loadRelayTeamVariantPlans(tx, config.classId);
   const teams = await tx.select({ id: schema.teams.id }).from(schema.teams)
     .where(and(eq(schema.teams.classId, config.classId), isNull(schema.teams.struckAt))).orderBy(asc(schema.teams.number));
   const done: Map<number, string>[] = [];
+  const changed: { entryId: string; leg: number; from: string | null; to: string | null }[] = [];
   for (const team of teams) {
     const current = new Map([...(plans.get(team.id) ?? new Map<number, string>())].filter(([leg]) => !legs.has(leg)));
     const planned = planRelayTeamVariants({ seed: relaySeedOf(config.classId), legs: courses, existing: done, mode: config.forking });
     for (const leg of legs) {
       const code = planned.get(leg) ?? null;
       if (code !== null) current.set(leg, code);
-      await tx.update(schema.entries).set({ courseVariantCode: code })
-        .where(and(eq(schema.entries.teamId, team.id), eq(schema.entries.relayLeg, leg)));
+      const rows = await tx.select({ id: schema.entries.id, code: schema.entries.courseVariantCode, version: schema.entries.version })
+        .from(schema.entries).where(and(eq(schema.entries.teamId, team.id), eq(schema.entries.relayLeg, leg)));
+      for (const row of rows.filter(entry => entry.code !== code)) {
+        if (row.version >= MAX_VERSION) throw new Error("Deltagarens version är slut");
+        await tx.update(schema.entries).set({ courseVariantCode: code, version: row.version + 1 }).where(eq(schema.entries.id, row.id));
+        changed.push({ entryId: row.id, leg, from: row.code, to: code });
+      }
     }
     done.push(current);
   }
+  return changed;
 }
 
 export type RelayClassEditResult = Failure | Confirmation | LegHasResult | { status: "saved"; response: RelayClassEditResponse };
@@ -113,7 +124,7 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
   if (relayLegRuleProblem(relayLegRules(intent.legs))) return { status: "invalid-request" };
   try {
     return await mutate<RelayClassEditResponse, LegHasResult>(db, input, "CLASS_EDIT", intent,
-      value => relayClassEditResponseSchema.parse(value), now, async (tx, raceId, snapshotVersionAfter) => {
+      value => relayClassEditResponseSchema.parse(value), now, async (tx, raceId, snapshotVersionAfter, actorAccountId) => {
         const config = (await loadRelayClassConfigs(tx, raceId)).get(intent.classId);
         const [raceClass] = await tx.select({ id: schema.classes.id, name: schema.classes.name, courseVersionId: schema.classes.courseVersionId })
           .from(schema.classes).where(and(eq(schema.classes.id, intent.classId), eq(schema.classes.raceId, raceId)));
@@ -206,7 +217,15 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
           }
         }
         const updated = (await loadRelayClassConfigs(tx, raceId)).get(raceClass.id)!;
-        await replanLegVariants(tx, updated, replan);
+        // Ny bana eller fast variant på en sträcka: sträcklöparnas varianter skrivs om och journalförs (som "Fördela gafflingar").
+        const reassigned = await replanLegVariants(tx, updated, replan);
+        if (reassigned.length > 0) {
+          await tx.insert(schema.auditEvents).values({ raceId, entityType: "class", entityId: raceClass.id, requestId: intent.requestId,
+            actorKind: "USER_ACCOUNT", actorId: actorAccountId, action: "RELAY_LEG_VARIANTS_ASSIGNED_BY_ADMIN",
+            before: { variants: reassigned.map(row => ({ entryId: row.entryId, leg: row.leg, variantCode: row.from })) },
+            after: { variants: reassigned.map(row => ({ entryId: row.entryId, leg: row.leg, variantCode: row.to })), assignedCount: reassigned.length },
+            createdAt: now });
+        }
         await recomputeRelayStarts(tx, raceId, [raceClass.id]);
         const { preview, recalculated } = await recalculateChanged(tx, { raceId, classId: raceClass.id, className: intent.name, before,
           snapshotVersion: snapshotVersionAfter, confirm: intent.confirmResultChanges, addedLegs, removedLegs, removedRunners: removed.length });

@@ -100,7 +100,7 @@ describe("ADR-0187: säkerhetskopia och återställning", () => {
     expect(preview.preview).toMatchObject({ backupFormatVersion: 2, race: { eventName: "Steg 25", raceDate: RACE_DATE },
       counts: { classes: 2, entries: 5, cardReadouts: 4 }, eventorLinked: true, map: true, staleResults: 0 });
     expect(preview.preview.people.find(person => person.email === functionary.email)).toEqual({ email: functionary.email,
-      role: "FUNCTIONARY", hasAccount: true });
+      role: "FUNCTIONARY" });
     expect((await pool.query<{ n: number }>("select count(*)::int as n from race")).rows[0]!.n).toBe(before);
 
     // Kontot för en av administratörerna finns inte (som på en ny server).
@@ -377,6 +377,37 @@ describe("ADR-0187: säkerhetskopia och återställning", () => {
     expect((await restoreRaceBackup(db, { sessionToken: "fel", bytes: exported.bytes,
       options: { requestId: randomUUID(), people: "skip" } }, LATER)).status).toBe("unauthorized");
   });
+
+  it("en hemmagjord kopia avslöjar inte vilka adresser som har konto här (förhandsvisningen svarar likadant)", async () => {
+    const { admin } = await racePrepared();
+    const exported = await exportRaceAsAdmin(db, admin, LATER);
+    if (exported.status !== "ok") throw new Error(exported.status);
+    const zip = new ZipReader(exported.bytes, { maxEntries: 100, maxEntryBytes: () => 10_000_000, maxTotalBytes: 50_000_000, name: /./ });
+    const entries = [...zip.entries.keys()].map(name => ({ name, data: zip.extract(name)! }));
+    const manifest = JSON.parse(new TextDecoder().decode(entries.find(entry => entry.name === "manifest.json")!.data)) as Record<string, unknown>;
+    const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
+    // Kopian byggs för hand med en adress i personer.json och rätt kontrollsumma (filen är inte signerad).
+    const crafted = (email: string) => {
+      const people = json([{ ref: randomUUID(), email, eventRole: "ADMIN", courseSettingLevel: null }]);
+      return writeZip(entries.map(entry => entry.name === "personer.json" ? { name: entry.name, data: people }
+        : entry.name === "manifest.json" ? { name: entry.name, data: json({ ...manifest, people: { sha256: sha256Hex(people), bytes: people.byteLength } }) }
+          : entry));
+    };
+    const victim = await registerTestAccount(db, undefined, NOW);
+    const prober = await registerTestAccount(db, undefined, NOW);
+    const answer = async (email: string) => {
+      const preview = await previewRaceBackup(db, { ...prober.proof, bytes: crafted(email) }, LATER);
+      if (preview.status !== "ok") throw new Error(JSON.stringify(preview));
+      return preview.preview;
+    };
+    const known = await answer(victim.email);
+    const unknown = await answer(`ingen-${randomUUID()}@exempel.se`);
+    expect(known.people).toEqual([{ email: victim.email, role: "ADMIN" }]);
+    expect(JSON.stringify(known)).not.toContain("hasAccount");
+    // Samma svar för en adress med och utan konto, utom adressen själv och filens kontrollsumma och storlek.
+    const comparable = (preview: typeof known) => ({ ...preview, people: preview.people.map(person => ({ ...person, email: "" })), sha256: "", bytes: 0 });
+    expect(comparable(known)).toEqual(comparable(unknown));
+  }, 30_000);
 
   it("varje tabell med race_id är med eller uttryckligen utanför, i en ordning som följer de främmande nycklarna", async () => {
     const withRace = await pool.query<{ table_name: string }>(`select table_name from information_schema.columns

@@ -88,3 +88,9 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
 - Drift: `OTID_EVENTOR_API_KEY` (valfri, bara för `clubs refresh`) i `web`. Masternyckeln krävs för kopplingen och medlemslistan.
 - Matchningen hashar varje bekräftad adress vid en hämtning (en gång per klubb och dygn); det räcker för tusentals konton.
 - Grenen `inbjudan-mejl` skickar mejl i webbens anrop; när den är med skickas avsändaren också i `clubPickerRoute`.
+
+Ändrat 2026-11-07 (städrundan, grenen `a1-sakerhet`): (beslut 4) fritexter som liknar namnet visas bara i en klubbyta som är
+kopplad till Eventor med klubbens nyckel och jämförs bara med den kopplade klubbens namn, kortnamn och initialer, aldrig med
+klubbytans eget namn (som vem som helst väljer). (Beslut 5–6) Klubbytans medlemslista (`readClub`) har alla rader bara för ägare
+och administratörer; läsare och ledare får bara sin egen rad, och raderna har inget konto-id (`you` i stället). (Beslut 7)
+Säkerhetskopian av en tävling tar inte med adressen till den som bjöds in "Från klubben" (ADR-0187).

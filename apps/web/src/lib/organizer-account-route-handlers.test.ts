@@ -141,6 +141,25 @@ describe("TASK150 organizer account routes", () => {
     expect(loggedOut.headers.getSetCookie().join("\n")).toContain("Max-Age=0");
   });
 
+  it("loggar ut på servern också utan CSRF-kakan när Origin stämmer, men aldrig från en annan webbplats (städrundan 2026-11-07)", async () => {
+    const logout = vi.fn(async () => ({ status: "logged-out" as const })) as unknown as typeof logoutUserAccountSession;
+    const onlySession = `__Host-otid-organizer-session=${sessionToken}`;
+    const loggedOut = await organizerLogoutRoute(db, req("POST", undefined, { origin: prod.O_TID_PUBLIC_ORIGIN, cookie: onlySession },
+      "https://otid.example/api/organizer/logout"), logout, prod);
+    expect(loggedOut.status).toBe(204);
+    expect(loggedOut.headers.getSetCookie().join("\n")).toContain("Max-Age=0");
+    expect(logout).toHaveBeenCalledWith(db, expect.objectContaining({ sessionToken, requireCsrf: false }), undefined);
+    for (const origin of ["https://evil.example", "null"]) {
+      const refused = await organizerLogoutRoute(db, req("POST", undefined, { origin, cookie: onlySession },
+        "https://otid.example/api/organizer/logout"), logout, prod);
+      expect(refused.status).toBe(403);
+    }
+    const missingOrigin = await organizerLogoutRoute(db, req("POST", undefined, { cookie: onlySession }, "https://otid.example/api/organizer/logout"),
+      logout, prod);
+    expect(missingOrigin.status).toBe(403);
+    expect(logout).toHaveBeenCalledTimes(1);
+  });
+
 });
 
 describe("ADR-0172 inloggning med spärr", () => {

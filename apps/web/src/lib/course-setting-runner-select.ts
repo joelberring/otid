@@ -1,4 +1,5 @@
 import type { SheetItem } from "@o-tid/course-setting";
+import { toCsv } from "@o-tid/domain";
 import type { RunnerPrint, RunnerPrintProblem } from "./course-setting-runner-print";
 
 /**
@@ -121,10 +122,9 @@ export function sortCheckRows(rows: readonly CheckRow[], column: CheckColumn, de
     }).map(entry => entry.row);
 }
 
-/** CSV med semikolon (svensk Excel), rubrikerna och en rad per tabellrad; varningarna sist. */
+/** CSV för Excel (`toCsv`: BOM, semikolon, formelskydd), rubrikerna och en rad per tabellrad; varningarna sist. */
 export function checkRowsCsv(rows: readonly CheckRow[], header: readonly string[], warningText: (warning: CheckWarning) => string): string {
-  const cell = (value: string | number | null | undefined) => { const raw = value === undefined || value === null ? "" : String(value); return /[";\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw; };
-  return [header.map(cell).join(";"), ...rows.map(row => [...CHECK_COLUMNS.map(key => cell(row[key])), cell(row.warnings.map(warningText).join(", "))].join(";"))].join("\r\n") + "\r\n";
+  return toCsv(header, rows.map(row => [...CHECK_COLUMNS.map(key => row[key]), row.warnings.map(warningText).join(", ")]));
 }
 
 /**

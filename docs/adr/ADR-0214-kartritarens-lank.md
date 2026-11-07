@@ -49,6 +49,10 @@ ska kunna redigera texten.
    dokumentets ångra; historiken är versionerna. Ägare och administratörer tar fortfarande bort. Kartritarens svar med länken
    kan inte redigeras (det kräver något som binder svaret till webbläsaren; inte gjort).
 
+Ändrat 2026-11-07 (städrundan, grenen `a1-sakerhet`), beslut 4: svar med konto visas på sidan med rollen ("Banläggaren", eller
+"Kartritaren" för ett konto med behörigheten Kartritare) utan visningsnamn och utan tid; kartritarens svar med länken har kvar
+namnet hen skrev och tiden. "(ändrad …)" visas som förut (beslut 9).
+
 **Konsekvenser.** Migration 0083 bara med tillägg och lösare regler: tabellerna `course_setting_map_link` och
 `course_setting_note_edit`, kolumnerna ovan, `created_by` på svar får vara tom, svarets text får vara tom i ett besked, en klar
 notis kan vara klar av länken, och spärrens och journalens nya värden. Under driftsättningen kan en äldre instans inte läsa

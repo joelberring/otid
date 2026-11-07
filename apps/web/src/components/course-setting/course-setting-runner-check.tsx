@@ -20,7 +20,7 @@ export function RunnerCheckTable({ rows, onPreview, selected }: { rows: readonly
   const warned = rows.filter(row => row.warnings.length > 0).length;
   const csv = () => {
     const header = [...CHECK_COLUMNS.map(column => text.columns[column]), text.warningsColumn];
-    const blob = new Blob(["﻿", checkRowsCsv(shown, header, warning => text.warnings[warning])], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([checkRowsCsv(shown, header, warning => text.warnings[warning])], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement("a");
     link.href = url; link.download = `${text.csvFile}.csv`;

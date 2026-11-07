@@ -26,6 +26,9 @@ import { registerTestAccount } from "./accounts";
 import { markEmailVerifiedByCommand, registerUserAccountWithVerification } from "../../src/email-verification";
 import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
 import { signInWithGoogle } from "../../src/google-login";
+import { exportRaceAsAdmin } from "../../src/race-export";
+import { restoreRaceBackup } from "../../src/race-restore";
+import { readBackup } from "./backup";
 
 /**
  * ADR-0209 mot PostgreSQL: klubblistan, Mina klubbar, kopplingen med klubbens Eventor-nyckel (falsk Eventor via fetch-attrapp),
@@ -167,6 +170,32 @@ describe("ADR-0209: Mina klubbar och bekräftelser", { timeout: 60_000 }, () => 
 
     await db.transaction(tx => deleteAccountWithOwnedEvents(tx, runner.accountId, NOW));
     expect(await db.select().from(schema.accountClubMemberships).where(eq(schema.accountClubMemberships.accountId, runner.accountId))).toEqual([]);
+    await unlink();
+  });
+});
+
+describe("ADR-0209: fritexten bara i en kopplad klubbyta (städrundan 2026-11-07)", { timeout: 60_000 }, () => {
+  it("en klubbyta som inte är kopplad till Eventor ser ingen med liknande fritext, hur namnet än är valt", async () => {
+    const runner = await registerTestAccount(db, undefined, NOW);
+    await answerAccountClubStep(db, { ...runner.proof, request: { formatVersion: 1, organisationIds: [], freeText: "ok älvsjö-örby" } }, NOW);
+    for (const name of ["OK Älvsjö-Örby", "Älvsjö", "OKÄÖ"]) {
+      const { owner, clubId } = await space(name);
+      const view = await readClubAffiliation(db, { ...owner.proof, clubId }, NOW);
+      if (view.status !== "ok") throw new Error(view.status);
+      expect(view.view.pending, name).toEqual([]);
+      expect(JSON.stringify(view.view)).not.toContain(`Arrangör ${runner.email.split("@")[0]}`);
+      const [membership] = await db.select({ id: schema.accountClubMemberships.id }).from(schema.accountClubMemberships)
+        .where(eq(schema.accountClubMemberships.accountId, runner.accountId));
+      expect((await decideClubAffiliation(db, { ...owner.proof, clubId, request: { formatVersion: 1, membershipId: membership!.id,
+        decision: "CONFIRM" } }, NOW)).status).toBe("not-found");
+    }
+    // Den kopplade klubbytan (bevisad med klubbens nyckel) ser personen.
+    const { owner, clubId, unlink } = await linkedSpace({ emails: [] });
+    const view = await readClubAffiliation(db, { ...owner.proof, clubId }, NOW);
+    if (view.status !== "ok") throw new Error(view.status);
+    const row = view.view.pending.find(person => person.displayName === `Arrangör ${runner.email.split("@")[0]}`);
+    expect(row).toBeDefined();
+    await decideClubAffiliation(db, { ...owner.proof, clubId, request: { formatVersion: 1, membershipId: row!.membershipId, decision: "DECLINE" } }, NOW);
     await unlink();
   });
 });
@@ -442,7 +471,10 @@ describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
     const outsider = await registerTestAccount(db, undefined, NOW);
     await confirm(inviterAccount, owner, clubId, "OK Älvsjö-Örby");
     await confirm(clubmate, owner, clubId, "OKÄÖ");
-    await confirm(outsider, other.owner, other.clubId, "Mossbergets OK");
+    // Klubbytan "Mossbergets OK" är inte kopplad till Eventor: fritexten syns inte där (S3), så bekräftelsen görs i databasen.
+    await addAccountClub(db, { ...outsider.proof, request: { formatVersion: 1, organisationId: null, freeText: "Mossbergets OK" } }, NOW);
+    await db.update(schema.accountClubMemberships).set({ status: "CONFIRMED", clubId: other.clubId, confirmedVia: "MANUAL",
+      decidedBy: other.owner.accountId, decidedAt: NOW }).where(eq(schema.accountClubMemberships.accountId, outsider.accountId));
 
     const created = await createOrganizerEvent(db, { ...inviterAccount.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
       readBody: async () => ({ formatVersion: 1, eventName: "Klubbkväll", raceName: "", raceDate: "2026-11-20", timeZone: "Europe/Stockholm",
@@ -478,6 +510,18 @@ describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
     expect(JSON.stringify(after)).not.toContain(clubmate.email);
     if (after.status !== "ok") throw new Error(after.status);
     expect(after.response.people.find(person => person.accountId === clubmate.accountId)).toMatchObject({ role: "FUNCTIONARY", email: "", fromClub: true });
+    // Säkerhetskopian: personen följer med utan adress (rollen står kvar) och kopplas inte vid återställningen.
+    const exported = await exportRaceAsAdmin(db, { ...inviterAccount.proof, raceId }, NOW);
+    if (exported.status !== "ok") throw new Error(exported.status);
+    expect(Buffer.from(exported.bytes).includes(Buffer.from(clubmate.email))).toBe(false);
+    const backup = readBackup(exported.bytes);
+    expect(backup.people).toEqual(expect.arrayContaining([expect.objectContaining({ email: null, eventRole: "FUNCTIONARY" })]));
+    expect(JSON.stringify(backup.people)).not.toContain(clubmate.email);
+    const restored = await restoreRaceBackup(db, { ...inviterAccount.proof, bytes: exported.bytes, options: { requestId: randomUUID(), people: "link" } }, NOW);
+    if (restored.status !== "restored") throw new Error(JSON.stringify(restored));
+    expect(restored.response).toMatchObject({ linkedPeople: 0, missingPeople: [] });
+    const copied = await db.select().from(schema.eventAdministrationGrants).where(eq(schema.eventAdministrationGrants.accountId, clubmate.accountId));
+    expect(copied.map(row => row.eventId)).not.toContain(restored.response.eventId);
     // Igen: redan med. En person utanför listan: hela begäran avvisas.
     expect(await inviteFromClub(db, { ...inviterAccount.proof, request: { formatVersion: 1, requestId: randomUUID(), context, refs: [ref],
       role: "FUNCTIONARY" } }, NOW)).toMatchObject({ response: { invited: 0, already: 1 } });

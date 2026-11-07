@@ -65,3 +65,9 @@ journalerna för begäranden, festen), skrev binärdata i base64 i en enda JSON 
 - Avläsningsdatorns kö hör till den gamla tävlingens id och skickas aldrig till den återställda; avläsningssidan visar väntande
   avläsningar för en annan tävling med bricka och tid och kan ladda ner dem, och inget tas bort (`docs/drift.md`).
 - Kopian ersätter inte serverns backup: konton, behörigheternas historik och andra tävlingar finns bara där.
+
+Ändrat 2026-11-07 (städrundan, grenen `a1-sakerhet`): förhandsvisningen säger inte längre om en adress har konto här (fältet
+`hasAccount` borttaget), eftersom filen bara har sha256 och ingen serversignatur, så en hemmagjord kopia kunde fråga ut servern.
+En person med behörighet som bjöds in "Från klubben" följer med utan adress (`email: null`, ADR-0209 beslut 7) och kopplas aldrig
+vid återställningen; kopplingen görs per referens i kopian. (Själva återställningen med "Ge dem samma behörighet" säger
+fortfarande vilka adresser som saknar konto; se slutrapporten.)

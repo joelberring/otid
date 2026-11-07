@@ -16,6 +16,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - B11: krysset (förbjuden väg) spärrar så stort som det ritas (1,06 × figurskalan) i stället för fasta 1,5 kartans mm.
 - Väntar på A3: att en ny eller importerad bana inte får något förval för skalan (saknas = kartans skala) läggs på när ppen-write behåller `<options>` utan skala.
 - Verifierat: enhetstester (course-setting, application) och nya tester som fallerade före.
+### 2026-11-07 – Städrundan A1: säkerhet och personuppgifter (grenen a1-sakerhet, migration 0084, ingen ny ADR)
+- Säkerhetskopian: förhandsvisningen säger inte vilka adresser som har konto (hemmagjord zip var ett kontoorakel); personer "Från klubben" följer med utan adress och kopplas per referens (ADR-0187, ADR-0209).
+- Klubbytan: fritext som liknar namnet bara i en Eventor-kopplad klubbyta och mot klubbens namn; medlemslistan bara för ägare och admin, läsare och ledare ser sin egen rad, inget konto-id.
+- Inbjudningsmejlens spärr (mottagare och avsändare, timme och dygn) i `account_request_throttle`, så att en borttagen tävling inte nollställer den (ADR-0206, migration 0084).
+- Ny registrering av obekräftad adress: namnet skrivs över och länken minns sitt namn (`email_verification_token.display_name`, ADR-0205).
+- Kartritarsidan: svar med konto som "Banläggaren"/"Kartritaren" utan namn och tid (ADR-0214 beslut 4).
+- Utloggningen spärrar alltid sessionen på servern (exakt Origin räcker utan CSRF-kakan); "Du är utloggad" först efter svaret.
+- CSV: `toCsv`/`csvCell` i `@o-tid/domain` (BOM, `;`, formelskydd) också för festen och "Kontrollera kopplingen". Varning en gång om X-Forwarded-For saknas i https-drift; inbjudans `next` får inte börja med `//`.
+- Verifierat: lint och typecheck (per paket), enhetstester, integration (`aterstallning`, `adr-0186`, `adr-0194`, `adr-0206`, `adr-0209`, `adr-0214` utom ett test som fallerar också på main).
 ### 2026-11-07 – Städrundan A4: konton och klubbar (grenen a4-konto, ändringsmeningar i ADR-0205 och ADR-0209, ingen migration)
 - Koppla Google-konto: egna klubbsvar (utan `decided_by`) räknas som tomt konto, så en dubblett som svarat på klubbfrågan går att flytta; konto i bruk utan lösenord ger beskedet "Glömt lösenordet först" (`?google=upptaget-utan-losenord`).
 - Välj karta från klubbarkivet: bekräftade medlemmar ser klubbens kartor (samma medlemskap som övriga ställen), prövningen på en gång och utan sammanslagningshistorik.

@@ -203,8 +203,8 @@ export function MapLinkPage({ token, initial }: { token: string; initial: MapLin
               {error.replies.length > 0 && <ul className={styles.replies}>{error.replies.map(reply => <li key={reply.id} data-testid="map-link-reply">
                 <VerdictBadge verdict={reply.verdict} />
                 {reply.text && <span className={styles.text}>{reply.text}</span>} <EditedMark editedAt={reply.editedAt} />
-                <span className={styles.muted}> – {reply.mapMaker ? reply.author ?? text.mapMaker : reply.author ?? text.courseSetter},{" "}
-                  {mapLinkSv.time(reply.createdAt)}</span>
+                <span className={styles.muted}> – {reply.author ?? (reply.mapMaker ? text.mapMaker : text.courseSetter)}
+                  {reply.createdAt && <>, {mapLinkSv.time(reply.createdAt)}</>}</span>
               </li>)}</ul>}
               <form className={styles.form} onSubmit={event => {
                 event.preventDefault();

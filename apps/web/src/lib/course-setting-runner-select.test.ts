@@ -62,6 +62,9 @@ describe("Kontrollera kopplingen", () => {
     expect(sortCheckRows(rows, "page", false, "stafett", false).map(row => row.name)).toEqual(["Dan Berg", "Eva Sjö", "Fia Strand"]);
     expect(sortCheckRows(rows, "page", false, "", true).map(row => row.name)).toEqual(["Ada Ek", "Ledig", "Gun Ek", "Hans Holm"]);
     const csv = checkRowsCsv(rows.slice(0, 1), ["PDF-sida", "Nr", "Namn", "Klubb", "Klass", "Lag/Sträcka", "Bana", "Variant", "Starttid", "Varningar"], warning => warning);
-    expect(csv).toBe("PDF-sida;Nr;Namn;Klubb;Klass;Lag/Sträcka;Bana;Variant;Starttid;Varningar\r\n1;141;Ada Ek;OK Natt;H21;;Lång;AC;18:30;DUPLICATE_NUMBER\r\n");
+    expect(csv).toBe("\uFEFFPDF-sida;Nr;Namn;Klubb;Klass;Lag/Sträcka;Bana;Variant;Starttid;Varningar\r\n1;141;Ada Ek;OK Natt;H21;;Lång;AC;18:30;DUPLICATE_NUMBER\r\n");
+    // Städrundan 2026-11-07: namn från startlistan som Excel skulle läsa som formel får en apostrof först.
+    const evil = checkRowsCsv([{ ...rows[0]!, name: "=HYPERLINK(\"x\")", club: "@SUMMA" }], ["Namn"], warning => warning);
+    expect(evil).toContain(";\"'=HYPERLINK(\"\"x\"\")\";'@SUMMA;");
   });
 });

@@ -44,12 +44,12 @@ export async function accountEmailVerified(tx: DbExecutor, accountId: string): P
  * Ny bekräftelselänk. Bara hashen av nyckeln sparas. Lösenordets verifierare sparas med länken som förut (kolumnerna är
  * NOT NULL), men används inte längre vid bekräftelsen (ADR-0205).
  */
-async function createVerificationToken(tx: DbExecutor, accountId: string, verifier: { saltHex: string; verifierHex: string }, now: Date)
-  : Promise<{ token: string; expiresAt: Date }> {
+async function createVerificationToken(tx: DbExecutor, accountId: string, verifier: { saltHex: string; verifierHex: string }, now: Date,
+  displayName: string | null = null): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_LIFETIME_MS);
   await tx.insert(schema.emailVerificationTokens).values({ accountId, tokenHash: sha256(token), saltHex: verifier.saltHex,
-    verifierHex: verifier.verifierHex, createdAt: now, expiresAt });
+    verifierHex: verifier.verifierHex, createdAt: now, expiresAt, displayName });
   return { token, expiresAt };
 }
 
@@ -96,9 +96,14 @@ export async function registerUserAccountWithVerification(db: Database, request:
       accountId = options.accountId ?? randomUUID();
       await tx.insert(schema.userAccounts).values({ id: accountId, email, displayName, createdAt: now });
       await tx.insert(schema.userAccountPasswordVerifiers).values({ accountId, version: 1, algorithm: "scrypt-v1", ...verifier, createdAt: now });
+    } else if (existing && existing.displayName !== displayName) {
+      // Ett obekräftat konto: den senaste registreringen gäller, så att mejlet inte hälsar med namnet någon annan skrev in
+      // för adressen (städrundan 2026-11-07). Länken minns sitt namn, så den som öppnar en äldre länk får sitt eget namn.
+      // `created_at` skyddas av databasen (kontots identitet) och står kvar.
+      await tx.update(schema.userAccounts).set({ displayName }).where(eq(schema.userAccounts.id, accountId));
     }
-    const { token, expiresAt } = await createVerificationToken(tx, accountId, verifier, now);
-    return { status: "accepted", delivery: { kind: "VERIFY", email, displayName: existing?.displayName ?? displayName, token, expiresAt } } as const;
+    const { token, expiresAt } = await createVerificationToken(tx, accountId, verifier, now, displayName);
+    return { status: "accepted", delivery: { kind: "VERIFY", email, displayName, token, expiresAt } } as const;
   });
 }
 
@@ -164,7 +169,9 @@ export async function verifyEmailAndLogIn(db: Database, request: unknown, option
     const version = await appendUserAccountPasswordVerifier(tx, { accountId: account.id, password: parsed.data.password,
       previousVersion: current.version }, now, options.saltBytes);
     await revokeAllUserAccountSessions(tx, account.id, now, "EMAIL_VERIFIED");
-    const [verified] = await tx.update(schema.userAccounts).set({ emailVerifiedAt: now, lastLoginAt: now })
+    // Namnet från registreringen som skapade just den här länken (inte från någon annans registrering av adressen).
+    const [verified] = await tx.update(schema.userAccounts).set({ emailVerifiedAt: now, lastLoginAt: now,
+      ...(found.row.displayName ? { displayName: found.row.displayName } : {}) })
       .where(eq(schema.userAccounts.id, account.id)).returning();
     await consumeEmailVerificationTokens(tx, account.id, now);
     await clearUserAccountLoginThrottle(tx, account.email, now, options.clientKey);

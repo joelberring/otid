@@ -119,7 +119,15 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     const view = await readClub(db, { ...owner.proof, clubId }, NOW);
     if (view.status !== "ok") throw new Error("Ingen vy");
     expect(view.view.members.map(member => member.role).sort()).toEqual(["ADMIN", "OWNER", "READER"]);
+    expect(view.view.members.filter(member => member.you).map(member => member.role)).toEqual(["OWNER"]);
     expect(view.view.invitations).toHaveLength(1);
+    // ADR-0209 beslut 5–6: läsaren (och ledaren) får bara sin egen rad, utan konto-id och adresser.
+    const readerView = await readClub(db, { ...reader.proof, clubId }, NOW);
+    if (readerView.status !== "ok") throw new Error(readerView.status);
+    expect(readerView.view.members).toEqual([expect.objectContaining({ role: "READER", you: true, email: "" })]);
+    expect(JSON.stringify(readerView.view)).not.toContain(owner.accountId);
+    expect(JSON.stringify(readerView.view)).not.toContain(unverified.accountId);
+    expect(JSON.stringify(readerView.view.members)).not.toContain("accountId");
     // En administratör gör ingen till ägare; sista ägaren tas inte bort.
     const ownerMember = view.view.members.find(member => member.role === "OWNER")!;
     expect((await setClubMemberRole(db, { ...unverified.proof, clubId, request: { formatVersion: 1, memberId: ownerMember.memberId, role: "READER" } }, NOW))

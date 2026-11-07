@@ -17,6 +17,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - 82 oanvända i18n-nycklar och 18 CSS-modulklasser bort; `i18n/unused-keys.test.ts` kräver att varje toppnyckel används.
 - `pnpm lint:dead` (knip 5.60, `knip.json`) körs i CI-jobbet verify. Undantag med kommentar i `knip.json` (B2/B4-filer, pg, typsnitt).
 
+### 2026-11-07 – Förenklade färger för tryck (grenen b2-tryckfarger, ADR-0215, ingen migration)
+- Ny förvald profil "Kartans egna färger" (`map-own`): kartfilens färger i normens ordning utan att någon gör något. En tävling som valt en profil behåller den; en som aldrig valt får normens ordning i nästa PDF.
+- "Färger för tryck": en statusrad ("Färger: kartans egna, i normens ordning (32 färger, 3 över banan)") med "Visa", lägena "Kartans egna färger" och "Tryck hos BL". BL visar bara de tveksamma färgerna (ingen säker rad eller fel sida mot normen) och "Godta alla säkra".
+- Profilval, banans färg, färgordningen, BL:s hela lista, tabellen för hand, förhandskontrollen och JSON under "Avancerat" (stängt). Ett lagrat eget val visas som "Egna inställningar (Avancerat)".
+- Fliken Utskrift använder `COURSE_PRINT_SCALES` (också 1:3 000).
+- Verifierat: enhetstester (`course-setting-print-colors-mode.test.ts`, `course-setting-print-colors.test.tsx`), print-pdf-testerna oförändrade; E2E `banlaggning-pdf` (statusrad, Avancerat stängt, `map-own` i jobbet), `utskrift-bl` och `hittbarhet` väljer BL med radioknappen.
+
 ### 2026-11-07 – Saknad skala för banan är kartans, också i .ppen (grenen a6-tryckskala, ADR-0211 beslut 13)
 - En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.
 - Tester: `print-scale-default.test.ts` (ny bana, banfil, rundtripp med fixturen och med en annan skala); A3:s rundtripptest förväntar nu ingen skala efter återinläsning.

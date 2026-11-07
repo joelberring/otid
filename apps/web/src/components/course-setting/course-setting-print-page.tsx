@@ -5,7 +5,7 @@ import { AccountMenu } from "../account-menu";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
-  exchangeAfterPart, expandPartItems, printAreaOf, RUNNER_BACK, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, printSheetGroups, printVariants,
+  exchangeAfterPart, expandPartItems, printAreaOf, RUNNER_BACK, expandTrainingItems, isFlip, paperAnchorOf, BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, cmykToCss, descriptionSymbols, mapColorAdjust, MAP_OWN_PRINT_PROFILE_ID, printSheetGroups, printVariants,
   type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type LayoutTemplate, type MapColorAdjust, type MapRect, type PaperTemplate,
   type PaperRect, type Sheet, type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
@@ -222,10 +222,11 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   }, [standard]);
   const courses = useMemo(() => [...(document?.courses ?? [])].sort((a, b) => a.order - b.order), [document]);
 
-  // Utskriftsprofilen: vald här, annars tävlingens, annars "som i filen".
+  // Utskriftsprofilen: vald här, annars tävlingens, annars kartans egna färger i normens ordning (ADR-0215 beslut 1).
   const savedProfiles = useMemo(() => document?.event.printProfiles ?? [], [document]);
-  const activeProfileId = profileId ?? document?.event.printProfileId ?? BUILT_IN_PRINT_PROFILES[0]!.id;
-  const profile = [...BUILT_IN_PRINT_PROFILES, ...savedProfiles].find(item => item.id === activeProfileId) ?? BUILT_IN_PRINT_PROFILES[0]!;
+  const activeProfileId = profileId ?? document?.event.printProfileId ?? MAP_OWN_PRINT_PROFILE_ID;
+  const profile = [...BUILT_IN_PRINT_PROFILES, ...savedProfiles].find(item => item.id === activeProfileId)
+    ?? BUILT_IN_PRINT_PROFILES.find(item => item.id === MAP_OWN_PRINT_PROFILE_ID)!;
   const adjust = useMemo<Adjust>(() => mapColorAdjust(profile, colors), [profile, colors]);
   // Normens färgordning (ADR-0211 beslut 3): kartan under banan, banans undre lila, kartan över (multiplicerad), övre lila.
   const pressLayers = useMemo(() => pressLayersFor(profile, colors, usage, mapScale), [profile, colors, usage, mapScale]);
@@ -424,17 +425,19 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     paperPanel?.onCourse(id);
     setOpenKey(sheets.find(item => item.sheet.frames[0]?.course === id)?.key);
   };
+  const saveProfile = async (edits: CourseSettingEdit[]) => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; };
+  const blPanel = { profile, builtIn: BUILT_IN_PRINT_PROFILES, colors, usage, readOnly: !canEdit, frame: sheets[0]?.sheet.frames[0], symbols, render: renderImage,
+    norm: pressNorm, onSave: saveProfile };
   return <main className={styles.page}>
     <style>{pageStyles(sheets.map(item => item.sheet))}</style>
     <div className={styles.controls}>
       <div className={styles.topLine}>{back}<HelpButton view={["CS_PRINT_PAGE", "CS_PRINT", "COURSE_SETTING"]} /><AccountMenu /></div>
       <h1>{text.page.title}</h1>
-      {/* ADR-0211 beslut 6: färgprofilen som en kompakt rad; hela flödet medan profilen inte är godkänd. */}
+      {/* ADR-0215: färgerna som en statusrad med två lägen; hela flödet (ADR-0211 beslut 6) under Avancerat. */}
       <PrintColors saved={savedProfiles} profile={profile} colors={colors} usage={usage} norm={pressNorm} detectedNorm={pressNormOf({}, mapScale, usage)}
-        readOnly={!canEdit} onSelect={chooseProfile} onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }}
-        cards={profile.reference && hasMap ? <BlProposalPanel key={profile.basedOn ?? profile.id} profile={profile} builtIn={BUILT_IN_PRINT_PROFILES} colors={colors} usage={usage}
-          readOnly={!canEdit} frame={sheets[0]?.sheet.frames[0]} symbols={symbols} render={renderImage} norm={pressNorm}
-          onSave={async edits => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; }} /> : undefined} />
+        layers={pressLayers} readOnly={!canEdit} onSelect={chooseProfile} onSave={saveProfile}
+        cards={profile.reference && hasMap ? <BlProposalPanel key={profile.basedOn ?? profile.id} {...blPanel} /> : undefined}
+        doubtful={profile.reference && hasMap ? <BlProposalPanel key={`${profile.basedOn ?? profile.id}-tveksamma`} {...blPanel} variant="DOUBTFUL" /> : undefined} />
       {/* ADR-0211 beslut 7: vad som skrivs ut och de två sätten att skriva ut, bredvid varandra. */}
       <section className={styles.panel} aria-labelledby="print-output" data-testid="print-output">
         <h2 id="print-output">{outputText.heading} <HelpLink article="utskrift" view={["CS_PRINT_PAGE", "CS_PRINT"]} /></h2>

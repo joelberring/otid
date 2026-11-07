@@ -66,5 +66,10 @@ export const blProposalSv = {
   layerWrongSide: "fel sida",
   notes: "BL:s regler och upplysningar",
   interpretation: "O-Tid:s tolkning",
-  more: (count: number) => `och ${count} till`
+  more: (count: number) => `och ${count} till`,
+  /** ADR-0215 beslut 2: läget "Tryck hos BL" visar bara de tveksamma färgerna. */
+  doubtfulHeading: (count: number) => count === 0 ? "Inga tveksamma färger" : count === 1 ? "1 tveksam färg" : `${count} tveksamma färger`,
+  doubtfulIntro: (safe: number) => `${safe === 1 ? "1 färg passar" : `${safe} färger passar`} säkert med BL:s tabell; ”Godta alla säkra” godkänner dem. Här står bara färgerna som behöver ditt beslut: ingen säker rad i tabellen, eller osäkert om färgen ska ligga över eller under banan. Hela listan finns under ”Avancerat”.`,
+  doubtfulNone: "Alla kartans färger har en säker rad i BL:s tabell.",
+  doubtSide: "BL:s tabell lägger färgen på andra sidan banan än normen; O-Tid följer normen."
 } as const;

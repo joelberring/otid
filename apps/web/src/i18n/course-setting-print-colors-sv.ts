@@ -1,16 +1,37 @@
 /** ADR-0211 beslut 6: "Färger för tryck" på utskriftssidan (profil, norm, banans färg, förslaget och färgerna för hand). */
 export const printColorsSv = {
   heading: "Färger för tryck",
+  /** ADR-0215: statusraden, lägena och Avancerat. */
+  statusMapOwn: (total: number, over: number) => total === 0 ? "Färger: kartans egna, i normens ordning"
+    : `Färger: kartans egna, i normens ordning (${total} ${total === 1 ? "färg" : "färger"}, ${over} över banan)`,
+  statusBl: (family: "FOREST" | "SPRINT", pending: number, total: number) => `Färger: tryck hos BL (${family === "SPRINT" ? "sprint" : "skog"}), ${
+    total === 0 ? "kartan läses" : pending === 0 ? "alla godkända" : pending === 1 ? "1 färg kvar att godkänna" : `${pending} färger kvar att godkänna`}`,
+  statusCustom: (name: string) => `Färger: Egna inställningar (Avancerat) – ${name}`,
+  show: "Visa",
+  hide: "Dölj",
+  modeLabel: "Var trycks kartan?",
+  modeMapOwn: "Kartans egna färger",
+  modeBl: "Tryck hos BL",
+  modeHelp: {
+    MAP_OWN: "Kartfilens färger i normens färgordning. Inget att ställa in.",
+    BL: "BL:s färgtabell ger CMYK för kartans färger. Bara de tveksamma färgerna behöver ditt beslut.",
+    CUSTOM: "Tävlingen har egna färginställningar. De gäller tills du väljer ett av lägena ovan; de finns kvar under ”Avancerat”."
+  } as Record<"MAP_OWN" | "BL" | "CUSTOM", string>,
+  detailsNorm: (norm: string) => `Normen ur kartan: ${norm}.`,
+  detailsTop: "Banan ligger överst, som i Purple Pen.",
+  detailsCourse: (cmyk: string, spot: string) => `Banan: ${spot}, CMYK ${cmyk}.`,
+  detailsOver: "Över banan",
+  detailsUnder: "Under banan",
+  detailsNone: "inga",
+  advanced: "Avancerat",
+  advancedHelp: "Färgprofil, banans färg, färgordningen, BL:s hela lista och färgerna för hand. Kartfilen ändras aldrig.",
   profile: "Färgprofil",
   superseded: "äldre version",
   chipApproved: "Godkänd",
   chipPending: (count: number) => count === 0 ? "Inte godkänd" : count === 1 ? "1 färg att bekräfta" : `${count} färger att bekräfta`,
   chipPlain: "Som profilen anger",
-  edit: "Redigera färger",
-  close: "Stäng färgerna",
   newProfile: "Ny profil",
   newName: "Ny profil",
-  intro: "Här bestäms hur kartans och banans färger trycks: färgprofilen, normens färgordning, banans färg och kartans färger. Kartfilen ändras aldrig.",
   name: "Namn",
   courseHeading: "Banans färg",
   courseCmyk: "CMYK",

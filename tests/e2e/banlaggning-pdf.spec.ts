@@ -40,7 +40,23 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   await expect(panel.getByTestId("print-pdf-honesty")).toContainText("provtryck hos tryckeriet");
   await expect(panel.getByTestId("print-pdf-preflight")).toHaveAttribute("data-can-print", "yes", { timeout: 60_000 });
 
+  // ADR-0215: färgerna är en statusrad med förvalet "Kartans egna färger" (normens ordning, inget att ställa in) och
+  // "Avancerat" stängt; "Visa" fäller ut kartans färger över och under banan.
+  const colors = owner.getByTestId("print-profile");
+  await expect(colors.getByTestId("print-profile-status")).toHaveText(/^Färger: kartans egna, i normens ordning \(\d+ färger, \d+ över banan\)$/);
+  await expect(colors).toHaveAttribute("data-mode", "MAP_OWN");
+  await expect(colors.getByTestId("print-colors-mode-map")).toBeChecked();
+  await expect(colors.getByTestId("print-colors-advanced")).not.toHaveAttribute("open");
+  await expect(colors.getByTestId("print-profile-select")).toHaveCount(0);
+  await expect(colors.getByTestId("print-colors-details")).toHaveCount(0);
+  await colors.getByTestId("print-colors-show").click();
+  await expect(colors.getByTestId("print-colors-details")).toContainText("Normen ur kartan: Skog (ISOM).");
+  await expect(colors.getByTestId("print-colors-over")).toBeVisible();
+  await colors.getByTestId("print-colors-show").click();
+
+  const pressRequest = owner.waitForRequest(request => request.method() === "POST" && /\/print-jobs$/.test(request.url()));
   await panel.getByTestId("print-pdf-press").click();
+  expect((await pressRequest).postDataJSON()).toMatchObject({ kind: "PRESS", profileId: "map-own" });
   const job = panel.getByTestId("print-job").first();
   await expect(job).toHaveAttribute("data-kind", "PRESS");
   await expect(job).toHaveAttribute("data-status", "DONE", { timeout: 180_000 });
@@ -76,18 +92,18 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   expect(officePdf.startsWith("%PDF-")).toBe(true);
   expect(officePdf).not.toMatch(/\/Separation/);
 
-  // Normens färgordning (ADR-0211 beslut 3 och 11): numren i undre lila i skog som förval; förhandsvisningen multiplicerar
-  // kartans färger över banan och kontorsskrivarens PDF gör likadant (/BM /Multiply), så att den ser ut som trycket.
-  const colors = owner.getByTestId("print-profile");
+  // Normens färgordning (ADR-0211 beslut 3 och 11, förval enligt ADR-0215): numren i undre lila i skog; förhandsvisningen
+  // multiplicerar kartans färger över banan och kontorsskrivarens PDF gör likadant (/BM /Multiply), så att den ser ut som trycket.
+  // Under Avancerat står ordningen ikryssad utan att någon gjort något, och inget har sparats i tävlingen.
   await colors.getByTestId("print-colors-edit").click();
-  // Kryssrutan följer den sparade profilen (en färdig profil kopieras först), så den byter läge först när kopian är sparad.
-  await colors.getByTestId("bl-course-layer").click();
-  await expect(colors.getByTestId("bl-course-layer")).toBeChecked({ timeout: 15_000 });
+  await expect(colors).toHaveAttribute("data-open", "yes");
+  await expect(colors.getByTestId("bl-course-layer")).toBeChecked();
   await expect(colors.getByTestId("print-colors-numbers-top")).not.toBeChecked();
   await expect(colors.getByTestId("print-colors-order-help")).toContainText("Kurvorna korsar numren");
-  await expect.poll(async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as {
-    setting: { document: { event: { printProfiles?: { courseLayer?: string }[] } } } }).setting.document.event.printProfiles?.some(item => item.courseLayer === "REFERENCE"),
-  { timeout: 15_000 }).toBe(true);
+  const saved = ((await (await owner.request.get(`${admin}/course-setting`)).json()) as {
+    setting: { document: { event: { printProfileId?: string; printProfiles?: unknown[] } } } }).setting.document.event;
+  expect(saved.printProfileId).toBeUndefined();
+  expect(saved.printProfiles ?? []).toEqual([]);
   await expect(sheet.first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
   await expect(sheet.first().getByTestId("print-map-over").first()).toHaveCSS("mix-blend-mode", "multiply");
   const officeRequest = owner.waitForRequest(request => request.method() === "POST" && /\/print-jobs$/.test(request.url()));

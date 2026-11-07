@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Begrepp, namn och två sanningar (grenen c4-begrepp, C4, ingen migration, ingen ny ADR)
+- Ordlista i `docs/domain-rules.md` (tryckyta/utsnitt/kartram, layout/ark/justering, Kartor per ark, Mall för papperet, notis/svar/kommentar, Medlem = `READER`); UI-texter som blandade mall-orden rättade; ADR-0194/0196 "läsare" → Medlem.
+- `LayoutTemplate*` heter `SheetLayout*` i koden (`sheet-layout.ts`; print-sheets förra `SheetLayout` → `PrintSheetsLayout`); lagrade namn kvar med kommentar.
+- Inbjudningar tas på ett ställe (`account-arrival.ts`: alla vid ankomst, bara tävlingens och dess grupps när en tävling öppnas); behörighetskontroller tar inga klubbinbjudningar (ADR-0188 ändrat).
+- Inbjudningarnas roller per slag i kontraktet (`invitationRoleFits`), trådformatet oförändrat. En `attachGoogleIdentity` för inloggning, koppling, flytt och kommando.
+- "Vem ser vad" på `PUT …/clubs/[clubId]/access` (ADR-0209 ändrat). Rogaining: med banläggning är poängen skrivskyddade på tävlingssidan och servern vägrar dem (ADR-0170 ändrat).
+- En regel för årsmappar: `yearOfYearFolder` i domänen ("2019 04-02 Skogen" är ingen årsmapp; ADR-0194 ändrat).
+- Tester: c4-begrepp.test.ts, rogaining-poang-overforing (C4-fallet), invitation-roles, year-folder, folder-name, organizer-roles.
+
 ### 2026-11-07 – Småfel och två ägarbeslut (grenen d-smafixar, migration 0088, ingen ny ADR)
 - Återställningen ger ingen annan konto behörighet: adresserna i kopian får vanliga inbjudningar, svaret bara antalet (ADR-0187).
 - Migration 0088: `race_person_invitation.actor_account_id` och `invitation_link.issued_by` utan nyckel; inbjudan och länken överlever avsändarens borttagning (ADR-0188/0206). Drizzle utan `.references` som migrationen.

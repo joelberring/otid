@@ -37,6 +37,16 @@
 
 .panelToggle { display: none; }
 
+/* Samarbetet: förslag och delområden i panelen. */
+.proposalRow, .areaRow { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.proposalRow[data-status="OPEN"] { border-left: 3px solid #d4570b; padding-left: 6px; }
+.areaRow[data-shown="true"] { background: var(--surface-muted, rgb(26 95 208 / 8%)); }
+.linkButton { border: 0; background: none; padding: 6px 0; min-height: 36px; font: inherit; font-weight: 600; color: var(--link, #1a5fd0);
+  cursor: pointer; text-align: left; }
+.areaForm { display: grid; gap: .5rem; margin-bottom: .5rem; }
+.areaForm label { display: grid; gap: .2rem; font-size: var(--text-sm, .9rem); }
+.areaForm input, .areaForm select, .areaRow select { min-height: 36px; }
+
 @media (max-width: 760px) {
   .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); position: relative; }
   .panelToggle { display: inline-flex; }

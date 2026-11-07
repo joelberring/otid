@@ -1,3 +1,4 @@
+import type { Point } from "@o-tid/map-file";
 import type { ObjectRef } from "./contract";
 import { isNewKey, sameState, type EditKind, type ObjectKey, type ObjectState, type RevisionEdit, type ServerObject } from "./state";
 
@@ -82,6 +83,8 @@ export interface NewEdit {
   readonly state: ObjectState;
   readonly kind: EditKind;
   readonly at: string;
+  /** Var ändringen gjordes (kartans mm), för en borttagning av grundfilens objekt (delområdena, ADR-0219). */
+  readonly point?: Point | undefined;
 }
 
 /**
@@ -90,7 +93,8 @@ export interface NewEdit {
  */
 export function addEdit(state: RevisionClientState, input: NewEdit): { state: RevisionClientState; edit: RevisionEdit } | undefined {
   if (state.conflicts[input.key]) return undefined;
-  const edit: RevisionEdit = { ...input, base: lastEditId(state, input.key) };
+  const { point, ...rest } = input;
+  const edit: RevisionEdit = { ...rest, ...(point ? { point } : {}), base: lastEditId(state, input.key) };
   return { state: { ...state, pending: [...state.pending, edit] }, edit };
 }
 

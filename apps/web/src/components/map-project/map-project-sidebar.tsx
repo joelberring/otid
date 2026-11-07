@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Conflict, ObjectKey } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
@@ -24,15 +24,17 @@ function SymbolIcon({ icon }: { icon: Blob | undefined }) {
 
 /**
  * ADR-0219 (K1): editorns sidopanel. Symbolerna i kartfilen (bara de som finns i filen, sökbara på nummer och namn), lagren
- * (symbolgrupperna efter ISOM-numret) och krockarna att välja i.
+ * (symbolgrupperna efter ISOM-numret), krockarna att välja i och samarbetet.
  */
-export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGroups, onToggleGroup, conflicts, symbols, onResolve, canEdit }: {
+export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGroups, onToggleGroup, conflicts, symbols, onResolve, canEdit, children }: {
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid). */
   open: boolean;
   catalog: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
   hiddenGroups: ReadonlySet<SymbolGroup>; onToggleGroup: (group: SymbolGroup) => void;
   conflicts: readonly Conflict[]; symbols: ReadonlyMap<string, CatalogSymbol>; onResolve: (key: ObjectKey, keep: "MINE" | "THEIRS") => void;
   canEdit: boolean;
+  /** Samarbetet (förslag, delområden, arbetssätt), efter krockarna. */
+  children?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
@@ -60,6 +62,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGro
           </span></li>;
       })}</ul>
     </section>}
+
+    {children}
 
     {canEdit && <section aria-labelledby="map-project-symbols" className={styles.panel}>
       <h2 id="map-project-symbols">{text.symbols.title}</h2>

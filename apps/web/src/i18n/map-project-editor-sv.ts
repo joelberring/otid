@@ -69,7 +69,42 @@ export const mapProjectEditorSv = {
     conflict: "Någon annan ändrade samma objekt. Välj vilket som ska gälla.",
     conflictFirst: "Objektet väntar på ett val efter en krock. Välj först.",
     rejected: "En ändring togs inte emot av servern.",
-    changedByOther: "Någon annan har ändrat objektet sedan; steget gick inte att ångra."
+    changedByOther: "Någon annan har ändrat objektet sedan; steget gick inte att ångra.",
+    proposed: "Ändringen blev ett förslag som en ägare godkänner (Huvudkartritare, någon annans delområde eller rollen Föreslå)."
+  },
+  collab: {
+    mode: "Arbetssätt",
+    modes: { SHARED: "Gemensamt", LEAD: "Huvudkartritare" },
+    modeHelp: {
+      SHARED: "Alla med rollen Ändra ritar direkt, utom i någon annans delområde (där blir det förslag).",
+      LEAD: "Ändra ritar direkt bara i sina egna delområden; allt annat blir förslag som en ägare godkänner."
+    },
+    suggestHint: "Du har rollen Föreslå: det du ritar blir förslag som en ägare godkänner.",
+    proposals: (count: number) => count === 0 ? "Förslag" : `Förslag (${plural(count, "öppet", "öppna")})`,
+    noProposals: "Inga förslag.",
+    proposalBy: (name: string, count: number) => `${name} · ${plural(count, "ändring", "ändringar")}`,
+    unknownAuthor: "Borttaget konto",
+    ai: "AI",
+    status: { OPEN: "Öppet", ACCEPTED: "Godkänt", REJECTED: "Avvisat", WITHDRAWN: "Tillbakadraget" },
+    show: "Visa",
+    accept: "Godkänn",
+    reject: "Avvisa",
+    withdraw: "Dra tillbaka",
+    conflicts: (count: number) => plural(count, "ändring krockade och gjordes inte", "ändringar krockade och gjordes inte"),
+    areas: "Delområden",
+    noAreas: "Inga delområden. Rita ett och dela ut det till en kartritare.",
+    newArea: "Nytt delområde",
+    areaTool: "Delområde",
+    areaHint: "Klicka runt delområdet. Dubbelklicka eller tryck Enter för att stänga det.",
+    areaName: "Namn",
+    areaNameDefault: (number: number) => `Område ${number}`,
+    assignee: "Kartritare",
+    nobody: "Inte utdelat",
+    areaStatus: "Läge",
+    areaStatuses: { BASE: "Underlag", DRAFTED: "Grovritat", SURVEYED: "Rekat", DONE: "Klart" },
+    saveArea: "Spara delområdet",
+    removeArea: "Ta bort",
+    mine: "ditt"
   },
   conflicts: {
     title: (count: number) => plural(count, "krock", "krockar"),

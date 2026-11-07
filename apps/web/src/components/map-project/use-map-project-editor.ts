@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectSyncResponse, type MapProjectView } from "@o-tid/contracts";
-import type { MapColor, MapGeoreference } from "@o-tid/map-file";
+import type { MapColor, MapGeoreference, Point } from "@o-tid/map-file";
 import {
-  acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, mergePulled, recordStep, redoStep, resolveConflict, undoStep,
+  acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, redoStep, resolveConflict, undoStep,
   type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionHistory, type ServerObject
 } from "@o-tid/map-revision";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -26,6 +26,8 @@ export interface ObjectChange {
   readonly ref: ObjectRef | null;
   readonly after: ObjectState;
   readonly kind: EditKind;
+  /** Var ändringen gjordes (en borttagning av grundfilens objekt), för delområdena. */
+  readonly point?: Point | undefined;
 }
 
 /**
@@ -34,7 +36,7 @@ export interface ObjectChange {
  * en stund efter den senaste. Andras ändringar hämtas var femte sekund medan sidan syns. Workern får alla ändrade objekt efter
  * varje ny ändring eller hämtning och ritar om (`renderKey`).
  */
-export function useMapProjectEditor(view: MapProjectView) {
+export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: boolean) => void) {
   const base = mapProjectBase(view.projectId);
   const [session, setSession] = useState<MapProjectSession>();
   const [bounds, setBounds] = useState<Bounds>();
@@ -50,7 +52,10 @@ export function useMapProjectEditor(view: MapProjectView) {
   const [sync, setSync] = useState<SyncState>({ kind: "idle" });
   const [notice, setNotice] = useState<string>();
   const [preview, setPreview] = useState<ReadonlySet<ObjectKey>>(new Set());
-  const canEdit = view.viewer.canEdit;
+  // Föreslå (och Ändra där ändringen blir ett förslag) ritar också; servern avgör vad som blir förslag.
+  const canEdit = view.viewer.canEdit || view.viewer.canPropose;
+  const syncedRef = useRef(onSynced);
+  syncedRef.current = onSynced;
 
   // Grundfilen till Workern.
   useEffect(() => {
@@ -131,7 +136,9 @@ export function useMapProjectEditor(view: MapProjectView) {
         const acked = acknowledge(latest.state, response.results as EditResult[]);
         if (acked.conflicted.length) setNotice("conflict");
         if (acked.rejected.length) setNotice("rejected");
-        const merged = mergePulled(acked.state, response.objects as ServerObject[], response.seq);
+        if (acked.proposed.length) setNotice("proposed");
+        const merged = keepOpenProposals(mergePulled(acked.state, response.objects as ServerObject[], response.seq), response.openProposals ?? []);
+        if (edits.length > 0 || response.objects.length > 0) syncedRef.current?.(acked.proposed.length > 0);
         store({ ...latest, state: merged });
         // Mer att hämta, eller egna ändringar som kom till under tiden (eller inte fick plats): en omgång till.
         const sent = new Set(edits.map(edit => edit.editId));
@@ -169,7 +176,7 @@ export function useMapProjectEditor(view: MapProjectView) {
     if (!current || !canEdit) return false;
     const before = effectiveState(current.state, change.key);
     const added = addEdit(current.state, { editId: crypto.randomUUID(), key: change.key, ref: change.ref, state: change.after, kind: change.kind,
-      at: new Date().toISOString() });
+      at: new Date().toISOString(), ...(change.point ? { point: change.point } : {}) });
     if (!added) { setNotice("conflictFirst"); return false; }
     const nextHistory = recordStep(historyRef.current, { key: change.key, ref: change.ref, before, after: change.after });
     historyRef.current = nextHistory;

@@ -124,3 +124,86 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
   expect((await map.boundingBox())!.height).toBeGreaterThan(300);
   if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-rita-mobil.png` });
 });
+
+/**
+ * ADR-0219 (K1): samarbetet i editorn. Ägaren ritar ett delområde med verktyget Delområde; en medlem med rollen Föreslå tar bort
+ * stenen, vilket blir ett förslag (kartan på servern är oförändrad); ägaren ser förslaget, visar det och godkänner det, och byter
+ * sedan arbetssätt till Huvudkartritare.
+ */
+test("kartprojekt: delområde, förslag från Föreslå och godkännande", async ({ browser, baseURL }) => {
+  test.setTimeout(300_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `agare.${suffix}@exempel.se`, "Åsa Ägare");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const headers = async (page: Page) => ({ origin: baseURL!, "x-otid-csrf": await csrfOf(page), "content-type": "application/json" });
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Samarbete", "x-otid-file-name": "Samarbete.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status(), await created.text()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  const suggesterEmail = `foreslar.${suffix}@exempel.se`;
+  const invited = await owner.request.post(`${api}/members`, { headers: await headers(owner),
+    data: { formatVersion: 1, requestId: crypto.randomUUID(), email: suggesterEmail, role: "SUGGEST" } });
+  expect(invited.status(), await invited.text()).toBeLessThan(300);
+  const suggester = await registerAccount(browser, suggesterEmail, "Fia Föreslår");
+  await suggester.goto(`/organizer/map-projects/${projectId}`);
+  await expect(suggester.getByTestId("map-project-members")).toContainText("Fia Föreslår (du)");
+
+  // Ägaren ritar delområdet Norr (fyra klick och Enter) och sparar det utan kartritare.
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await owner.getByRole("button", { name: "Delområde", exact: true }).click();
+  for (const point of [{ x: 5, y: 60 }, { x: 60, y: 60 }, { x: 60, y: 95 }, { x: 5, y: 95 }]) {
+    const at = await screenOf(owner, point);
+    await owner.mouse.click(at.x, at.y);
+    await owner.waitForTimeout(400);
+  }
+  await owner.keyboard.press("Enter");
+  const areas = owner.getByTestId("map-project-areas");
+  await areas.getByLabel("Namn").fill("Norr");
+  await areas.getByRole("button", { name: "Spara delområdet" }).click();
+  await expect(areas.getByRole("button", { name: "Norr" })).toBeVisible();
+  const areaList = await (await owner.request.get(`${api}/areas`)).json() as { areas: { name: string; polygon: unknown[][] }[] };
+  expect(areaList.areas).toMatchObject([{ name: "Norr" }]);
+  expect(areaList.areas[0]!.polygon[0]).toHaveLength(4);
+
+  // Föreslå: tar bort stenen; det blir ett förslag och kartan på servern är oförändrad.
+  await suggester.setViewportSize({ width: 1280, height: 900 });
+  await suggester.goto(`/organizer/map-projects/${projectId}/map`);
+  const suggesterMap = suggester.getByTestId("course-setting-map");
+  await expect(suggesterMap).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await expect(suggester.getByText("Du har rollen Föreslå")).toBeVisible();
+  const stone = parsed.objects.find(object => object.kind === "point")!;
+  if (stone.kind !== "point") throw new Error("ingen sten");
+  const at = await screenOf(suggester, stone.at);
+  await suggester.mouse.click(at.x, at.y);
+  await expect(suggester.getByTestId("map-project-hint")).toContainText("206");
+  await suggester.keyboard.press("Delete");
+  await settled(suggester);
+  await expect(suggester.getByRole("status").filter({ hasText: "Ändringen blev ett förslag" })).toBeVisible();
+  expect((await serverObjects(owner, projectId, baseURL!)).filter(object => object.state.kind === "DELETED")).toHaveLength(0);
+  await expect(suggester.getByTestId("map-project-proposals")).toContainText("Fia Föreslår · 1 ändring");
+  await reviewScreenshots(suggester, "kartprojekt-forslag");
+
+  // Ägaren: förslaget i listan, Visa och Godkänn; stenen är borttagen på servern.
+  await owner.reload();
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const proposals = owner.getByTestId("map-project-proposals");
+  await expect(proposals).toContainText("Förslag (1 öppet)");
+  await proposals.getByRole("button", { name: "Visa", exact: true }).click();
+  await expect(proposals.getByRole("button", { name: "Visa", exact: true })).toHaveAttribute("aria-pressed", "true");
+  if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-forslag-agare.png` });
+  await proposals.getByRole("button", { name: "Godkänn" }).click();
+  await expect(proposals).toContainText("Godkänt");
+  await expect(proposals).toContainText("Inga förslag.");
+  expect((await serverObjects(owner, projectId, baseURL!)).filter(object => object.state.kind === "DELETED")).toHaveLength(1);
+
+  // Arbetssättet: Huvudkartritare.
+  await owner.getByRole("button", { name: "Huvudkartritare" }).click();
+  await expect(owner.getByRole("button", { name: "Huvudkartritare" })).toHaveAttribute("aria-pressed", "true");
+  const project = await (await owner.request.get(api)).json() as { mode: string };
+  expect(project.mode).toBe("LEAD");
+});

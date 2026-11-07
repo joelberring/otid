@@ -10,17 +10,20 @@ import {
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { Viewport } from "../../lib/course-setting-viewport";
 import { draftObject, insertAt, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
-import { drawDraftPoints, drawPreview, drawSelection } from "../../lib/map-project-overlay";
+import { drawAreas, drawDraftPoints, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
 import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
 import { CourseSettingMap, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
+import { MapProjectCollabPanel } from "./map-project-collab-panel";
 import { MapProjectSidebar } from "./map-project-sidebar";
+import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
 import styles from "./map-project-editor.module.css";
 
 const text = mapProjectEditorSv;
-type Tool = "select" | "draw";
+/** `area` = rita ett delområde (bara ägarna). */
+type Tool = "select" | "draw" | "area";
 interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
 type Drag =
   | { readonly mode: "vertex"; readonly address: VertexAddress; readonly original: MapObject }
@@ -32,6 +35,23 @@ type Drag =
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
 const DOUBLE_TAP_MS = 350;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
+/** En punkt på objektet: var en borttagning ligger (för delområdena när servern bara har objektet i grundfilen). */
+function anchorOf(object: MapObject): Point | undefined {
+  if (object.kind === "point" || object.kind === "text") return object.at;
+  const first = object.kind === "line" ? object.path[0] : object.rings[0]?.[0];
+  return first ? { x: first.x, y: first.y } : undefined;
+}
+/** Förslagens ändringar att rita: nya lägen och platserna för borttagningar (ändringens punkt). */
+interface ProposedDrawing { readonly objects: MapObject[]; readonly deleted: Point[] }
+function proposedDrawing(edits: readonly { state: unknown; point?: Point | null | undefined }[]): ProposedDrawing {
+  const objects: MapObject[] = [], deleted: Point[] = [];
+  for (const edit of edits) {
+    const value = edit.state as { kind?: string; object?: MapObject } | undefined;
+    if (value?.kind === "OBJECT" && value.object) objects.push(value.object);
+    else if (value?.kind === "DELETED" && edit.point) deleted.push(edit.point);
+  }
+  return { objects, deleted };
+}
 
 /**
  * ADR-0219 (K1): kartprojektets karta med ritverktygen. Kartan ritas i Workern med alla ändringar; markeringen, objektet som
@@ -40,9 +60,18 @@ const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - f
  * ångrar och Ctrl/Cmd+Skift+Z eller Ctrl+Y gör om. Varje ändring blir en ändring av ett objekt i projektets kö.
  */
 export function MapProjectEditor({ view }: { view: MapProjectView }) {
-  const editor = useMapProjectEditor(view);
+  const collab = useMapProjectCollaboration(view);
+  const { loadProposals } = collab;
+  // Efter en synk med egna ändringar eller andras: förslagen kan ha ändrats.
+  const editor = useMapProjectEditor(view, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const { session, catalog, commit, setPreview } = editor;
-  const canEdit = view.viewer.canEdit;
+  // Föreslå ritar också; servern gör ändringen till ett förslag.
+  const canEdit = view.viewer.canEdit || view.viewer.canPropose;
+  const canDecide = view.viewer.canDecide;
+  const [shownProposal, setShownProposal] = useState<string>();
+  const [shownArea, setShownArea] = useState<string>();
+  /** Delområdet som just ritats och väntar på namn och kartritare. */
+  const [newArea, setNewArea] = useState<readonly Point[]>();
   const [tool, setTool] = useState<Tool>("select");
   const [symbolId, setSymbolId] = useState<string>();
   const [hiddenGroups, setHiddenGroups] = useState<ReadonlySet<SymbolGroup>>(new Set());
@@ -72,19 +101,25 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
   const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); };
   const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); };
 
-  const save = useCallback((key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind): boolean => {
-    const ok = commit({ key, ref, kind, after: object ? { kind: "OBJECT", object } : { kind: "DELETED" } });
+  const save = useCallback((key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind, point?: Point): boolean => {
+    const ok = commit({ key, ref, kind, after: object ? { kind: "OBJECT", object } : { kind: "DELETED" }, point });
     if (ok && object) setSelected({ key, ref, object });
     if (ok && !object) deselect();
     return ok;
   }, [commit]);
 
   const finishDraft = useCallback(() => {
+    if (tool === "area") {
+      const ring = draft.map(point => point.at);
+      cancelDraft();
+      if (ring.length >= 3) { setNewArea(ring); setPanelOpen(true); }
+      return;
+    }
     if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) return;
     const object = draftObject(symbol.kind, symbol.id, draft);
     cancelDraft();
     if (object) save(newKey(crypto.randomUUID()), null, object, "ADD");
-  }, [draft, symbol, save]);
+  }, [draft, symbol, save, tool]);
 
   const removeSelected = useCallback(() => {
     if (!selected || !canEdit) return;
@@ -92,7 +127,7 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       const next = deleteVertex(selected.object, activeVertex);
       if (next) { save(selected.key, selected.ref, next, "RESHAPE"); setActiveVertex(undefined); return; }
     }
-    save(selected.key, selected.ref, undefined, "DELETE");
+    save(selected.key, selected.ref, undefined, "DELETE", anchorOf(selected.object));
   }, [selected, activeVertex, canEdit, save]);
 
   // Tangenterna (inte när man skriver i ett fält).
@@ -106,7 +141,7 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       if (command && key === "y") { event.preventDefault(); editor.redo(); return; }
       if (command) return;
       if (key === "e") { cancelDraft(); setTool("select"); }
-      else if (key === "p" && canEdit) { deselect(); setTool("draw"); }
+      else if (key === "p" && canEdit) { deselect(); cancelDraft(); setTool("draw"); }
       else if (event.key === "Escape") { if (draft.length) cancelDraft(); else deselect(); }
       else if (event.key === "Enter" && draft.length) { event.preventDefault(); finishDraft(); }
       else if ((event.key === "Delete" || event.key === "Backspace") && selected) { event.preventDefault(); removeSelected(); }
@@ -122,12 +157,18 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
   }
 
   const handlers: MapPointerHandlers = {
-    unlifted: tool === "draw",
+    unlifted: tool === "draw" || tool === "area",
     onTap(point, tolerance) {
       const now = performance.now();
       const previous = lastTap.current;
       const double = !!previous && now - previous.at < DOUBLE_TAP_MS && Math.hypot(previous.point.x - point.x, previous.point.y - point.y) < tolerance * 2;
       lastTap.current = double ? undefined : { at: now, point };
+      if (tool === "area") {
+        const first = draft[0];
+        if (double || (first && draft.length >= 3 && Math.hypot(first.at.x - point.x, first.at.y - point.y) <= tolerance)) { finishDraft(); return; }
+        setDraft(points => [...points, { at: point }]);
+        return;
+      }
       if (tool === "draw" && canEdit) {
         if (!symbol) return;
         if (symbol.kind === "point") { save(newKey(crypto.randomUUID()), null, { kind: "point", symbol: symbol.id, at: point, angle: 0 }, "ADD"); return; }
@@ -157,7 +198,7 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       });
     },
     onDragStart(point, tolerance) {
-      if (!canEdit) return false;
+      if (!canEdit || tool === "area") return false;
       if (tool === "draw") {
         if (!symbol || symbol.kind === "text") return false;
         if (symbol.kind === "point") { drag.current = { mode: "place", at: point }; setPreviewObject({ kind: "point", symbol: symbol.id, at: point, angle: 0 }); return true; }
@@ -224,11 +265,32 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       save(target.key, target.ref, moved, current.mode === "vertex" ? "RESHAPE" : "MOVE");
     },
     onDragCancel() { drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); },
-    onHover(point) { if (tool === "draw" && draft.length) setCursor(point); }
+    onHover(point) { if (tool !== "select" && draft.length) setCursor(point); }
   };
+
+  // Öppna förslag streckade (de egna direkt efter synken, andras ur listan); förslaget som visas heldraget.
+  const proposedOpen = useMemo(() => proposedDrawing([
+    ...Object.values(editor.state?.proposed ?? {}).filter(entry => entry.proposalId !== shownProposal),
+    ...collab.proposals.filter(proposal => proposal.status === "OPEN" && proposal.proposalId !== shownProposal).flatMap(proposal => proposal.edits)
+  ]), [editor.state?.proposed, collab.proposals, shownProposal]);
+  const proposedShown = useMemo(() => proposedDrawing(collab.proposals.find(proposal => proposal.proposalId === shownProposal)?.edits ?? []),
+    [collab.proposals, shownProposal]);
+  const areaDrawings = useMemo((): AreaDrawing[] => [
+    ...collab.areas.map(area => ({ polygon: area.polygon, label: area.name, selected: area.areaId === shownArea,
+      owner: !area.assignee ? "NONE" as const : area.assignee.accountId === view.viewer.accountId ? "MINE" as const : "OTHER" as const })),
+    ...(newArea ? [{ polygon: [newArea], label: "", owner: "MINE" as const, selected: true }] : [])
+  ], [collab.areas, shownArea, newArea, view.viewer.accountId]);
 
   const overlay = useCallback((ctx: CanvasRenderingContext2D, current: Viewport) => {
     const shown = preview ?? selected?.object;
+    drawAreas(ctx, current, areaDrawings);
+    drawProposed(ctx, current, proposedOpen.objects, proposedOpen.deleted, false);
+    drawProposed(ctx, current, proposedShown.objects, proposedShown.deleted, true);
+    if (tool === "area" && draft.length) {
+      const ring = cursor ? [...draft.map(point => point.at), cursor] : draft.map(point => point.at);
+      if (ring.length >= 2) drawAreas(ctx, current, [{ polygon: [ring], label: "", owner: "MINE" }]);
+      drawDraftPoints(ctx, current, draft, cursor);
+    }
     if (preview) drawPreview(ctx, current, preview, symbols.get(preview.symbol));
     if (tool === "draw" && symbol && draft.length) {
       const tentative = cursor ? [...draft, { at: cursor }] : draft;
@@ -237,9 +299,10 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       drawDraftPoints(ctx, current, draft, cursor);
     }
     if (shown && tool === "select" && selected) drawSelection(ctx, current, shown, activeVertex);
-  }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex]);
+  }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
+    : tool === "area" ? text.collab.areaHint
     : tool === "select" ? text.hints.select
     : !symbol ? text.tools.noSymbol
     : symbol.kind === "point" ? text.hints.drawPoint(symbol.code)
@@ -269,7 +332,9 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
         <Button variant={tool === "select" ? "primary" : "secondary"} aria-pressed={tool === "select"} title={text.tools.selectHelp}
           onClick={() => { cancelDraft(); setTool("select"); }}>{text.tools.select}</Button>
         <Button variant={tool === "draw" ? "primary" : "secondary"} aria-pressed={tool === "draw"} title={text.tools.drawHelp}
-          onClick={() => { deselect(); setTool("draw"); }}>{text.tools.draw}</Button>
+          onClick={() => { deselect(); cancelDraft(); setTool("draw"); }}>{text.tools.draw}</Button>
+        {canDecide && <Button variant={tool === "area" ? "primary" : "secondary"} aria-pressed={tool === "area"}
+          onClick={() => { deselect(); cancelDraft(); setTool("area"); }}>{text.collab.areaTool}</Button>}
         <Button variant="secondary" disabled={editor.history.undo.length === 0} onClick={editor.undo} title="Ctrl/Cmd+Z">{text.tools.undo}</Button>
         <Button variant="secondary" disabled={editor.history.redo.length === 0} onClick={editor.redo} title="Ctrl/Cmd+Skift+Z">{text.tools.redo}</Button>
         {draft.length > 0 && <>
@@ -300,7 +365,16 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
           const next = new Set(current);
           if (next.has(group)) next.delete(group); else next.add(group);
           return next;
-        })} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit} />
+        })} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}>
+        <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
+          shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
+          onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}
+          onSaveArea={(name, assignee) => {
+            if (!newArea) return;
+            void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } });
+          }}
+          onCancelArea={() => { setNewArea(undefined); setTool("select"); }} />
+      </MapProjectSidebar>
     </div>
   </main>;
 }
@@ -312,7 +386,7 @@ function SyncBadge({ sync, pending }: { sync: ReturnType<typeof useMapProjectEdi
   return <p className={styles.sync} role="status" data-testid="map-project-sync" data-state={sync.kind} data-pending={pending}>{label}</p>;
 }
 
-const NOTICES = ["noStore", "conflict", "conflictFirst", "rejected", "changedByOther"] as const;
+const NOTICES = ["noStore", "conflict", "conflictFirst", "rejected", "changedByOther", "proposed"] as const;
 function noticeText(notice: string): string {
   const key = NOTICES.find(value => value === notice);
   return key ? text.sync[key] : notice;

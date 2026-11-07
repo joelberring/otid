@@ -112,3 +112,70 @@ export function drawDraftPoints(ctx: Context, view: Viewport, points: readonly {
   }
   ctx.restore();
 }
+
+const PROPOSAL = "#d4570b";
+
+/**
+ * Förslag: objektets kontur (eller ring för punkter) streckad i orange, och ett kryss där ett objekt föreslås bli borttaget.
+ * `strong` = förslaget som är valt i listan.
+ */
+export function drawProposed(ctx: Context, view: Viewport, objects: readonly MapObject[], deleted: readonly Point[], strong: boolean) {
+  ctx.save();
+  ctx.strokeStyle = PROPOSAL;
+  ctx.lineWidth = strong ? 4 : 2.5;
+  for (const point of deleted) {
+    const at = toScreen(view, point), size = strong ? 11 : 8;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(at.x - size, at.y - size); ctx.lineTo(at.x + size, at.y + size);
+    ctx.moveTo(at.x + size, at.y - size); ctx.lineTo(at.x - size, at.y + size);
+    ctx.stroke();
+  }
+  ctx.setLineDash(strong ? [] : [7, 5]);
+  for (const object of objects) {
+    if (object.kind === "point" || object.kind === "text") {
+      const at = toScreen(view, object.at);
+      ctx.beginPath(); ctx.arc(at.x, at.y, Math.max(9, 1.1 * view.pxPerMm), 0, Math.PI * 2); ctx.stroke();
+    } else {
+      traceObject(ctx, view, object);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+export interface AreaDrawing {
+  readonly polygon: readonly (readonly Point[])[];
+  readonly label: string;
+  /** Kontots eget område (blått), någon annans (grått) eller inte utdelat (ljusgrått, streckat). */
+  readonly owner: "MINE" | "OTHER" | "NONE";
+  readonly selected?: boolean | undefined;
+}
+
+/** Delområdena: kontur och namn i mitten av ytterkanten. Bara på skärmen. */
+export function drawAreas(ctx: Context, view: Viewport, areas: readonly AreaDrawing[]) {
+  ctx.save();
+  for (const area of areas) {
+    const color = area.owner === "MINE" ? SELECT : area.owner === "OTHER" ? "#555" : "#888";
+    ctx.beginPath();
+    for (const ring of area.polygon) {
+      ring.forEach((point, index) => {
+        const at = toScreen(view, point);
+        if (index === 0) ctx.moveTo(at.x, at.y); else ctx.lineTo(at.x, at.y);
+      });
+      ctx.closePath();
+    }
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = area.selected ? 7 : 5; ctx.setLineDash([]); ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = area.selected ? 4 : 2.5; ctx.setLineDash(area.owner === "NONE" ? [10, 6] : []); ctx.stroke();
+    const outer = area.polygon[0] ?? [];
+    if (outer.length === 0) continue;
+    const middle = toScreen(view, { x: outer.reduce((sum, point) => sum + point.x, 0) / outer.length,
+      y: outer.reduce((sum, point) => sum + point.y, 0) / outer.length });
+    ctx.setLineDash([]);
+    ctx.font = "600 13px system-ui, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; ctx.strokeText(area.label, middle.x, middle.y);
+    ctx.fillStyle = color; ctx.fillText(area.label, middle.x, middle.y);
+  }
+  ctx.restore();
+}

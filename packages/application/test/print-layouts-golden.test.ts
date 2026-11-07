@@ -59,3 +59,21 @@ describe("gamla dokument utan layouter (ADR-0217 beslut 9)", () => {
     expect(await pdfHash("kartbyte.ppen")).toBe("de1c501c368d050e569efc1c7fbce902fb5a49e3b6464522c7c31502c8e005ec");
   });
 });
+
+describe("PDF-jobbet med layouter (ADR-0217)", () => {
+  it("en bana i två layouter ger två sidor med layoutens papper och skala", async () => {
+    let document = documentOf("kartfil.ppen");
+    document = applyEdit(document, { type: "ADD_LAYOUT", layout: { id: "elit", name: "Elit A3", scale: 15000, page: { width: 1169, height: 1654, margins: 28, landscape: true } } }).document;
+    const course = ordered(document)[0]!;
+    const result = await renderPrintJob({ document, map: { bytes: read("fixtures/maps/kartfil.omap"), fileName: "kartfil.omap", bounds: MAP_BOUNDS },
+      fonts: fonts(), maxPages: 10, title: "Layouter", now: new Date("2026-11-07T12:00:00Z"),
+      request: { formatVersion: 1, requestId: "00000000-0000-4000-8000-000000000002", kind: "OFFICE", profileId: "office",
+        layout: { kind: "PAGES", header: false }, perRunner: false, duplex: false, items: [{ course }, { course, layout: "elit" }], warningsConfirmed: true } });
+    expect(result.pages).toBe(2);
+    const sheets = printSheetGroups(document, { kind: "COURSE" }, [{ course }, { course, layout: "elit" }], { mapBounds: MAP_BOUNDS }).flatMap(group => group.sheets);
+    // A3 liggande (420 × 297 mm) för Elit; skalan per ark.
+    expect(Math.round(sheets[1]!.paper.widthMm)).toBe(420);
+    expect(sheets.map(sheet => sheet.frames[0]!.printScale)).toEqual([document.courses.find(row => row.id === course)!.printScale ?? document.event.mapScale, 15000]);
+  });
+});
+

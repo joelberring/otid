@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Layout som egen flik (grenen b3-layoutflik, ADR-0217, ingen migration)
+- Flikarna Banläggning | Layout | Utskrift. Layout: överblick banor × layouter (telefon: lista), layouterna (papper, skala, mall, Kartor per ark), arket öppnat (utsnitt, klippning, papperets element, kartbytets delar, "Justera för 1:7 500": dra nummer, ringavbrott per kontroll, "Ta bort justeringar"), klasstabell med massval, lägen (spara, jämför, återställ, ångra).
+- Modell: `event.layouts`, `layoutSheets`, `classLayouts`, `mainLayout`, `layoutStates`; huvudlayouten är banans fält och den enda i .ppen. Utskriften räknar arket genom `layoutDocument` (golden-test: gamla dokument ger byte-identisk PDF). Läget "Från Purple Pen" vid inläsning.
+- Kartor till starten delar grupperna per layout (reserver och tryckantal per layout); löparkartor och PDF-jobbet tar arkets layout.
+- Utskrift: alla ark i en layout, klasser, provark (ett av varje) och antal (anmälda + reserver eller eget); B2:s färgdel orörd.
+- Verifierat: enhetstester (course-setting, domain, contracts, application, web-lib), integration `adr-0217-layout-kartbuntar`, E2E `banlaggning-layout`.
+- Återstår: papperets redigering finns kvar också på utskriftssidan (specarna pappersrum, utskrift-omtag, kartbyte, hittbarhet, löparkartor och utskrift använder den; baksidan per löpare och kartbytets delmål finns bara där). Sträckavbrott per layout.
+
 ### 2026-11-07 – Förenklade färger för tryck (grenen b2-tryckfarger, ADR-0215, ingen migration)
 - Ny förvald profil "Kartans egna färger" (`map-own`): kartfilens färger i normens ordning utan att någon gör något. En tävling som valt en profil behåller den; en som aldrig valt får normens ordning i nästa PDF.
 - "Färger för tryck": en statusrad ("Färger: kartans egna, i normens ordning (32 färger, 3 över banan)") med "Visa", lägena "Kartans egna färger" och "Tryck hos BL". BL visar bara de tveksamma färgerna (ingen säker rad eller fel sida mot normen) och "Godta alla säkra".

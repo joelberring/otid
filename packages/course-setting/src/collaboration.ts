@@ -45,7 +45,6 @@ export interface IdMap {
 }
 
 export const NO_CREATED_IDS: CreatedIds = { controls: [], courseControls: [], courses: [] };
-export const EMPTY_ID_MAP: IdMap = { controls: {}, courseControls: {}, courses: {} };
 
 type Kind = keyof IdMap;
 const KINDS: readonly Kind[] = ["controls", "courseControls", "courses", "specialObjects"];

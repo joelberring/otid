@@ -14,8 +14,6 @@ const canonicalUuidSchema = z.string().regex(
 const positiveVersionSchema = z.number().int().positive();
 const engineVersionSchema = z.string().trim().min(1).max(64);
 
-
-
 export const resultRecalculationReadinessSchema = z.enum([
   "READY",
   "NO_ACTIVE_ASSIGNMENT",
@@ -154,9 +152,6 @@ export const resultRecalculationAdminErrorResponseSchema = z.object({
   error: resultRecalculationAdminErrorCodeSchema
 }).strict();
 
-export type ResultRecalculationReadiness = z.infer<typeof resultRecalculationReadinessSchema>;
 export type ResultRecalculationCandidateResponse = z.infer<typeof resultRecalculationCandidateResponseSchema>;
 export type ResultRecalculationRequest = z.infer<typeof resultRecalculationRequestSchema>;
 export type ResultRecalculationResponse = z.infer<typeof resultRecalculationResponseSchema>;
-export type ResultRecalculationAdminErrorCode = z.infer<typeof resultRecalculationAdminErrorCodeSchema>;
-export type ResultRecalculationAdminErrorResponse = z.infer<typeof resultRecalculationAdminErrorResponseSchema>;

@@ -25,8 +25,6 @@ export function presetFilter(preset: Exclude<FilterPreset, "CUSTOM">): SymbolFil
   return { preset, groups: [...FILTER_PRESETS[preset]], hide: [], show: [] };
 }
 
-export const FULL_FILTER: SymbolFilter = presetFilter("ALL");
-
 /** Sant när filtret visar allt (inga dolda grupper eller symboler). */
 export function isFullFilter(filter: SymbolFilter): boolean {
   return filter.hide.length === 0 && SYMBOL_GROUPS.every(group => filter.groups.includes(group));

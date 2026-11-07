@@ -181,4 +181,3 @@ export function createParticipantActions(ws: Base & MobileNavigation & RaceDataA
   return { select, openCorrection, openMissingStartTime, chooseAction, newParticipant, selectRegistrationCandidate,
     revealSelected, navigateParticipantSequence };
 }
-export type ParticipantActions = ReturnType<typeof createParticipantActions>;

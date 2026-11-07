@@ -72,7 +72,7 @@ export const startDrawAdvancedSv = {
   timelineTitle: "Minut för minut",
   timelineHelp: "Var de nya tiderna hamnar bland de befintliga. Nya tider är märkta Ny.",
   timelineTime: "Minut", timelineStarts: "Starter",
-  newTag: "Ny", existingTag: "Befintlig",
+  newTag: "Ny",
   startCount: (count: number) => count === 1 ? "" : ` ×${count}`,
   seededSlot: (rank: number) => `seedad ${rank}`,
   sameControls: (classNames: readonly string[], codes: readonly number[]) =>

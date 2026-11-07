@@ -79,9 +79,13 @@ test("självregistrering: gästen kopplar sitt namn till brickan och bardisken k
   await form.getByRole("button", { name: "Registrera" }).click();
   await expect(form.getByRole("alert")).toHaveText(/Brickan är redan registrerad\. Kontakta arrangören\./);
 
-  // Bardisken hämtar festens läge var femte sekund och känner sedan igen pinnen: namnet, ingen namnruta.
+  // Bardisken hämtar festens läge var femte sekund och känner sedan igen pinnen: namnet, ingen namnruta. Vänta på en
+  // hämtning som börjar efter registreringen.
   await desk.bringToFront();
-  await desk.waitForTimeout(6_000);
+  const state = await desk.waitForRequest(request => request.method() === "GET" &&
+    new URL(request.url()).pathname === `/api/admin/races/${raceId}/administrator/party`, { timeout: 15_000 });
+  expect((await state.response())?.status()).toBe(200);
+  await (await state.response())!.finished();
   await desk.getByRole("button", { name: "Läs ut brickan" }).click();
   await expect(desk.getByTestId("party-headline")).toHaveText("✓ Välkommen, Pinnan!");
   await expect(desk.getByTestId("party-name")).toHaveCount(0);

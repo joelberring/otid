@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, expectSaved, logIn, newContext, openStep, publishRace, raceStartedAgo, registerAccount, unique } from "./helpers";
+import { addCourseAndClass, createRace, logIn, newContext, openStep, publishRace, raceStartedAgo, readExercise, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 47 (ADR-0174): stafett på riktigt.
@@ -20,7 +20,9 @@ const TIME_ZONE = "Europe/Stockholm";
 const BACK = 360;
 const raceClock = (back: number) => raceStartedAgo(back, TIME_ZONE);
 
+/** Kompilerar stafettens rutter i utvecklingsservern i förväg; mot ett driftbygge (E2E_BASE_URL, som i CI) finns inget att kompilera. */
 async function compileRoutes(page: Page, raceId: string) {
+  if (process.env.E2E_BASE_URL) return;
   for (const path of ["relay", "relay-classes", "relay-teams", "relay-class-edit", "relay-start-times", "relay-team-edit"]) {
     await page.request.get(`/api/admin/races/${raceId}/administrator/${path}`, { timeout: 120_000 });
   }
@@ -35,16 +37,9 @@ async function openReadout(page: Page, raceId: string) {
   await expect(page.getByTestId("station-status")).toContainText("Övningsstation");
 }
 
+/** Beskedet för just den här brickan och "Sparad." innan testet går vidare (annars saknar sträckan resultat; se readExercise). */
 async function read(page: Page, label: string, ok = true) {
-  await page.getByLabel("Deltagare").selectOption({ label });
-  await page.getByRole("button", { name: ok ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" }).click();
-  // Beskedet gäller den här brickan: förra löparens "GODKÄND" och "Sparad." står kvar tills brickan är avläst. Utan det går
-  // testet vidare medan brickan läses, och nästa bricka (eller att sidan lämnas) tar ur den, så sträckan saknar resultat.
-  const card = label.split(" · ").at(-1)!;
-  await expect(page.getByTestId("verdict")).toContainText(`Bricka ${card} · `);
-  await expect(page.getByTestId("verdict")).toContainText(ok ? "GODKÄND" : "FELSTÄMPLAD");
-  // Steg 58: servern har tagit emot avläsningen innan testet går vidare (ett "0 väntar" ensamt kan vara gammalt).
-  await expectSaved(page);
+  await readExercise(page, label, { button: ok ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" });
 }
 
 async function newRelayClass(owner: Page, name: string, course: string, legs: number) {

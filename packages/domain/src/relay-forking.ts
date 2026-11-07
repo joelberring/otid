@@ -242,20 +242,6 @@ export function planRelayTeamVariants(input: {
   return assigned;
 }
 
-/** Hela klassens fördelning för `teamCount` lag, lag för lag (samma som efteranmälan i tur och ordning). */
-export function distributeRelayVariants(input: {
-  readonly seed: number;
-  readonly legs: readonly RelayLegCourse[];
-  readonly teamCount: number;
-  readonly mode: RelayForkingMode;
-}): Map<number, string>[] {
-  const teams: Map<number, string>[] = [];
-  for (let team = 0; team < input.teamCount; team += 1) {
-    teams.push(planRelayTeamVariants({ seed: input.seed, legs: input.legs, existing: teams, mode: input.mode }));
-  }
-  return teams;
-}
-
 export interface RelayFairnessTeam {
   readonly key: string;
   /** Lagets sträckor med kontrollföljden som laget springer (variant eller bana). */

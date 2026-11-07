@@ -93,4 +93,3 @@ export const localStationEvaluationSchema = z.object({
   evaluation: evaluationResultSchema
 }).strict();
 
-export type LocalStationEvaluation = z.infer<typeof localStationEvaluationSchema>;

@@ -42,4 +42,3 @@ export const administratorEntryChangesResponseSchema = z.object({
   value.nextBeforeVersion === value.items.at(-1)?.entryVersionAfter && value.nextBeforeVersion > 1)));
 
 export type AdministratorEntryChangesResponse = z.infer<typeof administratorEntryChangesResponseSchema>;
-export type AdministratorEntryChange = z.infer<typeof administratorEntryChangeSchema>;

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique, expectSaved, raceStartedAgo } from "./helpers";
+import { addCourseAndClass, createRace, openStep, publishRace, raceStartedAgo, readExercise, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 48 (ADR-0174 beslut 6–7): flera löpare per sträcka.
@@ -30,13 +30,7 @@ async function openReadout(page: Page, raceId: string) {
 }
 
 async function read(page: Page, label: string | RegExp, ok = true) {
-  const select = page.getByLabel("Deltagare");
-  const option = typeof label === "string" ? label
-    : await select.locator("option").filter({ hasText: label }).first().textContent();
-  await select.selectOption({ label: option! });
-  await page.getByRole("button", { name: ok ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" }).click();
-  await expect(page.getByTestId("verdict")).toContainText(ok ? "GODKÄND" : "FELSTÄMPLAD");
-  await expectSaved(page);
+  await readExercise(page, label, { button: ok ? "Läs av: rätt stämplat" : "Läs av: missad kontroll" });
 }
 
 test("ungdomsstafett: två löpare på sträcka 2, växlar när första är i mål, godkänt när minst en är godkänd", async ({ browser }) => {

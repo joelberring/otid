@@ -157,7 +157,6 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     z.object({ at: z.record(z.string().min(1).max(80), point).refine(record => Object.keys(record).length <= 20) }).strict().nullable())
     .refine(record => Object.keys(record).length <= 5000) }).strict()
 ]);
-export type CourseSettingEditDto = z.infer<typeof courseSettingEditSchema>;
 
 /** Id som en åtgärd skapade hos författaren (`CreatedIds`). */
 export const courseSettingCreatedIdsSchema = z.object({ controls: z.array(id).max(1000), courseControls: z.array(id).max(1000),
@@ -179,7 +178,6 @@ export type CourseSettingEditsRequest = z.infer<typeof courseSettingEditsRequest
 export const courseSettingRejectedEditSchema = z.object({
   index: z.number().int().nonnegative(), code: z.enum(["NOT_FOUND", "INVALID", "IN_USE", "CONFLICT", "DEPENDS"]), message: z.string().max(400)
 }).strict();
-export type CourseSettingRejectedEdit = z.infer<typeof courseSettingRejectedEditSchema>;
 
 /**
  * Svaret: versionen nu (oförändrad om inget gick), om åtgärderna spelades upp på en annan version än `baseVersion`
@@ -291,7 +289,6 @@ export const courseSettingNoteReplySchema = z.object({ formatVersion: z.literal(
  * någon annan ändrat den sedan dess svarar servern 409 (som en versionskonflikt) och inget skrivs.
  */
 export const courseSettingNoteEditSchema = z.object({ formatVersion: z.literal(1), text, expectedText: z.string().max(2000) }).strict();
-export type CourseSettingNoteEdit = z.infer<typeof courseSettingNoteEditSchema>;
 export const courseSettingNoteStatusSchema = z.object({ formatVersion: z.literal(1), status: z.enum(["OPEN", "DONE"]) }).strict();
 
 // Kollad (steg 67, ADR-0181 beslut 6): per kontroll, utanför dokumentet.

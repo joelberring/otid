@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, expectSaved, openStep, publishRace, registerAccount, reviewScreenshots, unique, warmRoute, newContext } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, readExercise, registerAccount, reviewScreenshots, unique, warmRoute, newContext } from "./helpers";
 
 /**
  * PLAN.md steg 13 (ADR-0170 beslut 3): start- och resultatlistor med samma verktygsrad i arbetsytan och på de
@@ -184,15 +184,9 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
   for (const runner of RUNNERS.slice(0, 5)) {
-    await owner.getByLabel("Deltagare").selectOption({ label: `${runner.givenName} ${runner.familyName} · ${runner.className} · ${runner.card}` });
-    const missing = runner.givenName === "Cia";
-    await owner.getByRole("button", { name: missing ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" }).click();
-    // Beskedet gäller den här brickan: förra löparens "GODKÄND" och "Sparad." står kvar tills brickan är avläst, och nästa
-    // bricka (eller att sidan lämnas) tar annars ur den här mitt i avläsningen (Eva saknades i resultatlistan).
-    await expect(owner.getByTestId("verdict")).toContainText(`Bricka ${runner.card} · ${runner.givenName} ${runner.familyName}`);
-    await expect(owner.getByTestId("verdict")).toContainText(missing ? "FELSTÄMPLAD" : "GODKÄND");
-    // Steg 58: servern har tagit emot avläsningen innan nästa (ett "0 väntar" ensamt kan vara gammalt).
-    await expectSaved(owner);
+    // Beskedet för just den här brickan och "Sparad." innan nästa (Eva saknades annars i resultatlistan; se readExercise).
+    await readExercise(owner, `${runner.givenName} ${runner.familyName} · ${runner.className} · ${runner.card}`,
+      { button: runner.givenName === "Cia" ? "Läs av: missad kontroll" : "Läs av: rätt stämplat" });
   }
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
   const packageVersion = Number(/v(\d+)$/.exec((await owner.getByTestId("package-status").innerText()).trim())?.[1]);
@@ -220,11 +214,7 @@ test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan oc
   // Stationen visar först sitt sparade paket; övningen ska bygga på paketet med den nya starttiden.
   await expect(owner.getByTestId("package-status")).toHaveText(new RegExp(`v${packageVersion + 1}$`), { timeout: 30_000 });
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
-  await owner.getByLabel("Deltagare").selectOption({ label: "Filip Ås · H16 · 8301006" });
-  await owner.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  await expect(owner.getByTestId("verdict")).toContainText("Bricka 8301006 · Filip Ås");
-  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
-  await expectSaved(owner);
+  await readExercise(owner, "Filip Ås · H16 · 8301006");
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Anmälda");

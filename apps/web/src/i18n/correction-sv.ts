@@ -7,7 +7,6 @@ export const correctionSv = {
   help: "Allt som ändrar löparens resultat: status, tid, kontroller, bana, variant och bricka. Varje rättelse sparas i historiken och kan tas bort igen.",
   /** Rubriker för grupperna i panelen. */
   status: "Status",
-  statusHelp: "Ej start, brutit, diskvalificera, utom tävlan, deltog utan tid, godkänn manuellt eller bekräfta felstämplad.",
   timeAndControls: "Tid och kontroller",
   courseAndCard: "Bana och bricka",
   courseAndCardHelp: "Byt bricka flyttar avläsningen till rätt löpare. Byt klass räknar om resultatet på den nya banan.",

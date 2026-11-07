@@ -6,10 +6,6 @@ import {
   evaluationResultSchema,
   manualApprovedResultSchema,
   outOfCompetitionResultSchema,
-  resultOutcomeV4Schema,
-  resultOutcomeV6Schema,
-  resultOutcomeV7Schema,
-  resultOutcomeV8Schema,
   resultOutcomeSchema,
   withoutTimingResultSchema
 } from "../src";
@@ -82,11 +78,9 @@ describe("lagrat manuellt utan tidtagning", () => {
     courseVersionId: dns.courseVersionId
   };
 
-  it("är strikt status-only i format 7 och håller äldre format frysta", () => {
+  it("är strikt status-only", () => {
     expect(withoutTimingResultSchema.parse(withoutTiming)).toEqual(withoutTiming);
-    expect(resultOutcomeV7Schema.parse(withoutTiming)).toEqual(withoutTiming);
-    expect(resultOutcomeV8Schema.parse(withoutTiming)).toEqual(withoutTiming);
-    expect(resultOutcomeV6Schema.safeParse(withoutTiming).success).toBe(false);
+    expect(resultOutcomeSchema.parse(withoutTiming)).toEqual(withoutTiming);
     expect(evaluationResultSchema.safeParse(withoutTiming).success).toBe(false);
   });
 
@@ -190,7 +184,6 @@ describe("lagrat manuellt OOC", () => {
     expect(outOfCompetitionResultSchema.parse(timeLess)).toEqual(timeLess);
     expect(resultOutcomeSchema.parse(timed)).toEqual(timed);
     expect(evaluationResultSchema.safeParse(timed).success).toBe(false);
-    expect(resultOutcomeV4Schema.safeParse(timed).success).toBe(false);
   });
 
   it.each([

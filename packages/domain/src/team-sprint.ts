@@ -3,7 +3,7 @@ import { teamSprintChangeovers } from "./relay-parallel";
 import { prepareReadoutForEvaluation } from "./station-corrections";
 import type { EvaluationReadout, Punch, RaceSnapshot } from "./types";
 
-/**
+/*
  * Steg 50 (ADR-0174 beslut 9): teamsprint med utläsning efter varje sträcka, som MeOS. Rena funktioner.
  *
  * Löparen stämplar mål och läser ut efter varje sträcka utan att tömma brickan. Den andra utläsningen har då kvar första
@@ -15,7 +15,6 @@ import type { EvaluationReadout, Punch, RaceSnapshot } from "./types";
  * tur och ordning på stämplingarna. Utan växlingskontroll finns ingen måltid för de tidigare sträckorna: bara den sista
  * får ett resultat, och de andra visas som "Utläsning efter sträcka X saknas" tills en funktionär sätter manuell tid.
  */
-export type TeamSprintReadoutMode = "EACH_LEG" | "LAST_LEG";
 
 /** Löparens sträcka i en klass med utläsning efter varje sträcka, med utläsningen den bygger på. */
 export interface TeamSprintEachLegPart {

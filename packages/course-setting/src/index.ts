@@ -38,7 +38,7 @@ export { courseLength, excludedVariantCodes, INVERTIBLE_CODES, isExcludedVariant
 export { carryExcludedVariants, VARIANTS_ELEMENT } from "./variants-ppen";
 // Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).
 export {
-  createdIdsBetween, diffTouches, documentChanges, editTouches, EMPTY_ID_MAP, NO_CREATED_IDS, objectPatch, remapEdit, replayEdits, touchedConflict,
+  createdIdsBetween, diffTouches, documentChanges, editTouches, NO_CREATED_IDS, objectPatch, remapEdit, replayEdits, touchedConflict,
   touchesOverlap, type CreatedIds, type IdMap, type ReplayedEdit, type ReplayOptions, type ReplayRejection, type ReplayResult
 } from "./collaboration";
 export { detailGapKey, OVERLAP_CUT_LIMITS } from "./circle-cutting";
@@ -62,7 +62,7 @@ export { legPath, variantLetters, variations, type Variation } from "./walk";
 export { normalizeDegrees } from "./edit";
 export { BARRIER_KINDS, controlsInForbidden, forbiddenLegs, routeBarriers, type RouteBarrierGeometry } from "./barriers";
 export {
-  ACCEPT_MOVE_METERS, acceptChecksEdit, checkAcceptable, checkKey, checkLevel, checkSubjects, compareLevels, isAccepted, keepAcceptedChecks,
+  ACCEPT_MOVE_METERS, acceptChecksEdit, checkAcceptable, checkKey, checkLevel, checkSubjects, isAccepted, keepAcceptedChecks,
   unacceptChecksEdit, type CheckLevel
 } from "./check-accept";
 // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen.
@@ -185,7 +185,7 @@ export { controlBounds, moveDocumentPoints } from "./move-points";
 // Träningsläget (ADR-0192): avsnitt, symbolfilter, korridor, fönster, sista säkra, stjärna, linje, keps och kartbitar.
 export * from "./training-types";
 export {
-  FILTER_PRESETS, FULL_FILTER, SYMBOL_GROUPS, filterShows, hiddenSymbolIds, isFullFilter, presetFilter, setSymbol, symbolCatalog, symbolGroup, symbolKey,
+  FILTER_PRESETS, SYMBOL_GROUPS, filterShows, hiddenSymbolIds, isFullFilter, presetFilter, setSymbol, symbolCatalog, symbolGroup, symbolKey,
   toggleGroup, type SymbolCatalogEntry
 } from "./training-symbols";
 export {
@@ -202,7 +202,7 @@ export { mirrorFigures, mirrorPoint } from "./training-mirror";
 export { TRAINING_TAGS, trainingTags, type TrainingTag } from "./training-tags";
 // ADR-0212: nivåstödet (Grön … Svart), på begäran.
 export {
-  COURSE_LEVELS, isCourseLevel, LEVEL_RANKS, levelFromClassNames, levelRank, type ControlLevelFeatures, type CourseLevel, type FeatureSize,
+  COURSE_LEVELS, isCourseLevel, levelFromClassNames, levelRank, type ControlLevelFeatures, type CourseLevel, type FeatureSize,
   type HandrailKind, type LegLevelFeatures, type LevelRank
 } from "./level-types";
 export { prepareLevelMap, type LevelMap } from "./level-map";

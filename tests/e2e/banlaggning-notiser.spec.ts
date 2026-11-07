@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Browser, type Locator, type Page, type Route } from "@playwright/test";
-import { addPerson, createRace, registerAccount, today, unique, warmCourseSetting, warmRoute } from "./helpers";
+import { addPerson, createRace, mapSettled, registerAccount, today, unique, warmCourseSetting, warmRoute } from "./helpers";
 
 /**
  * ADR-0181 beslut 8 (ägarens synpunkter 2026-11-02): notiser med ritning och kartfel. På datorn: rita ett kartfel (dra
@@ -99,7 +99,7 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   const document = await documentOf(owner, admin);
   const map = await openEditor(owner, raceId);
   await owner.getByRole("button", { name: "Visa hela kartan" }).click();
-  await owner.waitForTimeout(400);
+  await mapSettled(map);
   owner.on("dialog", dialog => void dialog.accept());
 
   // 1. Rita ett kartfel: en streckad frihandslinje ("är fel") och en linje punkt för punkt med pil ("ska vara här").
@@ -205,7 +205,7 @@ test("notiser på datorn: rita ett kartfel, välj det på kartan, filtrera, expo
   await expect(sheet.getByRole("img", { name: "Foto till kartfel 2" })).toBeVisible();
   await screenshot(owner, "notiser-export-1280");
   await owner.setViewportSize({ width: 390, height: 844 });
-  await owner.waitForTimeout(300);
+  await expect.poll(() => owner.evaluate(() => window.innerWidth)).toBe(390);
   await screenshot(owner, "notiser-export-390");
   await owner.setViewportSize({ width: 1280, height: 720 });
   const sheetText = await sheet.innerText();
@@ -314,7 +314,7 @@ test("notiser i telefonen: Rita kartfel under Mer, rita med fingret, två fingra
   const map = await openEditor(phone, raceId);
   await expect(phone.getByTestId("course-setting-field")).toBeVisible();
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
-  await phone.waitForTimeout(400);
+  await mapSettled(map);
 
   // 1. Mer → Rita kartfel → ett streck med fingret.
   await openMore(phone);

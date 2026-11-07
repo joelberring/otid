@@ -6,7 +6,6 @@ import type { CourseVariant, CourseVersion, RaceSnapshot } from "./types";
  * hel kontrollföljd. Klassen pekar på banan och löparen bär sin variants kod.
  * Utan varianter fungerar allt som tidigare. Funktionerna här är rena.
  */
-export const COURSE_VARIANT_CODE_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} ._:/-]{0,31}$/u;
 
 /** Banversionens varianter i visningsordning (tom lista = inte gafflad). */
 export function courseVariantsOf(version: CourseVersion): readonly CourseVariant[] {

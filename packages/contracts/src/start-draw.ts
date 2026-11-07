@@ -157,15 +157,11 @@ export const startDrawResponseSchema = z.object({
   }
 });
 
-
 export type StartDrawMethod = z.infer<typeof startDrawMethodSchema>;
 export type StartDrawLaterStart = z.infer<typeof startDrawLaterStartSchema>;
 export type StartDrawRules = z.infer<typeof startDrawRulesSchema>;
 export type StartDrawSavedSettings = z.infer<typeof startDrawSavedSettingsSchema>;
-export type StartDrawWarning = z.infer<typeof startDrawWarningSchema>;
-export type StartDrawVacancies = z.infer<typeof startDrawVacanciesSchema>;
 export type StartDrawSetupResponse = z.infer<typeof startDrawSetupResponseSchema>;
-export type StartDrawClassSetting = z.infer<typeof startDrawClassSettingSchema>;
 export type StartDrawPreviewRequest = z.infer<typeof startDrawPreviewRequestSchema>;
 export type StartDrawPreviewResponse = z.infer<typeof startDrawPreviewResponseSchema>;
 export type StartDrawRequest = z.infer<typeof startDrawRequestSchema>;

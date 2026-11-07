@@ -83,4 +83,3 @@ export type MapPrintList = z.infer<typeof mapPrintListSchema>;
 export type MapBundleResponse = z.infer<typeof mapBundleResponseSchema>;
 export type MapPrintChangeDto = z.infer<typeof mapPrintChangeSchema>;
 export type MapBundleRowDto = z.infer<typeof mapBundleRowSchema>;
-export type MapBundleGroupDto = z.infer<typeof mapBundleGroupSchema>;

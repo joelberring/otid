@@ -105,7 +105,6 @@ export type RunnerClub = z.infer<typeof runnerClubSchema>;
 export type RunnerSuggestion = z.infer<typeof runnerSuggestionSchema>;
 export type RunnerLookup = z.infer<typeof runnerLookupSchema>;
 export type RunnerDatabaseSettingsResponse = z.infer<typeof runnerDatabaseSettingsResponseSchema>;
-export type RunnerDatabaseRefreshRequest = z.infer<typeof runnerDatabaseRefreshRequestSchema>;
 export type RunnerDatabaseRefreshOutcome = z.infer<typeof runnerDatabaseRefreshOutcomeSchema>;
 export type RunnerDatabaseRefreshResponse = z.infer<typeof runnerDatabaseRefreshResponseSchema>;
 export type RunnerSearchRequest = z.infer<typeof runnerSearchRequestSchema>;

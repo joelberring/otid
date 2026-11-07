@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mapPointToWgs84 } from "../../packages/map-file/src/georef";
 import type { MapGeoreference } from "../../packages/map-file/src/model";
-import { createRace, registerAccount, today, unique, warmCourseSetting } from "./helpers";
+import { createRace, mapSettled, registerAccount, today, unique, warmCourseSetting } from "./helpers";
 
 /**
  * Frågan när en delad kontroll flyttas långt i en bana (som Purple Pen): Lång och Mellan har båda 31, 32, 33 och 36
@@ -178,7 +178,7 @@ test("banläggning: flytta en delad kontroll långt – ny kontroll bara i banan
   await expect(phoneMap).toHaveAttribute("data-px-per-mm", /\d/);
   await phone.getByTestId("course-setting-field-course").selectOption({ label: "Lång" });
   await phone.getByRole("button", { name: "Visa hela kartan" }).click();
-  await phone.waitForTimeout(400);
+  await mapSettled(phoneMap);
   const before33 = byCode(await documentNow(), "33")!.at;
   const at33 = await screenOf(phoneMap, before33.x, before33.y);
   await phone.touchscreen.tap(at33.x, at33.y);

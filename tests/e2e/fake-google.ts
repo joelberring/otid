@@ -11,7 +11,6 @@ import { createServer, type Server } from "node:http";
  *   utgivaren (`iss`) är adressen som servern använde (`http://{Host}`), som OTID_GOOGLE_BASE_URL.
  */
 export const FAKE_GOOGLE_PORT = Number(process.env.E2E_GOOGLE_PORT ?? 4337);
-export const FAKE_GOOGLE_CLIENT_ID = "otid-e2e.apps.googleusercontent.com";
 export const FAKE_GOOGLE_CLIENT_SECRET = "endast-for-test";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });

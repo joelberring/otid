@@ -53,8 +53,6 @@ export const entryCardInUseResponseSchema = z.object({ formatVersion: z.literal(
   holder: z.object({ entryId: uuid, displayName: z.string().min(1).max(321), classId: uuid, className: z.string().min(1).max(160),
     version, assignment }).strict() }).strict();
 export type EntryCardInUseResponse = z.infer<typeof entryCardInUseResponseSchema>;
-export type LinkedReadout = z.infer<typeof linkedReadoutSchema>;
 export type { EntryClassAdminErrorCode as EntryCardAdminErrorCode } from "./entry-class-admin";
-export type EntryCardAdminListResponse = z.infer<typeof entryCardAdminListResponseSchema>;
 export type EntryCardChangeRequest = z.infer<typeof entryCardChangeRequestSchema>;
 export type EntryCardChangeResponse = z.infer<typeof entryCardChangeResponseSchema>;

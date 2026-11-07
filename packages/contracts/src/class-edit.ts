@@ -55,7 +55,6 @@ export const classEditResponseSchema = z.object({
   }
 });
 
-export type ClassEditPreviewRequest = z.infer<typeof classEditPreviewRequestSchema>;
 export type ClassEditPreviewResponse = z.infer<typeof classEditPreviewResponseSchema>;
 export type ClassEditRequest = z.infer<typeof classEditRequestSchema>;
 export type ClassEditResponse = z.infer<typeof classEditResponseSchema>;

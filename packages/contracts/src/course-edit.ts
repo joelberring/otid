@@ -151,7 +151,6 @@ export type CourseDetailsRequest = z.infer<typeof courseDetailsRequestSchema>;
 export type CourseDetailsResponse = z.infer<typeof courseDetailsResponseSchema>;
 
 export type CourseEditListResponse = z.infer<typeof courseEditListResponseSchema>;
-export type CourseEditPreviewRequest = z.infer<typeof courseEditPreviewRequestSchema>;
 export type CourseEditPreviewResponse = z.infer<typeof courseEditPreviewResponseSchema>;
 export type CourseEditRequest = z.infer<typeof courseEditRequestSchema>;
 export type CourseEditResponse = z.infer<typeof courseEditResponseSchema>;

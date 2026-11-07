@@ -12,7 +12,6 @@ export type CourseLevel = typeof COURSE_LEVELS[number];
 
 /** Teknisk svårighet 0–5: Grön 0, Vit 1, Gul 2, Orange 3, Violett 4, Blå och Svart 5. */
 export type LevelRank = 0 | 1 | 2 | 3 | 4 | 5;
-export const LEVEL_RANKS: readonly LevelRank[] = [0, 1, 2, 3, 4, 5];
 
 export function levelRank(level: CourseLevel): LevelRank {
   return Math.min(5, COURSE_LEVELS.indexOf(level)) as LevelRank;

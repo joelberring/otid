@@ -172,4 +172,3 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
   function cancelDateMove() { setDateMovePreview(undefined); }
   return { changeSettings, saveSettings, cancelDateMove, saveStartListLive, saveSelfRegistration };
 }
-export type SettingsActions = ReturnType<typeof createSettingsActions>;

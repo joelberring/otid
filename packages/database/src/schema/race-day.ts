@@ -6,7 +6,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -20,10 +19,7 @@ import {
   entries,
   races
 } from "./core";
-import {
-  cardReadouts,
-  resultRevisions
-} from "./results";
+import { resultRevisions } from "./results";
 
 export const startCheckinDevices = pgTable("start_checkin_device", {
   id: uuid("id").primaryKey(),
@@ -235,57 +231,3 @@ export const manualClassCreateRequests = pgTable("manual_class_create_request", 
   check("manual_class_create_request_json_check", sql`jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
 ]);
 
-/**
- * Immutable TASK135 decision header. The source basis binds a selected set of
- * entries to a strictly shorter, separately ranked local class; it never
- * rewrites the original class, course version, or result history.
- */
-export const shortenedCourseClassTransfers = pgTable("shortened_course_class_transfer", {
-  requestId: uuid("request_id").primaryKey(), raceId: uuid("race_id").notNull().references(() => races.id),
-  sourceClassId: uuid("source_class_id").notNull(), sourceCourseId: uuid("source_course_id").notNull(),
-  sourceCourseVersionId: uuid("source_course_version_id").notNull(), shortCourseId: uuid("short_course_id").notNull(),
-  shortCourseVersionId: uuid("short_course_version_id").notNull(), shortClassId: uuid("short_class_id").notNull(),
-  actorAccountId: uuid("actor_account_id").notNull(),
-  sourceSnapshotVersion: integer("source_snapshot_version").notNull(), sourceHash: text("source_hash").notNull(),
-  frozenBasis: jsonb("frozen_basis").$type<Record<string, unknown>>().notNull(),
-  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
-  response: jsonb("response").$type<Record<string, unknown>>().notNull(), transferredAt: timestamp("transferred_at", { withTimezone: true }).notNull()
-}, table => [
-  uniqueIndex("shortened_course_class_transfer_scope_uidx").on(table.requestId, table.raceId),
-  foreignKey({ columns: [table.sourceClassId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  foreignKey({ columns: [table.sourceCourseId, table.raceId], foreignColumns: [courses.id, courses.raceId] }),
-  foreignKey({ columns: [table.sourceCourseVersionId, table.sourceCourseId], foreignColumns: [courseVersions.id, courseVersions.courseId] }),
-  foreignKey({ columns: [table.shortCourseId, table.raceId], foreignColumns: [courses.id, courses.raceId] }),
-  foreignKey({ columns: [table.shortCourseVersionId, table.shortCourseId], foreignColumns: [courseVersions.id, courseVersions.courseId] }),
-  foreignKey({ columns: [table.shortClassId, table.raceId], foreignColumns: [classes.id, classes.raceId] }),
-  check("shortened_course_class_transfer_snapshot_check", sql`${table.sourceSnapshotVersion} > 0`),
-  check("shortened_course_class_transfer_hash_check", sql`${table.sourceHash} ~ '^[a-f0-9]{64}$'`),
-  check("shortened_course_class_transfer_json_check", sql`jsonb_typeof(${table.frozenBasis}) = 'object' AND jsonb_typeof(${table.request}) = 'object' AND jsonb_typeof(${table.response}) = 'object'`)
-]);
-
-/** Exact moved-entry manifest. A row has either no source result or one MP readout source and one appended technical revision. */
-export const shortenedCourseClassTransferItems = pgTable("shortened_course_class_transfer_item", {
-  requestId: uuid("request_id").notNull(), raceId: uuid("race_id").notNull(), entryId: uuid("entry_id").notNull(),
-  entryVersionBefore: integer("entry_version_before").notNull(), entryVersionAfter: integer("entry_version_after").notNull(),
-  sourceResultRevisionId: uuid("source_result_revision_id"), sourceResultRevision: integer("source_result_revision"),
-  sourceReadoutId: uuid("source_readout_id"), createdResultRevisionId: uuid("created_result_revision_id"),
-  createdResultRevision: integer("created_result_revision")
-}, table => [
-  primaryKey({ columns: [table.requestId, table.entryId] }),
-  uniqueIndex("shortened_course_class_transfer_item_created_result_uidx")
-    .on(table.requestId, table.createdResultRevisionId, table.raceId, table.entryId, table.createdResultRevision),
-  foreignKey({ columns: [table.requestId, table.raceId], foreignColumns: [shortenedCourseClassTransfers.requestId, shortenedCourseClassTransfers.raceId] }),
-  foreignKey({ columns: [table.entryId, table.raceId], foreignColumns: [entries.id, entries.raceId] }),
-  foreignKey({ columns: [table.sourceResultRevisionId, table.raceId, table.entryId, table.sourceResultRevision], foreignColumns: [resultRevisions.id, resultRevisions.raceId, resultRevisions.entryId, resultRevisions.revision] }),
-  foreignKey({ columns: [table.sourceReadoutId], foreignColumns: [cardReadouts.id] }),
-  foreignKey({ columns: [table.createdResultRevisionId, table.requestId, table.raceId, table.entryId, table.createdResultRevision], foreignColumns: [resultRevisions.id, resultRevisions.shortenedCourseClassTransferId, resultRevisions.raceId, resultRevisions.entryId, resultRevisions.revision] }),
-  check("shortened_course_class_transfer_item_version_check", sql`${table.entryVersionBefore} > 0 AND ${table.entryVersionAfter}::bigint = ${table.entryVersionBefore}::bigint + 1`),
-  check("shortened_course_class_transfer_item_result_chain_check", sql`(
-    ${table.sourceResultRevisionId} IS NULL AND ${table.sourceResultRevision} IS NULL AND ${table.sourceReadoutId} IS NULL AND
-    ${table.createdResultRevisionId} IS NULL AND ${table.createdResultRevision} IS NULL
-  ) OR (
-    ${table.sourceResultRevisionId} IS NOT NULL AND ${table.sourceResultRevision} IS NOT NULL AND ${table.sourceReadoutId} IS NOT NULL AND
-    ${table.createdResultRevisionId} IS NOT NULL AND ${table.createdResultRevision} IS NOT NULL AND
-    ${table.createdResultRevision}::bigint = ${table.sourceResultRevision}::bigint + 1
-  )`)
-]);

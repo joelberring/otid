@@ -21,7 +21,6 @@ export const uninterpretedReadoutPayloadSchema = z.object({
   clockOffsetMs: z.number().int().min(-1_000_000_000_000).max(1_000_000_000_000).optional(),
   simulated: z.boolean()
 }).strict();
-export type UninterpretedReadoutPayload = z.infer<typeof uninterpretedReadoutPayloadSchema>;
 
 /** Avläsningssidan: en otolkad avläsning. `requestId` är stabil per avläsning, så samma begäran igen ger samma kvitto. */
 export const uninterpretedReadoutRequestSchema = z.object({

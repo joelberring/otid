@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, createRace, openStep, publishRace, registerAccount, unique, expectSaved, raceStartedAgo } from "./helpers";
+import { addCourseAndClass, createRace, openStep, publishRace, raceStartedAgo, readExercise, registerAccount, unique } from "./helpers";
 
 /**
  * Steg 50 (ADR-0174 beslut 9): teamsprint med utläsning efter varje sträcka, som MeOS. Löparna stämplar mål och läser ut
@@ -33,13 +33,7 @@ async function openReadout(page: Page, raceId: string) {
 
 /** Läser ut en övningsbricka för sträcklöparen; `verdict` är beskedet som väntas (eller inget för att inte kontrollera). */
 async function read(page: Page, label: RegExp, verdict: string | null = "GODKÄND") {
-  const select = page.getByLabel("Deltagare");
-  const option = await select.locator("option").filter({ hasText: label }).first().textContent();
-  await select.selectOption({ label: option! });
-  await page.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  if (verdict) await expect(page.getByTestId("verdict")).toContainText(verdict);
-  else await expect(page.getByTestId("verdict")).toBeVisible();
-  await expectSaved(page);
+  await readExercise(page, label, { status: verdict });
 }
 
 async function sprintRace(browser: Parameters<typeof registerAccount>[0], prefix: string, teams: readonly string[]) {

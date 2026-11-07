@@ -168,4 +168,3 @@ export function createRogainingActions(ws: Base & RaceDataActions & CourseEditAc
   }
   return { changeRogainingPoints, changeRogainingRule, resetRogaining, previewRogaining, saveRogaining };
 }
-export type RogainingActions = ReturnType<typeof createRogainingActions>;

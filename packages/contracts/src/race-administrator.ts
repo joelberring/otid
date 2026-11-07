@@ -2,7 +2,6 @@ import { z } from "zod";
 import { uuidSchema as uuid } from "./ids";
 import { courseSettingLevelSchema } from "./course-setting";
 
-
 /** GET …/administrator/session: kontots roll på tävlingen (ADR-0172 beslut 3, ADR-0173 beslut 4). */
 export const raceSessionResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid,
@@ -19,4 +18,3 @@ export const raceSessionAbsentSchema = z.object({ formatVersion: z.literal(1), r
   courseSetting: courseSettingLevelSchema.optional() }).strict();
 export const raceSessionStatusSchema = z.union([raceSessionResponseSchema, raceSessionAbsentSchema]);
 
-export type RaceSessionResponse = z.infer<typeof raceSessionResponseSchema>;

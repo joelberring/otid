@@ -11,9 +11,7 @@ import {
   type FrozenFinalizationResultSourceV9,
   type FrozenManualDecisionCause,
   type FrozenIofPersonProjection,
-  type FrozenIofPersonProjectionV9,
   type FrozenRaceFinalizationProjection,
-  type FrozenRaceFinalizationProjectionV9,
   type RaceResultFinalizationMetadata,
   type ResultFinalizationBlockerCode,
   type ResultFinalizationCandidateResponse
@@ -412,7 +410,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
     const basisEntries: unknown[] = [];
     const validResults: Array<{
       source: FrozenFinalizationResultSourceV9;
-      person: Omit<FrozenIofPersonProjectionV9, "position" | "timeBehindMs">;
+      person: Omit<FrozenIofPersonProjection, "position" | "timeBehindMs">;
     }> = [];
 
     const controlRowsForClass = controlsByVersion.get(raceClass.courseVersionId) ?? [];
@@ -662,7 +660,7 @@ export async function buildFinalizationBasis(tx: DatabaseTransaction, race: Lock
   const unresolvedUnknownCardReadoutCount = unresolvedRows[0]?.value ?? 0;
   if (unresolvedUnknownCardReadoutCount > 0) raceBlockers.add("UNKNOWN_CARD_UNRESOLVED");
 
-  const selectedClasses: FrozenRaceFinalizationProjectionV9["classes"] = [];
+  const selectedClasses: FrozenRaceFinalizationProjection["classes"] = [];
   const raceBasisClasses: unknown[] = [];
   for (const candidate of classCandidates.filter((item) => item.entryCount > 0)) {
     const latestRow = latestClassFinalizationByClass.get(candidate.classId);

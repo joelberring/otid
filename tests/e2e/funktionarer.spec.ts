@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, addPerson, createRace, logIn, openStep, registerAccount, sectionButton, today, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, addPerson, createRace, logIn, openStep, readExercise, registerAccount, sectionButton, today, unique,
+  warmRoute } from "./helpers";
 
 /**
  * Steg 18 (ADR-0172 beslut 3): funktionärer. Ägaren lägger till ett befintligt konto som funktionär under
@@ -23,9 +24,7 @@ async function openReadout(page: Page, raceId: string): Promise<void> {
 }
 
 async function readRunner(page: Page, runner: typeof RUNNERS[number]): Promise<void> {
-  await page.getByLabel("Deltagare").selectOption({ label: `${runner.givenName} ${runner.familyName} · ${runner.className} · ${runner.card}` });
-  await page.getByRole("button", { name: "Läs av: rätt stämplat" }).click();
-  await expect(page.getByTestId("verdict")).toContainText("GODKÄND");
+  await readExercise(page, `${runner.givenName} ${runner.familyName} · ${runner.className} · ${runner.card}`);
   await expect(page.getByTestId("verdict")).toContainText(`${runner.givenName} ${runner.familyName}`);
   // Funktionären skriver ut kvitton (steg 21).
   await expect(page.getByRole("button", { name: "Skriv ut kvitto" })).toBeVisible();

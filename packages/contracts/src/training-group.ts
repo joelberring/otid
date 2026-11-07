@@ -82,12 +82,8 @@ export const raceGroupAttachRequestSchema = z.object({ formatVersion: z.literal(
 
 export const raceMapAgreementAcknowledgeRequestSchema = z.object({ formatVersion: z.literal(1), acknowledge: z.boolean() }).strict();
 
-export type GroupCreateRequest = z.infer<typeof groupCreateRequestSchema>;
-export type GroupSettingsRequest = z.infer<typeof groupSettingsRequestSchema>;
-export type GroupMemberAddRequest = z.infer<typeof groupMemberAddRequestSchema>;
 export type MapAgreement = z.infer<typeof mapAgreementSchema>;
 export type GroupSessionCreateRequest = z.infer<typeof groupSessionCreateRequestSchema>;
-export type GroupMapSaveRequest = z.infer<typeof groupMapSaveRequestSchema>;
 export type GroupPageVisibility = z.infer<typeof groupPageVisibilitySchema>;
 export type GroupNameDisplay = z.infer<typeof groupNameDisplaySchema>;
 export type GroupStatsVisibility = z.infer<typeof groupStatsVisibilitySchema>;

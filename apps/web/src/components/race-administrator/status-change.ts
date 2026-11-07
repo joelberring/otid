@@ -122,4 +122,3 @@ export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDec
   }
   return { chooseStatusChange, confirmStatusChange, cancelStatusChange };
 }
-export type StatusChangeActions = ReturnType<typeof createStatusChangeActions>;

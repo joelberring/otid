@@ -9,9 +9,7 @@ import {
 import { sv } from "../i18n/sv";
 import { UUID_PATTERN as UUID } from "@o-tid/contracts";
 
-
 export type ClassResultRecalculationCandidates = ClassResultRecalculationCandidateResponse;
-export type ClassResultRecalculationRequestWithId = ClassResultRecalculationRequest & { requestId: string };
 export type ClassResultRecalculationAttempt = {
   requestId: string;
   classId: string;

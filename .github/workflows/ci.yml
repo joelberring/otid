@@ -38,6 +38,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
       - run: pnpm lint
+      # Död kod (knip.json): oanvända filer, exporter, typer och beroenden.
+      - run: pnpm lint:dead
       - run: pnpm typecheck
       - run: pnpm test
       # pg_dump i integrationstesterna (steg 59) måste ha samma huvudversion som servern (postgres:17).

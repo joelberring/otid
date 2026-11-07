@@ -17,6 +17,4 @@ export const courseSettingSuggestSv = {
   previewHelp: (count: number) => count === 1 ? "1 kontroll visar ett förslag (ljusare) tills det godtas."
     : `${count} kontroller visar förslag (ljusare) tills de godtas.`,
   field: (text: string) => `Förslag: ${text}`,
-  boxLabel: (box: string, name: string) => `${box}: ${name}`,
-  emptyBox: (box: string) => `${box}: tom`
 };

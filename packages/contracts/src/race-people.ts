@@ -101,11 +101,9 @@ export const racePersonRevokeResponseSchema = z.object({
   revokedAt: instantSchema
 }).strict();
 
-export type RacePersonRole = z.infer<typeof racePersonRoleSchema>;
 export type RacePerson = z.infer<typeof racePersonSchema>;
 export type RacePeopleResponse = z.infer<typeof racePeopleResponseSchema>;
 export type RacePersonGrantRequest = z.infer<typeof racePersonGrantRequestSchema>;
 export type RacePersonGrantResponse = z.infer<typeof racePersonGrantResponseSchema>;
-export type RacePersonRevokeRequest = z.infer<typeof racePersonRevokeRequestSchema>;
 export type RacePersonRevokeResponse = z.infer<typeof racePersonRevokeResponseSchema>;
 export type RacePersonInvitation = z.infer<typeof racePersonInvitationSchema>;

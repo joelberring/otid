@@ -56,7 +56,6 @@ export const readoutRereadCommitRequestSchema = z.object({
   items: z.array(z.object({ readoutId: uuid, entryId: uuid, itemHash: hash }).strict()).min(1).max(1_000)
 }).strict().refine((value) => new Set(value.items.map((item) => `${item.readoutId}:${item.entryId}`)).size === value.items.length,
   { path: ["items"] });
-export type ReadoutRereadCommitRequest = z.infer<typeof readoutRereadCommitRequestSchema>;
 
 export const readoutRereadCommitResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, requestId: uuid, replayed: z.boolean(),

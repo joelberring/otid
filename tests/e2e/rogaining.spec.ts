@@ -1,16 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, openStep, publishRace, registerAccount, today, unique, warmRoute } from "./helpers";
+import { expect, test } from "@playwright/test";
+import { addCourseAndClass, addEntry, createRace, openStep, publishRace, readExercise, registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 15 (ADR-0170 beslut 5): rogaining. Kontrollerna läggs in som en bana med klass och tidsgräns, poängen
  * ändras under "Kontroller & poäng", två löpare läses av med övningsstationen (en för sen), avläsningen visar
  * poäng, straff och summa, och resultatlistan sorteras på summa. En ändrad poäng efter avläsning räknas om med besked.
  */
-async function readExercise(page: Page, label: string, button: string) {
-  await page.getByLabel("Deltagare").selectOption({ label });
-  await page.getByRole("button", { name: button }).click();
-  await expect(page.getByTestId("verdict")).toContainText(label.split(" · ")[0]!);
-}
 
 test("rogaining: poäng, straff och resultatlista på summa", async ({ browser }) => {
   test.setTimeout(300_000);
@@ -45,12 +40,11 @@ test("rogaining: poäng, straff och resultatlista på summa", async ({ browser }
   await expect(owner.getByTestId("package-status")).toContainText("v");
   await owner.getByRole("button", { name: "Starta övningsstation" }).click();
   await expect(owner.getByTestId("station-status")).toContainText("Övningsstation");
-  await readExercise(owner, "Ada Ek · Rogaining 60 · 8005001", "Läs av: rätt stämplat");
-  await expect(owner.getByTestId("verdict")).toContainText("GODKÄND");
+  await readExercise(owner, "Ada Ek · Rogaining 60 · 8005001");
   await expect(owner.getByTestId("verdict-total")).toHaveText("24 poäng");
   await expect(owner.getByTestId("verdict-breakdown")).toContainText("24 p kontroller · inget straff");
   await expect(owner.getByTestId("verdict").getByRole("list", { name: "Räknade kontroller" })).toContainText("102");
-  await readExercise(owner, "Bo Sen · Rogaining 60 · 8005002", "Läs av: för sen");
+  await readExercise(owner, "Bo Sen · Rogaining 60 · 8005002", { button: "Läs av: för sen" });
   await expect(owner.getByTestId("verdict-total")).toHaveText("20 poäng");
   await expect(owner.getByTestId("verdict-breakdown")).toContainText("24 p kontroller − 4 p straff");
   await expect(owner.getByTestId("verdict-late")).toContainText("2 påbörjade minuter");

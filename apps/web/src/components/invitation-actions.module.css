@@ -4,4 +4,3 @@
 .actions .ok { color: var(--ok); }
 .actions .error { color: var(--mp); }
 .actions .link { flex-basis: 100%; min-width: 0; font-size: var(--text-xs); }
-.sent { color: var(--muted); font-size: var(--text-xs); }

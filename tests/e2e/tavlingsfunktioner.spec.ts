@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openCourseForm, openStep, publishRace, registerAccount, today, unique, warmRoute } from "./helpers";
+import { addCourseAndClass, addEntry, createRace, ongoingRaceTimeZone, openCourseForm, openStep, publishRace, readExercise,
+  registerAccount, today, unique, warmRoute } from "./helpers";
 
 /**
  * PLAN.md steg 25: saknade tävlingsfunktioner. En tävling med minutstart (H21, banan Lång med längd och stigning) och
@@ -23,12 +24,6 @@ async function screenshots(page: Page, name: string) {
     await page.screenshot({ path: `${directory}/step25-${name}-${width}.png`, fullPage: true });
   }
   await page.setViewportSize({ width: 1280, height: 720 });
-}
-
-async function readExercise(page: Page, label: string, button: string, verdict: string) {
-  await page.getByLabel("Deltagare").selectOption({ label });
-  await page.getByRole("button", { name: button }).click();
-  await expect(page.getByTestId("verdict")).toContainText(verdict);
 }
 
 async function openCard(owner: Page, name: string) {
@@ -115,20 +110,20 @@ test("sen start, hyrbricka, direktanmälan utan nät, maxtid och kvar i skogen",
   const verdict = owner.getByTestId("verdict");
 
   // Sen start: godkänd med varning; tiden räknas från den lottade starten (45 minuter sedan).
-  await readExercise(owner, "Anna Ek · H21 · 8250001", "Läs av: sen start", "GODKÄND");
+  await readExercise(owner, "Anna Ek · H21 · 8250001", { button: "Läs av: sen start", status: "GODKÄND" });
   await expect(verdict.getByTestId("verdict-start-punch")).toHaveAttribute("data-kind", "LATE");
   await expect(verdict.getByTestId("verdict-start-punch")).toHaveText(/^! Startstämpling [\d:]+, lottad [\d:]+ – 2:12 sen$/);
   await expect(verdict.locator(".time")).toHaveText(/^4[45]:\d\d$/);
   await screenshots(owner, "sen-start");
 
   // Hyrbricka utan lottad tid: starten tas från stämplingen och beskedet säger åt funktionären att samla in brickan.
-  await readExercise(owner, "Cia Holm · H21 · 8250003", "Läs av: rätt stämplat", "GODKÄND");
+  await readExercise(owner, "Cia Holm · H21 · 8250003");
   await expect(verdict.getByTestId("verdict-rental")).toHaveText("▲ HYRBRICKA – samla in");
   await expect(verdict.getByTestId("verdict-start-punch")).toHaveAttribute("data-kind", "FROM_PUNCH");
   await screenshots(owner, "hyrbricka");
 
   // Över maxtiden (30 minuter mot 20).
-  await readExercise(owner, "Bo Lind · Öppen · 8250002", "Läs av: rätt stämplat", "MAXTID ÖVERSKRIDEN");
+  await readExercise(owner, "Bo Lind · Öppen · 8250002", { status: "MAXTID ÖVERSKRIDEN" });
   await expect(owner.getByTestId("queue-status")).toHaveText("0 väntar", { timeout: 30_000 });
 
   // Utan nät: en okänd bricka som springer H21:s bana. Anmälan sker här och beskedet bedöms om direkt.

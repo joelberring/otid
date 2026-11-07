@@ -94,6 +94,7 @@ async function ensureListener(databasePool: Pool): Promise<void> {
 /**
  * Steg 51: instansen lyssnar på resultatströmmen så snart den visar en publik lista, inte först när en besökare öppnar
  * strömmen här. Annars räknar den instans som bara får hämtningarna (den andra bakom Caddy) aldrig om i förväg.
+ * @public Inläst med dynamisk import i `public-race-data.ts`.
  */
 export function ensurePublicResultListener(): void {
   void ensureListener(pool).catch((error) => console.error("Resultatströmmen kunde inte lyssna", error));

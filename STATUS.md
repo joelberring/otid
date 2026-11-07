@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Död kod bort och knip i CI (grenen c1-dod-kod, ingen migration)
+- Gamla versionsscheman (resultOutcomeV1–V8, storedResult*V4/V6, publicResult*V1–V6, V9-alias) bort; gällande namn kvar. `publicResultListResponseSchema` är format 7.
+- Oanvända exporter, konstanter och ~150 exporterade typer bort; `distributeRelayVariants` och `encodeCaptureWalNdjson` flyttade till testerna.
+- Döda Drizzle-tabeller (`shortenedCourseClassTransfer*`, `mapContentParts`; SQL-tabellerna kvar), Google-kakans gamla format, `POST …/maps/{mapId}/merge` (ADR-0210 ändrad).
+- 82 oanvända i18n-nycklar och 18 CSS-modulklasser bort; `i18n/unused-keys.test.ts` kräver att varje toppnyckel används.
+- `pnpm lint:dead` (knip 5.60, `knip.json`) körs i CI-jobbet verify. Undantag med kommentar i `knip.json` (B2/B4-filer, pg, typsnitt).
+
 ### 2026-11-07 – Saknad skala för banan är kartans, också i .ppen (grenen a6-tryckskala, ADR-0211 beslut 13)
 - En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.
 - Tester: `print-scale-default.test.ts` (ny bana, banfil, rundtripp med fixturen och med en annan skala); A3:s rundtripptest förväntar nu ingen skala efter återinläsning.

@@ -66,6 +66,8 @@ export function panBy(view: Viewport, dx: number, dy: number): Viewport {
 
 /** Ny storlek på ytan; mitten och skalan behålls. */
 export function resize(view: Viewport, width: number, height: number): Viewport {
+  // Samma storlek: samma vy (B5, ADR-0218), så att ingen ny bild av hela kartan beställs i onödan.
+  if (view.width === width && view.height === height) return view;
   return { ...view, width, height };
 }
 

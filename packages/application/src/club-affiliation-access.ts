@@ -15,10 +15,21 @@ const memberships = schema.accountClubMemberships;
 
 /** Klubbarkivets koppling och "Vem ser vad" (utan rad: inte kopplad, förvalen). */
 export async function clubLinkFacts(tx: DbExecutor, clubId: string) {
-  const [setting] = await tx.select({ organisationId: schema.clubSettings.organisationId, archive: schema.clubSettings.archiveVisibility,
-    mapBank: schema.clubSettings.mapBankAccess }).from(schema.clubSettings).where(eq(schema.clubSettings.clubId, clubId));
-  return { clubId, organisationId: setting?.organisationId ?? null,
-    access: { ARCHIVE: setting?.archive ?? CLUB_AREA_DEFAULTS.ARCHIVE, MAP_BANK: setting?.mapBank ?? CLUB_AREA_DEFAULTS.MAP_BANK } };
+  return (await clubLinkFactsMany(tx, [clubId])).get(clubId)!;
+}
+
+/** Som `clubLinkFacts` för flera klubbar i en fråga (B5). */
+export async function clubLinkFactsMany(tx: DbExecutor, clubIds: readonly string[]) {
+  const ids = [...new Set(clubIds)];
+  const settings = ids.length === 0 ? [] : await tx.select({ clubId: schema.clubSettings.clubId, organisationId: schema.clubSettings.organisationId,
+    archive: schema.clubSettings.archiveVisibility, mapBank: schema.clubSettings.mapBankAccess }).from(schema.clubSettings)
+    .where(inArray(schema.clubSettings.clubId, ids));
+  const byClub = new Map(settings.map(setting => [setting.clubId, setting]));
+  return new Map(ids.map(clubId => {
+    const setting = byClub.get(clubId);
+    return [clubId, { clubId, organisationId: setting?.organisationId ?? null,
+      access: { ARCHIVE: setting?.archive ?? CLUB_AREA_DEFAULTS.ARCHIVE, MAP_BANK: setting?.mapBank ?? CLUB_AREA_DEFAULTS.MAP_BANK } }] as const;
+  }));
 }
 
 /**
@@ -38,11 +49,16 @@ export async function derivedClubMembership(tx: DbExecutor, accountId: string, c
 
 /** Klubbarkiven där kontot är bekräftad medlem (med läsarrätt), för Mina klubbar i Mina tävlingar. */
 export async function derivedClubIds(tx: DbExecutor, accountId: string): Promise<string[]> {
-  const rows = await tx.select({ clubId: memberships.clubId }).from(memberships)
-    .where(and(eq(memberships.accountId, accountId), eq(memberships.status, "CONFIRMED"), isNotNull(memberships.clubId)));
-  const result: string[] = [];
-  for (const clubId of new Set(rows.map(row => row.clubId!))) if (await derivedClubMembership(tx, accountId, clubId)) result.push(clubId);
-  return result;
+  // Som `derivedClubMembership` för varje klubb, men med tre frågor i stället för tre per klubb (B5).
+  const rows = await tx.select({ id: memberships.id, status: memberships.status, clubId: memberships.clubId, organisationId: memberships.organisationId })
+    .from(memberships).where(and(eq(memberships.accountId, accountId), eq(memberships.status, "CONFIRMED"), isNotNull(memberships.clubId)));
+  if (rows.length === 0) return [];
+  const [account] = await tx.select({ verifiedAt: schema.userAccounts.emailVerifiedAt, blockedAt: schema.userAccounts.blockedAt })
+    .from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId));
+  if (!account?.verifiedAt || account.blockedAt) return [];
+  const clubIds = [...new Set(rows.map(row => row.clubId!))];
+  const links = await clubLinkFactsMany(tx, clubIds);
+  return clubIds.filter(clubId => derivedClubRole(rows.filter(row => row.clubId === clubId), links.get(clubId)!));
 }
 
 /**

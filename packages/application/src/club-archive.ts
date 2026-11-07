@@ -28,20 +28,51 @@ type VersionRow = typeof schema.clubMapVersions.$inferSelect;
  */
 export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: readonly string[], options: { merges?: boolean } = {})
   : Promise<ClubMapView[]> {
-  if (mapIds && mapIds.length === 0) return [];
-  const maps = await tx.select().from(schema.clubMaps).where(and(eq(schema.clubMaps.clubId, clubId),
-    mapIds ? inArray(schema.clubMaps.id, [...mapIds]) : undefined)).orderBy(asc(schema.clubMaps.name)).limit(2000);
-  if (maps.length === 0) return [];
+  return (await clubMapViewsByClub(tx, [clubId], mapIds, options)).get(clubId) ?? [];
+}
+
+/** Högst så många kartor per klubb. */
+const MAX_CLUB_MAPS = 2000;
+
+/**
+ * Som `clubMapViews` för flera klubbar med samma frågor som för en (B5: "Välj karta från klubbarkivet" frågade förut per
+ * klubb). Versionerna fördelas per karta en gång i stället för en genomgång av alla versioner per karta.
+ */
+export async function clubMapViewsByClub(tx: DbExecutor, clubIds: readonly string[], mapIds?: readonly string[], options: { merges?: boolean } = {})
+  : Promise<Map<string, ClubMapView[]>> {
+  const result = new Map<string, ClubMapView[]>();
+  if (clubIds.length === 0 || (mapIds && mapIds.length === 0)) return result;
+  const query = tx.select().from(schema.clubMaps).where(and(inArray(schema.clubMaps.clubId, [...clubIds]),
+    mapIds ? inArray(schema.clubMaps.id, [...mapIds]) : undefined)).orderBy(asc(schema.clubMaps.clubId), asc(schema.clubMaps.name));
+  const rows = clubIds.length === 1 ? await query.limit(MAX_CLUB_MAPS) : await query;
+  const mapsOf = new Map<string, MapRow[]>();
+  for (const map of rows) {
+    const list = mapsOf.get(map.clubId) ?? [];
+    if (list.length < MAX_CLUB_MAPS) list.push(map);
+    mapsOf.set(map.clubId, list);
+  }
+  const maps = [...mapsOf.values()].flat();
+  if (maps.length === 0) return result;
   const versions = await tx.select().from(schema.clubMapVersions).where(inArray(schema.clubMapVersions.mapId, maps.map(map => map.id)));
+  const clubs = sql.join([...mapsOf.keys()].map(id => sql`${id}`), sql`, `);
   const uses = new Map((await tx.execute<{ version_id: string; trainings: string }>(sql`select version_id, count(distinct entry_id)::text as trainings from (
-      select version_id, entry_id from club_archive_entry_map m join club_map_version v on v.id = m.version_id where v.club_id = ${clubId}
-      union all select map_version_id, entry_id from club_archive_course_file where club_id = ${clubId} and map_version_id is not null) u
+      select version_id, entry_id from club_archive_entry_map m join club_map_version v on v.id = m.version_id where v.club_id in (${clubs})
+      union all select map_version_id, entry_id from club_archive_course_file where club_id in (${clubs}) and map_version_id is not null) u
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
   const checks = await mapChecks(tx, versions.map(version => version.id));
-  const merges = options.merges === false ? new Map<string, ClubMapView["merges"]>() : await mapMergeHistory(tx, clubId, maps, versions);
-  // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
-  return [...maps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
-    .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses, checks, merges.get(map.id) ?? []));
+  const versionsOf = new Map<string, VersionRow[]>();
+  for (const version of versions) {
+    const list = versionsOf.get(version.mapId);
+    if (list) list.push(version); else versionsOf.set(version.mapId, [version]);
+  }
+  for (const [clubId, clubMaps] of mapsOf) {
+    const merges = options.merges === false ? new Map<string, ClubMapView["merges"]>()
+      : await mapMergeHistory(tx, clubId, clubMaps, clubMaps.flatMap(map => versionsOf.get(map.id) ?? []));
+    // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
+    result.set(clubId, [...clubMaps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
+      .map(map => mapView(map, [...versionsOf.get(map.id) ?? []].sort(versionOrder), uses, checks, merges.get(map.id) ?? [])));
+  }
+  return result;
 }
 
 function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>,

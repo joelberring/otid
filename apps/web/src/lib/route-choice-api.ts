@@ -3,6 +3,7 @@ import {
   type RouteChoicePublishRequest, type RouteChoiceProblem, type RouteChoiceSettingsDto
 } from "@o-tid/contracts";
 import { readAccountCsrfCookie } from "./organizer-account-cookies";
+import { readWithProgress } from "./download-progress";
 import { fetchWithRetry } from "./retrying-fetch";
 
 /**
@@ -25,13 +26,25 @@ export async function fetchRouteChoice(raceId: string, signal?: AbortSignal): Pr
   return value;
 }
 
-/** Originalfilen (bara admin), för att räkna i webbläsaren. */
-export async function fetchMapSource(raceId: string, signal?: AbortSignal): Promise<{ bytes: ArrayBuffer; fileName: string }> {
-  const response = await fetchWithRetry(`${base(raceId)}/map/source`, { credentials: "same-origin", cache: "no-store", signal: signal ?? null });
+/** Adressen till kartfilen; med filens sha256 får webbläsaren spara den (ADR-0218). */
+export function mapSourceUrl(raceId: string, sha256?: string): string {
+  return sha256 && /^[a-f0-9]{64}$/.test(sha256) ? `${base(raceId)}/map/source/${sha256}` : `${base(raceId)}/map/source`;
+}
+
+/**
+ * Originalfilen (bara admin), för att räkna i webbläsaren. Med `sha256` (filen som tävlingen har enligt banläggningen)
+ * används webbläsarens cache: samma fil hämtas inte igen (ADR-0218). `onProgress` får andelen som hämtats (0–1).
+ */
+export async function fetchMapSource(raceId: string, signal?: AbortSignal,
+  options: { readonly sha256?: string | undefined; readonly onProgress?: ((fraction: number) => void) | undefined } = {})
+  : Promise<{ bytes: ArrayBuffer; fileName: string }> {
+  const url = mapSourceUrl(raceId, options.sha256);
+  const response = await fetchWithRetry(url, { credentials: "same-origin", cache: url.endsWith("/map/source") ? "no-store" : "default",
+    signal: signal ?? null });
   if (!response.ok) throw new Error(String(response.status));
   const disposition = response.headers.get("content-disposition") ?? "";
   const fileName = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "karta.omap";
-  return { bytes: await response.arrayBuffer(), fileName };
+  return { bytes: await readWithProgress(response, options.onProgress), fileName };
 }
 
 export async function saveRouteChoiceSettings(raceId: string, settings: RouteChoiceSettingsDto): Promise<void> {

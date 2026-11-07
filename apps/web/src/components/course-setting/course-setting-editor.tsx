@@ -10,7 +10,6 @@ import {
   keepAcceptedChecks, keepPaperOnImport, withPpenState, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
   type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
-import type { MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
@@ -28,7 +27,6 @@ import {
 } from "../../lib/course-setting-editor";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
 import { ALL_CONTROLS, hitTest, nearestBend } from "../../lib/course-setting-hit";
-import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { noteTargetAt } from "../../lib/course-setting-note-marks";
 import { previewSuggestion, suggestionOverlay } from "../../lib/course-setting-suggestion";
 import { failedNames, safely } from "../../lib/course-setting-safely";
@@ -37,14 +35,13 @@ import { inspectedPoints, inspectionRows, mergeInspections } from "../../lib/cou
 import type { FieldRecord, QueuedItem } from "../../lib/course-setting-offline";
 import { controlLabel, legInput } from "../../lib/course-setting-text";
 import { legForbiddenNotice, showCheckRow, type CheckRow } from "../../lib/course-setting-checks";
-import { toScreen, type Bounds, type Viewport } from "../../lib/course-setting-viewport";
+import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import { drawPrintFrame, drawSpecialEditing } from "../../lib/course-setting-draw-special";
 import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHandles } from "../../lib/course-setting-specials";
 import { PrintPanel } from "./course-setting-print-panel";
 import { CourseSettingTabs } from "./course-setting-tabs";
 import { courseSettingTabsSv as layoutTabsSv } from "../../i18n/course-setting-layout-sv";
 import { SpecialsPanel } from "./course-setting-specials";
-import { controlledWorker } from "../../lib/course-setting-worker";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
 import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
@@ -73,14 +70,13 @@ import { moveCourseEdit } from "../../lib/course-setting-properties";
 import { useCourseSettingUx } from "./use-course-setting-ux";
 import { useCourseSettingHistory } from "./use-course-setting-history";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
-import { loadMapFile, useCourseSettingOffline } from "./use-course-setting-offline";
+import { useCourseSettingMapFile } from "./use-course-setting-map-file";
+import { useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import { useCourseSettingTraining } from "./use-course-setting-training";
 import { useMoveShared } from "./course-setting-move-shared";
 import styles from "./course-setting.module.css";
 
-// Steg 67: styrda av service workern när sidan är sparad för offline (`controlledWorker`).
-const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
 
 type Drag = { kind: "control"; control: string; dx: number; dy: number; courseControl?: string | undefined } | { kind: "number"; courseControl: string } | { kind: "rotate" }
@@ -206,33 +202,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const edit = (change: (current: EditorState) => EditorState) => { if (!readOnly) apply(change); };
 
   // Kartfilen: en Worker ritar kartan; vägvalens Worker startas först när en sträcka väljs (`useRouteChoiceWorker`).
-  const [mapSession, setMapSession] = useState<MapRenderSession>();
-  const [mapBounds, setMapBounds] = useState<Bounds | undefined>(state.mapFile?.bounds);
-  const [mapStatus, setMapStatus] = useState<"none" | "reading" | "ready" | "failed">(state.mapFile ? "reading" : "none");
-  const [georeference, setGeoreference] = useState<MapGeoreference | null>();
-  const [mapBytes, setMapBytes] = useState<number>();
-  useEffect(() => {
-    if (!state.mapFile) return;
-    const controller = new AbortController();
-    let closed = false;
-    let session: MapRenderSession | undefined;
-    void (async () => {
-      try {
-        const file = await loadMapFile(raceId, state.mapFile!.sha256, offline.storage, controller.signal, () => say({
-          tone: "attention", text: offlineSv.olderMap }));
-        if (closed) return;
-        setMapBytes(file.bytes.byteLength);
-        session = new MapRenderSession(createMapWorker, (bounds, _scale, georef) => {
-          if (!closed) { setMapBounds(bounds); setGeoreference(georef); setMapStatus("ready"); }
-        },
-          () => { if (!closed) setMapStatus("failed"); });
-        // Kartfilen går över till Workern (ingen kopia stannar här).
-        session.load(file.bytes, file.fileName);
-        setMapSession(session);
-      } catch { if (!closed) setMapStatus("failed"); }
-    })();
-    return () => { closed = true; controller.abort(); session?.close(); };
-  }, [raceId, state.mapFile]);
+  const mapFile = useCourseSettingMapFile({ raceId, mapFile: state.mapFile, storage: offline.storage, say });
+  const { session: mapSession, bounds: mapBounds, status: mapStatus, georeference, bytes: mapBytes } = mapFile;
 
   const { document, view, selection } = editor;
   const course = document.courses.find(row => row.id === view);
@@ -786,7 +757,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         {ux.elements}
         <div className={styles.toasts}>
           {ux.toasts}
-          {mapStatus === "reading" && <p role="status" className={styles.toast}>{text.readingMap}</p>}
+          {mapStatus === "reading" && <p role="status" className={styles.toast}>{mapFile.progress === undefined ? text.readingMap
+            : text.readingMapProgress(Math.round(mapFile.progress * 100))}</p>}
           {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
           {suggesting && <p className={styles.toast} data-testid="course-setting-suggesting">{copy.suggestions.drafting}: {copy.suggestions.draftCount(editor.log.length)}
             {" "}<Button variant="quiet" onClick={() => setTab("suggestions")}>{copy.suggestions.send} …</Button></p>}

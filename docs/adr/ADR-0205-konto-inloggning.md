@@ -91,3 +91,10 @@ Följder: migration 0082 (endast tillägg); `google-link.ts` i `@o-tid/applicati
 adress, obekräftad adress, flytt, vägran, sista inloggningssättet, bindningen till sessionen, superadmins kommando, Kom ihåg mig och
 alla enheter), `google-route-handlers.test.ts` (läget link) och `tests/e2e/konto-meny.spec.ts` mot en falsk OpenID-leverantör
 (`tests/e2e/fake-google.ts`; webben pekas dit med `OTID_GOOGLE_BASE_URL` och `OTID_GOOGLE_AUTHORIZE_URL`, endast test).
+
+Ändrat 2026-11-07 (städrundan, grenen `a1-sakerhet`, migration 0084): en ny registrering av en obekräftad adress skriver över
+kontots visningsnamn, och mejlet hälsar med namnet från den registreringen. Bekräftelselänken minns sitt namn
+(`email_verification_token.display_name`); den som öppnar länken får namnet från sin egen registrering. `created_at` skyddas av
+databasen och står kvar. Utloggningen (`/api/organizer/logout`) kräver exakt Origin och sessionskakan men inte CSRF-kakan, så att
+sessionen alltid spärras på servern; "Du är utloggad" visas först när servern svarat (annars ett fel). "Från alla enheter" kräver
+CSRF som förut.

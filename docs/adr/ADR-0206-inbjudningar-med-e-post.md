@@ -63,3 +63,8 @@ behörighet när ett konto med adressen och bekräftad e-post loggar in. Men ing
   (`{ delivery: "MAIL" | "LINK" }`; tävlingens går genom arbetsytans route, så rollen prövas innan begäran tolkas). Svaren på "Lägg till"/"Bjud in" har `mail` (sent, failed, throttled, off); listorna har
   `sentAt` och `mailEnabled`.
 - Utan e-post är allt som förut, plus "Kopiera länken".
+
+Ändrat 2026-11-07 (städrundan, grenen `a1-sakerhet`, migration 0084): mejlen per mottagare och per avsändare (timme och dygn)
+räknas i `account_request_throttle` (`INVITATION_RECIPIENT_HOUR/DAY`, `INVITATION_ISSUER_HOUR/DAY`, nyckeln som HMAC, fast
+fönster) i stället för i `invitation_link`, vars rader försvinner när tävlingen, klubben, gruppen eller kontot tas bort och då
+nollställde spärren. Kopierade länkar och "Skicka igen" (tio minuter) räknas som förut i `invitation_link`.

@@ -39,7 +39,8 @@ export const invitationSv = {
     invalid: "Länken har gått ut, har ersatts av en nyare inbjudan eller så har inbjudan tagits bort. Har du fått ett nyare mejl, använd länken i det. Annars kan du be den som bjöd in dig att skicka igen.",
     noToken: "Länken saknar sin nyckel. Öppna länken i mejlet igen.",
     failed: "Inbjudan kunde inte hämtas. Försök igen.",
-    invited: (inviter: string, target: string, role: string) => `${inviter} har bjudit in dig till ${target} som ${role}.`,
+    invited: (inviter: string | null, target: string, role: string) =>
+      `${inviter ?? "Du"} har ${inviter === null ? "bjudits in" : "bjudit in dig"} till ${target} som ${role}.`,
     address: (email: string) => `Inbjudan gäller adressen ${email}. Logga in med den adressen, eller skapa ett konto med den.`,
     howItWorks: "Inbjudan gäller när du är inloggad med adressen och har bekräftat den. Skapar du ett konto får du först ett mejl med en länk som bekräftar adressen.",
     validUntil: (date: string) => `Länken gäller till ${date}.`,

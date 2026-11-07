@@ -198,11 +198,12 @@ export async function readInvitationLink(db: Database, token: string, now = new 
       : link.raceInvitationId ? { kind: "RACE", invitationId: link.raceInvitationId } : { kind: "GROUP", invitationId: link.groupInvitationId! };
     const invitation = await loadInvitation(tx, ref);
     if (!invitation || invitation.revokedAt) return invalid;
+    // Avsändarens konto kan ha tagits bort (ingen främmande nyckel sedan migration 0088); inbjudan gäller ändå, utan namnet.
     const [issuer] = await tx.select({ displayName: schema.userAccounts.displayName }).from(schema.userAccounts)
       .where(eq(schema.userAccounts.id, link.issuedBy));
-    if (!issuer) return invalid;
     return { formatVersion: 1, status: "valid", kind: ref.kind, targetName: invitation.target.name,
-      raceDate: invitation.target.kind === "RACE" ? invitation.target.raceDate : null, role: invitation.role, inviterName: issuer.displayName,
+      raceDate: invitation.target.kind === "RACE" ? invitation.target.raceDate : null, role: invitation.role,
+      inviterName: issuer?.displayName ?? null,
       email: invitation.email, next: invitationNext(invitation.target, invitation.role), expiresAt: link.expiresAt.toISOString() } as const;
   });
 }

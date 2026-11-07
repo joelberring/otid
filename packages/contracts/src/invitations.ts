@@ -40,7 +40,8 @@ export const invitationLinkViewSchema = z.discriminatedUnion("status", [
     /** Tävlingens datum (YYYY-MM-DD), annars null. */
     raceDate: z.iso.date().nullable(),
     role: invitationRoleSchema,
-    inviterName: z.string().min(1).max(120),
+    /** Null när avsändarens konto har tagits bort (migration 0088). */
+    inviterName: z.string().min(1).max(120).nullable(),
     email: accountEmailSchema,
     /** Sidan personen hamnar på efter inloggningen (en sökväg i O-Tid). */
     next: z.string().regex(/^\/[A-Za-z0-9/_-]{1,200}$/),

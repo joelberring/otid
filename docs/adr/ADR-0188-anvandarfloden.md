@@ -47,3 +47,7 @@ var en egen tävlingstyp och att formuläret för behörigheter avslöjade om en
 - Migration 0043 (endast tillägg): väntande behörigheter per e-postadress.
 - Lottningsspecarna öppnar förhandsvisningens klasser med "Visa alla löpare".
 - `FORKED` kan tas bort ur databasens tillåtna värden när inga rader har det (steg två).
+
+Ändrat 2026-11-07 (städrundan, grenen `d-smafixar`, migration 0088): en väntande behörighet (inbjudan) står kvar och kan tas
+även när administratören som gav den har tagit bort sitt konto; journalraden i `event_administration_access_request` skrivs då
+inte (den har kvar nyckeln till kontot), `audit_event` har avsändarens id som förut.

@@ -2,7 +2,8 @@
  * Rektanglar, ramar och linjer på papperet (ADR-0211 beslut 8). Typerna står i `paper-items.ts`; här gränserna, storleken
  * och delarna som förhandsvisningen och PDF:en ritar.
  */
-import type { PaperItem, PaperLine, PaperPart, PaperRectangle, PaperShape } from "./paper-items";
+import type { PaperItem, PaperLine, PaperRectangle, PaperShape } from "./paper-items";
+import type { PaperPart } from "./paper-sheet";
 import { CourseSettingEditError } from "./types";
 
 export const PAPER_SHAPE_LIMITS = { minMm: 0, maxMm: 1000, maxStrokeMm: 5, maxRadiusMm: 50 } as const;

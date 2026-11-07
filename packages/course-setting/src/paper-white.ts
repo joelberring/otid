@@ -4,7 +4,8 @@
  * punktsymbol i en vit yta står inte alls, övriga markeringar ritas inte i ytan (renderarna klipper dem jämn–udda).
  */
 import type { SheetFrame } from "./layout-template";
-import { POINT_MARKINGS, type PaperShape } from "./paper-items";
+import type { PaperShape } from "./paper-items";
+import { POINT_MARKINGS } from "./paper-sheet";
 import { insidePolygon, shapePoints } from "./paper-shapes";
 import type { CourseSettingDocument } from "./types";
 

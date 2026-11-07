@@ -6,7 +6,9 @@
  */
 import type { OverprintTraining, TrainingMapPass } from "./training-types";
 import { placeDescription, type SheetDescription } from "./paper-layout";
-import { expandPaperText, paperLayoutOf, sheetPaperItems, type MarkingClip, type SheetPaperItem } from "./paper-items";
+import { paperLayoutOf } from "./paper-items";
+import { sheetPaperItems, type MarkingClip, type SheetPaperItem } from "./paper-sheet";
+import { expandPaperText } from "./paper-text";
 import { runnerBackSheet } from "./runner-back";
 import { countCourseParts } from "./course-parts";
 import { layout, printScaleOf } from "./overprint";

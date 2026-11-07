@@ -4,7 +4,8 @@
  * startens baksida (steg 61): variant och startnummer stort, namn, klubb, klass och starttid, uppe till höger (bakom kartans
  * övre vänstra hörn när kartan vänds kring långsidan). Dokumentet sparar bara elementen med variablerna, aldrig löparna.
  */
-import { placePaperItem, validatePaperItem, PAPER_LIMITS, type PaperItem, type SheetPaperItem } from "./paper-items";
+import { validatePaperItem, PAPER_LIMITS, type PaperItem } from "./paper-items";
+import { placePaperItem, type SheetPaperItem } from "./paper-sheet";
 import type { RunnerInfo, Sheet } from "./layout-template";
 import { CourseSettingEditError, type CourseSettingDocument, type RunnerBackLayout } from "./types";
 

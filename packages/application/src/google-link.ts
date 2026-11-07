@@ -43,6 +43,15 @@ const IGNORED_TABLES = new Set(["user_account", "user_account_auth_guard", "user
   "user_account_session_revocation", "user_account_google_identity", "password_reset_token", "email_verification_token",
   "account_club_prompt", "superadmin_action", "user_account_login_throttle"]);
 
+/**
+ * Ändrat 2026-11-07 (ADR-0205 tillägg): kontots egna svar på "Vilken klubb tillhör du?" (väntande, eller bekräftade via Eventors
+ * medlemslista) gör inte heller att kontot används; en dubblett från Google får frågan direkt. Bara en tillhörighet som någon i
+ * klubbarkivet har bekräftat eller avböjt för hand (`decided_by`) räknas. Raderna tas bort med dubbletten.
+ */
+const OWN_ROWS_FILTER: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  account_club_membership: { account_id: "decided_by is not null" }
+};
+
 /** Hur mycket som hänger på kontot: rader i andra tabeller som pekar på det (kolumner `…account_id` och `…_by`). */
 export async function accountUsage(tx: DbExecutor, accountId: string): Promise<{ rows: number; tables: number; superadmin: boolean; blocked: boolean }> {
   if (!UUID.test(accountId)) throw new Error("Ogiltigt konto-id");
@@ -57,8 +66,9 @@ export async function accountUsage(tx: DbExecutor, accountId: string): Promise<{
   const tables = new Set<string>();
   for (const { table_name: table, column_name: column } of columns.rows) {
     if (IGNORED_TABLES.has(table)) continue;
+    const filter = OWN_ROWS_FILTER[table]?.[column];
     const result = await tx.execute<{ count: string }>(sql.raw(
-      `select count(*)::text as count from ${quote(table)} where ${quote(column)} = '${accountId}'::uuid`));
+      `select count(*)::text as count from ${quote(table)} where ${quote(column)} = '${accountId}'::uuid${filter ? ` and ${filter}` : ""}`));
     const count = Number(result.rows[0]?.count ?? 0);
     if (count > 0) { rows += count; tables.add(table); }
   }
@@ -118,7 +128,11 @@ export type GoogleLinkResult =
   /** Sessionen är inte den som började kopplingen (en annan inloggning i webbläsaren, eller en länk från någon annan). */
   | { status: "session-mismatch" | "email-not-verified" | "invalid-identity" }
   | { status: "linked"; googleEmail: string }
-  | { status: "in-use"; googleEmail: string }
+  /**
+   * Det andra kontot används. `sourceHasPassword: false`: det har inget eget lösenord, så kopplingen kan inte tas bort där förrän
+   * personen har valt ett med Glömt lösenordet (till det kontots adress); beskedet säger det (ändrat 2026-11-07).
+   */
+  | { status: "in-use"; googleEmail: string; sourceHasPassword: boolean }
   | { status: "move-needed"; pending: GoogleMovePending };
 
 /**
@@ -144,7 +158,7 @@ export async function linkGoogleToAccount(db: Database, input: { proof: UserAcco
       return { status: "linked", googleEmail } as const;
     }
     const usage = await accountUsage(tx, link.accountId);
-    if (!isEmpty(usage)) return { status: "in-use", googleEmail } as const;
+    if (!isEmpty(usage)) return { status: "in-use", googleEmail, sourceHasPassword: await accountHasKnownPassword(tx, link.accountId) } as const;
     return { status: "move-needed", pending: { sub: identity.sub, googleEmail, sourceAccountId: link.accountId,
       sessionId: auth.principal.sessionId, expiresAt: now.getTime() + GOOGLE_MOVE_LIFETIME_MS } } as const;
   });

@@ -9,6 +9,7 @@ import { importBatch, importMapContent } from "../../src/club-archive-import";
 import { copyClubMapVersionFields, dismissClubMapDuplicates, readClubMapDuplicates } from "../../src/club-map-duplicates";
 import { mergeClubMaps, undoClubMapMerge } from "../../src/club-map-merge";
 import { listUsableClubMaps } from "../../src/club-map-picker";
+import { setClubAccessSettings } from "../../src/club-affiliations";
 import { mayUseClubMap } from "../../src/club-map-use";
 import { updateClubMap, updateClubMapVersion } from "../../src/club-maps";
 import { registerTestAccount } from "./accounts";
@@ -257,5 +258,24 @@ describe("ADR-0210: dubbletter och versioner av klubbarkivets kartor", { timeout
     expect(mayUseClubMap({ role: "READER", clubId, mapBank: "MEMBERS" }, maps.a)).toBe(true);
     expect(mayUseClubMap({ role: "LEADER", clubId, mapBank: "LEADERS" }, maps.a)).toBe(true);
     for (const role of ["ADMIN", "OWNER"] as const) expect(mayUseClubMap({ role, clubId, mapBank: "LEADERS" }, maps.a)).toBe(true);
+  });
+
+  it("ändrat 2026-11-07: en bekräftad medlem (utan uttryckligt medlemskap) ser kartorna, men inte när kartbanken är för ledare", async () => {
+    const { owner, clubId } = await archive();
+    const runner = await registerTestAccount(db, undefined, NOW);
+    // "Vilken klubb tillhör du?" (fritext) som arkivet har bekräftat (ADR-0209 beslut 3), som när Eventors medlemslista bekräftar.
+    await pool.query(`insert into account_club_membership (id, account_id, organisation_id, free_text, club_id, status, origin, confirmed_via, created_at,
+      decided_by, decided_at) values ($1, $2, null, 'OK Syntet', $3, 'CONFIRMED', 'ACCOUNT', 'MANUAL', $4, $5, $4)`,
+    [randomUUID(), runner.accountId, clubId, NOW, owner.accountId]);
+    expect((await pool.query("select 1 from club_member where club_id = $1 and account_id = $2", [clubId, runner.accountId])).rowCount).toBe(0);
+    // Förval: alla medlemmar får använda kartbanken.
+    const listed = await listUsableClubMaps(db, runner.proof, NOW);
+    if (listed.status !== "ok") throw new Error(listed.status);
+    expect(listed.response.maps.map(item => [item.clubId, item.map.name])).toEqual([[clubId, "alvsjoskogen_ny"], [clubId, "Solberga"],
+      [clubId, "Älvsjöskogen 2019"], [clubId, "Älvsjöskogen rev 2021"]]);
+    expect(listed.response.maps.every(item => item.map.merges.length === 0)).toBe(true);
+    await setClubAccessSettings(db, { ...owner.proof, clubId, request: { formatVersion: 1, archive: "MEMBERS", mapBank: "LEADERS" } }, NOW);
+    const closed = await listUsableClubMaps(db, runner.proof, NOW);
+    expect(closed.status === "ok" && closed.response.maps).toEqual([]);
   });
 });

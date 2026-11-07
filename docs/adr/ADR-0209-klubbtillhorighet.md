@@ -40,6 +40,9 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
    Eventor gav; bekräftelser för hand står kvar. Administratören ser bara siffror ("312 medlemmar i Eventor, 41 har O-Tid och är
    bekräftade"). Andra adresser bekräftas för hand: "Väntar på bekräftelse" med Bekräfta/Avböj (anmälda till den kopplade klubben
    och fritexter som liknar klubbens namn); "Ta bort" vid en bekräftad. Allt journalförs.
+   Ändrat 2026-11-07: Eventors adresser normaliseras exakt som kontots (`normalizeAccountEmail`: NFC, trim, gemener), så att ett
+   å skrivet som a + ring matchar; hämtningen jämför med den konfiguration den körs med, inte miljöns (saknades masternyckeln i
+   miljön togs annars alla bekräftelser via Eventor bort).
 5. **Roller och Vem ser vad.** Klubbytans roller är Medlem (`READER`: bekräftad eller inbjuden), Ledare (`LEADER`, ny, sätts av
    administratörer i listan eller vid inbjudan), Administratör och Ägare. Klubben väljer under "Vem ser vad": träningsarkivet
    (träningar, småbilder, banfiler) och kartbanken (kartfiler, Använd igen, nedladdning), var för sig för alla medlemmar (förval
@@ -51,9 +54,14 @@ med klubbens egen Eventor-nyckel, medlemmar bekräftas automatiskt ur Eventors m
    rättigheter. För medlemmar och ledare gäller kartans rättigheter (ADR-0196) ovanpå; den strängaste vinner. Klubbytor från före
    migration 0076 fick en rad med kartbanken för alla medlemmar, så att de uttryckligen inbjudna läsarna behöll det de hade.
    Inställningen "Bekräftade medlemmar kan läsa arkivet" (första utkastet) ersätts av de två.
+   Ändrat 2026-11-07: "Välj karta från klubbarkivet" räknar medlemmar som `clubMembership` (också bekräftade medlemmar utan
+   uttryckligt medlemskap); förut såg de inga kartor fast de fick använda dem.
 6. **Integritet.** Bekräftade medlemmar ser namnen (aldrig adresser) på andra bekräftade medlemmar i samma klubb, och bara i
    väljaren "Från klubben". Den som inte är med ser ingen lista; klubbytans existens röjs inte (404). Det finns ingen
    kontoexport i O-Tid; borttagningen av ett konto tar raderna med sig (nycklarna). Integritetssidan beskriver vad som sparas.
+   Ändrat 2026-11-07: Mitt konto vägrar ta bort kontot när det är ensam ägare av en klubbyta eller ensam ledare av en
+   träningsgrupp och listar dem ("Lämna över ägarskapet för X först"), som när den sista ägaren tas bort ur klubben. Superadmin
+   kan fortfarande ta bort kontot (enda vägen för den som är ensam i sin klubb; det finns ingen borttagning av klubbytor).
 7. **Från klubben**: överallt där man bjuder in (tävlingens personer och behörigheter inklusive banläggningens roller, klubbytans
    medlemmar, träningsgrupper) finns en sökbar lista med bekräftade medlemmar i den inloggades klubbar (och klubbytans egna).
    Valda personer bjuds in för kontots adress genom de befintliga vägarna, så att mejlet och godkännandet fungerar som förut;

@@ -28,8 +28,12 @@ export const versionYearOf = (version: VersionRow) => guessVersionYear({ fileNam
 const versionOrder = (a: VersionRow, b: VersionRow) => versionYearOf(b).year - versionYearOf(a).year
   || (b.versionDate ?? "").localeCompare(a.versionDate ?? "") || b.uploadedAt.getTime() - a.uploadedAt.getTime() || a.fileName.localeCompare(b.fileName);
 
-/** Kartorna med versionerna (senaste först) och hur många träningar som använder varje version. */
-export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: readonly string[]): Promise<ClubMapView[]> {
+/**
+ * Kartorna med versionerna (senaste först) och hur många träningar som använder varje version. `merges: false` hoppar över
+ * sammanslagningshistoriken (tom lista), för "Välj karta från klubbarkivet" som inte visar den.
+ */
+export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: readonly string[], options: { merges?: boolean } = {})
+  : Promise<ClubMapView[]> {
   if (mapIds && mapIds.length === 0) return [];
   const maps = await tx.select().from(schema.clubMaps).where(and(eq(schema.clubMaps.clubId, clubId),
     mapIds ? inArray(schema.clubMaps.id, [...mapIds]) : undefined)).orderBy(asc(schema.clubMaps.name)).limit(2000);
@@ -40,7 +44,7 @@ export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: read
       union all select map_version_id, entry_id from club_archive_course_file where club_id = ${clubId} and map_version_id is not null) u
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
   const checks = await mapChecks(tx, versions.map(version => version.id));
-  const merges = await mapMergeHistory(tx, clubId, maps, versions);
+  const merges = options.merges === false ? new Map<string, ClubMapView["merges"]>() : await mapMergeHistory(tx, clubId, maps, versions);
   // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
   return [...maps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
     .map(map => mapView(map, versions.filter(version => version.mapId === map.id).sort(versionOrder), uses, checks, merges.get(map.id) ?? []));

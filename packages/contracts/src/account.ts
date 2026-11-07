@@ -44,6 +44,8 @@ export const accountErrorCodeSchema = z.enum([
   "LOGIN_AGAIN",
   /** ADR-0205 tillägg: Google-kontot är kopplat till ett annat konto som används. */
   "GOOGLE_IN_USE",
+  /** Ta bort kontot: kontot är ensam ägare av en klubb eller ensam ledare av en träningsgrupp (`soleOwnerOf` i profilen). */
+  "SOLE_OWNER",
   /** ADR-0205 tillägg: den påbörjade flytten gäller inte längre (för gammal, annan inloggning eller ändrad koppling). */
   "EXPIRED"
 ]);
@@ -96,7 +98,12 @@ export const accountProfileSchema = z.object({
   /** ADR-0205 tillägg: kopplat Google-konto (bara adressen visas; tom för en koppling från före migration 0082). */
   google: z.object({ email: storedAccountEmailSchema.nullable(), linkedAt: instant }).strict().optional(),
   /** Kontot har ett lösenord som någon känner till (inte bara det slumpade från Google). */
-  hasPassword: z.boolean().optional()
+  hasPassword: z.boolean().optional(),
+  /**
+   * Klubbar där kontot är ensam ägare och träningsgrupper där det är ensam ledare. Kontot kan inte tas bort förrän ägarskapet
+   * är överlämnat ("Lämna över ägarskapet för X först"); annars blir klubben eller gruppen utan någon som kan sköta den.
+   */
+  soleOwnerOf: z.array(z.object({ kind: z.enum(["CLUB", "TRAINING_GROUP"]), id: uuid, name: z.string().max(500) }).strict()).max(1000).optional()
 }).strict();
 
 /** ADR-0205 tillägg: sidan som bekräftar att Google-kopplingen flyttas från ett tomt konto (dubbletten) till det här. */

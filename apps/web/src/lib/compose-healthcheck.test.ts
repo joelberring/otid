@@ -17,15 +17,15 @@ describe("webbens hälsokontroll i docker-compose.prod.yml", () => {
     const web = serviceBlock("web");
     expect(web).toContain("healthcheck: &web-healthcheck");
     expect(web).toContain("fetch('http://127.0.0.1:3000/api/health')");
-    expect(web).toMatch(/^      interval: 30s$/m);
-    expect(web).toMatch(/^      timeout: 5s$/m);
-    expect(web).toMatch(/^      start_period: 120s$/m);
-    expect(web).toMatch(/^      retries: 10$/m);
+    expect(web).toMatch(/^ {6}interval: 30s$/m);
+    expect(web).toMatch(/^ {6}timeout: 5s$/m);
+    expect(web).toMatch(/^ {6}start_period: 120s$/m);
+    expect(web).toMatch(/^ {6}retries: 10$/m);
   });
 
   it("publikens instanser använder samma kontroll", () => {
-    expect(serviceBlock("web-public")).toMatch(/^    healthcheck: \*web-healthcheck$/m);
-    expect(compose).toMatch(/^  web-public2: \*web-public$/m);
+    expect(serviceBlock("web-public")).toMatch(/^ {4}healthcheck: \*web-healthcheck$/m);
+    expect(compose).toMatch(/^ {2}web-public2: \*web-public$/m);
   });
 
   it("ingen hälsokontroll renderar en sida (/organizer, /om)", () => {

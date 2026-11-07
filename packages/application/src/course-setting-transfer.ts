@@ -1,4 +1,4 @@
-import { allCourseVariants, courseVariants, defaultScorePoints, scorePoints, type ControlPoint, type CourseSettingDocument } from "@o-tid/course-setting";
+import { allCourseVariants, courseLength, courseVariants, defaultScorePoints, scorePoints, type ControlPoint, type CourseSettingDocument } from "@o-tid/course-setting";
 import { courseVariantCode, type CourseImport, type GeoPosition, type MapPositionImport } from "@o-tid/iof-xml";
 import { isSupportedEpsg, mapPointToWgs84, type MapGeoreference, type Point } from "@o-tid/map-file";
 import type { CourseFileProjection } from "./source-sync-model";
@@ -10,7 +10,8 @@ import type { CourseFileProjection } from "./source-sync-model";
  *
  * - bara banor med start och mål, i banlistans ordning; en ogafflad bana heter som i dokumentet (filen har inget Id)
  * - en gafflad bana blir en familj (`family:Namn`) med en variant per Purple Pen-kod ("Lång ACEG" → "ACEG")
- * - längden avrundad till 100 m (inskriven längd går före), stigningen till 5 m
+ * - längden avrundad till 100 m (`courseLength`: inskriven längd går före, familjen får den längsta varianten som är kvar),
+ *   stigningen till 5 m
  * - klasserna ur banans undertitel ("H21, D21"), startregel PUNCH som vid en inläst banfil
  * - kartlägen (mm, två decimaler), kartans skala och – när kartfilen är georefererad – lägen i WGS 84.
  *
@@ -99,7 +100,7 @@ export function courseSettingProjection(document: CourseSettingDocument, options
         if (!point!.code || !CODE.test(point!.code)) { invalid.add(point!.id); return 0; }
         return Number(point!.code);
       });
-      return { code: variant.code, controlCodes: codes, lengthMeters: roundedLength(course.lengthOverrideMeters ?? variant.lengthMeters) };
+      return { code: variant.code, controlCodes: codes, lengthMeters: roundedLength(courseLength(document, course.id, { variant: variant.code }).meters) };
     });
     const ends = { startMapPosition: mapPosition(start.at), finishMapPosition: mapPosition(finish.at),
       ...(geoPosition(georeference, start.at) ? { startPosition: geoPosition(georeference, start.at)! } : {}),
@@ -113,11 +114,11 @@ export function courseSettingProjection(document: CourseSettingDocument, options
     let externalId = course.name;
     if (forked) {
       externalId = `family:${course.name}`;
-      const longest = [...measured].sort((left, right) => (right.lengthMeters ?? 0) - (left.lengthMeters ?? 0))[0];
+      const familyLength = roundedLength(courseLength(document, course.id).meters);
       courses.push({ externalId, name: course.name, controlCodes: [], ...ends,
         variants: measured.map(variant => ({ code: courseVariantCode(course.name, `${course.name} ${variant.code}`), controlCodes: variant.controlCodes,
           ...(variant.lengthMeters !== undefined ? { lengthMeters: variant.lengthMeters } : {}) })),
-        ...(longest?.lengthMeters !== undefined ? { lengthMeters: longest.lengthMeters } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}),
+        ...(familyLength !== undefined ? { lengthMeters: familyLength } : {}), ...(climbMeters !== undefined ? { climbMeters } : {}),
         ...(excludedVariants.length > 0 ? { excludedVariants } : {}) });
     } else {
       courses.push({ externalId, name: course.name, controlCodes: measured[0]!.controlCodes, ...ends,

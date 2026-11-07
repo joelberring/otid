@@ -1,16 +1,17 @@
 /**
  * Nivåstödet (ADR-0212) för en bana i banläggningen: indata ur dokumentet (kontrollerna med kolumn D och F, sträckorna i
- * alla varianter en gång), bedömningen ur de uppmätta värdena, sammanfattningen, avvikelserna mot målnivån som notiser i
- * Varningar och målnivån när en ny .ppen läses in. Ren logik; mätningen görs i vägvalens Worker (`level-features.ts`).
+ * alla varianter som används en gång; bortvalda räknas inte), bedömningen ur de uppmätta värdena, sammanfattningen,
+ * avvikelserna mot målnivån som notiser i Varningar och målnivån när en ny .ppen läses in. Ren logik; mätningen görs i vägvalens Worker (`level-features.ts`).
  */
 import { classNamesOfCourse } from "./iof-export";
 import { levelDeviation, judgeControl, judgeLeg, type LevelDeviation, type LevelVerdict } from "./level-rules";
 import type { LevelControlInput } from "./level-features";
 import { levelFromClassNames, levelRank, type ControlLevelFeatures, type CourseLevel, type LegLevelFeatures, type LevelRank } from "./level-types";
 import type { Course, CourseCheck, CourseSettingDocument } from "./types";
-import { enumerateCourseControls, findCourse, variations } from "./walk";
+import { activeControlOrders } from "./summary";
+import { findCourse } from "./walk";
 
-/** Banans kontroller att bedöma (vanliga kontroller, i alla varianter, en gång var). */
+/** Banans kontroller att bedöma (vanliga kontroller, i alla varianter som används, en gång var). */
 export function levelControls(document: CourseSettingDocument, courseId: string): LevelControlInput[] {
   const out = new Map<string, LevelControlInput>();
   for (const order of variantOrders(document, courseId)) for (const id of order) {
@@ -23,14 +24,12 @@ export function levelControls(document: CourseSettingDocument, courseId: string)
   return [...out.values()];
 }
 
-function variantOrders(document: CourseSettingDocument, courseId: string): string[][] {
-  const course = findCourse(document, courseId);
-  if (course.kind === "SCORE") return [enumerateCourseControls(document, courseId)];
-  const list = variations(document, courseId);
-  return list.length === 0 ? [enumerateCourseControls(document, courseId)] : list.map(variation => enumerateCourseControls(document, courseId, variation.choices));
+/** ADR-0198 tillägg 12: bara varianterna som används; bortvalda påverkar inte nivån. */
+function variantOrders(document: CourseSettingDocument, courseId: string): (readonly string[])[] {
+  return activeControlOrders(document, courseId);
 }
 
-/** Banans sträckor (kontrollernas id), i alla varianter en gång var. Poängbanor har inga. */
+/** Banans sträckor (kontrollernas id), i alla varianter som används en gång var. Poängbanor har inga. */
 export function levelLegPairs(document: CourseSettingDocument, courseId: string): { readonly from: string; readonly to: string }[] {
   if (findCourse(document, courseId).kind === "SCORE") return [];
   const seen = new Set<string>();

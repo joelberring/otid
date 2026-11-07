@@ -33,7 +33,7 @@ export {
   type PaperSizes
 } from "./appearance-edit";
 export { controlLabelText } from "./overprint";
-export { excludedVariantCodes, INVERTIBLE_CODES, isExcludedVariant } from "./summary";
+export { courseLength, excludedVariantCodes, INVERTIBLE_CODES, isExcludedVariant, type CourseLength } from "./summary";
 // ADR-0198: bortvalda varianter i .ppen och när en ny .ppen läses in.
 export { carryExcludedVariants, VARIANTS_ELEMENT } from "./variants-ppen";
 // Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).

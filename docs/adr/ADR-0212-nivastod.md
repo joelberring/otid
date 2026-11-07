@@ -112,6 +112,9 @@ Källor (sammanfattade, inget kopierat ordagrant utöver korta citat):
     med föremål, avstånd, sträckor, angreppspunkter, SOFT:s banlängder och en vanlig fallgrop. "Hur lägger man en gul bana?"
     vid fältet Nivå och i panelen.
 
+Ändrat 2026-11-07 (ADR-0198 tillägg 12): kontrollerna och sträckorna som bedöms tas bara ur varianterna som används;
+bortvalda varianter påverkar inte banans nivå.
+
 ## Avgränsningar och risker
 
 - Verktyget ser inte sikt, löpbarhet utöver kartans klasser, säsong eller hur tydlig en detalj är i verkligheten.

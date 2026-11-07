@@ -4,7 +4,7 @@
  * (CreateDescription med huvud, kontrollrader, riktningsrader, kartbyten, snitslar, textrader och nyckel; BSD, Peter Golde).
  */
 import { legKey, rawAttribute } from "./ppen-common";
-import { summaries } from "./summary";
+import { courseLength } from "./summary";
 import type { SymbolData } from "./description-symbols";
 import { descriptionContext, formatDecimal, format, symbolIds, columnFText, Textifier, type DescriptionContext } from "./description-text";
 import type { ControlKind, ControlPoint, Course, CourseControl, CourseSettingDocument } from "./types";
@@ -279,15 +279,8 @@ class Formatter {
       const second = total > 0 ? format(this.text("number_points"), String(total)) : format(this.text("number_controls"), String(count));
       return { kind: "HEADER_2", boxes: [view.fullName, second], textual: second };
     }
-    // Längden som i banlistan (courseSummaries); en variant får sin egen längd.
-    const summary = summaries(this.document).find(s => s.course === view.course!.id)!;
-    const override = view.course!.lengthOverrideMeters;
-    let min = summary.lengthRangeMeters?.min ?? summary.lengthMeters;
-    let max = summary.lengthRangeMeters?.max ?? summary.lengthMeters;
-    if (this.variant !== undefined && summary.variants.length > 1) {
-      const variant = summary.variants.find(v => v.code === this.variant);
-      min = max = override ?? variant?.lengthMeters ?? summary.lengthMeters;
-    }
+    // Längden som i banlistan (`courseLength`, ADR-0198 tillägg 12); en variant får sin egen längd.
+    const { min, max } = courseLength(this.document, view.course!.id, { variant: this.variant });
     const length = lengthInKm(min, max, language);
     const climb = view.course!.climbMeters;
     if (climb === undefined || climb < 0) {

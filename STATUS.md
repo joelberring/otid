@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Bortvalda varianter påverkar inte banläggningen, en regel för banans längd (grenen a6-bortvalda, ADR-0198 tillägg 12)
+- B5: "sträcka/kontroll i förbjudet område" och nivåstödet räknar bara kontroller och sträckor i varianter som används (`activeParts`, `activeControlOrders`).
+- Banans längd: `courseLength` (fast längd först, annars längsta kvarvarande variant, eller den valda varianten) i banlistan, beskrivningen, utskriftens rubrik, `$(CourseLength)`, `{längd}` och överföringen. Rubriken, makrot och `{längd}` räknade förut med bortvalda.
+- B11: krysset (förbjuden väg) spärrar så stort som det ritas (1,06 × figurskalan) i stället för fasta 1,5 kartans mm.
+- Väntar på A3: att en ny eller importerad bana inte får något förval för skalan (saknas = kartans skala) läggs på när ppen-write behåller `<options>` utan skala.
+- Verifierat: enhetstester (course-setting, application) och nya tester som fallerade före.
+
 ### 2026-11-05 – Länken till kartritaren och redigera egna notiser (grenen kartritare-lank, ADR-0214, migration 0083)
 - Kartfel → "Dela med kartritaren" (den som får ändra): länk med 256-bitars nyckel, bara hashen sparas, visas en gång med "Kopiera länken"; "Begränsa tiden" (förslag tävlingsdagen + 7), "Visa tävlingens namn", "Senast öppnad", "Stäng av länken", "Skapa ny länk".
 - `/kartfel/<nyckel>` utan konto: kartan (kartfilen ritas i webbläsaren) med kartfelen och löpnummer, listan, tråden, svar, "Åtgärdat i kartan"/"Inte åtgärdat", "Min position". Inga banor, kontroller, foton eller deltagare. Ogiltig/avstängd/utgången länk: samma besked.

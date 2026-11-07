@@ -12,10 +12,11 @@ export const mapProjectSv = {
     changed: (count: number) => plural(count, "ändrat objekt", "ändrade objekt"),
     closed: "avslutat"
   },
-  roles: { OWNER: "Ägare", EDIT: "Ändra", READ: "Läsa" } satisfies Record<MapProjectRole, string>,
+  roles: { OWNER: "Ägare", EDIT: "Ändra", SUGGEST: "Föreslå", READ: "Läsa" } satisfies Record<MapProjectRole, string>,
   roleHelp: {
     OWNER: "allt: medlemmar, namn, avsluta och nya kartversioner",
     EDIT: "ritar och ändrar kartan",
+    SUGGEST: "ritar förslag som en ägare godkänner",
     READ: "ser kartan och ändringarna"
   } satisfies Record<MapProjectRole, string>,
   upload: {

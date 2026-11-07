@@ -13,7 +13,7 @@ import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
 
 const text = mapProjectSv;
-const ROLES: readonly MapProjectRole[] = ["READ", "EDIT", "OWNER"];
+const ROLES: readonly MapProjectRole[] = ["READ", "SUGGEST", "EDIT", "OWNER"];
 type Message = { tone: "ok" | "error"; text: string; refusals?: string[] };
 const day = (iso: string) => iso.slice(0, 10);
 

@@ -4,7 +4,9 @@ import { isNewKey, sameState, type EditKind, type ObjectKey, type ObjectState, t
 /**
  * ADR-0219 beslut 3–4: revideringen i telefonen eller datorn. Allt som inte är kvitterat av servern ligger i `pending` (och i
  * telefonens lager, ADR-0181 beslut 7) tills servern har svarat; först då flyttas det till `server`. En krock tas ur kön och
- * väntar på att den som ändrade senast väljer (`resolveConflict`). Ren logik utan webbläsare och nät.
+ * väntar på att den som ändrade senast väljer (`resolveConflict`). En ändring som servern gjort till ett förslag (K1, `editRoute`)
+ * tas ur kön och ligger i `proposed` tills förslaget är avgjort (`keepOpenProposals`); den syns inte i `effectiveState`.
+ * Ren logik utan webbläsare och nät.
  */
 export interface Conflict {
   readonly key: ObjectKey;
@@ -15,6 +17,13 @@ export interface Conflict {
   readonly theirs: ServerObject;
 }
 
+/** En egen ändring som blev ett förslag (ritas streckad ovanpå kartan). */
+export interface ProposedEdit {
+  readonly proposalId: string;
+  readonly state: ObjectState;
+  readonly ref: ObjectRef | null;
+}
+
 export interface RevisionClientState {
   /** Högsta löpnumret som hämtats från servern. */
   readonly seq: number;
@@ -23,15 +32,19 @@ export interface RevisionClientState {
   /** Egna ändringar som inte är kvitterade, i ordning. */
   readonly pending: readonly RevisionEdit[];
   readonly conflicts: Readonly<Record<ObjectKey, Conflict>>;
+  /** Egna ändringar som blev förslag och väntar på en ägare. Saknas i lagrade lägen från före K1 (= tomt). */
+  readonly proposed?: Readonly<Record<ObjectKey, ProposedEdit>>;
 }
 
 /** Serverns svar på en ändring. */
 export type EditResult =
   | { readonly editId: string; readonly status: "APPLIED" | "DUPLICATE"; readonly object: ServerObject }
   | { readonly editId: string; readonly status: "CONFLICT"; readonly current: ServerObject | null }
-  | { readonly editId: string; readonly status: "REJECTED"; readonly reason: string };
+  | { readonly editId: string; readonly status: "REJECTED"; readonly reason: string }
+  /** Ändringen gjordes inte utan blev (eller var redan) en del av förslaget `proposalId`. */
+  | { readonly editId: string; readonly status: "PROPOSED"; readonly proposalId: string };
 
-export const emptyClientState = (): RevisionClientState => ({ seq: 0, server: {}, pending: [], conflicts: {} });
+export const emptyClientState = (): RevisionClientState => ({ seq: 0, server: {}, pending: [], conflicts: {}, proposed: {} });
 
 const UNCHANGED: ObjectState = { kind: "UNCHANGED" };
 const DELETED: ObjectState = { kind: "DELETED" };
@@ -88,6 +101,8 @@ export interface AcknowledgeOutcome {
   readonly conflicted: readonly ObjectKey[];
   /** Ändringar som servern inte tog emot (fel i sig), med skälet. */
   readonly rejected: readonly { readonly edit: RevisionEdit; readonly reason: string }[];
+  /** Objekten vars ändring blev ett förslag i den här omgången. */
+  readonly proposed: readonly ObjectKey[];
 }
 
 /**
@@ -98,7 +113,8 @@ export function acknowledge(state: RevisionClientState, results: readonly EditRe
   let pending = [...state.pending];
   const server = { ...state.server };
   const conflicts = { ...state.conflicts };
-  const conflicted: ObjectKey[] = [], rejected: { edit: RevisionEdit; reason: string }[] = [];
+  const proposed = { ...state.proposed };
+  const conflicted: ObjectKey[] = [], rejected: { edit: RevisionEdit; reason: string }[] = [], suggested: ObjectKey[] = [];
   for (const result of results) {
     const edit = pending.find(row => row.editId === result.editId);
     if (!edit) continue;
@@ -106,6 +122,12 @@ export function acknowledge(state: RevisionClientState, results: readonly EditRe
       pending = pending.filter(row => row.editId !== result.editId);
       const known = server[edit.key];
       if (!known || known.seq <= result.object.seq) server[edit.key] = result.object;
+      continue;
+    }
+    if (result.status === "PROPOSED") {
+      pending = pending.filter(row => row.editId !== result.editId);
+      proposed[edit.key] = { proposalId: result.proposalId, state: edit.state, ref: edit.ref };
+      suggested.push(edit.key);
       continue;
     }
     if (result.status === "REJECTED") {
@@ -121,7 +143,7 @@ export function acknowledge(state: RevisionClientState, results: readonly EditRe
     }
     conflicted.push(edit.key);
   }
-  return { state: { seq: state.seq, server, pending, conflicts }, conflicted, rejected };
+  return { state: { ...state, server, pending, conflicts, proposed }, conflicted, rejected, proposed: suggested };
 }
 
 /**
@@ -144,7 +166,18 @@ export function mergePulled(state: RevisionClientState, objects: readonly Server
     const conflict = conflicts[object.key];
     if (conflict) conflicts[object.key] = { ...conflict, theirs: object };
   }
-  return { seq: Math.max(state.seq, seq), server, pending, conflicts };
+  return { ...state, seq: Math.max(state.seq, seq), server, pending, conflicts };
+}
+
+/**
+ * Synkens svar har de egna förslagen som fortfarande är öppna (`openProposals`): de andra är avgjorda (godkända ändringar
+ * kommer som vanliga objekt i hämtningen) och tas bort ur `proposed`.
+ */
+export function keepOpenProposals(state: RevisionClientState, openProposalIds: readonly string[]): RevisionClientState {
+  const open = new Set(openProposalIds);
+  const entries = Object.entries(state.proposed ?? {});
+  const kept = entries.filter(([, value]) => open.has(value.proposalId));
+  return kept.length === entries.length && state.proposed ? state : { ...state, proposed: Object.fromEntries(kept) };
 }
 
 /**

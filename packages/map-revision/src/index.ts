@@ -11,3 +11,4 @@ export * from "./apply";
 export * from "./edit";
 export * from "./hit";
 export * from "./export";
+export * from "./areas";

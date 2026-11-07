@@ -31,11 +31,11 @@ function problem(error: RaceMapProblem, quota?: MapQuotaExceeded): Response {
  * ADR-0218: hur länge webbläsaren använder sin kopia av en kartfil som hämtats med sin sha256 i adressen utan att fråga (ett
  * dygn, som papperets bilder). Sedan frågar den med ETag: behörigheten prövas och svaret är 304 utan filen.
  */
-export const MAP_SOURCE_MAX_AGE_SECONDS = 24 * 60 * 60;
+const MAP_SOURCE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const SHA256 = /^[a-f0-9]{64}$/;
 
 /** Värdet i If-None-Match (`"sha"` eller `W/"sha"`), eller undefined när det inte är en sha256. */
-export function etagValue(header: string | null): string | undefined {
+function etagValue(header: string | null): string | undefined {
   const value = /^(?:W\/)?"([a-f0-9]{64})"$/.exec((header ?? "").trim())?.[1];
   return value && SHA256.test(value) ? value : undefined;
 }
@@ -46,7 +46,7 @@ export function etagValue(header: string | null): string | undefined {
  * (`Vary: Cookie`, en annan inloggning i samma webbläsare hämtar och prövas på nytt). Utan sha256 eller med en annan (filen
  * har bytts) sparas inget, som förut.
  */
-export function mapSourceCacheHeaders(requested: string | null, sha256: string): Record<string, string> {
+function mapSourceCacheHeaders(requested: string | null, sha256: string): Record<string, string> {
   if (requested === null || !SHA256.test(requested) || requested !== sha256) return { ...privateHeaders };
   return { ...privateHeaders, "cache-control": `private, max-age=${MAP_SOURCE_MAX_AGE_SECONDS}, immutable`, etag: `"${sha256}"`, vary: "Cookie" };
 }

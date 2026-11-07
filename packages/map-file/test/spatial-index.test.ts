@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { drawMap, objectBoxes, readMapFile, SpatialIndex, spatialIndexOf, type ParsedMap } from "../src";
+import { drawMap, readMapFile, type ParsedMap } from "../src";
+import { objectBoxes, SpatialIndex, spatialIndexOf } from "../src/render/spatial-index";
 import { fakeContext } from "./fake-canvas";
 import { buildOcd, concat, element, ocdCoord, seededRandom, symbolBody } from "./ocd-builder";
 import { syntheticForestMap } from "./synthetic-map";

@@ -205,7 +205,7 @@ function compareContent(a: readonly MapFingerprint[], b: readonly MapFingerprint
  * Namnens ord och teckenpar, räknade en gång per namn (B5: `findDuplicatePairs` jämför varje karta med alla andra, och
  * namnen normaliserades förut på nytt i varje par).
  */
-export type NameTokens = Map<string, NameInfo>;
+type NameTokens = Map<string, NameInfo>;
 
 function infoOf(name: string, memo: NameTokens | undefined): NameInfo {
   if (!memo) return nameInfo(normalizeMapName(name));

@@ -13,7 +13,7 @@ import { loadMapFile } from "./use-course-setting-offline";
 // Steg 67: styrda av service workern när sidan är sparad för offline (`controlledWorker`).
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
-export type MapFileStatus = "none" | "reading" | "ready" | "failed";
+type MapFileStatus = "none" | "reading" | "ready" | "failed";
 
 /**
  * Banläggningens kartfil: hämtas (från telefonen, webbläsarens cache eller servern, ADR-0218) och läses i en Worker som
@@ -33,24 +33,32 @@ export function useCourseSettingMapFile(input: { readonly raceId: string; readon
     if (!mapFile) return;
     const controller = new AbortController();
     let closed = false;
-    let created: MapRenderSession | undefined;
+    // Workern startar medan filen hämtas (ADR-0218), så att den är redo när filen kommer.
+    const created = new MapRenderSession(createMapWorker, (loaded, _scale, georef) => {
+      if (!closed) { setBounds(loaded); setGeoreference(georef); setStatus("ready"); }
+    },
+      () => { if (!closed) setStatus("failed"); });
+    // Förloppet högst var 200:e ms: varje ändring ritar om editorn, och ur cachen är filen hämtad på en gång.
+    let shown = 0;
+    const onProgress = (fraction: number) => {
+      const now = performance.now();
+      if (closed || (now - shown < 200 && fraction < 1)) return;
+      shown = now;
+      setProgress(fraction);
+    };
     void (async () => {
       try {
         const file = await loadMapFile(raceId, mapFile.sha256, storage, controller.signal, () => say({ tone: "attention", text: offlineSv.olderMap }),
-          fraction => { if (!closed) setProgress(fraction); });
+          onProgress);
         if (closed) return;
         setProgress(undefined);
         setBytes(file.bytes.byteLength);
-        created = new MapRenderSession(createMapWorker, (loaded, _scale, georef) => {
-          if (!closed) { setBounds(loaded); setGeoreference(georef); setStatus("ready"); }
-        },
-          () => { if (!closed) setStatus("failed"); });
         // Kartfilen går över till Workern (ingen kopia stannar här).
         created.load(file.bytes, file.fileName);
         setSession(created);
       } catch { if (!closed) { setProgress(undefined); setStatus("failed"); } }
     })();
-    return () => { closed = true; controller.abort(); created?.close(); };
+    return () => { closed = true; controller.abort(); created.close(); };
   // Bara en ny kartfil (eller tävling) läser om kartan; `say` och lagret byts inte under tiden.
   }, [raceId, mapFile]);
   return { session, bounds, status, georeference, bytes, progress };

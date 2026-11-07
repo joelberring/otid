@@ -67,7 +67,7 @@ const SYMBOLS = [
   }
 ];
 
-export interface SyntheticMapOptions {
+interface SyntheticMapOptions {
   /** Ungefärligt antal objekt (förval 50 000). */
   readonly objects?: number;
   /** Kartans bredd och höjd i mm (förval 400 × 300, 4 × 3 km i 1:10 000). */

@@ -6,7 +6,7 @@
  */
 import type { MapObject, MapSymbol, ParsedMap, Path, PointElement, StrokeStyle } from "../model";
 
-export interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
+interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
 
 /** Objekt som täcker fler rutor än så läggs i listan för stora objekt. */
 const LARGE_CELLS = 64;

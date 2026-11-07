@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { drawMap, readMapFile, spatialIndexOf } from "../src";
+import { drawMap, readMapFile } from "../src";
+import { spatialIndexOf } from "../src/render/spatial-index";
 import { fakeContext } from "./fake-canvas";
 import { syntheticForestMap } from "./synthetic-map";
 

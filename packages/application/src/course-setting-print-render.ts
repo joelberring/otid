@@ -1,6 +1,6 @@
 import type { PrintJobRequest } from "@o-tid/contracts";
 import {
-  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, excludedVariantCodes, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateLayoutTemplate,
+  BUILT_IN_PRINT_PROFILES, BUILT_IN_TEMPLATES, colorPreflight, excludedVariantCodes, layoutScaleOf, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateLayoutTemplate,
   validatePrintProfile, type CourseSettingDocument, type LayoutTemplate, type MapRect, type PrintProfile, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { colorUsage, readMapFile } from "@o-tid/map-file";
@@ -92,7 +92,9 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
   }
   // Ringklippen över detaljer räknas på kartfilen här, som editorns Worker gör (ADR-0211 beslut 1).
   // Kartor med egen skala (`printScale` per karta) får ringklipp i den skalan också.
-  const ownScales = [...new Set(request.items.flatMap(item => item.printScale ? [item.printScale] : []))];
+  // ADR-0217: ark i en annan layout har layoutens skala.
+  const ownScales = [...new Set(request.items.flatMap(item => item.printScale ? [item.printScale]
+    : item.layout ? [layoutScaleOf(document, item.layout, item.course)] : []))];
   const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map, ownScales) : undefined,
     map ? printNumberObstacles(document, map) : undefined);
   const { skipped } = printableItems(document, request.items as readonly SheetItem[]);

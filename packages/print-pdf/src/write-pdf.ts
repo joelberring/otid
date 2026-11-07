@@ -9,7 +9,7 @@
  */
 import { Duplex, PDFDocument, PDFName, type PDFRawStream, type PDFRef } from "pdf-lib";
 import {
-  cmykOfHex, courseLayerOf, descriptionSymbols, detectPressNorm, drawTrainingMap, lowerPurple, passesKey, PDF_PRINT_CAPABILITIES, pressOrder, sourceMapColors, usageCodes,
+  cmykOfHex, courseLayerOf, descriptionSymbols, detectPressNorm, drawTrainingMap, passesKey, PDF_PRINT_CAPABILITIES, pressOrder, sourceMapColors, usageCodes,
   type DescriptionStandard, type OverprintPrimitive, type PressNorm, type PrintProfile, type Sheet, type SheetFrame
 } from "@o-tid/course-setting";
 import { colorUsage, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
@@ -75,15 +75,6 @@ export function colorsOverCourse(map: Pick<ParsedMap, "colors" | "scale"> & Part
   const usage = map.objects && map.symbols ? colorUsage(map as ParsedMap) : undefined;
   const over = pressOrder(sourceMapColors(map.colors, usage), pressNormFor(map, profile)).over;
   return over.size === 0 ? undefined : over;
-}
-
-/**
- * Figurerna i banans undre lila (ringar, start, mål, linjer, snitslar, passager); nummer, markeringar, texter och
- * beskrivningar ligger i övre lila över kartans färger (ADR-0211 beslut 3). Vita specialobjekt och bilder ligger under
- * banan (`courseLayerOf`, ändrat 2026-11-07).
- */
-export function inCourseLayer(figure: OverprintPrimitive, norm: PressNorm = "ISOM", numbersOnTop = false): boolean {
-  return lowerPurple(figure, norm, numbersOnTop);
 }
 
 /**

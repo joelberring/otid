@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { raceMapProblemSchema, type CourseSettingState } from "@o-tid/contracts";
-import { emptyDocument } from "@o-tid/course-setting";
+import { emptyDocument, withPpenState } from "@o-tid/course-setting";
 import { courseSettingSv as text } from "../../i18n/course-setting-sv";
 import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
@@ -107,7 +107,9 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   async function first(file: ReadFile) {
     setBusy(true); setMessage(undefined);
     try {
-      const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: 0, fileName: file.fileName, ppen: file.ppen });
+      // ADR-0217: läget "Från Purple Pen" sparas när en .ppen läses in.
+      const document = file.ppen ? withPpenState(file.document, new Date().toISOString(), text.file.ppenState) : file.document;
+      const outcome = await importCourseSetting(raceId, { document, expectedVersion: 0, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "too-large") { setMessage({ tone: "error", text: text.file.tooLarge }); return; }
       // Någon annan hann börja: deras banläggning visas, filen ersätter den inte utan att banläggaren väljer det.
       setNotice(outcome.kind === "conflict" ? courseDataSv.startConflict : outcome.kind === "saved" ? [text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),

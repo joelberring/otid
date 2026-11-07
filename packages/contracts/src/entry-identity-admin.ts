@@ -53,4 +53,3 @@ export type { EntryClassAdminErrorCode as EntryIdentityAdminErrorCode } from "./
 export type EntryIdentityValues = z.infer<typeof entryIdentityValuesSchema>;
 export type EntryIdentityAdminListResponse = z.infer<typeof entryIdentityAdminListResponseSchema>;
 export type EntryIdentityChangeRequest = z.infer<typeof entryIdentityChangeRequestSchema>;
-export type EntryIdentityChangeResponse = z.infer<typeof entryIdentityChangeResponseSchema>;

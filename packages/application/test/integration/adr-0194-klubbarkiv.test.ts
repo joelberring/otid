@@ -12,7 +12,8 @@ import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
 import { createClub, createClubImportToken, inviteClubMember, listMyClubs, readClub, removeClubMember, revokeClubImportToken, setClubMemberRole } from "../../src/clubs";
 import { readClubArchive, readClubArchiveEntry, readClubCourseFile, setClubCourseFileMap, updateClubArchiveEntry } from "../../src/club-archive";
 import { importBatch, importCheck, importMapContent } from "../../src/club-archive-import";
-import { mergeClubMap, moveClubMapVersion, readClubMapVersionHead, saveClubMapToGroupLibrary, saveClubMapVersionToRace, streamMapContentParts, updateClubMap, uploadClubMapVersion } from "../../src/club-maps";
+import { moveClubMapVersion, readClubMapVersionHead, saveClubMapToGroupLibrary, saveClubMapVersionToRace, streamMapContentParts, updateClubMap, uploadClubMapVersion } from "../../src/club-maps";
+import { mergeClubMaps } from "../../src/club-map-merge";
 import { sweepMapContent } from "../../src/map-content";
 import { registerTestAccount, verifyTestAccount } from "./accounts";
 
@@ -237,8 +238,8 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     const second = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: null, newMapName: "Älvsjöskogen (fel)", fileName: "Alvsjo.omap",
       versionDate: "2024-05-01", note: "Reviderad 2024", body: chunks(other) }, NOW);
     if (second.status !== "created") throw new Error("Ingen andra karta");
-    expect(await mergeClubMap(db, { ...owner.proof, clubId, mapId: second.mapId, request: { formatVersion: 1, targetMapId: uploaded.mapId } }, NOW))
-      .toEqual({ status: "ok", mapId: uploaded.mapId });
+    expect(await mergeClubMaps(db, { ...owner.proof, clubId, request: { formatVersion: 1, keepMapId: uploaded.mapId,
+      mapIds: [uploaded.mapId, second.mapId] } }, NOW)).toMatchObject({ status: "ok", response: { mapId: uploaded.mapId } });
     let list = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
     if (list.status !== "ok") throw new Error("Inget arkiv");
     expect(list.list.maps.map(map => [map.name, map.versions.map(version => version.versionDate)])).toEqual([["Älvsjöskogen", ["2024-05-01", "2018-08-12"]]]);

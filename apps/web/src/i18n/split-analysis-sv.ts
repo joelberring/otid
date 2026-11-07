@@ -18,7 +18,6 @@ export const splitAnalysisSv = {
   variantHeading: (className: string, variant: string) => `${className} · variant ${variant}`,
   runners: (count: number) => `${count} löpare`,
   place: "Plac", name: "Namn", time: "Tid", loss: "Förlust", ideal: "Idealtid",
-  idealHelp: (ideal: string) => `Idealtid (summan av de bästa sträckorna): ${ideal}.`,
   lossHelp: "Tidsförlust: summan av förlusterna mot bästa sträcka på varje sträcka. Löpare som saknar en sträcka får ingen summa.",
   start: "Start", finish: "Mål",
   /** Sträckans nummer och kontroll i kolumnrubriken. */

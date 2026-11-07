@@ -30,9 +30,6 @@ export type ManualDecision =
   | { readonly kind: "CONFIRM_MISPUNCH"; readonly note?: string | undefined }
   | { readonly kind: "WITHDRAW" };
 export type ManualDecisionKind = ManualDecision["kind"];
-export const MANUAL_DECISION_KINDS = ["DID_NOT_START", "DID_NOT_FINISH", "DISQUALIFIED", "OUT_OF_COMPETITION",
-  "WITHOUT_TIMING", "APPROVE_MANUALLY", "FINISH_TIME", "START_TIME", "MANUAL_TIME", "APPROVE_CONTROLS", "CONFIRM_MISPUNCH",
-  "WITHDRAW"] as const satisfies readonly ManualDecisionKind[];
 
 /** Beslutet som styr löparens gällande resultat. */
 export type GoverningDecision = "NONE" | "DNS" | "CHECKIN_DNS" | "DSQ" | "APPROVAL" | "DNF" | "OOC" | "NT" | "FINISH_TIME" |

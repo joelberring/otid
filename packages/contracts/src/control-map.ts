@@ -41,7 +41,6 @@ export const controlMapCourseSchema = z.object({
   variants: z.array(variantSchema).min(1).max(100),
   forking: courseForkingViewSchema.nullable()
 }).strict();
-export type ControlMapCourse = z.infer<typeof controlMapCourseSchema>;
 
 export const controlMapControlSchema = z.object({
   code,
@@ -50,7 +49,6 @@ export const controlMapControlSchema = z.object({
   outOfOrder: z.boolean(),
   courses: count, variants: count, planned: count, punched: count
 }).strict();
-export type ControlMapControl = z.infer<typeof controlMapControlSchema>;
 
 export const controlMapResponseSchema = z.object({
   formatVersion: z.literal(1),

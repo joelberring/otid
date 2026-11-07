@@ -27,4 +27,3 @@ export const manualClassCreateResponseSchema = z.object({
 });
 
 export type ManualClassCreateRequest = z.infer<typeof manualClassCreateRequestSchema>;
-export type ManualClassCreateResponse = z.infer<typeof manualClassCreateResponseSchema>;

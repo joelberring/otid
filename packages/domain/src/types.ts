@@ -10,13 +10,6 @@ export interface ExternalIdentity {
   readonly externalId: string;
 }
 
-export interface Event {
-  readonly id: UUID;
-  readonly name: string;
-  readonly startsOn: string;
-  readonly timeZone: string;
-}
-
 export interface Race {
   readonly id: UUID;
   readonly eventId: UUID;
@@ -46,16 +39,6 @@ export interface RaceClass {
   readonly rogaining?: RogainingRules | undefined;
   /** Maxtid i minuter (PLAN.md steg 25). Saknas = ingen gräns. Gäller inte rogaining, som har egen tidsgräns. */
   readonly maxTimeMinutes?: number | undefined;
-  readonly externalIdentity?: ExternalIdentity;
-}
-
-export type ControlKind = "START" | "CONTROL" | "FINISH";
-
-export interface Control {
-  readonly id: UUID;
-  readonly raceId: UUID;
-  readonly code: number;
-  readonly kind: ControlKind;
   readonly externalIdentity?: ExternalIdentity;
 }
 
@@ -371,17 +354,3 @@ export type RevisionCause =
   | "MANUAL_MISPUNCH_CONFIRMATION"
   | "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL";
 
-export interface ResultRevision {
-  readonly id: UUID;
-  readonly raceId: UUID;
-  readonly entryId: UUID;
-  readonly readoutId?: UUID;
-  readonly revision: number;
-  readonly cause: RevisionCause;
-  readonly evaluation: ResultOutcome;
-  readonly engineVersion: string;
-  readonly snapshotVersion: number;
-  readonly courseVersionId: UUID;
-  readonly published: boolean;
-  readonly createdAt: string;
-}

@@ -1,6 +1,6 @@
 import {
   bearerToken, createClub, createClubImportToken, deleteClubArchiveEntry, discardStagedMapContent, importBatch, importCheck, importMapContent, importTokenClub,
-  inviteClubMember, listMyClubs, mergeClubMap, moveClubMapVersion, readClub, readClubArchive, readClubArchiveEntry, readClubCourseFile,
+  inviteClubMember, listMyClubs, moveClubMapVersion, readClub, readClubArchive, readClubArchiveEntry, readClubCourseFile,
   readClubMapVersionHead, removeClubMember, revokeClubImportToken, saveClubMapToGroupLibrary, saveClubMapVersionToRace, setClubCourseFileMap,
   setClubMemberRole, stageMapContent, streamMapContentParts, updateClubArchiveEntry, updateClubMap, updateClubMapVersion, uploadClubMapVersion,
   type MapQuotaExceeded, type StagedMapContent
@@ -272,17 +272,6 @@ export async function clubMapUpdateRoute(db: Database, request: Request, clubId:
   return guarded(async () => {
     const result = await updateClubMap(db, { ...input.proof, clubId, mapId, request: input.body });
     return result.status === "ok" ? privateJson({ formatVersion: 1, status: "ok" }) : failure(result.status);
-  });
-}
-
-export async function clubMapMergeRoute(db: Database, request: Request, clubId: string, mapId: string, environment: Environment = process.env)
-  : Promise<Response> {
-  if (!validId(clubId) || !validId(mapId)) return failure("not-found");
-  const input = await mutation(request, environment);
-  if ("response" in input) return input.response;
-  return guarded(async () => {
-    const result = await mergeClubMap(db, { ...input.proof, clubId, mapId, request: input.body });
-    return result.status === "ok" ? privateJson({ formatVersion: 1, mapId: result.mapId }) : failure(result.status);
   });
 }
 

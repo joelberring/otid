@@ -43,6 +43,4 @@ export const entryStartTimeChangeResponseSchema = z.object({
 
 export { entryClassAdminErrorResponseSchema as entryStartTimeAdminErrorResponseSchema } from "./entry-class-admin";
 export type { EntryClassAdminErrorCode as EntryStartTimeAdminErrorCode } from "./entry-class-admin";
-export type EntryStartTimeAdminListResponse = z.infer<typeof entryStartTimeAdminListResponseSchema>;
 export type EntryStartTimeChangeRequest = z.infer<typeof entryStartTimeChangeRequestSchema>;
-export type EntryStartTimeChangeResponse = z.infer<typeof entryStartTimeChangeResponseSchema>;

@@ -195,8 +195,9 @@ function Counts({ data, raceId, onSaved }: { data: MapBundleResponse; raceId: st
       <thead><tr><th scope="col">{text.course}</th><th scope="col">{text.variant}</th><th scope="col" className={styles.num}>{text.runners}</th>
         <th scope="col" className={styles.num}>{text.vacancies}</th><th scope="col" className={styles.num}>{text.reserveColumn}</th>
         <th scope="col" className={styles.num}>{text.print}</th></tr></thead>
-      <tbody>{data.groups.map(group => <tr key={`${group.courseName}-${group.variantCode ?? ""}`}>
-        <th scope="row">{group.courseName}</th><td className={styles.code}>{group.variantCode ?? text.noVariant}</td>
+      <tbody>{data.groups.map(group => <tr key={`${group.courseName}-${group.variantCode ?? ""}-${group.layout?.id ?? ""}`}>
+        {/* ADR-0217: en grupp per layout (klassens papper och skala i banläggningen). */}
+        <th scope="row">{group.courseName}{group.layout ? <span className={styles.code}> · {group.layout.name}</span> : null}</th><td className={styles.code}>{group.variantCode ?? text.noVariant}</td>
         <td className={styles.num}>{group.runnerCount}</td><td className={styles.num}>{group.vacancyCount}</td>
         <td className={styles.num}>{group.reserveCount}</td><td className={`${styles.num} ${styles.code}`}>{group.printCount}</td>
       </tr>)}</tbody>

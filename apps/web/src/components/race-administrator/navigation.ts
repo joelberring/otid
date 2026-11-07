@@ -99,4 +99,3 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
   }
   return { navigateStep, mayLeave, openMissingFixedStart, openAssignedClass, printPrivate };
 }
-export type WorkflowNavigation = ReturnType<typeof createWorkflowNavigation>;

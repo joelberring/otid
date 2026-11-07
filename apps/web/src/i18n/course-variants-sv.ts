@@ -1,8 +1,4 @@
 /** Gafflingar (ADR-0169 beslut 2): banvarianter, löparens variant och fördelning. */
-type LegPoint = "START" | "FINISH" | number;
-
-const point = (value: LegPoint) => value === "START" ? "Start" : value === "FINISH" ? "Mål" : String(value);
-
 export const courseVariantsSv = {
   forked: (count: number) => count === 1 ? "Gafflad (1 variant)" : `Gafflad (${count} varianter)`,
   showVariants: (count: number) => count === 1 ? "Visa varianten" : `Visa ${count} varianter`,
@@ -15,10 +11,6 @@ export const courseVariantsSv = {
   editVariantLabel: (course: string, code: string) => `Redigera variant ${code} på ${course}`,
   editingVariant: (code: string) => `Variant ${code}`,
   variantSummaryNote: "Beskedet gäller löparna på varianten. Alla avlästa på banan räknas om när du sparar.",
-  unevenLegs: (legs: readonly { from: LegPoint; to: LegPoint; variantCodes: readonly string[] }[]) =>
-    `Varianterna täcker inte samma sträckor: ${legs.slice(0, 6).map(leg =>
-      `${point(leg.from)}–${point(leg.to)} (${[...new Set(leg.variantCodes)].join(", ")})`).join("; ")}${legs.length > 6 ? " …" : ""}`,
-  evenLegs: "Alla varianter täcker samma sträckor.",
   // Klasser
   distribute: "Fördela gafflingar",
   distributeLabel: (className: string) => `Fördela gafflingar i ${className}`,

@@ -2,7 +2,7 @@ import {
   printJobProblemSchema, printJobSchema, printJobsSchema, type PrintJob, type PrintJobKind, type PrintJobProblem, type PrintJobRequest, type PrintJobs
 } from "@o-tid/contracts";
 import {
-  BUILT_IN_TEMPLATES, colorPreflight, PDF_PRINT_CAPABILITIES, sourceMapColors, type LayoutTemplate, type PreflightReport, type PrintProfile, type SheetItem
+  BUILT_IN_TEMPLATES, colorPreflight, MAIN_LAYOUT, PDF_PRINT_CAPABILITIES, sourceMapColors, type LayoutTemplate, type PreflightReport, type PrintProfile, type SheetItem
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { courseSettingBase, HttpError } from "./course-setting-api";
@@ -40,7 +40,9 @@ export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind
     // Dubbelsidigt gäller löparnas baksidor och kartbytets delar (ADR-0203: del 2 på baksidan av del 1).
     perRunner: selection.perRunner, duplex: selection.duplex,
     // Kartbytets del följer med (ADR-0203); utan den skrev servern hela banan en gång per del.
+    // ADR-0217: arkets layout följer med (saknas = huvudlayouten).
     items: selection.items.map(item => ({ course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.part !== undefined ? { part: item.part } : {}),
+      ...(item.layout && item.layout !== MAIN_LAYOUT ? { layout: item.layout } : {}),
       ...(item.printScale ? { printScale: item.printScale } : {}),
       ...(item.printArea ? { printArea: item.printArea } : {}), ...(item.runner ? { runner: { ...item.runner, club: item.runner.club ?? null } } : {}),
       ...(item.training ? { training: item.training } : {}) })),

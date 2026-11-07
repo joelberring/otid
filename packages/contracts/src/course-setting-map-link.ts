@@ -20,7 +20,6 @@ export const mapLinkStatusSchema = z.enum(["ACTIVE", "EXPIRED"]);
 export const mapLinkInfoSchema = z.object({
   status: mapLinkStatusSchema, createdAt: instant, expiresAt: instant.nullable(), showRaceName: z.boolean(), lastOpenedAt: instant.nullable()
 }).strict();
-export type MapLinkInfo = z.infer<typeof mapLinkInfoSchema>;
 
 export const mapLinkStateSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid,
@@ -35,7 +34,6 @@ export type MapLinkState = z.infer<typeof mapLinkStateSchema>;
 export const mapLinkCreateRequestSchema = z.object({
   formatVersion: z.literal(1), lastDay: z.iso.date().nullable(), showRaceName: z.boolean()
 }).strict();
-export type MapLinkCreateRequest = z.infer<typeof mapLinkCreateRequestSchema>;
 
 /** Svaret när länken skapats: läget och nyckeln (den enda gången den lämnas ut). */
 export const mapLinkCreatedSchema = mapLinkStateSchema.extend({ token: mapLinkTokenSchema }).strict();
@@ -54,7 +52,6 @@ export const mapLinkReplySchema = z.object({
   /** ADR-0214 beslut 9: svaret redigerades (null = aldrig). */
   editedAt: instant.nullable()
 }).strict();
-export type MapLinkReply = z.infer<typeof mapLinkReplySchema>;
 
 /** Ett kartfel med länken: löpnummer, läge (punkt) eller ritning, text, status och tråd. Inget om vem som skrev det eller när. */
 export const mapLinkErrorSchema = z.object({
@@ -78,13 +75,11 @@ export type MapLinkView = z.infer<typeof mapLinkViewSchema>;
 export const mapLinkReplyRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, text: replyText, name: z.string().max(200).nullable()
 }).strict();
-export type MapLinkReplyRequest = z.infer<typeof mapLinkReplyRequestSchema>;
 
 /** "Åtgärdat i kartan" (kartfelet blir klart) eller "Inte åtgärdat" (det står öppet), med en valfri kommentar. */
 export const mapLinkVerdictRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, verdict: mapMakerVerdictSchema, text: z.string().max(2000), name: z.string().max(200).nullable()
 }).strict();
-export type MapLinkVerdictRequest = z.infer<typeof mapLinkVerdictRequestSchema>;
 
 /** Felet för en ogiltig, avstängd, utgången eller okänd länk: alltid samma svar. */
 export const mapLinkErrorResponseSchema = z.object({

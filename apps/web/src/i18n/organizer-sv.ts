@@ -24,7 +24,6 @@ export const organizerSv = {
   rememberHint: "Använd inte på en lånad dator",
   /** Ägaren 2026-11-04: de som varit, ihopfällda under listan. */
   pastEvents: (count: number) => `Tidigare tävlingar (${count})`,
-  checkSessionBeforeContinue: (error: string) => `${error} Kontrollera sessionen innan du fortsätter.`,
   openingRace: "Öppnar tävlingsadministrationen …",
   checkSession: "Kontrollerar session …",
   login: "Logga in",

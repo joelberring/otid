@@ -27,4 +27,3 @@ export const entryCardRentalChangeResponseSchema = z.object({
   value.snapshotVersionAfter === value.snapshotVersionBefore + 1);
 
 export type EntryCardRentalChangeRequest = z.infer<typeof entryCardRentalChangeRequestSchema>;
-export type EntryCardRentalChangeResponse = z.infer<typeof entryCardRentalChangeResponseSchema>;

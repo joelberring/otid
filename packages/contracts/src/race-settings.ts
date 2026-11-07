@@ -95,6 +95,5 @@ export const raceDateMovePreviewResponseSchema = z.object({
   startListPublished: z.boolean(),
   blocked: z.array(raceDateMoveBlockSchema).max(4)
 }).strict();
-export type RaceDateMovePreviewRequest = z.infer<typeof raceDateMovePreviewRequestSchema>;
 export type RaceDateMovePreviewResponse = z.infer<typeof raceDateMovePreviewResponseSchema>;
 export type RaceDateMoveBlock = z.infer<typeof raceDateMoveBlockSchema>;

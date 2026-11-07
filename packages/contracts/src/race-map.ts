@@ -93,7 +93,6 @@ export const publicLegRoutesSchema = z.object({
 }).strict();
 
 export type RaceMapTiePoint = z.infer<typeof raceMapTiePointSchema>;
-export type RaceMapGeoreferenceRequest = z.infer<typeof raceMapGeoreferenceRequestSchema>;
 export type AdminRaceMapState = z.infer<typeof adminRaceMapStateSchema>;
 export type ParticipantRouteUploadResponse = z.infer<typeof participantRouteUploadResponseSchema>;
 export type RaceMapProblem = z.infer<typeof raceMapProblemSchema>["error"];

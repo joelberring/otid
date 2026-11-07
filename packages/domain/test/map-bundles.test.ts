@@ -152,3 +152,25 @@ describe("kartbuntsplan för stafett (ADR-0213)", () => {
       [1, "B", ["r2a"]], [1, "A", ["r1a"]], [2, "A", ["r2b"]], [2, "B", ["r1b"]]]);
   });
 });
+
+/** ADR-0217: klassens layout i banläggningen delar grupperna; reserverna följer klassen. */
+describe("kartbuntar per layout", () => {
+  it("två klasser på samma bana i olika layouter ger en grupp var med egen reserv och eget tryckantal", () => {
+    const elit = { id: "elit", name: "Elit A3" };
+    const h20: MapBundleClassInput = { id: "c-h20", name: "H20", courseVersionId: "v-kort", courseName: "Kort", variantCodes: [], startMode: "MINUTE", vacancies: [] };
+    const plan = planMapBundles({ classes: [{ ...d21, layout: elit }, h20], reserve: { kind: "COUNT", value: 1 },
+      entries: [runner("e1", "Ada Ek", "c-d21", 0, null), runner("e2", "Bo Lind", "c-h20", 1, null), runner("e3", "Cia Holm", "c-h20", 2, null)] });
+    expect(plan.groups.map(group => [group.courseName, group.layout?.name ?? "", group.runnerCount, group.printCount])).toEqual([
+      ["Kort", "", 2, 3], ["Kort", "Elit A3", 1, 2]]);
+    const pages = mapBackPages(plan.groups);
+    expect(pages.filter(page => page.layout?.id === "elit").map(page => page.kind)).toEqual(["DIVIDER", "RUNNER", "RESERVE"]);
+    // Utan layouter är planen (och hashen av den) som förut: inget layout-fält.
+    const before = planMapBundles({ classes: [d21, h20], reserve: { kind: "COUNT", value: 1 }, entries: [runner("e1", "Ada Ek", "c-d21", 0, null)] });
+    expect(before.groups.every(group => !("layout" in group))).toBe(true);
+    expect(printedMapState(before).counts.every(row => !("layout" in row))).toBe(true);
+    // Ändrat tryckantal i en layout sägs med layoutens namn.
+    const changes = mapPrintChanges(printedMapState(before), printedMapState(plan), { counts: true });
+    expect(changes).toEqual(expect.arrayContaining([{ kind: "COUNT", courseName: "Kort", variantCode: null, from: 0, to: 2, layout: "Elit A3" }]));
+  });
+});
+

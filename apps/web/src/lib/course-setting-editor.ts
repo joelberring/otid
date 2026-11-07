@@ -88,11 +88,6 @@ export function replaceDocument(state: EditorState, document: CourseSettingDocum
     ...(state.suggesting ? { suggesting: { base: document, baseVersion: version ?? state.suggesting.baseVersion } } : {}) };
 }
 
-/** Förslagsläget börjar på dokumentet som det är (inga osparade åtgärder får finnas). */
-export function startSuggesting(state: EditorState, baseVersion: number): EditorState {
-  return { ...state, suggesting: { base: state.document, baseVersion }, past: [], future: [], log: [], error: undefined };
-}
-
 /** Förslaget skickat eller kastat: tillbaka till dokumentet det byggde på (som förslagsläge, eller direkt). */
 export function endSuggestion(state: EditorState, keepSuggesting: boolean, base?: { document: CourseSettingDocument; version: number }): EditorState {
   const current = state.suggesting;

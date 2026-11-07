@@ -93,8 +93,6 @@ export const publicStartListResponseSchema = z.object({
 }).strict().refine((v) => v.showCardNumbers || v.content.classes.every((x) => x.entries.every((e) => e.cardNumber === undefined)));
 export { entryClassAdminErrorResponseSchema as startListPublicationAdminErrorResponseSchema } from "./entry-class-admin";
 export type StartListPublicationContent = z.infer<typeof startListPublicationContentSchema>;
-export type StartListClassFacts = z.infer<typeof startListClassFactsSchema>;
 export type StartListPublicationPreviewResponse = z.infer<typeof startListPublicationPreviewResponseSchema>;
 export type StartListPublicationRequest = z.infer<typeof startListPublicationRequestSchema>;
-export type StartListPublicationResponse = z.infer<typeof startListPublicationResponseSchema>;
 export type PublicStartListResponse = z.infer<typeof publicStartListResponseSchema>;

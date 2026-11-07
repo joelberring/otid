@@ -98,20 +98,17 @@ export type CourseSettingState = z.infer<typeof courseSettingStateSchema>;
 export const courseSettingSaveRequestSchema = z.object({
   formatVersion: z.literal(1), expectedVersion: z.number().int().nonnegative().max(2_147_483_647), document: courseSettingDocumentSchema
 }).strict();
-export type CourseSettingSaveRequest = z.infer<typeof courseSettingSaveRequestSchema>;
 
 /** Läs in .ppen: dokumentet som webbläsaren läst (readPpen) och filen orörd. Det gamla dokumentet blir en tidigare version. */
 export const courseSettingImportRequestSchema = z.object({
   formatVersion: z.literal(1), expectedVersion: z.number().int().nonnegative().max(2_147_483_647), document: courseSettingDocumentSchema,
   fileName, ppen: z.string().min(1).max(COURSE_SETTING_PPEN_MAX_BYTES)
 }).strict();
-export type CourseSettingImportRequest = z.infer<typeof courseSettingImportRequestSchema>;
 
 /** Återställ en tidigare version (det nuvarande dokumentet blir en tidigare version). */
 export const courseSettingRestoreRequestSchema = z.object({
   formatVersion: z.literal(1), expectedVersion: version, revision: version
 }).strict();
-export type CourseSettingRestoreRequest = z.infer<typeof courseSettingRestoreRequestSchema>;
 
 export const courseSettingSavedSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, version, updatedAt: instant
@@ -141,7 +138,6 @@ export type CourseSettingRevision = z.infer<typeof courseSettingRevisionSchema>;
 
 /** "Överför till tävlingen": versionen som visas i editorn (är den inte den sparade svarar servern 409). */
 export const courseSettingTransferRequestSchema = z.object({ formatVersion: z.literal(1), version }).strict();
-export type CourseSettingTransferRequest = z.infer<typeof courseSettingTransferRequestSchema>;
 
 /**
  * Begripliga fel vid överföringen (HTTP 422): inget dokument, ingen bana med start och mål, eller kontroller på banorna

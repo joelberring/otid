@@ -285,3 +285,6 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .stage[data-compact="true"] .mapArea { padding-bottom: 0; }
   .stage[data-compact="true"] .card { display: none; }
 }
+
+/* ADR-0217: flikarna Banläggning | Layout | Utskrift i raden överst; på telefonen i menyn (raden är full). */
+@media (max-width: 640px) { .topbar nav.tabsWide { display: none; } }

@@ -110,6 +110,4 @@ export type EntryStatusDecision = z.infer<typeof entryStatusDecisionSchema>;
 export type EntryStatusRequest = z.infer<typeof entryStatusRequestSchema>;
 export type EntryStatusResponse = z.infer<typeof entryStatusResponseSchema>;
 export type EntryStatusReceipt = z.infer<typeof entryStatusReceiptSchema>;
-export type EntryStatusConflict = z.infer<typeof entryStatusConflictSchema>;
 export type EntryStatusReadiness = z.infer<typeof entryStatusReadinessSchema>;
-export type EntryStatusGoverningDecision = z.infer<typeof entryStatusGoverningDecisionSchema>;

@@ -61,6 +61,4 @@ export const StartCheckinConflictReviewCandidateSchema = z.object({
 export const canonicalStartCheckinConflictReviewRequest = (value: unknown): Uint8Array => canonicalJsonBytes(StartCheckinConflictReviewRequestSchema.parse(value));
 export const canonicalStartCheckinConflictReviewSource = (value: unknown): Uint8Array => canonicalJsonBytes(StartCheckinConflictReviewSourceSchema.parse(value));
 export type StartCheckinConflictReviewRequest = z.infer<typeof StartCheckinConflictReviewRequestSchema>;
-export type StartCheckinConflictReviewResponse = z.infer<typeof StartCheckinConflictReviewResponseSchema>;
-export type StartCheckinConflictReviewSource = z.infer<typeof StartCheckinConflictReviewSourceSchema>;
 export type StartCheckinConflictReviewCandidate = z.infer<typeof StartCheckinConflictReviewCandidateSchema>;

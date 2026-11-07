@@ -205,9 +205,6 @@ export const BL_SPRINT_2026_11_02: ReferenceTable = {
   ]
 };
 
-/** Alla tabeller som O-Tid känner, äldst först per familj. Lägg till nya; ändra aldrig en befintlig. */
-export const REFERENCE_TABLES: readonly ReferenceTable[] = [BL_FOREST_2026_11_02, BL_SPRINT_2026_11_02];
-
 export const referenceRow = (table: ReferenceTable, id: string): ReferenceColor | undefined => table.rows.find(item => item.id === id);
 
 /** Sidan av banan som raden ligger på enligt tabellens ordning. */

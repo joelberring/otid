@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
-  CLUB_ARCHIVE_MAP_MAX_BYTES, clubMapMergeRequestSchema, clubMapUpdateRequestSchema, clubMapVersionMoveRequestSchema, clubMapVersionUpdateRequestSchema,
+  CLUB_ARCHIVE_MAP_MAX_BYTES, clubMapUpdateRequestSchema, clubMapVersionMoveRequestSchema, clubMapVersionUpdateRequestSchema,
   RACE_MAP_MAX_BYTES, raceMapSourceMetadataSchema, type MapAgreement, type RaceMapProblem
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { deriveRasterGeoreference, RasterGeoreferenceError } from "@o-tid/domain";
 import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
-import { mergeClubMapInto } from "./club-map-merge";
 import { mayUseClubMap } from "./club-map-use";
 import { clubLinkFacts } from "./club-affiliation-access";
 import { imageDimensions } from "./image-dimensions";
@@ -67,15 +66,6 @@ async function removeIfEmpty(tx: ClubTransaction, mapId: string, replacement: st
   if (left) return;
   await tx.update(schema.trainingGroupMaps).set({ clubMapId: replacement }).where(eq(schema.trainingGroupMaps.clubMapId, mapId));
   await tx.delete(schema.clubMaps).where(eq(schema.clubMaps.id, mapId));
-}
-
-/** "Slå ihop med …" (ADR-0194): samma journalförda sammanslagning som "Slå ihop till en karta" (ADR-0210); målet behålls. */
-export async function mergeClubMap(db: Database, input: ClubProof & { clubId: string; mapId: string; request: unknown }, now = new Date())
-  : Promise<ClubFailure | { status: "ok"; mapId: string }> {
-  const parsed = clubMapMergeRequestSchema.safeParse(input.request);
-  if (!parsed.success || !validId(input.mapId) || parsed.data.targetMapId === input.mapId) return { status: "invalid-request" };
-  const result = await mergeClubMapInto(db, { ...input, targetMapId: parsed.data.targetMapId }, now);
-  return result.status === "ok" ? { status: "ok", mapId: result.response.mapId } : result;
 }
 
 /** "Flytta till …" eller "Ny karta": versionen byter karta (dela upp en gissning som blev fel). */

@@ -125,4 +125,3 @@ export function rocClient(options: RocClientOptions) {
   };
 }
 
-export type RocClient = ReturnType<typeof rocClient>;

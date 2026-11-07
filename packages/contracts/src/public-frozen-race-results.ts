@@ -43,5 +43,4 @@ export const publicFrozenRaceResultsResponseSchema = z.object({
   results: z.array(publicFrozenRaceResultSchema).min(1).max(10_000)
 }).strict();
 
-export type PublicFrozenRaceResult = z.infer<typeof publicFrozenRaceResultSchema>;
 export type PublicFrozenRaceResultsResponse = z.infer<typeof publicFrozenRaceResultsResponseSchema>;

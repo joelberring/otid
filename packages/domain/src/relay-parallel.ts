@@ -14,8 +14,6 @@ import type { EvaluationReadout } from "./types";
 export type RelayChangeoverRule = "FIRST" | "LAST";
 export type RelayApprovalRule = "ALL" | "ANY";
 
-export const RELAY_MAX_PARALLEL_RUNNERS = 4;
-
 export interface RelayParallelRunner {
   /** Löparens resultat; saknas = ute. */
   readonly status?: StoredResultStatus;

@@ -23,6 +23,9 @@ import type {
 } from "./types";
 import { CourseSettingEditError } from "./types";
 import { remapTrainingPatch, trainingPatch, trainingRefs, trainingTouches, trainingTouchValue } from "./training-edit";
+import { isLayoutEdit } from "./edit";
+import { LAYOUT_EVENT_FIELDS, layoutEditTouches, layoutSheetTouch, layoutTouchValue } from "./print-layout-edit";
+import { MAIN_LAYOUT } from "./print-layouts";
 
 /** Id som en ändring skapade, i den ordning de skapades. */
 export interface CreatedIds {
@@ -42,7 +45,6 @@ export interface IdMap {
 }
 
 export const NO_CREATED_IDS: CreatedIds = { controls: [], courseControls: [], courses: [] };
-export const EMPTY_ID_MAP: IdMap = { controls: {}, courseControls: {}, courses: {} };
 
 type Kind = keyof IdMap;
 const KINDS: readonly Kind[] = ["controls", "courseControls", "courses", "specialObjects"];
@@ -158,6 +160,15 @@ export function diffTouches(before: CourseSettingDocument, after: CourseSettingD
  * ta bort, gafflingar) har inga: de prövas av `applyEdit` mot det som finns.
  */
 export function editTouches(edit: CourseSettingEdit): string[] {
+  // ADR-0217: Layout-fliken, och ett ark i en annan layout än huvudlayouten.
+  if (isLayoutEdit(edit)) return layoutEditTouches(edit);
+  const sheet = (edit.type === "SET_PRINT_AREA" || edit.type === "SET_PAPER_LAYOUT" || edit.type === "MOVE_NUMBER") && edit.printLayout !== undefined
+    && edit.printLayout !== MAIN_LAYOUT ? edit.printLayout : undefined;
+  if (sheet !== undefined) {
+    if (edit.type === "MOVE_NUMBER") return [layoutSheetTouch(sheet, edit.course, "numbers", edit.courseControl)];
+    if (edit.type === "SET_PRINT_AREA") return [edit.part !== undefined ? layoutSheetTouch(sheet, edit.course, "partPrintAreas", edit.part) : layoutSheetTouch(sheet, edit.course, "printArea")];
+    if (edit.type === "SET_PAPER_LAYOUT") return [edit.part !== undefined ? layoutSheetTouch(sheet, edit.course, "partPapers", edit.part) : layoutSheetTouch(sheet, edit.course, "paper")];
+  }
   switch (edit.type) {
     case "MOVE_CONTROL": return [`control:${edit.control}:at`];
     case "NEW_CONTROL_IN_COURSE": return [...new Set(edit.courseControls)].sort().map(id => `courseControl:${id}:control`);
@@ -219,6 +230,7 @@ function touchValue(document: CourseSettingDocument, touch: string): unknown {
     return field === undefined ? appearance : (appearance as unknown as Record<string, unknown>)[field];
   }
   if (kind === "event" && id === "acceptedChecks" && field !== undefined) return document.event.acceptedChecks?.[touch.slice("event:acceptedChecks:".length)];
+  if (kind === "event" && id !== undefined && LAYOUT_EVENT_FIELDS.has(id)) return layoutTouchValue(document, touch);
   if (kind === "event") return id === undefined ? document.event : (document.event as unknown as Record<string, unknown>)[id];
   if (kind === "training") return trainingTouchValue(document, touch);
   let object: unknown;
@@ -267,6 +279,8 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "MOVE_SPECIAL": case "DELETE_SPECIAL": return [["specialObjects", edit.special]];
     case "UPDATE_SPECIAL": return [["specialObjects", edit.special], ...courseRefs(edit.changes.courses)];
     case "SET_PRINT_AREA": case "SET_PAPER_LAYOUT": return edit.course === "ALL_CONTROLS" ? [] : [["courses", edit.course]];
+    case "PUT_LAYOUT_SHEET": case "CLEAR_LAYOUT_ADJUSTMENTS": return edit.course === "ALL_CONTROLS" ? [] : [["courses", edit.course]];
+    case "SET_LAYOUT_CIRCLE_GAPS": return [["controls", edit.control]];
     case "PUT_OBJECTS": {
       const refs: [Kind, string][] = [];
       for (const [id, control] of Object.entries(edit.controls ?? {})) { refs.push(["controls", id]); if (control) refs.push(["controls", control.id]); }
@@ -355,6 +369,8 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
     case "UPDATE_SPECIAL": return { ...edit, special: map("specialObjects", edit.special),
       changes: edit.changes.courses ? { ...edit.changes, courses: edit.changes.courses.map(co) } : edit.changes };
     case "SET_PRINT_AREA": case "SET_PAPER_LAYOUT": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
+    case "PUT_LAYOUT_SHEET": case "CLEAR_LAYOUT_ADJUSTMENTS": return edit.course === "ALL_CONTROLS" ? edit : { ...edit, course: co(edit.course) };
+    case "SET_LAYOUT_CIRCLE_GAPS": return { ...edit, control: c(edit.control) };
     case "PUT_TRAINING": return { ...remapTrainingPatch(edit, { control: c, courseControl: cc, course: co }), type: "PUT_TRAINING" };
     default: return edit;
   }

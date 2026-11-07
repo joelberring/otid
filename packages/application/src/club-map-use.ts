@@ -1,8 +1,6 @@
 import type { MapAgreement, UsableClubMap } from "@o-tid/contracts";
 import { clubAreaAllowed, mapAgreementIssues, type ClubAreaAccess } from "@o-tid/domain";
-import { clubMembership, type ClubRole } from "./club-access";
-import { clubLinkFacts } from "./club-affiliation-access";
-import type { DbExecutor } from "./snapshot";
+import type { ClubRole } from "./club-access";
 
 /**
  * ADR-0210 beslut 7: "Välj karta från klubbarkivet" när en träning eller tävling skapas och i banläggningens start. Det enda
@@ -30,10 +28,4 @@ export function clubMapUseIssues(map: MapAgreement, date: string): UsableClubMap
     noPublicDisplay: map.noPublicDisplay }, { date });
   return [...issues.filter((issue): issue is "EXPIRED" | "FEE_PER_PRINT" => issue === "EXPIRED" || issue === "FEE_PER_PRINT"),
     ...(map.trainingOnly ? ["TRAINING_ONLY" as const] : [])];
-}
-
-/** Kontots roll i klubben för `mayUseClubMap` (undefined utan medlemskap). */
-export async function clubMapUseFacts(tx: DbExecutor, accountId: string, clubId: string): Promise<ClubMapUseFacts | undefined> {
-  const member = await clubMembership(tx, { accountId, clubId }, "none");
-  return member ? { role: member.role, clubId, mapBank: (await clubLinkFacts(tx, clubId)).access.MAP_BANK } : undefined;
 }

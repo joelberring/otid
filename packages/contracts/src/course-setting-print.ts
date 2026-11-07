@@ -11,7 +11,6 @@ import { uuidSchema as uuid } from "./ids";
 export const printJobKindSchema = z.enum(["PRESS", "PROCESS", "OFFICE"]);
 export type PrintJobKind = z.infer<typeof printJobKindSchema>;
 export const printJobStatusSchema = z.enum(["QUEUED", "RUNNING", "DONE", "FAILED", "EXPIRED"]);
-export type PrintJobStatus = z.infer<typeof printJobStatusSchema>;
 
 /** Högst så många kartor (banor, varianter eller löpare) i ett jobb. */
 export const PRINT_JOB_MAX_ITEMS = 2000;
@@ -32,6 +31,8 @@ export const printJobItemSchema = z.object({
   course: text(64).min(1), variant: text(64).optional(), printScale: z.number().positive().max(1_000_000).optional(),
   /** Kartbyten (ADR-0203): en del av banan (0, 1 …). */
   part: z.number().int().min(0).max(50).optional(),
+  /** ADR-0217: arkets layout (bana × layout); saknas = huvudlayouten. */
+  layout: text(64).min(1).optional(),
   printArea: z.object({ automatic: z.boolean(), restrictToPageSize: z.boolean(), rect: mapRect.optional(),
     page: z.object({ width: z.number().positive(), height: z.number().positive(), margins: z.number().min(0), landscape: z.boolean() }).strict().optional() })
     .strict().optional(),
@@ -40,7 +41,6 @@ export const printJobItemSchema = z.object({
   training: z.object({ view: z.enum(["RUNNER", "CONTROLLER"]).optional(), pairMap: z.enum(["COMMON", "A", "B"]).optional(),
     section: z.object({ from: z.number().int().min(0).max(10_000), to: z.number().int().min(0).max(10_000) }).strict().optional() }).strict().optional()
 }).strict();
-export type PrintJobItem = z.infer<typeof printJobItemSchema>;
 
 export const printJobRequestSchema = z.object({
   formatVersion: z.literal(1),

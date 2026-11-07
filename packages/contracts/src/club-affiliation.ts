@@ -135,7 +135,3 @@ export const raceClubArchiveLiftRequestSchema = z.object({
   confirmSecrecy: z.boolean()
 }).strict();
 
-export type AccountClubAddRequest = z.infer<typeof accountClubAddRequestSchema>;
-export type ClubAccessSettingsRequest = z.infer<typeof clubAccessSettingsRequestSchema>;
-export type ClubAffiliationDecisionRequest = z.infer<typeof clubAffiliationDecisionRequestSchema>;
-export type ClubInviteFromClubRequest = z.infer<typeof clubInviteFromClubRequestSchema>;

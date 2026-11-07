@@ -115,7 +115,6 @@ export const rogainingChangeResponseSchema = z.object({
 });
 
 export type RogainingSetup = z.infer<typeof rogainingSetupSchema>;
-export type RogainingClassRulesInput = z.infer<typeof rogainingClassRulesInputSchema>;
 export type RogainingChangePreviewRequest = z.infer<typeof rogainingChangePreviewRequestSchema>;
 export type RogainingChangePreviewResponse = z.infer<typeof rogainingChangePreviewResponseSchema>;
 export type RogainingChangeRequest = z.infer<typeof rogainingChangeRequestSchema>;

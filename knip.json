@@ -1,0 +1,36 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  // `pnpm lint:dead`: död kod (oanvända filer, exporter, typer och beroenden). Testerna räknas inte som användning, så en
+  // export som bara testerna använder hör hemma i testerna. Paketens ingångar läses ur package.json (exports och skript).
+  "workspaces": {
+    ".": {
+      // playwright.config.ts läses inte (Playwright-pluginen kräver databasen); webbläsartesternas filer är ingångar.
+      "entry": ["scripts/*.ts", "scripts/lasttest/*.ts", "tests/e2e/*.ts"],
+      "project": ["scripts/**/*.ts", "tests/e2e/**/*.ts"]
+    },
+    "apps/web": {
+      "entry": ["src/proxy.ts", "scripts/*.mjs", "src/readout/main.tsx", "src/readout/service-worker.ts",
+        "src/course-setting-offline/service-worker.ts", "src/lib/*-worker.ts"],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs"],
+      "ignoreDependencies": [
+        // Typsnitten läses med url() i src/components/ui/fonts.css.
+        "@fontsource/.*",
+        // pg kan behövas av det byggda paketet (Next standalone läser den vid körning); kvar tills det har provats utan.
+        "pg"
+      ]
+    },
+    "apps/si-tools": { "project": ["src/**/*.ts"] },
+    "packages/*": { "project": ["src/**/*.ts"] },
+    // Integrationstestet för tryckjobbet startar skriptet med `--import tsx`.
+    "packages/application": { "project": ["src/**/*.ts"], "ignoreDependencies": ["tsx"] }
+  },
+  "ignore": [
+    "**/*.test.ts", "**/*.test.tsx", "**/test/**", "**/__tests__/**",
+    // Städrundan 2026-11-07: en annan gren ändrar de här filerna just nu (säkerhetskopian och superadmin). Kvar:
+    // RaceRestoreOptions, RaceBackupStatus och SuperadminActionResponse är oanvända. Ta bort raden och det döda sedan.
+    "packages/contracts/src/race-backup.ts", "packages/contracts/src/superadmin.ts"
+  ],
+  "playwright": false,
+  "ignoreExportsUsedInFile": true,
+  "includeEntryExports": true
+}

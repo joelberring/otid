@@ -139,7 +139,6 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   "organizer/clubs/[clubId]/maps": { POST: { allow: CLUB_ADMINS, ...octet } },
   "organizer/clubs/[clubId]/maps/[mapId]": { POST: { allow: CLUB_ADMINS, ...octet },
     PUT: { allow: CLUB_ADMINS, real: true, body: { formatVersion: 1, name: "Karta", agreement } } },
-  "organizer/clubs/[clubId]/maps/[mapId]/merge": { POST: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, targetMapId: id() }) } },
   "organizer/clubs/[clubId]/maps/[mapId]/versions-copy": { POST: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, fromVersionId: null,
     fields: ["maker"], versionIds: [id()] }) } },
   "organizer/clubs/[clubId]/map-versions/[versionId]": { GET: { allow: CLUB_MEMBERS, real: true },

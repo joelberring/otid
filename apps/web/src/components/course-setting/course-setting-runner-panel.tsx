@@ -18,7 +18,8 @@ function problemText(problem: RunnerPrintProblem): string {
     case "UNKNOWN_COURSE": return text.page.problem.UNKNOWN_COURSE(problem.courseName);
     case "UNKNOWN_VARIANT": return text.page.problem.UNKNOWN_VARIANT(problem.courseName, problem.variantCode);
     case "EXCLUDED_VARIANT": return text.page.problem.EXCLUDED_VARIANT(problem.courseName, problem.variantCode, problem.count);
-    case "COUNT": return text.page.problem.COUNT(problem.variantCode ? `${problem.courseName} ${problem.variantCode}` : problem.courseName, problem.expected, problem.actual);
+    case "COUNT": return text.page.problem.COUNT([problem.courseName, problem.variantCode, problem.layout && `(${problem.layout})`].filter(Boolean).join(" "),
+      problem.expected, problem.actual);
   }
 }
 
@@ -51,7 +52,7 @@ export function RunnerControls({ bundlesState, runners, raceId, order, setOrder,
       <a href="#runner-check">{runnerText.checkLink}</a></p>
     {runners.items.length === 0 && <p className={styles.muted}>{text.page.runnersNone}</p>}
     {runners.counts.length > 0 && <p className={styles.muted}>{text.page.runnerCounts}: {runners.counts.map(row =>
-      `${row.courseName} ${row.variantCode ?? text.page.noVariant} ${row.count}`).join(" · ")}</p>}
+      `${row.courseName} ${row.variantCode ?? text.page.noVariant}${row.layout ? ` (${row.layout})` : ""} ${row.count}`).join(" · ")}</p>}
     {runners.problems.length === 0 ? <Notice tone="ok"><p data-testid="print-runner-check">{text.page.runnerOk}</p></Notice>
       : <Notice tone="error"><p data-testid="print-runner-check">{text.page.runnerProblems}</p>
         <ul className={styles.problems}>{runners.problems.map((problem, index) => <li key={index}>{problemText(problem)}</li>)}</ul>

@@ -29,8 +29,6 @@ export const organizerAccountRegistrationRequestSchema = z.object({
   password: z.string().min(ACCOUNT_PASSWORD_MIN_LENGTH).max(1024)
 }).strict();
 
-export type OrganizerAccountRegistrationRequest = z.infer<typeof organizerAccountRegistrationRequestSchema>;
-
 export const organizerAccountLoginResponseSchema = z.object({
   formatVersion: z.literal(1),
   accountId: uuid,
@@ -112,11 +110,8 @@ export const organizerMyEventsResponseSchema = z.object({
   events: z.array(organizerEventSchema).max(10_000)
 }).strict();
 
-
 export type OrganizerAccountLoginRequest = z.input<typeof organizerAccountLoginRequestSchema>;
 export type OrganizerAccountLoginResponse = z.infer<typeof organizerAccountLoginResponseSchema>;
-export type OrganizerAccountSessionStatus = z.infer<typeof organizerAccountSessionStatusSchema>;
-export type OrganizerEventCreateIdempotencyKey = z.infer<typeof organizerEventCreateIdempotencyKeySchema>;
 export type OrganizerEventCreateRequest = z.input<typeof organizerEventCreateRequestSchema>;
 export type OrganizerEventCreateResponse = EventCreationResponse;
 export type OrganizerMyEventsResponse = z.infer<typeof organizerMyEventsResponseSchema>;

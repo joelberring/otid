@@ -171,4 +171,3 @@ export function createAfterRaceActions(ws: Base & RaceDataActions) {
   return { loadClassRecalculation, prepareClassRecalculation, submitClassRecalculation, loadFinalizationBasis, prepareFinalization,
     submitFinalization, loadFinalizations, downloadFinalization, downloadResults };
 }
-export type AfterRaceActions = ReturnType<typeof createAfterRaceActions>;

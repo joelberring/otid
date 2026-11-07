@@ -47,7 +47,5 @@ export const eventCreationErrorResponseSchema = z.object({
   error: eventCreationErrorCodeSchema
 }).strict();
 
-export type EventCreationRequest = z.infer<typeof eventCreationRequestSchema>;
 export type EventCreationResponse = z.infer<typeof eventCreationResponseSchema>;
 export type EventCreationErrorCode = z.infer<typeof eventCreationErrorCodeSchema>;
-export type EventCreationErrorResponse = z.infer<typeof eventCreationErrorResponseSchema>;

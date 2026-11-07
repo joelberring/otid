@@ -450,10 +450,6 @@ export function parseCaptureTimelineNdjson(value: string | Uint8Array): readonly
   return parseNdjson(rawBytes(value, "timeline"), "timeline", parseTimelineLine);
 }
 
-export function encodeCaptureWalNdjson(entries: readonly CaptureWalEntryV1[]): string {
-  return entries.length === 0 ? "" : `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`;
-}
-
 export function encodeCaptureTimelineNdjson(entries: readonly CaptureTimelineEntryV1[]): string {
   return entries.length === 0 ? "" : `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`;
 }

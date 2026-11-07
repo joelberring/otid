@@ -27,7 +27,6 @@ export const radioControlSchema = z.object({
   code: radioControlCodeSchema,
   label: z.string().trim().min(1).max(40).nullable()
 }).strict();
-export type RadioControl = z.infer<typeof radioControlSchema>;
 
 export const radioSettingsRequestSchema = z.object({
   formatVersion: z.literal(1),
@@ -37,7 +36,6 @@ export const radioSettingsRequestSchema = z.object({
   controls: z.array(radioControlSchema).max(30)
     .refine(controls => new Set(controls.map(control => control.code)).size === controls.length, "Samma kontroll två gånger")
 }).strict();
-export type RadioSettingsRequest = z.infer<typeof radioSettingsRequestSchema>;
 
 /**
  * Hämtningens läge. OFF: avstängd. TODAY: hämtar automatiskt (tävlingsdagen i tävlingens tidszon).
@@ -60,7 +58,6 @@ export const radioStatusSchema = z.object({
   otherControls: count,
   malformedLines: count
 }).strict();
-export type RadioStatus = z.infer<typeof radioStatusSchema>;
 
 /** Senaste radiostämplingarna för admin, även okända brickor. */
 export const radioAdminPunchSchema = z.object({

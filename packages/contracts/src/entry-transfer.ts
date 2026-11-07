@@ -126,7 +126,4 @@ export const entryTransferResponseSchema = z.object({
   changedAt: z.iso.datetime({ offset: true })
 }).strict().refine(value => value.entryVersionAfter === value.request.expectedEntryVersion + 1);
 export type EntryTransferRequest = z.infer<typeof entryTransferRequestSchema>;
-export type EntryTransferResultFreshness = z.infer<typeof entryTransferResultFreshnessSchema>;
-export type EntryTransferResultRevisionMarker = z.infer<typeof entryTransferResultRevisionMarkerSchema>;
 export type EntryTransferCandidates = z.infer<typeof entryTransferCandidatesSchema>;
-export type EntryTransferResponse = z.infer<typeof entryTransferResponseSchema>;

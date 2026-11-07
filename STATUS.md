@@ -17,6 +17,20 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - `stafett-steg47`: `compileRoutes` hoppas över mot driftbygget (E2E_BASE_URL).
 - Nytt `apps/web/src/lib/organizer-roles.test.ts`: tabell över vad ägare/admin/ledare/medlem i klubben, ledare/medlem i gruppen, utomstående, superadmin, utloggad och importnyckeln får på varje route och metod under organizer/clubs, organizer/groups, account, club-import och superadmin (81 metoder, ~650 anrop mot en egen PostgreSQL-databas; körs när TEST_DATABASE_URL finns). En route som saknas i tabellen fäller testet. Inga felaktiga behörigheter hittades; Google-routes prövas inte (inte inställt i testet).
 
+
+### 2026-11-07 – Död kod bort och knip i CI (grenen c1-dod-kod, ingen migration)
+- Gamla versionsscheman (resultOutcomeV1–V8, storedResult*V4/V6, publicResult*V1–V6, V9-alias) bort; gällande namn kvar. `publicResultListResponseSchema` är format 7.
+- Oanvända exporter, konstanter och ~150 exporterade typer bort; `distributeRelayVariants` och `encodeCaptureWalNdjson` flyttade till testerna.
+- Döda Drizzle-tabeller (`shortenedCourseClassTransfer*`, `mapContentParts`; SQL-tabellerna kvar), Google-kakans gamla format, `POST …/maps/{mapId}/merge` (ADR-0210 ändrad).
+- 82 oanvända i18n-nycklar och 18 CSS-modulklasser bort; `i18n/unused-keys.test.ts` kräver att varje toppnyckel används.
+- `pnpm lint:dead` (knip 5.60, `knip.json`) körs i CI-jobbet verify. Undantag med kommentar i `knip.json` (B4-filer, pg, typsnitt).
+### 2026-11-07 – Layout som egen flik (grenen b3-layoutflik, ADR-0217, ingen migration)
+- Flikarna Banläggning | Layout | Utskrift. Layout: överblick banor × layouter (telefon: lista), layouterna (papper, skala, mall, Kartor per ark), arket öppnat (utsnitt, klippning, papperets element, kartbytets delar, "Justera för 1:7 500": dra nummer, ringavbrott per kontroll, "Ta bort justeringar"), klasstabell med massval, lägen (spara, jämför, återställ, ångra).
+- Modell: `event.layouts`, `layoutSheets`, `classLayouts`, `mainLayout`, `layoutStates`; huvudlayouten är banans fält och den enda i .ppen. Utskriften räknar arket genom `layoutDocument` (golden-test: gamla dokument ger byte-identisk PDF). Läget "Från Purple Pen" vid inläsning.
+- Kartor till starten delar grupperna per layout (reserver och tryckantal per layout); löparkartor och PDF-jobbet tar arkets layout.
+- Utskrift: alla ark i en layout, klasser, provark (ett av varje) och antal (anmälda + reserver eller eget); B2:s färgdel orörd.
+- Verifierat: enhetstester (course-setting, domain, contracts, application, web-lib), integration `adr-0217-layout-kartbuntar`, E2E `banlaggning-layout`.
+- Återstår: papperets redigering finns kvar också på utskriftssidan (specarna pappersrum, utskrift-omtag, kartbyte, hittbarhet, löparkartor och utskrift använder den; baksidan per löpare och kartbytets delmål finns bara där). Sträckavbrott per layout.
 ### 2026-11-07 – Serverrapport, larm, mindre säkerhetskopior, belastningstest (grenen b4-serverrapport, ADR-0216, migration 0085)
 - Veckorapport söndag kl. 19 och larm (disk, kartkvot, backup, hälsokontroll, minne; högst ett per sort och dygn, "löst" när det gått över) till superadmin via mail.ts, från `web` (`lib/server-watch-runner.ts`, `application/server-report.ts` + `server-status.ts`). Tabellerna `server_sample`, `server_notice`, `server_notice_log`. `node superadmin.mjs server-report` visar rapporten.
 - `monitor.sh` skriver `./status/monitor.log`, `backup.sh` `./backups/.backup-status`; `web` monterar `./backups` och `./status` skrivskyddat (compose). Inget nytt i `.env` krävs.

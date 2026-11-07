@@ -10,6 +10,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-07 – Saknad skala för banan är kartans, också i .ppen (grenen a6-tryckskala, ADR-0211 beslut 13)
+- En ny bana och en bana ur IOF XML får ingen skala inskriven; `readPpen` läser `print-scale` lika med kartans skala som saknad. `writePpen` skriver kartans skala tillbaka (A3), så Purple Pen får samma `<options>`.
+- Tester: `print-scale-default.test.ts` (ny bana, banfil, rundtripp med fixturen och med en annan skala); A3:s rundtripptest förväntar nu ingen skala efter återinläsning.
+
 ### 2026-11-07 – Bortvalda varianter påverkar inte banläggningen, en regel för banans längd (grenen a6-bortvalda, ADR-0198 tillägg 12)
 - B5: "sträcka/kontroll i förbjudet område" och nivåstödet räknar bara kontroller och sträckor i varianter som används (`activeParts`, `activeControlOrders`).
 - Banans längd: `courseLength` (fast längd först, annars längsta kvarvarande variant, eller den valda varianten) i banlistan, beskrivningen, utskriftens rubrik, `$(CourseLength)`, `{längd}` och överföringen. Rubriken, makrot och `{längd}` räknade förut med bortvalda.

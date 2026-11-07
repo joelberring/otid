@@ -264,9 +264,8 @@ function addCourse(draft: Draft, name: string, kind: "NORMAL" | "SCORE"): string
   if (name.trim() === "") throw invalidEdit("Banan behöver ett namn");
   const id = nextId(draft.courses.map(course => course.id));
   const order = Math.max(0, ...draft.courses.map(course => course.order)) + 1;
-  draft.courses = [...draft.courses, {
-    id, name, kind, order, labelKind: kind === "SCORE" ? "CODE" : "SEQUENCE", printScale: draft.event.mapScale
-  }];
+  // Ingen skala: saknad skala är kartans (`printScaleOf`, ADR-0211 beslut 5), och följer med om kartans skala ändras.
+  draft.courses = [...draft.courses, { id, name, kind, order, labelKind: kind === "SCORE" ? "CODE" : "SEQUENCE" }];
   // En ensam start, kartutdelning och ett ensamt mål läggs in direkt, som i Purple Pen.
   for (const kindToAdd of ["START", "MAP_ISSUE", "FINISH"] as const) {
     const candidates = Object.values(draft.controls).filter(candidate => candidate.kind === kindToAdd);

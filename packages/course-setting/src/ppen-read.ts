@@ -123,6 +123,12 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
     }
   }
   if (!event) throw invalid("filen saknar <event>");
+  // ADR-0211 beslut 5: saknad skala är kartans. Purple Pen skriver alltid `print-scale`; är den kartans skala sparas den inte,
+  // så att banan följer kartans skala (och `writePpen` skriver tillbaka samma värde).
+  for (const [index, course] of courses.entries()) {
+    const { printScale, ...rest } = course;
+    if (printScale === event.mapScale) courses[index] = rest;
+  }
 
   // Numrets läge sparas relativt kontrollen i filen men absolut i modellen.
   for (const [ccId, delta] of numberDeltas) {

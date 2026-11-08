@@ -109,3 +109,27 @@ export interface MyMapStatsView {
 }
 export const mapProjectLeaderboardSchema = z.enum(["FIRST", "FULL", "NONE"]);
 export const mapStatsOptInRequestSchema = z.object({ formatVersion: z.literal(1), enabled: z.boolean() }).strict();
+
+/**
+ * K4a: egna underlag. Bilden (PNG eller JPEG, högst `MAP_PROJECT_LAYER_MAX_BYTES`) är kroppen; uppgifterna står i rubrikerna
+ * `x-otid-request-id`, `x-otid-name` (procentkodad) och `x-otid-layer` (JSON: `crs` och `transform`, procentkodad). Transformen är
+ * världsfilens sex tal: x = a·kolumn + b·rad + c, y = d·kolumn + e·rad + f (pixelns mitt, koordinatsystemets enheter).
+ */
+export const MAP_PROJECT_LAYER_MAX_BYTES = 40 * 1024 * 1024;
+const affine = z.object({ a: finite, b: finite, c: finite, d: finite, e: finite, f: finite }).strict()
+  .refine(value => Math.abs(value.a * value.e - value.b * value.d) > 1e-18, { message: "Transformen går inte att vända" });
+export const mapProjectLayerMetadataSchema = z.object({
+  formatVersion: z.literal(1), requestId: uuidSchema, name: z.string().trim().min(1).max(80),
+  crs: z.number().int().min(1).max(999_999), transform: affine
+}).strict();
+export const mapProjectLayerUpdateRequestSchema = z.object({
+  formatVersion: z.literal(1), name: z.string().trim().min(1).max(80).optional(), opacity: z.number().finite().min(0).max(1).optional(),
+  sort: z.number().int().min(0).max(100_000).optional()
+}).strict().refine(value => Object.keys(value).length > 1);
+
+export interface MapProjectLayerView {
+  layerId: string; name: string; mediaType: "image/png" | "image/jpeg"; width: number; height: number; crs: number;
+  transform: { a: number; b: number; c: number; d: number; e: number; f: number }; opacity: number; sort: number; sha256: string; byteLength: number;
+  createdBy: { accountId: string; name: string | null }; own: boolean; createdAt: string;
+}
+export interface MapProjectLayerList { formatVersion: 1; layers: MapProjectLayerView[] }

@@ -25,6 +25,9 @@ import { Button, Notice } from "../ui";
 import { MapProjectCollabPanel } from "./map-project-collab-panel";
 import { MapProjectFieldControls, type PositionMode } from "./map-project-field-controls";
 import { MapProjectReconPanel } from "./map-project-recon-panel";
+import { MapProjectLayersPanel } from "./map-project-layers-panel";
+import { useMapProjectLayers } from "./use-map-project-layers";
+import { drawLayers } from "../../lib/map-project-layers";
 import { useMapProjectPosition, type TimedFix } from "./use-map-project-position";
 import { useMapProjectRecon } from "./use-map-project-recon";
 import { saveMapProjectShell } from "../../lib/map-project-offline";
@@ -93,6 +96,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [walk, setWalk] = useState<readonly Point[]>();
   const walkRef = useRef<readonly Point[] | undefined>(undefined);
   const georeference = editor.georeference;
+  // K4a: egna underlag (ritas först, under allt annat ovanpå kartan).
+  const layers = useMapProjectLayers(view, georeference ?? undefined);
+  const drawnLayers = layers.drawn;
   const recordFix = recon.onFix;
   const onFix = useCallback((fix: TimedFix) => {
     recordFix(fix);
@@ -382,6 +388,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const gapMm = editor.georeference ? MAX_SEGMENT_M / metersPerMm(editor.georeference, editor.georeference.scale) : Infinity;
   const overlay = useCallback((ctx: CanvasRenderingContext2D, current: Viewport) => {
     const shown = preview ?? selected?.object;
+    drawLayers(ctx, current, drawnLayers);
     if (coverage?.image) drawCoverage(ctx, current, coverage.grid, coverage.image);
     if (recon.layers.has("TRACKS")) drawTracks(ctx, current, recon.trackLines.others, recon.trackLines.recording, gapMm);
     if (walk && walk.length > 0) drawTracks(ctx, current, [], walk.map(point => ({ ...point, accuracyM: 0 })), Infinity);
@@ -410,7 +417,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (handles) drawHandles(ctx, current, handles);
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
-    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft]);
+    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
@@ -520,6 +527,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         after={<>
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
+          {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined} />}
         </>}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}

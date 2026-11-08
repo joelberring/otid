@@ -188,3 +188,19 @@ Planens avsnitt 7c. Av från början; inget nytt spelas in.
 3. **Belöna rätt saker:** topplistan sorteras på rekad yta från början; märkena gäller rekad yta, km, natt, kollade objekt,
    åtgärdade notiser, klara delområden och borttagna objekt (generalisering), inte mängden nya objekt.
 4. **Säsong** är ett kalenderår. Klubbens och hela O-Tids topplistor väntar (namnen skulle då synas utanför projektet).
+
+## Tillägg 2026-11-08: egna underlag (steg K4a, migration 0097)
+
+Ägaren: den som inte har kartunderlag via ett svenskt API ska kunna lägga upp eget material.
+
+1. **Underlaget är en bild med georeferens** (`map_project_layer`): PNG eller JPEG, världsfilens sex tal (pixelns mitt → systemets
+   enheter) och EPSG-koden. Bilden sparas en gång per sha256 i `map_content` på kontots kvot, högst 40 MB och 50 underlag per
+   projekt. Föreslå eller mer lägger till; den som lade till och ägarna ändrar och tar bort. Genomskinligheten är projektets; vilka
+   underlag som syns väljer var och en.
+2. **Webbläsaren gör bilden klar:** en GeoTIFF läses med geotiff (MIT, laddas först när den behövs), läget och koordinatsystemet ur
+   filen, skalas ned till högst 8 192 pixlar per sida och blir en JPEG; en PNG eller JPEG behöver en världsfil. Servern tar emot
+   bara den färdiga bilden. Inget skickas till Claude.
+3. **På kartan** räknas bildens pixlar om till kartans mm ur tre hörn via kartfilens georeferens (samma system direkt, annars via
+   WGS 84). UTM (WGS 84 och ETRS 89) stöds nu i `map-file` vid sidan av SWEREF 99 och RT 90.
+4. **Rättat:** `otid_map_content_release` kände inte till kartprojekten; innehåll som både var klubbarkivets och ett projekts
+   grundfil kunde inte tas bort. Funktionen räknar nu också projektens grundfiler, versioner och underlag.

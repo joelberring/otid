@@ -1,4 +1,4 @@
-import { bigint, doublePrecision, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, doublePrecision, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { clubMapVersions, clubs } from "./clubs";
 import { mapContents } from "./map-content";
@@ -223,4 +223,22 @@ export const mapProjectNotes = pgTable("map_project_note", {
 export const mapStatsOptIns = pgTable("map_stats_opt_in", {
   accountId: uuid("account_id").primaryKey().references(() => userAccounts.id),
   enabledAt: timestamp("enabled_at", { withTimezone: true }).notNull()
+});
+
+/** Underlag (0097): en georefererad bild (pixel → koordinatsystemets enheter, världsfilens sex tal) i kartinnehållet. */
+export const mapProjectLayers = pgTable("map_project_layer", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  name: text("name").notNull(),
+  contentSha256: text("content_sha256").notNull().references(() => mapContents.sha256),
+  mediaType: text("media_type").$type<"image/png" | "image/jpeg">().notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  crs: integer("crs").notNull(),
+  transform: jsonb("transform").$type<{ a: number; b: number; c: number; d: number; e: number; f: number }>().notNull(),
+  opacity: real("opacity").notNull().default(0.5),
+  sort: integer("sort").notNull().default(0),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  requestId: uuid("request_id").notNull()
 });

@@ -141,10 +141,12 @@ describe("Mapper-läsaren", () => {
     expect(read().bounds).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 });
   });
 
-  it("ger okänt koordinatsystem och varning för projektioner som inte stöds", () => {
-    const map = read(OMAP.replace("<parameter>3011</parameter>", "<parameter>32633</parameter>").replace("epsg:3011", "epsg:32633"));
+  it("ger okänt koordinatsystem och varning för projektioner som inte stöds; UTM stöds (K4)", () => {
+    const map = read(OMAP.replace("<parameter>3011</parameter>", "<parameter>3857</parameter>").replace("epsg:3011", "epsg:3857"));
     expect(map.georeference?.crs.kind).toBe("UNKNOWN");
     expect(map.warnings.some(w => w.code === "CRS_UNKNOWN")).toBe(true);
+    const utm = read(OMAP.replace("<parameter>3011</parameter>", "<parameter>32633</parameter>").replace("epsg:3011", "epsg:32633"));
+    expect(utm.georeference?.crs).toEqual({ kind: "EPSG", code: 32633 });
   });
 
   it("klarar en karta utan georeferens och utan objekt", () => {

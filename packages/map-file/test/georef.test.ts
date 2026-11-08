@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   geodeticToGrid, gridToGeodetic, mapPointToProjected, mapPointToWgs84, projectedToMapPoint, projectedToWgs84,
-  transverseMercatorFor, wgs84ToMapPoint, wgs84ToProjected, type TransverseMercator
+  isSupportedEpsg, transverseMercatorFor, wgs84ToMapPoint, wgs84ToProjected, type TransverseMercator
 } from "../src/georef";
 import type { MapGeoreference } from "../src";
 
@@ -75,7 +75,7 @@ describe("Gauss–Krüger enligt Lantmäteriet", () => {
 
   it("kastar ett tydligt fel för okänt koordinatsystem", () => {
     expect(() => projectedToWgs84({ kind: "UNKNOWN", description: "UTM 33N" }, 0, 0)).toThrow(/UTM 33N/);
-    expect(() => wgs84ToProjected({ kind: "EPSG", code: 32633 }, 59, 18)).toThrow(/EPSG:32633/);
+    expect(() => wgs84ToProjected({ kind: "EPSG", code: 3857 }, 59, 18)).toThrow(/EPSG:3857/);
   });
 });
 
@@ -104,5 +104,27 @@ describe("kartans mm ↔ projicerat", () => {
       const viaWgs = wgs84ToMapPoint(georef, mapPointToWgs84(georef, point));
       expect(Math.hypot(viaWgs.x - point.x, viaWgs.y - point.y)).toBeLessThan(0.001);
     }
+  });
+});
+
+describe("UTM (K4: kartor utanför Sverige)", () => {
+  it("UTM 33N räknar som SWEREF 99 TM; söder har falsk northing; ETRS89 som WGS 84; tur och retur", () => {
+    const stockholm = { latitude: 59.3293, longitude: 18.0686 };
+    const sweref = wgs84ToProjected({ kind: "EPSG", code: 3006 }, stockholm.latitude, stockholm.longitude);
+    const utm = wgs84ToProjected({ kind: "EPSG", code: 32633 }, stockholm.latitude, stockholm.longitude);
+    expect(utm.easting).toBeCloseTo(sweref.easting, 6);
+    expect(utm.northing).toBeCloseTo(sweref.northing, 6);
+    const etrs = wgs84ToProjected({ kind: "EPSG", code: 25833 }, stockholm.latitude, stockholm.longitude);
+    expect(etrs.easting).toBeCloseTo(utm.easting, 6);
+    // Sydney i zon 56S: omkring E 334 000, N 6 250 000.
+    const sydney = wgs84ToProjected({ kind: "EPSG", code: 32756 }, -33.8568, 151.2153);
+    expect(sydney.easting).toBeGreaterThan(333_000);
+    expect(sydney.easting).toBeLessThan(336_000);
+    expect(sydney.northing).toBeGreaterThan(6_250_000);
+    expect(sydney.northing).toBeLessThan(6_255_000);
+    const back = projectedToWgs84({ kind: "EPSG", code: 32756 }, sydney.easting, sydney.northing);
+    expect(back.latitude).toBeCloseTo(-33.8568, 7);
+    expect(back.longitude).toBeCloseTo(151.2153, 7);
+    expect(isSupportedEpsg(32661)).toBe(false);
   });
 });

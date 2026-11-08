@@ -5,10 +5,17 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0–K3b är klara (K3: rekningen, fältet, notiser och snabbare redigering, 0094–0095; K3b: frivilliga topplistor, 0096); nästa är K4 (underlag och geo-arbetaren, med egen uppladdning). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0–K3b är klara (K3: rekningen, fältet, notiser och snabbare redigering, 0094–0095; K3b: frivilliga topplistor, 0096); K4a egna underlag är klart (0097); nästa är K4b (vektorer som kandidater) och K4c (geo-arbetaren). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-08 – K4a: egna underlag (migration 0097, ADR-0219 tillägg)
+- Egna underlag i kartprojektet: GeoTIFF, eller PNG/JPEG med världsfil; webbläsaren skalar ned och läser läget och EPSG ur filen.
+- Panelen Underlag: visa/dölj (för sig), genomskinlighet (för projektet), ta bort (den som lade till eller ägarna); bilderna i kartcachen.
+- UTM (WGS 84 och ETRS 89) i `map-file`; rättat att innehållets frigöring inte kände till kartprojekten.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester, integration `adr-0219-underlag` (2), E2E `kartprojekt-underlag`.
+- Kvar: listan över underlagen utan nät och ordningen; K4b och K4c.
 
 ### 2026-11-08 – K3b: frivilliga topplistor och statistik (migration 0096, ADR-0219 tillägg)
 - Den egna kartstatistiken per projekt och totalt per säsong (rekad yta, km och timmar, kollade, notiser, nya/ändrade/borttagna, godkända förslag, klara delområden) med märken.

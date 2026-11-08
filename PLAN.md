@@ -1230,8 +1230,21 @@ Migration 0096, ADR-0219 tillägget 2026-11-08 (spelifieringen).
 - [x] Tester: map-revision (`stats`), integration `adr-0219-rekning` (statistiken), E2E `kartprojekt-rekning` (topplistan).
 - [ ] Senare: klubbens och hela O-Tids topplistor (kräver ett beslut om vilka namn som får synas utanför projektet).
 
-Senare enligt planen: K4 underlag och
-geo-arbetaren (med import av baskartor: lagermappning och rensning av överskott), K5 Karttapullautin och fuktighet, K6
+## [ ] Steg K4 – Underlag och geo-arbetaren
+
+K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
+
+- [x] K4a egna underlag (ägaren 2026-11-08: "de som inte har tillgång till kartunderlag via svenskt API ska kunna ladda upp
+  material manuellt"): GeoTIFF eller PNG/JPEG med världsfil, görs klar i webbläsaren (nedskalning, läget och koordinatsystemet ur
+  filen, annars angivet); SWEREF 99, RT 90, UTM och WGS 84; visa/dölj, genomskinlighet, ta bort; bilderna sparas för offline.
+- [x] Tester: läget på kartan och GeoTIFF:s georeferens, integration `adr-0219-underlag`, E2E `kartprojekt-underlag` (PNG med
+  världsfil och GeoTIFF).
+- [ ] K4a kvar: listan över underlagen utan nät (bilderna finns, listan hämtas), ordningen mellan underlagen.
+- [ ] K4b vektorer som kandidater (GeoJSON, DXF/DWG-baskartor med lagermappning och rensning av överskott).
+- [ ] K4c geo-arbetaren och hämtning från Lantmäteriet, OSM och NVDB; etapper (dolt lager med revideringsdatum per delområde,
+  ny vegetationsdata bara för en etapp, ägaren 2026-11-08).
+
+Senare enligt planen: K5 Karttapullautin och fuktighet, K6
 generalisering och normkontroll, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre
 kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD. Idé (STATUS): inomhusorientering.
 

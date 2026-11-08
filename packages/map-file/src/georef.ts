@@ -27,11 +27,21 @@ const SWEREF99_LOCAL_MERIDIANS: Readonly<Record<number, number>> = {
   3013: 15.75, 3014: 17.25, 3015: 18.75, 3016: 20.25, 3017: 21.75, 3018: 23.25
 };
 
+function utmZone(epsg: number): { zone: number; south: boolean } | undefined {
+  if (epsg >= 32601 && epsg <= 32660) return { zone: epsg - 32600, south: false };
+  if (epsg >= 32701 && epsg <= 32760) return { zone: epsg - 32700, south: true };
+  if (epsg >= 25828 && epsg <= 25838) return { zone: epsg - 25800, south: false };
+  return undefined;
+}
+
 /** Projektionen för ett EPSG-nummer som O-Tid kan räkna, annars null. */
 export function transverseMercatorFor(epsg: number): TransverseMercator | null {
   if (epsg === 3006) return { centralMeridian: 15, scaleFactor: 0.9996, falseNorthing: 0, falseEasting: 500000 };
   const local = SWEREF99_LOCAL_MERIDIANS[epsg];
   if (local !== undefined) return { centralMeridian: local, scaleFactor: 1, falseNorthing: 0, falseEasting: 150000 };
+  // UTM (K4, kartor utanför Sverige): WGS 84 norr 32601–32660 och söder 32701–32760, ETRS89 25828–25838 (norr).
+  const utm = utmZone(epsg);
+  if (utm) return { centralMeridian: -183 + 6 * utm.zone, scaleFactor: 0.9996, falseNorthing: utm.south ? 10_000_000 : 0, falseEasting: 500_000 };
   if (epsg === 3021) {
     return {
       centralMeridian: 15 + 48 / 60 + 22.624306 / 3600,

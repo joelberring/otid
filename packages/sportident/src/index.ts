@@ -30,3 +30,7 @@ export {
 } from "./readout-session";
 export { encodeCardImage, FakeSiStation, type FakeStationOptions, type SimulatedCard, type SimulatedTime, type SingleBlockFault } from "./simulator";
 export { cardTypeForNumber, readSimulatedCard, simulatedRun, stationClock, type SimulatedRunOptions } from "./simulated-run";
+export {
+  BACKUP_START, backupRanges, MAX_BACKUP_RECORDS, parseBackupRecords, parseStationSystem, STATION_MODELS, StationReadSession,
+  type BackupPunch, type StationReadEvent, type StationReport, type StationSystemData
+} from "./station-read";

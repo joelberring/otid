@@ -40,6 +40,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
       </div>
       <div className={styles.controlActions}>
         <a className={styles.openReadout} href={`/admin/${raceId}/readout`}>{text.openReadout}</a>
+        <a href={`/admin/${raceId}/stations`}>{text.openStations}</a>
         <Button variant="secondary" disabled={busy || workflowLocked} onClick={() => void loadRaceDayAttention()}>{text.controlRefresh}</Button>
         {forestData && <span className={styles.readAt}>{text.controlReadAt(formatClockTime(forestData.generatedAt, forestData.timeZone))}</span>}
       </div>

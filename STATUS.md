@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Läs ut enheter (ingen migration, untested)
+- Avläsning → "Läs ut enheter": huvudstationen ansluts med Web Serial och enheten som ligger mot den läses i fjärrläge:
+  serienummer, modell, programversion, kod, läge, batteribyte, klockan mot datorn och backupminnet (de senaste 4 000
+  stämplingarna) med löparen för brickor i tävlingen och om koden finns på banorna. CSV och rålogg. Inget skrivs till enheten.
+- `StationReadSession` i sportident (ren, tål chunkgränser, dubbletter, fel CRC, NAK, avbrott och tystnad).
+- Untested: byggt efter öppna beskrivningar (docs/sportident.md); provas med riktiga enheter.
+- Verifierat: typecheck, lint, enhetstester (`station-read`), E2E `enheter` (falsk Web Serial).
+
 ### 2026-11-08 – Ortofoto från Lantmäteriet med eget konto (K4c del 2, migration 0100, ADR-0219 tillägg, provas)
 - Mitt konto → Lantmäteriet: Geotorgets användarnamn och lösenord eller API-portalens nyckel och hemlighet. Sparas krypterade
   (`OTID_EVENTOR_MASTER_KEY`), visas aldrig igen, tas bort med kontot.

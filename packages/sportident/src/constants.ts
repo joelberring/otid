@@ -14,6 +14,8 @@ export const WAKEUP = 0xff;
 /** Kommandokoder i utökat protokoll. */
 export const Command = {
   GET_SYSTEM_VALUE: 0x83,
+  /** Ägaren 2026-11-08: backupminnet (tre byte adress och längd), för utläsning av enheter (`station-read.ts`). */
+  GET_BACKUP: 0x81,
   SET_SYSTEM_VALUE: 0x82,
   READ_SI5: 0xb1,
   READ_SI6: 0xe1,

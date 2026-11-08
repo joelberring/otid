@@ -36,9 +36,10 @@ export function fakeOrtho(west: number, south: number, east: number, north: numb
     const even = (Math.floor(row / 50) + Math.floor(col / 50)) % 2 === 0;
     values.push(even ? 200 : 40, even ? 40 : 200, 60);
   }
-  return new Uint8Array(writeArrayBuffer(values, { width: size, height: size, BitsPerSample: [8, 8, 8], SamplesPerPixel: [3], PhotometricInterpretation: 2,
+  const tiff: ArrayBuffer = writeArrayBuffer(values, { width: size, height: size, BitsPerSample: [8, 8, 8], SamplesPerPixel: [3], PhotometricInterpretation: 2,
     ModelPixelScale: [(maxE - minE) / size, (maxN - minN) / size, 0], ModelTiepoint: [0, 0, 0, minE, maxN, 0],
-    GTModelTypeGeoKey: 1, GTRasterTypeGeoKey: 1, ProjectedCSTypeGeoKey: 3006 }));
+    GTModelTypeGeoKey: 1, GTRasterTypeGeoKey: 1, ProjectedCSTypeGeoKey: 3006 }) as ArrayBuffer;
+  return new Uint8Array(tiff);
 }
 
 export function startFakeGeodata(port = FAKE_GEODATA_PORT): Promise<Server> {

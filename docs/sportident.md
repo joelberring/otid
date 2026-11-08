@@ -64,6 +64,27 @@ kvittens, räknat i `packages/sportident/test/fast-read.test.ts`. Tiden är bara
 kommer stationens tid att läsa varje block ur brickan och fördröjningen per kommando, som inte går att mäta utan riktig
 station; snabb utläsning har ett kommando per block i stället för ett för alla.
 
+## Utläsning av enheter (ägaren 2026-11-08, untested)
+
+Tävlingens arbetsyta → Avläsning → "Läs ut enheter" (`/admin/<lopp>/stations`): en kontroll, start eller mål läses utan
+SPORTident Config+. Bara läsning; inget skrivs till enheten. `StationReadSession` (`station-read.ts`, ren som
+`ReadoutSession`):
+
+1. `SET_MASTER_SLAVE 0x53` (fjärr): huvudstationen pratar med enheten som ligger mot den. Valet "Läs huvudstationen själv"
+   använder direktläget (`0x4D`).
+2. `GET_SYSTEM_VALUE 0x00 0x80`: serienummer (0x00–0x03), programversion (0x05–0x07), modell (0x0B–0x0C), minnets storlek i
+   kB (0x0D), batteribytet ÅÅMMDD (0x15–0x17), batterikapacitet (0x19–0x1A, rått värde), backuppekaren (0x1C, 0x1D, 0x21, 0x22),
+   minnet har gått runt (0x3D), läge (0x71), kod (0x72 och bit 6–7 i 0x73), protokoll (0x74). 0x34–0x37 visas som hex.
+3. `GET_TIME`: enhetens klocka mot datorns.
+4. `GET_BACKUP 0x81` med tre byte adress och längd (högst 0x80): posterna om åtta byte från 0x100 till pekaren (de senaste
+   4 000; har minnet gått runt läses också slutet av minnet). Bricka i byte 0–2, sekunder i halvdygnet i byte 5–6; byte 3, 4
+   och 7 är inte avkodade och följer med som hex.
+5. `SET_MASTER_SLAVE 0x4D`: huvudstationen tillbaka i direktläge.
+
+Underlag: öppna beskrivningar av systemvärdena och backupposterna (bara fakta, ingen kod kopierad). Allt är `untested` tills
+en riktig enhet är läst; sidan sparar en rålogg (all trafik) och en CSV med brickorna. Svar som redan kommit hoppas över, fel
+adress, NAK eller tystnad ger ett fel efter att huvudstationen ställts tillbaka.
+
 ## Avläsning i webbläsaren
 
 Admin öppnar `/admin/<lopp>/readout` (länk "Öppna avläsning" i arbetsytan).
@@ -153,6 +174,7 @@ på tävling/träning).
 | BSM8-USB | untested |
 | BSM-USB, modell ej noterad (CP210x, macOS, Chrome) | field-verified¹ för SI9-avläsning |
 | SI-USB-läsare | untested |
+| Utläsning av kontroll, start eller mål (fjärr via BSM) | untested |
 
 ¹ 2026-10-19, ägarens pilot: två SI9-brickor lästa med en BSM-station på macOS i Chrome. Bricknummer, antal stämplingar
 och stämplingarnas tider avkodades rätt (jämfört med brickorna). Stationens modell och firmware är inte noterade.

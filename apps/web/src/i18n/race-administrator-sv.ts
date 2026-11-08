@@ -26,6 +26,8 @@ export const raceAdministratorSv = {
   followUpTitle: "Uppföljning av start och återkomst",
   controlTitle: "Tävlingsdagens kontrollvy",
   openReadout: "Öppna avläsningen",
+  /** Ägaren 2026-11-08: läsa ut kontroller, start och mål (provas). */
+  openStations: "Läs ut enheter",
   openReadoutHelp: "Avläsningen fungerar även utan nät. Läs av brickorna där – här ser du läget.",
   controlRefresh: "Uppdatera",
   controlReadAt: (time: string) => `Uppdaterad ${time}`,

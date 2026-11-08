@@ -238,5 +238,9 @@ bara för en etapp kommer med geo-arbetaren (K4c, K5).
 2. **Regler nu:** kurvor (101–103) med mindre än 0,15 mm mellan konturerna, fristående linjer under symbolens minsta längd,
    ytor under minsta yta, mycket smala ytor (2·yta/omkrets under halva minsta bredden, så att bara tydliga fall tas med), slutna
    kurvor under kullens minsta mått.
-3. **Sprint** (skala till och med 1:5 000): bara de allmänna avstånden tills ISSprOM 2019-2:s symbolmått läggs in.
+3. **Sprint** (skala till och med 1:5 000, tillägg samma kväll): ISSprOM 2019-2:s tabell över minimimått (längder för
+   murar, staket, branter; ytor och bredder för öppen mark, vegetation, hus, tak, område som inte får beträdas), passagen mellan
+   två oframkomliga objekt (201, 301, 307, 411, 515, 518, 520, 521, 529) minst 0,40 mm kant till kant och öppningen mellan murar
+   och staket minst 1,00 mm. Objekt som rör varandra stänger med avsikt och räknas inte; en kort mur som når ett oframkomligt
+   objekt räknas inte som fristående. Rutnätet jämför nu också grannrutorna, så att ett par över en rutgräns inte missas.
 4. Kontrollen visar ställen att se över (romber på kartan, listan i panelen); den ändrar inget och skickar inget.

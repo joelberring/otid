@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Normkontrollen för sprintkartor (ingen migration, ADR-0219 tillägg)
+- Sprint (1:5 000 och större): ISSprOM 2019-2:s minimimått för längder och ytor, passager mellan oframkomliga objekt under
+  0,40 mm och öppningar mellan murar och staket under 1,00 mm (ett fel per par, där det är smalast; objekt som rör varandra
+  räknas inte). En kort mur som når ett hus räknas inte som fristående.
+- Rättat: avståndskontrollen missade par som låg på var sin sida om en rutgräns (också kurvavståndet på skogskartor).
+- Verifierat: typecheck, lint, enhetstester (`norm-check`), E2E `kartprojekt-underlag`.
+
 ### 2026-11-08 – Kontrollnumren undviker vägvalen (ingen migration)
 - Varje sträcka som vägvalens Worker räknar i banläggningen (vald sträcka, banans längd, förbjudna områden) ger bästa vägen och
   alternativen nära kontrollerna (inom 20 mm, förenklade); de sparas i banfilen (`event.routeHints`, åtgärden `SET_ROUTE_HINTS`,

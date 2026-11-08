@@ -46,3 +46,36 @@ describe("normkontrollen", () => {
     expect(rules([line("kulle", "101.0", [[0, 0], [1, 0], [1, 0.7], [0, 0.7], [0, 0]])])).toEqual([]);
   });
 });
+
+/** ISSprOM 2019-2 (sprint, 1:4 000): symbolernas minimimått, passager och öppningar. */
+describe("normkontrollen för sprint", () => {
+  const square = (key: string, code: string, x0: number, y0: number, x1: number, y1: number) =>
+    area(key, code, [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]);
+
+  it("passagen mellan två hus minst 0,40 mm; hus som rör varandra stänger med avsikt", () => {
+    expect(rules([square("a", "521.0", 0, 0, 5, 5), square("b", "521.0", 5.3, 0, 10, 5)], 4000)).toEqual([["PASSAGE", "n:a"]]);
+    expect(rules([square("a", "521.0", 0, 0, 5, 5), square("b", "521.0", 5.5, 0, 10, 5)], 4000)).toEqual([]);
+    expect(rules([square("a", "521.0", 0, 0, 5, 5), square("b", "521.0", 5, 0, 10, 5)], 4000)).toEqual([]);
+    // Samma par på en skogskarta: ingen passageregel.
+    expect(rules([square("a", "521.0", 0, 0, 5, 5), square("b", "521.0", 5.3, 0, 10, 5)], 10000)).toEqual([]);
+    // En oframkomlig mur (0,7 mm bred) 0,6 mm mitt från huset: kanten 0,25 mm från huset.
+    const result = checkNorm([square("hus", "521.0", 0, 0, 5, 5), line("mur", "515.0", [[5.6, 0], [5.6, 5]])], 4000);
+    expect(result.issues.map(issue => issue.rule)).toEqual(["PASSAGE"]);
+    expect(result.issues[0]!.value).toBeCloseTo(0.25, 5);
+  });
+
+  it("öppningen i ett staket minst 1,00 mm", () => {
+    expect(rules([line("a", "516.0", [[0, 0], [5, 0]]), line("b", "516.0", [[5.8, 0], [12, 0]])], 4000)).toEqual([["OPENING", "n:a"]]);
+    expect(rules([line("a", "516.0", [[0, 0], [5, 0]]), line("b", "516.0", [[6.5, 0], [12, 0]])], 4000)).toEqual([]);
+  });
+
+  it("sprintens symbolmått: korta murar och små ytor, men en kort mur mellan hus är tillåten", () => {
+    expect(rules([line("mur", "515.0", [[0, 0], [0.8, 0]])], 4000)).toEqual([["SHORT_LINE", "n:mur"]]);
+    expect(rules([square("a", "521.0", 0, 0, 5, 5), line("mur", "515.0", [[5, 2], [5.8, 2]]), square("b", "521.0", 5.8, 0, 10, 5)], 4000)).toEqual([]);
+    expect(rules([line("mur", "513.1", [[0, 0], [1.2, 0]])], 4000)).toEqual([["SHORT_LINE", "n:mur"]]);
+    expect(rules([line("mur", "513.2", [[0, 0], [2, 0]])], 4000)).toEqual([["SHORT_LINE", "n:mur"]]);
+    expect(rules([square("hus", "521.0", 0, 0, 0.4, 0.4)], 4000)).toEqual([["SMALL_AREA", "n:hus"]]);
+    expect(rules([square("hus", "521.0", 0, 0, 0.6, 0.6)], 4000)).toEqual([]);
+    expect(rules([square("park", "402.0", 0, 0, 2, 2)], 4000)).toEqual([["SMALL_AREA", "n:park"]]);
+  });
+});

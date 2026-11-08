@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { mcpCourseToolInputSchemas } from "@o-tid/contracts";
 import {
@@ -7,7 +7,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { requireCourseSettingForAccount, type CourseSettingRequirement } from "./course-setting-access";
 import { insertCourseSettingNote } from "./course-setting-notes";
-import { runMapJobAndWait } from "./map-project-jobs";
+import { reusableRaceJob, runMapJobAndWait, waitForMapJob } from "./map-project-jobs";
 type JobWaitOptions = { timeoutMs?: number; pollMs?: number };
 
 /**
@@ -28,7 +28,7 @@ const raceIdProperty = { race_id: { type: "string", description: "Tävlingens id
 export const MCP_COURSE_TOOLS = [
   { name: "list_course_settings", title: "Mina banläggningar", description: "Tävlingarna där kontot får se banläggningen: id, namn, datum, behörighet och antal banor.",
     inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true } },
-  { name: "course_overview", title: "Banorna i en tävling", description: "Banorna med målnivå (Grön, Vit, Gul, Orange, Röd, Violett, Blå, Svart eller förslag ur klassnamnen), klasser, längd och stigning, kontrollerna i ordning (kod, beskrivning i text, läge i kartans mm med y uppåt) och sträckorna (fågelvägen i meter, riktning i grader från norr), samt O-Tids varningar. Ange course_id för en bana. Börja här för att granska nivån.",
+  { name: "course_overview", title: "Banorna i en tävling", description: "Banorna med målnivå (Grön, Vit, Gul, Orange, Violett, Blå, Svart eller förslag ur klassnamnen), klasser, längd och stigning, kontrollerna i ordning (kod, beskrivning i text, läge i kartans mm med y uppåt) och sträckorna (fågelvägen i meter, riktning i grader från norr), samt O-Tids varningar. Ange course_id för en bana. Börja här för att granska nivån.",
     inputSchema: { type: "object", properties: { ...raceIdProperty, course_id: { type: "string", description: "Bara den här banan" } }, required: ["race_id"] },
     annotations: { readOnlyHint: true } },
   { name: "render_course", title: "Bild av en bana", description: "En bild (PNG, högst 1600 px) av banan på tävlingens karta, i kartans färger med banan i lila och ett rutnät i kartans mm (samma lägen som course_overview). Ange area för ett utsnitt, t.ex. en sträcka. Titta på vägvalen och kontrollernas omgivning när du granskar nivån.",
@@ -36,6 +36,9 @@ export const MCP_COURSE_TOOLS = [
       grid: { type: "boolean", description: "Rutnätet (förval ja)" }, area: { type: "object", description: "Utsnitt i kartans mm med y uppåt",
         properties: { min_x: { type: "number" }, min_y: { type: "number" }, max_x: { type: "number" }, max_y: { type: "number" } },
         required: ["min_x", "min_y", "max_x", "max_y"] } }, required: ["race_id", "course_id"] }, annotations: { readOnlyHint: true } },
+  { name: "course_level", title: "Nivåstödets mätningar för en bana", description: "O-Tids nivåstöd (samma som banläggarens) för en bana: för varje kontroll och sträcka den uppmätta nivån (GRON, VIT, GUL, ORANGE, VIOLETT, BLA/SVART), regeln som avgjorde (t.ex. LEG_SAFE_LINE, LEG_ROUTE_CHOICE, CONTROL_ATTACK, CONTROL_CATCHING), mätvärdena (andel av bästa vägvalet längs ledstänger, avstånd till säkert anfall och uppfång i meter, antal rimliga vägval m.m.) och avvikelsen mot banans målnivå, samt bästa vägvalets längd. Vägvalen räknas på kartan och kan ta upp till några minuter; får du svaret att mätningen pågår, anropa igen med samma argument. Sprintkartor och poängbanor bedöms inte. Mätningarna är ett stöd; bedöm själv med render_course.",
+    inputSchema: { type: "object", properties: { ...raceIdProperty, course_id: { type: "string" } }, required: ["race_id", "course_id"] },
+    annotations: { readOnlyHint: true } },
   { name: "add_course_note", title: "Lämna en notis i banläggningen", description: "Lämnar en notis (granskning eller förslag) på en bana, en kontroll, en sträcka eller en punkt. Banläggaren läser den och tar ställning; inget ändras i banorna. Skriv konkret: vad, varför och ett förslag.",
     inputSchema: { type: "object", properties: { ...raceIdProperty, text: { type: "string", maxLength: 2000 }, course_id: { type: "string" },
       control_id: { type: "string" }, leg: { type: "object", properties: { from_control_id: { type: "string" }, to_control_id: { type: "string" } },
@@ -113,6 +116,29 @@ export function courseOverviewOf(document: CourseSettingDocument, courseId?: str
   };
 }
 
+/** Nivåmätningen tar längre tid än bilderna; MCP-anropet väntar så här länge innan det svarar att mätningen pågår. */
+const LEVEL_WAIT_MS = 90_000;
+
+async function courseLevel(db: Database, accountId: string, raceId: string, courseId: string, document: CourseSettingDocument, wait: JobWaitOptions)
+  : Promise<ToolResult> {
+  if (!document.courses.some(course => course.id === courseId)) return toolError("Banan finns inte.");
+  const [settingsRow] = await db.select({ settings: schema.raceRouteChoices.settings }).from(schema.raceRouteChoices).where(eq(schema.raceRouteChoices.raceId, raceId));
+  const [source] = await db.select({ sha256: schema.raceMapSources.sha256 }).from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
+  if (!source) return toolError("Tävlingen har ingen kartfil; nivån kan inte mätas.");
+  const settings = (settingsRow?.settings ?? { version: 1 }) as Record<string, unknown>;
+  // Samma bana, karta och inställningar ger samma svar: ett nytt anrop hämtar ett jobb som redan räknas eller är klart.
+  const hash = createHash("sha256").update(JSON.stringify({ document, settings, map: source.sha256, course: courseId })).digest("hex");
+  const options = { timeoutMs: wait.timeoutMs ?? LEVEL_WAIT_MS, ...(wait.pollMs ? { pollMs: wait.pollMs } : {}) };
+  const existing = await reusableRaceJob(db, { accountId, raceId, kind: "COURSE_LEVEL", hash });
+  const outcome = existing ? await waitForMapJob(db, existing, options)
+    : await runMapJobAndWait(db, { accountId, raceId, kind: "COURSE_LEVEL", request: { hash, document: document as unknown as Record<string, unknown>,
+      course: courseId, settings } }, options);
+  if (outcome.status === "throttled") return toolError("För många anrop just nu (högst 30 kartjobb per minut och två samtidigt). Vänta en stund.");
+  if (outcome.status === "timeout") return { content: [text("Mätningen pågår fortfarande. Anropa course_level igen med samma argument om en stund så hämtas resultatet.")] };
+  if (outcome.status === "failed") return toolError(`Nivån kunde inte mätas: ${outcome.error}`);
+  return { content: [text(outcome.result)] };
+}
+
 export async function callMcpCourseTool(db: Database, accountId: string, name: string, args: unknown, now = new Date(), wait: JobWaitOptions = {})
   : Promise<ToolResult> {
   if (name === "list_course_settings") return { content: [text(await listCourseSettings(db, accountId))] };
@@ -143,6 +169,7 @@ export async function callMcpCourseTool(db: Database, accountId: string, name: s
     if (!outcome.image) return toolError("Bilden saknas");
     return { content: [{ type: "image", data: Buffer.from(outcome.image).toString("base64"), mimeType: "image/png" }, text(outcome.result)] };
   }
+  if (name === "course_level") return courseLevel(db, accountId, input.race_id, input.course_id!, document, wait);
   // add_course_note
   const target = input.control_id ? { kind: "CONTROL" as const, control: input.control_id }
     : input.leg ? { kind: "LEG" as const, from: input.leg.from_control_id, to: input.leg.to_control_id }

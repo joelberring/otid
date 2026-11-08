@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit",
@@ -22,9 +24,12 @@
     "@o-tid/map-revision": "workspace:*",
     "@o-tid/print-pdf": "workspace:*",
     "@o-tid/roc": "workspace:*",
+    "@o-tid/route-choice": "workspace:*",
     "@o-tid/sportident": "workspace:*",
     "drizzle-orm": "0.45.4",
     "jose": "6.2.15"
   },
-  "devDependencies": { "tsx": "4.20.5" }
+  "devDependencies": {
+    "tsx": "4.20.5"
+  }
 }

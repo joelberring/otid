@@ -282,4 +282,8 @@ en etapp.
 4. **Bilden** (`render_course`, migration 0101): ett kartjobb i utskriftsarbetaren ritar banan på tävlingens karta (samma
    `drawMap` och `layoutOverprint` som annars) med rutnät i kartans mm; dokumentet följer med jobbet. Ett kartjobb gäller nu ett
    kartprojekt eller en tävling (precis en av dem; jobbet tas bort med tävlingen).
-5. **Kvar:** nivåstödets mätningar (vägval, ledstänger) på servern, så att granskningen kan använda samma mått som sidan.
+5. **Nivåstödets mätningar** (`course_level`): samma beräkning som banläggningens sida (ADR-0212: vägval med "följ
+   ledstänger", sträckornas och kontrollernas drag, bedömningen mot målnivån) körs som kartjobb `COURSE_LEVEL` med tävlingens
+   vägvalsinställningar. Jobbet får minst fem minuter och 512 MB; anropet väntar 90 s och svarar annars att mätningen pågår.
+   Samma bana, karta och inställningar (hash i jobbet) hämtar ett jobb som redan räknas eller är klart. Sprintkartor,
+   poängbanor och banor med fler än 60 sträckor bedöms inte.

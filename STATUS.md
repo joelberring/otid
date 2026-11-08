@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – AI-assistenten: nivåstödets mätningar på servern
+- Nytt MCP-verktyg `course_level`: per kontroll och sträcka den uppmätta nivån, regeln, mätvärdena och avvikelsen mot
+  banans målnivå, samma som banläggningens nivåstöd. Kartjobbet `COURSE_LEVEL` i utskriftsarbetaren (minst 5 min, 512 MB).
+- Ett nytt anrop med samma bana, karta och inställningar hämtar det pågående eller färdiga jobbet.
+- `course_overview` listade "Röd" som målnivå; rättat.
+- Verifierat: typecheck, lint, `lint:dead`, integrationstest `adr-0219-banlaggningsassistent`.
+
 ### 2026-11-08 – Ställa in enheter och klubbens enhetsregister (migration 0102, untested)
 - Läs ut enheter → Ställ in enheten: klockan efter datorn, koden och läget; enheten läses igen och sidan visar före och efter
   och om ändringen gick fram. Inget annat skrivs.

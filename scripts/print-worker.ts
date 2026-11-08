@@ -98,6 +98,14 @@ export function mapJobLimits(environment: NodeJS.ProcessEnv = process.env): { ti
     memoryMb: Number.isFinite(memory) && memory >= 64 ? Math.round(memory) : 256 };
 }
 
+/**
+ * Nivåmätningen räknar vägval för varje sträcka på hela banan och tar längre tid än de korta kartjobben; den får minst fem
+ * minuter och 512 MB (ägaren 2026-11-08).
+ */
+export function levelJobLimits(limits: { timeoutMs: number; memoryMb: number }): { timeoutMs: number; memoryMb: number } {
+  return { timeoutMs: Math.max(limits.timeoutMs, 5 * 60_000), memoryMb: Math.max(limits.memoryMb, 512) };
+}
+
 /** Kör jobbet i en barnprocess; avbryter den efter tidsgränsen. Ger utfallet eller felet att spara. */
 function runInChild(job: { id: string; raceId: string; attempts: number }, worker: string, limits: { timeoutMs: number; memoryMb: number },
   args: string[] = ["--job", job.id, "--race", job.raceId, "--attempts", String(job.attempts), "--worker", worker])
@@ -242,10 +250,11 @@ async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: Return
       const heartbeat = setInterval(() => void heartbeatMapJob(db, claimed.id, worker).catch(() => undefined), HEARTBEAT_MS);
       try {
         const started = Date.now();
-        const result = await runInChild({ id: claimed.id, raceId: "", attempts: claimed.attempts }, worker, limits,
+        const jobLimit = claimed.kind === "COURSE_LEVEL" ? levelJobLimits(limits) : limits;
+        const result = await runInChild({ id: claimed.id, raceId: "", attempts: claimed.attempts }, worker, jobLimit,
           ["--map-job", claimed.id, "--worker", worker]);
         if (result.failure) {
-          await failMapJob(db, claimed.id, worker, `Kartjobbet avbröts (tidsgränsen ${Math.round(limits.timeoutMs / 1000)} s eller minnet tog slut). Försök med ett mindre område.`);
+          await failMapJob(db, claimed.id, worker, `Kartjobbet avbröts (tidsgränsen ${Math.round(jobLimit.timeoutMs / 1000)} s eller minnet tog slut). Försök med ett mindre område.`);
           console.error(`Kartjobb ${claimed.id} (${claimed.kind}): FAILED på ${Math.round((Date.now() - started) / 100) / 10} s`);
         } else console.log(`Kartjobb ${claimed.id} (${claimed.kind}): ${result.outcome} på ${Math.round((Date.now() - started) / 100) / 10} s`);
       } finally { clearInterval(heartbeat); }

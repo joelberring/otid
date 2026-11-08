@@ -14,6 +14,7 @@ export const mcpCourseToolInputSchemas = {
   render_course: z.object({ race_id: raceId, course_id: objectId, width_px: z.number().int().min(200).max(1600).optional(), grid: z.boolean().optional(),
     area: z.object({ min_x: z.number().finite(), min_y: z.number().finite(), max_x: z.number().finite(), max_y: z.number().finite() })
       .refine(box => box.max_x > box.min_x && box.max_y > box.min_y, "max ska vara större än min").optional() }),
+  course_level: z.object({ race_id: raceId, course_id: objectId }),
   add_course_note: z.object({
     race_id: raceId,
     text: z.string().trim().min(1).max(COURSE_NOTE_MAX_TEXT),

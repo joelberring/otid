@@ -176,6 +176,9 @@ importers:
       '@o-tid/roc':
         specifier: workspace:*
         version: link:../roc
+      '@o-tid/route-choice':
+        specifier: workspace:*
+        version: link:../route-choice
       '@o-tid/sportident':
         specifier: workspace:*
         version: link:../sportident

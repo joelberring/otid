@@ -3,6 +3,9 @@ import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
+import { readMapFile } from "@o-tid/map-file";
+import type { RouteChoiceSettings } from "@o-tid/route-choice";
+import { measureCourseLevels } from "./course-level";
 import { renderCourse, type CourseRenderRequest } from "./course-render";
 import { readMapContent, rowContent } from "./map-content";
 import {
@@ -14,7 +17,7 @@ import {
  * utskriftsarbetaren (låg prioritet, barnprocess per jobb) tar jobben ett i taget och skriver resultatet. Resultaten är
  * tillfälliga (rensas efter en timme). `pg_notify('otid_map_job')` väcker arbetaren direkt.
  */
-export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER"] as const;
+export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL"] as const;
 export type MapJobKind = typeof MAP_JOB_KINDS[number];
 export const MAP_JOB_CHANNEL = "otid_map_job";
 /** Högst så många jobb per konto och minut, och samtidigt. */
@@ -29,6 +32,31 @@ export type MapJobOutcome =
   | { status: "failed"; error: string }
   | { status: "timeout" }
   | { status: "throttled" };
+
+/**
+ * Ägaren 2026-11-08: ett jobb som redan finns för samma tävling, slag och indata (`request.hash`) och inte misslyckats, så att
+ * en lång mätning som inte hann klart kan hämtas med ett nytt anrop i stället för att räknas om.
+ */
+export async function reusableRaceJob(db: Database, input: { accountId: string; raceId: string; kind: MapJobKind; hash: string }): Promise<string | undefined> {
+  const [row] = await db.select({ id: schema.mapProjectJobs.id }).from(schema.mapProjectJobs)
+    .where(and(eq(schema.mapProjectJobs.raceId, input.raceId), eq(schema.mapProjectJobs.kind, input.kind), eq(schema.mapProjectJobs.accountId, input.accountId),
+      inArray(schema.mapProjectJobs.status, ["QUEUED", "RUNNING", "DONE"]), sql`${schema.mapProjectJobs.request}->>'hash' = ${input.hash}`))
+    .orderBy(sql`${schema.mapProjectJobs.createdAt} desc`).limit(1);
+  return row?.id;
+}
+
+/** Väntar på ett jobb som redan finns (utan att ta bort det när tiden gått ut). */
+export async function waitForMapJob(db: Database, id: string, options: { timeoutMs?: number; pollMs?: number } = {}): Promise<MapJobOutcome> {
+  const deadline = Date.now() + (options.timeoutMs ?? 25_000);
+  for (;;) {
+    const [row] = await db.select({ status: schema.mapProjectJobs.status, result: schema.mapProjectJobs.result, image: schema.mapProjectJobs.image,
+      error: schema.mapProjectJobs.error }).from(schema.mapProjectJobs).where(eq(schema.mapProjectJobs.id, id));
+    if (row?.status === "DONE") return { status: "done", result: row.result, image: row.image ? new Uint8Array(row.image) : null };
+    if (row?.status === "FAILED" || !row) return { status: "failed", error: row?.error ?? "Jobbet försvann" };
+    if (Date.now() >= deadline) return { status: "timeout" };
+    await new Promise(resolve => setTimeout(resolve, options.pollMs ?? 150));
+  }
+}
 
 /** Lägger jobbet och väntar på svaret (pollar raden). Ett jobb som fortfarande väntar i kön när tiden gått ut tas bort. */
 /** Ett jobb gäller ett kartprojekt (`projectId`) eller, för COURSE_RENDER, en tävlings banläggning (`raceId`, migration 0101). */
@@ -107,7 +135,7 @@ export async function cleanupMapJobs(db: Database, now = new Date()): Promise<nu
 /** Barnprocessen: läser grundfilen och projektets objekt, gör jobbet och skriver resultatet. */
 export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas }, now = new Date())
   : Promise<"DONE" | "FAILED"> {
-  if (job.kind === "COURSE_RENDER") return runCourseRenderJob(db, job, deps, now);
+  if (job.kind === "COURSE_RENDER" || job.kind === "COURSE_LEVEL") return runCourseRenderJob(db, job, deps, now);
   if (!job.projectId) { await failMapJob(db, job.id, deps.worker, "Jobbet saknar kartprojekt"); return "FAILED"; }
   const [project] = await db.select({ baseSha256: schema.mapProjects.baseSha256, baseFormat: schema.mapProjects.baseFormat, area: schema.mapProjects.area })
     .from(schema.mapProjects).where(eq(schema.mapProjects.id, job.projectId));
@@ -162,6 +190,14 @@ async function runCourseRenderJob(db: Database, job: ClaimedMapJob, deps: { work
     .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, job.raceId));
   const file = source ? await rowContent(db, source) : undefined;
   try {
+    if (job.kind === "COURSE_LEVEL") {
+      if (!file || !source) { await failMapJob(db, job.id, deps.worker, "Tävlingen har ingen kartfil; nivån kan inte mätas"); return "FAILED"; }
+      const map = readMapFile(new Uint8Array(file), source.fileName);
+      const result = measureCourseLevels(map, request.document as CourseSettingDocument, (job.request.settings ?? { version: 1 }) as RouteChoiceSettings,
+        typeof request.course === "string" ? request.course : undefined);
+      await finish(db, job.id, deps.worker, { status: "DONE", result: { courses: result }, image: null }, now);
+      return "DONE";
+    }
     const rendered = renderCourse(file && source ? { bytes: new Uint8Array(file), fileName: source.fileName } : null,
       request.document as CourseSettingDocument, { course: typeof request.course === "string" ? request.course : "", widthPx: typeof request.widthPx === "number" ? request.widthPx : undefined,
         grid: request.grid !== false, area: request.area as CourseRenderRequest["area"] }, deps.createCanvas);

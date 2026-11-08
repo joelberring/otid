@@ -105,7 +105,7 @@ describe("ADR-0219: AI-banläggningsassistenten", () => {
     const both = ["kartprojekt", "banlaggning"] as const;
     const tools = await handleMcpMessage(db, accountId, { jsonrpc: "2.0", id: 1, method: "tools/list" }, {}, both);
     expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(expect.arrayContaining(
-      ["list_map_projects", "list_course_settings", "course_overview", "add_course_note"]));
+      ["list_map_projects", "list_course_settings", "course_overview", "render_course", "course_level", "add_course_note"]));
     const mapsOnly = await handleMcpMessage(db, accountId, { jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect((mapsOnly?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).not.toContain("course_overview");
     expect((await handleMcpMessage(db, accountId, call(3, "list_course_settings")) as Result).result?.isError).toBe(true);
@@ -129,6 +129,21 @@ describe("ADR-0219: AI-banläggningsassistenten", () => {
     expect(content.content[0]).toMatchObject({ type: "image", mimeType: "image/png" });
     expect(Buffer.from(content.content[0]!.data!, "base64").subarray(1, 4).toString()).toBe("PNG");
     expect(JSON.parse(content.content[1]!.text!)).toMatchObject({ course: course.name, withMap: true });
+
+    // Nivåstödets mätningar (vägval med ledstänger) som kartjobb; samma anrop igen hämtar det färdiga jobbet.
+    const level = await withWorker(accountId, call(12, "course_level", { race_id: owner.raceId, course_id: course.courseId }));
+    expect((level as Result).result?.isError, JSON.stringify(level).slice(0, 300)).toBeFalsy();
+    const measured = parsed(level).courses as { courseId: string; skipped?: string; legs: { level: string; rule: string | null; bestMeters: number | null }[];
+      controls: { level: string }[] }[];
+    expect(measured).toHaveLength(1);
+    expect(measured[0]!.courseId).toBe(course.courseId);
+    expect(measured[0]!.skipped).toBeUndefined();
+    expect(measured[0]!.legs).toHaveLength(course.legs.length);
+    expect(measured[0]!.legs.some(row => row.bestMeters !== null && row.bestMeters > 0)).toBe(true);
+    expect(measured[0]!.legs.every(row => ["GRON", "VIT", "GUL", "ORANGE", "VIOLETT", "BLA/SVART"].includes(row.level))).toBe(true);
+    const again = await handleMcpMessage(db, accountId, call(13, "course_level", { race_id: owner.raceId, course_id: course.courseId }), { pollMs: 20, timeoutMs: 2000 }, both);
+    expect(parsed(again)).toEqual(parsed(level));
+    expect((await handleMcpMessage(db, accountId, call(14, "course_level", { race_id: owner.raceId, course_id: "finns-inte" }), {}, both) as Result).result?.isError).toBe(true);
 
     const leg = course.legs[1]!;
     const note = parsed(await handleMcpMessage(db, accountId, call(6, "add_course_note", { race_id: owner.raceId,

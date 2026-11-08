@@ -1,5 +1,6 @@
 "use client";
 
+import { takeAfterLogin } from "../lib/after-login";
 import { ClubStep } from "./club-affiliation/club-step";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -159,7 +160,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       }
       setSession(current);
       // ADR-0206: redan inloggad med inbjudans adress – direkt till klubben eller tävlingen.
-      const next = takeInvitationNext(current.email);
+      const next = takeInvitationNext(current.email) ?? takeAfterLogin();
       if (next) { window.location.assign(next); return; }
       await loadEvents();
     } catch (error) {
@@ -182,7 +183,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
   /** ADR-0206: efter inloggningen till sidan i inbjudan (om kontot har dess adress). */
   function followInvitation(accountEmail: string): boolean {
-    const next = takeInvitationNext(accountEmail);
+    const next = takeInvitationNext(accountEmail) ?? takeAfterLogin();
     if (next) window.location.assign(next);
     return next !== undefined;
   }

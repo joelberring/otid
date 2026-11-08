@@ -16,6 +16,9 @@ RUN --mount=type=cache,id=otid-pnpm-store,target=/pnpm-store,sharing=locked \
   pnpm install --frozen-lockfile --store-dir /pnpm-store
 RUN --mount=type=cache,id=otid-next-cache,target=/src/apps/web/.next/cache,sharing=locked \
   pnpm --filter @o-tid/web build
+# ADR-0219 (K2): kartjobben i utskriftsarbetaren ritar med @napi-rs/canvas (inbyggd modul, samma version som i package.json).
+RUN mkdir -p /canvas && cd /canvas && npm init -y >/dev/null \
+  && npm install --omit=dev --no-audit --no-fund "@napi-rs/canvas@$(node -p "require('/src/package.json').dependencies['@napi-rs/canvas']")"
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 MIGRATIONS_DIR=/app/migrations
@@ -29,6 +32,7 @@ COPY --chown=node:node --from=build /src/apps/web/.next/superadmin.mjs ./superad
 # Steg 65: utskriftsarbetaren (tjänsten print-worker: node print-worker.mjs) och typsnitten för PDF:en (Roboto, OFL 1.1).
 COPY --chown=node:node --from=build /src/apps/web/.next/print-worker.mjs ./print-worker.mjs
 COPY --chown=node:node --from=build /src/apps/web/.next/fonts ./fonts
+COPY --chown=node:node --from=build /canvas/node_modules/@napi-rs ./node_modules/@napi-rs
 COPY --chown=node:node --from=build /src/packages/database/migrations ./migrations
 USER node
 EXPOSE 3000

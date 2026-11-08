@@ -74,20 +74,24 @@ export async function listMapProjects(db: Database, input: ClubProof, now = new 
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, input, now);
     if (auth.status !== "authenticated") return auth;
-    const accountId = auth.principal.accountId;
-    const rows = (await tx.execute<{ id: string }>(sql`select p.id from map_project p where exists (
-        select 1 from map_project_member m where m.project_id = p.id and m.account_id = ${accountId})
-      or exists (select 1 from club_member c where c.club_id = p.club_id and c.account_id = ${accountId} and c.role in ('OWNER', 'ADMIN'))
-      order by p.created_at desc limit ${LIST_LIMIT}`)).rows.map(row => row.id);
-    const projects = rows.length ? await tx.select().from(schema.mapProjects).where(inArray(schema.mapProjects.id, rows))
-      .orderBy(desc(schema.mapProjects.createdAt)) : [];
-    const roles = new Map<string, MapProjectRole>();
-    for (const project of projects) {
-      const role = await mapProjectRoleOf(tx, accountId, project);
-      if (role) roles.set(project.id, role);
-    }
-    return { status: "ok", list: { formatVersion: 1, projects: await summaries(tx, projects, roles) } } as const;
+    return { status: "ok", list: await listMapProjectsForAccount(tx, auth.principal.accountId) } as const;
   });
+}
+
+/** Kontots projekt (som medlem eller som administratör i projektets klubb), nyast först. Också för AI-kopplingen (K2). */
+export async function listMapProjectsForAccount(tx: DbExecutor, accountId: string): Promise<MapProjectList> {
+  const rows = (await tx.execute<{ id: string }>(sql`select p.id from map_project p where exists (
+      select 1 from map_project_member m where m.project_id = p.id and m.account_id = ${accountId})
+    or exists (select 1 from club_member c where c.club_id = p.club_id and c.account_id = ${accountId} and c.role in ('OWNER', 'ADMIN'))
+    order by p.created_at desc limit ${LIST_LIMIT}`)).rows.map(row => row.id);
+  const projects = rows.length ? await tx.select().from(schema.mapProjects).where(inArray(schema.mapProjects.id, rows))
+    .orderBy(desc(schema.mapProjects.createdAt)) : [];
+  const roles = new Map<string, MapProjectRole>();
+  for (const project of projects) {
+    const role = await mapProjectRoleOf(tx, accountId, project);
+    if (role) roles.set(project.id, role);
+  }
+  return { formatVersion: 1, projects: await summaries(tx, projects, roles) };
 }
 
 /**

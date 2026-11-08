@@ -19,3 +19,4 @@ export * from "./schema/map-projects";
 export * from "./schema/affiliations";
 export * from "./schema/invitations";
 export * from "./schema/server";
+export * from "./schema/oauth";

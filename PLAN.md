@@ -1197,15 +1197,18 @@ Migration 0091 och 0092, ADR-0219 tilläggen 2026-11-07 (natt) och 2026-11-08.
 - [x] Nya kartor: tom .omap med O-Tids ISOM 2017-2 eller ISSprOM 2019-2, område som polygon (GeoJSON eller mittpunkt), export
   som vilken grundfil som helst. Symbolsetet ska kontrolleras mot normen av ägaren.
 
-## [ ] Steg K2 – Claude ser och läser kartan (MCP)
+## [x] Steg K2 – Claude ser och läser kartan (MCP)
 
-- [ ] OAuth med O-Tid-kontot, verktygen `render_view`, `render_compare`, `list_objects`, `norm_check`, rendering på servern;
-  bara förslag, aldrig direkt i kartan (ADR-0219 beslut 8).
+Migration 0093, ADR-0219 tillägget 2026-11-08 (AI-kopplingen).
+
+- [x] OAuth med O-Tid-kontot, verktygen `render_view`, `render_compare`, `list_objects`, `norm_check`, rendering på servern;
+  bara förslag, aldrig direkt i kartan (ADR-0219 beslut 8). Dessutom `list_map_projects`, `map_overview` och
+  `propose_changes`; rendering i utskriftsarbetaren; Mitt konto → AI-kopplingar.
 
 Senare enligt planen: K3 mobil ritning och rekningsstatus ur GPS-spår, K3b frivillig spelifiering, K4 underlag och
 geo-arbetaren (med import av baskartor: lagermappning och rensning av överskott), K5 Karttapullautin och fuktighet, K6
 generalisering och normkontroll, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre
-kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD.
+kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD. Idé (STATUS): inomhusorientering.
 
 ## Efter målet (inte nu)
 

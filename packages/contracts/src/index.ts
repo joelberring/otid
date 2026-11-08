@@ -299,3 +299,4 @@ export * from "./map-project";
 export * from "./club-map-duplicates";
 export * from "./race-backup";
 export * from "./club-affiliation";
+export * from "./map-project-mcp";

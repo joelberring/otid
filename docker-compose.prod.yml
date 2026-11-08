@@ -221,18 +221,21 @@ services:
   # arbetsytan i `web` väntar aldrig på en utskrift. Startar när databasen är migrerad; ingen port, inga anrop utifrån.
   # ADR-0186: varje jobb körs i en egen barnprocess med tidsgräns (OTID_PRINT_JOB_TIMEOUT_MS, förval 10 min); ett jobb som
   # hänger avbryts och kön går vidare. Hälsokontrollen ser att arbetaren lever (filen uppdateras minst var 30:e sekund).
+  # ADR-0219 (K2): tar också kartjobben åt AI-kopplingen (en barnprocess i taget, högst 60 s och 256 MB, parallellt med
+  # utskrifterna); minnestaket höjdes därför från 384m.
   print-worker:
     logging: *logging
     image: *web-image
     restart: unless-stopped
     cpu_shares: 64
-    mem_limit: 384m
+    mem_limit: 640m
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://${OTID_DB_PRINT_USER:-otid}:${OTID_DB_PRINT_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/otid
       OTID_PRINT_JOB_TIMEOUT_MS: ${OTID_PRINT_JOB_TIMEOUT_MS:-}
+      OTID_MAP_JOB_TIMEOUT_MS: ${OTID_MAP_JOB_TIMEOUT_MS:-}
       NODE_OPTIONS: --max-old-space-size=96
     command: ["node", "print-worker.mjs"]
     healthcheck:

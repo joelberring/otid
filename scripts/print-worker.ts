@@ -21,6 +21,10 @@ import { hostname, setPriority } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createDatabase } from "../packages/database/src/index.ts";
 import { claimPrintJob, cleanupPrintJobs, failPrintJob, heartbeatPrintJob, runPrintJob } from "../packages/application/src/course-setting-print.ts";
+import {
+  claimMapJob, cleanupMapJobs, failMapJob, heartbeatMapJob, loadClaimedMapJob, MAP_JOB_CHANNEL, runMapJob
+} from "../packages/application/src/map-project-jobs.ts";
+import { createMapJobCanvas } from "./map-job-canvas.ts";
 import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "../packages/print-pdf/src/index.ts";
 
 const CLEANUP_MS = 10 * 60_000;
@@ -72,13 +76,36 @@ async function runChild(url: string): Promise<void> {
   } finally { await pool.end(); }
 }
 
+/** ADR-0219 (K2): barnprocessen för ett kartjobb (jobbet är redan taget av huvudprocessen). */
+async function runMapChild(url: string): Promise<void> {
+  const id = argument("--map-job"), worker = argument("--worker");
+  if (!id || !worker) throw new Error("Barnprocessen saknar kartjobbets uppgifter");
+  try { setPriority(19); } catch { /* ärvs redan från huvudprocessen */ }
+  const { db, pool } = createDatabase(url, { max: 1, applicationName: "otid-map-job", statementTimeoutMs: 60_000, idleInTransactionTimeoutMs: 30_000 });
+  try {
+    const job = await loadClaimedMapJob(db, id, worker);
+    if (!job) { process.send?.({ outcome: "GONE" }); return; }
+    const outcome = await runMapJob(db, job, { worker, createCanvas: createMapJobCanvas });
+    process.send?.({ outcome });
+  } finally { await pool.end(); }
+}
+
+/** Tidsgränsen och minnestaket för ett kartjobb (kort: personen väntar på svaret). */
+export function mapJobLimits(environment: NodeJS.ProcessEnv = process.env): { timeoutMs: number; memoryMb: number } {
+  const timeout = Number(environment.OTID_MAP_JOB_TIMEOUT_MS);
+  const memory = Number(environment.OTID_MAP_JOB_MEMORY_MB);
+  return { timeoutMs: Number.isFinite(timeout) && timeout >= 1_000 ? timeout : 60_000,
+    memoryMb: Number.isFinite(memory) && memory >= 64 ? Math.round(memory) : 256 };
+}
+
 /** Kör jobbet i en barnprocess; avbryter den efter tidsgränsen. Ger utfallet eller felet att spara. */
-function runInChild(job: { id: string; raceId: string; attempts: number }, worker: string, limits: { timeoutMs: number; memoryMb: number })
+function runInChild(job: { id: string; raceId: string; attempts: number }, worker: string, limits: { timeoutMs: number; memoryMb: number },
+  args: string[] = ["--job", job.id, "--race", job.raceId, "--attempts", String(job.attempts), "--worker", worker])
   : Promise<{ outcome?: string; failure?: string }> {
   return new Promise(resolve => {
     const environment = { ...process.env };
     delete environment.NODE_OPTIONS;
-    const child = fork(process.argv[1]!, ["--job", job.id, "--race", job.raceId, "--attempts", String(job.attempts), "--worker", worker], {
+    const child = fork(process.argv[1]!, args, {
       execArgv: [...process.execArgv, `--max-old-space-size=${limits.memoryMb}`], env: environment, stdio: "inherit" });
     let outcome: string | undefined;
     let timedOut = false;
@@ -100,16 +127,25 @@ async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Sätt DATABASE_URL till databasen.");
   if (argument("--job")) return runChild(url);
+  if (argument("--map-job")) return runMapChild(url);
   const once = process.argv.includes("--once");
   const pollMs = Math.max(200, Number(process.env.OTID_PRINT_POLL_MS ?? 2000) || 2000);
   const limits = jobLimits();
   // Lägsta prioritet: tävlingens processer får processorn först (ADR-0177). Kräver inga rättigheter; barnen ärver den.
   try { setPriority(19); } catch (error) { console.warn("Utskriftsarbetaren kunde inte sänka sin prioritet", error); }
   loadFonts(); // fel tidigt om typsnitten saknas
-  const { db, pool } = createDatabase(url, { max: 2, applicationName: "otid-print-worker", statementTimeoutMs: 120_000, idleInTransactionTimeoutMs: 30_000 });
+  // Två till utskrifterna, två till kartjobben (en av dem lyssnar på `pg_notify`).
+  const { db, pool } = createDatabase(url, { max: 4, applicationName: "otid-print-worker", statementTimeoutMs: 120_000, idleInTransactionTimeoutMs: 30_000 });
   const worker = `${hostname()}:${process.pid}`;
   const stop = new AbortController();
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => stop.abort());
+  if (process.argv.includes("--map-once")) {
+    await mapLoop(db, pool, worker, stop.signal, true).finally(() => pool.end());
+    return;
+  }
+  const maps = mapLoop(db, pool, worker, stop.signal, false).catch((error: unknown) => {
+    console.error("Kartjobben stannade", error instanceof Error ? error.message : error);
+  });
   let cleaned = 0;
   console.log(`Utskriftsarbetaren startad (${worker}, tidsgräns ${Math.round(limits.timeoutMs / 1000)} s per jobb)`);
   alive();
@@ -157,7 +193,65 @@ async function main(): Promise<void> {
       if (once) break;
     }
   } finally {
+    stop.abort();
+    await maps;
     await pool.end();
+  }
+}
+
+/**
+ * ADR-0219 (K2): kartjobben, parallellt med utskrifterna (personen väntar på svaret). Ett jobb i taget i en barnprocess med
+ * kort tidsgräns; `pg_notify('otid_map_job')` väcker loopen direkt, annars tittar den varannan sekund. `once`: tar jobb tills
+ * kön är tom och slutar (testerna).
+ */
+async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: ReturnType<typeof createDatabase>["pool"], worker: string,
+  signal: AbortSignal, once: boolean): Promise<void> {
+  const limits = mapJobLimits();
+  let wake: (() => void) | undefined;
+  const listener = once ? undefined : await pool.connect().catch(() => undefined);
+  if (listener) {
+    listener.on("notification", () => wake?.());
+    await listener.query(`LISTEN ${MAP_JOB_CHANNEL}`).catch(() => undefined);
+  }
+  let cleaned = 0;
+  try {
+    while (!signal.aborted) {
+      if (Date.now() - cleaned > CLEANUP_MS) {
+        cleaned = Date.now();
+        await cleanupMapJobs(db).catch((error: unknown) => console.error("Rensningen av kartjobb misslyckades", error instanceof Error ? error.message : error));
+      }
+      let job;
+      try { job = await claimMapJob(db, worker); }
+      catch (error) {
+        if (once) throw error;
+        console.error("Kartjobben når inte kön; försöker igen om 10 s", error instanceof Error ? error.message : error);
+        await sleep(10_000, signal);
+        continue;
+      }
+      if (!job) {
+        if (once) return;
+        await new Promise<void>(resolve => {
+          const timer = setTimeout(resolve, 2000);
+          wake = () => { clearTimeout(timer); resolve(); };
+          signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+        });
+        wake = undefined;
+        continue;
+      }
+      const claimed = job;
+      const heartbeat = setInterval(() => void heartbeatMapJob(db, claimed.id, worker).catch(() => undefined), HEARTBEAT_MS);
+      try {
+        const started = Date.now();
+        const result = await runInChild({ id: claimed.id, raceId: "", attempts: claimed.attempts }, worker, limits,
+          ["--map-job", claimed.id, "--worker", worker]);
+        if (result.failure) {
+          await failMapJob(db, claimed.id, worker, `Kartjobbet avbröts (tidsgränsen ${Math.round(limits.timeoutMs / 1000)} s eller minnet tog slut). Försök med ett mindre område.`);
+          console.error(`Kartjobb ${claimed.id} (${claimed.kind}): FAILED på ${Math.round((Date.now() - started) / 100) / 10} s`);
+        } else console.log(`Kartjobb ${claimed.id} (${claimed.kind}): ${result.outcome} på ${Math.round((Date.now() - started) / 100) / 10} s`);
+      } finally { clearInterval(heartbeat); }
+    }
+  } finally {
+    listener?.release();
   }
 }
 

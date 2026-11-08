@@ -169,9 +169,10 @@ långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå f
   kör med nice 19). Vikterna gäller bara när processorn inte räcker till alla: då går
   tävlingen och databasen före publiken. Annars får publiken all ledig tid.
 - **Minne (CX23, 4 GB):** `postgres` 1 GB, `web` 1 GB (Node 768 MB), `web-public` och `web-public2` 640 MB var (Node
-  448 MB), utskriftsarbetaren 384 MB (huvudprocessen 96 MB, varje jobb i en barnprocess med 256 MB; 300 kartor per löpare
-  på Högdalen 2026 tog 130 MB), Caddy och backupen 192 MB var, hälsokontrollen 64 MB. Summan 4,1 GB (taken är gränser, inte
-  reserverat minne). Servern bygger inget (ADR-0195); bygger den ändå (reserv) behövs swap, se
+  448 MB), utskriftsarbetaren 640 MB (huvudprocessen 96 MB, varje jobb i en barnprocess med 256 MB; 300 kartor per löpare
+  på Högdalen 2026 tog 130 MB; ADR-0219 K2: ett kartjobb åt AI-kopplingen kan köras samtidigt i en egen barnprocess med
+  256 MB), Caddy och backupen 192 MB var, hälsokontrollen 64 MB. Summan 4,4 GB (taken är gränser, inte reserverat minne;
+  kartjobben är korta och sällsynta). Servern bygger inget (ADR-0195); bygger den ändå (reserv) behövs swap, se
   [Bygga på servern](#bygga-på-servern-reserv).
 - **Utskrift (steg 65, ADR-0184):** PDF:er för tryck skrivs av `print-worker`, ett jobb i taget ur tabellen
   `course_setting_print_job`. Klara PDF:er sparas 7 dagar (högst 10 per tävling) och tas inte med i säkerhetskopian;
@@ -719,7 +720,7 @@ bara det den behöver:
 | --- | --- | --- |
 | `otid_owner` | `migrate`, `backup`, `backup-before-migrate` | äger tabellerna, ändrar schemat, läser allt för dumpen |
 | `otid_app` | `web`, `web-public`, `web-public2` | läsa och skriva data, inte ändra schemat |
-| `otid_print` | `print-worker` | utskriftskön, tävlingens namn och kartfilen (`race_map_source`, `map_content`, `map_content_part`), inget annat |
+| `otid_print` | `print-worker` | utskriftskön, tävlingens namn och kartfilen (`race_map_source`, `map_content`, `map_content_part`); ADR-0219 K2: kartjobben (`map_project_job`) och kartprojektens grundfil och ändrade objekt (`map_project`, `map_project_object`), inget annat |
 
 Superusern finns kvar för `deploy/db-roles.sh` och underhåll för hand. Ingen data flyttas, bara ägare och rättigheter.
 Provat 2026-11-02 mot en kopia med data (PostgreSQL 16, 1 286 anmälda och 689 konton): övergången, migrering 0040 som
@@ -863,3 +864,19 @@ CI-jobbet `production` gör samma sak vid varje push.
 
 Inställningar → "Exportera tävlingen" ger en JSON-fil med allt om loppet, för att spara efter tävlingen
 (format i `docs/export.md`). Databasens backup är fortfarande den som gäller för hela servern.
+
+## AI-koppling (ADR-0219, steg K2)
+
+O-Tid är inloggningsserver (OAuth 2.1) och MCP-server för Claude med personens eget konto. Ingen AI-nyckel finns på servern.
+
+- **Koppla:** i Claude, lägg till en anslutning (custom connector) med adressen `https://<O_TID_PUBLIC_ORIGIN>/api/mcp`.
+  Claude registrerar sig själv, personen loggar in i O-Tid och godkänner på `/oauth/authorize`. Kopplingen syns under Mitt
+  konto → AI-kopplingar och kan tas bort där.
+- **Verktyg:** `list_map_projects`, `map_overview`, `render_view`, `render_compare`, `list_objects`, `norm_check` och
+  `propose_changes` (bara förslag som en ägare godkänner).
+- **Var det körs:** webben (`web`) tar emot anropen och använder publikens databaspool; bilder, objektlistor och kontroller
+  görs som kartjobb av `print-worker` (lägsta prioritet, barnprocess per jobb, `OTID_MAP_JOB_TIMEOUT_MS` förval 60000,
+  `OTID_MAP_JOB_MEMORY_MB` förval 256). Resultaten rensas efter en timme.
+- **Gränser:** 30 kartjobb per minut och konto (två samtidigt), 20 registreringar och 300 token-anrop per IP och timme.
+- **Rollerna:** kör `sh deploy/db-roles.sh setup` efter migrering 0093 så att `otid_print` får kartjobben (migreringen ger
+  samma rättigheter när rollerna redan finns).

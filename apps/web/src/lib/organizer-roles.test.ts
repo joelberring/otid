@@ -95,6 +95,9 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
     DELETE: { allow: LOGGED_IN, body: () => ({ formatVersion: 1, membershipId: id() }) }
   },
   "account/clubs/step": { POST: { allow: LOGGED_IN, body: { formatVersion: 1, organisationIds: [], freeText: null } } },
+  // ADR-0219 (K2): kontots AI-kopplingar.
+  "account/ai-connections": { GET: { allow: LOGGED_IN } },
+  "account/ai-connections/[grantId]": { DELETE: { allow: LOGGED_IN, untested: "Kopplingen finns bara efter ett godkännande (integrationstestet adr-0219-ai)" } },
   "account/display-name": { POST: { allow: LOGGED_IN, body: { formatVersion: 1, displayName: "Nytt namn" } } },
   "account/delete": { POST: { allow: ["SELF"], body: { formatVersion: 1, password: "hemligt-lösen-1" } } },
   "account/logout-all": { POST: { allow: ["SELF"] } },

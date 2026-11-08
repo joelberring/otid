@@ -104,3 +104,45 @@ inte med ägarens beslut att inloggningen ska fungera som i resten av O-Tid. Äg
    grundfil och området som `map_project.area` (kartans mm, y uppåt, som delområdena). Området kommer som polygon i WGS 84 eller
    SWEREF 99 TM, högst 15 km per sida. I webben: en GeoJSON-fil (t.ex. strandlinjen från QGIS) eller en mittpunkt med bredd och
    höjd. Att välja området på en bakgrundskarta kommer med underlagen i K4.
+
+
+## Tillägg 2026-11-08: AI-kopplingen, att se och läsa kartan (steg K2, migration 0093)
+
+Beslut 8 och planen (avsnitt 8a): Claude kopplas till O-Tid med personens eget Claude-konto. O-Tid har ingen AI-nyckel.
+
+1. **O-Tid är inloggningsserver (OAuth 2.1) och MCP-server.**
+   - Metadata: `/.well-known/oauth-protected-resource` (RFC 9728) och `/.well-known/oauth-authorization-server` (RFC 8414).
+   - Dynamisk registrering (RFC 7591) för publika klienter: PKCE med S256 krävs, och omdirigeringen ska vara https eller
+     `localhost`/`127.0.0.1`.
+   - Godkännandet görs på sidan `/oauth/authorize` av den som är inloggad i O-Tid (samma inloggning som annars). Sidan visar
+     klientens namn och vart svaret skickas.
+   - Behörigheten `kartprojekt`: se de kartprojekt kontot är medlem i och lämna förslag. Inget annat i O-Tid nås med en AI-nyckel.
+   - Åtkomstnyckeln gäller en timme. Förnyelsenyckeln gäller 30 dagar och byts vid varje förnyelse. En gammal förnyelsenyckel
+     som används igen återkallar kopplingen.
+   - Koder och nycklar sparas bara som sha256. Kopplingarna syns och återkallas under Konto → AI-kopplingar och tas bort med
+     kontot.
+2. **MCP på `/api/mcp`** (Streamable HTTP, utan sessioner, svar som JSON och ingen ström). Utan giltig nyckel blir svaret 401
+   med `WWW-Authenticate` som pekar på metadata.
+3. **Verktygen:**
+   - `list_map_projects` och `map_overview`,
+   - `render_view` (en bild av ett område, med kartans egna färger, rutnät och markeringar),
+   - `render_compare` (grundfilen och kartan med ändringarna sida vid sida; ortofoto kommer med underlagen i K4),
+   - `list_objects`,
+   - `norm_check` (en grundläggande kontroll: minsta storlek och längd, öppna ytor, dubbletter; den fullständiga kommer i K6),
+   - `propose_changes`.
+4. **AI lämnar bara förslag** (beslut 8). `propose_changes` gör alltid ett förslag med källan `AI`, också när kontot är ägare.
+   Förslaget är märkt med personen ("föreslagen av Claude åt …"). Ett förslag har högst 200 objekt och ryms inom 500 × 500 m.
+   Läsa-rollen kan inte föreslå.
+5. **Det tunga görs i utskriftsarbetaren, inte i webben** (beslut 7):
+   - Webben lägger ett kartjobb (`map_project_job`) och väntar högst 25 s på svaret.
+   - Utskriftsarbetaren (lägsta prioritet, barnprocess per jobb med tidsgräns och minnestak) läser grundfilen och projektets
+     ändrade objekt, ritar med samma ritkod som webbläsaren (`drawMap` med `@napi-rs/canvas`) och skriver resultatet.
+   - Resultaten rensas efter en timme.
+   - Rollen `otid_print` får läsa `map_project` och `map_project_object` och sköta kartjobbskön (migration 0093 och
+     `deploy/db-roles.sh`).
+   - Jobben tar sekunder och körs också på tävlingsdagar, som PDF:erna. Regeln att stoppa på tävlingsdagen gäller
+     geo-arbetarens långa jobb (K4).
+6. **Gränser:**
+   - en bild är högst 1 600 px per sida,
+   - högst 30 kartjobb per minut och konto, och ett åt gången per konto,
+   - registreringen och token-anropen räknas som inloggningsförsök (samma spärr som inloggningen).

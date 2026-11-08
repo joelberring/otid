@@ -12,7 +12,8 @@
 #   otid_app    webben (web, web-public, web-public2): läser och skriver data, kan inte ändra schemat eller skapa tabeller.
 #   otid_print  utskriftsarbetaren: läser tävlingens namn och kartfil (race_map_source och innehållet i map_content och
 #               map_content_part, ADR-0189), papperets bilder (course_setting_paper_image, ADR-0197) och skriver bara i
-#               utskriftskön.
+#               utskriftskön. ADR-0219 (K2): tar också kartjobben (map_project_job) och läser kartprojektens grundfil och
+#               ändrade objekt (map_project, map_project_object).
 # Superusern otid (POSTGRES_USER) finns kvar för det här skriptet och för underhåll för hand; ingen tjänst använder den sedan.
 #
 # Ingen data flyttas eller ändras: bara ägare och rättigheter. Allt sker i en transaktion; går något fel ändras inget.
@@ -99,6 +100,11 @@ GRANT SELECT ON race, race_map_source TO :"print";
 SELECT format('GRANT SELECT ON %s TO %I', string_agg(quote_ident(c.relname), ', '), :'print')
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE n.nspname = 'public' AND c.relname IN ('map_content', 'map_content_part', 'course_setting_paper_image') HAVING count(*) > 0 \gexec
+-- ADR-0219 (K2, migration 0093): kartjobben. Tabellerna finns inte före migreringen.
+SELECT format('GRANT SELECT, UPDATE, DELETE ON map_project_job TO %I', :'print')
+  WHERE to_regclass('public.map_project_job') IS NOT NULL \gexec
+SELECT format('GRANT SELECT ON map_project, map_project_object TO %I', :'print')
+  WHERE to_regclass('public.map_project_object') IS NOT NULL \gexec
 COMMIT;
 SQL
     echo "Klart: $owner äger databasen, $app och $print har sina rättigheter. Kör nu 'sh deploy/db-roles.sh check' och sedan"
@@ -120,8 +126,10 @@ SELECT CASE WHEN has_schema_privilege(:'app', 'public', 'CREATE') THEN 'FEL: ' |
 SELECT CASE WHEN has_table_privilege(:'print', 'course_setting_print_job', 'SELECT,UPDATE') AND has_table_privilege(:'print', 'race_map_source', 'SELECT')
   AND (to_regclass('map_content_part') IS NULL OR (has_table_privilege(:'print', 'map_content', 'SELECT')
     AND has_table_privilege(:'print', 'map_content_part', 'SELECT')))
+  AND (to_regclass('map_project_job') IS NULL OR (has_table_privilege(:'print', 'map_project_job', 'SELECT,UPDATE,DELETE')
+    AND has_table_privilege(:'print', 'map_project_object', 'SELECT') AND NOT has_table_privilege(:'print', 'oauth_grant', 'SELECT')))
   AND NOT has_table_privilege(:'print', 'entry', 'SELECT') AND NOT has_table_privilege(:'print', 'user_account', 'SELECT')
-  THEN 'OK: ' || :'print' || ' når bara utskriftskön, tävlingen och kartfilen' ELSE 'FEL: ' || :'print' || ' har fel rättigheter' END;
+  THEN 'OK: ' || :'print' || ' når bara utskriftskön, kartjobben, tävlingen och kartfilerna' ELSE 'FEL: ' || :'print' || ' har fel rättigheter' END;
 SELECT CASE WHEN count(*) = 0 THEN 'OK: ' || :'app' || ' når alla tabeller' ELSE 'FEL: ' || :'app' || ' saknar rättigheter på ' || string_agg(c.relname, ', ') END
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT has_table_privilege(:'app', c.oid, 'SELECT,INSERT,UPDATE,DELETE');

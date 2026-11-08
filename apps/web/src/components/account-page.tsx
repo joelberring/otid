@@ -10,6 +10,7 @@ import { Button, Field, Notice, Section } from "./ui";
 import { AccountClubs } from "./club-affiliation/account-clubs";
 import { AccountMenu } from "./account-menu";
 import { AccountGoogle, LogoutEverywhere } from "./account-google";
+import { AccountAi } from "./account-ai";
 import styles from "./account-pages.module.css";
 
 const text = accountSv.me;
@@ -148,6 +149,8 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
       {googleEnabled && <AccountGoogle profile={profile} onChange={() => void load()} />}
 
       <AccountClubs />
+
+      <AccountAi />
 
       <Section id="konto-losenord" title={text.password} help={text.passwordHelp}>
         <form className={styles.form} onSubmit={savePassword}>

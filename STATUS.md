@@ -5,10 +5,18 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0 och K1 är klara (K1: editorn, samarbetet och nya kartor, 0091–0092); nästa är K2 (MCP). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0, K1 och K2 är klara (K2: AI-kopplingen med OAuth och MCP, 0093); nästa är K3 (mobil ritning och rekningsstatus). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-08 – K2: AI-kopplingen, Claude ser och läser kartan (migration 0093, ADR-0219 tillägg)
+- O-Tid är inloggningsserver (OAuth 2.1: metadata, dynamisk registrering, PKCE S256, nycklar med rotation och återkallelse vid återanvändning) och MCP-server på `/api/mcp` (JSON, utan sessioner); godkännandet på `/oauth/authorize` med vanlig inloggning; Mitt konto → AI-kopplingar.
+- Verktygen `list_map_projects`, `map_overview`, `render_view`, `render_compare`, `list_objects`, `norm_check` (grundläggande) och `propose_changes` (alltid förslag med källan AI, högst 200 operationer inom 500 × 500 m; Läsa kan inte).
+- Kartjobben (`map_project_job`) görs av utskriftsarbetaren i en barnprocess (`drawMap` på `@napi-rs/canvas`), väckt med `pg_notify`; `otid_print` får kön och kartprojektens objekt; `/api/mcp` och `/.well-known/*` går till de publika instanserna.
+- Rättat: falska Eventor bytte dagens datum två gånger (fixturens stafettdatum är 2026-11-08), CI röd sedan K1.
+- Verifierat: typecheck, lint, `lint:dead`, alla enhetstester, integration `adr-0219-ai` (2) och hela sviten, E2E `ai-koppling`, `kartprojekt-rita` (3), `kartprojekt` (2), `eventor`.
+- Återstår för ägaren: köra `sh deploy/db-roles.sh setup` efter uppdateringen och koppla Claude (docs/drift.md, AI-koppling).
 
 ### 2026-11-08 – K1 klart: samarbetet i editorn och nya kartor (migration 0092, ADR-0219 tillägg)
 - Editorn: arbetssätt, förslag (streckade, borttagningar som kryss, Visa/Godkänn/Avvisa/Dra tillbaka), verktyget Delområde med kartritare och läge; Föreslå ritar och får beskedet; borttagning skickar objektets punkt.
@@ -1292,6 +1300,10 @@ Kvarstår för ägaren: begära *PC Programmer's Guide* från SPORTident
 brickor till steg 7.
 
 ## Idéer (inte i planen än)
+
+- Inomhusorientering (ägaren 2026-11-08), i både banläggning och kartritning: rita kartan ur PDF-ritningar (tolka och
+  generalisera), våningsplan som lager ovanpå varandra i rätt läge, banor med numrerade trapphus och avspärrningar, och
+  vägvalsmotorn mellan våningarna via trapphusen (svårt att lägga och prova inomhusbanor utan den).
 
 - Tvåstegsregelns steg 2 för migration 0087 (städrundan C5), i en driftsättning efter den med 0087: `ALTER TABLE email_verification_token
   DROP COLUMN salt_hex, DROP COLUMN verifier_hex` (och kolumnerna ur schema/accounts.ts). Ingen kod läser eller skriver dem sedan 0087.

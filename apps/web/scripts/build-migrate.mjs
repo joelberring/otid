@@ -22,7 +22,8 @@ for (const command of commands) {
     entryPoints: [resolve(web, command.entry)],
     outfile: resolve(web, command.out),
     bundle: true, platform: "node", target: "node22", format: "esm",
-    external: ["pg-native"],
+    // ADR-0219 (K2): Skia-canvasen är en inbyggd modul och installeras bredvid kommandot i avbildningen (Dockerfile).
+    external: ["pg-native", "@napi-rs/canvas"],
     banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" }
   });
   process.stdout.write(`Serverkommando paketerat: ${command.out}\n`);

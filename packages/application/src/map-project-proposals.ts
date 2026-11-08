@@ -7,7 +7,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import type { RevisionEdit } from "@o-tid/map-revision";
 import type { ClubFailure, ClubProof } from "./club-access";
-import { mapProjectAllows, mapProjectJournal, requireMapProject } from "./map-project-access";
+import { mapProjectAllows, mapProjectJournal, requireMapProject, requireMapProjectForAccount } from "./map-project-access";
 import { applyMapProjectEdits, validateEdits } from "./map-project-apply";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -92,31 +92,40 @@ export async function listMapProjectProposals(db: Database, input: ClubProof & {
  * Ett uttryckligt förslag med anteckning (Föreslå eller mer; `source` AI bara från K2:s MCP). Ändringarna prövas som i synken;
  * en ändring vars id redan finns i projektet (gjord, krockad eller i ett förslag) gör begäran ogiltig. Idempotent på `requestId`.
  */
-export async function createMapProjectProposal(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date(),
-  source: MapProjectProposalSource = "PERSON"): Promise<ClubFailure | { status: "created"; replayed: boolean; proposal: MapProjectProposalView }> {
-  const parsed = mapProjectProposalCreateRequestSchema.safeParse(input.request);
-  return db.transaction(async tx => {
-    const access = await requireMapProject(tx, input, now, "propose", true);
-    if (access.status !== "ok") return access;
-    if (!parsed.success) return { status: "invalid-request" } as const;
-    const { requestId, note, edits } = parsed.data;
-    const project = access.project;
-    const [prior] = await tx.select().from(proposals).where(eq(proposals.requestId, requestId));
-    if (prior) {
-      if (prior.projectId !== project.id || prior.authorAccountId !== access.accountId) return { status: "conflict" } as const;
-      return { status: "created", replayed: true, proposal: (await views(tx, [prior]))[0]! } as const;
-    }
-    const { valid, rejected } = validateEdits(edits, project);
-    const ids = valid.map(edit => edit.editId);
-    if (rejected.length > 0 || new Set(ids).size !== ids.length) return { status: "invalid-request" } as const;
-    const logged = await tx.select({ id: schema.mapProjectEdits.editId }).from(schema.mapProjectEdits)
-      .where(and(eq(schema.mapProjectEdits.projectId, project.id), inArray(schema.mapProjectEdits.editId, ids))).limit(1);
-    if (logged.length > 0 || (await proposedEditIds(tx, project.id, ids)).size > 0) return { status: "invalid-request" } as const;
-    const proposalId = await insertProposal(tx, { projectId: project.id, authorId: access.accountId, source, note: note || null, edits: valid, now,
-      requestId });
-    const [row] = await tx.select().from(proposals).where(eq(proposals.id, proposalId));
-    return { status: "created", replayed: false, proposal: (await views(tx, [row!]))[0]! } as const;
-  });
+export async function createMapProjectProposal(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date())
+  : Promise<ClubFailure | { status: "created"; replayed: boolean; proposal: MapProjectProposalView }> {
+  return db.transaction(async tx => createProposal(tx, await requireMapProject(tx, input, now, "propose", true), input.request, now, "PERSON"));
+}
+
+/** K2: ett förslag från AI-kopplingen (källan `AI`, alltid ett förslag, också när kontot är ägare). */
+export async function createMapProjectProposalAsAi(db: Database, input: { accountId: string; projectId: string; request: unknown }, now = new Date())
+  : Promise<ClubFailure | { status: "created"; replayed: boolean; proposal: MapProjectProposalView }> {
+  return db.transaction(async tx => createProposal(tx, await requireMapProjectForAccount(tx, input.accountId, input.projectId, now, "propose", true),
+    input.request, now, "AI"));
+}
+
+async function createProposal(tx: DbExecutor, access: Awaited<ReturnType<typeof requireMapProjectForAccount>>, request: unknown, now: Date,
+  source: MapProjectProposalSource): Promise<ClubFailure | { status: "created"; replayed: boolean; proposal: MapProjectProposalView }> {
+  const parsed = mapProjectProposalCreateRequestSchema.safeParse(request);
+  if (access.status !== "ok") return access;
+  if (!parsed.success) return { status: "invalid-request" } as const;
+  const { requestId, note, edits } = parsed.data;
+  const project = access.project;
+  const [prior] = await tx.select().from(proposals).where(eq(proposals.requestId, requestId));
+  if (prior) {
+    if (prior.projectId !== project.id || prior.authorAccountId !== access.accountId) return { status: "conflict" } as const;
+    return { status: "created", replayed: true, proposal: (await views(tx, [prior]))[0]! } as const;
+  }
+  const { valid, rejected } = validateEdits(edits, project);
+  const ids = valid.map(edit => edit.editId);
+  if (rejected.length > 0 || new Set(ids).size !== ids.length) return { status: "invalid-request" } as const;
+  const logged = await tx.select({ id: schema.mapProjectEdits.editId }).from(schema.mapProjectEdits)
+    .where(and(eq(schema.mapProjectEdits.projectId, project.id), inArray(schema.mapProjectEdits.editId, ids))).limit(1);
+  if (logged.length > 0 || (await proposedEditIds(tx, project.id, ids)).size > 0) return { status: "invalid-request" } as const;
+  const proposalId = await insertProposal(tx, { projectId: project.id, authorId: access.accountId, source, note: note || null, edits: valid, now,
+    requestId });
+  const [row] = await tx.select().from(proposals).where(eq(proposals.id, proposalId));
+  return { status: "created", replayed: false, proposal: (await views(tx, [row!]))[0]! } as const;
 }
 
 const OUTCOME: Record<"ACCEPT" | "REJECT" | "WITHDRAW", MapProjectProposalStatus> = { ACCEPT: "ACCEPTED", REJECT: "REJECTED", WITHDRAW: "WITHDRAWN" };

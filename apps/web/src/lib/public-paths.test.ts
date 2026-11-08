@@ -42,9 +42,11 @@ function appRoutes(dir = appDir): { url: string; source: string }[] {
 }
 
 /** Översta delar under src/app som aldrig är publika: arbetsytan, admin, konto och inloggningens flöden (ADR-0177). */
-const NOT_PUBLIC_SECTIONS = ["admin", "organizer", "superadmin", "konto", "inbjudan", "recover", "verify"];
+const NOT_PUBLIC_SECTIONS = ["admin", "organizer", "superadmin", "konto", "inbjudan", "recover", "verify", "oauth"];
 /** API:er som aldrig är publika; `/api/public/…` och startlistan är det. */
-const NOT_PUBLIC_API = ["account", "admin", "club-import", "health", "invitation", "map-link", "organizer", "superadmin"];
+const NOT_PUBLIC_API = ["account", "admin", "club-import", "health", "invitation", "map-link", "oauth", "organizer", "superadmin"];
+/** ADR-0219 (K2): MCP med åtkomstnyckel och utan kakor går till de publika instanserna (AI tar aldrig tävlingens instans). */
+const PUBLIC_API = ["public", "mcp"];
 
 describe("publika sökvägar (ADR-0177): en lista i koden och i deploy/Caddyfile", () => {
   it("matchern @public i Caddyfile har exakt sökvägarna i PUBLIC_PATHS", () => {
@@ -71,7 +73,7 @@ describe("publika sökvägar (ADR-0177): en lista i koden och i deploy/Caddyfile
     for (const { url } of appRoutes()) {
       const [section = "", sub = ""] = url.split("/").slice(1);
       if (section === "api") {
-        if (sub === "public") expect(isPublic(url), url).toBe(true);
+        if (PUBLIC_API.includes(sub)) expect(isPublic(url), url).toBe(true);
         else if (/^\/api\/races\/x\/start-list(\/|$)/.test(url)) expect(isPublic(url), url).toBe(true);
         else {
           expect(isPublic(url), url).toBe(false);

@@ -96,8 +96,17 @@ export async function requireMapProject(tx: MapProjectTransaction, proof: ClubPr
   const auth = write ? await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, now)
     : await authenticateUserAccountSessionForProtectedRead(tx, proof, now);
   if (auth.status !== "authenticated") return auth;
-  const accountId = auth.principal.accountId;
-  const query = tx.select().from(schema.mapProjects).where(eq(schema.mapProjects.id, proof.projectId));
+  return requireMapProjectForAccount(tx, auth.principal.accountId, proof.projectId, now, need, write);
+}
+
+/**
+ * Samma prövning för ett konto som redan är känt (K2: AI-kopplingens nyckel i stället för sessionen). Projektet låses för
+ * uppdatering när `write`.
+ */
+export async function requireMapProjectForAccount(tx: MapProjectTransaction, accountId: string, projectId: string, now: Date, need: MapProjectNeed,
+  write: boolean): Promise<ClubFailure | { status: "ok"; accountId: string; role: MapProjectRole; project: MapProjectRow }> {
+  if (!UUID_PATTERN.test(projectId)) return { status: "not-found" };
+  const query = tx.select().from(schema.mapProjects).where(eq(schema.mapProjects.id, projectId));
   const [project] = write ? await query.for("update") : await query;
   if (!project) return { status: "not-found" };
   let role = await mapProjectRoleOf(tx, accountId, project);

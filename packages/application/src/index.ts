@@ -200,3 +200,10 @@ export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, 
 export type { MapProjectUploadFailure } from "./map-projects";
 export { createMapProjectNew } from "./map-project-new";
 export type { MapProjectNewFailure } from "./map-project-new";
+export {
+  authenticateOauthAccess, decideAuthorization, describeAuthorization, exchangeOauthToken, listAiConnections, OAUTH_SCOPE, registerOauthClient,
+  revokeAiConnection, revokeOauthToken
+} from "./oauth";
+export type { AiConnectionView, OauthError, TokenResponse } from "./oauth";
+export { handleMcpMessage } from "./mcp";
+export type { McpResponse } from "./mcp";

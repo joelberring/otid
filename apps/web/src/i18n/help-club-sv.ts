@@ -52,6 +52,20 @@ export const clubHelpArticles: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "klubbens-enheter",
+    title: "Läsa ut och ställa in enheter, och klubbens enhetsregister",
+    views: ["ARCHIVE_DEVICES", "READOUT_PAGE"],
+    body: [
+      "Under avläsningen finns ”Läs ut enheter”: sätt en SPORTident-enhet i masterstationen så läser O-Tid systemdata, klocka och backupminnet med löparna.",
+      [
+        "”Ställ in enheten” ställer klockan efter datorn, koden och läget. Enheten läses igen och sidan visar före och efter.",
+        "Välj klubb på sidan, så sparas varje utläst eller inställd enhet i klubbens register.",
+        "Fliken ”Enheter” i klubbytan visar enheterna med serienummer, kod, läge, batteriets ålder, klockans fel och en anteckning."
+      ],
+      "Inställningen är provad bara mot en falsk enhet. Prova på några enheter först och spara råloggen från sidan om något ser fel ut."
+    ]
+  },
+  {
     id: "bekrafta-medlemmar",
     title: "Bekräfta medlemmar och Vem ser vad",
     views: ["ARCHIVE_CLUB", "ARCHIVE_MEMBERS"],

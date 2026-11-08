@@ -56,15 +56,15 @@ test("sen start, hyrbricka, direktanmälan utan nät, maxtid och kvar i skogen",
 
   // Banans längd och stigning i Banor; något annat än hela meter ger ett svenskt fel vid fältet.
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/courses/00000000-0000-4000-8000-000000000000/details`, "POST");
-  await owner.getByRole("button", { name: "Längd och stigning för Lång" }).click();
-  const details = owner.getByRole("form", { name: "Längd och stigning för Lång" });
+  await owner.getByRole("button", { name: "Namn, längd och stigning för Lång" }).click();
+  const details = owner.getByRole("form", { name: "Namn, längd och stigning för Lång" });
   await details.getByLabel("Längd (meter)").fill("4,2 km");
   await details.getByRole("button", { name: "Spara" }).click();
   await expect(details.getByText("Längd: skriv hela meter, till exempel 4200, eller lämna tomt.")).toBeVisible();
   await details.getByLabel("Längd (meter)").fill("4200");
   await details.getByLabel("Stigning (meter)").fill("120");
   await details.getByRole("button", { name: "Spara" }).click();
-  await expect(owner.getByText("Längd och stigning är sparade.")).toBeVisible({ timeout: 30_000 });
+  await expect(owner.getByText("Banan är sparad.")).toBeVisible({ timeout: 30_000 });
   await expect(owner.getByRole("row", { name: /^Lång/ })).toContainText("4,2 km · 120 m");
 
   // Maxtid 20 minuter för Öppen i Klasser. Utvecklingsservern kompilerar ändringens rutt i förväg (gav ibland inget svar

@@ -1,4 +1,5 @@
 import { forgetAllCourseSettingCopies, fieldStore } from "./course-setting-offline-forget";
+import { clearLocalNotes, pendingNoteCount } from "./map-project-note-store";
 import { forgetMapProjectCopies } from "./map-project-offline";
 import { clearLocalTracks, pendingTrackCount } from "./map-project-track-store";
 import { readOrganizerCsrf } from "./organizer-client";
@@ -10,7 +11,7 @@ import { FOLLOW_STORAGE_KEY } from "./follow-store";
  * tävlingar och personer:
  *
  * - banläggningens kopia i telefonen (posten, kön, kartfilen och den sparade sidan i service workerns cache),
- * - kartprojektens GPS-spår som ännu inte skickats (K3; var någon gått är personuppgifter) och kartprojektens sparade sidor och
+ * - kartprojektens GPS-spår och notiser som ännu inte skickats (K3; var någon gått är personuppgifter) och kartprojektens sparade sidor och
  *   uppgifter (medlemmarnas namn),
  * - inbjudan som väntar, den påbörjade tävlingen, följda löpare och klubbar, självregistreringens ifyllda namn och
  *   flikarnas tillfälliga val (`sessionStorage` med `otid`),
@@ -19,6 +20,7 @@ import { FOLLOW_STORAGE_KEY } from "./follow-store";
  * bort när servern har kvitterat (AGENTS.md). Ändringar som väntar på nät räknas först; finns det några frågar menyn
  * "N ändringar väntar på nät – logga ut ändå?". Banläggningens väntande ändringar försvinner då; avläsningarna står kvar.
  */
+/** `tracks`: kartprojektens spår och notiser som väntar (K3). */
 export interface PendingOfflineChanges { courseSetting: number; readouts: number; party: number; tracks: number; total: number }
 
 /** Databasen finns redan (öppnas inte, och skapas alltså inte, annars). Utan `databases()` antas den finnas. */
@@ -69,7 +71,7 @@ export async function pendingOfflineChanges(): Promise<PendingOfflineChanges> {
   const courseSetting = await safe(() => fieldStore().pendingCount());
   const readouts = await safe(() => countPending("otid-readout", ["readouts", "registrations"])) + failedReadouts();
   const party = await safe(() => countPending("otid-party", ["actions"]));
-  const tracks = await safe(pendingTrackCount);
+  const tracks = await safe(pendingTrackCount) + await safe(pendingNoteCount);
   return { courseSetting, readouts, party, tracks, total: courseSetting + readouts + party + tracks };
 }
 
@@ -81,6 +83,7 @@ const PERSONAL_PREFIXES = ["otid-grupp-anmalan:"];
 export async function clearPersonalBrowserData(): Promise<void> {
   await forgetAllCourseSettingCopies().catch(error => console.error("Banläggningen i webbläsaren kunde inte tas bort", error));
   await clearLocalTracks().catch(error => console.error("Spåren i webbläsaren kunde inte tas bort", error));
+  await clearLocalNotes().catch(error => console.error("Notiserna i webbläsaren kunde inte tas bort", error));
   await forgetMapProjectCopies().catch(error => console.error("Kartprojekten i webbläsaren kunde inte tas bort", error));
   try {
     const local = window.localStorage;

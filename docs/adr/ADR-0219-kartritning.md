@@ -167,7 +167,8 @@ Beslut 8 och planen (avsnitt 8a): Claude kopplas till O-Tid med personens eget C
    och tar bort spår som inte skickats.
 3. **Bekräftelser** gäller objektets dåvarande senaste ändring (`basis_edit_id`) och räknas bort när objektet ändrats sedan.
    "Godkänn passerade" bekräftar alla passerade i ett delområde.
-4. **Fältet:** positionen (visa, följ), spela in spår (skärmen hålls tänd), GPX-filer, punkt här och gå en linje med GPS.
+4. **Fältet:** positionen (visa, följ), spela in spår (skärmen hålls tänd), GPX-filer, punkt här, gå en linje med GPS och
+   notiser med foto (migration 0095; id:t från telefonen, klar och ta bort av den som skrev eller ägarna).
    Kartsidan får använda positionen (Permissions-Policy). Sidan, projektet, kartfilen, ändringarna och spåren finns i
    telefonen: sidskalet via `/map-project-sw.js` (samma källa som banläggningens, egen cache och scope bara projektets karta).
 5. **Redigeringen** (`curve-edit.ts`): dra i en sträcka böjer den, dubbelklick lägger till en punkt (också på kurvor) eller tar

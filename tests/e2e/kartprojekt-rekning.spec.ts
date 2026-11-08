@@ -101,6 +101,29 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   expect(checks.checks).toHaveLength(1);
   expect(checks.checks[0]!.basis).toBeNull();
 
+  // En notis vid positionen med foto; den syns på kartan och markeras klar.
+  await phone.getByTestId("field-position").click();
+  await expect(phone.getByTestId("field-note-here")).toBeVisible({ timeout: 15_000 });
+  await phone.getByTestId("field-note-here").click();
+  const form = phone.getByTestId("map-project-note-form");
+  await form.getByRole("textbox").fill("Stigen saknas här");
+  await form.getByTestId("map-project-note-photo").setInputFiles(new URL("../../fixtures/maps/strackanalys.png", import.meta.url).pathname);
+  await expect(form.getByText("Foto bifogat")).toBeVisible({ timeout: 15_000 });
+  await form.getByTestId("map-project-note-save").click();
+  await expect(form).toHaveCount(0);
+  type Notes = { notes: { noteId: string; text: string; status: string; photo: { mediaType: string } | null }[] };
+  await expect.poll(async () => ((await (await phone.request.get(`${api}/notes`)).json()) as Notes).notes.map(note => [note.text, note.photo?.mediaType]),
+    { timeout: 20_000 }).toEqual([["Stigen saknas här", "image/jpeg"]]);
+  await phone.getByTestId("field-position").click();
+  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByTestId("map-project-notes").getByRole("button", { name: "Visa" }).click();
+  const note = phone.getByTestId("map-project-note");
+  await expect(note).toContainText("Stigen saknas här");
+  await expect(note.locator("img")).toBeVisible();
+  await note.getByTestId("map-project-note-status").click();
+  await expect(note).toHaveAttribute("data-status", "DONE", { timeout: 15_000 });
+  await note.getByRole("button", { name: "Stäng" }).click();
+
   // En GPX-fil från klockan.
   const gpx = `<?xml version="1.0"?><gpx version="1.1" creator="Klocka"><trk><name>Klockans runda</name><trkseg>${
     [[10, 10], [20, 20], [30, 15]].map(([x, y], index) => { const p = wgs(x!, y!);
@@ -139,8 +162,15 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
     await phone.waitForTimeout(60);
   }
   await phone.getByTestId("field-record").click();
+  // En notis utan nät med verktyget Notis (tryck på kartan).
+  await phone.getByTestId("map-project-note-tool").click();
+  const spot = await screenOf(phone, { x: 70, y: 30 });
+  await phone.mouse.click(spot.x, spot.y);
+  await phone.getByTestId("map-project-note-form").getByRole("textbox").fill("Nytt hygge");
+  await phone.getByTestId("map-project-note-save").click();
   await phone.getByRole("button", { name: "Panel" }).click();
   await expect(recon.getByTestId("recon-track").filter({ hasText: "väntar på nät" })).toHaveCount(1, { timeout: 15_000 });
+  await expect(phone.getByTestId("map-project-note-row").filter({ hasText: "Nytt hygge" })).toContainText("väntar på nät");
   if (process.env.E2E_BASE_URL) {
     // Omladdning utan nät mot driftbygget: kartan och projektet från telefonen.
     await phone.reload();
@@ -151,4 +181,6 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   await context.setOffline(false);
   await phone.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect.poll(async () => ((await (await phone.request.get(`${api}/tracks`)).json()) as Tracks).tracks.length, { timeout: 30_000 }).toBe(2);
+  await expect.poll(async () => ((await (await phone.request.get(`${api}/notes`)).json()) as { notes: { text: string }[] }).notes.map(row => row.text).sort(),
+    { timeout: 30_000 }).toEqual(["Nytt hygge", "Stigen saknas här"]);
 });

@@ -10,14 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-11-08 – K3: rekningen, fältet och snabbare redigering (migration 0094, ADR-0219 tillägg)
+### 2026-11-08 – K3: rekningen, fältet och snabbare redigering (migration 0094–0095, ADR-0219 tillägg)
 - Rekningens status (ej rekat, passerat, kollat) och täckningen räknas i kartans Worker ur GPS-spåren; siktavstånd per symbolgrupp, krympt i tät vegetation; delområdenas framsteg, "Godkänn passerade" och "Markera kollad".
 - Spår från fältläget (sparas i telefonen och skickas del för del) och GPX-filer; bara medlemmar ser dem; tas bort med kontot och räknas vid utloggningen.
 - Mobilen: position (visa, följ), punkt här, gå en linje, menyerna på en rad; kartsidan och projektet utan nät (`/map-project-sw.js`).
 - Redigeringen: böja en sträcka, punkter på kurvor, dubbelklick lägger till eller tar bort, styrpunkterna, Flytta hela.
 - Rättat: klippningen i Layout (arket ärver huvudlayoutens papper), beskrivningen sparas som papperet.
 - Verifierat: typecheck, lint, `lint:dead`, enhetstester, integration `adr-0219-rekning` (3), E2E `kartprojekt-rekning`, `kartprojekt-rita` (4), `kartprojekt` (2), `banlaggning-layout`, `banlaggning-pappersrum`.
-- Kvar: notis med foto i kartprojektet; omladdning utan nät mot driftbygget (CI); ägaren provar i terrängen.
+- Tillägg: notiser med foto i kartprojektet (migration 0095), också utan nät; omladdningen utan nät provad mot driftbygget.
+- Kvar: ägaren provar i terrängen.
 
 ### 2026-11-08 – K2: AI-kopplingen, Claude ser och läser kartan (migration 0093, ADR-0219 tillägg)
 - O-Tid är inloggningsserver (OAuth 2.1: metadata, dynamisk registrering, PKCE S256, nycklar med rotation och återkallelse vid återanvändning) och MCP-server på `/api/mcp` (JSON, utan sessioner); godkännandet på `/oauth/authorize` med vanlig inloggning; Mitt konto → AI-kopplingar.

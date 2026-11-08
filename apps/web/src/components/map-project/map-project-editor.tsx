@@ -12,11 +12,14 @@ import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { Viewport } from "../../lib/course-setting-viewport";
 import { draftObject, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
 import { drawAreas, drawDraftPoints, drawHandles, drawMapArea, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
-import { coverageImage, drawCoverage, drawReconMarkers, drawTracks } from "../../lib/map-project-recon-overlay";
+import { coverageImage, drawCoverage, drawNotes, drawReconMarkers, drawTracks, noteAt } from "../../lib/map-project-recon-overlay";
+import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
+import { NoteDetail, NoteForm, NotesPanel } from "./map-project-notes";
+import { useMapProjectNotes } from "./use-map-project-notes";
 import { metersPerMm, toMapPosition } from "../../lib/course-setting-geo";
 import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
 import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
-import { CourseSettingMap, type MapPointerHandlers } from "../course-setting/course-setting-map";
+import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
 import { MapProjectCollabPanel } from "./map-project-collab-panel";
@@ -31,8 +34,8 @@ import { useMapProjectEditor } from "./use-map-project-editor";
 import styles from "./map-project-editor.module.css";
 
 const text = mapProjectEditorSv;
-/** `area` = rita ett delområde (bara ägarna). */
-type Tool = "select" | "draw" | "area";
+/** `area` = rita ett delområde (bara ägarna); `note` = tryck där en notis ska sitta (K3). */
+type Tool = "select" | "draw" | "area" | "note";
 interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
 type Drag =
   | { readonly mode: "vertex"; readonly address: VertexAddress; readonly original: MapObject }
@@ -48,6 +51,7 @@ type Drag =
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
 const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
 const reconText = mapProjectReconSv;
+const notesText = mapProjectNotesSv;
 const DOUBLE_TAP_MS = 350;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
 /** En punkt på objektet: var en borttagning ligger (för delområdena när servern bara har objektet i grundfilen). */
@@ -108,6 +112,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (!mapReady || offlineSince) return;
     void saveMapProjectShell(view.projectId).catch(error => console.error("Kartsidan kunde inte sparas för offline", error));
   }, [mapReady, offlineSince, view.projectId]);
+  // K3: notiserna (ny notis vid en punkt, en notis som visas).
+  const notes = useMapProjectNotes(view);
+  const [noteDraft, setNoteDraft] = useState<{ at: Point; objectKey?: string | undefined }>();
+  const [shownNote, setShownNote] = useState<string>();
+  const mapHandle = useRef<CourseSettingMapHandle>(null);
   const position = useMapProjectPosition({ georeference, active: positionMode !== "off", recording: !!recon.recording || walk !== undefined, onFix });
   // Föreslå ritar också; servern gör ändringen till ett förslag.
   const canEdit = view.viewer.canEdit || view.viewer.canPropose;
@@ -209,6 +218,15 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       const previous = lastTap.current;
       const double = !!previous && now - previous.at < DOUBLE_TAP_MS && Math.hypot(previous.point.x - point.x, previous.point.y - point.y) < tolerance * 2;
       lastTap.current = double ? undefined : { at: now, point };
+      if (tool === "note") {
+        setShownNote(undefined);
+        setNoteDraft({ at: point, objectKey: selected && hitDistance(selected.object, point, tolerance) ? selected.key : undefined });
+        return;
+      }
+      if (tool === "select") {
+        const note = noteAt(notes.notes, point, tolerance, modifiers.pxPerMm);
+        if (note) { setShownNote(note.noteId); setNoteDraft(undefined); return; }
+      }
       if (tool === "area") {
         const first = draft[0];
         if (double || (first && draft.length >= 3 && Math.hypot(first.at.x - point.x, first.at.y - point.y) <= tolerance)) { finishDraft(); return; }
@@ -384,16 +402,19 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       drawDraftPoints(ctx, current, draft, cursor);
     }
     if (reconResult && recon.layers.has("STATUS")) drawReconMarkers(ctx, current, reconResult.markers, SHOWN_STATUSES);
+    drawNotes(ctx, current, notes.notes, shownNote);
+    if (noteDraft) drawNotes(ctx, current, [{ noteId: "", at: noteDraft.at, status: "OPEN", pending: true }], "");
     if (shown && tool === "select" && selected) {
       drawSelection(ctx, current, shown, activeVertex);
       const handles = activeVertex ? vertexHandles(shown, activeVertex) : undefined;
       if (handles) drawHandles(ctx, current, handles);
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
-    recon.trackLines, reconResult, walk, gapMm]);
+    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
+    : tool === "note" ? notesText.toolHint
     : tool === "select" ? text.hints.select
     : !symbol ? text.tools.noSymbol
     : symbol.kind === "point" ? text.hints.drawPoint(symbol.code)
@@ -429,6 +450,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           onClick={() => { deselect(); cancelDraft(); setTool("draw"); }}>{text.tools.draw}</Button>
         {canDecide && <Button variant={tool === "area" ? "primary" : "secondary"} aria-pressed={tool === "area"}
           onClick={() => { deselect(); cancelDraft(); setTool("area"); }}>{text.collab.areaTool}</Button>}
+        {notes.canWrite && <Button variant={tool === "note" ? "primary" : "secondary"} aria-pressed={tool === "note"} data-testid="map-project-note-tool"
+          onClick={() => { cancelDraft(); setTool(tool === "note" ? "select" : "note"); }}>{notesText.tool}</Button>}
         <Button variant="secondary" disabled={editor.history.undo.length === 0} onClick={editor.undo} title="Ctrl/Cmd+Z">{text.tools.undo}</Button>
         <Button variant="secondary" disabled={editor.history.redo.length === 0} onClick={editor.redo} title="Ctrl/Cmd+Skift+Z">{text.tools.redo}</Button>
         {draft.length > 0 && <>
@@ -460,9 +483,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           label={text.mapLabel} cursor={tool === "draw" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
           renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols}
           position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
-          onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} /></div>}
+          onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} handle={mapHandle} /></div>}
         {editor.mapStatus === "ready" && georeference && <MapProjectFieldControls mode={positionMode} onMode={setPositionMode} problem={position.problem}
           canRecord={recon.canRecord} recording={!!recon.recording}
+          note={notes.canWrite && position.position ? () => { setShownNote(undefined); setNoteDraft({ at: position.position!.at }); } : undefined}
           onRecord={() => { if (recon.recording) void recon.stopRecording();
             else void recon.startRecording(reconText.recordDefault(new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }))); }}
           point={canEdit && symbol?.kind === "point" && position.position ? { code: symbol.code, onPlace: () => {
@@ -475,6 +499,17 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
               const object = points.length >= 2 ? draftObject("line", symbol.id, points.map(at => ({ at }))) : undefined;
               if (object) save(newKey(crypto.randomUUID()), null, object, "ADD");
             } } : undefined} />}
+        {noteDraft && <NoteForm onCancel={() => setNoteDraft(undefined)} onSave={async (value, photo) => {
+          await notes.create(noteDraft.at, value, photo, noteDraft.objectKey);
+          setNoteDraft(undefined);
+          if (tool === "note") setTool("select");
+        }} />}
+        {!noteDraft && shownNote && (() => {
+          const note = notes.notes.find(row => row.noteId === shownNote);
+          return note ? <NoteDetail note={note} canManage={notes.canManage(note)} onClose={() => setShownNote(undefined)}
+            onStatus={status => void notes.setStatus(note.noteId, status)}
+            onRemove={() => void notes.remove(note.noteId).then(ok => { if (ok) setShownNote(undefined); })} /> : null;
+        })()}
       </div>
       <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} hiddenGroups={hiddenGroups}
         onToggleGroup={group => setHiddenGroups(current => {
@@ -482,7 +517,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           if (next.has(group)) next.delete(group); else next.add(group);
           return next;
         })} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
-        after={<MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />}>
+        after={<>
+          <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
+          <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
+        </>}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
           onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}

@@ -1216,7 +1216,9 @@ Migration 0094, ADR-0219 tillägget 2026-11-08 (rekningen).
 - [x] Redigeringen (ägaren 2026-11-08): böja en sträcka, punkter på kurvor, ta bort med dubbelklick, styrpunkterna, Flytta hela.
 - [x] Tester: map-revision (`recon`, `curve-edit`), GPX och förenkling, integration `adr-0219-rekning`, E2E `kartprojekt-rekning`
   (390 px, fejkad position, utan nät) och `kartprojekt-rita` (kurvorna).
-- [ ] Kvar: notis med foto i kartprojektet; omladdning utan nät provas i CI mot driftbygget; ägaren provar i terrängen.
+- [x] Notiser med foto (migration 0095): vid positionen, med verktyget Notis eller knuten till ett objekt; i telefonen tills servern
+  kvitterat; klar och ta bort (den som skrev eller ägarna). Omladdningen utan nät provad mot driftbygget (lokalt och i CI).
+- [ ] Kvar för ägaren: prova i terrängen (spår, GPX från klockan, notiser och kartan utan nät).
 
 Senare enligt planen: K3b frivillig spelifiering, K4 underlag och
 geo-arbetaren (med import av baskartor: lagermappning och rensning av överskott), K5 Karttapullautin och fuktighet, K6

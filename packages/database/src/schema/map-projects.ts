@@ -2,6 +2,7 @@ import { bigint, doublePrecision, integer, jsonb, pgTable, primaryKey, text, tim
 import { userAccounts } from "./accounts";
 import { clubMapVersions, clubs } from "./clubs";
 import { mapContents } from "./map-content";
+import { bytea } from "./types";
 
 /**
  * ADR-0219 (migration 0089, 0090): kartprojekten. Ett projekt ägs av sina medlemmar; klubben är valfri. Grundfilen är en kartversion i
@@ -198,3 +199,20 @@ export const mapProjectChecks = pgTable("map_project_check", {
   basisEditId: uuid("basis_edit_id"),
   checkedAt: timestamp("checked_at", { withTimezone: true }).notNull()
 }, table => [primaryKey({ columns: [table.projectId, table.objectKey] })]);
+
+/** Notiser (0095): en punkt med text och valfritt foto, valfritt knuten till ett objekt; id:t skapas i telefonen. */
+export const mapProjectNotes = pgTable("map_project_note", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  accountId: uuid("account_id").notNull(),
+  atX: doublePrecision("at_x").notNull(),
+  atY: doublePrecision("at_y").notNull(),
+  objectKey: text("object_key"),
+  text: text("text").notNull(),
+  photo: bytea("photo"),
+  photoMediaType: text("photo_media_type"),
+  status: text("status").$type<"OPEN" | "DONE">().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolvedBy: uuid("resolved_by")
+});

@@ -99,3 +99,47 @@ export function drawTracks(ctx: Context, view: Viewport, tracks: readonly (reado
   }
   ctx.restore();
 }
+
+/**
+ * K3: notiserna som en liten flagga med "!" (öppen: orange, klar: grå, väntar på nät: streckad). Den som visas är större. Formen
+ * skiljer sig från rekningens ringar.
+ */
+export function drawNotes(ctx: Context, view: Viewport, notes: readonly { noteId: string; at: Point; status: "OPEN" | "DONE"; pending: boolean }[],
+  shown: string | undefined) {
+  ctx.save();
+  for (const note of notes) {
+    const at = toScreen(view, note.at);
+    if (at.x < -20 || at.y < -30 || at.x > view.width + 20 || at.y > view.height + 10) continue;
+    const size = note.noteId === shown ? 13 : 9;
+    ctx.beginPath();
+    ctx.moveTo(at.x, at.y);
+    ctx.lineTo(at.x - size, at.y - size * 1.6);
+    ctx.lineTo(at.x + size, at.y - size * 1.6);
+    ctx.closePath();
+    ctx.fillStyle = note.status === "DONE" ? "#9e9e9e" : "#ef6c00";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#fff";
+    if (note.pending) ctx.setLineDash([3, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#fff";
+    ctx.font = `bold ${Math.round(size * 1.1)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("!", at.x, at.y - size * 1.05);
+  }
+  ctx.restore();
+}
+
+/** Notisen under punkten (skärmens flagga ovanför sin punkt räknas), eller undefined. */
+export function noteAt<T extends { at: Point }>(notes: readonly T[], point: Point, toleranceMm: number, pxPerMm: number): T | undefined {
+  const flag = 14 / pxPerMm;
+  let best: T | undefined, distance = Infinity;
+  for (const note of notes) {
+    const dx = point.x - note.at.x, dy = point.y - (note.at.y + flag);
+    const d = Math.hypot(dx, dy);
+    if (d <= Math.max(toleranceMm, flag) && d < distance) { best = note; distance = d; }
+  }
+  return best;
+}

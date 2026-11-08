@@ -69,3 +69,21 @@ export const mapProjectChecksRequestSchema = z.object({
 
 export interface MapProjectCheckView { key: string; basis: string | null; accountId: string; name: string | null; at: string }
 export interface MapProjectCheckList { formatVersion: 1; checks: MapProjectCheckView[] }
+
+/** Notiser (K3): en punkt i kartans mm (y uppåt) med text och valfritt foto (JPEG, PNG eller WebP i base64, högst 2 MB). */
+export const MAP_PROJECT_NOTE_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+const notePoint = z.object({ x: finite.min(-5_000_000).max(5_000_000), y: finite.min(-5_000_000).max(5_000_000) }).strict();
+export const mapProjectNoteCreateRequestSchema = z.object({
+  formatVersion: z.literal(1), noteId: uuidSchema, at: notePoint, objectKey: objectKeySchema.nullable().optional(),
+  text: z.string().trim().max(1000),
+  photo: z.object({ mediaType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    base64: z.string().min(4).max(Math.ceil(MAP_PROJECT_NOTE_PHOTO_MAX_BYTES * 4 / 3) + 4).regex(/^[A-Za-z0-9+/]+={0,2}$/) }).strict().nullable().optional()
+}).strict().refine(value => value.text.length > 0 || !!value.photo, { message: "Text eller foto" });
+export const mapProjectNoteUpdateRequestSchema = z.object({ formatVersion: z.literal(1), status: z.enum(["OPEN", "DONE"]) }).strict();
+
+export interface MapProjectNoteView {
+  noteId: string; at: { x: number; y: number }; objectKey: string | null; text: string;
+  photo: { mediaType: string; bytes: number } | null; status: "OPEN" | "DONE";
+  account: { accountId: string; name: string | null }; own: boolean; createdAt: string; resolvedAt: string | null;
+}
+export interface MapProjectNoteList { formatVersion: 1; notes: MapProjectNoteView[] }

@@ -9,6 +9,7 @@ import {
   addMapProjectTrackPart, changeMapProjectChecks, createMapProjectTrack, deleteMapProjectTrack, listMapProjectChecks, listMapProjectTracks,
   mapProjectTrackPoints, updateMapProjectTrack
 } from "../../src/map-project-recon";
+import { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "../../src/map-project-notes";
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
 import { registerTestAccount } from "./accounts";
 
@@ -135,5 +136,36 @@ describe("ADR-0219 K3: rekningen", () => {
     await db.transaction(tx => deleteAccountWithOwnedEvents(tx, s.editor.accountId, NOW));
     expect(await db.select().from(schema.mapProjectTracks).where(eq(schema.mapProjectTracks.id, trackId))).toEqual([]);
     expect(await db.select().from(schema.mapProjectTrackParts).where(eq(schema.mapProjectTrackParts.trackId, trackId))).toEqual([]);
+  });
+
+  it("notiser: med foto, samma notis igen, klar och ta bort av den som skrev eller ägarna; Läsa skriver inte", async () => {
+    const s = await setup();
+    const noteId = randomUUID();
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60, 1)]).toString("base64");
+    const request = { formatVersion: 1, noteId, at: { x: 42, y: 61 }, objectKey: "b:sten", text: "Stenen är mindre än på kartan",
+      photo: { mediaType: "image/jpeg", base64: jpeg } };
+    const created = await createMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, request }, NOW);
+    expect(created).toMatchObject({ status: "created", replayed: false, note: { own: true, status: "OPEN", objectKey: "b:sten", photo: { bytes: 64 } } });
+    expect(await createMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, request }, NOW)).toMatchObject({ status: "created", replayed: true });
+    expect((await createMapProjectNote(db, { ...s.owner.proof, projectId: s.projectId, request }, NOW)).status).toBe("conflict");
+    // Fel typ på fotot, ingen text och inget foto, Läsa.
+    expect((await createMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, request: { ...request, noteId: randomUUID(),
+      photo: { mediaType: "image/png", base64: jpeg } } }, NOW)).status).toBe("invalid-request");
+    expect((await createMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1, noteId: randomUUID(),
+      at: { x: 1, y: 1 }, text: "  " } }, NOW)).status).toBe("invalid-request");
+    expect((await createMapProjectNote(db, { ...s.reader.proof, projectId: s.projectId, request: { ...request, noteId: randomUUID() } }, NOW)).status)
+      .toBe("forbidden");
+    const listed = await listMapProjectNotes(db, { ...s.reader.proof, projectId: s.projectId }, NOW);
+    expect(listed.status === "ok" && listed.list.notes.map(note => [note.text, note.own])).toEqual([["Stenen är mindre än på kartan", false]]);
+    const photo = await readMapProjectNotePhoto(db, { ...s.reader.proof, projectId: s.projectId, noteId }, NOW);
+    expect(photo.status === "ok" && [photo.mediaType, photo.photo.byteLength]).toEqual(["image/jpeg", 64]);
+    expect((await readMapProjectNotePhoto(db, { ...s.outsider.proof, projectId: s.projectId, noteId }, NOW)).status).toBe("not-found");
+    // Läsa får inte markera klar; ägaren får.
+    expect((await updateMapProjectNote(db, { ...s.reader.proof, projectId: s.projectId, noteId, request: { formatVersion: 1, status: "DONE" } }, NOW))
+      .status).toBe("forbidden");
+    expect(await updateMapProjectNote(db, { ...s.owner.proof, projectId: s.projectId, noteId, request: { formatVersion: 1, status: "DONE" } }, NOW))
+      .toMatchObject({ status: "ok", note: { status: "DONE", resolvedAt: NOW.toISOString() } });
+    expect((await deleteMapProjectNote(db, { ...s.reader.proof, projectId: s.projectId, noteId }, NOW)).status).toBe("forbidden");
+    expect((await deleteMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, noteId }, NOW)).status).toBe("deleted");
   });
 });

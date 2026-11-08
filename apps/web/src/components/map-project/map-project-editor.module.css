@@ -49,6 +49,18 @@
 .areaForm label { display: grid; gap: .2rem; font-size: var(--text-sm, .9rem); }
 .areaForm input, .areaForm select, .areaRow select { min-height: 36px; }
 
+/* K3: notisens formulär och detalj nertill över kartan. */
+.sheet { position: absolute; left: 10px; right: 10px; bottom: 64px; z-index: 2; display: grid; gap: .5rem; padding: 10px 12px; max-height: 60%;
+  overflow: auto; background: var(--surface, #fff); border: 1px solid var(--line-strong, #999); border-radius: 10px; box-shadow: 0 4px 16px rgb(0 0 0 / 20%); }
+.sheet textarea { width: 100%; min-height: 4.5em; font: inherit; }
+.fileButton { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--line-strong, #999); border-radius: 6px;
+  cursor: pointer; font-weight: 600; }
+.fileButton input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.noteText { margin: 0; white-space: pre-wrap; }
+.notePhoto { max-width: 100%; max-height: 40dvh; border-radius: 6px; }
+.noteRow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+@media (min-width: 761px) { .sheet { left: auto; width: 360px; } }
+
 /* K3: rekningen i panelen och fältets knappar i kartans hörn. */
 .stack { display: grid; gap: .4rem; }
 .grow { flex: 1; min-width: 8rem; min-height: 40px; }

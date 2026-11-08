@@ -127,7 +127,7 @@ export function bendSegment(object: MapObject, address: VertexAddress, t: number
   const found = segment(object, part, address.index);
   if (!found) return object;
   if (found.implicit) part = explicitClosing(part);
-  const [p0, p1, p2, p3]: Cubic = found.cubic ?? [found.from, lerp(found.from, found.to, 1 / 3), lerp(found.from, found.to, 2 / 3), found.to];
+  const [, p1, p2, p3]: Cubic = found.cubic ?? [found.from, lerp(found.from, found.to, 1 / 3), lerp(found.from, found.to, 2 / 3), found.to];
   const clamped = Math.min(0.95, Math.max(0.05, t));
   const b1 = 3 * (1 - clamped) ** 2 * clamped, b2 = 3 * (1 - clamped) * clamped ** 2, norm = b1 * b1 + b2 * b2;
   const c1 = { x: p1.x + delta.x * b1 / norm, y: p1.y + delta.y * b1 / norm };

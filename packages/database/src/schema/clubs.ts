@@ -1,4 +1,4 @@
-import { boolean, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { MapFingerprint } from "@o-tid/domain";
 import { userAccounts } from "./accounts";
 import { bytea } from "./types";
@@ -223,3 +223,22 @@ export const clubMapMerges = pgTable("club_map_merge", {
   undoneAt: timestamp("undone_at", { withTimezone: true }),
   undoneBy: uuid("undone_by")
 });
+
+/** Ägaren 2026-11-08 (migration 0102): klubbens SPORTident-enheter, det senaste från en utläsning eller inställning. */
+export const clubDevices = pgTable("club_device", {
+  clubId: uuid("club_id").notNull().references(() => clubs.id),
+  serialNumber: bigint("serial_number", { mode: "number" }).notNull(),
+  model: text("model"),
+  firmware: text("firmware"),
+  code: integer("code"),
+  mode: integer("mode"),
+  batteryDate: date("battery_date"),
+  batteryCapacityRaw: integer("battery_capacity_raw"),
+  memoryKb: integer("memory_kb"),
+  backupCount: integer("backup_count"),
+  clockOffsetMs: integer("clock_offset_ms"),
+  note: text("note").notNull().default(""),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+  lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
+  lastReadBy: uuid("last_read_by")
+}, table => [primaryKey({ columns: [table.clubId, table.serialNumber] })]);

@@ -205,6 +205,7 @@ export {
 export { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "./map-project-stats";
 export { DEFAULT_OVERPASS_URL, fetchMapProjectOsm, mapSourceRuntimeFromEnvironment, type MapSourceRuntime } from "./map-project-sources";
 export { deleteMapSourceCredential, readMapSourceCredential, saveMapSourceCredential } from "./map-source-credentials";
+export { changeClubDevice, listClubDevices, recordClubDevice } from "./club-devices";
 export {
   lantmaterietRuntimeFromEnvironment, readMapProjectOrthoAsset, searchMapProjectOrtho, type LantmaterietRuntime, type OrthoItem
 } from "./map-project-lantmateriet";

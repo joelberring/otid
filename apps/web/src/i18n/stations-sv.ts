@@ -22,7 +22,8 @@ export const stationsSv = {
     nak: "Enheten vägrade läsningen.",
     unexpected: "Enheten svarade oväntat. Ladda ner råloggen.",
     transport: "Kontakten med huvudstationen bröts.",
-    open: "Porten kunde inte öppnas. Stäng andra flikar som använder stationen."
+    open: "Porten kunde inte öppnas. Stäng andra flikar som använder stationen.",
+    "invalid-plan": "Välj vad som ska ställas in (koden 1–511)."
   },
   facts: {
     serial: "Serienummer", model: "Modell", firmware: "Programversion", code: "Kod", mode: "Läge", battery: "Batteri bytt",
@@ -39,5 +40,28 @@ export const stationsSv = {
   controlInRace: (code: number, used: boolean) => used ? `Kod ${code} finns på tävlingens banor.` : `Kod ${code} finns inte på tävlingens banor.`,
   csv: "Ladda ner stämplingarna (CSV)",
   rawLog: "Ladda ner rålogg",
-  noPackage: "Tävlingens deltagare kunde inte hämtas; brickorna visas utan namn."
+  noPackage: "Tävlingens deltagare kunde inte hämtas; brickorna visas utan namn.",
+  write: {
+    title: "Ställ in enheten",
+    help: "Klockan efter datorns, koden och läget. Inget annat ändras; backupminnet rörs inte. Efteråt läses enheten igen så att du ser att ändringen gick fram.",
+    time: "Ställ klockan efter datorn",
+    code: "Kod (lämna tomt för att inte ändra)",
+    mode: "Läge",
+    keepMode: "Ändra inte",
+    submit: "Ställ in",
+    confirm: (serial: string) => `Ställa in enheten ${serial}? Klockan, koden och läget skrivs till enheten.`,
+    writing: "Ställer in …",
+    done: "Klart. Enheten läst igen:",
+    codeResult: (before: number, after: number, ok: boolean) => `Kod ${before} → ${after}${ok ? "" : " (ändringen gick inte fram)"}`,
+    modeResult: (before: string, after: string, ok: boolean) => `Läge ${before} → ${after}${ok ? "" : " (ändringen gick inte fram)"}`,
+    clockResult: (diff: number) => Math.abs(diff) < 2 ? "Klockan stämmer med datorn." : `Klockan skiljer ${Math.round(diff)} s från datorn.`,
+    noClock: "Klockan kunde inte läsas efteråt."
+  },
+  register: {
+    label: "Spara i klubbens enhetsregister",
+    none: "Spara inte",
+    saved: (club: string) => `Sparad i ${club}s enhetsregister.`,
+    failed: "Kunde inte spara i enhetsregistret.",
+    help: "Varje enhet som läses ut eller ställs in sparas med serienummer, kod, batteri och klocka (du behöver vara ledare eller administratör i klubben)."
+  }
 } as const;

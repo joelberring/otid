@@ -10,6 +10,7 @@ import { Notice } from "../ui";
 import { ArchiveList } from "./archive-list";
 import { ClubImportPanel } from "./club-import-panel";
 import { ClubMapsPanel } from "./club-maps-panel";
+import { ClubDevicesPanel } from "./club-devices-panel";
 import { ClubMembersPanel } from "./club-members-panel";
 import { useArchiveChecks } from "./use-archive-checks";
 import { ClubSpacePanel, type ClubSpaceFocus } from "../club-affiliation/club-space-panel";
@@ -20,9 +21,9 @@ import { AccountMenu } from "../account-menu";
 import styles from "./club-archive.module.css";
 
 const text = clubArchiveSv;
-type Tab = "trainings" | "maps" | "members" | "club" | "import";
-const TABS: readonly Tab[] = ["trainings", "maps", "members", "club", "import"];
-const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
+type Tab = "trainings" | "maps" | "members" | "devices" | "club" | "import";
+const TABS: readonly Tab[] = ["trainings", "maps", "members", "devices", "club", "import"];
+const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", devices: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
   import: "ARCHIVE_IMPORT" };
 
 function initialTab(): Tab {
@@ -104,6 +105,7 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       {tab === "maps" && (list.viewer.access.archive ? <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} mapBank={list.viewer.access.mapBank}
         onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationSv.space.archiveClosed}</Notice>)}
       {tab === "members" && <ClubMembersPanel club={club} onChanged={load} />}
+      {tab === "devices" && <ClubDevicesPanel clubId={clubId} />}
       {tab === "club" && admin && <ClubSpacePanel clubId={clubId} clubName={list.clubName} focus={focus} onInvite={() => choose("members")}
         onChanged={load} />}
       {tab === "import" && <ClubImportPanel club={club} onChanged={load} />}

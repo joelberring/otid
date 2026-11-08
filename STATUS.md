@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Ställa in enheter och klubbens enhetsregister (migration 0102, untested)
+- Läs ut enheter → Ställ in enheten: klockan efter datorn, koden och läget; enheten läses igen och sidan visar före och efter
+  och om ändringen gick fram. Inget annat skrivs.
+- Klubbens enhetsregister: välj klubb på sidan, så sparas varje utläst eller inställd enhet (serienummer, modell, kod, läge,
+  batteribyte, backupens antal, klockans fel). Fliken Enheter i klubbarkivet visar listan med batteriets ålder och anteckning.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester (`station-write`), `organizer-roles`, E2E `enheter` (falsk Web Serial).
+- Untested: provas med riktiga enheter (rålogg från sidan).
+
 ### 2026-11-08 – AI-banläggningsassistenten (migration 0101, ADR-0219 tillägg)
 - AI-kopplingen har en ny behörighet, `banlaggning`: Claude listar tävlingarna där kontot får lägga banor, läser banorna (målnivå,
   klasser, längd, stigning, kontroller med beskrivning, sträckor med fågelväg och riktning, varningar) och lämnar notiser märkta

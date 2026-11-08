@@ -85,6 +85,18 @@ Underlag: öppna beskrivningar av systemvärdena och backupposterna (bara fakta,
 en riktig enhet är läst; sidan sparar en rålogg (all trafik) och en CSV med brickorna. Svar som redan kommit hoppas över, fel
 adress, NAK eller tystnad ger ett fel efter att huvudstationen ställts tillbaka.
 
+## Ställa in enheter och klubbens enhetsregister (ägaren 2026-11-08, untested)
+
+På samma sida, "Ställ in enheten": klockan efter datorn, koden (1–511) och läget (kontroll, start, mål, nollställning,
+check). `StationWriteSession` (`station-write.ts`): fjärrläge, systemdata före, `SET_TIME 0xF6` med samma sju byte som
+GET_TIME-svaret, `SET_SYSTEM_VALUE 0x82` från adress 0x71 med läge, kodens låga byte och 0x73 där bara kodens två höga bitar
+(bit 6–7) ändras, sedan systemdata och klockan igen och direktläge. Rapporten visar före och efter och om ändringen gick fram.
+Inget annat skrivs; backupminnet rörs inte. Allt är `untested` tills det provats med en riktig enhet.
+
+Klubbens enhetsregister (migration 0102, fliken Enheter i klubbarkivet): välj klubben på sidan, så sparas varje enhet som
+läses ut eller ställs in (serienummer, modell, programversion, kod, läge, batteribyte, backupminnets antal, klockans fel).
+Ledare och administratörer sparar och skriver anteckningar, administratörer tar bort, alla medlemmar ser listan.
+
 ## Avläsning i webbläsaren
 
 Admin öppnar `/admin/<lopp>/readout` (länk "Öppna avläsning" i arbetsytan).
@@ -175,6 +187,7 @@ på tävling/träning).
 | BSM-USB, modell ej noterad (CP210x, macOS, Chrome) | field-verified¹ för SI9-avläsning |
 | SI-USB-läsare | untested |
 | Utläsning av kontroll, start eller mål (fjärr via BSM) | untested |
+| Inställning av klocka, kod och läge (fjärr via BSM) | untested |
 
 ¹ 2026-10-19, ägarens pilot: två SI9-brickor lästa med en BSM-station på macOS i Chrome. Bricknummer, antal stämplingar
 och stämplingarnas tider avkodades rätt (jämfört med brickorna). Stationens modell och firmware är inte noterade.

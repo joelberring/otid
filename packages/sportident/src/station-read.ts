@@ -51,6 +51,8 @@ export interface StationSystemData {
   readonly batteryStateHex: string;
   readonly backupPointer: number;
   readonly memoryOverflow: boolean;
+  /** Systemvärdet 0x73 (pip, blink och kodens höga bitar), för att skriva koden utan att ändra resten. */
+  readonly flags73: number;
 }
 
 export interface BackupPunch {
@@ -94,7 +96,8 @@ export function parseStationSystem(data: Uint8Array): StationSystemData | undefi
     batteryCapacityRaw: (at(0x19) << 8) | at(0x1a),
     batteryStateHex: hex(v.subarray(0x34, 0x38)),
     backupPointer: ((at(0x1c) << 24) | (at(0x1d) << 16) | (at(0x21) << 8) | at(0x22)) >>> 0,
-    memoryOverflow: at(0x3d) !== 0
+    memoryOverflow: at(0x3d) !== 0,
+    flags73: at(0x73)
   };
 }
 

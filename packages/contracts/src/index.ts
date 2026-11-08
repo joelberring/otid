@@ -301,4 +301,5 @@ export * from "./race-backup";
 export * from "./club-affiliation";
 export * from "./map-project-mcp";
 export * from "./course-setting-mcp";
+export * from "./club-devices";
 export * from "./map-project-recon";

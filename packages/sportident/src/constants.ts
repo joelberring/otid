@@ -26,6 +26,8 @@ export const Command = {
   CARD_REMOVED: 0xe7,
   SET_MASTER_SLAVE: 0xf0,
   GET_TIME: 0xf7,
+  /** Ägaren 2026-11-08: ställa enhetens klocka (samma sju byte som GET_TIME-svaret), `station-write.ts`. */
+  SET_TIME: 0xf6,
   BEEP: 0xf9
 } as const;
 

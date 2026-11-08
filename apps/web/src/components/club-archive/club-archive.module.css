@@ -152,3 +152,9 @@
 /* Ägaren 2026-11-04: "Ny klubbyta" i remsan överst i Mina tävlingar. */
 .smallAction { min-height: 32px; padding: 0 10px; font-size: var(--text-sm); }
 .createInline { flex-basis: 100%; margin-top: 8px; }
+
+/* Ägaren 2026-11-08: klubbens enhetsregister. */
+.deviceTable { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.deviceTable th, .deviceTable td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line, #ddd); vertical-align: middle; }
+.deviceTable input { width: 100%; min-width: 10ch; }
+.deviceWrap { overflow-x: auto; }

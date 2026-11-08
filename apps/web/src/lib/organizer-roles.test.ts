@@ -161,6 +161,14 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   // tävlingen eller gruppen, så den som får når 404 efter klubbens kontroll.
   "organizer/clubs/[clubId]/map-versions/[versionId]/race": { POST: { allow: CLUB_MEMBERS, ...multipart({ "x-otid-race-id": "10000000-0000-4000-8000-000000000009" }) } },
   "organizer/clubs/[clubId]/map-versions/[versionId]/group": { POST: { allow: CLUB_MEMBERS, ...multipart({ "x-otid-group-id": "10000000-0000-4000-8000-000000000009" }) } },
+  // Ägaren 2026-11-08: klubbens enhetsregister.
+  "organizer/clubs/[clubId]/devices": {
+    GET: { allow: CLUB_MEMBERS },
+    POST: { allow: ["OWNER", "ADMIN", "LEADER"], body: () => ({ formatVersion: 1, serialNumber: 200514 + Math.floor(Math.random() * 1000), model: "BSF8",
+      firmware: "656", code: 31, mode: 2, batteryDate: null, batteryCapacityRaw: null, memoryKb: 128, backupCount: 0, clockOffsetMs: 0 }) },
+    PUT: { allow: ["OWNER", "ADMIN", "LEADER"], body: { formatVersion: 1, serialNumber: 1, note: "Anteckning" } },
+    DELETE: { allow: CLUB_ADMINS, body: { formatVersion: 1, serialNumber: 1 } }
+  },
   "organizer/clubs/[clubId]/members": {
     POST: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, requestId: id(), email: `ny.${id().slice(0, 8)}@test.o-tid.se`, role: "READER" }) },
     PUT: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, memberId: id(), role: "READER" }) },

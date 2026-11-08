@@ -149,6 +149,11 @@ services:
       # Lantmäteriets ortofoton med kontots egna uppgifter (K4c). Tomma = Lantmäteriets adresser; CI pekar på en falsk STAC.
       OTID_LM_STAC_BILD_URL: ${OTID_LM_STAC_BILD_URL:-}
       OTID_LM_TOKEN_URL: ${OTID_LM_TOKEN_URL:-}
+      # ADR-0219 K5: laserdata (stac-hojd) och geo-arbetaren. Tom nyckel = ingen geo-arbetare kan hämta jobb (docs/drift.md, Geo-arbetaren).
+      OTID_LM_STAC_HOJD_URL: ${OTID_LM_STAC_HOJD_URL:-}
+      OTID_LM_LASER_COLLECTION: ${OTID_LM_LASER_COLLECTION:-}
+      OTID_GEO_WORKER_TOKEN: ${OTID_GEO_WORKER_TOKEN:-}
+      OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
       # off = den här instansen hämtar inga radiostämplingar. Tom = hämtar (bara en instans åt gången, PostgreSQL-lås).
       OTID_RADIO_POLLER: ${OTID_RADIO_POLLER:-}
       # ADR-0189: kartornas kvot i MB (tom = 2048 per konto och 20480 för hela servern; 0 = ingen gräns). Bara i web.

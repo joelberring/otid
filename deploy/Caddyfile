@@ -27,6 +27,12 @@
 		max_size 210MB
 	}
 
+	# ADR-0219 K5: geo-arbetarens resultatfiler (bilden och kurvorna), högst 200 MB i appen (GEO_OUTPUT_MAX_BYTES).
+	@geooutputs path /api/geo-worker/jobs/*/outputs/*
+	request_body @geooutputs {
+		max_size 210MB
+	}
+
 	# Statiska mediefiler som inte hör till appen, t.ex. introduktionsfilmen (NEXT_PUBLIC_INTRO_FILM_URL=/media/otid-intro.mp4).
 	# Filerna läggs i ./media på servern (aldrig i git) och visas skrivskyddat; Range-anrop fungerar, så filmen kan spolas.
 	handle_path /media/* {

@@ -120,6 +120,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   }), []);
   const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); }, []);
 
-  return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, open, fetchOsm, fetching, propose, cancel,
+  /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
+  const openData = useCallback((fileName: string, data: SourceData) => { setProblem(undefined); setSent(undefined); show(fileName, data); }, [show]);
+  return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, open, openData, fetchOsm, fetching, propose, cancel,
     candidates: result?.objects ?? [], canImport: view.viewer.canPropose };
 }

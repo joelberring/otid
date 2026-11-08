@@ -4,6 +4,7 @@ name: Avbildningar
 # (deploy/backup.Dockerfile) för linux/amd64 och läggs i GitHub Container Registry:
 #   ghcr.io/joelberring/otid-web:<sha>, :<kort sha>, :main
 #   ghcr.io/joelberring/otid-backup:<sha>, :<kort sha>, :main
+#   ghcr.io/joelberring/otid-geo:<sha>, :<kort sha>, :main (ADR-0219 K5, amd64 och arm64; körs på geo-servern)
 # Servern hämtar dem med `docker compose -f docker-compose.prod.yml pull` (docs/drift.md, Uppdatera) och bygger inget själv.
 # På andra grenar byggs avbildningarna bara (inget läggs upp) när något som påverkar dem ändras, för att se att det går.
 on:
@@ -17,6 +18,8 @@ on:
       - Dockerfile
       - .dockerignore
       - deploy/backup.Dockerfile
+      - deploy/geo.Dockerfile
+      - scripts/geo-worker.ts
       - apps/web/next.config.ts
       - package.json
       - pnpm-lock.yaml
@@ -39,17 +42,25 @@ jobs:
           - image: otid-web
             context: .
             file: Dockerfile
+            platforms: linux/amd64
           - image: otid-backup
             context: deploy
             file: deploy/backup.Dockerfile
+            platforms: linux/amd64
+          # ADR-0219 K5: geo-arbetaren för geo-servern (Hetzner CX = amd64, CAX = arm64).
+          - image: otid-geo
+            context: .
+            file: deploy/geo.Dockerfile
+            platforms: linux/amd64,linux/arm64
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
-          platforms: linux/amd64
+          platforms: ${{ matrix.platforms }}
           push: false
           tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
@@ -77,9 +88,15 @@ jobs:
           - image: otid-web
             context: .
             file: Dockerfile
+            platforms: linux/amd64
           - image: otid-backup
             context: deploy
             file: deploy/backup.Dockerfile
+            platforms: linux/amd64
+          - image: otid-geo
+            context: .
+            file: deploy/geo.Dockerfile
+            platforms: linux/amd64,linux/arm64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,6 +115,7 @@ jobs:
             if [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$SHA" ]; then echo "$IMAGE:main"; fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -108,7 +126,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
-          platforms: linux/amd64
+          platforms: ${{ matrix.platforms }}
           push: true
           tags: ${{ steps.tags.outputs.list }}
           labels: |

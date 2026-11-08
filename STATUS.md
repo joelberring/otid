@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – K5: geo-arbetaren och Karttapullautin (migration 0103, provas)
+- Kartprojektet → Laserdata och Karttapullautin: sök laserrutor hos Lantmäteriet med egna uppgifter, kör Karttapullautin på
+  geo-servern; bilden blir underlag, kurvor m.m. läses in som kandidater. Geo-arbetaren (`scripts/geo-worker.ts`, avbildningen
+  `otid-geo` för amd64 och arm64) talar bara HTTPS med O-Tid; uppgifterna lämnar aldrig servern.
+- Verifierat: typecheck, lint, integrationstest `adr-0219-geo`, geo-arbetaren med riktig Karttapullautin 2.15.4 mot en falsk
+  O-Tid (två syntetiska laserrutor, sju resultatfiler), `public-paths`, `vector-import`.
+- Provas: riktiga Lantmäteriet (väntar på beställningen), avbildningens bygge i CI. Kvar: K5b automatisk geo-server.
+
 ### 2026-11-08 – AI-assistenten: nivåstödets mätningar på servern
 - Nytt MCP-verktyg `course_level`: per kontroll och sträcka den uppmätta nivån, regeln, mätvärdena och avvikelsen mot
   banans målnivå, samma som banläggningens nivåstöd. Kartjobbet `COURSE_LEVEL` i utskriftsarbetaren (minst 5 min, 512 MB).

@@ -849,6 +849,8 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_IMPORT_TOKEN` | tom (fråga) | Bara på datorn som kör `pnpm archive-import`: klubbarkivets importnyckel (annars `--nyckel-fil` eller en fråga). |
 | `OTID_EVENTOR_BASE_URL`, `OTID_ROC_BASE_URL`, `OTID_GOOGLE_BASE_URL`, `OTID_GOOGLE_AUTHORIZE_URL` | tomma = de riktiga tjänsterna | Endast test: CI pekar på falska tjänster. Lämna tomma i drift. |
 | `OTID_OVERPASS_URL` | tom = `https://overpass-api.de/api/interpreter` | Kartprojektets hämtning från OpenStreetMap (K4c). En egen Overpass går att ange; CI pekar på en falsk. |
+| `OTID_LM_STAC_HOJD_URL`, `OTID_LM_LASER_COLLECTION` | tomma = `https://api.lantmateriet.se/stac-hojd/v1` och samlingen vars namn nämner laser och skog | Laserdata från Lantmäteriet (K5, provas). |
+| `OTID_GEO_WORKER_TOKEN`, `OTID_GEO_TILES_PER_MONTH` | tom, 200 | Geo-arbetarens nyckel och laserrutor per konto och månad ([Geo-arbetaren](#geo-arbetaren-adr-0219-k5)). |
 | `OTID_LM_STAC_BILD_URL`, `OTID_LM_TOKEN_URL` | tomma = `https://api.lantmateriet.se/stac-bild/v1` och `https://apimanager.lantmateriet.se/oauth2/token` | Ortofoton från Lantmäteriet med användarens egna uppgifter (K4c, provas). Uppgifterna krypteras med `OTID_EVENTOR_MASTER_KEY`; utan den kan de inte sparas. CI pekar på en falsk STAC. |
 
 ## Prova driftuppsättningen lokalt
@@ -882,3 +884,28 @@ O-Tid är inloggningsserver (OAuth 2.1) och MCP-server för Claude med personens
 - **Gränser:** 30 kartjobb per minut och konto (två samtidigt), 20 registreringar och 300 token-anrop per IP och timme.
 - **Rollerna:** kör `sh deploy/db-roles.sh setup` efter migrering 0093 så att `otid_print` får kartjobben (migreringen ger
   samma rättigheter när rollerna redan finns).
+
+## Geo-arbetaren (ADR-0219, K5)
+
+Karttapullautin på laserdata körs av geo-arbetaren på en egen geo-server, aldrig på tävlingsservern. Avbildningen
+`ghcr.io/joelberring/otid-geo` (amd64 och arm64) innehåller Karttapullautin (GPL-3, byggt oförändrat ur källkoden) och
+`scripts/geo-worker.ts`. Geo-servern talar bara HTTPS med O-Tid; inga portar öppnas på den.
+
+- **Laserdata:** användaren lägger in sina egna uppgifter till Lantmäteriet (Mitt konto) och beställer Laserdata Nedladdning,
+  skog på Geotorget. Servern hämtar rutorna åt geo-arbetaren med de uppgifterna; de lämnar aldrig tävlingsservern. Laserdata
+  gäller under CC BY 4.0 (© Lantmäteriet) och kan innehålla personuppgifter enligt Lantmäteriets villkor.
+- **Nyckeln:** sätt `OTID_GEO_WORKER_TOKEN` (`openssl rand -hex 32`) i `.env` på tävlingsservern och starta om `web`.
+- **Prova för hand** (tills den automatiska starten finns): skapa en server (CX23 eller CAX11, Ubuntu, din SSH-nyckel),
+  installera Docker och kör
+
+  ```bash
+  docker run -d --restart unless-stopped --name otid-geo -e OTID_GEO_ORIGIN=https://<OTID_DOMAIN> \
+    -e OTID_GEO_WORKER_TOKEN=<samma nyckel> -e OTID_GEO_EXIT_IDLE_MIN=0 ghcr.io/joelberring/otid-geo:main
+  docker logs -f otid-geo
+  ```
+
+  Radera servern när jobben är klara; den kostar per timme.
+- **Minne:** Karttapullautin tar en ruta i taget (`processes=1`), så 4 GB räcker. Fler än fyra rutor slås ihop i halv
+  upplösning, och bilden krymps tills den ryms som underlag (högst 40 MB och 30000 px).
+- **Gränser:** två jobb per konto åt gången, högst 16 rutor per jobb och `OTID_GEO_TILES_PER_MONTH` rutor per konto och
+  månad. Resultaten räknas mot kontots kartkvot.

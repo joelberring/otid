@@ -287,3 +287,23 @@ en etapp.
    vägvalsinställningar. Jobbet får minst fem minuter och 512 MB; anropet väntar 90 s och svarar annars att mätningen pågår.
    Samma bana, karta och inställningar (hash i jobbet) hämtar ett jobb som redan räknas eller är klart. Sprintkartor,
    poängbanor och banor med fler än 60 sträckor bedöms inte.
+
+## Tillägg 2026-11-08: geo-arbetaren och Karttapullautin (K5, del 1, migration 0103)
+
+Ägaren: geo-arbetaren körs på en egen geo-server som O-Tid startar vid behov hos Hetzner (förstahand CX23, andrahand CAX11,
+båda 4 GB) och raderar efter tomgång, så att användarna inte installerar något och tävlingsservern inte belastas. Det
+ändrar svaret 2026-11-07 (samma server under testerna).
+
+1. **Kön:** `map_project_geo_job` och resultatfilerna `map_project_geo_output` (i kartinnehållet, tas bort med jobbet).
+   Jobbet gäller laserrutor från Lantmäteriets `stac-hojd` och några av Karttapullautins inställningar (en lista med gränser).
+   Två jobb per konto åt gången, högst 16 rutor per jobb och en kvot rutor per månad.
+2. **Geo-arbetaren** talar bara HTTPS med O-Tid med sin nyckel (`/api/geo-worker/…`): hämtar jobbet, livstecken med
+   förloppet (svaret säger om jobbet avbrutits), laserfilen, resultatfilerna och klart eller fel. Laserfilen hämtas av servern
+   med jobbkontots egna uppgifter, som aldrig lämnar servern. Ett jobb utan livstecken i tio minuter läggs tillbaka i kön och
+   misslyckas efter två försök.
+3. **Karttapullautin** (GPL-3) byggs oförändrat ur källkoden vid en låst tagg och körs som ett eget program i avbildningen
+   `otid-geo`; ingen kod kopieras in. En ruta i taget (`processes=1`), rutorna slås ihop (`pngmerge`, `dxfmerge`).
+4. **Resultatet:** bilden blir ett underlag (K4a) i rutornas koordinatsystem; kurvor, formlinjer, branter, stup och knollar
+   ligger som DXF och läses in som kandidater (K4b) med symbolförslag ur Karttapullautins lagernamn (101–104, 109, 201, 202).
+5. **Kvar (K5b):** den automatiska starten och raderingen av geo-servern (Hetzners API, servertyper och platser i tur och
+   ordning, budget per månad, mejl till ägaren när ingen typ går att skapa), fuktighet och våtmarker.

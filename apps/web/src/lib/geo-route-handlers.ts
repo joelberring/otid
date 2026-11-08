@@ -1,0 +1,173 @@
+import {
+  authenticateGeoWorker, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
+  lantmaterietRuntimeFromEnvironment, listGeoJobs, openGeoJobLaser, readGeoOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
+  type LaserRuntime
+} from "@o-tid/application";
+import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, UUID_PATTERN } from "@o-tid/contracts";
+import type { Database } from "@o-tid/database";
+import { failure, guarded, mutation, problem, readProof, streamChunks, type ClubEnvironment } from "./club-route-handlers";
+import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
+
+/**
+ * ADR-0219 K5: geo-arbetarens jobb. Användarens anrop under /api/organizer/map-projects/[projectId]/geo-jobs (samma skydd som
+ * projektets övriga) och geo-arbetarens under /api/geo-worker (bara med geo-arbetarens nyckel, ingen session).
+ */
+const laserRuntime = (): LaserRuntime => laserRuntimeFromEnvironment(lantmaterietRuntimeFromEnvironment(process.env));
+
+function geoFailure(result: { status: string; detail?: string }): Response {
+  if (result.status === "no-credential") return problem("SOURCE_NO_CREDENTIAL");
+  if (result.status === "rejected") return problem("SOURCE_REJECTED");
+  if (result.status === "too-large") return problem("SOURCE_AREA_TOO_LARGE");
+  if (result.status === "throttled") return problem("SOURCE_THROTTLED");
+  if (result.status === "busy") return problem("GEO_JOB_BUSY");
+  if (result.status === "quota") return problem("GEO_JOB_QUOTA");
+  if (result.status === "unavailable") return privateJson({ formatVersion: 1, error: "SOURCE_UNAVAILABLE", detail: result.detail }, 502);
+  return failure(result.status);
+}
+
+/** POST sök laserrutor för en ruta (/api/organizer/map-projects/[projectId]/sources/lantmateriet/laser). */
+export async function mapProjectLaserSearchRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env,
+  runtime: LaserRuntime = laserRuntime()): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId)) return failure("not-found");
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await searchMapProjectLaser(db, { ...input.proof, projectId, request: input.body }, runtime);
+    return result.status === "ok" ? privateJson({ formatVersion: 1, collection: result.collection, items: result.items }) : geoFailure(result);
+  });
+}
+
+/** GET projektets geo-jobb och geo-serverns läge, POST nytt jobb. */
+export async function geoJobsRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env,
+  runtime: LaserRuntime = laserRuntime()): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId)) return failure("not-found");
+  if (request.method === "GET") {
+    const input = await readProof(request, environment);
+    if ("response" in input) return input.response;
+    return guarded(async () => {
+      const result = await listGeoJobs(db, { ...input.proof, projectId }, await geoServerView(db, environment as Record<string, string | undefined>));
+      return result.status === "ok" ? privateJson(result.list) : failure(result.status);
+    });
+  }
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await createGeoJob(db, { ...input.proof, projectId, request: input.body }, runtime);
+    return result.status === "created" ? privateJson({ formatVersion: 1, job: result.job }, result.replayed ? 200 : 201) : geoFailure(result);
+  });
+}
+
+/** DELETE avbryt ett pågående jobb eller ta bort ett färdigt. */
+export async function geoJobRoute(db: Database, request: Request, projectId: string, jobId: string, environment: ClubEnvironment = process.env)
+  : Promise<Response> {
+  if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(jobId)) return failure("not-found");
+  const input = await mutation(request, environment, "none");
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await removeGeoJob(db, { ...input.proof, projectId, jobId });
+    return result.status === "cancelled" || result.status === "deleted" ? privateJson({ formatVersion: 1, status: result.status }) : failure(result.status);
+  });
+}
+
+/** GET en resultatfil (kurvor m.m. som DXF, bilden, världsfilen). */
+export async function geoOutputRoute(db: Database, request: Request, projectId: string, jobId: string, name: string, environment: ClubEnvironment = process.env)
+  : Promise<Response> {
+  if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(jobId) || !GEO_OUTPUT_NAME.test(name)) return failure("not-found");
+  const input = await readProof(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await readGeoOutput(db, { ...input.proof, projectId, jobId, name });
+    if (result.status !== "ok") return failure(result.status);
+    const headers = new Headers(privateHeaders);
+    headers.set("content-type", result.mediaType === "application/dxf" ? "application/dxf" : result.mediaType);
+    headers.set("content-length", String(result.bytes.byteLength));
+    return new Response(new Uint8Array(result.bytes), { status: 200, headers });
+  });
+}
+
+// --- Geo-arbetaren ------------------------------------------------------------------------------------------------------
+
+const WORKER_NAME = /^[A-Za-z0-9_.:-]{1,80}$/;
+function worker(request: Request, environment: Record<string, string | undefined>): string | Response {
+  if (!authenticateGeoWorker(request.headers.get("authorization"), environment)) return privateJson({ formatVersion: 1, error: "UNAUTHORIZED" }, 401);
+  const name = request.headers.get("x-otid-geo-worker") ?? "";
+  return WORKER_NAME.test(name) ? name : failure("invalid-request");
+}
+async function jsonBody(request: Request): Promise<unknown> {
+  const text = await request.text();
+  if (text.length > 64 * 1024) return undefined;
+  try { return JSON.parse(text || "{}") as unknown; } catch { return undefined; }
+}
+const workerGuarded = (run: () => Promise<Response>) => guarded(run);
+
+/** POST /api/geo-worker/claim: nästa jobb, eller 204 när kön är tom. */
+export async function geoWorkerClaimRoute(db: Database, request: Request, environment: Record<string, string | undefined> = process.env): Promise<Response> {
+  const name = worker(request, environment);
+  if (typeof name !== "string") return name;
+  return workerGuarded(async () => {
+    const job = await claimGeoJob(db, name);
+    return job ? privateJson({ formatVersion: 1, job }) : new Response(null, { status: 204, headers: privateHeaders });
+  });
+}
+
+/** POST /api/geo-worker/jobs/[jobId]/heartbeat: förloppet; svaret säger om jobbet ska fortsätta. */
+export async function geoWorkerHeartbeatRoute(db: Database, request: Request, jobId: string, environment: Record<string, string | undefined> = process.env)
+  : Promise<Response> {
+  const name = worker(request, environment);
+  if (typeof name !== "string") return name;
+  if (!UUID_PATTERN.test(jobId)) return failure("not-found");
+  return workerGuarded(async () => privateJson({ formatVersion: 1, action: await heartbeatGeoJob(db, jobId, name, await jsonBody(request)) }));
+}
+
+/** GET /api/geo-worker/jobs/[jobId]/laser/[index]: laserfilen, hämtad med jobbkontots uppgifter (strömmad). */
+export async function geoWorkerLaserRoute(db: Database, request: Request, jobId: string, index: string,
+  environment: Record<string, string | undefined> = process.env, runtime: LaserRuntime = laserRuntime()): Promise<Response> {
+  const name = worker(request, environment);
+  if (typeof name !== "string") return name;
+  if (!UUID_PATTERN.test(jobId) || !/^\d{1,2}$/.test(index)) return failure("not-found");
+  return workerGuarded(async () => {
+    const result = await openGeoJobLaser(db, jobId, name, Number(index), runtime);
+    if (result.status !== "ok") return geoFailure(result);
+    const headers = new Headers(privateHeaders);
+    headers.set("content-type", "application/octet-stream");
+    const length = result.response.headers.get("content-length");
+    if (length) headers.set("content-length", length);
+    return new Response(result.response.body, { status: 200, headers });
+  });
+}
+
+/** PUT /api/geo-worker/jobs/[jobId]/outputs/[name]: en resultatfil (strömmad till kartinnehållet). */
+export async function geoWorkerOutputRoute(db: Database, request: Request, jobId: string, fileName: string,
+  environment: Record<string, string | undefined> = process.env): Promise<Response> {
+  const name = worker(request, environment);
+  if (typeof name !== "string") return name;
+  if (!UUID_PATTERN.test(jobId) || !GEO_OUTPUT_NAME.test(fileName) || !request.body) return failure("invalid-request");
+  if (!validDeclaredLength(request, GEO_OUTPUT_MAX_BYTES)) return problem("MAP_FILE_TOO_LARGE");
+  const mediaType = (request.headers.get("content-type") ?? "").split(";")[0]!.trim();
+  const body = request.body;
+  return workerGuarded(async () => {
+    const staged = await stageMapContent(db, streamChunks(body), { maxBytes: GEO_OUTPUT_MAX_BYTES });
+    if (staged.kind === "too-large") return problem("MAP_FILE_TOO_LARGE");
+    if (staged.kind === "empty") return failure("invalid-request");
+    let result: Awaited<ReturnType<typeof storeGeoOutput>>;
+    try { result = await storeGeoOutput(db, { jobId, worker: name, name: fileName, mediaType, file: staged }); }
+    catch (error) { await discardStagedMapContent(db, staged.contentId); throw error; }
+    if (result.status !== "stored") await discardStagedMapContent(db, staged.contentId).catch(() => undefined);
+    if (result.status === "stored") return privateJson({ formatVersion: 1, status: "stored" }, 201);
+    if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED");
+    if (result.status === "too-large") return problem("MAP_FILE_TOO_LARGE");
+    return failure(result.status);
+  });
+}
+
+/** POST /api/geo-worker/jobs/[jobId]/finish: klart (bilden blir ett underlag) eller misslyckat med en förklaring. */
+export async function geoWorkerFinishRoute(db: Database, request: Request, jobId: string, environment: Record<string, string | undefined> = process.env)
+  : Promise<Response> {
+  const name = worker(request, environment);
+  if (typeof name !== "string") return name;
+  if (!UUID_PATTERN.test(jobId)) return failure("not-found");
+  return workerGuarded(async () => {
+    const result = await finishGeoJob(db, jobId, name, await jsonBody(request));
+    return result.status === "ok" ? privateJson({ formatVersion: 1, layerId: result.layerId }) : failure(result.status);
+  });
+}

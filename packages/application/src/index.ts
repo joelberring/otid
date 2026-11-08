@@ -209,6 +209,11 @@ export { changeClubDevice, listClubDevices, recordClubDevice } from "./club-devi
 export {
   lantmaterietRuntimeFromEnvironment, readMapProjectOrthoAsset, searchMapProjectOrtho, type LantmaterietRuntime, type OrthoItem
 } from "./map-project-lantmateriet";
+export { laserRuntimeFromEnvironment, searchMapProjectLaser, type LaserItem, type LaserRuntime } from "./map-project-laser";
+export {
+  authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoServerView, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,
+  removeGeoJob, storeGeoOutput, type ClaimedGeoJob
+} from "./map-project-geo-jobs";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";
 export { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";

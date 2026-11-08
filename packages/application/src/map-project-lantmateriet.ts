@@ -46,7 +46,7 @@ export function allowedSourceUrl(href: string, runtime: LantmaterietRuntime): UR
 
 /** OAuth2-biljetter per nyckel (bara en cache; hämtas igen när de gått ut eller servern startats om). */
 const tokens = new Map<string, { token: string; expires: number }>();
-async function authorization(secret: MapSourceSecret, runtime: LantmaterietRuntime): Promise<string | undefined> {
+export async function lantmaterietAuthorization(secret: MapSourceSecret, runtime: LantmaterietRuntime): Promise<string | undefined> {
   const basic = `Basic ${Buffer.from(`${secret.id}:${secret.secret}`, "utf8").toString("base64")}`;
   if (secret.method === "BASIC") return basic;
   const cacheKey = createHash("sha256").update(`${runtime.tokenUrl}\n${secret.id}\n${secret.secret}`).digest("hex");
@@ -110,7 +110,7 @@ export async function searchMapProjectOrtho(db: Database, input: ClubProof & { p
   const box = parsed.data!.box;
   let response: Response;
   try {
-    const auth = await authorization(secret, runtime);
+    const auth = await lantmaterietAuthorization(secret, runtime);
     if (!auth) return { status: "rejected" };
     response = await (runtime.fetch ?? fetch)(`${runtime.stacUrl}/search`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30_000),
       headers: { authorization: auth, "content-type": "application/json", accept: "application/geo+json, application/json" },
@@ -146,7 +146,7 @@ export async function readMapProjectOrthoAsset(db: Database, input: ClubProof & 
   const secret = await openMapSourceCredential(db, access.accountId, runtime.environment);
   if (!secret) return { status: "no-credential" };
   try {
-    const auth = await authorization(secret, runtime);
+    const auth = await lantmaterietAuthorization(secret, runtime);
     if (!auth) return { status: "rejected" };
     for (let hop = 0; hop < 4; hop += 1) {
       const response: Response = await (runtime.fetch ?? fetch)(url.href, { redirect: "manual", signal: AbortSignal.timeout(60_000),

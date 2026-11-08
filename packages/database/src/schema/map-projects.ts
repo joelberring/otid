@@ -1,4 +1,4 @@
-import { bigint, date, doublePrecision, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { clubMapVersions, clubs } from "./clubs";
 import { mapContents } from "./map-content";
@@ -260,3 +260,35 @@ export const mapSourceCredentials = pgTable("map_source_credential", {
   hint: text("hint").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 }, table => [primaryKey({ columns: [table.accountId, table.provider] })]);
+
+export type GeoJobStatus = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
+/** K5 (migration 0103): geo-arbetarens jobb (Karttapullautin på laserdata), körs av en egen geo-server över HTTPS. */
+export const mapProjectGeoJobs = pgTable("map_project_geo_job", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<"PULLAUTIN">().notNull(),
+  status: text("status").$type<GeoJobStatus>().notNull(),
+  request: jsonb("request").$type<Record<string, unknown>>().notNull(),
+  progress: jsonb("progress").$type<Record<string, unknown>>(),
+  result: jsonb("result").$type<Record<string, unknown>>(),
+  error: text("error"),
+  worker: text("worker"),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  requestId: uuid("request_id").notNull().unique()
+}, table => [index("map_project_geo_job_queue_idx").on(table.status, table.createdAt),
+  index("map_project_geo_job_project_idx").on(table.projectId, table.createdAt)]);
+
+/** Geo-jobbets resultatfiler i kartinnehållet (tas bort med jobbet). */
+export const mapProjectGeoOutputs = pgTable("map_project_geo_output", {
+  jobId: uuid("job_id").notNull().references(() => mapProjectGeoJobs.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  contentSha256: text("content_sha256").notNull().references(() => mapContents.sha256),
+  mediaType: text("media_type").notNull(),
+  byteSize: bigint("byte_size", { mode: "number" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, table => [primaryKey({ columns: [table.jobId, table.name] }), index("map_project_geo_output_content_idx").on(table.contentSha256)]);

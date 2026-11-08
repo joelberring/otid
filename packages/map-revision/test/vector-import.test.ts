@@ -56,6 +56,13 @@ describe("vektorunderlagen (K4b)", () => {
     expect(suggestSymbol(layer("GÅNGVÄG", { lines: 1 }), symbols)).toBe("s505");
     expect(suggestSymbol(layer("Träd", { points: 4 }), symbols)).toBe("s417");
     expect(suggestSymbol(layer("0153", { lines: 4 }), symbols)).toBeUndefined();
+    // Karttapullautins lager (K5).
+    const isom = ["101", "102", "103", "104", "201", "202"].map(code => ({ id: `s${code}`, code, kind: "line" }))
+      .concat([{ id: "s109", code: "109", kind: "point" }]);
+    expect(Object.fromEntries(["contour", "contour_index", "contour_intermed", "depression_intermed", "formline", "slope_line", "cliff2", "cliff3"]
+      .map(name => [name, suggestSymbol(layer(name, { lines: 2 }), isom)]))).toEqual({ contour: "s101", contour_index: "s102",
+      contour_intermed: "s103", depression_intermed: "s103", formline: "s103", slope_line: "s104", cliff2: "s202", cliff3: "s201" });
+    expect(suggestSymbol(layer("uglydotknoll", { points: 2 }), isom)).toBe("s109");
   });
 
   it("räknar om, slår ihop brutna linjer, tar bort dubbletter, stumpar och det utanför kartan", () => {

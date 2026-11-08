@@ -78,6 +78,7 @@
     { "idx": 73, "version": "7", "when": 1805904000000, "tag": "0099_klass_kallnamn", "breakpoints": true },
     { "idx": 74, "version": "7", "when": 1805990400000, "tag": "0100_kartkallor_konto", "breakpoints": true },
     { "idx": 75, "version": "7", "when": 1806076800000, "tag": "0101_kartjobb_banor", "breakpoints": true },
-    { "idx": 76, "version": "7", "when": 1806163200000, "tag": "0102_klubbens_enheter", "breakpoints": true }
+    { "idx": 76, "version": "7", "when": 1806163200000, "tag": "0102_klubbens_enheter", "breakpoints": true },
+    { "idx": 77, "version": "7", "when": 1806249600000, "tag": "0103_geo_arbetaren", "breakpoints": true }
   ]
 }

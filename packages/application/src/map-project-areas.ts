@@ -13,7 +13,7 @@ import type { DbExecutor } from "./snapshot";
 /**
  * ADR-0219 tillägget om arbetssätt (K1): delområden som delas ut till personer. I det egna området ritar man direkt, i någon
  * annans blir ändringarna förslag (`editRoute` i map-revision). Projektets ägare skapar, ändrar och tar bort områden; den som
- * fått ett område får ändra dess status (underlag, grundritat, rekat, klart). Alla medlemmar ser områdena.
+ * fått ett område får ändra dess status (underlag, grundritat, rekat, klart) och revideringsdatum (etapperna, 0098). Alla medlemmar ser områdena.
  *
  * Den som fått området har ingen främmande nyckel (migration 0091): den nollställs här när personen tas bort ur projektet och när
  * kontot tas bort (`clearAreaAssignee`).
@@ -31,7 +31,7 @@ export async function workAreas(tx: DbExecutor, projectId: string): Promise<Work
 
 const view = (row: AreaRow, name: string | null | undefined): MapProjectAreaView => ({ areaId: row.id, name: row.name, polygon: row.polygon,
   assignee: row.assigneeAccountId ? { accountId: row.assigneeAccountId, name: name ?? null } : null, status: row.status, sort: row.sort,
-  createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() });
+  createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), revisedOn: row.revisedOn ?? null });
 
 /** Projektets områden i ordning (sortering, sedan namn), med namnet på den som fått området. */
 export async function mapProjectAreaViews(tx: DbExecutor, projectId: string): Promise<MapProjectAreaView[]> {
@@ -106,15 +106,20 @@ export async function updateMapProjectArea(db: Database, input: ClubProof & { pr
     if (!row) return { status: "not-found" } as const;
     if (!parsed.success || (parsed.data.polygon && areaPolygonProblem(parsed.data.polygon))) return { status: "invalid-request" } as const;
     const { name, polygon, assigneeAccountId, status, sort } = parsed.data;
-    const change = { name, polygon, assigneeAccountId, status, sort };
+    // Etapperna: ett område som blir klart utan datum får dagens (det som redan står ändras inte).
+    const revisedOn = parsed.data.revisedOn !== undefined ? parsed.data.revisedOn
+      : status === "DONE" && row.status !== "DONE" && !row.revisedOn ? now.toISOString().slice(0, 10) : undefined;
+    const change = { name, polygon, assigneeAccountId, status, sort, revisedOn };
     const owner = mapProjectAllows(access.role, access.project, "manage");
-    const onlyStatus = Object.entries(change).every(([key, value]) => key === "status" || value === undefined);
+    // Den som fått området får ändra statusen och revideringsdatumet.
+    const onlyStatus = Object.entries(change).every(([key, value]) => key === "status" || key === "revisedOn" || value === undefined);
     const assignee = row.assigneeAccountId === access.accountId && mapProjectAllows(access.role, access.project, "propose");
     if (!owner && !(assignee && onlyStatus)) return { status: "forbidden" } as const;
     if (change.assigneeAccountId && !await isMember(tx, access.project.id, change.assigneeAccountId)) return { status: "invalid-request" } as const;
     const [next] = await tx.update(areas).set({ ...change, updatedAt: now }).where(where).returning();
     await mapProjectJournal(tx, access.project, { action: onlyStatus ? "MAP_PROJECT_AREA_STATUS_CHANGED" : "MAP_PROJECT_AREA_CHANGED",
-      actorAccountId: access.accountId, details: { projectId: access.project.id, areaId: row.id, ...(change.status ? { status: change.status } : {}) },
+      actorAccountId: access.accountId, details: { projectId: access.project.id, areaId: row.id, ...(change.status ? { status: change.status } : {}),
+        ...(change.revisedOn !== undefined ? { revisedOn: change.revisedOn } : {}) },
       now });
     return { status: "ok", area: await oneView(tx, next!) } as const;
   });

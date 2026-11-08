@@ -11,7 +11,9 @@ import {
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { Viewport } from "../../lib/course-setting-viewport";
 import { draftObject, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
-import { drawAreas, drawDraftPoints, drawHandles, drawMapArea, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
+import {
+  drawAreas, drawDraftPoints, drawHandles, drawMapArea, drawPreview, drawProposed, drawSelection, STAGE_COLORS, stageAge, type AreaDrawing
+} from "../../lib/map-project-overlay";
 import { coverageImage, drawCoverage, drawNotes, drawReconMarkers, drawTracks, noteAt } from "../../lib/map-project-recon-overlay";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { NoteDetail, NoteForm, NotesPanel } from "./map-project-notes";
@@ -382,11 +384,14 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   ]), [editor.state?.proposed, collab.proposals, shownProposal]);
   const proposedShown = useMemo(() => proposedDrawing(collab.proposals.find(proposal => proposal.proposalId === shownProposal)?.edits ?? []),
     [collab.proposals, shownProposal]);
+  const [stages, setStages] = useState(false);
   const areaDrawings = useMemo((): AreaDrawing[] => [
-    ...collab.areas.map(area => ({ polygon: area.polygon, label: area.name, selected: area.areaId === shownArea,
+    ...collab.areas.map(area => ({ polygon: area.polygon, selected: area.areaId === shownArea,
+      label: stages ? text.collab.stageLabel(area.name, area.revisedOn) : area.name,
+      fill: stages ? STAGE_COLORS[stageAge(area.revisedOn, new Date())] : undefined,
       owner: !area.assignee ? "NONE" as const : area.assignee.accountId === view.viewer.accountId ? "MINE" as const : "OTHER" as const })),
     ...(newArea ? [{ polygon: [newArea], label: "", owner: "MINE" as const, selected: true }] : [])
-  ], [collab.areas, shownArea, newArea, view.viewer.accountId]);
+  ], [collab.areas, shownArea, newArea, view.viewer.accountId, stages]);
 
   const reconResult = recon.result;
   const coverage = useMemo(() => reconResult?.coverage && recon.layers.has("COVERAGE")
@@ -544,7 +549,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             if (!newArea) return;
             void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } });
           }}
-          onCancelArea={() => { setNewArea(undefined); setTool("select"); }} />
+          onCancelArea={() => { setNewArea(undefined); setTool("select"); }} stages={stages} onStages={setStages} />
       </MapProjectSidebar>
     </div>
   </main>;

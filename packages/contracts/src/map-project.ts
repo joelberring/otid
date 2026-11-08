@@ -105,13 +105,17 @@ const areaPointSchema = z.object({ x: z.number().finite().min(-5_000_000).max(5_
 export const MAP_PROJECT_AREA_MAX_BYTES = 2 * 1024 * 1024;
 export const mapProjectAreaPolygonSchema = z.array(z.array(areaPointSchema).min(3).max(2000)).min(1).max(20);
 export const mapProjectAreaNameSchema = z.string().trim().min(1).max(80);
+/** Etappens revideringsdatum (`YYYY-MM-DD`, ett riktigt datum mellan 1900 och 2200), null tar bort det. */
+export const mapProjectAreaRevisedOnSchema = z.string().regex(/^(19|20|21)\d{2}-\d{2}-\d{2}$/)
+  .refine(value => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value)).nullable();
 export const mapProjectAreaCreateRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, name: mapProjectAreaNameSchema, polygon: mapProjectAreaPolygonSchema,
   assigneeAccountId: uuidSchema.nullable().optional(), status: mapProjectAreaStatusSchema.optional(), sort: z.number().int().min(0).max(100_000).optional()
 }).strict();
 export const mapProjectAreaUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: mapProjectAreaNameSchema.optional(), polygon: mapProjectAreaPolygonSchema.optional(),
-  assigneeAccountId: uuidSchema.nullable().optional(), status: mapProjectAreaStatusSchema.optional(), sort: z.number().int().min(0).max(100_000).optional()
+  assigneeAccountId: uuidSchema.nullable().optional(), status: mapProjectAreaStatusSchema.optional(), sort: z.number().int().min(0).max(100_000).optional(),
+  revisedOn: mapProjectAreaRevisedOnSchema.optional()
 }).strict().refine(value => Object.keys(value).length > 1);
 
 /**
@@ -153,6 +157,8 @@ export interface MapProjectAreaView {
   /** Den som fått området (null = inte utdelat). Namnet är null om kontot inte längre är medlem. */
   assignee: { accountId: string; name: string | null } | null;
   status: MapProjectAreaStatus; sort: number; createdAt: string; updatedAt: string;
+  /** Etappens revideringsdatum (`YYYY-MM-DD`) eller null (0098). */
+  revisedOn: string | null;
 }
 
 export interface MapProjectProposalEditView {

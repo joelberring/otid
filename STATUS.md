@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Etapper med revideringsdatum (migration 0098, ADR-0219 tillägg)
+- Delområdena får ett revideringsdatum (ägarna och den som fått området; klart utan datum ger dagens).
+- Lagret Etapper (bara på skärmen) färgar dem efter åldern, med förklaring i panelen.
+- Verifierat: typecheck, lint, integration `adr-0219-forslag`, E2E `kartprojekt-underlag` (etapper).
+- Kvar: nytt underlag bara för en etapp (med geo-arbetaren).
+
 ### 2026-11-08 – K4b: vektorer som kandidater (ingen migration, ADR-0219 tillägg)
 - GeoJSON och DXF läses i webbläsaren; ett symbolval per lager med förslag ur namnen; koordinatsystemet ur filen eller koordinaterna.
 - Städning: utanför kartan, dubbletter, korta stumpar, brutna linjer slås ihop, slutna linjer blir ytor; kandidaterna syns på kartan.

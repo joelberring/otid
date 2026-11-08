@@ -165,13 +165,24 @@ export interface AreaDrawing {
   /** Kontots eget område (blått), någon annans (grått) eller inte utdelat (ljusgrått, streckat). */
   readonly owner: "MINE" | "OTHER" | "NONE";
   readonly selected?: boolean | undefined;
+  /** Etapperna: ytan fylls med etappens färg (efter revideringsdatumet). */
+  readonly fill?: string | undefined;
+}
+
+/** Etappens färg efter hur länge sedan den reviderades: grön (inom ett år), gulgrön (3 år), orange (6 år), röd, grå (aldrig). */
+export const STAGE_COLORS = { YEAR: "#2e7d32", THREE: "#9e9d24", SIX: "#ef6c00", OLDER: "#c62828", NEVER: "#9e9e9e" } as const;
+export type StageAge = keyof typeof STAGE_COLORS;
+export function stageAge(revisedOn: string | null, today: Date): StageAge {
+  if (!revisedOn) return "NEVER";
+  const years = (today.getTime() - Date.parse(`${revisedOn}T00:00:00Z`)) / (365.25 * 24 * 3600 * 1000);
+  return years < 1 ? "YEAR" : years < 3 ? "THREE" : years < 6 ? "SIX" : "OLDER";
 }
 
 /** Delområdena: kontur och namn i mitten av ytterkanten. Bara på skärmen. */
 export function drawAreas(ctx: Context, view: Viewport, areas: readonly AreaDrawing[]) {
   ctx.save();
   for (const area of areas) {
-    const color = area.owner === "MINE" ? SELECT : area.owner === "OTHER" ? "#555" : "#888";
+    const color = area.fill ?? (area.owner === "MINE" ? SELECT : area.owner === "OTHER" ? "#555" : "#888");
     ctx.beginPath();
     for (const ring of area.polygon) {
       ring.forEach((point, index) => {
@@ -180,6 +191,7 @@ export function drawAreas(ctx: Context, view: Viewport, areas: readonly AreaDraw
       });
       ctx.closePath();
     }
+    if (area.fill) { ctx.globalAlpha = 0.22; ctx.fillStyle = area.fill; ctx.fill("evenodd"); ctx.globalAlpha = 1; }
     ctx.strokeStyle = "#fff"; ctx.lineWidth = area.selected ? 7 : 5; ctx.setLineDash([]); ctx.stroke();
     ctx.strokeStyle = color; ctx.lineWidth = area.selected ? 4 : 2.5; ctx.setLineDash(area.owner === "NONE" ? [10, 6] : []); ctx.stroke();
     const outer = area.polygon[0] ?? [];

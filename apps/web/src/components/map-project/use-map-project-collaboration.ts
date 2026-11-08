@@ -62,7 +62,7 @@ export function useMapProjectCollaboration(view: MapProjectView) {
     createArea: (name: string, polygon: readonly (readonly Point[])[], assigneeAccountId: string | null) =>
       run(() => clubRequest(`${base}/areas`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), name, polygon,
         ...(assigneeAccountId ? { assigneeAccountId } : {}) }), loadAreas),
-    updateArea: (areaId: string, change: { name?: string; assigneeAccountId?: string | null; status?: MapProjectAreaStatus }) =>
+    updateArea: (areaId: string, change: { name?: string; assigneeAccountId?: string | null; status?: MapProjectAreaStatus; revisedOn?: string | null }) =>
       run(() => clubRequest(`${base}/areas/${encodeURIComponent(areaId)}`, "PUT", { formatVersion: 1, ...change }), loadAreas),
     removeArea: (areaId: string) => run(() => clubRequest(`${base}/areas/${encodeURIComponent(areaId)}`, "DELETE"), loadAreas)
   };

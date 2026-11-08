@@ -166,7 +166,16 @@ describe("ADR-0219 K1: arbetssätt, förslag och delområden", () => {
     // Den som fått området ändrar bara statusen; ägarna allt.
     const status = (proof: Proof, areaId: string, request: Record<string, unknown>) =>
       updateMapProjectArea(db, { ...proof, projectId: s.projectId, areaId, request: { formatVersion: 1, ...request } }, NOW);
-    expect(await status(s.editor.proof, s.areas.mine, { status: "SURVEYED" })).toMatchObject({ status: "ok", area: { status: "SURVEYED" } });
+    expect(await status(s.editor.proof, s.areas.mine, { status: "SURVEYED" })).toMatchObject({ status: "ok", area: { status: "SURVEYED", revisedOn: null } });
+    // Etapperna (0098): klart utan datum ger dagens; den som fått området sätter och tar bort datumet; fel datum avvisas.
+    expect(await status(s.editor.proof, s.areas.mine, { status: "DONE" })).toMatchObject({ status: "ok", area: { status: "DONE",
+      revisedOn: NOW.toISOString().slice(0, 10) } });
+    expect(await status(s.editor.proof, s.areas.mine, { revisedOn: "2024-05-31" })).toMatchObject({ status: "ok", area: { revisedOn: "2024-05-31" } });
+    expect(await status(s.editor.proof, s.areas.mine, { status: "SURVEYED" })).toMatchObject({ area: { revisedOn: "2024-05-31" } });
+    expect(await status(s.editor.proof, s.areas.mine, { status: "DONE" })).toMatchObject({ area: { revisedOn: "2024-05-31" } });
+    expect((await status(s.editor.proof, s.areas.mine, { revisedOn: "2024-02-30" })).status).toBe("invalid-request");
+    expect(await status(s.owner.proof, s.areas.mine, { revisedOn: null })).toMatchObject({ status: "ok", area: { revisedOn: null } });
+    expect(await status(s.editor.proof, s.areas.mine, { status: "SURVEYED" })).toMatchObject({ status: "ok" });
     expect((await status(s.editor.proof, s.areas.mine, { name: "Mitt" })).status).toBe("forbidden");
     expect((await status(s.editor.proof, s.areas.theirs, { status: "DONE" })).status).toBe("forbidden");
     expect(await status(s.owner.proof, s.areas.theirs, { name: "Södra", assigneeAccountId: s.editor.accountId }))

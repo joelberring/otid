@@ -219,3 +219,11 @@ Planens avsnitt om baskartor (plandokumentet om aktualisering och baskartor, avs
 4. **Kandidater, inte karta:** resultatet lämnas som förslag (högst 200 ändringar och 3 MB per förslag) med den nya källan
    `IMPORT` (texten matchar redan kontrollen, ingen migration). Ägaren godkänner som andra förslag; AI-kopplingen kan inte välja
    `IMPORT`, och importerade ändringar räknas inte som personens i statistiken.
+
+## Tillägg 2026-11-08: etapper (migration 0098)
+
+Ägaren: kartor görs ofta i etapper. Etappen är ett delområde (K1) med ett revideringsdatum (`map_project_area.revised_on`,
+nullbar). Ägarna och den som fått området sätter och tar bort datumet; ett område som blir Klart utan datum får dagens.
+Lagret Etapper (av från början, bara på skärmen och aldrig i utskrift eller export) färgar delområdena efter åldern: inom ett
+år, 1–3, 3–6, äldre och inte reviderad. MCP-verktyget som visar projektet tar med datumet. Att hämta och köra nytt underlag
+bara för en etapp kommer med geo-arbetaren (K4c, K5).

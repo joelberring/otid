@@ -1,4 +1,4 @@
-import { bigint, doublePrecision, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, date, doublePrecision, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { clubMapVersions, clubs } from "./clubs";
 import { mapContents } from "./map-content";
@@ -120,6 +120,8 @@ export const mapProjectAreas = pgTable("map_project_area", {
   assigneeAccountId: uuid("assignee_account_id"),
   status: text("status").$type<MapProjectAreaStatus>().notNull(),
   sort: integer("sort").notNull().default(0),
+  /** Etappens revideringsdatum (0098, `YYYY-MM-DD`), null = inte reviderad. */
+  revisedOn: date("revised_on", { mode: "string" }),
   createdBy: uuid("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

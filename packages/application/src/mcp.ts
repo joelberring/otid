@@ -97,7 +97,7 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       const outcome = await job(db, accountId, input.project_id, "OVERVIEW", {}, wait);
       if (outcome.status !== "done") return jobFailure(outcome);
       const extra = await db.transaction(async tx => ({ areas: (await mapProjectAreaViews(tx, input.project_id)).map(row => ({ name: row.name,
-        status: row.status, assignee: row.assignee?.name ?? null })), openProposals: await openProposalCount(tx, input.project_id) }));
+        status: row.status, assignee: row.assignee?.name ?? null, revisedOn: row.revisedOn })), openProposals: await openProposalCount(tx, input.project_id) }));
       return { content: [text({ ...(outcome.result as object), ...extra })] };
     }
     case "render_view":

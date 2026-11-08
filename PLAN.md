@@ -1247,8 +1247,9 @@ K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
   `adr-0219-rekning` (IMPORT), E2E `kartprojekt-underlag` (DXF).
 - [ ] K4b kvar: DWG (LibreDWG i geo-arbetaren), Shape/GeoPackage, sparade lagerprofiler per källa, klippning mot kartgränsen,
   Stockholms lagergrammatik.
-- [ ] K4c geo-arbetaren och hämtning från Lantmäteriet, OSM och NVDB; etapper (dolt lager med revideringsdatum per delområde,
-  ny vegetationsdata bara för en etapp, ägaren 2026-11-08).
+- [x] Etapper (ägaren 2026-11-08, migration 0098): revideringsdatum per delområde (klart utan datum ger dagens; ägarna och den som
+  fått området), lagret Etapper färgar efter åldern och syns bara på skärmen. E2E `kartprojekt-underlag` (etapper).
+- [ ] K4c geo-arbetaren och hämtning från Lantmäteriet, OSM och NVDB; ny vegetationsdata bara för en etapp (ett delområde).
 
 Senare enligt planen: K5 Karttapullautin och fuktighet, K6
 generalisering och normkontroll, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre

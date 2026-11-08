@@ -5,7 +5,10 @@ import type { MapProjectAreaStatus, MapProjectMode, MapProjectProposalView, MapP
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { Button, Notice } from "../ui";
 import type { useMapProjectCollaboration } from "./use-map-project-collaboration";
+import { STAGE_COLORS, type StageAge } from "../../lib/map-project-overlay";
 import styles from "./map-project-editor.module.css";
+
+const STAGE_AGES: readonly StageAge[] = ["YEAR", "THREE", "SIX", "OLDER", "NEVER"];
 
 const text = mapProjectEditorSv.collab;
 const MODES: readonly MapProjectMode[] = ["SHARED", "LEAD"];
@@ -17,8 +20,11 @@ type Collaboration = ReturnType<typeof useMapProjectCollaboration>;
  * kartan; ägarna godkänner och avvisar, den som föreslog drar tillbaka) och delområdena (ägarna ritar, delar ut och tar bort;
  * den som fått området sätter läget).
  */
-export function MapProjectCollabPanel({ view, collab, shownProposal, onShowProposal, shownArea, onShowArea, onNewArea, newArea, onSaveArea, onCancelArea }: {
+export function MapProjectCollabPanel({ view, collab, shownProposal, onShowProposal, shownArea, onShowArea, onNewArea, newArea, onSaveArea, onCancelArea,
+  stages, onStages }: {
   view: MapProjectView;
+  /** Etapperna: delområdena färgade efter revideringsdatumet. */
+  stages: boolean; onStages: (shown: boolean) => void;
   collab: Collaboration;
   shownProposal: string | undefined; onShowProposal: (proposalId: string | undefined) => void;
   shownArea: string | undefined; onShowArea: (areaId: string | undefined) => void;
@@ -86,6 +92,10 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
                   onChange={event => void collab.updateArea(area.areaId, { status: event.target.value as MapProjectAreaStatus })}>
                   {STATUSES.map(status => <option key={status} value={status}>{text.areaStatuses[status]}</option>)}
                 </select></label> : <span className={styles.muted}>{text.areaStatuses[area.status]}</span>}
+              {(viewer.canDecide || mine) ? <label className={styles.revised}>{text.revisedOn}
+                <input type="date" value={area.revisedOn ?? ""} disabled={collab.busy} aria-label={`${text.revisedOn}: ${area.name}`}
+                  onChange={event => void collab.updateArea(area.areaId, { revisedOn: event.target.value || null })} /></label>
+                : area.revisedOn && <span className={styles.muted}>{text.revisedOn} {area.revisedOn}</span>}
               {viewer.canDecide && <Button variant="quiet" disabled={collab.busy} onClick={() => void collab.removeArea(area.areaId)}>
                 {text.removeArea}</Button>}
             </span>
@@ -93,6 +103,12 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
         })}
       </ul>
       {viewer.canDecide && !newArea && <Button variant="secondary" onClick={onNewArea}>{text.newArea}</Button>}
+      {collab.areas.length > 0 && <>
+        <label className={styles.check}><input type="checkbox" checked={stages} onChange={() => onStages(!stages)} data-testid="map-project-stages" />
+          {text.stages}</label>
+        {stages && <p className={styles.legend} data-testid="map-project-stage-legend">{text.stagesHelp}<br />
+          {STAGE_AGES.map(age => <span key={age} className={styles.stageKey}><i style={{ background: STAGE_COLORS[age] }} />{text.stageAges[age]}</span>)}</p>}
+      </>}
     </section>
   </>;
 }

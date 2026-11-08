@@ -173,3 +173,34 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   const listed = (await (await owner.request.get(`${api}/proposals`)).json() as { proposals: { source: string }[] }).proposals;
   expect(listed.map(row => row.source)).toEqual(["IMPORT"]);
 });
+
+/**
+ * Etapperna (ägaren 2026-11-08, migration 0098): ett delområde får ett revideringsdatum och lagret Etapper (bara på skärmen)
+ * färgar det efter hur länge sedan det reviderades.
+ */
+test("kartprojekt: etapper med revideringsdatum", async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
+  const owner = await registerAccount(browser, `etapp.${unique()}@exempel.se`, "Etta Etapp");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const headers = async () => ({ origin: baseURL!, "x-otid-csrf": await csrfOf(owner) });
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { ...await headers(),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Etapper", "x-otid-file-name": "Etapper.omap" },
+    data: Buffer.from(mapBytes) });
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  const area = await owner.request.post(`${api}/areas`, { headers: { ...await headers(), "content-type": "application/json" }, data: { formatVersion: 1,
+    requestId: crypto.randomUUID(), name: "Etapp 1", polygon: [[{ x: 30, y: 40 }, { x: 70, y: 40 }, { x: 70, y: 70 }, { x: 30, y: 70 }]] } });
+  expect(area.status(), await area.text()).toBe(201);
+
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const areas = owner.getByTestId("map-project-areas");
+  await areas.getByLabel("Reviderad: Etapp 1").fill("2024-05-31");
+  await expect.poll(async () => (await (await owner.request.get(`${api}/areas`)).json() as { areas: { revisedOn: string | null }[] }).areas[0]!.revisedOn,
+    { timeout: 10_000 }).toBe("2024-05-31");
+  expect(await alphaAt(owner, { x: 35, y: 45 })).toBe(0);
+  await areas.getByTestId("map-project-stages").check();
+  await expect(areas.getByTestId("map-project-stage-legend")).toContainText("aldrig i utskrift");
+  await expect.poll(() => alphaAt(owner, { x: 35, y: 45 }), { timeout: 10_000 }).toBeGreaterThan(0);
+  await reviewScreenshots(owner, "kartprojekt-etapper");
+});

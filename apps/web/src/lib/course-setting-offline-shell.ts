@@ -11,7 +11,12 @@ export const shellSupported = () => typeof navigator !== "undefined" && "service
 
 /** Filerna sidan har laddat från Next (skript, stilar, typsnitt, Workerns filer) och sidan själv: dem behöver telefonen utan nät. */
 function loadedUrls(raceId: string): string[] {
-  const urls = new Set<string>([scopeOf(raceId), ...workerResources()]);
+  return pageResources(scopeOf(raceId), workerResources());
+}
+
+/** Sidan och filerna under `/_next/static/` som den laddat (också för kartprojektets karta, K3). */
+export function pageResources(page: string, extra: readonly string[] = []): string[] {
+  const urls = new Set<string>([page, ...extra]);
   for (const entry of performance.getEntriesByType("resource")) {
     const url = new URL(entry.name, window.location.href);
     if (url.origin === window.location.origin && url.pathname.startsWith("/_next/static/")) urls.add(url.pathname + url.search);
@@ -19,7 +24,7 @@ function loadedUrls(raceId: string): string[] {
   return [...urls];
 }
 
-function ask(worker: ServiceWorker, message: unknown, timeoutMs = 60_000): Promise<{ saved: number; failed: number }> {
+export function ask(worker: ServiceWorker, message: unknown, timeoutMs = 60_000): Promise<{ saved: number; failed: number }> {
   return new Promise((resolve, reject) => {
     const channel = new MessageChannel();
     const timer = setTimeout(() => reject(new Error("Service workern svarade inte")), timeoutMs);
@@ -28,7 +33,7 @@ function ask(worker: ServiceWorker, message: unknown, timeoutMs = 60_000): Promi
   });
 }
 
-async function activeWorker(registration: ServiceWorkerRegistration): Promise<ServiceWorker> {
+export async function activeWorker(registration: ServiceWorkerRegistration): Promise<ServiceWorker> {
   if (registration.active) return registration.active;
   const installing = registration.installing ?? registration.waiting;
   if (!installing) throw new Error("Ingen service worker");

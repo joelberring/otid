@@ -54,8 +54,11 @@ async function buildShell(shell) {
 
 for (const shell of shells) await buildShell(shell);
 
-const courseSettingWorker = await build({ absWorkingDir: web, entryPoints: ["src/course-setting-offline/service-worker.ts"], bundle: true,
-  write: false, minify: true, format: "iife", platform: "browser", target: "chrome110" });
+// ADR-0219 (K3): kartprojektets karta utan nät använder samma service worker med en egen cache (`/map-project-sw.js`).
 await mkdir(resolve(web, "public"), { recursive: true });
-await writeFile(resolve(web, "public/course-setting-sw.js"), courseSettingWorker.outputFiles[0].contents);
-process.stdout.write("course-setting service worker built\n");
+for (const [file, cache] of [["course-setting-sw.js", "otid-course-setting-v1"], ["map-project-sw.js", "otid-map-project-v1"]]) {
+  const built = await build({ absWorkingDir: web, entryPoints: ["src/course-setting-offline/service-worker.ts"], bundle: true,
+    write: false, minify: true, format: "iife", platform: "browser", target: "chrome110", define: { __OTID_SW_CACHE__: JSON.stringify(cache) } });
+  await writeFile(resolve(web, `public/${file}`), built.outputFiles[0].contents);
+}
+process.stdout.write("course-setting and map-project service workers built\n");

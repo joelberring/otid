@@ -10,6 +10,9 @@
  * - `/_next/static/`: en sparad fil med `immutable` (driftbygget, namnen har hash) ges direkt; annars nätet först och den
  *   sparade kopian utan nät (utvecklingsläget).
  * - Meddelandet `cache` från sidan: spara sidan och filerna den redan laddat (de laddades innan service workern fanns).
+ *
+ * ADR-0219 (K3): samma fil byggs också som `/map-project-sw.js` för kartprojektets karta (scope
+ * `/organizer/map-projects/<projekt>/map`, egen cache).
  */
 export {};
 
@@ -26,7 +29,9 @@ type WorkerScope = {
   addEventListener(type: "message", listener: (event: MessageEvent) => void): void;
 };
 const worker = globalThis as unknown as WorkerScope;
-const CACHE = "otid-course-setting-v1";
+/** Cachen: banläggningens eller (K3) kartprojektets, satt när filen byggs (`build-shells.mjs`). */
+declare const __OTID_SW_CACHE__: string;
+const CACHE = __OTID_SW_CACHE__;
 const PAGE_TIMEOUT_MS = 6_000;
 const origin = worker.location.origin;
 const scopePath = new URL(worker.registration.scope).pathname.replace(/\/$/, "");

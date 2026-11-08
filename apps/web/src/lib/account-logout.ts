@@ -1,4 +1,5 @@
 import { forgetAllCourseSettingCopies, fieldStore } from "./course-setting-offline-forget";
+import { forgetMapProjectCopies } from "./map-project-offline";
 import { clearLocalTracks, pendingTrackCount } from "./map-project-track-store";
 import { readOrganizerCsrf } from "./organizer-client";
 import { FOLLOW_STORAGE_KEY } from "./follow-store";
@@ -9,7 +10,8 @@ import { FOLLOW_STORAGE_KEY } from "./follow-store";
  * tävlingar och personer:
  *
  * - banläggningens kopia i telefonen (posten, kön, kartfilen och den sparade sidan i service workerns cache),
- * - kartprojektens GPS-spår som ännu inte skickats (K3; var någon gått är personuppgifter),
+ * - kartprojektens GPS-spår som ännu inte skickats (K3; var någon gått är personuppgifter) och kartprojektens sparade sidor och
+ *   uppgifter (medlemmarnas namn),
  * - inbjudan som väntar, den påbörjade tävlingen, följda löpare och klubbar, självregistreringens ifyllda namn och
  *   flikarnas tillfälliga val (`sessionStorage` med `otid`),
  *
@@ -79,6 +81,7 @@ const PERSONAL_PREFIXES = ["otid-grupp-anmalan:"];
 export async function clearPersonalBrowserData(): Promise<void> {
   await forgetAllCourseSettingCopies().catch(error => console.error("Banläggningen i webbläsaren kunde inte tas bort", error));
   await clearLocalTracks().catch(error => console.error("Spåren i webbläsaren kunde inte tas bort", error));
+  await forgetMapProjectCopies().catch(error => console.error("Kartprojekten i webbläsaren kunde inte tas bort", error));
   try {
     const local = window.localStorage;
     const keys = Array.from({ length: local.length }, (_, index) => local.key(index)).filter((key): key is string => key !== null);

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import { mapPointToWgs84, readMapFile } from "../../packages/map-file/src";
 import { registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
 
@@ -117,4 +117,38 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   await expect(recon.getByTestId("recon-track")).toHaveCount(1, { timeout: 20_000 });
   expect(((await (await phone.request.get(`${api}/tracks`)).json()) as Tracks).tracks.map(track => track.name)).toEqual([expect.stringMatching(/^Rekning /)]);
   await reviewScreenshots(phone, "kartprojekt-rekning-panel", [390]);
+  await phone.setViewportSize({ width: 390, height: 844 });
+
+  // Sidan är sparad för offline; service workern gäller bara projektets karta.
+  const scopes = await phone.evaluate(async id => ({
+    own: (await navigator.serviceWorker.getRegistration(`/organizer/map-projects/${id}/map`))?.scope ?? null,
+    page: (await navigator.serviceWorker.getRegistration(`/organizer/map-projects/${id}`))?.scope ?? null
+  }), projectId);
+  expect(scopes.own).toMatch(new RegExp(`/organizer/map-projects/${projectId}/map$`));
+  expect(scopes.page).toBeNull();
+
+  // Utan nät: ett spår spelas in och väntar i telefonen; med nät skickas det.
+  const noNetwork = (route: Route) => route.abort("internetdisconnected");
+  await context.setOffline(true);
+  await context.route("**/*", noNetwork);
+  // Panelen är öppen sedan GPX-filen.
+  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByTestId("field-record").click();
+  for (let y = 40; y <= 50; y += 1) {
+    await context.setGeolocation({ ...wgs(80, y), accuracy: 5 });
+    await phone.waitForTimeout(60);
+  }
+  await phone.getByTestId("field-record").click();
+  await phone.getByRole("button", { name: "Panel" }).click();
+  await expect(recon.getByTestId("recon-track").filter({ hasText: "väntar på nät" })).toHaveCount(1, { timeout: 15_000 });
+  if (process.env.E2E_BASE_URL) {
+    // Omladdning utan nät mot driftbygget: kartan och projektet från telefonen.
+    await phone.reload();
+    await expect(phone.getByTestId("map-project-offline")).toBeVisible({ timeout: 30_000 });
+    await expect(phone.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
+  } else test.info().annotations.push({ type: "utan nät", description: "Omladdningen utan nät provas mot driftbygget (E2E_BASE_URL)" });
+  await context.unroute("**/*", noNetwork);
+  await context.setOffline(false);
+  await phone.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect.poll(async () => ((await (await phone.request.get(`${api}/tracks`)).json()) as Tracks).tracks.length, { timeout: 30_000 }).toBe(2);
 });

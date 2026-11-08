@@ -18,3 +18,4 @@ backups/
 deploy/backup-ssh/
 media/
 status/
+apps/web/public/map-project-sw.js

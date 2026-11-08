@@ -5,6 +5,7 @@ import type { SymbolGroup } from "../lib/map-project-protocol";
 export const mapProjectEditorSv = {
   ok: "OK",
   panel: "Panel",
+  offline: (when: string) => `Utan nät: projektet som det var ${when}. Ändringar och spår skickas när nätet kommer.`,
   openMap: "Öppna kartan",
   openMapHelp: "Kartan med alla ändringar. Med rollen Ändra ritar du direkt i den.",
   back: "Till projektet",

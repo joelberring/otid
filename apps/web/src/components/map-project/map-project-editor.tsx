@@ -68,7 +68,9 @@ function proposedDrawing(edits: readonly { state: unknown; point?: Point | null 
  * ritar med vald symbol (klick = hörn, tryck och dra = kurva, dubbelklick eller Enter avslutar). Delete tar bort, Ctrl/Cmd+Z
  * ångrar och Ctrl/Cmd+Skift+Z eller Ctrl+Y gör om. Varje ändring blir en ändring av ett objekt i projektets kö.
  */
-export function MapProjectEditor({ view }: { view: MapProjectView }) {
+export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
+  /** K3: projektet kommer från telefonen (utan nät), sparat då. */
+  offlineSince?: string | undefined }) {
   const collab = useMapProjectCollaboration(view);
   const { loadProposals } = collab;
   // Efter en synk med egna ändringar eller andras: förslagen kan ha ändrats.
@@ -363,6 +365,8 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       <SyncBadge sync={editor.sync} pending={pending} />
       <AccountMenu />
     </header>
+    {offlineSince && <p className={styles.offline} role="status" data-testid="map-project-offline">
+      {text.offline(new Date(offlineSince).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</p>}
     {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice)}{" "}
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
     <div className={styles.workspace}>

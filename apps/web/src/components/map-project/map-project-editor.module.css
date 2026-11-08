@@ -9,6 +9,7 @@
 .title h1 { margin: 0; font-size: var(--text-lg, 1.25rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sync { margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); }
 .notice { padding: 6px 12px 0; }
+.offline { margin: 0; padding: 4px 12px; background: var(--attention-bg, #fff4ce); font-size: var(--text-sm, .9rem); }
 .workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; }
 .toolbar { grid-column: 1; display: flex; flex-wrap: wrap; gap: .4rem; padding: 6px 12px; border-bottom: 1px solid var(--line); }
 .hint { grid-column: 1; margin: 0; padding: 4px 12px; color: var(--muted); font-size: var(--text-sm, .9rem); min-height: 1.6em; }

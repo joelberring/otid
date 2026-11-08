@@ -82,7 +82,7 @@ describe("publika sökvägar (ADR-0177): en lista i koden och i deploy/Caddyfile
       } else if (NOT_PUBLIC_SECTIONS.includes(section)) expect(isPublic(url), url).toBe(false);
       else expect(isPublic(url), url).toBe(true);
     }
-    for (const sample of ["/organizer", "/organizer/x", "/admin/x", "/superadmin", "/konto", "/readout/", "/course-setting-sw.js",
+    for (const sample of ["/organizer", "/organizer/x", "/admin/x", "/superadmin", "/konto", "/readout/", "/course-setting-sw.js", "/map-project-sw.js",
       "/api/races/x/imports", "/api/admin/races/x/administrator/map/source", "/api/map-link/x/reply"]) {
       expect(isPublic(sample), sample).toBe(false);
     }

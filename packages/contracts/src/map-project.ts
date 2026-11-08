@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema } from "./account";
 import { uuidSchema } from "./ids";
+import { mapProjectReconSettingsSchema, type MapProjectReconSettings } from "./map-project-recon";
 
 /**
  * ADR-0219: kartprojekten. Skrivningar som skapar en rad är idempotenta på `requestId`. Synkens ändringar valideras i
@@ -67,8 +68,10 @@ export const mapProjectNewRequestSchema = z.object({
 /** Byt namn, avsluta (`CLOSED`) eller öppna igen (`OPEN`), eller byt arbetssätt (`mode`, K1). */
 export const mapProjectUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: mapProjectNameSchema.optional(), status: z.enum(["OPEN", "CLOSED"]).optional(),
-  mode: mapProjectModeSchema.optional()
-}).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined);
+  mode: mapProjectModeSchema.optional(),
+  /** Rekningens inställningar (K3); null = förvalen. */
+  recon: mapProjectReconSettingsSchema.nullable().optional()
+}).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined || value.recon !== undefined);
 
 export const mapProjectInviteRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, email: accountEmailSchema, role: mapProjectRoleSchema
@@ -217,6 +220,8 @@ export interface MapProjectView extends MapProjectSummary {
   mode: MapProjectMode;
   /** Kartans område för en ny karta (kartans mm, y uppåt, första ringen ytterkant); null för en befintlig karta. */
   area: { x: number; y: number }[][] | null;
+  /** Rekningens inställningar (K3); null = förvalen. */
+  recon: MapProjectReconSettings | null;
   areas: MapProjectAreaView[];
   /** Antalet öppna förslag. */
   openProposals: number;

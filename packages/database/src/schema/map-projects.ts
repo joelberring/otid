@@ -1,4 +1,4 @@
-import { bigint, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, doublePrecision, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { clubMapVersions, clubs } from "./clubs";
 import { mapContents } from "./map-content";
@@ -46,7 +46,9 @@ export const mapProjects = pgTable("map_project", {
   /** Arbetssättet (0091); null = Gemensamt. */
   mode: text("mode").$type<MapProjectMode>(),
   /** En ny kartas område (0092): ringar av punkter i kartans mm, y uppåt; null för en befintlig karta. */
-  area: jsonb("area").$type<{ x: number; y: number }[][]>()
+  area: jsonb("area").$type<{ x: number; y: number }[][]>(),
+  /** Rekningens inställningar (0094, `ReconSettings` i map-revision); null = förvalen. */
+  recon: jsonb("recon").$type<unknown>()
 });
 
 export const mapProjectMembers = pgTable("map_project_member", {
@@ -164,3 +166,35 @@ export const mapProjectOutputs = pgTable("map_project_output", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   requestId: uuid("request_id").notNull()
 });
+
+/** GPS-spår (0094): från fältläget (`FIELD`) eller en GPX-fil (`GPX`); syns bara för projektets medlemmar. Kontot har ingen nyckel. */
+export const mapProjectTracks = pgTable("map_project_track", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  accountId: uuid("account_id").notNull(),
+  name: text("name").notNull(),
+  source: text("source").$type<"FIELD" | "GPX">().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  pointCount: integer("point_count").notNull().default(0),
+  lengthM: doublePrecision("length_m").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+});
+
+/** Spårets punkter i delar (0094): [lat, lon, sekunder från start, noggrannhet i meter]. */
+export const mapProjectTrackParts = pgTable("map_project_track_part", {
+  trackId: uuid("track_id").notNull().references(() => mapProjectTracks.id, { onDelete: "cascade" }),
+  seq: integer("seq").notNull(),
+  points: jsonb("points").$type<[number, number, number, number][]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, table => [primaryKey({ columns: [table.trackId, table.seq] })]);
+
+/** Bekräftade objekt (0094): gäller så länge objektets senaste ändring är `basisEditId` (null = grundfilens objekt). */
+export const mapProjectChecks = pgTable("map_project_check", {
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  objectKey: text("object_key").notNull(),
+  accountId: uuid("account_id").notNull(),
+  basisEditId: uuid("basis_edit_id"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull()
+}, table => [primaryKey({ columns: [table.projectId, table.objectKey] })]);

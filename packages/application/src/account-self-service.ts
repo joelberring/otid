@@ -13,6 +13,7 @@ import type { DbExecutor } from "./snapshot";
 import { activeEventAdministrationGrant } from "./race-session";
 import { purgeRows } from "./purge";
 import { readGoogleLink } from "./google-link";
+import { purgeMapProjectTracksForAccount } from "./map-project-recon";
 import { purgeOauthForAccount } from "./oauth";
 import { clearAreaAssignee } from "./map-project-areas";
 import {
@@ -67,6 +68,8 @@ export async function deleteAccountWithOwnedEvents(tx: DbExecutor, accountId: st
   // ADR-0219 (K2): AI-kopplingarna och kontots kartjobb (ingen nyckel till kontot).
   await purgeOauthForAccount(tx, accountId);
   await tx.delete(schema.mapProjectJobs).where(eq(schema.mapProjectJobs.accountId, accountId));
+  // K3: spåren är personuppgifter och tas bort med kontot; bekräftelserna står kvar (som ändringarna).
+  await purgeMapProjectTracksForAccount(tx, accountId);
   await purgeRows(tx, "user_account", [accountId]);
   return { eventIds: events.map((event) => event.eventId) };
 }

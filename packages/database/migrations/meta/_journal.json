@@ -69,6 +69,7 @@
     { "idx": 64, "version": "7", "when": 1805126400000, "tag": "0090_kartprojekt_konto", "breakpoints": true },
     { "idx": 65, "version": "7", "when": 1805212800000, "tag": "0091_kartprojekt_forslag", "breakpoints": true },
     { "idx": 66, "version": "7", "when": 1805299200000, "tag": "0092_kartprojekt_ny_karta", "breakpoints": true },
-    { "idx": 67, "version": "7", "when": 1805385600000, "tag": "0093_ai_koppling", "breakpoints": true }
+    { "idx": 67, "version": "7", "when": 1805385600000, "tag": "0093_ai_koppling", "breakpoints": true },
+    { "idx": 68, "version": "7", "when": 1805472000000, "tag": "0094_kartprojekt_rekning", "breakpoints": true }
   ]
 }

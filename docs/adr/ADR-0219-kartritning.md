@@ -204,3 +204,18 @@ Planens avsnitt 7c. Av från början; inget nytt spelas in.
    WGS 84). UTM (WGS 84 och ETRS 89) stöds nu i `map-file` vid sidan av SWEREF 99 och RT 90.
 4. **Rättat:** `otid_map_content_release` kände inte till kartprojekten; innehåll som både var klubbarkivets och ett projekts
    grundfil kunde inte tas bort. Funktionen räknar nu också projektens grundfiler, versioner och underlag.
+
+## Tillägg 2026-11-08: vektorer som kandidater (steg K4b, ingen migration)
+
+Planens avsnitt om baskartor (plandokumentet om aktualisering och baskartor, avsnitt 4).
+
+1. **Läses i webbläsaren** (`map-revision`: `vector-parse.ts`, `vector-import.ts`): GeoJSON (lagret ur `layer`, `objekttyp`,
+   `obkod` med flera, koordinatsystemet ur den gamla `crs`-medlemmen, annars WGS 84) och DXF i textform (POINT, INSERT, CIRCLE,
+   LINE, LWPOLYLINE, POLYLINE, SPLINE). Koordinatsystemet ur filen, annars ur koordinaternas storlek, annars kartans.
+2. **Lagermappning:** ett val per lager, förslag ur ord i namnet (HUS → 521, STAKET → 516, STIG → 505, SJÖ → 301 …) bland
+   kartans egna symboler. Profiler per källa och DWG väntar på geo-arbetaren (K4c).
+3. **Städning:** objekt utanför kartan, dubbletter och korta stumpar tas bort, brutna linjer med samma symbol slås ihop, slutna
+   linjer kan bli ytor. Klippning mot kartgränsen väntar.
+4. **Kandidater, inte karta:** resultatet lämnas som förslag (högst 200 ändringar och 3 MB per förslag) med den nya källan
+   `IMPORT` (texten matchar redan kontrollen, ingen migration). Ägaren godkänner som andra förslag; AI-kopplingen kan inte välja
+   `IMPORT`, och importerade ändringar räknas inte som personens i statistiken.

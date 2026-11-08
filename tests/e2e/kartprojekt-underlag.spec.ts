@@ -118,3 +118,58 @@ test("kartprojekt: eget underlag med världsfil", async ({ browser, baseURL }) =
     await context.setOffline(false);
   } else test.info().annotations.push({ type: "utan nät", description: "Omladdningen utan nät provas mot driftbygget (E2E_BASE_URL)" });
 });
+
+/**
+ * ADR-0219 tillägget om vektorunderlagen (K4b): en DXF-baskarta blir kandidater. Lagren får symbol ur namnen (STIG → 505, SJO →
+ * 301 som yta av en sluten polylinje), ett okänt lager hoppas över, de brutna stigbitarna slås ihop, kandidaterna lämnas som ett
+ * förslag (källan IMPORT) och ägaren godkänner det.
+ */
+test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `import.${unique()}@exempel.se`, "Ivar Import");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Import", "x-otid-file-name": "Import.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  await warmRoute(owner, `${api}/proposals`);
+
+  const p = (x: number, y: number) => { const at = mapPointToProjected(georef, { x, y }); return [at.easting.toFixed(3), at.northing.toFixed(3)] as const; };
+  const xy = (x: number, y: number, a = "10", b = "20") => { const [e, n] = p(x, y); return [a, e, b, n]; };
+  const dxf = ["0", "SECTION", "2", "ENTITIES",
+    "0", "LINE", "8", "STIG", ...xy(20, 20), ...xy(30, 20, "11", "21"),
+    "0", "LINE", "8", "STIG", ...xy(40, 25), ...xy(30, 20, "11", "21"),
+    "0", "LWPOLYLINE", "8", "SJO", "90", "3", "70", "1", ...xy(60, 30), ...xy(70, 30), ...xy(65, 40),
+    "0", "LINE", "8", "0153", ...xy(20, 60), ...xy(30, 60, "11", "21"),
+    "0", "ENDSEC", "0", "EOF"].join("\r\n");
+
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const importer = owner.getByTestId("map-project-import");
+  await importer.getByText("Importera vektorer").click();
+  await importer.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
+  await expect(importer.getByTestId("map-project-import-crs")).toHaveValue("3006");
+  await expect(importer.getByRole("combobox", { name: "Symbol för STIG" })).toHaveValue(/.+/);
+  await expect(importer.getByRole("combobox", { name: "Symbol för STIG" }).locator("option:checked")).toContainText("505.0");
+  await expect(importer.getByRole("combobox", { name: "Symbol för SJO" }).locator("option:checked")).toContainText("301.0");
+  await expect(importer.getByRole("combobox", { name: "Symbol för 0153" })).toHaveValue("");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
+  await reviewScreenshots(owner, "kartprojekt-import");
+  await importer.getByTestId("map-project-import-propose").click();
+  await expect(importer.getByTestId("map-project-import-sent")).toContainText("1 förslag lämnade", { timeout: 20_000 });
+
+  const proposals = owner.getByTestId("map-project-proposals");
+  await expect(proposals).toContainText("Förslag (1 öppet)", { timeout: 20_000 });
+  await expect(proposals).toContainText("Import baskarta.dxf");
+  await proposals.getByRole("button", { name: "Godkänn" }).click();
+  await expect(proposals).toContainText("Godkänt", { timeout: 15_000 });
+  const sync = await owner.request.post(`${api}/sync`, { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner), "content-type": "application/json" },
+    data: { formatVersion: 1, clientId: "e2e-lasare", since: 0, edits: [] } });
+  const objects = (await sync.json() as { objects: { key: string; state: { kind: string; object?: { kind: string } } }[] }).objects
+    .filter(row => row.key.startsWith("n:"));
+  expect(objects.map(row => row.state.object?.kind).sort()).toEqual(["area", "line"]);
+  const listed = (await (await owner.request.get(`${api}/proposals`)).json() as { proposals: { source: string }[] }).proposals;
+  expect(listed.map(row => row.source)).toEqual(["IMPORT"]);
+});

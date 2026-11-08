@@ -1241,7 +1241,12 @@ K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
   världsfil och GeoTIFF).
 - [x] Utan nät: listan och bilderna finns kvar i webbläsaren (omladdningen provad mot driftbygget).
 - [ ] K4a kvar: ordningen mellan underlagen (byts i panelen).
-- [ ] K4b vektorer som kandidater (GeoJSON, DXF/DWG-baskartor med lagermappning och rensning av överskott).
+- [x] K4b vektorer som kandidater (ingen migration): GeoJSON och DXF läses i webbläsaren, symbol per lager (förslag ur namnen),
+  städning (utanför kartan, dubbletter, korta stumpar, brutna linjer slås ihop, slutna linjer blir ytor), kandidaterna syns på
+  kartan och lämnas som förslag med källan IMPORT (räknas inte i statistiken). Tester: map-revision `vector-import`, integration
+  `adr-0219-rekning` (IMPORT), E2E `kartprojekt-underlag` (DXF).
+- [ ] K4b kvar: DWG (LibreDWG i geo-arbetaren), Shape/GeoPackage, sparade lagerprofiler per källa, klippning mot kartgränsen,
+  Stockholms lagergrammatik.
 - [ ] K4c geo-arbetaren och hämtning från Lantmäteriet, OSM och NVDB; etapper (dolt lager med revideringsdatum per delområde,
   ny vegetationsdata bara för en etapp, ägaren 2026-11-08).
 

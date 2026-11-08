@@ -27,6 +27,8 @@ import { MapProjectFieldControls, type PositionMode } from "./map-project-field-
 import { MapProjectReconPanel } from "./map-project-recon-panel";
 import { MapProjectLayersPanel } from "./map-project-layers-panel";
 import { useMapProjectLayers } from "./use-map-project-layers";
+import { MapProjectImportPanel } from "./map-project-import-panel";
+import { useMapProjectImport } from "./use-map-project-import";
 import { drawLayers } from "../../lib/map-project-layers";
 import { useMapProjectPosition, type TimedFix } from "./use-map-project-position";
 import { useMapProjectRecon } from "./use-map-project-recon";
@@ -156,6 +158,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
 
   selectedRef.current = selected;
   const symbols = useMemo(() => new Map(catalog.map(symbol => [symbol.id, symbol])), [catalog]);
+  // K4b: kandidaterna ur en vektorfil (visas som förslag tills de lämnats).
+  const importer = useMapProjectImport(view, georeference ?? undefined, editor.bounds ?? undefined, symbols,
+    useCallback(() => { void loadProposals(); }, [loadProposals]));
+  const candidates = importer.candidates;
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   const hiddenSymbols = useMemo(() => catalog.filter(entry => hiddenGroups.has(entry.group)).map(entry => entry.id), [catalog, hiddenGroups]);
 
@@ -396,6 +402,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     drawAreas(ctx, current, areaDrawings);
     drawProposed(ctx, current, proposedOpen.objects, proposedOpen.deleted, false);
     drawProposed(ctx, current, proposedShown.objects, proposedShown.deleted, true);
+    if (candidates.length) drawProposed(ctx, current, candidates, [], true);
     if (tool === "area" && draft.length) {
       const ring = cursor ? [...draft.map(point => point.at), cursor] : draft.map(point => point.at);
       if (ring.length >= 2) drawAreas(ctx, current, [{ polygon: [ring], label: "", owner: "MINE" }]);
@@ -417,7 +424,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (handles) drawHandles(ctx, current, handles);
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
-    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers]);
+    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
@@ -527,7 +534,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         after={<>
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
-          {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined} />}
+          {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
+            after={importer.canImport ? <MapProjectImportPanel importer={importer} symbols={symbols} /> : undefined} />}
         </>}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}

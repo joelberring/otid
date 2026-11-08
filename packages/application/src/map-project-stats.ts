@@ -10,7 +10,7 @@ import type { DbExecutor } from "./snapshot";
 /**
  * ADR-0219 tillägget om spelifieringen (K3b): statistiken och de frivilliga topplistorna. Allt räknas ur det som finns:
  * - ändringarna som gjordes (APPLIED) per författare: nya, ändrade (flytt, form, symbol, text) och borttagna; ändringar från ett
- *   förslag som Claude lämnade räknas inte (källan `AI`);
+ *   förslag som Claude lämnade räknas inte (källan `AI`), inte heller importerade kandidater (`IMPORT`, K4b);
  * - godkända förslag från personer, spåren (antal, km, timmar, rekad yta, nattrunda), bekräftelserna, notiserna (skrivna och
  *   åtgärdade) och delområden som blivit klara.
  *
@@ -42,7 +42,7 @@ async function projectStats(tx: DbExecutor, projectId: string, range: Range, acc
   const only = (column: Parameters<typeof sql>[1]) => accounts ? (accounts.length ? sql`${column} in (${sql.join(accounts.map(id => sql`${id}::uuid`), sql`, `)})` : sql`false`) : sql`true`;
   const edits = await tx.execute<{ account: string; kind: string; total: string }>(sql`select e.author_account_id as account, e.kind, count(*) as total
     from map_project_edit e left join map_project_proposal p on p.id = e.proposal_id
-    where e.project_id = ${projectId} and e.status = 'APPLIED' and (p.source is null or p.source <> 'AI') and ${within(sql`e.received_at`, range)}
+    where e.project_id = ${projectId} and e.status = 'APPLIED' and (p.source is null or p.source not in ('AI', 'IMPORT')) and ${within(sql`e.received_at`, range)}
       and ${only(sql`e.author_account_id`)}
     group by e.author_account_id, e.kind`);
   for (const row of edits.rows) {

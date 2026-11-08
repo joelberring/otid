@@ -1,6 +1,5 @@
-import {
-  projectedToMapPoint, projectedToWgs84, wgs84ToMapPoint, type MapGeoreference, type Point
-} from "@o-tid/map-file";
+import type { MapGeoreference, Point } from "@o-tid/map-file";
+import { sourcePointToMap, WGS84_EPSG } from "@o-tid/map-revision";
 
 /**
  * ADR-0219 tillägget om underlagen (K4a): underlagens geometri utan React och utan webbläsare. En bilds georeferens är
@@ -10,7 +9,7 @@ import {
  */
 export interface Affine { readonly a: number; readonly b: number; readonly c: number; readonly d: number; readonly e: number; readonly f: number }
 
-export const WGS84 = 4326;
+export const WGS84 = WGS84_EPSG;
 /** Största sidan på en bild som läggs upp (webbläsarna klarar större, men minnet i telefonen gör det inte). */
 export const MAX_LAYER_SIDE = 8192;
 
@@ -38,20 +37,13 @@ export function scaledAffine(affine: Affine, factor: number): Affine {
 
 const apply = (t: Affine, column: number, row: number) => ({ x: t.a * column + t.b * row + t.c, y: t.d * column + t.e * row + t.f });
 
-/** Bildens punkt i kartans mm. Kastar om koordinatsystemet inte kan räknas. */
-function toMap(georeference: MapGeoreference, crs: number, x: number, y: number): Point {
-  if (crs === WGS84) return wgs84ToMapPoint(georeference, { latitude: y, longitude: x });
-  if (georeference.crs.kind === "EPSG" && georeference.crs.code === crs) return projectedToMapPoint(georeference, { easting: x, northing: y });
-  return wgs84ToMapPoint(georeference, projectedToWgs84({ kind: "EPSG", code: crs }, x, y));
-}
-
 /**
  * Bildens pixlar (mitten) → kartans mm, ur tre punkter (övre vänstra, övre högra och nedre vänstra pixeln), så att små
  * skillnader mellan koordinatsystemen fördelas över bilden. Kastar om koordinatsystemet inte kan räknas.
  */
 export function layerToMap(layer: { width: number; height: number; crs: number; transform: Affine }, georeference: MapGeoreference): Affine {
   const corners = [[0, 0], [layer.width - 1, 0], [0, layer.height - 1]] as const;
-  const [p0, p1, p2] = corners.map(([column, row]) => { const at = apply(layer.transform, column, row); return toMap(georeference, layer.crs, at.x, at.y); }) as [Point, Point, Point];
+  const [p0, p1, p2] = corners.map(([column, row]) => { const at = apply(layer.transform, column, row); return sourcePointToMap(georeference, layer.crs, at.x, at.y); }) as [Point, Point, Point];
   const w = Math.max(1, layer.width - 1), h = Math.max(1, layer.height - 1);
   const a = (p1.x - p0.x) / w, d = (p1.y - p0.y) / w, b = (p2.x - p0.x) / h, e = (p2.y - p0.y) / h;
   return { a, b, c: p0.x, d, e, f: p0.y };

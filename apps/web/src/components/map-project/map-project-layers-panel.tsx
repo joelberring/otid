@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { mapProjectLayersSv } from "../../i18n/map-project-layers-sv";
 import { Button } from "../ui";
 import type { LayerProblem, useMapProjectLayers } from "./use-map-project-layers";
@@ -19,7 +19,9 @@ function problemText(problem: LayerProblem): string {
  * ADR-0219 tillägget om underlagen (K4a): underlagen i sidopanelen. Varje underlag kan döljas (för en själv) och göras mer eller
  * mindre genomskinligt (för alla); den som lade till det och ägarna kan ta bort det. Nya läggs till med bild och kanske världsfil.
  */
-export function MapProjectLayersPanel({ layers, mapEpsg }: { layers: Layers; mapEpsg: number | undefined }) {
+export function MapProjectLayersPanel({ layers, mapEpsg, after }: { layers: Layers; mapEpsg: number | undefined;
+  /** K4b: importen av vektorer, under underlagen. */
+  after?: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState("");
@@ -69,5 +71,6 @@ export function MapProjectLayersPanel({ layers, mapEpsg }: { layers: Layers; map
         </span>
       </form>
     </details>}
+    {after}
   </section>;
 }

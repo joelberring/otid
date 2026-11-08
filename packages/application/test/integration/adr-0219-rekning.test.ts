@@ -13,7 +13,7 @@ import { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMa
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
 import { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "../../src/map-project-stats";
 import { syncMapProject } from "../../src/map-project-sync";
-import { createMapProjectProposalAsAi, decideMapProjectProposal } from "../../src/map-project-proposals";
+import { createMapProjectProposal, createMapProjectProposalAsAi, decideMapProjectProposal } from "../../src/map-project-proposals";
 import { newKey } from "@o-tid/map-revision";
 import { registerTestAccount } from "./accounts";
 
@@ -202,6 +202,12 @@ describe("ADR-0219 K3: rekningen", () => {
     expect(ai.status).toBe("created");
     if (ai.status === "created") expect((await decideMapProjectProposal(db, { ...s.owner.proof, projectId: s.projectId, proposalId: ai.proposal.proposalId,
       request: { formatVersion: 1, action: "ACCEPT" } }, NOW)).status).toBe("ok");
+    // K4b: importerade kandidater (källan IMPORT), godkända: räknas inte heller.
+    const imported = await createMapProjectProposal(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1,
+      requestId: randomUUID(), source: "IMPORT", note: "Import baskarta.dxf", edits: [add(4)] } }, NOW);
+    expect(imported.status === "created" && imported.proposal.source).toBe("IMPORT");
+    if (imported.status === "created") expect((await decideMapProjectProposal(db, { ...s.owner.proof, projectId: s.projectId,
+      proposalId: imported.proposal.proposalId, request: { formatVersion: 1, action: "ACCEPT" } }, NOW)).status).toBe("ok");
 
     const mine = await readMapProjectStats(db, { ...s.editor.proof, projectId: s.projectId }, NOW);
     expect(mine.status === "ok" && mine.view).toMatchObject({ leaderboard: null, rows: null, optedIn: false,

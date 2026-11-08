@@ -1251,7 +1251,10 @@ K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
   fått området), lagret Etapper färgar efter åldern och syns bara på skärmen. E2E `kartprojekt-underlag` (etapper).
 - [x] K4c del 1: OpenStreetMap via servern (Overpass) för kartan eller en etapp, som kandidater (ingen migration). Tester:
   map-revision `osm`, E2E `kartprojekt-underlag` (falsk Overpass).
-- [ ] K4c kvar: Lantmäteriet (eget konto, ortofoto som underlag), NVDB; geo-arbetaren för tunga processer.
+- [x] K4c del 2 (migration 0100, provas): kontots egna uppgifter till Lantmäteriet (krypterade), ortofoton ur `stac-bild` som
+  underlag för kartan eller en etapp; bilden läses i delar genom servern. Tester: integration `adr-0219-hamtning`, E2E
+  `kartprojekt-underlag` (falsk STAC och GeoTIFF), `organizer-roles`.
+- [ ] K4c kvar: prov mot riktiga Lantmäteriet med ägarens konto; NVDB; geo-arbetaren för tunga processer (K5).
 
 Normkontrollen (del av K6, gjord före K5 eftersom den inte behöver geo-arbetaren; ägaren 2026-11-08):
 

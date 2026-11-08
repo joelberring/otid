@@ -11,6 +11,7 @@ import { AccountClubs } from "./club-affiliation/account-clubs";
 import { AccountMenu } from "./account-menu";
 import { AccountGoogle, LogoutEverywhere } from "./account-google";
 import { AccountAi } from "./account-ai";
+import { AccountMapSources } from "./account-map-sources";
 import styles from "./account-pages.module.css";
 
 const text = accountSv.me;
@@ -151,6 +152,8 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
       <AccountClubs />
 
       <AccountAi />
+
+      <AccountMapSources />
 
       <Section id="konto-losenord" title={text.password} help={text.passwordHelp}>
         <form className={styles.form} onSubmit={savePassword}>

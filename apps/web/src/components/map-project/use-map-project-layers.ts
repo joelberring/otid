@@ -7,8 +7,9 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { savedMapProjectLayers, saveMapProjectLayers } from "../../lib/map-project-offline";
-import { LayerFileError, prepareLayer, type LayerFileProblem } from "../../lib/map-project-layer-file";
+import { LayerFileError, prepareLayer, prepareRemoteLayer, type LayerFileProblem, type PreparedLayer } from "../../lib/map-project-layer-file";
 import { layerToMap, type Affine } from "../../lib/map-project-layers";
+import type { Bounds } from "../../lib/course-setting-viewport";
 
 /** Ett underlag att rita: bilden och transformen från bildens pixlar till kartans mm. */
 export interface DrawnLayer { readonly layerId: string; readonly image: ImageBitmap; readonly toMap: Affine; readonly opacity: number }
@@ -74,11 +75,12 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     return result;
   }, [layers, images, hidden, georeference]);
 
-  const upload = useCallback(async (files: readonly File[], name: string, fallbackCrs: number | undefined): Promise<boolean> => {
+  /** Gör bilden klar (`prepare`) och lägger upp den som underlag. */
+  const add = useCallback(async (prepare: () => Promise<PreparedLayer>, name: string, reload = true): Promise<boolean> => {
     setProblem(undefined);
     setBusy("preparing");
     try {
-      const prepared = await prepareLayer(files, fallbackCrs);
+      const prepared = await prepare();
       setBusy("uploading");
       const token = csrf();
       if (!token) { setProblem(401); return false; }
@@ -86,7 +88,7 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
         headers: { "content-type": "application/octet-stream", "x-otid-csrf": token, "x-otid-request-id": crypto.randomUUID(),
           "x-otid-name": encodeURIComponent((name.trim() || prepared.name).slice(0, 80)),
           "x-otid-layer": encodeURIComponent(JSON.stringify({ crs: prepared.crs, transform: prepared.transform })) } });
-      if (response.status === 200 || response.status === 201) { await load(); return true; }
+      if (response.status === 200 || response.status === 201) { if (reload) await load(); return true; }
       const body = await response.json().catch(() => undefined) as { error?: string } | undefined;
       setProblem(body?.error === "STORAGE_QUOTA_EXCEEDED" ? "quota" : body?.error === "MAP_FILE_TOO_LARGE" ? "TOO_LARGE"
         : body?.error === "UNSUPPORTED_IMAGE" ? "UNREADABLE" : response.status);
@@ -96,6 +98,11 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
       return false;
     } finally { setBusy(undefined); }
   }, [base, load]);
+  const upload = useCallback((files: readonly File[], name: string, fallbackCrs: number | undefined) =>
+    add(() => prepareLayer(files, fallbackCrs), name), [add]);
+  /** K4c: en del av en bild på nätet (ortofoto genom serverns `asset`-anrop) för rutan (kartans mm). */
+  const addRemote = useCallback((url: string, area: Bounds, name: string, reload: boolean) => georeference
+    ? add(() => prepareRemoteLayer(url, area, georeference, name), name, reload) : Promise.resolve(false), [add, georeference]);
 
   /** Genomskinligheten ändras direkt på kartan; `save` skickar den (när reglaget släpps). */
   const setOpacity = useCallback(async (layerId: string, opacity: number, save: boolean) => {
@@ -136,6 +143,6 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
 
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
-  return { layers: listed, hidden, toggle, drawn, upload, busy, problem, setProblem, setOpacity, remove, move,
+  return { layers: listed, hidden, toggle, drawn, upload, addRemote, reload: load, busy, problem, setProblem, setOpacity, remove, move,
     canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

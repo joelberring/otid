@@ -258,4 +258,11 @@ en etapp.
    objekt som en vektorfil (K4b) med svenska lagernamn som ger symbolförslag; kandidaterna lämnas som förslag (IMPORT) med
    källan och ODbL i anteckningen.
 3. **Etapp:** rutan kring ett delområde i stället för kartans; kandidaterna klipps mot etappens ruta.
-4. **Kvar:** Lantmäteriet (ortofoto som underlag via STAC med kontots egna OAuth2-nycklar, krypterade), NVDB.
+4. **Lantmäteriet (del 2, migration 0100, provas):** varje konto sparar sina egna uppgifter under Mitt konto: Geotorgets
+   användarnamn och lösenord (Basic, privatperson) eller API-portalens nyckel och hemlighet (OAuth2, organisation). De
+   krypteras med driftens masternyckel (AES-256-GCM, kontot och källan autentiseras), visas aldrig igen (bara fyra tecken) och
+   tas bort med kontot. Sökningen i `stac-bild` görs av servern; bilden (COG) läses av webbläsaren i delar genom serverns
+   `asset`-anrop (Range krävs, högst 32 MB per del, bara Lantmäteriets adresser, omdirigeringar bara dit) och blir ett underlag
+   (K4a) klippt till kartan eller etappen, en per bildruta. Adresserna följer Lantmäteriets guider men är inte provade mot den
+   riktiga tjänsten (`OTID_LM_STAC_BILD_URL`, `OTID_LM_TOKEN_URL`).
+5. **Kvar:** NVDB; laserdata och höjdmodell (`stac-hojd`) med geo-arbetaren (K5).

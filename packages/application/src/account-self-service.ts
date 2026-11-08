@@ -68,6 +68,8 @@ export async function deleteAccountWithOwnedEvents(tx: DbExecutor, accountId: st
   // ADR-0219 (K2): AI-kopplingarna och kontots kartjobb (ingen nyckel till kontot).
   await purgeOauthForAccount(tx, accountId);
   await tx.delete(schema.mapProjectJobs).where(eq(schema.mapProjectJobs.accountId, accountId));
+  // K4c: kontots egna uppgifter till Lantmäteriet.
+  await tx.delete(schema.mapSourceCredentials).where(eq(schema.mapSourceCredentials.accountId, accountId));
   // K3: spåren är personuppgifter och tas bort med kontot; bekräftelserna står kvar (som ändringarna).
   await purgeMapProjectTracksForAccount(tx, accountId);
   await purgeRows(tx, "user_account", [accountId]);

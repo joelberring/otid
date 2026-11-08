@@ -100,6 +100,9 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   "account/ai-connections/[grantId]": { DELETE: { allow: LOGGED_IN, untested: "Kopplingen finns bara efter ett godkännande (integrationstestet adr-0219-ai)" } },
   // ADR-0219 (K3b): den egna kartstatistiken och "Visa mig i topplistorna".
   "account/map-stats": { GET: { allow: LOGGED_IN }, PUT: { allow: LOGGED_IN, body: { formatVersion: 1, enabled: false } } },
+  // ADR-0219 (K4c): kontots egna uppgifter till Lantmäteriet.
+  "account/map-sources/lantmateriet": { GET: { allow: LOGGED_IN }, DELETE: { allow: LOGGED_IN },
+    PUT: { allow: LOGGED_IN, body: { formatVersion: 1, method: "BASIC", id: "test-anvandare", secret: "hemligt" } } },
   "account/display-name": { POST: { allow: LOGGED_IN, body: { formatVersion: 1, displayName: "Nytt namn" } } },
   "account/delete": { POST: { allow: ["SELF"], body: { formatVersion: 1, password: "hemligt-lösen-1" } } },
   "account/logout-all": { POST: { allow: ["SELF"] } },

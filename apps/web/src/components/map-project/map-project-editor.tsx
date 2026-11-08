@@ -30,6 +30,7 @@ import { MapProjectCollabPanel } from "./map-project-collab-panel";
 import { MapProjectFieldControls, type PositionMode } from "./map-project-field-controls";
 import { MapProjectReconPanel } from "./map-project-recon-panel";
 import { MapProjectLayersPanel } from "./map-project-layers-panel";
+import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import { useMapProjectLayers } from "./use-map-project-layers";
 import { MapProjectImportPanel } from "./map-project-import-panel";
 import { useMapProjectImport } from "./use-map-project-import";
@@ -548,7 +549,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
           <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
-            after={importer.canImport ? <MapProjectImportPanel importer={importer} symbols={symbols} areas={collab.areas} /> : undefined} />}
+            after={<>
+              <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />
+              {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={collab.areas} />}
+            </>} />}
         </>}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}

@@ -204,6 +204,10 @@ export {
 } from "./map-project-layers";
 export { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "./map-project-stats";
 export { DEFAULT_OVERPASS_URL, fetchMapProjectOsm, mapSourceRuntimeFromEnvironment, type MapSourceRuntime } from "./map-project-sources";
+export { deleteMapSourceCredential, readMapSourceCredential, saveMapSourceCredential } from "./map-source-credentials";
+export {
+  lantmaterietRuntimeFromEnvironment, readMapProjectOrthoAsset, searchMapProjectOrtho, type LantmaterietRuntime, type OrthoItem
+} from "./map-project-lantmateriet";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";
 export { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";

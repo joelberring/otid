@@ -285,3 +285,45 @@ test("kartprojekt: hämta OpenStreetMap för en etapp", async ({ browser, baseUR
   expect(huge.status()).toBe(422);
   expect((await huge.json() as { error: string }).error).toBe("SOURCE_AREA_TOO_LARGE");
 });
+
+/**
+ * ADR-0219 tillägget om hämtningen (K4c, migration 0100): egna uppgifter till Lantmäteriet under Mitt konto (visas aldrig igen),
+ * sökningen efter ortofoton för kartan och bilden som underlag; bilden läses i delar genom servern (en falsk STAC i testerna).
+ */
+test("kartprojekt: ortofoto från Lantmäteriet med egna uppgifter", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `orto.${unique()}@exempel.se`, "Orvar Orto");
+  await warmRoute(owner, "/api/account/map-sources/lantmateriet");
+  await owner.goto("/konto");
+  const section = owner.locator("#konto-lantmateriet");
+  await expect(section.getByTestId("map-source-state")).toHaveText("Inga uppgifter sparade.");
+  await section.getByLabel("Användarnamn", { exact: true }).fill("geotorget-orvar");
+  await section.getByLabel("Lösenord", { exact: true }).fill("hemligt-orto-1");
+  await section.getByRole("button", { name: "Spara uppgifterna" }).click();
+  await expect(section.getByTestId("map-source-state")).toContainText("användarnamn som slutar på …rvar");
+  expect(await (await owner.request.get("/api/account/map-sources/lantmateriet")).text()).not.toContain("hemligt");
+
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Orto", "x-otid-file-name": "Orto.omap" },
+    data: Buffer.from(mapBytes) });
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  await warmRoute(owner, `${api}/sources/lantmateriet/search`, "POST");
+  await warmRoute(owner, `${api}/layers`);
+
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const ortho = owner.getByTestId("map-project-ortho");
+  await ortho.getByText("Ortofoto från Lantmäteriet").click();
+  await ortho.getByTestId("map-project-ortho-search").click();
+  const items = ortho.getByTestId("map-project-ortho-items");
+  await expect(items).toContainText("2025-06-15 · orto-2025 · 64_6_2025", { timeout: 30_000 });
+  await ortho.getByTestId("map-project-ortho-add").click();
+  await expect(ortho.getByTestId("map-project-ortho-message")).toHaveText("1 underlag tillagt.", { timeout: 60_000 });
+  await expect(owner.getByTestId("map-project-layer")).toHaveCount(1);
+  await expect(owner.getByTestId("map-project-layer")).toContainText("Ortofoto orto-2025 64_6_2025");
+  const listed = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { crs: number; mediaType: string; width: number }[] }).layers;
+  expect(listed).toMatchObject([{ crs: 3006, mediaType: "image/jpeg" }]);
+  await reviewScreenshots(owner, "kartprojekt-ortofoto");
+});

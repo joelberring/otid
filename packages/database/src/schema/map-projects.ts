@@ -244,3 +244,19 @@ export const mapProjectLayers = pgTable("map_project_layer", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   requestId: uuid("request_id").notNull()
 });
+
+/**
+ * K4c (migration 0100): kontots egna uppgifter till en kartkälla (Lantmäteriet), bara krypterade. `BASIC` = Geotorgets
+ * användarnamn och lösenord, `OAUTH2` = API-portalens nyckel och hemlighet (organisationens systemkonto).
+ */
+export const mapSourceCredentials = pgTable("map_source_credential", {
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id),
+  provider: text("provider").$type<"LANTMATERIET">().notNull(),
+  method: text("method").$type<"BASIC" | "OAUTH2">().notNull(),
+  keyId: text("key_id").notNull(),
+  iv: text("iv").notNull(),
+  tag: text("tag").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  hint: text("hint").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+}, table => [primaryKey({ columns: [table.accountId, table.provider] })]);

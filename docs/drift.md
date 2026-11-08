@@ -849,6 +849,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_IMPORT_TOKEN` | tom (fråga) | Bara på datorn som kör `pnpm archive-import`: klubbarkivets importnyckel (annars `--nyckel-fil` eller en fråga). |
 | `OTID_EVENTOR_BASE_URL`, `OTID_ROC_BASE_URL`, `OTID_GOOGLE_BASE_URL`, `OTID_GOOGLE_AUTHORIZE_URL` | tomma = de riktiga tjänsterna | Endast test: CI pekar på falska tjänster. Lämna tomma i drift. |
 | `OTID_OVERPASS_URL` | tom = `https://overpass-api.de/api/interpreter` | Kartprojektets hämtning från OpenStreetMap (K4c). En egen Overpass går att ange; CI pekar på en falsk. |
+| `OTID_LM_STAC_BILD_URL`, `OTID_LM_TOKEN_URL` | tomma = `https://api.lantmateriet.se/stac-bild/v1` och `https://apimanager.lantmateriet.se/oauth2/token` | Ortofoton från Lantmäteriet med användarens egna uppgifter (K4c, provas). Uppgifterna krypteras med `OTID_EVENTOR_MASTER_KEY`; utan den kan de inte sparas. CI pekar på en falsk STAC. |
 
 ## Prova driftuppsättningen lokalt
 

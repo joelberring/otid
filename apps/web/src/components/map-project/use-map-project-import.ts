@@ -2,13 +2,14 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectView } from "@o-tid/contracts";
-import { isSupportedEpsg, mapPointToWgs84, type MapGeoreference, type MapObject, type Point } from "@o-tid/map-file";
+import { isSupportedEpsg, type MapGeoreference, type MapObject } from "@o-tid/map-file";
 import {
   guessCrs, importLayers, importObjects, newKey, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type ImportLayer, type SourceData, type TargetKind
 } from "@o-tid/map-revision";
 import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
+import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
@@ -61,16 +62,11 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   }, [show]);
 
   /** K4c: OpenStreetMap för kartans område eller en etapp (delområdets polygon i kartans mm), hämtat av servern. */
-  const fetchOsm = useCallback(async (area?: { name: string; polygon: readonly (readonly Point[])[] }) => {
+  const fetchOsm = useCallback(async (area?: BoxArea) => {
     if (!georeference || !bounds) return;
     setProblem(undefined); setSent(undefined); setFetching(true);
-    const outline = area?.polygon[0];
-    const box: Bounds = outline && outline.length >= 3 ? { minX: Math.min(...outline.map(p => p.x)), maxX: Math.max(...outline.map(p => p.x)),
-      minY: Math.min(...outline.map(p => p.y)), maxY: Math.max(...outline.map(p => p.y)) } : bounds;
-    const corners = [{ x: box.minX, y: box.minY }, { x: box.maxX, y: box.minY }, { x: box.maxX, y: box.maxY }, { x: box.minX, y: box.maxY }]
-      .map(point => mapPointToWgs84(georeference, point));
-    const request = { formatVersion: 1, box: { south: Math.min(...corners.map(c => c.latitude)), north: Math.max(...corners.map(c => c.latitude)),
-      west: Math.min(...corners.map(c => c.longitude)), east: Math.max(...corners.map(c => c.longitude)) } };
+    const { box, wgs84 } = areaBox(bounds, georeference, area);
+    const request = { formatVersion: 1, box: wgs84 };
     try {
       const response = await clubRequest(`${base}/sources/osm`, "POST", request).catch(() => ({ status: 0, json: undefined }));
       const body = response.json as { data?: SourceData; error?: string } | undefined;

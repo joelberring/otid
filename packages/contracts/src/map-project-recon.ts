@@ -135,10 +135,29 @@ export interface MapProjectLayerView {
 export interface MapProjectLayerList { formatVersion: 1; layers: MapProjectLayerView[] }
 
 /**
- * K4c: hämta OpenStreetMap för en ruta i WGS 84 (kartans område eller en etapp). Servern frågar Overpass och svarar med lager
+ * K4c: hämta OpenStreetMap, eller sök ortofoton hos Lantmäteriet, för en ruta i WGS 84 (kartans område eller en etapp). Servern frågar Overpass och svarar med lager
  * och objekt som en importerad vektorfil; storleken prövas också där (`validOsmBox` i map-revision).
  */
 export const mapProjectOsmRequestSchema = z.object({
   formatVersion: z.literal(1),
   box: z.object({ south: z.number().finite(), west: z.number().finite(), north: z.number().finite(), east: z.number().finite() }).strict()
 }).strict();
+
+/**
+ * K4c (migration 0100): kontots egna uppgifter till Lantmäteriet. `BASIC` = Geotorgets användarnamn och lösenord, `OAUTH2` =
+ * API-portalens nyckel och hemlighet. Svaret visar aldrig uppgifterna, bara de fyra sista tecknen i användarnamnet eller nyckeln.
+ */
+export const mapSourceCredentialRequestSchema = z.object({
+  formatVersion: z.literal(1),
+  method: z.enum(["BASIC", "OAUTH2"]),
+  id: z.string().trim().min(1).max(200),
+  secret: z.string().min(1).max(500)
+}).strict();
+export interface MapSourceCredentialView {
+  readonly formatVersion: 1; readonly provider: "LANTMATERIET";
+  /** Servern har en masternyckel (annars kan inget sparas). */
+  readonly available: boolean;
+  readonly saved: { readonly method: "BASIC" | "OAUTH2"; readonly hint: string; readonly updatedAt: string;
+    /** Falskt om masternyckeln bytts sedan uppgifterna sparades (de måste sparas igen). */
+    readonly readable: boolean } | null;
+}

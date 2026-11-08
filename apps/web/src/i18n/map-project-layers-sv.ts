@@ -24,6 +24,7 @@ export const mapProjectLayersSv = {
     NO_GEOREFERENCE: "Bilden saknar georeferens. Välj världsfilen tillsammans med bilden.",
     UNSUPPORTED_CRS: "Koordinatsystemet stöds inte. Ange EPSG-koden (SWEREF 99, RT 90, UTM eller WGS 84).",
     UNREADABLE: "Bilden gick inte att läsa.",
+    OUTSIDE: "Bilden täcker inte området.",
     TOO_LARGE: "Bilden är för stor (högst 40 MB efter nedskalning).",
     quota: "Klubbens lagring är full.",
     generic: (status: number) => `Det gick inte (${status}).`

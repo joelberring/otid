@@ -1,4 +1,4 @@
-import { isSupportedEpsg } from "@o-tid/map-file";
+import { crsFromEpsg, isSupportedEpsg, mapPointToWgs84, wgs84ToProjected, type MapGeoreference, type Point } from "@o-tid/map-file";
 import { MAP_PROJECT_LAYER_MAX_BYTES } from "@o-tid/contracts";
 import { affineFromOrigin, MAX_LAYER_SIDE, parseWorldFile, scaledAffine, WGS84, type Affine } from "./map-project-layers";
 
@@ -13,7 +13,7 @@ export interface PreparedLayer {
   /** Ett förslag på namn (filens namn utan ändelse). */
   readonly name: string;
 }
-export type LayerFileProblem = "NO_IMAGE" | "NO_GEOREFERENCE" | "UNSUPPORTED_CRS" | "UNREADABLE" | "TOO_LARGE";
+export type LayerFileProblem = "NO_IMAGE" | "NO_GEOREFERENCE" | "UNSUPPORTED_CRS" | "UNREADABLE" | "TOO_LARGE" | "OUTSIDE";
 export class LayerFileError extends Error {
   constructor(readonly problem: LayerFileProblem) { super(problem); }
 }
@@ -125,4 +125,65 @@ async function fromTiff(file: File, world: Affine | undefined, fallbackCrs: numb
   ctx.putImageData(new ImageData(pixels, size.width, size.height), 0, 0);
   return { bytes: await encode(canvas, "image/jpeg"), crs, transform: size.factor === 1 ? transform : scaledAffine(transform, size.width / width),
     width: size.width, height: size.height, name: stem(file.name) };
+}
+
+/** Största sidan på ett hämtat ortofoto (en bildruta för en karta eller etapp; mindre än en egen fil för att gå fort). */
+const REMOTE_SIDE = 4096;
+
+/**
+ * K4c: en del av en bild på nätet (COG, t.ex. Lantmäteriets ortofoto via serverns `asset`-anrop) blir ett underlag. Bara rutan
+ * kring `area` (kartans mm) läses, i den översikt som räcker för upplösningen, så att bara några delar av filen hämtas.
+ */
+export async function prepareRemoteLayer(url: string, area: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number },
+  georeference: MapGeoreference, name: string): Promise<PreparedLayer> {
+  const { fromUrl } = await import("geotiff");
+  let tiff: Awaited<ReturnType<typeof fromUrl>>;
+  try { tiff = await fromUrl(url, { allowFullFile: false }); } catch { throw new LayerFileError("UNREADABLE"); }
+  const full = await tiff.getImage();
+  const georef = tiffGeoreference(full);
+  if (!georef.transform) throw new LayerFileError("NO_GEOREFERENCE");
+  const crs = checkedCrs(georef.crs);
+  const t = georef.transform;
+  // Rutans hörn i bildens system och sedan i bildens pixlar (hela upplösningen).
+  const corners: Point[] = [{ x: area.minX, y: area.minY }, { x: area.maxX, y: area.minY }, { x: area.maxX, y: area.maxY }, { x: area.minX, y: area.maxY }];
+  const system = crsFromEpsg(crs, "");
+  const pixels = corners.map(corner => {
+    const at = mapPointToWgs84(georeference, corner);
+    const world = crs === WGS84 ? { easting: at.longitude, northing: at.latitude } : wgs84ToProjected(system, at.latitude, at.longitude);
+    return { col: (world.easting - t.c) / t.a + 0.5, row: (world.northing - t.f) / t.e + 0.5 };
+  });
+  const width = full.getWidth(), height = full.getHeight();
+  const x0 = Math.max(0, Math.floor(Math.min(...pixels.map(p => p.col)))), x1 = Math.min(width, Math.ceil(Math.max(...pixels.map(p => p.col))));
+  const y0 = Math.max(0, Math.floor(Math.min(...pixels.map(p => p.row)))), y1 = Math.min(height, Math.ceil(Math.max(...pixels.map(p => p.row))));
+  if (x1 - x0 < 2 || y1 - y0 < 2) throw new LayerFileError("OUTSIDE");
+  const factor = Math.min(1, REMOTE_SIDE / Math.max(x1 - x0, y1 - y0));
+  const outWidth = Math.max(1, Math.round((x1 - x0) * factor)), outHeight = Math.max(1, Math.round((y1 - y0) * factor));
+  // Den minsta översikten som fortfarande har minst så många pixlar som behövs.
+  let image = full, scale = 1;
+  const count = await tiff.getImageCount();
+  for (let index = 1; index < count; index += 1) {
+    const candidate = await tiff.getImage(index);
+    const ratio = candidate.getWidth() / width;
+    if ((x1 - x0) * ratio >= outWidth && (y1 - y0) * ratio >= outHeight && ratio < scale) { image = candidate; scale = ratio; }
+  }
+  const window = [Math.floor(x0 * scale), Math.floor(y0 * scale), Math.max(Math.floor(x0 * scale) + 1, Math.ceil(x1 * scale)),
+    Math.max(Math.floor(y0 * scale) + 1, Math.ceil(y1 * scale))];
+  let rgb: ArrayLike<number>;
+  try {
+    rgb = await image.readRGB({ window, interleave: true, width: outWidth, height: outHeight, resampleMethod: "bilinear" }) as unknown as ArrayLike<number>;
+  } catch { throw new LayerFileError("UNREADABLE"); }
+  const bits = Number(full.getBitsPerSample(0) ?? 8);
+  const shift = bits > 8 ? 2 ** (bits - 8) : 1;
+  const data = new Uint8ClampedArray(outWidth * outHeight * 4);
+  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+    data[i] = rgb[j]! / shift; data[i + 1] = rgb[j + 1]! / shift; data[i + 2] = rgb[j + 2]! / shift; data[i + 3] = 255;
+  }
+  const { canvas, ctx } = surface(outWidth, outHeight);
+  ctx.putImageData(new ImageData(data, outWidth, outHeight), 0, 0);
+  // Fönstrets övre vänstra hörn i bildens system, och pixelns storlek i utbilden.
+  const origin: [number, number] = [t.c - t.a / 2 + t.a * x0, t.f - t.e / 2 + t.e * y0];
+  const transform = affineFromOrigin(origin, [t.a * (x1 - x0) / outWidth, t.e * (y1 - y0) / outHeight]);
+  const bytes = await encode(canvas, "image/jpeg");
+  if (bytes.size > MAP_PROJECT_LAYER_MAX_BYTES) throw new LayerFileError("TOO_LARGE");
+  return { bytes, crs, transform, width: outWidth, height: outHeight, name };
 }

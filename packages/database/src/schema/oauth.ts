@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { races } from "./core";
 import { mapProjects } from "./map-projects";
 import { bytea } from "./types";
 
@@ -53,7 +54,9 @@ export type MapProjectJobStatus = "QUEUED" | "RUNNING" | "DONE" | "FAILED";
 /** Kartjobben (läsa, rita, lista, kontrollera) som utskriftsarbetaren gör åt AI-kopplingen. */
 export const mapProjectJobs = pgTable("map_project_job", {
   id: uuid("id").primaryKey(),
-  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  /** Kartprojektet, eller (migration 0101) tävlingen när jobbet gäller banläggningen; precis en av dem. */
+  projectId: uuid("project_id").references(() => mapProjects.id),
+  raceId: uuid("race_id").references(() => races.id, { onDelete: "cascade" }),
   accountId: uuid("account_id").notNull(),
   kind: text("kind").notNull(),
   request: jsonb("request").$type<Record<string, unknown>>().notNull(),

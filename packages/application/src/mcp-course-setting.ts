@@ -7,6 +7,8 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { requireCourseSettingForAccount, type CourseSettingRequirement } from "./course-setting-access";
 import { insertCourseSettingNote } from "./course-setting-notes";
+import { runMapJobAndWait } from "./map-project-jobs";
+type JobWaitOptions = { timeoutMs?: number; pollMs?: number };
 
 /**
  * Ägaren 2026-11-08: AI-banläggningsassistenten. MCP-verktygen (behörigheten `banlaggning`) läser banläggningen i tävlingar
@@ -14,7 +16,7 @@ import { insertCourseSettingNote } from "./course-setting-notes";
  * tar ställning till. Inget ändras i en bana, en tävling eller ett resultat. Banorna är hemliga: verktygen svarar bara kontot
  * som har behörigheten.
  */
-type Content = { type: "text"; text: string };
+type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: "image/png" };
 type ToolResult = { content: Content[]; isError?: boolean };
 const text = (value: unknown): Content => ({ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 1) });
 const toolError = (message: string): ToolResult => ({ content: [text(message)], isError: true });
@@ -29,6 +31,11 @@ export const MCP_COURSE_TOOLS = [
   { name: "course_overview", title: "Banorna i en tävling", description: "Banorna med målnivå (Grön, Vit, Gul, Orange, Röd, Violett, Blå, Svart eller förslag ur klassnamnen), klasser, längd och stigning, kontrollerna i ordning (kod, beskrivning i text, läge i kartans mm med y uppåt) och sträckorna (fågelvägen i meter, riktning i grader från norr), samt O-Tids varningar. Ange course_id för en bana. Börja här för att granska nivån.",
     inputSchema: { type: "object", properties: { ...raceIdProperty, course_id: { type: "string", description: "Bara den här banan" } }, required: ["race_id"] },
     annotations: { readOnlyHint: true } },
+  { name: "render_course", title: "Bild av en bana", description: "En bild (PNG, högst 1600 px) av banan på tävlingens karta, i kartans färger med banan i lila och ett rutnät i kartans mm (samma lägen som course_overview). Ange area för ett utsnitt, t.ex. en sträcka. Titta på vägvalen och kontrollernas omgivning när du granskar nivån.",
+    inputSchema: { type: "object", properties: { ...raceIdProperty, course_id: { type: "string" }, width_px: { type: "integer", minimum: 200, maximum: 1600 },
+      grid: { type: "boolean", description: "Rutnätet (förval ja)" }, area: { type: "object", description: "Utsnitt i kartans mm med y uppåt",
+        properties: { min_x: { type: "number" }, min_y: { type: "number" }, max_x: { type: "number" }, max_y: { type: "number" } },
+        required: ["min_x", "min_y", "max_x", "max_y"] } }, required: ["race_id", "course_id"] }, annotations: { readOnlyHint: true } },
   { name: "add_course_note", title: "Lämna en notis i banläggningen", description: "Lämnar en notis (granskning eller förslag) på en bana, en kontroll, en sträcka eller en punkt. Banläggaren läser den och tar ställning; inget ändras i banorna. Skriv konkret: vad, varför och ett förslag.",
     inputSchema: { type: "object", properties: { ...raceIdProperty, text: { type: "string", maxLength: 2000 }, course_id: { type: "string" },
       control_id: { type: "string" }, leg: { type: "object", properties: { from_control_id: { type: "string" }, to_control_id: { type: "string" } },
@@ -106,13 +113,15 @@ export function courseOverviewOf(document: CourseSettingDocument, courseId?: str
   };
 }
 
-export async function callMcpCourseTool(db: Database, accountId: string, name: string, args: unknown, now = new Date()): Promise<ToolResult> {
+export async function callMcpCourseTool(db: Database, accountId: string, name: string, args: unknown, now = new Date(), wait: JobWaitOptions = {})
+  : Promise<ToolResult> {
   if (name === "list_course_settings") return { content: [text(await listCourseSettings(db, accountId))] };
   const schemaFor = mcpCourseToolInputSchemas[name as keyof typeof mcpCourseToolInputSchemas];
   if (!schemaFor) return toolError(`Okänt verktyg ${name}`);
   const parsed = schemaFor.safeParse(args ?? {});
   if (!parsed.success) return toolError(`Ogiltiga argument: ${parsed.error.issues.map(issue => `${issue.path.join(".") || "(argumenten)"}: ${issue.message}`).join("; ")}`);
-  const input = parsed.data as { race_id: string; course_id?: string; text?: string; control_id?: string;
+  const input = parsed.data as { race_id: string; course_id?: string; text?: string; control_id?: string; width_px?: number; grid?: boolean;
+    area?: { min_x: number; min_y: number; max_x: number; max_y: number };
     leg?: { from_control_id: string; to_control_id: string }; point_mm?: [number, number] };
   const denied = await access(db, accountId, input.race_id, "COMMENT");
   if (denied) return toolError(denied);
@@ -122,6 +131,17 @@ export async function callMcpCourseTool(db: Database, accountId: string, name: s
   if (name === "course_overview") {
     if (input.course_id && !document.courses.some(course => course.id === input.course_id)) return toolError("Banan finns inte.");
     return { content: [text(courseOverviewOf(document, input.course_id))] };
+  }
+  if (name === "render_course") {
+    if (!document.courses.some(course => course.id === input.course_id)) return toolError("Banan finns inte.");
+    const area = input.area ? { minX: input.area.min_x, minY: input.area.min_y, maxX: input.area.max_x, maxY: input.area.max_y } : undefined;
+    const outcome = await runMapJobAndWait(db, { accountId, raceId: input.race_id, kind: "COURSE_RENDER", request: { document: document as unknown as Record<string, unknown>,
+      course: input.course_id, ...(input.width_px ? { widthPx: input.width_px } : {}), grid: input.grid !== false, ...(area ? { area } : {}) } }, wait);
+    if (outcome.status === "throttled") return toolError("För många anrop just nu (högst 30 kartjobb per minut och två samtidigt). Vänta en stund.");
+    if (outcome.status === "timeout") return toolError("Bilden tog för lång tid. Försök med ett mindre utsnitt.");
+    if (outcome.status === "failed") return toolError(`Bilden kunde inte ritas: ${outcome.error}`);
+    if (!outcome.image) return toolError("Bilden saknas");
+    return { content: [{ type: "image", data: Buffer.from(outcome.image).toString("base64"), mimeType: "image/png" }, text(outcome.result)] };
   }
   // add_course_note
   const target = input.control_id ? { kind: "CONTROL" as const, control: input.control_id }

@@ -76,6 +76,7 @@
     { "idx": 71, "version": "7", "when": 1805731200000, "tag": "0097_kartprojekt_underlag", "breakpoints": true },
     { "idx": 72, "version": "7", "when": 1805817600000, "tag": "0098_kartprojekt_etapper", "breakpoints": true },
     { "idx": 73, "version": "7", "when": 1805904000000, "tag": "0099_klass_kallnamn", "breakpoints": true },
-    { "idx": 74, "version": "7", "when": 1805990400000, "tag": "0100_kartkallor_konto", "breakpoints": true }
+    { "idx": 74, "version": "7", "when": 1805990400000, "tag": "0100_kartkallor_konto", "breakpoints": true },
+    { "idx": 75, "version": "7", "when": 1806076800000, "tag": "0101_kartjobb_banor", "breakpoints": true }
   ]
 }

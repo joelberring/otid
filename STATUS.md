@@ -10,13 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
-### 2026-11-08 – AI-banläggningsassistenten (ingen migration, ADR-0219 tillägg)
+### 2026-11-08 – AI-banläggningsassistenten (migration 0101, ADR-0219 tillägg)
 - AI-kopplingen har en ny behörighet, `banlaggning`: Claude listar tävlingarna där kontot får lägga banor, läser banorna (målnivå,
   klasser, längd, stigning, kontroller med beskrivning, sträckor med fågelväg och riktning, varningar) och lämnar notiser märkta
   "AI-granskning:" på bana, kontroll, sträcka eller punkt. Inget ändras i banor, tävling eller resultat.
 - Godkännandet visar behörigheterna; äldre kopplingar har bara kartprojekten och kopplas om.
 - Verifierat: typecheck, lint, `lint:dead`, integration `adr-0219-banlaggningsassistent`, `adr-0219-ai`, E2E `ai-koppling`.
-- Kvar: bild av banan på kartan och nivåstödets mätningar på servern.
+- Bild av banan på kartan (`render_course`, kartjobb i utskriftsarbetaren, migration 0101: kartjobb för en tävling).
+- Kvar: nivåstödets mätningar på servern.
 
 ### 2026-11-08 – Läs ut enheter (ingen migration, untested)
 - Avläsning → "Läs ut enheter": huvudstationen ansluts med Web Serial och enheten som ligger mot den läses i fjärrläge:

@@ -11,6 +11,8 @@ import { saveRaceMapSourceAsAdmin } from "../../src/race-map-source";
 import { importCourseSettingAsAdmin } from "../../src/course-setting";
 import { listCourseSettingNotesAsAdmin } from "../../src/course-setting-notes";
 import { handleMcpMessage } from "../../src/mcp";
+import { claimMapJob, runMapJob } from "../../src/map-project-jobs";
+import { createMapJobCanvas } from "../../../../scripts/map-job-canvas";
 import { AI_NOTE_PREFIX } from "../../src/mcp-course-setting";
 import { accountOnRace, grantRacePerson, registerTestAccount } from "./accounts";
 import { acceptRacePersonInvitations } from "../../src/race-person-invitations";
@@ -82,6 +84,17 @@ async function raceWithCourses() {
   return { owner, accountId: account.response.accountId, document };
 }
 
+/** Kör MCP-anropet medan kartjobben görs (som utskriftsarbetaren). */
+async function withWorker(accountId: string, message: object) {
+  let done = false;
+  const pending = handleMcpMessage(db, accountId, message, { pollMs: 20, timeoutMs: 20_000 }, ["banlaggning"]).finally(() => { done = true; });
+  while (!done) {
+    const job = await claimMapJob(db, "test-worker");
+    if (job) await runMapJob(db, job, { worker: "test-worker", createCanvas: createMapJobCanvas });
+    else await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  return pending;
+}
 const call = (id: number, name: string, args: Record<string, unknown> = {}) => ({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
 type Result = { result?: { content: { text: string }[]; isError?: boolean } };
 const parsed = (response: unknown) => JSON.parse((response as Result).result!.content[0]!.text) as Record<string, unknown>;
@@ -108,6 +121,14 @@ describe("ADR-0219: AI-banläggningsassistenten", () => {
     expect(course.controls[0]!.kind).toBe("START");
     expect(course.legs).toHaveLength(course.controls.length - 1);
     expect(course.legs.every(leg => leg.straightMeters > 0)).toBe(true);
+
+    // En bild av banan på kartan (kartjobb i utskriftsarbetaren).
+    const image = await withWorker(accountId, call(11, "render_course", { race_id: owner.raceId, course_id: course.courseId, width_px: 600 }));
+    const content = (image as { result: { content: { type: string; data?: string; mimeType?: string; text?: string }[]; isError?: boolean } }).result;
+    expect(content.isError, JSON.stringify(content).slice(0, 300)).toBeFalsy();
+    expect(content.content[0]).toMatchObject({ type: "image", mimeType: "image/png" });
+    expect(Buffer.from(content.content[0]!.data!, "base64").subarray(1, 4).toString()).toBe("PNG");
+    expect(JSON.parse(content.content[1]!.text!)).toMatchObject({ course: course.name, withMap: true });
 
     const leg = course.legs[1]!;
     const note = parsed(await handleMcpMessage(db, accountId, call(6, "add_course_note", { race_id: owner.raceId,

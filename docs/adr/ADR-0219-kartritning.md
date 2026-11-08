@@ -279,5 +279,7 @@ en etapp.
    bana, kontroll, sträcka eller punkt, märkt "AI-granskning:").
 3. **Behörigheten** prövas som på sidan (`requireCourseSettingForAccount`, samma regler som sessionen); Kommentera räcker.
    Inget verktyg ändrar en bana, tävlingen, deltagare eller resultat.
-4. **Kvar:** en bild av banan på kartan (kartjobb i utskriftsarbetaren) och nivåstödets mätningar (vägval, ledstänger) på
-   servern, så att granskningen inte bara bygger på text.
+4. **Bilden** (`render_course`, migration 0101): ett kartjobb i utskriftsarbetaren ritar banan på tävlingens karta (samma
+   `drawMap` och `layoutOverprint` som annars) med rutnät i kartans mm; dokumentet följer med jobbet. Ett kartjobb gäller nu ett
+   kartprojekt eller en tävling (precis en av dem; jobbet tas bort med tävlingen).
+5. **Kvar:** nivåstödets mätningar (vägval, ledstänger) på servern, så att granskningen kan använda samma mått som sidan.

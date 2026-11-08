@@ -164,7 +164,7 @@ export async function handleMcpMessage(db: Database, accountId: string, message:
     case "tools/call": {
       const name = typeof params?.name === "string" ? params.name : "";
       if (MCP_COURSE_TOOL_NAMES.has(name)) {
-        return ok(courses ? await callMcpCourseTool(db, accountId, name, params?.arguments)
+        return ok(courses ? await callMcpCourseTool(db, accountId, name, params?.arguments, new Date(), wait)
           : { content: [{ type: "text", text: "Kopplingen har inte behörigheten banlaggning. Ta bort kopplingen under Mitt konto → AI-kopplingar och koppla igen." }], isError: true });
       }
       if (!maps) return ok({ content: [{ type: "text", text: "Kopplingen har inte behörigheten kartprojekt." }], isError: true });

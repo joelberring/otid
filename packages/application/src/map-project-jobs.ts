@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { consumeAccountRequestAllowance } from "./account-throttle";
-import { readMapContent } from "./map-content";
+import type { CourseSettingDocument } from "@o-tid/course-setting";
+import { renderCourse, type CourseRenderRequest } from "./course-render";
+import { readMapContent, rowContent } from "./map-content";
 import {
   loadProjectMap, runCheck, runCompare, runObjects, runOverview, runPropose, runRender, type CreateMapJobCanvas, type ProposalOperation
 } from "./map-project-job-run";
@@ -12,7 +14,7 @@ import {
  * utskriftsarbetaren (låg prioritet, barnprocess per jobb) tar jobben ett i taget och skriver resultatet. Resultaten är
  * tillfälliga (rensas efter en timme). `pg_notify('otid_map_job')` väcker arbetaren direkt.
  */
-export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE"] as const;
+export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER"] as const;
 export type MapJobKind = typeof MAP_JOB_KINDS[number];
 export const MAP_JOB_CHANNEL = "otid_map_job";
 /** Högst så många jobb per konto och minut, och samtidigt. */
@@ -29,7 +31,9 @@ export type MapJobOutcome =
   | { status: "throttled" };
 
 /** Lägger jobbet och väntar på svaret (pollar raden). Ett jobb som fortfarande väntar i kön när tiden gått ut tas bort. */
-export async function runMapJobAndWait(db: Database, input: { accountId: string; projectId: string; kind: MapJobKind; request: Record<string, unknown> },
+/** Ett jobb gäller ett kartprojekt (`projectId`) eller, för COURSE_RENDER, en tävlings banläggning (`raceId`, migration 0101). */
+export async function runMapJobAndWait(db: Database, input: { accountId: string; kind: MapJobKind; request: Record<string, unknown> }
+  & ({ projectId: string; raceId?: undefined } | { raceId: string; projectId?: undefined }),
   options: { timeoutMs?: number; pollMs?: number; now?: () => Date } = {}): Promise<MapJobOutcome> {
   const clock = options.now ?? (() => new Date());
   const id = randomUUID();
@@ -40,7 +44,7 @@ export async function runMapJobAndWait(db: Database, input: { accountId: string;
       .where(and(eq(schema.mapProjectJobs.accountId, input.accountId), inArray(schema.mapProjectJobs.status, ["QUEUED", "RUNNING"]),
         gt(schema.mapProjectJobs.createdAt, new Date(now.getTime() - STALE_MS))));
     if (running >= CONCURRENT_PER_ACCOUNT) return false;
-    await tx.insert(schema.mapProjectJobs).values({ id, projectId: input.projectId, accountId: input.accountId, kind: input.kind, request: input.request,
+    await tx.insert(schema.mapProjectJobs).values({ id, projectId: input.projectId ?? null, raceId: input.raceId ?? null, accountId: input.accountId, kind: input.kind, request: input.request,
       status: "QUEUED", createdAt: now });
     await tx.execute(sql`select pg_notify(${MAP_JOB_CHANNEL}, '')`);
     return true;
@@ -62,7 +66,7 @@ export async function runMapJobAndWait(db: Database, input: { accountId: string;
   }
 }
 
-export interface ClaimedMapJob { id: string; projectId: string; kind: string; request: Record<string, unknown>; attempts: number }
+export interface ClaimedMapJob { id: string; projectId: string | null; raceId: string | null; kind: string; request: Record<string, unknown>; attempts: number }
 
 /** Arbetaren tar nästa jobb (äldst först). Jobb vars arbetare dött läggs tillbaka (eller misslyckas efter två försök). */
 export async function claimMapJob(db: Database, worker: string, now = new Date()): Promise<ClaimedMapJob | undefined> {
@@ -71,12 +75,12 @@ export async function claimMapJob(db: Database, worker: string, now = new Date()
     .where(and(eq(schema.mapProjectJobs.status, "RUNNING"), lt(schema.mapProjectJobs.heartbeatAt, stale), sql`${schema.mapProjectJobs.attempts} >= ${MAX_ATTEMPTS}`));
   await db.update(schema.mapProjectJobs).set({ status: "QUEUED", worker: null })
     .where(and(eq(schema.mapProjectJobs.status, "RUNNING"), lt(schema.mapProjectJobs.heartbeatAt, stale)));
-  const result = await db.execute<{ id: string; project_id: string; kind: string; request: Record<string, unknown>; attempts: number }>(sql`
+  const result = await db.execute<{ id: string; project_id: string | null; race_id: string | null; kind: string; request: Record<string, unknown>; attempts: number }>(sql`
     update map_project_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker}
     where id = (select id from map_project_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
-    returning id, project_id, kind, request, attempts`);
+    returning id, project_id, race_id, kind, request, attempts`);
   const row = result.rows[0];
-  return row ? { id: row.id, projectId: row.project_id, kind: row.kind, request: row.request, attempts: row.attempts } : undefined;
+  return row ? { id: row.id, projectId: row.project_id, raceId: row.race_id, kind: row.kind, request: row.request, attempts: row.attempts } : undefined;
 }
 
 async function finish(db: Database, id: string, worker: string, values: { status: MapJobFinished; result?: unknown; image?: Uint8Array | null; error?: string },
@@ -103,6 +107,8 @@ export async function cleanupMapJobs(db: Database, now = new Date()): Promise<nu
 /** Barnprocessen: läser grundfilen och projektets objekt, gör jobbet och skriver resultatet. */
 export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas }, now = new Date())
   : Promise<"DONE" | "FAILED"> {
+  if (job.kind === "COURSE_RENDER") return runCourseRenderJob(db, job, deps, now);
+  if (!job.projectId) { await failMapJob(db, job.id, deps.worker, "Jobbet saknar kartprojekt"); return "FAILED"; }
   const [project] = await db.select({ baseSha256: schema.mapProjects.baseSha256, baseFormat: schema.mapProjects.baseFormat, area: schema.mapProjects.area })
     .from(schema.mapProjects).where(eq(schema.mapProjects.id, job.projectId));
   if (!project) { await failMapJob(db, job.id, deps.worker, "Projektet finns inte"); return "FAILED"; }
@@ -141,5 +147,28 @@ export async function heartbeatMapJob(db: Database, id: string, worker: string, 
 export async function loadClaimedMapJob(db: Database, id: string, worker: string): Promise<ClaimedMapJob | undefined> {
   const [job] = await db.select().from(schema.mapProjectJobs).where(and(eq(schema.mapProjectJobs.id, id), eq(schema.mapProjectJobs.worker, worker),
     eq(schema.mapProjectJobs.status, "RUNNING")));
-  return job ? { id: job.id, projectId: job.projectId, kind: job.kind, request: job.request, attempts: job.attempts } : undefined;
+  return job ? { id: job.id, projectId: job.projectId, raceId: job.raceId, kind: job.kind, request: job.request, attempts: job.attempts } : undefined;
+}
+
+/**
+ * Ägaren 2026-11-08: en bild av en bana (AI-banläggningsassistenten). Dokumentet följer med jobbet (som utskriftsjobben);
+ * tävlingens kartfil läses här. Utan kartfil ritas bara banan.
+ */
+async function runCourseRenderJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas }, now: Date)
+  : Promise<"DONE" | "FAILED"> {
+  if (!job.raceId) { await failMapJob(db, job.id, deps.worker, "Jobbet saknar tävling"); return "FAILED"; }
+  const request = job.request as { document?: unknown; course?: unknown; widthPx?: unknown; grid?: unknown; area?: unknown };
+  const [source] = await db.select({ inline: schema.raceMapSources.file, contentSha256: schema.raceMapSources.contentSha256, fileName: schema.raceMapSources.fileName })
+    .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, job.raceId));
+  const file = source ? await rowContent(db, source) : undefined;
+  try {
+    const rendered = renderCourse(file && source ? { bytes: new Uint8Array(file), fileName: source.fileName } : null,
+      request.document as CourseSettingDocument, { course: typeof request.course === "string" ? request.course : "", widthPx: typeof request.widthPx === "number" ? request.widthPx : undefined,
+        grid: request.grid !== false, area: request.area as CourseRenderRequest["area"] }, deps.createCanvas);
+    await finish(db, job.id, deps.worker, { status: "DONE", result: rendered.meta, image: rendered.png }, now);
+    return "DONE";
+  } catch (error) {
+    await failMapJob(db, job.id, deps.worker, error instanceof Error ? error.message : String(error));
+    return "FAILED";
+  }
 }

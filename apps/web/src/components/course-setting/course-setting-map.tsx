@@ -465,7 +465,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       data-px-per-mm={view ? view.pxPerMm.toFixed(3) : undefined}
       data-passes={drawn.current?.passes ?? ""}
       data-center={view ? `${view.centerX.toFixed(2)},${view.centerY.toFixed(2)}` : undefined}
-      data-heading={position?.heading} data-follow={position?.follow || undefined}
+      data-heading={position?.heading} data-follow={position?.follow || undefined} data-position={position ? "" : undefined}
       // Kartan är ritad skarpt för vyn som visas (specarna väntar på den före skärmbilder).
       data-drawn={drawnVersion > 0 && drawn.current?.view === view ? "true" : undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}

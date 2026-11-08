@@ -91,6 +91,7 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
       {stage === "confirm" && pending && <div className={styles.confirm} role="alertdialog" aria-label={text.logout}>
         <p><strong>{text.pending(pending.total)}</strong></p>
         {pending.courseSetting > 0 && <p>{text.pendingCourseSetting}</p>}
+        {pending.tracks > 0 && <p>{text.pendingTracks(pending.tracks)}</p>}
         {pending.readouts + pending.party > 0 && <p>{text.pendingReadouts(pending.readouts + pending.party)}</p>}
         <div><Button type="button" variant="secondary" onClick={() => void leave()}>{text.logoutAnyway}</Button>
           <Button type="button" variant="quiet" onClick={() => setStage("idle")}>{text.cancel}</Button></div>

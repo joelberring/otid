@@ -58,7 +58,9 @@ const nextConfig: NextConfig = {
         { key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] },
       // Kontosidorna (ADR-0172): inte i cache, inte i ram och ingen referer (återställningslänken).
       ...["/superadmin", "/konto", "/recover", "/organizer/groups/:groupId", "/organizer/map-projects", "/organizer/map-projects/:projectId",
-        "/organizer/map-projects/:projectId/map", "/oauth/authorize"].map((source) => ({ source, headers: [...privateAdminHeaders] }))
+        "/organizer/map-projects/:projectId/map", "/oauth/authorize"].map((source) => ({ source, headers: [...privateAdminHeaders] })),
+      // ADR-0219 (K3): kartprojektets rekning, telefonens position på kartan. Gäller före regeln ovan.
+      { source: "/organizer/map-projects/:projectId/map", headers: [{ key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] }
     ];
   },
   transpilePackages: [

@@ -26,7 +26,7 @@ function SymbolIcon({ icon }: { icon: Blob | undefined }) {
  * ADR-0219 (K1): editorns sidopanel. Symbolerna i kartfilen (bara de som finns i filen, sökbara på nummer och namn), lagren
  * (symbolgrupperna efter ISOM-numret), krockarna att välja i och samarbetet.
  */
-export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGroups, onToggleGroup, conflicts, symbols, onResolve, canEdit, children }: {
+export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGroups, onToggleGroup, conflicts, symbols, onResolve, canEdit, children, after }: {
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid). */
   open: boolean;
   catalog: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
@@ -35,6 +35,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGro
   canEdit: boolean;
   /** Samarbetet (förslag, delområden, arbetssätt), efter krockarna. */
   children?: ReactNode;
+  /** Efter symbolerna och lagren (K3: rekningen). */
+  after?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
@@ -95,5 +97,6 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGro
         </label>
       </li>)}</ul>
     </section>
+    {after}
   </aside>;
 }

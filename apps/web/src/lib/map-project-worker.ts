@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 import { drawMap, MapFileError, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
-  baseKeys, editedObjects, hitTest, objectBox, objectRefFor, symbolObjectKind, type Box, type KeyedState, type ObjectKey, type ObjectRef
+  baseKeys, coverageGrid, editedObjects, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, type Box, type KeyedState, type ObjectKey,
+  type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
@@ -165,6 +166,29 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       }
     }
     post({ type: "hit", id: request.id, hits });
+    return;
+  }
+  if (request.type === "recon") {
+    if (!current || !base) { post({ type: "recon", id: request.id, result: { markers: [], coverage: undefined } }); return; }
+    const map = current.map;
+    const objects: ReconObject[] = [];
+    map.objects.forEach((object, index) => {
+      const symbol = map.symbols.get(object.symbol);
+      if (symbol && !symbol.hidden) objects.push({ key: current!.keys[index]!, code: symbol.code.text, object });
+    });
+    const markers = reconMarkers(objects, request.tracks, new Set(request.checked), request.settings, map.scale);
+    // Täckningen över kartan och spåren.
+    let coverage;
+    const points = request.tracks.flat();
+    if (points.length > 0) {
+      const bounds = { ...(base.bounds ?? { minX: points[0]!.x, minY: points[0]!.y, maxX: points[0]!.x, maxY: points[0]!.y }) };
+      for (const point of points) {
+        bounds.minX = Math.min(bounds.minX, point.x); bounds.maxX = Math.max(bounds.maxX, point.x);
+        bounds.minY = Math.min(bounds.minY, point.y); bounds.maxY = Math.max(bounds.maxY, point.y);
+      }
+      coverage = coverageGrid(request.tracks, bounds, request.settings, map.scale);
+    }
+    post({ type: "recon", id: request.id, result: { markers, coverage } }, coverage ? [coverage.cells.buffer] : []);
     return;
   }
   if (request.type === "catalog") {

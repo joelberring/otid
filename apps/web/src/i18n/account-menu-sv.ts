@@ -13,6 +13,7 @@ export const accountMenuSv = {
   /** Ändringar i telefonen eller datorn som inte har kommit fram till servern. */
   pending: (count: number) => `${plural(count, "ändring väntar", "ändringar väntar")} på nät – logga ut ändå?`,
   pendingCourseSetting: "Banläggningens ändringar som inte har skickats försvinner.",
+  pendingTracks: (count: number) => `${plural(count, "GPS-spår", "GPS-spår")} som inte har skickats försvinner.`,
   pendingReadouts: (count: number) => `${plural(count, "avläsning", "avläsningar")} sparas kvar på datorn tills de har skickats.`,
   logoutAnyway: "Logga ut ändå",
   cancel: "Avbryt",

@@ -4,7 +4,7 @@ import type { SymbolGroup } from "../lib/map-project-protocol";
 /** ADR-0219 (K1): kartprojektets editor (kartan, ritverktygen, lagren och synken). */
 export const mapProjectEditorSv = {
   ok: "OK",
-  panel: "Symboler och lager",
+  panel: "Panel",
   openMap: "Öppna kartan",
   openMapHelp: "Kartan med alla ändringar. Med rollen Ändra ritar du direkt i den.",
   back: "Till projektet",

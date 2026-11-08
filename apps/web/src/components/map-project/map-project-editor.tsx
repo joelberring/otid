@@ -5,17 +5,24 @@ import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapObject, Point } from "@o-tid/map-file";
 import {
-  deleteVertex, hitDistance, moveVertex, newKey, withSymbol, type EditKind, type ObjectKey, type ObjectRef, type VertexAddress
+  MAX_SEGMENT_M, deleteVertex, hitDistance, moveVertex, newKey, withSymbol, type EditKind, type ObjectKey, type ObjectRef, type VertexAddress
 } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { Viewport } from "../../lib/course-setting-viewport";
 import { draftObject, insertAt, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
 import { drawAreas, drawDraftPoints, drawMapArea, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
+import { coverageImage, drawCoverage, drawReconMarkers, drawTracks } from "../../lib/map-project-recon-overlay";
+import { metersPerMm, toMapPosition } from "../../lib/course-setting-geo";
+import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
 import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
 import { CourseSettingMap, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
 import { MapProjectCollabPanel } from "./map-project-collab-panel";
+import { MapProjectFieldControls, type PositionMode } from "./map-project-field-controls";
+import { MapProjectReconPanel } from "./map-project-recon-panel";
+import { useMapProjectPosition, type TimedFix } from "./use-map-project-position";
+import { useMapProjectRecon } from "./use-map-project-recon";
 import { MapProjectSidebar } from "./map-project-sidebar";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
@@ -33,6 +40,8 @@ type Drag =
   | { readonly mode: "handle" };
 
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
+const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
+const reconText = mapProjectReconSv;
 const DOUBLE_TAP_MS = 350;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
 /** En punkt på objektet: var en borttagning ligger (för delområdena när servern bara har objektet i grundfilen). */
@@ -65,6 +74,27 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
   // Efter en synk med egna ändringar eller andras: förslagen kan ha ändrats.
   const editor = useMapProjectEditor(view, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const { session, catalog, commit, setPreview } = editor;
+  // K3: rekningen och fältet.
+  const recon = useMapProjectRecon({ view, session, georeference: editor.georeference, clientState: editor.state, renderKey: editor.renderKey });
+  const [positionMode, setPositionMode] = useState<PositionMode>("off");
+  /** Linjen som gås med GPS (punkterna i kartans mm), eller undefined. */
+  const [walk, setWalk] = useState<readonly Point[]>();
+  const walkRef = useRef<readonly Point[] | undefined>(undefined);
+  const georeference = editor.georeference;
+  const recordFix = recon.onFix;
+  const onFix = useCallback((fix: TimedFix) => {
+    recordFix(fix);
+    const current = walkRef.current;
+    if (!current || !georeference) return;
+    let at: Point;
+    try { at = toMapPosition(georeference, fix).at; } catch { return; }
+    const last = current[current.length - 1];
+    // En ny punkt var 2 m (bättre noggrannhet än så har inte telefonen i skog).
+    if (last && Math.hypot(at.x - last.x, at.y - last.y) * metersPerMm(georeference, georeference.scale) < 2) return;
+    walkRef.current = [...current, at];
+    setWalk(walkRef.current);
+  }, [recordFix, georeference]);
+  const position = useMapProjectPosition({ georeference, active: positionMode !== "off", recording: !!recon.recording || walk !== undefined, onFix });
   // Föreslå ritar också; servern gör ändringen till ett förslag.
   const canEdit = view.viewer.canEdit || view.viewer.canPropose;
   const canDecide = view.viewer.canDecide;
@@ -281,8 +311,15 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
     ...(newArea ? [{ polygon: [newArea], label: "", owner: "MINE" as const, selected: true }] : [])
   ], [collab.areas, shownArea, newArea, view.viewer.accountId]);
 
+  const reconResult = recon.result;
+  const coverage = useMemo(() => reconResult?.coverage && recon.layers.has("COVERAGE")
+    ? { grid: reconResult.coverage, image: coverageImage(reconResult.coverage) } : undefined, [reconResult, recon.layers]);
+  const gapMm = editor.georeference ? MAX_SEGMENT_M / metersPerMm(editor.georeference, editor.georeference.scale) : Infinity;
   const overlay = useCallback((ctx: CanvasRenderingContext2D, current: Viewport) => {
     const shown = preview ?? selected?.object;
+    if (coverage?.image) drawCoverage(ctx, current, coverage.grid, coverage.image);
+    if (recon.layers.has("TRACKS")) drawTracks(ctx, current, recon.trackLines.others, recon.trackLines.recording, gapMm);
+    if (walk && walk.length > 0) drawTracks(ctx, current, [], walk.map(point => ({ ...point, accuracyM: 0 })), Infinity);
     if (view.area) drawMapArea(ctx, current, view.area);
     drawAreas(ctx, current, areaDrawings);
     drawProposed(ctx, current, proposedOpen.objects, proposedOpen.deleted, false);
@@ -299,8 +336,10 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       if (object) drawPreview(ctx, current, object, symbol);
       drawDraftPoints(ctx, current, draft, cursor);
     }
+    if (reconResult && recon.layers.has("STATUS")) drawReconMarkers(ctx, current, reconResult.markers, SHOWN_STATUSES);
     if (shown && tool === "select" && selected) drawSelection(ctx, current, shown, activeVertex);
-  }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area]);
+  }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
+    recon.trackLines, reconResult, walk, gapMm]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
@@ -310,6 +349,7 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
     : symbol.kind === "line" ? text.hints.drawLine(symbol.code)
     : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
+  const hintLine = `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   const pending = editor.state?.pending.length ?? 0;
   const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
@@ -348,25 +388,46 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
             title={text.tools.rotateHelp} onClick={() => setRotating(value => !value)}>{text.tools.rotate}</Button>}
           {canSwitch && <Button variant="secondary" onClick={() => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL")}>
             {text.tools.switchSymbol(symbol.code)}</Button>}
+          {recon.canRecord && <Button variant={recon.validChecks.has(selected.key) ? "primary" : "secondary"} aria-pressed={recon.validChecks.has(selected.key)}
+            data-testid="recon-check" title={recon.validChecks.has(selected.key) ? reconText.checkedBy(recon.checks.get(selected.key)?.name ?? null,
+              new Date(recon.checks.get(selected.key)?.at ?? Date.now()).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })) : undefined}
+            onClick={() => void recon.setChecked([selected.key], !recon.validChecks.has(selected.key))}>
+            {recon.validChecks.has(selected.key) ? reconText.checked : reconText.unchecked}</Button>}
         </>}
         </>}
       </div>
-      <p className={styles.hint} aria-live="polite" data-testid="map-project-hint">
-        {selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}{hint}</p>
+      <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
       <div className={styles.mapArea}>
         {editor.mapStatus === "loading" && <p className={styles.loading}>{text.loading}</p>}
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
         {editor.bounds && <div className={styles.frame}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
           label={text.mapLabel} cursor={tool === "draw" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
-          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols} /></div>}
+          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols}
+          position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
+          onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} /></div>}
+        {editor.mapStatus === "ready" && georeference && <MapProjectFieldControls mode={positionMode} onMode={setPositionMode} problem={position.problem}
+          canRecord={recon.canRecord} recording={!!recon.recording}
+          onRecord={() => { if (recon.recording) void recon.stopRecording();
+            else void recon.startRecording(reconText.recordDefault(new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }))); }}
+          point={canEdit && symbol?.kind === "point" && position.position ? { code: symbol.code, onPlace: () => {
+            save(newKey(crypto.randomUUID()), null, { kind: "point", symbol: symbol.id, at: position.position!.at, angle: 0 }, "ADD"); } } : undefined}
+          walk={canEdit && symbol?.kind === "line" && (position.position || walk) ? { code: symbol.code, walking: walk?.length,
+            onStart: () => { walkRef.current = position.position ? [position.position.at] : []; setWalk(walkRef.current); },
+            onStop: () => {
+              const points = walkRef.current ?? [];
+              walkRef.current = undefined; setWalk(undefined);
+              const object = points.length >= 2 ? draftObject("line", symbol.id, points.map(at => ({ at }))) : undefined;
+              if (object) save(newKey(crypto.randomUUID()), null, object, "ADD");
+            } } : undefined} />}
       </div>
       <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} hiddenGroups={hiddenGroups}
         onToggleGroup={group => setHiddenGroups(current => {
           const next = new Set(current);
           if (next.has(group)) next.delete(group); else next.add(group);
           return next;
-        })} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}>
+        })} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
+        after={<MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
           onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}

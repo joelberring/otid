@@ -119,7 +119,7 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   await expect(owner.getByTestId("map-project-symbols")).toBeHidden();
   if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-rita-mobil-karta.png` });
-  await owner.getByRole("button", { name: "Symboler och lager" }).click();
+  await owner.getByRole("button", { name: "Panel" }).click();
   await expect(owner.getByTestId("map-project-symbols")).toBeVisible();
   expect((await map.boundingBox())!.height).toBeGreaterThan(300);
   if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-rita-mobil.png` });

@@ -48,7 +48,40 @@
 .areaForm label { display: grid; gap: .2rem; font-size: var(--text-sm, .9rem); }
 .areaForm input, .areaForm select, .areaRow select { min-height: 36px; }
 
+/* K3: rekningen i panelen och fältets knappar i kartans hörn. */
+.stack { display: grid; gap: .4rem; }
+.grow { flex: 1; min-width: 8rem; min-height: 40px; }
+.subheading { margin: .75rem 0 .25rem; font-size: var(--text-sm, .9rem); }
+.reconLayers { display: flex; gap: .25rem 1rem; flex-wrap: wrap; border: 0; margin: 0; padding: 0; }
+.legend { margin: .25rem 0; font-size: var(--text-sm, .9rem); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: .3rem; margin-right: .75rem; }
+.legend span::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #c62828; }
+.legend span[data-status="PASSED"]::before { border-color: #a86b00; background: rgb(255 193 7 / 85%); }
+.legend span[data-status="CHECKED"]::before { border-color: #1b5e20; background: #2e7d32; }
+.problem { margin: .25rem 0; color: var(--danger, #b3261e); font-size: var(--text-sm, .9rem); }
+.settings summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; font-weight: 600; }
+.fieldControls { position: absolute; right: 10px; bottom: 10px; z-index: 1; display: grid; justify-items: end; gap: 6px; pointer-events: none; }
+.fieldControls > * { pointer-events: auto; }
+.fieldButtons { display: flex; gap: 6px; align-items: center; }
+.fieldRound, .fieldButton { min-width: 44px; min-height: 44px; border-radius: 22px; border: 1px solid var(--line-strong, #999); background: var(--surface, #fff);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 25%); font: inherit; font-weight: 600; color: var(--ink, #222); cursor: pointer; }
+.fieldRound { width: 44px; padding: 0; font-size: 1.3rem; line-height: 1; }
+.fieldButton { padding: 0 14px; }
+.fieldRound[aria-pressed="true"] { background: #1a5fd0; border-color: #1a5fd0; color: #fff; }
+.fieldRound[data-recording] { background: #d81b60; border-color: #d81b60; color: #fff; }
+.fieldButton[data-active] { background: #d81b60; border-color: #d81b60; color: #fff; }
+.fieldProblem { margin: 0; padding: 4px 8px; border-radius: 6px; background: rgb(255 255 255 / 92%); font-size: var(--text-xs, .8rem); max-width: 16rem; }
+
 @media (max-width: 760px) {
+  /* Ägaren 2026-11-08: menyerna tar lite plats i mobilen. Rubriken på en rad, verktygen på en rad som rullar i sidled. */
+  .header { padding: 4px 8px; flex-wrap: nowrap; }
+  .title a { display: none; }
+  .title h1 { font-size: var(--text-md, 1rem); }
+  .sync { font-size: var(--text-xs, .8rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+  .toolbar { flex-wrap: nowrap; overflow-x: auto; padding: 4px 8px; gap: .3rem; scrollbar-width: none; }
+  .toolbar > * { flex: none; }
+  /* Tipset på en rad (hela texten i title). */
+  .hint { padding: 2px 8px; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); position: relative; }
   .panelToggle { display: inline-flex; }
   /* Panelen ligger över kartans nedre del när den är öppen. */

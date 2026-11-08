@@ -1,4 +1,5 @@
 import { forgetAllCourseSettingCopies, fieldStore } from "./course-setting-offline-forget";
+import { clearLocalTracks, pendingTrackCount } from "./map-project-track-store";
 import { readOrganizerCsrf } from "./organizer-client";
 import { FOLLOW_STORAGE_KEY } from "./follow-store";
 
@@ -8,6 +9,7 @@ import { FOLLOW_STORAGE_KEY } from "./follow-store";
  * tävlingar och personer:
  *
  * - banläggningens kopia i telefonen (posten, kön, kartfilen och den sparade sidan i service workerns cache),
+ * - kartprojektens GPS-spår som ännu inte skickats (K3; var någon gått är personuppgifter),
  * - inbjudan som väntar, den påbörjade tävlingen, följda löpare och klubbar, självregistreringens ifyllda namn och
  *   flikarnas tillfälliga val (`sessionStorage` med `otid`),
  *
@@ -15,7 +17,7 @@ import { FOLLOW_STORAGE_KEY } from "./follow-store";
  * bort när servern har kvitterat (AGENTS.md). Ändringar som väntar på nät räknas först; finns det några frågar menyn
  * "N ändringar väntar på nät – logga ut ändå?". Banläggningens väntande ändringar försvinner då; avläsningarna står kvar.
  */
-export interface PendingOfflineChanges { courseSetting: number; readouts: number; party: number; total: number }
+export interface PendingOfflineChanges { courseSetting: number; readouts: number; party: number; tracks: number; total: number }
 
 /** Databasen finns redan (öppnas inte, och skapas alltså inte, annars). Utan `databases()` antas den finnas. */
 async function databaseExists(name: string): Promise<boolean> {
@@ -65,7 +67,8 @@ export async function pendingOfflineChanges(): Promise<PendingOfflineChanges> {
   const courseSetting = await safe(() => fieldStore().pendingCount());
   const readouts = await safe(() => countPending("otid-readout", ["readouts", "registrations"])) + failedReadouts();
   const party = await safe(() => countPending("otid-party", ["actions"]));
-  return { courseSetting, readouts, party, total: courseSetting + readouts + party };
+  const tracks = await safe(pendingTrackCount);
+  return { courseSetting, readouts, party, tracks, total: courseSetting + readouts + party + tracks };
 }
 
 /** Nycklar i `localStorage` med tävlings- eller persondata (inte inställningar som ljud, kvitto eller panelens bredd). */
@@ -75,6 +78,7 @@ const PERSONAL_PREFIXES = ["otid-grupp-anmalan:"];
 /** Tar bort det som webbläsaren sparat om tävlingar och personer (se ovan). Kastar inte; fel skrivs i konsolen. */
 export async function clearPersonalBrowserData(): Promise<void> {
   await forgetAllCourseSettingCopies().catch(error => console.error("Banläggningen i webbläsaren kunde inte tas bort", error));
+  await clearLocalTracks().catch(error => console.error("Spåren i webbläsaren kunde inte tas bort", error));
   try {
     const local = window.localStorage;
     const keys = Array.from({ length: local.length }, (_, index) => local.key(index)).filter((key): key is string => key !== null);

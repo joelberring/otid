@@ -1,5 +1,5 @@
 import type { MapColor, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
-import type { KeyedState, ObjectKey, ObjectRef } from "@o-tid/map-revision";
+import type { Coverage, KeyedState, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint } from "@o-tid/map-revision";
 import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
 import type { Bounds } from "./course-setting-viewport";
 
@@ -41,7 +41,10 @@ export type MapProjectRequest =
   /** Projektets objekt som inte är som i grundfilen (hela listan varje gång). */
   | { readonly type: "states"; readonly states: readonly (readonly [ObjectKey, KeyedState])[] }
   | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
-  | { readonly type: "catalog"; readonly id: number };
+  | { readonly type: "catalog"; readonly id: number }
+  /** K3: rekningens status för alla objekt och täckningen ur spåren (kartans mm) och de giltiga bekräftelserna. */
+  | { readonly type: "recon"; readonly id: number; readonly tracks: readonly (readonly TrackPoint[])[]; readonly checked: readonly ObjectKey[];
+      readonly settings: ReconSettings };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -49,7 +52,11 @@ export type MapProjectResponse =
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   | { readonly type: "hit"; readonly id: number; readonly hits: readonly ProjectHit[] }
   | { readonly type: "catalog"; readonly id: number; readonly symbols: readonly CatalogSymbol[] }
+  | { readonly type: "recon"; readonly id: number; readonly result: ReconResult }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
+
+/** Rekningens status (markörerna) och täckningen (saknas utan spår). */
+export interface ReconResult { readonly markers: readonly ReconMarker[]; readonly coverage: Coverage | undefined }
 
 /** Workern sedd från sidan. Bara det senaste svaret på varje slags fråga används. */
 export class MapProjectSession {
@@ -60,6 +67,8 @@ export class MapProjectSession {
   private onHit: ((hits: readonly ProjectHit[]) => void) | undefined;
   private latestCatalog = 0;
   private onCatalog: ((symbols: readonly CatalogSymbol[]) => void) | undefined;
+  private latestRecon = 0;
+  private onRecon: ((result: ReconResult) => void) | undefined;
 
   constructor(createWorker: () => Worker, onLoaded: (loaded: Extract<MapProjectResponse, { type: "loaded" }>) => void,
     onError: (code: MapRenderErrorCode) => void) {
@@ -70,6 +79,7 @@ export class MapProjectSession {
       else if (message.type === "error") onError(message.code);
       else if (message.type === "hit") { if (message.id === this.latestHit) this.onHit?.(message.hits); }
       else if (message.type === "catalog") { if (message.id === this.latestCatalog) this.onCatalog?.(message.symbols); }
+      else if (message.type === "recon") { if (message.id === this.latestRecon) this.onRecon?.(message.result); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -101,7 +111,13 @@ export class MapProjectSession {
     this.post({ type: "catalog", id });
   }
 
-  close() { this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.worker.terminate(); }
+  recon(input: { tracks: readonly (readonly TrackPoint[])[]; checked: readonly ObjectKey[]; settings: ReconSettings }, onRecon: (result: ReconResult) => void) {
+    const id = ++this.latestRecon;
+    this.onRecon = onRecon;
+    this.post({ type: "recon", id, ...input });
+  }
+
+  close() { this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.worker.terminate(); }
 }
 
 /** Symbolens grupp efter ISOM/ISSprOM-numret (lagren i editorn). */

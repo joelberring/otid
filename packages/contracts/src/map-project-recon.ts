@@ -161,3 +161,17 @@ export interface MapSourceCredentialView {
     /** Falskt om masternyckeln bytts sedan uppgifterna sparades (de måste sparas igen). */
     readonly readable: boolean } | null;
 }
+
+/** K6b (migration 0105): lagermappningsprofil (lager → symbolnummer), sparad per konto och valfritt delad med projektets klubb. */
+export const mapLayerProfileRuleSchema = z.object({
+  layer: z.string().min(1).max(200), code: z.string().regex(/^\d{3}(\.\d{1,2})?$/), kind: z.enum(["point", "line", "area"])
+}).strict();
+export const mapLayerProfileCreateRequestSchema = z.object({
+  formatVersion: z.literal(1), requestId: uuidSchema, name: z.string().trim().min(1).max(80), shareWithClub: z.boolean(),
+  rules: z.array(mapLayerProfileRuleSchema).min(1).max(1000)
+}).strict();
+export interface MapLayerProfileView {
+  readonly profileId: string; readonly name: string; readonly shared: boolean; readonly own: boolean;
+  readonly rules: readonly { readonly layer: string; readonly code: string; readonly kind: "point" | "line" | "area" }[];
+  readonly updatedAt: string;
+}

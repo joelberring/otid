@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K6b del 1: Stockholms lagernamn och lagermappningsprofiler (migration 0105)
+- Importen känner igen Stockholms baskartas och parkkartas lagernamn och föreslår symboler enligt planens utkast; överskottet
+  hoppas över. Valen kan sparas som en profil (för kontot eller delad med klubben) och används för nästa fil med samma lager.
+- Verifierat: enhetstester `stockholm-layers`, integrationstest `adr-0219-lagerprofiler`, E2E `kartprojekt-underlag` (sju test).
+- Provas: utkastet mot riktiga sprintkartor (Älvsjö–Solberga); DWG måste fortfarande sparas som DXF.
+
 ### 2026-11-09 – K6 del 1: generaliseringen som förslag
 - Kartprojektet → Generalisering: förenkla linjer och ytor med täta punkter (0,05–0,2 mm) och ta bort det som är mindre än
   normen, för hela kartan eller en etapp. Ändringarna lämnas som förslag (källan GENERALIZE) som ägaren godkänner.

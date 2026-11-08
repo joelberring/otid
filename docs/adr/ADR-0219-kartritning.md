@@ -338,3 +338,14 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
    byggda på serverns senaste läge för varje objekt. Objekt med egna ändringar som inte skickats eller en krock hoppas över.
 3. **Kvar (K6, del 2):** kurvavstånd, tunna ytor, delade kanter (topologi), att slå ihop små ytor med grannen och samma steg
    som MCP-verktyg med `refine_to`; de kräver bilder på riktiga kartor innan de läggs ut.
+
+## Tillägg 2026-11-09: baskartornas lager (K6b, del 1, migration 0105)
+
+1. **Stockholms baskarta och parkkarta** känns igen på lagernamnens grammatik (grupp + objekttyp + geometri + karta +
+   status) och får symbolförslag enligt utkastet i planen (521, 522, 532, 513, 516, 509, 511, 305, 306, 301, 401, 405, 408,
+   501); överskottet (fastighetsgränser, text, höjdkurvor, slänter, snöröjning, parkmöbler, skymt) hoppas över. Byggnadernas
+   linjer bredvid ytorna hoppas över. Utkastet ska prövas på riktiga sprintkartor.
+2. **Lagermappningsprofiler** (`map_layer_profile`): lager → symbolnummer sparas per konto och kan delas med projektets
+   klubb. En fil vars lager till minst hälften finns i en profil får profilens val före förslagen ur namnen.
+3. **Kvar (K6b):** DWG via LibreDWG i geo-arbetaren, regler per kodkolumn, städningen (ytor av slutna kanter, trappor),
+   försök och passpunkter för att räta upp en karta.

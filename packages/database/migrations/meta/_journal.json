@@ -80,6 +80,7 @@
     { "idx": 75, "version": "7", "when": 1806076800000, "tag": "0101_kartjobb_banor", "breakpoints": true },
     { "idx": 76, "version": "7", "when": 1806163200000, "tag": "0102_klubbens_enheter", "breakpoints": true },
     { "idx": 77, "version": "7", "when": 1806249600000, "tag": "0103_geo_arbetaren", "breakpoints": true },
-    { "idx": 78, "version": "7", "when": 1806336000000, "tag": "0104_geo_servern", "breakpoints": true }
+    { "idx": 78, "version": "7", "when": 1806336000000, "tag": "0104_geo_servern", "breakpoints": true },
+    { "idx": 79, "version": "7", "when": 1806422400000, "tag": "0105_lagerprofiler", "breakpoints": true }
   ]
 }

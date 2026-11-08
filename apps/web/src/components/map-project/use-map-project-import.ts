@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectView } from "@o-tid/contracts";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject } from "@o-tid/map-file";
 import {
   guessCrs, importLayers, importObjects, newKey, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
@@ -40,15 +40,54 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [sent, setSent] = useState<number>();
   const mapEpsg = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
 
+  /** K6b: sparade lagermappningsprofiler (kontots och klubbens) och den som passade filen. */
+  const [profiles, setProfiles] = useState<readonly MapLayerProfileView[]>([]);
+  const [profile, setProfile] = useState<{ name: string; matched: number; layers: number }>();
+  const loadProfiles = useCallback(async () => {
+    if (!view.viewer.canPropose) return;
+    const response = await clubRequest(`${base}/layer-profiles`, "GET").catch(() => undefined);
+    if (response?.status === 200) setProfiles((response.json as { profiles: MapLayerProfileView[] }).profiles);
+  }, [base, view.viewer.canPropose]);
+  useEffect(() => { void loadProfiles(); }, [loadProfiles]);
+
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds) => {
     const found = importLayers(data);
     const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
     setFile({ name: fileName, data });
     setClip(area);
     setLayers(found);
-    setMapping(new Map(found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; })));
+    const suggested = new Map(found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; }));
+    // En profil vars lager täcker minst hälften av filens lager används; dess val går före förslagen ur namnen.
+    const names = new Set(found.map(layer => layer.name));
+    const best = profiles.map(row => ({ row, matched: row.rules.filter(rule => names.has(rule.layer)).length }))
+      .sort((a, b) => b.matched - a.matched)[0];
+    if (best && best.matched > 0 && best.matched * 2 >= found.length) {
+      for (const rule of best.row.rules) {
+        if (!names.has(rule.layer)) continue;
+        const symbol = list.find(row => row.kind === rule.kind && (row.code === rule.code || row.code === `${rule.code}.0`));
+        if (symbol) suggested.set(rule.layer, symbol.id);
+      }
+      setProfile({ name: best.row.name, matched: best.matched, layers: found.length });
+    } else setProfile(undefined);
+    setMapping(suggested);
     setCrs(data.crs ?? guessCrs(data) ?? mapEpsg);
-  }, [symbols, mapEpsg]);
+  }, [symbols, mapEpsg, profiles]);
+
+  /** Spara lagrens val som en profil (ersätter samma namn); symbolerna sparas som nummer så att profilen gäller andra kartor. */
+  const saveProfile = useCallback(async (name: string, shareWithClub: boolean): Promise<boolean> => {
+    const rules = [...mapping].flatMap(([layer, id]) => {
+      const symbol = symbols.get(id);
+      const code = symbol?.code.replace(/\.0$/, "");
+      return symbol && code && /^\d{3}(\.\d{1,2})?$/.test(code) && symbol.kind !== "text" ? [{ layer, code, kind: symbol.kind }] : [];
+    });
+    if (rules.length === 0 || !name.trim()) return false;
+    const response = await clubRequest(`${base}/layer-profiles`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), name: name.trim(), shareWithClub, rules })
+      .catch(() => ({ status: 0, json: undefined }));
+    if (response.status !== 201) { setProblem(response.status); return false; }
+    setProfile({ name: name.trim(), matched: rules.length, layers: layers.length });
+    await loadProfiles();
+    return true;
+  }, [mapping, symbols, base, layers.length, loadProfiles]);
 
   const open = useCallback(async (files: readonly File[]) => {
     setProblem(undefined); setSent(undefined);
@@ -123,5 +162,6 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData) => { setProblem(undefined); setSent(undefined); show(fileName, data); }, [show]);
   return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, open, openData, fetchOsm, fetching, propose, cancel,
+    profile, saveProfile, canShareProfile: !!view.club,
     candidates: result?.objects ?? [], canImport: view.viewer.canPropose };
 }

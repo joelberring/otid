@@ -71,6 +71,9 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
           </label>;
         })}
       </fieldset>
+      {importer.profile && <p className={styles.muted} data-testid="map-project-import-profile">
+        {text.profileUsed(importer.profile.name, importer.profile.matched, importer.profile.layers)}</p>}
+      <ProfileForm importer={importer} />
       {result && <p className={styles.muted} data-testid="map-project-import-result" role="status">
         {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped)}</p>}
       {!result && importer.crs !== undefined && <p role="alert" className={styles.problem}>{text.problems.crs}</p>}
@@ -81,4 +84,23 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
       </span>
     </form>}
   </details>;
+}
+
+/** K6b: spara lagrens val som en profil (för kontot eller delad med projektets klubb). */
+function ProfileForm({ importer }: { importer: Import }) {
+  const [name, setName] = useState("");
+  const [share, setShare] = useState(false);
+  const [saved, setSaved] = useState(false);
+  return <fieldset className={styles.importLayers} data-testid="map-project-import-save-profile">
+    <legend>{text.profileHeading}</legend>
+    <label>{text.profileName}<input value={name} maxLength={80} onChange={event => { setName(event.target.value); setSaved(false); }}
+      data-testid="map-project-import-profile-name" /></label>
+    {importer.canShareProfile && <label className={styles.check}><input type="checkbox" checked={share} onChange={event => setShare(event.target.checked)} />
+      {text.profileShare}</label>}
+    <span className={styles.actions}>
+      <Button variant="secondary" disabled={!name.trim() || importer.mapping.size === 0} data-testid="map-project-import-profile-save"
+        onClick={() => void importer.saveProfile(name, share).then(setSaved)}>{text.profileSave}</Button>
+    </span>
+    {saved && <p role="status" className={styles.muted}>{text.profileSaved}</p>}
+  </fieldset>;
 }

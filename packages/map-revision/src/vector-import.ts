@@ -2,6 +2,7 @@ import {
   projectedToMapPoint, projectedToWgs84, wgs84ToMapPoint, type MapGeoreference, type MapObject, type PathCommand, type Point
 } from "@o-tid/map-file";
 import { LIMITS } from "./state";
+import { stockholmLayer } from "./stockholm-layers";
 import type { SourceData, SourceFeature, SourceGeometry } from "./vector-parse";
 
 /**
@@ -81,17 +82,24 @@ const normalized = (name: string) => name.toUpperCase().replace(/[ÅÄ]/g, "A").
 /** Förslag på symbol för ett lager: ur namnet och lagrets vanligaste form (slutna linjer kan bli ytor). */
 export function suggestSymbol(layer: ImportLayer, symbols: readonly { readonly id: string; readonly code: string; readonly kind: string }[])
   : string | undefined {
+  const wanted: TargetKind[] = layer.points >= layer.lines + layer.closedLines + layer.areas ? ["point"]
+    : layer.areas + layer.closedLines > layer.lines ? ["area", "line"] : ["line", "area"];
+  const pick = (codes: Partial<Record<TargetKind, readonly string[]>>) => {
+    for (const kind of wanted) {
+      for (const code of codes[kind] ?? []) {
+        const symbol = symbols.find(row => row.kind === kind && (row.code === code || row.code === `${code}.0`));
+        if (symbol) return symbol.id;
+      }
+    }
+    return undefined;
+  };
+  // K6b: Stockholms baskarta och parkkarta (lagernamnens grammatik), annars orden i namnet.
+  const stockholm = stockholmLayer(layer.name);
+  if (stockholm) return stockholm.kind === "skip" ? undefined : pick(stockholm.rule);
   const name = normalized(layer.name);
   const rule = KEYWORDS.find(row => row.words.test(name));
   if (!rule) return undefined;
-  const wanted: TargetKind[] = layer.points >= layer.lines + layer.closedLines + layer.areas ? ["point"]
-    : layer.areas + layer.closedLines > layer.lines ? ["area", "line"] : ["line", "area"];
-  for (const kind of wanted) {
-    const code = rule[kind];
-    const symbol = code ? symbols.find(row => row.kind === kind && (row.code === code || row.code === `${code}.0`)) : undefined;
-    if (symbol) return symbol.id;
-  }
-  return undefined;
+  return pick({ line: rule.line ? [rule.line] : [], area: rule.area ? [rule.area] : [], point: rule.point ? [rule.point] : [] });
 }
 
 export interface ImportOptions {

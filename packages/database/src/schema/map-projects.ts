@@ -316,3 +316,15 @@ export const geoServerStates = pgTable("geo_server_state", {
   value: jsonb("value").$type<Record<string, unknown>>().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 });
+
+/** K6b (migration 0105): lagermappningsprofiler (lager → symbolnummer), per konto och valfritt delade med en klubb. */
+export const mapLayerProfiles = pgTable("map_layer_profile", {
+  id: uuid("id").primaryKey(),
+  accountId: uuid("account_id").notNull().references(() => userAccounts.id, { onDelete: "cascade" }),
+  clubId: uuid("club_id").references(() => clubs.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  rules: jsonb("rules").$type<{ layer: string; code: string; kind: "point" | "line" | "area" }[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  requestId: uuid("request_id").notNull().unique()
+});

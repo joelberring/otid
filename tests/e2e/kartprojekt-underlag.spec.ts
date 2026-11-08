@@ -157,6 +157,20 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await expect(importer.getByRole("combobox", { name: "Symbol för 0153" })).toHaveValue("");
   await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
   await reviewScreenshots(owner, "kartprojekt-import");
+  // K6b: valen sparas som en profil; samma fil igen får profilens symbol för lagret 0153 (som namnet inte ger något förslag för).
+  await warmRoute(owner, `${api}/layer-profiles`);
+  const zero = importer.getByRole("combobox", { name: "Symbol för 0153" });
+  await zero.selectOption({ index: 1 });
+  const chosen = await zero.inputValue();
+  await importer.getByTestId("map-project-import-profile-name").fill("Kommunens baskarta");
+  await importer.getByTestId("map-project-import-profile-save").click();
+  await expect(importer.getByText("Profilen är sparad.")).toBeVisible({ timeout: 15_000 });
+  await importer.getByRole("button", { name: "Avbryt" }).click();
+  await importer.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
+  await expect(importer.getByTestId("map-project-import-profile")).toHaveText("Symbolerna från profilen ”Kommunens baskarta” (3 av 3 lager).");
+  await expect(importer.getByRole("combobox", { name: "Symbol för 0153" })).toHaveValue(chosen);
+  await importer.getByRole("combobox", { name: "Symbol för 0153" }).selectOption("");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
   await importer.getByTestId("map-project-import-propose").click();
   await expect(importer.getByTestId("map-project-import-sent")).toContainText("1 förslag lämnade", { timeout: 20_000 });
 

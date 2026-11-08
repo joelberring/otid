@@ -4,7 +4,8 @@ import { plural } from "./plural";
 export const mapProjectImportSv = {
   heading: "Importera vektorer",
   help: "En baskarta eller annan vektorfil (GeoJSON, DXF eller Shapefile, gärna som .zip) blir kandidater: välj symbol per lager, se dem på kartan och lämna dem som förslag "
-    + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren.",
+    + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren. Stockholms baskarta och parkkarta "
+    + "känns igen på lagernamnen, och valen kan sparas som en profil till nästa fil.",
   choose: "Välj fil",
   osmHeading: "Hämta från OpenStreetMap",
   osmHelp: "Byggnader, vägar, stigar, staket, murar, vatten och markanvändning för hela kartan eller en etapp. Servern hämtar dem; de blir kandidater som en fil. Data © OpenStreetMap-bidragsgivare (ODbL).",
@@ -31,6 +32,12 @@ export const mapProjectImportSv = {
   sent: (count: number) => `${plural(count, "förslag", "förslag")} lämnade. Godkänn eller avvisa dem under Förslag.`,
   note: (file: string, part: number, parts: number) => `Import ${file}${parts > 1 ? `, del ${part} av ${parts}` : ""}`.slice(0, 500),
   cancel: "Avbryt",
+  profileUsed: (name: string, matched: number, layers: number) => `Symbolerna från profilen ”${name}” (${matched} av ${layers} lager).`,
+  profileHeading: "Spara valen som profil",
+  profileName: "Profilens namn (t.ex. Stockholms baskarta)",
+  profileShare: "Dela med projektets klubb",
+  profileSave: "Spara profilen",
+  profileSaved: "Profilen är sparad. Nästa fil med samma lager får samma symboler.",
   problems: {
     unsupported: "Välj en GeoJSON-, DXF- eller Shapefile (.shp med .dbf och .prj, eller en .zip). DWG: spara som DXF.",
     crs: "Koordinatsystemet stöds inte (SWEREF 99, RT 90, UTM eller WGS 84).",

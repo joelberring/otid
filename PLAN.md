@@ -1239,7 +1239,8 @@ K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
   filen, annars angivet); SWEREF 99, RT 90, UTM och WGS 84; visa/dölj, genomskinlighet, ta bort; bilderna sparas för offline.
 - [x] Tester: läget på kartan och GeoTIFF:s georeferens, integration `adr-0219-underlag`, E2E `kartprojekt-underlag` (PNG med
   världsfil och GeoTIFF).
-- [ ] K4a kvar: listan över underlagen utan nät (bilderna finns, listan hämtas), ordningen mellan underlagen.
+- [x] Utan nät: listan och bilderna finns kvar i webbläsaren (omladdningen provad mot driftbygget).
+- [ ] K4a kvar: ordningen mellan underlagen (byts i panelen).
 - [ ] K4b vektorer som kandidater (GeoJSON, DXF/DWG-baskartor med lagermappning och rensning av överskott).
 - [ ] K4c geo-arbetaren och hämtning från Lantmäteriet, OSM och NVDB; etapper (dolt lager med revideringsdatum per delområde,
   ny vegetationsdata bara för en etapp, ägaren 2026-11-08).

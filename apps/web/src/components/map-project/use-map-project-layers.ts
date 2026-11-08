@@ -6,6 +6,7 @@ import type { MapGeoreference } from "@o-tid/map-file";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { mapProjectBase } from "../../lib/map-project-client";
+import { savedMapProjectLayers, saveMapProjectLayers } from "../../lib/map-project-offline";
 import { LayerFileError, prepareLayer, type LayerFileProblem } from "../../lib/map-project-layer-file";
 import { layerToMap, type Affine } from "../../lib/map-project-layers";
 
@@ -28,9 +29,17 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
   const load = useCallback(async () => {
     try {
       const response = await clubRequest(`${base}/layers`);
-      if (response.status === 200) setLayers((response.json as MapProjectLayerList).layers);
-    } catch { /* Utan nät: listan står kvar och bilderna finns i cachen. */ }
-  }, [base]);
+      if (response.status === 200) {
+        const list = (response.json as MapProjectLayerList).layers;
+        setLayers(list);
+        await saveMapProjectLayers(view.projectId, list).catch(error => console.error("Underlagen kunde inte sparas för offline", error));
+      }
+    } catch {
+      // Utan nät: listan som sparades senast (bilderna finns i kartcachen).
+      const saved = await savedMapProjectLayers(view.projectId).catch(() => undefined);
+      if (saved) setLayers(current => current.length ? current : saved);
+    }
+  }, [base, view.projectId]);
   useEffect(() => { void load(); }, [load]);
 
   // Bilderna: en gång per underlag (sha256 ändras aldrig för ett underlag).

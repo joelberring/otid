@@ -15,7 +15,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Panelen Underlag: visa/dölj (för sig), genomskinlighet (för projektet), ta bort (den som lade till eller ägarna); bilderna i kartcachen.
 - UTM (WGS 84 och ETRS 89) i `map-file`; rättat att innehållets frigöring inte kände till kartprojekten.
 - Verifierat: typecheck, lint, `lint:dead`, enhetstester, integration `adr-0219-underlag` (2), E2E `kartprojekt-underlag`.
-- Kvar: listan över underlagen utan nät och ordningen; K4b och K4c.
+- Utan nät: listan sparas i webbläsaren (tas bort vid utloggning); omladdningen provad mot driftbygget.
+- Kvar: ordningen mellan underlagen; K4b och K4c.
 
 ### 2026-11-08 – K3b: frivilliga topplistor och statistik (migration 0096, ADR-0219 tillägg)
 - Den egna kartstatistiken per projekt och totalt per säsong (rekad yta, km och timmar, kollade, notiser, nya/ändrade/borttagna, godkända förslag, klara delområden) med märken.

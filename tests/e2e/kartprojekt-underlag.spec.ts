@@ -103,4 +103,18 @@ test("kartprojekt: eget underlag med världsfil", async ({ browser, baseURL }) =
   expect(await alphaAt(owner, { x: 80, y: 55 })).toBe(0);
   const stored = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { mediaType: string; crs: number }[] }).layers;
   expect(stored).toMatchObject([{ mediaType: "image/jpeg", crs: georef.crs.kind === "EPSG" ? georef.crs.code : 3006 }]);
+
+  if (process.env.E2E_BASE_URL) {
+    // Omladdning utan nät mot driftbygget: listan och bilden från webbläsaren.
+    const context = owner.context();
+    const noNetwork = (route: Parameters<Parameters<typeof context.route>[1]>[0]) => route.abort("internetdisconnected");
+    await context.setOffline(true);
+    await context.route("**/*", noNetwork);
+    await owner.reload();
+    await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
+    await expect(owner.getByTestId("map-project-layer")).toContainText("ortofoto", { timeout: 15_000 });
+    await expect.poll(() => alphaAt(owner, { x: 50, y: 55 }), { timeout: 20_000 }).toBeGreaterThan(0);
+    await context.unroute("**/*", noNetwork);
+    await context.setOffline(false);
+  } else test.info().annotations.push({ type: "utan nät", description: "Omladdningen utan nät provas mot driftbygget (E2E_BASE_URL)" });
 });

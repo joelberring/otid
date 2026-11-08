@@ -1,4 +1,4 @@
-import type { MapProjectView } from "@o-tid/contracts";
+import type { MapProjectLayerView, MapProjectView } from "@o-tid/contracts";
 import { activeWorker, ask, pageResources, shellSupported } from "./course-setting-offline-shell";
 import { workerResources } from "./course-setting-worker";
 
@@ -55,6 +55,29 @@ export async function savedMapProjectView(projectId: string): Promise<{ view: Ma
   });
 }
 
+/** K4a: listan över projektets underlag (bilderna ligger i kartcachen), under en egen nyckel i samma lager. */
+const layersKey = (projectId: string) => `${projectId}:layers`;
+export async function saveMapProjectLayers(projectId: string, layers: readonly MapProjectLayerView[]): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const database = await open();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(STORE, "readwrite");
+    transaction.objectStore(STORE).put(layers, layersKey(projectId));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Underlagen kunde inte sparas"));
+  });
+}
+
+export async function savedMapProjectLayers(projectId: string): Promise<MapProjectLayerView[] | undefined> {
+  if (typeof indexedDB === "undefined") return undefined;
+  const database = await open();
+  return new Promise((resolve, reject) => {
+    const request = database.transaction(STORE).objectStore(STORE).get(layersKey(projectId));
+    request.onsuccess = () => resolve(request.result as MapProjectLayerView[] | undefined);
+    request.onerror = () => reject(request.error ?? new Error("Underlagen kunde inte läsas"));
+  });
+}
+
 /** Ett projekt man inte längre är med i (404 eller 403 från servern): sidskalet och uppgifterna tas bort. */
 export async function forgetMapProjectCopy(projectId: string): Promise<void> {
   if (typeof indexedDB !== "undefined") {
@@ -62,6 +85,7 @@ export async function forgetMapProjectCopy(projectId: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction(STORE, "readwrite");
       transaction.objectStore(STORE).delete(projectId);
+      transaction.objectStore(STORE).delete(layersKey(projectId));
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error("Projektet kunde inte tas bort"));
     });

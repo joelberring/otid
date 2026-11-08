@@ -146,3 +146,30 @@ Beslut 8 och planen (avsnitt 8a): Claude kopplas till O-Tid med personens eget C
    - en bild är högst 1 600 px per sida,
    - högst 30 kartjobb per minut och konto, och ett åt gången per konto,
    - registreringen och token-anropen räknas som inloggningsförsök (samma spärr som inloggningen).
+
+## Tillägg 2026-11-08: rekningen, fältet och snabbare redigering (steg K3, migration 0094)
+
+Ägaren vill se vad som är rekat så att flera kan dela på arbetet (planens avsnitt 7b), rita i mobilen utan nät och kunna göra
+"väldigt många justeringar i minuten" med små menyer i mobilen.
+
+1. **Rekningens status räknas, den sparas inte** (`recon.ts` i map-revision, i kartans Worker):
+   - `UNSEEN` ej rekat, `PASSED` passerat (ett GPS-spår har varit inom siktavståndet), `CHECKED` kollat (en person har
+     bekräftat objektet och det har inte ändrats sedan).
+   - Siktavstånd per symbolgrupp (förval 25 m terrängformer, berg och anläggningar, 15 m stenar, 20 m vatten och vegetation),
+     krympt i tät vegetation (406/407 0,75, 408/409 0,5, 410/411 0,35); halva GPS-noggrannheten (högst 5 m) läggs till.
+   - En linje är passerad när 80 % av den, en yta när 50 % av den, varit inom siktavståndet. En lucka över 150 m i spåret är
+     tappad signal. Förenklingen (1,5 m) lämnar ingen sträcka längre än 50 m.
+   - Täckningen är ett rutnät (5 m) runt spåren; delområdena visar täckt andel och andelen sedda och kollade objekt.
+   - Inställningarna ändras av ägarna (`map_project.recon`).
+2. **Spåren är personuppgifter.** De syns bara för projektets medlemmar, aldrig publikt eller via delade länkar. Var och en döper
+   om och tar bort sina egna; de tas bort med kontot. Den som får föreslå lägger till spår. Punkterna sparas i WGS 84 i delar om
+   högst 2 000 (samma del två gånger görs en gång). I telefonen ligger spåret tills servern kvitterat allt; utloggningen räknar
+   och tar bort spår som inte skickats.
+3. **Bekräftelser** gäller objektets dåvarande senaste ändring (`basis_edit_id`) och räknas bort när objektet ändrats sedan.
+   "Godkänn passerade" bekräftar alla passerade i ett delområde.
+4. **Fältet:** positionen (visa, följ), spela in spår (skärmen hålls tänd), GPX-filer, punkt här och gå en linje med GPS.
+   Kartsidan får använda positionen (Permissions-Policy). Sidan, projektet, kartfilen, ändringarna och spåren finns i
+   telefonen: sidskalet via `/map-project-sw.js` (samma källa som banläggningens, egen cache och scope bara projektets karta).
+5. **Redigeringen** (`curve-edit.ts`): dra i en sträcka böjer den, dubbelklick lägger till en punkt (också på kurvor) eller tar
+   bort den, styrpunkterna dras och en mjuk punkt håller kurvan jämn. "Flytta hela" (eller en yta inifrån) flyttar objektet.
+   Ett klick på den markerade linjens kant byter inte objekt; Alt-klick tar objektet under.

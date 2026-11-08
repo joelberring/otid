@@ -5,10 +5,19 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0, K1 och K2 är klara (K2: AI-kopplingen med OAuth och MCP, 0093); nästa är K3 (mobil ritning och rekningsstatus). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0–K3 är klara (K3: rekningen, fältet och snabbare redigering, 0094); nästa är K3b (frivillig spelifiering) och K4 (underlag och geo-arbetaren). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-08 – K3: rekningen, fältet och snabbare redigering (migration 0094, ADR-0219 tillägg)
+- Rekningens status (ej rekat, passerat, kollat) och täckningen räknas i kartans Worker ur GPS-spåren; siktavstånd per symbolgrupp, krympt i tät vegetation; delområdenas framsteg, "Godkänn passerade" och "Markera kollad".
+- Spår från fältläget (sparas i telefonen och skickas del för del) och GPX-filer; bara medlemmar ser dem; tas bort med kontot och räknas vid utloggningen.
+- Mobilen: position (visa, följ), punkt här, gå en linje, menyerna på en rad; kartsidan och projektet utan nät (`/map-project-sw.js`).
+- Redigeringen: böja en sträcka, punkter på kurvor, dubbelklick lägger till eller tar bort, styrpunkterna, Flytta hela.
+- Rättat: klippningen i Layout (arket ärver huvudlayoutens papper), beskrivningen sparas som papperet.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester, integration `adr-0219-rekning` (3), E2E `kartprojekt-rekning`, `kartprojekt-rita` (4), `kartprojekt` (2), `banlaggning-layout`, `banlaggning-pappersrum`.
+- Kvar: notis med foto i kartprojektet; omladdning utan nät mot driftbygget (CI); ägaren provar i terrängen.
 
 ### 2026-11-08 – K2: AI-kopplingen, Claude ser och läser kartan (migration 0093, ADR-0219 tillägg)
 - O-Tid är inloggningsserver (OAuth 2.1: metadata, dynamisk registrering, PKCE S256, nycklar med rotation och återkallelse vid återanvändning) och MCP-server på `/api/mcp` (JSON, utan sessioner); godkännandet på `/oauth/authorize` med vanlig inloggning; Mitt konto → AI-kopplingar.

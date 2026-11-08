@@ -1205,7 +1205,20 @@ Migration 0093, ADR-0219 tillägget 2026-11-08 (AI-kopplingen).
   bara förslag, aldrig direkt i kartan (ADR-0219 beslut 8). Dessutom `list_map_projects`, `map_overview` och
   `propose_changes`; rendering i utskriftsarbetaren; Mitt konto → AI-kopplingar.
 
-Senare enligt planen: K3 mobil ritning och rekningsstatus ur GPS-spår, K3b frivillig spelifiering, K4 underlag och
+## [x] Steg K3 – Fältet: rekningsstatus ur GPS-spår, mobilen utan nät och snabbare redigering
+
+Migration 0094, ADR-0219 tillägget 2026-11-08 (rekningen).
+
+- [x] Rekningens status (ej rekat, passerat, kollat) och täckningen ur spåren, siktavstånd per symbolgrupp och tät vegetation;
+  delområdenas framsteg och "Godkänn passerade"; "Markera kollad"; inställningarna (ägarna).
+- [x] Spår från fältläget (i telefonen tills servern kvitterat) och GPX-filer; bara medlemmar ser dem, var och en tar bort sina.
+- [x] Mobilen: position (visa, följ), punkt här, gå en linje med GPS, menyerna på en rad; kartan, projektet och köerna utan nät.
+- [x] Redigeringen (ägaren 2026-11-08): böja en sträcka, punkter på kurvor, ta bort med dubbelklick, styrpunkterna, Flytta hela.
+- [x] Tester: map-revision (`recon`, `curve-edit`), GPX och förenkling, integration `adr-0219-rekning`, E2E `kartprojekt-rekning`
+  (390 px, fejkad position, utan nät) och `kartprojekt-rita` (kurvorna).
+- [ ] Kvar: notis med foto i kartprojektet; omladdning utan nät provas i CI mot driftbygget; ägaren provar i terrängen.
+
+Senare enligt planen: K3b frivillig spelifiering, K4 underlag och
 geo-arbetaren (med import av baskartor: lagermappning och rensning av överskott), K5 Karttapullautin och fuktighet, K6
 generalisering och normkontroll, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre
 kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD. Idé (STATUS): inomhusorientering.

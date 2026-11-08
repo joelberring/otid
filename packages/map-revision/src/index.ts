@@ -9,6 +9,7 @@ export * from "./client-log";
 export * from "./history";
 export * from "./apply";
 export * from "./edit";
+export * from "./curve-edit";
 export * from "./hit";
 export * from "./export";
 export * from "./areas";

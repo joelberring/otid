@@ -29,11 +29,13 @@ export const mapProjectEditorSv = {
     switchSymbol: (code: string) => `Byt symbol till ${code}`,
     rotate: "Vrid",
     rotateHelp: "Dra från punkten åt det håll symbolen ska peka.",
+    moveWhole: "Flytta hela",
+    moveWholeHelp: "Dra linjen hel i stället för att böja sträckan du tar tag i.",
     noSymbol: "Välj en symbol att rita med.",
     textNotSupported: "Texter går inte att rita här ännu."
   },
   hints: {
-    select: "Klicka på ett objekt för att markera det. Dra det eller dess punkter för att flytta. Dubbelklicka på en rak sträcka för en ny punkt.",
+    select: "Klicka på ett objekt. Dra en punkt för att flytta den, dra i en sträcka för att böja den. Dubbelklicka på en sträcka för en ny punkt, på en punkt för att ta bort den.",
     drawPoint: (code: string) => `Klicka där ${code} ska stå. Dra för att vrida.`,
     drawLine: (code: string) => `Ritar ${code}: klicka för hörn, tryck och dra för kurva. Dubbelklicka eller tryck Enter för att avsluta.`,
     drawArea: (code: string) => `Ritar ytan ${code}: klicka runt den. Dubbelklicka eller tryck Enter för att stänga den.`

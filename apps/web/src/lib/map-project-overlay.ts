@@ -91,6 +91,21 @@ export function drawSelection(ctx: Context, view: Viewport, object: MapObject, a
   ctx.restore();
 }
 
+/** K3: den aktiva punktens styrpunkter (linjer från punkten och en ruta att dra i). */
+export function drawHandles(ctx: Context, view: Viewport, handles: { at: Point; in?: Point | undefined; out?: Point | undefined }) {
+  const at = toScreen(view, handles.at);
+  ctx.save();
+  for (const handlePoint of [handles.in, handles.out]) {
+    if (!handlePoint) continue;
+    const to = toScreen(view, handlePoint);
+    ctx.strokeStyle = SELECT; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(at.x, at.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.fillRect(to.x - 5, to.y - 5, 10, 10);
+    ctx.strokeRect(to.x - 5, to.y - 5, 10, 10);
+  }
+  ctx.restore();
+}
+
 /** Utkastets punkter (och linjen till pekaren medan man ritar). */
 export function drawDraftPoints(ctx: Context, view: Viewport, points: readonly { at: Point; handle?: Point | undefined }[], cursor: Point | undefined) {
   ctx.save();

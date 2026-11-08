@@ -126,6 +126,83 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
 });
 
 /**
+ * K3 (ägaren 2026-11-08: snabb redigering): rita en rak stig, markera den, dra i sträckan så att den blir en kurva, dubbelklicka
+ * på kurvan för en ny punkt och dubbelklicka på punkten för att ta bort den igen; "Flytta hela" drar linjen hel.
+ */
+test("kartprojekt: böja en sträcka, lägga till och ta bort punkter på en kurva", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `kurvor.${unique()}@exempel.se`, "Kurt Kurva");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Kurvor", "x-otid-file-name": "Kurvor.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const pathOf = async () => {
+    const objects = await serverObjects(owner, projectId, baseURL!);
+    const line = objects.find(object => object.key.startsWith("n:") && object.state.object?.kind === "line")?.state.object;
+    return line?.kind === "line" ? line.path : [];
+  };
+
+  // En rak stig med två punkter (y = 85, ovanför kartans objekt).
+  await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
+  for (const point of [{ x: 20, y: 85 }, { x: 80, y: 85 }]) {
+    const at = await screenOf(owner, point);
+    await owner.mouse.click(at.x, at.y);
+    await owner.waitForTimeout(400);
+  }
+  await owner.keyboard.press("Enter");
+  await settled(owner);
+  expect((await pathOf()).map(command => command.type)).toEqual(["M", "L"]);
+
+  // Stigen är markerad efter ritningen (ett klick till på samma ställe tar objektet under). Dra mitt på sträckan 6 mm nedåt:
+  // den blir en kurva genom punkten.
+  await owner.keyboard.press("e");
+  const middle = await screenOf(owner, { x: 50, y: 85 });
+  await expect(owner.getByTestId("map-project-hint")).toContainText("505");
+  const px = Number(await map.getAttribute("data-px-per-mm"));
+  await owner.mouse.move(middle.x, middle.y);
+  await owner.mouse.down();
+  for (let step = 1; step <= 6; step += 1) await owner.mouse.move(middle.x, middle.y + step * px, { steps: 2 });
+  await owner.mouse.up();
+  await settled(owner);
+  let path = await pathOf();
+  expect(path.map(command => command.type)).toEqual(["M", "C"]);
+
+  // Dubbelklick på kurvan (där den nu går, 6 mm lägre): en ny punkt.
+  const bent = await screenOf(owner, { x: 50, y: 79 });
+  await owner.mouse.dblclick(bent.x, bent.y);
+  await settled(owner);
+  path = await pathOf();
+  expect(path.map(command => command.type)).toEqual(["M", "C", "C"]);
+  expect(path[1]!.y).toBeCloseTo(79, 0);
+
+  // Dubbelklick på den nya punkten: borta igen (en kurva med de yttre styrpunkterna).
+  const added = await screenOf(owner, { x: path[1]!.x, y: path[1]!.y });
+  await expect(owner.getByTestId("map-project-hint")).toContainText("505");
+  await owner.mouse.dblclick(added.x, added.y);
+  await settled(owner);
+  expect((await pathOf()).map(command => command.type)).toEqual(["M", "C"]);
+
+  // Flytta hela: linjen dras hel 5 mm åt höger.
+  await owner.getByTestId("map-project-move-whole").click();
+  const before = (await pathOf())[0]!;
+  const grab = await screenOf(owner, { x: 20, y: 85 });
+  await owner.mouse.move(grab.x + 2 * px, grab.y);
+  await owner.mouse.down();
+  for (let step = 1; step <= 5; step += 1) await owner.mouse.move(grab.x + 2 * px + step * px, grab.y, { steps: 2 });
+  await owner.mouse.up();
+  await settled(owner);
+  const after = (await pathOf())[0]!;
+  expect(after.x - before.x).toBeCloseTo(5, 0);
+  expect(after.y).toBeCloseTo(before.y, 1);
+});
+
+/**
  * ADR-0219 (K1): samarbetet i editorn. Ägaren ritar ett delområde med verktyget Delområde; en medlem med rollen Föreslå tar bort
  * stenen, vilket blir ett förslag (kartan på servern är oförändrad); ägaren ser förslaget, visar det och godkänner det, och byter
  * sedan arbetssätt till Huvudkartritare.

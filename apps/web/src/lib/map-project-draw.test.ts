@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MapObject } from "@o-tid/map-file";
-import { draftObject, draftPath, insertAt, nearestVertex, rotatePoint, translateObject } from "./map-project-draw";
+import { draftObject, draftPath, nearestVertex, rotatePoint, translateObject } from "./map-project-draw";
 
 /** ADR-0219 (K1): ritverktygens geometri (hörn och kurvor som i Mapper, flytta, ny punkt, vrid). */
 describe("kartprojektets ritverktyg", () => {
@@ -27,17 +27,6 @@ describe("kartprojektets ritverktyg", () => {
       path: [{ type: "M", x: 1, y: 2 }, { type: "C", x1: 2, y1: 3, x2: 3, y2: 3, x: 4, y: 2 }] });
     expect(nearestVertex(line, { x: 2.9, y: 0.1 }, 0.5)).toMatchObject({ part: 0, index: 1 });
     expect(nearestVertex(line, { x: 1.5, y: 0 }, 0.5)).toBeUndefined();
-  });
-
-  it("lägger en ny punkt där man klickar på en rak sträcka, också ytans stängande sträcka, men inte på en kurva", () => {
-    const area: MapObject = { kind: "area", symbol: "406", angle: 0, rings: [[{ type: "M", x: 0, y: 0 }, { type: "L", x: 10, y: 0 }, { type: "L", x: 10, y: 10 }]] };
-    const inserted = insertAt(area, { x: 4, y: 0.2 }, 0.5);
-    expect(inserted?.address).toEqual({ part: 0, index: 1 });
-    expect(inserted?.object.kind === "area" && inserted.object.rings[0]![1]).toEqual({ type: "L", x: 4, y: 0 });
-    const closing = insertAt(area, { x: 5, y: 5 }, 0.5);
-    expect(closing?.address).toEqual({ part: 0, index: 3 });
-    const curve: MapObject = { kind: "line", symbol: "505", path: [{ type: "M", x: 0, y: 0 }, { type: "C", x1: 3, y1: 0, x2: 7, y2: 0, x: 10, y: 0 }] };
-    expect(insertAt(curve, { x: 5, y: 0 }, 0.5)).toBeUndefined();
   });
 
   it("vrider punktobjekt (grader moturs, 0–360) men inte linjer", () => {

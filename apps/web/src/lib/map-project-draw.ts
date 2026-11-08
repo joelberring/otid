@@ -1,5 +1,5 @@
-import { nearestOnSegment, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
-import { insertVertex, objectParts, vertices, type Vertex, type VertexAddress } from "@o-tid/map-revision";
+import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
+import { vertices, type Vertex } from "@o-tid/map-revision";
 
 /**
  * ADR-0219 (K1): ritverktygens geometri utan React och utan webbläsare. Koordinater i kartans mm med y uppåt.
@@ -70,27 +70,4 @@ export function nearestVertex(object: MapObject, point: Point, tolerance: number
     if (next <= distance) { best = vertex; distance = next; }
   }
   return best;
-}
-
-/**
- * En ny punkt på den raka sträcka som ligger närmast `point` (inom `tolerance` mm), där man klickade. Undefined när ingen
- * rak sträcka är så nära (kurvor får inga nya punkter här).
- */
-export function insertAt(object: MapObject, point: Point, tolerance: number): { object: MapObject; address: VertexAddress } | undefined {
-  let best: { address: VertexAddress; at: Point; distance: number } | undefined;
-  objectParts(object).forEach((part, partIndex) => {
-    const closing = object.kind === "area" && part.length >= 3;
-    const count = part.length;
-    for (let index = 0; index < count; index += 1) {
-      const from = part[index]!;
-      const to = index + 1 < count ? part[index + 1]! : closing ? part[0]! : undefined;
-      if (!to || (index + 1 < count && to.type === "C")) continue;
-      if (index + 1 >= count && from.x === to.x && from.y === to.y) continue;
-      const on = nearestOnSegment(point, { x: from.x, y: from.y }, { x: to.x, y: to.y });
-      if (on.distance <= tolerance && (!best || on.distance < best.distance)) best = { address: { part: partIndex, index }, at: on.point, distance: on.distance };
-    }
-  });
-  if (!best) return undefined;
-  const next = insertVertex(object, best.address, best.at);
-  return next ? { object: next, address: { part: best.address.part, index: best.address.index + 1 } } : undefined;
 }

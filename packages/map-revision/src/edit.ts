@@ -3,7 +3,7 @@ import type { MapObject, MapSymbol, ParsedMap, Path, PathCommand, Point } from "
 /**
  * ADR-0219 beslut 5: redigeringen av ett objekt. Punktobjekt och texter flyttas; linjer och ytor ändras punkt för punkt
  * (flytta, lägg till på en rak sträcka, ta bort). Kurvor ändras bara så långt att deras befintliga punkter går att flytta
- * (styrpunkterna följer med); nya kurvor, att lägga till punkter på en kurva och att ändra styrpunkterna görs inte här.
+ * (styrpunkterna följer med). Att lägga till punkter på en kurva, böja en sträcka och dra styrpunkterna finns i `curve-edit`.
  * Koordinater i kartans mm med y uppåt. Rena funktioner som ger nya objekt.
  */
 export interface VertexAddress { readonly part: number; readonly index: number }

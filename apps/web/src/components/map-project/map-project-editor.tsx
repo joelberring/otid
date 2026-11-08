@@ -5,12 +5,13 @@ import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapObject, Point } from "@o-tid/map-file";
 import {
-  MAX_SEGMENT_M, deleteVertex, hitDistance, moveVertex, newKey, withSymbol, type EditKind, type ObjectKey, type ObjectRef, type VertexAddress
+  MAX_SEGMENT_M, bendSegment, deleteVertex, hitDistance, insertOnSegment, moveHandle, moveVertex, nearestSegment, newKey, vertexHandles, withSymbol,
+  type EditKind, type ObjectKey, type ObjectRef, type VertexAddress
 } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { Viewport } from "../../lib/course-setting-viewport";
-import { draftObject, insertAt, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
-import { drawAreas, drawDraftPoints, drawMapArea, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
+import { draftObject, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
+import { drawAreas, drawDraftPoints, drawHandles, drawMapArea, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
 import { coverageImage, drawCoverage, drawReconMarkers, drawTracks } from "../../lib/map-project-recon-overlay";
 import { metersPerMm, toMapPosition } from "../../lib/course-setting-geo";
 import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
@@ -37,7 +38,11 @@ type Drag =
   | { readonly mode: "object"; readonly start: Point; readonly original: MapObject }
   | { readonly mode: "rotate"; readonly original: MapObject }
   | { readonly mode: "place"; readonly at: Point }
-  | { readonly mode: "handle" };
+  | { readonly mode: "handle" }
+  /** K3: sträckan böjs (dras i där man tog tag). */
+  | { readonly mode: "bend"; readonly address: VertexAddress; readonly t: number; readonly start: Point; readonly original: MapObject }
+  /** K3: punktens styrpunkt dras. */
+  | { readonly mode: "curveHandle"; readonly address: VertexAddress; readonly which: "in" | "out"; readonly original: MapObject };
 
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
 const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
@@ -110,6 +115,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [selected, setSelected] = useState<Selected>();
   const [activeVertex, setActiveVertex] = useState<VertexAddress>();
   const [rotating, setRotating] = useState(false);
+  /** K3: en linje dras hel (annars böjs sträckan man tar tag i). */
+  const [moveWhole, setMoveWhole] = useState(false);
   const [preview, setPreviewState] = useState<MapObject>();
   // Kartan håller handtagen från när dragningen började: förhandsvisningen läses ur en ref, inte ur en gammal closure.
   const previewRef = useRef<MapObject | undefined>(undefined);
@@ -130,7 +137,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   const hiddenSymbols = useMemo(() => catalog.filter(entry => hiddenGroups.has(entry.group)).map(entry => entry.id), [catalog, hiddenGroups]);
 
-  const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); };
+  const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); setMoveWhole(false); };
   const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); };
 
   const save = useCallback((key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind, point?: Point): boolean => {
@@ -190,7 +197,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
 
   const handlers: MapPointerHandlers = {
     unlifted: tool === "draw" || tool === "area",
-    onTap(point, tolerance) {
+    onTap(point, tolerance, modifiers) {
       const now = performance.now();
       const previous = lastTap.current;
       const double = !!previous && now - previous.at < DOUBLE_TAP_MS && Math.hypot(previous.point.x - point.x, previous.point.y - point.y) < tolerance * 2;
@@ -211,14 +218,25 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setDraft(points => [...points, { at: point }]);
         return;
       }
-      // Redigera: dubbelklick på en rak sträcka ger en ny punkt; annars markera (klick igen på samma ställe tar nästa objekt under).
-      if (double && selected && canEdit) {
-        const inserted = insertAt(selected.object, point, tolerance);
+      // Redigera: dubbelklick på en punkt tar bort den, på en sträcka (rak eller kurva) ger det en ny punkt; annars markera (klick
+      // igen på samma ställe tar nästa objekt under).
+      if (double && selected && canEdit && selected.object.kind !== "point" && selected.object.kind !== "text") {
+        const vertex = nearestVertex(selected.object, point, tolerance);
+        if (vertex) {
+          const removed = deleteVertex(selected.object, vertex);
+          if (removed) { save(selected.key, selected.ref, removed, "RESHAPE"); setActiveVertex(undefined); }
+          return;
+        }
+        const hit = nearestSegment(selected.object, point, tolerance);
+        const inserted = hit ? insertOnSegment(selected.object, hit, hit.t) : undefined;
         if (inserted) { save(selected.key, selected.ref, inserted.object, "RESHAPE"); setActiveVertex(inserted.address); return; }
       }
       if (selected && selected.object.kind !== "point" && selected.object.kind !== "text") {
         const vertex = nearestVertex(selected.object, point, tolerance);
         if (vertex) { setActiveVertex({ part: vertex.part, index: vertex.index }); return; }
+        // K3: ett klick på den markerade linjens kant behåller markeringen (dubbelklick för en ny punkt ska inte byta objekt);
+        // objektet under nås med Alt-klick eller ett klick inne i en yta.
+        if (!modifiers.alt && nearestSegment(selected.object, point, tolerance)) { setActiveVertex(undefined); return; }
       }
       session?.hit(point, tolerance, hiddenSymbols, hits => {
         if (hits.length === 0) { deselect(); return; }
@@ -242,6 +260,16 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       const object = selected.object;
       if (rotating && (object.kind === "point" || object.kind === "text")) { drag.current = { mode: "rotate", original: object }; setPreview(new Set([selected.key])); return true; }
       if (object.kind !== "point" && object.kind !== "text") {
+        // Den aktiva punktens styrpunkter först (de ligger ofta nära punkten).
+        const handles = activeVertex ? vertexHandles(object, activeVertex) : undefined;
+        for (const which of ["in", "out"] as const) {
+          const handle = handles?.[which];
+          if (activeVertex && handle && Math.hypot(handle.x - point.x, handle.y - point.y) <= tolerance) {
+            drag.current = { mode: "curveHandle", address: activeVertex, which, original: object };
+            setPreview(new Set([selected.key]));
+            return true;
+          }
+        }
         const vertex = nearestVertex(object, point, tolerance);
         if (vertex) {
           drag.current = { mode: "vertex", address: { part: vertex.part, index: vertex.index }, original: object };
@@ -249,6 +277,13 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           setPreview(new Set([selected.key]));
           return true;
         }
+      }
+      // En sträcka böjs där man tar tag (en linje dras hel med "Flytta hela"; en yta dras hel inifrån).
+      const segmentHit = moveWhole ? undefined : nearestSegment(object, point, tolerance);
+      if (segmentHit) {
+        drag.current = { mode: "bend", address: segmentHit, t: segmentHit.t, start: segmentHit.at, original: object };
+        setPreview(new Set([selected.key]));
+        return true;
       }
       if (hitDistance(object, point, tolerance)) {
         drag.current = { mode: "object", start: point, original: object };
@@ -271,6 +306,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setPreviewObject(object => object ? rotatePoint(object, degreesTo(current.at, point)) : object);
         return;
       }
+      if (current.mode === "bend") { setPreviewObject(bendSegment(current.original, current.address, current.t,
+        { x: point.x - current.start.x, y: point.y - current.start.y })); return; }
+      if (current.mode === "curveHandle") { setPreviewObject(moveHandle(current.original, current.address, current.which, point)); return; }
       if (current.mode === "vertex") setPreviewObject(moveVertex(current.original, current.address, point));
       else if (current.mode === "object") setPreviewObject(translateObject(current.original, { x: point.x - current.start.x, y: point.y - current.start.y }));
       else if (current.original.kind === "point" || current.original.kind === "text") setPreviewObject(rotatePoint(current.original, degreesTo(current.original.at, point)));
@@ -294,7 +332,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       }
       if (current.mode === "place") { if (moved) save(newKey(crypto.randomUUID()), null, moved, "ADD"); return; }
       if (!target || !moved) return;
-      save(target.key, target.ref, moved, current.mode === "vertex" ? "RESHAPE" : "MOVE");
+      save(target.key, target.ref, moved, current.mode === "object" || current.mode === "rotate" ? "MOVE" : "RESHAPE");
     },
     onDragCancel() { drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); },
     onHover(point) { if (tool !== "select" && draft.length) setCursor(point); }
@@ -339,7 +377,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       drawDraftPoints(ctx, current, draft, cursor);
     }
     if (reconResult && recon.layers.has("STATUS")) drawReconMarkers(ctx, current, reconResult.markers, SHOWN_STATUSES);
-    if (shown && tool === "select" && selected) drawSelection(ctx, current, shown, activeVertex);
+    if (shown && tool === "select" && selected) {
+      drawSelection(ctx, current, shown, activeVertex);
+      const handles = activeVertex ? vertexHandles(shown, activeVertex) : undefined;
+      if (handles) drawHandles(ctx, current, handles);
+    }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm]);
 
@@ -388,6 +430,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         </>}
         {selected && tool === "select" && <>
           <Button variant="secondary" onClick={removeSelected}>{activeVertex ? text.tools.deleteVertex : text.tools.delete}</Button>
+          {selected.object.kind === "line" && !activeVertex && <Button variant={moveWhole ? "primary" : "secondary"} aria-pressed={moveWhole}
+            title={text.tools.moveWholeHelp} onClick={() => setMoveWhole(value => !value)} data-testid="map-project-move-whole">{text.tools.moveWhole}</Button>}
           {(selected.object.kind === "point") && <Button variant={rotating ? "primary" : "secondary"} aria-pressed={rotating}
             title={text.tools.rotateHelp} onClick={() => setRotating(value => !value)}>{text.tools.rotate}</Button>}
           {canSwitch && <Button variant="secondary" onClick={() => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL")}>

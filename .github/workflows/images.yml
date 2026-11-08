@@ -78,9 +78,10 @@ jobs:
     permissions:
       contents: read
       packages: write
-    # En publicering i taget, i den ordning CI blev klar.
+    # En publicering i taget per avbildning, i den ordning CI blev klar (gruppen per avbildning: annars avbryter en tredje
+    # väntande matrisrad en annan).
     concurrency:
-      group: images-main
+      group: images-main-${{ matrix.image }}
       cancel-in-progress: false
     strategy:
       matrix:

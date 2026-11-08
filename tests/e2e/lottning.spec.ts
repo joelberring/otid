@@ -107,3 +107,43 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
   await expect(owner.getByTestId("verdict")).toContainText("Sen Anmäld");
   await expect(owner.getByTestId("verdict")).toContainText("30:00");
 });
+
+/**
+ * Ägaren 2026-11-08: masstart direkt på klassen (nattcup). Klassen får minutstart, sedan masstart kl. 19:00 i klassens rad: alla
+ * anmälda får tiden, och en efteranmäld får samma tid.
+ */
+test("masstart direkt på klassen", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `masstart.${suffix}@exempel.se`, "Mia Masstart");
+  await createRace(owner, `Nattcup ${suffix}`, raceDate);
+  await addCourseAndClass(owner, "Natt", "Natt lång", "31 32 33");
+  await addEntry(owner, { className: "Natt lång", givenName: "Ada", familyName: "Natt", club: "OK Ek", card: "8300001" });
+  await addEntry(owner, { className: "Natt lång", givenName: "Bo", familyName: "Natt", club: "OK Ek", card: "8300002" });
+
+  await openStep(owner, "Klasser");
+  const row = owner.getByRole("row", { name: /Natt lång/ });
+  await row.getByRole("button", { name: "Redigera Natt lång" }).click();
+  const editor = owner.getByRole("form", { name: "Redigera Natt lång" });
+  await expect(editor.getByTestId("class-mass-start")).toHaveCount(0);
+  await editor.getByLabel("Startsätt").selectOption({ label: "Minutstart" });
+  const classRow = owner.getByRole("row", { name: /^Natt lång Natt/ });
+  // Ett nytt startsätt kan först visa vad som händer; då sparar nästa tryck.
+  await expect.poll(async () => {
+    if ((await classRow.textContent())?.includes("Minutstart")) return true;
+    const save = editor.getByRole("button", { name: "Spara ändringen" });
+    if (await save.isVisible()) await save.click({ timeout: 2_000 }).catch(() => undefined);
+    return false;
+  }, { timeout: 30_000, intervals: [1_000] }).toBe(true);
+
+  await classRow.getByRole("button", { name: "Redigera Natt lång" }).click();
+  const massStart = owner.getByTestId("class-mass-start");
+  await massStart.getByTestId("class-mass-start-time").fill("19:00");
+  await massStart.getByTestId("class-mass-start-save").click();
+  await expect(massStart.getByRole("status")).toHaveText("Masstart kl. 19:00 är satt för klassen.", { timeout: 20_000 });
+
+  // Alla anmälda och en efteranmäld har 19:00.
+  await addEntry(owner, { className: "Natt lång", givenName: "Cia", familyName: "Natt", club: "OK Ek", card: "8300003" });
+  await openStep(owner, "Anmälda");
+  for (const name of ["Ada Natt", "Bo Natt", "Cia Natt"]) await expect(owner.getByRole("row", { name: new RegExp(name) }).first()).toContainText("19:00");
+});

@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Masstart direkt på klassen (ingen migration)
+- Klassens rad (Redigera): "Masstart kl." för en klass med minutstart; en lottning med masstart för bara den klassen (samma väg
+  som Start → Lottning), så att efteranmälda också får tiden. Fungerar i alla typer med startsätt per klass.
+- Verifierat: typecheck, lint, E2E `lottning` (masstart, efteranmäld), `redigera-bana`, `arbetsyta` mot driftbygget.
+
 ### 2026-11-08 – Byt namn på banor och importerade klasser (migration 0099)
 - Banor: namnet i formuläret Namn, längd och stigning (också gafflade banor); ett namn som redan finns avvisas. Inget räknas om.
 - Klasser från Eventor eller IOF XML får döpas om: källans namn sparas (`class.source_name`) och syns på raden, en ny hämtning
@@ -22,8 +27,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Kopiera markerade element (logotyper) till andra banor. Kartritningen syns alltid under Arrangera och i kontomenyn.
 - Rättat: en karta per löpare utan mall skrev alla banor på A4 stående; nu får varje bana sitt eget papper (stående/liggande).
 - Verifierat: typecheck, lint, `lint:dead`, enhetstester, E2E `banlaggning-pappersrum` och `kartprojekt-underlag` mot driftbygget.
-- Kvar (ägaren 2026-11-08): masstart i klassformuläret, byt namn på bana och klass (Eventor-klassens namn låst mot ny hämtning),
-  numren och ringkapningen undviker vägvalsanalysens troliga vägval, eget uppladdat typsnitt (t.ex. licensierad Zombies Brainless).
+- Kvar (ägaren 2026-11-08): numren och ringkapningen undviker vägvalsanalysens troliga vägval, eget uppladdat typsnitt (t.ex. licensierad Zombies Brainless).
 
 ### 2026-11-08 – Normkontrollen (del av K6, ingen migration, ADR-0219 tillägg)
 - Läget Normkontroll i panelen: ISOM 2017-2:s minimimått mot kartan med ändringarna (×1,5 på 1:10 000), i Workern.

@@ -12,6 +12,7 @@ import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../u
 import { RemovalReview } from "./removal-review";
 import { removalSv as removalText } from "../../i18n/removal-sv";
 import type { Workspace } from "./workspace-state";
+import { ClassMassStart } from "./class-mass-start";
 
 type ClassRow = CourseEditListResponse["classes"][number];
 
@@ -136,6 +137,8 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
         <input id={`${id}-max-time`} inputMode="numeric" autoComplete="off" value={classEditMaxTime} maxLength={4} disabled={locked}
           onChange={event => changeClassEdit({ maxTime: event.target.value })} /></Field>}
     </div>
+    {startRuleChoice && !row.rogaining && !ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount) &&
+      <ClassMassStart ws={ws} classId={row.classId} startRule={row.startRule} />}
     {row.sourceName && <p className={styles.workflowHelp}>{text.sourceName(row.sourceName)}{" "}
       <Button variant="quiet" disabled={locked} onClick={() => changeClassEdit({ name: row.sourceName! })}>{text.useSourceName}</Button></p>}
     {classEditPreview && <section className={styles.review} role="status" aria-live="polite">

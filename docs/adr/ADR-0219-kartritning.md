@@ -305,7 +305,7 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
    `otid-geo`; ingen kod kopieras in. En ruta i taget (`processes=1`), rutorna slås ihop (`pngmerge`, `dxfmerge`).
 4. **Resultatet:** bilden blir ett underlag (K4a) i rutornas koordinatsystem; kurvor, formlinjer, branter, stup och knollar
    ligger som DXF och läses in som kandidater (K4b) med symbolförslag ur Karttapullautins lagernamn (101–104, 109, 201, 202).
-5. **Kvar:** fuktighet och våtmarker (K5c).
+5. **Kvar:** egen beräkning av fuktighet (TWI, DTW) och mark och vegetation ur lasern (K5c, del 2).
 
 ## Tillägg 2026-11-08: geo-servern startas och raderas automatiskt (K5b, migration 0104)
 
@@ -320,3 +320,11 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
 5. **Mejl** till superadmin högst en gång per sort och dygn: ingen typ gick att skapa (med förslag på andra typer), en
    reservtyp användes, budgeten är slut, en server startade inte. Användarna ser läget i kartprojektet (igång, startar, startar
    när ett jobb väntar, kan inte startas, budgeten slut).
+
+## Tillägg 2026-11-08: markfuktighet som underlag (K5c, del 1, ingen migration)
+
+1. **SLU:s markfuktighetskarta** (2 m, Skogsstyrelsens öppna WMS) hämtas av servern för kartan eller en etapp i SWEREF 99 TM
+   (WMS 1.1.1, så att axlarna är östlig, nordlig) och blir ett underlag med världsfil (K4a). Högst 4000 pixel åt något håll;
+   större områden får grövre upplösning. Lagret läses ur tjänstens GetCapabilities (eller `OTID_SLU_MOISTURE_LAYER`).
+2. **Webbläsartestet** kör geo-arbetaren (`scripts/geo-worker.ts`) mot webben med en falsk Karttapullautin och falska
+   Lantmäteriet och SLU, så att hela kedjan (jobb, laser genom servern, resultat, underlag, kandidater) prövas i CI.

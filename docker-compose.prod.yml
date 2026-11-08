@@ -152,6 +152,8 @@ services:
       # ADR-0219 K5: laserdata (stac-hojd) och geo-arbetaren. Tom nyckel = ingen geo-arbetare kan hämta jobb (docs/drift.md, Geo-arbetaren).
       OTID_LM_STAC_HOJD_URL: ${OTID_LM_STAC_HOJD_URL:-}
       OTID_LM_LASER_COLLECTION: ${OTID_LM_LASER_COLLECTION:-}
+      # K5c: SLU:s markfuktighetskarta (WMS). Tom = Skogsstyrelsens öppna tjänst; CI pekar på en falsk.
+      OTID_SLU_MOISTURE_WMS_URL: ${OTID_SLU_MOISTURE_WMS_URL:-}
       OTID_GEO_WORKER_TOKEN: ${OTID_GEO_WORKER_TOKEN:-}
       OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
       # ADR-0219 K5b: geo-servern hos Hetzner (startas när geo-jobb väntar, raderas efter tomgång). Tom nyckel = ingen geo-server.

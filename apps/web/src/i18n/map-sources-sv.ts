@@ -46,6 +46,17 @@ export const mapSourcesSv = {
       generic: (status: number | string) => `Det gick inte (${status}).`
     }
   },
+  /** K5c: SLU:s markfuktighetskarta som underlag. */
+  moisture: {
+    heading: "Markfuktighet (SLU)",
+    help: "SLU:s markfuktighetskarta (2 m, öppen data från Skogsstyrelsen) för hela kartan eller en etapp, som underlag. Blått är blött: "
+      + "använd den för att hitta våtmarker, fuktstråk och diken att rekognosera.",
+    fetch: "Hämta markfuktighet",
+    fetching: "Hämtar markfuktighet …",
+    name: (area?: string) => `Markfuktighet SLU ${area ?? "hela kartan"}`.slice(0, 80),
+    added: "Markfuktigheten är tillagd som underlag.",
+    attribution: "Markfuktighetskarta SLU, Skogsstyrelsen."
+  },
   /** K5: laserdata och Karttapullautin på geo-servern. */
   laser: {
     heading: "Laserdata och Karttapullautin",

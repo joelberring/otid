@@ -79,6 +79,10 @@ jobs:
           # Geodata (ADR-0219, K4c): den falska Overpass från global-setup (port 4343).
           printf 'OTID_OVERPASS_URL=http://host.docker.internal:4343/api/interpreter\n' >> .env
           printf 'OTID_LM_STAC_BILD_URL=http://host.docker.internal:4343/stac-bild/v1\n' >> .env
+          # K5: laserdata, SLU:s markfuktighet och geo-arbetarens nyckel (samma som E2E_GEO_WORKER_TOKEN i tests/e2e/fake-geodata.ts).
+          printf 'OTID_LM_STAC_HOJD_URL=http://host.docker.internal:4343/stac-hojd/v1\n' >> .env
+          printf 'OTID_SLU_MOISTURE_WMS_URL=http://host.docker.internal:4343/slu-wms\n' >> .env
+          printf 'OTID_GEO_WORKER_TOKEN=e2e-geo-arbetare-0123456789abcdefghijklmnopqrstuv\n' >> .env
           # Google (ADR-0205 tillägg): den falska OpenID-leverantören från global-setup (port 4337); webbläsaren når den på värden.
           printf 'OTID_GOOGLE_CLIENT_ID=otid-e2e.apps.googleusercontent.com\nOTID_GOOGLE_CLIENT_SECRET=endast-for-test\n' >> .env
           printf 'OTID_GOOGLE_BASE_URL=http://host.docker.internal:4337\nOTID_GOOGLE_AUTHORIZE_URL=http://127.0.0.1:4337/auth\n' >> .env

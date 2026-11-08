@@ -1,0 +1,102 @@
+import { spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { expect, test, type Page } from "@playwright/test";
+import { E2E_GEO_WORKER_TOKEN } from "./fake-geodata";
+import { registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
+
+/**
+ * ADR-0219 K5: laserdata och Karttapullautin, och K5c: SLU:s markfuktighet. Ägaren lägger in sina uppgifter till Lantmäteriet,
+ * hämtar markfuktigheten som underlag, söker laserrutor och lägger ett jobb. Geo-arbetaren (scripts/geo-worker.ts, med en falsk
+ * Karttapullautin) hämtar jobbet och laserfilen genom servern och skickar tillbaka resultatet: bilden blir ett underlag och
+ * kurvorna läses in som kandidater. Lantmäteriet och SLU är falska (fake-geodata.ts).
+ */
+const mapBytes = new Uint8Array(readFileSync(new URL("../../fixtures/maps/kartfil.omap", import.meta.url)));
+const root = fileURLToPath(new URL("../../", import.meta.url));
+
+async function csrfOf(page: Page): Promise<string> {
+  return (await page.context().cookies()).find(row => /otid[-_]organizer[-_]csrf$/.test(row.name))?.value ?? "";
+}
+
+/** Geo-arbetaren ett varv mot webben (nyckeln är testkonfigurationens). */
+function runGeoWorker(origin: string): Promise<{ code: number | null; output: string }> {
+  const work = mkdtempSync(join(tmpdir(), "otid-geo-"));
+  const ini = join(work, "pullauta.default.ini");
+  writeFileSync(ini, "batch=0\nprocesses=2\n");
+  return new Promise(resolve => {
+    const child = spawn(process.execPath, [join(root, "scripts/geo-worker.ts")], { cwd: work, env: { ...process.env, OTID_GEO_ORIGIN: origin,
+      OTID_GEO_WORKER_TOKEN: E2E_GEO_WORKER_TOKEN, OTID_GEO_WORKER_NAME: "e2e-geo", OTID_GEO_ONCE: "1", OTID_PULLAUTA: join(root, "tests/e2e/fake-pullauta.mjs"),
+      OTID_PULLAUTA_INI: ini, OTID_GEO_WORKDIR: join(work, "jobb"), NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1" } });
+    let output = "";
+    child.stdout.on("data", (chunk: Buffer) => { output += chunk.toString(); });
+    child.stderr.on("data", (chunk: Buffer) => { output += chunk.toString(); });
+    child.on("close", code => resolve({ code, output }));
+  });
+}
+
+test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-servern", async ({ browser, baseURL }) => {
+  test.setTimeout(300_000);
+  const owner = await registerAccount(browser, `laser.${unique()}@exempel.se`, "Lisa Laser");
+  await warmRoute(owner, "/api/account/map-sources/lantmateriet");
+  const saved = await owner.request.put("/api/account/map-sources/lantmateriet", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner) },
+    data: { formatVersion: 1, method: "BASIC", id: "geotorget-lisa", secret: "hemligt-laser-1" } });
+  expect(saved.status()).toBe(200);
+
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Laser", "x-otid-file-name": "Laser.omap" },
+    data: Buffer.from(mapBytes) });
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  for (const [path, method] of [[`${api}/sources/markfuktighet`, "POST"], [`${api}/sources/lantmateriet/laser`, "POST"], [`${api}/geo-jobs`, "GET"],
+    [`${api}/layers`, "GET"], ["/api/geo-worker/claim", "POST"]] as const) await warmRoute(owner, path, method);
+
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+
+  // K5c: markfuktigheten blir ett underlag i SWEREF 99 TM.
+  const moisture = owner.getByTestId("map-project-moisture");
+  await moisture.getByText("Markfuktighet (SLU)").click();
+  await moisture.getByTestId("map-project-moisture-fetch").click();
+  await expect(moisture.getByTestId("map-project-moisture-message")).toHaveText("Markfuktigheten är tillagd som underlag.", { timeout: 60_000 });
+  await expect(owner.getByTestId("map-project-layer")).toHaveCount(1);
+  await expect(owner.getByTestId("map-project-layer")).toContainText("Markfuktighet SLU hela kartan");
+
+  // K5: laserrutorna och jobbet.
+  const laser = owner.getByTestId("map-project-laser");
+  await laser.getByText("Laserdata och Karttapullautin").click();
+  await laser.getByTestId("map-project-laser-search").click();
+  await expect(laser.getByTestId("map-project-laser-items")).toContainText("2024-05-20 · 24E001_658_67_2550 · 123 MB", { timeout: 30_000 });
+  await expect(laser.getByTestId("map-project-laser-name")).toHaveValue("Karttapullautin hela kartan");
+  await laser.getByTestId("map-project-laser-start").click();
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Jobbet ligger i kön.");
+  await expect(laser.getByTestId("map-project-laser-job")).toContainText("Karttapullautin hela kartan · 1 ruta · Väntar på geo-servern");
+
+  // Geo-arbetaren tar jobbet; inga uppgifter till Lantmäteriet följer med till den.
+  const worker = await runGeoWorker(baseURL!);
+  expect(worker.code, worker.output).toBe(0);
+  expect(worker.output).toContain("klart (1 rutor");
+  expect(worker.output).not.toContain("hemligt");
+
+  await expect(laser.getByTestId("map-project-laser-job")).toContainText("Klart", { timeout: 30_000 });
+  await expect(laser.getByTestId("map-project-laser-job")).toContainText("Bilden är tillagd som underlag.");
+  await expect(owner.getByTestId("map-project-layer")).toHaveCount(2, { timeout: 20_000 });
+  const layers = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { name: string; crs: number; width: number }[] }).layers;
+  expect(layers).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Karttapullautin hela kartan", crs: 3006, width: 200 })]));
+
+  // Kurvorna som kandidater.
+  await laser.getByRole("button", { name: "Läs in kurvor som kandidater" }).click();
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Kurvor visas som kandidater nedan under Vektorfil.");
+  const importer = owner.getByTestId("map-project-import");
+  // Testkartans symbolset saknar kurvor, så inga förslag här (förslagen prövas i vector-import.test.ts); lagren syns med namnen.
+  await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
+  await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("contour");
+  await expect(importer.getByLabel("Symbol för contour_index")).toBeAttached();
+  await reviewScreenshots(owner, "kartprojekt-laser");
+
+  // Fel nyckel kommer inte åt geo-arbetarens anrop.
+  const denied = await owner.request.post("/api/geo-worker/claim", { headers: { authorization: `Bearer ${"x".repeat(48)}`, "x-otid-geo-worker": "e2e" } });
+  expect(denied.status()).toBe(401);
+});

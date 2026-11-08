@@ -32,6 +32,7 @@ import { MapProjectReconPanel } from "./map-project-recon-panel";
 import { MapProjectLayersPanel } from "./map-project-layers-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
+import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { useMapProjectLayers } from "./use-map-project-layers";
 import { MapProjectImportPanel } from "./map-project-import-panel";
 import { useMapProjectImport } from "./use-map-project-import";
@@ -552,6 +553,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
             after={<>
               <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />
+              <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />
               <MapProjectLaserPanel view={view} layers={layers} importer={importer} georeference={georeference} bounds={editor.bounds ?? undefined}
                 areas={collab.areas} />
               {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={collab.areas} />}

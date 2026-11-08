@@ -11,6 +11,7 @@ import {
   storeGeoOutput
 } from "../../src/map-project-geo-jobs";
 import { listMapProjectLayers } from "../../src/map-project-layers";
+import { fetchMapProjectMoisture, moistureRequestBox } from "../../src/map-project-moisture";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
 import { registerTestAccount } from "./accounts";
 
@@ -44,7 +45,7 @@ afterAll(async () => {
   await admin.pool.end();
 });
 
-function png(width: number, height: number): Uint8Array {
+function png(width: number, height: number): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(64);
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
   const view = new DataView(bytes.buffer);
@@ -174,6 +175,31 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(await removeGeoJob(db, { ...owner.proof, projectId, jobId: created.job.jobId }, NOW)).toEqual({ status: "deleted" });
     expect(await db.select().from(schema.mapProjectGeoOutputs).where(eq(schema.mapProjectGeoOutputs.jobId, created.job.jobId))).toEqual([]);
     expect((await listMapProjectLayers(db, { ...owner.proof, projectId }, NOW))).toMatchObject({ list: { layers: [{ layerId: finished.layerId }] } });
+  });
+
+  it("K5c: SLU:s markfuktighet för rutan i SWEREF 99 TM, med världsfilen", async () => {
+    const { owner, reader, projectId } = await project();
+    const box = moistureRequestBox(BOX);
+    expect(box.width).toBeLessThanOrEqual(4000);
+    expect(box.minE).toBeGreaterThan(600_000);
+    expect(box.minN).toBeGreaterThan(6_500_000);
+    const world = box.world.trim().split("\n").map(Number);
+    expect(world[0]).toBeCloseTo((box.maxE - box.minE) / box.width);
+    const calls: string[] = [];
+    const runtime = { wmsUrl: "https://geodata.skogsstyrelsen.se/wms", layer: undefined, fetch: (async (target: string) => {
+      calls.push(target);
+      if (target.includes("GetCapabilities")) return new Response("<WMT_MS_Capabilities><Capability><Layer><Title>Alla</Title><Layer queryable=\"1\"><Name>Markfuktighet_SLU_2_0</Name></Layer></Layer></Capability></WMT_MS_Capabilities>");
+      return new Response(new Uint8Array(png(box.width, box.height)), { headers: { "content-type": "image/png" } });
+    }) as typeof fetch };
+    const result = await fetchMapProjectMoisture(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW);
+    expect(result).toMatchObject({ status: "ok", crs: 3006, world: box.world });
+    const query = new URL(calls[1]!).searchParams;
+    expect(Object.fromEntries(["LAYERS", "SRS", "VERSION", "BBOX", "WIDTH"].map(key => [key, query.get(key)]))).toEqual({ LAYERS: "Markfuktighet_SLU_2_0",
+      SRS: "EPSG:3006", VERSION: "1.1.1", BBOX: [box.minE, box.minN, box.maxE, box.maxN].join(","), WIDTH: String(box.width) });
+    expect((await fetchMapProjectMoisture(db, { ...reader.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("forbidden");
+    const html = { ...runtime, fetch: (async () => new Response("<html>fel</html>")) as typeof fetch, layer: "x" };
+    expect(await fetchMapProjectMoisture(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, html, NOW))
+      .toEqual({ status: "unavailable", detail: "format" });
   });
 
   it("ett jobb vars arbetare tystnat läggs tillbaka i kön, och efter två försök misslyckas det", async () => {

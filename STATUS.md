@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – K5c del 1: markfuktighet (SLU) som underlag; webbläsartest för geo-kedjan
+- Kartprojektet → Markfuktighet (SLU): servern hämtar SLU:s markfuktighetskarta (Skogsstyrelsens öppna WMS) för kartan eller en
+  etapp, och den läggs till som underlag.
+- E2E `kartprojekt-geo`: markfuktighet, laserrutor, jobbet, geo-arbetaren (med falsk Karttapullautin) mot webben, underlaget och
+  kurvorna som kandidater. Verifierat lokalt mot produktionsbygget, plus `kartprojekt-underlag`, integrationstesterna.
+- Provas: riktiga SLU-tjänsten (lagrets namn och färger).
+
 ### 2026-11-08 – K5b: geo-servern startas och raderas automatiskt hos Hetzner (migration 0104)
 - `web` startar en geo-server när geo-jobb väntar (typer och platser i tur och ordning, egen nyckel per server via cloud-init)
   och raderar den efter tomgång, utebliven start eller maxtid. Budget per månad; mejl till superadmin vid reservtyp, när ingen

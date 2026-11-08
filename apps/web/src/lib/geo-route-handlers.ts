@@ -1,5 +1,5 @@
 import {
-  authenticateGeoWorker, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
+  authenticateGeoWorker, fetchMapProjectMoisture, moistureRuntimeFromEnvironment, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
   lantmaterietRuntimeFromEnvironment, listGeoJobs, openGeoJobLaser, readGeoOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
   type LaserRuntime
 } from "@o-tid/application";
@@ -34,6 +34,26 @@ export async function mapProjectLaserSearchRoute(db: Database, request: Request,
   return guarded(async () => {
     const result = await searchMapProjectLaser(db, { ...input.proof, projectId, request: input.body }, runtime);
     return result.status === "ok" ? privateJson({ formatVersion: 1, collection: result.collection, items: result.items }) : geoFailure(result);
+  });
+}
+
+/**
+ * K5c: POST SLU:s markfuktighetskarta för en ruta (/api/organizer/map-projects/[projectId]/sources/markfuktighet). Svaret är
+ * bilden (PNG); världsfilen och koordinatsystemet står i `x-otid-world` och `x-otid-crs`.
+ */
+export async function mapProjectMoistureRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env,
+  runtime: MoistureRuntime = moistureRuntimeFromEnvironment(process.env)): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId)) return failure("not-found");
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await fetchMapProjectMoisture(db, { ...input.proof, projectId, request: input.body }, runtime);
+    if (result.status !== "ok") return geoFailure(result);
+    const headers = new Headers(privateHeaders);
+    headers.set("content-type", "image/png");
+    headers.set("x-otid-world", encodeURIComponent(result.world));
+    headers.set("x-otid-crs", String(result.crs));
+    return new Response(new Uint8Array(result.png), { status: 200, headers });
   });
 }
 

@@ -210,6 +210,7 @@ export {
   lantmaterietRuntimeFromEnvironment, readMapProjectOrthoAsset, searchMapProjectOrtho, type LantmaterietRuntime, type OrthoItem
 } from "./map-project-lantmateriet";
 export { geoServerSettings, hetznerClient, manageGeoServer, type GeoMailer } from "./geo-server";
+export { fetchMapProjectMoisture, moistureRuntimeFromEnvironment, type MoistureRuntime } from "./map-project-moisture";
 export { laserRuntimeFromEnvironment, searchMapProjectLaser, type LaserItem, type LaserRuntime } from "./map-project-laser";
 export {
   authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoServerView, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,

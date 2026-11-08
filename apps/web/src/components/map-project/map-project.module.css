@@ -35,3 +35,14 @@
 .check { display: flex; gap: .5rem; align-items: flex-start; margin: .25rem 0 .65rem; max-width: 40rem; }
 .check input { width: 22px; height: 22px; margin-top: 1px; flex: none; }
 .check small { display: block; }
+
+/* K3b: statistiken och topplistan. */
+.statsGrid { list-style: none; margin: .25rem 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .25rem 1rem; }
+.badges { list-style: none; margin: .5rem 0; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem; }
+.badges li { padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line-strong, #999); font-size: var(--text-sm, .9rem); }
+.badges li::before { content: "★ "; color: #c77c00; }
+.inline { display: inline-flex; align-items: center; gap: .4rem; margin: .25rem 1rem .25rem 0; font-size: var(--text-sm, .9rem); }
+.inline select { min-height: 36px; }
+.leaderboard { margin: .5rem 0; padding-left: 1.6rem; display: grid; gap: 2px; max-width: 28rem; }
+.leaderboard li span { display: inline-block; min-width: 12rem; }
+.leaderboard li[data-self] { font-weight: 600; }

@@ -11,6 +11,10 @@ import {
 } from "../../src/map-project-recon";
 import { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "../../src/map-project-notes";
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
+import { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "../../src/map-project-stats";
+import { syncMapProject } from "../../src/map-project-sync";
+import { createMapProjectProposalAsAi, decideMapProjectProposal } from "../../src/map-project-proposals";
+import { newKey } from "@o-tid/map-revision";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -167,5 +171,67 @@ describe("ADR-0219 K3: rekningen", () => {
       .toMatchObject({ status: "ok", note: { status: "DONE", resolvedAt: NOW.toISOString() } });
     expect((await deleteMapProjectNote(db, { ...s.reader.proof, projectId: s.projectId, noteId }, NOW)).status).toBe("forbidden");
     expect((await deleteMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, noteId }, NOW)).status).toBe("deleted");
+  });
+
+  it("statistiken (K3b): egen alltid, topplistan bara med projektets och personens val; Claudes förslag räknas inte", async () => {
+    const s = await setup();
+    const pointState = (x: number) => ({ kind: "OBJECT", object: { kind: "point", symbol: "1", at: { x, y: 50_000 }, angle: 0 } });
+    const add = (x: number) => ({ editId: randomUUID(), key: newKey(randomUUID()), ref: null, base: null, state: pointState(x), kind: "ADD",
+      at: NOW.toISOString() });
+    const edits = [add(1), add(2)];
+    const synced = await syncMapProject(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1, clientId: "telefon", since: 0, edits } }, NOW);
+    expect(synced.status).toBe("ok");
+    const firstKey = edits[0]!.key;
+    const lastEdit = synced.status === "ok" ? (synced.response.results as { editId: string; object?: { lastEditId: string } }[])[0]!.object!.lastEditId : "";
+    const removed = await syncMapProject(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1, clientId: "telefon", since: 0,
+      edits: [{ editId: randomUUID(), key: firstKey, ref: null, base: lastEdit, state: { kind: "DELETED" }, kind: "DELETE", at: NOW.toISOString() }] } }, NOW);
+    expect(removed.status).toBe("ok");
+    // Ett spår (1 km), en bekräftelse och en åtgärdad notis.
+    const trackId = randomUUID();
+    await createMapProjectTrack(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1, trackId, name: "Kväll", source: "FIELD",
+      startedAt: "2026-11-08T20:30:00Z" } }, NOW);
+    await addMapProjectTrackPart(db, { ...s.editor.proof, projectId: s.projectId, trackId, request: { formatVersion: 1, seq: 0,
+      points: Array.from({ length: 101 }, (_, i) => [59.3, 17.9 + i * 0.000175, i * 10, 5]), endedAt: "2026-11-08T21:30:00Z" } }, NOW);
+    await changeMapProjectChecks(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1, set: [{ key: "b:sten", basis: null }] } }, NOW);
+    const noteId = randomUUID();
+    await createMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1, noteId, at: { x: 1, y: 1 }, text: "Fel" } }, NOW);
+    await updateMapProjectNote(db, { ...s.editor.proof, projectId: s.projectId, noteId, request: { formatVersion: 1, status: "DONE" } }, NOW);
+    // Ett förslag från Claude åt personen, godkänt: räknas inte som personens.
+    const ai = await createMapProjectProposalAsAi(db, { accountId: s.editor.accountId, projectId: s.projectId, request: { formatVersion: 1,
+      requestId: randomUUID(), edits: [add(3)] } }, NOW);
+    expect(ai.status).toBe("created");
+    if (ai.status === "created") expect((await decideMapProjectProposal(db, { ...s.owner.proof, projectId: s.projectId, proposalId: ai.proposal.proposalId,
+      request: { formatVersion: 1, action: "ACCEPT" } }, NOW)).status).toBe("ok");
+
+    const mine = await readMapProjectStats(db, { ...s.editor.proof, projectId: s.projectId }, NOW);
+    expect(mine.status === "ok" && mine.view).toMatchObject({ leaderboard: null, rows: null, optedIn: false,
+      mine: { projects: 1, tracks: 1, added: 2, deleted: 1, checked: 1, notesResolved: 1, night: true, proposalsAccepted: 0 } });
+    if (mine.status === "ok") {
+      expect(mine.view.mine.km).toBeCloseTo(1, 0);
+      expect(mine.view.mine.hours).toBe(1);
+      expect(mine.view.mine.hectares).toBeGreaterThan(3.5);
+      expect(mine.view.mine.badges).toEqual(expect.arrayContaining(["FIRST_TRACK", "NIGHT"]));
+    }
+    // Säsongen 2025 är tom.
+    const old = await readMapProjectStats(db, { ...s.editor.proof, projectId: s.projectId, season: 2025 }, NOW);
+    expect(old.status === "ok" && old.view.mine.added).toBe(0);
+    // Topplistan: bara ägarna slår på; bara de som valt att synas står med.
+    expect((await updateMapProject(db, { ...s.editor.proof, projectId: s.projectId, request: { formatVersion: 1, leaderboard: "FIRST" } }, NOW)).status)
+      .toBe("forbidden");
+    expect((await updateMapProject(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, leaderboard: "FIRST" } }, NOW)).status)
+      .toBe("ok");
+    let board = await readMapProjectStats(db, { ...s.reader.proof, projectId: s.projectId }, NOW);
+    expect(board.status === "ok" && board.view.rows).toEqual([]);
+    expect((await setMapStatsOptIn(db, { ...s.editor.proof, enabled: true }, NOW)).status).toBe("ok");
+    board = await readMapProjectStats(db, { ...s.reader.proof, projectId: s.projectId }, NOW);
+    const editorName = (await db.select({ name: schema.userAccounts.displayName }).from(schema.userAccounts).where(eq(schema.userAccounts.id, s.editor.accountId)))[0]!.name;
+    expect(board.status === "ok" && board.view.rows?.map(row => [row.name, row.self, row.stats.added])).toEqual([[editorName.split(/\s+/)[0], false, 2]]);
+    expect((await readMapProjectStats(db, { ...s.outsider.proof, projectId: s.projectId }, NOW)).status).toBe("not-found");
+    // Den egna statistiken över alla projekt.
+    const my = await readMyMapStats(db, { ...s.editor.proof }, NOW);
+    expect(my.status === "ok" && my.view).toMatchObject({ optedIn: true, total: { added: 2 }, projects: [{ projectId: s.projectId }] });
+    expect((await setMapStatsOptIn(db, { ...s.editor.proof, enabled: false }, NOW)).status).toBe("ok");
+    board = await readMapProjectStats(db, { ...s.reader.proof, projectId: s.projectId }, NOW);
+    expect(board.status === "ok" && board.view.rows).toEqual([]);
   });
 });

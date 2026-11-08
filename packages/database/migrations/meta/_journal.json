@@ -71,6 +71,7 @@
     { "idx": 66, "version": "7", "when": 1805299200000, "tag": "0092_kartprojekt_ny_karta", "breakpoints": true },
     { "idx": 67, "version": "7", "when": 1805385600000, "tag": "0093_ai_koppling", "breakpoints": true },
     { "idx": 68, "version": "7", "when": 1805472000000, "tag": "0094_kartprojekt_rekning", "breakpoints": true },
-    { "idx": 69, "version": "7", "when": 1805558400000, "tag": "0095_kartprojekt_notiser", "breakpoints": true }
+    { "idx": 69, "version": "7", "when": 1805558400000, "tag": "0095_kartprojekt_notiser", "breakpoints": true },
+    { "idx": 70, "version": "7", "when": 1805644800000, "tag": "0096_kartprojekt_topplistor", "breakpoints": true }
   ]
 }

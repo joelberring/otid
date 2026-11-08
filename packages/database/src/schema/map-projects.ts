@@ -49,7 +49,9 @@ export const mapProjects = pgTable("map_project", {
   /** En ny kartas område (0092): ringar av punkter i kartans mm, y uppåt; null för en befintlig karta. */
   area: jsonb("area").$type<{ x: number; y: number }[][]>(),
   /** Rekningens inställningar (0094, `ReconSettings` i map-revision); null = förvalen. */
-  recon: jsonb("recon").$type<unknown>()
+  recon: jsonb("recon").$type<unknown>(),
+  /** Topplistan (0096): null = av, annars hur namnen visas. */
+  leaderboard: text("leaderboard").$type<"FIRST" | "FULL" | "NONE">()
 });
 
 export const mapProjectMembers = pgTable("map_project_member", {
@@ -215,4 +217,10 @@ export const mapProjectNotes = pgTable("map_project_note", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   resolvedBy: uuid("resolved_by")
+});
+
+/** Personen vill synas i kartprojektens topplistor (0096). */
+export const mapStatsOptIns = pgTable("map_stats_opt_in", {
+  accountId: uuid("account_id").primaryKey().references(() => userAccounts.id),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }).notNull()
 });

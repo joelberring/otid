@@ -9,6 +9,7 @@ import { invitationMailNote } from "../../i18n/invitation-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase, mapProjectFailure } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
+import { ProjectStatsSection } from "./map-stats-sections";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
@@ -125,6 +126,8 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
       </section>
 
       <MembersSection view={project} base={base} busy={busy} mailEnabled={mailEnabled} run={run} onChanged={load} onMessage={setMessage} />
+
+      <ProjectStatsSection base={base} canDecide={project.viewer.canDecide} />
 
       {manage && <ProjectSettings view={project} base={base} busy={busy} run={run} />}
     </div>

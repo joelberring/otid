@@ -8,6 +8,7 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { mapProjectFailure, mapProjectsBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
 import { Button, Field, Notice } from "../ui";
+import { MyMapStatsSection } from "./map-stats-sections";
 import { NewMapProject } from "./new-map-project";
 import styles from "./map-project.module.css";
 
@@ -38,7 +39,7 @@ export function MyMapProjects() {
             project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
       </li>)}
     </ul>}
-    {!problem && <div className={styles.sections}><NewMapProject /><UploadProject /></div>}
+    {!problem && <div className={styles.sections}><MyMapStatsSection /><NewMapProject /><UploadProject /></div>}
   </main>;
 }
 

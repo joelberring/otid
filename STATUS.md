@@ -5,10 +5,17 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0–K3 är klara (K3: rekningen, fältet och snabbare redigering, 0094); nästa är K3b (frivillig spelifiering) och K4 (underlag och geo-arbetaren). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0–K3b är klara (K3: rekningen, fältet, notiser och snabbare redigering, 0094–0095; K3b: frivilliga topplistor, 0096); nästa är K4 (underlag och geo-arbetaren, med egen uppladdning). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-08 – K3b: frivilliga topplistor och statistik (migration 0096, ADR-0219 tillägg)
+- Den egna kartstatistiken per projekt och totalt per säsong (rekad yta, km och timmar, kollade, notiser, nya/ändrade/borttagna, godkända förslag, klara delområden) med märken.
+- Topplistan i projektet: ägarna slår på och väljer namnen, var och en väljer "Visa mig i topplistorna"; bara för medlemmarna; sorteras på rekad yta.
+- Claudes förslag räknas inte som personens; inget nytt spelas in.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester, integration `adr-0219-rekning` (5), E2E `kartprojekt-rekning` (2).
+- Kvar: klubbens och hela O-Tids topplistor (beslut om namn utanför projektet).
 
 ### 2026-11-08 – K3: rekningen, fältet och snabbare redigering (migration 0094–0095, ADR-0219 tillägg)
 - Rekningens status (ej rekat, passerat, kollat) och täckningen räknas i kartans Worker ur GPS-spåren; siktavstånd per symbolgrupp, krympt i tät vegetation; delområdenas framsteg, "Godkänn passerade" och "Markera kollad".

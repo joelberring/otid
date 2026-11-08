@@ -1220,7 +1220,17 @@ Migration 0094, ADR-0219 tillägget 2026-11-08 (rekningen).
   kvitterat; klar och ta bort (den som skrev eller ägarna). Omladdningen utan nät provad mot driftbygget (lokalt och i CI).
 - [ ] Kvar för ägaren: prova i terrängen (spår, GPX från klockan, notiser och kartan utan nät).
 
-Senare enligt planen: K3b frivillig spelifiering, K4 underlag och
+## [x] Steg K3b – Frivilliga topplistor och statistik
+
+Migration 0096, ADR-0219 tillägget 2026-11-08 (spelifieringen).
+
+- [x] Den egna statistiken per projekt och totalt (projektsidan och listan över kartprojekten), per säsong, med märken.
+- [x] Topplistan i projektet: ägarna slår på och väljer namnen, var och en väljer att synas; bara för medlemmarna.
+- [x] Räknas ur ändringarna, förslagen, spåren, bekräftelserna, notiserna och delområdena; Claudes förslag räknas inte.
+- [x] Tester: map-revision (`stats`), integration `adr-0219-rekning` (statistiken), E2E `kartprojekt-rekning` (topplistan).
+- [ ] Senare: klubbens och hela O-Tids topplistor (kräver ett beslut om vilka namn som får synas utanför projektet).
+
+Senare enligt planen: K4 underlag och
 geo-arbetaren (med import av baskartor: lagermappning och rensning av överskott), K5 Karttapullautin och fuktighet, K6
 generalisering och normkontroll, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre
 kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD. Idé (STATUS): inomhusorientering.

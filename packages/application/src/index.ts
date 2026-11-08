@@ -199,6 +199,7 @@ export {
   addMapProjectTrackPart, changeMapProjectChecks, createMapProjectTrack, deleteMapProjectTrack, listMapProjectChecks, listMapProjectTracks,
   mapProjectTrackPoints, updateMapProjectTrack
 } from "./map-project-recon";
+export { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "./map-project-stats";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";
 export { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";

@@ -174,3 +174,17 @@ Beslut 8 och planen (avsnitt 8a): Claude kopplas till O-Tid med personens eget C
 5. **Redigeringen** (`curve-edit.ts`): dra i en sträcka böjer den, dubbelklick lägger till en punkt (också på kurvor) eller tar
    bort den, styrpunkterna dras och en mjuk punkt håller kurvan jämn. "Flytta hela" (eller en yta inifrån) flyttar objektet.
    Ett klick på den markerade linjens kant byter inte objekt; Alt-klick tar objektet under.
+
+## Tillägg 2026-11-08: frivilliga topplistor och statistik (steg K3b, migration 0096)
+
+Planens avsnitt 7c. Av från början; inget nytt spelas in.
+
+1. **Två val krävs:** projektets ägare slår på topplistan och väljer hur namnen visas (förnamn, hela namnet eller utan namn;
+   `map_project.leaderboard`), och var och en väljer själv "Visa mig i topplistorna" (`map_stats_opt_in`, tas bort med kontot).
+   Topplistan syns bara för projektets medlemmar och aldrig publikt. Den egna statistiken ser var och en alltid.
+2. **Räknas ur det som finns** (`map-project-stats.ts`): gjorda ändringar per författare (nya, ändrade, borttagna), godkända
+   förslag från personer, spåren (antal, km, timmar, rekad yta i 10 m-rutor inom 20 m, nattrunda), bekräftelserna, notiserna
+   (skrivna och åtgärdade) och klara delområden. Ändringar från ett förslag som Claude lämnade räknas inte som personens.
+3. **Belöna rätt saker:** topplistan sorteras på rekad yta från början; märkena gäller rekad yta, km, natt, kollade objekt,
+   åtgärdade notiser, klara delområden och borttagna objekt (generalisering), inte mängden nya objekt.
+4. **Säsong** är ett kalenderår. Klubbens och hela O-Tids topplistor väntar (namnen skulle då synas utanför projektet).

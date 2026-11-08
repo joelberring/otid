@@ -188,7 +188,7 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
         canArchive: canManage && await mapProjectCanArchive(tx, accountId, project), canPropose: mapProjectAllows(role, project, "propose"),
         canDecide: canManage },
       mode: project.mode ?? "SHARED", area: project.area ?? null,
-      recon: (project.recon as MapProjectView["recon"] | null) ?? null, areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
+      recon: (project.recon as MapProjectView["recon"] | null) ?? null, leaderboard: project.leaderboard ?? null, areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
       readerVersion: project.readerVersion, seq: project.seq, members: await members(tx, project),
       invitations: open.map(row => ({ invitationId: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString(),
         sentAt: sent.get(row.id)?.toISOString() ?? null })) } } as const;
@@ -203,15 +203,16 @@ export async function updateMapProject(db: Database, input: ClubProof & { projec
     const access = await requireMapProject(tx, input, now, "manage", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    const { name, status, mode, recon } = parsed.data;
+    const { name, status, mode, recon, leaderboard } = parsed.data;
     const closing = status && status !== access.project.status ? status : undefined;
     // Gemensamt lagras som null (rader från före 0091 har null).
     await tx.update(schema.mapProjects).set({ ...(name ? { name } : {}), ...(mode ? { mode: mode === "SHARED" ? null : mode } : {}),
-      ...(recon !== undefined ? { recon } : {}),
+      ...(recon !== undefined ? { recon } : {}), ...(leaderboard !== undefined ? { leaderboard } : {}),
       ...(closing === "CLOSED" ? { status: "CLOSED", closedAt: now, closedBy: access.accountId } : {}),
       ...(closing === "OPEN" ? { status: "OPEN", closedAt: null, closedBy: null } : {}) }).where(eq(schema.mapProjects.id, access.project.id));
     await mapProjectJournal(tx, access.project, { action: closing === "CLOSED" ? "MAP_PROJECT_CLOSED" : closing === "OPEN"
-      ? "MAP_PROJECT_REOPENED" : name ? "MAP_PROJECT_RENAMED" : mode ? "MAP_PROJECT_MODE_CHANGED" : "MAP_PROJECT_RECON_CHANGED", actorAccountId: access.accountId,
+      ? "MAP_PROJECT_REOPENED" : name ? "MAP_PROJECT_RENAMED" : mode ? "MAP_PROJECT_MODE_CHANGED" : recon !== undefined ? "MAP_PROJECT_RECON_CHANGED"
+      : "MAP_PROJECT_LEADERBOARD_CHANGED", actorAccountId: access.accountId,
       details: { projectId: access.project.id, ...(mode ? { mode } : {}) }, now });
     return { status: "ok" } as const;
   });

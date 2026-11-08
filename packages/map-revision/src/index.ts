@@ -14,3 +14,4 @@ export * from "./hit";
 export * from "./export";
 export * from "./areas";
 export * from "./recon";
+export * from "./stats";

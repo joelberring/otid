@@ -1,9 +1,9 @@
 import {
   addMapProjectTrackPart, changeMapProjectChecks, createMapProjectNote, createMapProjectTrack, deleteMapProjectNote, deleteMapProjectTrack,
-  listMapProjectChecks, listMapProjectNotes, listMapProjectTracks, mapProjectTrackPoints, readMapProjectNotePhoto, updateMapProjectNote,
-  updateMapProjectTrack
+  listMapProjectChecks, listMapProjectNotes, listMapProjectTracks, mapProjectTrackPoints, readMapProjectNotePhoto, readMapProjectStats, readMyMapStats,
+  setMapStatsOptIn, updateMapProjectNote, updateMapProjectTrack
 } from "@o-tid/application";
-import { UUID_PATTERN } from "@o-tid/contracts";
+import { mapStatsOptInRequestSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { failure, guarded, mutation, readProof, type ClubEnvironment } from "./club-route-handlers";
 import { privateHeaders, privateJson } from "./security-policy";
@@ -153,5 +153,47 @@ export async function mapProjectNotePhotoRoute(db: Database, request: Request, p
     if (result.status !== "ok") return failure(result.status);
     return new Response(new Uint8Array(result.photo), { headers: { ...privateHeaders, "content-type": result.mediaType,
       "content-length": String(result.photo.byteLength), "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" } });
+  });
+}
+
+/** Säsongen ur `?season=2026` (ett år 2000–2100), annars hela tiden. */
+function seasonOf(request: Request): number | undefined | "invalid" {
+  const raw = new URL(request.url).searchParams.get("season");
+  if (raw === null || raw === "") return undefined;
+  return /^\d{4}$/.test(raw) && Number(raw) >= 2000 && Number(raw) <= 2100 ? Number(raw) : "invalid";
+}
+
+/** K3b: projektets statistik och (om den är på) topplistan; alla medlemmar. */
+export async function mapProjectStatsRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env): Promise<Response> {
+  if (!validId(projectId)) return failure("not-found");
+  const season = seasonOf(request);
+  if (season === "invalid") return failure("invalid-request");
+  const input = await readProof(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await readMapProjectStats(db, { ...input.proof, projectId, season });
+    return result.status === "ok" ? privateJson(result.view) : failure(result.status);
+  });
+}
+
+/** K3b: den egna statistiken i alla projekt (GET) och "Visa mig i topplistorna" (PUT). */
+export async function myMapStatsRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
+  if (request.method === "GET") {
+    const season = seasonOf(request);
+    if (season === "invalid") return failure("invalid-request");
+    const input = await readProof(request, environment);
+    if ("response" in input) return input.response;
+    return guarded(async () => {
+      const result = await readMyMapStats(db, { ...input.proof, season });
+      return result.status === "ok" ? privateJson(result.view) : failure(result.status);
+    });
+  }
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const parsed = mapStatsOptInRequestSchema.safeParse(input.body);
+    if (!parsed.success) return failure("invalid-request");
+    const result = await setMapStatsOptIn(db, { ...input.proof, enabled: parsed.data.enabled });
+    return result.status === "ok" ? privateJson({ formatVersion: 1, optedIn: result.optedIn }) : failure(result.status);
   });
 }

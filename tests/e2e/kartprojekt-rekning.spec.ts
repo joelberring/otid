@@ -184,3 +184,38 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   await expect.poll(async () => ((await (await phone.request.get(`${api}/notes`)).json()) as { notes: { text: string }[] }).notes.map(row => row.text).sort(),
     { timeout: 30_000 }).toEqual(["Nytt hygge", "Stigen saknas här"]);
 });
+
+/** ADR-0219 K3b: den egna statistiken och den frivilliga topplistan (av från början, ägarna slår på, var och en väljer att synas). */
+test("kartprojekt: statistik och frivillig topplista", async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
+  const owner = await registerAccount(browser, `topp.${unique()}@exempel.se`, "Toppa Listsson");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Topplista", "x-otid-file-name": "Topplista.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  // En ny punkt (synken) och en bekräftelse.
+  const sync = await owner.request.post(`${api}/sync`, { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner), "content-type": "application/json" },
+    data: { formatVersion: 1, clientId: "e2e", since: 0, edits: [{ editId: crypto.randomUUID(), key: `n:${crypto.randomUUID()}`, ref: null, base: null,
+      state: { kind: "OBJECT", object: { kind: "point", symbol: stone.symbol, at: { x: 50, y: 50 }, angle: 0 } }, kind: "ADD", at: new Date().toISOString() }] } });
+  expect(sync.status()).toBe(200);
+  await warmRoute(owner, `${api}/stats`);
+  await warmRoute(owner, "/api/account/map-stats");
+
+  await owner.goto(`/organizer/map-projects/${projectId}`);
+  const section = owner.getByTestId("map-project-stats");
+  await expect(section.getByTestId("map-stats-mine")).toContainText("1 nytt objekt", { timeout: 30_000 });
+  await expect(section).toContainText("Topplistan är av i det här projektet.");
+  await section.getByTestId("map-stats-setting").selectOption("FIRST");
+  await expect(section).toContainText("Ingen har valt att synas än.", { timeout: 15_000 });
+  await section.getByTestId("map-stats-opt-in").check();
+  await expect(section.getByTestId("map-stats-leaderboard")).toContainText("Du", { timeout: 15_000 });
+  await reviewScreenshots(owner, "kartprojekt-statistik");
+
+  // Den egna statistiken på listan över kartprojekten.
+  await owner.goto("/organizer/map-projects");
+  await expect(owner.getByTestId("my-map-stats-total")).toContainText("1 nytt objekt", { timeout: 30_000 });
+  await expect(owner.getByTestId("my-map-stats").getByTestId("map-stats-opt-in")).toBeChecked();
+});

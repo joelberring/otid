@@ -87,3 +87,25 @@ export interface MapProjectNoteView {
   account: { accountId: string; name: string | null }; own: boolean; createdAt: string; resolvedAt: string | null;
 }
 export interface MapProjectNoteList { formatVersion: 1; notes: MapProjectNoteView[] }
+
+/** K3b: statistiken (`MapStats` i map-revision) med märkena. */
+export interface MapStatsSummary {
+  projects: number; tracks: number; km: number; hours: number; hectares: number; added: number; changed: number; deleted: number; checked: number;
+  notesWritten: number; notesResolved: number; proposalsAccepted: number; areasDone: number; night: boolean; badges: string[];
+}
+/** En rad i projektets topplista; `name` null = utan namn (projektets val). */
+export interface MapProjectLeaderboardRow { name: string | null; self: boolean; stats: MapStatsSummary }
+export interface MapProjectStatsView {
+  formatVersion: 1;
+  /** Topplistan: null = av, annars hur namnen visas. */
+  leaderboard: "FIRST" | "FULL" | "NONE" | null;
+  optedIn: boolean; season: number | null; mine: MapStatsSummary;
+  /** De som valt att synas (bara när topplistan är på). */
+  rows: MapProjectLeaderboardRow[] | null;
+}
+export interface MyMapStatsView {
+  formatVersion: 1; optedIn: boolean; season: number | null; total: MapStatsSummary;
+  projects: { projectId: string; name: string; stats: MapStatsSummary }[];
+}
+export const mapProjectLeaderboardSchema = z.enum(["FIRST", "FULL", "NONE"]);
+export const mapStatsOptInRequestSchema = z.object({ formatVersion: z.literal(1), enabled: z.boolean() }).strict();

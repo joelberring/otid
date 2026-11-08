@@ -12,6 +12,7 @@ import { mapProjectAllows, requireMapProject } from "./map-project-access";
 import { allowedLaserUrl, fetchLaserFile, type LaserRuntime } from "./map-project-laser";
 import type { LantmaterietFailure } from "./map-project-lantmateriet";
 import { openMapSourceCredential } from "./map-source-credentials";
+import { geoServerForToken, geoServerSettings, geoServerStateView, noteGeoServerJob } from "./geo-server";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
@@ -139,12 +140,17 @@ export async function readGeoOutput(db: Database, input: ClubProof & { projectId
 // Geo-arbetarens sida (nyckeln prövas av anropet; jobbet måste vara arbetarens och pågå).
 
 const digest = (value: string) => createHash("sha256").update(value).digest();
-/** Geo-arbetarens nyckel (`OTID_GEO_WORKER_TOKEN`, minst 32 tecken). Ger arbetarens namn eller inget. */
-export function authenticateGeoWorker(authorization: string | null, environment: Record<string, string | undefined> = process.env): boolean {
-  const expected = environment.OTID_GEO_WORKER_TOKEN?.trim();
+/**
+ * Geo-arbetarens nyckel: driftens `OTID_GEO_WORKER_TOKEN` (minst 32 tecken; arbetarens namn ur anropet) eller nyckeln till en
+ * geo-server som O-Tid startat (K5b; serverns namn). Ger arbetarens namn eller inget.
+ */
+export async function authenticateGeoWorker(db: Database, authorization: string | null, name: string | null,
+  environment: Record<string, string | undefined> = process.env, now = new Date()): Promise<string | undefined> {
   const given = authorization?.match(/^Bearer (\S{32,512})$/)?.[1];
-  if (!expected || expected.length < 32 || !given) return false;
-  return timingSafeEqual(digest(expected), digest(given));
+  if (!given) return undefined;
+  const expected = environment.OTID_GEO_WORKER_TOKEN?.trim();
+  if (expected && expected.length >= 32 && timingSafeEqual(digest(expected), digest(given))) return name && /^[A-Za-z0-9_.:-]{1,80}$/.test(name) ? name : undefined;
+  return geoServerForToken(db, given, now);
 }
 
 export interface ClaimedGeoJob {
@@ -165,6 +171,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
     returning id, request, attempts`);
   const row = result.rows[0];
   if (!row) return undefined;
+  await noteGeoServerJob(db, worker, now);
   // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök.
   await db.delete(outputs).where(eq(outputs.jobId, row.id));
   return { jobId: row.id, kind: "PULLAUTIN", attempt: row.attempts, settings: row.request.settings ?? {},
@@ -236,6 +243,7 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     if (!job || job.status !== "RUNNING") return { status: "not-found" } as const;
     if (parsed.data.status === "FAILED") {
       await tx.update(jobs).set({ status: "FAILED", finishedAt: now, error: parsed.data.error, progress: null }).where(eq(jobs.id, job.id));
+      await noteGeoServerJob(tx, worker, now);
       return { status: "ok", layerId: null } as const;
     }
     const files = await tx.select().from(outputs).where(eq(outputs.jobId, job.id));
@@ -256,6 +264,7 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
           .onConflictDoNothing();
       }
     }
+    await noteGeoServerJob(tx, worker, now);
     await tx.update(jobs).set({ status: "DONE", finishedAt: now, progress: null, error: null,
       result: { layerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
     return { status: "ok", layerId } as const;
@@ -264,10 +273,11 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
 
 /**
  * Geo-serverns läge som användaren ser det. Utan nyckel och utan Hetzner är geo-arbetaren inte inställd; ett jobb som
- * nyss hörts av betyder att servern är igång. Den automatiska starten (K5b) lägger till STARTING, UNAVAILABLE och BUDGET.
+ * nyss hörts av betyder att servern är igång. Med den automatiska starten (K5b) gäller läget som den senast skrev.
  */
 export async function geoServerView(db: DbExecutor, environment: Record<string, string | undefined> = process.env, now = new Date()): Promise<GeoServerView> {
-  if (!environment.OTID_GEO_WORKER_TOKEN?.trim() && !environment.OTID_HETZNER_TOKEN?.trim()) return { state: "NOT_CONFIGURED", detail: null };
+  if (geoServerSettings(environment)) return geoServerStateView(db);
+  if (!environment.OTID_GEO_WORKER_TOKEN?.trim()) return { state: "NOT_CONFIGURED", detail: null };
   const [row] = await db.select({ value: sql<number>`count(*)::int` }).from(jobs)
     .where(and(eq(jobs.status, "RUNNING"), gte(jobs.heartbeatAt, new Date(now.getTime() - 3 * 60_000))));
   return { state: (row?.value ?? 0) > 0 ? "READY" : "OFF", detail: null };

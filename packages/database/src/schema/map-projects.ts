@@ -292,3 +292,27 @@ export const mapProjectGeoOutputs = pgTable("map_project_geo_output", {
   byteSize: bigint("byte_size", { mode: "number" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 }, table => [primaryKey({ columns: [table.jobId, table.name] }), index("map_project_geo_output_content_idx").on(table.contentSha256)]);
+
+/** K5b (migration 0104): geo-servrarna som O-Tid skapat hos Hetzner (även raderade, för månadens kostnad). */
+export const geoServers = pgTable("geo_server", {
+  id: uuid("id").primaryKey(),
+  providerId: bigint("provider_id", { mode: "number" }),
+  name: text("name").notNull().unique(),
+  serverType: text("server_type").notNull(),
+  location: text("location").notNull(),
+  hourlyEur: doublePrecision("hourly_eur").notNull(),
+  tokenSha256: text("token_sha256").notNull().unique(),
+  status: text("status").$type<"STARTING" | "READY" | "DELETED">().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  lastJobAt: timestamp("last_job_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deleteReason: text("delete_reason")
+});
+
+/** K5b: geo-serverns läge som användarna ser och när ägaren senast fick mejl (nyckel → värde). */
+export const geoServerStates = pgTable("geo_server_state", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+});

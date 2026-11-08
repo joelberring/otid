@@ -305,5 +305,18 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
    `otid-geo`; ingen kod kopieras in. En ruta i taget (`processes=1`), rutorna slås ihop (`pngmerge`, `dxfmerge`).
 4. **Resultatet:** bilden blir ett underlag (K4a) i rutornas koordinatsystem; kurvor, formlinjer, branter, stup och knollar
    ligger som DXF och läses in som kandidater (K4b) med symbolförslag ur Karttapullautins lagernamn (101–104, 109, 201, 202).
-5. **Kvar (K5b):** den automatiska starten och raderingen av geo-servern (Hetzners API, servertyper och platser i tur och
-   ordning, budget per månad, mejl till ägaren när ingen typ går att skapa), fuktighet och våtmarker.
+5. **Kvar:** fuktighet och våtmarker (K5c).
+
+## Tillägg 2026-11-08: geo-servern startas och raderas automatiskt (K5b, migration 0104)
+
+1. **Webben** (tävlingens instans) tittar varje minut efter väntande geo-jobb när `OTID_HETZNER_TOKEN` är satt. Finns ingen
+   geo-server skapas en med Hetzners API: typerna och platserna i tur och ordning (förval cx23 och cax11 i fsn1, nbg1, hel1),
+   Ubuntu med Docker och `otid-geo` via cloud-init, etiketten `otid-geo=<domänen>`.
+2. **Nyckeln** skapas per server och följer med i uppstarten; bara dess sha256 sparas (`geo_server`). Den gäller tills servern
+   raderas. Driftens fasta nyckel (`OTID_GEO_WORKER_TOKEN`) fungerar som förut för en egen server.
+3. **Raderas** efter tomgång (förval 20 minuter utan jobb), om den inte hört av sig inom 15 minuter, efter högst
+   `OTID_GEO_MAX_HOURS` (förval 8) och om den har O-Tids etikett men är okänd. Högst tre starter i timmen.
+4. **Kostnaden** räknas per påbörjad timme ur `geo_server` mot månadens budget (förval 10 €); räcker den inte startas inget.
+5. **Mejl** till superadmin högst en gång per sort och dygn: ingen typ gick att skapa (med förslag på andra typer), en
+   reservtyp användes, budgeten är slut, en server startade inte. Användarna ser läget i kartprojektet (igång, startar, startar
+   när ett jobb väntar, kan inte startas, budgeten slut).

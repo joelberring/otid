@@ -49,7 +49,7 @@ inloggning:
 - Inget serverspecifikt byggs in: domänen, lösenorden och `NEXT_PUBLIC_INTRO_FILM_URL` läses från `.env` när tjänsterna
   startar, så samma avbildning fungerar på alla servrar.
 - Paketen ska vara publika. Ett nytt paket på ghcr.io är privat; efter den första publiceringen ändrar repots ägare det en
-  gång för vart och ett av `otid-web` och `otid-backup`: GitHub → profilen → Packages → paketet → Package settings → Change
+  gång för vart och ett av `otid-web`, `otid-backup` och `otid-geo` (ADR-0219 K5): GitHub → profilen → Packages → paketet → Package settings → Change
   visibility → Public. (`docker compose ... pull` svarar annars `unauthorized` eller `denied`.)
 
 ```bash
@@ -851,6 +851,8 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_OVERPASS_URL` | tom = `https://overpass-api.de/api/interpreter` | Kartprojektets hämtning från OpenStreetMap (K4c). En egen Overpass går att ange; CI pekar på en falsk. |
 | `OTID_LM_STAC_HOJD_URL`, `OTID_LM_LASER_COLLECTION` | tomma = `https://api.lantmateriet.se/stac-hojd/v1` och samlingen vars namn nämner laser och skog | Laserdata från Lantmäteriet (K5, provas). |
 | `OTID_GEO_WORKER_TOKEN`, `OTID_GEO_TILES_PER_MONTH` | tom, 200 | Geo-arbetarens nyckel och laserrutor per konto och månad ([Geo-arbetaren](#geo-arbetaren-adr-0219-k5)). |
+| `OTID_HETZNER_TOKEN`, `OTID_GEO_SERVER_TYPES`, `OTID_GEO_SERVER_LOCATIONS` | tom, `cx23,cax11`, `fsn1,nbg1,hel1` | Geo-servern hos Hetzner: nyckeln och typerna och platserna som provas i tur och ordning ([Geo-arbetaren](#geo-arbetaren-adr-0219-k5)). |
+| `OTID_GEO_IDLE_MINUTES`, `OTID_GEO_BUDGET_EUR_PER_MONTH`, `OTID_GEO_MAX_HOURS`, `OTID_GEO_IMAGE` | 20, 10, 8, `ghcr.io/joelberring/otid-geo:<OTID_TAG>` | Tomgång innan geo-servern raderas, månadens budget, längsta tid per server och avbildningen. |
 | `OTID_LM_STAC_BILD_URL`, `OTID_LM_TOKEN_URL` | tomma = `https://api.lantmateriet.se/stac-bild/v1` och `https://apimanager.lantmateriet.se/oauth2/token` | Ortofoton från Lantmäteriet med användarens egna uppgifter (K4c, provas). Uppgifterna krypteras med `OTID_EVENTOR_MASTER_KEY`; utan den kan de inte sparas. CI pekar på en falsk STAC. |
 
 ## Prova driftuppsättningen lokalt
@@ -894,9 +896,21 @@ Karttapullautin på laserdata körs av geo-arbetaren på en egen geo-server, ald
 - **Laserdata:** användaren lägger in sina egna uppgifter till Lantmäteriet (Mitt konto) och beställer Laserdata Nedladdning,
   skog på Geotorget. Servern hämtar rutorna åt geo-arbetaren med de uppgifterna; de lämnar aldrig tävlingsservern. Laserdata
   gäller under CC BY 4.0 (© Lantmäteriet) och kan innehålla personuppgifter enligt Lantmäteriets villkor.
-- **Nyckeln:** sätt `OTID_GEO_WORKER_TOKEN` (`openssl rand -hex 32`) i `.env` på tävlingsservern och starta om `web`.
-- **Prova för hand** (tills den automatiska starten finns): skapa en server (CX23 eller CAX11, Ubuntu, din SSH-nyckel),
-  installera Docker och kör
+- **Automatiskt (K5b):** lägg Hetzners nyckel (projektet → Säkerhet → API-tokens, Läs och skriv) som `OTID_HETZNER_TOKEN` i
+  `.env` och starta om `web`. Varje minut tittar `web` efter väntande geo-jobb: finns inget och ingen server startas en, med
+  typerna i `OTID_GEO_SERVER_TYPES` och platserna i `OTID_GEO_SERVER_LOCATIONS` i tur och ordning (den första som går att
+  skapa). Servern får en egen nyckel i sin uppstart (cloud-init: Docker och `otid-geo`), hörs av inom några minuter och
+  raderas när den stått utan jobb `OTID_GEO_IDLE_MINUTES` minuter, när den inte hört av sig inom 15 minuter eller när den gått
+  `OTID_GEO_MAX_HOURS` timmar. Högst tre starter i timmen. Servrar med O-Tids etikett (`otid-geo=<domänen>`) som O-Tid inte
+  känner till raderas.
+- **Kostnaden:** varje påbörjad timme räknas mot `OTID_GEO_BUDGET_EUR_PER_MONTH`; när budgeten inte räcker startas ingen
+  server och jobben väntar.
+- **Mejl till superadmin** (högst ett per sort och dygn): när ingen typ går att skapa (med andra typer med minst 4 GB som
+  förslag), när en reservtyp användes, när budgeten är slut och när en server inte startade. Lägg till en typ i
+  `OTID_GEO_SERVER_TYPES` och starta om `web`.
+- **Avbildningen** `otid-geo` måste vara publik på ghcr.io (se Uppdatera); annars kan geo-servern inte hämta den.
+- **Med en egen fast server i stället:** sätt `OTID_GEO_WORKER_TOKEN` (`openssl rand -hex 32`) i `.env`, starta om `web` och
+  kör på servern (Docker installerat)
 
   ```bash
   docker run -d --restart unless-stopped --name otid-geo -e OTID_GEO_ORIGIN=https://<OTID_DOMAIN> \
@@ -904,7 +918,7 @@ Karttapullautin på laserdata körs av geo-arbetaren på en egen geo-server, ald
   docker logs -f otid-geo
   ```
 
-  Radera servern när jobben är klara; den kostar per timme.
+  En sådan server raderar du själv; den kostar per timme.
 - **Minne:** Karttapullautin tar en ruta i taget (`processes=1`), så 4 GB räcker. Fler än fyra rutor slås ihop i halv
   upplösning, och bilden krymps tills den ryms som underlag (högst 40 MB och 30000 px).
 - **Gränser:** två jobb per konto åt gången, högst 16 rutor per jobb och `OTID_GEO_TILES_PER_MONTH` rutor per konto och

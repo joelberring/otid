@@ -154,6 +154,15 @@ services:
       OTID_LM_LASER_COLLECTION: ${OTID_LM_LASER_COLLECTION:-}
       OTID_GEO_WORKER_TOKEN: ${OTID_GEO_WORKER_TOKEN:-}
       OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
+      # ADR-0219 K5b: geo-servern hos Hetzner (startas när geo-jobb väntar, raderas efter tomgång). Tom nyckel = ingen geo-server.
+      OTID_HETZNER_TOKEN: ${OTID_HETZNER_TOKEN:-}
+      OTID_GEO_SERVER_TYPES: ${OTID_GEO_SERVER_TYPES:-}
+      OTID_GEO_SERVER_LOCATIONS: ${OTID_GEO_SERVER_LOCATIONS:-}
+      OTID_GEO_IDLE_MINUTES: ${OTID_GEO_IDLE_MINUTES:-}
+      OTID_GEO_BUDGET_EUR_PER_MONTH: ${OTID_GEO_BUDGET_EUR_PER_MONTH:-}
+      OTID_GEO_MAX_HOURS: ${OTID_GEO_MAX_HOURS:-}
+      OTID_GEO_IMAGE: ${OTID_GEO_IMAGE:-}
+      OTID_TAG: ${OTID_TAG:-}
       # off = den här instansen hämtar inga radiostämplingar. Tom = hämtar (bara en instans åt gången, PostgreSQL-lås).
       OTID_RADIO_POLLER: ${OTID_RADIO_POLLER:-}
       # ADR-0189: kartornas kvot i MB (tom = 2048 per konto och 20480 för hela servern; 0 = ingen gräns). Bara i web.

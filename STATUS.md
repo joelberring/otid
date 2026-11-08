@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – K5b: geo-servern startas och raderas automatiskt hos Hetzner (migration 0104)
+- `web` startar en geo-server när geo-jobb väntar (typer och platser i tur och ordning, egen nyckel per server via cloud-init)
+  och raderar den efter tomgång, utebliven start eller maxtid. Budget per månad; mejl till superadmin vid reservtyp, när ingen
+  typ går att skapa, när budgeten är slut och när en server inte startade.
+- Verifierat: typecheck, lint, integrationstest `adr-0219-geo-server` (falsk Hetzner), `adr-0219-geo`.
+- Provas: riktiga Hetzner (kräver `OTID_HETZNER_TOKEN`) och att `otid-geo` är publik på ghcr.io.
+
 ### 2026-11-08 – K5: geo-arbetaren och Karttapullautin (migration 0103, provas)
 - Kartprojektet → Laserdata och Karttapullautin: sök laserrutor hos Lantmäteriet med egna uppgifter, kör Karttapullautin på
   geo-servern; bilden blir underlag, kurvor m.m. läses in som kandidater. Geo-arbetaren (`scripts/geo-worker.ts`, avbildningen

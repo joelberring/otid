@@ -107,9 +107,10 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
 
     // Geo-arbetarens nyckel.
     const token = "t".repeat(40);
-    expect(authenticateGeoWorker(`Bearer ${token}`, { OTID_GEO_WORKER_TOKEN: token })).toBe(true);
-    expect(authenticateGeoWorker(`Bearer ${"u".repeat(40)}`, { OTID_GEO_WORKER_TOKEN: token })).toBe(false);
-    expect(authenticateGeoWorker(`Bearer ${token}`, {})).toBe(false);
+    expect(await authenticateGeoWorker(db, `Bearer ${token}`, "geo-1", { OTID_GEO_WORKER_TOKEN: token })).toBe("geo-1");
+    expect(await authenticateGeoWorker(db, `Bearer ${token}`, "../x", { OTID_GEO_WORKER_TOKEN: token })).toBeUndefined();
+    expect(await authenticateGeoWorker(db, `Bearer ${"u".repeat(40)}`, "geo-1", { OTID_GEO_WORKER_TOKEN: token })).toBeUndefined();
+    expect(await authenticateGeoWorker(db, `Bearer ${token}`, "geo-1", {})).toBeUndefined();
 
     const claimed = await claimGeoJob(db, "geo-1", NOW);
     expect(claimed).toMatchObject({ jobId: created.job.jobId, tiles: [{ index: 0, id: tile.id, epsg: 3006 }], settings: { contour_interval: 2.5 } });

@@ -20,4 +20,7 @@ export async function register(): Promise<void> {
   // ADR-0216: serverns bevakning – mätningen, larmen och veckorapporten till superadmin.
   const { startServerWatch } = await import("./lib/server-watch-runner");
   startServerWatch();
+  // ADR-0219 K5b: geo-servern hos Hetzner startas när geo-jobb väntar och raderas efter tomgång.
+  const { startGeoServerRunner } = await import("./lib/geo-server-runner");
+  startGeoServerRunner();
 }

@@ -7,14 +7,14 @@ import { mapProjectSv } from "../../i18n/map-project-sv";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase, mapProjectFailure } from "../../lib/map-project-client";
-import { forgetMapProjectCopy, saveMapProjectShell, saveMapProjectView, savedMapProjectView } from "../../lib/map-project-offline";
+import { forgetMapProjectCopy, saveMapProjectView, savedMapProjectView } from "../../lib/map-project-offline";
 import { Notice } from "../ui";
 import { MapProjectEditor } from "./map-project-editor";
 import styles from "./map-project.module.css";
 
 /**
  * ADR-0219 (K1): hämtar projektet och visar editorn (404 för den som inte är med). K3: utan nät visas projektet som det
- * senast lästes i telefonen; med nät sparas det och sidskalet för nästa gång (kartan i skogen).
+ * senast lästes i telefonen; med nät sparas det (och editorn sparar sidskalet när kartan är läst) för nästa gång.
  */
 export function MapProjectEditorRoute({ projectId }: { projectId: string }) {
   const [view, setView] = useState<MapProjectView>();
@@ -33,7 +33,6 @@ export function MapProjectEditorRoute({ projectId }: { projectId: string }) {
         const loaded = result.json as MapProjectView;
         setView(loaded);
         void saveMapProjectView(loaded).catch(error => console.error("Projektet kunde inte sparas i telefonen", error));
-        void saveMapProjectShell(projectId).catch(error => console.error("Kartsidan kunde inte sparas för offline", error));
         return;
       }
       if (result.status === 403 || result.status === 404) void forgetMapProjectCopy(projectId).catch(() => undefined);

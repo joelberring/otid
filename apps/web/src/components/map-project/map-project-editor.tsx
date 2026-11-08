@@ -24,6 +24,7 @@ import { MapProjectFieldControls, type PositionMode } from "./map-project-field-
 import { MapProjectReconPanel } from "./map-project-recon-panel";
 import { useMapProjectPosition, type TimedFix } from "./use-map-project-position";
 import { useMapProjectRecon } from "./use-map-project-recon";
+import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar } from "./map-project-sidebar";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
@@ -101,6 +102,12 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     walkRef.current = [...current, at];
     setWalk(walkRef.current);
   }, [recordFix, georeference]);
+  // K3: med nät och kartan läst sparas sidskalet och Workerns filer för kartan utan nät.
+  const mapReady = editor.mapStatus === "ready";
+  useEffect(() => {
+    if (!mapReady || offlineSince) return;
+    void saveMapProjectShell(view.projectId).catch(error => console.error("Kartsidan kunde inte sparas för offline", error));
+  }, [mapReady, offlineSince, view.projectId]);
   const position = useMapProjectPosition({ georeference, active: positionMode !== "off", recording: !!recon.recording || walk !== undefined, onFix });
   // Föreslå ritar också; servern gör ändringen till ett förslag.
   const canEdit = view.viewer.canEdit || view.viewer.canPropose;

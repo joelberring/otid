@@ -9,12 +9,14 @@ import {
 } from "@o-tid/map-revision";
 import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
+import { controlledWorker } from "../../lib/course-setting-worker";
 import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { clientStoreAvailable, loadClient, saveClient, type StoredClient } from "../../lib/map-project-client-store";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { MapProjectSession, type CatalogSymbol } from "../../lib/map-project-protocol";
 
-const createWorker = () => new Worker(new URL("../../lib/map-project-worker.ts", import.meta.url), { type: "module" });
+// K3: styrd av service workern när kartsidan är sparad för offline (`controlledWorker`, som banläggningens).
+const createWorker = () => controlledWorker(() => new Worker(new URL("../../lib/map-project-worker.ts", import.meta.url), { type: "module" }));
 
 /** Synken: hur ofta andras ändringar hämtas när sidan syns, och hur länge egna ändringar samlas innan de skickas. */
 const POLL_MS = 5000, SEND_DELAY_MS = 700;

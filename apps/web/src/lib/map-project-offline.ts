@@ -1,5 +1,6 @@
 import type { MapProjectView } from "@o-tid/contracts";
 import { activeWorker, ask, pageResources, shellSupported } from "./course-setting-offline-shell";
+import { workerResources } from "./course-setting-worker";
 
 /**
  * ADR-0219 tillägget om rekningen (K3): kartprojektets karta utan nät. Sidskalet sparas av service workern `/map-project-sw.js`
@@ -17,7 +18,8 @@ export async function saveMapProjectShell(projectId: string): Promise<void> {
   if (!shellSupported()) return;
   const registration = await navigator.serviceWorker.register("/map-project-sw.js", { scope: scopeOf(projectId), updateViaCache: "none" });
   await registration.update().catch(() => undefined);
-  await ask(await activeWorker(registration), { type: "cache", urls: pageResources(scopeOf(projectId)) });
+  // Workerns skript och filer (startad med `controlledWorker`) följer med.
+  await ask(await activeWorker(registration), { type: "cache", urls: pageResources(scopeOf(projectId), workerResources()) });
 }
 
 let opened: Promise<IDBDatabase> | undefined;

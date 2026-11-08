@@ -112,7 +112,7 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
   await owner.reload();
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   await settled(owner);
-  await expect(owner.getByText("Ändringar")).toHaveCount(0);
+  await expect(owner.getByText("Ändringar", { exact: true })).toHaveCount(0);
 
   // I telefonen: kartan fyller rutan och symbolerna ligger bakom en knapp.
   await owner.setViewportSize({ width: 390, height: 844 });

@@ -7,8 +7,8 @@ import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject } fr
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
 import { laserCollectionOf, laserRuntimeFromEnvironment, searchMapProjectLaser } from "../../src/map-project-laser";
 import {
-  authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput, removeGeoJob,
-  storeGeoOutput
+  authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoTilesPerMonth, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,
+  removeGeoJob, storeGeoOutput
 } from "../../src/map-project-geo-jobs";
 import { listMapProjectLayers } from "../../src/map-project-layers";
 import { fetchMapProjectMoisture, moistureRequestBox } from "../../src/map-project-moisture";
@@ -106,6 +106,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     if (created.status !== "created") throw new Error(created.status);
     expect(created.job).toMatchObject({ name: "Laser norr", status: "QUEUED", tiles: 1, settings: { contour_interval: 2.5 } });
 
+    // Kvoten: en tom variabel (compose) ger förvalet.
+    expect([geoTilesPerMonth({ OTID_GEO_TILES_PER_MONTH: "" }), geoTilesPerMonth({}), geoTilesPerMonth({ OTID_GEO_TILES_PER_MONTH: "0" })]).toEqual([200, 200, 0]);
     // Geo-arbetarens nyckel.
     const token = "t".repeat(40);
     expect(await authenticateGeoWorker(db, `Bearer ${token}`, "geo-1", { OTID_GEO_WORKER_TOKEN: token })).toBe("geo-1");

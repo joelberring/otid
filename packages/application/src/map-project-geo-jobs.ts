@@ -38,8 +38,10 @@ export const GEO_MAP_WORLD = "karta.pgw";
 export type GeoJobFailure = ClubFailure | { status: "no-credential" } | { status: "busy" } | { status: "quota" };
 
 export function geoTilesPerMonth(environment: Record<string, string | undefined> = process.env): number {
-  const value = Number(environment.OTID_GEO_TILES_PER_MONTH);
-  return Number.isInteger(value) && value >= 0 ? value : DEFAULT_TILES_PER_MONTH;
+  // En tom variabel (som compose skickar när den inte är satt) ger förvalet, inte noll.
+  const raw = environment.OTID_GEO_TILES_PER_MONTH?.trim();
+  const value = Number(raw);
+  return raw && Number.isInteger(value) && value >= 0 ? value : DEFAULT_TILES_PER_MONTH;
 }
 
 async function rows(tx: DbExecutor, projectId: string, jobId?: string) {

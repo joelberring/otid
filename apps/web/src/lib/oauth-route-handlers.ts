@@ -1,5 +1,5 @@
 import {
-  authenticateOauthAccess, decideAuthorization, describeAuthorization, exchangeOauthToken, handleMcpMessage, listAiConnections, OAUTH_SCOPE,
+  authenticateOauthAccess, decideAuthorization, describeAuthorization, exchangeOauthToken, handleMcpMessage, listAiConnections, OAUTH_SCOPES,
   registerOauthClient, revokeAiConnection, revokeOauthToken, type OauthError
 } from "@o-tid/application";
 import type { Database } from "@o-tid/database";
@@ -48,8 +48,8 @@ const oauthFailure = (error: OauthError) => oauthJson({ error: error.error, erro
 export function protectedResourceRoute(environment: Environment = process.env): Response {
   const value = policy(environment);
   if (!value) return accountFailure(500, "INTERNAL_ERROR");
-  return oauthJson({ resource: mcpResource(value.publicOrigin), authorization_servers: [value.publicOrigin], scopes_supported: [OAUTH_SCOPE],
-    bearer_methods_supported: ["header"], resource_name: "O-Tid kartritning" });
+  return oauthJson({ resource: mcpResource(value.publicOrigin), authorization_servers: [value.publicOrigin], scopes_supported: [...OAUTH_SCOPES],
+    bearer_methods_supported: ["header"], resource_name: "O-Tid kartritning och banläggning" });
 }
 
 /** RFC 8414: inloggningsserverns metadata. */
@@ -58,7 +58,7 @@ export function authorizationServerRoute(environment: Environment = process.env)
   if (!value) return accountFailure(500, "INTERNAL_ERROR");
   const origin = value.publicOrigin;
   return oauthJson({ issuer: origin, authorization_endpoint: `${origin}/oauth/authorize`, token_endpoint: `${origin}/api/oauth/token`,
-    registration_endpoint: `${origin}/api/oauth/register`, revocation_endpoint: `${origin}/api/oauth/revoke`, scopes_supported: [OAUTH_SCOPE],
+    registration_endpoint: `${origin}/api/oauth/register`, revocation_endpoint: `${origin}/api/oauth/revoke`, scopes_supported: [...OAUTH_SCOPES],
     response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"], revocation_endpoint_auth_methods_supported: ["none"] });
 }
@@ -165,7 +165,7 @@ export async function mcpRoute(db: Database, request: Request, environment: Envi
     let message: unknown;
     try { message = JSON.parse(new TextDecoder().decode(await readBoundedBytes(request, MCP_MAX_BYTES))); }
     catch { return oauthJson({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Kroppen är inte JSON" } }, 400); }
-    const response = await handleMcpMessage(db, grant.accountId, message);
+    const response = await handleMcpMessage(db, grant.accountId, message, {}, grant.scopes);
     return response === null ? new Response(null, { status: 202, headers: privateHeaders }) : oauthJson(response);
   });
 }

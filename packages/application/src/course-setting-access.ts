@@ -43,9 +43,14 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
     ...(request.requireCsrf ? { requireCsrf: true } : {})
   }, now, lock);
   if (account.status !== "authenticated") return account;
-  const [race] = await tx.select({ id: schema.races.id, eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, request.raceId));
+  return principalFor(tx, account.principal.accountId, request.raceId, request.required, now, lock, accepted);
+}
+
+/** Kontots behörighet i banläggningen (sessionen eller AI-kopplingen är redan prövad). */
+async function principalFor(tx: DbExecutor, accountId: string, raceId: string, required: CourseSettingRequirement, now: Date, lock: RaceRoleLock,
+  accepted: boolean): Promise<CourseSettingAccessResult> {
+  const [race] = await tx.select({ id: schema.races.id, eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, raceId));
   if (!race) return { status: "unauthorized" };
-  const accountId = account.principal.accountId;
   const [named] = await tx.select({ displayName: schema.userAccounts.displayName }).from(schema.userAccounts)
     .where(eq(schema.userAccounts.id, accountId));
   const grant = await activeEventAdministrationGrant(tx, { accountId, eventId: race.eventId, roles: ["OWNER", "ADMIN", "FUNCTIONARY"] }, lock);
@@ -61,12 +66,21 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
   }
   // ADR-0188 beslut 6: en behörighet sparad för kontots adress på tävlingen (eller dess träningsgrupp) gäller från första besöket.
   if (!principal && !accepted && await acceptInvitationsForRace(tx, accountId, now, race.id) > 0) {
-    return authorize(tx, request, now, lock, true);
+    return principalFor(tx, accountId, raceId, required, now, lock, true);
   }
   // Funktionären utan banläggning är inloggad på tävlingen men får inte se banorna (403); övriga har ingen roll (401).
   if (!principal) return grant ? { status: "forbidden" } : { status: "unauthorized" };
-  if (!courseSettingAllows(principal, request.required)) return { status: "forbidden" };
+  if (!courseSettingAllows(principal, required)) return { status: "forbidden" };
   return { status: "authenticated", principal };
+}
+
+/**
+ * Ägaren 2026-11-08 (AI-banläggningsassistenten): samma prövning för ett konto som redan är känt (AI-kopplingens nyckel med
+ * behörigheten `banlaggning` i stället för sessionen).
+ */
+export function requireCourseSettingForAccount(tx: DbExecutor, accountId: string, raceId: string, required: CourseSettingRequirement, now = new Date())
+  : Promise<CourseSettingAccessResult> {
+  return principalFor(tx, accountId, raceId, required, now, "none", false);
 }
 
 /** Den enda kontrollen för banläggningens tjänster och routes (samma låsning som `requireRaceRole`). */

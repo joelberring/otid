@@ -10,10 +10,15 @@ import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessi
 /**
  * ADR-0219 (K2): O-Tid som inloggningsserver (OAuth 2.1) för AI-kopplingen. Publika klienter registrerar sig själva (RFC 7591),
  * personen godkänner i O-Tid (inloggad som vanligt) och klienten byter koden mot nycklar med PKCE (S256). Behörigheten
- * `kartprojekt` räcker bara till kartprojekten (MCP-verktygen); allt annat i O-Tid kräver sessionen som förut. Koder och nycklar
+ * `kartprojekt` räcker bara till kartprojekten (MCP-verktygen); allt annat i O-Tid kräver sessionen som förut. Ägaren 2026-11-08:
+ * `banlaggning` ger AI-banläggningsassistenten (läsa banläggningen där kontot har behörighet och lämna notiser). En koppling som
+ * godkändes före den har bara `kartprojekt`; personen kopplar om för att ge mer. Koder och nycklar
  * sparas bara som sha256; en förnyelsenyckel byts vid varje förnyelse och en gammal som används igen återkallar kopplingen.
  */
-export const OAUTH_SCOPE = "kartprojekt";
+export const OAUTH_SCOPES = ["kartprojekt", "banlaggning"] as const;
+export type OauthScope = typeof OAUTH_SCOPES[number];
+/** Behörigheterna i en sparad `scope` (mellanslag mellan), bara de kända. */
+export const scopesOf = (scope: string): OauthScope[] => scope.split(" ").filter((part): part is OauthScope => (OAUTH_SCOPES as readonly string[]).includes(part));
 export const OAUTH_CODE_LIFETIME_MS = 5 * 60_000;
 export const OAUTH_ACCESS_LIFETIME_MS = 60 * 60_000;
 export const OAUTH_REFRESH_LIFETIME_MS = 30 * 24 * 60 * 60_000;
@@ -99,12 +104,15 @@ export async function checkAuthorizationRequest(tx: DbExecutor, query: Record<st
   if (query.code_challenge_method !== "S256" || !CHALLENGE_PATTERN.test(query.code_challenge ?? "")) {
     return back("invalid_request", "PKCE med S256 krävs");
   }
-  const scopes = (query.scope ?? OAUTH_SCOPE).split(" ").filter(Boolean);
-  if (scopes.some(scope => scope !== OAUTH_SCOPE)) return back("invalid_scope", `Bara ${OAUTH_SCOPE}`);
+  // Utan scope: alla. Okända avvisas.
+  const scopes = query.scope ? [...new Set(query.scope.split(" ").filter(Boolean))] : [...OAUTH_SCOPES];
+  if (scopes.length === 0 || scopes.some(scope => !(OAUTH_SCOPES as readonly string[]).includes(scope))) {
+    return back("invalid_scope", `Bara ${OAUTH_SCOPES.join(" och ")}`);
+  }
   if (query.resource && query.resource !== resource) return back("invalid_target", "Okänd resurs");
   if (state !== null && state.length > 500) return back("invalid_request", "state är för lång");
   return { status: "ok", clientName: client.name, request: { clientId, redirectUri, codeChallenge: query.code_challenge!, state,
-    scope: OAUTH_SCOPE, resource: query.resource ?? null } };
+    scope: OAUTH_SCOPES.filter(scope => scopes.includes(scope)).join(" "), resource: query.resource ?? null } };
 }
 
 function withParams(uri: string, params: Record<string, string>): string {
@@ -116,13 +124,14 @@ function withParams(uri: string, params: Record<string, string>): string {
 /** Sidan för godkännande: klientens namn och vart svaret skickas, för den inloggade. */
 export async function describeAuthorization(db: Database, input: ClubProof & { query: Record<string, string | undefined>; resource: string },
   now = new Date()): Promise<{ status: "unauthorized" | "forbidden" } | { status: "invalid"; description: string }
-  | { status: "redirect-error"; redirect: string } | { status: "ok"; clientName: string; redirectHost: string; accountEmail: string }> {
+  | { status: "redirect-error"; redirect: string } | { status: "ok"; clientName: string; redirectHost: string; accountEmail: string; scopes: OauthScope[] }> {
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, input, now);
     if (auth.status !== "authenticated") return auth;
     const checked = await checkAuthorizationRequest(tx, input.query, input.resource);
     if (checked.status !== "ok") return checked;
-    return { status: "ok", clientName: checked.clientName, redirectHost: new URL(checked.request.redirectUri).host, accountEmail: auth.principal.email } as const;
+    return { status: "ok", clientName: checked.clientName, redirectHost: new URL(checked.request.redirectUri).host, accountEmail: auth.principal.email,
+      scopes: scopesOf(checked.request.scope) } as const;
   });
 }
 
@@ -220,14 +229,14 @@ export async function revokeOauthToken(db: Database, token: string, now = new Da
 
 /** Kontot bakom en åtkomstnyckel (giltig, inte återkallad), eller undefined. Senast använd uppdateras högst en gång i minuten. */
 export async function authenticateOauthAccess(db: Database, token: string | null, now = new Date())
-  : Promise<{ accountId: string; grantId: string; clientName: string } | undefined> {
+  : Promise<{ accountId: string; grantId: string; clientName: string; scopes: OauthScope[] } | undefined> {
   if (!token || !token.startsWith("otid_at_") || token.length > 100) return undefined;
   const [grant] = await db.select().from(schema.oauthGrants).where(eq(schema.oauthGrants.accessSha256, sha256(token)));
   if (!grant || grant.revokedAt || grant.accessExpiresAt <= now) return undefined;
   if (!grant.lastUsedAt || now.getTime() - grant.lastUsedAt.getTime() > 60_000) {
     await db.update(schema.oauthGrants).set({ lastUsedAt: now }).where(eq(schema.oauthGrants.id, grant.id));
   }
-  return { accountId: grant.accountId, grantId: grant.id, clientName: grant.clientName };
+  return { accountId: grant.accountId, grantId: grant.id, clientName: grant.clientName, scopes: scopesOf(grant.scope) };
 }
 
 export interface AiConnectionView {

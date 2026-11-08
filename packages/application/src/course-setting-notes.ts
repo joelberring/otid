@@ -124,7 +124,17 @@ export async function createCourseSettingNoteAsAdmin(db: Database, input: RaceSe
   if (photo && (photo.byteLength === 0 || photo.byteLength > COURSE_SETTING_NOTE_PHOTO_MAX_BYTES)) return { status: "too-large" };
   if (photo && !photoMatches(photo, request.photo!.mediaType)) return { status: "invalid-request" };
   if (request.target.kind === "COURSE" && request.course !== null && request.course !== request.target.course) return { status: "invalid-request" };
-  return courseSettingWrite(db, input, now, "COMMENT", async (tx, raceId, actorId) => {
+  return courseSettingWrite(db, input, now, "COMMENT", (tx, raceId, actorId) => insertCourseSettingNote(tx, raceId, actorId, request, photo, now));
+}
+
+/**
+ * En ny notis (idempotent på `requestId`) när behörigheten redan är prövad: av sessionen ovan eller av AI-kopplingen
+ * (AI-banläggningsassistenten, ägaren 2026-11-08). Kontrollen, sträckan eller banan måste finnas i dokumentet.
+ */
+export async function insertCourseSettingNote(tx: Transaction, raceId: string, actorId: string,
+  request: ReturnType<typeof courseSettingNoteCreateSchema.parse>, photo: Buffer | undefined, now: Date)
+  : Promise<{ status: "conflict" } | { status: "ok"; note: CourseSettingNote }> {
+  {
     const [existing] = await tx.select({ id: notes.id, raceId: notes.raceId, createdBy: notes.createdBy }).from(notes)
       .where(eq(notes.requestId, request.requestId));
     if (existing && (existing.raceId !== raceId || existing.createdBy !== actorId)) return { status: "conflict" as const };
@@ -144,7 +154,7 @@ export async function createCourseSettingNoteAsAdmin(db: Database, input: RaceSe
     }
     const [note] = await noteDtos(tx, await selectNotes(tx, raceId, id));
     return { status: "ok" as const, note: note! };
-  });
+  }
 }
 
 export async function replyCourseSettingNoteAsAdmin(db: Database, input: RaceSessionProof & { noteId: string; request: unknown }, now = new Date())

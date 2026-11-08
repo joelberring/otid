@@ -6,6 +6,8 @@ import { mapProjectAreaViews } from "./map-project-areas";
 import { runMapJobAndWait, type MapJobKind, type MapJobOutcome } from "./map-project-jobs";
 import { createMapProjectProposalAsAi, openProposalCount } from "./map-project-proposals";
 import { listMapProjectsForAccount } from "./map-projects";
+import { callMcpCourseTool, MCP_COURSE_TOOL_NAMES, MCP_COURSE_TOOLS } from "./mcp-course-setting";
+import type { OauthScope } from "./oauth";
 
 /**
  * ADR-0219 (K2): MCP-servern (Streamable HTTP utan sessioner; svaren är JSON). Verktygen ser och läser kartprojekten som
@@ -138,7 +140,9 @@ function strip(value: Record<string, unknown>): Record<string, unknown> {
 /**
  * Ett JSON-RPC-meddelande från klienten. Notiser (utan id) ger null (HTTP 202). Okända metoder ger felet -32601.
  */
-export async function handleMcpMessage(db: Database, accountId: string, message: unknown, wait: JobWait = {}): Promise<McpResponse | null> {
+export async function handleMcpMessage(db: Database, accountId: string, message: unknown, wait: JobWait = {},
+  scopes: readonly OauthScope[] = ["kartprojekt"]): Promise<McpResponse | null> {
+  const maps = scopes.includes("kartprojekt"), courses = scopes.includes("banlaggning");
   if (!message || typeof message !== "object" || Array.isArray(message)) {
     return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Ogiltig begäran (ett JSON-RPC-meddelande i taget)" } };
   }
@@ -150,13 +154,20 @@ export async function handleMcpMessage(db: Database, accountId: string, message:
     case "initialize": {
       const asked = typeof params?.protocolVersion === "string" ? params.protocolVersion : "";
       return ok({ protocolVersion: (MCP_PROTOCOL_VERSIONS as readonly string[]).includes(asked) ? asked : MCP_PROTOCOL_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } }, serverInfo: { name: "O-Tid kartritning", version: "1.0.0" },
-        instructions: "O-Tids kartprojekt (orienteringskartor i Mapper-format). Koordinater är kartans mm med y uppåt. Börja med list_map_projects och map_overview, titta med render_view, läs objekt med list_objects. Ändringar lämnas bara som förslag (propose_changes) som en människa godkänner." });
+        capabilities: { tools: { listChanged: false } }, serverInfo: { name: "O-Tid", version: "1.1.0" },
+        instructions: [maps ? "Kartprojekt (orienteringskartor i Mapper-format): koordinater är kartans mm med y uppåt. Börja med list_map_projects och map_overview, titta med render_view, läs objekt med list_objects. Ändringar lämnas bara som förslag (propose_changes) som en människa godkänner." : "",
+          courses ? "Banläggning: list_course_settings och course_overview visar banorna med målnivå, kontroller och sträckor. Granska nivån sträcka för sträcka (svensk orienterings nivåtrappa Grön–Svart: vägval, avstånd mellan ledstänger, kontrollernas svårighet) och lämna bara notiser (add_course_note) som banläggaren tar ställning till. Rör aldrig resultat eller tävlingen." : ""]
+          .filter(Boolean).join(" ") });
     }
     case "ping": return ok({});
-    case "tools/list": return ok({ tools: MCP_TOOLS });
+    case "tools/list": return ok({ tools: [...(maps ? MCP_TOOLS : []), ...(courses ? MCP_COURSE_TOOLS : [])] });
     case "tools/call": {
       const name = typeof params?.name === "string" ? params.name : "";
+      if (MCP_COURSE_TOOL_NAMES.has(name)) {
+        return ok(courses ? await callMcpCourseTool(db, accountId, name, params?.arguments)
+          : { content: [{ type: "text", text: "Kopplingen har inte behörigheten banlaggning. Ta bort kopplingen under Mitt konto → AI-kopplingar och koppla igen." }], isError: true });
+      }
+      if (!maps) return ok({ content: [{ type: "text", text: "Kopplingen har inte behörigheten kartprojekt." }], isError: true });
       return ok(await callMcpTool(db, accountId, name, params?.arguments, wait));
     }
     default: return { jsonrpc: "2.0", id, error: { code: -32601, message: `Okänd metod ${method}` } };

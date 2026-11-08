@@ -9,9 +9,15 @@ export const aiSv = {
     asks: (client: string) => `${client} vill få åtkomst till ditt O-Tid-konto.`,
     account: (email: string) => `Inloggad som ${email}.`,
     can: "Kopplingen kan",
-    canItems: ["se de kartprojekt du är medlem i: kartorna, objekten och bilder av dem",
-      "lämna förslag på ändringar, som en ägare i projektet godkänner eller avvisar"],
-    cannot: "Kopplingen kan inte ändra en karta direkt, se dina tävlingar eller något annat i O-Tid.",
+    canItems: {
+      kartprojekt: ["se de kartprojekt du är medlem i: kartorna, objekten och bilder av dem",
+        "lämna förslag på ändringar, som en ägare i projektet godkänner eller avvisar"],
+      banlaggning: ["se banläggningen i tävlingar där du får lägga banor: banor, kontroller, beskrivningar, nivåer och bilder av banorna",
+        "lämna notiser i banläggningen (granskning och förslag), som du eller banläggaren läser och tar ställning till"]
+    } as Record<string, readonly string[]>,
+    cannot: (courseSetting: boolean) => courseSetting
+      ? "Kopplingen kan inte ändra en karta eller en bana direkt, se deltagare och resultat eller något annat i O-Tid."
+      : "Kopplingen kan inte ändra en karta direkt, se dina tävlingar eller något annat i O-Tid.",
     redirect: (host: string) => `Svaret skickas till ${host}.`,
     revokeHint: "Du kan ta bort kopplingen när som helst under Mitt konto → AI-kopplingar.",
     approve: "Tillåt",
@@ -22,7 +28,7 @@ export const aiSv = {
   },
   connections: {
     title: "AI-kopplingar",
-    help: "Claude (eller en annan AI-tjänst) som du kopplat med ditt eget konto där. Den ser bara dina kartprojekt och lämnar förslag.",
+    help: "Claude (eller en annan AI-tjänst) som du kopplat med ditt eget konto där. Den ser dina kartprojekt och, om du godkände banläggningen, banorna där du får lägga banor. Den lämnar bara förslag och notiser. En koppling från före den 8 november ser bara kartprojekten; ta bort den och koppla igen för att ge banläggningen.",
     none: "Inga AI-kopplingar. Lägg till O-Tid som anslutning i Claude med adressen nedan.",
     address: "Adress att lägga till i Claude",
     created: (date: string) => `kopplad ${date}`,

@@ -41,7 +41,7 @@ test("AI-koppling: godkänn i O-Tid, MCP ser kartan och lämnar ett förslag, ko
   const verifier = randomBytes(40).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   const authorize = `/oauth/authorize?${new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: REDIRECT,
-    code_challenge: challenge, code_challenge_method: "S256", scope: "kartprojekt", state: "tillstand-1", resource: resource.resource })}`;
+    code_challenge: challenge, code_challenge_method: "S256", scope: "kartprojekt banlaggning", state: "tillstand-1", resource: resource.resource })}`;
 
   // Inte inloggad: logga in och kom tillbaka till godkännandet.
   const page = await (await newContext(browser)).newPage();
@@ -57,6 +57,9 @@ test("AI-koppling: godkänn i O-Tid, MCP ser kartan och lämnar ett förslag, ko
   const consent = page.getByTestId("oauth-consent");
   await expect(consent).toContainText("Claude vill få åtkomst till ditt O-Tid-konto.");
   await expect(consent).toContainText("Svaret skickas till claude.ai.");
+  // Ägaren 2026-11-08: båda behörigheterna står i godkännandet.
+  await expect(consent).toContainText("se de kartprojekt du är medlem i");
+  await expect(consent).toContainText("lämna notiser i banläggningen");
   if (process.env.E2E_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/ai-koppling-godkann.png`, fullPage: true });
   await consent.getByRole("button", { name: "Tillåt" }).click();
   await expect.poll(() => callback, { timeout: 20_000 }).toBeTruthy();
@@ -71,10 +74,10 @@ test("AI-koppling: godkänn i O-Tid, MCP ser kartan och lämnar ett förslag, ko
 
   const init = await (await mcp({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {},
     clientInfo: { name: "e2e", version: "1" } } })).json() as { result: { serverInfo: { name: string } } };
-  expect(init.result.serverInfo.name).toBe("O-Tid kartritning");
+  expect(init.result.serverInfo.name).toBe("O-Tid");
   expect((await mcp({ jsonrpc: "2.0", method: "notifications/initialized" })).status()).toBe(202);
   const tools = await (await mcp({ jsonrpc: "2.0", id: 2, method: "tools/list" })).json() as { result: { tools: { name: string }[] } };
-  expect(tools.result.tools.map(tool => tool.name)).toContain("render_view");
+  expect(tools.result.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(["render_view", "course_overview", "add_course_note"]));
 
   // En bild av kartan: kartjobbet görs av utskriftsarbetaren.
   const rendered = await (await mcp({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "render_view",

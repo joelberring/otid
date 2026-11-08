@@ -10,7 +10,7 @@ import styles from "./account-pages.module.css";
 const text = aiSv.authorize;
 type State =
   | { kind: "checking" } | { kind: "login" } | { kind: "failed" } | { kind: "invalid"; description: string }
-  | { kind: "ready"; clientName: string; redirectHost: string; accountEmail: string };
+  | { kind: "ready"; clientName: string; redirectHost: string; accountEmail: string; scopes: string[] };
 
 /**
  * ADR-0219 (K2): godkännandet av en AI-koppling (OAuth). Sidan frågar servern vad som begärs; den som inte är inloggad loggar
@@ -28,11 +28,13 @@ export function OauthAuthorizePage() {
       try {
         const result = await accountRequest(`/api/oauth/authorize?${params.toString()}`);
         if (result.status === 401) { saveAfterLogin(`/oauth/authorize?${params.toString()}`); setState({ kind: "login" }); return; }
-        const body = result.json as { status?: string; description?: string; redirect?: string; clientName?: string; redirectHost?: string; accountEmail?: string };
+        const body = result.json as { status?: string; description?: string; redirect?: string; clientName?: string; redirectHost?: string; accountEmail?: string;
+          scopes?: string[] };
         if (result.status !== 200 || !body) { setState({ kind: "failed" }); return; }
         if (body.status === "redirect-error" && body.redirect) { window.location.assign(body.redirect); return; }
         if (body.status === "invalid") { setState({ kind: "invalid", description: body.description ?? "" }); return; }
-        if (body.status === "ok") setState({ kind: "ready", clientName: body.clientName ?? "", redirectHost: body.redirectHost ?? "", accountEmail: body.accountEmail ?? "" });
+        if (body.status === "ok") setState({ kind: "ready", clientName: body.clientName ?? "", redirectHost: body.redirectHost ?? "", accountEmail: body.accountEmail ?? "",
+          scopes: body.scopes ?? ["kartprojekt"] });
         else setState({ kind: "failed" });
       } catch { setState({ kind: "failed" }); }
     })();
@@ -62,8 +64,8 @@ export function OauthAuthorizePage() {
       <p><strong>{text.asks(state.clientName)}</strong></p>
       <p className={styles.muted}>{text.account(state.accountEmail)}</p>
       <p>{text.can}:</p>
-      <ul className={styles.list}>{text.canItems.map(item => <li key={item}>{item}</li>)}</ul>
-      <p>{text.cannot}</p>
+      <ul className={styles.list}>{state.scopes.flatMap(scope => text.canItems[scope] ?? []).map(item => <li key={item}>{item}</li>)}</ul>
+      <p>{text.cannot(state.scopes.includes("banlaggning"))}</p>
       <p className={styles.muted}>{text.redirect(state.redirectHost)} {text.revokeHint}</p>
       <p className={styles.actions}>
         <Button disabled={busy} aria-busy={busy} onClick={() => void decide(true)}>{busy ? text.sending : text.approve}</Button>{" "}

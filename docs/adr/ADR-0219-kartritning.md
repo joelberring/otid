@@ -266,3 +266,18 @@ en etapp.
    (K4a) klippt till kartan eller etappen, en per bildruta. Adresserna följer Lantmäteriets guider men är inte provade mot den
    riktiga tjänsten (`OTID_LM_STAC_BILD_URL`, `OTID_LM_TOKEN_URL`).
 5. **Kvar:** NVDB; laserdata och höjdmodell (`stac-hojd`) med geo-arbetaren (K5).
+
+## Tillägg 2026-11-08: AI-banläggningsassistenten (behörigheten `banlaggning`, ingen migration)
+
+Ägaren: Claude ska kunna granska banorna mot nivån, som en banläggningsassistent, och bara lämna förslag.
+
+1. **Ny behörighet i AI-kopplingen:** `banlaggning` utöver `kartprojekt`. En klient som inte anger scope får båda; godkännandet
+   listar vad varje behörighet ger. Kopplingar från före tillägget har bara `kartprojekt` och måste kopplas om.
+2. **Verktygen** (MCP, bara med `banlaggning`): `list_course_settings` (tävlingarna där kontot har behörighet i banläggningen),
+   `course_overview` (banorna med målnivå eller förslag ur klassnamnen, klasser, längd, stigning, kontrollerna med kod,
+   beskrivning i text och läge, sträckorna med fågelväg och riktning, O-Tids varningar) och `add_course_note` (en notis på en
+   bana, kontroll, sträcka eller punkt, märkt "AI-granskning:").
+3. **Behörigheten** prövas som på sidan (`requireCourseSettingForAccount`, samma regler som sessionen); Kommentera räcker.
+   Inget verktyg ändrar en bana, tävlingen, deltagare eller resultat.
+4. **Kvar:** en bild av banan på kartan (kartjobb i utskriftsarbetaren) och nivåstödets mätningar (vägval, ledstänger) på
+   servern, så att granskningen inte bara bygger på text.

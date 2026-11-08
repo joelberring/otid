@@ -129,7 +129,7 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     await db.transaction(tx => acceptAllInvitations(tx, reader.accountId, new Date()));
 
     const init = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
-    expect(init).toMatchObject({ result: { protocolVersion: "2025-06-18", serverInfo: { name: "O-Tid kartritning" } } });
+    expect(init).toMatchObject({ result: { protocolVersion: "2025-06-18", serverInfo: { name: "O-Tid" } } });
     expect(await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
     const tools = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(["list_map_projects", "map_overview", "render_view",

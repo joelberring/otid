@@ -27,13 +27,40 @@ interface PaperItemBase {
   readonly hide?: boolean | undefined;
 }
 
-/** Text: rutans bredd (raderna justeras i den), storleken (em i mm), fet, justering och vit bakgrund. */
+/**
+ * Typsnitten för papperets texter: Roboto (förval) och fria typsnitt (OFL och Apache 2.0) som följer med O-Tid och bäddas in i
+ * PDF:en. Fet och kursiv finns i de typsnitt som har dem; övriga skrivs i sin enda vikt.
+ */
+export const PAPER_FONTS = ["ROBOTO", "ROBOTO_CONDENSED", "INTER", "CRIMSON", "BEBAS", "CREEPSTER", "NOSIFER", "MARKER"] as const;
+export type PaperFont = typeof PAPER_FONTS[number];
+export const PAPER_FONT_INFO: Readonly<Record<PaperFont, { readonly name: string; readonly bold: boolean; readonly italic: boolean }>> = {
+  ROBOTO: { name: "Roboto", bold: true, italic: true },
+  ROBOTO_CONDENSED: { name: "Roboto Condensed", bold: true, italic: false },
+  INTER: { name: "Inter", bold: true, italic: true },
+  CRIMSON: { name: "Crimson Text", bold: true, italic: true },
+  BEBAS: { name: "Bebas Neue", bold: false, italic: false },
+  CREEPSTER: { name: "Creepster", bold: false, italic: false },
+  NOSIFER: { name: "Nosifer", bold: false, italic: false },
+  MARKER: { name: "Permanent Marker", bold: false, italic: false }
+};
+
+/**
+ * Text: rutans bredd (raderna justeras i den), storleken (em i mm), typsnittet, fet, kursiv, spärrning (em mellan tecknen),
+ * justering och vit bakgrund.
+ */
 export interface PaperText extends PaperItemBase {
   readonly kind: "TEXT";
   readonly text: string;
   readonly sizeMm: number;
   readonly widthMm: number;
+  /** Saknas = Roboto. */
+  readonly font?: PaperFont | undefined;
   readonly bold?: boolean | undefined;
+  readonly italic?: boolean | undefined;
+  /** Spärrning i em (0–1), t.ex. 0,3 för rubriker i versaler. */
+  readonly tracking?: number | undefined;
+  /** Textens färg (#rrggbb), t.ex. grå på en baksida som inte ska lysa igenom; saknas = svart. */
+  readonly color?: string | undefined;
   readonly align?: PaperAlign | undefined;
   readonly background?: boolean | undefined;
 }
@@ -221,7 +248,13 @@ export function validatePaperItem(value: unknown): PaperItem {
       if (!within(item.sizeMm, PAPER_LIMITS.minTextMm, PAPER_LIMITS.maxTextMm)) throw invalid("textens storlek");
       if (!within(item.widthMm, PAPER_LIMITS.minWidthMm, PAPER_LIMITS.maxWidthMm)) throw invalid("textrutans bredd");
       if (item.align !== undefined && !["left", "center", "right"].includes(item.align)) throw invalid("justeringen");
+      if (item.font !== undefined && !(PAPER_FONTS as readonly string[]).includes(item.font)) throw invalid("typsnittet");
+      if (item.tracking !== undefined && !within(item.tracking, 0, 1)) throw invalid("spärrningen (0–1 em)");
+      if (item.color !== undefined && (typeof item.color !== "string" || !/^#[0-9a-f]{6}$/.test(item.color.toLowerCase()))) throw invalid("textens färg (#rrggbb)");
       return { ...base, kind: "TEXT", text: item.text, sizeMm: item.sizeMm, widthMm: item.widthMm, ...(flag(item.bold, "fet") ? { bold: true } : {}),
+        ...(item.font && item.font !== "ROBOTO" ? { font: item.font } : {}), ...(flag(item.italic, "kursiv") ? { italic: true } : {}),
+        ...(item.tracking ? { tracking: item.tracking } : {}),
+        ...(item.color && item.color.toLowerCase() !== "#000000" ? { color: item.color.toLowerCase() } : {}),
         ...(item.align && item.align !== "left" ? { align: item.align } : {}), ...(flag(item.background, "bakgrunden") ? { background: true } : {}) };
     }
     case "IMAGE": {

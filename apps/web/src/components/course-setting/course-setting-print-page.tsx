@@ -236,7 +236,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     const perItem = items.map(() => 0);
     const nameOf = (course: string) => course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course;
     const layout = !runnerMode && pieces ? { kind: "PIECES" as const }
-      : template ? { kind: "TEMPLATE" as const, template, perRunner: runnerMode, duplex, fill } : { kind: "COURSE" as const, header, duplex: partsDuplex };
+      : template ? { kind: "TEMPLATE" as const, template, perRunner: runnerMode, duplex, fill, ...(runnerMode && !mainTemplate ? { ownPage: true } : {}) }
+        : { kind: "COURSE" as const, header, duplex: partsDuplex };
     // ADR-0213: banornas förhandsvisning visar löparens variabler som platshållare ({namn} …).
     const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids, runnerPlaceholders: !runnerMode,
       onError: ({ item, error }) => {
@@ -351,6 +352,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
             blockedText={blocked ? pdfText.runnerBlocked : undefined} heading={outputText.pdf} help={outputText.pdfHelp}
             selection={{ items: mode === "RUNNERS" ? chosenRunners.map(withoutEntry) : courseItems, template, templateIsDraft: false,
               savedTemplateIds: (document.event.layoutTemplates ?? []).map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex: mode === "RUNNERS" ? duplex : partsDuplex,
+              ...(mode === "RUNNERS" && !mainTemplate ? { ownPage: true } : {}),
               pieces: mode === "COURSES" && pieces,
               ...(bundles ? { date: bundles.raceDate } : {}) }} />
         </div>

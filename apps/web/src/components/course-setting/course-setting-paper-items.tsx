@@ -6,7 +6,9 @@ import type { PaperPart, Sheet, SheetFrame, SheetPaperItem } from "@o-tid/course
 import { VariableOptions } from "./course-setting-paper-variables";
 import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
 import { snapMove, snapTargets, type SnapGuide } from "../../lib/course-setting-paper-snap";
+import { paperFontFamily } from "../../lib/course-setting-paper";
 import styles from "./course-setting-print-page.module.css";
+import "./paper-fonts.css";
 
 /** Det markerade elementet på papperet; `CLIP` = klippningens hörn, `__white:<n>` = den vita ytans hörn. */
 export type PaperSelection = { readonly course: string; readonly id: string } | undefined;
@@ -64,8 +66,9 @@ function Part({ part, imageUrl }: { part: PaperPart; imageUrl: (sha256: string) 
     case "polygon": return <polygon points={part.points.map(p => `${p.x},${p.y}`).join(" ")} fill={part.fill === "BLACK" ? "#000" : "#fff"}
       stroke={part.stroke ? "#000" : undefined} strokeWidth={part.stroke} />;
     case "text": return <text x={part.at.x} y={part.at.y} fontSize={part.heightMm} fontWeight={part.bold ? "bold" : undefined}
-      textAnchor={part.align === "left" ? "start" : part.align === "right" ? "end" : "middle"} fill="#000" fontFamily="Arial, Helvetica, sans-serif"
-      style={{ whiteSpace: "pre" }}>{part.text}</text>;
+      fontStyle={part.italic ? "italic" : undefined} letterSpacing={part.tracking ? part.tracking * part.heightMm : undefined}
+      textAnchor={part.align === "left" ? "start" : part.align === "right" ? "end" : "middle"} fill={part.color ?? "#000"} fontFamily={paperFontFamily(part.font)}
+      style={{ whiteSpace: "pre" }} data-font={part.font ?? "ROBOTO"}>{part.text}</text>;
     case "image": return <image href={imageUrl(part.image) || undefined} x={part.x} y={part.y} width={part.width} height={part.height} preserveAspectRatio="none"
       opacity={part.opacity < 1 ? part.opacity : undefined} data-testid="paper-image" />;
   }

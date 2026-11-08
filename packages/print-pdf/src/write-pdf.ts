@@ -15,7 +15,7 @@ import {
 import { colorUsage, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
 import { ColorSpaces, Content, GS_KNOCKOUT, GS_OVERPRINT, num } from "./content";
 import { descriptionOps, figureOps, textOps, type FigureContext, type Matrix } from "./figures";
-import { Fonts, fontVariant, variantForFamily, type FontFiles, type FontVariant } from "./fonts";
+import { Fonts, fontVariant, paperFontVariant, variantForFamily, type FontFiles, type FontVariant } from "./fonts";
 import { PdfCanvas } from "./pdf-canvas";
 import { BLACK, coursePaint, mapPaints, Plates, registrationPaint, WHITE, type Cmyk, type Paint, type PdfMode } from "./paint";
 
@@ -146,7 +146,9 @@ function neededFonts(sheets: readonly Sheet[], map: ParsedMap | null): Set<FontV
   };
   for (const sheet of sheets) {
     for (const text of sheet.texts) out.add(text.bold ? "bold" : "regular");
-    for (const item of sheet.paperItems ?? []) for (const part of item.parts) if (part.kind === "text") out.add(part.bold ? "bold" : "regular");
+    for (const item of sheet.paperItems ?? []) for (const part of item.parts) {
+      if (part.kind === "text") out.add(paperFontVariant(part.font, part.bold, part.italic === true));
+    }
     for (const item of sheet.descriptions) description(item.layout);
     for (const frame of sheet.frames) figures(frame.figures);
   }
@@ -453,9 +455,10 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
           break;
         }
         case "text": {
-          const ops = textOps(figureContext, paperMatrix, part.text, part.at, part.heightMm, part.bold ? "bold" : "regular", part.align, { yDown: true });
+          const ops = textOps(figureContext, paperMatrix, part.text, part.at, part.heightMm, paperFontVariant(part.font, part.bold, part.italic === true),
+            part.align, { yDown: true, tracking: part.tracking });
           if (!ops) break;
-          content.fill(BLACK);
+          content.fill(part.color ? hexPaint(part.color) : BLACK);
           content.op(ops);
           break;
         }

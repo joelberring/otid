@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Layouten: fria typsnitt, textfärg, kopiera element, karta per löpare på banans papper (ingen migration)
+- Papperets texter: typsnitt (Roboto, Roboto Condensed, Inter, Crimson Text, Bebas Neue, Creepster, Nosifer, Permanent Marker; OFL/Apache,
+  samma TrueType på skärmen och inbäddat i PDF:en), kursiv, spärrning och färg (t.ex. grå baksida); Purple Pen får typsnittets namn.
+- Kopiera markerade element (logotyper) till andra banor. Kartritningen syns alltid under Arrangera och i kontomenyn.
+- Rättat: en karta per löpare utan mall skrev alla banor på A4 stående; nu får varje bana sitt eget papper (stående/liggande).
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester, E2E `banlaggning-pappersrum` och `kartprojekt-underlag` mot driftbygget.
+- Kvar (ägaren 2026-11-08): masstart i klassformuläret, byt namn på bana och klass (Eventor-klassens namn låst mot ny hämtning),
+  numren och ringkapningen undviker vägvalsanalysens troliga vägval, eget uppladdat typsnitt (t.ex. licensierad Zombies Brainless).
+
 ### 2026-11-08 – Normkontrollen (del av K6, ingen migration, ADR-0219 tillägg)
 - Läget Normkontroll i panelen: ISOM 2017-2:s minimimått mot kartan med ändringarna (×1,5 på 1:10 000), i Workern.
 - Kurvor för nära varandra, korta fristående linjer, små och smala ytor, små kullar; romber på kartan och Visa i listan.

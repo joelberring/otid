@@ -4,5 +4,5 @@
  * Ren TypeScript utan I/O: anroparen ger kartfilen, typsnitten och arken.
  */
 export { colorsOverCourse, duplexEdge, pressNormFor, writeSheetsPdf, PDF_CAPABILITIES, PDF_MAX_PATTERN_INSTANCES, PT_PER_MM, type WritePdfInput, type WritePdfResult } from "./write-pdf";
-export { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles, type FontVariant } from "./fonts";
+export { FONT_FILE_NAMES, FONT_VARIANTS, paperFontVariant, type FontFiles, type FontVariant } from "./fonts";
 export { plateName, type Ink, type Paint, type PdfMode } from "./paint";

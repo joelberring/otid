@@ -52,7 +52,8 @@ export const printJobRequestSchema = z.object({
   /** PAGES = Purple Pens en bana per sida (`layoutCoursePage`); TEMPLATE = layoutmallen (`sheetLayoutSheets`). */
   layout: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("PAGES"), header: z.boolean() }).strict(),
-    z.object({ kind: z.literal("TEMPLATE"), template: z.unknown(), fill: z.enum(["FILL", "REPEAT"]) }).strict(),
+    // `ownPage`: en karta per löpare på banans eget papper (ingen mall vald i layouten).
+    z.object({ kind: z.literal("TEMPLATE"), template: z.unknown(), fill: z.enum(["FILL", "REPEAT"]), ownPage: z.boolean().optional() }).strict(),
     // Träningsläget: en liten kartbit per sträcka (minnes- och pusselorientering, ADR-0192 beslut 6).
     z.object({ kind: z.literal("PIECES") }).strict()
   ]),

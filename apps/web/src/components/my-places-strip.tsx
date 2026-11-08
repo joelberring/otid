@@ -79,17 +79,20 @@ export function MyPlacesStrip() {
       </ul>}
       {groups && groups.length === 0 && !none && <p className={styles.empty}>{text.noGroups}</p>}
     </section>
-    {projects.length > 0 && <section id="mina-kartprojekt" className={styles.place} aria-labelledby="my-map-projects-heading">
+    {/* Kartritningen syns alltid, också utan projekt (ägaren 2026-11-08: den var svår att hitta). */}
+    <section id="mina-kartprojekt" className={styles.place} aria-labelledby="my-map-projects-heading">
       <h2 id="my-map-projects-heading"><Link href="/organizer/map-projects">{mapProjectSv.list.title}</Link></h2>
-      <ul className={styles.chips}>
+      {projects.length === 0 && <p className={styles.empty}>{text.noMapProjects}{" "}
+        <Link href="/organizer/map-projects#nytt-kartprojekt" data-testid="my-places-new-map-project">{text.newMapProject}</Link></p>}
+      {projects.length > 0 && <ul className={styles.chips}>
         {projects.map(project => <li key={project.projectId}>
           <Link className={styles.chip} href={`/organizer/map-projects/${encodeURIComponent(project.projectId)}`}>
             <strong>{project.name}</strong>
             <span>{mapProjectSv.roles[project.role]} · {mapProjectSv.list.changed(project.changedObjects)}</span>
           </Link>
         </li>)}
-      </ul>
-    </section>}
+      </ul>}
+    </section>
     {!loaded && <p className={styles.none} role="status">{text.loading}</p>}
   </div>;
 }

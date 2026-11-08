@@ -4,7 +4,7 @@ import { anchorToPaper, type PaperRect } from "./paper-anchor";
 import type { TrainingMapPass } from "./training-types";
 import type { CourseSettingDocument, MapRect } from "./types";
 import { shapeParts, shapeSize } from "./paper-shapes";
-import { effectivePaper, ownPartLayout, type PaperAlign, type PaperClip, type PaperItem, type PaperItemKind, type PaperSource } from "./paper-items";
+import { effectivePaper, ownPartLayout, type PaperAlign, type PaperClip, type PaperItem, type PaperFont, type PaperItemKind, type PaperSource } from "./paper-items";
 import { expandPaperText, type PaperTextFrame } from "./paper-text";
 
 /** Delarna som förhandsvisningen (SVG) och PDF:en ritar, i papperets mm (y nedåt). Svart och vitt; bilden med täckning. */
@@ -17,7 +17,11 @@ export type PaperPart =
   | { readonly kind: "polygon"; readonly points: readonly { readonly x: number; readonly y: number }[]; readonly fill: "WHITE" | "BLACK";
       readonly stroke?: number | undefined }
   | { readonly kind: "text"; readonly text: string; readonly at: { readonly x: number; readonly y: number }; readonly heightMm: number;
-      readonly bold: boolean; readonly align: PaperAlign }
+      readonly bold: boolean; readonly align: PaperAlign;
+      /** Typsnittet (saknas = Roboto), kursiv och spärrning i em. */
+      readonly font?: PaperFont | undefined; readonly italic?: boolean | undefined; readonly tracking?: number | undefined;
+      /** #rrggbb; saknas = svart. */
+      readonly color?: string | undefined }
   | { readonly kind: "image"; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly image: string;
       readonly mediaType: string; readonly opacity: number };
 
@@ -79,7 +83,8 @@ export function paperItemParts(item: PaperItem, at: { x: number; y: number }, co
         if (line.trim() === "") return;
         // Baslinjen: radens topp + 0,95 em (versalerna ryms ovanför, nedstaplarna under).
         parts.push({ kind: "text", text: line, at: { x, y: at.y + pad + index * item.sizeMm * PAPER_TEXT_LINE + item.sizeMm * 0.95 },
-          heightMm: item.sizeMm, bold: item.bold === true, align });
+          heightMm: item.sizeMm, bold: item.bold === true, align, ...(item.font ? { font: item.font } : {}), ...(item.italic ? { italic: true } : {}),
+          ...(item.tracking ? { tracking: item.tracking } : {}), ...(item.color ? { color: item.color } : {}) });
       });
       return parts;
     }

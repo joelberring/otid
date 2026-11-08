@@ -94,6 +94,20 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await inspector.getByTestId("paper-size").press("Enter");
   await expect(text.locator("text").first()).toHaveAttribute("text-anchor", "middle", { timeout: 15_000 });
   await expect(text.locator("text").first()).toHaveAttribute("font-size", "5");
+  // Fria typsnitt (Inter kursiv, spärrad): på skärmen samma fil som bäddas in i PDF:en.
+  await inspector.getByTestId("paper-font").selectOption("INTER");
+  await inspector.getByTestId("paper-italic").check();
+  await inspector.getByTestId("paper-tracking").fill("0.3");
+  await inspector.getByTestId("paper-tracking").press("Enter");
+  await expect(text.locator("text").first()).toHaveAttribute("data-font", "INTER", { timeout: 15_000 });
+  await expect(text.locator("text").first()).toHaveAttribute("font-style", "italic");
+  await expect(text.locator("text").first()).toHaveAttribute("letter-spacing", "1.5");
+  // Typsnittsfilen finns och laddas (samma TrueType som i PDF:en).
+  await expect.poll(() => owner.evaluate(async () => (await Promise.race([document.fonts.load('italic 12px "O-Tid Inter"'),
+    new Promise<FontFace[]>(resolve => setTimeout(() => resolve([]), 5000))])).length), { timeout: 15_000 })
+    .toBeGreaterThan(0);
+  // Kopiera till banor finns bara när det finns andra banor (kartfilen har en; logiken provas i enhetstestet).
+  await expect(panel.getByTestId("paper-copy")).toHaveCount(0);
   // Datum och ekvidistans för variablerna (hopfällt, ADR-0211 tillägg).
   await expect(panel.getByTestId("paper-values-fold")).not.toHaveAttribute("open", "");
   await panel.getByTestId("paper-values-fold").locator("summary").click();

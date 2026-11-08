@@ -32,6 +32,20 @@ describe("printSheetGroups", () => {
     const perRunner = printSheetGroups(b.document, { kind: "TEMPLATE", template, perRunner: true }, [{ course }, { course }]);
     expect(perRunner.map(group => group.item)).toEqual([0, 1]);
   });
+
+  it("en karta per löpare på banans eget papper: liggande bana blir liggande, med samma papper som banans utskrift", () => {
+    const { b, course } = lineCourse(2);
+    const landscape = { ...b.document, courses: b.document.courses.map(row => row.id === course ? { ...row, printArea: { automatic: true,
+      restrictToPageSize: true, page: { width: 827, height: 1169, margins: 0, landscape: true } } } : row) };
+    const strip = BUILT_IN_SHEET_LAYOUTS.find(row => row.id === "a4-strip")!;
+    const own = printSheetGroups(landscape, { kind: "TEMPLATE", template: strip, perRunner: true, ownPage: true }, [{ course }]);
+    const paper = own[0]!.sheets[0]!.paper;
+    expect(paper.widthMm).toBeGreaterThan(paper.heightMm);
+    expect(paper).toEqual(layoutCoursePage(landscape, { course }).map(sheetOfPage)[0]!.paper);
+    // Utan `ownPage` gäller mallens A4 stående (som förut, när mallen är vald).
+    const fixed = printSheetGroups(landscape, { kind: "TEMPLATE", template: strip, perRunner: true }, [{ course }]);
+    expect(fixed[0]!.sheets[0]!.paper.heightMm).toBeGreaterThan(fixed[0]!.sheets[0]!.paper.widthMm);
+  });
 });
 
 describe("circleArcs", () => {

@@ -5,6 +5,7 @@ export const accountMenuSv = {
   open: (name: string) => `Konto: ${name}`,
   myClubs: "Mina klubbar",
   myGroups: "Mina grupper",
+  myMapProjects: "Mina kartprojekt",
   myEvents: "Mina tävlingar",
   myAccount: "Mitt konto",
   logout: "Logga ut",

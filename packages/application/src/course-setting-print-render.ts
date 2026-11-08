@@ -58,7 +58,7 @@ export function printJobSheets(document: CourseSettingDocument, request: PrintJo
   if (items.length === 0) return [];
   const layout = request.layout.kind === "TEMPLATE"
     ? { kind: "TEMPLATE" as const, template: sheetLayoutFor(document, request.layout.template), perRunner: request.perRunner, duplex: request.duplex,
-      fill: request.layout.fill }
+      fill: request.layout.fill, ...(request.layout.ownPage ? { ownPage: true } : {}) }
     : request.layout.kind === "PIECES" ? { kind: "PIECES" as const } : { kind: "COURSE" as const, header: request.layout.header, duplex: request.duplex };
   return printSheetGroups(document, layout, items, { mapBounds, ...(request.date ? { date: request.date } : {}), ...(detailGaps ? { detailGaps } : {}), ...(numberObstacles ? { numberObstacles } : {}) })
     .flatMap(group => group.sheets);

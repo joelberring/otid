@@ -6,7 +6,8 @@
  */
 import { sheetLayoutSheets, sheetOfPage, type SheetLayout, type Sheet, type SheetItem } from "./sheet-layout";
 import { countCourseParts } from "./course-parts";
-import { layoutCoursePage, type CoursePage } from "./page-layout";
+import { defaultPage, layoutCoursePage, printAreaOf, type CoursePage } from "./page-layout";
+import { printScaleOf } from "./overprint";
 import type { MapRect, OverprintOptions } from "./types";
 import { mirrorFigures } from "./training-mirror";
 import { trainingMapPasses } from "./training-passes";
@@ -18,7 +19,12 @@ import { findPrintLayout, layoutDocument, sheetLayoutOfLayout, MAIN_LAYOUT, sing
 
 export type PrintSheetsLayout =
   | { readonly kind: "TEMPLATE"; readonly template: SheetLayout; readonly perRunner?: boolean | undefined; readonly duplex?: boolean | undefined;
-      readonly fill?: "FILL" | "REPEAT" | undefined }
+      readonly fill?: "FILL" | "REPEAT" | undefined;
+      /**
+       * En karta per löpare utan "Kartor per ark" (ägaren 2026-11-08): varje bana på sitt eget papper (stående eller liggande som i
+       * layouten), med mallens remsa, i stället för mallens A4 stående för alla.
+       */
+      readonly ownPage?: boolean | undefined }
   /** `duplex` (ADR-0203): en banas delar fram och bak (del 2 på baksidan av del 1), en tom baksida där det behövs. */
   | { readonly kind: "COURSE"; readonly header?: boolean | undefined; readonly duplex?: boolean | undefined }
   /** Träningsläget (ADR-0192 beslut 6): en liten kartbit per sträcka (minnes- och pusselorientering). */
@@ -146,7 +152,8 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: P
   if (layout.kind === "TEMPLATE") {
     if (layout.perRunner) {
       items.forEach((item, index) => attempt(index, () => ({ item: index,
-        sheets: sheetLayoutSheets(document, layout.template, [item], { ...common, duplexBacks: layout.duplex }) })));
+        sheets: sheetLayoutSheets(document, layout.ownPage ? ownPageTemplate(document, item, layout.template, options.mapBounds) : layout.template, [item],
+          { ...common, duplexBacks: layout.duplex }) })));
     } else {
       attempt(undefined, () => ({ sheets: sheetLayoutSheets(document, layout.template, items, { ...common, mode: layout.fill }) }));
     }
@@ -160,6 +167,14 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: P
     return { item: index, sheets: pages.map(sheetOfPage), pages };
   }));
   return layout.duplex ? duplexParts(groups, items) : groups;
+}
+
+/** Banans eget papper (tryckytans sida, annars den som passar banan) som mall med en karta och mallens remsa. */
+function ownPageTemplate(document: Parameters<typeof layoutCoursePage>[0], item: SheetItem, template: SheetLayout, mapBounds: MapRect | undefined): SheetLayout {
+  const area = item.printArea ?? printAreaOf(document, item.course, item.part);
+  const scale = printScaleOf(document, item.course, item.printScale);
+  const page = area.page ?? defaultPage(area.automatic || !area.rect ? mapBounds : area.rect, scale / document.event.mapScale);
+  return singleMapTemplate({ id: `own-${item.course}`, name: template.name, scale, page }, template.strips);
 }
 
 /**

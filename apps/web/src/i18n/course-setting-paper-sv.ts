@@ -64,6 +64,13 @@ export const paperSpaceSv = {
   width: "Bredd (mm)",
   height: "Höjd (mm)",
   bold: "Fet",
+  italic: "Kursiv",
+  font: "Typsnitt",
+  fontHelp: "Fria typsnitt som bäddas in i PDF:en. Typsnitt med en vikt saknar fet och kursiv.",
+  tracking: "Spärrning (em)",
+  textColor: "Färg",
+  textColors: { "#000000": "Svart", "#808080": "Grå (lyser inte igenom)", "#b3b3b3": "Ljusgrå" } as Record<string, string>,
+  ownColor: "Egen",
   align: "Justering",
   aligns: { left: "Vänster", center: "Mitten", right: "Höger" } as Record<string, string>,
   background: "Vit bakgrund",
@@ -101,6 +108,13 @@ export const paperSpaceSv = {
     rectFields: "Rektangeln i ramen (mm)",
     markings: "Visa markeringar utanför utsnittet",
     markingsHelp: "Banan (kontroller, start, mål, sträckor och nummer) står alltid hel. Förbjudna områden, gränser, vätska och andra markeringar står bara innanför utsnittet om inte rutan är ikryssad."
+  },
+  copy: {
+    title: (count: number) => count === 1 ? "Kopiera till banor" : `Kopiera ${count} element till banor`,
+    help: "Banorna får egna kopior på samma plats. Ska elementen följa med när du ändrar dem, använd en mall i stället.",
+    all: "Alla banor",
+    save: (count: number) => count === 0 ? "Välj banor" : count === 1 ? "Kopiera till 1 bana" : `Kopiera till ${count} banor`,
+    done: (items: number, courses: number) => `${items === 1 ? "Elementet" : `${items} element`} kopierat till ${courses === 1 ? "1 bana" : `${courses} banor`}.`
   },
   templates: {
     heading: "Mall för papperet",

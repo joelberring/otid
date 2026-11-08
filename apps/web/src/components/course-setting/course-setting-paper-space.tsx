@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  effectivePaper, paperClipPoints, paperLayoutOf, reanchor, resetPaperItem, PAPER_CORNERS, RUNNER_BACK, RUNNER_PAPER_VARIABLES,
+  effectivePaper, PAPER_FONT_INFO, PAPER_FONTS, paperClipPoints, paperLayoutOf, reanchor, resetPaperItem, PAPER_CORNERS, RUNNER_BACK, RUNNER_PAPER_VARIABLES,
   type CourseSettingDocument, type CourseSettingEdit, type PaperAlign, type PaperClip, type PaperCorner, type PaperItem, type PaperItemKind,
-  type PaperRect, type PaperShape, type Sheet, type SheetPaperItem
+  type PaperFont, type PaperRect, type PaperShape, type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
 import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
-import { anchorIn, anchorRect, newItemIdFor, newPaperItem, paperItemEdit, paperItemLabel, paperItemsOf, paperLayoutEdit } from "../../lib/course-setting-paper";
+import {
+  anchorIn, anchorRect, newItemIdFor, newPaperItem, paperFontFamily, paperItemEdit, paperItemLabel, paperItemsOf, paperLayoutEdit
+} from "../../lib/course-setting-paper";
 import { VariableOptions } from "./course-setting-paper-variables";
 import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
 import { uploadPaperImage } from "../../lib/course-setting-paper-api";
@@ -15,6 +17,7 @@ import { Button } from "../ui";
 import { CLIP_SELECTION, WHITE_SELECTION, type PaperSelection } from "./course-setting-paper-items";
 import { alignMoves, distributeMoves } from "../../lib/course-setting-paper-snap";
 import { PaperTemplatesSection } from "./course-setting-paper-templates";
+import { PaperCopy } from "./course-setting-paper-copy";
 import { Fold } from "./course-setting-fold";
 import { HelpLink } from "../help/help-panel";
 import styles from "./course-setting-print-page.module.css";
@@ -119,6 +122,9 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
     {item && <Inspector key={`${course}:${item.item.id}`} item={item.item} source={item.source} placed={placed} readOnly={readOnly}
       onChange={next => void putItem(item.item.id, next)} onRemove={() => { onSelect(undefined); void putItem(item.item.id, null); }}
       onReset={() => void save([paperLayoutEdit(course, resetPaperItem(document, course, item.item.id))])} onClose={() => onSelect(undefined)} />}
+    {!readOnly && !back && (marked.length > 1 || item) && <PaperCopy document={document} course={course} courses={courses} onSave={save}
+      items={marked.length > 1 ? marked.flatMap(row => effective.items.filter(other => other.item.id === row.item.id && row.item.course === course)
+        .map(other => other.item)) : item ? [item.item] : []} />}
     {!back && <ClipSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />}
     {!back && <WhiteSection document={document} course={course} frame={frameOf(course)} readOnly={readOnly} selected={selected} onSelect={onSelect} onSave={save} />}
     <Values document={document} readOnly={readOnly} onSave={save} />
@@ -184,8 +190,27 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
         </div>
         {RUNNER_PAPER_VARIABLES.some(name => draft.includes(`{${name}}`)) && <p className={styles.muted} data-testid="paper-runner-hint">{runnerText.runnerHint}</p>}
         <div className={styles.row}>
-          <label className={styles.check}><input type="checkbox" checked={item.bold === true} onChange={event => onChange({ ...item, bold: event.target.checked })}
-            data-testid="paper-bold" />{text.bold}</label>
+          <Field label={text.font}><select value={item.font ?? "ROBOTO"} title={text.fontHelp} data-testid="paper-font"
+            onChange={event => onChange({ ...item, font: event.target.value === "ROBOTO" ? undefined : event.target.value as PaperFont })}>
+            {PAPER_FONTS.map(font => <option key={font} value={font} style={{ fontFamily: paperFontFamily(font) }}>{PAPER_FONT_INFO[font].name}</option>)}
+          </select></Field>
+          <Field label={text.textColor}><span className={styles.row}>
+            <select value={Object.keys(text.textColors).includes(item.color ?? "#000000") ? item.color ?? "#000000" : "OWN"} data-testid="paper-text-color"
+              onChange={event => { if (event.target.value !== "OWN") onChange({ ...item, color: event.target.value === "#000000" ? undefined : event.target.value }); }}>
+              {Object.entries(text.textColors).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              <option value="OWN" disabled>{text.ownColor}</option>
+            </select>
+            <input type="color" value={item.color ?? "#000000"} aria-label={text.textColor} disabled={readOnly}
+              onChange={event => onChange({ ...item, color: event.target.value === "#000000" ? undefined : event.target.value })} />
+          </span></Field>
+          <NumberField label={text.tracking} value={item.tracking ?? 0} min={0} max={1} step={0.05} disabled={readOnly}
+            onCommit={tracking => onChange({ ...item, tracking: tracking > 0 ? tracking : undefined })} testId="paper-tracking" />
+        </div>
+        <div className={styles.row}>
+          <label className={styles.check}><input type="checkbox" checked={item.bold === true} disabled={!PAPER_FONT_INFO[item.font ?? "ROBOTO"].bold}
+            onChange={event => onChange({ ...item, bold: event.target.checked })} data-testid="paper-bold" />{text.bold}</label>
+          <label className={styles.check}><input type="checkbox" checked={item.italic === true} disabled={!PAPER_FONT_INFO[item.font ?? "ROBOTO"].italic}
+            onChange={event => onChange({ ...item, italic: event.target.checked || undefined })} data-testid="paper-italic" />{text.italic}</label>
           <Field label={text.align}><select value={item.align ?? "left"} onChange={event => onChange({ ...item, align: event.target.value as PaperAlign })} data-testid="paper-align">
             {(["left", "center", "right"] as const).map(value => <option key={value} value={value}>{text.aligns[value]}</option>)}</select></Field>
           <label className={styles.check}><input type="checkbox" checked={item.background === true} onChange={event => onChange({ ...item, background: event.target.checked })}

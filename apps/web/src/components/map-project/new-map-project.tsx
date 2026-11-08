@@ -59,7 +59,7 @@ export function NewMapProject() {
   }
 
   const ready = !!name.trim() && (source === "file" ? !!fileArea : !!center.trim());
-  return <section aria-labelledby="map-project-new">
+  return <section id="nytt-kartprojekt" aria-labelledby="map-project-new">
     <h2 id="map-project-new">{text.title}</h2>
     <p className={styles.muted}>{text.help}</p>
     <form className={styles.form} onSubmit={event => void create(event)} aria-label={text.title}>

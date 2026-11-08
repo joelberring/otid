@@ -83,6 +83,7 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
         <Link className={styles.item} href="/organizer">{text.myEvents}</Link>
         <Link className={styles.item} href="/organizer#mina-klubbar">{text.myClubs}</Link>
         <Link className={styles.item} href="/organizer#mina-grupper">{text.myGroups}</Link>
+        <Link className={styles.item} href="/organizer/map-projects">{text.myMapProjects}</Link>
         <Link className={styles.item} href="/konto">{text.myAccount}</Link>
       </nav>
       <div className={styles.separator} />

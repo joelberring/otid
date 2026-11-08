@@ -1,6 +1,6 @@
 import {
   applyPaperTemplate, effectivePaper, paperPartKey, newPaperItemId, runnerBackOf, withPaperItem, RUNNER_BACK, type PaperSource, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
-  type PaperItemKind, type PaperRect,
+  type PaperItemKind, type PaperRect, PAPER_FONT_INFO, type PaperFont,
   type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
 
@@ -168,4 +168,9 @@ export function newItemIdFor(document: CourseSettingDocument, course: string): s
   let n = used.size + 1;
   while (used.has(`b${n}`)) n += 1;
   return `b${n}`;
+}
+
+/** Papperets typsnitt på skärmen (`paper-fonts.css`); saknas typsnittet faller texten tillbaka på Arial. */
+export function paperFontFamily(font: PaperFont | undefined): string {
+  return `"O-Tid ${PAPER_FONT_INFO[font ?? "ROBOTO"].name}", Arial, Helvetica, sans-serif`;
 }

@@ -25,6 +25,8 @@ export interface PrintJobSelection {
   readonly date?: string | undefined;
   /** Träningsläget: kartbitar (en liten karta per sträcka) i stället för sidor eller mall. */
   readonly pieces?: boolean | undefined;
+  /** En karta per löpare på banans eget papper (ingen mall i layouten). */
+  readonly ownPage?: boolean | undefined;
 }
 
 export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind, profileId: string, confirmation: { warnings: boolean; rules: readonly string[] },
@@ -34,7 +36,8 @@ export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind
     && (BUILT_IN_SHEET_LAYOUTS.some(item => item.id === template.id) || selection.savedTemplateIds.includes(template.id));
   return {
     formatVersion: 1, requestId, kind, profileId, ...(profile ? { profile } : {}),
-    layout: selection.pieces ? { kind: "PIECES" } : template ? { kind: "TEMPLATE", template: known ? template.id : template, fill: selection.fill }
+    layout: selection.pieces ? { kind: "PIECES" } : template ? { kind: "TEMPLATE", template: known ? template.id : template, fill: selection.fill,
+      ...(selection.ownPage ? { ownPage: true } : {}) }
       : { kind: "PAGES", header: selection.header },
     // Dubbelsidigt gäller löparnas baksidor och kartbytets delar (ADR-0203: del 2 på baksidan av del 1).
     perRunner: selection.perRunner, duplex: selection.duplex,

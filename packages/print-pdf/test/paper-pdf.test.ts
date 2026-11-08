@@ -49,6 +49,28 @@ describe("papperet i PDF:en (ADR-0197)", () => {
     expect(missing.notes).toContain("En bild på papperet finns inte i bildlagret och utelämnas.");
   });
 
+  it("papperets typsnitt: Inter kursiv halvfet med spärrning och Creepster bäddas in", async () => {
+    let document: CourseSettingDocument = readPpen(new TextDecoder().decode(fixture("course-setting/kartfil.ppen"))).document;
+    const course = [...document.courses].sort((a, b) => a.order - b.order)[0]!;
+    document = applyEdit(document, { type: "SET_PAPER_LAYOUT", course: course.id, layout: { items: [
+      { id: "a", kind: "TEXT", at: { corner: "TOP_LEFT", x: 2, y: 2 }, text: "CENTRUM OK BJUDER IN", sizeMm: 4, widthMm: 120, font: "INTER", bold: true,
+        italic: true, tracking: 0.3, align: "center" },
+      { id: "b", kind: "TEXT", at: { corner: "TOP_LEFT", x: 2, y: 10 }, text: "Stockholm by Night", sizeMm: 8, widthMm: 120, font: "CREEPSTER", color: "#808080" }
+    ] } }).document;
+    const sheets = layoutCoursePage(document, { course: course.id }).map(sheetOfPage);
+    const result = await writeSheetsPdf({ sheets, map: null, profile: BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!, mode: "OFFICE",
+      fonts: fontFiles() });
+    const pdf = await parsePdf(result.bytes);
+    const names = pdf.fonts.map(font => font.base);
+    expect(names.some(name => /Inter-SemiBoldItalic$/.test(name))).toBe(true);
+    expect(names.some(name => /Creepster-Regular$/.test(name))).toBe(true);
+    expect(pdf.fonts.every(font => font.embedded)).toBe(true);
+    // Spärrningen (Tc) bara för den texten, och nollställd efteråt.
+    expect(pdf.pages[0]!.content).toMatch(/0\.3 Tc [^\n]* Tj 0 Tc ET/);
+    // Grå text (#808080): bara svärta, ungefär hälften.
+    expect(pdf.pages[0]!.content).toMatch(/0 0 0 0\.[45]\d* k\nBT/);
+  });
+
   it("klippningen: markeringarna ritas klippta till utsnittet (W n), banan utan den klippningen", async () => {
     let document: CourseSettingDocument = readPpen(new TextDecoder().decode(fixture("course-setting/kartfil.ppen"))).document;
     const course = [...document.courses].sort((a, b) => a.order - b.order)[0]!;

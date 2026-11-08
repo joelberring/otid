@@ -15,7 +15,7 @@ import type { Point } from "@o-tid/map-file";
 import { layout as layoutDescriptionFigures } from "./description-layout";
 import type { DescriptionKind, DescriptionLayout } from "./description-types";
 import { anchorToPaper, PAPER_CORNERS, type PaperCorner, type PaperRect } from "./paper-anchor";
-import { effectivePaper, type PaperDescriptions } from "./paper-items";
+import { effectivePaper, PAPER_FONT_INFO, type PaperDescriptions } from "./paper-items";
 import { paperItemSize } from "./paper-sheet";
 import { paperTextForPpen } from "./paper-text";
 import { nextId, rawAttribute } from "./ppen-common";
@@ -246,7 +246,9 @@ export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (c
       const corners = [fromPaper(frame.transform, at), fromPaper(frame.transform, { x: at.x + size.width, y: at.y + size.height })];
       if (item.kind === "TEXT") {
         add({ kind: "text", courses: [id], points: corners, text: text!, color: "black",
-          font: { name: "Arial", bold: item.bold === true, italic: false, height: item.sizeMm / frame.transform.scale } });
+          // Purple Pen får typsnittets namn (finns det i datorn används det, annars ersätter Windows det).
+          font: { name: item.font ? PAPER_FONT_INFO[item.font].name : "Arial", bold: item.bold === true, italic: item.italic === true,
+            height: item.sizeMm / frame.transform.scale } });
       } else if (item.kind === "IMAGE") {
         add({ kind: "image", courses: [id], points: corners, image: { format: item.mediaType === "image/png" ? "png" : "jpeg", data: options.images!.get(item.image)! } });
       }

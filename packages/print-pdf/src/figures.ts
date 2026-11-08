@@ -64,11 +64,14 @@ function paintOf(context: FigureContext, primitive: Exclude<OverprintPrimitive, 
 
 /** Text i en transform med y uppåt: `at` = baslinjens punkt (efter justering), storleken i samma enheter. */
 export function textOps(context: FigureContext, m: Matrix, text: string, at: Pt, size: number, variant: Parameters<Fonts["get"]>[0],
-  align: "left" | "center" | "right", options: { yDown?: boolean; rotation?: number; maxWidth?: number | undefined } = {}): string | undefined {
+  align: "left" | "center" | "right", options: { yDown?: boolean; rotation?: number; maxWidth?: number | undefined; tracking?: number | undefined } = {})
+  : string | undefined {
   const clean = printable(text);
   if (clean.trim() === "" || !(size > 0)) return undefined;
   const font = context.fonts.get(variant);
-  const width = font.font.widthOfTextAtSize(clean, size);
+  // Spärrningen (em) läggs efter varje tecken utom det sista (Tc i textens enheter, där 1 = textens storlek).
+  const tracking = options.tracking ?? 0;
+  const width = font.font.widthOfTextAtSize(clean, size) + tracking * size * Math.max(0, [...clean].length - 1);
   const squeeze = options.maxWidth !== undefined && width > options.maxWidth && width > 0 ? options.maxWidth / width : 1;
   const shown = width * squeeze;
   const dx = align === "center" ? -shown / 2 : align === "right" ? -shown : 0;
@@ -78,7 +81,7 @@ export function textOps(context: FigureContext, m: Matrix, text: string, at: Pt,
   const up = options.yDown ? [sin, -cos] : [-sin, cos];
   const local: Matrix = [size * squeeze * cos, size * squeeze * sin, size * up[0]!, size * up[1]!, at.x + dx * cos, at.y + dx * sin];
   const matrix = multiply(m, local);
-  return `BT /${font.name} 1 Tf ${matrix.map(num).join(" ")} Tm ${font.font.encodeText(clean).toString()} Tj ET`;
+  return `BT /${font.name} 1 Tf ${tracking ? `${num(tracking)} Tc ` : ""}${matrix.map(num).join(" ")} Tm ${font.font.encodeText(clean).toString()} Tj ${tracking ? "0 Tc " : ""}ET`;
 }
 
 /** En symbolform (ruta 200 × 200, y uppåt) med rutans mitt i `center` (mm, y nedåt) och sidan `size`. */

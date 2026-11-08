@@ -1,0 +1,76 @@
+/*
+ * Papperets typsnitt på skärmen: samma TrueType-filer som bäddas in i PDF:en (packages/print-pdf/fonts, OFL 1.1 och Apache 2.0).
+ * Webbläsaren hämtar en fil först när en text använder den. Namnen har "O-Tid" först så att datorns egna typsnitt inte tar över.
+ */
+@font-face {
+  font-family: "O-Tid Roboto"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Roboto-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Roboto"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Roboto-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Roboto"; font-style: italic; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Roboto-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Roboto"; font-style: italic; font-weight: 700; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Roboto-BoldItalic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Roboto Condensed"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/RobotoCondensed-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Roboto Condensed"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/RobotoCondensed-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Inter"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Inter-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Inter"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Inter-SemiBold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Inter"; font-style: italic; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Inter-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Inter"; font-style: italic; font-weight: 700; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Inter-SemiBoldItalic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Crimson Text"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/CrimsonText-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Crimson Text"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/CrimsonText-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Crimson Text"; font-style: italic; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/CrimsonText-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Crimson Text"; font-style: italic; font-weight: 700; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/CrimsonText-BoldItalic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Bebas Neue"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/BebasNeue-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Creepster"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Creepster-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Nosifer"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/Nosifer-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "O-Tid Permanent Marker"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../../../../../packages/print-pdf/fonts/PermanentMarker-Regular.ttf") format("truetype");
+}

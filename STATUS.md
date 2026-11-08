@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K6 del 1: generaliseringen som förslag
+- Kartprojektet → Generalisering: förenkla linjer och ytor med täta punkter (0,05–0,2 mm) och ta bort det som är mindre än
+  normen, för hela kartan eller en etapp. Ändringarna lämnas som förslag (källan GENERALIZE) som ägaren godkänner.
+- Verifierat: enhetstester `generalize`, E2E `kartprojekt: generalisering som förslag` (import, godkänn, generalisera, godkänn,
+  synken visar resultatet), hela `kartprojekt-underlag` och `kartprojekt-geo` mot produktionsbygget.
+
 ### 2026-11-08 – K5c del 1: markfuktighet (SLU) som underlag; webbläsartest för geo-kedjan
 - Kartprojektet → Markfuktighet (SLU): servern hämtar SLU:s markfuktighetskarta (Skogsstyrelsens öppna WMS) för kartan eller en
   etapp, och den läggs till som underlag.

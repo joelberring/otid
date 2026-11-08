@@ -327,3 +327,62 @@ test("kartprojekt: ortofoto från Lantmäteriet med egna uppgifter", async ({ br
   expect(listed).toMatchObject([{ crs: 3006, mediaType: "image/jpeg" }]);
   await reviewScreenshots(owner, "kartprojekt-ortofoto");
 });
+
+/**
+ * ADR-0219 K6 (del 1): generaliseringen som förslag. En importerad stig med täta punkter förenklas och en liten sjö (mindre än
+ * normen) tas bort; ändringarna blir ett förslag (källan GENERALIZE) som ägaren godkänner.
+ */
+test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `general.${unique()}@exempel.se`, "Greta General");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "General", "x-otid-file-name": "General.omap" },
+    data: Buffer.from(mapBytes) });
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  await warmRoute(owner, `${api}/proposals`);
+  const p = (x: number, y: number) => { const at = mapPointToProjected(georef, { x, y }); return [at.easting.toFixed(3), at.northing.toFixed(3)] as const; };
+  // Stigen: 60 punkter med 0,01 mm krusning; sjön: en triangel på 0,4 mm.
+  const stig = Array.from({ length: 60 }, (_, i) => p(20 + i * 0.5, 50 + (i % 2 === 0 ? 0.01 : -0.01)));
+  const sjo = [p(60, 30), p(60.4, 30), p(60.2, 30.4)];
+  const dxf = ["0", "SECTION", "2", "ENTITIES",
+    "0", "LWPOLYLINE", "8", "STIG", "90", "60", "70", "0", ...stig.flatMap(([e, n]) => ["10", e, "20", n]),
+    "0", "LWPOLYLINE", "8", "SJO", "90", "3", "70", "1", ...sjo.flatMap(([e, n]) => ["10", e, "20", n]),
+    "0", "ENDSEC", "0", "EOF"].join("\r\n");
+
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const importer = owner.getByTestId("map-project-import");
+  await importer.getByText("Importera vektorer").click();
+  await importer.getByTestId("map-project-import-file").setInputFiles({ name: "tat.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
+  await expect(importer.getByTestId("map-project-import-result")).toContainText("2 kandidater");
+  await importer.getByTestId("map-project-import-propose").click();
+  const proposals = owner.getByTestId("map-project-proposals");
+  await expect(proposals).toContainText("Förslag (1 öppet)", { timeout: 20_000 });
+  await proposals.getByRole("button", { name: "Godkänn" }).click();
+  await expect(proposals).toContainText("Godkänt", { timeout: 15_000 });
+
+  const general = owner.getByTestId("map-project-generalize");
+  await general.getByText("Generalisering").first().click();
+  await general.getByTestId("map-project-generalize-tolerance").selectOption("0.1");
+  await expect(async () => {
+    await general.getByTestId("map-project-generalize-preview").click();
+    await expect(general.getByTestId("map-project-generalize-result")).toContainText("1 objekt förenklas: 60 punkter blir 2.", { timeout: 3000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(general.getByTestId("map-project-generalize-result")).toContainText("Tas bort: 1 små ytor, 0 korta linjer, 0 små knollar.");
+  await general.getByTestId("map-project-generalize-propose").click();
+  await expect(general.getByTestId("map-project-generalize-message")).toHaveText("Förslaget är skickat. Ägaren ser det under Förslag.", { timeout: 20_000 });
+  await expect(proposals).toContainText("Generalisering: förenkla 0,1 mm, ta bort det som är mindre än normen", { timeout: 20_000 });
+  await proposals.getByRole("button", { name: "Godkänn" }).click();
+  await expect(proposals).not.toContainText("öppet", { timeout: 15_000 });
+
+  const sync = await owner.request.post(`${api}/sync`, { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner), "content-type": "application/json" },
+    data: { formatVersion: 1, clientId: "e2e-general", since: 0, edits: [] } });
+  const objects = (await sync.json() as { objects: { key: string; state: { kind: string; object?: { kind: string; path?: unknown[] } } }[] }).objects
+    .filter(row => row.key.startsWith("n:"));
+  expect(objects.map(row => row.state.kind === "DELETED" ? "borttagen" : `${row.state.object!.kind}:${row.state.object!.path?.length ?? "-"}`).sort())
+    .toEqual(["borttagen", "line:2"]);
+  const listed = (await (await owner.request.get(`${api}/proposals`)).json() as { proposals: { source: string }[] }).proposals;
+  expect(listed.map(row => row.source).sort()).toEqual(["GENERALIZE", "IMPORT"]);
+});

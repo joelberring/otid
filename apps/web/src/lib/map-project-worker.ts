@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { drawMap, MapFileError, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
-  baseKeys, checkNorm, coverageGrid, editedObjects, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, type Box, type KeyedState, type ObjectKey,
+  baseKeys, checkNorm, coverageGrid, editedObjects, generalize, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -191,8 +191,13 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     post({ type: "recon", id: request.id, result: { markers, coverage } }, coverage ? [coverage.cells.buffer] : []);
     return;
   }
-  if (request.type === "norm") {
-    if (!current) { post({ type: "norm", id: request.id, result: { standard: "ISOM", factor: 1, issues: [], truncated: false } }); return; }
+  if (request.type === "norm" || request.type === "generalize") {
+    if (!current) {
+      if (request.type === "norm") post({ type: "norm", id: request.id, result: { standard: "ISOM", factor: 1, issues: [], truncated: false } });
+      else post({ type: "generalize", id: request.id, result: { changes: [], simplified: 0, pointsBefore: 0, pointsAfter: 0,
+        removed: { SMALL_AREA: 0, SHORT_LINE: 0, SMALL_CLOSED: 0 } }, refs: [] });
+      return;
+    }
     const map = current.map;
     const objects: { key: ObjectKey; code: string; object: MapObject; lineWidth?: number }[] = [];
     map.objects.forEach((object, index) => {
@@ -201,7 +206,13 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       const width = symbol.kind === "LINE" ? Math.max(0, ...symbol.strokes.map(stroke => stroke.width)) : 0;
       objects.push({ key: current!.keys[index]!, code: symbol.code.text, object, ...(width > 0 ? { lineWidth: width } : {}) });
     });
-    post({ type: "norm", id: request.id, result: checkNorm(objects, map.scale) });
+    if (request.type === "norm") { post({ type: "norm", id: request.id, result: checkNorm(objects, map.scale) }); return; }
+    // K6: generaliseringen; grundfilens referenser följer med för förslagets ändringar.
+    const result = generalize(objects, map.scale, request.options);
+    post({ type: "generalize", id: request.id, result, refs: result.changes.flatMap(change => {
+      const ref = refs.get(change.key);
+      return ref ? [[change.key, ref] as const] : [];
+    }) });
     return;
   }
   if (request.type === "catalog") {

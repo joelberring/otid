@@ -1,5 +1,5 @@
 import type { MapColor, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
-import type { Coverage, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint } from "@o-tid/map-revision";
+import type { Coverage, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint } from "@o-tid/map-revision";
 import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
 import type { Bounds } from "./course-setting-viewport";
 
@@ -46,7 +46,9 @@ export type MapProjectRequest =
   | { readonly type: "recon"; readonly id: number; readonly tracks: readonly (readonly TrackPoint[])[]; readonly checked: readonly ObjectKey[];
       readonly settings: ReconSettings }
   /** Normkontrollen (ISOM 2017-2:s minimimått) för kartan med ändringarna. */
-  | { readonly type: "norm"; readonly id: number };
+  | { readonly type: "norm"; readonly id: number }
+  /** K6: generaliseringens ändringar (förenkla, ta bort det normen inte tillåter) för kartan med ändringarna. */
+  | { readonly type: "generalize"; readonly id: number; readonly options: GeneralizeOptions };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -56,6 +58,7 @@ export type MapProjectResponse =
   | { readonly type: "catalog"; readonly id: number; readonly symbols: readonly CatalogSymbol[] }
   | { readonly type: "recon"; readonly id: number; readonly result: ReconResult }
   | { readonly type: "norm"; readonly id: number; readonly result: NormResult }
+  | { readonly type: "generalize"; readonly id: number; readonly result: GeneralizeResult; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Rekningens status (markörerna) och täckningen (saknas utan spår). */
@@ -74,6 +77,8 @@ export class MapProjectSession {
   private onRecon: ((result: ReconResult) => void) | undefined;
   private latestNorm = 0;
   private onNorm: ((result: NormResult) => void) | undefined;
+  private latestGeneralize = 0;
+  private onGeneralize: ((result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
   constructor(createWorker: () => Worker, onLoaded: (loaded: Extract<MapProjectResponse, { type: "loaded" }>) => void,
     onError: (code: MapRenderErrorCode) => void) {
@@ -86,6 +91,7 @@ export class MapProjectSession {
       else if (message.type === "catalog") { if (message.id === this.latestCatalog) this.onCatalog?.(message.symbols); }
       else if (message.type === "recon") { if (message.id === this.latestRecon) this.onRecon?.(message.result); }
       else if (message.type === "norm") { if (message.id === this.latestNorm) this.onNorm?.(message.result); }
+      else if (message.type === "generalize") { if (message.id === this.latestGeneralize) this.onGeneralize?.(message.result, new Map(message.refs)); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -129,7 +135,14 @@ export class MapProjectSession {
     this.post({ type: "norm", id });
   }
 
+  generalize(options: GeneralizeOptions, onGeneralize: (result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) {
+    const id = ++this.latestGeneralize;
+    this.onGeneralize = onGeneralize;
+    this.post({ type: "generalize", id, options });
+  }
+
   close() {
+    this.onGeneralize = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();
   }

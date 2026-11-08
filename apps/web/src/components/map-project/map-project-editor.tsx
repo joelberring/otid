@@ -16,6 +16,8 @@ import {
 } from "../../lib/map-project-overlay";
 import { coverageImage, drawCoverage, drawNormIssues, drawNotes, drawReconMarkers, drawTracks, noteAt } from "../../lib/map-project-recon-overlay";
 import { MapProjectNormPanel } from "./map-project-norm-panel";
+import { MapProjectGeneralizePanel } from "./map-project-generalize-panel";
+import { useMapProjectGeneralize } from "./use-map-project-generalize";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { NoteDetail, NoteForm, NotesPanel } from "./map-project-notes";
@@ -172,6 +174,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // K4b: kandidaterna ur en vektorfil (visas som förslag tills de lämnats).
   const importer = useMapProjectImport(view, georeference ?? undefined, editor.bounds ?? undefined, symbols,
     useCallback(() => { void loadProposals(); }, [loadProposals]));
+  // K6: generaliseringen som förslag.
+  const generalizer = useMapProjectGeneralize(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const candidates = importer.candidates;
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   const hiddenSymbols = useMemo(() => catalog.filter(entry => hiddenGroups.has(entry.group)).map(entry => entry.id), [catalog, hiddenGroups]);
@@ -550,6 +554,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
           <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
+          <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
             after={<>
               <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />

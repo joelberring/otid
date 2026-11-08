@@ -328,3 +328,13 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
    större områden får grövre upplösning. Lagret läses ur tjänstens GetCapabilities (eller `OTID_SLU_MOISTURE_LAYER`).
 2. **Webbläsartestet** kör geo-arbetaren (`scripts/geo-worker.ts`) mot webben med en falsk Karttapullautin och falska
    Lantmäteriet och SLU, så att hela kedjan (jobb, laser genom servern, resultat, underlag, kandidater) prövas i CI.
+
+## Tillägg 2026-11-09: generaliseringen som förslag (K6, del 1, ingen migration)
+
+1. **Två säkra steg** räknas i webbläsarens Worker för kartan med ändringarna (hela kartan eller en etapp): förenkla linjer
+   och ytor med raka sträckor (Douglas–Peucker, toleransen 0,05–0,2 mm i kartans mm; kurvor lämnas) och ta bort det som
+   normkontrollen säger är mindre än normen (små ytor, korta linjer, små slutna kurvor).
+2. **Inget ändras direkt:** ändringarna lämnas som förslag med källan `GENERALIZE` (högst 200 ändringar och 3 MB per förslag),
+   byggda på serverns senaste läge för varje objekt. Objekt med egna ändringar som inte skickats eller en krock hoppas över.
+3. **Kvar (K6, del 2):** kurvavstånd, tunna ytor, delade kanter (topologi), att slå ihop små ytor med grannen och samma steg
+   som MCP-verktyg med `refine_to`; de kräver bilder på riktiga kartor innan de läggs ut.

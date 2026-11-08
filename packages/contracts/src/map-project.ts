@@ -124,8 +124,8 @@ export const mapProjectAreaUpdateRequestSchema = z.object({
  */
 export const mapProjectProposalCreateRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, note: mapProjectNoteSchema.optional(),
-  /** K4b: kandidater ur en vektorfil (förval PERSON). */
-  source: z.enum(["PERSON", "IMPORT"]).optional(),
+  /** K4b: kandidater ur en vektorfil (förval PERSON); K6: generaliseringen. */
+  source: z.enum(["PERSON", "IMPORT", "GENERALIZE"]).optional(),
   edits: z.array(z.unknown()).min(1).max(MAP_PROJECT_SYNC_MAX_EDITS)
 }).strict();
 /** Godkänn eller avvisa (ägarna), dra tillbaka (den som föreslog, medan förslaget är öppet). */
@@ -148,7 +148,7 @@ export type MapProjectStatus = "OPEN" | "CLOSED";
 export type MapProjectProposalStatus = "OPEN" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
 /** Vem som skapade förslaget: en person (i ritningen eller uttryckligen) eller AI (Claude via MCP, K2). */
 /** `IMPORT` (K4b): kandidater ur en vektorfil som en person lämnat; räknas inte i statistiken som personens. */
-export type MapProjectProposalSource = "PERSON" | "AI" | "IMPORT";
+export type MapProjectProposalSource = "PERSON" | "AI" | "IMPORT" | "GENERALIZE";
 
 export interface MapProjectAreaView {
   areaId: string; name: string;

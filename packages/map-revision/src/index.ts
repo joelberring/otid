@@ -20,3 +20,4 @@ export * from "./vector-import";
 export * from "./osm";
 export * from "./vector-shape";
 export * from "./norm-check";
+export * from "./generalize";

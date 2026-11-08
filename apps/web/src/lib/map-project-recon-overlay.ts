@@ -143,3 +143,22 @@ export function noteAt<T extends { at: Point }>(notes: readonly T[], point: Poin
   }
   return best;
 }
+
+/** Normkontrollens ställen: orange romber med vit kant (formen skiljer dem från rekningens ringar), det visade större. */
+export function drawNormIssues(ctx: Context, view: Viewport, issues: readonly { readonly at: Point }[], shown: Point | undefined) {
+  ctx.save();
+  ctx.lineJoin = "round";
+  const diamond = (at: { x: number; y: number }, size: number) => {
+    ctx.beginPath();
+    ctx.moveTo(at.x, at.y - size); ctx.lineTo(at.x + size, at.y); ctx.lineTo(at.x, at.y + size); ctx.lineTo(at.x - size, at.y); ctx.closePath();
+  };
+  for (const issue of issues) {
+    const at = toScreen(view, issue.at);
+    if (at.x < -10 || at.y < -10 || at.x > view.width + 10 || at.y > view.height + 10) continue;
+    const size = shown && shown.x === issue.at.x && shown.y === issue.at.y ? 10 : 6;
+    diamond(at, size);
+    ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#e65100"; ctx.stroke();
+  }
+  ctx.restore();
+}

@@ -14,7 +14,9 @@ import { draftObject, nearestVertex, rotatePoint, translateObject, type DraftPoi
 import {
   drawAreas, drawDraftPoints, drawHandles, drawMapArea, drawPreview, drawProposed, drawSelection, STAGE_COLORS, stageAge, type AreaDrawing
 } from "../../lib/map-project-overlay";
-import { coverageImage, drawCoverage, drawNotes, drawReconMarkers, drawTracks, noteAt } from "../../lib/map-project-recon-overlay";
+import { coverageImage, drawCoverage, drawNormIssues, drawNotes, drawReconMarkers, drawTracks, noteAt } from "../../lib/map-project-recon-overlay";
+import { MapProjectNormPanel } from "./map-project-norm-panel";
+import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { NoteDetail, NoteForm, NotesPanel } from "./map-project-notes";
 import { useMapProjectNotes } from "./use-map-project-notes";
@@ -103,6 +105,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // K4a: egna underlag (ritas först, under allt annat ovanpå kartan).
   const layers = useMapProjectLayers(view, georeference ?? undefined);
   const drawnLayers = layers.drawn;
+  // Normkontrollen (av från början).
+  const norm = useMapProjectNorm(session, editor.renderKey);
+  const [shownIssue, setShownIssue] = useState<Point>();
+  const normIssues = norm.result?.issues;
   const recordFix = recon.onFix;
   const onFix = useCallback((fix: TimedFix) => {
     recordFix(fix);
@@ -421,6 +427,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       drawDraftPoints(ctx, current, draft, cursor);
     }
     if (reconResult && recon.layers.has("STATUS")) drawReconMarkers(ctx, current, reconResult.markers, SHOWN_STATUSES);
+    if (normIssues) drawNormIssues(ctx, current, normIssues, shownIssue);
     drawNotes(ctx, current, notes.notes, shownNote);
     if (noteDraft) drawNotes(ctx, current, [{ noteId: "", at: noteDraft.at, status: "OPEN", pending: true }], "");
     if (shown && tool === "select" && selected) {
@@ -429,7 +436,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (handles) drawHandles(ctx, current, handles);
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
-    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates]);
+    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
@@ -539,6 +546,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         after={<>
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
+          <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
             after={importer.canImport ? <MapProjectImportPanel importer={importer} symbols={symbols} /> : undefined} />}
         </>}>

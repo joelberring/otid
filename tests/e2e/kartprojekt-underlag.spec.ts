@@ -206,3 +206,39 @@ test("kartprojekt: etapper med revideringsdatum", async ({ browser, baseURL }) =
   await expect.poll(() => alphaAt(owner, { x: 35, y: 45 }), { timeout: 10_000 }).toBeGreaterThan(0);
   await reviewScreenshots(owner, "kartprojekt-etapper");
 });
+
+/** Normkontrollen (ägaren 2026-11-08): två kurvor för nära varandra syns när kontrollen slås på, och försvinner när den slås av. */
+test("kartprojekt: normkontroll av kurvavståndet", async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
+  const contour = [...parsed.symbols.values()].find(symbol => symbol.code.text === "101.0")!;
+  expect(contour).toBeDefined();
+  const owner = await registerAccount(browser, `norm.${unique()}@exempel.se`, "Nora Norm");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const headers = async () => ({ origin: baseURL!, "x-otid-csrf": await csrfOf(owner) });
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { ...await headers(),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Norm", "x-otid-file-name": "Norm.omap" },
+    data: Buffer.from(mapBytes) });
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const line = (y: number) => ({ editId: crypto.randomUUID(), key: `n:${crypto.randomUUID()}`, ref: null, base: null, kind: "ADD", at: new Date().toISOString(),
+    state: { kind: "OBJECT", object: { kind: "line", symbol: contour.id, path: [{ type: "M", x: 20, y }, { type: "L", x: 40, y }] } } });
+  const sync = await owner.request.post(`/api/organizer/map-projects/${projectId}/sync`, { headers: { ...await headers(), "content-type": "application/json" },
+    data: { formatVersion: 1, clientId: "e2e", since: 0, edits: [line(80), line(80.1)] } });
+  expect(sync.status()).toBe(200);
+
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const panel = owner.getByTestId("map-project-norm");
+  await panel.getByTestId("map-project-norm-toggle").check();
+  await expect(panel.getByTestId("map-project-norm-count")).toContainText("att se över", { timeout: 20_000 });
+  const rule = panel.locator("[data-rule='CONTOUR_GAP']");
+  await expect(rule).toContainText("Kurvor för nära varandra");
+  await rule.locator("summary").click();
+  await rule.getByRole("button", { name: "Visa" }).first().click();
+  // Romberna ritas på överlägget längs kurvorna (kurvorna själva ritas i kartan under).
+  const alongLine = async () => { let most = 0; for (let x = 20; x <= 40; x += 0.25) most = Math.max(most, await alphaAt(owner, { x, y: 80.05 })); return most; };
+  await expect.poll(alongLine, { timeout: 10_000 }).toBeGreaterThan(0);
+  await reviewScreenshots(owner, "kartprojekt-normkontroll");
+  await panel.getByTestId("map-project-norm-toggle").uncheck();
+  await expect(panel.getByTestId("map-project-norm-count")).toHaveCount(0);
+  await expect.poll(alongLine, { timeout: 10_000 }).toBe(0);
+});

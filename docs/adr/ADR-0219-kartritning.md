@@ -227,3 +227,16 @@ nullbar). Ägarna och den som fått området sätter och tar bort datumet; ett o
 Lagret Etapper (av från början, bara på skärmen och aldrig i utskrift eller export) färgar delområdena efter åldern: inom ett
 år, 1–3, 3–6, äldre och inte reviderad. MCP-verktyget som visar projektet tar med datumet. Att hämta och köra nytt underlag
 bara för en etapp kommer med geo-arbetaren (K4c, K5).
+
+## Tillägg 2026-11-08: normkontrollen (del av K6, ingen migration)
+
+Ägaren: kartritningen ska följa normerna, och kartan ska kunna kontrolleras mot dem i ett läge som slås på och av.
+
+1. **Ren logik** (`map-revision/norm-check.ts`) körs i kartans Worker på kartan med ändringarna, när läget är påslaget och efter
+   ändringar. Måtten är ISOM 2017-2:s (avsnitt 2.11.3 och symbolernas parametrar) i grundskalan 1:15 000, ×1,5 på en förstorad
+   karta. Linjebredden tas ur kartfilens symbol.
+2. **Regler nu:** kurvor (101–103) med mindre än 0,15 mm mellan konturerna, fristående linjer under symbolens minsta längd,
+   ytor under minsta yta, mycket smala ytor (2·yta/omkrets under halva minsta bredden, så att bara tydliga fall tas med), slutna
+   kurvor under kullens minsta mått.
+3. **Sprint** (skala till och med 1:5 000): bara de allmänna avstånden tills ISSprOM 2019-2:s symbolmått läggs in.
+4. Kontrollen visar ställen att se över (romber på kartan, listan i panelen); den ändrar inget och skickar inget.

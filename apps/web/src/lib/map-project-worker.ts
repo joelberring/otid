@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { drawMap, MapFileError, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
-  baseKeys, coverageGrid, editedObjects, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, type Box, type KeyedState, type ObjectKey,
+  baseKeys, checkNorm, coverageGrid, editedObjects, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -189,6 +189,19 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       coverage = coverageGrid(request.tracks, bounds, request.settings, map.scale);
     }
     post({ type: "recon", id: request.id, result: { markers, coverage } }, coverage ? [coverage.cells.buffer] : []);
+    return;
+  }
+  if (request.type === "norm") {
+    if (!current) { post({ type: "norm", id: request.id, result: { standard: "ISOM", factor: 1, issues: [], truncated: false } }); return; }
+    const map = current.map;
+    const objects: { key: ObjectKey; code: string; object: MapObject; lineWidth?: number }[] = [];
+    map.objects.forEach((object, index) => {
+      const symbol = map.symbols.get(object.symbol);
+      if (!symbol || symbol.hidden) return;
+      const width = symbol.kind === "LINE" ? Math.max(0, ...symbol.strokes.map(stroke => stroke.width)) : 0;
+      objects.push({ key: current!.keys[index]!, code: symbol.code.text, object, ...(width > 0 ? { lineWidth: width } : {}) });
+    });
+    post({ type: "norm", id: request.id, result: checkNorm(objects, map.scale) });
     return;
   }
   if (request.type === "catalog") {

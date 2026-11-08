@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Normkontrollen (del av K6, ingen migration, ADR-0219 tillägg)
+- Läget Normkontroll i panelen: ISOM 2017-2:s minimimått mot kartan med ändringarna (×1,5 på 1:10 000), i Workern.
+- Kurvor för nära varandra, korta fristående linjer, små och smala ytor, små kullar; romber på kartan och Visa i listan.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester (`norm-check`), E2E `kartprojekt-underlag` (normkontroll).
+- Kvar: ISSprOM:s symbolmått för sprint, passager mellan oframkomliga objekt.
+
 ### 2026-11-08 – Underlagens ordning, Shapefile och klippning (ingen migration)
 - Ägarna ändrar ordningen mellan underlagen; genomskinligheten ändras bara av den som får ändra underlaget.
 - Importen läser Shapefile (också i .zip) med koordinatsystemet ur .prj, och klipper linjer och ytor mot kartans kant.

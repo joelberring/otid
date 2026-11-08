@@ -118,9 +118,18 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   // Huvudlayoutens ark (banans tryckyta) är orört.
   expect(await mainArea()).toBe(mainBefore);
 
-  // 6. Justerat nummer i 1:7 500 (Mellan i Äldre A4): dra numret på arket.
-  await cell("Mellan", old!).click();
-  await expect(sheet).toHaveAttribute("data-layout", old!);
+  // 6. Justerat nummer i 1:7 500 (Mellan i Äldre A4): dra numret på arket. Ägaren 2026-11-08: arket utan eget papper har
+  // huvudlayoutens klippning (Äldre A4 har ingen mall) tills det ändras här.
+  const state = await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { version: number } };
+  const csrf = (await owner.context().cookies()).find(row => /otid[-_]organizer[-_]csrf$/.test(row.name))?.value ?? "";
+  const clipped = await owner.request.post(`${admin}/course-setting/edits`, { headers: { origin: new URL(owner.url()).origin, "x-otid-csrf": csrf },
+    data: { formatVersion: 1, requestId: crypto.randomUUID(), baseVersion: state.setting.version, edits: [{ type: "SET_PAPER_LAYOUT", course: ids.Mellan,
+      layout: { clip: { shape: "POLYGON", points: [{ x: 20, y: 20 }, { x: 150, y: 20 }, { x: 90, y: 200 }], outside: "WHITE" } } }] } });
+  expect(clipped.ok()).toBe(true);
+  await owner.goto(`/admin/${raceId}/course-setting/layout?course=${ids.Mellan}&layout=${old}`);
+  await expect(sheet).toHaveAttribute("data-layout", old!, { timeout: 60_000 });
+  await expect(owner.getByTestId("paper-clip-POLYGON").first()).toBeChecked({ timeout: 30_000 });
+  await expect(sheet.getByTestId("layout-paper-source")).toContainText("följer huvudlayouten");
   await expect(sheet.getByTestId("print-sheet").first()).toHaveAttribute("data-scale", "7500");
   // Skalan är layoutens och ändras i layouten (inte i banans egenskaper).
   await expect(sheet.getByTestId("sheet-paper-scale")).toContainText("Skala för layouten Äldre A4 1:7 500.");

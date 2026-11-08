@@ -110,6 +110,27 @@ describe("layouterna (ADR-0217)", () => {
     expect(removed.event.layoutSheets!.elit![course]!.paper?.template).toBeUndefined();
   });
 
+  it("utan mall i layouten har ett ark utan eget papper huvudlayoutens (klippning, element, delar) tills arket ändras", () => {
+    const { b, course } = setup();
+    const clip = { shape: "POLYGON" as const, points: [{ x: 10, y: 10 }, { x: 120, y: 10 }, { x: 60, y: 90 }], outside: "WHITE" as const };
+    const text = { id: "t", kind: "TEXT" as const, at: { corner: "TOP_LEFT" as const, x: 2, y: 2 }, text: "Huvud", sizeMm: 4, widthMm: 30 };
+    const doc = apply(b.document, { type: "SET_PAPER_LAYOUT", course, layout: { clip, items: [text] } },
+      { type: "SET_PAPER_LAYOUT", course, part: 1, layout: { items: [{ ...text, id: "d", text: "Del 2" }] } });
+    const projected = layoutDocument(doc, "aldre");
+    expect(projected.event.paperLayouts?.[course]).toMatchObject({ clip: { shape: "POLYGON" }, items: [{ id: "t" }] });
+    expect(projected.event.paperLayouts?.[`${course}#1`]?.items?.map(item => item.id)).toEqual(["d"]);
+    // Arket ändras (hörnet flyttat): arkets eget papper, huvudlayoutens orört; null = som huvudlayouten igen.
+    const moved = { ...clip, points: [{ x: 15, y: 15 }, ...clip.points.slice(1)] };
+    const own = apply(doc, { type: "SET_PAPER_LAYOUT", course, printLayout: "aldre", layout: { clip: moved, items: [text] } });
+    expect(layoutDocument(own, "aldre").event.paperLayouts?.[course]?.clip).toEqual(moved);
+    expect(own.event.paperLayouts?.[course]?.clip).toEqual(clip);
+    expect(layoutDocument(apply(own, { type: "SET_PAPER_LAYOUT", course, printLayout: "aldre", layout: null }), "aldre").event.paperLayouts?.[course]?.clip).toEqual(clip);
+    // Med en mall i layouten gäller mallen (som förut), inte huvudlayoutens papper.
+    const template = { schemaVersion: 1 as const, id: "m", name: "Mall", items: [] };
+    const withTemplate = apply(doc, { type: "PUT_PAPER_TEMPLATE", template }, { type: "UPDATE_LAYOUT", layout: "aldre", changes: { paperTemplate: "m" } });
+    expect(layoutDocument(withTemplate, "aldre").event.paperLayouts?.[course]).toEqual({ template: "m" });
+  });
+
   it("klassens layout: en layout per klass, huvudlayouten utan val; layouten tas bort med sina ark och val", () => {
     const { b, course } = setup();
     const doc = apply(b.document, { type: "SET_CLASS_LAYOUTS", classes: { H21: "elit", D21: "elit", H70: "aldre" } },

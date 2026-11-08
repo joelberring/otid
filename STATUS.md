@@ -1301,6 +1301,19 @@ brickor till steg 7.
 
 ## Idéer (inte i planen än)
 
+- Ägaren 2026-11-08: **engelska** i hela appen (språkval från början; texterna finns till stor del i `i18n/*-sv.ts`, men svensk
+  text ligger också direkt i komponenterna). Den engelska guiden ska säga att verifierade klubbar bara finns via svenska
+  Eventor, att fler länder kan gå att lösa och att förslag mejlas till O-Tid (`OTID_CONTACT_EMAIL`, förval otid@berring.se).
+- Ägaren 2026-11-08: **ny förstasida**: tävlingar och resultat stort, men personanpassad för den som är inloggad och kopplad
+  till en klubb; tydligare att appen gör mer än tidtagning, hur den är byggd, vilka program som körs i den och att koden är fri.
+- Ägaren 2026-11-08: **demoläge** utan inloggning: en demotävling på en demokarta (t.ex. Kungshatt) att klicka runt i.
+- Ägaren 2026-11-08: **omriktning mot magnetisk nord** (deklinationen ändras): deklination ur WMM (NOAA, fri), alla objekt
+  vrids kring referenspunkten, nordlinjerna ritas om raka och parallella, och banor och kontroller knutna till kartversionen
+  följer med så att gamla banor inte hamnar fel. WMM också som förval i "Ny karta".
+- Ägaren 2026-11-08: **normkontroll i kartritningen** (K6): symbolerna enligt ISOM 2017-2/ISSprOM 2019-2 och ett läge som går
+  att slå på och av som visar brott mot normen på kartan (avstånd mellan kurvor och andra linjer, minsta storlekar och
+  längder, luckor, linjebredder i utskriftsskalan).
+
 - Inomhusorientering (ägaren 2026-11-08), i både banläggning och kartritning: rita kartan ur PDF-ritningar (tolka och
   generalisera), våningsplan som lager ovanpå varandra i rätt läge, banor med numrerade trapphus och avspärrningar, och
   vägvalsmotorn mellan våningarna via trapphusen (svårt att lägga och prova inomhusbanor utan den).

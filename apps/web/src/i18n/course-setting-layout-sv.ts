@@ -71,7 +71,9 @@ export const layoutSv = {
     gapsFollow: "som banläggningen",
     gapsSave: "Spara",
     gapsReset: "Som i banläggningen",
-    resetPaper: "Återställ till mallen",
+    paperSource: (own: boolean, template: boolean) => own ? "Papperet (klippning, texter, bilder) är eget för arket."
+      : template ? "Papperet följer layoutens mall tills du ändrar det här." : "Papperet (klippning, texter, bilder) följer huvudlayouten tills du ändrar det här.",
+    resetPaper: (template: boolean) => template ? "Återställ till mallen" : "Som huvudlayouten",
     removeSheet: "Ta bort arket"
   },
   classes: {

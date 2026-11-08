@@ -274,7 +274,8 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
     <div className={styles.row} role="radiogroup" aria-label={text.clip.heading}>
       {([["NONE", text.clip.none], ["RECT", text.clip.rect], ["POLYGON", text.clip.polygon]] as const).map(([value, label]) =>
         <label key={value} className={styles.check}><input type="radio" name={`paper-clip-${course}`} checked={shape === value} data-testid={`paper-clip-${value}`}
-          onChange={() => { void setClip(value === "NONE" ? undefined : defaultClip(value, frame, clip?.outside ?? "WHITE"));
+          onChange={() => { void setClip(value === "NONE" ? undefined
+            : { ...defaultClip(value, frame, clip?.outside ?? "WHITE"), ...(clip?.showMarkings ? { showMarkings: true } : {}) });
             if (value !== "NONE") onSelect({ course, id: CLIP_SELECTION }); }} />{label}</label>)}
     </div>
     {clip && <>

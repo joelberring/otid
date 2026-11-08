@@ -93,6 +93,8 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
     return () => { clearTimeout(timer); window.removeEventListener("afterprint", done); };
   }, [printOnly]);
   const panel = paperSpace.panel(sheets);
+  // Papperets alla ändringar (beskrivningen, mallen) går genom papperets sparande: de syns direkt och nästa ändring räknas på dem.
+  const paperSave = panel?.onSave ?? sheetSave;
   // Överblickens ruta öppnar en bana: den visas och dess första ark blir det som redigeras.
   useEffect(() => {
     setChosen(current => current.includes(focus) ? current : [...current, focus]);
@@ -109,7 +111,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
   const placeDescription = (item: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => {
     if (!item.course) return;
     const settings = view.event.paperLayouts?.[item.course]?.descriptions ?? {};
-    void sheetSave([paperDescriptionEdit(view, item.course, { ...settings, show: true, at: paperAnchorOf(rect, frame.clip), boxMm: Math.max(3, Math.min(10, boxMm)) })]);
+    void paperSave([paperDescriptionEdit(view, item.course, { ...settings, show: true, at: paperAnchorOf(rect, frame.clip), boxMm: Math.max(3, Math.min(10, boxMm)) })]);
   };
   const editing = !template && panel;
   const open = sheets.find(item => item.key === openKey);
@@ -134,7 +136,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
   };
   const applyTemplate = (chosenTemplate: PaperTemplate, list: readonly string[] | "ALL") => {
     const ids = list === "ALL" ? courses.map(course => course.id) : list;
-    void sheetSave(ids.flatMap(id => templateEdits(view, id, chosenTemplate)));
+    void paperSave(ids.flatMap(id => templateEdits(view, id, chosenTemplate)));
   };
   const choosePaperCourse = (id: string) => {
     panel?.onCourse(id);
@@ -182,7 +184,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
           onSelect={id => { setDraft(undefined); void save([{ type: "UPDATE_LAYOUT", layout, changes: { layoutTemplate: id === "NONE" ? null : id } }]); }}
           onDraft={setDraft} onSave={save} />
         {panel && <PaperSpacePanel raceId={raceId} document={view} readOnly={!canEdit} {...panel} onCourse={choosePaperCourse} />}
-        <PaperDescriptionsPanel document={view} courses={paperCourses(view, chosen)} placed={placed} readOnly={!canEdit} onSave={sheetSave} />
+        <PaperDescriptionsPanel document={view} courses={paperCourses(view, chosen)} placed={placed} readOnly={!canEdit} onSave={paperSave} />
       </div>
     </div>
     <p className={printStyles.muted}>{outputText.editorHelp}</p>

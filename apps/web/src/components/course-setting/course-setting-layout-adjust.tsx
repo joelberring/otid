@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  courseControlIds, courseLegKeys, findPrintLayout, layoutAdjustments, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit
+  courseControlIds, courseLegKeys, findPrintLayout, layoutAdjustments, layoutSheetOf, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit
 } from "@o-tid/course-setting";
 import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
 import { scaleText } from "../../lib/course-setting-layouts";
@@ -27,10 +27,15 @@ export function AdjustPanel({ document, layout, course, scale, canEdit, save }: 
   const controls = [...new Set([...ids].map(id => document.courseControls[id]!.control))].map(id => document.controls[id]!)
     .filter(control => control.kind === "NORMAL" || control.kind === "FINISH").sort((a, b) => Number(a.code ?? 999) - Number(b.code ?? 999));
   const legs = courseLegKeys(document, course);
+  const ownPaper = layoutSheetOf(document, layout, course).paper !== undefined;
+  const hasTemplate = found.paperTemplate !== undefined;
   return <section className={styles.panel} aria-labelledby="layout-adjust" data-testid="layout-adjust" data-count={count}>
     <h3 id="layout-adjust">{text.sheet.adjust(scaleText(found.scale))}</h3>
     <p className={styles.muted}>{text.sheet.adjustHelp}</p>
     <p data-testid="layout-adjust-count">{text.sheet.adjustments(count)}</p>
+    <p className={styles.muted} data-testid="layout-paper-source" data-own={ownPaper ? "" : undefined}>{text.sheet.paperSource(ownPaper, hasTemplate)}
+      {ownPaper && <> <Button variant="quiet" disabled={!canEdit} data-testid="layout-paper-reset"
+        onClick={() => void save([{ type: "SET_PAPER_LAYOUT", course, layout: null, printLayout: layout }])}>{text.sheet.resetPaper(hasTemplate)}</Button></>}</p>
     {adjustments.numbers.length > 0 && <ul className={styles.list}>{adjustments.numbers.map(cc => {
       const code = codeOf(document.courseControls[cc]!.control);
       return <li key={cc}>{text.sheet.numberLabel(code)} <Button variant="quiet" disabled={!canEdit}

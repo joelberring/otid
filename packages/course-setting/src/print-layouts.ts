@@ -260,7 +260,7 @@ export function singleMapTemplate(layout: PrintLayout, strips: SheetLayout["stri
 
 /**
  * Dokumentet som utskriften ser det för en layout: layoutens skala för alla banor och Alla kontroller, arkets utsnitt med
- * layoutens papper, arkets papper (layoutens mall om arket inte har eget) i stället för huvudlayoutens, arkets nummer och
+ * layoutens papper, arkets papper (layoutens mall om arket inte har eget, utan mall huvudlayoutens) i stället för huvudlayoutens, arkets nummer och
  * layoutens ringavbrott. Huvudlayouten (eller ingen) ger dokumentet oförändrat.
  */
 export function layoutDocument(document: CourseSettingDocument, layout: string | undefined): CourseSettingDocument {
@@ -276,7 +276,7 @@ export function layoutDocument(document: CourseSettingDocument, layout: string |
     const parts = sheet?.partPrintAreas ? Object.fromEntries(Object.entries(sheet.partPrintAreas).map(([key, value]) => [key, area(value)])) : undefined;
     return { ...rest, printScale: found.scale, printArea: area(sheet?.printArea), ...(parts ? { partPrintAreas: parts } : {}) };
   });
-  // Papperet: arkets, annars layoutens mall; "Visa överlapp" gäller banan (ADR-0203) och följer huvudlayouten om arket inte har eget.
+  // Papperet: arkets, annars layoutens mall, annars huvudlayoutens; "Visa överlapp" gäller banan (ADR-0203) och följer huvudlayouten om arket inte har eget.
   const mainPapers = document.event.paperLayouts ?? {};
   const papers: Record<string, CoursePaperLayout> = {};
   const withTemplate = (paper: CoursePaperLayout | undefined, course: string): CoursePaperLayout => {
@@ -286,9 +286,14 @@ export function layoutDocument(document: CourseSettingDocument, layout: string |
   };
   for (const course of ["ALL_CONTROLS", ...document.courses.map(item => item.id)]) {
     const sheet = sheets[course];
-    const paper = withTemplate(sheet?.paper, course);
+    // Ägaren 2026-11-08: ett ark utan eget papper i en layout utan mall har huvudlayoutens papper för banan (klippningen,
+    // vita ytor, texter, bilder, beskrivningen) tills arket ändras; delarnas papper likaså.
+    const inherits = !found.paperTemplate;
+    const paper = withTemplate(sheet?.paper ?? (inherits ? mainPapers[course] : undefined), course);
     if (Object.keys(paper).length > 0) papers[course] = paper;
-    for (const [part, own] of Object.entries(sheet?.partPapers ?? {})) papers[`${course}#${part}`] = own;
+    const parts = inherits && sheet?.partPapers === undefined ? Object.entries(mainPapers).filter(([key]) => key.startsWith(`${course}#`)).map(([key, own]) => [key.slice(course.length + 1), own] as const)
+      : Object.entries(sheet?.partPapers ?? {});
+    for (const [part, own] of parts) papers[`${course}#${part}`] = own;
   }
   const courseControls = { ...document.courseControls };
   let numbersChanged = false;

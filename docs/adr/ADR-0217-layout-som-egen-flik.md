@@ -46,6 +46,11 @@ en skala, en tryckyta och ett papper per bana, och papperet redigeras på utskri
    och PDF). En ny .ppen behåller layouterna, arken för banor som finns kvar, klassvalen och lägena (`keepPaperOnImport`).
 10. **Ordlista** (`docs/domain-rules.md`): tryckyta = `printArea` (i UI "utsnitt" på arket), kartram = `SheetFrame`.
 
+**Tillägg 2026-11-08 (ägaren: "klippningen hoppar tillbaka till grundinställningen"):** ett ark utan eget papper i en
+layout utan mall för papperet har huvudlayoutens papper för banan (klippning, vita ytor, texter, bilder, beskrivningen,
+delarnas papper) tills arket ändras; har layouten en mall gäller mallen som förut. Arket visar var papperet kommer ifrån och
+"Som huvudlayouten" tar bort arkets eget. Utsnittet ärvs inte (layoutens skala och papper ger en annan ram).
+
 ## Följder
 
 - Dokumentet växer med layouter och lägen; högst 20 layouter och 20 sparade lägen.

@@ -1319,6 +1319,10 @@ brickor till steg 7.
 - Ägaren 2026-11-08: **omriktning mot magnetisk nord** (deklinationen ändras): deklination ur WMM (NOAA, fri), alla objekt
   vrids kring referenspunkten, nordlinjerna ritas om raka och parallella, och banor och kontroller knutna till kartversionen
   följer med så att gamla banor inte hamnar fel. WMM också som förval i "Ny karta".
+- Ägaren 2026-11-08: **underlag utan svenskt API** (K4): ladda upp laser (LAS/LAZ), höjdmodell och ortofoto (GeoTIFF),
+  vektorer och georefererade bilder själv; samma behandling som det hämtade.
+- Ägaren 2026-11-08: **etapper** (delområdena, K4–K6b): ett revideringsdatum per etapp i ett lager som inte skrivs ut men kan
+  öppnas; nytt underlag (t.ex. vegetation) hämtas och körs bara för en etapp.
 - Ägaren 2026-11-08: **normkontroll i kartritningen** (K6): symbolerna enligt ISOM 2017-2/ISSprOM 2019-2 och ett läge som går
   att slå på och av som visar brott mot normen på kartan (avstånd mellan kurvor och andra linjer, minsta storlekar och
   längder, luckor, linjebredder i utskriftsskalan).

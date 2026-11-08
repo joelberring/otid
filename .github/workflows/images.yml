@@ -37,6 +37,8 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
+      # Ett fel i en avbildning (t.ex. otid-geo) stoppar inte de andra.
+      fail-fast: false
       matrix:
         include:
           - image: otid-web
@@ -84,6 +86,8 @@ jobs:
       group: images-main-${{ matrix.image }}
       cancel-in-progress: false
     strategy:
+      # Ett fel i en avbildning (t.ex. otid-geo) stoppar inte de andra.
+      fail-fast: false
       matrix:
         include:
           - image: otid-web

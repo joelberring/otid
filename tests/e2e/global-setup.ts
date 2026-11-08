@@ -3,6 +3,7 @@ import { startFakeEventor } from "./fake-eventor";
 import { startFakeRoc } from "./fake-roc";
 import { startFakeSmtp } from "./fake-smtp";
 import { startFakeGoogle } from "./fake-google";
+import { startFakeGeodata } from "./fake-geodata";
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
   // Falsk Eventor, SMTP, ROC och Google (ADR-0205 tillägg) behövs både mot utvecklingsservern och mot driftmiljön (som når dem via host.docker.internal).
@@ -10,11 +11,13 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   const smtp = await startFakeSmtp();
   const roc = await startFakeRoc();
   const google = await startFakeGoogle();
+  const geodata = await startFakeGeodata();
   const stop = async () => {
     await new Promise<void>(resolve => eventor.close(() => resolve()));
     await new Promise<void>(resolve => smtp.close(() => resolve()));
     await new Promise<void>(resolve => roc.close(() => resolve()));
     await new Promise<void>(resolve => google.close(() => resolve()));
+    await new Promise<void>(resolve => geodata.close(() => resolve()));
   };
   // Mot en körande driftmiljö migrerar servern själv vid start.
   if (process.env.E2E_BASE_URL) return stop;

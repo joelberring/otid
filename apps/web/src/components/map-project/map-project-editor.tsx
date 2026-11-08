@@ -548,7 +548,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
           <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
-            after={importer.canImport ? <MapProjectImportPanel importer={importer} symbols={symbols} /> : undefined} />}
+            after={importer.canImport ? <MapProjectImportPanel importer={importer} symbols={symbols} areas={collab.areas} /> : undefined} />}
         </>}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}

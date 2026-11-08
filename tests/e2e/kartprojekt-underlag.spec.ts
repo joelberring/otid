@@ -242,3 +242,46 @@ test("kartprojekt: normkontroll av kurvavståndet", async ({ browser, baseURL })
   await expect(panel.getByTestId("map-project-norm-count")).toHaveCount(0);
   await expect.poll(alongLine, { timeout: 10_000 }).toBe(0);
 });
+
+/**
+ * ADR-0219 tillägget om hämtningen (K4c): OpenStreetMap för en etapp hämtas av servern (en falsk Overpass i testerna) och blir
+ * kandidater som en vektorfil. Gångvägen får 505 ur lagrets namn; byggnaden saknar symbol i kartans set och hoppas över.
+ */
+test("kartprojekt: hämta OpenStreetMap för en etapp", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `osm.${unique()}@exempel.se`, "Olle Osm");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const headers = async () => ({ origin: baseURL!, "x-otid-csrf": await csrfOf(owner) });
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { ...await headers(),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Osm", "x-otid-file-name": "Osm.omap" },
+    data: Buffer.from(mapBytes) });
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  const area = await owner.request.post(`${api}/areas`, { headers: { ...await headers(), "content-type": "application/json" }, data: { formatVersion: 1,
+    requestId: crypto.randomUUID(), name: "Etapp 1", polygon: [[{ x: 30, y: 40 }, { x: 70, y: 40 }, { x: 70, y: 70 }, { x: 30, y: 70 }]] } });
+  expect(area.status(), await area.text()).toBe(201);
+  await warmRoute(owner, `${api}/sources/osm`, "POST");
+  await warmRoute(owner, `${api}/proposals`);
+
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const importer = owner.getByTestId("map-project-import");
+  await importer.getByText("Importera vektorer").click();
+  const osm = importer.getByTestId("map-project-osm");
+  await osm.getByTestId("map-project-osm-area").selectOption({ label: "Etapp 1" });
+  await osm.getByTestId("map-project-osm-fetch").click();
+  await expect(importer.getByTestId("map-project-import-crs")).toHaveValue("4326", { timeout: 30_000 });
+  await expect(importer.getByRole("combobox", { name: "Symbol för OSM gångväg och cykelväg" }).locator("option:checked")).toContainText("505.0");
+  await expect(importer.getByRole("combobox", { name: "Symbol för OSM byggnad" })).toHaveValue("");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("1 kandidat");
+  await importer.getByTestId("map-project-import-propose").click();
+  await expect(importer.getByTestId("map-project-import-sent")).toContainText("1 förslag lämnade", { timeout: 20_000 });
+  const proposals = owner.getByTestId("map-project-proposals");
+  await expect(proposals).toContainText("OpenStreetMap, Etapp 1", { timeout: 20_000 });
+
+  // Ett för stort område avvisas av servern.
+  const huge = await owner.request.post(`${api}/sources/osm`, { headers: { ...await headers(), "content-type": "application/json" },
+    data: { formatVersion: 1, box: { south: 59, west: 18, north: 60, east: 19 } } });
+  expect(huge.status()).toBe(422);
+  expect((await huge.json() as { error: string }).error).toBe("SOURCE_AREA_TOO_LARGE");
+});

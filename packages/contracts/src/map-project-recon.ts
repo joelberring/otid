@@ -133,3 +133,12 @@ export interface MapProjectLayerView {
   createdBy: { accountId: string; name: string | null }; own: boolean; createdAt: string;
 }
 export interface MapProjectLayerList { formatVersion: 1; layers: MapProjectLayerView[] }
+
+/**
+ * K4c: hämta OpenStreetMap för en ruta i WGS 84 (kartans område eller en etapp). Servern frågar Overpass och svarar med lager
+ * och objekt som en importerad vektorfil; storleken prövas också där (`validOsmBox` i map-revision).
+ */
+export const mapProjectOsmRequestSchema = z.object({
+  formatVersion: z.literal(1),
+  box: z.object({ south: z.number().finite(), west: z.number().finite(), north: z.number().finite(), east: z.number().finite() }).strict()
+}).strict();

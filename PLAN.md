@@ -1249,14 +1249,17 @@ K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
 - [ ] K4b kvar: DWG (LibreDWG i geo-arbetaren), GeoPackage, sparade lagerprofiler per källa, Stockholms lagergrammatik.
 - [x] Etapper (ägaren 2026-11-08, migration 0098): revideringsdatum per delområde (klart utan datum ger dagens; ägarna och den som
   fått området), lagret Etapper färgar efter åldern och syns bara på skärmen. E2E `kartprojekt-underlag` (etapper).
-- [ ] K4c geo-arbetaren och hämtning från Lantmäteriet, OSM och NVDB; ny vegetationsdata bara för en etapp (ett delområde).
+- [x] K4c del 1: OpenStreetMap via servern (Overpass) för kartan eller en etapp, som kandidater (ingen migration). Tester:
+  map-revision `osm`, E2E `kartprojekt-underlag` (falsk Overpass).
+- [ ] K4c kvar: Lantmäteriet (eget konto, ortofoto som underlag), NVDB; geo-arbetaren för tunga processer.
 
 Normkontrollen (del av K6, gjord före K5 eftersom den inte behöver geo-arbetaren; ägaren 2026-11-08):
 
 - [x] ISOM 2017-2:s minimimått i ett läge som slås på och av: kurvor för nära varandra (0,15 mm mellan konturerna), korta
   fristående linjer, små och mycket smala ytor, små kullar; ×1,5 på 1:10 000. Ställena på kartan och i panelen (Visa).
   Tester: map-revision `norm-check`, E2E `kartprojekt-underlag` (normkontroll).
-- [ ] Kvar: ISSprOM 2019-2:s symbolmått för sprint, avstånd mellan olika symboler (0,4 mm för passager), minsta bredd exakt.
+- [x] ISSprOM 2019-2:s symbolmått för sprint, passager (0,40 mm) och öppningar i murar och staket (1,00 mm).
+- [ ] Kvar: minsta bredd exakt, avstånd mellan andra olika symboler.
 
 Senare enligt planen: K5 Karttapullautin och fuktighet, K6
 generalisering och resten av normkontrollen, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre

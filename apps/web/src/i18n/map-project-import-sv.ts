@@ -6,6 +6,13 @@ export const mapProjectImportSv = {
   help: "En baskarta eller annan vektorfil (GeoJSON, DXF eller Shapefile, gärna som .zip) blir kandidater: välj symbol per lager, se dem på kartan och lämna dem som förslag "
     + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren.",
   choose: "Välj fil",
+  osmHeading: "Hämta från OpenStreetMap",
+  osmHelp: "Byggnader, vägar, stigar, staket, murar, vatten och markanvändning för hela kartan eller en etapp. Servern hämtar dem; de blir kandidater som en fil. Data © OpenStreetMap-bidragsgivare (ODbL).",
+  osmWhere: "Område",
+  osmWhole: "Hela kartan",
+  osmFetch: "Hämta",
+  osmFetching: "Hämtar …",
+  osmName: (area?: string) => `OpenStreetMap${area ? `, ${area}` : ""} (© OpenStreetMap-bidragsgivare, ODbL)`,
   file: (name: string, count: number, skipped: number) => `${name}: ${plural(count, "objekt", "objekt")}${skipped ? `, ${skipped} hoppas över` : ""}`,
   crs: "Koordinatsystem (EPSG)",
   crsHelp: "Ur filen eller koordinaterna när det går; annars kartans. T.ex. 3006, 3011 (SWEREF 99 18 00), 3021 eller 4326.",
@@ -27,6 +34,9 @@ export const mapProjectImportSv = {
   problems: {
     unsupported: "Välj en GeoJSON-, DXF- eller Shapefile (.shp med .dbf och .prj, eller en .zip). DWG: spara som DXF.",
     crs: "Koordinatsystemet stöds inte (SWEREF 99, RT 90, UTM eller WGS 84).",
-    generic: (status: number) => `Det gick inte (${status}).`
+    generic: (status: number) => `Det gick inte (${status}).`,
+    SOURCE_AREA_TOO_LARGE: "Området är för stort för en hämtning (högst omkring 40 km²). Välj en etapp.",
+    SOURCE_THROTTLED: "För många hämtningar den senaste timmen. Försök igen senare.",
+    SOURCE_UNAVAILABLE: "OpenStreetMap svarade inte just nu. Försök igen om en stund."
   }
 } as const;

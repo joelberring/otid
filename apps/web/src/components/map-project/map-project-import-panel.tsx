@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import type { Point } from "@o-tid/map-file";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
@@ -14,12 +15,14 @@ type Import = ReturnType<typeof useMapProjectImport>;
  * ADR-0219 tillägget om vektorunderlagen (K4b): importen i sidopanelen. Fil, koordinatsystem, ett val per lager (symbolerna
  * med samma form först, slutna linjer kan bli ytor) och knappen som lämnar kandidaterna som förslag.
  */
-export function MapProjectImportPanel({ importer, symbols }: { importer: Import; symbols: ReadonlyMap<string, CatalogSymbol> }) {
+export function MapProjectImportPanel({ importer, symbols, areas }: { importer: Import; symbols: ReadonlyMap<string, CatalogSymbol>;
+  areas: readonly { areaId: string; name: string; polygon: readonly (readonly Point[])[] }[] }) {
   const input = useRef<HTMLInputElement>(null);
+  const [where, setWhere] = useState("");
   const { file, result, problem } = importer;
   const all = [...symbols.values()].filter(symbol => symbol.kind !== "text");
   const problemText = problem === undefined ? undefined : typeof problem === "number" ? text.problems.generic(problem)
-    : problem === "unsupported" || problem === "crs" ? text.problems[problem] : problem;
+    : problem in text.problems ? (text.problems as unknown as Record<string, string>)[problem] : problem;
 
   return <details className={styles.settings} data-testid="map-project-import">
     <summary>{text.heading}</summary>
@@ -27,12 +30,27 @@ export function MapProjectImportPanel({ importer, symbols }: { importer: Import;
     {problemText && <p role="alert" className={styles.problem}>{problemText}{" "}
       <Button variant="quiet" onClick={() => importer.setProblem(undefined)}>OK</Button></p>}
     {importer.sent !== undefined && <p role="status" data-testid="map-project-import-sent">{text.sent(importer.sent)}</p>}
-    {!file ? <span className={styles.actions}>
-      <Button variant="secondary" onClick={() => input.current?.click()}>{text.choose}</Button>
-      <input ref={input} type="file" hidden multiple accept=".geojson,.json,.dxf,.shp,.dbf,.prj,.cpg,.zip,application/geo+json,application/zip"
-        data-testid="map-project-import-file"
-        onChange={event => { const chosen = [...event.target.files ?? []]; event.target.value = ""; if (chosen.length) void importer.open(chosen); }} />
-    </span> : <form className={styles.areaForm} onSubmit={event => { event.preventDefault(); void importer.propose(); }}>
+    {!file ? <>
+      <span className={styles.actions}>
+        <Button variant="secondary" onClick={() => input.current?.click()}>{text.choose}</Button>
+        <input ref={input} type="file" hidden multiple accept=".geojson,.json,.dxf,.shp,.dbf,.prj,.cpg,.zip,application/geo+json,application/zip"
+          data-testid="map-project-import-file"
+          onChange={event => { const chosen = [...event.target.files ?? []]; event.target.value = ""; if (chosen.length) void importer.open(chosen); }} />
+      </span>
+      <fieldset className={styles.areaForm} data-testid="map-project-osm">
+        <legend>{text.osmHeading}</legend>
+        <p className={styles.muted}>{text.osmHelp}</p>
+        <label>{text.osmWhere}<select value={where} onChange={event => setWhere(event.target.value)} data-testid="map-project-osm-area">
+          <option value="">{text.osmWhole}</option>
+          {areas.map(area => <option key={area.areaId} value={area.areaId}>{area.name}</option>)}
+        </select></label>
+        <span className={styles.actions}>
+          <Button variant="secondary" disabled={importer.fetching} data-testid="map-project-osm-fetch"
+            onClick={() => void importer.fetchOsm(areas.find(area => area.areaId === where))}>
+            {importer.fetching ? text.osmFetching : text.osmFetch}</Button>
+        </span>
+      </fieldset>
+    </> : <form className={styles.areaForm} onSubmit={event => { event.preventDefault(); void importer.propose(); }}>
       <p className={styles.muted}>{text.file(file.name, file.data.features.length, file.data.skipped)}</p>
       <label>{text.crs}<input inputMode="numeric" value={importer.crs ?? ""} data-testid="map-project-import-crs"
         onChange={event => { const value = Number(event.target.value.replace(/\D/g, "")); importer.setCrs(value > 0 ? value : undefined); }} /></label>

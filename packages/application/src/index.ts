@@ -203,6 +203,7 @@ export {
   createMapProjectLayer, deleteMapProjectLayer, listMapProjectLayers, readMapProjectLayerImage, updateMapProjectLayer
 } from "./map-project-layers";
 export { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "./map-project-stats";
+export { DEFAULT_OVERPASS_URL, fetchMapProjectOsm, mapSourceRuntimeFromEnvironment, type MapSourceRuntime } from "./map-project-sources";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";
 export { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";

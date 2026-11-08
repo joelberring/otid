@@ -76,6 +76,8 @@ jobs:
           printf 'OTID_SMTP_URL=smtp://host.docker.internal:4325\nOTID_MAIL_FROM=O-Tid test <noreply@o-tid.test>\n' >> .env
           printf 'OTID_REGISTRATION_LIMIT_PER_HOUR=1000\n' >> .env
           printf 'OTID_ROC_BASE_URL=http://host.docker.internal:4331\n' >> .env
+          # Geodata (ADR-0219, K4c): den falska Overpass från global-setup (port 4343).
+          printf 'OTID_OVERPASS_URL=http://host.docker.internal:4343/api/interpreter\n' >> .env
           # Google (ADR-0205 tillägg): den falska OpenID-leverantören från global-setup (port 4337); webbläsaren når den på värden.
           printf 'OTID_GOOGLE_CLIENT_ID=otid-e2e.apps.googleusercontent.com\nOTID_GOOGLE_CLIENT_SECRET=endast-for-test\n' >> .env
           printf 'OTID_GOOGLE_BASE_URL=http://host.docker.internal:4337\nOTID_GOOGLE_AUTHORIZE_URL=http://127.0.0.1:4337/auth\n' >> .env

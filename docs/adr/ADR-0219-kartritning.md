@@ -244,3 +244,18 @@ bara för en etapp kommer med geo-arbetaren (K4c, K5).
    och staket minst 1,00 mm. Objekt som rör varandra stänger med avsikt och räknas inte; en kort mur som når ett oframkomligt
    objekt räknas inte som fristående. Rutnätet jämför nu också grannrutorna, så att ett par över en rutgräns inte missas.
 4. Kontrollen visar ställen att se över (romber på kartan, listan i panelen); den ändrar inget och skickar inget.
+
+## Tillägg 2026-11-08: hämtningen från öppna källor (K4c, del 1, ingen migration)
+
+Ägaren: underlag ska kunna hämtas från Lantmäteriet (användarens eget konto), OpenStreetMap och NVDB, för hela kartan eller
+en etapp.
+
+1. **Ingen egen container än.** Hämtningarna är korta och går via webbens server: den frågar källan åt webbläsaren (inga
+   nycklar eller CORS i webbläsaren, en gräns per konto: 20 hämtningar i timmen) och svarar utan att spara något. Tunga
+   processer (laser, Karttapullautin i K5) får geo-arbetaren; beslutet om dess container i drift väntar på ägaren.
+2. **OpenStreetMap** (Overpass, `OTID_OVERPASS_URL`, förval overpass-api.de): byggnader, vägar, stigar, staket, murar,
+   järnväg, kraftledningar, vatten, markanvändning och träd för en ruta på högst omkring 40 km². Svaret blir samma lager och
+   objekt som en vektorfil (K4b) med svenska lagernamn som ger symbolförslag; kandidaterna lämnas som förslag (IMPORT) med
+   källan och ODbL i anteckningen.
+3. **Etapp:** rutan kring ett delområde i stället för kartans; kandidaterna klipps mot etappens ruta.
+4. **Kvar:** Lantmäteriet (ortofoto som underlag via STAC med kontots egna OAuth2-nycklar, krypterade), NVDB.

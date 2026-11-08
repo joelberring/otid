@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Hämta OpenStreetMap till kartprojektet (K4c del 1, ingen migration, ADR-0219 tillägg)
+- Importera vektorer → Hämta från OpenStreetMap: hela kartan eller en etapp. Servern frågar Overpass (`OTID_OVERPASS_URL`,
+  högst omkring 40 km², 20 hämtningar per konto och timme) och svarar med lager som en vektorfil; svenska lagernamn ger
+  symbolförslag (byggnad 521, staket 516, mur 513, gångväg 505, väg 503, vatten 301 …). Kandidaterna lämnas som förslag.
+- Ingen egen geo-container ännu: hämtningarna går via webben, tunga processer (K5) väntar på geo-arbetaren.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester (`osm`), E2E `kartprojekt-underlag` (falsk Overpass på port 4343).
+- Kvar i K4c: Lantmäteriet med eget konto (ortofoto), NVDB.
+
 ### 2026-11-08 – Normkontrollen för sprintkartor (ingen migration, ADR-0219 tillägg)
 - Sprint (1:5 000 och större): ISSprOM 2019-2:s minimimått för längder och ytor, passager mellan oframkomliga objekt under
   0,40 mm och öppningar mellan murar och staket under 1,00 mm (ett fel per par, där det är smalast; objekt som rör varandra

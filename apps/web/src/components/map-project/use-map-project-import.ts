@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectView } from "@o-tid/contracts";
-import { isSupportedEpsg, type MapGeoreference, type MapObject } from "@o-tid/map-file";
+import { isSupportedEpsg, mapPointToWgs84, type MapGeoreference, type MapObject, type Point } from "@o-tid/map-file";
 import {
   guessCrs, importLayers, importObjects, newKey, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type ImportLayer, type SourceData, type TargetKind
@@ -28,6 +28,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void) {
   const base = mapProjectBase(view.projectId);
   const [file, setFile] = useState<{ name: string; data: SourceData }>();
+  /** K4c: hämtat för en etapp klipps mot etappens ruta i stället för kartans. */
+  const [clip, setClip] = useState<Bounds>();
+  const [fetching, setFetching] = useState(false);
   const [layers, setLayers] = useState<readonly ImportLayer[]>([]);
   const [mapping, setMapping] = useState<ReadonlyMap<string, string>>(new Map());
   const [crs, setCrs] = useState<number>();
@@ -36,22 +39,45 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [sent, setSent] = useState<number>();
   const mapEpsg = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
 
+  const show = useCallback((fileName: string, data: SourceData, area?: Bounds) => {
+    const found = importLayers(data);
+    const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
+    setFile({ name: fileName, data });
+    setClip(area);
+    setLayers(found);
+    setMapping(new Map(found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; })));
+    setCrs(data.crs ?? guessCrs(data) ?? mapEpsg);
+  }, [symbols, mapEpsg]);
+
   const open = useCallback(async (files: readonly File[]) => {
     setProblem(undefined); setSent(undefined);
     try {
       const read = await readVectorFiles(files);
       if (!read) { setProblem("unsupported"); return; }
-      const { name: fileName, data } = read;
-      const found = importLayers(data);
-      const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
-      setFile({ name: fileName, data });
-      setLayers(found);
-      setMapping(new Map(found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; })));
-      setCrs(data.crs ?? guessCrs(data) ?? mapEpsg);
+      show(read.name, read.data);
     } catch (error) {
       setProblem(error instanceof VectorParseError ? error.message : "unsupported");
     }
-  }, [symbols, mapEpsg]);
+  }, [show]);
+
+  /** K4c: OpenStreetMap för kartans område eller en etapp (delområdets polygon i kartans mm), hämtat av servern. */
+  const fetchOsm = useCallback(async (area?: { name: string; polygon: readonly (readonly Point[])[] }) => {
+    if (!georeference || !bounds) return;
+    setProblem(undefined); setSent(undefined); setFetching(true);
+    const outline = area?.polygon[0];
+    const box: Bounds = outline && outline.length >= 3 ? { minX: Math.min(...outline.map(p => p.x)), maxX: Math.max(...outline.map(p => p.x)),
+      minY: Math.min(...outline.map(p => p.y)), maxY: Math.max(...outline.map(p => p.y)) } : bounds;
+    const corners = [{ x: box.minX, y: box.minY }, { x: box.maxX, y: box.minY }, { x: box.maxX, y: box.maxY }, { x: box.minX, y: box.maxY }]
+      .map(point => mapPointToWgs84(georeference, point));
+    const request = { formatVersion: 1, box: { south: Math.min(...corners.map(c => c.latitude)), north: Math.max(...corners.map(c => c.latitude)),
+      west: Math.min(...corners.map(c => c.longitude)), east: Math.max(...corners.map(c => c.longitude)) } };
+    try {
+      const response = await clubRequest(`${base}/sources/osm`, "POST", request).catch(() => ({ status: 0, json: undefined }));
+      const body = response.json as { data?: SourceData; error?: string } | undefined;
+      if (response.status !== 200 || !body?.data) { setProblem(body?.error ?? response.status); return; }
+      show(area ? text.osmName(area.name) : text.osmName(), body.data, area ? box : undefined);
+    } finally { setFetching(false); }
+  }, [georeference, bounds, base, show]);
 
   const result = useMemo(() => {
     if (!file || !georeference || crs === undefined || !(crs === WGS84_EPSG || isSupportedEpsg(crs))) return undefined;
@@ -61,9 +87,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       if (kind === "point" || kind === "line" || kind === "area") targets.set(layer, { symbol: id, kind });
     }
     try {
-      return importObjects(file.data.features, { mapping: targets, toMap: (x, y) => sourcePointToMap(georeference, crs, x, y), bounds });
+      return importObjects(file.data.features, { mapping: targets, toMap: (x, y) => sourcePointToMap(georeference, crs, x, y), bounds: clip ?? bounds });
     } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds]);
+  }, [file, georeference, crs, mapping, symbols, bounds, clip]);
 
   const propose = useCallback(async () => {
     if (!file || !result || result.objects.length === 0) return;
@@ -98,6 +124,6 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   }), []);
   const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); }, []);
 
-  return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, open, propose, cancel,
+  return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, open, fetchOsm, fetching, propose, cancel,
     candidates: result?.objects ?? [], canImport: view.viewer.canPropose };
 }

@@ -848,6 +848,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_MAINTENANCE` | på i `web` (aldrig i publikens instanser) | `off` = instansen kör inget underhåll (kartinnehåll utan tävling, gallringen, klubbarnas medlemslistor). Ej i compose. |
 | `OTID_IMPORT_TOKEN` | tom (fråga) | Bara på datorn som kör `pnpm archive-import`: klubbarkivets importnyckel (annars `--nyckel-fil` eller en fråga). |
 | `OTID_EVENTOR_BASE_URL`, `OTID_ROC_BASE_URL`, `OTID_GOOGLE_BASE_URL`, `OTID_GOOGLE_AUTHORIZE_URL` | tomma = de riktiga tjänsterna | Endast test: CI pekar på falska tjänster. Lämna tomma i drift. |
+| `OTID_OVERPASS_URL` | tom = `https://overpass-api.de/api/interpreter` | Kartprojektets hämtning från OpenStreetMap (K4c). En egen Overpass går att ange; CI pekar på en falsk. |
 
 ## Prova driftuppsättningen lokalt
 

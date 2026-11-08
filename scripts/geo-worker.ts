@@ -142,7 +142,7 @@ async function runJob(job: Job): Promise<void> {
       await set("Skickar resultatet", done, uploads.length);
       if (!files.has(source)) throw new Error(`Karttapullautin gav ingen ${source}`);
       const bytes = await readFile(join(dir, source));
-      const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: bytes,
+      const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
         headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
       if (!response.ok) throw new Error(`${name} kunde inte skickas (${response.status})`);
       done += 1;

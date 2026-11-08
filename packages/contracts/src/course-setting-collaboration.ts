@@ -158,7 +158,11 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   // ADR-0199: godtagna varningar per nyckel (null = ångra); nyckeln och lägena kontrolleras av paketet.
   z.object({ type: z.literal("SET_ACCEPTED_CHECKS"), checks: z.record(z.string().min(1).max(400),
     z.object({ at: z.record(z.string().min(1).max(80), point).refine(record => Object.keys(record).length <= 20) }).strict().nullable())
-    .refine(record => Object.keys(record).length <= 5000) }).strict()
+    .refine(record => Object.keys(record).length <= 5000) }).strict(),
+  // Ägaren 2026-11-08: vägvalens vägar nära kontrollerna (null = ta bort); gränserna kontrolleras av paketet.
+  z.object({ type: z.literal("SET_ROUTE_HINTS"), hints: z.record(z.string().min(1).max(80), z.object({ from: point, to: point,
+    lines: z.array(z.array(point).min(2).max(400)).max(10) }).strict().nullable())
+    .refine(record => Object.keys(record).length <= 200) }).strict()
 ]);
 
 /** Id som en åtgärd skapade hos författaren (`CreatedIds`). */

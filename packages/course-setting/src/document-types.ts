@@ -290,6 +290,11 @@ export interface CourseSettingDocument {
      */
     readonly acceptedChecks?: Readonly<Record<string, AcceptedCheck>> | undefined;
     /**
+     * Ägaren 2026-11-08: vägvalsanalysens troliga vägar nära kontrollerna (`routeHintKey`), så att kontrollnumren läggs utanför
+     * dem både på skärmen och i PDF:en. Bara O-Tid; skrivs inte till .ppen. En väg vars kontroller flyttats används inte.
+     */
+    readonly routeHints?: Readonly<Record<string, RouteHint>> | undefined;
+    /**
      * ADR-0212: nivåstödets avvikelser mot banornas målnivå visas som notiser i Varningar ("Visa avvikelser mot nivån i
      * Varningar"). Bara O-Tid; saknas = av.
      */
@@ -338,6 +343,13 @@ export interface PpenReadWarning {
  * ADR-0199: en godtagen varning. `at` = lägena (kartans mm) för det varningen gäller när den godtogs: kontroller som
  * "c:<id>", specialobjekt (mittpunkten) som "s:<id>". Flyttas något mer än `ACCEPT_MOVE_METERS` gäller godtagandet inte.
  */
+/** En sträckas troliga vägar (bästa och tydliga alternativ) i kartans mm, bara delarna nära start- och slutkontrollen. */
+export interface RouteHint {
+  readonly from: Point;
+  readonly to: Point;
+  readonly lines: readonly (readonly Point[])[];
+}
+
 export interface AcceptedCheck {
   readonly at: Readonly<Record<string, Point>>;
 }

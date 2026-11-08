@@ -199,6 +199,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "SET_PAPER_LAYOUT": return [`event:paperLayouts:${edit.part !== undefined ? `${edit.course}#${edit.part}` : edit.course}`];
     // ADR-0199: per varning, så att två som godtar olika varningar samtidigt inte krockar.
     case "SET_ACCEPTED_CHECKS": return Object.keys(edit.checks).sort().map(key => `event:acceptedChecks:${key}`);
+    case "SET_ROUTE_HINTS": return Object.keys(edit.hints).sort().map(key => `event:routeHints:${key}`);
     case "PUT_PAPER_TEMPLATE": return [`event:paperTemplates:${edit.template.id}`];
     case "DELETE_PAPER_TEMPLATE": return [`event:paperTemplates:${edit.id}`, "event:paperLayouts"];
     case "PUT_OBJECTS": return [
@@ -229,6 +230,7 @@ function touchValue(document: CourseSettingDocument, touch: string): unknown {
     const appearance = appearanceOf(document);
     return field === undefined ? appearance : (appearance as unknown as Record<string, unknown>)[field];
   }
+  if (kind === "event" && id === "routeHints" && field !== undefined) return document.event.routeHints?.[touch.slice("event:routeHints:".length)];
   if (kind === "event" && id === "acceptedChecks" && field !== undefined) return document.event.acceptedChecks?.[touch.slice("event:acceptedChecks:".length)];
   if (kind === "event" && id !== undefined && LAYOUT_EVENT_FIELDS.has(id)) return layoutTouchValue(document, touch);
   if (kind === "event") return id === undefined ? document.event : (document.event as unknown as Record<string, unknown>)[id];

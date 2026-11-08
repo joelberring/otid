@@ -115,6 +115,10 @@ test("banläggning-varningar: vägval runt förbjudet område, inringad kontroll
   await expect(badge(owner)).toHaveAttribute("data-count", String(before - 1), { timeout: 120_000 });
   const document = await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { document: { event: { acceptedChecks?: Record<string, unknown> } } } };
   expect(Object.keys(document.setting.document.event.acceptedChecks ?? {})).toEqual(["LEG_NO_ROUTE/7/9"]);
+  // Ägaren 2026-11-08: de räknade sträckornas troliga vägar nära kontrollerna sparas (kontrollnumren läggs utanför dem).
+  await expect.poll(async () => Object.keys(((await (await owner.request.get(`${admin}/course-setting`)).json()) as
+    { setting: { document: { event: { routeHints?: Record<string, unknown> } } } }).setting.document.event.routeHints ?? {}).length,
+  { timeout: 30_000 }).toBeGreaterThan(0);
 
   // Ångra (verktygsraden, historiken efter omladdningen): varningen är tillbaka.
   await owner.getByRole("button", { name: "Ångra", exact: true }).click();

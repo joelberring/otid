@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Kontrollnumren undviker vägvalen (ingen migration)
+- Varje sträcka som vägvalens Worker räknar i banläggningen (vald sträcka, banans längd, förbjudna områden) ger bästa vägen och
+  alternativen nära kontrollerna (inom 20 mm, förenklade); de sparas i banfilen (`event.routeHints`, åtgärden `SET_ROUTE_HINTS`,
+  utanför ångra-historiken, inte i .ppen). Numrens automatiska placering undviker dem, så förhandsvisningen och PDF:en är lika.
+- En väg gäller bara så länge båda kontrollerna står kvar; flyttas en räknas den om nästa gång. Placerade nummer flyttas inte.
+- Ringkapningen följer fortfarande banans linjer och kartans detaljer, inte vägvalen.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester (`route-hints`), E2E `banlaggning-varningar`, `banlaggning`, `vagval-analys`.
+
 ### 2026-11-08 – Masstart direkt på klassen (ingen migration)
 - Klassens rad (Redigera): "Masstart kl." för en klass med minutstart; en lottning med masstart för bara den klassen (samma väg
   som Start → Lottning), så att efteranmälda också får tiden. Fungerar i alla typer med startsätt per klass.

@@ -2,6 +2,7 @@
  * Banpåtrycket som figurer i kartans mm. Figurernas form och mått, sträckornas ändar vid ringarna och de automatiska
  * avbrotten följer Purple Pens CourseFormatter.cs och CourseObject.cs (BSD, Peter Golde); numrens läge räknas fram här.
  */
+import { routeHintKey, routeSegmentsNear } from "./route-hints";
 import type { Point } from "@o-tid/map-file";
 import { circleGapScale, appearanceOf, sizesFor, type Sizes } from "./appearance";
 import { simplifyGaps } from "./arcs";
@@ -291,7 +292,7 @@ const boxesOverlap = (a: Box, b: Box) => Math.abs(a.cx - b.cx) * 2 < a.w + b.w &
 function placeLabel(
   at: Point, radius: number, gap: number, text: string, height: number,
   lines: readonly Point[][], circles: readonly { center: Point; radius: number }[], placed: readonly Box[], lineWidth: number, fixedAngle?: number,
-  obstacles?: NumberObstacles
+  obstacles?: NumberObstacles, routes: readonly Point[][] = []
 ): Box {
   const w = textWidth(text, height);
   const h = textHeight(text, height);
@@ -314,6 +315,8 @@ function placeLabel(
     for (const other of placed) if (boxesOverlap(box, other)) cost += 20;
     // Kartans hinder (ADR-0211 beslut 4): hus och mörka ytor, svarta linjer.
     cost += obstacleCost(box, obstacles);
+    // Vägvalens troliga vägar väger lättare än banans linjer och ringar men tyngre än kartans hinder.
+    for (const route of routes) if (route.some((point, i) => i > 0 && segmentHitsBox(route[i - 1]!, point, box, lineWidth))) cost += 6;
     if (!best || cost < best.cost) best = { box, cost };
     if (cost === 0) break;
   }
@@ -415,12 +418,15 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
 
   const legs: LegObject[] = [];
   const seen = new Set<string>();
+  // Banans sträckor som vägvalsanalysen räknat (ägaren 2026-11-08): numren läggs utanför de troliga vägarna.
+  const hintKeys = new Set<string>();
   for (const [a, b] of legPairs) {
     const from = controlOf(a);
     const to = controlOf(b);
     const key = legKey(from.id, to.id);
     if (seen.has(key) || from.id === to.id) continue;
     seen.add(key);
+    hintKeys.add(routeHintKey(from.at, to.at));
     const geometry = legGeometry(document, from, to, sizes);
     if (!geometry) continue;
     const fileLegGaps = (document.legs[key]?.gaps ?? []).map(g => ({ start: g.start - geometry.radius, length: g.length }));
@@ -524,7 +530,8 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
       at = cc.numberAt;
     } else {
       const box = placeLabel(object.control.at, apparentRadius("NORMAL", sizes), sizes.numberDistance, text, sizes.numberHeight, legLines,
-        circles.filter(c => c.center !== object.control.at), placed, sizes.line, undefined, options.numberObstacles?.[object.control.id]);
+        circles.filter(c => c.center !== object.control.at), placed, sizes.line, undefined, options.numberObstacles?.[object.control.id],
+        routeSegmentsNear(document, object.control.at, undefined, hintKeys));
       placed.push(box);
       at = { x: box.cx, y: box.cy };
     }

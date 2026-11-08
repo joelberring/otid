@@ -71,6 +71,7 @@ import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-no
 import { useCourseSettingMapFile } from "./use-course-setting-map-file";
 import { useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
+import { useRouteHints } from "./use-route-hints";
 import { useCourseSettingTraining } from "./use-course-setting-training";
 import { useMoveShared } from "./course-setting-move-shared";
 import styles from "./course-setting.module.css";
@@ -287,6 +288,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
     wanted: input !== undefined || lengthWanted || forbidden.wanted || levelStore.wanted });
   const routes = routeWorker.session, routeReady = routeWorker.ready;
+  useRouteHints({ session: routes, ready: routeReady, enabled: !readOnly, edit });
   // ADR-0190 beslut 6: banans längd längs vägval (samma Worker; en vald sträcka avbryter och sparas i samma tabell).
   const routeLength = useRouteLength({ document, view, variant, session: routes, ready: routeReady, failed: routeWorker.failed,
     wanted: lengthWanted, onWanted: () => setLengthWanted(true), store: routeStore });
@@ -485,6 +487,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
         // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10), inte heller de godtagna varningarna (ADR-0199).
         ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}),
+        // Vägvalens vägar nära kontrollerna (ägaren 2026-11-08) gäller bara där kontrollerna står kvar.
+        ...(event.routeHints ? { routeHints: event.routeHints } : {}),
         ...((accepted => accepted ? { acceptedChecks: accepted } : {})(keepAcceptedChecks(event.acceptedChecks, file.document))) },
         // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
         ...(!file.document.training && document.training ? { training: document.training } : {}) };

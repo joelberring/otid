@@ -65,6 +65,8 @@ export {
   ACCEPT_MOVE_METERS, acceptChecksEdit, checkAcceptable, checkKey, checkLevel, checkSubjects, isAccepted, keepAcceptedChecks,
   unacceptChecksEdit, type CheckLevel
 } from "./check-accept";
+// Ägaren 2026-11-08: vägvalens troliga vägar nära kontrollerna, så att numren läggs utanför dem.
+export { ROUTE_HINT_LIMITS, routeHintKey, routeHintOf, routeSegmentsNear } from "./route-hints";
 // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen.
 export {
   acceptSuggestion, lacksFeature, mapNorthDegrees, SUGGEST_LIMITS, suggestAt, suggestForDocument, suggestOptionsFor, type DescriptionSuggestion,

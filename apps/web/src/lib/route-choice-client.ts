@@ -14,6 +14,9 @@ export class RouteChoiceSession {
   private run = 0;
   private onModel: ((model: RouteChoiceModel) => void) | undefined;
   private onError: ((code: RouteChoiceWorkerErrorCode) => void) | undefined;
+  /** Varje räknad sträcka, vem som än bad om den (vägarna nära kontrollerna sparas för kontrollnumren, ägaren 2026-11-08). */
+  private readonly listeners = new Set<(leg: LegInput, analysis: LegAnalysis) => void>();
+  private readonly runLegs = new Map<number, readonly LegInput[]>();
   private readonly runs = new Map<number, { leg: (index: number, analysis: LegAnalysis) => void; done: () => void;
     calibrated?: (result: CalibrationResult) => void; failed: (code: RouteChoiceWorkerErrorCode) => void; cancelled?: () => void;
     levelLeg?: (message: Extract<RouteChoiceWorkerResponse, { type: "level-leg" }>) => void; level?: (result: LevelMeasured) => void }>();
@@ -30,7 +33,12 @@ export class RouteChoiceSession {
     if (message.runId === undefined) return;
     const handler = this.runs.get(message.runId);
     if (!handler) return;
-    if (message.type === "leg") handler.leg(message.index, message.analysis);
+    if (message.type !== "leg" && message.type !== "level-leg") this.runLegs.delete(message.runId);
+    if (message.type === "leg") {
+      handler.leg(message.index, message.analysis);
+      const leg = this.runLegs.get(message.runId)?.[message.index];
+      if (leg) for (const listener of this.listeners) listener(leg, message.analysis);
+    }
     else if (message.type === "calibrated") { this.runs.delete(message.runId); handler.calibrated?.(message.result); }
     else if (message.type === "level-leg") handler.levelLeg?.(message);
     else if (message.type === "level") { this.runs.delete(message.runId); handler.level?.(message.result); }
@@ -42,6 +50,7 @@ export class RouteChoiceSession {
     this.onError?.(code);
     for (const handler of this.runs.values()) handler.failed(code);
     this.runs.clear();
+    this.runLegs.clear();
   }
 
   private send(request: RouteChoiceWorkerRequest, transfer: Transferable[] = []) { this.worker.postMessage(request, transfer); }
@@ -63,6 +72,7 @@ export class RouteChoiceSession {
     this.cancel();
     const runId = ++this.run;
     this.runs.set(runId, { leg, done, failed, ...(cancelled ? { cancelled } : {}) });
+    this.runLegs.set(runId, legs);
     this.send({ type: "analyse", runId, legs });
     return runId;
   }
@@ -89,13 +99,20 @@ export class RouteChoiceSession {
     return runId;
   }
 
+  /** Lyssnar på varje räknad sträcka; ger funktionen som slutar lyssna. */
+  listen(listener: (leg: LegInput, analysis: LegAnalysis) => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
   /** Avbryter pågående körning (svaren som redan kommit står kvar). */
   cancel() {
     const handlers = [...this.runs.values()];
     for (const [runId] of this.runs) this.send({ type: "cancel", runId });
     this.runs.clear();
+    this.runLegs.clear();
     for (const handler of handlers) handler.cancelled?.();
   }
 
-  close() { this.runs.clear(); this.worker.terminate(); }
+  close() { this.runs.clear(); this.runLegs.clear(); this.listeners.clear(); this.worker.terminate(); }
 }

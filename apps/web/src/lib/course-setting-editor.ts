@@ -142,6 +142,24 @@ export function applySteps(state: EditorState, steps: readonly EditStep[], apply
     selection, view, variant: view === state.view ? state.variant : undefined, revision: state.revision + 1, error: undefined };
 }
 
+/**
+ * En ändring som inte är användarens egen (vägvalens vägar nära kontrollerna, ägaren 2026-11-08): den loggas och synkas
+ * som andra men hamnar inte i ångra-historiken. Inget görs i förslagsläget, under en dragning eller om ändringen inte går.
+ */
+export function applyBackground(state: EditorState, edit: CourseSettingEdit, apply: Apply): EditorState {
+  if (state.suggesting || state.dragBase) return state;
+  const wired = wireEdit(edit);
+  try {
+    const result = apply(state.document, wired);
+    if (result.document === state.document) return state;
+    const entry: LoggedEdit = { seq: state.nextSeq, edit: wired, created: createdIdsBetween(state.document, result.document) };
+    return { ...state, document: result.document, log: [...state.log, entry], nextSeq: state.nextSeq + 1, revision: state.revision + 1 };
+  } catch (error) {
+    if (error instanceof CourseSettingEditError) return state;
+    throw error;
+  }
+}
+
 export const canUndo = (state: EditorState) => state.past.length > 0 && !state.dragBase;
 export const canRedo = (state: EditorState) => state.future.length > 0 && !state.dragBase;
 

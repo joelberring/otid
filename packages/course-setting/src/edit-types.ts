@@ -8,7 +8,7 @@ import type { LayoutEdit } from "./print-layout-edit";
 import type { TrainingPatch } from "./training-types";
 import type { CourseLevel } from "./level-types";
 import type {
-  AcceptedCheck, CircleGap, ControlKind, ControlPoint, Course, CourseControl, CourseSettingDocument, ExcludedVariant, Leg, PrintArea,
+  AcceptedCheck, RouteHint, CircleGap, ControlKind, ControlPoint, Course, CourseControl, CourseSettingDocument, ExcludedVariant, Leg, PrintArea,
   RunnerBackLayout, SpecialKind, SpecialObject
 } from "./document-types";
 
@@ -65,7 +65,9 @@ export type CourseSettingEdit =
   /** ADR-0217: layouter, ark, justeringar, klassernas layout och sparade lägen. */
   | LayoutEdit
   /** ADR-0199: godta (värdet) eller ångra (null) varningar per nyckel; övriga godtagna står kvar. */
-  | { readonly type: "SET_ACCEPTED_CHECKS"; readonly checks: Readonly<Record<string, AcceptedCheck | null>> };
+  | { readonly type: "SET_ACCEPTED_CHECKS"; readonly checks: Readonly<Record<string, AcceptedCheck | null>> }
+  /** Vägvalens troliga vägar nära kontrollerna, per sträcka (null = ta bort). */
+  | { readonly type: "SET_ROUTE_HINTS"; readonly hints: Readonly<Record<string, RouteHint | null>> };
 
 /** Ändringarna i `UPDATE_COURSE`. */
 export interface CourseChanges {

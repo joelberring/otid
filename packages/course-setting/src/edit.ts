@@ -19,6 +19,7 @@ import { duplicateCourse } from "./course-duplicate";
 import { setPoints, updateCourse } from "./course-properties";
 import { applyTrainingPatch } from "./training-edit";
 import { setAcceptedChecks } from "./check-accept";
+import { setRouteHints } from "./route-hints";
 import { enumerateCourseControls, findCourse } from "./walk";
 import { el } from "./xml";
 import { applyLayoutEdit, setLayoutSheetArea, setLayoutSheetNumber, setLayoutSheetPaper, type LayoutEdit } from "./print-layout-edit";
@@ -450,6 +451,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
   if (edit.type === "SET_POINTS") return { document: setPoints(document, edit.course, edit.courseControl, edit.points) };
   if (edit.type === "PUT_TRAINING") return { document: applyTrainingPatch(document, edit) };
   if (edit.type === "SET_ACCEPTED_CHECKS") return { document: setAcceptedChecks(document, edit.checks) };
+  if (edit.type === "SET_ROUTE_HINTS") return { document: setRouteHints(document, edit.hints) };
   const draft = draftOf(document);
   let created: string | undefined;
   switch (edit.type) {

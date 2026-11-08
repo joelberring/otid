@@ -4,12 +4,13 @@ import { useCallback, useMemo, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject } from "@o-tid/map-file";
 import {
-  guessCrs, importLayers, importObjects, newKey, parseDxf, parseGeoJson, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  guessCrs, importLayers, importObjects, newKey, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type ImportLayer, type SourceData, type TargetKind
 } from "@o-tid/map-revision";
 import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { mapProjectBase } from "../../lib/map-project-client";
+import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 
@@ -35,16 +36,15 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [sent, setSent] = useState<number>();
   const mapEpsg = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
 
-  const open = useCallback(async (chosen: File) => {
+  const open = useCallback(async (files: readonly File[]) => {
     setProblem(undefined); setSent(undefined);
-    const name = chosen.name.toLowerCase();
     try {
-      const data = name.endsWith(".dxf") ? parseDxf(await chosen.text())
-        : /\.(geo)?json$/.test(name) ? parseGeoJson(await chosen.text()) : undefined;
-      if (!data) { setProblem("unsupported"); return; }
+      const read = await readVectorFiles(files);
+      if (!read) { setProblem("unsupported"); return; }
+      const { name: fileName, data } = read;
       const found = importLayers(data);
       const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
-      setFile({ name: chosen.name, data });
+      setFile({ name: fileName, data });
       setLayers(found);
       setMapping(new Map(found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; })));
       setCrs(data.crs ?? guessCrs(data) ?? mapEpsg);

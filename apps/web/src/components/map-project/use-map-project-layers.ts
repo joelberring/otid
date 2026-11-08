@@ -66,7 +66,7 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
   const drawn = useMemo((): DrawnLayer[] => {
     if (!georeference) return [];
     const result: DrawnLayer[] = [];
-    for (const layer of [...layers].sort((a, b) => a.sort - b.sort)) {
+    for (const layer of [...layers].sort((a, b) => a.sort - b.sort || a.createdAt.localeCompare(b.createdAt))) {
       const image = images.get(layer.layerId);
       if (!image || hidden.has(layer.layerId)) continue;
       try { result.push({ layerId: layer.layerId, image, toMap: layerToMap(layer, georeference), opacity: layer.opacity }); } catch { /* Okänt system. */ }
@@ -105,6 +105,21 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     if (response && response.status !== 200) setProblem(response.status);
   }, [base]);
 
+  /** Ordningen: `up` = ritas ovanpå nästa. Ordningstalen görs om till 0, 1, 2 … och de som ändrats skickas. */
+  const move = useCallback(async (layerId: string, up: boolean) => {
+    const sorted = [...layers].sort((a, b) => a.sort - b.sort || a.createdAt.localeCompare(b.createdAt));
+    const at = sorted.findIndex(layer => layer.layerId === layerId);
+    const to = up ? at + 1 : at - 1;
+    if (at < 0 || to < 0 || to >= sorted.length) return;
+    [sorted[at], sorted[to]] = [sorted[to]!, sorted[at]!];
+    const changed = sorted.map((layer, sort) => ({ layer, sort })).filter(({ layer, sort }) => layer.sort !== sort);
+    setLayers(sorted.map((layer, sort) => ({ ...layer, sort })));
+    for (const { layer, sort } of changed) {
+      const response = await clubRequest(`${base}/layers/${encodeURIComponent(layer.layerId)}`, "PUT", { formatVersion: 1, sort }).catch(() => undefined);
+      if (response?.status !== 200) { setProblem(response?.status ?? 0); await load(); return; }
+    }
+  }, [layers, base, load]);
+
   const remove = useCallback(async (layerId: string) => {
     const response = await clubRequest(`${base}/layers/${encodeURIComponent(layerId)}`, "DELETE").catch(() => undefined);
     if (response?.status === 200) {
@@ -119,6 +134,8 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     return next;
   }), []);
 
-  return { layers, hidden, toggle, drawn, upload, busy, problem, setProblem, setOpacity, remove,
-    canAdd: view.viewer.canPropose, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
+  // Listan visas med det översta först.
+  const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
+  return { layers: listed, hidden, toggle, drawn, upload, busy, problem, setProblem, setOpacity, remove, move,
+    canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

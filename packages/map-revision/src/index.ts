@@ -17,3 +17,4 @@ export * from "./recon";
 export * from "./stats";
 export * from "./vector-parse";
 export * from "./vector-import";
+export * from "./vector-shape";

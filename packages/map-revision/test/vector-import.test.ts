@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapGeoreference } from "@o-tid/map-file";
 import {
-  guessCrs, importLayers, importObjects, joinLines, parseDxf, parseGeoJson, sourcePointToMap, suggestSymbol, VectorParseError
+  clipLine, clipRing, guessCrs, importLayers, importObjects, joinLines, parseDxf, parseGeoJson, sourcePointToMap, suggestSymbol, VectorParseError
 } from "../src";
 
 /** ADR-0219 K4b: GeoJSON och DXF, lagren, symbolförslagen, omräkningen och städningen. */
@@ -76,6 +76,25 @@ describe("vektorunderlagen (K4b)", () => {
     const fence = result.objects.find(object => object.kind === "line")!;
     expect(fence.kind === "line" && fence.path.map(command => [Math.round(command.x * 100) / 100, Math.round(command.y * 100) / 100])).toEqual([[0, 0], [1, 0], [2, 0]]);
     expect(result.objects.find(object => object.kind === "area")).toMatchObject({ symbol: "s521", angle: 0 });
+  });
+
+  it("klipper linjer och ytor mot kartans kant", () => {
+    const box = { minX: 0, minY: 0, maxX: 10, maxY: 10 };
+    const p = (x: number, y: number) => ({ x, y });
+    // In, ut och in igen: två bitar.
+    expect(clipLine([p(-5, 5), p(5, 5), p(5, 15), p(8, 15), p(8, 5)], box)).toEqual([[p(0, 5), p(5, 5), p(5, 10)], [p(8, 10), p(8, 5)]]);
+    expect(clipLine([p(-5, -5), p(-1, -1)], box)).toEqual([]);
+    expect(clipRing([p(-5, -5), p(5, -5), p(5, 5), p(-5, 5)], box)).toEqual([p(0, 0), p(5, 0), p(5, 5), p(0, 5)]);
+    expect(clipRing([p(20, 20), p(30, 20), p(30, 30)], box)).toEqual([]);
+    // I importen: en byggnad över kanten klipps, en linje över kanten blir kortare.
+    const result = importObjects([
+      { layer: "HUS", geometry: { kind: "area", rings: [[[674995, 6580000], [675005, 6580000], [675005, 6580010]]] } },
+      { layer: "STAKET", geometry: { kind: "line", points: [[674990, 6580020], [675010, 6580020]], closed: false } }
+    ], { toMap, bounds: { minX: 0, minY: -10, maxX: 100, maxY: 100 },
+      mapping: new Map([["STAKET", { symbol: "s516", kind: "line" as const }], ["HUS", { symbol: "s521", kind: "area" as const }]]) });
+    expect(result).toMatchObject({ clipped: 2, outside: 0 });
+    const fence = result.objects.find(object => object.kind === "line");
+    expect(fence?.kind === "line" && fence.path[0]!.x).toBeCloseTo(0, 6);
   });
 
   it("slår ihop i båda ändarna och åt båda hållen", () => {

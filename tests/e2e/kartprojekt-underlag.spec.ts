@@ -191,6 +191,8 @@ test("kartprojekt: etapper med revideringsdatum", async ({ browser, baseURL }) =
   const area = await owner.request.post(`${api}/areas`, { headers: { ...await headers(), "content-type": "application/json" }, data: { formatVersion: 1,
     requestId: crypto.randomUUID(), name: "Etapp 1", polygon: [[{ x: 30, y: 40 }, { x: 70, y: 40 }, { x: 70, y: 70 }, { x: 30, y: 70 }]] } });
   expect(area.status(), await area.text()).toBe(201);
+  // Utvecklingsservern kompilerar ändringens väg vid första anropet.
+  await warmRoute(owner, `${api}/areas/${(await area.json() as { area: { areaId: string } }).area.areaId}`, "PUT");
 
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });

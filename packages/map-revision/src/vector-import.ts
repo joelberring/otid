@@ -91,7 +91,7 @@ export interface ImportOptions {
   /** Lager → symbol (id och form); lager som saknas hoppas över. */
   readonly mapping: ReadonlyMap<string, { readonly symbol: string; readonly kind: TargetKind }>;
   readonly toMap: (x: number, y: number) => Point;
-  /** Kartans utbredning i mm: objekt utan någon punkt inom den hoppas över. */
+  /** Kartans utbredning i mm: objekten klipps mot den, och det som ligger helt utanför hoppas över. */
   readonly bounds?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
   /** Kortare linjer (mm) hoppas över; förval 0,3 mm. */
   readonly minLengthMm?: number;
@@ -99,6 +99,8 @@ export interface ImportOptions {
 export interface ImportResult {
   readonly objects: MapObject[];
   readonly outside: number; readonly duplicates: number; readonly short: number; readonly joined: number;
+  /** Objekt som skars av vid kartans kant. */
+  readonly clipped: number;
   /** Objekt vars form inte passar symbolen (en öppen linje som yta, en yta som punkt). */
   readonly mismatched: number;
 }
@@ -107,6 +109,7 @@ const length = (points: readonly Point[]) => points.reduce((sum, point, index) =
   point.y - points[index - 1]!.y), 0);
 const pathOf = (points: readonly Point[]): PathCommand[] => points.map((point, index) => ({ type: index === 0 ? "M" : "L", x: point.x, y: point.y }));
 const JOIN_MM = 0.01;
+const same = (a: readonly Point[], b: readonly Point[]) => a.length === b.length && a.every((point, at) => point.x === b[at]!.x && point.y === b[at]!.y);
 const keyOf = (point: Point) => `${Math.round(point.x / JOIN_MM)},${Math.round(point.y / JOIN_MM)}`;
 
 /** Öppna linjer med samma symbol som möts i ändarna slås ihop (baskartornas linjer i många bitar). Ger linjerna och antal hopslagningar. */
@@ -142,14 +145,62 @@ export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined
   return { lines: pending.filter((_, at) => alive[at]), joined };
 }
 
-/** Lagrens objekt som kandidater i kartans mm, städade. */
+type Box = { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
+const within = (box: Box, point: Point) => point.x >= box.minX && point.x <= box.maxX && point.y >= box.minY && point.y <= box.maxY;
+
+/** En linje klippt mot rektangeln (Liang–Barsky per sträcka): bitarna inuti, i ordning. */
+export function clipLine(points: readonly Point[], box: Box): Point[][] {
+  const pieces: Point[][] = [];
+  let current: Point[] = [];
+  const close = () => { if (current.length >= 2) pieces.push(current); current = []; };
+  for (let index = 1; index < points.length; index += 1) {
+    const a = points[index - 1]!, b = points[index]!;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    let t0 = 0, t1 = 1, visible = true;
+    for (const [p, q] of [[-dx, a.x - box.minX], [dx, box.maxX - a.x], [-dy, a.y - box.minY], [dy, box.maxY - a.y]] as const) {
+      if (p === 0) { if (q < 0) { visible = false; break; } continue; }
+      const t = q / p;
+      if (p < 0) { if (t > t1) { visible = false; break; } if (t > t0) t0 = t; }
+      else { if (t < t0) { visible = false; break; } if (t < t1) t1 = t; }
+    }
+    if (!visible) { close(); continue; }
+    const start = { x: a.x + t0 * dx, y: a.y + t0 * dy }, end = { x: a.x + t1 * dx, y: a.y + t1 * dy };
+    if (t0 > 0 || current.length === 0) { close(); current.push(start); }
+    current.push(end);
+    if (t1 < 1) close();
+  }
+  close();
+  return pieces;
+}
+
+/** En ring klippt mot rektangeln (Sutherland–Hodgman). */
+export function clipRing(ring: readonly Point[], box: Box): Point[] {
+  let output = [...ring];
+  const edges: [(point: Point) => boolean, (a: Point, b: Point) => Point][] = [
+    [point => point.x >= box.minX, (a, b) => ({ x: box.minX, y: a.y + (b.y - a.y) * (box.minX - a.x) / (b.x - a.x) })],
+    [point => point.x <= box.maxX, (a, b) => ({ x: box.maxX, y: a.y + (b.y - a.y) * (box.maxX - a.x) / (b.x - a.x) })],
+    [point => point.y >= box.minY, (a, b) => ({ x: a.x + (b.x - a.x) * (box.minY - a.y) / (b.y - a.y), y: box.minY })],
+    [point => point.y <= box.maxY, (a, b) => ({ x: a.x + (b.x - a.x) * (box.maxY - a.y) / (b.y - a.y), y: box.maxY })]
+  ];
+  for (const [inside, cut] of edges) {
+    const input = output;
+    output = [];
+    for (let index = 0; index < input.length; index += 1) {
+      const current = input[index]!, previous = input[(index + input.length - 1) % input.length]!;
+      if (inside(current)) { if (!inside(previous)) output.push(cut(previous, current)); output.push(current); }
+      else if (inside(previous)) output.push(cut(previous, current));
+    }
+    if (output.length === 0) break;
+  }
+  return output;
+}
+
+/** Lagrens objekt som kandidater i kartans mm, städade och klippta mot kartan. */
 export function importObjects(features: readonly SourceFeature[], options: ImportOptions): ImportResult {
   const minLength = options.minLengthMm ?? 0.3;
   const bounds = options.bounds;
-  const inside = (points: readonly Point[]) => !bounds || points.some(point => point.x >= bounds.minX && point.x <= bounds.maxX
-    && point.y >= bounds.minY && point.y <= bounds.maxY);
   const map = (points: readonly (readonly [number, number])[]) => points.map(([x, y]) => options.toMap(x, y));
-  let outside = 0, mismatched = 0, short = 0;
+  let outside = 0, mismatched = 0, short = 0, clipped = 0;
   const objects: MapObject[] = [];
   const openLines = new Map<string, Point[][]>();
   for (const { layer, geometry } of features) {
@@ -157,11 +208,23 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     if (!target) continue;
     const converted = convert(geometry, target.kind, map);
     if (!converted) { mismatched += 1; continue; }
-    if (!inside(converted.kind === "point" ? [converted.at] : converted.kind === "line" ? converted.points : converted.rings.flat())) { outside += 1; continue; }
-    if (converted.kind === "point") objects.push({ kind: "point", symbol: target.symbol, at: converted.at, angle: 0 });
-    else if (converted.kind === "area") objects.push({ kind: "area", symbol: target.symbol, rings: converted.rings.map(pathOf), angle: 0 });
-    else if (converted.closed) objects.push({ kind: "line", symbol: target.symbol, path: pathOf([...converted.points, converted.points[0]!]) });
-    else openLines.set(target.symbol, [...(openLines.get(target.symbol) ?? []), converted.points]);
+    if (converted.kind === "point") {
+      if (bounds && !within(bounds, converted.at)) { outside += 1; continue; }
+      objects.push({ kind: "point", symbol: target.symbol, at: converted.at, angle: 0 });
+    } else if (converted.kind === "area") {
+      const rings = bounds ? converted.rings.map(ring => clipRing(ring, bounds)) : converted.rings;
+      if ((rings[0]?.length ?? 0) < 3) { outside += 1; continue; }
+      if (rings.some((ring, index) => !same(ring, converted.rings[index]!))) clipped += 1;
+      objects.push({ kind: "area", symbol: target.symbol, rings: rings.filter(ring => ring.length >= 3).map(pathOf), angle: 0 });
+    } else {
+      const whole = converted.closed ? [...converted.points, converted.points[0]!] : converted.points;
+      const pieces = bounds ? clipLine(whole, bounds) : [whole];
+      if (pieces.length === 0) { outside += 1; continue; }
+      const untouched = pieces.length === 1 && same(pieces[0]!, whole);
+      if (!untouched) clipped += 1;
+      if (converted.closed && untouched) objects.push({ kind: "line", symbol: target.symbol, path: pathOf(whole) });
+      else for (const piece of pieces) openLines.set(target.symbol, [...(openLines.get(target.symbol) ?? []), piece]);
+    }
   }
   let joined = 0;
   for (const [symbol, lines] of openLines) {
@@ -184,7 +247,7 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     seen.add(key);
     return true;
   });
-  return { objects: unique, outside, duplicates: objects.length - unique.length, short, joined, mismatched };
+  return { objects: unique, outside, clipped, duplicates: objects.length - unique.length, short, joined, mismatched };
 }
 
 type Converted = { kind: "point"; at: Point } | { kind: "line"; points: Point[]; closed: boolean } | { kind: "area"; rings: Point[][] };

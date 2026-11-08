@@ -29,8 +29,9 @@ export function MapProjectImportPanel({ importer, symbols }: { importer: Import;
     {importer.sent !== undefined && <p role="status" data-testid="map-project-import-sent">{text.sent(importer.sent)}</p>}
     {!file ? <span className={styles.actions}>
       <Button variant="secondary" onClick={() => input.current?.click()}>{text.choose}</Button>
-      <input ref={input} type="file" hidden accept=".geojson,.json,.dxf,application/geo+json" data-testid="map-project-import-file"
-        onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ""; if (chosen) void importer.open(chosen); }} />
+      <input ref={input} type="file" hidden multiple accept=".geojson,.json,.dxf,.shp,.dbf,.prj,.cpg,.zip,application/geo+json,application/zip"
+        data-testid="map-project-import-file"
+        onChange={event => { const chosen = [...event.target.files ?? []]; event.target.value = ""; if (chosen.length) void importer.open(chosen); }} />
     </span> : <form className={styles.areaForm} onSubmit={event => { event.preventDefault(); void importer.propose(); }}>
       <p className={styles.muted}>{text.file(file.name, file.data.features.length, file.data.skipped)}</p>
       <label>{text.crs}<input inputMode="numeric" value={importer.crs ?? ""} data-testid="map-project-import-crs"
@@ -53,7 +54,7 @@ export function MapProjectImportPanel({ importer, symbols }: { importer: Import;
         })}
       </fieldset>
       {result && <p className={styles.muted} data-testid="map-project-import-result" role="status">
-        {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched)}</p>}
+        {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped)}</p>}
       {!result && importer.crs !== undefined && <p role="alert" className={styles.problem}>{text.problems.crs}</p>}
       <span className={styles.actions}>
         <Button type="submit" disabled={!result || result.objects.length === 0 || !!importer.progress} data-testid="map-project-import-propose">

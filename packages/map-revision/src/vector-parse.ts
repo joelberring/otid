@@ -31,11 +31,13 @@ function openRing(ring: Position[]): Position[] {
   return first && last && ring.length > 1 && first[0] === last[0] && first[1] === last[1] ? ring.slice(0, -1) : ring;
 }
 
-const LAYER_PROPERTIES = ["layer", "Layer", "LAYER", "lager", "objekttyp", "Objekttyp", "OBJEKTTYP", "obkod", "OBKOD", "type", "kind", "class"];
-function layerOf(properties: unknown, fallback: string): string {
+/** Egenskaperna som ger lagret, i den ordningen (stora och små bokstäver spelar ingen roll). */
+export const LAYER_PROPERTIES = ["layer", "lager", "objekttyp", "obkod", "detaljtyp", "type", "kind", "class"];
+export function layerOf(properties: unknown, fallback: string): string {
   if (properties && typeof properties === "object") {
+    const byName = new Map(Object.entries(properties as Record<string, unknown>).map(([name, value]) => [name.toLowerCase(), value]));
     for (const name of LAYER_PROPERTIES) {
-      const value = (properties as Record<string, unknown>)[name];
+      const value = byName.get(name);
       if ((typeof value === "string" && value.trim()) || typeof value === "number") return String(value).trim().slice(0, 120);
     }
   }

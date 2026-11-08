@@ -17,7 +17,7 @@ function problemText(problem: LayerProblem): string {
 
 /**
  * ADR-0219 tillägget om underlagen (K4a): underlagen i sidopanelen. Varje underlag kan döljas (för en själv) och göras mer eller
- * mindre genomskinligt (för alla); den som lade till det och ägarna kan ta bort det. Nya läggs till med bild och kanske världsfil.
+ * mindre genomskinligt (för alla) och tas bort av den som lade till det och ägarna; ägarna ändrar ordningen. Nya läggs till med bild och kanske världsfil.
  */
 export function MapProjectLayersPanel({ layers, mapEpsg, after }: { layers: Layers; mapEpsg: number | undefined;
   /** K4b: importen av vektorer, under underlagen. */
@@ -33,16 +33,24 @@ export function MapProjectLayersPanel({ layers, mapEpsg, after }: { layers: Laye
   return <section className={styles.panel} aria-labelledby="map-project-layers" data-testid="map-project-layers">
     <h2 id="map-project-layers">{text.heading}</h2>
     {layers.layers.length === 0 ? <p className={styles.muted}>{text.none}</p> : <ul className={styles.rows}>
-      {layers.layers.map(layer => <li key={layer.layerId} className={styles.layerRow} data-testid="map-project-layer">
+      {layers.layers.map((layer, index) => <li key={layer.layerId} className={styles.layerRow} data-testid="map-project-layer">
         <label className={styles.check}><input type="checkbox" checked={!layers.hidden.has(layer.layerId)} aria-label={text.show(layer.name)}
           onChange={() => layers.toggle(layer.layerId)} />{layer.name}</label>
         <span className={styles.muted}>{text.by(layer.own ? null : layer.createdBy.name, megabytes(layer.byteLength))}</span>
         <input type="range" min={0.1} max={1} step={0.05} value={layer.opacity} aria-label={text.opacity(layer.name)} data-testid="map-project-layer-opacity"
+          disabled={!layers.canManage(layer)}
           onChange={event => void layers.setOpacity(layer.layerId, Number(event.target.value), false)}
           onPointerUp={event => void layers.setOpacity(layer.layerId, Number(event.currentTarget.value), true)}
           onKeyUp={event => void layers.setOpacity(layer.layerId, Number(event.currentTarget.value), true)} />
-        {layers.canManage(layer) && <Button variant="quiet" onClick={() => { if (window.confirm(text.removeConfirm)) void layers.remove(layer.layerId); }}>
-          {text.remove}</Button>}
+        <span className={styles.actions}>
+          {layers.canReorder && layers.layers.length > 1 && <>
+            <Button variant="quiet" disabled={index === 0} aria-label={text.up(layer.name)} onClick={() => void layers.move(layer.layerId, true)}>↑</Button>
+            <Button variant="quiet" disabled={index === layers.layers.length - 1} aria-label={text.down(layer.name)}
+              onClick={() => void layers.move(layer.layerId, false)}>↓</Button>
+          </>}
+          {layers.canManage(layer) && <Button variant="quiet" onClick={() => { if (window.confirm(text.removeConfirm)) void layers.remove(layer.layerId); }}>
+            {text.remove}</Button>}
+        </span>
       </li>)}
     </ul>}
     {problem !== undefined && <p role="alert" className={styles.problem}>{problemText(problem)}{" "}

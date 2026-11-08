@@ -15,6 +15,8 @@ export const mapProjectLayersSv = {
   show: (name: string) => `Visa ${name}`,
   opacity: (name: string) => `Genomskinlighet för ${name}`,
   remove: "Ta bort",
+  up: (name: string) => `Flytta upp ${name}`,
+  down: (name: string) => `Flytta ned ${name}`,
   removeConfirm: "Ta bort underlaget för alla i projektet?",
   by: (name: string | null, size: string) => `${name ?? "Okänd"} · ${size}`,
   problems: {

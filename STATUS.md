@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Underlagens ordning, Shapefile och klippning (ingen migration)
+- Ägarna ändrar ordningen mellan underlagen; genomskinligheten ändras bara av den som får ändra underlaget.
+- Importen läser Shapefile (också i .zip) med koordinatsystemet ur .prj, och klipper linjer och ytor mot kartans kant.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester (`vector-shape`, `vector-import`, importens filer), E2E `kartprojekt-underlag` (3).
+
 ### 2026-11-08 – Etapper med revideringsdatum (migration 0098, ADR-0219 tillägg)
 - Delområdena får ett revideringsdatum (ägarna och den som fått området; klart utan datum ger dagens).
 - Lagret Etapper (bara på skärmen) färgar dem efter åldern, med förklaring i panelen.

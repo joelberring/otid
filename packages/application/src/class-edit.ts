@@ -27,7 +27,7 @@ const MAX_VERSION = 2_147_483_647;
 async function loadClass(tx: Transaction, raceId: string, classId: string) {
   const [row] = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
     courseVersionId: schema.classes.courseVersionId, externalSource: schema.classes.externalSource,
-    externalId: schema.classes.externalId, maxTimeMinutes: schema.classes.maxTimeMinutes,
+    externalId: schema.classes.externalId, maxTimeMinutes: schema.classes.maxTimeMinutes, sourceName: schema.classes.sourceName,
     rogaining: sql<boolean>`${schema.classes.rogainingTimeLimitSeconds} IS NOT NULL`,
     relay: sql<boolean>`exists (select 1 from relay_leg rl where rl.class_id = ${schema.classes.id})` }).from(schema.classes)
     .where(and(eq(schema.classes.id, classId), eq(schema.classes.raceId, raceId)));
@@ -144,7 +144,9 @@ export async function editClassAsAdmin(db: Database, input: Authentication & { i
     const maxTimeChanged = intent.maxTimeMinutes !== undefined && intent.maxTimeMinutes !== raceClass.maxTimeMinutes;
     if ((!renamed && !moved && !startRuleChanged && !maxTimeChanged) || (raceClass.relay && startRuleChanged) ||
       (raceClass.rogaining && intent.maxTimeMinutes != null)) return { status: "invalid-request" };
-    if (renamed && (raceClass.externalSource !== null || raceClass.externalId !== null)) return { status: "conflict" };
+    // En importerad klass får döpas om (ägaren 2026-11-08): källans namn sparas, så att en ny hämtning inte skriver över det egna.
+    const imported = raceClass.externalSource !== null || raceClass.externalId !== null;
+    const sourceName = renamed && imported ? (intent.className === raceClass.sourceName ? null : raceClass.sourceName ?? raceClass.name) : undefined;
     if (renamed && await classNameTaken(tx, raceId, intent.className, raceClass.id)) return { status: "duplicate-name" };
 
     const entries = await tx.select({ id: schema.entries.id, version: schema.entries.version, fixedStartTime: schema.entries.fixedStartTime,
@@ -163,7 +165,8 @@ export async function editClassAsAdmin(db: Database, input: Authentication & { i
 
     // Nytt startsätt tömmer starttiderna och därmed klassens lottning (PLAN.md steg 9).
     await tx.update(schema.classes).set({ name: intent.className, courseVersionId: target.courseVersionId, startRule: plan.startRule,
-      ...(startRuleChanged ? { startDrawId: null } : {}), ...(maxTimeChanged ? { maxTimeMinutes: intent.maxTimeMinutes } : {}) })
+      ...(startRuleChanged ? { startDrawId: null } : {}), ...(maxTimeChanged ? { maxTimeMinutes: intent.maxTimeMinutes } : {}),
+      ...(sourceName !== undefined ? { sourceName } : {}) })
       .where(and(eq(schema.classes.id, raceClass.id), eq(schema.classes.raceId, raceId)));
     if (plan.changed) {
       await tx.update(schema.entries).set({ fixedStartTime: null, version: sql`${schema.entries.version} + 1` })

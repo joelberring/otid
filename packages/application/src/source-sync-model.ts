@@ -44,6 +44,8 @@ export type SourceProjection = EventorProjection | CourseFileProjection;
 export interface CurrentClass {
   readonly id: string; readonly name: string; readonly externalSource: string | null; readonly externalId: string | null;
   readonly courseId: string; readonly courseVersionId: string; readonly startRule: "FIXED" | "PUNCH";
+  /** Döpt om här (migration 0099): namnet i källan; null = namnet följer källan. */
+  readonly sourceName?: string | null | undefined;
   /** Antal sträckor; 0 för en individuell klass. */
   readonly legCount: number;
 }

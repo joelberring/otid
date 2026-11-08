@@ -226,12 +226,15 @@ function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string })
   </form>;
 }
 
-/** Längd och stigning i meter (PLAN.md steg 25). Påverkar inga resultat och sparas direkt. */
+/** Namn (ägaren 2026-11-08), längd och stigning i meter (PLAN.md steg 25). Påverkar inga resultat och sparas direkt. */
 function CourseDetailsEditor({ ws, courseName }: { ws: Workspace; courseName: string }) {
-  const { busy, cancelCourseDetails, changeCourseDetails, detailsClimb, detailsErrors, detailsLength, saveCourseDetails } = ws;
+  const { busy, cancelCourseDetails, changeCourseDetails, detailsClimb, detailsErrors, detailsLength, detailsName, saveCourseDetails } = ws;
   return <form className={styles.editor} aria-label={text.courseDetailsOpenLabel(courseName)} noValidate
     onSubmit={event => { event.preventDefault(); void saveCourseDetails(); }}>
     <div className={styles.fieldRow}>
+      <Field label={text.courseDetailsName} error={detailsErrors.name}>
+        <input autoComplete="off" value={detailsName} maxLength={160} disabled={busy} data-testid="course-details-name"
+          onChange={event => changeCourseDetails({ name: event.target.value })} /></Field>
       <Field label={text.courseLength} error={detailsErrors.length} className={styles.narrowField}>
         <input inputMode="numeric" autoComplete="off" value={detailsLength} maxLength={8} disabled={busy}
           onChange={event => changeCourseDetails({ length: event.target.value })} /></Field>

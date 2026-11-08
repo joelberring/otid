@@ -7,18 +7,19 @@ import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 import type { CourseEditActions } from "./course-edit";
 
-type DetailsField = "length" | "climb";
+type DetailsField = "name" | "length" | "climb";
 
 /** Banans längd och stigning (PLAN.md steg 25): öppen rad, fältfel och sparande. Påverkar inga resultat och sparas direkt. */
 export function useCourseDetailsState() {
   const [detailsCourseId, setDetailsCourseId] = useState("");
   const [detailsLength, setDetailsLength] = useState("");
   const [detailsClimb, setDetailsClimb] = useState("");
+  const [detailsName, setDetailsName] = useState("");
   const [detailsErrors, setDetailsErrors] = useState<FieldErrors<DetailsField>>({});
   const [detailsMessage, setDetailsMessage] = useState("");
   /** Begärans id behålls tills servern svarat, så att ett nytt försök efter nätfel är samma begäran. */
   const [detailsRequest, setDetailsRequest] = useState<CourseDetailsRequest>();
-  return { detailsCourseId, setDetailsCourseId, detailsLength, setDetailsLength, detailsClimb, setDetailsClimb, detailsErrors,
+  return { detailsCourseId, setDetailsCourseId, detailsLength, setDetailsLength, detailsClimb, setDetailsClimb, detailsName, setDetailsName, detailsErrors,
     setDetailsErrors, detailsMessage, setDetailsMessage, detailsRequest, setDetailsRequest };
 }
 
@@ -32,19 +33,20 @@ export function parseMeters(value: string, minimum: number, maximum: number): nu
 }
 
 export function createCourseDetailsActions(ws: Base & RaceDataActions & CourseEditActions) {
-  const { courseList, detailsCourseId, detailsLength, detailsClimb, detailsRequest, raceId, writingRef, pending, requireSession, begin,
-    finish, current, request, json, csrf, readCourses, setDetailsCourseId, setDetailsLength, setDetailsClimb, setDetailsErrors,
+  const { courseList, detailsCourseId, detailsLength, detailsClimb, detailsName, detailsRequest, raceId, writingRef, pending, requireSession, begin,
+    finish, current, request, json, csrf, readCourses, setDetailsCourseId, setDetailsLength, setDetailsClimb, setDetailsName, setDetailsErrors,
     setDetailsMessage, setDetailsRequest } = ws;
   function startCourseDetails(courseId: string) {
     if (writingRef.current || pending.current) return;
     const course = courseList?.courses.find(row => row.courseId === courseId);
     if (!course) return;
     setDetailsCourseId(courseId); setDetailsLength(course.lengthMeters ? String(course.lengthMeters) : "");
-    setDetailsClimb(course.climbMeters != null ? String(course.climbMeters) : ""); setDetailsErrors({}); setDetailsMessage("");
+    setDetailsClimb(course.climbMeters != null ? String(course.climbMeters) : ""); setDetailsName(course.name); setDetailsErrors({}); setDetailsMessage("");
     setDetailsRequest(undefined);
   }
   function cancelCourseDetails() { setDetailsCourseId(""); setDetailsErrors({}); setDetailsRequest(undefined); }
-  function changeCourseDetails(change: { length?: string; climb?: string }) {
+  function changeCourseDetails(change: { name?: string; length?: string; climb?: string }) {
+    if (change.name !== undefined) setDetailsName(change.name);
     if (change.length !== undefined) setDetailsLength(change.length);
     if (change.climb !== undefined) setDetailsClimb(change.climb);
     setDetailsErrors({}); setDetailsRequest(undefined);
@@ -52,18 +54,21 @@ export function createCourseDetailsActions(ws: Base & RaceDataActions & CourseEd
   async function saveCourseDetails() {
     if (writingRef.current || pending.current || !requireSession() || !detailsCourseId) return;
     const lengthMeters = parseMeters(detailsLength, 1, 1_000_000), climbMeters = parseMeters(detailsClimb, 0, 100_000);
+    const name = detailsName.trim();
     const errors = { length: lengthMeters === undefined ? text.courseLengthInvalid : undefined,
-      climb: climbMeters === undefined ? text.courseClimbInvalid : undefined };
+      climb: climbMeters === undefined ? text.courseClimbInvalid : undefined, name: name ? undefined : text.courseNameInvalid };
     setDetailsErrors(errors);
-    if (lengthMeters === undefined || climbMeters === undefined) return;
+    if (lengthMeters === undefined || climbMeters === undefined || !name) return;
+    const renamed = courseList?.courses.find(row => row.courseId === detailsCourseId)?.name !== name;
     const body: CourseDetailsRequest = detailsRequest ?? { formatVersion: 1, requestId: crypto.randomUUID(), courseId: detailsCourseId,
-      lengthMeters, climbMeters };
+      lengthMeters, climbMeters, ...(renamed ? { name } : {}) };
     setDetailsRequest(body);
     const op = begin(true);
     try {
       const response = await request(`/courses/${detailsCourseId}/details`, op, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf(), "idempotency-key": `course-details:${body.requestId}` },
         body: JSON.stringify(body) });
+      if (response.status === 409) { setDetailsRequest(undefined); setDetailsErrors({ name: text.courseNameTaken }); return; }
       if (!response.ok) throw new Error("Course details not saved");
       const receipt = courseDetailsResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== body.requestId) throw new Error("Course details receipt mismatch");

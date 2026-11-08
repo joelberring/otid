@@ -259,6 +259,8 @@ export const classes = pgTable("class", {
   relayReadoutMode: text("relay_readout_mode").$type<"EACH_LEG" | "LAST_LEG">(),
   externalSource: text("external_source"),
   externalId: text("external_id"),
+  /** Migration 0099: klassens namn i källan när den döptes om här; null = namnet följer källan. */
+  sourceName: text("source_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("class_external_uidx").on(table.raceId, table.externalSource, table.externalId),

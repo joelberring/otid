@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-08 – Byt namn på banor och importerade klasser (migration 0099)
+- Banor: namnet i formuläret Namn, längd och stigning (också gafflade banor); ett namn som redan finns avvisas. Inget räknas om.
+- Klasser från Eventor eller IOF XML får döpas om: källans namn sparas (`class.source_name`) och syns på raden, en ny hämtning
+  från Eventor skriver inte över det egna namnet, "Använd importens namn" går tillbaka.
+- Verifierat: typecheck, lint, `lint:dead`, enhetstester (`source-sync-diff`), integration `adr-0169-class-edit`, `steg-25-competition`.
+
 ### 2026-11-08 – Layouten: fria typsnitt, textfärg, kopiera element, karta per löpare på banans papper (ingen migration)
 - Papperets texter: typsnitt (Roboto, Roboto Condensed, Inter, Crimson Text, Bebas Neue, Creepster, Nosifer, Permanent Marker; OFL/Apache,
   samma TrueType på skärmen och inbäddat i PDF:en), kursiv, spärrning och färg (t.ex. grå baksida); Purple Pen får typsnittets namn.

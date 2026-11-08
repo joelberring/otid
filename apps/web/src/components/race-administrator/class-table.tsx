@@ -65,7 +65,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
         const editing = row.classId === editingClassId;
         const selected = row.classId === selectedClassId;
         return [<tr key={row.classId} data-selected={selected ? "true" : undefined} aria-current={selected ? "true" : undefined}>
-          <th scope="row">{row.name}</th>
+          <th scope="row">{row.name}{row.sourceName && <span className={styles.subLine}>{text.sourceNameShort(row.sourceName)}</span>}</th>
           <td data-label={text.course}>{(relayLegs.get(row.classId) ? relayCourses(row.classId) : undefined) ?? courseNames.get(row.courseId) ?? "–"}
             {variants && row.variantCount > 0 && <span className={styles.subLine}>{variantText.forked(row.variantCount)}</span>}
             {variants && row.missingVariantCount > 0 && <>
@@ -136,7 +136,8 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
         <input id={`${id}-max-time`} inputMode="numeric" autoComplete="off" value={classEditMaxTime} maxLength={4} disabled={locked}
           onChange={event => changeClassEdit({ maxTime: event.target.value })} /></Field>}
     </div>
-    {!row.renamable && <p className={styles.workflowHelp}>{text.importedName}</p>}
+    {row.sourceName && <p className={styles.workflowHelp}>{text.sourceName(row.sourceName)}{" "}
+      <Button variant="quiet" disabled={locked} onClick={() => changeClassEdit({ name: row.sourceName! })}>{text.useSourceName}</Button></p>}
     {classEditPreview && <section className={styles.review} role="status" aria-live="polite">
       {classEditPreview.readOutCount === 0 ? <p>{text.nobodyReadOut}</p> : <p><strong>{adminText.courseEditSummary(
         classEditPreview.readOutCount, classEditPreview.becomesOkCount, classEditPreview.becomesMispunchedCount,

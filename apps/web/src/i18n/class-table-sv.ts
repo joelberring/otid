@@ -21,7 +21,9 @@ export const classTableSv = {
   /** Maxtid (PLAN.md steg 25): tomt = ingen gräns. */
   fieldMaxTime: "Maxtid (minuter)", maxTimeHelp: "Lämna tomt för ingen maxtid.",
   maxTimeInvalid: "Maxtid: skriv hela minuter (1–1440) eller lämna tomt.",
-  importedName: "Namnet kommer från en import och kan inte ändras här.",
+  sourceName: (name: string) => `I Eventor/importen: ${name}. En ny hämtning ändrar inte ditt namn.`,
+  sourceNameShort: (name: string) => `Importerad som ${name}`,
+  useSourceName: "Använd importens namn",
   preview: "Visa vad som händer", save: "Spara ändringen", cancel: "Avbryt",
   invalidName: "Skriv ett klassnamn.",
   unchanged: "Inget är ändrat. Inget att spara.",

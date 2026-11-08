@@ -55,6 +55,8 @@ export const courseEditListResponseSchema = z.object({
   classes: z.array(z.object({
     classId: uuid, name, courseId: uuid, startRule: z.enum(["PUNCH", "FIXED"]), entryCount: count, readOutCount: count,
     resultCount: count, missingStartTimeCount: count, renamable: z.boolean(),
+    /** Importerad klass som döpts om här: namnet i källan (Eventor, IOF XML); null = namnet följer källan. */
+    sourceName: name.nullable().optional(),
     // Gafflad klass: antal varianter och löpare utan variant ("Fördela gafflingar").
     variantCount: count, missingVariantCount: count,
     /** Maxtid i minuter (PLAN.md steg 25); null = ingen. Rogainingklasser har egen tidsgräns och ingen maxtid. */
@@ -140,7 +142,9 @@ export const courseDetailsRequestSchema = z.object({
   lengthMeters: z.number().int().min(1).max(1_000_000).nullable(),
   climbMeters: z.number().int().min(0).max(100_000).nullable(),
   /** Steg 49: gafflingssätt (utjämnad eller fulgaffling); påverkar bara rättvisekontrollen. */
-  forkingMode: forkingModeSchema.optional()
+  forkingMode: forkingModeSchema.optional(),
+  /** Ägaren 2026-11-08: nytt namn på banan (visas direkt i listor, avläsning och resultat; banfilen känner igen den på sitt id). */
+  name: name.optional()
 }).strict();
 export const courseDetailsIdempotencyKeySchema = z.string().regex(prefixedUuidPattern("course-details"));
 export const courseDetailsResponseSchema = z.object({

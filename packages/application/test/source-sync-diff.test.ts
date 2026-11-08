@@ -27,6 +27,15 @@ describe("skillnader mot Eventor", () => {
     expect(diff.rows[0]!.action).toMatchObject({ type: "UPDATE_ENTRY", entryId: "a", eventorId: "1", cardNumber: "123" });
   });
 
+  it("en klass döpt om här behåller sitt namn; annars följer namnet Eventor (migration 0099)", () => {
+    const linked = { ...h21, name: "Hyperion herr", externalSource: "eventor", externalId: "90001" };
+    const base = state([]);
+    const renamedHere = diffEventor(eventor([]), { ...base, classes: [{ ...linked, sourceName: "H21" }] });
+    expect(renamedHere.rows.filter(planned => planned.action.type === "RENAME_CLASS")).toEqual([]);
+    const notRenamed = diffEventor(eventor([]), { ...base, classes: [{ ...linked, sourceName: null }] });
+    expect(notRenamed.rows.map(planned => planned.action)).toContainEqual({ type: "RENAME_CLASS", classId: "class-h21", name: "H21" });
+  });
+
   it("rör aldrig en direktanmäld deltagare med samma namn", () => {
     const diff = diffEventor(eventor([person("1", "Åsa", "Ödman")]), state([local({ id: "a", givenName: "Åsa", familyName: "Ödman" })]));
     expect(diff.rows.map(planned => [planned.row.kind, planned.action.type])).toEqual([["NEW", "CREATE_ENTRY"]]);

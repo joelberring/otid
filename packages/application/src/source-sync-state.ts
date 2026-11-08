@@ -37,7 +37,8 @@ export async function loadCurrentState(tx: Transaction, raceId: string): Promise
   const legs = await tx.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg }).from(schema.relayLegs)
     .where(eq(schema.relayLegs.raceId, raceId));
   const classes = (await tx.select({ id: schema.classes.id, name: schema.classes.name, externalSource: schema.classes.externalSource,
-    externalId: schema.classes.externalId, courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule })
+    externalId: schema.classes.externalId, courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
+    sourceName: schema.classes.sourceName })
     .from(schema.classes).where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id)))
     .map(row => ({ ...row, courseId: versionToCourse.get(row.courseVersionId)!, legCount: legs.filter(leg => leg.classId === row.id).length }));
 

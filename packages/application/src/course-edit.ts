@@ -238,7 +238,7 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
     const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
       courseId: schema.courseVersions.courseId, courseVersionId: schema.classes.courseVersionId,
       externalSource: schema.classes.externalSource, externalId: schema.classes.externalId, maxTimeMinutes: schema.classes.maxTimeMinutes,
-      rogainingTimeLimitSeconds: schema.classes.rogainingTimeLimitSeconds })
+      rogainingTimeLimitSeconds: schema.classes.rogainingTimeLimitSeconds, sourceName: schema.classes.sourceName })
       .from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id));
     const classVariants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
@@ -250,7 +250,8 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
         resultCount: classEntries.filter(entry => resultEntries.has(entry.id)).length,
         // Stafettsträckor får sin start av masstart, växling eller omstart; de saknar inte starttid.
         missingStartTimeCount: row.startRule === "FIXED" ? classEntries.filter(entry => entry.fixedStartTime === null && entry.teamId === null).length : 0,
-        renamable: row.externalSource === null && row.externalId === null, variantCount: codes.length,
+        // Alla klasser får döpas om; en importerad visar källans namn när det egna skiljer sig (migration 0099).
+        renamable: true, sourceName: row.externalSource !== null || row.externalId !== null ? row.sourceName : null, variantCount: codes.length,
         maxTimeMinutes: row.maxTimeMinutes, rogaining: row.rogainingTimeLimitSeconds !== null,
         missingVariantCount: codes.length === 0 ? 0 : classEntries.filter(entry => {
           const code = entryVariants.get(entry.id);

@@ -38,7 +38,9 @@ export function diffEventor(projection: EventorProjection, state: CurrentState):
     }
     if (linked) {
       target.set(eventorClass.id, { ref: { existing: linked.id }, name: eventorClass.name, legCount: linked.legCount });
-      if (linked.name !== eventorClass.name) rows.push({ row: row({ key: `class-name:${linked.id}`, kind: "CHANGED", subject: "CLASS",
+      // Döpt om här: det egna namnet står kvar (ägaren 2026-11-08).
+      const renamedHere = linked.sourceName !== null && linked.sourceName !== undefined;
+      if (!renamedHere && linked.name !== eventorClass.name) rows.push({ row: row({ key: `class-name:${linked.id}`, kind: "CHANGED", subject: "CLASS",
         label: linked.name, changes: [{ field: "CLASS_NAME", from: linked.name, to: eventorClass.name }] }),
         action: { type: "RENAME_CLASS", classId: linked.id, name: eventorClass.name } });
       continue;

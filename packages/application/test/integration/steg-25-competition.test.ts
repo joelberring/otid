@@ -155,6 +155,16 @@ describe("disk med orsak, Eventor-id, bana och listans ställning (punkt 4)", ()
     const details = await saveCourseDetailsAsAdmin(db, { ...admin, idempotencyKey: `course-details:${detailsId}`,
       request: { formatVersion: 1, requestId: detailsId, courseId: ids.course, lengthMeters: 4200, climbMeters: 120 } }, NOW);
     expect(details.status).toBe("saved");
+    // Ägaren 2026-11-08: banan döps om i samma formulär (och tillbaka, exporten nedan väntar sig det gamla namnet).
+    const original = (await pool.query<{ name: string }>("select name from course where id = $1", [ids.course])).rows[0]!.name;
+    const renameId = randomUUID();
+    const renamed = await saveCourseDetailsAsAdmin(db, { ...admin, idempotencyKey: `course-details:${renameId}`,
+      request: { formatVersion: 1, requestId: renameId, courseId: ids.course, lengthMeters: 4200, climbMeters: 120, name: "Bana Lång" } }, NOW);
+    expect(renamed.status).toBe("saved");
+    expect((await pool.query<{ name: string }>("select name from course where id = $1", [ids.course])).rows[0]!.name).toBe("Bana Lång");
+    const backId = randomUUID();
+    expect((await saveCourseDetailsAsAdmin(db, { ...admin, idempotencyKey: `course-details:${backId}`,
+      request: { formatVersion: 1, requestId: backId, courseId: ids.course, lengthMeters: 4200, climbMeters: 120, name: original } }, NOW)).status).toBe("saved");
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 40), run(cards.bo, "10:10:00", 35), run(cards.cia, "11:00:00", 30),
       run(cards.dan, "11:00:00", 31)]);
     await decide(admin, ids.eva, { kind: "DID_NOT_START" });

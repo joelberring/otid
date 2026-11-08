@@ -170,6 +170,22 @@ describe("ADR-0169 Redigera klass", () => {
     expect((await edit(f, {}, false)).result.status).toBe("invalid-request");
   });
 
+  it("en importerad klass döps om: källans namn sparas, tillbaka till källans namn tar bort det (migration 0099)", async () => {
+    const f = await race();
+    await pool.query("update class set external_source = 'eventor', external_id = '4711' where id = $1", [f.classId]);
+    const renamed = await edit(f, { className: "Hyperion herr" }, false);
+    expect(renamed.result.status).toBe("edited");
+    const sourceName = async () => (await pool.query<{ source_name: string | null }>("select source_name from class where id = $1", [f.classId])).rows[0]!.source_name;
+    expect(await sourceName()).toBe("H21");
+    const listed = await listCoursesForEditAsAdmin(db, f.proof);
+    expect(listed.status === "ok" && listed.response.classes.find(row => row.classId === f.classId)).toMatchObject({ name: "Hyperion herr",
+      sourceName: "H21", renamable: true });
+    expect((await edit(f, { className: "Hyperion H" }, false)).result.status).toBe("edited");
+    expect(await sourceName()).toBe("H21");
+    expect((await edit(f, { className: "H21" }, false)).result.status).toBe("edited");
+    expect(await sourceName()).toBeNull();
+  });
+
   it("byte av startsätt räknar om och resultatet förblir aktuellt", async () => {
     const f = await race();
     const ada = await register(f, "Ada", "8301");

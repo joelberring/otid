@@ -183,7 +183,7 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
       viewer: { accountId, canEdit: mapProjectAllows(role, project, "edit"), canManage, canWriteVersion: canManage,
         canArchive: canManage && await mapProjectCanArchive(tx, accountId, project), canPropose: mapProjectAllows(role, project, "propose"),
         canDecide: canManage },
-      mode: project.mode ?? "SHARED", areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
+      mode: project.mode ?? "SHARED", area: project.area ?? null, areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
       readerVersion: project.readerVersion, seq: project.seq, members: await members(tx, project),
       invitations: open.map(row => ({ invitationId: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString(),
         sentAt: sent.get(row.id)?.toISOString() ?? null })) } } as const;

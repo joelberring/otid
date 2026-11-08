@@ -179,3 +179,19 @@ export function drawAreas(ctx: Context, view: Viewport, areas: readonly AreaDraw
   }
   ctx.restore();
 }
+
+/** En ny kartas område: svart streckad kant (bara på skärmen). */
+export function drawMapArea(ctx: Context, view: Viewport, polygon: readonly (readonly Point[])[]) {
+  ctx.save();
+  ctx.beginPath();
+  for (const ring of polygon) {
+    ring.forEach((point, index) => {
+      const at = toScreen(view, point);
+      if (index === 0) ctx.moveTo(at.x, at.y); else ctx.lineTo(at.x, at.y);
+    });
+    ctx.closePath();
+  }
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.stroke();
+  ctx.strokeStyle = "#111"; ctx.lineWidth = 1.5; ctx.setLineDash([12, 4, 2, 4]); ctx.stroke();
+  ctx.restore();
+}

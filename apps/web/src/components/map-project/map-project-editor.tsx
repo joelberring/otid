@@ -10,7 +10,7 @@ import {
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { Viewport } from "../../lib/course-setting-viewport";
 import { draftObject, insertAt, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
-import { drawAreas, drawDraftPoints, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
+import { drawAreas, drawDraftPoints, drawMapArea, drawPreview, drawProposed, drawSelection, type AreaDrawing } from "../../lib/map-project-overlay";
 import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
 import { CourseSettingMap, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
@@ -283,6 +283,7 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
 
   const overlay = useCallback((ctx: CanvasRenderingContext2D, current: Viewport) => {
     const shown = preview ?? selected?.object;
+    if (view.area) drawMapArea(ctx, current, view.area);
     drawAreas(ctx, current, areaDrawings);
     drawProposed(ctx, current, proposedOpen.objects, proposedOpen.deleted, false);
     drawProposed(ctx, current, proposedShown.objects, proposedShown.deleted, true);
@@ -299,7 +300,7 @@ export function MapProjectEditor({ view }: { view: MapProjectView }) {
       drawDraftPoints(ctx, current, draft, cursor);
     }
     if (shown && tool === "select" && selected) drawSelection(ctx, current, shown, activeVertex);
-  }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown]);
+  }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint

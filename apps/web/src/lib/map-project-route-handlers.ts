@@ -1,5 +1,5 @@
 import {
-  createMapProject, createMapProjectFromUpload, discardStagedMapContent, exportMapProjectChanges, inviteMapProjectMember, listMapProjects,
+  createMapProject, createMapProjectFromUpload, createMapProjectNew, discardStagedMapContent, exportMapProjectChanges, inviteMapProjectMember, listMapProjects,
   readMapProject, readMapProjectOutput, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole, stageMapContent, streamMapContentParts,
   syncMapProject, updateMapProject, writeMapProjectVersion
 } from "@o-tid/application";
@@ -33,6 +33,19 @@ export async function mapProjectsRoute(db: Database, request: Request, environme
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await createMapProject(db, { ...input.proof, request: input.body });
+    return result.status === "created" ? privateJson({ formatVersion: 1, projectId: result.projectId }, result.replayed ? 200 : 201)
+      : failure(result.status);
+  });
+}
+
+/** POST nytt projekt med en ny tom karta (K1): norm, skala, område och missvisning; 422 när området är för stort. */
+export async function mapProjectNewRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await createMapProjectNew(db, { ...input.proof, request: input.body });
+    if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED");
+    if (result.status === "area-too-large") return problem("AREA_TOO_LARGE");
     return result.status === "created" ? privateJson({ formatVersion: 1, projectId: result.projectId }, result.replayed ? 200 : 201)
       : failure(result.status);
   });

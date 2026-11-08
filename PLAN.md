@@ -1186,13 +1186,16 @@ Bygger om det användbara från de pausade grenarna `kartfil-skrivning` och `kar
 - [x] **Rättat 2026-11-07 (migration 0090, ADR-0219 tillägg):** projektet ägs av sina medlemmar och klubben är valfri; eget
   projekt från en kartfil för alla inloggade; versioner sparas i projektet och läggs i klubbarkivet bara på begäran.
 
-## [ ] Steg K1 – Rita på datorn och flera samtidigt
+## [x] Steg K1 – Rita på datorn och flera samtidigt
 
-- [ ] Kartprojektets sida: kartan som vektorer (ritkoden från steg 59), lager och symbolgrupper, andras ändringar i realtid.
-- [ ] Ritverktyg: punkt, linje och yta med bezier, flytta brytpunkter, byta symbol, ta bort, ångra/gör om, kortkommandon som
+Migration 0091 och 0092, ADR-0219 tilläggen 2026-11-07 (natt) och 2026-11-08.
+
+- [x] Kartprojektets sida: kartan som vektorer (ritkoden från steg 59), lager och symbolgrupper, andras ändringar (var femte sekund).
+- [x] Ritverktyg: punkt, linje och yta med bezier, flytta brytpunkter, byta symbol, ta bort, ångra/gör om, kortkommandon som
   i Mapper; bara symboler som finns i filen.
-- [ ] Arbetssätt Huvudkartritare/Gemensamt och förslag (`SUGGEST`), delområden som delas ut till personer.
-- [ ] Nya kartor: tom .omap med ISOM 2017-2 eller ISSprOM 2019-2, område som polygon, export.
+- [x] Arbetssätt Huvudkartritare/Gemensamt och förslag (`SUGGEST`), delområden som delas ut till personer.
+- [x] Nya kartor: tom .omap med O-Tids ISOM 2017-2 eller ISSprOM 2019-2, område som polygon (GeoJSON eller mittpunkt), export
+  som vilken grundfil som helst. Symbolsetet ska kontrolleras mot normen av ägaren.
 
 ## [ ] Steg K2 – Claude ser och läser kartan (MCP)
 
@@ -1200,7 +1203,9 @@ Bygger om det användbara från de pausade grenarna `kartfil-skrivning` och `kar
   bara förslag, aldrig direkt i kartan (ADR-0219 beslut 8).
 
 Senare enligt planen: K3 mobil ritning och rekningsstatus ur GPS-spår, K3b frivillig spelifiering, K4 underlag och
-geo-arbetaren, K5 Karttapullautin och fuktighet, K6 generalisering och normkontroll, K7 begränsad revidering av OCAD.
+geo-arbetaren (med import av baskartor: lagermappning och rensning av överskott), K5 Karttapullautin och fuktighet, K6
+generalisering och normkontroll, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre
+kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD.
 
 ## Efter målet (inte nu)
 

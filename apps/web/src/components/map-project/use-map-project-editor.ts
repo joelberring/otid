@@ -57,13 +57,15 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   const syncedRef = useRef(onSynced);
   syncedRef.current = onSynced;
 
+  const area = view.area;
   // Grundfilen till Workern.
   useEffect(() => {
     const controller = new AbortController();
     let closed = false;
     const created = new MapProjectSession(createWorker, loaded => {
       if (closed) return;
-      setBounds(loaded.bounds); setColors(loaded.colors); setGeoreference(loaded.georeference); setMapStatus("ready");
+      // En ny tom karta: kartvyn täcker området.
+      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); setGeoreference(loaded.georeference); setMapStatus("ready");
       created.catalog(symbols => { if (!closed) setCatalog(symbols); });
     }, () => { if (!closed) setMapStatus("failed"); });
     void (async () => {
@@ -80,7 +82,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
       } catch { if (!closed) setMapStatus("failed"); }
     })();
     return () => { closed = true; controller.abort(); created.close(); };
-  }, [base, view.base.sha256, view.base.fileName]);
+  }, [base, view.base.sha256, view.base.fileName, area]);
 
   // Det sparade läget i webbläsaren.
   useEffect(() => {
@@ -213,4 +215,13 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     /** Objekten som dras (ritas inte av Workern medan förhandsvisningen syns ovanpå). */
     setPreview
   };
+}
+
+/** Områdets omslutande rektangel med en tiondel marginal. */
+function areaBounds(area: readonly (readonly { x: number; y: number }[])[]): Bounds {
+  const points = area.flat();
+  const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x));
+  const minY = Math.min(...points.map(point => point.y)), maxY = Math.max(...points.map(point => point.y));
+  const margin = Math.max(maxX - minX, maxY - minY) * 0.1;
+  return { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
 }

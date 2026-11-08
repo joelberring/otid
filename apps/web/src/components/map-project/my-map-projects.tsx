@@ -8,11 +8,12 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { mapProjectFailure, mapProjectsBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
 import { Button, Field, Notice } from "../ui";
+import { NewMapProject } from "./new-map-project";
 import styles from "./map-project.module.css";
 
 const text = mapProjectSv.list;
 
-/** ADR-0219: kontots kartprojekt (som medlem, eller som administratör i projektets klubb) och ett nytt eget projekt från en fil. */
+/** ADR-0219: kontots kartprojekt (som medlem, eller som administratör i projektets klubb), en ny karta och ett eget projekt från en fil. */
 export function MyMapProjects() {
   const [list, setList] = useState<MapProjectList>();
   const [problem, setProblem] = useState("");
@@ -37,7 +38,7 @@ export function MyMapProjects() {
             project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
       </li>)}
     </ul>}
-    {!problem && <UploadProject />}
+    {!problem && <div className={styles.sections}><NewMapProject /><UploadProject /></div>}
   </main>;
 }
 

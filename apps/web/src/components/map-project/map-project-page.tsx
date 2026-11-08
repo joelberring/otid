@@ -89,7 +89,8 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
         <h2 id="map-project-base">{text.page.base}</h2>
         <dl className={styles.facts}>
           <dt>{text.page.club}</dt><dd>{project.club?.name ?? text.page.ownProject}</dd>
-          <dt>{text.page.base}</dt><dd>{project.base.mapName} · {project.base.fileName}{project.base.versionDate ? ` · ${project.base.versionDate}` : ""}</dd>
+          <dt>{text.page.base}</dt><dd>{project.base.mapName} · {project.base.fileName}{project.base.versionDate ? ` · ${project.base.versionDate}` : ""}
+            {project.base.source === "NEW" ? ` · ${text.page.newMap}` : ""}</dd>
           <dt>{text.page.changes}</dt><dd>{text.page.changed(project.changedObjects)}</dd>
         </dl>
         <div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}

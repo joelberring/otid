@@ -20,6 +20,12 @@
 .actions > button, .actions > a { min-height: 44px; }
 .form { display: grid; gap: .65rem; max-width: 40rem; }
 .form input, .form select { width: 100%; min-height: 44px; }
+/* Ny karta: områdets val och bredd/höjd bredvid varandra. */
+.choice { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; }
+.choice legend { font-weight: 600; margin-bottom: .25rem; }
+.choice label { display: flex; gap: .4rem; align-items: center; min-height: 44px; }
+.choice input { width: 20px; min-height: 20px; height: 20px; }
+.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .inline { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; }
 .inline > * { flex: 1 1 12rem; min-width: 0; }
 .buttonLink { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--line-strong);

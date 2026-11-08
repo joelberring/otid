@@ -44,7 +44,9 @@ export const mapProjects = pgTable("map_project", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
   requestId: uuid("request_id").notNull(),
   /** Arbetssättet (0091); null = Gemensamt. */
-  mode: text("mode").$type<MapProjectMode>()
+  mode: text("mode").$type<MapProjectMode>(),
+  /** En ny kartas område (0092): ringar av punkter i kartans mm, y uppåt; null för en befintlig karta. */
+  area: jsonb("area").$type<{ x: number; y: number }[][]>()
 });
 
 export const mapProjectMembers = pgTable("map_project_member", {

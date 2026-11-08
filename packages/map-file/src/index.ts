@@ -15,3 +15,5 @@ export { rgbFromCmyk } from "./color";
 export * from "./revision/change-set";
 export { applyMapRevision } from "./revision/apply";
 export { sha256Hex } from "./revision/sha256";
+export { newMapFile, NewMapError, SYMBOL_SETS } from "./template/new-map";
+export type { NewMapOptions, SymbolSetId } from "./template/new-map";

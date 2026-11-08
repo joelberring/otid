@@ -89,3 +89,18 @@ inte med ägarens beslut att inloggningen ska fungera som i resten av O-Tid. Äg
    (ändringarna görs genom samma väg som synken, var och en gjord eller krock) eller avvisar; den som föreslog kan dra tillbaka.
    Loggen har den som föreslog som författare och den som godkände i `map_project_edit.accepted_by` (med `proposal_id`).
    Förslag från en person som tagits bort står kvar.
+
+
+## Tillägg 2026-11-08: nya kartor (steg K1, migration 0092)
+
+1. **O-Tids egna symbolset** (`packages/map-file/src/template`): ISOM 2017-2 (1:15 000, 1:10 000 förstorat 1,5 gånger) och
+   ISSprOM 2019-2 (1:4 000 och 1:3 000 med samma mått), skrivna ur normerna som data i O-Tid. Mappers symbolfiler (GPL) används inte.
+   Förenklingar: kantlinjer på ytor är egna linjesymboler (301.1, 501.1, 521.1), några mönster är ungefärliga. Symbolsetet ska
+   kontrolleras mot normen innan en karta trycks skarpt; normkontrollen kommer i K6.
+2. **En ny karta** (`newMapFile`) är en tom Mapper-fil (XML v9) med symbolsetet, skalan och georeferensen i SWEREF 99 TM.
+   Referenspunkten är mitten av områdets omslutande rektangel, kartans 0,0. Kartan vrids mot magnetisk nord: grivationen är
+   missvisningen (som personen anger) minus meridiankonvergensen i referenspunkten.
+3. **Projektet** (`POST /api/organizer/map-projects/new`, alla inloggade, ingen klubb, `base_source = NEW`) får kartfilen som
+   grundfil och området som `map_project.area` (kartans mm, y uppåt, som delområdena). Området kommer som polygon i WGS 84 eller
+   SWEREF 99 TM, högst 15 km per sida. I webben: en GeoJSON-fil (t.ex. strandlinjen från QGIS) eller en mittpunkt med bredd och
+   höjd. Att välja området på en bakgrundskarta kommer med underlagen i K4.

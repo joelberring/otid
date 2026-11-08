@@ -5,10 +5,16 @@ finns i `docs/archive/status-2026-10-03.md`.
 
 ## Aktuellt steg
 
-Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): steg K0 är klart och rättat (projekten ägs av sina medlemmar, klubben valfri, 0090); K1 pågår. Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
+Kartritningen har startat (ADR-0219, planen i projektdokumentet `claude/plan-kartritning.md`): K0 och K1 är klara (K1: editorn, samarbetet och nya kartor, 0091–0092); nästa är K2 (MCP). Steg 59–68 är klara; sist steg 65 (PDF för tryck med dekorfärger och övertryck, grenen steg65-pdf, ADR-0184) som väntar på provtryck hos tryckeriet. Steg 7 (riktig hårdvara och pilot) ligger hos ägaren.
 Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbens löpare via `cachedcompetitors`, strukturen) provad mot riktiga Eventor 2026-10-19; hela landets `cachedcompetitors` och `/api/organisations` måste provas av ägaren; ROC:s sökväg för stämplingar (bara provad mot falsk ROC) och e-post via SMTP är inte provade.
 
 ## Logg
+
+### 2026-11-08 – K1 klart: samarbetet i editorn och nya kartor (migration 0092, ADR-0219 tillägg)
+- Editorn: arbetssätt, förslag (streckade, borttagningar som kryss, Visa/Godkänn/Avvisa/Dra tillbaka), verktyget Delområde med kartritare och läge; Föreslå ritar och får beskedet; borttagning skickar objektets punkt.
+- Nya kartor: O-Tids symbolset ISOM 2017-2 och ISSprOM 2019-2 (`map-file/template`, egna tabeller, inte Mappers GPL-filer), `newMapFile` med SWEREF 99 TM och grivation = missvisning − meridiankonvergens; 0092 `map_project.area`; `POST …/map-projects/new`; formuläret Ny karta (GeoJSON eller mittpunkt och storlek); editorn passar in och ritar området.
+- Verifierat: typecheck, lint, `lint:dead`, alla enhetstester (nya: `new-map`, områdets inmatning, skalornas överensstämmelse), integration `adr-0219-ny-karta` (2), `adr-0219-forslag`, `adr-0219-kartprojekt`, `schemadrift`; E2E `kartprojekt-rita` (4) och `kartprojekt` (2). Varje symbol ritad och granskad på skärmbild.
+- Återstår för ägaren: prova editorn, kontrollera symbolsetet mot normen och öppna en ny karta och en ny version i Mapper.
 
 ### 2026-11-07 – K1: arbetssätt Gemensamt/Huvudkartritare, förslag och delområden (grenen k1-forslag, migration 0091, ADR-0219 tillägg)
 - 0091 (bara tillägg): `map_project.mode`, `map_project_area`, `map_project_proposal`, `map_project_proposal_edit`, `map_project_edit.proposal_id`/`accepted_by`.

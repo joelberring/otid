@@ -38,6 +38,32 @@ export const mapProjectUploadMetadataSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, name: mapProjectNameSchema, fileName: mapProjectFileNameSchema
 }).strict();
 
+/** Normerna för nya kartor (O-Tids symbolset) och deras skalor. */
+export const MAP_PROJECT_NEW_SCALES = { "ISOM2017-2": [15000, 10000], "ISSPROM2019-2": [4000, 3000] } as const;
+/** En ny kartas område får vara högst så här stort (meter per sida av omslutande rektangel). */
+export const MAP_PROJECT_NEW_MAX_SIDE_M = 15000;
+
+const finite = z.number().finite();
+/**
+ * Kartans område som polygon: ringar av [x, y] (första ringen ytterkant, resten hål), i WGS 84 som [longitud, latitud]
+ * (GeoJSON) eller i SWEREF 99 TM som [östlig, nordlig] meter.
+ */
+export const mapProjectAreaInputSchema = z.object({
+  crs: z.enum(["WGS84", "SWEREF99TM"]),
+  rings: z.array(z.array(z.tuple([finite, finite])).min(3).max(2000)).min(1).max(20)
+}).strict();
+
+/**
+ * Nytt projekt med en ny tom karta (K1, alla inloggade, ingen klubb): O-Tids symbolset för normen, skalan, kartans
+ * område och den magnetiska missvisningen (grader, östlig positiv; kartan vrids mot magnetisk nord).
+ */
+export const mapProjectNewRequestSchema = z.object({
+  formatVersion: z.literal(1), requestId: uuidSchema, name: mapProjectNameSchema,
+  symbolSet: z.enum(["ISOM2017-2", "ISSPROM2019-2"]), scale: z.number().int(),
+  declination: z.number().finite().min(-30).max(30).optional(),
+  area: mapProjectAreaInputSchema
+}).strict().refine(value => (MAP_PROJECT_NEW_SCALES[value.symbolSet] as readonly number[]).includes(value.scale), { path: ["scale"] });
+
 /** Byt namn, avsluta (`CLOSED`) eller öppna igen (`OPEN`), eller byt arbetssätt (`mode`, K1). */
 export const mapProjectUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: mapProjectNameSchema.optional(), status: z.enum(["OPEN", "CLOSED"]).optional(),
@@ -189,6 +215,8 @@ export interface MapProjectView extends MapProjectSummary {
     canDecide: boolean };
   /** Arbetssättet (K1). */
   mode: MapProjectMode;
+  /** Kartans område för en ny karta (kartans mm, y uppåt, första ringen ytterkant); null för en befintlig karta. */
+  area: { x: number; y: number }[][] | null;
   areas: MapProjectAreaView[];
   /** Antalet öppna förslag. */
   openProposals: number;

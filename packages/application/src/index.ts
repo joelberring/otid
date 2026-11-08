@@ -198,3 +198,5 @@ export { createMapProjectArea, deleteMapProjectArea, listMapProjectAreas, update
 export { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";
 export type { MapProjectUploadFailure } from "./map-projects";
+export { createMapProjectNew } from "./map-project-new";
+export type { MapProjectNewFailure } from "./map-project-new";

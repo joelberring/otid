@@ -207,3 +207,51 @@ test("kartprojekt: delområde, förslag från Föreslå och godkännande", async
   const project = await (await owner.request.get(api)).json() as { mode: string };
   expect(project.mode).toBe("LEAD");
 });
+
+/**
+ * ADR-0219 (K1): ny karta. Ett konto skapar en skogskarta 1:10 000 över en polygon (GeoJSON, ungefär Kungshatt) och hamnar
+ * i editorn: kartan är tom, symbolsetet finns i paletten, området syns och en sten och en stig går att rita.
+ */
+test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({ browser, baseURL }) => {
+  test.setTimeout(300_000);
+  const owner = await registerAccount(browser, `nykarta.${unique()}@exempel.se`, "Nils Nykarta");
+  await warmRoute(owner, "/api/organizer/map-projects/new", "POST");
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto("/organizer/map-projects");
+  const form = owner.getByRole("form", { name: "Ny karta" });
+  await form.getByLabel("Kartans namn").fill("Kungshatt");
+  await form.getByLabel("Skala").selectOption("10000");
+  const island = { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[[17.776, 59.303], [17.79, 59.301], [17.804, 59.304],
+    [17.806, 59.311], [17.792, 59.314], [17.778, 59.31], [17.776, 59.303]]] } };
+  await form.getByLabel("GeoJSON-fil").setInputFiles({ name: "kungshatt.geojson", mimeType: "application/geo+json",
+    buffer: Buffer.from(JSON.stringify(island)) });
+  await expect(form.getByTestId("new-map-area")).toHaveText("6 punkter");
+  await form.getByLabel("Missvisning (grader, östlig positiv)").fill("6,5");
+  if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-ny-karta-formular.png`, fullPage: true });
+  await form.getByRole("button", { name: "Skapa kartan" }).click();
+  await owner.waitForURL(/\/organizer\/map-projects\/[0-9a-f-]+\/map$/);
+  const projectId = /map-projects\/([0-9a-f-]+)\/map$/.exec(owner.url())![1]!;
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  // Området (ca 1,7 × 1,4 km vid 1:10 000 ≈ 170 × 140 mm) fyller vyn.
+  expect(Number(await map.getAttribute("data-px-per-mm"))).toBeGreaterThan(3);
+  const palette = owner.getByTestId("map-project-symbols");
+  for (const code of ["101", "204", "301", "406", "505", "521"]) await expect(palette.locator(`[data-code='${code}']`)).toBeVisible();
+
+  await palette.locator("[data-code='204']").click();
+  const stoneAt = await screenOf(owner, { x: 10, y: 5 });
+  await owner.mouse.click(stoneAt.x, stoneAt.y);
+  await palette.locator("[data-code='505']").click();
+  for (const point of [{ x: -40, y: -20 }, { x: 0, y: 0 }, { x: 40, y: 25 }]) {
+    const at = await screenOf(owner, point);
+    await owner.mouse.click(at.x, at.y);
+    await owner.waitForTimeout(400);
+  }
+  await owner.keyboard.press("Enter");
+  await settled(owner);
+  const objects = await serverObjects(owner, projectId, baseURL!);
+  expect(objects.map(object => object.state.object?.kind).sort()).toEqual(["line", "point"]);
+  await reviewScreenshots(owner, "kartprojekt-ny-karta");
+  await owner.goto(`/organizer/map-projects/${projectId}`);
+  await expect(owner.getByText("ny karta från O-Tid")).toBeVisible();
+});

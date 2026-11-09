@@ -3,6 +3,7 @@ import type { accountSv } from "./account-sv";
 import type { accountMenuSv } from "./account-menu-sv";
 import type { aiSv } from "./ai-sv";
 import type { mapSourcesSv } from "./map-sources-sv";
+import type { clubAffiliationSv } from "./club-affiliation-sv";
 
 /** Engelska del 4: bekräftelsen av e-postadressen, Glömt lösenordet och lösenordsfälten (samma form som delarna av `accountSv`). */
 export type AccountEntry = Pick<typeof accountSv, "genericError" | "networkError" | "logIn" | "passwordField" | "reset" | "verify">;
@@ -201,4 +202,52 @@ export const mapSourcesAccountEn: Texts<typeof mapSourcesSv.account> = {
   removedDone: "The credentials are removed.",
   failed: "That did not work. Try again.",
   trial: "Being tested: fetching from Lantmäteriet follows their guides but has not been tried against the real service yet."
+};
+
+/** Engelska del 10: Mina klubbar, klubbvalet efter registreringen och klubbsökningen. */
+export type ClubAffiliationAccount = Pick<typeof clubAffiliationSv, "picker" | "status" | "confirmedVia" | "step" | "onboarding" | "account">;
+
+export const clubAffiliationAccountEn: Texts<ClubAffiliationAccount> = {
+  picker: {
+    search: "Search club",
+    placeholder: "e.g. Älvsjö or OKÄÖ",
+    none: "No club matches. Write the name under Other club.",
+    emptyDirectory: "The club list has not been fetched on this server yet. Write the club's name under Other club.",
+    remove: name => `Remove ${name}`,
+    other: "Other club",
+    otherHelp: "If the club is not in the list (for example a club outside Sweden)."
+  },
+  status: { PENDING: "Waiting for confirmation", CONFIRMED: "Confirmed", DECLINED: "Not confirmed by the club" },
+  confirmedVia: { EVENTOR: "confirmed via Eventor", MANUAL: "confirmed by the club" },
+  step: {
+    title: "Which club do you belong to?",
+    intro: "Optional. Choose your club, so that the club's leaders can invite you to events and trainings, and you can see the club's archive once the club has confirmed you.",
+    save: "Save the clubs",
+    skip: "Skip",
+    later: "You can change it later under My account → My clubs.",
+    failed: "The clubs could not be saved. Try again."
+  },
+  onboarding: {
+    member: club => `You are a member of ${club}`,
+    memberHelp: "Your email address is in the club's member list in Eventor, so you are confirmed directly.",
+    open: "Open the club space",
+    pending: club => `${club}: waiting for confirmation`,
+    pendingHelp: "The club's administrators confirm you. It is quicker if your address in Eventor is the same as here.",
+    noSpace: "Nobody from the club has started the club space yet – are you an admin in Eventor? Start it here",
+    start: "Start the club space",
+    starting: "Starting …",
+    startFailed: "The club space could not be started. Try again."
+  },
+  account: {
+    title: "My clubs",
+    help: "The clubs you belong to. A club confirms you (automatically via Eventor or by the club's administrators) before you see anything in the club space.",
+    empty: "You have not chosen any club.",
+    add: "Add the club",
+    addOther: "Add",
+    remove: "Remove",
+    removeConfirm: name => `Remove ${name} from your clubs? If you are confirmed, what you see in the club space also disappears.`,
+    exists: "The club is already in the list.",
+    saved: "The clubs are saved.",
+    failed: "That did not work. Try again."
+  }
 };

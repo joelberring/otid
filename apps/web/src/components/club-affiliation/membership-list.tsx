@@ -4,15 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import type { AccountClubMembershipView } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
+import { clubAffiliationAccountEn, type ClubAffiliationAccount } from "../../i18n/account-en";
+import { useTexts } from "../language-provider";
 import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Notice } from "../ui";
 import styles from "./club-affiliation.module.css";
 
-const text = clubAffiliationSv;
 export const membershipName = (membership: AccountClubMembershipView) => membership.organisation?.name ?? membership.freeText ?? "";
 
 /** Startar en klubbyta för klubben i listan och går till "Koppla till Eventor" (ADR-0209 beslut E). */
 function StartSpace({ name }: { name: string }) {
+  const text = useTexts<ClubAffiliationAccount>(clubAffiliationSv, clubAffiliationAccountEn);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   async function start() {
@@ -37,6 +39,7 @@ function StartSpace({ name }: { name: string }) {
  */
 export function MembershipList({ memberships, onRemove, busy }: { memberships: readonly AccountClubMembershipView[];
   onRemove?: (membership: AccountClubMembershipView) => void; busy?: boolean }) {
+  const text = useTexts<ClubAffiliationAccount>(clubAffiliationSv, clubAffiliationAccountEn);
   return <ul className={styles.list} data-testid="account-clubs">
     {memberships.map(membership => {
       const name = membershipName(membership);

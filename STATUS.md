@@ -44,7 +44,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 6: vägvalsvyn.
 - Del 7: Mitt konto och kontomenyn (rubrik, Google-kopplingen, Logga ut från alla enheter).
 - Del 8: festens sida, sträcktiderna och QR-skylten.
-- Del 9: AI-kopplingarna och Lantmäteriet på Mitt konto. Kvar: Mina klubbar (delas med klubbytan), sedan arbetsytan del för del.
+- Del 9: AI-kopplingarna och Lantmäteriet på Mitt konto.
+- Del 10: Mina klubbar, klubbvalet efter registreringen och klubbsökningen. Mitt konto är nu helt på engelska. Kvar: arbetsytan
+  del för del (Mina tävlingar är redan engelsk).
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

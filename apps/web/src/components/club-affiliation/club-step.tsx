@@ -4,16 +4,18 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { AccountClubsResponse, OrganisationSummary } from "@o-tid/contracts";
 import { CLUB_FREE_TEXT_MAX } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
+import { clubAffiliationAccountEn, type ClubAffiliationAccount } from "../../i18n/account-en";
+import { useTexts } from "../language-provider";
 import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Field, Notice } from "../ui";
 import { MembershipList } from "./membership-list";
 import { OrganisationPicker } from "./organisation-picker";
 import styles from "./club-affiliation.module.css";
 
-const text = clubAffiliationSv;
 
 /** Valda klubbar som chips med "Ta bort". */
 export function ChosenClubs({ chosen, onRemove }: { chosen: readonly OrganisationSummary[]; onRemove: (id: string) => void }) {
+  const text = useTexts<ClubAffiliationAccount>(clubAffiliationSv, clubAffiliationAccountEn);
   if (chosen.length === 0) return null;
   return <ul className={styles.chips} aria-label={text.account.title}>
     {chosen.map(organisation => <li key={organisation.organisationId}>{organisation.name}
@@ -27,6 +29,7 @@ export function ChosenClubs({ chosen, onRemove }: { chosen: readonly Organisatio
  * Eventor, annars väntar det, och saknar klubben klubbyta kan man starta den.
  */
 export function ClubStep() {
+  const text = useTexts<ClubAffiliationAccount>(clubAffiliationSv, clubAffiliationAccountEn);
   const [state, setState] = useState<AccountClubsResponse>();
   const [chosen, setChosen] = useState<OrganisationSummary[]>([]);
   const [other, setOther] = useState("");

@@ -3,16 +3,19 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { OrganisationSearchResponse, OrganisationSummary } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
+import { clubAffiliationAccountEn } from "../../i18n/account-en";
+import { useTexts } from "../language-provider";
 import styles from "./club-affiliation.module.css";
 
-const text = clubAffiliationSv.picker;
 
 /**
  * ADR-0209: sökning i klubblistan (Eventors organisationer) som kombinationsruta. Accenter, stora bokstäver och skiljetecken
  * spelar ingen roll, och kortnamn och initialer matchar ("älvsjö" och "okäö" hittar OK Älvsjö-Örby). Servern söker.
  */
-export function OrganisationPicker({ onPick, exclude = [], label = text.search, disabled }: { onPick: (organisation: OrganisationSummary) => void;
+export function OrganisationPicker({ onPick, exclude = [], label: chosenLabel, disabled }: { onPick: (organisation: OrganisationSummary) => void;
   exclude?: readonly string[]; label?: string; disabled?: boolean }) {
+  const text = useTexts(clubAffiliationSv.picker, clubAffiliationAccountEn.picker);
+  const label = chosenLabel ?? text.search;
   const id = useId();
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<OrganisationSummary[]>([]);

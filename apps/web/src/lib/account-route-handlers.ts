@@ -36,6 +36,7 @@ import { mailEnabled, runInBackground, sendPasswordResetMail, type Background } 
 import { operatorContactEmail } from "./operator-contact";
 import { UUID_PATTERN as UUID } from "@o-tid/contracts";
 import { logServerError } from "./server-error-log";
+import { languageOfRequest } from "./language";
 
 /**
  * Kontots egna anrop (ADR-0172): glömt lösenord, Mitt konto och att ta bort en egen tävling. Samma skydd som
@@ -95,12 +96,12 @@ export async function passwordResetRequestRoute(
   const mail = mailEnabled(environment);
   if (!mail) return accountFailure(503, "MAIL_DISABLED");
   if (!passwordResetRequestSchema.safeParse(input.body).success) return failure("invalid-request");
-  const clientKey = clientAddress(request);
+  const clientKey = clientAddress(request), language = languageOfRequest(request);
   background("Återställningsmejlet", async () => {
     const result = await reset(db, input.body, { clientKey });
     if (result.status !== "accepted" || !result.delivery) return;
     const link = `${input.policy.publicOrigin}/recover#token=${result.delivery.token}`;
-    await send(mail, { to: result.delivery.email, displayName: result.delivery.displayName, link, expiresAt: result.delivery.expiresAt });
+    await send(mail, { to: result.delivery.email, displayName: result.delivery.displayName, link, expiresAt: result.delivery.expiresAt, language });
   });
   return privateJson(passwordResetRequestResponseSchema.parse({ formatVersion: 1, status: "accepted" }), 202);
 }

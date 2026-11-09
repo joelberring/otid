@@ -46,3 +46,15 @@ describe("ADR-0172 e-post för återställningslänkar", () => {
     expect(mailErrorSummary("x")).toBe("okänt fel");
   });
 });
+
+describe("mejlen på engelska (engelska del 4)", () => {
+  it("bekräftelsen, Glömt lösenordet och Redan ett konto på engelska när sidan visades på engelska", async () => {
+    const { emailVerificationMessage, passwordResetMessage, alreadyRegisteredMessage } = await import("./mail");
+    const base = { to: "a@example.com", displayName: "Ann", link: "https://otid.example/verify#token=x", expiresAt: new Date("2026-11-09T12:00:00Z") };
+    expect(emailVerificationMessage({ ...base, language: "en" })).toMatchObject({ subject: "Confirm your email address in O-Tid" });
+    expect(emailVerificationMessage({ ...base, language: "en" }).text).toContain("Hi Ann!");
+    expect(passwordResetMessage({ ...base, language: "en" }).subject).toBe("Reset your O-Tid password");
+    expect(alreadyRegisteredMessage({ displayName: "Ann", loginLink: "l", recoverLink: "r", language: "en" }).subject).toBe("You already have an O-Tid account");
+    expect(emailVerificationMessage(base).subject).toBe("Bekräfta din e-postadress i O-Tid");
+  });
+});

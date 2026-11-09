@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { passwordResetAvailabilitySchema, passwordResetTokenSchema, type PasswordResetAvailability } from "@o-tid/contracts";
-import { accountSv } from "../i18n/account-sv";
+import { accountSv as accountSvAll } from "../i18n/account-sv";
+import { accountEntryEn, type AccountEntry } from "../i18n/account-en";
+import { useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { NewPasswordFields, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = accountSv.reset;
 type Message = { tone: "ok" | "error" | "info"; text: string };
 
 /** Läser engångsnyckeln ur adressens #token=… och tar bort den ur adressfältet och historiken. */
@@ -24,6 +25,7 @@ function takeTokenFromLocation(): string | undefined {
  * lösenord. Utan e-post: kontakta den som driver O-Tid, som kan skapa en länk på superadminsidan.
  */
 export function PasswordReset() {
+  const accountSv = useTexts<AccountEntry>(accountSvAll, accountEntryEn), text = accountSv.reset;
   const [token, setToken] = useState<string>();
   const [checked, setChecked] = useState(false);
   const [availability, setAvailability] = useState<PasswordResetAvailability>();

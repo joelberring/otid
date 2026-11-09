@@ -17,6 +17,13 @@ export function languageFrom(cookie: string | undefined, acceptLanguage: string 
   return "en";
 }
 
+/** Språket för en begäran till ett API (kakan, annars webbläsarens språk), t.ex. för mejlet som skickas. */
+export function languageOfRequest(request: Request): Language {
+  const cookie = (request.headers.get("cookie") ?? "").split(";").map(part => part.trim().split("="))
+    .find(([name]) => name === LANGUAGE_COOKIE)?.[1];
+  return languageFrom(cookie, request.headers.get("accept-language"));
+}
+
 /** Ett textobjekt med samma form men vanliga strängar (svenskans `as const` ger bokstavliga typer). */
 export type Texts<T> = T extends string ? string
   : T extends (...args: infer A) => infer R ? (...args: A) => (R extends string ? string : R)

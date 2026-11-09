@@ -66,4 +66,8 @@ test("språk: inloggningen på engelska", async ({ browser }) => {
   await page.getByRole("button", { name: "No account? Create one" }).click();
   await expect(page.getByRole("heading", { name: "Create account" })).toBeVisible();
   await expect(page.getByLabel("Your name")).toBeVisible();
+  await page.goto("/recover");
+  await expect(page.getByRole("heading", { name: "Forgot password" })).toBeVisible();
+  await page.goto("/verify");
+  await expect(page.getByText("The link is missing its key. Open the link in the email again.")).toBeVisible();
 });

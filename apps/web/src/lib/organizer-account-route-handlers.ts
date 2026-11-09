@@ -42,6 +42,7 @@ import {
   alreadyRegisteredMessage, emailVerificationMessage, mailEnabled, runInBackground, sendMessage, type Background, type MailConfiguration
 } from "./mail";
 import { logServerError } from "./server-error-log";
+import { languageOfRequest, type Language } from "./language";
 
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN" | "OTID_REGISTRATION_LIMIT_PER_HOUR" | "OTID_SMTP_URL" |
   "OTID_MAIL_FROM">>;
@@ -81,14 +82,14 @@ function requestFailure(status: string): Response {
 }
 
 /** ADR-0186: mejlet med bekräftelselänken, eller att adressen redan har ett konto. */
-async function sendVerification(mail: Mail, origin: string, delivery: EmailVerificationDelivery, send: Send): Promise<void> {
+async function sendVerification(mail: Mail, origin: string, delivery: EmailVerificationDelivery, send: Send, language: Language): Promise<void> {
   if (delivery.kind === "ALREADY_REGISTERED") {
     await send(mail, delivery.email, alreadyRegisteredMessage({ displayName: delivery.displayName, loginLink: `${origin}/organizer`,
-      recoverLink: `${origin}/recover` }));
+      recoverLink: `${origin}/recover`, language }));
     return;
   }
   await send(mail, delivery.email, emailVerificationMessage({ to: delivery.email, displayName: delivery.displayName,
-    link: `${origin}/verify#token=${delivery.token}`, expiresAt: delivery.expiresAt }));
+    link: `${origin}/verify#token=${delivery.token}`, expiresAt: delivery.expiresAt, language }));
 }
 
 export async function organizerLoginRoute(
@@ -108,7 +109,7 @@ export async function organizerLoginRoute(
     const result = await login(db, parsed.data, { clientKey: clientAddress(request), ...(mail ? { requireVerifiedEmail: true } : {}) });
     if (result.status === "unauthorized" && result.verification && mail) {
       const delivery = result.verification;
-      background("Bekräftelsemejlet", () => sendVerification(mail, configured.value.publicOrigin, delivery, send));
+      background("Bekräftelsemejlet", () => sendVerification(mail, configured.value.publicOrigin, delivery, send, languageOfRequest(request)));
     }
     if (result.status !== "authenticated") {
       return result.status === "rate-limited" ? accountFailure(429, "RATE_LIMITED")
@@ -149,7 +150,7 @@ export async function organizerRegisterRoute(
     const clientKey = clientAddress(request);
     background("Registreringen", async () => {
       const result = await registerWithVerification(db, body, { clientKey, ...(limit ? { registrationsPerHour: limit } : {}) });
-      if (result.delivery) await sendVerification(mail, configured.value.publicOrigin, result.delivery, send);
+      if (result.delivery) await sendVerification(mail, configured.value.publicOrigin, result.delivery, send, languageOfRequest(request));
     });
     return privateJson(organizerAccountRegistrationPendingSchema.parse({ formatVersion: 1, status: "check-email" }), 202);
   }

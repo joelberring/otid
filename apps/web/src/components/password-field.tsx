@@ -2,10 +2,11 @@
 
 import { useId, useState } from "react";
 import { ACCOUNT_PASSWORD_MIN_LENGTH } from "@o-tid/contracts";
-import { accountSv } from "../i18n/account-sv";
+import { accountSv as accountSvAll } from "../i18n/account-sv";
+import { accountEntryEn, type AccountEntry } from "../i18n/account-en";
+import { useTexts } from "./language-provider";
 import styles from "./password-field.module.css";
 
-const text = accountSv.passwordField;
 
 interface PasswordInputProps {
   label: string;
@@ -31,6 +32,7 @@ function Eye({ open }: { open: boolean }) {
  * fältets namn är bara etiketten ("Lösenord").
  */
 export function PasswordInput({ label, value, onChange, autoComplete, disabled, help, error, minLength }: PasswordInputProps) {
+  const accountSv = useTexts<AccountEntry>(accountSvAll, accountEntryEn), text = accountSv.passwordField;
   const id = useId();
   const [visible, setVisible] = useState(false);
   const described = [help ? `${id}-help` : "", error ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined;
@@ -60,10 +62,12 @@ export function passwordsReady(password: string, repeat: string): boolean {
 }
 
 /** ADR-0205: nytt lösenord två gånger ("Lösenord" och "Upprepa lösenordet"), med regeln och beskedet när de skiljer sig. */
-export function NewPasswordFields({ password, repeat, onPassword, onRepeat, disabled, label = text.password }: {
+export function NewPasswordFields({ password, repeat, onPassword, onRepeat, disabled, label: chosenLabel }: {
   password: string; repeat: string; onPassword: (value: string) => void; onRepeat: (value: string) => void;
   disabled?: boolean | undefined; label?: string | undefined;
 }) {
+  const accountSv = useTexts<AccountEntry>(accountSvAll, accountEntryEn), text = accountSv.passwordField;
+  const label = chosenLabel ?? text.password;
   const tooShort = password.length > 0 && password.length < ACCOUNT_PASSWORD_MIN_LENGTH && repeat.length > 0;
   return <>
     <PasswordInput label={label} value={password} onChange={onPassword} autoComplete="new-password" disabled={disabled}

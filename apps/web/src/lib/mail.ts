@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { normalizeAccountEmail } from "@o-tid/contracts";
+import type { Language } from "./language";
 
 /**
  * E-post från servern (ADR-0172 beslut 1): återställningslänkar och (ADR-0186) bekräftelse av e-postadressen. Inställt i serverns miljö:
@@ -41,9 +42,18 @@ export function mailEnabled(environment: MailEnvironment = process.env): Extract
   return configuration.status === "on" ? configuration : undefined;
 }
 
-export interface PasswordResetMail { to: string; displayName: string; link: string; expiresAt: Date }
+export interface PasswordResetMail { to: string; displayName: string; link: string; expiresAt: Date;
+  /** Engelska del 4: mejlet på det språk som sidan visades på (förval svenska). */
+  language?: Language | undefined }
 
 export function passwordResetMessage(mail: PasswordResetMail): { subject: string; text: string } {
+  if (mail.language === "en") {
+    const until = new Intl.DateTimeFormat("en-GB", { timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
+    return { subject: "Reset your O-Tid password", text: [`Hi ${mail.displayName}!`, "",
+      "Someone (hopefully you) asked for a new password for your O-Tid account. Open the link and choose a new password:", "", mail.link, "",
+      `The link works once and is valid until ${until} (Swedish time). When the password is changed you are signed in where you opened the link and signed out everywhere else. The link also confirms the address.`,
+      "If you did not ask for this you can ignore the message; the password is unchanged.", "", "O-Tid"].join("\n") };
+  }
   const time = new Intl.DateTimeFormat("sv-SE", { timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
   return {
     subject: "Återställ lösenordet till O-Tid",
@@ -64,6 +74,14 @@ export function passwordResetMessage(mail: PasswordResetMail): { subject: string
 
 /** ADR-0186, ändrat av ADR-0205: bekräftelselänken efter registreringen (eller en inloggning på ett obekräftat konto). */
 export function emailVerificationMessage(mail: PasswordResetMail): { subject: string; text: string } {
+  if (mail.language === "en") {
+    const until = new Intl.DateTimeFormat("en-GB", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
+    return { subject: "Confirm your email address in O-Tid", text: [`Hi ${mail.displayName}!`, "",
+      "Someone (hopefully you) created an O-Tid account with this address. Open the link (in any browser)",
+      "and choose a password; then the address is confirmed and you are signed in:", "", mail.link, "",
+      `The link works once and is valid until ${until} (Swedish time). Permissions others give you in O-Tid apply only when the address is confirmed.`,
+      "If you did not create an account you can ignore the message; without confirmation nobody can sign in with the address.", "", "O-Tid"].join("\n") };
+  }
   const time = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
   return {
     subject: "Bekräfta din e-postadress i O-Tid",
@@ -84,7 +102,14 @@ export function emailVerificationMessage(mail: PasswordResetMail): { subject: st
 }
 
 /** ADR-0186: registrering med en adress som redan har ett konto. Samma svar på sidan; bara ägaren av adressen får veta. */
-export function alreadyRegisteredMessage(mail: { displayName: string; loginLink: string; recoverLink: string }): { subject: string; text: string } {
+export function alreadyRegisteredMessage(mail: { displayName: string; loginLink: string; recoverLink: string; language?: Language | undefined })
+  : { subject: string; text: string } {
+  if (mail.language === "en") {
+    return { subject: "You already have an O-Tid account", text: [`Hi ${mail.displayName}!`, "",
+      "Someone (hopefully you) tried to create a new O-Tid account with this address, but you already have one. Sign in here:", "",
+      mail.loginLink, "", "If you have forgotten the password you can choose a new one here:", "", mail.recoverLink, "",
+      "If you did not try to create an account you can ignore the message; nothing has changed.", "", "O-Tid"].join("\n") };
+  }
   return {
     subject: "Du har redan ett konto i O-Tid",
     text: [

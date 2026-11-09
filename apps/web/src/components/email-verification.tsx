@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { emailVerificationCheckResponseSchema, passwordResetTokenSchema, type EmailVerificationCheckResponse } from "@o-tid/contracts";
-import { accountSv } from "../i18n/account-sv";
+import { accountSv as accountSvAll } from "../i18n/account-sv";
+import { accountEntryEn, type AccountEntry } from "../i18n/account-en";
+import { useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { takeInvitationNext } from "../lib/invitation-handoff";
 import { NewPasswordFields, passwordsReady } from "./password-field";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = accountSv.verify;
 type State = EmailVerificationCheckResponse["state"];
 
 /** Läser engångsnyckeln ur adressens #token=… och tar bort den ur adressfältet och historiken (som återställningslänken). */
@@ -26,6 +27,7 @@ function takeTokenFromLocation(): string | undefined {
  * först servern vad länken leder till, så att en gammal länk eller en redan bekräftad adress ger ett tydligt nästa steg.
  */
 export function EmailVerification() {
+  const accountSv = useTexts<AccountEntry>(accountSvAll, accountEntryEn), text = accountSv.verify;
   const [token, setToken] = useState<string>();
   const [checked, setChecked] = useState(false);
   const [state, setState] = useState<State>();

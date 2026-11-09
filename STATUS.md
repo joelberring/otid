@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Ny startsida (idéerna 2026-11-08)
+- Tävlingarna först som förut; den inloggade ser "Ditt O-Tid" (klubbar, träningsgrupper, öppna kartprojekt); alla ser "Mer
+  än tidtagning" (sex delar), hur O-Tid är byggt och länken till koden på GitHub. Svenska och engelska.
+- Verifierat: E2E `startsida`, `sprak`, `publikt`.
+- Kvar: ägaren väljer licens för koden (repot är publikt men har ingen LICENSE-fil); demoläget.
+
 ### 2026-11-09 – Engelska, del 1: språkval och de publika ingångssidorna
 - Språket ur kakan `otid-lang` (länken English/Svenska i sidhuvudet, `/sprak`), annars engelska bara när webbläsaren inte
   nämner svenska eller nordiska språk. Startsidan, sidhuvudet, sidfoten, tävlingslistan och Om O-Tid (med klubbar utanför

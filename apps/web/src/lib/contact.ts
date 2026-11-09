@@ -3,3 +3,6 @@
  * (även på avläsningssidan, som är statisk) och standard för `OTID_CONTACT_EMAIL` (lib/operator-contact.ts).
  */
 export const PROGRAM_CONTACT_EMAIL = "otid@berring.se";
+
+/** Idéerna 2026-11-08: källkoden (startsidan och Om O-Tid). */
+export const SOURCE_CODE_URL = "https://github.com/joelberring/otid";

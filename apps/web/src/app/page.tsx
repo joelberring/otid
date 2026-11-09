@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { authenticateUserAccountSession, listPublicRaces, PUBLIC_RECENT_MAX, PUBLIC_RECENT_STEP } from "@o-tid/application";
+import { authenticateUserAccountSession, listMapProjects, listMyClubs, listMyGroups, listPublicRaces, PUBLIC_RECENT_MAX, PUBLIC_RECENT_STEP
+} from "@o-tid/application";
 import { db } from "../lib/db";
 import { accountSessionToken } from "../lib/public-race-gate";
 import { todayIn } from "../lib/public-race-format";
@@ -11,6 +12,7 @@ import { sv } from "../i18n/sv";
 import { publicRaceSv } from "../i18n/public-race-sv";
 import { Logo } from "../components/brand/logo";
 import { LanguageSwitch } from "../components/language-switch";
+import { HomeAbout, HomePersonal, type Personal } from "../components/home/home-sections";
 import { RaceList, type RaceListTiming } from "../components/public-race/race-list";
 import styles from "../components/public-race/public-race.module.css";
 
@@ -39,6 +41,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const [listing, account] = await Promise.all([listPublicRaces(db, { search, recentLimit }),
     token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined]);
   const signedIn = account?.status === "authenticated";
+  const personal = signedIn && token ? await personalFor(token) : undefined;
   const film = introFilmUrl();
   const today = todayIn("Europe/Stockholm");
   const total = listing.ongoing.length + listing.upcoming.length + listing.recent.length;
@@ -76,10 +79,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
         <p role="status">{total === 0 ? text.noMatch(search) : text.searchHeading(search)}</p>
         <Link href="/">{text.showAll}</Link>
       </div>}
+      {personal && !search && <HomePersonal personal={personal} language={language} />}
       {section("pagar", text.ongoing, listing.ongoing, "ONGOING", text.noneOngoing)}
       {section("kommande", text.upcoming, listing.upcoming, "UPCOMING", text.noneUpcoming)}
       {section("senaste", text.recent, listing.recent, "RECENT", text.noneRecent, listing.moreRecent)}
       {film && <p className={styles.introFilm}><a href={film}>{text.introFilm}</a></p>}
+      {!search && <HomeAbout language={language} />}
     </main>
   </>;
+}
+
+/** Den inloggades klubbar, träningsgrupper och kartprojekt (bara namnen); ett fel ger en tom del i stället för ett sidfel. */
+async function personalFor(sessionToken: string): Promise<Personal> {
+  const proof = { sessionToken };
+  const logged = <T,>(promise: Promise<T>) => promise.catch((error: unknown) => { console.error("Startsidans egna delar kunde inte läsas", error); return undefined; });
+  const [clubs, groups, projects] = await Promise.all([logged(listMyClubs(db, proof)), logged(listMyGroups(db, proof)), logged(listMapProjects(db, proof))]);
+  return {
+    clubs: clubs?.status === "ok" ? clubs.clubs : [],
+    groups: groups?.status === "ok" ? groups.groups : [],
+    projects: projects?.status === "ok" ? projects.list.projects.filter(project => project.status === "OPEN") : []
+  };
 }

@@ -7,6 +7,7 @@ import type { liveSv } from "./live-sv";
 import type { raceInfoSv } from "./race-info-sv";
 import type { splitAnalysisSv } from "./split-analysis-sv";
 import type { selfRegistrationSv } from "./self-registration-sv";
+import type { homeSv } from "./home-sv";
 
 /**
  * Idéerna 2026-11-08: engelska, de publika sidorna först (startsidan, sidhuvudet, sidfoten, Om O-Tid och tävlingslistan).
@@ -296,4 +297,30 @@ export const selfRegistrationEn: Texts<SelfRegistrationForm> = {
     rateLimited: "Too many registrations in a short time. Wait a few minutes and try again.",
     failed: "The registration could not be saved. Try again."
   }
+};
+
+/** Den nya startsidan. */
+export const homeEn: Texts<typeof homeSv> = {
+  personalTitle: "Your O-Tid",
+  myRaces: "My events",
+  clubs: "Clubs",
+  groups: "Training groups",
+  projects: "Map projects",
+  more: count => `and ${count} more`,
+  showAll: "Show all",
+  featuresTitle: "More than timing",
+  features: [
+    { title: "Timing and results", text: "SPORTident readout directly in the browser, even without a network. Start lists, results, Live and split times for the public." },
+    { title: "Course setting", text: "Set courses on the map in the browser, with forking, control descriptions, printing and PDF for the printer." },
+    { title: "Maps and club archive", text: "The club's maps and versions in one place, with agreements, old courses and maps for the start." },
+    { title: "Map drawing", text: "Draw and revise maps together: lidar, orthophotos, base maps, generalisation and norm checks as proposals." },
+    { title: "AI connection", text: "Connect your own Claude account. The AI reads courses and maps and only leaves proposals that you approve." },
+    { title: "Clubs and groups", text: "Verified clubs via Eventor, training groups with on-the-spot entry and officials with their own accounts." }
+  ],
+  builtTitle: "How O-Tid is built",
+  built: "A web app in Next.js and TypeScript with a PostgreSQL database, on its own server. Readout happens in the browser (Web Serial "
+    + "and WebUSB). Lidar and drawings run on a separate geo server with Karttapullautin and LibreDWG, as separate programs.",
+  code: "The source code is openly available on GitHub.",
+  codeLink: "O-Tid on GitHub",
+  about: "More about O-Tid"
 };

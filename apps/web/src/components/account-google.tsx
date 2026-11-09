@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from "react";
 import type { AccountProfile } from "@o-tid/contracts";
-import { accountSv } from "../i18n/account-sv";
+import { accountSv as accountSvAll } from "../i18n/account-sv";
+import { accountPageEn, type AccountPage as AccountPageTexts } from "../i18n/account-en";
+import { useTexts } from "./language-provider";
 import { accountMenuSv } from "../i18n/account-menu-sv";
 import { accountRequest } from "../lib/account-client";
 import { logOut, pendingOfflineChanges } from "../lib/account-logout";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = accountSv.me;
+const textSv = accountSvAll.me;
 type Message = { tone: "ok" | "error"; text: string } | undefined;
-type Outcome = keyof typeof text.googleDone;
+type Outcome = keyof typeof textSv.googleDone;
 
 /** ADR-0205 tillägg: beskedet efter återkomsten från Google (`/konto?google=…`), som sedan tas bort ur adressen. */
 function takeOutcome(): Outcome | "flyttad" | undefined {
@@ -21,7 +23,7 @@ function takeOutcome(): Outcome | "flyttad" | undefined {
   url.searchParams.delete("google");
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   if (code === "flyttad") return code;
-  return Object.hasOwn(text.googleDone, code) ? code as Outcome : "fel";
+  return Object.hasOwn(textSv.googleDone, code) ? code as Outcome : "fel";
 }
 
 /**
@@ -30,6 +32,7 @@ function takeOutcome(): Outcome | "flyttad" | undefined {
  * vägras när kontot då saknar sätt att logga in.
  */
 export function AccountGoogle({ profile, onChange }: { profile: AccountProfile; onChange: () => void }) {
+  const accountSv = useTexts<AccountPageTexts>(accountSvAll, accountPageEn), text = accountSv.me;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Message>();
   const [outcome, setOutcome] = useState<Outcome | "flyttad">();
@@ -80,6 +83,7 @@ export function AccountGoogle({ profile, onChange }: { profile: AccountProfile; 
 
 /** ADR-0205 tillägg: "Logga ut från alla enheter" – alla kontots sessioner spärras, också den här, och webbläsarens data tas bort. */
 export function LogoutEverywhere() {
+  const accountSv = useTexts<AccountPageTexts>(accountSvAll, accountPageEn), text = accountSv.me;
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<number>();
   const [problem, setProblem] = useState("");

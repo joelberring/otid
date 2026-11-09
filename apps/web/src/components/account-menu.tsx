@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { accountMenuSv as text } from "../i18n/account-menu-sv";
+import { accountMenuSv } from "../i18n/account-menu-sv";
+import { accountMenuEn } from "../i18n/account-en";
+import { useTexts } from "./language-provider";
 import { logOut, pendingOfflineChanges, type PendingOfflineChanges } from "../lib/account-logout";
 import { Button } from "./ui";
 import styles from "./account-menu.module.css";
@@ -22,6 +24,7 @@ export function initialsOf(name: string): string {
  * redan vet vem som är inloggad.
  */
 export function AccountMenu({ who: known }: { who?: Who | undefined }) {
+  const text = useTexts(accountMenuSv, accountMenuEn);
   const [who, setWho] = useState<Who | undefined>(known);
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<"idle" | "checking" | "confirm" | "leaving">("idle");

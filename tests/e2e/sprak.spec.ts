@@ -75,3 +75,15 @@ test("språk: inloggningen på engelska", async ({ browser }) => {
   await page.goto("/verify");
   await expect(page.getByText("The link is missing its key. Open the link in the email again.")).toBeVisible();
 });
+
+/** Del 7: Mitt konto och kontomenyn på engelska för den som valt engelska. */
+test("språk: Mitt konto på engelska", async ({ browser }) => {
+  const owner = await registerAccount(browser, `konto.${unique()}@exempel.se`, "Kim Konto");
+  await owner.goto(`/sprak?till=en&tillbaka=${encodeURIComponent("/konto")}`);
+  await expect(owner.getByRole("heading", { name: "My account", level: 1 })).toBeVisible();
+  await expect(owner.getByRole("button", { name: "Sign out from all devices" })).toBeVisible();
+  await owner.getByRole("button", { name: "Account: Kim Konto" }).click();
+  await expect(owner.getByRole("link", { name: "My events" }).first()).toBeVisible();
+  await owner.goto(`/sprak?till=sv&tillbaka=${encodeURIComponent("/konto")}`);
+  await expect(owner.getByRole("heading", { name: "Mitt konto", level: 1 })).toBeVisible();
+});

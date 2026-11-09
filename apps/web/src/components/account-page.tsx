@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { accountProfileSchema, type AccountProfile } from "@o-tid/contracts";
-import { accountSv } from "../i18n/account-sv";
+import { accountSv as accountSvAll } from "../i18n/account-sv";
+import { accountPageEn, type AccountPage as AccountPageTexts } from "../i18n/account-en";
+import { useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
@@ -14,7 +16,6 @@ import { AccountAi } from "./account-ai";
 import { AccountMapSources } from "./account-map-sources";
 import styles from "./account-pages.module.css";
 
-const text = accountSv.me;
 type Message = { tone: "ok" | "error"; text: string } | undefined;
 
 /**
@@ -22,6 +23,7 @@ type Message = { tone: "ok" | "error"; text: string } | undefined;
  * Google-konto (med Google på servern), Logga ut från alla enheter och kontomenyn.
  */
 export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  const accountSv = useTexts<AccountPageTexts>(accountSvAll, accountPageEn), text = accountSv.me;
   const [profile, setProfile] = useState<AccountProfile>();
   const [loadError, setLoadError] = useState<string>();
   const [displayName, setDisplayName] = useState("");

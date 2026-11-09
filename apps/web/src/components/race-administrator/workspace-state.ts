@@ -1,5 +1,10 @@
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
-import { classTableEn, participantCardEn, raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { classTableEn, forestWatchEn, participantCardEn, raceAdministratorEn, startDrawEn, startListPublicationEn } from "../../i18n/workspace-admin-en";
+import { raceTypeEn } from "../../i18n/workspace-en";
+import { raceTypeSv } from "../../i18n/race-type-sv";
+import { startDrawSv } from "../../i18n/start-draw-sv";
+import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
+import { forestWatchSv } from "../../i18n/forest-watch-sv";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { useTexts } from "../language-provider";
@@ -34,7 +39,11 @@ export function useWorkspaceState(raceId: string) {
   const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const cardText = useTexts(participantCardSv, participantCardEn);
   const classText = useTexts(classTableSv, classTableEn);
-  return { raceId, adminText, cardText, classText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
+  const drawText = useTexts(startDrawSv, startDrawEn);
+  const publicationText = useTexts(startListPublicationSv, startListPublicationEn);
+  const forestText = useTexts(forestWatchSv, forestWatchEn);
+  const settingsText = useTexts(raceTypeSv.settings, raceTypeEn.settings);
+  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),

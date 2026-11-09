@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { startListPublicationEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
@@ -8,7 +9,7 @@ import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
-import { startListPublicationSv as publicationText } from "../../i18n/start-list-publication-sv";
+import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { startListFromWorkspace } from "../../lib/lists/start-list-model";
 import { StartLists } from "../lists/start-lists";
@@ -25,6 +26,7 @@ import { mapBundlesSv as mapText } from "../../i18n/map-bundles-sv";
  * och igen när deltagarlistan ändrats, så att "ändrad sedan publiceringen" alltid stämmer.
  */
 function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
+  const publicationText = useTexts(startListPublicationSv, startListPublicationEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, data, disabled, loadPublication, preparePublication, publicationAttempt, publicationPreview, raceId, submitPublication,
     unknown, operation, pending, saveStartListLive, startListLiveMessage } = ws;
@@ -81,6 +83,7 @@ function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boo
  * exportera) och 3 Publicera startlistan (PLAN.md steg 24). Funktionären ser bara startlistan (ADR-0172 beslut 3).
  */
 export function PreparationStartList({ ws }: { ws: Workspace }) {
+  const publicationText = useTexts(startListPublicationSv, startListPublicationEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { data, disabled, downloadStartList, functionary, profile, raceId, select, shows } = ws;
   const visible = shows("START");

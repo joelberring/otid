@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { normalizeRaceType, raceDateMovePreviewResponseSchema, raceSettingsResponseSchema, type RaceDateMovePreviewResponse, type RaceSettingsRequest,
   type RaceType } from "@o-tid/contracts";
-import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceInfoSv } from "../../i18n/race-info-sv";
-import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import { isIsoDate, isRaceName, type FieldErrors } from "../../lib/form-validation";
@@ -54,7 +52,7 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
   const { raceId, data, writingRef, pending, settingsForm, settingsAttempt, requireSession, begin, finish, current, request, json, csrf, load,
     setSettingsForm, setSettingsAttempt, setSettingsMessage, setSettingsErrors, setStartListLiveMessage, setSelfRegistrationMessage,
     setDateMovePreview } = ws;
-  const text = raceTypeSv.settings;
+  const text = ws.settingsText;
 
   function changeSettings(change: Partial<SettingsForm>) {
     if (!data) return;
@@ -143,9 +141,9 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
       if (!response.ok) throw new Error("Live start list not saved");
       const receipt = raceSettingsResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Settings receipt mismatch");
-      setStartListLiveMessage({ tone: "ok", text: live ? startListPublicationSv.liveOn : startListPublicationSv.liveOff });
+      setStartListLiveMessage({ tone: "ok", text: live ? ws.publicationText.liveOn : ws.publicationText.liveOff });
       await load(op);
-    } catch { if (current(op)) setStartListLiveMessage({ tone: "error", text: startListPublicationSv.liveFailed }); }
+    } catch { if (current(op)) setStartListLiveMessage({ tone: "error", text: ws.publicationText.liveFailed }); }
     finally { finish(op); }
   }
   /**

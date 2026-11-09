@@ -1,10 +1,12 @@
 import { useState } from "react";
 
 
+
+
 import { startListPublicationPreviewResponseSchema, startListPublicationRequestSchema,
   type StartListPublicationPreviewResponse } from "@o-tid/contracts";
 import { parseAdministratorPublicationReceipt, type AdministratorPublicationAttempt } from "../../lib/administrator-publication-client";
-import { startListPublicationSv as publicationText } from "../../i18n/start-list-publication-sv";
+
 
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
@@ -21,6 +23,7 @@ export function useStartListState() {
 }
 
 export function createStartListActions(ws: Base & RaceDataActions) {
+  const publicationText = ws.publicationText;
   const text = ws.adminText;
   const { raceId, data, publicationPreview, writingRef, pending, sent, requireSession, beginRequest, finish, current, assertCurrent, request, json, csrf,
     setMessage, setUnknown, setPublicationPreview, setPublicationAttempt } = ws;

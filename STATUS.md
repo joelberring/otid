@@ -50,7 +50,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   Inställningar och Personer med behörighet (`workspace-en.ts`).
 - Del 12, arbetsytan del 2–3: arbetsytans egna texter (`raceAdministratorSv`: banor, klasser, anmälda, deltagarlistan, brickor,
   beslut, rättningar, efterarbetet), startsätten, deltagarkortet och klasstabellen (`workspace-admin-en.ts`). Åtgärdernas besked
-  får texterna genom arbetsytans tillstånd. Kvar: lottning, startlistans publicering, kvar i skogen, källor/import, stafett,
+  får texterna genom arbetsytans tillstånd.
+- Del 13: lottningen, startlistans publicering och kvar i skogen (målpersonalens lista). Kvar: källor/import, stafett,
   rogaining, festens bardisk, avläsningen, speakern och banläggningen.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)

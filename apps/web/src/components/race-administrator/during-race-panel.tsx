@@ -1,12 +1,13 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { forestWatchEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
-import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
+import { forestWatchSv } from "../../i18n/forest-watch-sv";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 import { ForestWatchReport } from "../forest-watch-report";
@@ -29,6 +30,7 @@ import { sectionById } from "../../lib/race-sections";
 
 /** Avläsning: kontrollvyn och hela skogslistan med manuell återkomst. Speakern har en egen sida (ADR-0170). */
 export function DuringRaceOverview({ ws }: { ws: Workspace }) {
+  const forestText = useTexts(forestWatchSv, forestWatchEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { data, disabled, entryId, forestAutoRefresh, forestClass, forestData, forestOpen, forestQuery, forestSortByAge,
@@ -98,6 +100,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
  * under Mer (ADR-0191 beslut 1). Funktionären ser bara granskningen av sin egen återkomst eller sitt startläge.
  */
 export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
+  const forestText = useTexts(forestWatchSv, forestWatchEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, checkinHistory, checkinHistoryPanel, data, disabled, entryId, functionary, loadCheckinHistory,
     loadConflictReview, pending, raceId, returnAttempt, reviewAttempt, reviewCandidate, reviewConfirmed,

@@ -1,6 +1,8 @@
 import React from "react";
+import { forestWatchEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import type { StartCheckinRosterResponse } from "@o-tid/contracts";
-import { forestWatchSv as text } from "../i18n/forest-watch-sv";
+import { forestWatchSv } from "../i18n/forest-watch-sv";
 import { formatClockTime } from "../lib/clock-time";
 import { filterForestWatchEntries } from "../lib/forest-watch-filter";
 import { reportedStartMinutes } from "../lib/reported-start-age";
@@ -17,6 +19,7 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
   reportedStarts?: ReadonlyArray<{ entryId: string; observedAt: string | null }>;
   sortByAge?: boolean;
 }) {
+  const text = useTexts(forestWatchSv, forestWatchEn);
   const ages = new Map(reportedStarts?.map(row => [row.entryId, reportedStartMinutes(row.observedAt, data.generatedAt)]));
   const entries = filterForestWatchEntries(data.entries, classId, query);
   const className = classId ? data.entries.find((entry) => entry.classId === classId)?.className ?? classId : text.allClasses;

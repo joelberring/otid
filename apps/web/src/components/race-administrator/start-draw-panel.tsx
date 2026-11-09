@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { startDrawEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import type { StartDrawPreviewResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
-import { startDrawSv as text } from "../../i18n/start-draw-sv";
+import { startDrawSv } from "../../i18n/start-draw-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { Button, Field, Notice, Section, Table } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -25,6 +27,7 @@ const forked = (raceClass: { slots: readonly { entry: { variantCode: string | nu
  * Befintliga starttider ersätts bara efter en tydlig fråga.
  */
 export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
+  const text = useTexts(startDrawSv, startDrawEn);
   const { authenticated, busy, data, disabled, drawAttempt, drawClubSeparation, drawError, drawFirst, drawFirstError, drawPreview, drawRows,
     drawSaved, drawSetup, changeDrawRow, changeDrawSettings, loadDrawSetup, operation, pending, previewDraw, raceId, unknown } = ws;
   const stale = !drawSetup || (data !== undefined && drawSetup.snapshotVersion < data.snapshotVersion);
@@ -88,6 +91,7 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
 
 /** Kryssrutan i Lotta-kolumnens rubrik: alla eller inga klasser (blandat läge när bara några är ikryssade). */
 function SelectAll({ ws, locked }: { ws: Workspace; locked: boolean }) {
+  const text = useTexts(startDrawSv, startDrawEn);
   const state = drawSelection(ws.drawRows);
   return <input type="checkbox" aria-label={text.selectAll} title={text.selectAll} checked={state === "ALL"} disabled={locked}
     ref={element => { if (element) element.indeterminate = state === "SOME"; }}
@@ -96,6 +100,7 @@ function SelectAll({ ws, locked }: { ws: Workspace; locked: boolean }) {
 
 /** ADR-0188 beslut 1: startsätt, intervall, första start och vakanser en gång, för alla eller de ikryssade klasserna. */
 function DrawCommonFields({ ws, locked }: { ws: Workspace; locked: boolean }) {
+  const text = useTexts(startDrawSv, startDrawEn);
   const { drawCommon: common, drawCommonApplied, changeDrawCommon, applyDrawCommonTo, drawRows, raceId } = ws;
   const timed = common.method === "MINUTE";
   const selected = Object.values(drawRows).filter(row => row.selected).length;
@@ -131,6 +136,7 @@ function DrawCommonFields({ ws, locked }: { ws: Workspace; locked: boolean }) {
 }
 
 function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreviewResponse }) {
+  const text = useTexts(startDrawSv, startDrawEn);
   const { busy, cancelDrawPreview, drawAttempt, saveDraw, unknown } = ws;
   const time = (instant: string) => formatClockTime(instant, preview.timeZone);
   const short = (instant: string) => time(instant).slice(0, 5);

@@ -1,9 +1,11 @@
 import { useState } from "react";
+
+
 import {
   startDrawPreviewResponseSchema, startDrawResponseSchema, startDrawSetupResponseSchema, type StartDrawMethod,
   type StartDrawPreviewResponse, type StartDrawRequest, type StartDrawSetupResponse
 } from "@o-tid/contracts";
-import { startDrawSv as text } from "../../i18n/start-draw-sv";
+
 import { formatClockTime, parseRaceClock } from "../../lib/clock-time";
 import { validateFirstStart } from "../../lib/form-validation";
 import type { Operation, StartDrawAttempt } from "./types";
@@ -64,6 +66,7 @@ const isSettings = (value: ReturnType<typeof settingsFrom>): value is DrawSettin
   value !== undefined && value !== "none" && !("errors" in value);
 
 export function createStartDrawActions(ws: Base & RaceDataActions) {
+  const text = ws.drawText;
   const { raceId, drawSetup, drawRows, drawFirst, drawClubSeparation, drawPreview, setDrawClubSeparation, writingRef, pending, sent, requireSession,
     beginRequest, finish, current, request, json, csrf, load, setDrawSetup, setDrawRows, setDrawFirst, setDrawPreview, setDrawError,
     setDrawSaved, setDrawAttempt, setPublicationPreview, setDrawFirstError, drawAdvanced, drawAdvancedLoaded, setDrawAdvanced,

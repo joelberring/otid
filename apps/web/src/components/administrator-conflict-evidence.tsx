@@ -1,11 +1,14 @@
 import React from "react";
+import { forestWatchEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import type { StartCheckinConflictReviewCandidate } from "@o-tid/contracts";
 import { checkinConflictReviewSv as text } from "../i18n/checkin-conflict-review-sv";
-import { forestWatchSv as forest } from "../i18n/forest-watch-sv";
+import { forestWatchSv } from "../i18n/forest-watch-sv";
 import { formatClockTime } from "../lib/clock-time";
 
 /** Underlaget för en konfliktgranskning. Tider visas som klockslag i tävlingens tidszon. */
 export function AdministratorConflictEvidence({ candidate, timeZone }: { candidate: StartCheckinConflictReviewCandidate; timeZone: string }) {
+  const forest = useTexts(forestWatchSv, forestWatchEn);
   const source = candidate.source;
   return <>
     <h3>{source.displayName} – {source.className}</h3>

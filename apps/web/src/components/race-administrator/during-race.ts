@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 
+
+
 import { administratorForestWatchResponseSchema, administratorReturnRequestSchema, administratorReturnResponseSchema,
   administratorStartCorrectionRequestSchema, administratorStartCorrectionResponseSchema, canonicalAdministratorReturnRequest,
   canonicalAdministratorStartCorrectionRequest, checkinHistoryResponseSchema, StartCheckinConflictReviewCandidateSchema,
@@ -13,7 +15,7 @@ import { canRefreshForest } from "../../lib/forest-auto-refresh";
 import { inForest } from "../../lib/section-status";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
-import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
+
 import { decisionReviewText } from "../../lib/decision-review";
 
 import { relaySv as relayText } from "../../i18n/relay-sv";
@@ -88,6 +90,7 @@ export function deriveDuringRace(s: WorkspaceState) {
 }
 
 export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayActions, "readRelay">) {
+  const forestText = ws.forestText;
   const text = ws.adminText;
   const { raceId, entryId, functionary, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,
     targetStartState, unknownReadoutCandidate, unknownReadoutId, unknownReadoutTarget, unknownReadoutEntryId,

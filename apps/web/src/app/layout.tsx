@@ -3,6 +3,9 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { sv } from "../i18n/sv";
 import { SiteFooter } from "../components/about/site-footer";
+import { LanguageSwitch } from "../components/language-switch";
+import { siteEn } from "../i18n/public-en";
+import { currentLanguage } from "../lib/language-server";
 import { Logo } from "../components/brand/logo";
 import { introFilmUrl } from "../lib/intro-film";
 import "../components/ui/tokens.css";
@@ -17,13 +20,15 @@ export const metadata: Metadata = { title: sv.appName, applicationName: sv.appNa
  */
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
+  const language = await currentLanguage();
   // Hjälppanelen (en klientkomponent) visar "Se filmen (1 min)" när adressen finns; den läses här vid förfrågan.
-  return <html lang="sv"><body data-intro-film={introFilmUrl()}>
+  return <html lang={language}><body data-intro-film={introFilmUrl()}>
     <header className="site-header">
       <Link href="/"><Logo size={28} className="site-header-logo" />{sv.appName}</Link>
-      <span className="site-header-tagline"><span aria-hidden="true">·</span> {sv.tagline}</span>
+      <span className="site-header-tagline"><span aria-hidden="true">·</span> {language === "en" ? siteEn.tagline : sv.tagline}</span>
+      <LanguageSwitch language={language} className="site-header-language" />
     </header>
     {children}
-    <SiteFooter />
+    <SiteFooter language={language} />
   </body></html>;
 }

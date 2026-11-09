@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Engelska, del 1: språkval och de publika ingångssidorna
+- Språket ur kakan `otid-lang` (länken English/Svenska i sidhuvudet, `/sprak`), annars engelska bara när webbläsaren inte
+  nämner svenska eller nordiska språk. Startsidan, sidhuvudet, sidfoten, tävlingslistan och Om O-Tid (med klubbar utanför
+  Sverige och Eventor) finns på engelska; texterna i `i18n/public-en.ts` med samma form (`Texts`).
+- Verifierat: enhetstester `language`, i18n-testerna, E2E `sprak`, `publikt`, `hjalp`. Playwright körs med `locale: sv-SE`.
+- Kvar: tävlingssidan, start- och resultatlistor, sträcktider, sedan kontot och arbetsytan del för del.
+
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och
   texter som inte hör till kartan. Delas i projektet; valen per person.

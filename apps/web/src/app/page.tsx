@@ -5,16 +5,22 @@ import { db } from "../lib/db";
 import { accountSessionToken } from "../lib/public-race-gate";
 import { todayIn } from "../lib/public-race-format";
 import { introFilmUrl } from "../lib/intro-film";
+import { currentLanguage } from "../lib/language-server";
+import { publicHomeEn, siteEn } from "../i18n/public-en";
 import { sv } from "../i18n/sv";
 import { publicRaceSv } from "../i18n/public-race-sv";
 import { Logo } from "../components/brand/logo";
+import { LanguageSwitch } from "../components/language-switch";
 import { RaceList, type RaceListTiming } from "../components/public-race/race-list";
 import styles from "../components/public-race/public-race.module.css";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: `${sv.appName} – ${sv.tagline}`, description: `${sv.tagline}. ${publicRaceSv.home.intro}` };
+export async function generateMetadata(): Promise<Metadata> {
+  const english = await currentLanguage() === "en";
+  const tagline = english ? siteEn.tagline : sv.tagline;
+  return { title: `${sv.appName} – ${tagline}`, description: `${tagline}. ${(english ? publicHomeEn : publicRaceSv.home).intro}` };
+}
 
-const text = publicRaceSv.home;
 type Query = { q?: string | string[]; fler?: string | string[] };
 
 /**
@@ -24,6 +30,8 @@ type Query = { q?: string | string[]; fler?: string | string[] };
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Query> }) {
   const query = await searchParams;
+  const language = await currentLanguage();
+  const text = language === "en" ? publicHomeEn : publicRaceSv.home;
   const search = typeof query.q === "string" ? query.q.trim().slice(0, 100) : "";
   const requested = typeof query.fler === "string" ? Number.parseInt(query.fler, 10) : NaN;
   const recentLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PUBLIC_RECENT_STEP), PUBLIC_RECENT_MAX) : PUBLIC_RECENT_STEP;
@@ -38,7 +46,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const section = (id: string, title: string, races: typeof listing.ongoing, timing: RaceListTiming, empty: string, more?: boolean) =>
     search && races.length === 0 ? null : <section className={styles.raceSection} aria-labelledby={`${id}-rubrik`} id={id}>
       <h2 id={`${id}-rubrik`}>{title}</h2>
-      {races.length > 0 ? <RaceList races={races} timing={timing} today={today} /> : <p className={styles.empty}>{empty}</p>}
+      {races.length > 0 ? <RaceList races={races} timing={timing} today={today} language={language} /> : <p className={styles.empty}>{empty}</p>}
       {more && <Link className={styles.more} href={moreHref}>{text.showMore}</Link>}
     </section>;
   return <>
@@ -46,9 +54,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       <div className={styles.siteHeadInner}>
         <Link href="/" className={styles.brand}>
           <Logo size={40} className={styles.brandLogo} />
-          <span className={styles.brandText}><strong>{sv.appName}</strong><span>{sv.tagline}</span></span>
+          <span className={styles.brandText}><strong>{sv.appName}</strong><span>{language === "en" ? siteEn.tagline : sv.tagline}</span></span>
         </Link>
         <nav aria-label={text.accountNavigation}>
+          <LanguageSwitch language={language} />
           <Link href="/organizer">{signedIn ? text.myRaces : text.organizerLogin}</Link>
         </nav>
       </div>

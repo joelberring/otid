@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { aboutSv as text } from "../../i18n/about-sv";
+import { aboutSv } from "../../i18n/about-sv";
+import { aboutEn } from "../../i18n/public-en";
+import { currentLanguage } from "../../lib/language-server";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
 import { introFilmUrl } from "../../lib/intro-film";
 import styles from "../../components/account-pages.module.css";
 
-export const metadata: Metadata = { title: `${text.metaTitle} – O-Tid`, description: text.metaDescription };
+export async function generateMetadata(): Promise<Metadata> {
+  const text = await currentLanguage() === "en" ? aboutEn : aboutSv;
+  return { title: `${text.metaTitle} – O-Tid`, description: text.metaDescription };
+}
 
 /** Om O-Tid (PLAN.md steg 37): vad det är, beta, hur det är gjort, tekniska funktioner, hur stora tävlingar (steg 54) och kontakt. Utan inloggning. */
-export default function AboutPage() {
+export default async function AboutPage() {
+  const english = await currentLanguage() === "en";
+  const text = english ? aboutEn : aboutSv;
   // Introfilmen bara när NEXT_PUBLIC_INTRO_FILM_URL är satt (läses vid förfrågan, docs/drift.md).
   const film = introFilmUrl();
   return <main className={`${styles.page} ${styles.narrow}`}>
@@ -27,6 +34,11 @@ export default function AboutPage() {
       {text.capacity.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
       <h2>{text.contactTitle}</h2>
       <p>{text.contact} <a href={`mailto:${PROGRAM_CONTACT_EMAIL}`}>{PROGRAM_CONTACT_EMAIL}</a>.</p>
+      {english && <>
+        <h2>{aboutEn.internationalTitle}</h2>
+        {aboutEn.international.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
+        <p>{aboutEn.internationalSuggest} <a href={`mailto:${PROGRAM_CONTACT_EMAIL}`}>{PROGRAM_CONTACT_EMAIL}</a>.</p>
+      </>}
       <h2>{text.clubTitle}</h2>
       <p>{text.club}</p>
       <p><Link href="/organizer">{text.clubLink}</Link></p>

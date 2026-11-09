@@ -56,6 +56,8 @@ export default defineConfig({
   reporter: process.env.CI ? [["line"], ["github"]] : "list",
   use: {
     baseURL: origin, trace: "retain-on-failure", ...devices["Desktop Chrome"],
+    // Idéerna 2026-11-08 (engelska): en webbläsare utan svenska i språklistan får engelska; testerna körs på svenska.
+    locale: "sv-SE",
     ...(external ? { ignoreHTTPSErrors: true, launchOptions: { args: ["--ignore-certificate-errors"] } } : {})
   },
   ...(external ? {} : {

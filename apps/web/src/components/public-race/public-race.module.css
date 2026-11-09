@@ -27,6 +27,7 @@
 .brandText strong { font-size: var(--text-lg); font-weight: 700; letter-spacing: .01em; }
 .brandText span { color: var(--muted); font-size: var(--text-xs); }
 .siteHeadInner nav a { display: inline-flex; align-items: center; min-height: 40px; font-size: var(--text-sm); }
+.siteHeadInner nav { display: flex; gap: 16px; align-items: center; }
 
 .home { display: grid; gap: 28px; max-width: 880px; padding-top: 24px; padding-bottom: 32px; }
 .homeIntro { display: grid; gap: 4px; }

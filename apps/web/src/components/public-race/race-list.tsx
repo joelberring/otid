@@ -3,10 +3,11 @@ import type { PublicRaceListItem } from "@o-tid/application";
 import { publicRaceSv } from "../../i18n/public-race-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { formatRaceDate, raceHubPath } from "../../lib/public-race-format";
+import { publicLinksEn, raceTypeNamesEn } from "../../i18n/public-en";
+import { LOCALE, type Language } from "../../lib/language";
 import styles from "./public-race.module.css";
 import { shownRaceName } from "@o-tid/domain";
 
-const text = publicRaceSv.links;
 export type RaceListTiming = "ONGOING" | "UPCOMING" | "RECENT";
 
 /** Sträcktidsanalysen finns för individuella klasser (PLAN.md steg 16): inte stafett eller rogaining. */
@@ -17,7 +18,10 @@ export const hasSplitAnalysis = (raceType: PublicRaceListItem["raceType"]) => ra
  * länkarna som gäller just då. Startlistan bara när den är publicerad; resultat och sträcktider från tävlingsdagen.
  * Inga adminlänkar.
  */
-export function RaceList({ races, timing, today }: { races: readonly PublicRaceListItem[]; timing: RaceListTiming; today: string }) {
+export function RaceList({ races, timing, today, language = "sv" }: { races: readonly PublicRaceListItem[]; timing: RaceListTiming; today: string;
+  language?: Language }) {
+  const text = language === "en" ? publicLinksEn : publicRaceSv.links;
+  const typeName = (type: PublicRaceListItem["raceType"]) => language === "en" ? raceTypeNamesEn[type] : raceTypeSv.types[type].name;
   return <ul className={styles.raceList}>
     {races.map(race => {
       const started = timing !== "UPCOMING";
@@ -25,9 +29,9 @@ export function RaceList({ races, timing, today }: { races: readonly PublicRaceL
         started && <Link key="results" href={`/results/${race.raceId}`}>{text.results}</Link>,
         started && hasSplitAnalysis(race.raceType) && <Link key="splits" href={`/results/${race.raceId}/splits`}>{text.splits}</Link>]
         .filter(Boolean);
-      const details = [shownRaceName(race.eventName, race.raceName), raceTypeSv.types[race.raceType].name].filter(Boolean);
+      const details = [shownRaceName(race.eventName, race.raceName), typeName(race.raceType)].filter(Boolean);
       return <li key={race.raceId} className={styles.raceRow}>
-        <time className={styles.raceDate} dateTime={race.raceDate}>{formatRaceDate(race.raceDate, today)}</time>
+        <time className={styles.raceDate} dateTime={race.raceDate}>{formatRaceDate(race.raceDate, today, LOCALE[language])}</time>
         <div className={styles.raceName}>
           <Link href={raceHubPath(race.shortCode)}>{race.eventName}</Link>
           <span>{details.join(" · ")}</span>

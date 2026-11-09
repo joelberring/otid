@@ -1,8 +1,9 @@
 import { aboutSv } from "../../i18n/about-sv";
+import { aboutEn } from "../../i18n/public-en";
+import type { Language } from "../../lib/language";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
 import styles from "./site-footer.module.css";
 
-const text = aboutSv.footer;
 
 /**
  * Den diskreta sidfoten (PLAN.md steg 37): "O-Tid · beta · Frågor: otid@berring.se · Om O-Tid". Publika sidor får
@@ -10,7 +11,8 @@ const text = aboutSv.footer;
  * lämnas; där är den ingen landmärkesroll eftersom den ligger i `main`). Döljs vid utskrift. Avläsningssidan har ingen
  * sidfot, bara Hjälp.
  */
-export function SiteFooter({ newTab = false, className }: { newTab?: boolean; className?: string | undefined }) {
+export function SiteFooter({ newTab = false, className, language = "sv" }: { newTab?: boolean; className?: string | undefined; language?: Language }) {
+  const text = language === "en" ? aboutEn.footer : aboutSv.footer;
   const target = newTab ? { target: "_blank", rel: "noopener" } : {};
   return <footer className={`site-footer ${styles.footer}${className ? ` ${className}` : ""}`} aria-label={text.label}>
     <span>{text.name}</span>{" "}

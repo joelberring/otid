@@ -6,11 +6,11 @@ import { formatDayMonthTime, zonedDate } from "@o-tid/domain";
  */
 
 /** Tävlingens datum (ÅÅÅÅ-MM-DD) som "tors 8 okt. 2026"; året utelämnas när det är samma år som `today`. */
-export function formatRaceDate(raceDate: string, today?: string): string {
+export function formatRaceDate(raceDate: string, today?: string, locale = "sv-SE"): string {
   const date = new Date(`${raceDate}T12:00:00Z`);
   if (!Number.isFinite(date.getTime())) return raceDate;
   const sameYear = today !== undefined && today.slice(0, 4) === raceDate.slice(0, 4);
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short",
+  return new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short",
     ...(sameYear ? {} : { year: "numeric" }) }).format(date);
 }
 

@@ -1,6 +1,8 @@
 import type { Texts } from "../lib/language";
 import type { accountSv } from "./account-sv";
 import type { accountMenuSv } from "./account-menu-sv";
+import type { aiSv } from "./ai-sv";
+import type { mapSourcesSv } from "./map-sources-sv";
 
 /** Engelska del 4: bekräftelsen av e-postadressen, Glömt lösenordet och lösenordsfälten (samma form som delarna av `accountSv`). */
 export type AccountEntry = Pick<typeof accountSv, "genericError" | "networkError" | "logIn" | "passwordField" | "reset" | "verify">;
@@ -162,4 +164,41 @@ export const accountMenuEn: Texts<typeof accountMenuSv> = {
     until.toLocaleString("en-GB", { weekday: "long", hour: "2-digit", minute: "2-digit" })}.`,
   createAccount: "Create your own account",
   endGuest: "End the trial"
+};
+
+/** Engelska del 9: AI-kopplingarna på Mitt konto. */
+export const aiConnectionsEn: Texts<typeof aiSv.connections> = {
+  title: "AI connections",
+  help: "Claude (or another AI service) that you have connected with your own account there. It sees your map projects and, if you approved course setting, the courses where you may set courses. It only leaves suggestions and notes. A connection from before 8 November only sees the map projects; remove it and connect again to allow course setting.",
+  none: "No AI connections. Add O-Tid as a connector in Claude with the address below.",
+  address: "Address to add in Claude",
+  created: date => `connected ${date}`,
+  used: date => `last used ${date}`,
+  neverUsed: "not used yet",
+  revoked: "removed",
+  revoke: "Remove",
+  revokedDone: "The connection is removed.",
+  failed: "The connections could not be fetched."
+};
+
+/** Engelska del 9: de egna uppgifterna till Lantmäteriet på Mitt konto. */
+export const mapSourcesAccountEn: Texts<typeof mapSourcesSv.account> = {
+  title: "Lantmäteriet (Swedish mapping authority)",
+  help: "Your own credentials for Lantmäteriet, to fetch orthophotos and laser data for the map projects. O-Tid has no account of its own at Lantmäteriet. "
+    + "The credentials are stored encrypted, only used when you fetch and never shown again. The products (Ortofoto Nedladdning, Laserdata Nedladdning skog) must be ordered on Geotorget.",
+  method: "How to sign in",
+  basic: "Geotorget username and password (private person)",
+  oauth: "API portal key and secret (the organisation's system account)",
+  id: method => method === "BASIC" ? "Username" : "Key (consumer key)",
+  secret: method => method === "BASIC" ? "Password" : "Secret (consumer secret)",
+  save: "Save the credentials",
+  remove: "Remove the credentials",
+  saved: (method, hint, date) => `Saved ${date}: ${method === "BASIC" ? "username" : "key"} ending in …${hint}.`,
+  unreadable: "The server's key has changed since the credentials were saved. Save them again.",
+  none: "No credentials saved.",
+  notConfigured: "The server cannot store credentials (the master key is missing). Contact whoever runs O-Tid.",
+  savedDone: "The credentials are saved.",
+  removedDone: "The credentials are removed.",
+  failed: "That did not work. Try again.",
+  trial: "Being tested: fetching from Lantmäteriet follows their guides but has not been tried against the real service yet."
 };

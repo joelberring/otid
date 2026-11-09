@@ -2,17 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { aiSv } from "../i18n/ai-sv";
+import { aiConnectionsEn } from "../i18n/account-en";
+import { useLanguage, useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { clubRequest } from "../lib/club-archive-client";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = aiSv.connections;
 interface Connection { grantId: string; clientName: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }
-const date = (value: string) => new Date(value).toLocaleDateString("sv-SE");
 
 /** ADR-0219 (K2): kontots AI-kopplingar och adressen att lägga till i Claude. */
 export function AccountAi() {
+  const text = useTexts(aiSv.connections, aiConnectionsEn);
+  const locale = useLanguage() === "en" ? "en-GB" : "sv-SE";
+  const date = (value: string) => new Date(value).toLocaleDateString(locale);
   const [connections, setConnections] = useState<Connection[]>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [busy, setBusy] = useState(false);

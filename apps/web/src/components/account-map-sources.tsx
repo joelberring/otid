@@ -3,16 +3,19 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { MapSourceCredentialView } from "@o-tid/contracts";
 import { mapSourcesSv } from "../i18n/map-sources-sv";
+import { mapSourcesAccountEn } from "../i18n/account-en";
+import { useLanguage, useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { clubRequest } from "../lib/club-archive-client";
 import { Button, Field, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = mapSourcesSv.account;
 const PATH = "/api/account/map-sources/lantmateriet";
 
 /** ADR-0219 (K4c): kontots egna uppgifter till Lantmäteriet. Uppgifterna skickas en gång och visas aldrig igen. */
 export function AccountMapSources() {
+  const text = useTexts(mapSourcesSv.account, mapSourcesAccountEn);
+  const locale = useLanguage() === "en" ? "en-GB" : "sv-SE";
   const [state, setState] = useState<MapSourceCredentialView>();
   const [method, setMethod] = useState<"BASIC" | "OAUTH2">("BASIC");
   const [id, setId] = useState("");
@@ -41,7 +44,7 @@ export function AccountMapSources() {
   const saved = state?.saved;
   return <Section id="konto-lantmateriet" title={text.title} help={text.help}>
     <p className={styles.muted} data-testid="map-source-state">{saved
-      ? <>{text.saved(saved.method, saved.hint, new Date(saved.updatedAt).toLocaleDateString("sv-SE"))}{!saved.readable && ` ${text.unreadable}`}</>
+      ? <>{text.saved(saved.method, saved.hint, new Date(saved.updatedAt).toLocaleDateString(locale))}{!saved.readable && ` ${text.unreadable}`}</>
       : text.none}</p>
     {state && !state.available && <Notice tone="error" role="alert">{text.notConfigured}</Notice>}
     <form className={styles.form} onSubmit={save} noValidate>

@@ -82,6 +82,11 @@ test("språk: Mitt konto på engelska", async ({ browser }) => {
   await owner.goto(`/sprak?till=en&tillbaka=${encodeURIComponent("/konto")}`);
   await expect(owner.getByRole("heading", { name: "My account", level: 1 })).toBeVisible();
   await expect(owner.getByRole("button", { name: "Sign out from all devices" })).toBeVisible();
+  // Del 9: AI-kopplingarna och Lantmäteriet.
+  await expect(owner.getByRole("heading", { name: "AI connections" })).toBeVisible();
+  await expect(owner.getByText("No AI connections.", { exact: false })).toBeVisible();
+  await expect(owner.getByRole("heading", { name: "Lantmäteriet (Swedish mapping authority)" })).toBeVisible();
+  await expect(owner.getByRole("button", { name: "Save the credentials" })).toBeVisible();
   await owner.getByRole("button", { name: "Account: Kim Konto" }).click();
   await expect(owner.getByRole("link", { name: "My events" }).first()).toBeVisible();
   await owner.goto(`/sprak?till=sv&tillbaka=${encodeURIComponent("/konto")}`);

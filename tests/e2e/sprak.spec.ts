@@ -135,6 +135,9 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   await parts.getByRole("button", { name: "Settings" }).click();
   await expect(owner.getByRole("heading", { name: "People with access" })).toBeVisible();
   await expect(owner.getByRole("group", { name: "Type of event" })).toContainText("Training");
+  // Avläsningen (eget appskal) följer språket.
+  await owner.goto(`/admin/${raceId}/readout`);
+  await expect(owner.getByRole("button", { name: "Start practice station" })).toBeVisible({ timeout: 30_000 });
   await owner.goto(`/sprak?till=sv&tillbaka=${encodeURIComponent(`/admin/${raceId}/manage`)}`);
   await expect(owner.getByRole("navigation", { name: "Tävlingens delar" })).toBeVisible({ timeout: 30_000 });
 });

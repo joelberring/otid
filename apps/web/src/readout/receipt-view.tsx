@@ -1,8 +1,9 @@
 import { useMemo } from "react";
+import { readoutTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import { qrPath, type Receipt } from "./receipt";
 import { readoutText } from "./text-sv";
 
-const t = readoutText.receipt;
 
 /** QR-kod som SVG, svart på vitt, skarpa kanter (även på kvittoskrivare). */
 export function QrCode({ value, label, className }: { value: string; label: string; className?: string }) {
@@ -19,6 +20,7 @@ export function QrCode({ value, label, className }: { value: string; label: stri
  * visas som förhandsvisning på skärmen och är det enda som skrivs ut.
  */
 export function ReceiptView({ receipt }: { receipt: Receipt }) {
+  const t = useTexts(readoutText.receipt, readoutTextEn.receipt);
   return <article className="receipt" data-testid="receipt" aria-label={t.region}>
     <header>
       <p className="receipt-event">{receipt.eventName}</p>

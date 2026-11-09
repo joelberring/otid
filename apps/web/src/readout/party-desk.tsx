@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { partyTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import type { PartyPackage, PartyStateResponse, ReadoutPackage } from "@o-tid/contracts";
 import { formatHourMinute, formatPartyKronor, type PartyPurchase } from "@o-tid/domain";
 import { stationClock, type SimulatedCard } from "@o-tid/sportident";
@@ -6,7 +8,7 @@ import type { FakeStationTransport } from "./fake-transport";
 import { cardEvening, cardNearlyFull, decideReadouts, guestName, type DeskKnowledge, type DeskMode, type DeskOutcome } from "./party-logic";
 import type { PartyAction, QueuedPartyAction } from "./party-store";
 import { fetchPartyState } from "./party-sync";
-import { partyText as t } from "./party-text-sv";
+import { partyText } from "./party-text-sv";
 import { runnerForCard } from "./runner-lookup";
 import type { QueuedReadout } from "./store";
 import type { ReadoutSoundKind } from "./sound";
@@ -42,6 +44,7 @@ export interface PartyDeskProps {
 
 
 export function PartyDesk(props: PartyDeskProps) {
+  const t = useTexts(partyText, partyTextEn);
   const { raceId, pkg, items, actions, addAction, play } = props;
   const party = pkg.party!;
   const timeZone = pkg.event.timeZone;
@@ -210,6 +213,7 @@ export function PartyDesk(props: PartyDeskProps) {
 
 function Outcome({ outcome, item, knowledge, timeZone, onRename }: { outcome: DeskOutcome; item: QueuedReadout; knowledge: DeskKnowledge;
   timeZone: string; onRename: () => void }) {
+  const t = useTexts(partyText, partyTextEn);
   const name = guestName(outcome.cardNumber, knowledge);
   const evening = cardEvening(outcome.cardNumber, knowledge);
   const fresh = new Set(outcome.newPurchases.map(row => `${row.code}:${Date.parse(row.punchedAt)}`));
@@ -240,6 +244,7 @@ function Outcome({ outcome, item, knowledge, timeZone, onRename }: { outcome: De
 }
 
 function FullscreenButton() {
+  const t = useTexts(partyText, partyTextEn);
   const [active, setActive] = useState(false);
   useEffect(() => {
     const change = () => setActive(document.fullscreenElement !== null);
@@ -256,6 +261,7 @@ function FullscreenButton() {
 /** Övningsstationen för en fest: en påhittad bricka som stämplas på varornas koder och läses ut. */
 function PartyExercise({ transport, pkg, items, timeZone }: { transport: FakeStationTransport; pkg: ReadoutPackage;
   items: PartyPackage["items"]; timeZone: string }) {
+  const t = useTexts(partyText, partyTextEn);
   const [card, setCard] = useState(() => newCardNumber());
   const [punches, setPunches] = useState<{ code: number; at: Date }[]>([]);
   const [finish, setFinish] = useState<Date>();

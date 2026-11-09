@@ -1,5 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { ReadoutApp } from "./app";
+import { LanguageProvider } from "../components/language-provider";
+import { LANGUAGE_COOKIE, languageFrom } from "../lib/language";
 import "../components/ui/tokens.css";
 import "./readout.css";
 
@@ -12,4 +14,8 @@ if ("serviceWorker" in navigator && window.isSecureContext) {
     });
 }
 
-createRoot(document.getElementById("root")!).render(<ReadoutApp />);
+// Idéerna 2026-11-08 (engelska): samma språkval som webbplatsen (kakan, annars webbläsarens språk). Kvittot är kvar på svenska.
+const cookie = document.cookie.split(";").map(part => part.trim().split("=")).find(([name]) => name === LANGUAGE_COOKIE)?.[1];
+const language = languageFrom(cookie, navigator.languages.join(","));
+document.documentElement.lang = language;
+createRoot(document.getElementById("root")!).render(<LanguageProvider language={language}><ReadoutApp /></LanguageProvider>);

@@ -3,6 +3,8 @@
  * servern (med väntan när servern inte svarar). Inget raderas lokalt förrän servern har kvitterat (`syncPending`).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readoutTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import { accountCsrf, fetchReadoutPackage } from "./api";
 import type { OtherRacePending, QueuedReadout, QueuedRegistration, ReadoutStore } from "./store";
@@ -10,12 +12,13 @@ import { requeueLocallyInvalid, syncPending, unavailableBackoffMs } from "./sync
 import { loadFailedReadouts, syncFailedReadouts, type FailedReadout } from "./failed-readouts";
 import type { PartyAction, PartyActionStore, QueuedPartyAction } from "./party-store";
 import { syncPartyActions } from "./party-sync";
-import { readoutText as t } from "./text-sv";
+import { readoutText } from "./text-sv";
 
 const SYNC_INTERVAL_MS = 5_000;
 const PACKAGE_INTERVAL_MS = 60_000;
 
 export function useReadoutQueue(raceId: string | undefined, store: ReadoutStore, partyStore: PartyActionStore) {
+  const t = useTexts(readoutText, readoutTextEn);
   const [pkg, setPkg] = useState<ReadoutPackage>();
   const [items, setItems] = useState<QueuedReadout[]>([]);
   // ADR-0187: väntande avläsningar för andra tävlingar på den här datorn (t.ex. före en återställning). Skickas aldrig hit.

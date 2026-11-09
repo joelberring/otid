@@ -1,12 +1,14 @@
 /** Avläsningens besked (stort, med sträcktider, stafett, rogaining och placering) och raderna i Senaste avläsningar. */
 import { useMemo } from "react";
+import { readoutTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import { formatDuration } from "@o-tid/domain";
 import { evaluateLocally, type LocalVerdict } from "./evaluate";
 import type { QueuedReadout, QueuedRegistration } from "./store";
 import { RegistrationStatus } from "./registration-form";
 import { startPunchText } from "../lib/start-punch-text";
-import { readoutText as t } from "./text-sv";
+import { readoutText } from "./text-sv";
 import { QrCode } from "./receipt-view";
 import { PunchListView } from "./punch-list-view";
 import type { receiptLink } from "./receipt";
@@ -26,6 +28,7 @@ function serverStatus(item: QueuedReadout | undefined, registration: QueuedRegis
 export function Verdict({ current, verdict, item, qr, registration, timeZone, online }: { current: Current | undefined; verdict: LocalVerdict | undefined;
   item: QueuedReadout | undefined; qr: ReturnType<typeof receiptLink> | undefined; registration: QueuedRegistration | undefined;
   timeZone: string; online: boolean }) {
+  const t = useTexts(readoutText, readoutTextEn);
   if (!current) return <p className="big">{t.waitingForCard}</p>;
   if (current.phase === "reading") return <p className="big">{t.reading(current.cardNumber)}</p>;
   if (current.phase === "failed") return <p className="big">✗ {current.message}</p>;
@@ -94,6 +97,7 @@ function Placement({ item, online }: { item: QueuedReadout | undefined; online: 
 }
 export function RecentRow({ item, pkg, local, registration }: { item: QueuedReadout; pkg: ReadoutPackage | undefined;
   local: readonly QueuedReadout["payload"][]; registration: QueuedRegistration | undefined }) {
+  const t = useTexts(readoutText, readoutTextEn);
   // Bedöms om bara när avläsningen, paketet eller de tidigare avläsningarna ändras (inte vid varje stationshändelse).
   const verdict = useMemo(() => pkg ? evaluateLocally(item.payload, pkg, local, item.stationReceivedAt) : undefined,
     [item.payload, pkg, local.length, item.stationReceivedAt]);
@@ -114,6 +118,7 @@ export function RecentRow({ item, pkg, local, registration }: { item: QueuedRead
  */
 function Rogaining({ score, elapsedMs, splits }: { score: NonNullable<LocalVerdict["rogaining"]>; elapsedMs: number;
   splits: LocalVerdict["splits"] }) {
+  const t = useTexts(readoutText, readoutTextEn);
   const times = new Map(splits.map((split) => [split.controlCode, split.elapsedMs]));
   return <>
     <p className="time" data-testid="verdict-total">{t.rogainingTotal(score.total)}</p>
@@ -131,6 +136,7 @@ function Rogaining({ score, elapsedMs, splits }: { score: NonNullable<LocalVerdi
 
 /** Stafett: "Lag 12 OK Test · Sträcka 2 av 3 · Växlar till sträcka 3", eller lagets tid på sista sträckan. */
 function RelayLine({ relay }: { relay: NonNullable<LocalVerdict["relay"]> }) {
+  const t = useTexts(readoutText, readoutTextEn);
   const own = relay.legs.at(-1) ?? relay.leg;
   const last = own === relay.legCount;
   const team = relay.team;

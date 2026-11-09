@@ -2,7 +2,8 @@ import type { ReadoutPackage } from "@o-tid/contracts";
 import { entryCourseControls, inRaceDay, parseRaceClock, type RaceSnapshot } from "@o-tid/domain";
 import { cardTypeForNumber, simulatedRun, type SimulatedCard } from "@o-tid/sportident";
 import { relayExerciseWindow, relayPlace, teamSprintLegs } from "./relay";
-import { readoutText as t } from "./text-sv";
+import type { Texts } from "../lib/language";
+import { readoutText } from "./text-sv";
 
 /**
  * "late": rogaining, i mål 1:30 efter tidsgränsen (två påbörjade minuter). "late-start" (PLAN.md steg 25): minutstart,
@@ -24,7 +25,7 @@ export interface ExerciseRunner {
 }
 
 /** Deltagare med aktiv bricka och bana, som övningsstationen kan skapa brickor för. */
-export function exerciseRunners(pkg: ReadoutPackage): ExerciseRunner[] {
+export function exerciseRunners(pkg: ReadoutPackage, t: Pick<Texts<typeof readoutText>, "relayPlace"> = readoutText): ExerciseRunner[] {
   const snapshot = pkg.raceSnapshot;
   const runners: ExerciseRunner[] = [];
   for (const assignment of snapshot.cardAssignments) {

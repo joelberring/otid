@@ -3,6 +3,8 @@
  * stationen (steg 35), snabb utläsning (steg 53) och trafikloggen. Avläsningarna lämnas till `onCardRead`.
  */
 import { useCallback, useRef, useState, type MutableRefObject } from "react";
+import { readoutTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type WebSerialPortLike } from "@o-tid/device-transport";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
@@ -12,7 +14,7 @@ import { TrafficLog } from "./rawlog";
 import { serialIdentity, usbIdentity, useStationAutoConnect, type SerialApi, type SerialStation, type UsbApi,
   type UsbStation } from "./station-auto";
 import type { ReadoutSound } from "./sound";
-import { readoutText as t } from "./text-sv";
+import { readoutText } from "./text-sv";
 import type { Current } from "./verdict-panel";
 
 type SerialNavigator = Navigator & { serial?: SerialApi };
@@ -29,6 +31,7 @@ export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
   onCardRead: (card: SiCardData, frames: readonly Uint8Array[], station: StationFacts, exercise: FakeStationTransport | undefined) => Promise<void>;
   setCurrent: (current: Current) => void;
 }) {
+  const t = useTexts(readoutText, readoutTextEn);
   const [station, setStation] = useState<StationStatus>({ kind: "disconnected" });
   const [exercise, setExercise] = useState(false);
   const controllerRef = useRef<StationController | undefined>(undefined);

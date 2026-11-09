@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { partyTextEn, readoutTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { evaluateLocally, withLocalRegistrations } from "./evaluate";
@@ -13,7 +15,8 @@ import { heldReadouts, releaseHeldReadouts } from "./sync";
 import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, type FailedReadout } from "./failed-readouts";
 import { inRaceDay, raceTitle } from "@o-tid/domain";
 import { toHex } from "./payload";
-import { readoutText as t } from "./text-sv";
+import type { Texts } from "../lib/language";
+import { readoutText } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
 import { receiptLink } from "./receipt";
 import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from "./receipt-settings";
@@ -43,7 +46,7 @@ function fetchedAt(pkg: ReadoutPackage): string {
     .format(new Date(pkg.fetchedAt));
 }
 
-function stationText(status: StationStatus, exercise: boolean): string {
+function stationText(status: StationStatus, exercise: boolean, t: Pick<Texts<typeof readoutText>, "stationStatus">): string {
   switch (status.kind) {
     case "ready": return exercise ? t.stationStatus.exercise : t.stationStatus.ready(status.serialNumber);
     case "connecting": return t.stationStatus.connecting;
@@ -66,6 +69,8 @@ function saveJson(text: string, prefix: string) {
 
 export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new IdbPartyActionStore() }: { store?: ReadoutStore;
   partyStore?: PartyActionStore }) {
+  const t = useTexts(readoutText, readoutTextEn);
+  const partyT = useTexts(partyText, partyTextEn);
   const [raceId] = useState(raceIdFromHash);
   const { pkg, pkgRef, items, itemsRef, elsewhere, registrations, registrationsRef, online, loginNeeded, syncProblem, serverDown,
     failedReadouts, setFailedReadouts, persistent, storeRef, partyActions, reload, sync, addPartyAction } = useReadoutQueue(raceId, store, partyStore);
@@ -185,7 +190,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   if (!raceId) return <main className="readout"><div className="readout-head"><h1>{t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
     <p className="notice">{t.noRace}</p></main>;
 
-  const runners = pkg ? exerciseRunners(pkg) : [];
+  const runners = pkg ? exerciseRunners(pkg, t) : [];
   const selectedRunner = runners.find((candidate) => candidate.entryId === runnerId) ?? runners[0];
   const waiting = items.filter((item) => item.status === "pending").length +
     partyActions.filter((row) => row.status === "pending").length;
@@ -210,11 +215,11 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const head = <>
     <header>
       {/* PLAN.md steg 37: Hjälp öppnar en panel ovanpå; avläsningen fortsätter under tiden. */}
-      <div className="readout-head"><h1>{pkg?.party ? partyText.title : t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
+      <div className="readout-head"><h1>{pkg?.party ? partyT.title : t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
       {pkg ? <p className="race">{raceTitle(pkg.event.name, pkg.raceSnapshot.race.name)}</p> : null}
       <dl className="status" aria-label="Status">
         <div data-state={station.kind === "ready" ? "good" : station.kind === "disconnected" ? "idle" : "bad"}>
-          <dt>{t.station}</dt><dd data-testid="station-status">{station.kind === "ready" ? "● " : "○ "}{stationText(station, exercise)}</dd></div>
+          <dt>{t.station}</dt><dd data-testid="station-status">{station.kind === "ready" ? "● " : "○ "}{stationText(station, exercise, t)}</dd></div>
         <div data-state={!online ? "bad" : serverDown ? "warn" : "good"}>
           <dt>{t.internet}</dt><dd data-testid="internet-status">{!online ? `○ ${t.offline}` : serverDown ? `◐ ${t.serverDown}` : `● ${t.online}`}</dd></div>
         <div data-state={waiting === 0 ? "good" : serverDown ? "bad" : "warn"}>
@@ -271,7 +276,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
           {showUsbButton ? <button type="button" className="primary" onClick={() => { void connectUsb(); }}>{t.connectUsb}</button> : null}
           <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
           {raceDay ? <small className="exercise-warning" data-testid="exercise-warning-short">
-            {pkg?.party ? partyText.exerciseNotCountedShort : t.exerciseRaceDayShort}</small> : null}
+            {pkg?.party ? partyT.exerciseNotCountedShort : t.exerciseRaceDayShort}</small> : null}
         </>}
       <label className="sound-choice"><input type="checkbox" checked={soundOn} onChange={(event) => {
         setSoundOn(event.target.checked); saveSoundEnabled(event.target.checked);

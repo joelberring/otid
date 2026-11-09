@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { partyTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import type { PartyStateResponse, ReadoutPackage } from "@o-tid/contracts";
 import { foldForSearch, PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName, partyDisplayName } from "@o-tid/domain";
 import { runnerForCard, searchRunners } from "./runner-lookup";
-import { partyText as t } from "./party-text-sv";
+import { partyText } from "./party-text-sv";
 
 /**
  * Namnrutan vid okänd bricka (PLAN.md steg 40): förslag ur löpardatabasen (paketets, även utan nät) och festens gäster,
@@ -14,6 +16,7 @@ type Suggestion = { key: string; name: string; label?: string | undefined; displ
 export function PartyNameBox({ card, pkg, server, current, closesInMs, onSave, onSkip }: { card: string; pkg: ReadoutPackage;
   server: PartyStateResponse | undefined; current: string | undefined; closesInMs: number;
   onSave: (name: string, club: string | null, displayName: string | null) => Promise<void>; onSkip: () => void }) {
+  const t = useTexts(partyText, partyTextEn);
   const exact = runnerForCard(pkg, card);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | undefined>(exact ? "exact" : undefined);

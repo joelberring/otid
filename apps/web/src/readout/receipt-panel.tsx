@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { readoutTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import type { LocalVerdict } from "./evaluate";
 import { buildReceipt } from "./receipt";
@@ -6,7 +8,6 @@ import { ReceiptView } from "./receipt-view";
 import { receiptPageCss, type ReceiptSettings } from "./receipt-settings";
 import { readoutText } from "./text-sv";
 
-const t = readoutText.receipt;
 const PAGE_STYLE_ID = "otid-receipt-page";
 
 /**
@@ -32,6 +33,7 @@ export function autoPrintable(verdict: LocalVerdict): boolean {
 export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
   printable: Printable | undefined; pkg: ReadoutPackage | undefined; settings: ReceiptSettings; onSettings: (settings: ReceiptSettings) => void;
 }) {
+  const readoutTexts = useTexts(readoutText, readoutTextEn), t = readoutTexts.receipt;
   const [shown, setShown] = useState<{ sequence: number; printedAt: Date }>();
   const [printRequest, setPrintRequest] = useState(0);
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -40,8 +42,8 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
 
   const receipt = useMemo(() => printable && pkg && shown?.sequence === printable.localSequence
     ? buildReceipt({ verdict: printable.verdict, cardNumber: printable.cardNumber, pkg, origin: window.location.origin, printedAt: shown.printedAt,
-      placement: printable.placement })
-    : undefined, [printable, pkg, shown]);
+      placement: printable.placement, text: readoutTexts })
+    : undefined, [printable, pkg, shown, readoutTexts]);
 
   function print(sequence: number) {
     setShown({ sequence, printedAt: new Date() });

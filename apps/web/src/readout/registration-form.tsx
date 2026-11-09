@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { readoutTextEn } from "./text-en";
+import { useTexts } from "../components/language-provider";
 import type { ReadoutPackage, RunnerSearchRequest, RunnerSearchResponse, RunnerSuggestion, SportidentReadoutPayload } from "@o-tid/contracts";
 import { foldForSearch } from "@o-tid/domain";
 import { validateReadoutRegistration, type FieldErrors, type ReadoutRegistrationInput } from "../lib/form-validation";
@@ -6,7 +8,7 @@ import type { QueuedReadout, QueuedRegistration } from "./store";
 import {
   classSuggestions, clubByName, entrySuggestions, runnerForCard, runnerIndex, runnerLabel, searchRunners, type EntrySuggestion
 } from "./runner-lookup";
-import { readoutText as t } from "./text-sv";
+import { readoutText } from "./text-sv";
 
 type Fields = ReadoutRegistrationInput;
 const EMPTY: Fields = { classId: "", givenName: "", familyName: "", club: "" };
@@ -45,6 +47,7 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
   pkg: ReadoutPackage; cardNumber: string; payload: Pick<SportidentReadoutPayload, "punches">; items: readonly QueuedReadout[];
   registrations: readonly QueuedRegistration[]; search: ((request: RunnerSearchRequest) => Promise<RunnerSearchResponse | undefined>) | undefined;
   onSubmit: (fields: RegistrationFields) => Promise<void>; onLink: (entry: EntrySuggestion) => Promise<void> }) {
+  const t = useTexts(readoutText, readoutTextEn);
   const classes = useMemo(() => registrationClasses(pkg), [pkg]);
   const classIds = useMemo(() => new Set(classes.map((raceClass) => raceClass.id)), [classes]);
   const local = runnerForCard(pkg, cardNumber);
@@ -181,6 +184,7 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
 
 /** Läget för en anmälan av brickan: väntar, sparad, fanns redan eller avvisad (och detsamma för en koppling). */
 export function RegistrationStatus({ registration, className }: { registration: QueuedRegistration; className: string }) {
+  const t = useTexts(readoutText, readoutTextEn);
   const request = registration.request;
   const response = registration.response;
   const linking = "target" in request;

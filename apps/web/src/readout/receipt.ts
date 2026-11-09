@@ -1,7 +1,8 @@
 import QRCode from "qrcode";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import type { LocalVerdict } from "./evaluate";
-import { readoutText } from "./text-sv";
+import { readoutText as readoutTextSv } from "./text-sv";
+import type { Texts } from "../lib/language";
 import { placementText } from "./placement-text";
 import { formatDayMonthTime, formatDuration, raceDetails } from "@o-tid/domain";
 
@@ -10,7 +11,7 @@ import { formatDayMonthTime, formatDuration, raceDetails } from "@o-tid/domain";
  * det går att skriva ut utan nät. Steg 57: placeringen kommer från serverns kvitto (preliminär); finns den inte än står
  * det att den finns i resultatlistan, som QR-koden leder till. Enheten räknar aldrig placeringen själv.
  */
-const t = readoutText.receipt;
+type ReadoutTexts = Texts<typeof readoutTextSv>;
 
 export interface ReceiptRow { readonly index: string; readonly code: string; readonly leg: string; readonly total: string }
 
@@ -45,10 +46,12 @@ export interface ReceiptInput {
   readonly printedAt: Date;
   /** Steg 57: placeringens rader ur serverns kvitto, om de finns. */
   readonly placement?: readonly string[] | undefined;
+  /** Kvittots språk (förval svenska). */
+  readonly text?: ReadoutTexts | undefined;
 }
 
-function formatDate(date: string): string {
-  return new Intl.DateTimeFormat("sv-SE", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+function formatDate(date: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
     .format(new Date(`${date}T12:00:00Z`));
 }
 
@@ -66,7 +69,9 @@ export function receiptLink(pkg: ReadoutPackage, entryId: string | undefined, or
   return { url, address: `${host}/t/${links.shortCode}`, published: links.published };
 }
 
-export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, placement }: ReceiptInput): Receipt {
+export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, placement, text }: ReceiptInput): Receipt {
+  const readoutText = text ?? readoutTextSv, t = readoutText.receipt;
+  const locale = readoutText === readoutTextSv ? "sv-SE" : "en-GB";
   const race = pkg.raceSnapshot.race;
   const symbol = verdict.status === "OK" ? "✓" : verdict.status === "MP" || verdict.status === "OVERTIME" ? "✗" : "?";
   const notes: string[] = [];
@@ -95,7 +100,7 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
 
   return {
     eventName: pkg.event.name,
-    details: raceDetails(pkg.event.name, race.name, [formatDate(race.raceDate)]),
+    details: raceDetails(pkg.event.name, race.name, [formatDate(race.raceDate, locale)]),
     ...(verdict.name ? { runner: verdict.name } : {}),
     ...(verdict.className || verdict.club ? { team: [verdict.className, verdict.club].filter(Boolean).join(" · ") } : {}),
     card: t.card(cardNumber),
@@ -106,15 +111,16 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
         ? { result: formatDuration(verdict.elapsedMs) } : {}),
     notes,
     lines,
-    columns: score ? t.rogainingColumns : t.columns,
-    rows: score ? rogainingRows(verdict) : splitRows(verdict),
+    columns: (score ? t.rogainingColumns : t.columns) as Receipt["columns"],
+    rows: score ? rogainingRows(verdict, readoutText) : splitRows(verdict, readoutText),
     qr: receiptLink(pkg, verdict.entryId, origin),
     printedAt: t.printedAt(formatDayMonthTime(printedAt, pkg.event.timeZone))
   };
 }
 
 /** Sträcktider i stämplad ordning och sist sträckan till mål, när målstämplingen finns. */
-function splitRows(verdict: LocalVerdict): ReceiptRow[] {
+function splitRows(verdict: LocalVerdict, readoutText: ReadoutTexts): ReceiptRow[] {
+  const t = readoutText.receipt;
   const rows: ReceiptRow[] = verdict.splits.map((split, index) => ({ index: String(index + 1), code: String(split.controlCode),
     leg: formatDuration(split.legMs), total: formatDuration(split.elapsedMs) }));
   if (verdict.elapsedMs !== undefined) {
@@ -127,7 +133,7 @@ function splitRows(verdict: LocalVerdict): ReceiptRow[] {
 }
 
 /** Rogaining: de räknade kontrollerna med poäng och tid från start. */
-function rogainingRows(verdict: LocalVerdict): ReceiptRow[] {
+function rogainingRows(verdict: LocalVerdict, readoutText: ReadoutTexts): ReceiptRow[] {
   const times = new Map(verdict.splits.map((split) => [split.controlCode, split.elapsedMs]));
   return (verdict.rogaining?.controls ?? []).map((control, index) => {
     const elapsed = times.get(control.controlCode);

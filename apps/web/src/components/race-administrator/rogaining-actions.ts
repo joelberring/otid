@@ -1,7 +1,9 @@
 import { useState } from "react";
+
+
 import { rogainingChangePreviewResponseSchema, rogainingChangeResponseSchema, type RogainingChangePreviewResponse,
   type RogainingChangeRequest } from "@o-tid/contracts";
-import { rogainingSv as text } from "../../i18n/rogaining-sv";
+
 import type { Operation, RogainingAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -36,6 +38,7 @@ function whole(value: string, min: number, max: number): number | null | undefin
 type Change = Pick<RogainingChangeRequest, "controlPoints" | "classRules">;
 
 export function createRogainingActions(ws: Base & RaceDataActions & CourseEditActions) {
+  const text = ws.rogainingText;
   const { raceId, courseList, rogainingPoints, rogainingRules, rogainingPreview, writingRef, pending, sent, requireSession, begin, finish,
     current, request, json, csrf, load, readCourses, setCourseListError, setRogainingPoints, setRogainingRules, setRogainingPreview,
     setRogainingError, setRogainingSaved, setRogainingAttempt } = ws;

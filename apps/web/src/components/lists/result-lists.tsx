@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useTexts } from "../language-provider";
+import { radioEn } from "../../i18n/workspace-more-en";
 import React, { useMemo, useState, type ReactNode } from "react";
 import { useListTexts, type ListTexts } from "./use-list-texts";
 import { formatDayMonthTime, formatDuration } from "@o-tid/domain";
@@ -140,6 +142,7 @@ function ScoredControlsBlock({ raceClass, context }: { raceClass: ResultClass; c
 }
 
 function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const radioText = useTexts(radioSv, radioEn);
   const { results: t, course } = useListTexts();
   const [showForking, setShowForking] = useState(false);
   if (raceClass.scored) return <ScoredClassBlock raceClass={raceClass} context={context} />;
@@ -149,7 +152,7 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3>
       {raceClass.course && <p className={styles.course}>{courseLine(raceClass.course, course)}</p>}
-      <p>{raceClass.rows.length === 0 && raceClass.radio ? radioSv.live.noneFinished : t.runners(raceClass.rows.length)}</p>
+      <p>{raceClass.rows.length === 0 && raceClass.radio ? radioText.live.noneFinished : t.runners(raceClass.rows.length)}</p>
       {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}
       {forking && raceClass.rows.some(row => row.variant) && <button type="button" className={styles.toggle} aria-pressed={showForking}
         aria-label={`${forkingSv.showForking}: ${raceClass.name}`} onClick={() => setShowForking(!showForking)}>{forkingSv.showForking}</button>}</div>

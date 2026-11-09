@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { radioControlNameEn, radioEn, speakerEn } from "../i18n/workspace-more-en";
+import { useLanguage, useTexts } from "./language-provider";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { administratorForestWatchResponseSchema, publicRadioResponseSchema, publicResultListResponseV7Schema, relayOverviewSchema,
   speakerBoardResponseSchema, type AdministratorForestWatchResponse, type PublicRadioResponse, type PublicResultListResponseV7, type RelayOverview,
   type SpeakerBoardResponse } from "@o-tid/contracts";
 import { raceDayStarted, raceDetails } from "@o-tid/domain";
-import { speakerSv as text } from "../i18n/speaker-sv";
+import { speakerSv } from "../i18n/speaker-sv";
 import { radioControlName, radioSv } from "../i18n/radio-sv";
 import { passageTime } from "./radio/radio-live";
 import { formatClockTime, formatDuration } from "../lib/clock-time";
@@ -28,6 +30,9 @@ class Unauthorized extends Error {}
  * sträcka. Uppdateras av sig själv: väckningar från resultatströmmen och ett intervall som reserv.
  */
 export function SpeakerPage({ raceId }: { raceId: string }) {
+  const radioText = useTexts(radioSv, radioEn);
+  const controlName = useLanguage() === "en" ? radioControlNameEn : radioControlName;
+  const text = useTexts(speakerSv, speakerEn);
   const [data, setData] = useState<Data>();
   const [problem, setProblem] = useState<"login" | "error" | "stale">();
   const [classFilter, setClassFilter] = useState("");
@@ -133,20 +138,20 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
             <h3>{row.className}<span className={styles.count}>{text.forestCount(row.runners.length)}</span></h3>
             <p className={styles.names}>{row.runners.map((runner, index) => <span key={runner.entryId}>{index > 0 && ", "}
               {runner.displayName}{isOnTheWay(onTheWay, row.className, runner.displayName) &&
-                <strong className={styles.onTheWay}> ({radioSv.speaker.onTheWay})</strong>}</span>)}</p>
+                <strong className={styles.onTheWay}> ({radioText.speaker.onTheWay})</strong>}</span>)}</p>
           </div>)}
       </section>
       {radio && <section className={`${styles.block} ${styles.radioLatest}`} aria-labelledby="speaker-radio">
-        <h2 id="speaker-radio">{radioSv.speaker.latestTitle}</h2>
+        <h2 id="speaker-radio">{radioText.speaker.latestTitle}</h2>
         <RadioLatest rows={radio.latest} timeZone={timeZone} />
       </section>}
-      {radio && radioTop.length > 0 && <section className={`${styles.block} ${styles.radioLeaders}`} aria-label={radioSv.live.title}>
+      {radio && radioTop.length > 0 && <section className={`${styles.block} ${styles.radioLeaders}`} aria-label={radioText.live.title}>
         {radioTop.map(row => <div key={`${row.className}-${row.controlCode}`} className={styles.group}>
-          <h3>{radioSv.speaker.leadersTitle(radioControlName(row.controlCode, row.label))}<span className={styles.count}>{row.className}</span></h3>
+          <h3>{radioText.speaker.leadersTitle(controlName(row.controlCode, row.label))}<span className={styles.count}>{row.className}</span></h3>
           <ol className={styles.rows}>{row.leaders.map(leader => <li key={leader.publicResultId}>
             <span className={styles.place}>{text.place(leader.place!)}</span>
             <span className={styles.name}>{leader.givenName} {leader.familyName}<small>{leader.organisationName ?? ""}</small></span>
-            <span className={styles.time}>{passageTime(leader, timeZone)}</span>
+            <span className={styles.time}>{passageTime(leader, timeZone, radioText.live)}</span>
           </li>)}</ol>
         </div>)}
       </section>}
@@ -169,6 +174,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
 
 /** Senast i mål: klockslag, namn och klubb, klass, tid eller status och placering. */
 function Latest({ rows, timeZone }: { rows: Finisher[]; timeZone: string }) {
+  const text = useTexts(speakerSv, speakerEn);
   if (rows.length === 0) return <p className={styles.empty}>{text.latestEmpty}</p>;
   return <table className={styles.table}>
     <tbody>{rows.map(row => {
@@ -190,14 +196,17 @@ function Latest({ rows, timeZone }: { rows: Finisher[]; timeZone: string }) {
 
 /** Senaste radiostämplingarna (ADR-0172 beslut 5): klockslag, löpare, klass, kontroll, tid sedan start och placering där. */
 function RadioLatest({ rows, timeZone }: { rows: PublicRadioResponse["latest"]; timeZone: string }) {
-  if (rows.length === 0) return <p className={styles.empty}>{radioSv.speaker.latestEmpty}</p>;
+  const radioText = useTexts(radioSv, radioEn);
+  const controlName = useLanguage() === "en" ? radioControlNameEn : radioControlName;
+  const text = useTexts(speakerSv, speakerEn);
+  if (rows.length === 0) return <p className={styles.empty}>{radioText.speaker.latestEmpty}</p>;
   return <table className={`${styles.table} ${styles.radioTable}`}>
     <tbody>{rows.slice(0, 12).map(row => <tr key={`${row.publicResultId}-${row.controlCode}`}>
       <td className={styles.clock}>{row.passedAt ? formatClockTime(row.passedAt, timeZone) : ""}</td>
-      <td className={styles.name}>{row.givenName} {row.familyName}<small>{radioSv.live.passed(radioControlName(row.controlCode, row.label))}
+      <td className={styles.name}>{row.givenName} {row.familyName}<small>{radioText.live.passed(controlName(row.controlCode, row.label))}
         {row.organisationName ? ` · ${row.organisationName}` : ""}</small></td>
       <td className={styles.className}>{row.className}</td>
-      <td className={styles.result}><span className={styles.time}>{passageTime(row, timeZone)}</span></td>
+      <td className={styles.result}><span className={styles.time}>{passageTime(row, timeZone, radioText.live)}</span></td>
       <td className={styles.place}>{row.place ? text.place(row.place) : ""}</td>
     </tr>)}</tbody>
   </table>;

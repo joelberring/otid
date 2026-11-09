@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { radioControlNameEn, radioEn } from "../../i18n/workspace-more-en";
+import { useLanguage, useTexts } from "../language-provider";
 import { radioFetchResponseSchema, radioSettingsResponseSchema, type RadioSettingsResponse, type RadioSource } from "@o-tid/contracts";
 import { radioControlName, radioSv } from "../../i18n/radio-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
@@ -9,7 +11,6 @@ import { Button, Field, Notice, Section } from "../ui";
 import { sourceTime } from "./eventor-section";
 import styles from "./radio-section.module.css";
 
-const text = radioSv.settings;
 type Message = { tone: "ok" | "error"; text: string };
 type Draft = { enabled: boolean; source: RadioSource; unitId: string; controls: Map<number, string> };
 
@@ -25,6 +26,9 @@ function draftFrom(settings: RadioSettingsResponse): Draft {
  * stämplingar och okända brickor, "Hämta nu" och de senaste stämplingarna. Servern kontrollerar allt.
  */
 export function RadioSection({ raceId, disabled }: { raceId: string; disabled: boolean }) {
+  const radioText = useTexts(radioSv, radioEn);
+  const controlName = useLanguage() === "en" ? radioControlNameEn : radioControlName;
+  const text = radioText.settings;
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator/radio`;
   const [settings, setSettings] = useState<RadioSettingsResponse>();
   const [draft, setDraft] = useState<Draft>();
@@ -108,7 +112,7 @@ export function RadioSection({ raceId, disabled }: { raceId: string; disabled: b
   });
   const status = settings.status;
   const source = settings.link ? text.sourceShort[settings.link.source] : "";
-  const labelOf = (code: number) => radioControlName(code, settings.link?.controls.find(control => control.code === code)?.label ?? null, true);
+  const labelOf = (code: number) => controlName(code, settings.link?.controls.find(control => control.code === code)?.label ?? null, true);
   return <Section id={id} title={text.title} help={text.help}>
     <form className={styles.form} onSubmit={event => void save(event)} aria-label={text.title}>
       <label className={styles.switch}>

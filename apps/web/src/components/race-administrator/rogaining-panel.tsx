@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { rogainingEn } from "../../i18n/workspace-more-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import local from "./rogaining.module.css";
-import { rogainingSv as text } from "../../i18n/rogaining-sv";
+import { rogainingSv } from "../../i18n/rogaining-sv";
 import { Button, EmptyState, Notice, Section, Table, numeric } from "../ui";
 import type { Workspace } from "./workspace-state";
 
@@ -15,6 +17,7 @@ import type { Workspace } from "./workspace-state";
  * poängen skrivskyddade här ("Poängen sätts i banläggningen", städrundan C4).
  */
 export function RogainingPanel({ ws }: { ws: Workspace }) {
+  const text = useTexts(rogainingSv, rogainingEn);
   const { busy, courseList, courseListError, pending, raceId, rogainingAttempt, rogainingError, rogainingPoints, rogainingPreview,
     rogainingRules, rogainingSaved, courseFormOpen, setCourseFormOpen, changeRogainingPoints, changeRogainingRule, previewRogaining, resetRogaining, saveRogaining, shows } = ws;
   if (!shows("ROGAINING")) return null;

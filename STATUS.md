@@ -54,8 +54,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 13: lottningen, startlistans publicering och kvar i skogen (målpersonalens lista).
 - Del 14: Eventor, löpardatabasen, banfilen och granskningen av skillnader, ta bort och stryk, Resultaten är klara, Ny
   tävling som den här och gafflingarna (`workspace-tools-en.ts`).
-- Del 15: brickans stämplingar i deltagarkortet och rättningarna för hela tävlingen. Kvar: stafett, rogaining, festens
-  bardisk, radiokontroller, avläsningen, speakern, hjälpen och banläggningen.
+- Del 15: brickans stämplingar i deltagarkortet och rättningarna för hela tävlingen.
+- Del 16: rogaining, speakersidan och radiokontrollerna (inställningar, resultatlistan, Live och speakern;
+  `workspace-more-en.ts`). Kvar: stafett, festens bardisk, avläsningen, hjälpen och banläggningen.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

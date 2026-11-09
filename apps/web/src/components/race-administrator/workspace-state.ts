@@ -9,6 +9,8 @@ import { forestWatchSv } from "../../i18n/forest-watch-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { resultsOfficialSv } from "../../i18n/results-official-sv";
 import { removalSv } from "../../i18n/removal-sv";
+import { rogainingSv } from "../../i18n/rogaining-sv";
+import { rogainingEn } from "../../i18n/workspace-more-en";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { useTexts } from "../language-provider";
@@ -50,7 +52,8 @@ export function useWorkspaceState(raceId: string) {
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const officialText = useTexts(resultsOfficialSv, resultsOfficialEn);
   const removalText = useTexts(removalSv, removalEn);
-  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
+  const rogainingText = useTexts(rogainingSv, rogainingEn);
+  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, rogainingText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),

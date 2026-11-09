@@ -1,15 +1,17 @@
 import Link from "next/link";
 import type { PublicRadioPassage } from "@o-tid/contracts";
 import { radioControlName, radioSv } from "../../i18n/radio-sv";
+import { radioControlNameEn, radioEn } from "../../i18n/workspace-more-en";
+import { useLanguage, useTexts } from "../language-provider";
 import { formatClockTime, formatDuration } from "../../lib/clock-time";
 import type { RadioClass } from "../../lib/lists/result-list-model";
 import lists from "../lists/lists.module.css";
 import styles from "./radio-live.module.css";
 
-const text = radioSv.live;
+type LiveTexts = typeof radioEn.live;
 
 /** Tid sedan start, eller klockslaget när starttiden saknas. */
-export function passageTime(passage: PublicRadioPassage, timeZone: string): string {
+export function passageTime(passage: PublicRadioPassage, timeZone: string, text: LiveTexts = radioSv.live): string {
   if (passage.elapsedMs !== null) return formatDuration(passage.elapsedMs);
   return passage.passedAt ? text.clock(formatClockTime(passage.passedAt, timeZone)) : text.noTime;
 }
@@ -21,6 +23,7 @@ function Runner({ passage, raceId, links }: { passage: PublicRadioPassage; raceI
 }
 
 function Place({ place }: { place: number | null }) {
+  const text = useTexts(radioSv.live, radioEn.live);
   return place === null ? null : <span aria-label={text.placeLabel(place)}>{text.place(place)}</span>;
 }
 
@@ -32,6 +35,8 @@ function Place({ place }: { place: number | null }) {
 export function RadioLive({ radio, timeZone, raceId, links, className }: {
   radio: RadioClass; timeZone: string; raceId: string; links: boolean; className: string;
 }) {
+  const text = useTexts(radioSv.live, radioEn.live);
+  const controlName = useLanguage() === "en" ? radioControlNameEn : radioControlName;
   const id = `radio-${className.replace(/\W+/g, "-")}`;
   return <div className={styles.radio}>
     {radio.onTheWay.length > 0 && <section aria-labelledby={`${id}-out`}>
@@ -40,13 +45,13 @@ export function RadioLive({ radio, timeZone, raceId, links, className }: {
         <thead><tr><th scope="col" className={lists.place}>{text.placeColumn}</th><th scope="col">{text.name}</th>
           <th scope="col" className={`${lists.num} ${lists.narrow}`}>{text.time}</th></tr></thead>
         <tbody>{radio.onTheWay.map(passage => {
-          const control = radioControlName(passage.controlCode, passage.label);
+          const control = controlName(passage.controlCode, passage.label);
           return <tr key={passage.publicResultId} data-radio="out">
             <td className={lists.place}>{passage.place === null ? "" : <span className={styles.provisional}>{text.place(passage.place)}</span>}</td>
             <th scope="row"><Runner passage={passage} raceId={raceId} links={links} />
               <span className={lists.sub}>{[text.passed(control), passage.organisationName,
                 passage.relay ? `Lag ${passage.relay.teamNumber} ${passage.relay.teamName}` : null].filter(Boolean).join(" · ")}</span></th>
-            <td className={lists.num}>{passageTime(passage, timeZone)}</td>
+            <td className={lists.num}>{passageTime(passage, timeZone, text)}</td>
           </tr>;
         })}</tbody>
       </table>
@@ -54,12 +59,12 @@ export function RadioLive({ radio, timeZone, raceId, links, className }: {
     <section aria-labelledby={`${id}-controls`} className={styles.controls}>
       <h4 id={`${id}-controls`}>{text.title}</h4>
       {radio.controls.filter(control => control.passages.length > 0).map(control => {
-        const name = radioControlName(control.controlCode, control.label, true);
+        const name = controlName(control.controlCode, control.label, true);
         const leader = control.passages[0]!;
         return <details key={control.controlCode} className={styles.control}>
           <summary><strong>{text.controlHeading(name, control.passages.length)}</strong>
             {leader.place === 1 && <span className={styles.leader}>
-              {text.leader(`${leader.givenName} ${leader.familyName}`, passageTime(leader, timeZone))}</span>}</summary>
+              {text.leader(`${leader.givenName} ${leader.familyName}`, passageTime(leader, timeZone, text))}</span>}</summary>
           <table className={lists.table} aria-label={name}>
             <thead><tr><th scope="col" className={lists.place}>{text.placeColumn}</th><th scope="col">{text.name}</th>
               <th scope="col" className={`${lists.num} ${lists.narrow}`}>{text.time}</th></tr></thead>
@@ -68,7 +73,7 @@ export function RadioLive({ radio, timeZone, raceId, links, className }: {
               <th scope="row"><Runner passage={passage} raceId={raceId} links={links} />
                 <span className={lists.sub}>{[passage.finished ? text.finished : null, passage.organisationName,
                   passage.relay ? `Lag ${passage.relay.teamNumber} ${passage.relay.teamName}` : null].filter(Boolean).join(" · ")}</span></th>
-              <td className={lists.num}>{passageTime(passage, timeZone)}</td>
+              <td className={lists.num}>{passageTime(passage, timeZone, text)}</td>
             </tr>)}</tbody>
           </table>
         </details>;

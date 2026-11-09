@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { rogainingEn } from "../../i18n/workspace-more-en";
 import { startRuleEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
@@ -39,6 +40,7 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
  * rogainingens tidsgräns och straff gäller klassen och visas bara då. Står kvar efter sparandet för nästa bana.
  */
 export function CourseClassForm({ ws }: { ws: Workspace }) {
+  const rogainingText = useTexts(rogainingSv, rogainingEn);
   const startRule = useTexts(startRuleSv, startRuleEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, saving, courseClassAttempt, courseClassError, courseClassErrors, courseClassName, courseControls, courseForm, courseFormOpen,
@@ -53,11 +55,11 @@ export function CourseClassForm({ ws }: { ws: Workspace }) {
   const withClass = courseClassName.trim() !== "";
   return <form ref={courseForm} className={styles.inlineForm} aria-labelledby={`${id}-title`} noValidate onSubmit={saveCourseClass}>
     <div className={styles.inlineFormHead}>
-      <h3 id={`${id}-title`}>{rogaining ? rogainingSv.newCourseTitle : text.courseClassTitle}</h3>
+      <h3 id={`${id}-title`}>{rogaining ? rogainingText.newCourseTitle : text.courseClassTitle}</h3>
       <Button variant="quiet" disabled={locked} onClick={() => { setCourseFormOpen(false); setCourseClassErrors({}); }}>
         {text.courseClassClose}</Button>
     </div>
-    <p className={styles.workflowHelp}>{rogaining ? rogainingSv.newCourseHelp : text.courseClassHelp}</p>
+    <p className={styles.workflowHelp}>{rogaining ? rogainingText.newCourseHelp : text.courseClassHelp}</p>
     <div className={`${styles.fieldRow} ${styles.fieldRowTop}`}>
       <Field label={text.courseName} error={courseClassErrors.courseName}><input value={courseName} maxLength={160} disabled={locked}
         autoComplete="off" onChange={event => { setCourseName(event.target.value); clear("courseName"); }} /></Field>
@@ -68,13 +70,13 @@ export function CourseClassForm({ ws }: { ws: Workspace }) {
         onChange={event => setCourseStartRule(event.target.value as NonNullable<CourseClassRequest["startRule"]>)}>
         <option value="PUNCH">{text.courseFreeStart}</option><option value="FIXED">{text.courseFixedStart}</option>
       </select></Field>}
-      {withClass && rogaining && <Field label={rogainingSv.courseTimeLimit} error={courseClassErrors.timeLimit}><input type="text" inputMode="numeric"
+      {withClass && rogaining && <Field label={rogainingText.courseTimeLimit} error={courseClassErrors.timeLimit}><input type="text" inputMode="numeric"
         value={courseTimeLimit} disabled={locked} onChange={event => { setCourseTimeLimit(event.target.value); clear("timeLimit"); }} /></Field>}
-      {withClass && rogaining && <Field label={rogainingSv.coursePenalty} error={courseClassErrors.penalty}><input type="text" inputMode="numeric"
+      {withClass && rogaining && <Field label={rogainingText.coursePenalty} error={courseClassErrors.penalty}><input type="text" inputMode="numeric"
         value={coursePenalty} disabled={locked} onChange={event => { setCoursePenalty(event.target.value); clear("penalty"); }} /></Field>}
     </div>
     <Field label={text.courseControls} error={courseClassErrors.controls}
-      help={rogaining ? rogainingSv.courseControlsHelp : text.courseControlsHelp}><textarea value={courseControls} maxLength={12000}
+      help={rogaining ? rogainingText.courseControlsHelp : text.courseControlsHelp}><textarea value={courseControls} maxLength={12000}
       disabled={locked} onChange={event => { setCourseControls(event.target.value); clear("controls"); }} rows={2} /></Field>
     {courseClassError && <Notice tone="error" role="alert">{courseClassError}</Notice>}
     <div className={styles.actions}>

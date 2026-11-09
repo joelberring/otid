@@ -19,6 +19,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Engelska del 36: Google-flytten; hela appen finns nu på engelska.
 - Terminsplaneringen: kartan som valdes i planen står först under "Välj karta från klubbarkivet" i träningens banläggning
   (`?race=` till `/api/organizer/club-maps`). Verifierat: integration `adr-0221-terminsplanering`, E2E `kartor-sammanfoga`.
+- "Skriv ut terminen" i fliken Planering (utskriften visar bara planen). Verifierat: E2E `terminsplanering` (utskriftsläge).
 
 ### 2026-11-09 – Moment och nivåer på träningar (ADR-0222)
 - Moment ur en fast lista (Kurvbild, Kompass, Vägval, Stråk …) och nivåer Grön–Svart, plus egna ord, i terminsplaneringen och i

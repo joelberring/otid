@@ -39,3 +39,12 @@
 .mineList > li { display: grid; gap: .15rem; padding: 8px 0; border-bottom: 1px solid var(--line); min-width: 0; }
 .mineList p { margin: 0; overflow-wrap: anywhere; }
 .tasks > button { justify-self: start; }
+/* Skriv ut terminen: bara planen, utan knappar och formulär. */
+@media print {
+  :global(body) * { visibility: hidden; }
+  .planning, .planning * { visibility: visible; }
+  .planning { position: absolute; inset: 0 auto auto 0; width: 100%; }
+  .noPrint { display: none !important; }
+  .week { break-inside: avoid; }
+  .session { break-inside: avoid; border-color: #999; background: none; }
+}

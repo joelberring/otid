@@ -57,11 +57,11 @@ export function PlanTasks({ plan, session, busy, change, toggle }: {
           }} />
           <span><strong>{task.title}</strong> · {task.assigneeName ?? (task.assigneeEmail ? `${task.assigneeEmail} (${text.task.pending})` : text.task.unassigned)}</span>
         </label>
-        <Button variant="quiet" disabled={busy} aria-label={`${text.task.remove}: ${task.title}`}
+        <Button variant="quiet" className={styles.noPrint} disabled={busy} aria-label={`${text.task.remove}: ${task.title}`}
           onClick={() => { if (window.confirm(text.task.removeConfirm(task.title))) void change(`${path}/${task.taskId}`, "DELETE", undefined); }}>×</Button>
       </li>)}
     </ul>}
-    {!open ? <Button variant="quiet" disabled={busy} onClick={() => setOpen(true)}>{text.task.add}</Button>
+    {!open ? <Button variant="quiet" className={styles.noPrint} disabled={busy} onClick={() => setOpen(true)}>{text.task.add}</Button>
       : <form className={styles.form} noValidate onSubmit={event => void submit(event)} aria-label={text.task.add}>
         <Field label={text.task.what} error={tried ? errors.title : undefined}>
           <input value={title} maxLength={120} list={list} onChange={event => setTitle(event.target.value)} /></Field>

@@ -62,9 +62,9 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
   if (!plan) return failed ? <Notice tone="error" role="alert">{failed}</Notice> : <p role="status">{text.loading}</p>;
 
   return <section data-testid="club-planning" className={styles.planning}>
-    <p className={styles.muted}>{text.help}</p>
+    <p className={`${styles.muted} ${styles.noPrint}`}>{text.help}</p>
     {failed && <Notice tone="error" role="alert">{failed}</Notice>}
-    <div className={styles.termBar}>
+    <div className={`${styles.termBar} ${styles.noPrint}`}>
       {plan.terms.length > 0 && <label className={styles.termChoice}><span>{text.term.choose}</span>
         <select value={termId ?? ""} onChange={event => { setTermId(event.target.value); void load(event.target.value); }}>
           {plan.terms.map(option => <option key={option.termId} value={option.termId}>{option.name} · {text.term.sessions(option.sessions)}</option>)}
@@ -72,6 +72,7 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
       <div className={styles.actions}>
         <Button variant="secondary" onClick={() => setTermForm(termForm === "new" ? undefined : "new")} aria-expanded={termForm === "new"}>{text.term.add}</Button>
         {term && <Button variant="quiet" onClick={() => setTermForm(termForm === "edit" ? undefined : "edit")} aria-expanded={termForm === "edit"}>{text.term.edit}</Button>}
+        {term && <Button variant="quiet" onClick={() => window.print()}>{text.term.print}</Button>}
       </div>
     </div>
     {termForm && <PlanTermForm term={termForm === "edit" ? term ?? undefined : undefined} busy={busy} onCancel={() => setTermForm(undefined)}
@@ -84,7 +85,7 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
       onRemove={term && term.sessions === 0 ? async () => {
         if (window.confirm(text.term.removeConfirm) && await change(`/terms/${term.termId}`, "DELETE", undefined)) { setTermForm(undefined); setTermId(null); }
       } : undefined} />}
-    {message && <Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice>}
+    {message && <div className={styles.noPrint}><Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice></div>}
     {!term ? <p>{text.term.none}</p> : <>
       <h2 className={styles.termTitle}>{term.name} <span>{text.term.dates(shortDate(term.startsOn, language), shortDate(term.endsOn, language))}</span></h2>
       <ol className={styles.weeks}>
@@ -94,8 +95,8 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
           return <li key={week.monday} className={styles.week} data-testid="plan-week" aria-label={text.week.title(week.week)}>
             <div className={styles.weekHead}>
               <h3>{text.week.title(week.week)} <span>{shortDate(first, language)} – {shortDate(week.sunday < term.endsOn ? week.sunday : term.endsOn, language)}</span></h3>
-              <Button variant="quiet" aria-label={text.week.addInWeek(week.week)} disabled={busy}
-                onClick={() => setAdding(first)}>{text.week.add}</Button>
+              <span className={styles.noPrint}><Button variant="quiet" aria-label={text.week.addInWeek(week.week)} disabled={busy}
+                onClick={() => setAdding(first)}>{text.week.add}</Button></span>
             </div>
             {adding !== undefined && adding >= week.monday && adding <= week.sunday && <PlanSessionForm key={adding} plan={plan} termId={term.termId}
               initialDate={adding} busy={busy} onCancel={() => setAdding(undefined)} onSave={async body => {

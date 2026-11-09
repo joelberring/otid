@@ -20,6 +20,7 @@ export const clubPlanningSv = {
     save: "Spara terminen",
     remove: "Ta bort terminen",
     removeConfirm: "Ta bort terminen? Det går bara när den inte har några träningar.",
+    print: "Skriv ut terminen",
     sessions: (count: number) => plural(count, "träning", "träningar"),
     dates: (from: string, to: string) => `${from} – ${to}`
   },

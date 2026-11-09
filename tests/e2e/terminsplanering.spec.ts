@@ -71,6 +71,14 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   await expect(planning.getByText("Träningen är skapad.")).toBeVisible();
   await expect(first.getByRole("link", { name: "Banläggningen" })).toBeVisible();
   await reviewScreenshots(owner, "terminsplanering");
+  // Skriv ut terminen: bara planen, utan knappar.
+  await expect(planning.getByRole("button", { name: "Skriv ut terminen" })).toBeVisible();
+  await owner.emulateMedia({ media: "print" });
+  await expect(planning.getByRole("button", { name: "Ny termin" })).toBeHidden();
+  await expect(first.getByRole("button", { name: "Lägg till uppgift" })).toBeHidden();
+  await expect(first).toBeVisible();
+  if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/terminsplanering-utskrift.png`, fullPage: true });
+  await owner.emulateMedia({ media: "screen" });
 
   // Föräldern: kontot med adressen, Mina uppgifter och banläggningen.
   const parent = await registerAccount(browser, parentEmail, "Fia Förälder");

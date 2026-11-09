@@ -48,7 +48,7 @@ export function PlanSessionForm({ plan, termId, initialDate, session, busy, onSa
   }
 
   const weekday = isIsoDate(fields.sessionDate) ? text.weekdays[isoWeekday(fields.sessionDate) - 1] ?? "" : "";
-  return <form className={styles.form} noValidate onSubmit={event => void submit(event)} aria-label={session ? text.session.edit : text.session.new}
+  return <form className={`${styles.form} ${styles.noPrint}`} noValidate onSubmit={event => void submit(event)} aria-label={session ? text.session.edit : text.session.new}
     data-testid="plan-session-form">
     <div className={styles.inline}>
       <Field label={text.session.date} error={tried ? errors.sessionDate : undefined}>

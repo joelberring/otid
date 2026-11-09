@@ -36,7 +36,7 @@ export function PlanTermForm({ term, busy, onSave, onCancel, onRemove }: {
     await onSave(term ? body : { ...body, requestId }, term?.termId);
   }
 
-  return <form className={styles.form} noValidate onSubmit={event => void submit(event)} aria-label={term ? text.term.edit : text.term.add}>
+  return <form className={`${styles.form} ${styles.noPrint}`} noValidate onSubmit={event => void submit(event)} aria-label={term ? text.term.edit : text.term.add}>
     <Field label={text.term.name} error={tried ? errors.name : undefined}>
       <input value={name} maxLength={80} placeholder={text.term.namePlaceholder} onChange={event => setName(event.target.value)} /></Field>
     <div className={styles.inline}>

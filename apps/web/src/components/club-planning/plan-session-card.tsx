@@ -41,7 +41,7 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
         <MomentBadges moments={session.moments} levels={session.levels} tags={session.tags} />
         {session.note && <p className={styles.note}>{session.note}</p>}
       </div>
-      <div className={styles.actions}>
+      <div className={`${styles.actions} ${styles.noPrint}`}>
         {session.raceId ? <>
           <Link className={styles.link} href={`/admin/${session.raceId}`}>{text.session.openRace}</Link>
           <Link className={styles.link} href={`/admin/${session.raceId}/course-setting`}>{text.session.courseSetting}</Link>

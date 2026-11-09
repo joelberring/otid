@@ -1143,7 +1143,8 @@ ADR-0221 (ägaren 2026-11-09). Migration 0109.
 - [x] **Tester:** domän (veckorna), integration (behörigheten för ledare, medlemmar och den med uppgift), rollmatrisen, Playwright hela flödet.
 - [x] **Moment och nivåer** (ADR-0222, migration 0110): i planen och i klubbarkivet, förslag på nivå ur banornas namn, sökning på flera.
 - [x] Planens karta står först under "Välj karta från klubbarkivet" i banläggningen för träningen som skapades ur planen.
-- [ ] Kvar för ägaren: prova en riktig termin; senare kanske en utskrift av terminsplanen.
+- [x] "Skriv ut terminen": bara planen, utan knappar och formulär.
+- [ ] Kvar för ägaren: prova en riktig termin.
 
 ## [x] Steg 64 – Banpåtryck och utskriftslayout
 

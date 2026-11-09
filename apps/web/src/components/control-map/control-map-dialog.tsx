@@ -3,6 +3,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { controlMapEn } from "../../i18n/workspace-small-en";
 import { useTexts } from "../language-provider";
+import { routeChoiceSv } from "../../i18n/route-choice-sv";
+import { routeChoiceAnalysisEn } from "../../i18n/route-choice-en";
 import { controlMapResponseSchema, type ControlMapResponse } from "@o-tid/contracts";
 import { forkingLetters } from "@o-tid/domain";
 import { controlMapSv } from "../../i18n/control-map-sv";
@@ -13,7 +15,6 @@ import type { Workspace } from "../race-administrator/workspace-state";
 import { adminDrawing } from "./control-map-drawing";
 import { ControlMapSvg } from "./control-map-svg";
 import { RouteChoicePanel } from "./route-choice-panel";
-import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { HelpButton } from "../help/help-panel";
 import styles from "./control-map.module.css";
 
@@ -32,6 +33,7 @@ export function ControlMapButton({ ws }: { ws: Workspace }) {
 
 function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void }) {
   const text = useTexts(controlMapSv, controlMapEn);
+  const routeText = useTexts(routeChoiceSv, routeChoiceAnalysisEn);
   const { beginRequest, request, json, finish, current, raceId, navigateStep } = ws;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -92,7 +94,7 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
           <div className={styles.segmented} role="group" aria-label={text.mode}>
             <button type="button" aria-pressed={mode === "LOAD"} onClick={() => setMode("LOAD")}>{text.modeLoad}</button>
             <button type="button" aria-pressed={mode === "COURSE"} disabled={data.courses.length === 0} onClick={() => setMode("COURSE")}>{text.modeCourse}</button>
-            <button type="button" aria-pressed={mode === "ROUTES"} disabled={data.courses.length === 0} onClick={() => setMode("ROUTES")}>{routeChoiceSv.mode}</button>
+            <button type="button" aria-pressed={mode === "ROUTES"} disabled={data.courses.length === 0} onClick={() => setMode("ROUTES")}>{routeText.mode}</button>
           </div>
           {mode === "LOAD" && <label>{text.metric}<select value={metric} onChange={event => setMetric(event.target.value as "planned" | "punched")}>
             <option value="planned">{text.metricPlanned}</option><option value="punched">{text.metricPunched}</option></select></label>}

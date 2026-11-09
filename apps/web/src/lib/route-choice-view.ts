@@ -1,7 +1,10 @@
 import type { AdminRouteChoice, ControlMapResponse, RouteChoiceCalibrationRoutes } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis, LegInput, LegWarning, RouteBarriers } from "@o-tid/route-choice";
-import { routeChoiceSv as text } from "../i18n/route-choice-sv";
+import { routeChoiceSv } from "../i18n/route-choice-sv";
+import type { Texts } from "./language";
+
+export type RouteChoiceTexts = Texts<typeof routeChoiceSv>;
 import type { CalibrationSample } from "./route-choice-worker-protocol";
 
 /**
@@ -21,7 +24,7 @@ export interface RouteChoiceOption {
 }
 
 /** Banor och varianter i kontrollkartans ordning; en gafflad bana ger en rad per variant. */
-export function routeChoiceOptions(courses: ControlMapResponse["courses"]): RouteChoiceOption[] {
+export function routeChoiceOptions(courses: ControlMapResponse["courses"], text: RouteChoiceTexts = routeChoiceSv): RouteChoiceOption[] {
   return courses.flatMap(course => course.variants.map(variant => ({
     id: variant.code ? `${course.courseId}:${variant.code}` : course.courseId, courseId: course.courseId, variantCode: variant.code,
     label: text.courseOption(course.name, variant.code), controlCodes: variant.controlCodes })));
@@ -66,7 +69,7 @@ export function withRouteBarriers(legs: readonly PlannedLeg[], barriers: RouteBa
   return legs.map(leg => leg.input ? { ...leg, input: { ...leg.input, barriers } } : leg);
 }
 
-export const legName = (key: string) => { const [from = "", to = ""] = key.split("-"); return text.legName(from, to); };
+export const legName = (key: string, text: RouteChoiceTexts = routeChoiceSv) => { const [from = "", to = ""] = key.split("-"); return text.legName(from, to); };
 
 export interface LegRow {
   readonly key: string;
@@ -86,9 +89,9 @@ const minutes = (seconds: number) => {
 };
 
 /** En rad per sträcka: fågelväg, bästa väg, stigning, uppskattad tid, antal vägval och bedömningen. */
-export function legRows(legs: readonly PlannedLeg[], analyses: ReadonlyMap<string, LegAnalysis>): LegRow[] {
+export function legRows(legs: readonly PlannedLeg[], analyses: ReadonlyMap<string, LegAnalysis>, text: RouteChoiceTexts = routeChoiceSv): LegRow[] {
   return legs.map(leg => {
-    const name = legName(leg.key), analysis = analyses.get(leg.key);
+    const name = legName(leg.key, text), analysis = analyses.get(leg.key);
     const empty = { key: leg.key, name, straight: "–", best: "–", climb: "–", time: "–", choices: "–" };
     if (!leg.input) return { ...empty, verdict: text.noPlaces, verdictKind: "NO_PLACE" };
     if (!analysis) return { ...empty, straight: text.meters(Math.hypot(leg.input.to.x - leg.input.from.x, leg.input.to.y - leg.input.from.y)),
@@ -102,7 +105,7 @@ export function legRows(legs: readonly PlannedLeg[], analyses: ReadonlyMap<strin
 }
 
 /** Summan för banan: bästa vägens längd mot fågelvägen, när alla sträckor har en väg. */
-export function courseTotal(legs: readonly PlannedLeg[], analyses: ReadonlyMap<string, LegAnalysis>): string | undefined {
+export function courseTotal(legs: readonly PlannedLeg[], analyses: ReadonlyMap<string, LegAnalysis>, text: RouteChoiceTexts = routeChoiceSv): string | undefined {
   let best = 0, straight = 0;
   for (const leg of legs) {
     const analysis = analyses.get(leg.key);
@@ -113,7 +116,7 @@ export function courseTotal(legs: readonly PlannedLeg[], analyses: ReadonlyMap<s
 }
 
 /** Varningen i klartext. Ändarna är sträckans från- och till-punkt ("31.1" → kontroll 31). */
-export function warningText(key: string, warning: LegWarning): string {
+export function warningText(key: string, warning: LegWarning, text: RouteChoiceTexts = routeChoiceSv): string {
   const [from = "", to = ""] = key.split("-");
   const end = (value: string) => value === "S" || value === "F" ? value : value.split(".")[0]!;
   switch (warning.kind) {
@@ -124,10 +127,10 @@ export function warningText(key: string, warning: LegWarning): string {
 }
 
 /** Alla varningar för banan, i sträckornas ordning, utan dubbletter (en kontroll i ej passerbar mark nämns en gång). */
-export function courseWarnings(legs: readonly PlannedLeg[], analyses: ReadonlyMap<string, LegAnalysis>): { key: string; text: string }[] {
+export function courseWarnings(legs: readonly PlannedLeg[], analyses: ReadonlyMap<string, LegAnalysis>, text: RouteChoiceTexts = routeChoiceSv): { key: string; text: string }[] {
   const seen = new Set<string>();
   return legs.flatMap(leg => (analyses.get(leg.key)?.warnings ?? []).flatMap(warning => {
-    const message = warningText(leg.key, warning);
+    const message = warningText(leg.key, warning, text);
     if (seen.has(message)) return [];
     seen.add(message);
     return [{ key: leg.key, text: message }];
@@ -217,7 +220,7 @@ export interface AlternativeLabel {
  */
 export function alternativeLabels(analysis: {
   best?: { points: readonly Point[] } | undefined; alternatives: readonly { points: readonly Point[]; timeRatio: number }[];
-}, separationMm = 6): AlternativeLabel[] {
+}, separationMm = 6, text: RouteChoiceTexts = routeChoiceSv): AlternativeLabel[] {
   const best = analysis.best?.points ?? [];
   const placed: Point[] = [];
   return analysis.alternatives.map((alternative, index) => {

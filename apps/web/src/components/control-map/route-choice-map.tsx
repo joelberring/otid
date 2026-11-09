@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import { routeChoiceAnalysisEn } from "../../i18n/route-choice-en";
+import { useTexts } from "../language-provider";
 import type { LegAnalysis } from "@o-tid/route-choice";
-import { routeChoiceSv as text } from "../../i18n/route-choice-sv";
+import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { controlMapView } from "../../lib/control-map";
 import {
   alternativeColor, alternativeLabels, corridorPath, legBounds, legName, mmToPixel, polyline, ROUTE_CHOICE_COLORS, type PlannedLeg, type Render
@@ -19,6 +21,7 @@ export function RouteChoiceMap({ render, image, leg, analysis, metersPerUnit }: 
   render: Render; image: { href: string; width: number; height: number } | undefined; leg: PlannedLeg;
   analysis: LegAnalysis | undefined; metersPerUnit: number | null;
 }) {
+  const text = useTexts(routeChoiceSv, routeChoiceAnalysisEn);
   const bounds = useMemo(() => legBounds(render, leg, analysis), [render, leg, analysis]);
   const view = useMemo(() => controlMapView(bounds, image ? { width: image.width, height: image.height } : null), [bounds, image]);
   const corridor = useMemo(() => analysis?.corridor ? corridorPath(render, analysis.corridor) : "", [render, analysis]);
@@ -32,10 +35,10 @@ export function RouteChoiceMap({ render, image, leg, analysis, metersPerUnit }: 
   const start = fromKey === "S" ? [{ key: "s", at: mmToPixel(render, leg.input.from), kind: "START" as const, tone: "course" as const }] : [];
   const finish = toKey === "F" ? [{ key: "f", at: mmToPixel(render, leg.input.to), kind: "FINISH" as const, tone: "course" as const }] : [];
   const stroke = view.radius * 0.45;
-  const labels = analysis ? alternativeLabels(analysis, view.radius * 3 / render.pxPerMm) : [];
+  const labels = analysis ? alternativeLabels(analysis, view.radius * 3 / render.pxPerMm, text) : [];
   const alternatives = analysis?.alternatives ?? [];
   return <ControlMapSvg view={view} image={image} controls={ends} lines={[]} ends={[...start, ...finish]} metersPerUnit={metersPerUnit}
-    label={text.map(legName(leg.key))} underlay={<g className={styles.routes} data-testid="route-choice-lines">
+    label={text.map(legName(leg.key, text))} underlay={<g className={styles.routes} data-testid="route-choice-lines">
       {corridor && <path className={styles.corridor} d={corridor} data-testid="route-choice-corridor" />}
       {alternatives.map((alternative, index) => ({ alternative, index })).reverse().map(({ alternative, index }) => <g key={index}
         data-testid="route-choice-alternative">

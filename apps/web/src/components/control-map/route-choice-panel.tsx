@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { routeChoiceAnalysisEn } from "../../i18n/route-choice-en";
+import { useTexts } from "../language-provider";
 import type { AdminRouteChoice, ControlMapResponse, RouteChoiceSettingsDto } from "@o-tid/contracts";
 import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
-import { routeChoiceSv as text } from "../../i18n/route-choice-sv";
+import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { RouteChoiceSession, type RouteChoiceModel } from "../../lib/route-choice-client";
 import { fetchCalibrationRoutes, fetchMapSource, fetchRouteChoice, publishRouteChoice, saveRouteChoiceSettings } from "../../lib/route-choice-api";
 import { routeBarriers, type CourseSettingDocument } from "@o-tid/course-setting";
@@ -30,6 +32,7 @@ type Message = { tone: "ok" | "error" | "attention"; text: string } | undefined;
 export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
   raceId: string; data: ControlMapResponse; imageHref: string | undefined; onGoToMapFile: () => void;
 }) {
+  const text = useTexts(routeChoiceSv, routeChoiceAnalysisEn);
   const [state, setState] = useState<AdminRouteChoice>();
   const [model, setModel] = useState<RouteChoiceModel>();
   const [status, setStatus] = useState<Status>("loading");
@@ -38,7 +41,7 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
   const [selectedLeg, setSelectedLeg] = useState<string>();
   const [message, setMessage] = useState<Message>();
   const session = useRef<RouteChoiceSession | undefined>(undefined);
-  const options = useMemo(() => routeChoiceOptions(data.courses), [data.courses]);
+  const options = useMemo(() => routeChoiceOptions(data.courses, text), [data.courses, text]);
   const option = options.find(row => row.id === optionId) ?? options[0];
   // Steg 64: banläggningens dokument (om det finns) ger förbjudna områden och passager som kartfilen saknar. Översynen
   // 2026-11-02: går spärrarna inte att läsa räknas inga vägval (de kunde annars gå genom förbjudet område), med besked.
@@ -156,9 +159,9 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
   if (state && !state.mapFile) return <Notice tone="info"><p>{text.needsMapFile}</p>
     <div><Button variant="secondary" onClick={onGoToMapFile}>{text.goToMapFile}</Button></div></Notice>;
   if (!state || !option) return null;
-  const rows = legRows(legs, analyses);
-  const total = courseTotal(legs, analyses);
-  const warnings = courseWarnings(legs, analyses);
+  const rows = legRows(legs, analyses, text);
+  const total = courseTotal(legs, analyses, text);
+  const warnings = courseWarnings(legs, analyses, text);
   const selected = legs.find(leg => leg.key === selectedLeg);
   const done = analyses.size, count = legs.filter(leg => leg.input).length;
   const metersPerUnit = state.mapFile!.scale / 1000 / state.mapFile!.render.pxPerMm;
@@ -200,7 +203,7 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
     {warnings.length > 0 && <section aria-label={text.warnings.heading}>
       <h4>{text.warnings.heading}</h4>
       <ul className={styles.warnings}>{warnings.map(warning => <li key={`${warning.key}-${warning.text}`}>
-        {text.legWarning(legName(warning.key))} {warning.text}</li>)}</ul>
+        {text.legWarning(legName(warning.key, text))} {warning.text}</li>)}</ul>
     </section>}
     <div className={styles.actions}>
       <Button variant="secondary" onClick={() => void publish(false)} disabled={status !== "done" || barriersFailed || setting.kind === "loading"}>

@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { routeChoiceAnalysisEn } from "../../i18n/route-choice-en";
+import { useTexts } from "../language-provider";
 import { ROUTE_CHOICE_SPEED_CLASSES, ROUTE_CHOICE_SPEED_FACTOR_CLASSES, type RouteChoiceSettingsDto } from "@o-tid/contracts";
 import type { CostModel } from "@o-tid/route-choice";
-import { routeChoiceSv as text } from "../../i18n/route-choice-sv";
+import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import type { CalibrationResult, SpeedFactors } from "../../lib/route-choice-worker-protocol";
 import { Button, Notice } from "../ui";
 import { HelpLink } from "../help/help-panel";
@@ -33,6 +35,7 @@ export function RouteChoiceSettingsForm({ settings, unknownSymbols, onSave }: {
   settings: RouteChoiceSettingsDto; unknownSymbols: CostModel["unknownSymbols"];
   onSave: (settings: RouteChoiceSettingsDto) => Promise<boolean>;
 }) {
+  const text = useTexts(routeChoiceSv, routeChoiceAnalysisEn);
   const [contour, setContour] = useState(String(settings.contourIntervalMeters ?? 5).replace(".", ","));
   const [climb, setClimb] = useState(String(settings.climbFactor ?? 8).replace(".", ","));
   const [pace, setPace] = useState(paceText(settings.referencePaceSecondsPerKm ?? 360));
@@ -93,6 +96,7 @@ export function RouteChoiceSettingsForm({ settings, unknownSymbols, onSave }: {
 export function RouteChoiceCalibration({ runners, onCalibrate, onSave }: {
   runners: number; onCalibrate: () => Promise<CalibrationResult | undefined>; onSave: (speeds: SpeedFactors) => Promise<boolean>;
 }) {
+  const text = useTexts(routeChoiceSv, routeChoiceAnalysisEn);
   const [result, setResult] = useState<CalibrationResult>();
   const [state, setState] = useState<"idle" | "running" | "failed" | "saved" | "saveFailed">("idle");
   const format = (value: number | undefined) => value === undefined ? "–" : value.toFixed(2).replace(".", ",");

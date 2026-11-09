@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { googleMoveDetailsSchema, googleMoveResponseSchema, type GoogleMoveDetails } from "@o-tid/contracts";
 import { accountSv } from "../i18n/account-sv";
+import { accountPageEn, googleMoveEn, type AccountPage as AccountPageSv } from "../i18n/account-en";
+import { useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { readOrganizerCsrf } from "../lib/organizer-client";
 import { AccountMenu } from "./account-menu";
@@ -11,13 +13,13 @@ import { PasswordInput } from "./password-field";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = accountSv.googleMove;
-
 /**
  * ADR-0205 tillägg: Google-kontot är kopplat till ett annat konto som är tomt (ägarens dubblett). Sidan säger vad som händer –
  * kopplingen flyttas hit och det tomma kontot tas bort – och flytten bekräftas med lösenordet (eller en inloggning nyss).
  */
 export function GoogleMovePage() {
+  const text = useTexts(accountSv.googleMove, googleMoveEn);
+  const accountText = useTexts<AccountPageSv>(accountSv, accountPageEn);
   const [details, setDetails] = useState<GoogleMoveDetails>();
   const [who, setWho] = useState<{ displayName: string; email: string }>();
   const [problem, setProblem] = useState("");
@@ -26,7 +28,7 @@ export function GoogleMovePage() {
 
   const failure = (status: number, error?: unknown) => status === 410 ? text.expired : error === "GOOGLE_IN_USE" ? text.inUse
     : error === "LOGIN_AGAIN" ? text.loginAgain : error === "CONFIRMATION_MISMATCH" ? text.wrongPassword
-      : status === 401 ? accountSv.sessionExpired : accountSv.genericError(status);
+      : status === 401 ? accountText.sessionExpired : accountText.genericError(status);
 
   useEffect(() => {
     void (async () => {
@@ -37,7 +39,7 @@ export function GoogleMovePage() {
         if (current?.displayName && current.email) setWho({ displayName: current.displayName, email: current.email });
         if (move.status === 200 && parsed.success) setDetails(parsed.data);
         else setProblem(failure(move.status, (move.json as { error?: unknown } | undefined)?.error));
-      } catch { setProblem(accountSv.networkError); }
+      } catch { setProblem(accountText.networkError); }
     })();
   }, []);
 
@@ -51,7 +53,7 @@ export function GoogleMovePage() {
       const moved = googleMoveResponseSchema.safeParse(response.json);
       if (response.status === 200 && moved.success) { window.location.assign("/konto?google=flyttad"); return; }
       setProblem(failure(response.status, (response.json as { error?: unknown } | undefined)?.error));
-    } catch { setProblem(accountSv.networkError); }
+    } catch { setProblem(accountText.networkError); }
     finally { setBusy(false); }
   }
 
@@ -67,7 +69,7 @@ export function GoogleMovePage() {
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}>
       <div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div>
-      <nav className={styles.headerNav} aria-label={accountSv.me.title}><Link href="/konto">{accountSv.me.title}</Link>
+      <nav className={styles.headerNav} aria-label={accountText.me.title}><Link href="/konto">{accountText.me.title}</Link>
         {who && <AccountMenu who={who} />}</nav>
     </header>
     {!details && !problem && <p role="status">{text.loading}</p>}

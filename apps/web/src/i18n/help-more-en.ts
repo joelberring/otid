@@ -60,7 +60,7 @@ export const accountHelpArticlesEn: readonly HelpArticle[] = [
       [
         "”Remove the link” removes it again, but not if the account has no password of its own.",
         "If Google earlier created an empty account for you, the link moves here when you confirm with the password.",
-        "Confirm with ”Flytta kopplingen och ta bort dubbletten”; the empty account is deleted.",
+        "Confirm with ”Move the link and remove the duplicate”; the empty account is deleted.",
         "If the other account is in use (events, access, clubs): sign in there and remove the link first."
       ]
     ]

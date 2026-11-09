@@ -111,7 +111,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 34: klubbytan och klubbarkivet (träningar, kartor, dubbletter, medlemmar, enheter, kontrollen, importen, Eventor,
   Kom igång, Från klubben) och hjälpartiklarna om klubben och arkivet.
 - Del 35: träningsgrupperna, superadminsidan, fältfelen i formulären, beslutsgranskningen och inbjudningsmejlet (på språket
-  hos den som bjuder in). Hela appen har nu engelska; kvar på svenska är bara bekräftelsen när Google-kopplingen flyttas.
+  hos den som bjuder in).
+- Del 36: bekräftelsen när Google-kopplingen flyttas. Hela appen finns nu på engelska.
 - Del 30: träningsläget, Layout-fliken (överblick, layouter, ark, klasser, lägen) och papperet (texter, bilder, klippning, mallar).
 - Del 29: banans egenskaper, kontrollbeskrivningen, varianterna, nivåstödet (Green–Black), utseendet, BL-förslaget och
   förslagens åtgärder i text (flyttade till `course-setting-edits-sv/en.ts`, en post per åtgärd).

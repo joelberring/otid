@@ -251,3 +251,22 @@ export const clubAffiliationAccountEn: Texts<ClubAffiliationAccount> = {
     failed: "That did not work. Try again."
   }
 };
+
+/** Engelska del 36: sidan som bekräftar att Google-kopplingen flyttas från ett tomt konto (ADR-0205 tillägg). */
+export const googleMoveEn: Texts<typeof accountSv.googleMove> = {
+  kicker: "O-Tid · Account",
+  title: "Move the Google link here",
+  loading: "Reading the link …",
+  what: (google: string, source: string, target: string) => `The Google account ${google} is linked to another account in O-Tid (${source}). `
+    + `That account is empty: no events, permissions, clubs or archive content (only the answer about which club you belong to). The link is moved to ${target}, and you then sign in with Google here.`,
+  duplicate: (source: string, created: string) => `The account ${source} (created ${created}) is removed as a duplicate and signed out everywhere. Invitations to the address remain.`,
+  password: "Your password",
+  passwordHelp: "Confirm the move with this account's password.",
+  recentLogin: "You signed in just now, so confirming is enough.",
+  loginAgain: "Sign out and in again, then link Google once more (the account has no password of its own, and the sign-in is older than ten minutes).",
+  confirm: "Move the link and remove the duplicate",
+  cancel: "Cancel",
+  expired: "The move no longer applies (too old, or a different sign-in). Press Link Google account under My account again.",
+  inUse: "The Google account is linked to another account that is in use. Sign in to that one and remove the link there first.",
+  wrongPassword: "The password is not correct."
+};

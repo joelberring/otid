@@ -5,7 +5,7 @@ import type { publicRaceSv } from "./public-race-sv";
 import type { raceTypeSv } from "./race-type-sv";
 import type { liveSv } from "./live-sv";
 import type { raceInfoSv } from "./race-info-sv";
-import type { splitAnalysisSv } from "./split-analysis-sv";
+import type { routeChoiceSv, splitAnalysisSv } from "./split-analysis-sv";
 import type { selfRegistrationSv } from "./self-registration-sv";
 import type { homeSv } from "./home-sv";
 import type { trainingGroupSv } from "./training-group-sv";
@@ -372,4 +372,25 @@ export const qrEn: Texts<typeof publicRaceSv.qr> = {
   a4: "Full page (A4)",
   a5: "Half page (A5)",
   image: name => `QR code to the event page for ${name}`
+};
+
+/** Del 6: vägvalsvyn. */
+export const routeChoiceEn: Texts<typeof routeChoiceSv> = {
+  title: leg => `Route choice ${leg}`,
+  back: "To the split analysis",
+  courseStart: "Start",
+  courseFinish: "Finish",
+  intro: "The runner's route on the leg from the GPS watch, matched to the punch times. Other runners' routes on the same leg are shown thinner.",
+  map: "Map with route choices",
+  zoomIn: "Zoom in", zoomOut: "Zoom out", fitLeg: "Whole leg", fitMap: "Whole map",
+  panHint: "Drag to move the map. Zoom with the buttons or the mouse wheel.",
+  others: "Show others' route choices",
+  runnersHeading: "Runners on the leg",
+  selected: "selected",
+  legTime: "Leg time",
+  noOthers: "Nobody else has an uploaded route on this leg.",
+  imageError: "The map could not be shown.",
+  notFound: "There is no route choice for the runner on this leg.",
+  bestRoute: "Best route according to the map (computed from the map, not a runner's route)",
+  gpsNotice: "The GPS track is not checked against the control positions. The clock in the GPS and the punches can differ by a few seconds."
 };

@@ -31,7 +31,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   Glömt lösenordet och mejlen (bekräftelse, återställning, redan ett konto) på det språk sidan visades på.
   E2E `sprak`, `konton`, `konto-inloggning`, `konto-meny`, `aterstallning`, `inbjudan`; enhetstest `mail`.
 - Del 5: träningsgruppens sida (med självanmälan) och QR-sidorna. E2E `sprak`, `traningsgrupp`, `publikt`.
-- Kvar: vägvalsvyn, festen, Mitt konto, sedan arbetsytan del för del.
+- Del 6: vägvalsvyn. Kvar: festen, Mitt konto, sedan arbetsytan del för del.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

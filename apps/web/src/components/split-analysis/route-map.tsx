@@ -3,7 +3,9 @@
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import type { PublicLegRoutes } from "@o-tid/contracts";
-import { routeChoiceSv as text, splitAnalysisSv } from "../../i18n/split-analysis-sv";
+import { routeChoiceSv, splitAnalysisSv as splitSv } from "../../i18n/split-analysis-sv";
+import { routeChoiceEn, splitAnalysisEn } from "../../i18n/public-en";
+import { useLanguage } from "../language-provider";
 import { formatDuration } from "../../lib/clock-time";
 import { routeHref } from "../../lib/split-analysis";
 import styles from "./route-map.module.css";
@@ -31,6 +33,8 @@ const path = (points: readonly (readonly [number, number])[]) => points.map(poin
  * flytta, zooma med knappar eller mushjul. Ingen animation.
  */
 export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRoutes }) {
+  const en = useLanguage() === "en";
+  const text = en ? routeChoiceEn : routeChoiceSv, splitAnalysisSv = en ? splitAnalysisEn : splitSv;
   const { width, height, version } = data.map;
   const selected = data.runners[0]!;
   const others = data.runners.slice(1);

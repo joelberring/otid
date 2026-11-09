@@ -2,7 +2,9 @@ import Link from "next/link";
 import { publicRaceSummary, raceGroupNameDisplay, readPublicLegRoutes } from "@o-tid/application";
 import { db } from "../../../../lib/db";
 import { RouteMap } from "../../../../components/split-analysis/route-map";
-import { routeChoiceSv as text } from "../../../../i18n/split-analysis-sv";
+import { routeChoiceSv, splitAnalysisSv } from "../../../../i18n/split-analysis-sv";
+import { routeChoiceEn, splitAnalysisEn } from "../../../../i18n/public-en";
+import { currentLanguage } from "../../../../lib/language-server";
 import { legLabel, splitsHref } from "../../../../lib/split-analysis";
 import { raceStaff, requirePublicRace } from "../../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
@@ -25,11 +27,13 @@ export default async function RouteChoicePage({ params, searchParams }: {
   // Steg 68: löparnas namn enligt träningsgruppen.
   const data = raw && { ...raw, runners: raw.runners.map(row => ({ ...row, name: shownDisplayName(names, row.name) })) };
   const selected = data?.runners[0];
+  const language = await currentLanguage(), en = language === "en";
+  const text = en ? routeChoiceEn : routeChoiceSv, legTexts = en ? splitAnalysisEn : splitAnalysisSv;
   return <main className="stack public-list-page">
     <nav className="nav" aria-label={text.back}><Link href={splitsHref(raceId, selected?.className)}>{text.back}</Link></nav>
-    <PreviewBanner access={access} />
+    <PreviewBanner access={access} language={language} />
     <section className="public-list-heading">
-      <h1>{data ? text.title(legLabel(data.leg)) : text.title("")}</h1>
+      <h1>{data ? text.title(legLabel(data.leg, legTexts)) : text.title("")}</h1>
       <p>{selected ? `${selected.name} · ${selected.className} · ` : ""}{joinRaceParts([raceTitle(summary.eventName, summary.name), summary.raceDate])}</p>
     </section>
     {data ? <><p className="muted">{text.intro}</p><RouteMap raceId={raceId} data={data} /></> : <p className="warning">{text.notFound}</p>}

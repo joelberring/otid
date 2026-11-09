@@ -18,7 +18,12 @@ import {
   saveOrganizerAttempt,
   type OrganizerCreateAttempt
 } from "../lib/organizer-client";
-import { organizerSv as copy } from "../i18n/organizer-sv";
+import { organizerSv } from "../i18n/organizer-sv";
+import { organizerEn } from "../i18n/organizer-en";
+import { useTexts } from "./language-provider";
+import type { Texts } from "../lib/language";
+
+type Copy = Texts<typeof organizerSv>;
 import { raceTypeSv } from "../i18n/race-type-sv";
 import { RaceTypeChoice } from "./race-type-choice";
 import { HelpButton } from "./help/help-panel";
@@ -40,7 +45,7 @@ import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string; emailVerified?: boolean | undefined };
 
-async function responseJson(response: Response): Promise<unknown> {
+async function responseJson(copy: Copy, response: Response): Promise<unknown> {
   try {
     return await response.json() as unknown;
   } catch {
@@ -48,16 +53,16 @@ async function responseJson(response: Response): Promise<unknown> {
   }
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(copy: Copy, error: unknown): string {
   return error instanceof Error ? error.message : copy.genericError;
 }
 
 /** Besked vid inloggning som är fel (läses upp direkt); övriga är lägesbesked. */
-const loginProblems = new Set<string>([copy.invalidCredentialsOrUnverified, copy.loginRateLimited, copy.accountBlocked,
+const loginProblems = (copy: Copy) => new Set<string>([copy.invalidCredentialsOrUnverified, copy.loginRateLimited, copy.accountBlocked,
   ...Object.values(copy.googleProblem)]);
 
 /** ADR-0205: beskedet efter en misslyckad Google-inloggning (`/organizer?google=…`), som sedan tas bort ur adressen. */
-function takeGoogleProblem(): string | undefined {
+function takeGoogleProblem(copy: Copy): string | undefined {
   const url = new URL(window.location.href);
   const code = url.searchParams.get("google");
   if (code === null) return undefined;
@@ -67,7 +72,7 @@ function takeGoogleProblem(): string | undefined {
 }
 
 /** ADR-0205 tillägg: beskedet efter utloggningen (`/organizer?utloggad=1|alla`), som sedan tas bort ur adressen. */
-function takeLoggedOut(): string | undefined {
+function takeLoggedOut(copy: Copy): string | undefined {
   const url = new URL(window.location.href);
   const value = url.searchParams.get("utloggad");
   if (value === null) return undefined;
@@ -80,7 +85,7 @@ function takeLoggedOut(): string | undefined {
  * ADR-0205: "Logga in med Google" när servern har en Google-klient (en vanlig länk; servern skickar vidare till Google).
  * "Kom ihåg mig på den här datorn" följer med (`?remember=1`).
  */
-function GoogleLogin({ remember }: { remember: boolean }) {
+function GoogleLogin({ remember, copy }: { remember: boolean; copy: Copy }) {
   return <div className={styles.googleLogin}>
     <p className={styles.googleOr}><span>{copy.googleOr}</span></p>
     <a className={styles.googleButton} href={remember ? "/api/account/google/start?remember=1" : "/api/account/google/start"}>{copy.googleLogin}</a>
@@ -89,6 +94,7 @@ function GoogleLogin({ remember }: { remember: boolean }) {
 }
 
 export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  const copy = useTexts(organizerSv, organizerEn);
   const [session, setSession] = useState<Session>();
   const [sessionChecked, setSessionChecked] = useState(false);
   const [email, setEmail] = useState("");
@@ -133,10 +139,10 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         throw new Error(copy.sessionExpired);
       }
       if (!response.ok) throw new Error(copy.eventsLoadError(response.status));
-      const parsed = parseOrganizerEvents(await responseJson(response));
+      const parsed = parseOrganizerEvents(await responseJson(copy, response));
       setEvents(parsed.events);
     } catch (error) {
-      setEventsError(errorMessage(error));
+      setEventsError(errorMessage(copy, error));
       throw error;
     } finally {
       setEventsLoaded(true);
@@ -152,7 +158,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         return;
       }
       if (!response.ok) throw new Error(copy.sessionCheckError(response.status));
-      const current = parseOrganizerSessionStatus(await responseJson(response));
+      const current = parseOrganizerSessionStatus(await responseJson(copy, response));
       if (!current) {
         setSession(undefined);
         setEventSearch("");
@@ -164,7 +170,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       if (next) { window.location.assign(next); return; }
       await loadEvents();
     } catch (error) {
-      setMessage(errorMessage(error));
+      setMessage(errorMessage(copy, error));
     } finally {
       setSessionChecked(true);
     }
@@ -174,9 +180,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     setAttempt(restoreOrganizerAttempt());
     const invitation = readInvitationHandoff();
     if (invitation) { setMode(invitation.mode); setEmail(invitation.email); setLockedEmail(invitation.mode === "register"); }
-    const googleProblem = takeGoogleProblem();
+    const googleProblem = takeGoogleProblem(copy);
     if (googleProblem) setMessage(googleProblem);
-    const loggedOut = takeLoggedOut();
+    const loggedOut = takeLoggedOut(copy);
     if (loggedOut) setMessage(loggedOut);
     void checkSession();
   }, []);
@@ -208,17 +214,17 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         setMessage(copy.checkEmail(email.trim()));
         return;
       }
-      const signedIn = parseOrganizerSession(await responseJson(response));
+      const signedIn = parseOrganizerSession(await responseJson(copy, response));
       if (followInvitation(signedIn.email)) return;
       setSession(signedIn);
       setMessage("");
       try {
         await loadEvents();
       } catch (error) {
-        setMessage(errorMessage(error));
+        setMessage(errorMessage(copy, error));
       }
     } catch (error) {
-      setMessage(errorMessage(error));
+      setMessage(errorMessage(copy, error));
     } finally {
       setPassword("");
       setRepeat("");
@@ -241,17 +247,17 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       if (!response.ok) throw new Error(response.status === 401 ? copy.invalidCredentialsOrUnverified
         : response.status === 429 ? copy.loginRateLimited : response.status === 403 ? copy.accountBlocked
           : copy.loginError(response.status));
-      const signedIn = parseOrganizerSession(await responseJson(response));
+      const signedIn = parseOrganizerSession(await responseJson(copy, response));
       if (followInvitation(signedIn.email)) return;
       setSession(signedIn);
       setMessage("");
       try {
         await loadEvents();
       } catch (error) {
-        setMessage(errorMessage(error));
+        setMessage(errorMessage(copy, error));
       }
     } catch (error) {
-      setMessage(errorMessage(error));
+      setMessage(errorMessage(copy, error));
     } finally {
       setPassword("");
       setBusy(false);
@@ -287,7 +293,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
           ? copy.sessionNeedsRenewal(response.status)
           : copy.uncertainResponse(response.status));
       }
-      const result = parseOrganizerCreateResponse(await responseJson(response), current);
+      const result = parseOrganizerCreateResponse(await responseJson(copy, response), current);
       clearOrganizerAttempt();
       setAttempt(undefined);
       // ADR-0210: kartan ur klubbarkivet blir tävlingens kartfil, och banläggningen öppnas med den.
@@ -306,7 +312,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       setMessage(copy.created);
       enterRace(result.raceId);
     } catch (error) {
-      setMessage(errorMessage(error));
+      setMessage(errorMessage(copy, error));
     } finally {
       setBusy(false);
     }
@@ -337,7 +343,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       setAttempt(current);
       await submitCreate(current);
     } catch (error) {
-      setMessage(errorMessage(error));
+      setMessage(errorMessage(copy, error));
     }
   }
 
@@ -424,9 +430,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
           <p className={styles.muted}>{copy.rememberHint}</p>
         </div>
         <button type="submit" disabled={busy || !email || !password} aria-busy={busy}>{copy.login}</button>
-        {message && <p className={styles.loginMessage} role={loginProblems.has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
+        {message && <p className={styles.loginMessage} role={loginProblems(copy).has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
       </form>
-      {googleEnabled && <GoogleLogin remember={remember} />}
+      {googleEnabled && <GoogleLogin remember={remember} copy={copy} />}
       <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
         <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); setRepeat(""); }}>{copy.toRegister}</button>
         <Link href="/recover">{copy.forgotPassword}</Link>
@@ -450,7 +456,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         <button type="submit" disabled={busy || !email || !displayName.trim() || !passwordsReady(password, repeat)} aria-busy={busy}>{copy.register}</button>
         {message && <p className={styles.loginMessage} role={message === copy.registering ? "status" : "alert"} aria-live="polite">{message}</p>}
       </form>
-      {googleEnabled && <GoogleLogin remember={false} />}
+      {googleEnabled && <GoogleLogin remember={false} copy={copy} />}
       <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
         <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>{copy.toLogin}</button>
       </nav>
@@ -462,7 +468,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     {session && <div className={styles.columns}>
       <section className={`${styles.panel} ${styles.events}`}>
         <div className={styles.sectionHeading}><div><h2>{copy.eventsSection}</h2><p className={styles.muted}>{copy.eventsHint}</p></div>
-          <button type="button" className={styles.secondary} disabled={busy} onClick={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))}>{copy.refresh}</button>
+          <button type="button" className={styles.secondary} disabled={busy} onClick={() => void loadEvents().catch((error) => setMessage(errorMessage(copy, error)))}>{copy.refresh}</button>
         </div>
         {!eventsLoaded && <p aria-live="polite">{copy.loadingEvents}</p>}
         {eventsLoaded && eventsError && <p role="alert">{eventsError}</p>}
@@ -530,8 +536,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
     {session && <p className={styles.message} role="status" aria-live="polite">{message}</p>}
     <RestoreRaceDialog open={restoreOpen} onClose={() => setRestoreOpen(false)}
-      onRestored={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />
+      onRestored={() => void loadEvents().catch((error) => setMessage(errorMessage(copy, error)))} />
     <CopyRaceDialog source={copySource} onClose={() => setCopySource(undefined)}
-      onCopied={() => void loadEvents().catch((error) => setMessage(errorMessage(error)))} />
+      onCopied={() => void loadEvents().catch((error) => setMessage(errorMessage(copy, error)))} />
   </main>;
 }

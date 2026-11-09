@@ -56,3 +56,14 @@ test("språk: tävlingssidan och resultatlistan på engelska", async ({ browser 
   await visitor.getByRole("link", { name: /^Live/ }).click();
   await expect(visitor.getByRole("heading", { name: "No finishers yet – the page updates by itself." })).toBeVisible();
 });
+
+/** Del 4: inloggningen och Skapa konto på engelska. */
+test("språk: inloggningen på engelska", async ({ browser }) => {
+  const page = await (await browser.newContext({ locale: "en-US" })).newPage();
+  await page.goto("/organizer");
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByLabel("Email address")).toBeVisible();
+  await page.getByRole("button", { name: "No account? Create one" }).click();
+  await expect(page.getByRole("heading", { name: "Create account" })).toBeVisible();
+  await expect(page.getByLabel("Your name")).toBeVisible();
+});

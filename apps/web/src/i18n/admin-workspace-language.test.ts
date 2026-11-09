@@ -35,7 +35,7 @@ const adminFiles = [
   // Steg 37: hjälpen och sidfoten.
   "help-sv.ts", "about-sv.ts",
   // Idéerna 2026-11-08: engelska (sidfoten).
-  "public-en.ts", "lists-en.ts",
+  "public-en.ts", "lists-en.ts", "organizer-en.ts",
   // Grenen hjalp-banlaggning: hjälpen för banläggningen, utskriften, vägvalen och klubbarkivet.
   "help-course-setting-sv.ts", "help-print-sv.ts", "help-archive-route-sv.ts",
   // Steg 40: festen.

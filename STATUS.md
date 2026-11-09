@@ -27,7 +27,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   klientkomponenterna läser språket ur `LanguageProvider` i de publika layouterna (arbetsytan är svenska). E2E `sprak` (två test).
 - Del 3: Live, sträcktidsanalysen (inte vägvalsvyn), löparens resultatsida, självregistreringens formulär och tävlingsinfon.
   `/sprak` är publik (Caddyfile: `dc restart caddy`). E2E `sprak`, `live`, `strackanalys`, `sjalvregistrering*`, `fest`, `traningsgrupp`.
-- Kvar: vägvalsvyn, QR-sidan, festen och träningsgruppens sida, sedan kontot och arbetsytan.
+- Del 4: inloggningen, Skapa konto och Mina tävlingar (`organizer-en.ts`, språket i /organizer). E2E `sprak` (inloggningen).
+- Kvar: vägvalsvyn, QR-sidan, festen och träningsgruppens sida, Mitt konto, sedan arbetsytan del för del.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

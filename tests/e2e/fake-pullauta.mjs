@@ -11,8 +11,27 @@ import process from "node:process";
 const command = process.argv[2] ?? "";
 const box = JSON.parse(readFileSync(`in/${readdirSync("in").find(name => name.endsWith(".laz"))}`, "utf8"));
 const width = 200, height = 200;
+const chunk = (type, data) => {
+  const head = Buffer.alloc(8); head.writeUInt32BE(data.length, 0); head.write(type, 4, "ascii");
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0);
+  return Buffer.concat([head, data, crc]);
+};
+const png = (w, h, colorType, channels, pixel) => {
+  const raw = Buffer.alloc(h * (1 + w * channels));
+  for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) raw.set(pixel(x, y), y * (1 + w * channels) + 1 + x * channels);
+  const header = Buffer.alloc(13); header.writeUInt32BE(w, 0); header.writeUInt32BE(h, 4); header.set([8, colorType, 0, 0, 0], 8);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0))]);
+};
 if (command === "") {
   mkdirSync("out", { recursive: true });
+  // Med vege_bitmode=1 (vegetationen, K5c del 3): klassbilderna per ruta, öppen mark i väster och grönt i öster.
+  if (/^vege_bitmode=1$/m.test(readFileSync("pullauta.ini", "utf8"))) {
+    const size = Math.max(1, Math.ceil((box.maxE - box.minE) / 300)), w = Math.ceil((box.maxE - box.minE) / size), h = Math.ceil((box.maxN - box.minN) / size);
+    writeFileSync("out/ruta00_vege_bit.png", png(w, h, 0, 1, x => [x < w / 3 ? 1 : x > w / 2 ? 8 : 0]));
+    writeFileSync("out/ruta00_undergrowth_bit.png", png(w, h, 0, 1, () => [0]));
+    writeFileSync("out/ruta00_vege_bit.pgw", [size, 0, 0, -size, box.minE + size / 2, box.maxN - size / 2].join("\r\n") + "\r\n");
+  }
   // Med savetempfolders=1 (fuktigheten, K5c): ett höjdraster på 2 m, som Karttapullautins xyz2.hmap.
   if (/^savetempfolders=1$/m.test(readFileSync("pullauta.ini", "utf8"))) {
     const cell = 2, width = Math.floor((box.maxE - box.minE) / cell) + 1, height = Math.floor((box.maxN - box.minN) / cell) + 1;
@@ -32,16 +51,7 @@ if (command === "") {
   process.exit(0);
 }
 if (command === "pngmerge") {
-  const row = Buffer.alloc(1 + width * 4);
-  for (let x = 0; x < width; x += 1) row.set([200, 120, 40, 255], 1 + x * 4);
-  const chunk = (type, data) => {
-    const head = Buffer.alloc(8); head.writeUInt32BE(data.length, 0); head.write(type, 4, "ascii");
-    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0);
-    return Buffer.concat([head, data, crc]);
-  };
-  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header.set([8, 6, 0, 0, 0], 8);
-  writeFileSync("merged.png", Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header),
-    chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))), chunk("IEND", Buffer.alloc(0))]));
+  writeFileSync("merged.png", png(width, height, 6, 4, () => [200, 120, 40, 255]));
   const a = (box.maxE - box.minE) / width, e = -(box.maxN - box.minN) / height;
   writeFileSync("merged.pgw", [a, 0, 0, e, box.minE + a / 2, box.maxN + e / 2].join("\n") + "\n");
   process.exit(0);

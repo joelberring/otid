@@ -40,6 +40,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [moisture, setMoisture] = useState(false);
   const [channelHa, setChannelHa] = useState(1);
   const [wetMeters, setWetMeters] = useState(0.5);
+  const [vegetation, setVegetation] = useState(false);
+  const [minAreaM2, setMinAreaM2] = useState(300);
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const area = areas.find(row => row.areaId === where);
@@ -88,7 +90,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     try {
       const result = await clubRequest(`${base}/geo-jobs`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PULLAUTIN",
         name: name.trim() || text.defaultName(area?.name), tiles, settings: { contour_interval: interval, formline },
-        ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: Math.max(1, wetMeters * 2) } } : {}) }).catch(() => ({ status: 0, json: undefined }));
+        ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: Math.max(1, wetMeters * 2) } } : {}),
+        ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
       const body = result.json as { error?: string } | undefined;
       if (result.status !== 201 && result.status !== 200) { say(body?.error ?? result.status); return; }
       setItems(undefined); setMessage({ tone: "ok", text: text.started });
@@ -156,6 +159,11 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
             {[0.3, 0.5, 1].map(value => <option key={value} value={value}>{text.wetOption(value)}</option>)}
           </select></label>
         </>}
+        <label className={styles.check}><input type="checkbox" checked={vegetation} onChange={event => setVegetation(event.target.checked)}
+          data-testid="map-project-laser-vegetation" />{text.vegetation}</label>
+        {vegetation && <label>{text.minArea}<select value={minAreaM2} onChange={event => setMinAreaM2(Number(event.target.value))}>
+          {[100, 300, 600, 1000].map(value => <option key={value} value={value}>{text.minAreaOption(value)}</option>)}
+        </select></label>}
         <span className={styles.actions}>
           <Button disabled={!!busy || selected === 0 || selected > 16} onClick={() => void start()} data-testid="map-project-laser-start">{text.start(selected)}</Button>
         </span>

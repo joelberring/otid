@@ -32,7 +32,7 @@ COPY --from=pullautin /src/pullauta.default.ini /src/LICENSE /opt/pullauta/
 RUN echo "Karttapullautin ${PULLAUTIN_TAG}, GPL-3. Källkoden: https://github.com/karttapullautin/karttapullautin/tree/${PULLAUTIN_TAG}" > /opt/pullauta/KALLA.txt \
   && mkdir -p /work /app && chown node:node /work
 # Geo-arbetaren och fuktigheten (K5c) körs direkt av Node (typerna tas bort); package.json gör dem till ES-moduler.
-COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts /app/
+COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts /app/
 RUN echo '{ "type": "module", "private": true }' > /app/package.json
 USER node
 WORKDIR /app

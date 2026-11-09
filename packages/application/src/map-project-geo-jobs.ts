@@ -57,13 +57,13 @@ async function rows(tx: DbExecutor, projectId: string, jobId?: string) {
 }
 function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): GeoJobView {
   const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>;
-    moisture?: GeoJobView["moisture"] };
+    moisture?: GeoJobView["moisture"]; vegetation?: GeoJobView["vegetation"] };
   const progress = job.progress as GeoJobView["progress"] | null;
   return { jobId: job.id, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status, tiles: request.tiles?.length ?? 0,
     settings: request.settings ?? {}, progress: job.status === "RUNNING" ? progress : null, error: job.error,
     layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null,
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
-    outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
+    vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
     createdBy: { accountId: job.accountId, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
     finishedAt: job.finishedAt?.toISOString() ?? null };
 }
@@ -105,7 +105,8 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
     if (tiles + request.tiles.length > geoTilesPerMonth(runtime.environment)) return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(jobs).values({ id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-      request: { name: request.name, tiles: request.tiles, settings: request.settings, ...(request.moisture ? { moisture: request.moisture } : {}) },
+      request: { name: request.name, tiles: request.tiles, settings: request.settings, ...(request.moisture ? { moisture: request.moisture } : {}),
+        ...(request.vegetation ? { vegetation: request.vegetation } : {}) },
       createdAt: now, requestId: request.requestId });
     return { status: "created", replayed: false, job: toView((await rows(tx, access.project.id, id))[0]!, access.accountId) } as const;
   });
@@ -166,6 +167,7 @@ export interface ClaimedGeoJob {
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
+  readonly vegetation: { readonly minAreaM2: number } | null;
 }
 
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
@@ -174,7 +176,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
     .where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale), sql`${jobs.attempts} >= ${MAX_ATTEMPTS}`));
   await db.update(jobs).set({ status: "QUEUED", worker: null }).where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale)));
   const result = await db.execute<{ id: string; request: { tiles: { id: string; epsg: number | null }[]; settings: Record<string, number>;
-    moisture?: ClaimedGeoJob["moisture"] }; attempts: number }>(sql`
+    moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
@@ -185,7 +187,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök.
   await db.delete(outputs).where(eq(outputs.jobId, row.id));
   return { jobId: row.id, kind: "PULLAUTIN", attempt: row.attempts, settings: row.request.settings ?? {}, moisture: row.request.moisture ?? null,
-    tiles: row.request.tiles.map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
+    vegetation: row.request.vegetation ?? null, tiles: row.request.tiles.map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
 }
 
 async function runningJob(db: DbExecutor, jobId: string, worker: string) {

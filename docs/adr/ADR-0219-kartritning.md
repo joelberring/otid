@@ -363,3 +363,21 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
 4. **Prestanda:** fyra rutor (2500 × 2500 celler) tar omkring fem sekunder och 0,5 GB, så CX23 och CAX11 räcker.
 5. **Kvar:** vegetation och mark ur laserns returer (K5c, del 3), SLU:s karta som vikt, och tröskelvärden prövade mot
    riktiga våtmarker (Kungshatt).
+
+## Tillägg 2026-11-09: vegetation ur laserns returer (K5c, del 3, ingen migration)
+
+1. **I samma geo-jobb** (valfritt): Karttapullautin körs med `vege_bitmode=1` och skriver klassbilder per ruta
+   (`<ruta>_vege_bit.png`: 1 gult, 2 + n grönt i nyans n; `<ruta>_undergrowth_bit.png`: 1 löphindrande, 2 svårlöpt; 1 m med
+   världsfil). Geo-arbetaren (`scripts/geo-vegetation.ts`, bara Nodes egna moduler) slår ihop dem i 2 m-celler (flest röster;
+   undervegetationens glesa streck räknas inom 5 × 5 celler).
+2. **Resultatet:** en DXF med kapslade ytor som kandidater: `oppen_mark` (401), `gron_lattlopt` (406, nyans 2+),
+   `gron_svarlopt` (408, nyans 4+), `gron_mycket_svarlopt` (410, nyans 5+) och undervegetationen (407, 409). Minsta yta väljs
+   (100–1000 m², förval 300). Gränserna gäller grundinställningens `greenshades` och ska prövas mot riktiga kartor.
+3. **Inte gjort:** SLU:s karta som vikt. Laserns returer är skarpare än SLU:s 10 m-raster; en vikt prövas först om
+   klasserna visar sig fel i riktig skog.
+
+## Tillägg 2026-11-09: kontrollnumren står still mellan varianterna (ingen migration)
+
+Ägaren såg att numren hoppade mellan banläggningen (hela den gafflade banan) och utskriften (en variant). En variant eller en
+del får nu de automatiska numren där hela banan har dem; flyttade nummer (`numberAt`) gäller som förut. Storleken är normens
+(siffrorna 4,0 mm i ISOM 2017-2 och ISSprOM 2019-2, skalade med banans storlek och utskriftsskalan).

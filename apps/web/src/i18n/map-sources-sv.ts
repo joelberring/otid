@@ -80,6 +80,9 @@ export const mapSourcesSv = {
     wet: "Blött under",
     wetOption: (meters: number) => `${String(meters).replace(".", ",")} m över stråket`,
     moistureAdded: "Fuktigheten är tillagd som underlag.",
+    vegetation: "Gör också ytor av vegetationen (öppen mark, grönt och undervegetation ur laserns returer)",
+    minArea: "Minsta yta",
+    minAreaOption: (m2: number) => `${m2} m²`,
     start: (count: number) => count === 1 ? "Kör Karttapullautin på 1 ruta" : `Kör Karttapullautin på ${count} rutor`,
     started: "Jobbet ligger i kön.",
     jobs: "Jobben",
@@ -91,7 +94,7 @@ export const mapSourcesSv = {
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
       "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
-      "fukt.dxf": "Våtmarker och fuktstråk"
+      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor"
     } as Record<string, string>,
     load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,
     loaded: (label: string) => `${label} visas som kandidater nedan under Vektorfil.`,

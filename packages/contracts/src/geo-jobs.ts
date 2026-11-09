@@ -37,7 +37,9 @@ export const geoJobCreateRequestSchema = z.object({
   settings: settingsSchema.default({}),
   /** K5c del 2: fuktigheten ur laserns markmodell (kanaltröskeln i hektar, höjd över fuktstråket för blött och fuktigt). */
   moisture: z.object({ channelHa: z.number().min(0.25).max(10), wetMeters: z.number().min(0.1).max(3), moistMeters: z.number().min(0.2).max(5) })
-    .strict().refine(value => value.moistMeters >= value.wetMeters, "Fuktigt ska vara minst lika högt som blött").optional()
+    .strict().refine(value => value.moistMeters >= value.wetMeters, "Fuktigt ska vara minst lika högt som blött").optional(),
+  /** K5c del 3: vegetationen ur laserns returer (Karttapullautins grönt, gult och undervegetation) som ytor; minsta yta i m². */
+  vegetation: z.object({ minAreaM2: z.number().int().min(50).max(5000) }).strict().optional()
 }).strict();
 
 export type GeoJobStatusView = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
@@ -48,6 +50,8 @@ export interface GeoJobView {
   readonly error: string | null; readonly layerId: string | null;
   /** K5c del 2: fuktighetens underlag, när jobbet räknade fuktighet. */
   readonly moistureLayerId: string | null; readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
+  /** K5c del 3: vegetationen som ytor, när jobbet räknade den. */
+  readonly vegetation: { readonly minAreaM2: number } | null;
   readonly outputs: readonly { readonly name: string; readonly mediaType: string; readonly byteSize: number }[];
   readonly createdBy: { readonly accountId: string; readonly name: string | null }; readonly own: boolean;
   readonly createdAt: string; readonly finishedAt: string | null;

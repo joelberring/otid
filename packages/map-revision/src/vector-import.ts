@@ -54,6 +54,13 @@ export function guessCrs(data: SourceData): number | undefined {
 
 /** Ord i lagrets namn (versaler, utan å, ä och ö) → symbolens nummer, som i plandokumentet för baskartorna. Första träffen gäller. */
 const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; readonly area?: string; readonly point?: string }[] = [
+  // Geo-arbetarens vegetation (K5c del 3): öppen mark, tre gröna och undervegetation.
+  { words: /OPPEN_MARK|OPEN_LAND/, area: "401" },
+  { words: /UNDERVEGETATION_SVARLOPT/, area: "409" },
+  { words: /UNDERVEGETATION/, area: "407" },
+  { words: /GRON_MYCKET_SVARLOPT/, area: "410" },
+  { words: /GRON_SVARLOPT/, area: "408" },
+  { words: /GRON_LATTLOPT/, area: "406" },
   { words: /SKARMTAK|CANOPY/, area: "522" },
   { words: /HUS|BYGG|FASAD|BUILDING/, area: "521" },
   { words: /STAKET|STANGSEL|FENCE/, line: "516" },

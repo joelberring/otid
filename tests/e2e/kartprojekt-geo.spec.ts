@@ -72,6 +72,8 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-name")).toHaveValue("Karttapullautin hela kartan");
   // K5c del 2: fuktigheten ur markmodellen räknas i samma jobb.
   await laser.getByTestId("map-project-laser-moisture").check();
+  // K5c del 3: vegetationen ur returerna som ytor.
+  await laser.getByTestId("map-project-laser-vegetation").check();
   await laser.getByTestId("map-project-laser-start").click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Jobbet ligger i kön.");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Karttapullautin hela kartan · 1 ruta · Väntar på geo-servern");
@@ -103,6 +105,11 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await laser.getByRole("button", { name: "Läs in våtmarker och fuktstråk som kandidater" }).click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Våtmarker och fuktstråk visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("blott");
+  // Vegetationen: öppen mark i väster och mycket svårlöpt grönt i öster (alla tre gröna nivåerna).
+  await laser.getByRole("button", { name: "Läs in vegetationsytor som kandidater" }).click();
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som kandidater nedan under Vektorfil.");
+  await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(4);
+  await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
 
   // Fel nyckel kommer inte åt geo-arbetarens anrop.
   const denied = await owner.request.post("/api/geo-worker/claim", { headers: { authorization: `Bearer ${"x".repeat(48)}`, "x-otid-geo-worker": "e2e" } });

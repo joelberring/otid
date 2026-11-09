@@ -10,6 +10,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Kontrollnumren står still mellan banläggning och utskrift
+- En variant (utskriften per löpare) eller del får de automatiska numren där hela den gafflade banan har dem.
+- Verifierat: enhetstest `overprint` (gaffel där numret annars flyttas; testet fallerar utan ändringen), hela `course-setting`.
+
+### 2026-11-09 – K5c del 3: vegetation ur laserns returer
+- Laserjobbet kan också göra ytor av vegetationen: Karttapullautins klassbilder blir öppen mark, tre gröna och
+  undervegetation som kandidater (401, 406, 408, 410, 407, 409).
+- Verifierat: enhetstester `geo-vegetation`, integrationstest `adr-0219-geo`, E2E `kartprojekt-geo` med vegetationen.
+- Provas: gränserna mot riktig skog; SLU som vikt är inte gjort.
+
 ### 2026-11-09 – K5c del 2: fuktighet ur laserns markmodell
 - Laserjobbet kan också räkna fuktigheten: Karttapullautins höjdraster slås ihop, sänkor fylls, flödet och höjden över
   närmaste fuktstråk avgör blött och fuktigt. Ett eget underlag och kandidater (308, 310, 306).

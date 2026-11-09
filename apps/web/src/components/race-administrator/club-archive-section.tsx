@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { clubRaceEn } from "../../i18n/workspace-last-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import Link from "next/link";
 import type { OrganisationSummary, RaceClubArchiveView } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
@@ -9,10 +12,9 @@ import { OrganisationPicker } from "../club-affiliation/organisation-picker";
 import { Button, Notice, Section } from "../ui";
 import styles from "../club-affiliation/club-affiliation.module.css";
 
-const text = clubAffiliationSv.race;
 type Message = { tone: "ok" | "error"; text: string } | undefined;
 const base = (raceId: string) => `/api/organizer/races/${encodeURIComponent(raceId)}/club-archive`;
-const errorText = (json: unknown) => {
+const errorText = (json: unknown, text: Texts<typeof clubAffiliationSv.race>) => {
   const code = (json as { error?: string } | undefined)?.error;
   return code && text.errors[code] ? text.errors[code] : text.failed;
 };
@@ -34,6 +36,7 @@ export function useRaceClubArchive(raceId: string) {
  * bekräftelse) och "Ta ur klubbarkivet". Inget läggs in automatiskt.
  */
 export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disabled: boolean }) {
+  const text = useTexts(clubAffiliationSv.race, clubRaceEn);
   const { view, setView } = useRaceClubArchive(raceId);
   const [busy, setBusy] = useState(false);
   const [secrecy, setSecrecy] = useState(false);
@@ -43,7 +46,7 @@ export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disab
     setBusy(true); setMessage(undefined);
     const result = await clubRequest(base(raceId), method, body);
     setBusy(false);
-    if (result.status !== 200) { setMessage({ tone: "error", text: errorText(result.json) }); return; }
+    if (result.status !== 200) { setMessage({ tone: "error", text: errorText(result.json, text) }); return; }
     setView(result.json as RaceClubArchiveView);
     if (ok) setMessage({ tone: "ok", text: ok });
   }
@@ -91,6 +94,7 @@ export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disab
 
 /** Påminnelsen i arbetsytan efter tävlingen: "Tävlingen är klar – lägga banorna i klubbarkivet?". Inget läggs in automatiskt. */
 export function ClubArchiveReminder({ raceId, onOpen }: { raceId: string; onOpen: () => void }) {
+  const text = useTexts(clubAffiliationSv.race, clubRaceEn);
   const { view } = useRaceClubArchive(raceId);
   if (!view || !view.finished || view.space !== "ADMIN" || view.lifted) return null;
   if (!view.contents.mapFile && !view.contents.courseSetting && !view.contents.courseFile) return null;

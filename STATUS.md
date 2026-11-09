@@ -70,7 +70,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   banläggningen och utskriften, kartprojekten och kartredigeraren, klubbytan och arkivet, träningsgruppernas ledarvy,
   inbjudningarna och superadmin.
 - Del 24: gafflingarna (banbilden, redigeringen, gafflingssättet, längderna, löparens variant i resultatlistan och
-  deltagarsidan, Per sträcka/Per variant i sträcktidsanalysen) i `forking-en.ts`. Hela arbetsytan finns nu på engelska.
+  deltagarsidan, Per sträcka/Per variant i sträcktidsanalysen) i `forking-en.ts`. Arbetsytan på engelska utom några bitar (del 25).
+- Del 25: de sista bitarna i arbetsytan (Publicera, informationen till löparna, självregistreringen, arrangörsklubben och
+  klubbarkivet, banläggningens erbjudande, ta bort tävlingen), sidan för en opublicerad tävling och inbjudningarna (länksidan
+  `/inbjudan`, Skicka igen/Kopiera länken, flera adresser). Inbjudningsmejlet är kvar på svenska.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

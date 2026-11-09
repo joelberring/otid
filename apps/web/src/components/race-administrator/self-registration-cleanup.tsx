@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { selfRegistrationCleanupEn } from "../../i18n/workspace-last-en";
+import { useTexts } from "../language-provider";
 import { selfRegistrationCleanupPreviewSchema, selfRegistrationCleanupResponseSchema, type SelfRegistrationCleanupPreview,
   type SelfRegistrationCleanupRequest } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
@@ -8,13 +10,13 @@ import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import { Button, Notice } from "../ui";
 import type { Workspace } from "./workspace-state";
 
-const text = selfRegistrationSv.cleanup;
 
 /**
  * PLAN.md steg 46: "Stryk alla självregistrerade som inte läst ut" under Anmälda. Först en förhandsvisning med namnen,
  * sedan en bekräftelse. Begäran behålls tills servern svarat, så att ett nytt försök efter nätfel skickar samma id.
  */
 export function SelfRegistrationCleanup({ ws }: { ws: Workspace }) {
+  const text = useTexts(selfRegistrationSv.cleanup, selfRegistrationCleanupEn);
   const { raceId, writingRef, pending, requireSession, begin, finish, current, request, json, csrf, load, disabled, busy, data } = ws;
   const [preview, setPreview] = useState<SelfRegistrationCleanupPreview>();
   const [attempt, setAttempt] = useState<SelfRegistrationCleanupRequest>();

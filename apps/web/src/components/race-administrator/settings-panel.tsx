@@ -6,7 +6,6 @@ import { raceTypeEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { raceTypeSv } from "../../i18n/race-type-sv";
-import { raceInfoSv } from "../../i18n/race-info-sv";
 import { RACE_INFO_MAX, settingsFormFrom } from "./settings-actions";
 import { sectionForPanel } from "../../lib/race-sections";
 import { raceCopySv } from "../../i18n/race-copy-sv";
@@ -21,7 +20,6 @@ import { PeopleSection } from "./people-section";
 import { ClubArchiveSection } from "./club-archive-section";
 import { RadioSection } from "./radio-section";
 import { SelfRegistrationSetting } from "./self-registration-setting";
-import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import type { Workspace } from "./workspace-state";
 
 
@@ -70,7 +68,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
   const [copySource, setCopySource] = useState<CopySource>();
   if (!shows("SETTINGS") || !data) return null;
   const form = settingsForm ?? settingsFormFrom(data);
-  const infoText = raceInfoSv.settings;
+  const infoText = ws.raceInfoText;
   // ADR-0188 beslut 3: starttider följer med till ett nytt datum; med resultat går datumet inte att ändra (servern kontrollerar
   // också avläsningar, stämplingar och incheckning).
   const dateLocked = data.entries.some(entry => entry.effectiveResult.state !== "NO_PUBLISHED_RESULT");
@@ -124,7 +122,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
       </form>
     </Section>
     {/* Steg 41: för en fest finns valet i fest-arbetsytan; stafett har inget. */}
-    {data.raceType !== "PARTY" && data.raceType !== "RELAY" && <Section id={`${id}-self-registration`} title={selfRegistrationSv.settingTitle}>
+    {data.raceType !== "PARTY" && data.raceType !== "RELAY" && <Section id={`${id}-self-registration`} title={ws.selfRegistrationText.settingTitle}>
       <SelfRegistrationSetting ws={ws} />
     </Section>}
     {/* Publiceringen finns på ett ställe, steget Publicera (PLAN.md steg 24). */}

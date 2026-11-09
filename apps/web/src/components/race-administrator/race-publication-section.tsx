@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { publishEn } from "../../i18n/workspace-last-en";
 import { courseSecrecyEn } from "../../i18n/workspace-small-en";
 import { useTexts } from "../language-provider";
 import { courseSecrecyResponseSchema, publicTimingResponseSchema, racePublicationResponseSchema, type PublicTimingRequest } from "@o-tid/contracts";
@@ -12,13 +13,13 @@ import { Button, Notice, Section } from "../ui";
 import styles from "../race-administrator-workspace.module.css";
 import type { Workspace } from "./workspace-state";
 
-const text = publicRaceSv.publish;
 
 /**
  * Publicera tävlingen (ADR-0172 beslut 4): läget i en mening, en åtgärd, tävlingssidans korta adress och QR-koden.
  * Finns bara som eget steg i sidopanelen; Inställningar länkar hit (PLAN.md steg 24). Sparas direkt; inget resultat ändras.
  */
 function RacePublicationSection({ ws, id }: { ws: Workspace; id: string }) {
+  const text = useTexts(publicRaceSv.publish, publishEn);
   const { begin, busy, writingRef, csrf, current, data, finish, load, pending, profile, raceId, request, json, requireSession,
     workflowLocked } = ws;
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();

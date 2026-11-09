@@ -1,7 +1,6 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
-import { selfRegistrationSv as text } from "../../i18n/self-registration-sv";
 import { Notice } from "../ui";
 import type { Workspace } from "./workspace-state";
 
@@ -10,6 +9,7 @@ import type { Workspace } from "./workspace-state";
  * (inte stafett). Sparas direkt, av som standard.
  */
 export function SelfRegistrationSetting({ ws }: { ws: Workspace }) {
+  const text = ws.selfRegistrationText;
   const { data, raceId, saving, workflowLocked, functionary, saveSelfRegistration, selfRegistrationMessage } = ws;
   if (!data || functionary || data.raceType === "RELAY") return null;
   const id = `self-registration-${raceId}-help`;

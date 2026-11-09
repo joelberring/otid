@@ -1,18 +1,20 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { raceDeleteEn } from "../../i18n/workspace-last-en";
+import { useTexts } from "../language-provider";
 import { accountSv } from "../../i18n/account-sv";
 import { accountRequest } from "../../lib/account-client";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "../account-pages.module.css";
 
-const text = accountSv.raceDelete;
 
 /**
  * Inställningar → Ta bort tävling (ADR-0172 beslut 2). Bara ägaren; bekräftas genom att skriva tävlingens namn.
  * Anropet görs med kontots inloggning, som avgör ägarskapet.
  */
 export function RaceDeleteSection({ raceId, eventName, disabled }: { raceId: string; eventName: string; disabled: boolean }) {
+  const text = useTexts(accountSv.raceDelete, raceDeleteEn);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();

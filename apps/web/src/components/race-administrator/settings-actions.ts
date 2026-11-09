@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { normalizeRaceType, raceDateMovePreviewResponseSchema, raceSettingsResponseSchema, type RaceDateMovePreviewResponse, type RaceSettingsRequest,
   type RaceType } from "@o-tid/contracts";
-import { raceInfoSv } from "../../i18n/race-info-sv";
-import { formErrorsSv } from "../../i18n/form-errors-sv";
-import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import { isIsoDate, isRaceName, type FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -83,11 +80,11 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
     const form = settingsForm ?? settingsFormFrom(data);
     const info = normalizeRaceInfo(form.info), firstStartTime = normalizeFirstStart(form.firstStartTime);
     // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
-    const errors = { eventName: form.eventName.trim().length >= 2 ? undefined : formErrorsSv.eventName,
-      raceName: isRaceName(form.raceName) ? undefined : formErrorsSv.stageName,
-      raceDate: isIsoDate(form.raceDate) ? undefined : formErrorsSv.raceDate,
-      info: info === null || info.length <= RACE_INFO_MAX ? undefined : raceInfoSv.settings.infoTooLong(RACE_INFO_MAX),
-      firstStartTime: firstStartTime === undefined ? raceInfoSv.settings.firstStartInvalid : undefined };
+    const errors = { eventName: form.eventName.trim().length >= 2 ? undefined : ws.formErrorText.eventName,
+      raceName: isRaceName(form.raceName) ? undefined : ws.formErrorText.stageName,
+      raceDate: isIsoDate(form.raceDate) ? undefined : ws.formErrorText.raceDate,
+      info: info === null || info.length <= RACE_INFO_MAX ? undefined : ws.raceInfoText.infoTooLong(RACE_INFO_MAX),
+      firstStartTime: firstStartTime === undefined ? ws.raceInfoText.firstStartInvalid : undefined };
     setSettingsErrors(errors);
     if (!settingsAttempt && Object.values(errors).some(Boolean)) return;
     // Nytt datum: visa först vad som händer med starttiderna (ADR-0188 beslut 3).
@@ -162,9 +159,9 @@ export function createSettingsActions(ws: Base & RaceDataActions) {
       if (!response.ok) throw new Error("Self registration not saved");
       const receipt = raceSettingsResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Settings receipt mismatch");
-      setSelfRegistrationMessage({ tone: "ok", text: enabled ? selfRegistrationSv.setting.on : selfRegistrationSv.setting.off });
+      setSelfRegistrationMessage({ tone: "ok", text: enabled ? ws.selfRegistrationText.setting.on : ws.selfRegistrationText.setting.off });
       await load(op);
-    } catch { if (current(op)) setSelfRegistrationMessage({ tone: "error", text: selfRegistrationSv.setting.failed }); }
+    } catch { if (current(op)) setSelfRegistrationMessage({ tone: "error", text: ws.selfRegistrationText.setting.failed }); }
     finally { finish(op); }
   }
   function cancelDateMove() { setDateMovePreview(undefined); }

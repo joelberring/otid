@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { courseDataOfferEn } from "../../i18n/workspace-last-en";
+import { useTexts } from "../language-provider";
 import { useEffect, useState } from "react";
 import type { CourseSettingState } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
@@ -11,7 +13,6 @@ import { SaveFailed } from "../course-setting/save-failed";
 import { Button } from "../ui";
 import styles from "./sources.module.css";
 
-const text = courseDataSv.offer;
 
 /**
  * Banor → Banfil, efter att banfilen lästs in i tävlingen: har tävlingen en kartfil för banläggningen erbjuds banfilens banor
@@ -19,6 +20,7 @@ const text = courseDataSv.offer;
  * fråga, och den gamla blir en tidigare version (Fil → Tidigare versioner).
  */
 export function CourseDataOffer({ raceId, file }: { raceId: string; file: { readonly name: string; readonly bytes: ArrayBuffer } }) {
+  const text = useTexts(courseDataSv.offer, courseDataOfferEn);
   const [state, setState] = useState<CourseSettingState | "none">();
   const [confirming, setConfirming] = useState(false);
   const [phase, setPhase] = useState<"idle" | "working" | "done" | "failed">("idle");

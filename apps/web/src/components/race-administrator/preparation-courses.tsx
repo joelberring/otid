@@ -8,6 +8,7 @@ import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { courseSettingLinkEn } from "../../i18n/workspace-last-en";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { rogainingSv } from "../../i18n/rogaining-sv";
@@ -24,6 +25,7 @@ import type { Workspace } from "./workspace-state";
  */
 export function PreparationCourses({ ws }: { ws: Workspace }) {
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
+  const linkText = useTexts<Pick<typeof courseSettingSv, "link" | "linkHelp">>(courseSettingSv, courseSettingLinkEn);
   const visible = ws.shows("COURSES");
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.COURSES} hidden={!visible}>
     {visible && <CourseTable ws={ws} visible={visible} />}
@@ -31,7 +33,7 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
     {visible && <CourseFileSection ws={ws} />}
     {/* Steg 62: banläggningen i webben (i rogaining poängbanor; poängen i resultatet sätts ovan under Kontroller & poäng). */}
     {visible && !ws.functionary && <p className={styles.workflowHelp}>
-      <Link href={`/admin/${ws.raceId}/course-setting`}>{courseSettingSv.link}</Link> – {courseSettingSv.linkHelp}</p>}
+      <Link href={`/admin/${ws.raceId}/course-setting`}>{linkText.link}</Link> – {linkText.linkHelp}</p>}
   </section>;
 }
 

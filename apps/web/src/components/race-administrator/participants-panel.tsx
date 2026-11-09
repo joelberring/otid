@@ -13,7 +13,6 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { sv } from "../../i18n/sv";
-import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import { relaySv } from "../../i18n/relay-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { formatClockTime } from "../../lib/clock-time";
@@ -165,7 +164,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
             <div className={styles.rosterMetadata}>
               <span className={styles.organisation} aria-hidden="true">{entry.organisationName ?? text.none}</span>
               <span className={styles.rosterMobileClass} aria-hidden="true">{raceClass.name}</span>
-              {entry.selfRegistered && <span className={styles.resultBadge}>{selfRegistrationSv.selfRegistered}</span>}
+              {entry.selfRegistered && <span className={styles.resultBadge}>{ws.selfRegistrationText.selfRegistered}</span>}
               {entry.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION" && <span className={styles.resultBadge}>{text.rosterFinishCorrection}</span>}
               {entry.resultRevisionMarker === "MANUAL_TIME" && <span className={styles.resultBadge}>{text.rosterManualTime}</span>}
               {entry.resultRevisionMarker === "MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL" && <span className={styles.resultBadge}>{text.rosterFinishCorrectionWithdrawal}</span>}

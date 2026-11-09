@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { formErrorsEn } from "../../i18n/workspace-small-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
 import { INVITATION_BULK_MAX, racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
   type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest, type RacePersonInvitation } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
@@ -13,6 +13,7 @@ import { Button, Field, Notice, Section } from "../ui";
 import styles from "./people-section.module.css";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
+import { invitationEn, invitationMailNoteEn, invitationSummaryEn } from "../../i18n/workspace-last-en";
 import { inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { FromClubPicker } from "../club-affiliation/from-club-picker";
@@ -29,6 +30,7 @@ type Message = { tone: "ok" | "error"; text: string };
 export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: string; disabled: boolean;
   onPendingChange: (pending: boolean) => void }) {
   const formText = useTexts(formErrorsSv, formErrorsEn);
+  const en = useLanguage() === "en", inviteText = en ? invitationEn : invitationSv;
   const text = useTexts(raceTypeSv.settings.people, raceTypeEn.settings.people);
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator/people`;
   const [data, setData] = useState<RacePeopleResponse>();
@@ -69,8 +71,8 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
     event.preventDefault();
     if (busy) return;
     const { addresses, invalid } = parseInvitationAddresses(email);
-    if (addresses.length === 0) { setEmailError(invalid.length ? formText.email : invitationSv.bulk.none); return; }
-    if (addresses.length > INVITATION_BULK_MAX) { setEmailError(invitationSv.bulk.tooMany(INVITATION_BULK_MAX)); return; }
+    if (addresses.length === 0) { setEmailError(invalid.length ? formText.email : inviteText.bulk.none); return; }
+    if (addresses.length > INVITATION_BULK_MAX) { setEmailError(inviteText.bulk.tooMany(INVITATION_BULK_MAX)); return; }
     setEmailError("");
     const grant = async (address: string) => {
       const requestId = crypto.randomUUID();
@@ -83,7 +85,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
         const { status, receipt } = await grant(addresses[0]!);
         if (!receipt) { setMessage({ tone: "error", text: failure(status) }); return; }
         setEmail(""); setRole("FUNCTIONARY");
-        setMessage({ tone: "ok", text: `${text.invited(receipt.invitation.email, text.roles[receipt.invitation.role])} ${invitationMailNote[receipt.mail ?? "off"]}` });
+        setMessage({ tone: "ok", text: `${text.invited(receipt.invitation.email, text.roles[receipt.invitation.role])} ${(en ? invitationMailNoteEn : invitationMailNote)[receipt.mail ?? "off"]}` });
         await load();
         return;
       }
@@ -93,7 +95,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
         if (status === 401 || status === 403) return { fatal: status };
         return status === 409 ? "existing" : "error";
       });
-      setMessage(fatal ? { tone: "error", text: failure(fatal) } : { tone: tally.other || tally.invalid ? "error" : "ok", text: invitationSummary(tally) });
+      setMessage(fatal ? { tone: "error", text: failure(fatal) } : { tone: tally.other || tally.invalid ? "error" : "ok", text: (en ? invitationSummaryEn : invitationSummary)(tally) });
       if (!fatal) setEmail("");
       await load();
     } catch { setMessage({ tone: "error", text: text.failed }); }
@@ -140,7 +142,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       {data.invitations.map(invitation => <li key={invitation.invitationId} data-testid="person-invitation">
         <span className={styles.who}>
           <strong>{invitation.displayName ?? invitation.email}</strong>
-          <span className={styles.muted}>{[text.waitingForLogin, invitationSentText(invitation.sentAt, mailEnabled)].filter(Boolean).join(" · ")}</span>
+          <span className={styles.muted}>{[text.waitingForLogin, invitationSentText(invitation.sentAt, mailEnabled, inviteText.list)].filter(Boolean).join(" · ")}</span>
         </span>
         <span className={styles.role} data-role={invitation.role}>{text.roles[invitation.role]}</span>
         <span className={styles.action}>{invitationRemovable(invitation) && <>
@@ -154,7 +156,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
     </ul>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     {data && <form className={styles.add} noValidate onSubmit={event => void add(event)} aria-label={text.addTitle}>
-      <Field label={text.addEmail} help={`${text.addEmailHelp} ${invitationSv.bulk.help}`} error={emailError}>
+      <Field label={text.addEmail} help={`${text.addEmailHelp} ${inviteText.bulk.help}`} error={emailError}>
         <textarea rows={2} value={email} autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={locked}
           onChange={event => { setEmail(event.target.value); setEmailError(""); }} />
       </Field>

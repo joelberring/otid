@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { invitationEn } from "../i18n/workspace-last-en";
+import { useTexts } from "./language-provider";
+import type { Texts } from "../lib/language";
 import { invitationResendResponseSchema } from "@o-tid/contracts";
 import { formatDayMonthTime } from "@o-tid/domain";
 import { invitationSv } from "../i18n/invitation-sv";
@@ -8,11 +11,11 @@ import { accountRequest } from "../lib/account-client";
 import { Button, copyText } from "./ui";
 import styles from "./invitation-actions.module.css";
 
-const text = invitationSv.list;
 const time = (iso: string) => formatDayMonthTime(iso, "Europe/Stockholm");
 
 /** När inbjudan senast mejlades ("skickad 3 nov. 14:02") eller "inte skickad"; inget utan e-post på servern. */
-export function invitationSentText(sentAt: string | null | undefined, mailEnabled: boolean): string | undefined {
+export function invitationSentText(sentAt: string | null | undefined, mailEnabled: boolean,
+  text: Texts<typeof invitationSv.list> = invitationSv.list): string | undefined {
   if (!mailEnabled) return undefined;
   return sentAt ? text.sent(time(sentAt)) : text.notSent;
 }
@@ -24,6 +27,7 @@ export function invitationSentText(sentAt: string | null | undefined, mailEnable
  */
 export function InvitationActions({ name, fromClub, endpoint, mailEnabled, disabled, onSent }: { name: string; fromClub?: boolean;
   endpoint: string; mailEnabled: boolean; disabled?: boolean; onSent?: () => void | Promise<void> }) {
+  const text = useTexts(invitationSv.list, invitationEn.list);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [link, setLink] = useState<string>();

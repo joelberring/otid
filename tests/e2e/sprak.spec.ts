@@ -135,6 +135,12 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   await parts.getByRole("button", { name: "Settings" }).click();
   await expect(owner.getByRole("heading", { name: "People with access" })).toBeVisible();
   await expect(owner.getByRole("group", { name: "Type of event" })).toContainText("Training");
+  // Del 25: informationen till löparna, självregistreringen och Publicera.
+  await expect(owner.getByText("Information for the runners")).toBeVisible();
+  await expect(owner.getByLabel("Allow self-registration on the day of the event")).toBeVisible();
+  await parts.getByRole("button", { name: "Publish" }).click();
+  await expect(owner.getByRole("button", { name: "Publish the event" })).toBeVisible();
+  await expect(owner.getByRole("link", { name: "Preview the event page" })).toBeVisible();
   // Avläsningen (eget appskal) följer språket.
   await owner.goto(`/admin/${raceId}/readout`);
   await expect(owner.getByRole("button", { name: "Start practice station" })).toBeVisible({ timeout: 30_000 });

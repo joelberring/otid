@@ -5,13 +5,15 @@ import { useEffect, useState } from "react";
 import { invitationLinkViewSchema, passwordResetTokenSchema, type InvitationLinkView } from "@o-tid/contracts";
 import { accountSv } from "../i18n/account-sv";
 import { invitationRoleWord, invitationSv, invitationTargetPhrase } from "../i18n/invitation-sv";
+import { invitationEn, invitationRoleWordEn, invitationTargetPhraseEn } from "../i18n/workspace-last-en";
+import { accountEntryEn } from "../i18n/account-en";
+import { useLanguage } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { saveInvitationHandoff } from "../lib/invitation-handoff";
 import { parseOrganizerSessionStatus } from "../lib/organizer-client";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = invitationSv.page;
 type Valid = Extract<InvitationLinkView, { status: "valid" }>;
 
 /** Nyckeln ur adressens #token=… och bort ur adressfältet och historiken (som bekräftelselänken). */
@@ -27,6 +29,9 @@ function takeTokenFromLocation(): string | undefined {
  * konto; behörigheten kommer när personen loggar in med adressen och har bekräftat den.
  */
 export function InvitationPage() {
+  const en = useLanguage() === "en";
+  const text = en ? invitationEn.page : invitationSv.page, back = en ? accountEntryEn.reset.backToLogin : accountSv.reset.backToLogin;
+  const target = en ? invitationTargetPhraseEn : invitationTargetPhrase, roleWord = en ? invitationRoleWordEn : invitationRoleWord;
   const [state, setState] = useState<{ kind: "checking" } | { kind: "no-token" } | { kind: "failed" } | { kind: "invalid" }
     | { kind: "valid"; view: Valid }>({ kind: "checking" });
   const [sessionEmail, setSessionEmail] = useState<string>();
@@ -58,7 +63,7 @@ export function InvitationPage() {
   }
 
   const view = state.kind === "valid" ? state.view : undefined;
-  const until = view ? new Intl.DateTimeFormat("sv-SE", { dateStyle: "long", timeZone: "Europe/Stockholm" }).format(new Date(view.expiresAt)) : "";
+  const until = view ? new Intl.DateTimeFormat(en ? "en-GB" : "sv-SE", { dateStyle: "long", timeZone: "Europe/Stockholm" }).format(new Date(view.expiresAt)) : "";
   const signedInAsInvited = view && sessionEmail && sessionEmail.toLowerCase() === view.email.toLowerCase();
   const signedInAsOther = view && sessionEmail && !signedInAsInvited;
   return <main className={`${styles.page} ${styles.narrow}`}>
@@ -70,8 +75,8 @@ export function InvitationPage() {
     {state.kind === "invalid" && <Notice tone="error" role="alert">{text.invalid}</Notice>}
     {view && <Section label={text.title}>
       <div className={styles.form} data-testid="invitation">
-        <p><strong>{text.invited(view.inviterName, invitationTargetPhrase(view.kind, view.targetName, view.raceDate),
-          invitationRoleWord(view.kind, view.role))}</strong></p>
+        <p><strong>{text.invited(view.inviterName, target(view.kind, view.targetName, view.raceDate),
+          roleWord(view.kind, view.role))}</strong></p>
         <p>{text.address(view.email)}</p>
         <p>{text.howItWorks} {text.validUntil(until)}</p>
         {signedInAsInvited && <div className={styles.actions}><Button onClick={() => window.location.assign(view.next)}>{text.open}</Button></div>}
@@ -82,6 +87,6 @@ export function InvitationPage() {
         </div>}
       </div>
     </Section>}
-    <p><Link href="/organizer">{accountSv.reset.backToLogin}</Link></p>
+    <p><Link href="/organizer">{back}</Link></p>
   </main>;
 }

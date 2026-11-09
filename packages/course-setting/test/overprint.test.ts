@@ -147,6 +147,10 @@ describe("layoutOverprint", () => {
     const whole = numberAt(), a = numberAt("A"), other = numberAt("B");
     expect(whole.get(controls[0]!)!.y).toBeLessThan(5);
     for (const [control, place] of [...a, ...other]) expect(place, control).toEqual(whole.get(control));
+    // Valet "för varje variant för sig": variant B placerar numret efter sina egna sträckor (30° är fritt där).
+    b.edit({ type: "SET_EVENT", changes: { numbersPerVariant: true } });
+    expect(numberAt("B").get(controls[0]!)).not.toEqual(whole.get(controls[0]!));
+    expect(numberAt().get(controls[0]!)).toEqual(whole.get(controls[0]!));
   });
 
   it("alla kontroller med koder", () => {

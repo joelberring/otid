@@ -51,7 +51,7 @@ export type CourseSettingEdit =
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }
   | { readonly type: "SET_LEG_GAPS"; readonly from: string; readonly to: string; readonly gaps: Leg["gaps"] }
   | { readonly type: "SET_CIRCLE_GAPS"; readonly control: string; readonly gaps: readonly CircleGap[] }
-  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "legCircleGapMm" | "allControlsPrintScale" | "printProfileId" | "paperValues" | "levelNotices">> }
+  | { readonly type: "SET_EVENT"; readonly changes: Partial<Pick<CourseSettingDocument["event"], "title" | "mapScale" | "overprintStandard" | "descriptionStandard" | "numbering" | "descriptionLanguage" | "circleCutting" | "legCircleGapMm" | "allControlsPrintScale" | "printProfileId" | "paperValues" | "levelNotices" | "numbersPerVariant">> }
   /** Banans utseende för hela banläggningen (Purple Pens `<course-appearance>`, ADR-0180 beslut 12). */
   | { readonly type: "SET_APPEARANCE"; readonly changes: Partial<Appearance> }
   /** Steg 63: kontrollbeskrivningen. */

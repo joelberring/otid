@@ -61,6 +61,11 @@ export function AppearancePanel({ document, view, readOnly, onEdits }: {
       <input type="checkbox" checked={appearance.circleGapsScaled} disabled={readOnly} onChange={event => set({ circleGapsScaled: event.target.checked })} />
       <span>{text.circleGapsScaled}<small>{text.circleGapsScaledHelp}</small></span>
     </label>
+    <label className={own.check}>
+      <input type="checkbox" checked={Boolean(document.event.numbersPerVariant)} disabled={readOnly} data-testid="appearance-numbers-per-variant"
+        onChange={event => onEdits([{ type: "SET_EVENT", changes: { numbersPerVariant: event.target.checked } }])} />
+      <span>{text.numbersPerVariant}<small>{text.numbersPerVariantHelp}</small></span>
+    </label>
     <table className={own.table} data-testid="appearance-scales">
       <thead><tr><th>{text.table.scale}</th><th>{text.table.circle}</th><th>{text.table.line}</th><th>{text.table.number}</th><th>{text.table.courses}</th></tr></thead>
       <tbody>{rows.map(row => {

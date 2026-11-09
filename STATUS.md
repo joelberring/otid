@@ -11,7 +11,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 ## Logg
 
 ### 2026-11-09 – Kontrollnumren står still mellan banläggning och utskrift
-- En variant (utskriften per löpare) eller del får de automatiska numren där hela den gafflade banan har dem.
+- En variant (utskriften per löpare) eller del får de automatiska numren där hela den gafflade banan har dem; valet
+  "Placera numren för varje variant för sig" under Utseende placerar dem efter variantens egna sträckor.
 - Verifierat: enhetstest `overprint` (gaffel där numret annars flyttas; testet fallerar utan ändringen), hela `course-setting`.
 
 ### 2026-11-09 – K5c del 3: vegetation ur laserns returer

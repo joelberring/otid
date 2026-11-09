@@ -533,6 +533,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
         throw invalidEdit(`Mellanrummet vid ringen ska vara ${LEG_CIRCLE_GAP_LIMITS.min}–${LEG_CIRCLE_GAP_LIMITS.max} mm`);
       }
       if (changes.levelNotices !== undefined && typeof changes.levelNotices !== "boolean") throw invalidEdit("Avvikelserna mot nivån är på eller av");
+      if (changes.numbersPerVariant !== undefined && typeof changes.numbersPerVariant !== "boolean") throw invalidEdit("Numren per variant är på eller av");
       if (changes.paperValues !== undefined) {
         const values = changes.paperValues;
         const ok = (value: unknown, max: number) => value === undefined || (typeof value === "string" && value.length <= max);

@@ -299,6 +299,11 @@ export interface CourseSettingDocument {
      * Varningar"). Bara O-Tid; saknas = av.
      */
     readonly levelNotices?: boolean | undefined;
+    /**
+     * Ägaren 2026-11-09: kontrollnumren i en variant eller del placeras för den för sig (efter just dess sträckor), i stället
+     * för där hela banan har dem. Bara O-Tid; saknas = samma läge i alla varianter.
+     */
+    readonly numbersPerVariant?: boolean | undefined;
     /** Papperets mallar (ADR-0197) som banorna ärver av, och värdena för {datum} och {ekvidistans}. Bara O-Tid. */
     readonly paperTemplates?: readonly PaperTemplate[] | undefined;
     readonly paperValues?: PaperValues | undefined;

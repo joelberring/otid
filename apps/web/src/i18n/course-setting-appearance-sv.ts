@@ -42,6 +42,9 @@ export const appearanceSv = {
   legCircleGapHelp: "Sträckorna slutar så här långt (mm på papperet) utanför ringar, start och mål, så att detaljerna vid kontrollen syns (ISOM 2017-2, 705). Purple Pen har inget mellanrum; det följer inte med i .ppen.",
   circleGapsScaled: "Ringavbrotten följer skalningen",
   circleGapsScaledHelp: "Så sparar Purple Pen sedan 2017. Av i äldre filer: avbrotten tas då från den största sparade skalan.",
+  numbersPerVariant: "Placera numren för varje variant för sig",
+  numbersPerVariantHelp: "Av: numren står där hela banan har dem, likadant i banläggningen och i varje variants utskrift. På: varje variant "
+    + "och kartdel får numren placerade efter sina egna sträckor (flyttade nummer står kvar).",
   table: { scale: "Skala", courses: "Banor", circle: "Ring", line: "Linje", number: "Nummer" },
   warningsHeading: "Utanför standarden",
   warning: (field: "circle" | "line" | "number", scale: number, actual: string, expected: string, standard: keyof typeof STANDARD) =>

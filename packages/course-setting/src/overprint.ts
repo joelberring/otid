@@ -526,7 +526,8 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
   const placed: Box[] = labels.flatMap(({ cc, text }) => cc.numberAt ? [labelBox(cc.numberAt, text, sizes.numberHeight)] : []);
   // En variant eller del (utskriften per löpare) får numren där hela banan har dem (ägaren 2026-11-09: numren hoppade mellan
   // banläggningen och utskriften), så att de står still mellan editorn, varianterna och PDF:en.
-  const stable = choices !== null || part !== undefined ? wholeCourseNumbers(document, options, printScale) : undefined;
+  // Valet "Numren för varje variant" (händelsens `numbersPerVariant`) placerar dem efter variantens egna sträckor.
+  const stable = (choices !== null || part !== undefined) && !document.event.numbersPerVariant ? wholeCourseNumbers(document, options, printScale) : undefined;
   for (const { object, cc, text } of labels) {
     let at: Point;
     const steady = stable?.get(object.control.id);

@@ -380,4 +380,5 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
 
 Ägaren såg att numren hoppade mellan banläggningen (hela den gafflade banan) och utskriften (en variant). En variant eller en
 del får nu de automatiska numren där hela banan har dem; flyttade nummer (`numberAt`) gäller som förut. Storleken är normens
-(siffrorna 4,0 mm i ISOM 2017-2 och ISSprOM 2019-2, skalade med banans storlek och utskriftsskalan).
+(siffrorna 4,0 mm i ISOM 2017-2 och ISSprOM 2019-2, skalade med banans storlek och utskriftsskalan). Valet "Placera numren
+för varje variant för sig" under Utseende (händelsens `numbersPerVariant`, bara O-Tid) ger det tidigare beteendet.

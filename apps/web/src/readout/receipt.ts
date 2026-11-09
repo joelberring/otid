@@ -4,6 +4,7 @@ import type { LocalVerdict } from "./evaluate";
 import { readoutText as readoutTextSv } from "./text-sv";
 import type { Texts } from "../lib/language";
 import { placementText } from "./placement-text";
+import { placementTextEn } from "./placement-text-en";
 import { formatDayMonthTime, formatDuration, raceDetails } from "@o-tid/domain";
 
 /**
@@ -86,7 +87,7 @@ export function buildReceipt({ verdict, cardNumber, pkg, origin, printedAt, plac
   if (verdict.excludedVariant) notes.push(readoutText.excludedVariant(verdict.excludedVariant));
   if (verdict.status === "OK") {
     if (placement && placement.length > 0) notes.push(...placement.map((line) => t.placement(line)));
-    else notes.push(placementText.receiptLater);
+    else notes.push(locale === "en-GB" ? placementTextEn.receiptLater : placementText.receiptLater);
   }
 
   const score = verdict.rogaining;

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { partyTextEn, readoutTextEn } from "./text-en";
-import { useTexts } from "../components/language-provider";
+import { useLanguage, useTexts } from "../components/language-provider";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { evaluateLocally, withLocalRegistrations } from "./evaluate";
@@ -26,6 +26,7 @@ import { IdbPartyActionStore, type PartyActionStore } from "./party-store";
 import { PartyDesk } from "./party-desk";
 import { partyText } from "./party-text-sv";
 import { placementState } from "./placement-text";
+import { placementLinesEn } from "./placement-text-en";
 import { RecentRow, Verdict, type Current } from "./verdict-panel";
 import { useReadoutQueue } from "./use-readout-queue";
 import { showUsbButton, useStation } from "./use-station";
@@ -71,6 +72,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   partyStore?: PartyActionStore }) {
   const t = useTexts(readoutText, readoutTextEn);
   const partyT = useTexts(partyText, partyTextEn);
+  const englishPlacement = useLanguage() === "en";
   const [raceId] = useState(raceIdFromHash);
   const { pkg, pkgRef, items, itemsRef, elsewhere, registrations, registrationsRef, online, loginNeeded, syncProblem, serverDown,
     failedReadouts, setFailedReadouts, persistent, storeRef, partyActions, reload, sync, addPartyAction } = useReadoutQueue(raceId, store, partyStore);
@@ -204,7 +206,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     ? Math.round(station.clock.clockOffsetMs / 60_000) : undefined;
   // Steg 45: mer än sex timmar fel – datorns klocka gäller i stället.
   const clockIgnored = !exercise && station.kind === "ready" && station.clock !== undefined && stationClockUnusable(station.clock.clockOffsetMs);
-  const placement = current?.phase === "done" ? placementState(currentItem, online) : undefined;
+  const placement = current?.phase === "done" ? placementState(currentItem, online, englishPlacement ? placementLinesEn : undefined) : undefined;
   const printable: Printable | undefined = current?.phase === "done" && verdict && pkg
     ? { localSequence: current.localSequence, cardNumber: current.cardNumber, verdict,
       ...(placement?.kind === "known" ? { placement: placement.lines } : {}), placementPending: verdict.status === "OK" && placement?.kind === "sending" } : undefined;

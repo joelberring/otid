@@ -89,10 +89,11 @@ export type PlacementState =
   | { readonly kind: "known"; readonly lines: readonly string[] }
   | { readonly kind: "offline" | "sending" | "none" };
 
-export function placementState(item: Pick<QueuedReadout, "status" | "placement"> | undefined, online: boolean): PlacementState {
+export function placementState(item: Pick<QueuedReadout, "status" | "placement"> | undefined, online: boolean,
+  lines: (placement: ReadoutPlacement) => string[] = placementLines): PlacementState {
   if (item?.placement) {
-    const lines = placementLines(item.placement);
-    return lines.length > 0 ? { kind: "known", lines } : { kind: "none" };
+    const lines_ = lines(item.placement);
+    return lines_.length > 0 ? { kind: "known", lines: lines_ } : { kind: "none" };
   }
   if (!item || item.status === "pending") return { kind: online ? "sending" : "offline" };
   return { kind: "none" };

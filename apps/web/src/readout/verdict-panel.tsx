@@ -1,7 +1,7 @@
 /** Avläsningens besked (stort, med sträcktider, stafett, rogaining och placering) och raderna i Senaste avläsningar. */
 import { useMemo } from "react";
 import { readoutTextEn } from "./text-en";
-import { useTexts } from "../components/language-provider";
+import { useLanguage, useTexts } from "../components/language-provider";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import { formatDuration } from "@o-tid/domain";
 import { evaluateLocally, type LocalVerdict } from "./evaluate";
@@ -12,7 +12,8 @@ import { readoutText } from "./text-sv";
 import { QrCode } from "./receipt-view";
 import { PunchListView } from "./punch-list-view";
 import type { receiptLink } from "./receipt";
-import { placementState, placementText as pt } from "./placement-text";
+import { placementLines, placementState, placementText } from "./placement-text";
+import { placementLinesEn, placementTextEn } from "./placement-text-en";
 
 export type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
@@ -86,7 +87,9 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
  * när den kommer; aldrig en gammal eller lokalt gissad placering.
  */
 function Placement({ item, online }: { item: QueuedReadout | undefined; online: boolean }) {
-  const placement = placementState(item, online);
+  const en = useLanguage() === "en";
+  const pt = en ? placementTextEn : placementText;
+  const placement = placementState(item, online, en ? placementLinesEn : placementLines);
   if (placement.kind === "none") return null;
   if (placement.kind !== "known") return <p className="placement" data-state="waiting" data-testid="verdict-placement">
     {placement.kind === "offline" ? pt.offline : pt.sending}</p>;

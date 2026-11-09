@@ -60,7 +60,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 17: stafetten (klasser, mallar, lag, lagkortet, start, avläsningens lag ute och omstarter; `workspace-relay-en.ts`).
 - Del 18: festen i arbetsytan (start, utseende, varor, skyltar, köp, gäster och export).
 - Del 19: avläsningen och bardisken (appskalet läser språkkakan, annars webbläsarens språk; `readout/text-en.ts`), också
-  kvittot och brickans stämplingar. Kvar: placeringens rader vid avläsningen (svenska ordningstal), hjälpen och banläggningen.
+  kvittot, brickans stämplingar och placeringen vid avläsningen (`placement-text-en.ts`, engelska ordningstal). Kvar: hjälpen,
+  banläggningen och utskriften, kartprojekten och kartredigeraren, klubbytan och arkivet, träningsgruppernas ledarvy,
+  inbjudningarna och superadmin.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

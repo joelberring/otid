@@ -12,7 +12,6 @@ const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const clubTermRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, name: z.string().trim().min(1).max(80), startsOn: isoDate, endsOn: isoDate
 }).strict();
-export type ClubTermRequest = z.infer<typeof clubTermRequestSchema>;
 
 export const clubTermUpdateSchema = z.object({
   formatVersion: z.literal(1), name: z.string().trim().min(1).max(80), startsOn: isoDate, endsOn: isoDate
@@ -34,10 +33,8 @@ export const clubPlanSessionCreateSchema = z.object({
   /** Samma träning varje vecka på samma veckodag till och med terminens sista dag. */
   weekly: z.boolean()
 }).strict();
-export type ClubPlanSessionCreate = z.infer<typeof clubPlanSessionCreateSchema>;
 
 export const clubPlanSessionUpdateSchema = z.object({ formatVersion: z.literal(1), version: z.number().int().min(1), ...sessionFields }).strict();
-export type ClubPlanSessionUpdate = z.infer<typeof clubPlanSessionUpdateSchema>;
 
 export const clubPlanTaskCreateSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, title: z.string().trim().min(1).max(120),
@@ -47,7 +44,6 @@ export const clubPlanTaskCreateSchema = z.object({
     z.object({ kind: z.literal("NONE") }).strict()
   ])
 }).strict();
-export type ClubPlanTaskCreate = z.infer<typeof clubPlanTaskCreateSchema>;
 
 export const clubPlanTaskDoneSchema = z.object({ formatVersion: z.literal(1), done: z.boolean() }).strict();
 

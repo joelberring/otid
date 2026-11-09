@@ -14,6 +14,7 @@ import { ArchiveList } from "./archive-list";
 import { ClubImportPanel } from "./club-import-panel";
 import { ClubMapsPanel } from "./club-maps-panel";
 import { ClubDevicesPanel } from "./club-devices-panel";
+import { PlanningPanel } from "../club-planning/planning-panel";
 import { ClubMembersPanel } from "./club-members-panel";
 import { useArchiveChecks } from "./use-archive-checks";
 import { ClubSpacePanel, type ClubSpaceFocus } from "../club-affiliation/club-space-panel";
@@ -23,9 +24,9 @@ import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
 import styles from "./club-archive.module.css";
 
-type Tab = "trainings" | "maps" | "members" | "devices" | "club" | "import";
-const TABS: readonly Tab[] = ["trainings", "maps", "members", "devices", "club", "import"];
-const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", devices: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
+type Tab = "trainings" | "planning" | "maps" | "members" | "devices" | "club" | "import";
+const TABS: readonly Tab[] = ["trainings", "planning", "maps", "members", "devices", "club", "import"];
+const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", planning: "ARCHIVE_PLANNING", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", devices: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
   import: "ARCHIVE_IMPORT" };
 
 function initialTab(): Tab {
@@ -73,6 +74,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     tabs.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
   const admin = club ? club.viewer.role === "OWNER" || club.viewer.role === "ADMIN" : false;
+  // ADR-0221: planeringen är för ledare, administratörer och ägare.
+  const leader = admin || club?.viewer.role === "LEADER";
   // ADR-0196: kartornas kontroll och bilderna ritas i bakgrunden när en medlem som får se arkivet och hämta kartfilerna
   // (kartbanken) har arkivet öppet (ändrat 2026-11-07; förut bara administratörer).
   const checks = useArchiveChecks(clubId, list, admin || Boolean(list?.viewer.access.archive && list.viewer.access.mapBank), load);
@@ -100,12 +103,13 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     </header>
     <ClubStartCard club={club} clubName={list.clubName} onGo={go} />
     <div ref={tabs} className={styles.tabs} role="tablist" aria-label={text.title}>
-      {TABS.filter(name => admin || name !== "club").map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}
+      {TABS.filter(name => (admin || name !== "club") && (leader || name !== "planning")).map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}
         onClick={() => { setFocus(undefined); choose(name); }}>{text.tabs[name]}</button>)}
     </div>
     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
       {tab === "trainings" && (list.viewer.access.archive ? <ArchiveList clubId={clubId} list={list} admin={admin} />
         : <Notice role="status">{clubAffiliationText.space.archiveClosed}</Notice>)}
+      {tab === "planning" && leader && <PlanningPanel clubId={clubId} />}
       {tab === "maps" && (list.viewer.access.archive ? <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} mapBank={list.viewer.access.mapBank}
         onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationText.space.archiveClosed}</Notice>)}
       {tab === "members" && <ClubMembersPanel club={club} onChanged={load} />}

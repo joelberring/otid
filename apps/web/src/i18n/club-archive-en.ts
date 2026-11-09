@@ -32,7 +32,7 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     LEADER: "sees the training archive and uses the map bank (map files, Use again)",
     READER: "sees what the club lets members see under Who sees what"
   },
-  tabs: { trainings: "Trainings", maps: "Maps", members: "Members", devices: "Units", club: "The club", import: "Import" },
+  tabs: { trainings: "Trainings", planning: "Planning", maps: "Maps", members: "Members", devices: "Units", club: "The club", import: "Import" },
   back: "My events",
   backToArchive: "The club archive",
   loading: "Fetching the archive …",

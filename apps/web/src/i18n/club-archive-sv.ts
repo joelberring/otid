@@ -31,7 +31,7 @@ export const clubArchiveSv = {
     LEADER: "ser träningsarkivet och använder kartbanken (kartfiler, Använd igen)",
     READER: "ser det som klubben låter medlemmar se under Vem ser vad"
   } as const,
-  tabs: { trainings: "Träningar", maps: "Kartor", members: "Medlemmar", devices: "Enheter", club: "Klubben", import: "Import" },
+  tabs: { trainings: "Träningar", planning: "Planering", maps: "Kartor", members: "Medlemmar", devices: "Enheter", club: "Klubben", import: "Import" },
   back: "Mina tävlingar",
   backToArchive: "Klubbarkivet",
   loading: "Hämtar arkivet …",

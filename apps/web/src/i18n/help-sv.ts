@@ -22,7 +22,7 @@ export type CourseSettingHelpView = "COURSE_SETTING" | "CS_START" | "CS_COURSES"
 
 /** Klubbarkivets flikar och en träning i arkivet. */
 export type ArchiveHelpView = "ARCHIVE_TRAININGS" | "ARCHIVE_MAPS" | "ARCHIVE_MEMBERS" | "ARCHIVE_CLUB" | "ARCHIVE_IMPORT" | "ARCHIVE_ENTRY"
-  | "ARCHIVE_DEVICES";
+  | "ARCHIVE_DEVICES" | "ARCHIVE_PLANNING";
 
 /**
  * Vyn man står i: arbetsytans steg (även Fest), Mina tävlingar, avläsningssidan, banläggningens flikar, klubbarkivet,

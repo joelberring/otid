@@ -83,6 +83,7 @@ describe("ADR-0221: terminsplaneringen", () => {
     const plan = await readClubPlan(db, { ...leader.proof, clubId, termId: null }, NOW);
     if (plan.status !== "ok") throw new Error(plan.status);
     expect(plan.response.term?.name).toBe("VT 2027");
+    expect(plan.response.terms.map(row => row.sessions)).toEqual([12]);
     expect(plan.response.term?.planSessions.map(row => row.sessionDate).slice(0, 3)).toEqual(["2027-01-12", "2027-01-19", "2027-01-26"]);
     expect(plan.response.term?.planSessions[0]?.responsibleName).toBe(`Arrangör ${leader.email.split("@")[0]}`);
     expect(plan.response.people.find(person => person.accountId === reader.accountId)).toMatchObject({ leader: false });

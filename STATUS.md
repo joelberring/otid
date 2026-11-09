@@ -10,6 +10,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Steg 69: terminsplanering i klubbytan (ADR-0221)
+- Fliken Planering (ledare, administratörer, ägare): terminer vecka för vecka med tomma veckor, planerade träningar (datum, tid,
+  rubrik, plats, karta, grupp, ansvarig, anteckning), "Varje vecka till terminens slut" och "Skapa träningen" (den ansvarige blir
+  administratör, arrangörsklubben är klubbens organisation). Migration 0109.
+- Uppgifter till en medlem eller en e-postadress (mejl på den som ger uppgiftens språk); "Mina uppgifter" på Mina tävlingar visar
+  bara de egna, med läsrätt i banläggningen (COMMENT) när träningen finns. Läsrätten tas bort med uppgiften.
+- Svenska och engelska, hjälpartikeln "Planera terminen och ge ut uppgifter".
+- Verifierat: domän `club-planning`, integration `adr-0221-terminsplanering`, rollmatrisen `organizer-roles`, E2E
+  `terminsplanering` (1280 och 390 px), `klubbarkiv`, `sprak`, `hjalp`.
+- Ägaren: migration 0109 när servern uppdateras (inte på en tävlingsdag).
+
 ### 2026-11-09 – Demoläget del 2: prova arbetsytan utan konto (ADR-0220)
 - "Prova arbetsytan" på startsidan (med `OTID_GUEST_DEMO=1`, av som förval): ett gästkonto (migration 0108) med en egen
   övningstävling med påhittade löpare (`seedDemoRace`, samma som `pnpm demo`), inloggat direkt i arbetsytan.

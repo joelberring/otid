@@ -44,6 +44,7 @@ import { DateInput, Field, focusFirstError } from "./ui";
 import { splitMyEvents } from "../lib/my-events-order";
 import { raceListName } from "../lib/race-list-name";
 import { MyPlacesStrip } from "./my-places-strip";
+import { MyPlanTasks } from "./club-planning/my-plan-tasks";
 import { AccountMenu } from "./account-menu";
 import { applyClubMap, ClubMapChoiceField, type ClubMapChoice } from "./club-archive/club-map-picker";
 import { clubMapDuplicatesSv } from "../i18n/club-map-duplicates-sv";
@@ -479,6 +480,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
     {session && <ClubStep />}
     {session && <MyPlacesStrip />}
+    {session && <MyPlanTasks />}
     {session && <div className={styles.columns}>
       <section className={`${styles.panel} ${styles.events}`}>
         <div className={styles.sectionHeading}><div><h2>{copy.eventsSection}</h2><p className={styles.muted}>{copy.eventsHint}</p></div>

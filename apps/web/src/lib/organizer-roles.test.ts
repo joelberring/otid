@@ -46,6 +46,7 @@ const PERSONAS: readonly Persona[] = ["OWNER", "ADMIN", "LEADER", "READER", "GRO
 const LOGGED_IN: readonly Persona[] = ["OWNER", "ADMIN", "LEADER", "READER", "GROUP_LEADER", "GROUP_MEMBER", "OUTSIDER", "SUPERADMIN"];
 const CLUB_MEMBERS: readonly Persona[] = ["OWNER", "ADMIN", "LEADER", "READER"];
 const CLUB_ADMINS: readonly Persona[] = ["OWNER", "ADMIN"];
+const CLUB_LEADERS: readonly Persona[] = ["OWNER", "ADMIN", "LEADER"];
 const GROUP_LEADERS: readonly Persona[] = ["GROUP_LEADER"];
 
 const id = () => randomUUID();
@@ -169,6 +170,29 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
     PUT: { allow: ["OWNER", "ADMIN", "LEADER"], body: { formatVersion: 1, serialNumber: 1, note: "Anteckning" } },
     DELETE: { allow: CLUB_ADMINS, body: { formatVersion: 1, serialNumber: 1 } }
   },
+  // ADR-0221: terminsplaneringen (ledare, administratörer och ägare) och Mina uppgifter (den inloggade; uppgiften prövas i tjänsten).
+  "organizer/clubs/[clubId]/planning": {
+    GET: { allow: CLUB_LEADERS },
+    POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(), name: "VT 2027", startsOn: "2027-01-01", endsOn: "2027-06-30" }) }
+  },
+  "organizer/clubs/[clubId]/planning/terms/[termId]": {
+    PUT: { allow: CLUB_LEADERS, body: { formatVersion: 1, name: "VT 2027", startsOn: "2027-01-01", endsOn: "2027-06-30" } },
+    DELETE: { allow: CLUB_LEADERS }
+  },
+  "organizer/clubs/[clubId]/planning/sessions": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(), termId: id(),
+    sessionDate: "2027-01-12", startTime: "18:00", title: "Träning", place: "", note: "", clubMapId: null, trainingGroupId: null,
+    responsibleAccountId: null, weekly: false }) } },
+  "organizer/clubs/[clubId]/planning/sessions/[sessionId]": {
+    PUT: { allow: CLUB_LEADERS, body: { formatVersion: 1, version: 1, sessionDate: "2027-01-12", startTime: null, title: "Träning", place: "", note: "",
+      clubMapId: null, trainingGroupId: null, responsibleAccountId: null } },
+    DELETE: { allow: CLUB_LEADERS }
+  },
+  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/race": { POST: { allow: CLUB_LEADERS } },
+  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(),
+    title: "Sätta ut kontroller", assignee: { kind: "NONE" } }) } },
+  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks/[taskId]": { DELETE: { allow: CLUB_LEADERS } },
+  "organizer/plan-tasks": { GET: { allow: LOGGED_IN } },
+  "organizer/plan-tasks/[taskId]": { PUT: { allow: LOGGED_IN, body: { formatVersion: 1, done: true } } },
   "organizer/clubs/[clubId]/members": {
     POST: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, requestId: id(), email: `ny.${id().slice(0, 8)}@test.o-tid.se`, role: "READER" }) },
     PUT: { allow: CLUB_ADMINS, body: () => ({ formatVersion: 1, memberId: id(), role: "READER" }) },
@@ -214,7 +238,7 @@ function routeFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory()
     ? routeFiles(join(directory, entry.name)) : entry.name === "route.ts" ? [join(directory, entry.name)] : []);
 }
-const PREFIXES = ["organizer/clubs", "organizer/groups", "account", "club-import", "superadmin"];
+const PREFIXES = ["organizer/clubs", "organizer/groups", "organizer/plan-tasks", "account", "club-import", "superadmin"];
 const routes = routeFiles(api).map(file => ({ file, path: relative(api, file).split(sep).slice(0, -1).join("/") }))
   .filter(route => PREFIXES.some(prefix => route.path === prefix || route.path.startsWith(`${prefix}/`)))
   .sort((a, b) => a.path.localeCompare(b.path));
@@ -333,7 +357,7 @@ describe.skipIf(!target)("behörighet per route för klubben, gruppen, kontot, i
     const value = (name: string) => fixed[name] ?? other;
     const url = path.replaceAll(/\[([a-zA-Z0-9]+)\]/g, (_, name: string) => value(name));
     const params = Promise.resolve(Object.fromEntries(["clubId", "groupId", "sha256", "entryId", "courseFileId", "tokenId", "invitationId", "versionId",
-      "mapId", "mergeId", "seriesId", "raceId"].map(name => [name, value(name)])));
+      "mapId", "mergeId", "seriesId", "raceId", "termId", "sessionId", "taskId"].map(name => [name, value(name)])));
     const body = invalidBody ? { formatVersion: 0 } : typeof rule.body === "function" ? (rule.body as () => unknown)() : rule.body;
     const headers: Record<string, string> = { origin, ...rule.headers };
     if (session) {

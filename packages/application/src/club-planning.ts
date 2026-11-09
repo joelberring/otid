@@ -27,7 +27,7 @@ const termDays = (startsOn: string, endsOn: string) => (Date.parse(endsOn) - Dat
 
 async function termViews(tx: Transaction, clubId: string): Promise<ClubTermView[]> {
   const rows = await tx.select({ termId: terms.id, name: terms.name, startsOn: terms.startsOn, endsOn: terms.endsOn,
-    sessions: sql<number>`(select count(*)::int from club_plan_session s where s.term_id = ${terms.id})` })
+    sessions: sql<number>`(select count(*)::int from club_plan_session s where s.term_id = "club_term"."id")` })
     .from(terms).where(eq(terms.clubId, clubId)).orderBy(asc(terms.startsOn), asc(terms.name));
   return rows;
 }

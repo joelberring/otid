@@ -32,6 +32,5 @@ andra i klubben, som då bara ska se det de har fått.
    de andra med uppgifter.
 5. Inget i planen är publikt eller indexeras. Planen och uppgifterna tas bort med klubbytan.
 
-**Följder.** Migration 0109 (`club_term`, `club_plan_session`, `club_plan_task`). Utskrift av PDF för tryck är fortfarande
-bara för administratörer (steg 65); den som har uppgiften att skriva ut får skriva ut från banläggningens utskriftsflik i
-webbläsaren om den är öppen för `COMMENT`, annars ger den ansvarige hen administratörsrollen på träningen.
+**Följder.** Migration 0109 (`club_term`, `club_plan_session`, `club_plan_task`). PDF:erna för tryck (steg 65) är fortfarande bara för administratörer; den med läsrätt ser banorna och kontrollkartan i
+banläggningen. Ska hen ta fram tryckfilerna ger den ansvarige hen administratörsrollen på träningen.

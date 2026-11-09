@@ -225,5 +225,27 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "The key is valid for 12 hours and ”Revoke” stops it. The flag --utan-ledare does the same as the checkbox."
       ]
     ]
+  },
+  {
+    id: "terminsplanering",
+    title: "Plan the term and hand out tasks",
+    views: ["ARCHIVE_PLANNING", "EVENTS"],
+    body: [
+      "The tab ”Planning” in the club space is for leaders, administrators and owners. There you plan one term at a time, week by week.",
+      { steps: [
+        "Choose ”New term”. O-Tid suggests the next term; change the name and dates if needed and choose ”Save the term”.",
+        "Choose ”Add training” in the week. Write date, time, heading and place, and choose map, responsible and training group if you like.",
+        "Tick ”Every week until the end of the term” for a training on the same weekday all term. Each week can then be changed on its own.",
+        "Under ”Tasks” you add what needs doing, for example ”Print maps” or ”Put out controls”, and who does it.",
+        "When it is time: ”Create the training”. It becomes a real training with the heading, date and time, and the responsible person becomes administrator."
+      ] },
+      [
+        "A task can go to a member of the club or to an email address, for example a parent. With email on the server the person gets a short email.",
+        "The person only sees their own tasks under ”My tasks” on My events, with time, place and the responsible person, and can tick them off.",
+        "When the training exists the person gets read access to the course setting of that training: the courses, control map, descriptions and printing.",
+        "If the task is removed, the read access goes too."
+      ],
+      "The plan is never public. Members without a leader role do not see the plan, only their own tasks."
+    ]
   }
 ];

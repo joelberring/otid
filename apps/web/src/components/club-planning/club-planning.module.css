@@ -1,0 +1,41 @@
+/* ADR-0221: terminsplaneringen (fliken Planering) och Mina uppgifter. */
+.planning { display: grid; gap: 12px; }
+.muted { margin: .25rem 0 .65rem; color: var(--muted); }
+.small { margin: 0; color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.form { display: grid; gap: .65rem; max-width: 40rem; padding: 12px 0; }
+.form input:not([type="radio"]):not([type="checkbox"]), .form select, .form textarea { width: 100%; min-height: 44px; }
+.form textarea { min-height: 4rem; }
+.inline { display: flex; flex-wrap: wrap; align-items: start; gap: .65rem; }
+.inline > * { flex: 1 1 12rem; min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.actions > button, .actions > a { min-height: 44px; }
+.check { display: flex; align-items: center; gap: .5rem; min-height: 44px; font-weight: 500; min-width: 0; }
+.check input { flex: none; width: 22px; height: 22px; }
+.link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.termBar { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .65rem; }
+.termChoice { display: grid; gap: .15rem; min-width: min(100%, 18rem); color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.termChoice select { min-height: 44px; }
+.termTitle { margin: 8px 0 0; font-size: var(--text-lg); font-weight: 600; }
+.termTitle span, .weekHead h3 span { color: var(--muted); font-size: var(--text-sm); font-weight: 400; }
+.weeks { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.week { display: grid; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.weekHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem .75rem; }
+.weekHead h3 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.session { display: grid; gap: .5rem; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); min-width: 0; }
+.sessionHead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1rem; }
+.sessionHead > div:first-child { display: grid; gap: .15rem; min-width: 0; }
+.sessionHead h4 { margin: 0; font-size: var(--text-md); font-weight: 600; overflow-wrap: anywhere; }
+.when { margin: 0; font-variant-numeric: tabular-nums; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.note { margin: .25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tasks { display: grid; gap: .25rem; border-top: 1px solid var(--line); padding-top: .5rem; }
+.tasks h5 { margin: 0; font-size: var(--text-sm); font-weight: 600; }
+.tasks ul { display: grid; margin: 0; padding: 0; list-style: none; }
+.tasks li { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-width: 0; }
+.tasks li span { overflow-wrap: anywhere; }
+.mine { display: grid; gap: 6px; margin: 16px 0; }
+.mine h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.mineList { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.mineList > li { display: grid; gap: .15rem; padding: 8px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.mineList p { margin: 0; overflow-wrap: anywhere; }
+.tasks > button { justify-self: start; }

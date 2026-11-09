@@ -1133,14 +1133,15 @@ ADR-0182. Görs efter steg 67. Migration 0035.
 - [x] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.
 - [x] **Tester:** integration (behörighet via gruppen, synlighetsinställningarna, upprepning), Playwright gruppsidan.
 
-## [ ] Steg 69 – Terminsplanering i klubbytan
+## [x] Steg 69 – Terminsplanering i klubbytan
 
 ADR-0221 (ägaren 2026-11-09). Migration 0109.
 
-- [ ] **Terminer** i fliken Planering: veckorna med träningarna per dag, tomma veckor synliga, "Varje vecka till terminens slut".
-- [ ] **Planerad träning:** datum, tid, rubrik, plats, karta, grupp, ansvarig och anteckning; "Skapa träningen" gör en riktig träning.
-- [ ] **Uppgifter** till klubbens medlemmar eller en e-postadress; "Mina uppgifter" visar bara de egna, med läsrätt i banläggningen.
-- [ ] **Tester:** domän (veckorna), integration (behörigheten för ledare, medlemmar och den med uppgift), Playwright hela flödet.
+- [x] **Terminer** i fliken Planering: veckorna med träningarna per dag, tomma veckor synliga, "Varje vecka till terminens slut".
+- [x] **Planerad träning:** datum, tid, rubrik, plats, karta, grupp, ansvarig och anteckning; "Skapa träningen" gör en riktig träning.
+- [x] **Uppgifter** till klubbens medlemmar eller en e-postadress; "Mina uppgifter" visar bara de egna, med läsrätt i banläggningen.
+- [x] **Tester:** domän (veckorna), integration (behörigheten för ledare, medlemmar och den med uppgift), rollmatrisen, Playwright hela flödet.
+- [ ] Kvar för ägaren: prova en riktig termin; senare kanske planens karta förvald i banläggningen och en utskrift av terminsplanen.
 
 ## [x] Steg 64 – Banpåtryck och utskriftslayout
 

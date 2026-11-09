@@ -1,5 +1,6 @@
 import { formatClockTime, formatDuration } from "../clock-time";
-import { listsSv as text } from "../../i18n/lists-sv";
+import { listsSv } from "../../i18n/lists-sv";
+import type { ListTexts } from "../../components/lists/use-list-texts";
 import { classStartRows, groupByStartTime, startClub, startListByClub, type StartClass, type StartMode } from "./start-list-model";
 import { clubSummary, clubSummaryTotal, resultsByClub, splitGroups, type ResultListModel, type ResultRow, type ResultStatus } from "./result-list-model";
 
@@ -9,9 +10,9 @@ import { toCsv, type CsvCell } from "@o-tid/domain";
 export { CSV_BOM, csvCell, toCsv, type CsvCell } from "@o-tid/domain";
 
 const duration = (ms: number | null) => ms === null ? "" : formatDuration(ms);
-const status = (value: ResultStatus) => text.results.status[value];
+const status = (text: ListTexts, value: ResultStatus) => text.results.status[value];
 
-function modeText(mode: StartMode): string {
+function modeText(text: ListTexts, mode: StartMode): string {
   return mode.kind === "FREE" ? text.csv.free : mode.kind === "MASS" ? text.csv.mass : mode.kind === "RELAY" ? text.csv.relay : text.csv.minute;
 }
 
@@ -19,7 +20,8 @@ export type StartView = "CLASS" | "TIME" | "CLUB";
 export type ResultView = "CLASS" | "SPLITS" | "CLUB" | "CLUBS";
 
 /** Startlistan i vald vy. Bricka tas bara med när modellen har bricka (arbetsytan). */
-export function startListCsv(view: StartView, classes: readonly StartClass[], timeZone: string, cards: boolean): string {
+/** `text`: listornas texter på sidans språk (förval svenska). */
+export function startListCsv(view: StartView, classes: readonly StartClass[], timeZone: string, cards: boolean, text: ListTexts = listsSv): string {
   const clock = (instant: string | null) => instant ? formatClockTime(instant, timeZone) : "";
   const withoutCard = <T,>(header: readonly T[], cardIndex: number) => cards ? [...header] : header.filter((_, index) => index !== cardIndex);
   const card = (value: string | null | undefined, multiple?: boolean) => multiple ? text.start.multipleCards : value ?? "";
@@ -39,7 +41,7 @@ export function startListCsv(view: StartView, classes: readonly StartClass[], ti
     return toCsv(withVariant(withoutCard(text.csv.start.CLUB, 4), text.csv.variant), rows);
   }
   const rows = classes.flatMap(raceClass => classStartRows(raceClass).map(({ time, entry }) => withoutCard([raceClass.name,
-    raceClass.courseName ?? "", modeText(raceClass.mode), clock(time), entry?.name ?? text.csv.vacant, entry ? startClub(entry) : "",
+    raceClass.courseName ?? "", modeText(text, raceClass.mode), clock(time), entry?.name ?? text.csv.vacant, entry ? startClub(entry) : "",
     entry ? card(entry.card, entry.multipleCards) : "", entry?.variant ?? "",
     entry?.relay ? `${entry.relay.teamNumber} ${entry.relay.teamName}` : "", entry?.relay?.leg ?? ""], 6)));
   return toCsv(withoutCard(text.csv.start.CLASS, 6), rows);
@@ -49,14 +51,14 @@ export function startListCsv(view: StartView, classes: readonly StartClass[], ti
  * Resultatlistan i vald vy. Stafettklasser ger en rad per lag och en per sträcklöpare. Rogainingklasser (ADR-0170
  * beslut 5) får poäng, straff och summa; "med sträcktider" blir de räknade kontrollerna när alla klasser är rogaining.
  */
-export function resultListCsv(view: ResultView, model: ResultListModel): string {
+export function resultListCsv(view: ResultView, model: ResultListModel, text: ListTexts = listsSv): string {
   const scored = model.classes.some(raceClass => raceClass.scored);
   const score = (result: ResultRow): CsvCell[] => result.score ? [result.score.controlPoints, result.score.penalty, result.score.total] : ["", "", ""];
   if (view === "SPLITS" && scored && model.classes.every(raceClass => raceClass.scored) && model.relayClasses.length === 0) {
     const rows = model.classes.flatMap(raceClass => raceClass.rows.flatMap(result => {
       const times = new Map(result.splits.map(split => [split.controlCode, split.elapsedMs]));
       const runner = [raceClass.name, result.place ?? "", result.name, result.club ?? "", result.score?.total ?? "", duration(result.timeMs),
-        status(result.status)];
+        status(text, result.status)];
       const controls = result.score?.controls ?? [];
       return controls.length === 0 ? [[...runner, "", "", ""]] : controls.map(control => [...runner, control.controlCode, control.points,
         times.has(control.controlCode) ? formatDuration(times.get(control.controlCode)!) : ""]);
@@ -67,7 +69,7 @@ export function resultListCsv(view: ResultView, model: ResultListModel): string 
     const rows = model.classes.flatMap(raceClass => splitGroups(raceClass).flatMap(group => group.rows.flatMap((result, index) =>
       group.table.columns.flatMap((column, columnIndex) => {
         const cell = group.table.rows[index]!.cells[columnIndex];
-        return [[raceClass.name, group.variant ?? "", result.place ?? "", result.name, result.club ?? "", duration(result.timeMs), status(result.status),
+        return [[raceClass.name, group.variant ?? "", result.place ?? "", result.name, result.club ?? "", duration(result.timeMs), status(text, result.status),
           column.kind === "FINISH" ? text.csv.finish : column.occurrence > 1 ? `${column.controlCode} (${column.occurrence})` : column.controlCode,
           cell?.legMs != null ? formatDuration(cell.legMs) : "", cell?.place ?? "", cell ? formatDuration(cell.elapsedMs) : ""]];
       }))));
@@ -81,7 +83,7 @@ export function resultListCsv(view: ResultView, model: ResultListModel): string 
   if (view === "CLUB") {
     const rows = resultsByClub(model).flatMap(group => [
       ...group.runners.map(({ className, result }) => [group.club ?? "", result.name, "", className, result.place ?? "",
-        duration(result.timeMs), status(result.status), ...(scored ? [result.score?.total ?? ""] : [])]),
+        duration(result.timeMs), status(text, result.status), ...(scored ? [result.score?.total ?? ""] : [])]),
       ...group.teams.map(({ className, team }) => [group.club ?? "", "", `${team.number} ${team.name}`, className, team.position ?? "",
         duration(team.elapsedMs), text.results.teamStatus[team.status], ...(scored ? [""] : [])])
     ]);
@@ -91,12 +93,12 @@ export function resultListCsv(view: ResultView, model: ResultListModel): string 
   const pick = (row: CsvCell[]) => relay ? row : row.filter((_, index) => index !== 2 && index !== 3);
   const rows = [
     ...model.classes.flatMap(raceClass => raceClass.rows.map(result => [...pick([raceClass.name, result.place ?? "", "", "", result.name,
-      result.club ?? "", duration(result.timeMs), duration(result.behindMs), status(result.status)]), ...(scored ? score(result) : [])])),
+      result.club ?? "", duration(result.timeMs), duration(result.behindMs), status(text, result.status)]), ...(scored ? score(result) : [])])),
     ...model.relayClasses.flatMap(raceClass => raceClass.teams.flatMap(team => [
       [raceClass.name, team.position ?? "", `${team.number} ${team.name}`, "", "", team.organisationName ?? "", duration(team.elapsedMs),
         duration(team.timeBehindMs), text.results.teamStatus[team.status], ...(scored ? ["", "", ""] : [])],
       ...team.legs.map(leg => [raceClass.name, leg.legPosition ?? "", `${team.number} ${team.name}`, leg.leg, `${leg.givenName} ${leg.familyName}`,
-        leg.organisationName ?? "", duration(leg.elapsedMs), "", leg.status ? status(leg.status) : "", ...(scored ? ["", "", ""] : [])])
+        leg.organisationName ?? "", duration(leg.elapsedMs), "", leg.status ? status(text, leg.status) : "", ...(scored ? ["", "", ""] : [])])
     ]))
   ];
   return toCsv([...pick([...text.csv.results.CLASS]) as string[], ...(scored ? text.csv.results.SCORE : [])], rows);

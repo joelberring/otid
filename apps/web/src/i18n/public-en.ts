@@ -98,3 +98,46 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
   internationalSuggest: "Suggestions for your country are welcome: email",
   footer: { label: "About O-Tid and contact", name: "O-Tid", beta: "beta", questions: "Questions:", about: "About O-Tid", privacy: "Personal data" }
 };
+
+/** Del 2: tävlingssidan, start- och resultatlistornas sidor. */
+export const publicPagesEn = {
+  navigation: "Event navigation",
+  back: "‹ Event page",
+  startListLink: "To the start list",
+  resultsLink: "To the results",
+  frozenResultsLink: "Show the official final results",
+  live: "Live",
+  splitAnalysis: "Split analysis",
+  previewBanner: "Preview – not published",
+  previewHelp: "Only you and others with access to the event see this page. Publish the event in the workspace when everyone should see it.",
+  startListTitle: "Start list",
+  startListUnavailable: "No start list can be shown right now. The list may be unpublished or temporarily unavailable.",
+  startListLoading: "Fetching the start list…",
+  startListHelp: "Planned start, not confirmation of the actual start. The list updates automatically every five seconds.",
+  startListRefreshFailed: "The start list could not be updated. The latest fetched list is shown.",
+  startListVariantsHidden: "The variant letter is shown when the runner has started.",
+  publishedAt: "Published",
+  liveUpdating: "Updating live"
+} as const satisfies Record<string, string>;
+
+export const hubEn: Texts<typeof publicRaceSv.hub> = {
+  navigation: "Event page",
+  back: "‹ Event page",
+  startList: "Start list",
+  startListHelp: "Start times by class, time and club.",
+  startListPending: "The start list is not published yet.",
+  results: "Results",
+  resultsHelp: "Updated as runners read out.",
+  resultsPending: "The results show here when the first runners have read out.",
+  splits: "Split analysis",
+  splitsHelp: "Split times, place per leg and time lost.",
+  routes: "Route choices",
+  routesHelp: "The runners' route choices on the map. Open from the split analysis.",
+  lastUpdate: "Last updated",
+  address: "Address of the page"
+};
+export const hubMoreEn = {
+  liveTitle: "Live", liveHelp: "Latest finishers, leaders per class and the runners you follow. Updates by itself.",
+  radioTitle: "Radio controls live", radioHelp: "Split times from the forest in the results.",
+  metaLists: "Start list, results and split times."
+} as const satisfies Record<string, string>;

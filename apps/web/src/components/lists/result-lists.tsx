@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useMemo, useState, type ReactNode } from "react";
-import { listsSv as text } from "../../i18n/lists-sv";
+import { useListTexts, type ListTexts } from "./use-list-texts";
 import { formatDayMonthTime, formatDuration } from "@o-tid/domain";
 import { resultListCsv, type ResultView } from "../../lib/lists/csv";
 import { clubSummary, clubSummaryTotal, courseLine, filterResults, resultClassNames, resultClubs, resultsByClub, splitGroups, type RelayClass,
@@ -15,7 +15,6 @@ import { radioSv } from "../../i18n/radio-sv";
 import { download, ListFrame, useClubFilter, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
 
-const t = text.results;
 const duration = (ms: number | null) => ms === null ? "" : formatDuration(ms);
 const behind = (ms: number | null) => ms === null ? "" : ms === 0 ? "" : `+${formatDuration(ms)}`;
 const slug = (value: string) => value.replace(/\W+/g, "-");
@@ -39,12 +38,14 @@ function ClassRadio({ raceClass, context }: { raceClass: ResultClass; context: C
 
 /** Länk till sträcktidsanalysen för klassen (bara publikt; rogaining har ingen). */
 function AnalysisLink({ className, context }: { className: string; context: Context }) {
+  const t = useListTexts().results;
   if (!context.links) return null;
   return <Link className={styles.headLink} href={`/results/${context.raceId}/splits?class=${encodeURIComponent(className)}`}
     aria-label={t.analysisLinkLabel(className)}>{t.analysisLink}</Link>;
 }
 
 function Status({ row, context }: { row: ResultRow; context: Context }) {
+  const t = useListTexts().results;
   const label = row.status === "OK" && row.reason === "MANUAL_APPROVAL" ? t.manualApproval : t.status[row.status];
   const reason = row.status === "DSQ" ? noteOf(row, context)?.disqualificationReason : undefined;
   return <td className={`${styles.status} ${styles.statusCol}`} data-status={row.status}>{label}
@@ -56,6 +57,7 @@ function Status({ row, context }: { row: ResultRow; context: Context }) {
 function Runner({ row, context, club = true, forking }: { row: ResultRow; context: Context; club?: boolean;
   /** Steg 49: "Visa gafflingar" påslaget i en gafflad klass. */
   forking?: CourseForkingView | undefined }) {
+  const t = useListTexts().results;
   const name = context.links && row.publicResultId
     ? <Link href={`/results/${context.raceId}/participants/${row.publicResultId}`}>{row.name}</Link> : row.name;
   return <th scope="row">
@@ -81,6 +83,7 @@ function RowMark({ row, context }: { row: ResultRow; context: Context }) {
  * på mobil summa med tiden under.
  */
 function ScoredClassBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const t = useListTexts().results;
   const id = `result-class-${slug(raceClass.name)}`;
   const score = (row: ResultRow, value: (score: NonNullable<ResultRow["score"]>) => number) => row.score ? value(row.score) : "";
   return <section className={styles.block} aria-labelledby={id}>
@@ -111,6 +114,7 @@ function ScoredClassBlock({ raceClass, context }: { raceClass: ResultClass; cont
 
 /** Rogaining "med sträcktider": de räknade kontrollerna i stämplingsordning med poäng och tid från start. */
 function ScoredControlsBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const t = useListTexts().results;
   const id = `result-controls-${slug(raceClass.name)}`;
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.scoredControls}</p></div>
@@ -136,6 +140,7 @@ function ScoredControlsBlock({ raceClass, context }: { raceClass: ResultClass; c
 }
 
 function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const { results: t, course } = useListTexts();
   const [showForking, setShowForking] = useState(false);
   if (raceClass.scored) return <ScoredClassBlock raceClass={raceClass} context={context} />;
   const id = `result-class-${slug(raceClass.name)}`;
@@ -143,7 +148,7 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
   const forking = raceClass.course?.forking;
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3>
-      {raceClass.course && <p className={styles.course}>{courseLine(raceClass.course)}</p>}
+      {raceClass.course && <p className={styles.course}>{courseLine(raceClass.course, course)}</p>}
       <p>{raceClass.rows.length === 0 && raceClass.radio ? radioSv.live.noneFinished : t.runners(raceClass.rows.length)}</p>
       {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}
       {forking && raceClass.rows.some(row => row.variant) && <button type="button" className={styles.toggle} aria-pressed={showForking}
@@ -167,12 +172,13 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
   </section>;
 }
 
-function teamStatus(team: RelayTeam): string {
+function teamStatus(t: ListTexts["results"], team: RelayTeam): string {
   return team.status === "RUNNING" && team.currentLeg ? t.outOnLeg(team.currentLeg) : t.teamStatus[team.status];
 }
 
 /** Stafett per klass: lagen med placering, tid och status, och sträcklöparna under varje lag. */
 function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Context }) {
+  const t = useListTexts().results;
   const id = `result-relay-${slug(raceClass.name)}`;
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3><p>{t.legs(raceClass.legCount)} · {t.teams(raceClass.teams.length)}</p></div>
@@ -189,7 +195,7 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
               {team.restarted ? ` · ${t.restartedTeam}` : ""}</span></th>
             <td className={styles.num}>{duration(team.elapsedMs)}</td>
             <td className={`${styles.num} ${styles.wideOnly} ${styles.muted}`}>{behind(team.timeBehindMs)}</td>
-            <td className={`${styles.status} ${styles.statusCol}`} data-status={team.status}>{teamStatus(team)}</td>
+            <td className={`${styles.status} ${styles.statusCol}`} data-status={team.status}>{teamStatus(t, team)}</td>
           </tr>
           {team.legs.map(leg => <tr key={`${leg.leg}:${leg.legOrder}`} className={styles.legRow}>
             <td className={styles.place}>{t.legShort(leg.leg)}</td>
@@ -211,6 +217,7 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
 }
 
 function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
+  const t = useListTexts().results;
   if (raceClass.scored) return <ScoredControlsBlock raceClass={raceClass} context={context} />;
   const groups = splitGroups(raceClass);
   if (groups.length === 0) return <section className={styles.block} aria-label={raceClass.name}>
@@ -251,6 +258,7 @@ function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: 
 }
 
 function RelayLegs({ raceClass }: { raceClass: RelayClass }) {
+  const t = useListTexts().results;
   return <>{raceClass.legs.map(leg => {
     const id = `result-leg-${slug(raceClass.name)}-${leg.leg}`;
     return <section key={leg.leg} className={styles.block} aria-labelledby={id}>
@@ -274,6 +282,7 @@ function RelayLegs({ raceClass }: { raceClass: RelayClass }) {
 }
 
 function ByClub({ model, context }: { model: ResultListModel; context: Context }) {
+  const t = useListTexts().results;
   const groups = useMemo(() => resultsByClub(model), [model]);
   return <>{groups.map(group => {
     const id = `result-club-${slug(group.club ?? "none")}`;
@@ -300,7 +309,7 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
             <td className={styles.classCol}>{className}</td>
             <td className={styles.place}>{team.position ?? ""}</td>
             <td className={styles.num}>{duration(team.elapsedMs)}</td>
-            <td className={`${styles.status} ${styles.statusCol}`} data-status={team.status}>{teamStatus(team)}</td>
+            <td className={`${styles.status} ${styles.statusCol}`} data-status={team.status}>{teamStatus(t, team)}</td>
           </tr>)}
         </tbody>
       </table>
@@ -313,6 +322,7 @@ function ByClub({ model, context }: { model: ResultListModel; context: Context }
  * Klubbnamnet byter till klubbfiltret, så att klubbens lista är ett klick bort.
  */
 function ClubSummary({ model, onClub }: { model: ResultListModel; onClub: (club: string) => void }) {
+  const t = useListTexts().results;
   const rows = useMemo(() => clubSummary(model), [model]);
   const total = clubSummaryTotal(rows);
   const s = t.summary;
@@ -347,6 +357,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
   /** Den publika listan: följ löpare och klubb (PLAN.md steg 30). */
   follow?: ResultListFollow | undefined;
 }) {
+  const text = useListTexts(), t = text.results;
   const [view, setView] = useState<ResultView>("CLASS");
   const [query, setQuery] = useState("");
   const [className, setClassName] = useState("");
@@ -366,7 +377,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
     classes: classNames, className: selected, onClass: setClassName, clubs, club: selectedClub, onClub: setClub,
     count: [count > 0 && t.runners(count), teams > 0 && t.teams(teams)].filter(Boolean).join(" · ") || t.runners(0), iof,
     onCsv: () => download(`${text.csv.files.results[view]}${selectedClub ? `-${selectedClub.replace(/\W+/g, "-")}` : ""}-${raceDate}.csv`,
-      resultListCsv(view, shown), "text/csv;charset=utf-8")
+      resultListCsv(view, shown, text), "text/csv;charset=utf-8")
   }}>
     {status}
     <Standing model={model} />
@@ -385,6 +396,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
 
 /** "Preliminära resultat" tills tävlingen fastställts, sedan "Officiella resultat (fastställda …)" (PLAN.md steg 25). */
 function Standing({ model }: { model: ResultListModel }) {
+  const t = useListTexts().results;
   if (!model.standing) return null;
   const label = model.standing.kind === "OFFICIAL"
     ? t.official(formatDayMonthTime(model.standing.finalizedAt, model.standing.timeZone))

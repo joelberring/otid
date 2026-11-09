@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { listsSv as text } from "../../i18n/lists-sv";
+import { useListTexts } from "./use-list-texts";
 import styles from "./lists.module.css";
 
 /** IOF XML-export: en länk (publika sidor) eller en åtgärd (arbetsytan). Saknas när listan inte har någon IOF-fil. */
@@ -60,6 +60,7 @@ export function download(filename: string, content: string, type: string) {
 export function ListFrame<View extends string>({ toolbar, title, race, children }: {
   toolbar: ListToolbarProps<View>; title: string; race: string; children: ReactNode;
 }) {
+  const text = useListTexts();
   const root = useRef<HTMLDivElement>(null), bar = useRef<HTMLDivElement>(null), menu = useRef<HTMLDetailsElement>(null);
   const [printedAt, setPrintedAt] = useState("");
   useEffect(() => {

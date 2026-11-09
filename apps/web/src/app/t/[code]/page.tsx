@@ -18,17 +18,21 @@ import { RaceInfo } from "../../../components/race-info";
 import { SelfRegistrationForm } from "../../../components/self-registration/self-registration-form";
 import styles from "../../../components/public-race/public-race.module.css";
 import { raceDetails, shownRaceName } from "@o-tid/domain";
+import { hubEn, hubMoreEn, raceTypeNamesEn } from "../../../i18n/public-en";
+import { currentLanguage } from "../../../lib/language-server";
+import { LOCALE } from "../../../lib/language";
 
 export const dynamic = "force-dynamic";
-const text = publicRaceSv.hub;
 type Params = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
+  const en = await currentLanguage() === "en";
   if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
   const title = `${hub.eventName} – ${sv.appName}`;
-  const description = `${raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate)], ", ")}. ` +
-    `${text.startList}, ${text.results.toLowerCase()} och sträcktider.`;
+  const text = publicRaceSv.hub;
+  const description = `${raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate, undefined, en ? LOCALE.en : LOCALE.sv)], ", ")}. ` +
+    (en ? hubMoreEn.metaLists : `${text.startList}, ${text.results.toLowerCase()} och sträcktider.`);
   const url = new URL(raceHubPath(hub.shortCode), await publicOrigin()).toString();
   return { title, description, alternates: { canonical: url }, openGraph: { title, description, url, siteName: sv.appName, type: "website" }, robots: NO_INDEX_ROBOTS };
 }
@@ -41,15 +45,18 @@ export default async function RaceHubPage({ params }: Params) {
   const hub = await requireRaceHub((await params).code);
   // PLAN.md steg 40: en fest har en egen sida under /fest/, så att den kan stängas för robotar utan att röra tävlingarna.
   if (hub.raceType === "PARTY") redirect(`/fest/${hub.shortCode}`);
+  const language = await currentLanguage(), en = language === "en";
+  const text = en ? hubEn : publicRaceSv.hub;
   const path = raceHubPath(hub.shortCode);
   const address = displayAddress(await publicOrigin(), path);
   const hasStartSection = raceTypeProfile(hub.raceType).course.some(section => section.id === "START");
-  const details = [shownRaceName(hub.eventName, hub.raceName), formatRaceDate(hub.raceDate), raceTypeSv.types[hub.raceType].name]
+  const details = [shownRaceName(hub.eventName, hub.raceName), formatRaceDate(hub.raceDate, undefined, LOCALE[language]),
+    en ? raceTypeNamesEn[hub.raceType] : raceTypeSv.types[hub.raceType].name]
     .filter(Boolean);
   const link = (href: string, title: string, help: string) => <li><Link className={styles.hubLink} href={href}>
     <strong>{title}</strong><span>{help}</span></Link></li>;
   return <main className={styles.hub}>
-    <PreviewBanner access={hub.access} />
+    <PreviewBanner access={hub.access} language={language} />
     <div className={styles.hubHeading}>
       <h1>{hub.eventName}</h1>
       <p>{details.join(" · ")}</p>
@@ -60,8 +67,8 @@ export default async function RaceHubPage({ params }: Params) {
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)
         : hasStartSection && <li><div className={styles.hubPending}><strong>{text.startList}</strong><span>{text.startListPending}</span></div></li>}
       {link(`/results/${hub.raceId}`, text.results, hub.hasResults ? text.resultsHelp : text.resultsPending)}
-      {link(`${path}/live`, liveSv.hubTitle, liveSv.hubHelp)}
-      {hub.radio && link(`/results/${hub.raceId}`, radioSv.hub.title, radioSv.hub.help)}
+      {link(`${path}/live`, en ? hubMoreEn.liveTitle : liveSv.hubTitle, en ? hubMoreEn.liveHelp : liveSv.hubHelp)}
+      {hub.radio && link(`/results/${hub.raceId}`, en ? hubMoreEn.radioTitle : radioSv.hub.title, en ? hubMoreEn.radioHelp : radioSv.hub.help)}
       {hub.hasResults && hasSplitAnalysis(hub.raceType) && link(`/results/${hub.raceId}/splits`, text.splits, text.splitsHelp)}
       {hub.routes && link(`/results/${hub.raceId}/splits`, text.routes, text.routesHelp)}
     </ul>

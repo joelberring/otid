@@ -5,7 +5,9 @@ import { publicStartListResponseSchema, type PublicStartListResponse } from "@o-
 import { StartLists } from "./lists/start-lists";
 import { startListFromPublication } from "../lib/lists/start-list-model";
 import { formatClockTime, zonedDate } from "../lib/clock-time";
-import { startListPublicationSv as text } from "../i18n/start-list-publication-sv";
+import { startListPublicationSv } from "../i18n/start-list-publication-sv";
+import { publicPagesEn } from "../i18n/public-en";
+import { useLanguage } from "./language-provider";
 import styles from "./lists/lists.module.css";
 import { raceDetails } from "@o-tid/domain";
 
@@ -16,6 +18,11 @@ import { raceDetails } from "@o-tid/domain";
  */
 export function PublicStartList({ raceId, initial }: { raceId: string; initial: PublicStartListResponse | null | undefined }) {
   // Steg 51: undefined = en stor startlista som inte skickades med sidan; den hämtas direkt.
+  const en = useLanguage() === "en";
+  const text = en ? { publicTitle: publicPagesEn.startListTitle, publicUnavailable: publicPagesEn.startListUnavailable,
+    publicLoading: publicPagesEn.startListLoading, publicHelp: publicPagesEn.startListHelp, publicRefreshFailed: publicPagesEn.startListRefreshFailed,
+    publicVariantsHidden: publicPagesEn.startListVariantsHidden, publishedAt: publicPagesEn.publishedAt, publicLive: publicPagesEn.liveUpdating }
+    : startListPublicationSv;
   const [data, setData] = useState<PublicStartListResponse | null | undefined>(initial);
   const [failed, setFailed] = useState(false);
   useEffect(() => {

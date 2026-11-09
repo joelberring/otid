@@ -12,6 +12,8 @@ import { raceStaff, requirePublicRace } from "../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
 import { liveSv } from "../../../i18n/live-sv";
 import { raceHubPath } from "../../../lib/public-race-format";
+import { publicPagesEn } from "../../../i18n/public-en";
+import { currentLanguage } from "../../../lib/language-server";
 import { joinRaceParts, raceDetails, raceTitle } from "@o-tid/domain";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
   // Steg 51: listorna ur cachen per tävlingsversion, samma som API:et. Steg 52: arrangören och funktionärerna läser
   // resultatlistan utan cache och ser gafflingsbilden även när banorna är hemliga publikt.
   const staff = await raceStaff(raceId);
+  const language = await currentLanguage(), en = language === "en";
   const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId),
     (staff ? cachedStaffResults(raceId, { exact: true }) : cachedPublicResults(raceId, { exact: true })).then(entry => entry.value),
     cachedPublicRelayResults(raceId, { exact: true }).then(entry => entry.value),
@@ -38,13 +41,14 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
   // Steg 51: en stor lista skickas inte med sidan (flera MB HTML per besök); sidan hämtar den cachade listan direkt.
   const inline = publicPageRows(results, relay) <= PUBLIC_PAGE_INLINE_ROWS;
   return <main className="stack public-list-page">
-    <PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="results" />
-    <PreviewBanner access={access} />
+    <PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="results" language={language} />
+    <PreviewBanner access={access} language={language} />
     <section className="public-list-heading"><h1>{summary.eventName}</h1><p>{raceDetails(summary.eventName, summary.name, [summary.raceDate])}</p>
       <p className="public-list-links">
-        <Link href={`${raceHubPath(summary.shortCode)}/live`}>{liveSv.title}</Link>
-        {analysis && <Link href={`/results/${raceId}/splits`}>{splitAnalysisSv.title}</Link>}
-        {finalization.status === "ok" && <Link href={`/results/${raceId}/finalizations/${finalization.finalizationId}`}>{sv.publicFrozenResultsLink}</Link>}
+        <Link href={`${raceHubPath(summary.shortCode)}/live`}>{en ? publicPagesEn.live : liveSv.title}</Link>
+        {analysis && <Link href={`/results/${raceId}/splits`}>{en ? publicPagesEn.splitAnalysis : splitAnalysisSv.title}</Link>}
+        {finalization.status === "ok" && <Link href={`/results/${raceId}/finalizations/${finalization.finalizationId}`}>
+          {en ? publicPagesEn.frozenResultsLink : sv.publicFrozenResultsLink}</Link>}
       </p></section>
     <PublicResultLists raceId={raceId} initial={inline ? { results, relay, radio } : undefined} race={joinRaceParts([raceTitle(summary.eventName, summary.name), summary.raceDate])}
       raceDate={summary.raceDate} />

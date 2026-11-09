@@ -1,6 +1,6 @@
 "use client";
 
-import { listsSv as text } from "../i18n/lists-sv";
+import { useListTexts } from "./lists/use-list-texts";
 import { ResultLists, type ResultListFollow } from "./lists/result-lists";
 import { useResultListData, type ResultListData } from "./lists/use-result-list-data";
 import { resultListFromPublic } from "../lib/lists/result-list-model";
@@ -15,6 +15,7 @@ import styles from "./lists/lists.module.css";
  * webbläsaren och syns överst i Live).
  */
 export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId: string; initial?: ResultListData | undefined; race: string; raceDate: string }) {
+  const text = useListTexts();
   const { data, failed } = useResultListData(raceId, initial);
   const current = data ?? initial;
   const model = useMemo(() => current ? resultListFromPublic(current.results, current.relay, current.radio) : undefined, [current]);

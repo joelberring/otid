@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createRace, publishRaceViaApi, registerAccount, unique } from "./helpers";
 
 /**
  * Idéerna 2026-11-08 (engelska): en webbläsare utan svenska får startsidan, sidfoten och Om O-Tid på engelska (med avsnittet
@@ -29,4 +30,25 @@ test("språk: engelska för den som inte har svenska, och språkvalet", async ({
   await expect(svPage.getByRole("heading", { level: 1 })).toHaveText("Tävlingar");
   await expect(svPage.locator("[data-testid=language-switch]:visible")).toHaveText("English");
   await swedish.close();
+});
+
+/** Del 2: tävlingssidan och resultatlistan på engelska för en besökare med engelska (tävlingen skapas på svenska). */
+test("språk: tävlingssidan och resultatlistan på engelska", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `sprak.${suffix}@exempel.se`, "Sune Språk");
+  const name = `Evening training ${suffix}`;
+  const raceId = await createRace(owner, name, undefined, "Träning");
+  await publishRaceViaApi(owner, raceId);
+  const visitor = await (await browser.newContext({ locale: "en-GB" })).newPage();
+  await visitor.goto(`/?q=${suffix}`);
+  await visitor.getByRole("link", { name: new RegExp(name) }).first().click();
+  await expect(visitor.getByRole("heading", { level: 1, name })).toBeVisible();
+  await expect(visitor.getByRole("link", { name: /^Results/ })).toContainText("The results show here when the first runners have read out.");
+  await expect(visitor.getByText("Training", { exact: false }).first()).toBeVisible();
+  await visitor.getByRole("link", { name: /^Results/ }).click();
+  await expect(visitor.getByRole("link", { name: "‹ Event page" })).toBeVisible();
+  await expect(visitor.getByRole("toolbar", { name: "List tools" })).toBeVisible();
+  await expect(visitor.getByRole("button", { name: "By class" })).toBeVisible();
+  await expect(visitor.getByRole("button", { name: "Print" })).toBeVisible();
 });

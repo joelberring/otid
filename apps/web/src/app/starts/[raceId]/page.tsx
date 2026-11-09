@@ -5,14 +5,16 @@ import { PublicStartList } from "../../../components/public-start-list";
 import { PublicRaceNavigation } from "../../../components/public-race-navigation";
 import { requirePublicRace } from "../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
+import { currentLanguage } from "../../../lib/language-server";
 
 export const dynamic = "force-dynamic";
 export default async function Page({ params }: { params: Promise<{ raceId: string }> }) {
   const { raceId } = await params;
   const access = await requirePublicRace(raceId);
+  const language = await currentLanguage();
   const [summary, published] = await Promise.all([publicRaceSummary(db, raceId), cachedPublicStartList(raceId, { exact: true }).then(entry => entry.value)]);
-  return <main className="stack public-list-page"><PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="starts" />
-    <PreviewBanner access={access} />
+  return <main className="stack public-list-page"><PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="starts" language={language} />
+    <PreviewBanner access={access} language={language} />
     <PublicStartList key={raceId} raceId={raceId}
       initial={published && published.content.classes.reduce((sum, row) => sum + row.entries.length, 0) > PUBLIC_PAGE_INLINE_ROWS ? undefined : published} /></main>;
 }

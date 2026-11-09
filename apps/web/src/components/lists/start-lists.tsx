@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { listsSv as text } from "../../i18n/lists-sv";
+import { useListTexts, type ListTexts } from "./use-list-texts";
 import { formatClockTime } from "../../lib/clock-time";
 import { startListCsv, type StartView } from "../../lib/lists/csv";
 import { classStartRows, filterStartList, groupByStartTime, startClub, startListByClub, startListClubs, type StartClass, type StartEntry,
@@ -11,7 +11,6 @@ import { download, ListFrame, useClubFilter, type IofExport } from "./list-frame
 import styles from "./lists.module.css";
 import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
-const t = text.start;
 
 /** Klockslag utan sekunder när de är noll (10:02), annars med (10:02:30). */
 function clock(instant: string, timeZone: string): string {
@@ -19,7 +18,7 @@ function clock(instant: string, timeZone: string): string {
   return full.endsWith(":00") ? full.slice(0, 5) : full;
 }
 
-function modeText(mode: StartMode, timeZone: string): string {
+function modeText(t: ListTexts["start"], mode: StartMode, timeZone: string): string {
   if (mode.kind === "FREE") return t.freeStart;
   if (mode.kind === "MASS") return t.massStart(mode.time ? clock(mode.time, timeZone) : null);
   if (mode.kind === "RELAY") return `${t.relay} · ${t.legs(mode.legCount)}`;
@@ -30,6 +29,7 @@ type Context = { model: StartListModel; onSelectEntry?: ((id: string) => void) |
 
 /** Namnet; i arbetsytan en knapp som öppnar deltagarkortet. Klubben visas under namnet på smala skärmar. */
 function Name({ entry, context, club = true }: { entry: StartEntry; context: Context; club?: boolean }) {
+  const t = useListTexts().start;
   const { onSelectEntry, disabled } = context;
   return <th scope="row">
     {onSelectEntry && entry.id
@@ -42,17 +42,19 @@ function Name({ entry, context, club = true }: { entry: StartEntry; context: Con
 }
 
 function Card({ entry }: { entry: StartEntry }) {
+  const t = useListTexts().start;
   return entry.multipleCards ? <td className={`${styles.card} ${styles.attention}`}>{t.multipleCards}</td>
     : <td className={styles.card}>{entry.card ?? <span className={styles.muted}>{t.noCard}</span>}</td>;
 }
 
 function ClassBlock({ raceClass, context }: { raceClass: StartClass; context: Context }) {
+  const { start: t, course } = useListTexts();
   const { model } = context, timeZone = model.timeZone;
   const relay = raceClass.mode.kind === "RELAY", free = raceClass.mode.kind === "FREE";
   const variants = raceClass.entries.some(entry => entry.variant);
   const teams = relay ? [...new Set(raceClass.entries.map(entry => entry.relay?.teamNumber ?? 0))] : [];
   const facts = [raceClass.courseName && courseLine({ courseName: raceClass.courseName, lengthMeters: raceClass.lengthMeters ?? null,
-    climbMeters: raceClass.climbMeters ?? null }), modeText(raceClass.mode, timeZone),
+    climbMeters: raceClass.climbMeters ?? null }, course), modeText(t, raceClass.mode, timeZone),
     relay ? t.teams(teams.length) : t.runners(raceClass.entries.length),
     raceClass.vacancies.length > 0 && t.vacancies(raceClass.vacancies.length)].filter(Boolean).join(" · ");
   const id = `start-class-${raceClass.name.replace(/\W+/g, "-")}`;
@@ -105,6 +107,7 @@ function ClassBlock({ raceClass, context }: { raceClass: StartClass; context: Co
 }
 
 function ByTime({ classes, context, now }: { classes: StartClass[]; context: Context; now: number }) {
+  const text = useListTexts(), t = text.start;
   const { model } = context;
   const groups = useMemo(() => groupByStartTime(classes), [classes]);
   const several = groups.places.length > 1;
@@ -155,6 +158,7 @@ function ByTime({ classes, context, now }: { classes: StartClass[]; context: Con
 }
 
 function ByClub({ classes, context }: { classes: StartClass[]; context: Context }) {
+  const t = useListTexts().start;
   const { model } = context;
   const groups = useMemo(() => startListByClub(classes), [classes]);
   const modeOf = new Map(classes.map(row => [row.name, row.mode]));
@@ -191,6 +195,7 @@ export function StartLists({ model, onSelectEntry, disabled, iof, exportable = t
   /** ADR-0191 beslut 2: den publika sidan har klubbfiltret i adressen (`?klubb=`). */
   clubInUrl?: boolean;
 }) {
+  const text = useListTexts(), t = text.start;
   const [view, setView] = useState<StartView>("CLASS");
   const [query, setQuery] = useState("");
   const [className, setClassName] = useState("");
@@ -215,7 +220,7 @@ export function StartLists({ model, onSelectEntry, disabled, iof, exportable = t
     views, view, onView: setView, query, onQuery: setQuery, searchPlaceholder: model.cards ? text.searchPlaceholderCards : text.searchPlaceholder,
     classes: classNames, className: selected, onClass: setClassName, clubs, club: selectedClub, onClub: setClub,
     count: t.runners(runners), iof,
-    onCsv: !exportable ? undefined : () => download(`${text.csv.files.start[view]}${selectedClub ? `-${selectedClub.replace(/\W+/g, "-")}` : ""}-${model.raceDate}.csv`, startListCsv(view, classes, model.timeZone, model.cards),
+    onCsv: !exportable ? undefined : () => download(`${text.csv.files.start[view]}${selectedClub ? `-${selectedClub.replace(/\W+/g, "-")}` : ""}-${model.raceDate}.csv`, startListCsv(view, classes, model.timeZone, model.cards, text),
       "text/csv;charset=utf-8")
   }}>
     {model.classes.every(row => row.entries.length === 0) ? <p className={styles.nothing}>{t.noEntries}</p>

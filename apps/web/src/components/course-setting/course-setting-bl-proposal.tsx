@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { blProposalEn } from "../../i18n/course-setting-look-en";
+import { useTexts } from "../language-provider";
 import type { ColorDecision, CourseSettingEdit, PressNorm, PrintProfile, SheetFrame } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
-import { blProposalSv as text } from "../../i18n/course-setting-bl-proposal-sv";
+import { blProposalSv } from "../../i18n/course-setting-bl-proposal-sv";
 import {
   activeChoice, approvalEdits, approvedProfile, cmykText, cssOfCmyk, decide, isolateAdjust, proposalState, sideOf, thumbnailView, type Action, type ProposalRow,
   type ProposalState
@@ -29,6 +31,7 @@ export function BlProposalPanel({ profile, builtIn, colors, usage, readOnly, fra
   /** ADR-0215 beslut 2: hela listan (under Avancerat) eller bara de tveksamma färgerna (läget "Tryck hos BL"). */
   variant?: "ALL" | "DOUBTFUL";
 }) {
+  const text = useTexts(blProposalSv, blProposalEn);
   const [decisions, setDecisions] = useState<readonly ColorDecision[]>(profile.colorDecisions ?? []);
   const [layer, setLayer] = useState(profile.courseLayer ?? "TOP");
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
@@ -147,6 +150,7 @@ function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash, 
   /** BL:s rad ligger på andra sidan banan än normen lägger färgen (ADR-0215 beslut 2). */
   wrongSide: boolean;
 }) {
+  const text = useTexts(blProposalSv, blProposalEn);
   const { proposal } = row;
   const color = proposal.color;
   const [choosing, setChoosing] = useState(false);

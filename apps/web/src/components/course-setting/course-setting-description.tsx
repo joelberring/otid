@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { courseSettingDescriptionEn } from "../../i18n/course-setting-course-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
 import { courseSettingSuggestEn } from "../../i18n/course-setting-notes-en";
 import { useTexts } from "../language-provider";
@@ -8,7 +9,7 @@ import {
   descriptionSymbols, layoutDescription, symbolsForBox, type CourseSettingDocument, type CourseSettingEdit, type DescriptionKind,
   type DescriptionLayout, type DescriptionStandard, type DescriptionSymbol
 } from "@o-tid/course-setting";
-import { courseSettingDescriptionSv as text } from "../../i18n/course-setting-description-sv";
+import { courseSettingDescriptionSv } from "../../i18n/course-setting-description-sv";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import {
   browserStorage, DESCRIPTION_KINDS, DESCRIPTION_LANGUAGES, descriptionTextLine, refOfSelection, rowArea, targetOfRef,
@@ -50,6 +51,7 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
   suggestions?: SuggestionsState | undefined; readOnly?: boolean | undefined;
   onHoverSuggestion?: ((shapes: readonly (readonly Point[])[] | undefined) => void) | undefined;
 }) {
+  const text = useTexts(courseSettingDescriptionSv, courseSettingDescriptionEn);
   const courseText = useTexts(courseSettingSv, courseSettingEn);
   const suggestText = useTexts(courseSettingSuggestSv, courseSettingSuggestEn);
   const standard = document.event.descriptionStandard;
@@ -166,6 +168,7 @@ function TextLines({ label, before, after, focus, onFocused, onSave }: {
   label: string; before: string; after: string; focus: "before" | "after" | undefined; onFocused: () => void;
   onSave: (changes: readonly { location: "before" | "after"; text: string | null }[]) => void;
 }) {
+  const text = useTexts(courseSettingDescriptionSv, courseSettingDescriptionEn);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (!focus) return;

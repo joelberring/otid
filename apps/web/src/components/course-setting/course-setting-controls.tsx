@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
 import { courseSettingUxEn } from "../../i18n/course-setting-ux-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
 import { useTexts } from "../language-provider";
 import type { CourseSettingDocument, CourseSettingEdit, CourseSummary, CourseVariant } from "@o-tid/course-setting";
-import { coursePropertiesSv as props } from "../../i18n/course-setting-properties-sv";
+import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { scoreTotal } from "../../lib/course-setting-properties";
 import { PointsField } from "./course-setting-course-properties";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
@@ -47,6 +48,7 @@ function CourseControls({ document, summary, name, view, variant, branch, select
   onSelect: (target: { control: string; courseControl?: string | undefined }) => void; onBranch: (branch: TreeBranch) => void;
   onVariant: (code: string | undefined) => void; score: boolean; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
+  const props = useTexts(coursePropertiesSv, coursePropertiesEn);
   const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const tree = useMemo(() => { try { return courseTree(document, view); } catch (error) { console.error("Banans träd", error); return []; } },

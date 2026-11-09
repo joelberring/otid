@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { courseSettingDescriptionEn } from "../../i18n/course-setting-course-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import {
   courseVariants, descriptionSymbols, layoutDescription, type CourseSettingDocument, type DescriptionKind, type DescriptionLayout,
   type DescriptionSymbol
 } from "@o-tid/course-setting";
-import { courseSettingDescriptionSv as text } from "../../i18n/course-setting-description-sv";
+import { courseSettingDescriptionSv } from "../../i18n/course-setting-description-sv";
 import { downloadText, fetchCourseSetting } from "../../lib/course-setting-api";
 import {
   browserStorage, DESCRIPTION_KINDS, DESCRIPTION_LANGUAGES, readDescriptionSettings, type DescriptionSettings
@@ -36,6 +38,7 @@ interface Entry {
  * Varje bana kan också laddas ned som SVG. Bara svart. Läser det sparade dokumentet (bara admin).
  */
 export function DescriptionPrintPage({ raceId }: { raceId: string }) {
+  const text = useTexts(courseSettingDescriptionSv, courseSettingDescriptionEn);
   const [document, setDocument] = useState<CourseSettingDocument | null>();
   const [failed, setFailed] = useState(false);
   const [settings, setSettings] = useState<DescriptionSettings>({ language: "sv", kind: "SYMBOLS" });

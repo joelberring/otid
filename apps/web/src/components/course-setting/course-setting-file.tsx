@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
 import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-setting-en";
 import { useTexts } from "../language-provider";
 import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
@@ -68,6 +69,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   /** ADR-0190: kartfilens yta och georeferens för IOF-exporten. */
   mapBounds?: { minX: number; minY: number; maxX: number; maxY: number } | undefined; georeference?: MapGeoreference | null | undefined;
 }) {
+  const propsText = useTexts(coursePropertiesSv, coursePropertiesEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [revisions, setRevisions] = useState<CourseSettingRevisions["revisions"]>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
@@ -108,10 +110,10 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
       {original && <a href={`${courseSettingBase(raceId)}/course-setting/original`} download>{text.file.downloadOriginal(original.fileName)}</a>}
     </div>
     <div className={styles.row}>
-      <Button variant="secondary" onClick={downloadIof} data-testid="course-setting-iof">{coursePropertiesSv.iof.download}</Button>
+      <Button variant="secondary" onClick={downloadIof} data-testid="course-setting-iof">{propsText.iof.download}</Button>
     </div>
-    <p className={styles.muted}>{coursePropertiesSv.iof.help}</p>
-    <p className={styles.muted}>{coursePropertiesSv.iof.ocad}</p>
+    <p className={styles.muted}>{propsText.iof.help}</p>
+    <p className={styles.muted}>{propsText.iof.ocad}</p>
     {!revisions && <div className={styles.row}><Button variant="quiet" onClick={() => void showRevisions()}>{text.revisions.show}</Button></div>}
     {revisions && <>
       <h3 className={styles.muted}>{text.revisions.heading}</h3>

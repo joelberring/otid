@@ -7,6 +7,8 @@ import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-sett
 import { useTexts } from "../language-provider";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { notesEn } from "../../i18n/course-setting-notes-en";
+import { courseSettingLevelSv } from "../../i18n/course-setting-level-sv";
+import { courseSettingLevelEn } from "../../i18n/course-setting-level-en";
 import { useRouter } from "next/navigation";
 import type { CourseSettingMode, CourseSettingState } from "@o-tid/contracts";
 import {
@@ -45,7 +47,7 @@ import { PrintPanel } from "./course-setting-print-panel";
 import { CourseSettingTabs } from "./course-setting-tabs";
 import { courseSettingTabsSv as layoutTabsSv } from "../../i18n/course-setting-layout-sv";
 import { SpecialsPanel } from "./course-setting-specials";
-import { describeEdit } from "../../lib/course-setting-suggestion";
+import { useDescribeEdit } from "./use-describe-edit";
 import { Button, Notice } from "../ui";
 import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
@@ -117,6 +119,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
 }) {
   const offlineText = useTexts(offlineSv, offlineEn);
   const copy = useTexts(collaborationSv, collaborationEn);
+  const describeEdit = useDescribeEdit();
+  const levelText = useTexts(courseSettingLevelSv, courseSettingLevelEn);
   const notesText = useTexts(notesSv, notesEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const access = state.access;
@@ -269,7 +273,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     if (suggestionHover) drawSuggestionHighlight(ctx, at, suggestionHover, mapView.pxPerMm);
     uxDraw(ctx, mapView);
     trainingDraw(ctx, mapView);
-    drawLevelMarks(ctx, mapView, document, levelAssessment, levelStore.highlight, ux.marks.levels);
+    drawLevelMarks(ctx, mapView, document, levelAssessment, levelStore.highlight, ux.marks.levels, levelText);
   }, [printPage, editor.tool, editor.drawing, selectedSpecial, suggestionHover, uxDraw, trainingDraw, levelAssessment, levelStore.highlight, ux.marks.levels]);
   const mapHandle = useRef<CourseSettingMapHandle>(null);
   // Oanvända kontroller i Alla kontroller ritas grå och streckade i stället (träffas ändå).

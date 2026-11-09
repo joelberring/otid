@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { courseSettingLevelEn } from "../../i18n/course-setting-level-en";
+import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
+import { useTexts } from "../language-provider";
 import { COURSE_LEVELS, COURSE_PRINT_SCALES, defaultScorePoints, isCourseLevel, suggestedCourseLevel, type Course, type CourseSettingDocument, type CourseSettingEdit, type CourseSummary } from "@o-tid/course-setting";
-import { coursePropertiesSv as text } from "../../i18n/course-setting-properties-sv";
+import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { formOf, parsePoints, propertyChanges, type PropertiesForm } from "../../lib/course-setting-properties";
-import { courseSettingLevelSv as level } from "../../i18n/course-setting-level-sv";
+import { courseSettingLevelSv } from "../../i18n/course-setting-level-sv";
 import { levelGuideArticle } from "../../i18n/help-course-setting-sv";
 import { HelpLink } from "../help/help-panel";
 import { Button } from "../ui";
@@ -21,6 +24,7 @@ export function CourseProperties({ course, summary, readOnly, onEdits, mapScale 
   /** Kartans skala: förval för banans skala (ADR-0211 beslut 5). */
   mapScale: number;
 }) {
+  const text = useTexts(coursePropertiesSv, coursePropertiesEn);
   const [form, setForm] = useState<PropertiesForm>(() => formOf(course));
   const [error, setError] = useState<"climb" | "length">();
   const [saved, setSaved] = useState(false);
@@ -78,6 +82,7 @@ export function CourseProperties({ course, summary, readOnly, onEdits, mapScale 
  * länken går till hjälpens guide för nivån.
  */
 function LevelField({ course, readOnly, onEdits }: { course: Course; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void }) {
+  const level = useTexts(courseSettingLevelSv, courseSettingLevelEn);
   const suggested = suggestedCourseLevel(course);
   const set = (value: string) => onEdits([{ type: "UPDATE_COURSE", course: course.id, changes: { level: isCourseLevel(value) ? value : null } }]);
   return <div className={styles.stack} data-testid="course-setting-level-field">
@@ -99,6 +104,7 @@ export function PointsField({ document, course, courseControl, label, readOnly, 
   document: CourseSettingDocument; course: string; courseControl: string; label: string; readOnly: boolean;
   onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
+  const text = useTexts(coursePropertiesSv, coursePropertiesEn);
   const current = document.courseControls[courseControl]?.points;
   // Tomt fält = förvalet (kodens tiotal, som tävlingens rogaining); det visas som platshållare.
   const fallback = defaultScorePoints(document.controls[document.courseControls[courseControl]?.control ?? ""]?.code);

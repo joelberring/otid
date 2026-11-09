@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { courseSettingDescriptionEn } from "../../i18n/course-setting-course-en";
+import { useTexts } from "../language-provider";
 import type { DescriptionBox, DescriptionLanguage, DescriptionSymbol } from "@o-tid/course-setting";
-import { courseSettingDescriptionSv as text } from "../../i18n/course-setting-description-sv";
+import { courseSettingDescriptionSv } from "../../i18n/course-setting-description-sv";
 import { symbolNodes } from "../../lib/course-setting-description-draw";
 import { allowsText, moveActive, pickerOptions, type PickerOption } from "../../lib/course-setting-description-picker";
 import { Button } from "../ui";
@@ -26,6 +28,7 @@ export function DescriptionPicker({ label, box, current, symbols, recent, langua
   label: string; box: string; current: DescriptionBox | undefined; symbols: readonly DescriptionSymbol[]; recent: readonly string[];
   language: DescriptionLanguage; onPick: (value: PickedValue) => void; onClose: () => void;
 }) {
+  const text = useTexts(courseSettingDescriptionSv, courseSettingDescriptionEn);
   const id = useId();
   const [query, setQuery] = useState(current?.text ?? "");
   const [active, setActive] = useState(0);

@@ -6,7 +6,7 @@ import { useTexts } from "../language-provider";
 import type { CourseSettingSuggestion, CourseSettingSuggestionDecided } from "@o-tid/contracts";
 import type { CourseSettingDocument, CourseSettingEdit } from "@o-tid/course-setting";
 import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
-import { describeEdit } from "../../lib/course-setting-suggestion";
+import { useDescribeEdit } from "./use-describe-edit";
 import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
 
@@ -42,6 +42,7 @@ function Review({ suggestion, document, skip, onSkip, canDecide, onDecide, rejec
   suggestion: CourseSettingSuggestion; document: CourseSettingDocument; skip: ReadonlySet<number>; onSkip: (skip: ReadonlySet<number>) => void;
   canDecide: boolean; onDecide: (decision: "APPROVE" | "DECLINE", comment: string) => Promise<void>; rejected: ReadonlySet<number>;
 }) {
+  const describeEdit = useDescribeEdit();
   const text = useTexts(collaborationSv, collaborationEn);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
@@ -83,6 +84,7 @@ export function SuggestionsPanel({ suggestions, document, reviewing, onReview, s
   result: { suggestion: string; decided: CourseSettingSuggestionDecided } | { suggestion: string; failed: true } | undefined;
   rejected: ReadonlySet<number>; draft?: React.ReactNode;
 }) {
+  const describeEdit = useDescribeEdit();
   const text = useTexts(collaborationSv, collaborationEn);
   const open = suggestions.filter(row => row.status === "OPEN");
   const decided = suggestions.filter(row => row.status !== "OPEN").slice(0, 20);

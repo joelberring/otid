@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { courseVariantsCsEn } from "../../i18n/course-setting-course-en";
+import { useTexts } from "../language-provider";
 import type { Course, CourseSettingDocument, CourseSettingEdit } from "@o-tid/course-setting";
 import { unusedAfterExclusion, type ProtectedVariant, type VariantPruning } from "@o-tid/domain";
-import { courseVariantsSv as text } from "../../i18n/course-setting-variants-sv";
+import { courseVariantsSv } from "../../i18n/course-setting-variants-sv";
 import { safely } from "../../lib/course-setting-safely";
 import { excludedRows, parseLimit, pruningPlan, variantTable, type VariantTable } from "../../lib/course-setting-variants";
 import { Button } from "../ui";
@@ -35,6 +37,7 @@ export function VariantsPanel({ document, course, routeLength, hasMap, readOnly,
 function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }: {
   table: VariantTable; course: Course; routeLength: RouteLength; hasMap: boolean; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
+  const text = useTexts(courseVariantsSv, courseVariantsCsEn);
   // Ägaren 2026-11-03: förval "Ta bort de längsta" med 3; "längst i alla avseenden (alla)" och taken är andra sätt.
   const [mode, setMode] = useState<PruneMode>("LONGEST");
   const [longest, setLongest] = useState(String(Math.min(DEFAULT_LONGEST, Math.max(1, table.rows.filter(row => !row.excluded).length - 1))));

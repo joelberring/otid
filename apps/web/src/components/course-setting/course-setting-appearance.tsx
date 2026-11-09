@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { labelEn } from "../../i18n/course-setting-look-en";
+import { appearanceEn } from "../../i18n/course-setting-look-en";
+import { useTexts } from "../language-provider";
 import {
   appearanceOf, ITEM_SCALINGS, LEG_CIRCLE_GAP_LIMITS, LEG_CIRCLE_GAP_MM, paperSizesFor, type Appearance, type Course, type CourseSettingDocument, type CourseSettingEdit, type ItemScaling
 } from "@o-tid/course-setting";
-import { appearanceSv as text, labelSv } from "../../i18n/course-setting-appearance-sv";
+import { appearanceSv } from "../../i18n/course-setting-appearance-sv";
+import { labelSv } from "../../i18n/course-setting-appearance-sv";
 import {
   appearanceEdit, fieldBase, formatMm, formatRatio, labelExample, labelKindEdits, labelKindsFor, paperChange, parseDecimal,
   presetActive, presetsFor, ratioAllowed, referenceScale, relayCourses, scaleRows, type AppearanceField, type LabelKind
@@ -23,6 +27,7 @@ const FIELDS: readonly AppearanceField[] = ["circleSize", "lineWidth", "numberSi
 export function AppearancePanel({ document, view, readOnly, onEdits }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
 }) {
+  const text = useTexts(appearanceSv, appearanceEn);
   const appearance = appearanceOf(document);
   const standard = document.event.overprintStandard;
   const scale = referenceScale(document, view);
@@ -93,6 +98,7 @@ export function AppearancePanel({ document, view, readOnly, onEdits }: {
 function RatioField({ document, field, scale, readOnly, onSave }: {
   document: CourseSettingDocument; field: AppearanceField; scale: number; readOnly: boolean; onSave: (value: number) => void;
 }) {
+  const text = useTexts(appearanceSv, appearanceEn);
   const value = appearanceOf(document)[field];
   const [draft, setDraft] = useState<string>();
   const [error, setError] = useState<string>();
@@ -127,6 +133,7 @@ function RatioField({ document, field, scale, readOnly, onSave }: {
 function GapField({ document, scale, readOnly, onSave }: {
   document: CourseSettingDocument; scale: number; readOnly: boolean; onSave: (value: number) => void;
 }) {
+  const text = useTexts(appearanceSv, appearanceEn);
   const value = appearanceOf(document).autoLegGap;
   const [draft, setDraft] = useState<string>();
   const [error, setError] = useState<string>();
@@ -155,6 +162,7 @@ function GapField({ document, scale, readOnly, onSave }: {
 function LegCircleGapField({ document, readOnly, onSave }: {
   document: CourseSettingDocument; readOnly: boolean; onSave: (value: number) => void;
 }) {
+  const text = useTexts(appearanceSv, appearanceEn);
   const value = document.event.legCircleGapMm ?? LEG_CIRCLE_GAP_MM;
   const [draft, setDraft] = useState<string>();
   const [error, setError] = useState<string>();
@@ -187,29 +195,30 @@ function LegCircleGapField({ document, readOnly, onSave }: {
 export function LabelPanel({ document, course, readOnly, onEdits }: {
   document: CourseSettingDocument; course: Course; readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
 }) {
+  const labelText = useTexts(labelSv, labelEn);
   const [done, setDone] = useState<string>();
   const relays = relayCourses(document);
   const apply = (courses: readonly Course[]) => {
     const edits = labelKindEdits(courses, course.labelKind);
     if (edits.length > 0) onEdits(edits);
-    setDone(labelSv.done(edits.length));
+    setDone(labelText.done(edits.length));
   };
   return <section className={styles.panel} aria-labelledby="course-setting-label" data-testid="course-setting-label">
-    <h2 id="course-setting-label">{labelSv.heading}</h2>
-    <p className={styles.muted}>{labelSv.help}</p>
+    <h2 id="course-setting-label">{labelText.heading}</h2>
+    <p className={styles.muted}>{labelText.help}</p>
     <fieldset className={own.kinds} disabled={readOnly}>
-      <legend className={styles.srOnly}>{labelSv.heading}</legend>
+      <legend className={styles.srOnly}>{labelText.heading}</legend>
       {labelKindsFor(course).map((kind: LabelKind) => <label key={kind} className={own.kind}>
         <input type="radio" name={`label-${course.id}`} value={kind} checked={course.labelKind === kind}
           onChange={() => { setDone(undefined); onEdits([{ type: "UPDATE_COURSE", course: course.id, changes: { labelKind: kind } }]); }} />
-        <span>{labelSv.kinds[kind]}</span>
+        <span>{labelText.kinds[kind]}</span>
         <span className={own.example} aria-hidden="true">{labelExample(document, course, kind)}</span>
       </label>)}
     </fieldset>
     {!readOnly && document.courses.length > 1 && <div className={styles.row}>
-      <span className={styles.muted}>{labelSv.sameFor}</span>
-      {relays.length > 1 && <Button variant="secondary" onClick={() => apply(relays)}>{labelSv.relays(relays.length)}</Button>}
-      <Button variant="secondary" onClick={() => apply(document.courses)}>{labelSv.all(document.courses.length)}</Button>
+      <span className={styles.muted}>{labelText.sameFor}</span>
+      {relays.length > 1 && <Button variant="secondary" onClick={() => apply(relays)}>{labelText.relays(relays.length)}</Button>}
+      <Button variant="secondary" onClick={() => apply(document.courses)}>{labelText.all(document.courses.length)}</Button>
     </div>}
     {done && <p role="status" className={styles.muted}>{done}</p>}
   </section>;

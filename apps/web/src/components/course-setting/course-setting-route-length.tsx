@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
+import { useTexts } from "../language-provider";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
-import { coursePropertiesSv as copy } from "../../i18n/course-setting-properties-sv";
+import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { safely } from "../../lib/course-setting-safely";
 import { routeLengthLegs, routeLengthSummary, type LegLength } from "../../lib/course-setting-route-length";
 import type { RouteChoiceSession } from "../../lib/route-choice-client";
@@ -10,7 +12,6 @@ import type { LegInput } from "@o-tid/route-choice";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
 
-const text = copy.routeLength;
 
 /**
  * ADR-0199: vägvalens svar per indata (`legInput`-nyckeln), gemensamt för banans längd, vald sträcka och varningarna om
@@ -77,6 +78,7 @@ export function useRouteLength({ document, view, variant, session, ready, failed
 export type RouteLength = ReturnType<typeof useRouteLength>;
 
 export function RouteLengthPanel({ state, hasMap }: { state: RouteLength; hasMap: boolean }) {
+  const text = useTexts(coursePropertiesSv.routeLength, coursePropertiesEn.routeLength);
   const legs = state.legs;
   if (!legs) return null;
   const summary = routeLengthSummary(legs.legs, state.results);

@@ -3,7 +3,19 @@ import {
   type LevelDeviation, type LevelRank, type LevelVerdict
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
-import { courseSettingLevelSv as text, LEVEL_REASONS, LEVEL_TIPS } from "../i18n/course-setting-level-sv";
+import { courseSettingLevelSv, LEVEL_REASONS, LEVEL_TIPS } from "../i18n/course-setting-level-sv";
+import { courseSettingSv } from "../i18n/course-setting-sv";
+import type { CourseSettingTexts } from "../i18n/course-setting-en";
+import type { Texts } from "./language";
+
+/** Nivåstödets texter på sidans språk (skälen, tipsen, nivåernas namn och kontrollernas namn). */
+export interface LevelTexts {
+  readonly level: Texts<typeof courseSettingLevelSv>;
+  readonly reasons: typeof LEVEL_REASONS;
+  readonly tips: typeof LEVEL_TIPS;
+  readonly course: CourseSettingTexts;
+}
+export const LEVEL_TEXTS_SV: LevelTexts = { level: courseSettingLevelSv, reasons: LEVEL_REASONS, tips: LEVEL_TIPS, course: courseSettingSv };
 import type { LevelLegRequest } from "./route-choice-worker-protocol";
 import { controlLabel, hash, legInput } from "./course-setting-text";
 
@@ -57,16 +69,19 @@ export interface LevelRow {
   readonly candidates: readonly { readonly kind: "junction" | "handrail" | "bigFeature" | "offAt"; readonly at: Point }[];
 }
 
-function reasonOf(kind: "control" | "leg", verdict: LevelVerdict): string {
+function reasonOf(kind: "control" | "leg", verdict: LevelVerdict, texts: LevelTexts): string {
+  const text = texts.level;
   if (!verdict.rule) return kind === "control" ? text.panel.okControl : text.panel.okLeg;
-  const reason = LEVEL_REASONS[verdict.rule as keyof typeof LEVEL_REASONS];
+  const reason = texts.reasons[verdict.rule as keyof typeof LEVEL_REASONS];
   return reason ? reason(verdict.values) : verdict.rule;
 }
 
 const capital = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 /** Raderna i panelen: avvikelserna mot målnivån först, sedan de svåraste. */
-export function levelRows(document: CourseSettingDocument, assessment: LevelAssessment, target: CourseLevel | undefined): LevelRow[] {
+export function levelRows(document: CourseSettingDocument, assessment: LevelAssessment, target: CourseLevel | undefined,
+  texts: LevelTexts = LEVEL_TEXTS_SV): LevelRow[] {
+  const text = texts.level;
   const goal = target ? levelRank(target) : undefined;
   const rows: LevelRow[] = [];
   for (const item of assessment.controls) {
@@ -78,8 +93,8 @@ export function levelRows(document: CourseSettingDocument, assessment: LevelAsse
       const at = kind === "offAt" ? undefined : item.features.candidates[kind];
       return at ? [{ kind, at }] : [];
     });
-    rows.push({ key: `c:${id}`, kind: "control", label: capital(controlLabel(document, id)), rank: item.verdict.rank, reason: reasonOf("control", item.verdict),
-      deviation, tip: deviation ? LEVEL_TIPS[deviation.rule] : undefined, control: id, points: [point], candidates });
+    rows.push({ key: `c:${id}`, kind: "control", label: capital(controlLabel(document, id, texts.course)), rank: item.verdict.rank, reason: reasonOf("control", item.verdict, texts),
+      deviation, tip: deviation ? texts.tips[deviation.rule] : undefined, control: id, points: [point], candidates });
   }
   for (const item of assessment.legs) {
     const { from, to } = item.features;
@@ -88,8 +103,8 @@ export function levelRows(document: CourseSettingDocument, assessment: LevelAsse
     const deviation = goal !== undefined ? levelDeviation("leg", item.features, item.verdict.rank, goal) : undefined;
     const offAt = item.features.offAt;
     const candidates = deviation?.show.includes("offAt") && offAt ? [{ kind: "offAt" as const, at: offAt }] : [];
-    rows.push({ key: `l:${from}-${to}`, kind: "leg", label: capital(text.panel.leg(controlLabel(document, from), controlLabel(document, to))),
-      rank: item.verdict.rank, reason: reasonOf("leg", item.verdict), deviation, tip: deviation ? LEVEL_TIPS[deviation.rule] : undefined, from, to,
+    rows.push({ key: `l:${from}-${to}`, kind: "leg", label: capital(text.panel.leg(controlLabel(document, from, texts.course), controlLabel(document, to, texts.course))),
+      rank: item.verdict.rank, reason: reasonOf("leg", item.verdict, texts), deviation, tip: deviation ? texts.tips[deviation.rule] : undefined, from, to,
       points: [a, b], candidates });
   }
   const weight = (row: LevelRow) => row.deviation?.direction === "HARDER" ? 0 : row.deviation ? 1 : 2;
@@ -97,13 +112,15 @@ export function levelRows(document: CourseSettingDocument, assessment: LevelAsse
 }
 
 /** Notisen i Varningar för en avvikelse. */
-export function levelCheckText(document: CourseSettingDocument, check: Extract<CourseCheck, { kind: "LEVEL_DEVIATION" }>, assessment: LevelAssessment | undefined): string {
-  const label = check.control !== undefined ? capital(controlLabel(document, check.control))
-    : capital(text.panel.leg(controlLabel(document, check.from ?? ""), controlLabel(document, check.to ?? "")));
+export function levelCheckText(document: CourseSettingDocument, check: Extract<CourseCheck, { kind: "LEVEL_DEVIATION" }>, assessment: LevelAssessment | undefined,
+  texts: LevelTexts = LEVEL_TEXTS_SV): string {
+  const text = texts.level;
+  const label = check.control !== undefined ? capital(controlLabel(document, check.control, texts.course))
+    : capital(text.panel.leg(controlLabel(document, check.from ?? "", texts.course), controlLabel(document, check.to ?? "", texts.course)));
   const verdict = check.control !== undefined ? assessment?.controls.find(item => item.features.control === check.control)?.verdict
     : assessment?.legs.find(item => item.features.from === check.from && item.features.to === check.to)?.verdict;
-  const reason = check.direction === "EASIER" ? text.panel.easierTag.toLowerCase() : verdict ? reasonOf(check.control !== undefined ? "control" : "leg", verdict) : "";
-  return text.check(label, text.rankName(check.rank), text.levelName(check.target), reason, LEVEL_TIPS[check.rule]);
+  const reason = check.direction === "EASIER" ? text.panel.easierTag.toLowerCase() : verdict ? reasonOf(check.control !== undefined ? "control" : "leg", verdict, texts) : "";
+  return text.check(label, text.rankName(check.rank), text.levelName(check.target), reason, texts.tips[check.rule]);
 }
 
 /** Nivåns färg (märket och markeringen på kartan): SOFT:s färger, Blå–Svart delad. */

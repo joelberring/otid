@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { coursePropertiesSv as text } from "../../i18n/course-setting-properties-sv";
+import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
+import { useTexts } from "../language-provider";
+import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import type { HistoryStep } from "../../lib/course-setting-editor";
 import { historyToKeep, restoreHistory, usableHistory } from "../../lib/course-setting-history";
 import type { FieldStore } from "../../lib/course-setting-offline";
@@ -16,6 +18,7 @@ export function useCourseSettingHistory({ raceId, accountId, store, storage, ena
   raceId: string; accountId: string; store: EditorStore; storage: FieldStore; enabled: boolean;
   say: (message: { tone: "ok" | "attention"; text: string }) => void;
 }): void {
+  const text = useTexts(coursePropertiesSv, coursePropertiesEn);
   const ready = useRef(false);
   const written = useRef<{ past: readonly HistoryStep[]; future: readonly HistoryStep[] }>(undefined);
   const latest = useRef({ say });

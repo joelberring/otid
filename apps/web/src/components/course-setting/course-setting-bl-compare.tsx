@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { blProposalEn } from "../../i18n/course-setting-look-en";
+import { useTexts } from "../language-provider";
 import type { MapColorAdjust, PressNorm, PrintProfile, SheetFrame } from "@o-tid/course-setting";
 import type { MapColor } from "@o-tid/map-file";
-import { blProposalSv as text } from "../../i18n/course-setting-bl-proposal-sv";
+import { blProposalSv } from "../../i18n/course-setting-bl-proposal-sv";
 import { afterViews, compareDpi, compareFrame, cssOfCmyk, layerStack, type Layer, type ProposalState } from "../../lib/course-setting-bl-proposal";
 
 /** Jämförelsen står överst i förslaget och ritas före kartbitarna (2) och arken (0). */
@@ -31,6 +33,7 @@ const PURPLE_PEN = { c: 20, m: 100, y: 0, k: 0 };
 export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, render, norm }: {
   frame: SheetFrame; profile: PrintProfile; state: ProposalState; colors: readonly MapColor[]; symbols: SymbolLookup; render: RenderImage; norm: PressNorm;
 }) {
+  const text = useTexts(blProposalSv, blProposalEn);
   // Samma utsnitt efter varje sparning (dokumentet läses om): nyckeln håller bilderna kvar.
   const frameKey = JSON.stringify([sheetFrame.mapArea, sheetFrame.clip, sheetFrame.transform, sheetFrame.figures.length]);
   const frame = useMemo(() => compareFrame(sheetFrame), [frameKey]);
@@ -89,6 +92,7 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
 }
 
 function LayerList({ title, layers, wrong }: { title: string; layers: readonly Layer[]; wrong: ReadonlySet<string> }) {
+  const text = useTexts(blProposalSv, blProposalEn);
   if (layers.length === 0) return null;
   return <>
     <li className={styles.group}>{title}</li>
@@ -103,6 +107,7 @@ function LayerList({ title, layers, wrong }: { title: string; layers: readonly L
  * en höjdkurva och en blå sjö, så som trycket blir.
  */
 export function BlLayers({ profile, state, norm }: { profile: PrintProfile; state: ProposalState; norm: PressNorm }) {
+  const text = useTexts(blProposalSv, blProposalEn);
   const stack = useMemo(() => layerStack(profile, state, norm), [profile, state, norm]);
   const find = (layers: readonly Layer[], row: string, fallback: string) => layers.find(layer => layer.row === row)?.css ?? fallback;
   const all = [...stack.over, ...stack.under];

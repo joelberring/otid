@@ -1,14 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { courseSettingLevelEn } from "../../i18n/course-setting-level-en";
+import { useLanguage, useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import {
   assessLevel, harderThan, levelChecks, levelDeviations, levelRank, type CourseCheck, type CourseSettingDocument, type CourseSettingEdit,
   type LevelAssessment, type LevelRank
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
-import { courseSettingLevelSv as text } from "../../i18n/course-setting-level-sv";
+import { courseSettingLevelSv } from "../../i18n/course-setting-level-sv";
 import { levelGuideArticle } from "../../i18n/help-course-setting-sv";
-import { LEVEL_COLORS, levelCheckText, levelRequest, levelRows, levelSignature, levelSprint, type LevelRow } from "../../lib/course-setting-level";
+import { LEVEL_COLORS, LEVEL_TEXTS_SV, levelCheckText, levelRequest, levelRows, levelSignature, levelSprint, type LevelRow, type LevelTexts } from "../../lib/course-setting-level";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { LEVEL_REASONS_EN, LEVEL_TIPS_EN } from "../../i18n/course-setting-level-en";
 import { safely } from "../../lib/course-setting-safely";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import type { RouteChoiceSession } from "../../lib/route-choice-client";
@@ -28,7 +33,15 @@ import base from "./course-setting.module.css";
  */
 interface Stored { readonly signature: string; readonly measured: LevelMeasured; readonly assessment: LevelAssessment }
 
+const LEVEL_TEXTS_EN: LevelTexts = { level: courseSettingLevelEn, reasons: LEVEL_REASONS_EN, tips: LEVEL_TIPS_EN, course: courseSettingEn };
+
+/** Nivåstödets texter på sidans språk. */
+function useLevelTexts(): LevelTexts {
+  return useLanguage() === "en" ? LEVEL_TEXTS_EN : LEVEL_TEXTS_SV;
+}
+
 export function useLevelStore({ document, mapSha256 }: { document: CourseSettingDocument; mapSha256: string | undefined }) {
+  const levelTexts = useLevelTexts();
   const [results, setResults] = useState<ReadonlyMap<string, Stored>>(new Map());
   const [wanted, setWanted] = useState(false);
   const [highlight, setHighlight] = useState<{ key: string; points: readonly { kind: string; at: Point }[] }>();
@@ -46,7 +59,7 @@ export function useLevelStore({ document, mapSha256 }: { document: CourseSetting
     return stored ? safely("Nivåstödet", () => levelChecks(document, course, stored.assessment), () => []) : [];
   }), [document, results, fresh]);
   const checkText = useCallback((check: Extract<CourseCheck, { kind: "LEVEL_DEVIATION" }>) =>
-    levelCheckText(document, check, fresh(check.course)?.assessment), [document, fresh]);
+    levelCheckText(document, check, fresh(check.course)?.assessment, levelTexts), [document, fresh, levelTexts]);
   const save = useCallback((course: string, value: Stored) => setResults(current => new Map(current).set(course, value)), []);
   /** En bedömning räknas i vägvalens Worker (varningarnas vägval väntar då). */
   const [running, setRunning] = useState(false);
@@ -57,7 +70,7 @@ export type LevelStore = ReturnType<typeof useLevelStore>;
 
 /** Märkena på kartan för vald bana (små och dämpade) och förslagen som visas. */
 export function drawLevelMarks(ctx: CanvasRenderingContext2D, view: Viewport, document: CourseSettingDocument, assessment: LevelAssessment | undefined,
-  highlight: LevelStore["highlight"], show: boolean): void {
+  highlight: LevelStore["highlight"], show: boolean, text: Texts<typeof courseSettingLevelSv> = courseSettingLevelSv): void {
   const at = (point: Point) => toScreen(view, point);
   const mark = (point: Point, rank: LevelRank, size: number) => {
     const colors = LEVEL_COLORS[rank];
@@ -159,6 +172,7 @@ export type LevelSupport = ReturnType<typeof useLevelSupport>;
 
 /** "Bedöm alla banor" i fliken Banor. */
 export function LevelAllButton({ support }: { support: LevelSupport }) {
+  const text = useTexts(courseSettingLevelSv, courseSettingLevelEn);
   if (!support.hasMap || support.assessable.length < 2) return null;
   return <div className={base.row}>
     <Button variant="secondary" data-testid="course-setting-level-all" disabled={support.running !== undefined}
@@ -167,6 +181,7 @@ export function LevelAllButton({ support }: { support: LevelSupport }) {
 }
 
 function Badge({ rank }: { rank: LevelRank }) {
+  const text = useTexts(courseSettingLevelSv, courseSettingLevelEn);
   return <span className={styles.badge} data-rank={rank} aria-label={text.panel.badge(text.rankName(rank))}>{text.rankName(rank)}</span>;
 }
 
@@ -175,12 +190,13 @@ export function LevelPanel({ store, support, document, readOnly, onEdits, onShow
   store: LevelStore; support: LevelSupport; document: CourseSettingDocument; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
   onShow: (row: LevelRow) => void;
 }) {
+  const text = useTexts(courseSettingLevelSv, courseSettingLevelEn), levelTexts = useLevelTexts();
   const [only, setOnly] = useState(false);
   const course = support.course;
   const stored = course ? store.results.get(course.id) : undefined;
   const fresh = course ? store.fresh(course.id) : undefined;
   const target = course?.level;
-  const rows = useMemo(() => stored ? safely("Nivåstödet", () => levelRows(document, stored.assessment, target), () => []) : [], [document, stored, target]);
+  const rows = useMemo(() => stored ? safely("Nivåstödet", () => levelRows(document, stored.assessment, target, levelTexts), () => []) : [], [document, stored, target, levelTexts]);
   if (!course) return null;
   const running = support.running?.course === course.id ? support.running : undefined;
   const queued = support.queue.includes(course.id) && !running;
@@ -227,6 +243,7 @@ export function LevelPanel({ store, support, document, readOnly, onEdits, onShow
 }
 
 function Row({ row, store, onShow }: { row: LevelRow; store: LevelStore; onShow: (row: LevelRow) => void }) {
+  const text = useTexts(courseSettingLevelSv, courseSettingLevelEn);
   const highlighted = store.highlight?.key === row.key;
   return <li className={styles.item} data-testid="course-setting-level-row" data-kind={row.kind} data-rank={row.rank}
     data-deviation={row.deviation?.direction}>

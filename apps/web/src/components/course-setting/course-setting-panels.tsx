@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
 import { courseSettingUxEn } from "../../i18n/course-setting-ux-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
 import { useTexts } from "../language-provider";
@@ -8,7 +9,7 @@ import type { CourseSettingDocument, CourseSummary } from "@o-tid/course-setting
 import type { LegAnalysis } from "@o-tid/route-choice";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
-import { coursePropertiesSv as props } from "../../i18n/course-setting-properties-sv";
+import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { warningText } from "../../lib/route-choice-view";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
@@ -30,6 +31,7 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
   /** ADR-0212: "Bedöm alla banor". */
   extra?: ReactNode;
 }) {
+  const props = useTexts(coursePropertiesSv, coursePropertiesEn);
   const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [renaming, setRenaming] = useState<string>();

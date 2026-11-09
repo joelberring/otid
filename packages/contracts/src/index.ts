@@ -302,6 +302,7 @@ export * from "./club-affiliation";
 export * from "./map-project-mcp";
 export * from "./course-setting-mcp";
 export * from "./club-devices";
+export * from "./club-planning";
 export * from "./map-project-recon";
 export * from "./map-project-work-layers";
 export * from "./geo-jobs";

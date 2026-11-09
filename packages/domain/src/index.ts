@@ -57,6 +57,7 @@ export * from "./variant-pruning";
 export * from "./race-title";
 export * from "./training-group";
 export * from "./club-affiliation";
+export * from "./club-planning";
 export * from "./map-link";
 export * from "./csv";
 export * from "./search-fold";

@@ -1,9 +1,11 @@
 "use client";
 
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
+import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { participantCardSv as text } from "../../i18n/participant-card-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { sv } from "../../i18n/sv";
@@ -28,6 +30,7 @@ import type { Workspace } from "./workspace-state";
  * klass, bricka, starttid, resultat med sträcktider, Rätta (ADR-0191) och historik.
  */
 export function ParticipantCard({ ws }: { ws: Workspace }) {
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { action, cardAttempt, classesById, data, disabled, effectiveResult, effectiveResultError, filtered,
     identityAttempt, navigateParticipantSequence, raceId, rentalAttempt,
     rentalReturnAttempt, rentalReuseAttempt, selected, selectedClass, selectedIndex,

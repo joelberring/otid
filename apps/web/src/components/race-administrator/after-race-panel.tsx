@@ -1,13 +1,15 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
 import Link from "next/link";
 import { ClassResultRecalculation } from "../class-result-recalculation";
 import { RecalculateRace } from "../race-corrections";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { Button, Disclosure, Field, Notice, Section } from "../ui";
 import { mispunchedEntries } from "../../lib/section-status";
 import { MispunchedList } from "./readout-control-view";
@@ -63,6 +65,7 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
  * under dem efterarbetet: fastställande (typer som har det) och omräkning. En bana rättas med "Redigera bana" (ADR-0169).
  */
 export function AfterRacePanel({ ws }: { ws: Workspace }) {
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { busy, classRecalculationAttempt, classRecalculationCandidates, classRecalculationError,
     classRecalculationSaved, classRecalculationUnknown, data, disabled, finalizationAttempt, finalizationCandidate,
     finalizationCandidates, finalizationScope, loadClassRecalculation,

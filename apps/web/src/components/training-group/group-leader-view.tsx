@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { raceTypeEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import { AccountMenu } from "../account-menu";
 import type { GroupLeaderView as View, GroupSession } from "@o-tid/contracts";
@@ -24,6 +26,7 @@ const text = trainingGroupSv.leader;
  * säsongen. Bara ledare får vyn (servern svarar annars 404).
  */
 export function GroupLeaderView({ groupId }: { groupId: string }) {
+  const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const [view, setView] = useState<View>();
   const [state, setState] = useState<"loading" | "ok" | "not-found" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -74,7 +77,7 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
     <div>
       <strong>{session.raceDate}{session.firstStartTime ? ` ${session.firstStartTime}` : ""} · {session.eventName}
         {view.settings.templateRaceId === session.raceId && <span className={styles.badge}>{text.template}</span>}</strong>
-      <span>{[raceTypeSv.types[session.raceType as keyof typeof raceTypeSv.types]?.name, text.entries(session.entries),
+      <span>{[raceTypeText.types[session.raceType as keyof typeof raceTypeSv.types]?.name, text.entries(session.entries),
         session.published ? "" : text.notPublished].filter(Boolean).join(" · ")}</span>
     </div>
     <div className={styles.rowActions}>

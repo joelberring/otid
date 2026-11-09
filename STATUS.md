@@ -45,8 +45,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 7: Mitt konto och kontomenyn (rubrik, Google-kopplingen, Logga ut från alla enheter).
 - Del 8: festens sida, sträcktiderna och QR-skylten.
 - Del 9: AI-kopplingarna och Lantmäteriet på Mitt konto.
-- Del 10: Mina klubbar, klubbvalet efter registreringen och klubbsökningen. Mitt konto är nu helt på engelska. Kvar: arbetsytan
-  del för del (Mina tävlingar är redan engelsk).
+- Del 10: Mina klubbar, klubbvalet efter registreringen och klubbsökningen. Mitt konto är nu helt på engelska.
+- Del 11, arbetsytan del 1: språket i hela `/admin` (layouten), toppbalken, sidopanelen med delarnas läge, tävlingstyperna,
+  Inställningar och Personer med behörighet (`workspace-en.ts`). Delarnas innehåll är kvar på svenska tills vidare.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

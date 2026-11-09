@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { raceTypeEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceInfoSv } from "../../i18n/race-info-sv";
@@ -21,10 +23,10 @@ import { SelfRegistrationSetting } from "./self-registration-setting";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import type { Workspace } from "./workspace-state";
 
-const text = raceTypeSv.settings;
 
 /** ADR-0188 beslut 3: vad som händer med starttiderna när datumet ändras, eller varför det inte går. */
 function DateMoveReview({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceTypeSv.settings, raceTypeEn.settings);
   const preview = ws.dateMovePreview!;
   const move = text.dateMove;
   const clock = (instant: string | null) => instant ? formatClockTime(instant, preview.timeZone).slice(0, 5) : "";
@@ -59,6 +61,8 @@ function DateMoveReview({ ws }: { ws: Workspace }) {
  * (för ägaren) att ta bort tävlingen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
+  const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
+  const text = useTexts(raceTypeSv.settings, raceTypeEn.settings);
   const { changeSettings, data, navigateStep, profile, raceId, saveSettings, saving, setPeoplePending, settingsAttempt, settingsErrors, settingsForm,
     settingsMessage, shows, workflowLocked } = ws;
   const [copySource, setCopySource] = useState<CopySource>();
@@ -122,7 +126,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
       <SelfRegistrationSetting ws={ws} />
     </Section>}
     {/* Publiceringen finns på ett ställe, steget Publicera (PLAN.md steg 24). */}
-    {publish && <Section id={`${id}-publish`} title={raceTypeSv.sections.PUBLISH} help={text.publishLink}>
+    {publish && <Section id={`${id}-publish`} title={raceTypeText.sections.PUBLISH} help={text.publishLink}>
       <div><Button variant="secondary" onClick={() => navigateStep(publish.id)}>{text.publishOpen}</Button></div>
     </Section>}
     <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />

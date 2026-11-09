@@ -1,3 +1,5 @@
+import { plural } from "./plural";
+
 export const raceWorkspaceNavigationSv = {
   backToEvents: "Mina tävlingar",
   /** Ägaren 2026-11-03: banläggningen som eget mål i arbetsytan (sidopanelen och Meny). */
@@ -33,4 +35,33 @@ export const raceWorkspaceNavigationSv = {
   nextParticipant: "Nästa",
   participantPosition: (position: number, total: number) => `${position} av ${total} i aktuellt urval`,
   participantOutsideSequence: "Vald deltagare är utanför aktuellt urval",
+} as const;
+
+/** Delarnas läge i sidopanelen (`sectionStatus`); namnet på delen avgör hur antalet skrivs. */
+export const sectionStatusSv = {
+  noCourses: "Ingen bana ännu",
+  noControls: "Inga kontroller ännu",
+  courses: (count: number) => plural(count, "bana", "banor"),
+  noClasses: "Ingen klass ännu",
+  noClassesPlural: "Inga klasser ännu",
+  classes: (count: number) => plural(count, "klass", "klasser"),
+  noTeams: "Inga lag ännu",
+  teams: (teams: number, runners: number) => `${plural(teams, "lag", "lag")} · ${plural(runners, "löpare", "löpare")}`,
+  noParticipants: "Inga deltagare ännu",
+  participants: (count: number) => plural(count, "deltagare", "deltagare"),
+  noEntries: "Inga anmälda ännu",
+  entries: (count: number) => plural(count, "anmäld", "anmälda"),
+  missingStartTimes: (count: number) => `${count} saknar starttid`,
+  freeStart: "Fri start",
+  startTimesReady: "Starttider klara",
+  published: "Publicerad",
+  unpublished: "Inte publicerad",
+  hidden: "Dold",
+  readOut: (count: number) => `${count} avlästa`,
+  inForest: (count: number) => `${count} kvar`,
+  unknownCards: (count: number) => plural(count, "okänd bricka", "okända brickor"),
+  mispunched: (count: number) => `${plural(count, "felstämplad", "felstämplade")} att titta på`,
+  noResults: "Inga resultat ännu",
+  results: (count: number) => plural(count, "resultat", "resultat"),
+  party: "Varor, köp och export"
 } as const;

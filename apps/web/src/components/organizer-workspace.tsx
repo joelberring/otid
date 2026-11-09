@@ -1,6 +1,7 @@
 "use client";
 
 import { takeAfterLogin } from "../lib/after-login";
+import { raceTypeEn } from "../i18n/workspace-en";
 import { ClubStep } from "./club-affiliation/club-step";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -94,6 +95,7 @@ function GoogleLogin({ remember, copy }: { remember: boolean; copy: Copy }) {
 }
 
 export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const copy = useTexts(organizerSv, organizerEn);
   const [session, setSession] = useState<Session>();
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -382,7 +384,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
               // Loppets namn är valfritt: ett ensamt lopp utan namn visar datumet, flera visar "Lopp N".
               const name = raceListName(race, event.races, copy.raceNumber);
               return <li key={race.raceId}>
-              <div><strong>{name ?? race.raceDate}</strong><span>{name ? `${race.raceDate} · ` : ""}{raceTypeSv.types[race.raceType].name}</span></div>
+              <div><strong>{name ?? race.raceDate}</strong><span>{name ? `${race.raceDate} · ` : ""}{raceTypeText.types[race.raceType].name}</span></div>
               <div className={styles.raceActions}>
                 {(event.role === "OWNER" || event.role === "ADMIN") && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
                   aria-label={raceCopySv.actionLabel(name ?? event.eventName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
@@ -524,7 +526,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
           <dl><dt>{copy.eventName}</dt><dd>{attempt.request.eventName}</dd>
             <dt>{copy.raceName}</dt><dd>{attempt.request.raceName || copy.noRaceName}</dd>
             <dt>{copy.date}</dt><dd>{attempt.request.raceDate}</dd>
-            <dt>{raceTypeSv.typeLegend}</dt><dd>{raceTypeSv.types[attempt.request.raceType ?? "STANDARD"].name}</dd>
+            <dt>{raceTypeText.typeLegend}</dt><dd>{raceTypeText.types[attempt.request.raceType ?? "STANDARD"].name}</dd>
             <dt>{copy.timeZone}</dt><dd>{attempt.request.timeZone}</dd></dl>
           <div className={styles.actions}>
             {attemptMatchesSession && <button type="button" disabled={busy || !session} onClick={() => void submitCreate(attempt)}>{copy.retrySameAttempt}</button>}

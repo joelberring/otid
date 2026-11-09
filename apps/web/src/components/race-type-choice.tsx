@@ -1,7 +1,9 @@
 "use client";
 
 import { normalizeRaceType, selectableRaceTypes, type RaceType } from "@o-tid/contracts";
-import { raceTypeSv as text } from "../i18n/race-type-sv";
+import { raceTypeEn } from "../i18n/workspace-en";
+import { useTexts } from "./language-provider";
+import { raceTypeSv } from "../i18n/race-type-sv";
 import styles from "./race-type-choice.module.css";
 
 /**
@@ -12,6 +14,7 @@ import styles from "./race-type-choice.module.css";
 export function RaceTypeChoice({ name = "raceType", value, defaultValue, onChange, disabled }: {
   name?: string; value?: RaceType; defaultValue?: RaceType; onChange?: (type: RaceType) => void; disabled?: boolean;
 }) {
+  const text = useTexts(raceTypeSv, raceTypeEn);
   return <fieldset className={styles.choice} disabled={disabled}>
     <legend>{text.typeLegend}</legend>
     {selectableRaceTypes.map(type => <label key={type} className={styles.option}>

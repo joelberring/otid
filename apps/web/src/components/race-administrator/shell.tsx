@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import styles from "./shell.module.css";
-import { raceTypeSv as typeText } from "../../i18n/race-type-sv";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceTypeSv } from "../../i18n/race-type-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
+import { raceTypeEn, raceWorkspaceNavigationEn, shellEn } from "../../i18n/workspace-en";
+import { useLanguage, useTexts } from "../language-provider";
 import { checklistFacts, inForest, sectionStatus, type SectionFacts } from "../../lib/section-status";
 import type { Section } from "../../lib/race-sections";
 import { courseSettingPath } from "./race-data";
@@ -17,7 +19,8 @@ import { shownRaceName } from "@o-tid/domain";
  * Banläggningen som eget mål (ägaren 2026-11-03: "lite gömd"): för den som har banläggningens behörighet på tävlingen, i alla
  * tävlingstyper (också fest och rogaining; editorn förklarar vad som skiljer). Samma flik; osparat stoppar som stegen.
  */
-export function courseSettingLink(ws: Workspace): { href: string; label: string; status: string } | undefined {
+export function courseSettingLink(ws: Workspace, navigationText: typeof raceWorkspaceNavigationEn = raceWorkspaceNavigationSv)
+  : { href: string; label: string; status: string } | undefined {
   const level = ws.courseSetting;
   if (!level || !ws.data) return undefined;
   return { href: `/admin/${ws.raceId}/${courseSettingPath(level)}`, label: level === "MAP" ? navigationText.mapErrors : navigationText.courseSetting,
@@ -40,9 +43,12 @@ function facts(ws: Workspace): SectionFacts | undefined {
  * genvägarna och Logga ut i en meny, så att tillbakalänken och räknarna alltid syns.
  */
 export function TopBar({ ws }: { ws: Workspace }) {
+  const typeText = useTexts(raceTypeSv, raceTypeEn);
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
+  const text = useTexts({ refreshOverview: raceAdministratorSv.refreshOverview, logout: raceAdministratorSv.logout }, shellEn);
   const { data, functionary, mayLeave, profile, raceId, refresh, logout, saving, section } = ws;
   const current = facts(ws);
-  const courseSetting = courseSettingLink(ws);
+  const courseSetting = courseSettingLink(ws, navigationText);
   const shortcuts = (menu: boolean) => <>
     {/* På smal skärm: banläggningen också i menyn (sidopanelens remsa kan vara utrullad åt sidan). */}
     {menu && courseSetting && <a href={courseSetting.href} data-testid="menu-course-setting"
@@ -85,15 +91,18 @@ export function TopBar({ ws }: { ws: Workspace }) {
  * På mobil blir den en remsa överst som går att rulla i sidled.
  */
 export function Sidebar({ ws }: { ws: Workspace }) {
+  const typeText = useTexts(raceTypeSv, raceTypeEn);
+  const language = useLanguage();
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { data, mayLeave, navigateStep, profile, raceId, section: active } = ws;
-  const courseSetting = courseSettingLink(ws);
+  const courseSetting = courseSettingLink(ws, navigationText);
   const current = facts(ws);
   const activeButton = useRef<HTMLButtonElement | null>(null);
   // Mobil: remsan rullar så att den valda delen syns.
   useEffect(() => { activeButton.current?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [active.id]);
   if (!data || !current) return null;
   const item = (section: Section, settings = false) => {
-    const status = sectionStatus(section, current, data.raceType);
+    const status = sectionStatus(section, current, data.raceType, language);
     const statusId = `section-${raceId}-${section.id}`;
     const selected = section.id === active.id;
     return <li key={section.id} className={settings ? styles.settingsItem : undefined}>

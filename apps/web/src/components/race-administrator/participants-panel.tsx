@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { raceTypeEn } from "../../i18n/workspace-en";
+import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { sv } from "../../i18n/sv";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
@@ -27,6 +30,8 @@ import { joinRaceParts, raceTitle } from "@o-tid/domain";
  * en person är alltid en deltagare (PLAN.md steg 24). Kortet visas bredvid listan först när någon är vald.
  */
 export function ParticipantsPanel({ ws }: { ws: Workspace }) {
+  const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { action, data, mobilePanel, navigateStep, participantsVisible, profile, raceId, revealSelected,
     selected, selectedIndex, selectedPage, currentPage, workflowLocked } = ws;
   const relayClasses = data?.classes.filter(row => row.relayLegCount !== undefined).length ?? 0;
@@ -35,7 +40,7 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
   if (profile.features.relay && data && relayClasses === 0) {
     const classes = sectionForPanel(profile, "CLASSES");
     return <section className={styles.workflowGroup} aria-label={navigationText.steps.ENTRIES} hidden={!participantsVisible}>
-      <h2>{raceTypeSv.sections.TEAMS}</h2>
+      <h2>{raceTypeText.sections.TEAMS}</h2>
       <EmptyState title={relayText.noRelayClassTitle}
         action={classes && <Button onClick={() => navigateStep(classes.id)}>{relayText.goToClasses}</Button>}>
         {relayText.noRelayClassHelp}</EmptyState>
@@ -63,13 +68,15 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
 
 /** Deltagarlistan: sök och klass alltid, övriga filter under "Fler filter" (bara de som har något att visa). */
 export function ParticipantList({ ws }: { ws: Workspace }) {
+  const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { classesById, currentPage, data, disabled, entryId, filtered, lastPage, listPanel, missingFixedStartOnly,
     newParticipant, olderResultCount, olderResultsOnly, openMissingStartTime, pageSize, printPrivate, profile, query, raceId,
     rentalCardCount, rentalCardsOnly, rentalEntries, resultState, rosterClassId, rosterOrder, section, select, setMissingFixedStartOnly,
     setOlderResultsOnly, setPage, setPageSize, setQuery, setRentalCardsOnly, setResultState, setRosterClassId, setRosterOrder,
     visible, workflowLocked } = ws;
   const [moreFilters, setMoreFilters] = useState(false);
-  const title = raceTypeSv.sections[section.label === "TEAMS" ? "PARTICIPANTS" : section.label];
+  const title = raceTypeText.sections[section.label === "TEAMS" ? "PARTICIPANTS" : section.label];
   const empty = !!data && data.entries.length === 0;
   const statusOptions = rosterStatusOptions(data?.entries ?? [], resultState);
   const filtersActive = resultState !== "ALL" || rosterOrder !== "NAME" || olderResultsOnly || rentalCardsOnly || pageSize !== 25;

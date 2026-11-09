@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { startRuleSv } from "../../i18n/start-rule-sv";
 import type { ManualClassCreateRequest } from "@o-tid/contracts";
 import { Button, Disclosure, Field, Notice } from "../ui";
@@ -13,6 +15,7 @@ import type { Workspace } from "./workspace-state";
 
 /** Klasser: tabell (namn, bana, startsätt), "Ny klass" och maxantal. Det som inte ändrar resultat sparas direkt. */
 export function PreparationClasses({ ws }: { ws: Workspace }) {
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { busy, capacityAttempt, capacityClass, capacityClassId, capacityInput, selectedClassId, data,
     disabled, courseList, profile, saveCapacity, setCapacityClassId, setCapacityInput, setSelectedClassId, setMessage, shows,
     submitCapacity, unknown } = ws;

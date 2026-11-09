@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { rogainingSv } from "../../i18n/rogaining-sv";
 import { startRuleSv } from "../../i18n/start-rule-sv";
 import { Button, Field, Notice } from "../ui";
@@ -18,6 +20,7 @@ import type { Workspace } from "./workspace-state";
  * I rogaining ligger kontrollerna med poäng först (RogainingPanel); banorna är där bara kontrollmängden.
  */
 export function PreparationCourses({ ws }: { ws: Workspace }) {
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const visible = ws.shows("COURSES");
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.COURSES} hidden={!visible}>
     {visible && <CourseTable ws={ws} visible={visible} />}

@@ -1,9 +1,10 @@
 import type { EntryTransferCandidates, RaceType } from "@o-tid/contracts";
 import { raceDayStarted } from "@o-tid/domain";
 import { raceTypeSv } from "../i18n/race-type-sv";
-import { publicRaceSv } from "../i18n/public-race-sv";
+import { sectionStatusSv } from "../i18n/race-workspace-navigation-sv";
+import { raceTypeEn, sectionStatusEn } from "../i18n/workspace-en";
+import { pickTexts, type Language } from "./language";
 import type { Section } from "./race-sections";
-import { plural } from "../i18n/plural";
 
 /**
  * Status per del i sidopanelen (ADR-0169 beslut 4, ADR-0170 beslut 2): en kort rad i ord, t.ex.
@@ -77,45 +78,39 @@ export function checklistFacts(data: Pick<EntryTransferCandidates, "classes" | "
 }
 
 /** Delens status i ord. Namnet på delen (t.ex. "Lag" i stället för "Anmälda") avgör hur antalet skrivs. */
-export function sectionStatus(section: Pick<Section, "id" | "label">, facts: SectionFacts, raceType: RaceType): { tone: SectionTone; text: string } {
+export function sectionStatus(section: Pick<Section, "id" | "label">, facts: SectionFacts, raceType: RaceType,
+  language: Language = "sv"): { tone: SectionTone; text: string } {
+  const text = pickTexts(language, sectionStatusSv, sectionStatusEn);
   switch (section.id) {
     case "COURSES":
-      if (section.label === "COURSES") return facts.courses === 0 ? { tone: "OPEN", text: "Ingen bana ännu" }
-        : { tone: "DONE", text: plural(facts.courses, "bana", "banor") };
-      if (facts.courses === 0) return { tone: "OPEN", text: section.label === "CONTROLS_POINTS" ? "Inga kontroller ännu" : "Ingen bana ännu" };
-      return {
-        tone: facts.classes === 0 ? "OPEN" : "DONE",
-        text: `${plural(facts.courses, "bana", "banor")} · ${plural(facts.classes, "klass", "klasser")}` };
-    case "CLASSES": return facts.classes === 0 ? { tone: "OPEN", text: "Ingen klass ännu" }
-      : { tone: "DONE", text: plural(facts.classes, "klass", "klasser") };
+      if (section.label === "COURSES") return facts.courses === 0 ? { tone: "OPEN", text: text.noCourses }
+        : { tone: "DONE", text: text.courses(facts.courses) };
+      if (facts.courses === 0) return { tone: "OPEN", text: section.label === "CONTROLS_POINTS" ? text.noControls : text.noCourses };
+      return { tone: facts.classes === 0 ? "OPEN" : "DONE", text: `${text.courses(facts.courses)} · ${text.classes(facts.classes)}` };
+    case "CLASSES": return facts.classes === 0 ? { tone: "OPEN", text: text.noClasses } : { tone: "DONE", text: text.classes(facts.classes) };
     case "ENTRIES":
-      if (section.label === "TEAMS") return facts.teams === 0 ? { tone: "OPEN", text: "Inga lag ännu" }
-        : { tone: "DONE", text: `${plural(facts.teams, "lag", "lag")} · ${plural(facts.entries, "löpare", "löpare")}` };
-      if (section.label === "PARTICIPANTS") return facts.entries === 0 ? { tone: "OPEN", text: "Inga deltagare ännu" }
-        : { tone: "DONE", text: plural(facts.entries, "deltagare", "deltagare") };
-      return facts.entries === 0 ? { tone: "OPEN", text: "Inga anmälda ännu" }
-        : { tone: "DONE", text: plural(facts.entries, "anmäld", "anmälda") };
+      if (section.label === "TEAMS") return facts.teams === 0 ? { tone: "OPEN", text: text.noTeams }
+        : { tone: "DONE", text: text.teams(facts.teams, facts.entries) };
+      if (section.label === "PARTICIPANTS") return facts.entries === 0 ? { tone: "OPEN", text: text.noParticipants }
+        : { tone: "DONE", text: text.participants(facts.entries) };
+      return facts.entries === 0 ? { tone: "OPEN", text: text.noEntries } : { tone: "DONE", text: text.entries(facts.entries) };
     case "START":
-      if (facts.classes === 0) return { tone: "OPEN", text: "Inga klasser ännu" };
-      if (facts.missingStartTimes > 0) return { tone: "ATTENTION", text: `${facts.missingStartTimes} saknar starttid` };
-      return { tone: "DONE", text: facts.fixedStartClasses === 0 ? "Fri start" : "Starttider klara" };
-    case "PUBLISH": {
-      const text = publicRaceSv.publish.status;
+      if (facts.classes === 0) return { tone: "OPEN", text: text.noClassesPlural };
+      if (facts.missingStartTimes > 0) return { tone: "ATTENTION", text: text.missingStartTimes(facts.missingStartTimes) };
+      return { tone: "DONE", text: facts.fixedStartClasses === 0 ? text.freeStart : text.startTimesReady };
+    case "PUBLISH":
       return facts.publication === "PUBLISHED" ? { tone: "DONE", text: text.published }
         : facts.publication === "HIDDEN" ? { tone: "ATTENTION", text: text.hidden } : { tone: "OPEN", text: text.unpublished };
-    }
     case "READOUT": {
-      const parts = [`${facts.readOut} avlästa`, `${facts.inForest} kvar`];
-      if (facts.unknownCards) parts.push(plural(facts.unknownCards, "okänd bricka", "okända brickor"));
+      const parts = [text.readOut(facts.readOut), text.inForest(facts.inForest)];
+      if (facts.unknownCards) parts.push(text.unknownCards(facts.unknownCards));
       return { tone: facts.unknownCards ? "ATTENTION" : facts.entries > 0 && facts.inForest === 0 ? "DONE" : "OPEN",
         text: parts.join(" · ") };
     }
     case "RESULTS":
-      if (facts.mispunched > 0) return { tone: "ATTENTION",
-        text: `${plural(facts.mispunched, "felstämplad", "felstämplade")} att titta på` };
-      return facts.results === 0 ? { tone: "OPEN", text: "Inga resultat ännu" }
-        : { tone: "DONE", text: plural(facts.results, "resultat", "resultat") };
-    case "PARTY": return { tone: "OPEN", text: "Varor, köp och export" };
-    case "SETTINGS": return { tone: "DONE", text: raceTypeSv.types[raceType].name };
+      if (facts.mispunched > 0) return { tone: "ATTENTION", text: text.mispunched(facts.mispunched) };
+      return facts.results === 0 ? { tone: "OPEN", text: text.noResults } : { tone: "DONE", text: text.results(facts.results) };
+    case "PARTY": return { tone: "OPEN", text: text.party };
+    case "SETTINGS": return { tone: "DONE", text: pickTexts(language, raceTypeSv, raceTypeEn).types[raceType].name };
   }
 }

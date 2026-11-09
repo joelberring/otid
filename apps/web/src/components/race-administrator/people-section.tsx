@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { raceTypeEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import { INVITATION_BULK_MAX, racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
   type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest, type RacePersonInvitation } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
@@ -14,7 +16,6 @@ import { inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { FromClubPicker } from "../club-affiliation/from-club-picker";
 
-const text = raceTypeSv.settings.people;
 const GRANTABLE = ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"] as const;
 type Message = { tone: "ok" | "error"; text: string };
 
@@ -26,6 +27,7 @@ type Message = { tone: "ok" | "error"; text: string };
  */
 export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: string; disabled: boolean;
   onPendingChange: (pending: boolean) => void }) {
+  const text = useTexts(raceTypeSv.settings.people, raceTypeEn.settings.people);
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator/people`;
   const [data, setData] = useState<RacePeopleResponse>();
   const [loadFailed, setLoadFailed] = useState(false);

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { startListPublicationSv as publicationText } from "../../i18n/start-list-publication-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { startListFromWorkspace } from "../../lib/lists/start-list-model";
@@ -77,6 +79,7 @@ function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boo
  * exportera) och 3 Publicera startlistan (PLAN.md steg 24). Funktionären ser bara startlistan (ADR-0172 beslut 3).
  */
 export function PreparationStartList({ ws }: { ws: Workspace }) {
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { data, disabled, downloadStartList, functionary, profile, raceId, select, shows } = ws;
   const visible = shows("START");
   const model = useMemo(() => data ? startListFromWorkspace(data) : undefined, [data]);

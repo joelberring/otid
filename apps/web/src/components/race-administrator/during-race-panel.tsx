@@ -1,8 +1,10 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
+import { useTexts } from "../language-provider";
 import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
-import { raceWorkspaceNavigationSv as navigationText } from "../../i18n/race-workspace-navigation-sv";
+import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
@@ -26,6 +28,7 @@ import { sectionById } from "../../lib/race-sections";
 
 /** Avläsning: kontrollvyn och hela skogslistan med manuell återkomst. Speakern har en egen sida (ADR-0170). */
 export function DuringRaceOverview({ ws }: { ws: Workspace }) {
+  const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { data, disabled, entryId, forestAutoRefresh, forestClass, forestData, forestOpen, forestQuery, forestSortByAge,
     forestStale, functionary, loadForest, prepareReturn, prepareStartCorrection, printPrivate, raceId, select, setEntryId, setForestAutoRefresh,
     setForestClass, setForestOpen, setForestQuery, setForestSortByAge, setTargetStartState, shows, targetStartState, profile } = ws;

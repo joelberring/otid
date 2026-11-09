@@ -117,3 +117,20 @@ test("språk: festen på engelska", async ({ browser }) => {
   await expect(visitor.getByRole("button", { name: "Print" })).toBeVisible();
   await expect(visitor.getByText("Follow the evening here")).toBeVisible();
 });
+
+/** Arbetsytan del 1: skalet, delarnas läge, Inställningar och Personer med behörighet på engelska. */
+test("språk: arbetsytans skal på engelska", async ({ browser }) => {
+  test.setTimeout(180_000);
+  const owner = await registerAccount(browser, `sprakyta.${unique()}@exempel.se`, "Ylva Yta");
+  const raceId = await createRace(owner, `Workspace ${unique()}`, undefined, "Träning");
+  await owner.goto(`/sprak?till=en&tillbaka=${encodeURIComponent(`/admin/${raceId}/manage`)}`);
+  const parts = owner.getByRole("navigation", { name: "Parts of the event" });
+  await expect(parts.getByRole("button", { name: "Courses & classes" })).toBeVisible({ timeout: 30_000 });
+  await expect(parts.getByText("No course yet")).toBeVisible();
+  await expect(owner.getByRole("link", { name: "‹ My events" })).toBeVisible();
+  await parts.getByRole("button", { name: "Settings" }).click();
+  await expect(owner.getByRole("heading", { name: "People with access" })).toBeVisible();
+  await expect(owner.getByRole("group", { name: "Type of event" })).toContainText("Training");
+  await owner.goto(`/sprak?till=sv&tillbaka=${encodeURIComponent(`/admin/${raceId}/manage`)}`);
+  await expect(owner.getByRole("navigation", { name: "Tävlingens delar" })).toBeVisible({ timeout: 30_000 });
+});

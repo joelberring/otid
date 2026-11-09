@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { drawMap, MapFileError, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
-  baseKeys, checkNorm, coverageGrid, editedObjects, generalize, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, type Box, type KeyedState, type ObjectKey,
+  baseKeys, checkNorm, coverageGrid, editedObjects, generalize, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -209,6 +209,16 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       return [{ key, ref: refs.get(key) ?? null, object }];
     }) : [];
     post({ type: "bySymbol", id: request.id, objects });
+    return;
+  }
+  if (request.type === "warp") {
+    // K6b: alla objekt (eller de i rutan), också dolda symbolers, flyttas med passpunkternas transform; grundfilens referenser följer med.
+    const objects = current ? current.map.objects.map((object, index) => ({ key: current!.keys[index]!, object })) : [];
+    const { changes } = warpObjects(objects, request.options);
+    post({ type: "warp", id: request.id, changes, refs: changes.flatMap(change => {
+      const ref = refs.get(change.key);
+      return ref ? [[change.key, ref] as const] : [];
+    }) });
     return;
   }
   if (request.type === "norm" || request.type === "generalize") {

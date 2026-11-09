@@ -465,5 +465,12 @@ Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpa
    punkt (kryss) från målet (ring).
 3. **Spara** ger underlaget en ny världsfil i kartans koordinatsystem (`PUT …/layers/:id` med `crs` och `transform`, som bara
    ändras tillsammans). Ingen migration: kolumnerna finns sedan 0097.
-4. Gummiduk (olika rättning i olika delar av bilden) och rättning av kartans egna objekt mot passpunkter är nästa steg.
+4. **Rätta kartan med passpunkter** (K6b, samma dag): för en äldre karta som ligger fel mot ortofoto, laser eller vägar. Ett
+   klick där något ligger på kartan och ett där det ska ligga ger en passpunkt. Kartan rättas **likformigt** (2+), **affint**
+   (3+) eller som **gummiduk** (3+, tunn platta som går exakt genom punkterna och är affin långt bort). Workern flyttar alla
+   objekt (också dolda symbolers) eller de i ett delområde: kurvornas styrpunkter följer med, och punkters och texters vinkel
+   vrids med kartan där de ligger. Flyttarna lämnas som förslag med källan **PROCESS** (högst 200 ändringar per förslag; källan
+   kontrolleras redan med ett mönster i databasen, ingen migration) och räknas inte i statistiken.
+5. Försök som sparas och jämförs (planens `map_project_variant`) och kartans georeferens som rättas i stället för objekten är
+   nästa steg.
 

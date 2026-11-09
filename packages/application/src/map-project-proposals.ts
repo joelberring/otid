@@ -110,8 +110,8 @@ async function createProposal(tx: DbExecutor, access: Awaited<ReturnType<typeof 
   if (access.status !== "ok") return access;
   if (!parsed.success) return { status: "invalid-request" } as const;
   const { requestId, note, edits } = parsed.data;
-  // Bara en person kan välja IMPORT eller GENERALIZE; AI-kopplingens förslag är alltid AI.
-  if (source === "PERSON" && (parsed.data.source === "IMPORT" || parsed.data.source === "GENERALIZE")) source = parsed.data.source;
+  // Bara en person kan välja IMPORT, GENERALIZE eller PROCESS; AI-kopplingens förslag är alltid AI.
+  if (source === "PERSON" && parsed.data.source !== undefined && parsed.data.source !== "PERSON") source = parsed.data.source;
   const project = access.project;
   const [prior] = await tx.select().from(proposals).where(eq(proposals.requestId, requestId));
   if (prior) {

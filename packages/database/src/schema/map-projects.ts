@@ -19,7 +19,7 @@ export type MapProjectRole = "OWNER" | "EDIT" | "SUGGEST" | "READ";
 export type MapProjectMode = "SHARED" | "LEAD";
 export type MapProjectAreaStatus = "BASE" | "DRAFTED" | "SURVEYED" | "DONE";
 export type MapProjectProposalStatus = "OPEN" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
-export type MapProjectProposalSource = "PERSON" | "AI" | "IMPORT" | "GENERALIZE";
+export type MapProjectProposalSource = "PERSON" | "AI" | "IMPORT" | "GENERALIZE" | "PROCESS";
 export type MapProjectStatus = "OPEN" | "CLOSED";
 export type MapProjectEditStatus = "APPLIED" | "CONFLICT";
 

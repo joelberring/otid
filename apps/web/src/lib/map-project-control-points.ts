@@ -1,4 +1,5 @@
 import { mapPointToProjected, type MapGeoreference, type Point } from "@o-tid/map-file";
+import { fitAffine, fitSimilarity } from "@o-tid/map-revision";
 import type { Affine } from "./map-project-layers";
 import type { Bounds } from "./course-setting-viewport";
 
@@ -21,50 +22,12 @@ export interface Fit {
 
 const apply = (t: Affine, p: Point): Point => ({ x: t.a * p.x + t.b * p.y + t.c, y: t.d * p.x + t.e * p.y + t.f });
 
-/** Ett 3×3-system (Cramers regel); undefined om det saknar lösning (punkterna på en linje). */
-function solve3(m: readonly (readonly number[])[], v: readonly number[]): [number, number, number] | undefined {
-  const det = (a: readonly (readonly number[])[]) => a[0]![0]! * (a[1]![1]! * a[2]![2]! - a[1]![2]! * a[2]![1]!)
-    - a[0]![1]! * (a[1]![0]! * a[2]![2]! - a[1]![2]! * a[2]![0]!) + a[0]![2]! * (a[1]![0]! * a[2]![1]! - a[1]![1]! * a[2]![0]!);
-  const d = det(m);
-  if (!Number.isFinite(d) || Math.abs(d) < 1e-12) return undefined;
-  const column = (index: number) => m.map((row, r) => row.map((value, c) => c === index ? v[r]! : value));
-  return [det(column(0)) / d, det(column(1)) / d, det(column(2)) / d];
-}
-
-function affineFit(points: readonly ControlPoint[]): Affine | undefined {
-  // Normalekvationerna för x' = a·u + b·v + c (och lika för y'), med pixlarna centrerade för noggrannhetens skull.
-  const cu = points.reduce((sum, p) => sum + p.pixel.x, 0) / points.length, cv = points.reduce((sum, p) => sum + p.pixel.y, 0) / points.length;
-  let uu = 0, uv = 0, vv = 0, u1 = 0, v1 = 0;
-  const xr = [0, 0, 0], yr = [0, 0, 0];
-  for (const p of points) {
-    const u = p.pixel.x - cu, v = p.pixel.y - cv;
-    uu += u * u; uv += u * v; vv += v * v; u1 += u; v1 += v;
-    xr[0]! += u * p.map.x; xr[1]! += v * p.map.x; xr[2]! += p.map.x;
-    yr[0]! += u * p.map.y; yr[1]! += v * p.map.y; yr[2]! += p.map.y;
-  }
-  const m = [[uu, uv, u1], [uv, vv, v1], [u1, v1, points.length]];
-  const x = solve3(m, xr), y = solve3(m, yr);
-  if (!x || !y) return undefined;
-  return { a: x[0], b: x[1], c: x[2] - x[0] * cu - x[1] * cv, d: y[0], e: y[1], f: y[2] - y[0] * cu - y[1] * cv };
-}
-
+/** Bildens rader går nedåt och kartans y uppåt: den likformiga anpassas på (kolumn, −rad) och vänds tillbaka. */
 function similarityFit(points: readonly ControlPoint[]): Affine | undefined {
-  // Bildens rader går nedåt och kartans y uppåt: anpassa (kolumn, −rad) → (x, y) med x = p·u − q·v + c, y = q·u + p·v + d.
-  const n = points.length;
-  const mu = { x: points.reduce((s, p) => s + p.pixel.x, 0) / n, y: -points.reduce((s, p) => s + p.pixel.y, 0) / n };
-  const mx = { x: points.reduce((s, p) => s + p.map.x, 0) / n, y: points.reduce((s, p) => s + p.map.y, 0) / n };
-  let sxx = 0, sxy = 0, norm = 0;
-  for (const p of points) {
-    const u = p.pixel.x - mu.x, v = -p.pixel.y - mu.y, x = p.map.x - mx.x, y = p.map.y - mx.y;
-    sxx += u * x + v * y; sxy += u * y - v * x; norm += u * u + v * v;
-  }
-  if (norm < 1e-12) return undefined;
-  const p = sxx / norm, q = sxy / norm;
-  if (Math.hypot(p, q) < 1e-12) return undefined;
-  const c = mx.x - (p * mu.x - q * mu.y), d = mx.y - (q * mu.x + p * mu.y);
-  // Tillbaka till kolumn och rad: x = p·kolumn + q·rad + c, y = q·kolumn − p·rad + d.
-  return { a: p, b: q, c, d: q, e: -p, f: d };
+  const t = fitSimilarity(points.map(point => ({ from: { x: point.pixel.x, y: -point.pixel.y }, to: point.map })));
+  return t && { a: t.a, b: -t.b, c: t.c, d: t.d, e: -t.e, f: t.f };
 }
+const affineFit = (points: readonly ControlPoint[]) => fitAffine(points.map(point => ({ from: point.pixel, to: point.map })));
 
 /** Den transform som passar punkterna bäst. Likformig med två punkter (eller när den väljs), annars affin; undefined när det inte går. */
 export function fitControlPoints(points: readonly ControlPoint[], kind: FitKind = points.length >= 3 ? "affine" : "similarity"): Fit | undefined {

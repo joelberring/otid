@@ -464,3 +464,45 @@ test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) =>
   const listed = (await (await owner.request.get(`${api}/proposals`)).json() as { proposals: { source: string }[] }).proposals;
   expect(listed.map(row => row.source).sort()).toEqual(["GENERALIZE", "IMPORT"]);
 });
+
+/**
+ * ADR-0219 K6b: en äldre karta rättas med passpunkter. Två punkter som ligger 2 mm åt öster och 1 mm åt norr ger en
+ * likformig flytt av alla objekt (cirka 22 m vid 1:10 000) som lämnas som förslag med källan PROCESS.
+ */
+test("kartprojekt: rätta kartan med passpunkter som förslag", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `ratta.${unique()}@exempel.se`, "Rut Rättare");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Rätta", "x-otid-file-name": "Ratta.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  await warmRoute(owner, `${api}/proposals`);
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+
+  const rectify = owner.getByTestId("map-project-rectify");
+  await rectify.getByText("Rätta kartan med passpunkter").click();
+  await rectify.getByTestId("map-project-rectify-start").click();
+  for (const from of [{ x: 30, y: 40 }, { x: 70, y: 60 }]) {
+    await expect(rectify.getByTestId("map-project-rectify-hint")).toHaveText("Rätta kartan: klicka där något ligger på kartan nu.");
+    await clickMap(owner, from);
+    await expect(rectify.getByTestId("map-project-rectify-hint")).toHaveText("Rätta kartan: klicka där det ska ligga.");
+    await clickMap(owner, { x: from.x + 2, y: from.y + 1 });
+  }
+  await expect(rectify.getByTestId("map-project-rectify-list").locator("li")).toHaveCount(2);
+  await expect(rectify.getByTestId("map-project-rectify-fit")).toContainText("Likformig: medelavvikelse");
+  await rectify.getByRole("button", { name: "Klar med punkterna" }).click();
+  await rectify.getByTestId("map-project-rectify-preview").click();
+  await expect(rectify.getByTestId("map-project-rectify-result")).toContainText(/\d+ objekt flyttas, i medel 2\d m/, { timeout: 30_000 });
+  const count = Number((await rectify.getByTestId("map-project-rectify-result").textContent())!.match(/(\d+) objekt flyttas/)![1]);
+  expect(count).toBeGreaterThan(0);
+  await rectify.getByTestId("map-project-rectify-propose").click();
+  await expect(rectify.getByTestId("map-project-rectify-message")).toContainText("Ägaren ser", { timeout: 30_000 });
+  const listed = (await (await owner.request.get(`${api}/proposals`)).json() as { proposals: { source: string; note: string | null }[] }).proposals;
+  expect(listed.every(row => row.source === "PROCESS")).toBe(true);
+  expect(listed[0]!.note).toMatch(/^Rättad med 2 passpunkter \(likformig\)/);
+  await expect(owner.getByTestId("map-project-proposals")).toContainText("Rättad med 2 passpunkter", { timeout: 20_000 });
+});

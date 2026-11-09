@@ -1,5 +1,7 @@
 import type { MapColor, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
-import type { Coverage, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint } from "@o-tid/map-revision";
+import type {
+  Coverage, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint, WarpChange, WarpOptions
+} from "@o-tid/map-revision";
 import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
 import type { Bounds } from "./course-setting-viewport";
 
@@ -50,7 +52,9 @@ export type MapProjectRequest =
   /** K6: generaliseringens ändringar (förenkla, ta bort det normen inte tillåter) för kartan med ändringarna. */
   | { readonly type: "generalize"; readonly id: number; readonly options: GeneralizeOptions }
   /** Lagren (ägaren 2026-11-09): objekten med en symbol, för att slå ihop symbolen med en annan. */
-  | { readonly type: "bySymbol"; readonly id: number; readonly symbol: string };
+  | { readonly type: "bySymbol"; readonly id: number; readonly symbol: string }
+  /** K6b: kartan rättad med passpunkter (likformig, affin eller gummiduk). */
+  | { readonly type: "warp"; readonly id: number; readonly options: WarpOptions };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -62,6 +66,7 @@ export type MapProjectResponse =
   | { readonly type: "norm"; readonly id: number; readonly result: NormResult }
   | { readonly type: "generalize"; readonly id: number; readonly result: GeneralizeResult; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "bySymbol"; readonly id: number; readonly objects: readonly SymbolObject[] }
+  | { readonly type: "warp"; readonly id: number; readonly changes: readonly WarpChange<ObjectKey>[]; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Ett objekt med sin nyckel och (för grundfilens objekt) sin referens. */
@@ -87,6 +92,8 @@ export class MapProjectSession {
   private onGeneralize: ((result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
   private latestBySymbol = 0;
   private onBySymbol: ((objects: readonly SymbolObject[]) => void) | undefined;
+  private latestWarp = 0;
+  private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
   constructor(createWorker: () => Worker, onLoaded: (loaded: Extract<MapProjectResponse, { type: "loaded" }>) => void,
     onError: (code: MapRenderErrorCode) => void) {
@@ -101,6 +108,7 @@ export class MapProjectSession {
       else if (message.type === "norm") { if (message.id === this.latestNorm) this.onNorm?.(message.result); }
       else if (message.type === "generalize") { if (message.id === this.latestGeneralize) this.onGeneralize?.(message.result, new Map(message.refs)); }
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
+      else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -156,8 +164,14 @@ export class MapProjectSession {
     this.post({ type: "bySymbol", id, symbol });
   }
 
+  warp(options: WarpOptions, onWarp: (changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) {
+    const id = ++this.latestWarp;
+    this.onWarp = onWarp;
+    this.post({ type: "warp", id, options });
+  }
+
   close() {
-    this.onGeneralize = undefined; this.onBySymbol = undefined;
+    this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();
   }

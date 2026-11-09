@@ -18,6 +18,9 @@ import { coverageImage, drawCoverage, drawNormIssues, drawNotes, drawReconMarker
 import { MapProjectNormPanel } from "./map-project-norm-panel";
 import { MapProjectGeneralizePanel } from "./map-project-generalize-panel";
 import { useMapProjectGeneralize } from "./use-map-project-generalize";
+import { useMapProjectRectify } from "./use-map-project-rectify";
+import { MapProjectRectifyPanel } from "./map-project-rectify-panel";
+import { mapProjectRectifySv as rectifyText } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { NoteDetail, NoteForm, NotesPanel } from "./map-project-notes";
@@ -198,6 +201,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     useCallback(() => { void loadProposals(); }, [loadProposals]));
   // K6: generaliseringen som förslag.
   const generalizer = useMapProjectGeneralize(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
+  const rectify = useMapProjectRectify(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const candidates = importer.candidates;
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   // Ägaren 2026-11-09: lagren efter normen. Släckta och låsta lager går inte att markera; låsta kan visas nedtonade.
@@ -296,6 +300,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     unlifted: tool === "draw" || tool === "area" || tool === "circle",
     onTap(point, tolerance, modifiers) {
       if (control.active) { control.click(point); return; }
+      if (rectify.picking) { rectify.click(point); return; }
       const now = performance.now();
       const previous = lastTap.current;
       const double = !!previous && now - previous.at < DOUBLE_TAP_MS && Math.hypot(previous.point.x - point.x, previous.point.y - point.y) < tolerance * 2;
@@ -360,7 +365,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       });
     },
     onDragStart(point, tolerance) {
-      if (control.active) return false;
+      if (control.active || rectify.picking) return false;
       if (!canEdit || tool === "area") return false;
       if (tool === "circle") {
         if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) return false;
@@ -524,6 +529,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (normIssues) drawNormIssues(ctx, current, normIssues, shownIssue);
     drawNotes(ctx, current, notes.notes, shownNote);
     if (control.active) drawControlPoints(ctx, current, control.markers);
+    if (rectify.shown.length) drawProposed(ctx, current, rectify.shown, [], true);
+    if (rectify.markers.length) drawControlPoints(ctx, current, rectify.markers);
     if (noteDraft) drawNotes(ctx, current, [{ noteId: "", at: noteDraft.at, status: "OPEN", pending: true }], "");
     if (shown && tool === "select" && selected) {
       drawSelection(ctx, current, shown, activeVertex);
@@ -532,7 +539,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue,
-    control.active, control.markers]);
+    control.active, control.markers, rectify.shown, rectify.markers]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
@@ -544,7 +551,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     : symbol.kind === "line" ? text.hints.drawLine(symbol.code)
     : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
-  const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage) : flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
+  const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage)
+    : rectify.picking ? (rectify.pending ? rectifyText.hintTo : rectifyText.hintFrom) : flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object) : [];
@@ -667,6 +675,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
           <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
           <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
+          {georeference && <MapProjectRectifyPanel rectify={rectify} areas={collab.areas} scale={georeference.scale} />}
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
             control={control} scale={georeference.scale} area={editor.bounds ?? undefined}
             after={<>

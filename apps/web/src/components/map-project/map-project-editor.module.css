@@ -143,3 +143,4 @@
   font-size: .75rem; color: inherit; cursor: pointer; }
 .layerToggles button[aria-pressed="true"] { background: var(--surface-2, #f3f3f3); border-color: var(--ink); }
 .layerToggles button:disabled { opacity: .4; cursor: default; }
+.fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 0; display: grid; gap: 2px; }

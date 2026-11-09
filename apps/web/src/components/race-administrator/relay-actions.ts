@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
+
+
 import { relayClassCreateResponseSchema, relayLegRunnerResponseSchema, relayOverviewSchema, relayStartTimesResponseSchema,
   relayTeamCreateResponseSchema, type RelayClassCreateRequest, type RelayLegRunnerRequest, type RelayOverview,
   type RelayStartTimesRequest, type RelayTeamCreateRequest } from "@o-tid/contracts";
-import { relaySv as text } from "../../i18n/relay-sv";
+
 import { isDuplicateName } from "../../lib/duplicate-name";
 import { formatClockTime, parseRaceClock, parseRaceClockNear } from "../../lib/clock-time";
 import { hasErrors, type FieldErrors } from "../../lib/form-validation";
@@ -104,6 +106,7 @@ export function useRelayState() {
 }
 
 export function createRelayActions(ws: Base & RaceDataActions) {
+  const text = ws.relayText;
   const { raceId, data, relay, writingRef, pending, requireSession, begin, beginRequest, finish, current, request, json, csrf, load,
     relayClassName, relayLegForms, relayClassAttempt, teamClassId, teamNumber, teamName, teamClub, teamRunners,
     teamAttempt, runnerChange, runnerAttempt, relayTimes, timesAttempt, setRelay, setRelayError, setRelayMessage, setRelayLegForms,
@@ -184,13 +187,13 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     // Visas fel redan kontrolleras fälten igen med mallens sträckor, så att felen stämmer med det som syns.
     if (hasErrors(ws.relayClassErrors)) {
       ws.setRelayClassErrors(validateRelayClass({ name: relayClassName, legs: settings.legs, changeoverCode: settings.changeoverCode,
-        readoutMode: settings.readoutMode }));
+        readoutMode: settings.readoutMode }, ws.relayFormText));
     }
   }
   /** Fälten kontrolleras före sparandet; felen visas vid fälten och sammanfattas överst, och fokus går till det första. */
   function checkRelayClass(): boolean {
     const errors = validateRelayClass({ name: relayClassName, legs: relayLegForms, changeoverCode: ws.relayChangeoverCode,
-      readoutMode: ws.relayReadoutMode });
+      readoutMode: ws.relayReadoutMode }, ws.relayFormText);
     ws.setRelayClassErrors(errors);
     if (!hasErrors(errors)) return true;
     if (errors.changeoverCode) ws.setRelayMoreOpen(true);
@@ -251,7 +254,7 @@ export function createRelayActions(ws: Base & RaceDataActions) {
     setRelayMessage(""); ws.setTeamError("");
     let attempt = teamAttempt;
     if (!attempt) {
-      const errors = validateRelayTeam({ classId: teamClassId, number: teamNumber, name: teamName, club: teamClub, runners: teamRunners });
+      const errors = validateRelayTeam({ classId: teamClassId, number: teamNumber, name: teamName, club: teamClub, runners: teamRunners }, ws.relayFormText);
       ws.setTeamErrors(errors);
       if (hasErrors(errors)) { focusFirstError(ws.teamForm.current); return; }
       const raceClass = relay.classes.find(row => row.id === teamClassId);

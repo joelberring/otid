@@ -1,4 +1,7 @@
-import { relayFormSv as text } from "../../i18n/relay-form-sv";
+import type { Texts } from "../../lib/language";
+import { relayFormSv } from "../../i18n/relay-form-sv";
+
+
 import { isClock, type FieldErrors } from "../../lib/form-validation";
 
 /**
@@ -32,7 +35,7 @@ export function changeoverCodeOf(value: string): number | null | undefined {
   return Number.isInteger(code) && code >= 1 && code <= 999 ? code : undefined;
 }
 
-export function validateRelayClass(input: RelayClassFormValues): FieldErrors<string> {
+export function validateRelayClass(input: RelayClassFormValues, text: Texts<typeof relayFormSv> = relayFormSv): FieldErrors<string> {
   const errors: FieldErrors<string> = {};
   if (!input.name.trim()) errors.name = text.name;
   else if (input.name.trim().length > 160) errors.name = text.tooLong(160);
@@ -53,7 +56,7 @@ export type RelayTeamRunnerValues = { givenName: string; familyName: string; car
 export type RelayTeamFormValues = { classId: string; number: string; name: string; club: string; runners: readonly RelayTeamRunnerValues[] };
 
 /** Nytt lag: klass, lagnummer (tomt = nästa lediga), lagnamn och för- och efternamn och bricka för varje plats. */
-export function validateRelayTeam(input: RelayTeamFormValues): FieldErrors<string> {
+export function validateRelayTeam(input: RelayTeamFormValues, text: Texts<typeof relayFormSv> = relayFormSv): FieldErrors<string> {
   const errors: FieldErrors<string> = {};
   if (!input.classId) errors.class = text.teamClass;
   const number = input.number.trim();

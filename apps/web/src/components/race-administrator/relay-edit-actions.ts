@@ -1,10 +1,12 @@
 import { useState } from "react";
+
+
 import {
   relayClassEditResponseSchema, relayEditRefusalSchema, relayLegVariantResponseSchema, relayTeamDidNotStartResponseSchema,
   relayTeamEditResponseSchema, relayTeamRemovalResponseSchema, type RelayClassEditPreview, type RelayClassEditRequest,
   type RelayLegVariantRequest, type RelayTeamDidNotStartRequest, type RelayTeamEditRequest, type RelayTeamRemovalRequest
 } from "@o-tid/contracts";
-import { relaySv as text } from "../../i18n/relay-sv";
+
 import { isDuplicateName } from "../../lib/duplicate-name";
 import { formatClockTime } from "../../lib/clock-time";
 import type { Base } from "./workspace-state";
@@ -38,6 +40,7 @@ export function useRelayEditState() {
 type Edit = ReturnType<typeof useRelayEditState>;
 
 export function createRelayEditActions(ws: Base & RaceDataActions & RelayActions & Edit) {
+  const text = ws.relayText;
   const { raceId, data, relay, writingRef, pending, requireSession, begin, finish, current, request, json, csrf, load, readRelay, send,
     relayClassName, relayLegForms, setRelayClassName, setRelayLegForms, setRelayMessage, setRelayRestartRanking, setRelayForking,
     relayEditClassId, setRelayEditClassId, relayEditAttempt, setRelayEditAttempt, setRelayEditPreview, teamEdit, setTeamEdit,

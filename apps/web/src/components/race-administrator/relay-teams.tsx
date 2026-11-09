@@ -1,9 +1,12 @@
 "use client";
 
 import type { RelayOverview } from "@o-tid/contracts";
+import { relayEn } from "../../i18n/workspace-relay-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import relayStyles from "./relay.module.css";
-import { relaySv as text } from "../../i18n/relay-sv";
+import type { Texts } from "../../lib/language";
+import { relaySv } from "../../i18n/relay-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { resultDuration } from "./types";
@@ -15,7 +18,7 @@ import type { Workspace } from "./workspace-state";
 type Team = RelayOverview["teams"][number];
 
 /** Lagets status i ord: placering och tid, ute på sträcka N eller underkänt. */
-export function teamStatusText(team: Pick<Team, "status" | "position" | "elapsedMs" | "currentLeg">): string {
+export function teamStatusText(team: Pick<Team, "status" | "position" | "elapsedMs" | "currentLeg">, text: Texts<typeof relaySv> = relaySv): string {
   if (team.status === "OK") return [team.position ? text.placed(team.position) : text.status.OK,
     team.elapsedMs !== null ? resultDuration(team.elapsedMs) : ""].filter(Boolean).join(" · ");
   if (team.status === "RUNNING") return team.currentLeg ? text.outOnLeg(team.currentLeg) : text.status.RUNNING;
@@ -24,6 +27,7 @@ export function teamStatusText(team: Pick<Team, "status" | "position" | "elapsed
 
 /** Anmälda: lagvyn för stafettklasserna med lagkort, byte av sträcklöpare och "Nytt lag". */
 export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const text = useTexts(relaySv, relayEn);
   const { disabled, openTeam, raceId, relay, selectedTeamId } = ws;
   useRelayLoad(ws, visible);
   if (!relay || relay.classes.length === 0) return null;
@@ -56,7 +60,7 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
               <span>{leg.givenName} {leg.familyName}</span>
               <span className={relayStyles.muted}>{leg.cardNumber ?? text.noCard}{leg.variantCode ? ` · ${leg.variantCode}` : ""}</span>
             </li>)}</ol></td>
-            <td><span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span></td>
+            <td><span className={relayStyles.status} data-status={team.status}>{teamStatusText(team, text)}</span></td>
           </tr>)}</tbody>
         </table></div>}
       </section>;
@@ -68,6 +72,7 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
 
 /** Lagkortet: sträckorna med löpare, bricka, bana, variant, start och resultat; byt löpare, byt variant och ändra laget. */
 function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
+  const text = useTexts(relaySv, relayEn);
   const { busy, cancelRunnerChange, cancelVariantChange, chooseVariant, relay, removeTeam, runnerChange, saveRunnerChange,
     saveVariantChange, setRunnerChange, setSelectedTeamId, startRunnerChange, startTeamEdit, teamDidNotStart, teamEdit, variantChange,
     variantPreview, workflowLocked } = ws;
@@ -78,7 +83,7 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
   const severalCourses = new Set(raceClass?.legCourses.map(row => row.courseId)).size > 1;
   return <section className={`${styles.panel} ${relayStyles.card}`} aria-label={text.teamCard}>
     <h3>{text.teamHeading(team.number, team.name)}</h3>
-    <p>{team.organisationName ?? ""} · <span className={relayStyles.status} data-status={team.status}>{teamStatusText(team)}</span>
+    <p>{team.organisationName ?? ""} · <span className={relayStyles.status} data-status={team.status}>{teamStatusText(team, text)}</span>
       {team.restarted ? ` · ${text.restartedTeam}` : ""}</p>
     <div className={styles.tableScroll}><table className={relayStyles.cardLegs}>
       <thead><tr><th scope="col">{text.columnLegs}</th><th scope="col">{text.publicRunner}</th><th scope="col">{text.runnerCard}</th>
@@ -159,6 +164,7 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
 
 /** "Ändra lag": lagnummer, namn och klubb. */
 function TeamEditForm({ ws }: { ws: Workspace }) {
+  const text = useTexts(relaySv, relayEn);
   const { busy, saveTeamEdit, setTeamEdit, teamEdit } = ws;
   if (!teamEdit) return null;
   return <form noValidate className={relayStyles.runnerForm} aria-label={text.editTeam} onSubmit={event => { event.preventDefault(); void saveTeamEdit(); }}>
@@ -180,6 +186,7 @@ function TeamEditForm({ ws }: { ws: Workspace }) {
 
 /** "Nytt lag": klass, nummer (tomt = nästa lediga), namn, klubb och en löpare med bricka per sträcka. */
 function NewTeam({ ws, relay }: { ws: Workspace; relay: RelayOverview }) {
+  const text = useTexts(relaySv, relayEn);
   const { changeTeamRunner, chooseTeamClass, clearTeamError, raceId, registerTeam, setTeamClub, setTeamName, setTeamNumber, teamAttempt,
     teamClassId, teamClub, teamError, teamErrors: errors, teamForm, teamName, teamNumber, teamRunners, workflowLocked } = ws;
   const locked = workflowLocked || !!teamAttempt;

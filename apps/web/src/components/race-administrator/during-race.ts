@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 
 
 
+
+
 import { administratorForestWatchResponseSchema, administratorReturnRequestSchema, administratorReturnResponseSchema,
   administratorStartCorrectionRequestSchema, administratorStartCorrectionResponseSchema, canonicalAdministratorReturnRequest,
   canonicalAdministratorStartCorrectionRequest, checkinHistoryResponseSchema, StartCheckinConflictReviewCandidateSchema,
@@ -18,7 +20,7 @@ import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-confli
 
 import { decisionReviewText } from "../../lib/decision-review";
 
-import { relaySv as relayText } from "../../i18n/relay-sv";
+
 import type { ConflictReviewAttempt, Operation, ReturnAttempt, StartCorrectionAttempt, UnknownReadoutResolutionAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RelayActions } from "./relay-actions";
@@ -90,6 +92,7 @@ export function deriveDuringRace(s: WorkspaceState) {
 }
 
 export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayActions, "readRelay">) {
+  const relayText = ws.relayText;
   const forestText = ws.forestText;
   const text = ws.adminText;
   const { raceId, entryId, functionary, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,

@@ -11,6 +11,9 @@ import { resultsOfficialSv } from "../../i18n/results-official-sv";
 import { removalSv } from "../../i18n/removal-sv";
 import { rogainingSv } from "../../i18n/rogaining-sv";
 import { rogainingEn } from "../../i18n/workspace-more-en";
+import { relayEn, relayFormEn } from "../../i18n/workspace-relay-en";
+import { relaySv } from "../../i18n/relay-sv";
+import { relayFormSv } from "../../i18n/relay-form-sv";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { useTexts } from "../language-provider";
@@ -53,7 +56,9 @@ export function useWorkspaceState(raceId: string) {
   const officialText = useTexts(resultsOfficialSv, resultsOfficialEn);
   const removalText = useTexts(removalSv, removalEn);
   const rogainingText = useTexts(rogainingSv, rogainingEn);
-  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, rogainingText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
+  const relayText = useTexts(relaySv, relayEn);
+  const relayFormText = useTexts(relayFormSv, relayFormEn);
+  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, rogainingText, relayText, relayFormText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),

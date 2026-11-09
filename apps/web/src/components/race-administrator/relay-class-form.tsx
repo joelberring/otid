@@ -1,10 +1,13 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { relayFormEn } from "../../i18n/workspace-relay-en";
+import { relayEn } from "../../i18n/workspace-relay-en";
+import { useTexts } from "../language-provider";
 import uiStyles from "../ui/ui.module.css";
 import relayStyles from "./relay.module.css";
-import { relaySv as text } from "../../i18n/relay-sv";
-import { relayFormSv as formText } from "../../i18n/relay-form-sv";
+import { relaySv } from "../../i18n/relay-sv";
+import { relayFormSv } from "../../i18n/relay-form-sv";
 import { Button, Notice } from "../ui";
 import type { RelayLegForm } from "./relay-actions";
 import { RELAY_TEMPLATES } from "./relay-templates";
@@ -22,6 +25,8 @@ const legKeys = (count: number) => Array.from({ length: count }, (_, index) => [
  * löpare och variant per sträcka. Steg 47: upp till 30 sträckor; på mobil två kolumner per sträcka.
  */
 function LegRows({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
+  const formText = useTexts(relayFormSv, relayFormEn);
+  const text = useTexts(relaySv, relayEn);
   const { changeLeg, courseList, relayClassErrors: errors, relayLegForms } = ws;
   return <div className={relayStyles.legs}>
     {relayLegForms.map((leg: RelayLegForm, index: number) => {
@@ -80,6 +85,8 @@ function LegRows({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idP
  * gafflad), teamsprint och växlingskontroll. Öppnas av sig själv när en mall sätter något här eller ett fält här har fel.
  */
 function MoreSettings({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
+  const formText = useTexts(relayFormSv, relayFormEn);
+  const text = useTexts(relaySv, relayEn);
   const { courseList, relayChangeoverCode, relayClassErrors: errors, relayForking, relayLegForms, relayMoreOpen, relayReadoutMode,
     relayRestartRanking, setRelayChangeoverCode, setRelayForking, setRelayMoreOpen, setRelayReadoutMode, setRelayRestartRanking } = ws;
   const restart = relayLegForms.some((leg, index) => index > 0 && (leg.method === "RESTART" || leg.method === "FLYING_RESTART"));
@@ -114,6 +121,8 @@ function MoreSettings({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean
 
 /** Klassnamn, antal sträckor och snabbvalet "Samma bana på alla sträckor". */
 function ClassFields({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean; idPrefix: string }) {
+  const formText = useTexts(relayFormSv, relayFormEn);
+  const text = useTexts(relaySv, relayEn);
   const { changeLegCount, chooseSameCourse, courseList, relayClassErrors: errors, relayClassName, relayLegForms, relaySameCourse,
     setRelayClassName } = ws;
   return <div className={styles.fieldRow}>
@@ -134,6 +143,7 @@ function ClassFields({ ws, locked, idPrefix }: { ws: Workspace; locked: boolean;
 
 /** Mallarna: en rad med val. Den valda är markerad (aria-pressed) och beskedet säger vad mallen satte. */
 function Templates({ ws, locked }: { ws: Workspace; locked: boolean }) {
+  const formText = useTexts(relayFormSv, relayFormEn);
   const { applyRelayTemplate, relayTemplateId } = ws;
   return <div className={relayStyles.templates}>
     <div role="group" aria-label={formText.templates} className={relayStyles.templateRow}>
@@ -148,6 +158,7 @@ function Templates({ ws, locked }: { ws: Workspace; locked: boolean }) {
 
 /** Klasser: "Ny stafettklass" med mall, namn, antal sträckor, bana per sträcka och startsätt. */
 export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const text = useTexts(relaySv, relayEn);
   const { createRelayClass, raceId, relayClassAttempt, relayClassError, relayClassErrors, relayClassForm, relayEditClassId, relayLegForms,
     workflowLocked } = ws;
   useRelayLoad(ws, visible);
@@ -173,6 +184,7 @@ export function RelayClassForm({ ws, visible }: { ws: Workspace; visible: boolea
 
 /** "Ändra stafettklass": välj klass, ändra och spara; byter resultat status visas beskedet först. */
 function RelayClassEdit({ ws }: { ws: Workspace }) {
+  const text = useTexts(relaySv, relayEn);
   const { busy, cancelRelayClassEdit, raceId, relay, relayClassError, relayClassErrors, relayClassForm, relayEditAttempt, relayEditClassId,
     relayEditPreview, relayLegForms, saveRelayClassEdit, startRelayClassEdit, workflowLocked } = ws;
   if (!relay || relay.classes.length === 0) return null;

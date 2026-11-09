@@ -1,9 +1,11 @@
 "use client";
 
 import { cloneElement, type ReactElement, type ReactNode } from "react";
+import { relayFormEn } from "../../i18n/workspace-relay-en";
+import { useTexts } from "../language-provider";
 import uiStyles from "../ui/ui.module.css";
 import relayStyles from "./relay.module.css";
-import { relayFormSv as formText } from "../../i18n/relay-form-sv";
+import { relayFormSv } from "../../i18n/relay-form-sv";
 import { hasErrors, type FieldErrors } from "../../lib/form-validation";
 import { Notice } from "../ui";
 
@@ -26,6 +28,7 @@ export function RelayField({ id, label, error, help, children, className }: { id
 
 /** Felen överst i formuläret, i fältens ordning. */
 export function RelayErrorSummary({ errors, order }: { errors: FieldErrors<string>; order: readonly string[] }) {
+  const formText = useTexts(relayFormSv, relayFormEn);
   if (!hasErrors(errors)) return null;
   const keys = [...order.filter(key => errors[key]), ...Object.keys(errors).filter(key => errors[key] && !order.includes(key))];
   return <Notice tone="error" role="alert"><p><strong>{formText.summary(keys.length)}</strong></p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { relayEn } from "../../i18n/workspace-relay-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
@@ -13,7 +14,7 @@ import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { sv } from "../../i18n/sv";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
-import { relaySv as relayText } from "../../i18n/relay-sv";
+import { relaySv } from "../../i18n/relay-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { rosterStatusOptions } from "../../lib/administrator-roster-filter";
@@ -32,6 +33,7 @@ import { joinRaceParts, raceTitle } from "@o-tid/domain";
  * en person är alltid en deltagare (PLAN.md steg 24). Kortet visas bredvid listan först när någon är vald.
  */
 export function ParticipantsPanel({ ws }: { ws: Workspace }) {
+  const relayText = useTexts(relaySv, relayEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { action, data, mobilePanel, navigateStep, participantsVisible, profile, raceId, revealSelected,
@@ -70,6 +72,7 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
 
 /** Deltagarlistan: sök och klass alltid, övriga filter under "Fler filter" (bara de som har något att visa). */
 export function ParticipantList({ ws }: { ws: Workspace }) {
+  const relayText = useTexts(relaySv, relayEn);
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);

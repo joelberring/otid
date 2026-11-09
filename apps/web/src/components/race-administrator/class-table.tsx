@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { relayEn } from "../../i18n/workspace-relay-en";
 import { removalEn } from "../../i18n/workspace-tools-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { classTableEn } from "../../i18n/workspace-admin-en";
@@ -11,7 +12,7 @@ import styles from "../race-administrator-workspace.module.css";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
-import { relaySv as relayText } from "../../i18n/relay-sv";
+import { relaySv } from "../../i18n/relay-sv";
 import { classTableStatus } from "../../lib/class-table-status";
 import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
 import { RemovalReview } from "./removal-review";
@@ -23,6 +24,7 @@ type ClassRow = CourseEditListResponse["classes"][number];
 
 /** Klasser som tabell med redigering i raden: namn, bana och startsätt (ADR-0169 beslut 4). */
 export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const relayText = useTexts(relaySv, relayEn);
   const removalText = useTexts(removalSv, removalEn);
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(classTableSv, classTableEn);
@@ -120,6 +122,7 @@ function ClassStatus({ row, disabled, onMissingStartTimes }: { row: ClassRow; di
 }
 
 function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
+  const relayText = useTexts(relaySv, relayEn);
   const text = useTexts(classTableSv, classTableEn);
   const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, cancelClassEdit, changeClassEdit, classEditAttempt, classEditCourseId, classEditError, classEditName,

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
+import { relayEn } from "../../i18n/workspace-relay-en";
+import { useTexts } from "../language-provider";
 import type { RelayOverview } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import relayStyles from "./relay.module.css";
 import controlStyles from "./readout-control.module.css";
-import { relaySv as text } from "../../i18n/relay-sv";
+import { relaySv } from "../../i18n/relay-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { Button, Notice, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -22,6 +24,7 @@ export function useRelayLoad(ws: Workspace, visible: boolean) {
 }
 
 export function RelayMessages({ ws }: { ws: Workspace }) {
+  const text = useTexts(relaySv, relayEn);
   const { busy, loadRelay, relayError, relayMessage } = ws;
   return <>
     {relayMessage && <Notice role="status">{relayMessage}</Notice>}
@@ -32,6 +35,7 @@ export function RelayMessages({ ws }: { ws: Workspace }) {
 
 /** Start: masstart- och omstartstider per stafettklass, som klockslag. */
 export function RelayStartTimes({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
+  const text = useTexts(relaySv, relayEn);
   const { changeRelayTime, relay, relayTimeValue, saveRelayTimes, workflowLocked } = ws;
   useRelayLoad(ws, visible);
   const classes = relay?.classes.filter(row => row.legs.some(leg => leg.startMethod === "MASS_START" || leg.startMethod === "RESTART")) ?? [];
@@ -71,6 +75,7 @@ export function relayRestartsByLeg(relay: RelayOverview) {
 }
 
 function RelayRestarts({ relay }: { relay: RelayOverview }) {
+  const text = useTexts(relaySv, relayEn);
   const rows = relayRestartsByLeg(relay);
   if (rows.length === 0) return null;
   const clock = (time: string) => formatClockTime(time, relay.timeZone).slice(0, 5);
@@ -91,6 +96,7 @@ function RelayRestarts({ relay }: { relay: RelayOverview }) {
 
 /** Avläsning: lag ute per sträcka med sträckans löpare och starttid, och omstarterna. */
 export function RelayControl({ ws }: { ws: Workspace }) {
+  const text = useTexts(relaySv, relayEn);
   const { raceId, relay } = ws;
   if (!relay || relay.classes.length === 0) return null;
   const out = teamsOutByLeg(relay);

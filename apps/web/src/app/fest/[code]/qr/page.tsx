@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { readPublicParty } from "@o-tid/application";
 import { sv } from "../../../../i18n/sv";
-import { partyPublicSv as text } from "../../../../i18n/party-public-sv";
+import { partyPublicSv } from "../../../../i18n/party-public-sv";
+import { partyPublicEn } from "../../../../i18n/public-en";
+import { currentLanguage } from "../../../../lib/language-server";
 import { publicRaceSv } from "../../../../i18n/public-race-sv";
 import { db } from "../../../../lib/db";
 import { loadRaceHub, requireRaceHub } from "../../../../lib/public-race-hub";
@@ -20,6 +22,7 @@ const robots = { index: false, follow: false, noarchive: true, nosnippet: true, 
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
+  const text = await currentLanguage() === "en" ? partyPublicEn : partyPublicSv;
   if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots };
   return { title: `${text.qr.title}: ${hub.eventName} – ${sv.appName}`, robots };
 }

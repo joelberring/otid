@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { publicPartyResponseSchema, type PublicPartyResponse } from "@o-tid/contracts";
 import { formatHourMinute } from "@o-tid/domain";
 import { partyLook, partyThemeStyle } from "../../lib/party-theme-style";
-import { partyPublicSv as text } from "../../i18n/party-public-sv";
+import { partyPublicSv } from "../../i18n/party-public-sv";
+import { partyPublicEn } from "../../i18n/public-en";
+import { useTexts } from "../language-provider";
 import { SelfRegistrationForm } from "../self-registration/self-registration-form";
 import { PartySplits } from "./party-splits";
 import styles from "./party-public.module.css";
@@ -15,13 +17,16 @@ import styles from "./party-public.module.css";
  */
 const POLL_MS = 10_000;
 
-function duration(seconds: number): string {
-  if (seconds < 90) return `${seconds} sekunder`;
+type PartyTexts = typeof partyPublicEn;
+
+function duration(seconds: number, text: PartyTexts): string {
+  if (seconds < 90) return text.seconds(seconds);
   const minutes = Math.round(seconds / 60);
-  return minutes < 90 ? `${minutes} minuter` : `${Math.round(minutes / 60)} timmar`;
+  return minutes < 90 ? text.minutes(minutes) : text.hours(Math.round(minutes / 60));
 }
 
 export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: string }) {
+  const text = useTexts(partyPublicSv, partyPublicEn);
   const [party, setParty] = useState<PublicPartyResponse>();
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -104,7 +109,7 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
         <section className={styles.panel} aria-labelledby="party-fun">
           <h2 id="party-fun">{text.funTitle}</h2>
           <ul className={styles.fun}>
-            {party.averageSecondsBetween !== undefined ? <li>{text.average(duration(party.averageSecondsBetween))}</li> : null}
+            {party.averageSecondsBetween !== undefined ? <li>{text.average(duration(party.averageSecondsBetween, text))}</li> : null}
             {party.firstArrival ? <li><strong>{text.firstArrival}:</strong> {party.firstArrival.name ?? at(party.firstArrival.at)}
               {party.firstArrival.name ? ` (${at(party.firstArrival.at)})` : ""}</li> : null}
             {party.firstFinish ? <li><strong>{text.firstFinish}:</strong> {party.firstFinish.name ?? at(party.firstFinish.at)}

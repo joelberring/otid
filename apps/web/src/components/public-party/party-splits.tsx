@@ -1,7 +1,9 @@
 import React from "react";
 import type { PublicPartySplitRow } from "@o-tid/contracts";
 import { formatDuration } from "../../lib/clock-time";
-import { partyPublicSv as text } from "../../i18n/party-public-sv";
+import { partyPublicSv } from "../../i18n/party-public-sv";
+import { partyPublicEn } from "../../i18n/public-en";
+import { useTexts } from "../language-provider";
 import styles from "./party-public.module.css";
 
 /**
@@ -18,27 +20,30 @@ export function splitMarkColor(key: string): string {
   return MARKS[hash % MARKS.length]!;
 }
 
-export function splitGuestName(row: Pick<PublicPartySplitRow, "name" | "guestNumber">): string {
+type PartyTexts = typeof partyPublicEn;
+
+export function splitGuestName(row: Pick<PublicPartySplitRow, "name" | "guestNumber">, text: PartyTexts = partyPublicSv): string {
   return row.name ?? text.guestNumber(row.guestNumber);
 }
 
-export function splitSince(seconds: number | undefined): string {
+export function splitSince(seconds: number | undefined, text: PartyTexts = partyPublicSv): string {
   return seconds === undefined ? "" : text.since(formatDuration(seconds * 1_000));
 }
 
-function Cell({ at, since, label, mark, clock }: { at: string; since: number | undefined; label?: string; mark?: string;
-  clock: (value: string) => string }) {
+function Cell({ at, since, label, mark, clock, text }: { at: string; since: number | undefined; label?: string; mark?: string;
+  clock: (value: string) => string; text: PartyTexts }) {
   return <td className={styles.split}>
     <span className={styles.splitTime}>
       {mark ? <span className={styles.mark} style={{ background: mark }} aria-hidden="true" /> : null}
       {clock(at)}{label ? <> <strong>{label}</strong></> : null}
     </span>
-    {since !== undefined ? <span className={styles.since}>{splitSince(since)}</span> : null}
+    {since !== undefined ? <span className={styles.since}>{splitSince(since, text)}</span> : null}
   </td>;
 }
 
 export function PartySplits({ rows, showNames, clock }: { rows: readonly PublicPartySplitRow[]; showNames: boolean;
   clock: (value: string) => string }) {
+  const text = useTexts(partyPublicSv, partyPublicEn);
   const columns = Math.max(0, ...rows.map(row => row.purchases.length));
   const hasCheckIn = rows.some(row => row.checkIn);
   const hasCheckout = rows.some(row => row.checkout);
@@ -57,16 +62,16 @@ export function PartySplits({ rows, showNames, clock }: { rows: readonly PublicP
         </tr></thead>
         <tbody>{rows.map((row, index) => <tr key={row.guestNumber}>
           <td className={styles.place}>{index + 1}</td>
-          <th scope="row" className={styles.stick}>{splitGuestName(row)}</th>
+          <th scope="row" className={styles.stick}>{splitGuestName(row, text)}</th>
           <td className={styles.split}><span className={styles.splitTime}><strong>{text.purchases(row.purchaseCount)}</strong></span>
             <span className={styles.since}>{formatDuration(row.totalSeconds * 1_000)}</span></td>
-          {hasCheckIn ? row.checkIn ? <Cell at={row.checkIn.at} since={row.checkIn.sinceSeconds} clock={clock} /> : <td /> : null}
+          {hasCheckIn ? row.checkIn ? <Cell at={row.checkIn.at} since={row.checkIn.sinceSeconds} clock={clock} text={text} /> : <td /> : null}
           {Array.from({ length: columns }, (_, column) => {
             const purchase = row.purchases[column];
-            return purchase ? <Cell key={column} at={purchase.at} since={purchase.sinceSeconds} label={purchase.itemName} clock={clock}
+            return purchase ? <Cell key={column} at={purchase.at} since={purchase.sinceSeconds} label={purchase.itemName} clock={clock} text={text}
               mark={splitMarkColor(purchase.group ?? purchase.itemName)} /> : <td key={column} />;
           })}
-          {hasCheckout ? row.checkout ? <Cell at={row.checkout.at} since={row.checkout.sinceSeconds} clock={value => text.finishAt(clock(value))} />
+          {hasCheckout ? row.checkout ? <Cell at={row.checkout.at} since={row.checkout.sinceSeconds} clock={value => text.finishAt(clock(value))} text={text} />
             : <td /> : null}
         </tr>)}</tbody>
       </table>

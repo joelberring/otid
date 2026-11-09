@@ -87,3 +87,25 @@ test("språk: Mitt konto på engelska", async ({ browser }) => {
   await owner.goto(`/sprak?till=sv&tillbaka=${encodeURIComponent("/konto")}`);
   await expect(owner.getByRole("heading", { name: "Mitt konto", level: 1 })).toBeVisible();
 });
+
+/** Del 8: festens sida och QR-skylt på engelska. */
+test("språk: festen på engelska", async ({ browser }) => {
+  test.setTimeout(240_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `sprakfest.${suffix}@exempel.se`, "Fia Fest");
+  const raceId = await createRace(owner, `Party ${suffix}`, undefined, "Fest");
+  const origin = new URL(owner.url()).origin;
+  const csrf = (await owner.context().cookies()).find(row => /otid[-_]organizer[-_]csrf$/.test(row.name))?.value ?? "";
+  const published = await owner.request.put(`/api/admin/races/${raceId}/administrator/race-publication`, {
+    headers: { origin, "x-otid-csrf": csrf } });
+  expect(published.status()).toBe(200);
+  const shortCode = (await published.json() as { publication: { shortCode: string } }).publication.shortCode;
+  const visitor = await (await browser.newContext({ locale: "en-GB" })).newPage();
+  await visitor.goto(`/fest/${shortCode}`);
+  await expect(visitor.getByRole("heading", { name: "Best sellers" })).toBeVisible({ timeout: 30_000 });
+  await expect(visitor.getByRole("heading", { name: "Tonight's split times" })).toBeVisible();
+  await expect(visitor.getByRole("list", { name: "How to pay" })).toContainText("Clear your card first");
+  await visitor.goto(`/fest/${shortCode}/qr`);
+  await expect(visitor.getByRole("button", { name: "Print" })).toBeVisible();
+  await expect(visitor.getByText("Follow the evening here")).toBeVisible();
+});

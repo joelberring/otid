@@ -3,7 +3,9 @@
 import Link from "next/link";
 import type { PartyTheme } from "@o-tid/contracts";
 import { partyLook, partyThemeStyle } from "../../lib/party-theme-style";
-import { partyPublicSv as text } from "../../i18n/party-public-sv";
+import { partyPublicSv } from "../../i18n/party-public-sv";
+import { partyPublicEn } from "../../i18n/public-en";
+import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import styles from "./party-qr.module.css";
 
@@ -14,6 +16,7 @@ import styles from "./party-qr.module.css";
 export function PartyQrSheet({ partyPath, title, eventName, theme, url, address, qrImage }: {
   partyPath: string; title: string; eventName: string; theme: PartyTheme; url: string; address: string; qrImage: string;
 }) {
+  const text = useTexts(partyPublicSv, partyPublicEn);
   return <div className={styles.page} style={partyThemeStyle(theme)} data-look={partyLook(theme)}>
     <style>{"@page { size: A4 portrait; margin: 0; }"}</style>
     <div className={styles.tools}>

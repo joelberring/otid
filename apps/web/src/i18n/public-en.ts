@@ -9,6 +9,7 @@ import type { routeChoiceSv, splitAnalysisSv } from "./split-analysis-sv";
 import type { selfRegistrationSv } from "./self-registration-sv";
 import type { homeSv } from "./home-sv";
 import type { trainingGroupSv } from "./training-group-sv";
+import type { partyPublicSv } from "./party-public-sv";
 
 /**
  * Idéerna 2026-11-08: engelska, de publika sidorna först (startsidan, sidhuvudet, sidfoten, Om O-Tid och tävlingslistan).
@@ -393,4 +394,65 @@ export const routeChoiceEn: Texts<typeof routeChoiceSv> = {
   notFound: "There is no route choice for the runner on this leg.",
   bestRoute: "Best route according to the map (computed from the map, not a runner's route)",
   gpsNotice: "The GPS track is not checked against the control positions. The clock in the GPS and the punches can differ by a few seconds."
+};
+
+/** Del 8: festens publika sida, sträcktiderna och QR-skylten. */
+export const partyPublicEn: Texts<typeof partyPublicSv> = {
+  metaTitle: event => `${event} – party`,
+  loading: "Fetching the evening …",
+  loadError: "The evening could not be fetched right now. The page tries again.",
+  updated: time => `Updated ${time}`,
+  sold: "sold",
+  checkedIn: "checked in",
+  guests: "guests",
+  checkedOut: "have gone home",
+  first: "first purchase",
+  last: "latest purchase",
+  bestTitle: "Best sellers",
+  noneYet: "No purchases yet.",
+  share: percent => `${percent} %`,
+  groupTotal: (group, count) => `${group === "Drink" ? "Drinks" : group} in total: ${count}`,
+  quartersTitle: "Purchases per quarter hour",
+  peak: (time, count) => `The busiest quarter of the evening: ${time} with ${count} purchases`,
+  quarterLabel: (time, count) => `${time}: ${count} purchases`,
+  recentTitle: "Latest purchases",
+  funTitle: "The evening in numbers",
+  average: text => `One purchase every ${text} on average`,
+  seconds: count => `${count} seconds`,
+  minutes: count => `${count} minutes`,
+  hours: count => `${count} hours`,
+  perHour: "Most popular per hour",
+  hourRow: (hour, item, count) => `${hour}: ${item} (${count})`,
+  firstArrival: "First to arrive",
+  firstFinish: "First to the finish unit",
+  lastOut: "Last one out",
+  guestsTitle: "Tonight's guests",
+  purchases: count => `${count} ${count === 1 ? "purchase" : "purchases"}`,
+  barLabel: "The evening",
+  namesShown: "Your purchases are shown with your display name on this page.",
+  howToLabel: "How to pay",
+  howTo: ["1. Clear your card first on the clear unit.", "2. Check in: register your card here, or insert it in the reader at the bar.",
+    "3. Buy: punch the unit for your drink, then insert your card in the reader.",
+    "4. Go home: punch Finish and insert your card in the reader. The total is charged to your club account."],
+  qr: {
+    title: "QR sign",
+    back: "To the party page",
+    printHelp: "Print at 100 % scale (not \"fit to page\") on A4 portrait, with background graphics on.",
+    print: "Print",
+    line: "Follow the evening here",
+    scan: "Scan the code or go to",
+    image: name => `QR code to the party page for ${name}`
+  },
+  splitsTitle: "Tonight's split times",
+  splitsHelp: "One row per guest: when they arrived, each purchase with the time since the previous event, and when they went home. Most purchases first.",
+  splitsAnonymous: "Names are not shown at this party.",
+  splitsPlace: "Pl.",
+  splitsName: "Name",
+  splitsTotal: "Total",
+  splitsCheckIn: "In",
+  splitsPurchase: index => `Purchase ${index}`,
+  splitsCheckout: "Finish",
+  guestNumber: number => `Guest ${number}`,
+  finishAt: time => `Finish ${time}`,
+  since: time => `+${time}`
 };

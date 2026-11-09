@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { sv } from "../../../i18n/sv";
-import { partyPublicSv as text } from "../../../i18n/party-public-sv";
+import { partyPublicSv } from "../../../i18n/party-public-sv";
+import { partyPublicEn } from "../../../i18n/public-en";
+import { currentLanguage } from "../../../lib/language-server";
 import { publicRaceSv } from "../../../i18n/public-race-sv";
 import { loadRaceHub, requireRaceHub } from "../../../lib/public-race-hub";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
@@ -15,6 +17,7 @@ const robots = { index: false, follow: false, noarchive: true, nosnippet: true, 
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
+  const text = await currentLanguage() === "en" ? partyPublicEn : partyPublicSv;
   if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots };
   return { title: `${text.metaTitle(hub.eventName)} – ${sv.appName}`, robots };
 }

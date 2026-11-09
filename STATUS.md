@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K6 del 2: foga ihop linjer, ytor inuti likadana ytor, MCP-verktyg
+- Generaliseringen fogar ihop linjer med samma symbol vars ändar möts och tar bort ytor inuti en likadan yta (som förslag).
+  AI-kopplingen: `norm_check` med hela normkontrollen och det nya verktyget `generalize` (kan lämna förslag).
+- Verifierat: enhetstester `generalize-topology`, integrationstest `adr-0219-ai`, E2E `kartprojekt-underlag`.
+- Kvar: kurvavstånd, tunna ytor och sammanslagning av små ytor (kräver prov mot riktiga kartor).
+
 ### 2026-11-09 – Kartredigeraren: verktygshjul, symbolrutor, förenkla, mjuk och cirkel
 - Högerklick, långt tryck eller mellanslag öppnar verktygshjulet (verktyg, senaste symboler, objektets åtgärder); 1–9 väljer
   senaste symbolerna. Förenkla, gör mjuk, gör rak och cirkelverktyget (O). Symbolerna som rutor.

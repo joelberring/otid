@@ -44,8 +44,12 @@ export const MCP_TOOLS = [
   { name: "list_objects", title: "Objekten i kartan", description: "Objekten (i ett område och/eller med vissa symbolnummer): nyckel, symbol, slag, omslutande ruta och förenklad geometri i kartans mm. Nyckeln används i propose_changes och render_view.",
     inputSchema: { type: "object", properties: { ...projectId, ...area, symbols: { type: "array", items: { type: "string" }, maxItems: 50 },
       limit: { type: "integer", minimum: 1, maximum: 500 }, offset: { type: "integer", minimum: 0 } }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
-  { name: "norm_check", title: "Normkontroll (grundläggande)", description: "Ytor och linjer under normens ungefärliga minsta storlek, tomma objekt, dubbletter och okända symboler, med plats i kartans mm.",
+  { name: "norm_check", title: "Normkontroll", description: "Den grundläggande kontrollen (tomma objekt, dubbletter, okända symboler) och normkontrollen efter ISOM 2017-2 eller ISSprOM 2019-2 (kartans skala): kurvavstånd, korta linjer, små och tunna ytor, små knollar, passager och öppningar, med regel, mått, gräns och plats i kartans mm.",
     inputSchema: { type: "object", properties: { ...projectId, ...area }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
+  { name: "generalize", title: "Generalisering", description: `Räknar fram generaliseringen i ett område: förenkla täta linjer och ytor (simplify_mm, förval 0,1 mm), ta bort det som är mindre än normen (remove_small), foga ihop linjer med samma symbol vars ändar möts (join_lines) och ta bort ytor inuti en likadan yta (remove_inside); allt är på om inget anges. Med propose: true lämnas ändringarna som ett förslag (högst ${MCP_PROPOSAL_MAX_OPERATIONS}; välj annars ett mindre område) som en ägare godkänner.`,
+    inputSchema: { type: "object", properties: { ...projectId, ...area, simplify_mm: { type: "number", minimum: 0, maximum: 0.5 },
+      remove_small: { type: "boolean" }, join_lines: { type: "boolean" }, remove_inside: { type: "boolean" }, propose: { type: "boolean" },
+      note: { type: "string", maxLength: 500 } }, required: ["project_id"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
   { name: "propose_changes", title: "Föreslå ändringar", description: `Lämnar ett förslag som en ägare i O-Tid godkänner eller avvisar; kartan ändras aldrig direkt. Högst ${MCP_PROPOSAL_MAX_OPERATIONS} operationer inom ${MCP_PROPOSAL_MAX_SIDE_M} × ${MCP_PROPOSAL_MAX_SIDE_M} m. Operationer: add (symbol och punkter; en punkt för punktsymboler, minst tre för ytor), move (key, dx, dy i mm), reshape (key och nya punkter, raka sträckor), change_symbol (key och symbol) och delete (key). Skriv en kort motivering i note.`,
     inputSchema: { type: "object", properties: { ...projectId, note: { type: "string", maxLength: 500, description: "Motivering som visas för den som granskar" },
       operations: { type: "array", minItems: 1, maxItems: MCP_PROPOSAL_MAX_OPERATIONS, items: { type: "object", properties: {
@@ -92,7 +96,7 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
   const parsed = schemaFor.safeParse(args ?? {});
   if (!parsed.success) return toolError(`Ogiltiga argument: ${parsed.error.issues.map(issue => `${issue.path.join(".") || "(argumenten)"}: ${issue.message}`).join("; ")}`);
   const input = parsed.data as { project_id: string } & Record<string, unknown>;
-  const denied = await access(db, accountId, input.project_id, name === "propose_changes" ? "propose" : "view");
+  const denied = await access(db, accountId, input.project_id, name === "propose_changes" || (name === "generalize" && input.propose === true) ? "propose" : "view");
   if (denied) return toolError(denied);
   switch (name) {
     case "map_overview": {
@@ -117,6 +121,19 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
     case "norm_check": {
       const outcome = await job(db, accountId, input.project_id, "CHECK", strip({ area: input.area }), wait);
       return outcome.status === "done" ? { content: [text(outcome.result)] } : jobFailure(outcome);
+    }
+    case "generalize": {
+      const outcome = await job(db, accountId, input.project_id, "GENERALIZE", strip({ area: input.area, simplifyMm: input.simplify_mm,
+        removeSmall: input.remove_small, joinLines: input.join_lines, removeInside: input.remove_inside, propose: input.propose }), wait);
+      if (outcome.status !== "done") return jobFailure(outcome);
+      const result = outcome.result as { summary: unknown; changes: unknown[]; edits?: unknown[]; errors?: string[] };
+      if (result.errors) return toolError(`Förslaget lämnades inte:\n- ${result.errors.join("\n- ")}`);
+      if (!input.propose || !result.edits || result.edits.length === 0) return { content: [text({ summary: result.summary, changes: result.changes })] };
+      const created = await createMapProjectProposalAsAi(db, { accountId, projectId: input.project_id, request: { formatVersion: 1,
+        requestId: randomUUID(), note: typeof input.note === "string" && input.note ? input.note.slice(0, 500) : "Generalisering (AI)", edits: result.edits } });
+      if (created.status !== "created") return toolError(`Förslaget lämnades inte (${created.status}).`);
+      return { content: [text({ summary: result.summary, proposalId: created.proposal.proposalId, changes: created.proposal.edits.length,
+        message: "Förslaget ligger i projektet och väntar på att en ägare godkänner eller avvisar det." })] };
     }
     case "propose_changes": {
       const outcome = await job(db, accountId, input.project_id, "PROPOSE", { operations: input.operations }, wait);

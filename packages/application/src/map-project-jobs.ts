@@ -1,3 +1,5 @@
+import { runGeneralizeJob, runNormCheck, type GeneralizeJobRequest } from "./map-project-job-generalize";
+import type { Box } from "./map-project-job-run";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
@@ -17,7 +19,7 @@ import {
  * utskriftsarbetaren (låg prioritet, barnprocess per jobb) tar jobben ett i taget och skriver resultatet. Resultaten är
  * tillfälliga (rensas efter en timme). `pg_notify('otid_map_job')` väcker arbetaren direkt.
  */
-export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL"] as const;
+export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL", "GENERALIZE"] as const;
 export type MapJobKind = typeof MAP_JOB_KINDS[number];
 export const MAP_JOB_CHANNEL = "otid_map_job";
 /** Högst så många jobb per konto och minut, och samtidigt. */
@@ -153,7 +155,9 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
     case "RENDER": { const rendered = runRender(loaded, request, area, deps.createCanvas); output = { result: rendered.meta, image: rendered.png }; break; }
     case "COMPARE": { const rendered = runCompare(loaded, request, area, deps.createCanvas); output = { result: rendered.meta, image: rendered.png }; break; }
     case "OBJECTS": output = { result: runObjects(loaded, request) }; break;
-    case "CHECK": output = { result: runCheck(loaded, request) }; break;
+    // K6 del 2: den grundläggande kontrollen och normkontrollen (samma regler som editorn).
+    case "CHECK": output = { result: { ...runCheck(loaded, request), norm: runNormCheck(loaded, request.area as Box | undefined) } }; break;
+    case "GENERALIZE": output = { result: runGeneralizeJob(loaded, request as GeneralizeJobRequest, now) }; break;
     case "PROPOSE": {
       const proposed = runPropose(loaded, (request.operations ?? []) as ProposalOperation[], now);
       output = proposed.status === "ok" ? { result: { edits: proposed.edits } } : { result: { errors: proposed.errors } };

@@ -32,6 +32,10 @@ export const mcpToolInputSchemas = {
   list_objects: z.object({ project_id: idSchema, area: boxSchema.optional(), symbols: z.array(codeSchema).max(50).optional(),
     limit: z.number().int().min(1).max(500).optional(), offset: z.number().int().min(0).optional() }),
   norm_check: z.object({ project_id: idSchema, area: boxSchema.optional() }),
+  // K6 del 2: generaliseringen (förenkla, ta bort det som är mindre än normen, foga ihop linjer, ytor inuti likadana ytor).
+  generalize: z.object({ project_id: idSchema, area: boxSchema.optional(), simplify_mm: z.number().min(0).max(0.5).optional(),
+    remove_small: z.boolean().optional(), join_lines: z.boolean().optional(), remove_inside: z.boolean().optional(), propose: z.boolean().optional(),
+    note: z.string().trim().max(500).optional() }),
   propose_changes: z.object({ project_id: idSchema, note: z.string().trim().max(500),
     operations: z.array(mcpProposalOperationSchema).min(1).max(MCP_PROPOSAL_MAX_OPERATIONS) })
 } as const;

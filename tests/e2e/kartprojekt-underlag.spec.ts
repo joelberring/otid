@@ -385,6 +385,8 @@ test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) =>
     await expect(general.getByTestId("map-project-generalize-result")).toContainText("1 objekt förenklas: 60 punkter blir 2.", { timeout: 3000 });
   }).toPass({ timeout: 30_000 });
   await expect(general.getByTestId("map-project-generalize-result")).toContainText("Tas bort: 1 små ytor, 0 korta linjer, 0 små knollar.");
+  // K6 del 2: ihopfogning och ytor inuti likadana ytor räknas också (inget att göra här).
+  await expect(general.getByTestId("map-project-generalize-result")).toContainText("Inga ytor inuti en likadan yta.");
   await general.getByTestId("map-project-generalize-propose").click();
   await expect(general.getByTestId("map-project-generalize-message")).toHaveText("Förslaget är skickat. Ägaren ser det under Förslag.", { timeout: 20_000 });
   await expect(proposals).toContainText("Generalisering: förenkla 0,1 mm, ta bort det som är mindre än normen", { timeout: 20_000 });

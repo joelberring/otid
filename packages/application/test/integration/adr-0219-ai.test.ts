@@ -133,7 +133,7 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
     const tools = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(["list_map_projects", "map_overview", "render_view",
-      "render_compare", "list_objects", "norm_check", "propose_changes"]);
+      "render_compare", "list_objects", "norm_check", "generalize", "propose_changes"]);
 
     const projects = textOf(await mcp(owner.accountId, call(3, "list_map_projects")));
     expect(projects.projects).toMatchObject([{ projectId, name: "Skogen", role: "OWNER" }]);
@@ -153,6 +153,13 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     const stone = (objects.objects as { key: string; at: number[] }[])[0]!;
     const check = textOf(await mcp(owner.accountId, call(8, "norm_check", { project_id: projectId })));
     expect(check.total).toBeGreaterThanOrEqual(0);
+    // K6 del 2: normkontrollen efter ISOM (kartan är i 1:10 000) och generaliseringen, först utan förslag.
+    expect(check.norm).toMatchObject({ standard: "ISOM", scale: 10000 });
+    const general = textOf(await mcp(owner.accountId, call(81, "generalize", { project_id: projectId })));
+    expect(general.summary).toMatchObject({ joined: { lines: expect.any(Number) as unknown } });
+    expect(general.proposalId).toBeUndefined();
+    const readerGeneralize = await mcp(reader.accountId, call(82, "generalize", { project_id: projectId, propose: true }));
+    expect((readerGeneralize?.result as { isError?: boolean }).isError).toBe(true);
 
     // Förslag: flytta stenen och lägg till en stig. Kartan ändras inte; förslaget har källan AI.
     const proposedRaw = await mcp(owner.accountId, call(9, "propose_changes", { project_id: projectId, note: "Stenen ligger 2 m fel enligt lasern",

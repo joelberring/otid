@@ -1,5 +1,6 @@
 import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
 import type { RevisionClientState } from "./client-log";
+import { areasInsideSameSymbol, joinTouchingLines } from "./generalize-topology";
 import { checkNorm, type NormObject, type NormRule } from "./norm-check";
 import type { ObjectKey } from "./state";
 
@@ -13,14 +14,20 @@ import type { ObjectKey } from "./state";
  * - **Ta bort** objekt som är mindre än normen tillåter (normkontrollens SMALL_AREA, SHORT_LINE och SMALL_CLOSED): små ytor,
  *   korta linjer och små slutna kurvor (knollar).
  *
- * Kurvavstånd, tunna ytor, passager och öppningar kräver en kartritares val och föreslås inte här.
+ * Del 2 (`generalize-topology.ts`): linjer med samma symbol vars ändar möts fogas ihop (JOIN; de andra tas bort som
+ * JOINED), och ytor som helt ligger inne i en likadan yta tas bort (INSIDE).
+ *
+ * Kurvavstånd, tunna ytor, passager och öppningar kräver en kartritares val och föreslås inte här (normkontrollen visar dem).
  */
-export type GeneralizeReason = "SIMPLIFY" | Extract<NormRule, "SMALL_AREA" | "SHORT_LINE" | "SMALL_CLOSED">;
+export type GeneralizeReason = "SIMPLIFY" | "JOIN" | "JOINED" | "INSIDE" | Extract<NormRule, "SMALL_AREA" | "SHORT_LINE" | "SMALL_CLOSED">;
 export const REMOVABLE_RULES: ReadonlySet<NormRule> = new Set(["SMALL_AREA", "SHORT_LINE", "SMALL_CLOSED"]);
 export interface GeneralizeOptions {
   /** Toleransen för förenklingen i kartans mm; 0 = ingen förenkling. */
   readonly simplifyMm: number;
   readonly removeSmall: boolean;
+  /** Del 2: foga ihop linjer vars ändar möts och ta bort ytor inuti en likadan yta (saknas = av). */
+  readonly joinLines?: boolean | undefined;
+  readonly removeInside?: boolean | undefined;
   /** Bara objekt inom rutan (kartans mm), t.ex. en etapp. */
   readonly within?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
 }
@@ -37,6 +44,9 @@ export interface GeneralizeResult {
   readonly changes: readonly GeneralizeChange[];
   readonly simplified: number; readonly pointsBefore: number; readonly pointsAfter: number;
   readonly removed: Readonly<Record<"SMALL_AREA" | "SHORT_LINE" | "SMALL_CLOSED", number>>;
+  /** Del 2: ihopfogade linjer (nya linjer och linjer som gick upp i dem) och ytor inuti en likadan yta. */
+  readonly joined?: { readonly lines: number; readonly absorbed: number } | undefined;
+  readonly inside?: number | undefined;
 }
 
 const perpendicular = (p: Point, a: Point, b: Point) => {
@@ -135,6 +145,27 @@ export function generalize(objects: readonly NormObject[], scale: number, option
       changes.push({ key: issue.key, code: issue.code, reason: rule, at: issue.at, before: 0, after: 0 });
     }
   }
+  let joined: GeneralizeResult["joined"], insideCount: number | undefined;
+  if (options.removeInside) {
+    const found = areasInsideSameSymbol(objects, taken).filter(change => inside(change.at, options.within));
+    for (const change of found) {
+      taken.add(change.key);
+      changes.push({ key: change.key, code: change.code, reason: "INSIDE", at: change.at, before: 0, after: 0 });
+    }
+    insideCount = found.length;
+  }
+  if (options.joinLines) {
+    const found = joinTouchingLines(objects, undefined, taken).filter(change => inside(change.at, options.within));
+    for (const change of found) {
+      taken.add(change.keep);
+      changes.push({ key: change.keep, code: change.code, reason: "JOIN", object: change.object, at: change.at, before: 0, after: 0 });
+      for (const key of change.absorbed) {
+        taken.add(key);
+        changes.push({ key, code: change.code, reason: "JOINED", at: change.at, before: 0, after: 0 });
+      }
+    }
+    joined = { lines: found.length, absorbed: found.reduce((sum, change) => sum + change.absorbed.length, 0) };
+  }
   let simplified = 0, pointsBefore = 0, pointsAfter = 0;
   if (options.simplifyMm > 0) {
     for (const row of objects) {
@@ -147,7 +178,7 @@ export function generalize(objects: readonly NormObject[], scale: number, option
       changes.push({ key: row.key, code: row.code, reason: "SIMPLIFY", object: result.object, at, before: result.before, after: result.after });
     }
   }
-  return { changes, simplified, pointsBefore, pointsAfter, removed };
+  return { changes, simplified, pointsBefore, pointsAfter, removed, ...(joined ? { joined } : {}), ...(insideCount !== undefined ? { inside: insideCount } : {}) };
 }
 
 /**

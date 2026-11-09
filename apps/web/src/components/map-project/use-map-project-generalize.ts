@@ -28,33 +28,45 @@ export function useMapProjectGeneralize(view: MapProjectView, session: MapProjec
     session.generalize(options, (value, refs) => { setResult({ value, refs, options }); setBusy(undefined); });
   }, [session]);
 
-  /** Ändringarna som kan föreslås nu (och hur många som hoppas över). */
-  const edits = useCallback((): { edits: RevisionEdit[]; skipped: number } => {
-    if (!result || !state) return { edits: [], skipped: 0 };
+  /**
+   * Ändringarna som kan föreslås nu (och hur många som hoppas över), i grupper som hålls ihop: en ihopfogad linje (JOIN) med
+   * linjerna som gick upp i den (JOINED) föreslås tillsammans eller inte alls, så att ingen del försvinner utan den andra.
+   */
+  const groups = useCallback((): { groups: RevisionEdit[][]; skipped: number } => {
+    if (!result || !state) return { groups: [], skipped: 0 };
     const at = new Date().toISOString();
-    const out: RevisionEdit[] = [];
-    let skipped = 0;
+    const out: RevisionEdit[][] = [];
+    let skipped = 0, current: { edits: RevisionEdit[]; ok: boolean; count: number } | undefined;
+    const close = () => { if (current) { if (current.ok) out.push(current.edits); else skipped += current.count; } current = undefined; };
     for (const change of result.value.changes) {
+      if (change.reason !== "JOINED") { close(); current = { edits: [], ok: true, count: 0 }; }
+      current ??= { edits: [], ok: true, count: 0 };
+      current.count += 1;
       const grounded = proposalBase(state, change.key);
       const ref = result.refs.get(change.key) ?? null;
-      if (!grounded || (change.key.startsWith("b:") && !ref)) { skipped += 1; continue; }
-      out.push({ editId: crypto.randomUUID(), key: change.key, ref: change.key.startsWith("b:") ? ref : null, base: grounded.base, at,
+      if (!grounded || (change.key.startsWith("b:") && !ref)) { current.ok = false; continue; }
+      current.edits.push({ editId: crypto.randomUUID(), key: change.key, ref: change.key.startsWith("b:") ? ref : null, base: grounded.base, at,
         ...(change.object ? { kind: "RESHAPE" as const, state: { kind: "OBJECT" as const, object: change.object } }
           : { kind: "DELETE" as const, state: { kind: "DELETED" as const }, point: change.at }) });
     }
-    return { edits: out, skipped };
+    close();
+    return { groups: out, skipped };
   }, [result, state]);
+  const edits = useCallback((): { edits: RevisionEdit[]; skipped: number } => {
+    const planned = groups();
+    return { edits: planned.groups.flat(), skipped: planned.skipped };
+  }, [groups]);
 
   const propose = useCallback(async () => {
     if (!result) return;
-    const { edits: all } = edits();
+    const { groups: all } = groups();
     if (all.length === 0) return;
     const parts: RevisionEdit[][] = [];
     let current: RevisionEdit[] = [], size = 0;
-    for (const edit of all) {
-      const bytes = JSON.stringify(edit).length;
-      if (current.length && (current.length >= MAP_PROJECT_SYNC_MAX_EDITS || size + bytes > MAX_PROPOSAL_BYTES)) { parts.push(current); current = []; size = 0; }
-      current.push(edit); size += bytes;
+    for (const group of all) {
+      const bytes = JSON.stringify(group).length;
+      if (current.length && (current.length + group.length > MAP_PROJECT_SYNC_MAX_EDITS || size + bytes > MAX_PROPOSAL_BYTES)) { parts.push(current); current = []; size = 0; }
+      current.push(...group); size += bytes;
     }
     if (current.length) parts.push(current);
     setMessage(undefined);
@@ -72,7 +84,7 @@ export function useMapProjectGeneralize(view: MapProjectView, session: MapProjec
     setBusy(undefined); setResult(undefined);
     setMessage({ tone: "ok", text: text.sent(parts.length) });
     onSent();
-  }, [result, edits, base, onSent]);
+  }, [result, groups, base, onSent]);
 
   return { result: result?.value, preview, propose, edits, busy, message, canPropose: view.viewer.canPropose };
 }

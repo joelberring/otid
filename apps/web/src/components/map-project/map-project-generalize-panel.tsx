@@ -16,6 +16,8 @@ export function MapProjectGeneralizePanel({ generalize, areas }: { generalize: R
   const [where, setWhere] = useState("");
   const [tolerance, setTolerance] = useState<number>(0.1);
   const [removeSmall, setRemoveSmall] = useState(true);
+  const [joinLines, setJoinLines] = useState(true);
+  const [removeInside, setRemoveInside] = useState(true);
   if (!generalize.canPropose) return null;
   const area = areas.find(row => row.areaId === where);
   const outline = area?.polygon[0];
@@ -34,13 +36,18 @@ export function MapProjectGeneralizePanel({ generalize, areas }: { generalize: R
       {TOLERANCES.map(value => <option key={value} value={value}>{text.tolerance(value)}</option>)}
     </select></label>
     <label className={styles.check}><input type="checkbox" checked={removeSmall} onChange={event => setRemoveSmall(event.target.checked)} />{text.removeSmall}</label>
+    <label className={styles.check}><input type="checkbox" checked={joinLines} onChange={event => setJoinLines(event.target.checked)}
+      data-testid="map-project-generalize-join" />{text.joinLines}</label>
+    <label className={styles.check}><input type="checkbox" checked={removeInside} onChange={event => setRemoveInside(event.target.checked)} />{text.removeInside}</label>
     <span className={styles.actions}>
-      <Button variant="secondary" disabled={!!generalize.busy || (tolerance === 0 && !removeSmall)} data-testid="map-project-generalize-preview"
-        onClick={() => generalize.preview({ simplifyMm: tolerance, removeSmall, within })}>{text.preview}</Button>
+      <Button variant="secondary" disabled={!!generalize.busy || (tolerance === 0 && !removeSmall && !joinLines && !removeInside)} data-testid="map-project-generalize-preview"
+        onClick={() => generalize.preview({ simplifyMm: tolerance, removeSmall, joinLines, removeInside, within })}>{text.preview}</Button>
     </span>
     {result && planned && <div role="status" data-testid="map-project-generalize-result">
       <p>{text.summary(result.simplified, result.pointsBefore, result.pointsAfter)}</p>
       <p>{text.removed(result.removed.SMALL_AREA, result.removed.SHORT_LINE, result.removed.SMALL_CLOSED)}</p>
+      {result.joined && <p>{text.joined(result.joined.lines, result.joined.absorbed)}</p>}
+      {result.inside !== undefined && <p>{text.inside(result.inside)}</p>}
       {planned.skipped > 0 && <p className={styles.muted}>{text.skipped(planned.skipped)}</p>}
       {planned.edits.length > 0 && <span className={styles.actions}>
         <Button disabled={!!generalize.busy} onClick={() => void generalize.propose()} data-testid="map-project-generalize-propose">

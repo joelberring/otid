@@ -397,3 +397,15 @@ runda former".
    (fyra kurvor) som linje eller yta med verktyget Cirkel (O): dra från mitten, eller klicka i mitten och på kanten.
 3. **Symbolrutorna:** symbolerna kan visas som rutor med bild och nummer (valet sparas i webbläsaren).
 4. Verktygsraden och tipsraden har en fast höjd, så att kartan inte flyttar sig när knapparna eller beskedet byts.
+
+## Tillägg 2026-11-09: generaliseringen del 2 och AI-kopplingens verktyg (K6, del 2, ingen migration)
+
+1. **Foga ihop linjer** (`generalize-topology.ts`): linjer med samma symbol vars ändar möts (inom 0,05 mm) blir en linje,
+   och en linje vars ändar möts blir sluten (t.ex. kurvor som Karttapullautin delat vid rutornas kanter). Förslaget håller
+   ihop den nya linjen och linjerna som gick upp i den (allt eller inget, högst 100 delar per linje).
+2. **Ytor inuti en likadan yta** (samma symbol, helt inne i en minst dubbelt så stor yta och inte i dess hål) tas bort.
+3. **AI-kopplingen (MCP):** `norm_check` ger också normkontrollen efter ISOM 2017-2/ISSprOM 2019-2 (samma regler som
+   editorn), och det nya verktyget `generalize` räknar fram generaliseringen i ett område och kan lämna den som förslag
+   (högst 200 ändringar).
+4. **Inte gjort än:** kurvavstånd, tunna ytor och att slå ihop små ytor till grannen kräver geometri (förskjutning och
+   union av ytor) som ska prövas mot riktiga kartor; normkontrollen visar dem.

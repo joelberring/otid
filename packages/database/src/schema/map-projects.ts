@@ -267,7 +267,7 @@ export const mapProjectGeoJobs = pgTable("map_project_geo_job", {
   id: uuid("id").primaryKey(),
   projectId: uuid("project_id").notNull().references(() => mapProjects.id, { onDelete: "cascade" }),
   accountId: uuid("account_id").notNull().references(() => userAccounts.id, { onDelete: "cascade" }),
-  kind: text("kind").$type<"PULLAUTIN">().notNull(),
+  kind: text("kind").$type<"PULLAUTIN" | "DWG">().notNull(),
   status: text("status").$type<GeoJobStatus>().notNull(),
   request: jsonb("request").$type<Record<string, unknown>>().notNull(),
   progress: jsonb("progress").$type<Record<string, unknown>>(),

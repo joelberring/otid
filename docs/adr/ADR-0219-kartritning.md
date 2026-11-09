@@ -409,3 +409,13 @@ runda former".
    (högst 200 ändringar).
 4. **Inte gjort än:** kurvavstånd, tunna ytor och att slå ihop små ytor till grannen kräver geometri (förskjutning och
    union av ytor) som ska prövas mot riktiga kartor; normkontrollen visar dem.
+
+## Tillägg 2026-11-09: DWG via LibreDWG i geo-arbetaren (K6b, del 2, migration 0106)
+
+1. **DWG-ritningar** (t.ex. kommunens baskarta) läses in som andra vektorfiler: importen skickar ritningen till servern
+   (`POST …/geo-jobs/dwg`, högst 75 MB, måste börja med en DWG-version `AC10xx`), den sparas som jobbets fil `indata.dwg` och
+   ett geo-jobb av slaget `DWG` läggs (migration 0106 vidgar jobbets kontroll av slaget; inga data ändras).
+2. **Geo-arbetaren** hämtar ritningen (`GET /api/geo-worker/jobs/:id/input`), kör LibreDWG:s `dwg2dxf` (GPL-3, korskompilerat
+   ur källkoden 0.13.3 med kontrollsumma, eget program) och skickar `ritning.dxf`. DWG tolkas aldrig på O-Tids egen server.
+3. **Resultatet** läses in som kandidater från jobblistan; koordinatsystemet gissas ur koordinaterna eller anges i importen.
+4. **Kvar (K6b):** städning av baskartor (ytor av slutna kanter, trappor) och passpunkter för att räta upp en karta.

@@ -58,6 +58,9 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     }, () => undefined);
     void load();
   }, [load]);
+  // K6b: en DWG-ritning som just skickats från importen syns här som ett jobb.
+  const dwgSent = importer.dwgSent;
+  useEffect(() => { if (dwgSent) void load(); }, [dwgSent, load]);
   // Medan ett jobb väntar eller pågår: läget var tionde sekund, och underlagen när det blivit klart.
   const active = list?.jobs.some(job => ACTIVE.has(job.status)) ?? false;
   useEffect(() => {
@@ -112,7 +115,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       const response = await fetch(`${base}/geo-jobs/${job.jobId}/outputs/${output}`, { credentials: "same-origin" }).catch(() => undefined);
       if (!response?.ok) { say(response?.status); return; }
       const data = parseDxf(await response.text());
-      importer.openData(`${job.name} – ${label}`, { ...data, crs: data.crs ?? 3006 });
+      // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
+      importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 });
       setMessage({ tone: "ok", text: text.loaded(label) });
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
@@ -176,7 +180,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       <h4>{text.jobs}</h4>
       <ul>
         {list.jobs.map(job => <li key={job.jobId} data-testid="map-project-laser-job">
-          <strong>{job.name}</strong> · {text.tiles(job.tiles)} · {text.status[job.status]}
+          <strong>{job.name}</strong> · {job.kind === "DWG" ? text.dwgJob : text.tiles(job.tiles)} · {text.status[job.status]}
           {job.progress && <> · {text.progress(job.progress.step, job.progress.done, job.progress.total)}</>}
           {job.error && <span className={styles.problem}> · {job.error}</span>}
           {job.layerId && <span className={styles.muted}> · {text.layerAdded}</span>}

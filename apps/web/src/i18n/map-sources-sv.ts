@@ -90,11 +90,12 @@ export const mapSourcesSv = {
       QUEUED: "Väntar på geo-servern", RUNNING: "Pågår", DONE: "Klart", FAILED: "Misslyckades", CANCELLED: "Avbrutet"
     } as Record<string, string>,
     progress: (step: string, done: number, total: number) => total > 1 ? `${step} (${done} av ${total})` : step,
+    dwgJob: "DWG till DXF",
     tiles: (count: number) => count === 1 ? "1 ruta" : `${count} rutor`,
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
       "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
-      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor"
+      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "ritning.dxf": "Ritningen"
     } as Record<string, string>,
     load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,
     loaded: (label: string) => `${label} visas som kandidater nedan under Vektorfil.`,

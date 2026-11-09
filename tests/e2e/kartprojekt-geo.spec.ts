@@ -28,6 +28,7 @@ function runGeoWorker(origin: string): Promise<{ code: number | null; output: st
   return new Promise(resolve => {
     const child = spawn(process.execPath, [join(root, "scripts/geo-worker.ts")], { cwd: work, env: { ...process.env, OTID_GEO_ORIGIN: origin,
       OTID_GEO_WORKER_TOKEN: E2E_GEO_WORKER_TOKEN, OTID_GEO_WORKER_NAME: "e2e-geo", OTID_GEO_ONCE: "1", OTID_PULLAUTA: join(root, "tests/e2e/fake-pullauta.mjs"),
+      OTID_DWG2DXF: join(root, "tests/e2e/fake-dwg2dxf.mjs"),
       OTID_PULLAUTA_INI: ini, OTID_GEO_WORKDIR: join(work, "jobb"), NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1" } });
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => { output += chunk.toString(); });
@@ -110,6 +111,26 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(4);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
+
+  // K6b: en DWG-ritning görs om till DXF på geo-servern och läses in som kandidater.
+  await warmRoute(owner, `${api}/geo-jobs/dwg`, "POST");
+  if (await importer.getAttribute("open") === null) await importer.locator("summary").first().click();
+  await importer.getByRole("button", { name: "Avbryt", exact: true }).click();
+  await owner.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dwg", mimeType: "application/acad",
+    buffer: Buffer.concat([Buffer.from("AC1015"), Buffer.alloc(200)]) });
+  await expect(owner.getByTestId("map-project-import-dwg")).toContainText("baskarta.dwg görs om till DXF på geo-servern");
+  const dwgWorker = await runGeoWorker(baseURL!);
+  expect(dwgWorker.code, dwgWorker.output).toBe(0);
+  expect(dwgWorker.output).toContain("DWG klart");
+  const dwgJob = laser.getByTestId("map-project-laser-job").filter({ hasText: "baskarta" });
+  await expect(dwgJob).toContainText("baskarta · DWG till DXF · Klart", { timeout: 30_000 });
+  await dwgJob.getByRole("button", { name: "Läs in ritningen som kandidater" }).click();
+  await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("VAG");
+  // Något annat än en DWG avvisas utan jobb.
+  const notDwg = await owner.request.post(`${api}/geo-jobs/dwg`, { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-file-name": "fel.dwg" }, data: Buffer.from("inte en ritning") });
+  expect(notDwg.status()).toBe(422);
+  expect((await notDwg.json() as { error: string }).error).toBe("UNSUPPORTED_DWG_FILE");
 
   // Fel nyckel kommer inte åt geo-arbetarens anrop.
   const denied = await owner.request.post("/api/geo-worker/claim", { headers: { authorization: `Bearer ${"x".repeat(48)}`, "x-otid-geo-worker": "e2e" } });

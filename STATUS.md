@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K6b del 2: DWG via LibreDWG i geo-arbetaren (migration 0106)
+- En DWG-ritning i importen blir ett geo-jobb; geo-servern gör om den till DXF med LibreDWG och ritningen läses in som
+  kandidater. Avbildningen otid-geo bygger dwg2dxf ur källkoden (amd64 och arm64, korskompilerat).
+- Verifierat: integrationstest `adr-0219-geo` (fyra test), E2E `kartprojekt-geo` (falsk dwg2dxf), riktig dwg2dxf lokalt
+  (amd64, och arm64 korskompilerad) och O-Tids DXF-läsare på resultatet.
+- Kvar: städning av baskartor och passpunkter.
+
 ### 2026-11-09 – K6 del 2: foga ihop linjer, ytor inuti likadana ytor, MCP-verktyg
 - Generaliseringen fogar ihop linjer med samma symbol vars ändar möts och tar bort ytor inuti en likadan yta (som förslag).
   AI-kopplingen: `norm_check` med hela normkontrollen och det nya verktyget `generalize` (kan lämna förslag).

@@ -30,10 +30,11 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
     {problemText && <p role="alert" className={styles.problem}>{problemText}{" "}
       <Button variant="quiet" onClick={() => importer.setProblem(undefined)}>OK</Button></p>}
     {importer.sent !== undefined && <p role="status" data-testid="map-project-import-sent">{text.sent(importer.sent)}</p>}
+    {importer.dwgSent && <p role="status" data-testid="map-project-import-dwg">{text.dwgSent(importer.dwgSent)}</p>}
     {!file ? <>
       <span className={styles.actions}>
         <Button variant="secondary" onClick={() => input.current?.click()}>{text.choose}</Button>
-        <input ref={input} type="file" hidden multiple accept=".geojson,.json,.dxf,.shp,.dbf,.prj,.cpg,.zip,application/geo+json,application/zip"
+        <input ref={input} type="file" hidden multiple accept=".geojson,.json,.dxf,.dwg,.shp,.dbf,.prj,.cpg,.zip,application/geo+json,application/zip"
           data-testid="map-project-import-file"
           onChange={event => { const chosen = [...event.target.files ?? []]; event.target.value = ""; if (chosen.length) void importer.open(chosen); }} />
       </span>

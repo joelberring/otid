@@ -7,7 +7,7 @@ import {
   guessCrs, importLayers, importObjects, newKey, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type ImportLayer, type SourceData, type TargetKind
 } from "@o-tid/map-revision";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
@@ -38,6 +38,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [problem, setProblem] = useState<Problem>();
   const [progress, setProgress] = useState<{ done: number; total: number }>();
   const [sent, setSent] = useState<number>();
+  /** K6b: DWG-ritningen som skickats till geo-servern. */
+  const [dwgSent, setDwgSent] = useState<string>();
   const mapEpsg = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
 
   /** K6b: sparade lagermappningsprofiler (kontots och klubbens) och den som passade filen. */
@@ -90,7 +92,23 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   }, [mapping, symbols, base, layers.length, loadProfiles]);
 
   const open = useCallback(async (files: readonly File[]) => {
-    setProblem(undefined); setSent(undefined);
+    setProblem(undefined); setSent(undefined); setDwgSent(undefined);
+    // K6b: en DWG-ritning görs om till DXF på geo-servern (LibreDWG) och läses in därifrån.
+    const dwg = files.find(file => /\.dwg$/i.test(file.name));
+    if (dwg) {
+      const token = csrf();
+      if (!token) { setProblem(401); return; }
+      setFetching(true);
+      try {
+        const response = await fetch(`${base}/geo-jobs/dwg`, { method: "POST", credentials: "same-origin", cache: "no-store", body: dwg,
+          headers: { "content-type": "application/octet-stream", "x-otid-csrf": token, "x-otid-request-id": crypto.randomUUID(),
+            "x-otid-file-name": encodeURIComponent(dwg.name.slice(0, 200)) } }).catch(() => undefined);
+        if (response?.status === 200 || response?.status === 201) { setDwgSent(dwg.name); return; }
+        const body = await response?.json().catch(() => undefined) as { error?: string } | undefined;
+        setProblem(body?.error ?? response?.status ?? 0);
+      } finally { setFetching(false); }
+      return;
+    }
     try {
       const read = await readVectorFiles(files);
       if (!read) { setProblem("unsupported"); return; }
@@ -98,7 +116,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     } catch (error) {
       setProblem(error instanceof VectorParseError ? error.message : "unsupported");
     }
-  }, [show]);
+  }, [show, base]);
 
   /** K4c: OpenStreetMap för kartans område eller en etapp (delområdets polygon i kartans mm), hämtat av servern. */
   const fetchOsm = useCallback(async (area?: BoxArea) => {
@@ -161,7 +179,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
 
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData) => { setProblem(undefined); setSent(undefined); show(fileName, data); }, [show]);
-  return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, open, openData, fetchOsm, fetching, propose, cancel,
+  return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, dwgSent, open, openData, fetchOsm, fetching, propose, cancel,
     profile, saveProfile, canShareProfile: !!view.club,
     candidates: result?.objects ?? [], canImport: view.viewer.canPropose };
 }

@@ -44,7 +44,7 @@ export const geoJobCreateRequestSchema = z.object({
 
 export type GeoJobStatusView = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
 export interface GeoJobView {
-  readonly jobId: string; readonly name: string; readonly kind: "PULLAUTIN"; readonly status: GeoJobStatusView;
+  readonly jobId: string; readonly name: string; readonly kind: "PULLAUTIN" | "DWG"; readonly status: GeoJobStatusView;
   readonly tiles: number; readonly settings: Readonly<Record<string, number>>;
   readonly progress: { readonly step: string; readonly done: number; readonly total: number } | null;
   readonly error: string | null; readonly layerId: string | null;
@@ -69,5 +69,8 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("FAILED"), error: z.string().min(1).max(2000) }).strict()
 ]);
 export const GEO_OUTPUT_NAME = /^[a-z0-9_.-]{1,60}$/;
+/** K6b: DWG-ritningen som geo-arbetaren gör om till DXF (indata, sparad som jobbets fil; resultatet heter ritning.dxf). */
+export const GEO_DWG_INPUT = "indata.dwg";
+export const GEO_DWG_MAX_BYTES = 75 * 1024 * 1024;
 /** Största resultatfil (bilden kan bli stor när flera rutor slås ihop). */
 export const GEO_OUTPUT_MAX_BYTES = 200 * 1024 * 1024;

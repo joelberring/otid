@@ -27,6 +27,12 @@
 		max_size 210MB
 	}
 
+	# ADR-0219 K6b: en DWG-ritning till geo-arbetaren, högst 75 MB i appen (GEO_DWG_MAX_BYTES).
+	@geodwg path /api/organizer/map-projects/*/geo-jobs/dwg
+	request_body @geodwg {
+		max_size 80MB
+	}
+
 	# ADR-0219 K5: geo-arbetarens resultatfiler (bilden och kurvorna), högst 200 MB i appen (GEO_OUTPUT_MAX_BYTES).
 	@geooutputs path /api/geo-worker/jobs/*/outputs/*
 	request_body @geooutputs {

@@ -13,6 +13,7 @@ import {
 import { listMapProjectLayers } from "../../src/map-project-layers";
 import { fetchMapProjectMoisture, moistureRequestBox } from "../../src/map-project-moisture";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
+import { createDwgJob, readGeoJobInput } from "../../src/map-project-geo-dwg";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -231,5 +232,33 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(await claimGeoJob(db, "geo-3", muchLater)).toBeUndefined();
     const [row] = await db.select().from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.id, created.job.jobId));
     expect(row).toMatchObject({ status: "FAILED", error: "Geo-arbetaren slutade svara" });
+  });
+  it("K6b: en DWG-ritning blir ett jobb för geo-arbetaren, som hämtar ritningen och lämnar en DXF", async () => {
+    const { owner, reader, projectId } = await project();
+    const dwg = new Uint8Array(Buffer.concat([Buffer.from("AC1015"), randomBytes(64)]));
+    const requestId = randomUUID();
+    expect((await createDwgJob(db, { ...owner.proof, projectId, requestId: randomUUID(), fileName: "fel.dwg", file: new Uint8Array(Buffer.from("hej")) }, NOW)).status)
+      .toBe("unsupported-file");
+    expect((await createDwgJob(db, { ...reader.proof, projectId, requestId: randomUUID(), fileName: "a.dwg", file: dwg }, NOW)).status).toBe("forbidden");
+    const created = await createDwgJob(db, { ...owner.proof, projectId, requestId, fileName: "Baskarta.dwg", file: dwg }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    expect(await createDwgJob(db, { ...owner.proof, projectId, requestId, fileName: "Baskarta.dwg", file: dwg }, NOW)).toMatchObject({ jobId: created.jobId, replayed: true });
+    // Ingen annan arbetare eller ett jobb som inte pågår ger ritningen.
+    expect(await readGeoJobInput(db, created.jobId, "geo-dwg")).toBeUndefined();
+    let claimed = await claimGeoJob(db, "geo-dwg", NOW);
+    while (claimed && claimed.jobId !== created.jobId) {
+      await finishGeoJob(db, claimed.jobId, "geo-dwg", { status: "FAILED", error: "inte i det här testet" }, NOW);
+      claimed = await claimGeoJob(db, "geo-dwg", NOW);
+    }
+    expect(claimed).toMatchObject({ jobId: created.jobId, kind: "DWG", tiles: [] });
+    expect(new Uint8Array((await readGeoJobInput(db, created.jobId, "geo-dwg"))!)).toEqual(dwg);
+    expect(await readGeoJobInput(db, created.jobId, "geo-annan")).toBeUndefined();
+    expect((await storeGeoOutput(db, { jobId: created.jobId, worker: "geo-dwg", name: "ritning.dxf", mediaType: "application/dxf",
+      file: new Uint8Array(Buffer.from("0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF")) }, NOW)).status).toBe("stored");
+    expect(await finishGeoJob(db, created.jobId, "geo-dwg", { status: "DONE", summary: { bytes: 30 } }, NOW)).toEqual({ status: "ok", layerId: null });
+    const list = await listGeoJobs(db, { ...owner.proof, projectId }, server, NOW);
+    expect(list.status === "ok" && list.list.jobs.find(job => job.jobId === created.jobId)).toMatchObject({ kind: "DWG", name: "Baskarta", status: "DONE",
+      outputs: [{ name: "indata.dwg" }, { name: "ritning.dxf" }] });
+    expect((await readGeoOutput(db, { ...reader.proof, projectId, jobId: created.jobId, name: "ritning.dxf" }, NOW)).status).toBe("ok");
   });
 });

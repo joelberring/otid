@@ -5,9 +5,9 @@ import { areasInsideSameSymbol, generalize, joinTouchingLines, reversePath, type
 /** ADR-0219 K6 del 2: foga ihop linjer vars ändar möts och ta bort ytor inuti en likadan yta. */
 const path = (points: readonly [number, number][]): PathCommand[] => points.map(([x, y], i) => ({ type: i === 0 ? "M" : "L", x, y }));
 const line = (key: string, symbol: string, points: readonly [number, number][]): NormObject =>
-  ({ key: key as NormObject["key"], code: symbol, object: { kind: "line", symbol, path: path(points) } });
+  ({ key: key, code: symbol, object: { kind: "line", symbol, path: path(points) } });
 const area = (key: string, symbol: string, rings: readonly (readonly [number, number][])[]): NormObject =>
-  ({ key: key as NormObject["key"], code: symbol, object: { kind: "area", symbol, angle: 0, rings: rings.map(ring => path(ring)) } });
+  ({ key: key, code: symbol, object: { kind: "area", symbol, angle: 0, rings: rings.map(ring => path(ring)) } });
 const points = (object: MapObject) => object.kind === "line" ? object.path.map(command => [command.x, command.y]) : [];
 
 describe("generaliseringens topologi", () => {

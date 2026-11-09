@@ -163,7 +163,7 @@ export async function authenticateGeoWorker(db: Database, authorization: string 
 }
 
 export interface ClaimedGeoJob {
-  readonly jobId: string; readonly kind: "PULLAUTIN"; readonly attempt: number;
+  readonly jobId: string; readonly kind: "PULLAUTIN" | "DWG"; readonly attempt: number;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
@@ -175,19 +175,19 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   await db.update(jobs).set({ status: "FAILED", finishedAt: now, error: "Geo-arbetaren slutade svara" })
     .where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale), sql`${jobs.attempts} >= ${MAX_ATTEMPTS}`));
   await db.update(jobs).set({ status: "QUEUED", worker: null }).where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale)));
-  const result = await db.execute<{ id: string; request: { tiles: { id: string; epsg: number | null }[]; settings: Record<string, number>;
+  const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
     moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
-    returning id, request, attempts`);
+    returning id, kind, request, attempts`);
   const row = result.rows[0];
   if (!row) return undefined;
   await noteGeoServerJob(db, worker, now);
-  // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök.
-  await db.delete(outputs).where(eq(outputs.jobId, row.id));
-  return { jobId: row.id, kind: "PULLAUTIN", attempt: row.attempts, settings: row.request.settings ?? {}, moisture: row.request.moisture ?? null,
-    vegetation: row.request.vegetation ?? null, tiles: row.request.tiles.map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
+  // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök (indata står kvar).
+  await db.delete(outputs).where(and(eq(outputs.jobId, row.id), sql`${outputs.name} not like 'indata.%'`));
+  return { jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, moisture: row.request.moisture ?? null,
+    vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
 }
 
 async function runningJob(db: DbExecutor, jobId: string, worker: string) {

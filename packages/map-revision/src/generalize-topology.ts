@@ -47,7 +47,7 @@ export interface JoinChange { readonly keep: ObjectKey; readonly object: MapObje
  * annan linjes ände). Den första linjen behålls med den nya vägen, de andra tas bort.
  */
 export function joinTouchingLines(objects: readonly NormObject[], tolerance = JOIN_MM, taken: ReadonlySet<ObjectKey> = new Set()): JoinChange[] {
-  const lines = objects.filter((row): row is NormObject & { object: Line } => row.object.kind === "line" && singlePart(row.object as Line) && !taken.has(row.key));
+  const lines = objects.filter((row): row is NormObject & { object: Line } => row.object.kind === "line" && singlePart(row.object) && !taken.has(row.key));
   const bySymbol = new Map<string, (NormObject & { object: Line })[]>();
   for (const row of lines) bySymbol.set(row.object.symbol, [...(bySymbol.get(row.object.symbol) ?? []), row]);
   const changes: JoinChange[] = [];

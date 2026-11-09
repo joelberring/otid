@@ -894,6 +894,9 @@ Karttapullautin på laserdata körs av geo-arbetaren på en egen geo-server, ald
 `ghcr.io/joelberring/otid-geo` (amd64 och arm64) innehåller Karttapullautin (GPL-3, byggt oförändrat ur källkoden) och
 `scripts/geo-worker.ts`. Geo-servern talar bara HTTPS med O-Tid; inga portar öppnas på den.
 
+- **DWG (K6b):** avbildningen har också LibreDWG:s `dwg2dxf` (GPL-3, byggt oförändrat ur källkoden). En DWG-ritning som läses
+  in i kartprojektet blir ett geo-jobb; geo-servern gör om den till DXF och resultatet läses in som kandidater. DWG-filen tolkas
+  aldrig på tävlingsservern. Kräver migration 0106.
 - **Laserdata:** användaren lägger in sina egna uppgifter till Lantmäteriet (Mitt konto) och beställer Laserdata Nedladdning,
   skog på Geotorget. Servern hämtar rutorna åt geo-arbetaren med de uppgifterna; de lämnar aldrig tävlingsservern. Laserdata
   gäller under CC BY 4.0 (© Lantmäteriet) och kan innehålla personuppgifter enligt Lantmäteriets villkor.

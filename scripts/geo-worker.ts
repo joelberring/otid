@@ -12,6 +12,7 @@
  *   OTID_GEO_WORKER_NAME       namnet i loggen (förval datorns namn)
  *   OTID_PULLAUTA              Karttapullautin (förval /opt/pullauta/pullauta)
  *   OTID_PULLAUTA_INI          grundinställningarna (förval /opt/pullauta/pullauta.default.ini)
+ *   OTID_DWG2DXF               LibreDWG:s dwg2dxf för DWG-jobben (förval /opt/libredwg/bin/dwg2dxf)
  *   OTID_GEO_WORKDIR           arbetskatalogen (förval /tmp/otid-geo); rensas efter varje jobb
  *   OTID_GEO_ONCE=1            ett jobb (eller tom kö) och sedan slut (testerna)
  *   OTID_GEO_EXIT_IDLE_MIN     sluta efter så många minuter utan jobb (0 = aldrig)
@@ -27,7 +28,7 @@ import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 
 interface Job {
-  readonly jobId: string; readonly kind: "PULLAUTIN"; readonly attempt: number;
+  readonly jobId: string; readonly kind: "PULLAUTIN" | "DWG"; readonly attempt: number;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
   /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
@@ -42,6 +43,7 @@ const token = env.OTID_GEO_WORKER_TOKEN ?? "";
 const workerName = (env.OTID_GEO_WORKER_NAME || hostname()).replace(/[^A-Za-z0-9_.:-]/g, "-").slice(0, 80) || "geo";
 const pullauta = env.OTID_PULLAUTA || "/opt/pullauta/pullauta";
 const defaultIni = env.OTID_PULLAUTA_INI || "/opt/pullauta/pullauta.default.ini";
+const dwg2dxf = env.OTID_DWG2DXF || "/opt/libredwg/bin/dwg2dxf";
 const workdir = env.OTID_GEO_WORKDIR || "/tmp/otid-geo";
 const once = env.OTID_GEO_ONCE === "1";
 const exitIdleMs = Math.max(0, Number(env.OTID_GEO_EXIT_IDLE_MIN ?? 0)) * 60_000;
@@ -85,9 +87,9 @@ export function pngSize(bytes: Uint8Array): { width: number; height: number } | 
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
 
-function run(args: readonly string[], cwd: string, signal: AbortSignal): Promise<void> {
+function run(args: readonly string[], cwd: string, signal: AbortSignal, program = pullauta): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(pullauta, args, { cwd, stdio: ["ignore", "ignore", "pipe"], env: { ...env, RUST_LOG: "warn" } });
+    const child = spawn(program, args, { cwd, stdio: ["ignore", "ignore", "pipe"], env: { ...env, RUST_LOG: "warn" } });
     let tail = "";
     child.stderr.on("data", (chunk: Buffer) => { tail = (tail + chunk.toString("utf8")).slice(-1500); });
     const abort = () => child.kill("SIGKILL");
@@ -97,7 +99,7 @@ function run(args: readonly string[], cwd: string, signal: AbortSignal): Promise
       signal.removeEventListener("abort", abort);
       if (signal.aborted) reject(new Stopped());
       else if (code === 0) resolve();
-      else reject(new Error(`Karttapullautin avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
+      else reject(new Error(`${program === pullauta ? "Karttapullautin" : "dwg2dxf"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
     });
   });
 }
@@ -200,6 +202,42 @@ async function runJob(job: Job): Promise<void> {
   }
 }
 
+/**
+ * K6b: en DWG-ritning blir DXF med LibreDWG (dwg2dxf). Ritningen hämtas från O-Tid och resultatet skickas tillbaka som
+ * `ritning.dxf`, som läses in som kandidater i editorn.
+ */
+async function runDwgJob(job: Job): Promise<void> {
+  const dir = join(workdir, job.jobId);
+  await rm(dir, { recursive: true, force: true });
+  await mkdir(dir, { recursive: true });
+  const control = new AbortController();
+  const beat = async (step: string) => {
+    const response = await call(`/api/geo-worker/jobs/${job.jobId}/heartbeat`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ step, done: 0, total: 1 }) }).catch(() => undefined);
+    const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
+    if (body?.action === "stop") { control.abort(); throw new Stopped(); }
+  };
+  try {
+    await beat("Hämtar ritningen");
+    const input = await call(`/api/geo-worker/jobs/${job.jobId}/input`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
+    if (!input.ok || !input.body) throw new Error(`Ritningen kunde inte hämtas (${input.status})`);
+    await pipeline(Readable.fromWeb(input.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, "ritning.dwg")));
+    await beat("Gör om DWG till DXF");
+    await run(["-y", "-o", "ritning.dxf", "ritning.dwg"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), dwg2dxf);
+    const bytes = await readFile(join(dir, "ritning.dxf")).catch(() => undefined);
+    if (!bytes || bytes.byteLength === 0) throw new Error("dwg2dxf gav ingen DXF");
+    await beat("Skickar resultatet");
+    const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/ritning.dxf`, { method: "PUT", body: new Uint8Array(bytes),
+      headers: { "content-type": "application/dxf", "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
+    if (!response.ok) throw new Error(`ritning.dxf kunde inte skickas (${response.status})`);
+    const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "DONE", summary: { bytes: bytes.byteLength } }) });
+    console.log(`Geo-jobb ${job.jobId}: DWG klart (svar ${finished.status})`);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 async function fail(job: Job, error: unknown): Promise<void> {
   const message = (error instanceof Error ? error.message : String(error)).slice(0, 1900) || "Okänt fel";
   console.error(`Geo-jobb ${job.jobId}: ${message}`);
@@ -223,7 +261,7 @@ async function main(): Promise<void> {
     if (response.status === 401) throw new Error("O-Tid tog inte emot geo-arbetarens nyckel");
     if (response.status === 200) {
       const { job } = await response.json() as { job: Job };
-      try { await runJob(job); }
+      try { await (job.kind === "DWG" ? runDwgJob(job) : runJob(job)); }
       catch (error) { if (!(error instanceof Stopped)) await fail(job, error); else console.log(`Geo-jobb ${job.jobId}: avbrutet`); }
       idleSince = Date.now();
       if (once) return;

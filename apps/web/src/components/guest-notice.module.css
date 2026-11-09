@@ -1,0 +1,7 @@
+/* Demoläget del 2: en lugn rad utan färg ovanför arbetsytan. */
+.notice {
+  margin: 0; padding: 8px 20px; border-bottom: 1px dashed var(--line-strong); background: var(--subtle); color: var(--ink);
+  font-size: var(--text-sm);
+}
+.notice span { color: var(--muted); }
+.notice a { font-weight: 600; white-space: nowrap; }

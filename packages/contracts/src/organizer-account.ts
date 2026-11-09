@@ -43,7 +43,9 @@ export const organizerAccountLoginResponseSchema = z.object({
   superadmin: z.boolean(),
   expiresAt: instant,
   /** ADR-0186: om e-postadressen är bekräftad. Behörigheter som andra ger kontot gäller först då. Saknas i äldre svar. */
-  emailVerified: z.boolean().optional()
+  emailVerified: z.boolean().optional(),
+  /** Demoläget del 2: satt för ett gästkonto, när det tas bort med sin övningstävling. */
+  guestExpiresAt: instant.optional()
 }).strict();
 
 /**

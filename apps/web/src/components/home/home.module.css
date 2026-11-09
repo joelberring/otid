@@ -21,3 +21,5 @@
 .demo { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
 .demo a { font-weight: 600; display: inline-flex; align-items: center; min-height: 32px; }
 .demo span { color: var(--muted); font-size: var(--text-sm); }
+.demo button { justify-self: start; }
+.demoProblem { margin: 0 0 6px; font-weight: 600; }

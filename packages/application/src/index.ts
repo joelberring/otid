@@ -8,6 +8,8 @@ export * from "./google-login";
 export * from "./google-link";
 export * from "./health";
 export * from "./account-self-service";
+export * from "./guest-demo";
+export { seedDemoRace, DEMO_RACE_SV, type DemoRaceTexts } from "./demo-race";
 export * from "./organizer-events";
 export * from "./race-people";
 export * from "./purge";

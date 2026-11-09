@@ -40,7 +40,9 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
   now: Date, lock: RaceRoleLock, accepted = false): Promise<CourseSettingAccessResult> {
   const account = await authorizeUserAccountSession(tx, {
     sessionToken: request.sessionToken, csrfCookie: request.csrfCookie ?? null, csrfHeader: request.csrfHeader ?? null,
-    ...(request.requireCsrf ? { requireCsrf: true } : {})
+    ...(request.requireCsrf ? { requireCsrf: true } : {}),
+    // Demoläget del 2: banläggningen hör till tävlingen, och gästen får lägga banor på sin övningstävling.
+    allowGuest: true
   }, now, lock);
   if (account.status !== "authenticated") return account;
   return principalFor(tx, account.principal.accountId, request.raceId, request.required, now, lock, accepted);

@@ -31,9 +31,12 @@ export const userAccounts = pgTable("user_account", {
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   /** ADR-0186 (migration 0040): när adressen bekräftades. NULL = obekräftad; behörigheter från andra gäller då inte. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  /** Demoläget del 2 (migration 0108): satt = tillfälligt gästkonto, som tas bort med sin övningstävling när tiden gått ut. */
+  guestExpiresAt: timestamp("guest_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (table) => [
   uniqueIndex("user_account_email_uidx").on(table.email),
+  index("user_account_guest_expires_idx").on(table.guestExpiresAt).where(sql`${table.guestExpiresAt} IS NOT NULL`),
   check("user_account_email_check", sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254 AND ${table.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$'`),
   check("user_account_display_name_check", sql`length(btrim(${table.displayName})) between 1 and 120`)
 ]);
@@ -80,7 +83,7 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
 export const ACCOUNT_REQUEST_THROTTLE_SCOPES = ["REGISTER_IP", "RESET_IP", "RESET_EMAIL", "SELF_REGISTRATION_IP", "SELF_REGISTRATION_RACE",
   "VERIFY_EMAIL", "GROUP_CODE_IP", "MAP_LINK_IP", "MAP_LINK_TOKEN", "INVITATION_RECIPIENT_HOUR", "INVITATION_RECIPIENT_DAY",
   "INVITATION_ISSUER_HOUR", "INVITATION_ISSUER_DAY", "OAUTH_REGISTER_IP", "OAUTH_TOKEN_IP", "MCP_JOB_ACCOUNT",
-  "MAP_SOURCE_ACCOUNT"] as const;
+  "MAP_SOURCE_ACCOUNT", "GUEST_DEMO_IP"] as const;
 export type AccountRequestThrottleScope = typeof ACCOUNT_REQUEST_THROTTLE_SCOPES[number];
 
 /** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */

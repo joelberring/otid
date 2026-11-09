@@ -17,7 +17,8 @@ async function tick(state: RunnerState): Promise<void> {
   if (state.running) return;
   state.running = true;
   try {
-    const { swept, retention } = await runMaintenance(db, retentionSettings(process.env), new Date());
+    const { guests, swept, retention } = await runMaintenance(db, retentionSettings(process.env), new Date());
+    if (guests > 0) console.info(`Demoläget: ${guests} gästkonton med sina övningstävlingar borttagna`);
     if (swept.contents + swept.parts > 0) console.info(`Underhåll: ${swept.contents} kartinnehåll och ${swept.parts} delar utan tävling borttagna`);
     if (retention.anonymizedRaces + retention.deletedEvents > 0) {
       console.info(`Gallring: ${retention.anonymizedRaces} tävlingar anonymiserade (${retention.anonymizedEntries} deltagare), ` +

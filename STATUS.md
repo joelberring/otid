@@ -10,13 +10,23 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Demoläget del 2: prova arbetsytan utan konto (ADR-0220)
+- "Prova arbetsytan" på startsidan (med `OTID_GUEST_DEMO=1`, av som förval): ett gästkonto (migration 0108) med en egen
+  övningstävling med påhittade löpare (`seedDemoRace`, samma som `pnpm demo`), inloggat direkt i arbetsytan.
+- Gäster nekas som förval i kontosessionen (`allowGuest` bara i tävlingens och banläggningens rollkontroll, förhandsvisningen,
+  "vem är inloggad?" och utloggningen); ingen publicering, kartlänk eller mejl. Spärr per IP och timme.
+- Gästläget står överst i arbetsytan och vid kontomenyn ("Skapa ett eget konto", "Avsluta provet"); efter ett dygn tar
+  underhållet bort kontot med tävlingen. Kontomenyns panel hamnar inte längre utanför vänsterkanten på smal skärm.
+- Verifierat: integration `demolage-gast`, enhet `guest-demo-route-handlers`, E2E `demolage` (1280 och 390 px), `konto-meny`, `startsida`.
+- Ägaren: sätt `OTID_GUEST_DEMO=1` i `.env` när servern uppdateras (migration 0108).
+
 ### 2026-11-09 – Ny startsida (idéerna 2026-11-08)
 - Tävlingarna först som förut; den inloggade ser "Ditt O-Tid" (klubbar, träningsgrupper, öppna kartprojekt); alla ser "Mer
   än tidtagning" (sex delar), hur O-Tid är byggt och länken till koden på GitHub. Svenska och engelska.
 - Verifierat: E2E `startsida`, `sprak`, `publikt`.
 - Demoläget, första steget: `OTID_DEMO_RACE` (kort kod till en publicerad tävling) ger länken "Prova: se en demotävling".
-- Kvar: ägaren väljer licens för koden (repot är publikt men har ingen LICENSE-fil) och en demotävling; att prova arbetsytan
-  utan konto (gästkonto med egen kopia) kräver ägarens beslut.
+- Licens: MIT (ägaren 2026-11-09), `LICENSE` och README; startsidan säger att koden är fri. Kvar: ägaren sätter demotävlingen
+  (natt-KM tills vidare). Att prova arbetsytan utan konto är gjort (demoläget del 2, ADR-0220).
 
 ### 2026-11-09 – Engelska, del 1: språkval och de publika ingångssidorna
 - Språket ur kakan `otid-lang` (länken English/Svenska i sidhuvudet, `/sprak`), annars engelska bara när webbläsaren inte

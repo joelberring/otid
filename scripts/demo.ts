@@ -6,31 +6,11 @@
  *
  * Endast syntetiska namn. Körs inte mot en produktionsmiljö.
  */
-import { createHash, randomUUID } from "node:crypto";
-import type { DeviceBatch, SportidentReadoutPayload } from "../packages/contracts/src/index.ts";
 import { createDatabase, migrate } from "../packages/database/src/index.ts";
-import {
-  createOrganizerEvent,
-  createManualCourseClassAsAdmin,
-  ingestReadoutsAsAdmin,
-  loginUserAccount,
-  registerEntryAsAdmin,
-  registerUserAccount,
-  setRacePublicationAsAdmin
-} from "../packages/application/src/index.ts";
-import { normalizeCard, readSimulatedCard, simulatedRun } from "../packages/sportident/src/index.ts";
+import { loginUserAccount, registerUserAccount, seedDemoRace, setRacePublicationAsAdmin } from "../packages/application/src/index.ts";
 
 const EMAIL = "demo@o-tid.local";
 const PASSWORD = "demo-traning-1";
-const TIME_ZONE = "Europe/Stockholm";
-const COURSES = [
-  { name: "Lång", className: "Lång", controls: [31, 32, 33, 34, 35, 36, 37, 38] },
-  { name: "Kort", className: "Kort", controls: [31, 33, 35, 37] }
-] as const;
-const RUNNERS = [
-  ["Anna", "Ek"], ["Bo", "Lind"], ["Cecilia", "Holm"], ["David", "Berg"], ["Elsa", "Sjö"],
-  ["Filip", "Strand"], ["Greta", "Ås"], ["Hugo", "Mo"], ["Ida", "Dal"], ["Jonas", "Hed"]
-] as const;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -72,67 +52,12 @@ async function main(): Promise<void> {
     if (account.status !== "authenticated") fail(`Kontot ${EMAIL} finns men lösenordet är ändrat. Använd en tom databas.`);
     const owner = { sessionToken: account.sessionToken, csrfCookie: account.csrfToken, csrfHeader: account.csrfToken };
 
-    const today = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE }).format(new Date());
-    const created = await createOrganizerEvent(db, { ...owner, idempotencyKey: `organizer-event-create:${randomUUID()}`,
-      readBody: async () => ({ formatVersion: 1, eventName: `Demoträning ${today}`, raceName: "Kvällsträning", raceDate: today, timeZone: TIME_ZONE }) });
-    if (created.status !== "created") fail(`Tävlingen kunde inte skapas (${created.status}).`);
-    const raceId = created.response.raceId;
-    // Kontots session gäller tävlingen direkt (ADR-0173 beslut 4).
-    const admin = { ...owner, raceId };
+    const seeded = await seedDemoRace(db, { sessionToken: account.sessionToken, csrfToken: account.csrfToken });
+    if (seeded.status !== "created") fail(`Demoträningen kunde inte skapas: ${seeded.step}.`);
+    const raceId = seeded.raceId;
     // ADR-0172 beslut 4: publicerad, så att startsidan och tävlingssidan visar demoträningen.
-    const published = await setRacePublicationAsAdmin(db, { ...admin, published: true });
+    const published = await setRacePublicationAsAdmin(db, { ...owner, raceId, published: true });
     if (published.status !== "saved") fail(`Tävlingen kunde inte publiceras (${published.status}).`);
-    const snapshotVersion = async () =>
-      (await pool.query<{ snapshot_version: number }>("select snapshot_version from race where id = $1", [raceId])).rows[0]!.snapshot_version;
-
-    const classes = [];
-    for (const course of COURSES) {
-      const requestId = randomUUID();
-      const result = await createManualCourseClassAsAdmin(db, { ...admin, idempotencyKey: `manual-course-class-create:${requestId}`,
-        request: { formatVersion: 1, requestId, courseName: course.name,
-          className: course.className, startRule: "PUNCH", controlCodes: [...course.controls] } });
-      if (result.status !== "created") fail(`Banan ${course.name} kunde inte skapas (${result.status}).`);
-      classes.push({ ...course, classId: result.response.classId, courseVersionId: result.response.courseVersionId });
-    }
-
-    const runners = [];
-    for (const [index, [givenName, familyName]] of RUNNERS.entries()) {
-      const raceClass = classes[index % classes.length]!;
-      const cardNumber = 8_100_001 + index;
-      const result = await registerEntryAsAdmin(db, { ...admin, idempotencyKey: `entry-registration:${randomUUID()}`,
-        request: { formatVersion: 1, classId: raceClass.classId, expectedCourseVersionId: raceClass.courseVersionId,
-          expectedStartRule: "PUNCH", givenName, familyName,
-          organisationName: "Demo OK", cardNumber: String(cardNumber), fixedStartTime: null } });
-      if (result.status !== "registered") fail(`${givenName} ${familyName} kunde inte anmälas (${result.status}).`);
-      runners.push({ cardNumber, controls: raceClass.controls });
-    }
-
-    // Sju har gått i mål; löpare 4 missade en kontroll. Löpare 8–10 är kvar i skogen.
-    const now = Date.now();
-    const deviceId = randomUUID();
-    const events: DeviceBatch["events"] = runners.slice(0, 7).map((runner, index) => {
-      const startAt = new Date(now - (75 - index * 3) * 60_000);
-      const finishAt = new Date(now - (35 - index * 4) * 60_000);
-      const controls = index === 3 ? runner.controls.filter((code) => code !== 33) : runner.controls;
-      const read = readSimulatedCard(simulatedRun(runner.cardNumber, { startAt, finishAt, controlCodes: controls, timeZone: TIME_ZONE }));
-      const readAt = new Date(finishAt.getTime() + 60_000);
-      const card = normalizeCard(read.card, { reference: readAt, timeZone: TIME_ZONE });
-      const payload: SportidentReadoutPayload = {
-        cardNumber: card.cardNumber, cardType: card.cardType,
-        ...(card.startPunchedAt ? { startPunchedAt: card.startPunchedAt } : {}),
-        ...(card.finishPunchedAt ? { finishPunchedAt: card.finishPunchedAt } : {}),
-        punches: card.punches.map((punch) => ({ code: punch.code, punchedAt: punch.punchedAt })),
-        untimedPunchCodes: [...card.untimedPunchCodes],
-        frames: read.frames.map((frame) => Buffer.from(frame).toString("hex")),
-        stationSerial: 999_001, simulated: true
-      };
-      return { localSequence: index + 1, stationReceivedAt: readAt.toISOString(), transport: "sportident",
-        payload, contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") };
-    });
-    const batch: DeviceBatch = { deviceId, sessionId: randomUUID(), packageVersion: await snapshotVersion(),
-      firstSequence: 1, lastSequence: events.length, events };
-    const ingested = await ingestReadoutsAsAdmin(db, { ...admin, batch });
-    if (ingested.status !== "ok") fail(`Avläsningarna kunde inte sparas (${ingested.status}).`);
 
     const origin = process.env.O_TID_PUBLIC_ORIGIN ?? "http://localhost:3000";
     process.stdout.write([

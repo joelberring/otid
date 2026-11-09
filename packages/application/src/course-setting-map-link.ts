@@ -1,3 +1,4 @@
+import { isGuestAccount } from "./guest-account";
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
@@ -104,6 +105,8 @@ export async function createMapLinkAsAdmin(db: Database, input: RaceSessionProof
   const parsed = mapLinkCreateRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
+    // Demoläget del 2: en gäst delar inga länkar utåt.
+    if (await isGuestAccount(tx, actorId)) return { status: "forbidden" as const };
     const dates = await raceDates(tx, raceId, now);
     if (!dates) return { status: "not-found" as const };
     const expiresAt = parsed.data.lastDay === null ? null : mapLinkExpiresAt(parsed.data.lastDay, dates.timeZone);

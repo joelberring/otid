@@ -52,7 +52,7 @@ export async function publicRaceGate(db: Database, raceId: string, accountSessio
   if (race.publishedAt && !membersOnly) return { access: "PUBLIC", privateCache: false };
   if (!accountSessionToken) return none;
   return db.transaction(async tx => {
-    const auth = await authenticateUserAccountSessionForProtectedRead(tx, { sessionToken: accountSessionToken }, now);
+    const auth = await authenticateUserAccountSessionForProtectedRead(tx, { sessionToken: accountSessionToken, allowGuest: true }, now);
     if (auth.status !== "authenticated") return none;
     const grant = await activeEventAdministrationGrant(tx, { accountId: auth.principal.accountId, eventId: race.eventId,
       roles: ["OWNER", "ADMIN", "FUNCTIONARY"] }, "share");
@@ -72,7 +72,7 @@ export async function isRaceStaff(db: Database, raceId: string, accountSessionTo
   const [race] = await db.select({ eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, raceId)).limit(1);
   if (!race) return false;
   return db.transaction(async tx => {
-    const auth = await authenticateUserAccountSessionForProtectedRead(tx, { sessionToken: accountSessionToken }, now);
+    const auth = await authenticateUserAccountSessionForProtectedRead(tx, { sessionToken: accountSessionToken, allowGuest: true }, now);
     if (auth.status !== "authenticated") return false;
     return !!await activeEventAdministrationGrant(tx, { accountId: auth.principal.accountId, eventId: race.eventId,
       roles: ["OWNER", "ADMIN", "FUNCTIONARY"] }, "share");

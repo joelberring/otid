@@ -49,6 +49,8 @@ export interface UserAccountPrincipal {
   expiresAt: string;
   /** ADR-0186: adressen är bekräftad; behörigheter som andra ger kontot gäller först då. */
   emailVerified: boolean;
+  /** Demoläget del 2: satt för ett gästkonto (när det tas bort). Bara anropare med `allowGuest` får ett sådant. */
+  guestExpiresAt?: string;
 }
 
 export interface UserAccountSessionProof {
@@ -56,6 +58,12 @@ export interface UserAccountSessionProof {
   csrfCookie?: string | null;
   csrfHeader?: string | null;
   requireCsrf?: boolean;
+  /**
+   * Demoläget del 2: ett gästkonto släpps bara in där anroparen uttryckligen tillåter det (den egna tävlingens rollkontroll,
+   * frågan "vem är inloggad?", förhandsvisningen och utloggningen). Överallt annars är svaret "unauthorized", så att en ny
+   * kontosida aldrig öppnas för gäster av misstag.
+   */
+  allowGuest?: boolean;
 }
 
 export type UserAccountAuthenticationResult =
@@ -420,12 +428,14 @@ export async function authorizeUserAccountSession(
     session.issuedAt.getTime() > now.getTime() || session.expiresAt.getTime() <= now.getTime()) {
     return { status: "unauthorized" };
   }
+  if (account.guestExpiresAt && (!proof.allowGuest || account.guestExpiresAt.getTime() <= now.getTime())) return { status: "unauthorized" };
   if (proof.requireCsrf && !csrfMatches(proof.csrfCookie, proof.csrfHeader, session.csrfSecretHash)) {
     return { status: "forbidden" };
   }
   return { status: "authenticated", principal: {
     accountId: account.id, sessionId: session.id, email: account.email, displayName: account.displayName,
-    superadmin: account.isSuperadmin, expiresAt: session.expiresAt.toISOString(), emailVerified: account.emailVerifiedAt !== null
+    superadmin: account.isSuperadmin, expiresAt: session.expiresAt.toISOString(), emailVerified: account.emailVerifiedAt !== null,
+    ...(account.guestExpiresAt ? { guestExpiresAt: account.guestExpiresAt.toISOString() } : {})
   } };
 }
 
@@ -465,7 +475,7 @@ export async function logoutUserAccountSession(
 ): Promise<{ status: "unauthorized" | "forbidden" | "logged-out" | "already-logged-out" }> {
   const loggedOutAt = validDate(now);
   return db.transaction(async (tx) => {
-    const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: proof.requireCsrf !== false }, loggedOutAt);
+    const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, allowGuest: true, requireCsrf: proof.requireCsrf !== false }, loggedOutAt);
     if (auth.status !== "authenticated") return auth;
     const [existing] = await tx.select({ id: schema.userAccountSessionRevocations.id })
       .from(schema.userAccountSessionRevocations)

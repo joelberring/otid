@@ -75,6 +75,8 @@ jobs:
           printf 'OTID_EVENTOR_MASTER_KEY=%s\nOTID_EVENTOR_BASE_URL=http://host.docker.internal:4319\n' "$(openssl rand -base64 32)" >> .env
           printf 'OTID_SMTP_URL=smtp://host.docker.internal:4325\nOTID_MAIL_FROM=O-Tid test <noreply@o-tid.test>\n' >> .env
           printf 'OTID_REGISTRATION_LIMIT_PER_HOUR=1000\n' >> .env
+          # Demoläget del 2: "Prova arbetsytan" (gästkonton), med hög spärr eftersom alla tester kommer från samma adress.
+          printf 'OTID_GUEST_DEMO=1\nOTID_GUEST_DEMO_PER_HOUR=1000\n' >> .env
           printf 'OTID_ROC_BASE_URL=http://host.docker.internal:4331\n' >> .env
           # Geodata (ADR-0219, K4c): den falska Overpass från global-setup (port 4343).
           printf 'OTID_OVERPASS_URL=http://host.docker.internal:4343/api/interpreter\n' >> .env

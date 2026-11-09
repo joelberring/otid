@@ -122,6 +122,8 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     await pool.query("ALTER TABLE entry ADD COLUMN anonymized_at timestamptz");
     // …och ADR-0198 (0064 lägger till kolumnen om den saknas): bortvalda varianter per banversion.
     await pool.query("ALTER TABLE course_version ADD COLUMN excluded_variants jsonb");
+    // …och demoläget del 2 (0108 lägger till kolumnen om den saknas): gästkontot.
+    await pool.query("ALTER TABLE user_account ADD COLUMN guest_expires_at timestamptz");
     const { ids, cards } = await seedRace(db, pool);
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.bo, "10:05:00", 41)]);
     await pool.query("DROP TABLE race_station_correction");

@@ -20,6 +20,8 @@ export async function setRacePublicationAsAdmin(db: Database, input: Authenticat
   return db.transaction(async tx => {
     const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
+    // Demoläget del 2: gästens övningstävling blir aldrig publik (den syns bara som förhandsvisning för gästen).
+    if (auth.principal.guest && input.published) return { status: "forbidden" } as const;
     const raceId = auth.principal.raceId;
     await lockRaceForMutation(tx, raceId);
     const [race] = await tx.select({ publishedAt: schema.races.publishedAt, shortCode: schema.races.shortCode,

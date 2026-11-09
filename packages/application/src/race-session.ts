@@ -43,6 +43,8 @@ export interface RacePrincipal {
   /** Rollen på tävlingen: ADMIN för ägare och administratör, annars FUNCTIONARY. */
   role: RaceRole;
   expiresAt: string;
+  /** Demoläget del 2: gästkontot på sin övningstävling. Det som syns utåt (publicering, kartlänk, mejl) vägras då. */
+  guest?: true;
 }
 
 export type RaceRoleResult =
@@ -117,7 +119,7 @@ async function activeGrantOf(tx: DbExecutor, grants: readonly { id: string; role
 async function authorize(tx: DbExecutor, request: RaceRoleRequest, now: Date, lock: RaceRoleLock, accepted = false): Promise<RaceRoleResult> {
   const account = await authorizeUserAccountSession(tx, {
     sessionToken: request.sessionToken, csrfCookie: request.csrfCookie ?? null, csrfHeader: request.csrfHeader ?? null,
-    ...(request.requireCsrf ? { requireCsrf: true } : {})
+    ...(request.requireCsrf ? { requireCsrf: true } : {}), allowGuest: true
   }, now, lock);
   if (account.status !== "authenticated") return account;
   const [race] = await tx.select({ id: schema.races.id, eventId: schema.races.eventId }).from(schema.races)
@@ -136,7 +138,8 @@ async function authorize(tx: DbExecutor, request: RaceRoleRequest, now: Date, lo
   if (request.role === "ADMIN" && role !== "ADMIN") return { status: "forbidden" };
   return { status: "authenticated", principal: {
     accountId: account.principal.accountId, sessionId: account.principal.sessionId, raceId: race.id, eventId: race.eventId,
-    grantId: grant.id, grantRole: grant.role, role, expiresAt: account.principal.expiresAt
+    grantId: grant.id, grantRole: grant.role, role, expiresAt: account.principal.expiresAt,
+    ...(account.principal.guestExpiresAt !== undefined ? { guest: true as const } : {})
   } };
 }
 

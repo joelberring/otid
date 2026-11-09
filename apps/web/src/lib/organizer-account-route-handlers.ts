@@ -214,14 +214,16 @@ export async function organizerSessionStatusRoute(
   if ("response" in configured) return configured.response;
   if (!await hasNoRequestBody(request)) return organizerFailure(400, "INVALID_REQUEST");
   try {
-    const result = await authenticate(db, sessionProof(request, configured.value, false));
+    // Demoläget del 2: kontomenyn visar gästläget, så gäster får ett svar här (men inte på kontots sidor).
+    const result = await authenticate(db, { ...sessionProof(request, configured.value, false), allowGuest: true });
     // Frågan "är jag inloggad?" är ett normalt svar, inte ett fel: inget 401 i webbläsarens konsol (PLAN.md steg 22).
     if (result.status === "unauthorized") return privateJson(organizerAccountSessionStatusSchema.parse({ formatVersion: 1, authenticated: false }));
     if (result.status !== "authenticated") return authenticationFailure(result.status);
     return privateJson(organizerAccountSessionStatusSchema.parse({
       formatVersion: 1, accountId: result.principal.accountId, email: result.principal.email,
       displayName: result.principal.displayName, superadmin: result.principal.superadmin, expiresAt: result.principal.expiresAt,
-      emailVerified: result.principal.emailVerified
+      emailVerified: result.principal.emailVerified,
+      ...(result.principal.guestExpiresAt ? { guestExpiresAt: result.principal.guestExpiresAt } : {})
     }));
   } catch (error) { logServerError("organizer-account", "organizerSessionStatusRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }

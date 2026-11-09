@@ -3,6 +3,7 @@ import { schema, type Database } from "@o-tid/database";
 import { anonymizeEntries } from "./anonymization";
 import { purgeRows } from "./purge";
 import { sweepMapContent } from "./map-content";
+import { sweepGuestAccounts } from "./guest-demo";
 
 /**
  * ADR-0189 beslut 6: valfri automatisk gallring. Tävlingar vars datum är äldre än `months` månader anonymiseras (alla
@@ -92,9 +93,13 @@ export async function runRetention(db: Database, settings: RetentionSettings, no
   return { anonymizedRaces, anonymizedEntries, deletedEvents };
 }
 
-/** Underhållet en gång i timmen: kartinnehåll utan referens och avbrutna uppladdningar, sedan gallringen. */
+/**
+ * Underhållet en gång i timmen: gästkonton vars tid gått ut (demoläget del 2, före kartinnehållet så att deras kartor städas
+ * samma varv), kartinnehåll utan referens och avbrutna uppladdningar, sedan gallringen.
+ */
 export async function runMaintenance(db: Database, settings: RetentionSettings, now = new Date()) {
+  const guests = await sweepGuestAccounts(db, now);
   const swept = await db.transaction(tx => sweepMapContent(tx, now));
   const retention = await runRetention(db, settings, now);
-  return { swept, retention };
+  return { guests, swept, retention };
 }

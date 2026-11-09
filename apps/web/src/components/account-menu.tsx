@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { accountMenuSv } from "../i18n/account-menu-sv";
 import { accountMenuEn } from "../i18n/account-en";
 import { useTexts } from "./language-provider";
@@ -9,7 +9,7 @@ import { logOut, pendingOfflineChanges, type PendingOfflineChanges } from "../li
 import { Button } from "./ui";
 import styles from "./account-menu.module.css";
 
-type Who = { displayName: string; email: string };
+type Who = { displayName: string; email: string; guestExpiresAt?: string | undefined };
 
 /** Initialerna i knappen: första bokstaven i de två första orden (eller adressen). */
 export function initialsOf(name: string): string {
@@ -32,6 +32,16 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
   const [problem, setProblem] = useState("");
   const root = useRef<HTMLDivElement>(null);
   const panelId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  // Panelen hänger från knappens högra kant. Står knappen långt till vänster (en smal skärm där överlisten radbryts) flyttas
+  // panelen in så att den inte hamnar utanför skärmens vänsterkant.
+  useLayoutEffect(() => {
+    const element = panel.current;
+    if (!open || !element) return;
+    element.style.transform = "";
+    const left = element.getBoundingClientRect().left;
+    if (left < 12) element.style.transform = `translateX(${Math.ceil(12 - left)}px)`;
+  }, [open, who?.guestExpiresAt]);
 
   useEffect(() => { if (known) setWho(known); }, [known?.displayName, known?.email]);
   useEffect(() => {
@@ -39,8 +49,9 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
     let active = true;
     void fetch("/api/organizer/session", { credentials: "same-origin", cache: "no-store" }).then(async response => {
       if (!active || !response.ok) return;
-      const body = await response.json() as { displayName?: unknown; email?: unknown };
-      if (typeof body.displayName === "string" && typeof body.email === "string") setWho({ displayName: body.displayName, email: body.email });
+      const body = await response.json() as { displayName?: unknown; email?: unknown; guestExpiresAt?: unknown };
+      if (typeof body.displayName === "string" && typeof body.email === "string") setWho({ displayName: body.displayName, email: body.email,
+        ...(typeof body.guestExpiresAt === "string" ? { guestExpiresAt: body.guestExpiresAt } : {}) });
     }).catch(() => undefined);
     return () => { active = false; };
   }, [known]);
@@ -73,6 +84,7 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
   }
 
   if (!who) return null;
+  const guest = who.guestExpiresAt ? new Date(who.guestExpiresAt) : undefined;
   return <div className={styles.menu} ref={root} data-testid="account-menu">
     <button type="button" className={styles.trigger} aria-expanded={open} aria-controls={panelId} aria-label={text.open(who.displayName)}
       title={text.open(who.displayName)} onClick={() => (open ? close() : setOpen(true))}>
@@ -80,18 +92,23 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
       <span className={styles.name} aria-hidden="true">{who.displayName}</span>
       <span className={styles.caret} aria-hidden="true">▾</span>
     </button>
-    {open && <div className={styles.panel} id={panelId}>
-      <p className={styles.who}><strong>{who.displayName}</strong><span>{who.email}</span></p>
-      <nav aria-label={text.open(who.displayName)} style={{ display: "grid", gap: 2 }}>
+    {guest && <span className={styles.guest} data-testid="guest-badge">{text.guestBadge}</span>}
+    {open && <div className={styles.panel} id={panelId} ref={panel}>
+      {guest ? <p className={styles.who}><strong>{who.displayName}</strong><span>{text.guestNote(guest)}</span></p>
+        : <p className={styles.who}><strong>{who.displayName}</strong><span>{who.email}</span></p>}
+      {guest ? <nav aria-label={text.open(who.displayName)} style={{ display: "grid", gap: 2 }}>
+        <Link className={styles.item} href="/organizer">{text.createAccount}</Link>
+      </nav> : <nav aria-label={text.open(who.displayName)} style={{ display: "grid", gap: 2 }}>
         <Link className={styles.item} href="/organizer">{text.myEvents}</Link>
         <Link className={styles.item} href="/organizer#mina-klubbar">{text.myClubs}</Link>
         <Link className={styles.item} href="/organizer#mina-grupper">{text.myGroups}</Link>
         <Link className={styles.item} href="/organizer/map-projects">{text.myMapProjects}</Link>
         <Link className={styles.item} href="/konto">{text.myAccount}</Link>
-      </nav>
+      </nav>}
       <div className={styles.separator} />
       {stage !== "confirm" && <button type="button" className={styles.item} disabled={stage !== "idle"} aria-busy={stage !== "idle"}
-        onClick={() => void start()}>{stage === "leaving" ? text.loggingOut : stage === "checking" ? text.checking : text.logout}</button>}
+        onClick={() => void start()}>{stage === "leaving" ? text.loggingOut : stage === "checking" ? text.checking
+          : guest ? text.endGuest : text.logout}</button>}
       {stage === "confirm" && pending && <div className={styles.confirm} role="alertdialog" aria-label={text.logout}>
         <p><strong>{text.pending(pending.total)}</strong></p>
         {pending.courseSetting > 0 && <p>{text.pendingCourseSetting}</p>}

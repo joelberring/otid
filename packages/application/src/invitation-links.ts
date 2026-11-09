@@ -168,9 +168,10 @@ export async function prepareInvitationMail(tx: DbExecutor, input: { ref: Invita
   : Promise<PreparedInvitationMail> {
   const invitation = await loadInvitation(tx, input.ref);
   if (!invitation || invitation.acceptedAt || invitation.revokedAt) return { status: "closed" };
-  const [actor] = await tx.select({ displayName: schema.userAccounts.displayName }).from(schema.userAccounts)
-    .where(eq(schema.userAccounts.id, input.actorAccountId));
-  if (!actor) return { status: "closed" };
+  const [actor] = await tx.select({ displayName: schema.userAccounts.displayName, guestExpiresAt: schema.userAccounts.guestExpiresAt })
+    .from(schema.userAccounts).where(eq(schema.userAccounts.id, input.actorAccountId));
+  // Demoläget del 2: ett gästkonto mejlar aldrig någon.
+  if (!actor || actor.guestExpiresAt) return { status: "closed" };
   const link = await issueInvitationLink(tx, { ref: input.ref, email: invitation.email, issuedBy: input.actorAccountId, delivery: "MAIL",
     now: input.now });
   if (!link) return { status: "throttled" };

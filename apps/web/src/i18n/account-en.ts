@@ -156,5 +156,10 @@ export const accountMenuEn: Texts<typeof accountMenuSv> = {
   logoutAnyway: "Sign out anyway",
   cancel: "Cancel",
   failed: status => `Signing out could not be confirmed (${status}). Check the network and try again.`,
-  network: "Signing out could not be confirmed. Check the network and try again."
+  network: "Signing out could not be confirmed. Check the network and try again.",
+  guestBadge: "Guest mode",
+  guestNote: until => `This is a practice event with made-up runners. Nothing is shown publicly, and everything is deleted on ${
+    until.toLocaleString("en-GB", { weekday: "long", hour: "2-digit", minute: "2-digit" })}.`,
+  createAccount: "Create your own account",
+  endGuest: "End the trial"
 };

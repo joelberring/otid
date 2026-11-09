@@ -1,3 +1,4 @@
+import { guestDemoHomeEn, guestDemoHomeSv } from "../../i18n/guest-demo";
 import Link from "next/link";
 import type { GroupSummary, MapProjectSummary } from "@o-tid/contracts";
 import { homeSv } from "../../i18n/home-sv";
@@ -44,10 +45,17 @@ export function HomePersonal({ personal, language }: { personal: Personal; langu
 }
 
 /** Vad O-Tid gör utöver tidtagning, hur det är byggt och var koden finns. */
-export function HomeAbout({ language, demo }: { language: Language; demo?: string | undefined }) {
+export function HomeAbout({ language, demo, guest }: { language: Language; demo?: string | undefined;
+  /** Demoläget del 2: "Prova arbetsytan" (bara utan inloggning och med `OTID_GUEST_DEMO=1`) och beskedet efter ett försök. */
+  guest?: { message?: "busy" | "failed" | undefined } | undefined }) {
   const text = texts(language);
+  const guestText = language === "en" ? guestDemoHomeEn : guestDemoHomeSv;
   return <>
     {demo && <p className={styles.demo} data-testid="home-demo"><Link href={demo}>{text.demo}</Link> <span>{text.demoHelp}</span></p>}
+    {guest && <form className={styles.demo} action="/api/demo/guest" method="post" data-testid="home-guest-demo">
+      {guest.message && <p role="alert" className={styles.demoProblem}>{guest.message === "busy" ? guestText.busy : guestText.failed}</p>}
+      <button type="submit">{guestText.button}</button> <span>{guestText.explanation}</span>
+    </form>}
     <section className={styles.features} aria-labelledby="home-features" data-testid="home-features">
       <h2 id="home-features">{text.featuresTitle}</h2>
       <ul className={styles.featureGrid}>

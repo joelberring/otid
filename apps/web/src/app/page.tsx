@@ -6,6 +6,7 @@ import { db } from "../lib/db";
 import { accountSessionToken } from "../lib/public-race-gate";
 import { todayIn } from "../lib/public-race-format";
 import { demoRacePath, introFilmUrl } from "../lib/intro-film";
+import { guestDemoEnabled } from "../lib/guest-demo-route-handlers";
 import { currentLanguage } from "../lib/language-server";
 import { publicHomeEn, siteEn } from "../i18n/public-en";
 import { sv } from "../i18n/sv";
@@ -23,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: `${sv.appName} – ${tagline}`, description: `${tagline}. ${(english ? publicHomeEn : publicRaceSv.home).intro}` };
 }
 
-type Query = { q?: string | string[]; fler?: string | string[] };
+type Query = { q?: string | string[]; fler?: string | string[]; demo?: string | string[] };
 
 /**
  * Startsidan för besökare (ADR-0172 beslut 4): sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
@@ -84,7 +85,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       {section("kommande", text.upcoming, listing.upcoming, "UPCOMING", text.noneUpcoming)}
       {section("senaste", text.recent, listing.recent, "RECENT", text.noneRecent, listing.moreRecent)}
       {film && <p className={styles.introFilm}><a href={film}>{text.introFilm}</a></p>}
-      {!search && <HomeAbout language={language} demo={demoRacePath()} />}
+      {!search && <HomeAbout language={language} demo={demoRacePath()}
+        guest={guestDemoEnabled() && !signedIn ? { message: query.demo === "upptaget" ? "busy" : query.demo === "fel" ? "failed" : undefined }
+          : undefined} />}
     </main>
   </>;
 }

@@ -77,8 +77,8 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "Course file from Purple Pen, OCAD or Condes: export the courses as IOF XML 3.0 and choose ”Import course file”. You see the differences first.",
         "”Edit”: correct a course, even after runners have read out. Press ”Show what happens” and ”Save the change”. Results are recalculated.",
         "”Remove course”: possible when no class runs the course and there are no results.",
-        "Course setting, File: ”Ladda ned IOF XML (banor)” gives a course file like the one from Purple Pen. MeOS and OLA read it.",
-        "OCAD: O-Tid has no format of its own for it. OCAD's course setting can read the same IOF XML file. For Purple Pen: ”Ladda ned .ppen”."
+        "Course setting, File: ”Download IOF XML (courses)” gives a course file like the one from Purple Pen. MeOS and OLA read it.",
+        "OCAD: O-Tid has no format of its own for it. OCAD's course setting can read the same IOF XML file. For Purple Pen: ”Download .ppen”."
       ],
       "To put the courses on the map in O-Tid: see [Course setting: open it and load the map](#banlaggning-start)."
     ]
@@ -308,7 +308,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "The points follow the first digit of the control code: 31 gives 3 points, 52 gives 5 and 102 gives 10, as IRF rule C9 prefers.",
         "Put the courses in ”Course setting”: new courses become score courses. An empty points field means the code's first digit.",
         "Write other points in the field for controls that should give more or less.",
-        "”Överför till tävlingen …” brings the points along. Changed points are listed as separate rows before you approve.",
+        "”Transfer to the event …” brings the points along. Changed points are listed as separate rows before you approve.",
         "Under ”Controls & points” the points can be changed afterwards, and the classes' time limit and penalty are set there."
       ],
       "If someone has already read out, O-Tid shows which results change before the points are saved."

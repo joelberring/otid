@@ -1,7 +1,9 @@
 "use client";
 
 import type { LayoutEntry } from "@o-tid/course-setting";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { scaleText, type MatrixCell, type MatrixRow } from "../../lib/course-setting-layouts";
 import styles from "./course-setting-layout.module.css";
 
@@ -13,6 +15,7 @@ export function LayoutMatrix({ columns, rows, open, readOnly, onOpen, onAdd }: {
   columns: readonly LayoutEntry[]; rows: readonly MatrixRow[]; open: { course: string; layout: string } | undefined; readOnly: boolean;
   onOpen: (course: string, layout: string) => void; onAdd: (course: string, layout: string) => void;
 }) {
+  const text = useTexts(layoutSv, layoutEn);
   const nameOf = (id: string) => columns.find(column => column.id === id)?.name ?? id;
   const cell = (row: MatrixRow, item: MatrixCell, list = false) => item.exists
     ? <button type="button" className={styles.cell} aria-pressed={open?.course === row.course && open.layout === item.layout}

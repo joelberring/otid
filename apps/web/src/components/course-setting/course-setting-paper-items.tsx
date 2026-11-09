@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { paperSpaceEn } from "../../i18n/course-setting-paper-en";
+import { useTexts } from "../language-provider";
 import { createPortal } from "react-dom";
 import type { PaperPart, Sheet, SheetFrame, SheetPaperItem } from "@o-tid/course-setting";
 import { VariableOptions } from "./course-setting-paper-variables";
-import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
+import { paperSpaceSv } from "../../i18n/course-setting-paper-sv";
 import { snapMove, snapTargets, type SnapGuide } from "../../lib/course-setting-paper-snap";
 import { paperFontFamily } from "../../lib/course-setting-paper";
 import styles from "./course-setting-print-page.module.css";
@@ -139,6 +141,7 @@ export function PaperItemsLayer({ sheet, interaction }: { sheet: Sheet; interact
 
 function PaperItemView({ sheet, item, interaction, selected, onGuides, onEdit }: { sheet: Sheet; item: SheetPaperItem; interaction: PaperInteraction; selected: boolean;
   onGuides: (guides: readonly SnapGuide[]) => void; onEdit: (() => void) | undefined }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const [drag, setDrag] = useState<{ dx: number; dy: number; dw: number; dh: number }>();
   const start = useRef<{ x: number; y: number; mode: "move" | "resize" }>(undefined);
   const editable = interaction.editable && !item.locked;
@@ -234,6 +237,7 @@ function PaperItemView({ sheet, item, interaction, selected, onGuides, onEdit }:
  * Ctrl+Enter eller Klar sparar, Escape avbryter. Storlek och fet sparas genom panelens fält (samma element).
  */
 function TextEditor({ item, source: raw, onDone }: { item: SheetPaperItem; source: string | undefined; onDone: (value: string | undefined) => void }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const anchor = useRef<SVGRectElement>(null);
   const [box, setBox] = useState<DOMRect>();
   const source = raw ?? item.parts.filter((part): part is Extract<PaperPart, { kind: "text" }> => part.kind === "text").map(part => part.text).join("\n");
@@ -281,6 +285,7 @@ function TextEditor({ item, source: raw, onDone }: { item: SheetPaperItem; sourc
  * dra.
  */
 export function PaperHandlesLayer({ sheet, interaction }: { sheet: Sheet; interaction?: PaperInteraction | undefined }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   if (!interaction?.editable) return null;
   return <>
     {interaction?.clip && sheet.frames.map((frame, index) => frame.course === interaction.clip!.course
@@ -301,6 +306,7 @@ export function PaperHandlesLayer({ sheet, interaction }: { sheet: Sheet; intera
 
 /** Kartramen på arket: dra inne i ramen för att flytta den över kartan, handtaget nere till höger för storleken. */
 function FrameHandles({ frame, onChange }: { frame: SheetFrame; onChange: (change: FrameChange) => void }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const [drag, setDrag] = useState<{ mode: "MOVE" | "RESIZE"; x: number; y: number; dx: number; dy: number }>();
   const paperPoint = (event: PointerEvent<SVGElement>) => {
     const matrix = event.currentTarget.ownerSVGElement?.getScreenCTM()?.inverse();

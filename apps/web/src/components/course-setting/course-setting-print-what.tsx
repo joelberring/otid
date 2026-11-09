@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { printWhatEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import type { LayoutEntry } from "@o-tid/course-setting";
-import { printWhatSv as text } from "../../i18n/course-setting-layout-sv";
+import { printWhatSv } from "../../i18n/course-setting-layout-sv";
 import type { PrintCount } from "../../lib/course-setting-print-what";
 import styles from "./course-setting-print-page.module.css";
 
@@ -14,6 +16,7 @@ export function PrintWhat({ raceId, mode, entries, layout, onLayout, count, onCo
   raceId: string; mode: "COURSES" | "CLASSES" | "PROOF"; entries: readonly LayoutEntry[]; layout: string; onLayout: (layout: string) => void;
   count: PrintCount; onCount: (count: PrintCount) => void; classes: readonly string[]; chosenClasses: readonly string[]; onClasses: (classes: string[]) => void;
 }) {
+  const text = useTexts(printWhatSv, printWhatEn);
   const toggle = (name: string, on: boolean) => onClasses(on ? [...chosenClasses, name] : chosenClasses.filter(item => item !== name));
   return <div className={styles.stack} data-testid="print-what">
     {mode === "COURSES" && <label className={styles.field}>{text.layout}

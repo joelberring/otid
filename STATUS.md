@@ -81,7 +81,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   klubbarkivet är kvar på svenska. `help-en.test.ts` kräver engelska citat och listar de svenska knappar som återstår.
 - Del 28: banläggningen, grunden (banor, verktyg, vald, varningar, fil och versioner, överföring, objektpaletten,
   samarbetet, notiserna och kartfelen, fältläget utan nät, flytt av delade kontroller, beskrivningsförslag och ringklipp).
-  Kvar i banläggningen (efter del 29): träning, layout, papper och utskrift.
+  Kvar i banläggningen (efter del 30): utskriften (förhandsvisning, färger, PDF, profiler) och kartritarens länk.
+- Del 30: träningsläget, Layout-fliken (överblick, layouter, ark, klasser, lägen) och papperet (texter, bilder, klippning, mallar).
 - Del 29: banans egenskaper, kontrollbeskrivningen, varianterna, nivåstödet (Green–Black), utseendet, BL-förslaget och
   förslagens åtgärder i text (flyttade till `course-setting-edits-sv/en.ts`, en post per åtgärd).
 

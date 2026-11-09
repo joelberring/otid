@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTexts } from "../language-provider";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
 import {
   applyEdit, descriptionSymbols, layoutEntries, objectPatch, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect
 } from "@o-tid/course-setting";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { fetchCourseSetting, saveCourseSettingEdits } from "../../lib/course-setting-api";
 import { saveOnLatest, serialSaves } from "../../lib/course-setting-save-latest";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
@@ -31,6 +33,7 @@ import styles from "./course-setting-layout.module.css";
  * sätter tillbaka det som ändringen ändrade (`objectPatch`), också en återställning av ett läge.
  */
 export function CourseLayoutPage({ raceId }: { raceId: string }) {
+  const text = useTexts(layoutSv, layoutEn);
   const [document, setDocument] = useState<CourseSettingDocument | null>();
   const [canEdit, setCanEdit] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapRect>();

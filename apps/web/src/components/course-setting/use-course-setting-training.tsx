@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { trainingEn } from "../../i18n/course-setting-training-en";
+import { useTexts } from "../language-provider";
 import {
   trainingMapPasses, type CourseSettingDocument, type CourseSettingEdit, type OverprintTraining, type SymbolCatalogEntry, type TrainingMapPass
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
-import { trainingSv as text } from "../../i18n/course-setting-training-sv";
+import { trainingSv } from "../../i18n/course-setting-training-sv";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import type { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { safely } from "../../lib/course-setting-safely";
@@ -25,6 +27,7 @@ export function useCourseSettingTraining({ document, view, variant, session, map
   readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
   say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const [show, setShow] = useState(true);
   const [tool, setTool] = useState<TrainingTool>();
   const [symbols, setSymbols] = useState<readonly SymbolCatalogEntry[]>([]);

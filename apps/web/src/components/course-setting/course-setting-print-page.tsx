@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { printWhatEn } from "../../i18n/course-setting-layout-en";
+import { trainingEn } from "../../i18n/course-setting-training-en";
+import { useTexts } from "../language-provider";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
 import { AccountMenu } from "../account-menu";
 import Link from "next/link";
 import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
@@ -26,7 +30,8 @@ import { RunnerControls, type BackMode } from "./course-setting-runner-panel";
 import { RunnerCheckTable } from "./course-setting-runner-check";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
 import { classItems, layoutItems, proofItems, withCopies, type PrintCount } from "../../lib/course-setting-print-what";
-import { layoutSv as layoutText, printWhatSv as whatText } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
+import { printWhatSv } from "../../i18n/course-setting-layout-sv";
 import { CourseSettingTabs } from "./course-setting-tabs";
 import { usePrintColors, usePrintMap, useSheetImages } from "./use-print-map";
 import { PrintWhat } from "./course-setting-print-what";
@@ -69,6 +74,9 @@ const clockIn = (timeZone: string) => (instant: string | null) => {
  * kartan som vektorer, dekorfärger och övertryck (`PdfPanel`).
  */
 export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: string; initialMode?: Mode }) {
+  const whatText = useTexts(printWhatSv, printWhatEn);
+  const layoutText = useTexts(layoutSv, layoutEn);
+  const trainingText = useTexts(trainingSv, trainingEn);
   const [loaded, setDocument] = useState<CourseSettingDocument | null>();
   const [canEdit, setCanEdit] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapRect>();
@@ -329,11 +337,11 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
             <label className={styles.check}><input type="checkbox" checked={eachVariant} onChange={event => setEachVariant(event.target.checked)} />{text.page.eachVariant}</label>
             {!template && <label className={styles.check}><input type="checkbox" checked={header} onChange={event => setHeader(event.target.checked)} />{text.page.header}</label>}
             {trainingChosen.length > 0 && <label className={styles.check}><input type="checkbox" checked={pieces} data-testid="print-pieces"
-              onChange={event => setPieces(event.target.checked)} />{trainingSv.print.pieces}</label>}
+              onChange={event => setPieces(event.target.checked)} />{trainingText.print.pieces}</label>}
             {withParts && !template && <label className={styles.check}><input type="checkbox" checked={partsDuplex} data-testid="print-parts-duplex"
               onChange={event => setPartsDuplex(event.target.checked)} />{text.page.partsDuplex}</label>}
             {lineChosen && <label className={styles.check}><input type="checkbox" checked={controllerMaps} data-testid="print-controller"
-              onChange={event => setControllerMaps(event.target.checked)} />{trainingSv.print.controller}</label>}
+              onChange={event => setControllerMaps(event.target.checked)} />{trainingText.print.controller}</label>}
             {template && template.frames.length > 1 && <label className={styles.field}>{sheetLayoutSv.mode}
               <select value={fill} onChange={event => setFill(event.target.value as "FILL" | "REPEAT")} data-testid="print-fill">
                 <option value="FILL">{text.page.fill}</option><option value="REPEAT">{text.page.repeat}</option></select></label>}

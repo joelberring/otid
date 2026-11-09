@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { paperSpaceEn } from "../../i18n/course-setting-paper-en";
+import { useTexts } from "../language-provider";
 import type { PaperLibrary } from "@o-tid/contracts";
 import {
   paperLayoutOf, paperTemplateFromCourse, validatePaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperTemplate
 } from "@o-tid/course-setting";
-import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
+import { paperSpaceSv } from "../../i18n/course-setting-paper-sv";
 import { templateEdits } from "../../lib/course-setting-paper";
 import { deletePaperLibrary, fetchPaperLibrary, savePaperLibrary } from "../../lib/course-setting-paper-api";
 import { Button } from "../ui";
@@ -23,6 +25,7 @@ export function PaperTemplatesSection({ raceId, document, course, courses, readO
   raceId: string; document: CourseSettingDocument; course: string; courses: readonly { id: string; name: string }[]; readOnly: boolean;
   onSave: (edits: CourseSettingEdit[], done?: string) => Promise<boolean>;
 }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const templates = document.event.paperTemplates ?? [];
   const current = templates.find(row => row.id === paperLayoutOf(document, course).template);
   const [name, setName] = useState(text.templates.defaultName);

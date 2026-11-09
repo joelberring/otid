@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { trainingEn } from "../../i18n/course-setting-training-en";
+import { useTexts } from "../language-provider";
 import {
   courseTrainingOf, isFullFilter, presetFilter, trainingOf, type CourseSettingDocument, type CourseSettingEdit, type CourseTraining, type SymbolCatalogEntry,
   type TrainingArea
 } from "@o-tid/course-setting";
-import { trainingSv as text } from "../../i18n/course-setting-training-sv";
+import { trainingSv } from "../../i18n/course-setting-training-sv";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { newSection, omit, putCourseTraining } from "../../lib/course-setting-training";
 import { Button } from "../ui";
@@ -15,7 +17,7 @@ import { AttackBlock, LineBlock, MirrorBlock, PairsBlock, PiecesBlock, StarBlock
 import type { TrainingTool } from "./use-course-setting-training";
 import styles from "./course-setting-training.module.css";
 
-export type FormCard = Exclude<keyof typeof text.forms, "heading">;
+export type FormCard = Exclude<keyof typeof trainingSv.forms, "heading">;
 
 /** Små bilder för formerna (banans lila, kartan grå). */
 export function FormIcon({ form }: { form: string }): ReactNode {
@@ -57,6 +59,7 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
   tool: TrainingTool | undefined; onTool: (tool: TrainingTool | undefined) => void; onFinish: () => void;
   onEdits: (edits: readonly CourseSettingEdit[]) => void; say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const inCourse = view !== ALL_CONTROLS && document.courses.some(course => course.id === view);
   const training = inCourse ? courseTrainingOf(document, view) : undefined;
   const put = (next: CourseTraining) => onEdits([putCourseTraining(view, next)]);
@@ -133,6 +136,7 @@ function withoutFilter(training: CourseTraining): CourseTraining {
 function AreasBlock({ document, view, readOnly, symbols, onEdits }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; symbols: readonly SymbolCatalogEntry[]; onEdits: (edits: readonly CourseSettingEdit[]) => void;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const areas = Object.values(trainingOf(document).areas).filter(area => area.courses.length === 0 || area.courses.includes(view));
   const put = (area: TrainingArea | null, id: string) => onEdits([{ type: "PUT_TRAINING", areas: { [id]: area } }]);
   return <section className={styles.block} aria-labelledby="training-areas">

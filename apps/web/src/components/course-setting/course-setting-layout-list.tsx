@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import {
   BUILT_IN_SHEET_LAYOUTS, HUNDREDTH_INCH_MM, PAPER_SIZES, type CourseSettingDocument, type CourseSettingEdit, type LayoutEntry, type PaperName, type PrintPage
 } from "@o-tid/course-setting";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { newLayout, scaleText } from "../../lib/course-setting-layouts";
 import { paperNameOf } from "../../lib/course-setting-sheet-frame";
 import { Button } from "../ui";
@@ -20,6 +22,7 @@ export function LayoutList({ document, entries, readOnly, save, sheetCount, onCr
   document: CourseSettingDocument; entries: readonly LayoutEntry[]; readOnly: boolean; save: (edits: CourseSettingEdit[]) => Promise<boolean>;
   sheetCount: (layout: string) => number; onCreated?: ((id: string) => void) | undefined;
 }) {
+  const text = useTexts(layoutSv, layoutEn);
   const templates = [...BUILT_IN_SHEET_LAYOUTS, ...(document.event.layoutTemplates ?? [])];
   const paperTemplates = document.event.paperTemplates ?? [];
   const add = async () => {
@@ -56,6 +59,7 @@ export function LayoutList({ document, entries, readOnly, save, sheetCount, onCr
 }
 
 function PageFields({ page: saved, onChange: save }: { page: PrintPage; onChange: (page: PrintPage) => void }) {
+  const text = useTexts(layoutSv, layoutEn);
   // Det senaste valet gäller direkt (ett nytt val innan det förra sparats bygger på det, inte på det sparade).
   const [page, setPage] = useState(saved);
   useEffect(() => setPage(saved), [saved]);

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { paperSpaceEn } from "../../i18n/course-setting-paper-en";
+import { useTexts } from "../language-provider";
 import {
   effectivePaper, PAPER_FONT_INFO, PAPER_FONTS, paperClipPoints, paperLayoutOf, reanchor, resetPaperItem, PAPER_CORNERS, RUNNER_BACK, RUNNER_PAPER_VARIABLES,
   type CourseSettingDocument, type CourseSettingEdit, type PaperAlign, type PaperClip, type PaperCorner, type PaperItem, type PaperItemKind,
   type PaperFont, type PaperRect, type PaperShape, type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
-import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
+import { paperSpaceSv } from "../../i18n/course-setting-paper-sv";
 import {
   anchorIn, anchorRect, newItemIdFor, newPaperItem, paperFontFamily, paperItemEdit, paperItemLabel, paperItemsOf, paperLayoutEdit
 } from "../../lib/course-setting-paper";
@@ -46,6 +48,7 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
   onMoveMany?: ((sheet: Sheet, moves: readonly { placed: SheetPaperItem; dx: number; dy: number }[]) => void) | undefined;
   snap?: { enabled: boolean; gridMm: number } | undefined; onSnap?: ((snap: { enabled: boolean; gridMm: number }) => void) | undefined;
 }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
@@ -155,6 +158,7 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
   item: PaperItem; source: string; placed: PlacedPaper | undefined; readOnly: boolean;
   onChange: (item: PaperItem) => void; onRemove: () => void; onReset: () => void; onClose: () => void;
 }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const [draft, setDraft] = useState(item.kind === "TEXT" ? item.text : "");
   useEffect(() => { if (item.kind === "TEXT") setDraft(item.text); }, [item]);
   const reference = placed ? anchorRect(placed.sheet, placed.item) : undefined;
@@ -282,6 +286,7 @@ function ClipSection({ document, course, frame, readOnly, selected, onSelect, on
   document: CourseSettingDocument; course: string; frame: PaperRect | undefined; readOnly: boolean; selected: PaperSelection;
   onSelect: (selection: PaperSelection) => void; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const effective = effectivePaper(document, course);
   const clip = effective.clip;
   const layout = paperLayoutOf(document, course);
@@ -359,6 +364,7 @@ function reorderedLayout(document: CourseSettingDocument, course: string, id: st
 /** Justera och fördela de markerade (ADR-0211 beslut 8): ett mot kartramen, flera mot varandra. */
 function AlignBar({ marked, onMoveMany }: { marked: readonly PlacedPaper[];
   onMoveMany: (sheet: Sheet, moves: readonly { placed: SheetPaperItem; dx: number; dy: number }[]) => void }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const sheet = marked[0]!.sheet;
   const onSheet = marked.filter(row => row.sheet === sheet);
   const apply = (moves: readonly { dx: number; dy: number }[]) => onMoveMany(sheet, onSheet.map((row, index) => ({ placed: row.item, ...moves[index]! })));
@@ -379,6 +385,7 @@ function WhiteSection({ document, course, frame, readOnly, selected, onSelect, o
   document: CourseSettingDocument; course: string; frame: PaperRect | undefined; readOnly: boolean; selected: PaperSelection;
   onSelect: (selection: PaperSelection) => void; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const effective = effectivePaper(document, course);
   const areas = effective.whiteAreas;
   const layout = paperLayoutOf(document, course);
@@ -428,6 +435,7 @@ export function clipWithPoint(clip: PaperClip, index: number, point: { x: number
 }
 
 function Values({ document, readOnly, onSave }: { document: CourseSettingDocument; readOnly: boolean; onSave: (edits: CourseSettingEdit[]) => Promise<boolean> }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const values = document.event.paperValues ?? {};
   const [date, setDate] = useState(values.date ?? "");
   const [contour, setContour] = useState(values.contourInterval ?? "");

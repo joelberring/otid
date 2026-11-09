@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import { MAIN_LAYOUT, type CourseSettingEdit, type LayoutEntry } from "@o-tid/course-setting";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import type { ClassRow } from "../../lib/course-setting-layouts";
 import { Button } from "../ui";
 import styles from "./course-setting-layout.module.css";
@@ -13,6 +15,7 @@ import styles from "./course-setting-layout.module.css";
  */
 export function LayoutClasses({ rows, entries, readOnly, save }: { rows: readonly ClassRow[]; entries: readonly LayoutEntry[]; readOnly: boolean;
   save: (edits: CourseSettingEdit[]) => Promise<boolean> }) {
+  const text = useTexts(layoutSv, layoutEn);
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<string>(MAIN_LAYOUT);
   const set = (names: readonly string[], layout: string) => save([{ type: "SET_CLASS_LAYOUTS",

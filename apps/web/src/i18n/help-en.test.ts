@@ -35,8 +35,7 @@ const swedish = uiOf(false);
 for (const text of [...strings(readoutText), ...strings(partyText)]) swedish.add(text.trim());
 
 /** Knappar i delar som inte är översatta än (banläggningen, klubbarkivet, kontosammanslagningen). */
-const SWEDISH_STILL = ["Välj karta från klubbarkivet", "Ladda ned IOF XML (banor)", "Ladda ned .ppen", "Från klubben",
-  "Överför till tävlingen …", "Flytta kopplingen och ta bort dubbletten"];
+const SWEDISH_STILL = ["Välj karta från klubbarkivet", "Från klubben", "Flytta kopplingen och ta bort dubbletten"];
 
 const quoted = (text: string) => [...text.matchAll(/”([^”]+)”/g)].map(match => match[1]!);
 const shown = (text: string) => text.replace(HELP_LINK, "$1");

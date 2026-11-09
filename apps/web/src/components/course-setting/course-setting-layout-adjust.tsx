@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import {
   courseControlIds, courseLegKeys, findPrintLayout, layoutAdjustments, layoutSheetOf, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit
 } from "@o-tid/course-setting";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { scaleText } from "../../lib/course-setting-layouts";
 import { Button } from "../ui";
 import styles from "./course-setting-layout.module.css";
@@ -15,6 +17,7 @@ import styles from "./course-setting-layout.module.css";
  */
 export function AdjustPanel({ document, layout, course, scale, canEdit, save }: { document: CourseSettingDocument; layout: string; course: string;
   scale: number | undefined; canEdit: boolean; save: (edits: CourseSettingEdit[]) => Promise<boolean> }) {
+  const text = useTexts(layoutSv, layoutEn);
   const found = findPrintLayout(document, layout);
   if (layout === MAIN_LAYOUT || course === "ALL_CONTROLS" || !found) {
     return <section className={styles.panel} data-testid="layout-adjust"><h3>{text.sheet.adjust(scale ? scaleText(scale) : "")}</h3>
@@ -66,6 +69,7 @@ export function AdjustPanel({ document, layout, course, scale, canEdit, save }: 
 /** Ett fält med par "a-b, c-d" (ringavbrott i grader eller sträckavbrott start-längd i mm); tomt = inga avbrott. */
 function GapRow({ label, testId, value, disabled, onSave }: { label: string; testId: string; value: readonly (readonly [number, number])[] | undefined;
   disabled: boolean; onSave: (pairs: [number, number][] | null) => void }) {
+  const text = useTexts(layoutSv, layoutEn);
   const shown = value ? value.map(([a, b]) => `${a}-${b}`).join(", ") : "";
   const [draft, setDraft] = useState(shown);
   useEffect(() => setDraft(shown), [shown]);

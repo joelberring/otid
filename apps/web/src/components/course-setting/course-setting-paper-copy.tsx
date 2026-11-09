@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { paperSpaceEn } from "../../i18n/course-setting-paper-en";
+import { useTexts } from "../language-provider";
 import { applyEdit, RUNNER_BACK, type CourseSettingDocument, type CourseSettingEdit, type PaperItem } from "@o-tid/course-setting";
-import { paperSpaceSv as text } from "../../i18n/course-setting-paper-sv";
+import { paperSpaceSv } from "../../i18n/course-setting-paper-sv";
 import { newItemIdFor, paperItemEdit } from "../../lib/course-setting-paper";
 import { Button } from "../ui";
 import styles from "./course-setting-print-page.module.css";
@@ -31,6 +33,7 @@ export function PaperCopy({ document, course, courses, items, onSave }: {
   document: CourseSettingDocument; course: string; courses: readonly { id: string; name: string }[]; items: readonly PaperItem[];
   onSave: (edits: CourseSettingEdit[], done?: string) => Promise<boolean>;
 }) {
+  const text = useTexts(paperSpaceSv, paperSpaceEn);
   const [targets, setTargets] = useState<ReadonlySet<string>>(new Set());
   const others = courses.filter(row => row.id !== course && row.id !== RUNNER_BACK);
   if (others.length === 0 || items.length === 0) return null;

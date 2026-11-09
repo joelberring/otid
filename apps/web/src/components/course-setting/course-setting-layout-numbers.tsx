@@ -1,12 +1,15 @@
 "use client";
 
 import { useRef, useState, type PointerEvent } from "react";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import type { Sheet } from "@o-tid/course-setting";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import styles from "./course-setting-layout.module.css";
 
 /** Numren på arket som går att dra (bara i en annan layout än huvudlayouten): släppt läge = justerat nummer i kartans mm. */
 export function NumberLayer({ sheet, onMove }: { sheet: Sheet; onMove: (courseControl: string, at: { x: number; y: number }) => void }) {
+  const text = useTexts(layoutSv, layoutEn);
   const [drag, setDrag] = useState<{ ref: string; dx: number; dy: number }>();
   const start = useRef<{ x: number; y: number; ref: string }>(undefined);
   const point = (event: PointerEvent<SVGElement>) => {

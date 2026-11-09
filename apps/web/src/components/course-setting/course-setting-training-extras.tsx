@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { trainingEn } from "../../i18n/course-setting-training-en";
+import { useTexts } from "../language-provider";
 import {
   courseTrainingOf, DEFAULT_PIECES, trainingOf, type AttackStyle, type CourseSettingDocument, type CourseSettingEdit, type CourseTraining
 } from "@o-tid/course-setting";
-import { trainingSv as text } from "../../i18n/course-setting-training-sv";
+import { trainingSv } from "../../i18n/course-setting-training-sv";
 import { courseControlChoices, hasForks, lineAlongLegs, makePairs, omit, putCourseTraining, starCourseEdits } from "../../lib/course-setting-training";
 import { Button } from "../ui";
 import type { TrainingTool } from "./use-course-setting-training";
@@ -17,6 +19,7 @@ const DEFAULT_ATTACK: AttackStyle = { sizeRatio: 0.6, style: "SOLID" };
 export function AttackBlock({ document, view, readOnly, tool, onTool, onEdits }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; tool: TrainingTool | undefined; onTool: (tool: TrainingTool | undefined) => void; onEdits: Edits;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const training = trainingOf(document);
   const style = training.attackStyle ?? DEFAULT_ATTACK;
   const choices = courseControlChoices(document, view);
@@ -53,6 +56,7 @@ export function AttackBlock({ document, view, readOnly, tool, onTool, onEdits }:
 export function StarBlock({ document, view, readOnly, onEdits, say }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; onEdits: Edits; say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const training = courseTrainingOf(document, view);
   const normal = Object.values(document.controls).filter(control => control.kind === "NORMAL")
     .sort((a, b) => (a.code ?? "").localeCompare(b.code ?? "", "sv-SE", { numeric: true }));
@@ -109,6 +113,7 @@ export function StarBlock({ document, view, readOnly, onEdits, say }: {
 export function LineBlock({ document, view, readOnly, tool, onTool, onEdits }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; tool: TrainingTool | undefined; onTool: (tool: TrainingTool | undefined) => void; onEdits: Edits;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const training = courseTrainingOf(document, view);
   const drawing = tool?.kind === "LINE";
   const put = (next: CourseTraining) => onEdits([putCourseTraining(view, next)]);
@@ -127,6 +132,7 @@ export function LineBlock({ document, view, readOnly, tool, onTool, onEdits }: {
 
 /** Kepsorientering: par ur banans kontroller, sträckorna av eller på, gemensam karta (förval) eller A och B. */
 export function PairsBlock({ document, view, readOnly, onEdits }: { document: CourseSettingDocument; view: string; readOnly: boolean; onEdits: Edits }) {
+  const text = useTexts(trainingSv, trainingEn);
   const training = courseTrainingOf(document, view);
   const [mode, setMode] = useState<"ADJACENT" | "HALVES">("ADJACENT");
   const pairs = training.pairs;
@@ -159,6 +165,7 @@ export function PairsBlock({ document, view, readOnly, onEdits }: { document: Co
 
 /** Kartbitarna: bitens storlek, skala, marginal och ordning (utskriften i förhandsvisningen). */
 export function PiecesBlock({ document, view, readOnly, onEdits }: { document: CourseSettingDocument; view: string; readOnly: boolean; onEdits: Edits }) {
+  const text = useTexts(trainingSv, trainingEn);
   const training = courseTrainingOf(document, view);
   const pieces = training.pieces ?? DEFAULT_PIECES;
   const put = (next: CourseTraining) => onEdits([putCourseTraining(view, next)]);
@@ -184,6 +191,7 @@ export function PiecesBlock({ document, view, readOnly, onEdits }: { document: C
 
 /** Spegelorientering (ADR-0192 beslut 12): kartan och banan spegelvända i utskriften. */
 export function MirrorBlock({ document, view, readOnly, onEdits }: { document: CourseSettingDocument; view: string; readOnly: boolean; onEdits: Edits }) {
+  const text = useTexts(trainingSv, trainingEn);
   const training = courseTrainingOf(document, view);
   return <section className={styles.block} aria-labelledby="training-mirror" data-testid="training-mirror">
     <h3 id="training-mirror">{text.mirror.heading}</h3>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import {
   expandPartItems, layoutDocument, sheetLayoutOfLayout, MAIN_LAYOUT, paperAnchorOf, printAreaOf, printSheetGroups, runnerBackSheet, RUNNER_BACK,
   type CourseSettingDocument, type CourseSettingEdit, type SheetLayout, type MapRect, type PaperRect, type PaperTemplate, type Sheet,
@@ -9,7 +11,7 @@ import {
 import { coursePrintSv as printText } from "../../i18n/course-setting-print-sv";
 import { printOutputSv as outputText } from "../../i18n/course-setting-print-overview-sv";
 import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { sheetEdits } from "../../lib/course-setting-layouts";
 import { pageStyles } from "../../lib/course-setting-print";
 import { sheetCards, type SheetCard } from "../../lib/course-setting-print-overview";
@@ -47,6 +49,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; map: PrintMap; mapBounds: MapRect | undefined; symbols: SymbolLookup; onClose: () => void;
   layoutName: string;
 }) {
+  const text = useTexts(layoutSv, layoutEn);
   const projected = useMemo(() => layoutDocument(document, layout), [document, layout]);
   const sheetSave = useMemo(() => (edits: CourseSettingEdit[]) => save(sheetEdits(document, layout, edits)), [save, document, layout]);
   const [chosen, setChosen] = useState<readonly string[]>([focus]);

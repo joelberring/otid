@@ -1,10 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
+import { trainingEn } from "../../i18n/course-setting-training-en";
+import { useTexts } from "../language-provider";
 import {
   filterShows, presetFilter, setSymbol, SYMBOL_GROUPS, toggleGroup, type FilterPreset, type SymbolCatalogEntry, type SymbolFilter
 } from "@o-tid/course-setting";
-import { trainingSv as text } from "../../i18n/course-setting-training-sv";
+import { trainingSv } from "../../i18n/course-setting-training-sv";
 import styles from "./course-setting-training.module.css";
 
 const PRESETS: readonly Exclude<FilterPreset, "CUSTOM">[] = ["ALL", "CONTOURS", "CONTOURS_WATER_ROCK", "NO_VEGETATION", "NO_PATHS", "PATHS_ROADS"];
@@ -16,6 +18,7 @@ const PRESETS: readonly Exclude<FilterPreset, "CUSTOM">[] = ["ALL", "CONTOURS", 
 export function SymbolFilterEditor({ filter, onChange, symbols, readOnly, label }: {
   filter: SymbolFilter; onChange: (filter: SymbolFilter) => void; symbols: readonly SymbolCatalogEntry[]; readOnly: boolean; label: string;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const id = useId();
   const [search, setSearch] = useState("");
   const found = search.trim() === "" ? symbols : symbols.filter(row => `${row.code} ${row.name}`.toLowerCase().includes(search.trim().toLowerCase()));

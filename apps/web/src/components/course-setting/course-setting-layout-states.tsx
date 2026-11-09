@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { layoutEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import { compareLayoutState, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type LayoutStateDifference } from "@o-tid/course-setting";
-import { layoutSv as text } from "../../i18n/course-setting-layout-sv";
+import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { Button } from "../ui";
 import styles from "./course-setting-layout.module.css";
 
@@ -12,6 +14,7 @@ import styles from "./course-setting-layout.module.css";
  */
 export function LayoutStates({ document, readOnly, save, layoutName, courseName }: { document: CourseSettingDocument; readOnly: boolean;
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; layoutName: (id: string) => string; courseName: (id: string) => string }) {
+  const text = useTexts(layoutSv, layoutEn);
   const [name, setName] = useState("");
   const [compared, setCompared] = useState<string>();
   const states = [...(document.event.layoutStates ?? [])].sort((a, b) => b.savedAt.localeCompare(a.savedAt));

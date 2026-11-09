@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { courseSettingTabsEn } from "../../i18n/course-setting-layout-en";
 import { offlineEn } from "../../i18n/course-setting-collab-en";
 import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-setting-en";
@@ -45,7 +46,7 @@ import { drawPrintFrame, drawSpecialEditing } from "../../lib/course-setting-dra
 import { clickSpecial, finishDrawing, moveSpecialEdit, nearestHandle, specialHandles } from "../../lib/course-setting-specials";
 import { PrintPanel } from "./course-setting-print-panel";
 import { CourseSettingTabs } from "./course-setting-tabs";
-import { courseSettingTabsSv as layoutTabsSv } from "../../i18n/course-setting-layout-sv";
+import { courseSettingTabsSv } from "../../i18n/course-setting-layout-sv";
 import { SpecialsPanel } from "./course-setting-specials";
 import { useDescribeEdit } from "./use-describe-edit";
 import { Button, Notice } from "../ui";
@@ -117,6 +118,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   /** Beskedet står kvar tills det stängs (varianter ur banfilen som blev egna banor). */
   notice?: string | undefined; noticeStays?: boolean | undefined; onReload: () => void; resume?: FieldRecord | undefined;
 }) {
+  const layoutTabsSv = useTexts(courseSettingTabsSv, courseSettingTabsEn);
   const offlineText = useTexts(offlineSv, offlineEn);
   const copy = useTexts(collaborationSv, collaborationEn);
   const describeEdit = useDescribeEdit();

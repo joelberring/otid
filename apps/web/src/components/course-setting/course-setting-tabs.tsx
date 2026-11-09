@@ -1,8 +1,10 @@
 "use client";
 
 import type React from "react";
+import { courseSettingTabsEn } from "../../i18n/course-setting-layout-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
-import { courseSettingTabsSv as text } from "../../i18n/course-setting-layout-sv";
+import { courseSettingTabsSv } from "../../i18n/course-setting-layout-sv";
 import styles from "./course-setting-tabs.module.css";
 
 export type CourseSettingTab = "SETTING" | "LAYOUT" | "PRINT";
@@ -13,6 +15,7 @@ export type CourseSettingTab = "SETTING" | "LAYOUT" | "PRINT";
  */
 export function CourseSettingTabs({ raceId, current, onLeave, className }: { raceId: string; current: CourseSettingTab;
   onLeave?: ((href: string) => void) | undefined; className?: string | undefined }) {
+  const text = useTexts(courseSettingTabsSv, courseSettingTabsEn);
   const tabs: [CourseSettingTab, string, string][] = [["SETTING", text.setting, ""], ["LAYOUT", text.layout, "/layout"], ["PRINT", text.print, "/print"]];
   return <nav className={`${styles.tabs} ${className ?? ""}`} aria-label={text.label} data-testid="course-setting-tabs">
     {tabs.map(([id, label, path]) => {

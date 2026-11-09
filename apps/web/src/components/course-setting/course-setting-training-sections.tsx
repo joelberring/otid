@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { trainingEn } from "../../i18n/course-setting-training-en";
+import { useTexts } from "../language-provider";
 import {
   courseTrainingOf, DEFAULT_TINT, presetFilter, sectionLegs, sectionRange, controlSequences, type CourseSettingDocument, type CourseSettingEdit,
   type CourseTraining, type SectionForm, type SymbolCatalogEntry, type TrainingOutside, type TrainingSection
 } from "@o-tid/course-setting";
-import { trainingSv as text } from "../../i18n/course-setting-training-sv";
+import { trainingSv } from "../../i18n/course-setting-training-sv";
 import { courseControlChoices, putCourseTraining, sectionLabel } from "../../lib/course-setting-training";
 import { Button } from "../ui";
 import { SymbolFilterEditor } from "./course-setting-training-filter";
@@ -33,6 +35,7 @@ function NumberField({ label, value, min, max, step = 1, disabled, onCommit, tes
 export function OutsideBlock({ training, readOnly, symbols, onChange }: {
   training: CourseTraining; readOnly: boolean; symbols: readonly SymbolCatalogEntry[]; onChange: (outside: TrainingOutside) => void;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const outside = training.outside;
   return <section className={styles.block} aria-labelledby="training-outside">
     <h3 id="training-outside">{text.outside.heading}</h3>
@@ -54,6 +57,7 @@ export function SectionsBlock({ document, view, readOnly, symbols, onEdits }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; symbols: readonly SymbolCatalogEntry[];
   onEdits: (edits: readonly CourseSettingEdit[]) => void;
 }) {
+  const text = useTexts(trainingSv, trainingEn);
   const training = courseTrainingOf(document, view);
   const choices = courseControlChoices(document, view);
   const put = (sections: readonly TrainingSection[]) => onEdits([putCourseTraining(view, { ...training, sections })]);

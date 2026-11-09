@@ -61,7 +61,7 @@ export default async function RaceHubPage({ params }: Params) {
       <h1>{hub.eventName}</h1>
       <p>{details.join(" · ")}</p>
     </div>
-    <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} />
+    <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} language={language} />
     <SelfRegistrationForm raceId={hub.raceId} />
     <ul className={styles.hubLinks} aria-label={text.navigation}>
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)

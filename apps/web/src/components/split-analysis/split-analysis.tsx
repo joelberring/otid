@@ -3,8 +3,11 @@
 import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import { sortByTotalLoss, sortSplitRows, type SplitTableCell, type SplitTableColumn } from "@o-tid/domain";
-import { splitAnalysisSv as text } from "../../i18n/split-analysis-sv";
-import { listsSv } from "../../i18n/lists-sv";
+import { splitAnalysisSv } from "../../i18n/split-analysis-sv";
+import { splitAnalysisEn } from "../../i18n/public-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
+import { useListTexts } from "../lists/use-list-texts";
 import { formatDuration } from "../../lib/clock-time";
 import { legSplitGroup, resultListFromPublic, splitGroups, type ResultRow, type SplitGroup } from "../../lib/lists/result-list-model";
 import { forkingSv } from "../../i18n/forking-sv";
@@ -19,7 +22,10 @@ type Props = { raceId: string; initial: ResultListData; routeLegs: Record<string
 const duration = (ms: number | null | undefined) => ms === null || ms === undefined ? "" : formatDuration(ms);
 const slug = (value: string) => value.replace(/\W+/g, "-");
 
-function columnLabel(column: SplitTableColumn, index: number) {
+type SplitTexts = Texts<typeof splitAnalysisSv>;
+const useSplitTexts = () => useTexts(splitAnalysisSv, splitAnalysisEn);
+
+function columnLabel(text: SplitTexts, column: SplitTableColumn, index: number) {
   // Steg 49: tabell per sträcka: kolumnen är kontrollparet.
   if (column.fromCode !== undefined) {
     const from = column.fromCode === "START" ? forkingSv.start : String(column.fromCode);
@@ -30,6 +36,7 @@ function columnLabel(column: SplitTableColumn, index: number) {
 
 /** Löparens namn (länk till resultatsidan), klubb och status när resultatet inte är godkänt. */
 function Runner({ row, raceId }: { row: ResultRow; raceId: string }) {
+  const text = useSplitTexts();
   return <th scope="row" className={styles.stick}>
     {row.publicResultId ? <Link href={`/results/${raceId}/participants/${row.publicResultId}`}>{row.name}</Link> : row.name}
     <span className={styles.sub}>{row.status === "OK" ? row.club ?? "" : <span className={styles.status}>{text.status[row.status]}</span>}</span>
@@ -38,6 +45,7 @@ function Runner({ row, raceId }: { row: ResultRow; raceId: string }) {
 
 /** En cell: sträcktid och placering, förlust mot bästa, totaltid och placering, och länk till vägval när det finns. */
 function Cell({ cell, route, runner, leg }: { cell: SplitTableCell | null; route: string | undefined; runner: string; leg: string }) {
+  const text = useSplitTexts();
   if (!cell) return <td className={styles.leg}><span className={styles.muted} title={text.missingLabel}>{text.missing}</span>
     <span className={styles.hidden}>{text.missingLabel}</span></td>;
   return <td className={styles.leg} data-best={cell.best || undefined}>
@@ -49,11 +57,12 @@ function Cell({ cell, route, runner, leg }: { cell: SplitTableCell | null; route
     {cell.lossMs !== null && cell.lossMs !== 0 && <span className={styles.loss}>
       {cell.lossMs > 0 ? text.lossValue(duration(cell.lossMs)) : text.gainValue(duration(-cell.lossMs))}</span>}
     <span className={styles.total}>{duration(cell.elapsedMs)}{cell.elapsedPlace !== null && ` ${text.legPlace(cell.elapsedPlace)}`}</span>
-    {route && <Link className={styles.route} href={route} aria-label={text.routeLabel(runner, legLabel(leg))}>{text.route}</Link>}
+    {route && <Link className={styles.route} href={route} aria-label={text.routeLabel(runner, legLabel(leg, text))}>{text.route}</Link>}
   </td>;
 }
 
 function SplitGroupTable({ group, raceId, routeLegs, title }: { group: SplitGroup; raceId: string; routeLegs: Record<string, string[]>; title: string }) {
+  const text = useSplitTexts();
   const [sorted, setSorted] = useState<number | null>(null);
   const { table, rows } = group;
   const order = useMemo(() => sortSplitRows(table, sorted === null ? null : { column: sorted, by: "LEG" }), [table, sorted]);
@@ -62,7 +71,7 @@ function SplitGroupTable({ group, raceId, routeLegs, title }: { group: SplitGrou
   return <section className={styles.block} aria-labelledby={id}>
     <div className={styles.blockHead}><h2 id={id}>{title}</h2><p>{text.runners(rows.length)}</p>
       {table.idealMs !== null && <p>{text.ideal} {duration(table.idealMs)}</p>}</div>
-    {sortedColumn && <p className={styles.sortNote} role="status">{text.sortedBy(legLabel(sortedColumn.leg))}{" "}
+    {sortedColumn && <p className={styles.sortNote} role="status">{text.sortedBy(legLabel(sortedColumn.leg, text))}{" "}
       <button type="button" className={styles.linkButton} onClick={() => setSorted(null)}>{text.sortReset}</button></p>}
     <div className={styles.scroll}>
       <table className={styles.table} aria-labelledby={id}>
@@ -71,10 +80,10 @@ function SplitGroupTable({ group, raceId, routeLegs, title }: { group: SplitGrou
           <th scope="col" className={styles.stick}>{text.name}</th>
           <th scope="col" className={styles.num}>{text.time}</th>
           {table.columns.map((column, index) => {
-            const label = columnLabel(column, index);
+            const label = columnLabel(text, column, index);
             const active = sorted === index;
             return <th key={column.leg} scope="col" className={styles.legHead} aria-sort={active ? "ascending" : "none"}>
-              <button type="button" aria-pressed={active} aria-label={text.sortBy(legLabel(column.leg))} onClick={() => setSorted(active ? null : index)}>
+              <button type="button" aria-pressed={active} aria-label={text.sortBy(legLabel(column.leg, text))} onClick={() => setSorted(active ? null : index)}>
                 <span className={styles.legNumber}>{label.number}</span><span>{label.control}</span>
               </button></th>;
           })}
@@ -102,6 +111,7 @@ function SplitGroupTable({ group, raceId, routeLegs, title }: { group: SplitGrou
 
 /** Tidsförlust: summan av förlusterna mot bästa sträcka, minst först. */
 function LossTable({ group, raceId, title }: { group: SplitGroup; raceId: string; title: string }) {
+  const text = useSplitTexts();
   const order = useMemo(() => sortByTotalLoss(group.table), [group.table]);
   const id = `loss-${slug(title)}`;
   return <section className={styles.block} aria-labelledby={id}>
@@ -129,6 +139,7 @@ function LossTable({ group, raceId, title }: { group: SplitGroup; raceId: string
  * Tabellen rullar i sidled med namnkolumnen fast; sidan rullar aldrig i sidled. Uppdateras av sig själv.
  */
 export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Props) {
+  const text = useSplitTexts(), listTexts = useListTexts();
   const { data, failed } = useResultListData(raceId, initial);
   const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay, (data ?? initial).radio), [data, initial]);
   // Klasser med sträcktider, och (ADR-0172 beslut 5) klasser där någon passerat en radiokontroll.
@@ -166,7 +177,7 @@ export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Prop
         <button type="button" aria-pressed={byVariant} onClick={() => setByVariant(true)}>{forkingSv.byVariant}</button>
       </div>}
     </div>
-    {failed && <p className={styles.notice} role="alert">{listsSv.results.refreshFailed}</p>}
+    {failed && <p className={styles.notice} role="alert">{listTexts.results.refreshFailed}</p>}
     {initialClass && chosen === initialClass && !classNames.includes(initialClass) && classNames.length > 0 &&
       <p className={styles.notice} role="status">{text.noClass}</p>}
     {classNames.length === 0 ? <p className={styles.nothing}>{text.none}</p> : <>

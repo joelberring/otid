@@ -1,5 +1,9 @@
 import { FINISH_KEY, START_KEY } from "@o-tid/domain";
-import { splitAnalysisSv as text } from "../i18n/split-analysis-sv";
+import { splitAnalysisSv } from "../i18n/split-analysis-sv";
+
+/** Texterna som behövs för sträckornas namn (svenska eller engelska). */
+type LegTexts = { readonly start: string; readonly finish: string; readonly control: (code: number, occurrence: number) => string;
+  readonly legName: (from: string, to: string) => string };
 import type { ResultListModel } from "./lists/result-list-model";
 
 /**
@@ -13,7 +17,7 @@ export function analysisClassNames(model: ResultListModel): string[] {
 }
 
 /** En punkt i en sträcka: "S" start, "F" mål, annars "kod.förekomst". */
-export function pointLabel(key: string): string {
+export function pointLabel(key: string, text: LegTexts = splitAnalysisSv): string {
   if (key === START_KEY) return text.start;
   if (key === FINISH_KEY) return text.finish;
   const [code, occurrence] = key.split(".");
@@ -21,9 +25,9 @@ export function pointLabel(key: string): string {
 }
 
 /** Sträckans namn, t.ex. "Start–31", "31–32" eller "33–Mål". */
-export function legLabel(leg: string): string {
+export function legLabel(leg: string, text: LegTexts = splitAnalysisSv): string {
   const [from = "", to = ""] = leg.split("-");
-  return text.legName(pointLabel(from), pointLabel(to));
+  return text.legName(pointLabel(from, text), pointLabel(to, text));
 }
 
 export function splitsHref(raceId: string, className?: string): string {

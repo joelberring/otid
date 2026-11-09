@@ -2,9 +2,10 @@
 
 import { publicResultDetailResponseSchema, type PublicResultDetailResponse } from "@o-tid/contracts";
 import React, { useEffect, useRef, useState } from "react";
-import { sv } from "../i18n/sv";
 import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
-import { listsSv } from "../i18n/lists-sv";
+import { useListTexts } from "./lists/use-list-texts";
+import { publicResultEn, publicResultSv } from "../i18n/public-en";
+import { useTexts } from "./language-provider";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 import { anyStale, staleRetryMs } from "../lib/public-stale";
 import { STALE_RETRY_MS, timerShouldFetch } from "../lib/use-public-race-data";
@@ -31,6 +32,7 @@ function resultClass(status: PublicResultDetailResponse["result"]["status"]): st
 export function PublicResultDetail({ raceId, publicResultId, initial }: {
   raceId: string; publicResultId: string; initial: PublicResultDetailResponse;
 }) {
+  const text = useTexts(publicResultSv, publicResultEn), listTexts = useListTexts();
   const [response, setResponse] = useState(initial);
   const [unavailable, setUnavailable] = useState(false);
   const [showForking, setShowForking] = useState(false);
@@ -73,24 +75,24 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
       stopEventStream?.();
     };
   }, [raceId, publicResultId]);
-  if (unavailable) return <p role="alert">{sv.publicResultUnavailable}</p>;
+  if (unavailable) return <p role="alert">{text.unavailable}</p>;
   const { result } = response;
   const hasTimeBehind = "timeBehindMs" in result && result.timeBehindMs !== undefined;
   // Rogaining (ADR-0170 beslut 5): summan i stället för tid efter, och de räknade kontrollerna.
   const rogaining = "rogaining" in result ? result.rogaining : undefined;
   return <article className="public-result-detail">
     <header><p className="muted">{result.className}{"courseVariantCode" in result && result.courseVariantCode && ` · ${variantText.variantShort(result.courseVariantCode)}`}</p><h2>{result.givenName} {result.familyName}</h2>{result.organisationName && <p>{result.organisationName}</p>}</header>
-    <dl><div><dt>{sv.publicResultsPosition}</dt><dd>{"position" in result ? result.position ?? "–" : "–"}</dd></div>
-      <div><dt>{sv.publicResultsStatus}</dt><dd className={resultClass(result.status)}>{sv.publicResultsStatusLabels[result.status]}<br /><small>{sv.publicResultsReasonLabels[result.reason]}</small></dd></div>
-      <div><dt>{sv.publicResultsTime}</dt><dd>{"elapsedMs" in result ? duration(result.elapsedMs) : "–"}</dd></div>
-      {rogaining ? <div><dt>{listsSv.results.total}</dt><dd>{listsSv.results.pointsShort(rogaining.total)}<br />
-        <small>{listsSv.results.points} {rogaining.controlPoints} · {listsSv.results.penalty} {rogaining.penalty}</small></dd></div>
-        : <div><dt>{sv.publicResultsTimeBehind}</dt><dd>{hasTimeBehind ? `+${duration(result.timeBehindMs)}` : "–"}</dd></div>}
+    <dl><div><dt>{text.position}</dt><dd>{"position" in result ? result.position ?? "–" : "–"}</dd></div>
+      <div><dt>{text.status}</dt><dd className={resultClass(result.status)}>{text.statusLabels[result.status]}<br /><small>{text.reasonLabels[result.reason]}</small></dd></div>
+      <div><dt>{text.time}</dt><dd>{"elapsedMs" in result ? duration(result.elapsedMs) : "–"}</dd></div>
+      {rogaining ? <div><dt>{listTexts.results.total}</dt><dd>{listTexts.results.pointsShort(rogaining.total)}<br />
+        <small>{listTexts.results.points} {rogaining.controlPoints} · {listTexts.results.penalty} {rogaining.penalty}</small></dd></div>
+        : <div><dt>{text.behind}</dt><dd>{hasTimeBehind ? `+${duration(result.timeBehindMs)}` : "–"}</dd></div>}
     </dl>
-    {rogaining && rogaining.controls.length > 0 && <p><strong>{listsSv.results.scoredControls}:</strong> {rogaining.controls
-      .map(control => listsSv.results.scoredControl(control.controlCode, control.points)).join(", ")}</p>}
-    {"missingControls" in result && result.missingControls.length > 0 && <p><strong>{sv.publicResultsMissingControls}:</strong> {result.missingControls.join(", ")}</p>}
-    {"extraPunches" in result && result.extraPunches.length > 0 && <p><strong>{sv.publicResultsExtraPunches}:</strong> {result.extraPunches.join(", ")}</p>}
+    {rogaining && rogaining.controls.length > 0 && <p><strong>{listTexts.results.scoredControls}:</strong> {rogaining.controls
+      .map(control => listTexts.results.scoredControl(control.controlCode, control.points)).join(", ")}</p>}
+    {"missingControls" in result && result.missingControls.length > 0 && <p><strong>{text.missing}:</strong> {result.missingControls.join(", ")}</p>}
+    {"extraPunches" in result && result.extraPunches.length > 0 && <p><strong>{text.extra}:</strong> {result.extraPunches.join(", ")}</p>}
     {/* Steg 49: gafflad klass: banbilden med löparens variant ("Visa gafflingar"). */}
     {response.classCourse?.forking && "courseVariantCode" in result && result.courseVariantCode && <section className="public-result-forking">
       <button type="button" className="secondary" aria-pressed={showForking} onClick={() => setShowForking(!showForking)}>{forkingSv.showForking}</button>
@@ -99,11 +101,11 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
     </section>}
     {/* Steg 52: löparens bana på kartan, bara när banorna är publika (ADR-0176). */}
     {response.controlMap && <PublicRunnerControlMap raceId={raceId} publicResultId={publicResultId} />}
-    {"splits" in result && result.splits && result.splits.length > 0 && <details><summary>{sv.publicResultsShowSplits}</summary><ol>
+    {"splits" in result && result.splits && result.splits.length > 0 && <details><summary>{text.showSplits}</summary><ol>
       {result.splits.map((split) => <li key={`${split.controlCode}:${split.occurrence}`}>
-        <span><strong>{sv.publicResultsControl}</strong> {split.controlCode}{split.occurrence > 1 ? ` (${split.occurrence})` : ""}</span>
-        <span><strong>{sv.publicResultsLeg}</strong> {duration(split.legMs)}</span>
-        <span><strong>{sv.publicResultsTotal}</strong> {duration(split.elapsedMs)}</span>
+        <span><strong>{text.control}</strong> {split.controlCode}{split.occurrence > 1 ? ` (${split.occurrence})` : ""}</span>
+        <span><strong>{text.leg}</strong> {duration(split.legMs)}</span>
+        <span><strong>{text.total}</strong> {duration(split.elapsedMs)}</span>
       </li>)}
     </ol></details>}
   </article>;

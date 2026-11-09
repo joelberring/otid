@@ -3,7 +3,10 @@
 import React, { useMemo, useState, type ReactNode } from "react";
 import { publicLiveResponseSchema, type PublicLiveFinish, type PublicLiveLeader, type PublicLiveResponse,
   type PublicRadioPassage } from "@o-tid/contracts";
-import { liveSv as text, ordinal } from "../../i18n/live-sv";
+import { liveSv, ordinal as ordinalSv } from "../../i18n/live-sv";
+import type { Texts } from "../../lib/language";
+import { liveEn, ordinalEn } from "../../i18n/public-en";
+import { useLanguage, useTexts } from "../language-provider";
 import { radioControlName } from "../../i18n/radio-sv";
 import { formatClockTime, formatDuration } from "../../lib/clock-time";
 import { followStore, useFollows } from "../../lib/follow-store";
@@ -27,6 +30,9 @@ type Runner = { publicResultId: string; givenName: string; familyName: string; o
   relay?: { teamNumber: number; teamName: string; leg: number } | undefined };
 type Star = (runner: Runner) => ReactNode;
 
+type LiveTexts = Texts<typeof liveSv>;
+/** Placeringen som 1:a (svenska) eller 1st (engelska). */
+const useOrdinal = () => useLanguage() === "en" ? ordinalEn : ordinalSv;
 const nameOf = (runner: Runner) => `${runner.givenName} ${runner.familyName}`;
 const minutes = (instant: string, timeZone: string) => formatClockTime(instant, timeZone).slice(0, 5);
 // Steg 47: stafettlöpare med laget (klassnamnet har redan sträckan).
@@ -35,6 +41,7 @@ const clubClass = (runner: Runner) => [runner.organisationName, runner.className
 
 /** Tid eller status för en målgång; placeringen under. Felstämplad och disk. har ingen placering. */
 function FinishResult({ row }: { row: PublicLiveFinish }) {
+  const text = useTexts(liveSv, liveEn), ordinal = useOrdinal();
   const time = row.elapsedMs !== undefined ? formatDuration(row.elapsedMs) : undefined;
   const label = row.status === "OK" ? undefined : text.statuses[row.status];
   return <span className={styles.result}>
@@ -55,16 +62,17 @@ function FinishRow({ row, timeZone, star }: { row: PublicLiveFinish; timeZone: s
   </li>;
 }
 
-function passageText(passage: PublicRadioPassage): string {
+function passageText(text: LiveTexts, passage: PublicRadioPassage): string {
   return text.passed(radioControlName(passage.controlCode, passage.label),
     passage.elapsedMs !== null ? formatDuration(passage.elapsedMs) : null, passage.place);
 }
 
 function PassageRow({ passage, timeZone, star }: { passage: PublicRadioPassage; timeZone: string; star: Star }) {
+  const text = useTexts(liveSv, liveEn);
   return <li className={styles.row}>
     {passage.passedAt ? <time className={styles.clock} dateTime={passage.passedAt}>{minutes(passage.passedAt, timeZone)}</time>
       : <span className={styles.clock} />}
-    <span className={styles.who}><strong>{nameOf(passage)}</strong><span className={styles.passage}>{passageText(passage)}</span>
+    <span className={styles.who}><strong>{nameOf(passage)}</strong><span className={styles.passage}>{passageText(text, passage)}</span>
       <span className={styles.sub}>{clubClass(passage)}</span></span>
     <span className={styles.result} />
     {star(passage)}
@@ -72,6 +80,7 @@ function PassageRow({ passage, timeZone, star }: { passage: PublicRadioPassage; 
 }
 
 function LeaderRow({ leader, star }: { leader: PublicLiveLeader; star: Star }) {
+  const text = useTexts(liveSv, liveEn);
   return <li className={styles.row} data-new-leader={leader.newLeader ? "true" : undefined}>
     <span className={styles.who}><strong>{nameOf(leader)}</strong>
       <span className={styles.sub}>{leader.organisationName ?? text.noClub}</span>
@@ -84,6 +93,7 @@ function LeaderRow({ leader, star }: { leader: PublicLiveLeader; star: Star }) {
 
 /** "Följer": följda löpare i tävlingen och följda klubbar med sina löpare, överst på sidan. */
 function Following({ live, raceId, star, clubs }: { live: PublicLiveResponse; raceId: string; star: Star; clubs: string[] }) {
+  const text = useTexts(liveSv, liveEn);
   const follows = useFollows();
   const followed = followedView(live, follows, raceId);
   const [choice, setChoice] = useState("");
@@ -131,6 +141,7 @@ function Following({ live, raceId, star, clubs }: { live: PublicLiveResponse; ra
  * besökaren följer överst. Uppdateras av sig självt med samma ström och samma reservhämtning som resultatlistan.
  */
 export function PublicLive({ raceId, initial }: { raceId: string; initial: PublicLiveResponse }) {
+  const text = useTexts(liveSv, liveEn);
   const { data, failed, online } = usePublicRaceData(raceId, readLive, initial);
   const live = data ?? initial;
   const follows = useFollows();

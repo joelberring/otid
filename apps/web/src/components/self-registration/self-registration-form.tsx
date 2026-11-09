@@ -9,7 +9,9 @@ import {
 import { PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName } from "@o-tid/domain";
 import { Button, Field, Notice, focusFirstError } from "../ui";
 import type { FieldErrors } from "../../lib/form-validation";
-import { selfRegistrationSv as text } from "../../i18n/self-registration-sv";
+import { selfRegistrationSv } from "../../i18n/self-registration-sv";
+import { selfRegistrationEn } from "../../i18n/public-en";
+import { useLanguage } from "../language-provider";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import styles from "./self-registration.module.css";
 
@@ -39,7 +41,8 @@ function writeRemembered(key: string, value: Remembered): void {
 
 const empty: Form = { cardNumber: "", givenName: "", familyName: "", club: "", classId: "", displayName: "", website: "" };
 
-export function validateSelfRegistration(form: Form, needsClass: boolean): FieldErrors<FieldName> {
+export function validateSelfRegistration(form: Form, needsClass: boolean, text: { readonly errors: Record<FieldName, string> } = selfRegistrationSv)
+  : FieldErrors<FieldName> {
   const card = form.cardNumber.replace(/\s/g, "");
   const name = (value: string) => value.trim().length >= 1 && value.trim().length <= 60 && /\p{L}/u.test(value);
   return {
@@ -65,6 +68,7 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
    * webbläsaren) och erbjuder "Samma som förra gången" vid nästa träning; servern lämnar aldrig ut namn för en bricka.
    */
   rememberKey?: string | undefined }) {
+  const text = useLanguage() === "en" ? selfRegistrationEn : selfRegistrationSv;
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const [info, setInfo] = useState<SelfRegistrationInfoResponse>();
@@ -101,7 +105,7 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
-    const found = validateSelfRegistration(form, needsClass);
+    const found = validateSelfRegistration(form, needsClass, text);
     setErrors(found);
     if (Object.values(found).some(Boolean)) { focusFirstError(formRef.current); return; }
     setSaving(true); setMessage(undefined);

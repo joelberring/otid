@@ -51,4 +51,8 @@ test("språk: tävlingssidan och resultatlistan på engelska", async ({ browser 
   await expect(visitor.getByRole("toolbar", { name: "List tools" })).toBeVisible();
   await expect(visitor.getByRole("button", { name: "By class" })).toBeVisible();
   await expect(visitor.getByRole("button", { name: "Print" })).toBeVisible();
+  // Del 3: Live.
+  await visitor.getByRole("link", { name: "‹ Event page" }).click();
+  await visitor.getByRole("link", { name: /^Live/ }).click();
+  await expect(visitor.getByRole("heading", { name: "No finishers yet – the page updates by itself." })).toBeVisible();
 });

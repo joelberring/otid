@@ -17,7 +17,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Verifierat: enhetstester `language`, i18n-testerna, E2E `sprak`, `publikt`, `hjalp`. Playwright körs med `locale: sv-SE`.
 - Del 2 (samma dag): tävlingssidan, start- och resultatlistorna (vyerna, verktygsraden, CSV) på engelska för besökaren;
   klientkomponenterna läser språket ur `LanguageProvider` i de publika layouterna (arbetsytan är svenska). E2E `sprak` (två test).
-- Kvar: Live, sträcktidsanalysen, löparens resultatsida, självregistreringen och tävlingsinfon, sedan kontot och arbetsytan.
+- Del 3: Live, sträcktidsanalysen (inte vägvalsvyn), löparens resultatsida, självregistreringens formulär och tävlingsinfon.
+  `/sprak` är publik (Caddyfile: `dc restart caddy`). E2E `sprak`, `live`, `strackanalys`, `sjalvregistrering*`, `fest`, `traningsgrupp`.
+- Kvar: vägvalsvyn, QR-sidan, festen och träningsgruppens sida, sedan kontot och arbetsytan.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

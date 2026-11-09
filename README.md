@@ -117,3 +117,9 @@ pnpm test:integration   # kräver TEST_DATABASE_URL (PostgreSQL, roll med CREATE
 pnpm test:e2e           # kräver E2E_DATABASE_URL eller TEST_DATABASE_URL; startar webben på port 3100
 E2E_BASE_URL=https://localhost pnpm test:e2e   # mot en körande driftmiljö
 ```
+
+## Licens
+
+MIT – se [LICENSE](LICENSE). Du får använda, ändra och sprida koden fritt, också i egna och kommersiella program, så länge
+licenstexten följer med koden. Det är inget krav, men nämn gärna att den kommer från O-Tid
+(https://github.com/joelberring/otid) – det gör ägaren glad.

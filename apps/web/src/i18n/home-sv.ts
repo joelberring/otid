@@ -22,7 +22,7 @@ export const homeSv = {
   builtTitle: "Så är O-Tid byggt",
   built: "En webbapp i Next.js och TypeScript med en PostgreSQL-databas, på en egen server. Avläsningen sker i webbläsaren (Web Serial "
     + "och WebUSB). Laserdata och ritningar körs på en separat geo-server med Karttapullautin och LibreDWG, som egna program.",
-  code: "Källkoden finns öppet på GitHub.",
+  code: "Källkoden är fri (MIT-licens) och finns på GitHub.",
   codeLink: "O-Tid på GitHub",
   about: "Mer om O-Tid",
   demo: "Prova: se en demotävling",

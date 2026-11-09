@@ -2,6 +2,7 @@
   "name": "o-tid",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
     "dev": "pnpm --filter @o-tid/web dev",

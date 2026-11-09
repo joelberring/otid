@@ -321,7 +321,7 @@ export const homeEn: Texts<typeof homeSv> = {
   builtTitle: "How O-Tid is built",
   built: "A web app in Next.js and TypeScript with a PostgreSQL database, on its own server. Readout happens in the browser (Web Serial "
     + "and WebUSB). Lidar and drawings run on a separate geo server with Karttapullautin and LibreDWG, as separate programs.",
-  code: "The source code is openly available on GitHub.",
+  code: "The source code is free (MIT licence) and available on GitHub.",
   codeLink: "O-Tid on GitHub",
   about: "More about O-Tid",
   demo: "Try it: see a demo event",

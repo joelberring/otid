@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { expect, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { latestMailTo } from "./fake-smtp";
 
 /** Gemensamma steg för webbläsartesterna (ADR-0168, ADR-0172). */
@@ -99,8 +99,25 @@ export function daysFromToday(days: number, now = new Date()): string {
  * vidare i vanlig takt), så att webbläsaren, servern och databasen har samma falska tid när testerna körs vid ett visst
  * klockslag (libfaketime för Node och PostgreSQL; webbläsaren tål inte libfaketime). Utan variabeln är det en vanlig kontext.
  */
+/**
+ * Kontexterna som testerna har öppnat. Arbetaren (och webbläsaren) delas av alla test i sviten; en kontext från ett tidigare
+ * test stängs när nästa test öppnar sin första, så att sidor med kartans Worker inte samlas tills CI-maskinen tar slut på
+ * minne (GitHubs dator stängdes av mot slutet av sviten 2026-11-09).
+ */
+const opened: { test: string; context: BrowserContext }[] = [];
+async function closeEarlierContexts(): Promise<string | undefined> {
+  let current: string | undefined;
+  try { current = test.info().testId; } catch { return undefined; }
+  for (const entry of opened.splice(0).filter(row => { if (row.test === current) { opened.push(row); return false; } return true; })) {
+    await entry.context.close().catch(() => undefined);
+  }
+  return current;
+}
+
 export async function newContext(browser: Browser) {
+  const current = await closeEarlierContexts();
   const context = await browser.newContext();
+  if (current) opened.push({ test: current, context });
   if (process.env.E2E_FAKE_CLOCK) await context.clock.install({ time: Date.now() });
   // Steg 58: E2E_CPU_THROTTLE=6 gör webbläsaren sex gånger långsammare, som en belastad CI-maskin.
   const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);

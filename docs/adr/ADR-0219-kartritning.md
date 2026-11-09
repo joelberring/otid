@@ -349,3 +349,17 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
    klubb. En fil vars lager till minst hälften finns i en profil får profilens val före förslagen ur namnen.
 3. **Kvar (K6b):** DWG via LibreDWG i geo-arbetaren, regler per kodkolumn, städningen (ytor av slutna kanter, trappor),
    försök och passpunkter för att räta upp en karta.
+
+## Tillägg 2026-11-09: fuktighet ur laserns markmodell (K5c, del 2, ingen migration)
+
+1. **I samma geo-jobb** (valfritt): Karttapullautin sparar varje rutas höjdraster (`xyz2.hmap`, 2 m, med
+   `savetempfolders=1`); geo-arbetaren (`scripts/geo-moisture.ts`, bara Nodes egna moduler) slår ihop dem, fyller sänkorna
+   (priority flood med en liten lutning), räknar flödet (D8) och varje cells höjd över närmaste fuktstråk (HAND, nära DTW).
+2. **Inställningar:** kanaltröskeln (tillrinning 0,5–4 ha) och höjden över stråket för blött (0,3–1 m); fuktigt är det
+   dubbla, minst 1 m.
+3. **Resultatet:** ett eget underlag (blött, fuktigt och fuktstråken i blått) och en DXF med lagren `blott`, `fuktigt` och
+   `fuktstrak` som läses in som kandidater med förslagen 308, 310 och 306. Små ytor (under 400 m²) tas bort och hål fylls,
+   så att ytorna blir hela ringar.
+4. **Prestanda:** fyra rutor (2500 × 2500 celler) tar omkring fem sekunder och 0,5 GB, så CX23 och CAX11 räcker.
+5. **Kvar:** vegetation och mark ur laserns returer (K5c, del 3), SLU:s karta som vikt, och tröskelvärden prövade mot
+   riktiga våtmarker (Kungshatt).

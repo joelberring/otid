@@ -34,6 +34,9 @@ const MEDIA_TYPES: ReadonlySet<string> = new Set(["image/png", "text/plain", "ap
 /** Bilden och dess världsfil från arbetaren; blir ett underlag när jobbet är klart. */
 export const GEO_MAP_IMAGE = "karta.png";
 export const GEO_MAP_WORLD = "karta.pgw";
+/** K5c del 2: fuktighetens bild och världsfil (blir ett eget underlag). */
+export const GEO_MOISTURE_IMAGE = "fukt.png";
+export const GEO_MOISTURE_WORLD = "fukt.pgw";
 
 export type GeoJobFailure = ClubFailure | { status: "no-credential" } | { status: "busy" } | { status: "quota" };
 
@@ -53,11 +56,13 @@ async function rows(tx: DbExecutor, projectId: string, jobId?: string) {
   return list.map(row => ({ ...row, files: files.filter(file => file.jobId === row.job.id) }));
 }
 function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): GeoJobView {
-  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number> };
+  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>;
+    moisture?: GeoJobView["moisture"] };
   const progress = job.progress as GeoJobView["progress"] | null;
   return { jobId: job.id, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status, tiles: request.tiles?.length ?? 0,
     settings: request.settings ?? {}, progress: job.status === "RUNNING" ? progress : null, error: job.error,
     layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null,
+    moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
     createdBy: { accountId: job.accountId, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
     finishedAt: job.finishedAt?.toISOString() ?? null };
@@ -100,7 +105,8 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
     if (tiles + request.tiles.length > geoTilesPerMonth(runtime.environment)) return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(jobs).values({ id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-      request: { name: request.name, tiles: request.tiles, settings: request.settings }, createdAt: now, requestId: request.requestId });
+      request: { name: request.name, tiles: request.tiles, settings: request.settings, ...(request.moisture ? { moisture: request.moisture } : {}) },
+      createdAt: now, requestId: request.requestId });
     return { status: "created", replayed: false, job: toView((await rows(tx, access.project.id, id))[0]!, access.accountId) } as const;
   });
 }
@@ -159,6 +165,7 @@ export interface ClaimedGeoJob {
   readonly jobId: string; readonly kind: "PULLAUTIN"; readonly attempt: number;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
+  readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
 }
 
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
@@ -166,7 +173,8 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   await db.update(jobs).set({ status: "FAILED", finishedAt: now, error: "Geo-arbetaren slutade svara" })
     .where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale), sql`${jobs.attempts} >= ${MAX_ATTEMPTS}`));
   await db.update(jobs).set({ status: "QUEUED", worker: null }).where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale)));
-  const result = await db.execute<{ id: string; request: { tiles: { id: string; epsg: number | null }[]; settings: Record<string, number> }; attempts: number }>(sql`
+  const result = await db.execute<{ id: string; request: { tiles: { id: string; epsg: number | null }[]; settings: Record<string, number>;
+    moisture?: ClaimedGeoJob["moisture"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
@@ -176,7 +184,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   await noteGeoServerJob(db, worker, now);
   // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök.
   await db.delete(outputs).where(eq(outputs.jobId, row.id));
-  return { jobId: row.id, kind: "PULLAUTIN", attempt: row.attempts, settings: row.request.settings ?? {},
+  return { jobId: row.id, kind: "PULLAUTIN", attempt: row.attempts, settings: row.request.settings ?? {}, moisture: row.request.moisture ?? null,
     tiles: row.request.tiles.map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
 }
 
@@ -232,6 +240,25 @@ export function parseWorld(text: string): { a: number; b: number; c: number; d: 
   return Math.abs(a * e - b * d) > 1e-18 ? { a, b, c, d, e, f } : undefined;
 }
 
+/** Ett underlag av en bild och dess världsfil bland jobbets filer (i rutornas koordinatsystem), eller inget. */
+async function layerFrom(tx: DbExecutor, job: typeof jobs.$inferSelect, files: (typeof outputs.$inferSelect)[], imageName: string, worldName: string,
+  name: string, opacity: number, requestId: string, now: Date): Promise<string | null> {
+  const image = files.find(file => file.name === imageName), world = files.find(file => file.name === worldName);
+  if (!image || !world || image.byteSize > MAP_PROJECT_LAYER_MAX_BYTES) return null;
+  const [head, worldBytes] = await Promise.all([readMapContent(tx, image.contentSha256), readMapContent(tx, world.contentSha256)]);
+  const dimensions = head ? imageDimensions(contentHead(new Uint8Array(head))) : undefined;
+  const transform = worldBytes ? parseWorld(worldBytes.toString("utf8")) : undefined;
+  if (!dimensions || !transform || dimensions.width > 30_000 || dimensions.height > 30_000) return null;
+  const request = job.request as { tiles?: { epsg?: number | null }[] };
+  const [{ value: sort } = { value: 0 }] = await tx.select({ value: sql<number>`count(*)::int` }).from(schema.mapProjectLayers)
+    .where(eq(schema.mapProjectLayers.projectId, job.projectId));
+  const id = randomUUID();
+  await tx.insert(schema.mapProjectLayers).values({ id, projectId: job.projectId, name, contentSha256: image.contentSha256, mediaType: dimensions.mediaType,
+    width: dimensions.width, height: dimensions.height, crs: request.tiles?.[0]?.epsg ?? 3006, transform, opacity, sort, createdBy: job.accountId,
+    createdAt: now, requestId }).onConflictDoNothing();
+  return id;
+}
+
 /**
  * Jobbet är klart eller misslyckades. När det är klart blir bilden (med världsfilen) ett underlag i projektet, i rutornas
  * koordinatsystem (Lantmäteriets laser är SWEREF 99 TM om inget annat anges).
@@ -249,26 +276,13 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
       return { status: "ok", layerId: null } as const;
     }
     const files = await tx.select().from(outputs).where(eq(outputs.jobId, job.id));
-    const image = files.find(file => file.name === GEO_MAP_IMAGE), world = files.find(file => file.name === GEO_MAP_WORLD);
-    let layerId: string | null = null;
-    if (image && world && image.byteSize <= MAP_PROJECT_LAYER_MAX_BYTES) {
-      const [head, worldBytes] = await Promise.all([readMapContent(tx, image.contentSha256), readMapContent(tx, world.contentSha256)]);
-      const dimensions = head ? imageDimensions(contentHead(new Uint8Array(head))) : undefined;
-      const transform = worldBytes ? parseWorld(worldBytes.toString("utf8")) : undefined;
-      if (dimensions && transform && dimensions.width <= 30_000 && dimensions.height <= 30_000) {
-        const request = job.request as { name?: string; tiles?: { epsg?: number | null }[] };
-        const [{ value: sort } = { value: 0 }] = await tx.select({ value: sql<number>`count(*)::int` }).from(schema.mapProjectLayers)
-          .where(eq(schema.mapProjectLayers.projectId, job.projectId));
-        layerId = randomUUID();
-        await tx.insert(schema.mapProjectLayers).values({ id: layerId, projectId: job.projectId, name: (request.name ?? "Karttapullautin").slice(0, 80),
-          contentSha256: image.contentSha256, mediaType: dimensions.mediaType, width: dimensions.width, height: dimensions.height,
-          crs: request.tiles?.[0]?.epsg ?? 3006, transform, opacity: 0.6, sort, createdBy: job.accountId, createdAt: now, requestId: job.id })
-          .onConflictDoNothing();
-      }
-    }
+    const request = job.request as { name?: string; tiles?: { epsg?: number | null }[] };
+    const name = (request.name ?? "Karttapullautin").slice(0, 80);
+    const layerId = await layerFrom(tx, job, files, GEO_MAP_IMAGE, GEO_MAP_WORLD, name, 0.6, job.id, now);
+    const moistureLayerId = await layerFrom(tx, job, files, GEO_MOISTURE_IMAGE, GEO_MOISTURE_WORLD, `${name.slice(0, 66)} – fuktighet`, 0.7, randomUUID(), now);
     await noteGeoServerJob(tx, worker, now);
     await tx.update(jobs).set({ status: "DONE", finishedAt: now, progress: null, error: null,
-      result: { layerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
+      result: { layerId, moistureLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
     return { status: "ok", layerId } as const;
   });
 }

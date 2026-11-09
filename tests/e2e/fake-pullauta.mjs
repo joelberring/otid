@@ -11,7 +11,26 @@ import process from "node:process";
 const command = process.argv[2] ?? "";
 const box = JSON.parse(readFileSync(`in/${readdirSync("in").find(name => name.endsWith(".laz"))}`, "utf8"));
 const width = 200, height = 200;
-if (command === "") { mkdirSync("out", { recursive: true }); process.exit(0); }
+if (command === "") {
+  mkdirSync("out", { recursive: true });
+  // Med savetempfolders=1 (fuktigheten, K5c): ett höjdraster på 2 m, som Karttapullautins xyz2.hmap.
+  if (/^savetempfolders=1$/m.test(readFileSync("pullauta.ini", "utf8"))) {
+    const cell = 2, width = Math.floor((box.maxE - box.minE) / cell) + 1, height = Math.floor((box.maxN - box.minN) / cell) + 1;
+    const bytes = Buffer.alloc(40 + width * height * 8);
+    bytes.writeDoubleLE(box.minE, 0); bytes.writeDoubleLE(box.minN, 8); bytes.writeDoubleLE(cell, 16);
+    bytes.writeBigUInt64LE(BigInt(width), 24); bytes.writeBigUInt64LE(BigInt(height), 32);
+    for (let x = 0; x < width; x += 1) {
+      for (let y = 0; y < height; y += 1) {
+        // En dal som lutar söderut med en sänka i nordväst (samma som enhetstestet för fuktigheten).
+        const pit = Math.hypot(x - width / 4, y - height * 0.75) < Math.max(6, width / 15) ? 5 : 0;
+        bytes.writeDoubleLE(20 + Math.abs(x - width / 2) * 0.3 + y * 0.05 - pit, 40 + (x * height + y) * 8);
+      }
+    }
+    mkdirSync("temp_ruta00.laz_dir", { recursive: true });
+    writeFileSync("temp_ruta00.laz_dir/xyz2.hmap", bytes);
+  }
+  process.exit(0);
+}
 if (command === "pngmerge") {
   const row = Buffer.alloc(1 + width * 4);
   for (let x = 0; x < width; x += 1) row.set([200, 120, 40, 255], 1 + x * 4);

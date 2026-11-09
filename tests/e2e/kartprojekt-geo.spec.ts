@@ -70,6 +70,8 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await laser.getByTestId("map-project-laser-search").click();
   await expect(laser.getByTestId("map-project-laser-items")).toContainText("2024-05-20 · 24E001_658_67_2550 · 123 MB", { timeout: 30_000 });
   await expect(laser.getByTestId("map-project-laser-name")).toHaveValue("Karttapullautin hela kartan");
+  // K5c del 2: fuktigheten ur markmodellen räknas i samma jobb.
+  await laser.getByTestId("map-project-laser-moisture").check();
   await laser.getByTestId("map-project-laser-start").click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Jobbet ligger i kön.");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Karttapullautin hela kartan · 1 ruta · Väntar på geo-servern");
@@ -82,9 +84,11 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
 
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Klart", { timeout: 30_000 });
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Bilden är tillagd som underlag.");
-  await expect(owner.getByTestId("map-project-layer")).toHaveCount(2, { timeout: 20_000 });
+  await expect(laser.getByTestId("map-project-laser-job")).toContainText("Fuktigheten är tillagd som underlag.");
+  await expect(owner.getByTestId("map-project-layer")).toHaveCount(3, { timeout: 20_000 });
   const layers = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { name: string; crs: number; width: number }[] }).layers;
-  expect(layers).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Karttapullautin hela kartan", crs: 3006, width: 200 })]));
+  expect(layers).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Karttapullautin hela kartan", crs: 3006, width: 200 }),
+    expect.objectContaining({ name: "Karttapullautin hela kartan – fuktighet", crs: 3006 })]));
 
   // Kurvorna som kandidater.
   await laser.getByRole("button", { name: "Läs in kurvor som kandidater" }).click();
@@ -95,6 +99,10 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("contour");
   await expect(importer.getByLabel("Symbol för contour_index")).toBeAttached();
   await reviewScreenshots(owner, "kartprojekt-laser");
+  // Våtmarkerna som kandidater (ersätter kurvorna i importen): sänkan blir blött och fuktigt.
+  await laser.getByRole("button", { name: "Läs in våtmarker och fuktstråk som kandidater" }).click();
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Våtmarker och fuktstråk visas som kandidater nedan under Vektorfil.");
+  await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("blott");
 
   // Fel nyckel kommer inte åt geo-arbetarens anrop.
   const denied = await owner.request.post("/api/geo-worker/claim", { headers: { authorization: `Bearer ${"x".repeat(48)}`, "x-otid-geo-worker": "e2e" } });

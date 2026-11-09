@@ -65,6 +65,10 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /GANGVAG|STIG|FOOTWAY|PATH/, line: "505" },
   { words: /PARKERING|ASFALT|PAVED|PARKING/, area: "501" },
   { words: /VAG|GATA|ROAD|STREET/, line: "503" },
+  // Geo-arbetarens fuktighet (K5c): fuktstråk, blött och fuktigt.
+  { words: /FUKTSTRAK/, line: "306" },
+  { words: /BLOTT|SANKMARK|MYR|MARSH/, area: "308" },
+  { words: /FUKTIG/, area: "310" },
   { words: /DIKE|DITCH|BACK|STREAM/, line: "305" },
   { words: /VATTEN|SJO|LAKE|WATER/, area: "301" },
   // Karttapullautins lager (K5): stödkurvor, slänt, branter och småknollar före de vanliga kurvorna.

@@ -23,11 +23,14 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 
 interface Job {
   readonly jobId: string; readonly kind: "PULLAUTIN"; readonly attempt: number;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
+  /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
+  readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
 }
 
 const env = process.env;
@@ -58,9 +61,9 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
 }
 
 /** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (en ruta i taget, filerna sparas). */
-export function iniWith(base: string, settings: Readonly<Record<string, number>>): string {
+export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false): string {
   const fixed: Record<string, string | number> = { ...settings, batch: 1, processes: 1, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
-    savetempfolders: 0, output_dxf: 1 };
+    savetempfolders: keepTemp ? 1 : 0, output_dxf: 1 };
   const seen = new Set<string>();
   const lines = base.split(/\r?\n/).map(line => {
     const match = /^\s*([A-Za-z0-9_]+)\s*=/.exec(line);
@@ -121,7 +124,7 @@ async function runJob(job: Job): Promise<void> {
       await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, "in", `ruta${String(tile.index).padStart(2, "0")}.laz`)));
       await set("Hämtar laserdata", tile.index + 1, job.tiles.length);
     }
-    await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings));
+    await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture));
     await set("Karttapullautin", 0, 1);
     await run([], dir, control.signal);
     await set("Slår ihop rutorna", 0, 1);
@@ -134,9 +137,27 @@ async function runJob(job: Job): Promise<void> {
       scale *= 2;
     }
     await run(["dxfmerge"], dir, control.signal);
+    // K5c del 2: fuktigheten ur rutornas höjdraster (Karttapullautin sparar dem i temp_<ruta>_dir med savetempfolders).
+    let moistureSummary: Record<string, number> = {};
+    if (job.moisture) {
+      await set("Räknar fuktigheten", 0, 1);
+      const folders = (await readdir(dir)).filter(name => /^temp_.+_dir$/.test(name)).sort();
+      const grids = [];
+      for (const folder of folders) {
+        const bytes = await readFile(join(dir, folder, "xyz2.hmap")).catch(() => undefined);
+        if (bytes) grids.push(readHeightMap(new Uint8Array(bytes)));
+      }
+      if (grids.length === 0) throw new Error("Karttapullautin gav inget höjdraster för fuktigheten");
+      const moisture = moistureFromHeightMaps(grids, job.moisture);
+      await writeFile(join(dir, "fukt.png"), moisture.png);
+      await writeFile(join(dir, "fukt.pgw"), moisture.world);
+      await writeFile(join(dir, "fukt.dxf"), moisture.dxf);
+      moistureSummary = { wetHa: moisture.summary.wetHa, moistHa: moisture.summary.moistHa, channels: moisture.summary.channels };
+    }
     const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
-      ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const)];
+      ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
+      ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"]] as const : [])];
     let done = 0;
     for (const [name, source, mediaType] of uploads) {
       await set("Skickar resultatet", done, uploads.length);
@@ -148,7 +169,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale } }) });
+      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...moistureSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

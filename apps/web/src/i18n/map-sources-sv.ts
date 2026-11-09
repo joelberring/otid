@@ -74,6 +74,12 @@ export const mapSourcesSv = {
     intervalOption: (meters: number) => `${String(meters).replace(".", ",")} m`,
     formlines: "Formlinjer",
     formlineOptions: { 0: "Inga", 1: "Några", 2: "Fler" } as Record<number, string>,
+    moisture: "Räkna också fuktigheten (våtmarker och fuktstråk ur markmodellen)",
+    channel: "Fuktstråk från tillrinning",
+    channelOption: (ha: number) => `${String(ha).replace(".", ",")} ha`,
+    wet: "Blött under",
+    wetOption: (meters: number) => `${String(meters).replace(".", ",")} m över stråket`,
+    moistureAdded: "Fuktigheten är tillagd som underlag.",
     start: (count: number) => count === 1 ? "Kör Karttapullautin på 1 ruta" : `Kör Karttapullautin på ${count} rutor`,
     started: "Jobbet ligger i kön.",
     jobs: "Jobben",
@@ -84,7 +90,8 @@ export const mapSourcesSv = {
     tiles: (count: number) => count === 1 ? "1 ruta" : `${count} rutor`,
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
-      "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar"
+      "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
+      "fukt.dxf": "Våtmarker och fuktstråk"
     } as Record<string, string>,
     load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,
     loaded: (label: string) => `${label} visas som kandidater nedan under Vektorfil.`,

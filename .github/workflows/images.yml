@@ -20,6 +20,7 @@ on:
       - deploy/backup.Dockerfile
       - deploy/geo.Dockerfile
       - scripts/geo-worker.ts
+      - scripts/geo-moisture.ts
       - apps/web/next.config.ts
       - package.json
       - pnpm-lock.yaml

@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K5c del 2: fuktighet ur laserns markmodell
+- Laserjobbet kan också räkna fuktigheten: Karttapullautins höjdraster slås ihop, sänkor fylls, flödet och höjden över
+  närmaste fuktstråk avgör blött och fuktigt. Ett eget underlag och kandidater (308, 310, 306).
+- Verifierat: enhetstester `geo-moisture`, integrationstest `adr-0219-geo`, geo-arbetaren med riktig Karttapullautin mot en
+  falsk O-Tid (två rutor), E2E `kartprojekt-geo` med fuktigheten.
+- Provas: tröskelvärdena mot riktiga våtmarker.
+
 ### 2026-11-09 – K6b del 1: Stockholms lagernamn och lagermappningsprofiler (migration 0105)
 - Importen känner igen Stockholms baskartas och parkkartas lagernamn och föreslår symboler enligt planens utkast; överskottet
   hoppas över. Valen kan sparas som en profil (för kontot eller delad med klubben) och används för nästa fil med samma lager.

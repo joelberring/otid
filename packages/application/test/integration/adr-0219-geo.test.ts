@@ -85,7 +85,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const { owner, reader, projectId } = await project();
     const { calls, runtime } = fakeLantmateriet();
     const tile = { id: "24A001_65775_6575_25", href: LAZ, bbox: [18, 59.29, 18.04, 59.31] as [number, number, number, number], epsg: 3006 };
-    const request = () => ({ formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "Laser norr", tiles: [tile], settings: { contour_interval: 2.5 } });
+    const request = () => ({ formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "Laser norr", tiles: [tile], settings: { contour_interval: 2.5 },
+      moisture: { channelHa: 1, wetMeters: 0.5, moistMeters: 1 } });
     // Utan uppgifter till Lantmäteriet går varken sökning eller jobb.
     expect((await searchMapProjectLaser(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("no-credential");
     expect((await createGeoJob(db, { ...owner.proof, projectId, request: request() }, runtime, NOW)).status).toBe("no-credential");
@@ -116,7 +117,11 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(await authenticateGeoWorker(db, `Bearer ${token}`, "geo-1", {})).toBeUndefined();
 
     const claimed = await claimGeoJob(db, "geo-1", NOW);
-    expect(claimed).toMatchObject({ jobId: created.job.jobId, tiles: [{ index: 0, id: tile.id, epsg: 3006 }], settings: { contour_interval: 2.5 } });
+    expect(claimed).toMatchObject({ jobId: created.job.jobId, tiles: [{ index: 0, id: tile.id, epsg: 3006 }], settings: { contour_interval: 2.5 },
+      moisture: { channelHa: 1, wetMeters: 0.5, moistMeters: 1 } });
+    // Fuktigt lägre än blött avvisas.
+    expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), moisture: { channelHa: 1, wetMeters: 2, moistMeters: 1 } } }, runtime, NOW)).status)
+      .toBe("invalid-request");
     expect(JSON.stringify(claimed)).not.toContain("lantmateriet.se");
     expect(await claimGeoJob(db, "geo-2", NOW)).toBeUndefined();
     expect(await heartbeatGeoJob(db, created.job.jobId, "geo-1", { step: "Hämtar laserdata", done: 0, total: 1 }, NOW)).toBe("running");
@@ -131,7 +136,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
 
     const world = "0.5\n0\n0\n-0.5\n675000.25\n6580499.75\n";
     for (const [name, mediaType, file] of [["karta.png", "image/png", png(1000, 1000)], ["karta.pgw", "text/plain", new TextEncoder().encode(world)],
-      ["kurvor.dxf", "application/dxf", new TextEncoder().encode("0\nEOF\n")]] as const) {
+      ["kurvor.dxf", "application/dxf", new TextEncoder().encode("0\nEOF\n")], ["fukt.png", "image/png", png(500, 500)],
+      ["fukt.pgw", "text/plain", new TextEncoder().encode("2\n0\n0\n-2\n675001\n6580499\n")]] as const) {
       expect(await storeGeoOutput(db, { jobId: created.job.jobId, worker: "geo-1", name, mediaType, file }, NOW)).toEqual({ status: "stored" });
     }
     expect((await storeGeoOutput(db, { jobId: created.job.jobId, worker: "geo-1", name: "../etc", mediaType: "text/plain", file: new Uint8Array([1]) }, NOW)).status)
@@ -140,10 +146,11 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     if (finished.status !== "ok" || !finished.layerId) throw new Error("Inget underlag");
     const layers = await listMapProjectLayers(db, { ...reader.proof, projectId }, NOW);
     expect(layers).toMatchObject({ status: "ok", list: { layers: [{ layerId: finished.layerId, name: "Laser norr", crs: 3006, width: 1000, height: 1000,
-      transform: { a: 0.5, b: 0, c: 675000.25, d: 0, e: -0.5, f: 6580499.75 } }] } });
+      transform: { a: 0.5, b: 0, c: 675000.25, d: 0, e: -0.5, f: 6580499.75 } }, { name: "Laser norr – fuktighet", width: 500, opacity: 0.7 }] } });
     const listed = await listGeoJobs(db, { ...reader.proof, projectId }, server, NOW);
     expect(listed).toMatchObject({ status: "ok", list: { jobs: [{ status: "DONE", layerId: finished.layerId, progress: null,
-      outputs: [{ name: "karta.pgw" }, { name: "karta.png" }, { name: "kurvor.dxf", mediaType: "application/dxf" }] }] } });
+      moistureLayerId: expect.any(String) as unknown,
+      outputs: [{ name: "fukt.pgw" }, { name: "fukt.png" }, { name: "karta.pgw" }, { name: "karta.png" }, { name: "kurvor.dxf", mediaType: "application/dxf" }] }] } });
     const dxf = await readGeoOutput(db, { ...reader.proof, projectId, jobId: created.job.jobId, name: "kurvor.dxf" }, NOW);
     expect(dxf).toMatchObject({ status: "ok", mediaType: "application/dxf" });
     // Klart jobb tar inte emot mer.
@@ -176,7 +183,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(afterFailure.list.jobs.find(job => job.jobId === failing.job.jobId)).toMatchObject({ status: "FAILED", error: "Karttapullautin avslutades med kod 1" });
     expect(await removeGeoJob(db, { ...owner.proof, projectId, jobId: created.job.jobId }, NOW)).toEqual({ status: "deleted" });
     expect(await db.select().from(schema.mapProjectGeoOutputs).where(eq(schema.mapProjectGeoOutputs.jobId, created.job.jobId))).toEqual([]);
-    expect((await listMapProjectLayers(db, { ...owner.proof, projectId }, NOW))).toMatchObject({ list: { layers: [{ layerId: finished.layerId }] } });
+    expect((await listMapProjectLayers(db, { ...owner.proof, projectId }, NOW))).toMatchObject({ list: { layers: [{ layerId: finished.layerId },
+      { name: "Laser norr – fuktighet" }] } });
   });
 
   it("K5c: SLU:s markfuktighet för rutan i SWEREF 99 TM, med världsfilen", async () => {

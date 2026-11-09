@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { collaborationEn } from "../../i18n/course-setting-collab-en";
+import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
+import { notesSv } from "../../i18n/course-setting-notes-sv";
+import { notesEn } from "../../i18n/course-setting-notes-en";
 import { useRouter } from "next/navigation";
 import type { CourseSettingMode, CourseSettingState } from "@o-tid/contracts";
 import {
@@ -9,8 +15,8 @@ import {
   type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { LegAnalysis } from "@o-tid/route-choice";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import {
   browserStorage, descriptionLanguageOf, readDescriptionSettings, writeDescriptionSettings, type DescriptionSettings
@@ -92,8 +98,8 @@ const EDIT_TOOLS: readonly Tool[] = ["SELECT", "ADD_CONTROL", "ADD_START", "ADD_
 const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_START", m: "ADD_FINISH", p: "ADD_CROSSING", l: "INSERT_EXISTING",
   b: "ADD_BEND", n: "NOTE", o: "SPECIAL" };
 const OK_TOAST_MS = 8_000;
-const STATUS_TEXT: Record<SyncStatus, string> = { saved: text.status.saved, pending: text.status.pending, saving: text.status.saving,
-  failed: text.status.failed, stopped: text.status.stopped };
+const statusTexts = (text: CourseSettingTexts): Record<SyncStatus, string> => ({ saved: text.status.saved, pending: text.status.pending,
+  saving: text.status.saving, failed: text.status.failed, stopped: text.status.stopped });
 
 /**
  * Steg 62 (ADR-0180) och 66 (ADR-0181): editorn. Logiken finns i `lib/course-setting-*` (editorns tillstånd, sparandet med
@@ -109,6 +115,10 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   /** Beskedet står kvar tills det stängs (varianter ur banfilen som blev egna banor). */
   notice?: string | undefined; noticeStays?: boolean | undefined; onReload: () => void; resume?: FieldRecord | undefined;
 }) {
+  const offlineText = useTexts(offlineSv, offlineEn);
+  const copy = useTexts(collaborationSv, collaborationEn);
+  const notesText = useTexts(notesSv, notesEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const access = state.access;
   const readOnly = access.level === "COMMENT";
   const initialDocument = state.setting.document as unknown as CourseSettingDocument;
@@ -160,7 +170,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     // Steg 67: åtgärder från förra gången (ur telefonen) skickas direkt (beskedet en gång, också med Reacts dubbla körning).
     if (resume && resume.log.length > 0) {
       sync.changed();
-      if (navigator.onLine && !resumed.current) say({ tone: "ok", text: offlineSv.resumed(resume.log.length) });
+      if (navigator.onLine && !resumed.current) say({ tone: "ok", text: offlineText.resumed(resume.log.length) });
       resumed.current = true;
     }
     return () => sync.detach();
@@ -184,9 +194,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   // Steg 67: kön utan nät (notiser och bockar), åtgärderna i telefonen och "Spara för offline".
   const offline = useCourseSettingOffline({ raceId, state, store, sync, version, status, mapSha256: state.mapFile?.sha256, say,
     notes: collaboration.notes, inspections: collaboration.inspections,
-    onAccessGone: () => { say({ tone: "error", text: offlineSv.accessGone }); onReload(); },
-    describe: (item: QueuedItem, code: number) => item.kind !== "inspection" ? rejectedNoteText(item, code)
-      : offlineSv.rejectedInspection(store.state.document.controls[item.request.control] ? controlLabel(store.state.document, item.request.control)
+    onAccessGone: () => { say({ tone: "error", text: offlineText.accessGone }); onReload(); },
+    describe: (item: QueuedItem, code: number) => item.kind !== "inspection" ? rejectedNoteText(item, code, offlineText, notesText)
+      : offlineText.rejectedInspection(store.state.document.controls[item.request.control] ? controlLabel(store.state.document, item.request.control, text)
         : item.request.control, code),
     onSent: result => {
       if (result.sent.some(item => item.kind !== "inspection")) void collaboration.reloadNotes();
@@ -546,7 +556,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   [document, selectedControl, descriptionSettings.language]);
 
   const suggesting = editor.suggesting !== undefined;
-  const statusText = suggesting ? copy.suggestions.draftCount(editor.log.length) : STATUS_TEXT[status];
+  const statusText = suggesting ? copy.suggestions.draftCount(editor.log.length) : statusTexts(text)[status];
   // Steg 67: utan nät (eller utloggad) säger statusen hur mycket som väntar i telefonen.
   const shownStatus = suggesting ? statusText : offline.statusText ?? statusText;
   const label = text.map(course?.name ?? text.courses.all);
@@ -626,7 +636,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
             ? applySteps(current, [{ type: "MOVE_NUMBER", course: current.view, courseControl: current.selection.courseControl, at: null }], applyEdit) : current)}
           onStraighten={() => edit(current => removeSelected(current, applyEdit))} extra={ux.rotateControls(ux.rotatable)} />
         <LegPanel legKey={legKey} analysis={analysis} status={legStatus} highlighted={highlighted} onHighlight={setHighlighted}
-          notice={selection?.kind === "leg" && legStatus === "done" ? legForbiddenNotice(document, view, selection.from, selection.to, analysis) : undefined} />
+          notice={selection?.kind === "leg" && legStatus === "done" ? legForbiddenNotice(document, view, selection.from, selection.to, analysis, text) : undefined} />
       </>;
       case "training": return training.panel;
       case "objects": return <SpecialsPanel document={document} state={editor} readOnly={readOnly}
@@ -695,7 +705,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     // ADR-0217: fliken Layout (på telefonen finns flikarna bara här, raden överst är full).
     { label: layoutTabsSv.layout, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/layout`)) },
     { label: text.descriptionsMenu, onClick: () => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`)) },
-    { label: `${offlineSv.panel.heading} …`, onClick: () => setOfflineDialog(true) }];
+    { label: `${offlineText.panel.heading} …`, onClick: () => setOfflineDialog(true) }];
   // `course-setting-shell` (globals.css): sidan under arbetsytan skrollar och studsar aldrig.
   return <main className={`${styles.shell} course-setting-shell`} data-version={version} data-level={access.level}
     data-field={field.narrow ? "" : undefined}>
@@ -765,16 +775,16 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       <TransferPanel raceId={raceId} ready={!busy} flush={flush} version={() => sync.version} />
     </Dialog>}
     {moveShared.dialog}
-    {offlineDialog && <Dialog title={offlineSv.panel.heading} onClose={() => setOfflineDialog(false)}>
+    {offlineDialog && <Dialog title={offlineText.panel.heading} onClose={() => setOfflineDialog(false)}>
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry}
         heading={false} />
     </Dialog>}
     {/* Steg 67: utloggad – det som väntar ligger kvar i telefonen; efter inloggning i en ny flik skickas det (sidan försöker igen). */}
     {offline.loggedOut && <div className={styles.toasts}><Notice tone="error" role="alert"><p>{offline.waiting > 0
-      ? offlineSv.loggedOut(offline.waiting) : text.status.stopped}</p>
-      <div className={styles.row}><a className={styles.back} href="/konto" target="_blank" rel="noopener">{offlineSv.login}</a>
-        <Button variant="secondary" onClick={offline.retry}>{offlineSv.panel.sendNow}</Button>
+      ? offlineText.loggedOut(offline.waiting) : text.status.stopped}</p>
+      <div className={styles.row}><a className={styles.back} href="/konto" target="_blank" rel="noopener">{offlineText.login}</a>
+        <Button variant="secondary" onClick={offline.retry}>{offlineText.panel.sendNow}</Button>
         <Button variant="quiet" onClick={onReload}>{text.status.reload}</Button></div></Notice></div>}
   </main>;
 }

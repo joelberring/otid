@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, type RefObject } from "react";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import { checkDocument, type CourseCheck, type CourseSettingDocument, type OverprintOptions } from "@o-tid/course-setting";
 import type { LegInput } from "@o-tid/route-choice";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { checkGroups, checkRows, forbiddenRouteLegs, legRouteLookup, type CheckGroup, type CheckRow, type LevelCheckText } from "../../lib/course-setting-checks";
 import type { LegLength } from "../../lib/course-setting-route-length";
 import { safely } from "../../lib/course-setting-safely";
@@ -11,8 +13,6 @@ import type { RouteChoiceSession } from "../../lib/route-choice-client";
 import { Button } from "../ui";
 import { useNarrow } from "./course-setting-field";
 import styles from "./course-setting.module.css";
-
-const copy = text.checks;
 
 /**
  * ADR-0199: kontrollerna i fliken Varningar, och sträckorna vars fågelväg korsar ett förbjudet område med deras vägval. Vägvalen räknas i vägvalens Worker
@@ -26,7 +26,7 @@ export function useForbiddenRoutes({ document, results, hasMap, tabOpen, numberO
   /** Kartans hinder för numren (ADR-0211 beslut 4): de placerade numren kontrolleras mot dem. */
   numberObstacles?: OverprintOptions["numberObstacles"];
 }) {
-  const narrow = useNarrow();
+  const narrow = useNarrow(), text = useTexts(courseSettingSv, courseSettingEn);
   const candidates = useMemo(() => safely("Sträckorna genom förbjudna områden", () => forbiddenRouteLegs(document), () => [] as LegInput[]),
     [document]);
   const missing = useMemo(() => candidates.filter(leg => !results.has(leg.key)), [candidates, results]);
@@ -36,7 +36,7 @@ export function useForbiddenRoutes({ document, results, hasMap, tabOpen, numberO
   // Kontrollerna med vägvalen, som rader i grupper (godtagna räknas inte i fliken).
   const checked = useMemo(() => [...safely("Kontrollerna", () => checkDocument(document, { legRoute, ...(numberObstacles ? { numberObstacles } : {}) }), () => []),
     ...(levelChecks ?? [])], [document, legRoute, numberObstacles, levelChecks]);
-  const checks = useMemo(() => checkGroups(checkRows(document, checked, levelText)), [document, checked, levelText]);
+  const checks = useMemo(() => checkGroups(checkRows(document, checked, levelText, text), text), [document, checked, levelText, text]);
   return { candidates, missing, checked, checks, wanted: hasMap && missing.length > 0 && (tabOpen || !narrow) };
 }
 
@@ -68,6 +68,7 @@ export function useForbiddenRouteRunner({ legs, wanted, session, ready, failed, 
 
 function Row({ row, readOnly, onShow, onAccept, onUnaccept }: { row: CheckRow; readOnly: boolean; onShow: (row: CheckRow) => void;
   onAccept: (rows: readonly CheckRow[]) => void; onUnaccept: (rows: readonly CheckRow[]) => void }) {
+  const copy = useTexts(courseSettingSv, courseSettingEn).checks;
   return <li className={styles.checkRow} data-testid="course-setting-check" data-key={row.key} data-level={row.level}>
     <button type="button" className={styles.checkText} title={copy.show} onClick={() => onShow(row)}>{row.text}</button>
     {!readOnly && row.acceptable && (row.accepted
@@ -82,6 +83,7 @@ export function ChecksPanel({ groups, accepted, readOnly, routes, onShow, onAcce
   routes: { pending: number; running: boolean; failed: boolean };
   onShow: (row: CheckRow) => void; onAccept: (rows: readonly CheckRow[]) => void; onUnaccept: (rows: readonly CheckRow[]) => void;
 }) {
+  const copy = useTexts(courseSettingSv, courseSettingEn).checks;
   const rowProps = { readOnly, onShow, onAccept, onUnaccept };
   return <section className={styles.panel} aria-labelledby="course-setting-checks" data-testid="course-setting-checks">
     <h2 id="course-setting-checks">{copy.heading}</h2>

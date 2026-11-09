@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { offlineSv as text } from "../../i18n/course-setting-offline-sv";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
+import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { filterInspectionRows, type InspectionFilter, type InspectionRow } from "../../lib/course-setting-inspections";
 import type { StoredMapInfo } from "../../lib/course-setting-offline";
 import { Button } from "../ui";
@@ -12,6 +14,7 @@ export function InspectionsPanel({ rows, selected, onSelect, offline, action }: 
   onSelect: (control: string) => void; offline: boolean;
   /** ADR-0188: "Kollad" för vald kontroll (datorn, utanför fältläget). */
   action?: ReactNode }) {
+  const text = useTexts(offlineSv, offlineEn);
   const [filter, setFilter] = useState<InspectionFilter>("UNCHECKED");
   const visible = filterInspectionRows(rows, filter);
   const checked = rows.filter(row => row.inspection).length;
@@ -47,6 +50,7 @@ export function OfflinePanel({ info, mapSha256, mapBytes, busy, message, waiting
   /** Rubriken (inte i dialogen, som har samma rubrik). */
   heading?: boolean;
 }) {
+  const text = useTexts(offlineSv, offlineEn);
   const stale = info !== undefined && mapSha256 !== undefined && info.sha256 !== mapSha256;
   return <section className={styles.panel} aria-label={text.panel.heading} data-testid="course-setting-offline">
     {heading && <h2>{text.panel.heading}</h2>}

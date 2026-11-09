@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { courseSettingSuggestEn } from "../../i18n/course-setting-notes-en";
+import { useTexts } from "../language-provider";
 import { acceptSuggestion, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSuggestion } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
-import { courseSettingSuggestSv as text } from "../../i18n/course-setting-suggest-sv";
+import { courseSettingSuggestSv } from "../../i18n/course-setting-suggest-sv";
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
 import { sameBoxes } from "../../lib/course-setting-description-picker";
 import type { MapRenderSession, SuggestPoint, SuggestionsByControl } from "../../lib/course-setting-map-protocol";
@@ -70,6 +72,7 @@ export function SuggestionPanel({ document, control, label, state, symbols, read
   emptyEdits: readonly CourseSettingEdit[]; onEdits: (edits: readonly CourseSettingEdit[]) => void;
   onHover: (shapes: readonly (readonly Point[])[] | undefined) => void;
 }) {
+  const text = useTexts(courseSettingSuggestSv, courseSettingSuggestEn);
   const list = state.byControl[control];
   useEffect(() => () => onHover(undefined), [control]);
   if (!state.available) return <p className={css.reason} data-testid="description-suggestion-none">{text.noMap}</p>;
@@ -121,6 +124,7 @@ export function FieldSuggestionLine({ document, control, state, symbols, onEdits
   document: CourseSettingDocument; control: string | undefined; state: SuggestionsState; symbols: SymbolLookup;
   onEdits: (edits: readonly CourseSettingEdit[]) => void;
 }) {
+  const text = useTexts(courseSettingSuggestSv, courseSettingSuggestEn);
   const best = control ? state.byControl[control]?.[0] : undefined;
   const point = control ? document.controls[control] : undefined;
   // Står förslaget redan i beskrivningen behövs ingen rad.

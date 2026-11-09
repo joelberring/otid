@@ -1,12 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { courseSettingUxEn } from "../../i18n/course-setting-ux-en";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import type { CourseSettingDocument, CourseSettingEdit, CourseSummary, CourseVariant } from "@o-tid/course-setting";
 import { coursePropertiesSv as props } from "../../i18n/course-setting-properties-sv";
 import { scoreTotal } from "../../lib/course-setting-properties";
 import { PointsField } from "./course-setting-course-properties";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { courseSettingUxSv as ux } from "../../i18n/course-setting-ux-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
 import { courseTree, type TreeBranch, type TreeRow } from "../../lib/course-setting-forks";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { controlLabel } from "../../lib/course-setting-text";
@@ -44,6 +47,8 @@ function CourseControls({ document, summary, name, view, variant, branch, select
   onSelect: (target: { control: string; courseControl?: string | undefined }) => void; onBranch: (branch: TreeBranch) => void;
   onVariant: (code: string | undefined) => void; score: boolean; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const tree = useMemo(() => { try { return courseTree(document, view); } catch (error) { console.error("Banans träd", error); return []; } },
     [document, view]);
   const variants = summary?.variants ?? [];
@@ -119,6 +124,8 @@ function AllControls({ document, selected, unused, readOnly, onSelect, onRemoveU
   document: CourseSettingDocument; selected: string | undefined; unused: readonly string[]; readOnly: boolean;
   onSelect: (target: { control: string }) => void; onRemoveUnused: () => void;
 }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [onlyUnused, setOnlyUnused] = useState(false);
   const unusedSet = new Set(unused);
   const rows = useMemo(() => Object.values(document.controls).sort((a, b) => kindRank(a.kind) - kindRank(b.kind)
@@ -135,7 +142,7 @@ function AllControls({ document, selected, unused, readOnly, onSelect, onRemoveU
     {onlyUnused && unused.length === 0 ? <p className={styles.hint}>{ux.controls.noUnused}</p> : <ul className={styles.controlList}>
       {shown.map(row => <li key={row.id}><button type="button" className={styles.row} aria-current={selected === row.id}
         onClick={() => onSelect({ control: row.id })}>
-        <span>{controlLabel(document, row.id)}</span>{unusedSet.has(row.id) && <span className={styles.tag}>{ux.controls.unused}</span>}
+        <span>{controlLabel(document, row.id, text)}</span>{unusedSet.has(row.id) && <span className={styles.tag}>{ux.controls.unused}</span>}
       </button></li>)}
     </ul>}
   </section>;

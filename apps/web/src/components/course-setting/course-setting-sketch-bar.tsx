@@ -1,6 +1,8 @@
 "use client";
 
 import type { CourseSettingNoteKind } from "@o-tid/contracts";
+import { notesEn } from "../../i18n/course-setting-notes-en";
+import { useTexts } from "../language-provider";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import {
   finishShape, setSketchOptions, SKETCH_COLORS, sketchFull, sketchPointCount, undoSketch, type SketchDraft, type SketchIntent, type SketchStyle
@@ -8,7 +10,6 @@ import {
 import { Button } from "../ui";
 import styles from "./course-setting-notes.module.css";
 
-const text = notesSv.sketch;
 const STYLES = ["MAP_ERROR", "MARKING", "GENERAL"] as const satisfies readonly SketchStyle[];
 const INTENTS: readonly { key: "NONE" | "WRONG" | "RIGHT"; value: SketchIntent }[] = [{ key: "NONE", value: null }, { key: "WRONG", value: "WRONG" },
   { key: "RIGHT", value: "RIGHT" }];
@@ -20,6 +21,7 @@ const INTENTS: readonly { key: "NONE" | "WRONG" | "RIGHT"; value: SketchIntent }
  */
 export function SketchBar({ draft, kind, compact, onChange, onDone, onCancel }: { draft: SketchDraft; kind: CourseSettingNoteKind; compact: boolean;
   onChange: (next: SketchDraft) => void; onDone: () => void; onCancel: () => void }) {
+  const text = useTexts(notesSv.sketch, notesEn.sketch);
   const points = sketchPointCount(draft);
   const clicking = draft.current?.input === "CLICKS";
   const intentKey = INTENTS.find(row => row.value === draft.intent)?.key ?? "NONE";

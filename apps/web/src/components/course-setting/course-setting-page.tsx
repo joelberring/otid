@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { collaborationEn } from "../../i18n/course-setting-collab-en";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import { raceMapProblemSchema, type CourseSettingState } from "@o-tid/contracts";
 import { emptyDocument, withPpenState } from "@o-tid/course-setting";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { courseSettingBase, fetchCourseSetting, HttpError, importCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
@@ -40,6 +44,9 @@ async function phoneRecord(raceId: string): Promise<FieldRecord | undefined> {
   }
 }
 export function CourseSettingPage({ raceId }: { raceId: string }) {
+  const offlineText = useTexts(offlineSv, offlineEn);
+  const copy = useTexts(collaborationSv, collaborationEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [state, setState] = useState<CourseSettingState>();
   const [failed, setFailed] = useState<"login" | "other">();
   const [message, setMessage] = useState<Message>();
@@ -138,7 +145,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const setting = state.setting;
   // Steg 66: editorn fyller fönstret (egen rad överst med bakåtlänken).
   if (state.mapFile && setting) return <CourseSettingEditor key={`${generation}-${setting.version}`} raceId={raceId} state={{ ...state, setting }}
-    notice={notice ?? (resume?.fromPhone ? offlineSv.openedFromPhone(resume.record.savedAt) : undefined)}
+    notice={notice ?? (resume?.fromPhone ? offlineText.openedFromPhone(resume.record.savedAt) : undefined)}
     noticeStays={notice !== undefined && notice === pending?.text && pending.stays} resume={resume?.record}
     onReload={() => { setNotice(undefined); void load(); }} />;
   return <main className={styles.page}>

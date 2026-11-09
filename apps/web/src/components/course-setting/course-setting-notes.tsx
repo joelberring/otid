@@ -1,12 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { collaborationEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-setting-en";
+import { notesEn } from "../../i18n/course-setting-notes-en";
 import Link from "next/link";
 import {
   COURSE_SETTING_NOTE_PHOTO_MAX_BYTES, mapErrorTargetAllowed, type CourseSettingNote, type CourseSettingNoteKind, type CourseSettingNoteTarget
 } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
-import { collaborationSv as text } from "../../i18n/course-setting-collaboration-sv";
+import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { courseSettingNotePhotoUrl } from "../../lib/course-setting-api";
@@ -18,9 +25,9 @@ import styles from "./course-setting.module.css";
 import own from "./course-setting-notes.module.css";
 
 /** Fotot förminskat i webbläsaren (JPEG, högst 2 MB). */
-export async function photoFromFile(file: File): Promise<{ mediaType: "image/jpeg"; base64: string } | { error: string }> {
+export async function photoFromFile(file: File, notes: Texts<typeof collaborationSv.notes> = collaborationSv.notes): Promise<{ mediaType: "image/jpeg"; base64: string } | { error: string }> {
   let bitmap: ImageBitmap;
-  try { bitmap = await createImageBitmap(file); } catch { return { error: text.notes.photoFailed }; }
+  try { bitmap = await createImageBitmap(file); } catch { return { error: notes.photoFailed }; }
   try {
     for (const side of PHOTO_SIDES) {
       const size = scaledSize(bitmap.width, bitmap.height, side);
@@ -35,18 +42,22 @@ export async function photoFromFile(file: File): Promise<{ mediaType: "image/jpe
         return { mediaType: "image/jpeg", base64: btoa(binary) };
       }
     }
-    return { error: text.notes.photoTooLarge };
+    return { error: notes.photoTooLarge };
   } finally { bitmap.close(); }
 }
 
-export function targetText(target: CourseSettingNoteTarget, document: CourseSettingDocument): string {
-  const label = (id: string) => document.controls[id] ? controlLabel(document, id) : "?";
+export type NoteTargetTexts = { collab: Texts<typeof collaborationSv>; course: CourseSettingTexts; notes: Texts<typeof notesSv> };
+const SWEDISH_TARGETS: NoteTargetTexts = { collab: collaborationSv, course: courseSettingSv, notes: notesSv };
+
+export function targetText(target: CourseSettingNoteTarget, document: CourseSettingDocument, texts: NoteTargetTexts = SWEDISH_TARGETS): string {
+  const label = (id: string) => document.controls[id] ? controlLabel(document, id, texts.course) : "?";
+  const target_ = texts.collab.notes.target;
   switch (target.kind) {
-    case "POINT": return text.notes.target.POINT;
-    case "CONTROL": return text.notes.target.CONTROL(label(target.control));
-    case "LEG": return text.notes.target.LEG(label(target.from), label(target.to));
-    case "COURSE": return text.notes.target.COURSE(document.courses.find(course => course.id === target.course)?.name ?? "?");
-    case "SKETCH": return notesSv.sketchTarget;
+    case "POINT": return target_.POINT;
+    case "CONTROL": return target_.CONTROL(label(target.control));
+    case "LEG": return target_.LEG(label(target.from), label(target.to));
+    case "COURSE": return target_.COURSE(document.courses.find(course => course.id === target.course)?.name ?? "?");
+    case "SKETCH": return texts.notes.sketchTarget;
   }
 }
 
@@ -59,6 +70,9 @@ export type NotePhoto = { mediaType: "image/jpeg"; base64: string };
 export function NoteForm({ target, document, kind: initialKind = "COURSE_SETTING", onSave, onCancel }: { target: CourseSettingNoteTarget;
   document: CourseSettingDocument; kind?: CourseSettingNoteKind | undefined;
   onSave: (input: { text: string; photo: NotePhoto | null; kind: CourseSettingNoteKind }) => Promise<boolean>; onCancel: () => void }) {
+  const notesText = useTexts(notesSv, notesEn);
+  const courseText = useTexts(courseSettingSv, courseSettingEn);
+  const text = useTexts(collaborationSv, collaborationEn);
   const [value, setValue] = useState("");
   const [photo, setPhoto] = useState<NotePhoto | null>(null);
   const [message, setMessage] = useState<string>();
@@ -71,16 +85,16 @@ export function NoteForm({ target, document, kind: initialKind = "COURSE_SETTING
     setBusy(true); setMessage(undefined);
     void onSave({ text: value.trim(), photo, kind }).then(ok => { if (!ok) setMessage(text.notes.failed); }).finally(() => setBusy(false));
   }}>
-    <strong>{text.notes.newHeading}: {targetText(target, document)}</strong>
-    {canBeMapError && <div className={styles.segmented} role="group" aria-label={notesSv.kind.label}>
+    <strong>{text.notes.newHeading}: {targetText(target, document, { collab: text, course: courseText, notes: notesText })}</strong>
+    {canBeMapError && <div className={styles.segmented} role="group" aria-label={notesText.kind.label}>
       {(["COURSE_SETTING", "MAP_ERROR"] as const).map(value => <Button key={value} variant="secondary" aria-pressed={kind === value}
-        onClick={() => setKind(value)}>{notesSv.kind[value]}</Button>)}
+        onClick={() => setKind(value)}>{notesText.kind[value]}</Button>)}
     </div>}
     <label>{text.notes.text}<textarea value={value} onChange={event => setValue(event.target.value)} maxLength={2000} rows={3} required /></label>
     <label>{text.notes.photo}<input type="file" accept="image/*" capture="environment" onChange={event => {
       const file = event.target.files?.[0];
       setPhoto(null); setMessage(undefined);
-      if (file) void photoFromFile(file).then(result => "error" in result ? setMessage(result.error) : setPhoto(result));
+      if (file) void photoFromFile(file, text.notes).then(result => "error" in result ? setMessage(result.error) : setPhoto(result));
     }} /></label>
     <p className={styles.muted}>{text.notes.photoHelp}</p>
     {message && <p role="alert" className={styles.muted}>{message}</p>}
@@ -112,6 +126,10 @@ export interface NotesPanelProps {
 /** Notiserna: filter, lista (klick visar på kartan), tråden med svar, klar/öppen, foto och borttagning. */
 export function NotesPanel({ raceId, notes, document, show, onShow, selected, onSelect, onReveal, onReply, onStatus, onCourseNote, view, draft,
   readOnlyCourse, pending, filter, onFilter, kind, onKind, canDelete, onDelete, onDeleteReply, onSketch, canEdit, onEdit }: NotesPanelProps) {
+  const notesText = useTexts(notesSv, notesEn);
+  const offlineText = useTexts(offlineSv, offlineEn);
+  const courseText = useTexts(courseSettingSv, courseSettingEn);
+  const text = useTexts(collaborationSv, collaborationEn);
   const [reply, setReply] = useState("");
   const visible = filterNotes(notes, filter, kind);
   const course = document.courses.find(row => row.id === view);
@@ -122,26 +140,26 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
       {(["OPEN", "DONE", "ALL"] as const).map(value => <Button key={value} variant="secondary" aria-pressed={filter === value}
         onClick={() => onFilter(value)}>{text.notes.filters[value]}</Button>)}
     </div>
-    <div className={styles.segmented} role="group" aria-label={notesSv.kindFilter.label}>
+    <div className={styles.segmented} role="group" aria-label={notesText.kindFilter.label}>
       {(["ALL", "COURSE_SETTING", "MAP_ERROR"] as const).map(value => <Button key={value} variant="secondary" aria-pressed={kind === value}
-        onClick={() => onKind(value)}>{notesSv.kindFilter[value]}</Button>)}
+        onClick={() => onKind(value)}>{notesText.kindFilter[value]}</Button>)}
     </div>
     {draft}
     {!draft && <p className={styles.muted}>{text.notes.newHelp}</p>}
     {!draft && <div className={styles.row}>
-      <Button variant="secondary" onClick={() => onSketch("MAP_ERROR")}>{notesSv.sketch.drawMapError}</Button>
-      <Button variant="secondary" onClick={() => onSketch("COURSE_SETTING")}>{notesSv.sketch.draw}</Button>
+      <Button variant="secondary" onClick={() => onSketch("MAP_ERROR")}>{notesText.sketch.drawMapError}</Button>
+      <Button variant="secondary" onClick={() => onSketch("COURSE_SETTING")}>{notesText.sketch.draw}</Button>
       {course && !readOnlyCourse && <Button variant="secondary" onClick={onCourseNote}>{text.notes.aboutCourse(course.name)}</Button>}
     </div>}
-    <p className={styles.muted}><Link href={`/admin/${raceId}/course-setting/map-errors`}>{notesSv.exportLink}</Link></p>
+    <p className={styles.muted}><Link href={`/admin/${raceId}/course-setting/map-errors`}>{notesText.exportLink}</Link></p>
     {visible.length === 0 ? <p className={styles.muted}>{text.notes.none}</p> : <ul className={styles.noteList}>
       {visible.map(note => <li key={note.id} data-status={note.status} data-kind={note.kind} data-selected={note.id === selected || undefined}
         data-testid="course-setting-note">
         <button type="button" className={`${styles.noteHead} ${own.head}`} onClick={() => { onSelect(note.id === selected ? undefined : note.id); onReveal(note); }}
           aria-expanded={note.id === selected}>
-          <span className={styles.noteStatus}>{pending?.has(note.id) ? offlineSv.inspection.pending : text.notes.status[note.status]}
-            {note.kind === "MAP_ERROR" && <span className={own.kind}>{notesSv.kind.MAP_ERROR}</span>}</span>
-          <strong>{targetText(note.target, document)}</strong>
+          <span className={styles.noteStatus}>{pending?.has(note.id) ? offlineText.inspection.pending : text.notes.status[note.status]}
+            {note.kind === "MAP_ERROR" && <span className={own.kind}>{notesText.kind.MAP_ERROR}</span>}</span>
+          <strong>{targetText(note.target, document, { collab: text, course: courseText, notes: notesText })}</strong>
           <span className={styles.noteText}>{note.text} <EditedMark editedAt={note.editedAt} /></span>
           <span className={styles.muted}>{text.notes.by(note.createdBy.displayName, note.createdAt)}
             {note.replies.length > 0 ? ` · ${text.notes.replies(note.replies.length)}` : ""}</span>
@@ -158,7 +176,7 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
                 onSave={(value, expected) => onEdit(note, row.id, value, expected)} />}
               <span className={styles.muted}>{text.notes.by(replyAuthor(row), row.createdAt)}</span>
               {canDelete(row.createdBy?.accountId ?? "") && <Button variant="quiet" className={own.small} onClick={() => onDeleteReply(note, row.id)}>
-                {notesSv.deleteReply}</Button>}</li>)}</ul>
+                {notesText.deleteReply}</Button>}</li>)}</ul>
             <form className={styles.row} onSubmit={event => {
               event.preventDefault();
               if (!reply.trim()) return;
@@ -171,7 +189,7 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
           <div className={styles.row}>
             {!pending?.has(note.id) && <Button variant="secondary" onClick={() => void onStatus(note.id, note.status === "OPEN" ? "DONE" : "OPEN")}>
               {note.status === "OPEN" ? text.notes.done : text.notes.reopen}</Button>}
-            {canDelete(note.createdBy.accountId) && <Button variant="quiet" onClick={() => onDelete(note)}>{notesSv.delete}</Button>}
+            {canDelete(note.createdBy.accountId) && <Button variant="quiet" onClick={() => onDelete(note)}>{notesText.delete}</Button>}
           </div>
         </div>}
       </li>)}

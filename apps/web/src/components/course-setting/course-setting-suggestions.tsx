@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { collaborationEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
 import type { CourseSettingSuggestion, CourseSettingSuggestionDecided } from "@o-tid/contracts";
 import type { CourseSettingDocument, CourseSettingEdit } from "@o-tid/course-setting";
-import { collaborationSv as text } from "../../i18n/course-setting-collaboration-sv";
+import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import { describeEdit } from "../../lib/course-setting-suggestion";
 import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Förslagsläget (den som föreslår): hur många ändringar, kommentar, skicka eller kasta. */
 export function SuggestionDraft({ count, onSend, onDiscard }: { count: number; onSend: (comment: string) => Promise<boolean>; onDiscard: () => void }) {
+  const text = useTexts(collaborationSv, collaborationEn);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
@@ -39,6 +42,7 @@ function Review({ suggestion, document, skip, onSkip, canDecide, onDecide, rejec
   suggestion: CourseSettingSuggestion; document: CourseSettingDocument; skip: ReadonlySet<number>; onSkip: (skip: ReadonlySet<number>) => void;
   canDecide: boolean; onDecide: (decision: "APPROVE" | "DECLINE", comment: string) => Promise<void>; rejected: ReadonlySet<number>;
 }) {
+  const text = useTexts(collaborationSv, collaborationEn);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const selectedCount = suggestion.edits.length - skip.size;
@@ -79,6 +83,7 @@ export function SuggestionsPanel({ suggestions, document, reviewing, onReview, s
   result: { suggestion: string; decided: CourseSettingSuggestionDecided } | { suggestion: string; failed: true } | undefined;
   rejected: ReadonlySet<number>; draft?: React.ReactNode;
 }) {
+  const text = useTexts(collaborationSv, collaborationEn);
   const open = suggestions.filter(row => row.status === "OPEN");
   const decided = suggestions.filter(row => row.status !== "OPEN").slice(0, 20);
   const row = (suggestion: CourseSettingSuggestion) => <li key={suggestion.id} data-status={suggestion.status}>

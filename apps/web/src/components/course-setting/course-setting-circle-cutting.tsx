@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { courseSettingCuttingEn } from "../../i18n/course-setting-notes-en";
+import { useTexts } from "../language-provider";
 import { numberObstaclePoints, type CourseSettingDocument, type CourseSettingEdit, type NumberObstaclesData } from "@o-tid/course-setting";
-import { courseSettingCuttingSv as text } from "../../i18n/course-setting-cutting-sv";
+import { courseSettingCuttingSv } from "../../i18n/course-setting-cutting-sv";
 import {
   bakeEdits, circleCuttingEdit, circleCuttingOf, currentDetailGaps, DETAIL_GAPS_DELAY_MS, detailRequest, type DetailGaps, type DetailResult
 } from "../../lib/course-setting-circle-cutting";
@@ -68,6 +70,7 @@ export function useDetailGaps(session: MapRenderSession | undefined, document: C
 export function CircleCuttingPanel({ document, cutting, onEdits }: {
   document: CourseSettingDocument; cutting: DetailGapsState; onEdits: (edits: readonly CourseSettingEdit[]) => void;
 }) {
+  const text = useTexts(courseSettingCuttingSv, courseSettingCuttingEn);
   const choice = circleCuttingOf(document);
   const [baked, setBaked] = useState<string>();
   const set = (change: Parameters<typeof circleCuttingEdit>[1]) => { setBaked(undefined); onEdits([circleCuttingEdit(document, change)]); };

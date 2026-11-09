@@ -1,12 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
 import {
   CourseSettingEditError, layoutCoursePage, paperImageHashes, ppenWithPaperLayout, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { iofCourseFile } from "../../lib/course-setting-iof";
 import { courseSettingBase, downloadText, fetchCourseSettingRevisions } from "../../lib/course-setting-api";
@@ -18,7 +20,7 @@ export interface ReadFile { readonly document: CourseSettingDocument; readonly w
   readonly ppen: string }
 
 /** Läser en vald .ppen i webbläsaren (ADR-0177). Ger dokumentet eller ett begripligt fel. */
-export async function readChosenPpen(file: File): Promise<ReadFile | { error: string }> {
+export async function readChosenPpen(file: File, text: CourseSettingTexts): Promise<ReadFile | { error: string }> {
   if (file.size > COURSE_SETTING_PPEN_MAX_BYTES) return { error: text.file.tooLarge };
   const ppen = await file.text();
   try {
@@ -31,7 +33,8 @@ export async function readChosenPpen(file: File): Promise<ReadFile | { error: st
 }
 
 /** Filväljaren för .ppen (inläsning ersätter dokumentet; `onRead` frågar och sparar). */
-export function PpenImport({ onRead, busy, label = text.file.import }: { onRead: (file: ReadFile) => Promise<void>; busy: boolean; label?: string }) {
+export function PpenImport({ onRead, busy, label: chosenLabel }: { onRead: (file: ReadFile) => Promise<void>; busy: boolean; label?: string }) {
+  const text = useTexts(courseSettingSv, courseSettingEn), label = chosenLabel ?? text.file.import;
   const input = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string>();
   const [reading, setReading] = useState(false);
@@ -40,7 +43,7 @@ export function PpenImport({ onRead, busy, label = text.file.import }: { onRead:
     if (!file) return;
     setMessage(undefined); setReading(true);
     try {
-      const result = await readChosenPpen(file);
+      const result = await readChosenPpen(file, text);
       if ("error" in result) { setMessage(result.error); return; }
       await onRead(result);
       if (input.current) input.current.value = "";
@@ -65,6 +68,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   /** ADR-0190: kartfilens yta och georeferens för IOF-exporten. */
   mapBounds?: { minX: number; minY: number; maxX: number; maxY: number } | undefined; georeference?: MapGeoreference | null | undefined;
 }) {
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [revisions, setRevisions] = useState<CourseSettingRevisions["revisions"]>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   async function showRevisions() {

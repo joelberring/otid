@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
 import type {
   CourseSettingInspection, CourseSettingInspectionRequest, CourseSettingNote, CourseSettingNoteCreate, CourseSettingState
 } from "@o-tid/contracts";
-import { offlineSv as text } from "../../i18n/course-setting-offline-sv";
+import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import {
   createCourseSettingNote, deleteCourseSettingNote, deleteCourseSettingNoteReply, fetchCourseSetting, HttpError, setCourseSettingInspection
 } from "../../lib/course-setting-api";
@@ -93,6 +95,7 @@ export interface OfflineInput {
 }
 
 export function useCourseSettingOffline(input: OfflineInput) {
+  const text = useTexts(offlineSv, offlineEn);
   const { raceId, store, sync, version, status } = input;
   const storage = useMemo(fieldStore, []);
   const latest = useRef(input);

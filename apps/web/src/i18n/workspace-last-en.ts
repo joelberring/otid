@@ -6,7 +6,6 @@ import type { accountSv } from "./account-sv";
 import type { clubAffiliationSv } from "./club-affiliation-sv";
 import type { courseDataSv } from "./course-data-sv";
 import type { raceInfoSv } from "./race-info-sv";
-import type { courseSettingSv } from "./course-setting-sv";
 import type { InvitationTally, invitationRoleWords, invitationSv } from "./invitation-sv";
 
 /**
@@ -146,11 +145,6 @@ export const raceInfoSettingsEn: Texts<typeof raceInfoSv.settings> = {
   firstStartInvalid: "Write the clock time as HH:MM, for example 18:30, or leave the field empty.",
   cardNumbers: "Show card numbers in the public start list",
   cardNumbersHelp: "The card number is only shown in the start list, not in results, Live or speaker. A changed card shows only when the start list is published again. When turned off, the card number is hidden at once."
-};
-
-export const courseSettingLinkEn: Texts<Pick<typeof courseSettingSv, "link" | "linkHelp">> = {
-  link: "Course setting",
-  linkHelp: "Put the courses on the map file in the browser, or import a .ppen from Purple Pen."
 };
 
 // Inbjudningarna

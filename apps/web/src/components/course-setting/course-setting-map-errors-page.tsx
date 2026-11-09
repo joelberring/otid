@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { notesEn } from "../../i18n/course-setting-notes-en";
+import { collaborationEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import { AccountMenu } from "../account-menu";
 import type { CourseSettingNote } from "@o-tid/contracts";
@@ -28,7 +31,6 @@ import { MapLinkPanel } from "./map-link-panel";
 import { EditableText, editOutcome, replyAuthor, VerdictBadge } from "./note-text";
 import styles from "./course-setting-map-errors-page.module.css";
 
-const text = notesSv.export;
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
 /** Utsnittets förstoring på papperet och bildens upplösning (kartans mm × förstoring = papperets mm). */
@@ -72,6 +74,8 @@ async function renderCrop(session: MapRenderSession, note: CourseSettingNote, cr
  * och foto): utsnitten, texten och svaren, svarar, markerar klart och kan skriva ut eller ladda ned samma sak.
  */
 export function MapErrorsPage({ raceId }: { raceId: string }) {
+  const text = useTexts(notesSv.export, notesEn.export);
+  const collabText = useTexts(collaborationSv, collaborationEn);
   const [document, setDocument] = useState<CourseSettingDocument | null>();
   const [notes, setNotes] = useState<readonly CourseSettingNote[]>();
   const [failed, setFailed] = useState(false);
@@ -230,7 +234,7 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
               {row.near !== undefined && <p className={styles.warning} role="alert">{text.near(row.near)}</p>}
               {row.note.photo && <label className={styles.check}><input type="checkbox" checked={withPhoto(row.note)}
                 onChange={event => set(row.note.id, { photo: event.target.checked })} />{text.includePhoto}</label>}
-              <p className={styles.muted} data-testid="map-errors-status">{collaborationSv.notes.status[row.note.status]}</p>
+              <p className={styles.muted} data-testid="map-errors-status">{collabText.notes.status[row.note.status]}</p>
               {thread(row.note)}
             </li>;
           })}

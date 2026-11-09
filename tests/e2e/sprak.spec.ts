@@ -149,6 +149,9 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   await help.getByLabel("Search the help").fill("borrowed card");
   await expect(help.getByText("Unknown card, direct entry and borrowed card")).toBeVisible();
   await help.getByRole("button", { name: "Close" }).click();
+  // Del 28: banläggningen utan kartfil.
+  await owner.goto(`/admin/${raceId}/course-setting`);
+  await expect(owner.getByText("Upload the map file first.", { exact: false })).toBeVisible({ timeout: 30_000 });
   // Avläsningen (eget appskal) följer språket.
   await owner.goto(`/admin/${raceId}/readout`);
   await expect(owner.getByRole("button", { name: "Start practice station" })).toBeVisible({ timeout: 30_000 });

@@ -79,6 +79,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 27: hjälpen på engelska (panelen, sökningen med engelska synonymer och artiklarna för arbetsytan, avläsningen,
   kontot, kontrollkartan och vägvalen; `help-en.ts`, `help-more-en.ts`). Artiklarna om banläggningen, utskriften och
   klubbarkivet är kvar på svenska. `help-en.test.ts` kräver engelska citat och listar de svenska knappar som återstår.
+- Del 28: banläggningen, grunden (banor, verktyg, vald, varningar, fil och versioner, överföring, objektpaletten,
+  samarbetet, notiserna och kartfelen, fältläget utan nät, flytt av delade kontroller, beskrivningsförslag och ringklipp).
+  Kvar i banläggningen: egenskaper, beskrivning, varianter, nivåstöd, utseende, träning, layout, papper och utskrift.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

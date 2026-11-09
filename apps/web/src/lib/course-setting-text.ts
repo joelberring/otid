@@ -1,6 +1,7 @@
 import { routeBarriers, type CourseSettingDocument } from "@o-tid/course-setting";
 import type { LegInput } from "@o-tid/route-choice";
-import { courseSettingSv as text } from "../i18n/course-setting-sv";
+import { courseSettingSv } from "../i18n/course-setting-sv";
+import type { CourseSettingTexts } from "../i18n/course-setting-en";
 import { ALL_CONTROLS } from "./course-setting-hit";
 
 /** Kort kontrollsumma (FNV-1a) för att märka indata. */
@@ -14,7 +15,7 @@ export function hash(value: string): string {
  * Steg 62: banläggningens klartext och vägvalens indata. Kontrollerna nämns med kod, banorna med namn. Kontrollerna som
  * `checkDocument` ger blir rader i `course-setting-checks.ts`.
  */
-export function controlLabel(document: CourseSettingDocument, control: string): string {
+export function controlLabel(document: CourseSettingDocument, control: string, text: CourseSettingTexts = courseSettingSv): string {
   const point = document.controls[control];
   if (!point) return text.label.control(undefined);
   return point.kind === "NORMAL" ? text.label.control(point.code) : text.label[point.kind];

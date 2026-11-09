@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { collaborationEn } from "../../i18n/course-setting-collab-en";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { CourseSettingDocument, CourseSummary } from "@o-tid/course-setting";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { collaborationSv as copy } from "../../i18n/course-setting-collaboration-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import type { HelpView } from "../../i18n/help-sv";
 import type { Tool } from "../../lib/course-setting-editor";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
@@ -32,6 +35,8 @@ export type TopBarProps = {
 
 export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu, admin,
   help, tabs }: TopBarProps) {
+  const copy = useTexts(collaborationSv, collaborationEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [open, setOpen] = useState(false);
   // Menyn ligger fast i fönstret under knappen, högerjusterad mot knappen så att den aldrig hamnar utanför bild.
   const [menuAt, setMenuAt] = useState<{ top: number; right: number }>();
@@ -105,6 +110,8 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTrainin
   onFork?: (() => void) | undefined; inCourse: boolean; help: string;
   /** ADR-0192: ingången till träningsläget (fliken Träning). */
   onTraining?: (() => void) | undefined; trainingOpen?: boolean | undefined }) {
+  const copy = useTexts(collaborationSv, collaborationEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help} data-map-overlay="">
     {tools.map(item => <button key={item} type="button" className={styles.tool} aria-pressed={tool === item} aria-label={text.tools[item]}
       title={text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
@@ -150,6 +157,7 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
   counts: Partial<Record<DrawerTab, number>>; children: ReactNode;
   /** Steg 67: räknas upp när fältraden vill visa en flik (bladet fälls upp). */
   reveal?: number | undefined }) {
+  const copy = useTexts(collaborationSv, collaborationEn);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState(380);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -227,6 +235,7 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
 
 /** En dialog ovanpå arbetsytan (fil och versioner, överföringen, arbetssättet). */
 export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const copy = useTexts(collaborationSv, collaborationEn);
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { notesEn } from "../../i18n/course-setting-notes-en";
+import { useTexts } from "../language-provider";
 import { suggestedMapLinkLastDay } from "@o-tid/domain";
 import type { MapLinkState } from "@o-tid/contracts";
 import { mapLinkSv } from "../../i18n/map-link-sv";
@@ -17,6 +19,7 @@ const text = mapLinkSv.share;
  * Tiden är obegränsad som förval; "Begränsa tiden" föreslår tävlingsdagen plus en vecka.
  */
 export function MapLinkPanel({ raceId, nearCount }: { raceId: string; nearCount: number }) {
+  const notesText = useTexts(notesSv, notesEn);
   const [state, setState] = useState<MapLinkState>();
   const [token, setToken] = useState<string>();
   const [form, setForm] = useState(false);
@@ -80,7 +83,7 @@ export function MapLinkPanel({ raceId, nearCount }: { raceId: string; nearCount:
       <label className={styles.check}><input type="checkbox" checked={showRaceName} onChange={event => setShowRaceName(event.target.checked)} />
         {text.showRaceName}</label>
       <p className={styles.muted}>{text.showRaceNameHelp}</p>
-      <p className={styles.muted}>{notesSv.export.textReminder}</p>
+      <p className={styles.muted}>{notesText.export.textReminder}</p>
       <div className={styles.row}>
         <Button type="submit" disabled={busy || (limit && !lastDay)}>{text.create}</Button>
         <Button variant="quiet" onClick={() => setForm(false)}>{text.cancel}</Button>

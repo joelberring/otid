@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { notesEn } from "../../i18n/course-setting-notes-en";
+import { courseSettingFieldEn } from "../../i18n/course-setting-notes-en";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import type { CourseSettingNoteTarget } from "@o-tid/contracts";
 import { applyEdit, type CourseSettingDocument } from "@o-tid/course-setting";
 import type { MapGeoreference, Point } from "@o-tid/map-file";
-import { courseSettingFieldSv as text } from "../../i18n/course-setting-field-sv";
-import { offlineSv as copy } from "../../i18n/course-setting-offline-sv";
+import { courseSettingFieldSv } from "../../i18n/course-setting-field-sv";
+import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { applySteps, type EditorState } from "../../lib/course-setting-editor";
 import type { SyncStatus } from "../../lib/course-setting-sync";
@@ -45,13 +50,13 @@ export function useNarrow(): boolean {
   return useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
 }
 
-function geolocationError(error: GeolocationPositionError): string {
+function geolocationError(error: GeolocationPositionError, text: Texts<typeof courseSettingFieldSv>): string {
   if (error.code === error.PERMISSION_DENIED) return text.denied;
   if (error.code === error.TIMEOUT) return text.timeout;
   return text.unavailable;
 }
 
-const labelOf = (document: CourseSettingDocument, control: string | undefined): string | undefined => {
+const labelOf = (document: CourseSettingDocument, control: string | undefined, text: Texts<typeof courseSettingFieldSv>): string | undefined => {
   const found = control ? document.controls[control] : undefined;
   if (!found) return undefined;
   if (found.kind === "NORMAL") return text.control(found.code ?? "?");
@@ -147,6 +152,9 @@ export interface FieldMode {
 }
 
 export function useFieldMode(input: FieldInput): FieldMode {
+  const notesText = useTexts(notesSv, notesEn);
+  const text = useTexts(courseSettingFieldSv, courseSettingFieldEn);
+  const copy = useTexts(offlineSv, offlineEn);
   const { state, apply, georeference, mapBounds, status, readOnly } = input;
   const narrow = useNarrow();
   const document = state.document;
@@ -175,7 +183,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
       if (collector.current && reference) {
         try { collector.current.push(toMapPosition(reference, next)); } catch { /* koordinatsystemet: visas nedan */ }
       }
-    }, failure => setError(geolocationError(failure)), { enableHighAccuracy: true, maximumAge: 0 });
+    }, failure => setError(geolocationError(failure, text)), { enableHighAccuracy: true, maximumAge: 0 });
     return () => navigator.geolocation.clearWatch(id);
   }, [active]);
   const heading = useCompass(active);
@@ -249,7 +257,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [photoMessage, setPhotoMessage] = useState<string>();
   const [savingNote, setSavingNote] = useState(false);
-  const label = labelOf(document, selected);
+  const label = labelOf(document, selected, text);
   const noteHere = () => {
     if (selected && selectedPoint && input.saved(selected)) {
       setNoteTarget({ target: { kind: "CONTROL", control: selected }, at: selectedPoint.at, label: label ?? "" });
@@ -382,7 +390,7 @@ export function useFieldMode(input: FieldInput): FieldMode {
     {expanded && <div className={css.compactRow}>
       {!selected && noteButton}
       {input.onSketch && <button type="button" className={css.big} data-testid="course-setting-sketch-button"
-        onClick={() => { setExpanded(false); input.onSketch!(); }}>{notesSv.sketch.drawMapError}</button>}
+        onClick={() => { setExpanded(false); input.onSketch!(); }}>{notesText.sketch.drawMapError}</button>}
       <button type="button" className={css.big} onClick={input.onList}>{copy.list}</button>
       <button type="button" className={css.big} onClick={input.onOffline}>{copy.offlineButton}</button>
     </div>}

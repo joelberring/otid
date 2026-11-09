@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import type { OverprintPrimitive, TrainingMapPass } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import type { LegAnalysis } from "@o-tid/route-choice";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { overprintProbe } from "../../lib/course-setting-appearance";
 import type { SymbolLookup } from "../../lib/course-setting-description-draw";
 import { drawMarks, drawOverprint, drawRouteChoice } from "../../lib/course-setting-draw";
@@ -141,6 +143,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   /** Kartprojektet: låsta lager som ritas nedtonade. */
   dimmedSymbols?: readonly string[] | undefined;
 }) {
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [imageVersion, setImageVersion] = useState(0);
   const [hoverCursor, setHoverCursor] = useState<string>();
   const [grabbing, setGrabbing] = useState(false);

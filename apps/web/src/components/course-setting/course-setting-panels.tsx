@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { courseSettingUxEn } from "../../i18n/course-setting-ux-en";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import type { CourseSettingDocument, CourseSummary } from "@o-tid/course-setting";
 import type { LegAnalysis } from "@o-tid/route-choice";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { courseSettingUxSv as ux } from "../../i18n/course-setting-ux-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
 import { coursePropertiesSv as props } from "../../i18n/course-setting-properties-sv";
 import { routeChoiceSv } from "../../i18n/route-choice-sv";
 import { warningText } from "../../lib/route-choice-view";
@@ -27,6 +30,8 @@ export function CourseList({ document, summaries, view, readOnly = false, onView
   /** ADR-0212: "Bedöm alla banor". */
   extra?: ReactNode;
 }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [renaming, setRenaming] = useState<string>();
   const [dragging, setDragging] = useState<string>();
   const [dropAt, setDropAt] = useState<number>();
@@ -108,14 +113,15 @@ export function SelectionCard({ state, described, readOnly, onCode, onRemoveFrom
   /** ADR-0180 beslut 14: passagens vinkel. */
   extra?: ReactNode;
 }) {
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const { selection, document } = state;
   if (!selection || selection.kind === "special") return null;
   const control = selection.kind === "control" ? document.controls[selection.control] : undefined;
   const inCourse = selection.kind === "control" && selection.courseControl !== undefined && state.view !== ALL_CONTROLS;
   return <section className={styles.card} aria-label={text.selected.heading} data-testid="course-setting-card">
     <div className={styles.cardHead}>
-      <strong data-testid="course-setting-selected">{control ? text.selected.control(controlLabel(document, control.id))
-        : selection.kind === "leg" ? text.selected.leg(controlLabel(document, selection.from), controlLabel(document, selection.to)) : ""}</strong>
+      <strong data-testid="course-setting-selected">{control ? text.selected.control(controlLabel(document, control.id, text))
+        : selection.kind === "leg" ? text.selected.leg(controlLabel(document, selection.from, text), controlLabel(document, selection.to, text)) : ""}</strong>
       <Button variant="quiet" aria-label={text.selected.deselect} title={text.selected.deselect} onClick={onClose}>×</Button>
     </div>
     {described && <p className={styles.describe} data-testid="course-setting-described" title={text.selected.described}>{described}</p>}
@@ -146,6 +152,7 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
   /** ADR-0180 beslut 14: vinkeln för en passage. */
   extra?: ReactNode;
 }) {
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [branches, setBranches] = useState(2);
   const { selection, document } = state;
   const control = selection?.kind === "control" ? document.controls[selection.control] : undefined;
@@ -154,7 +161,7 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
     <h2 id="course-setting-selected">{text.selected.heading}</h2>
     {!selection && <p className={styles.muted}>{text.selected.none}</p>}
     {control && <>
-      <p>{text.selected.control(controlLabel(document, control.id))}</p>
+      <p>{text.selected.control(controlLabel(document, control.id, text))}</p>
       {described && <p className={styles.describe} title={text.selected.described}>{described}</p>}
       {control.kind === "NORMAL" && !readOnly && <form key={control.id} className={styles.row} onSubmit={event => {
         event.preventDefault();
@@ -180,7 +187,7 @@ export function SelectedPanel({ state, described, readOnly = false, onCode, onRe
       </div>}
     </>}
     {selection?.kind === "leg" && <>
-      <p>{text.selected.leg(controlLabel(document, selection.from), controlLabel(document, selection.to))}</p>
+      <p>{text.selected.leg(controlLabel(document, selection.from, text), controlLabel(document, selection.to, text))}</p>
       {!readOnly && (document.legs[`${selection.from}-${selection.to}`]?.bends.length ?? 0) > 0 &&
         <div className={styles.row}><Button variant="secondary" onClick={onStraighten}>{text.tools.straighten}</Button></div>}
     </>}
@@ -195,6 +202,7 @@ export function LegPanel({ legKey, analysis, status, highlighted, onHighlight, n
   status: "idle" | "waiting" | "analysing" | "failed" | "done"; highlighted?: number | undefined; onHighlight?: (index: number | undefined) => void;
   /** ADR-0199: fågelvägen korsar ett förbjudet område (vägvalet går runt, eller ingen laglig väg). */
   notice?: string | undefined }) {
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const rows = analysis?.best ? [{ ...analysis.best, timeRatio: 1 }, ...analysis.alternatives] : [];
   return <section className={styles.panel} aria-labelledby="course-setting-leg" data-testid="course-setting-leg">
     <h2 id="course-setting-leg">{text.leg.heading}</h2>

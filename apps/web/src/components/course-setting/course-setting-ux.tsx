@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { courseSettingUxSv as ux } from "../../i18n/course-setting-ux-sv";
+import { courseSettingUxEn } from "../../i18n/course-setting-ux-en";
+import { useTexts } from "../language-provider";
+import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
 import { drawOverprint } from "../../lib/course-setting-draw";
 import { PALETTE, paletteIcon, paletteKey, type PaletteItem } from "../../lib/course-setting-palette";
 import { Button } from "../ui";
@@ -40,6 +42,7 @@ function PaletteIcon({ item }: { item: PaletteItem }) {
 export function ObjectPalette({ active, onPick, onClose }: {
   active: string | undefined; onPick: (item: PaletteItem, image?: PendingImage) => void; onClose: () => void;
 }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   const file = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string>();
   useEffect(() => {
@@ -85,6 +88,7 @@ export function ObjectPalette({ active, onPick, onClose }: {
 
 /** "Gaffla här": antal grenar eller slinga. */
 export function ForkPicker({ onFork, onClose }: { onFork: (kind: "FORK" | "LOOP", count: number) => void; onClose: () => void }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   return <section className={styles.popover} role="dialog" aria-label={ux.forks.forkHere} data-testid="course-setting-fork-picker">
     <div className={styles.popoverHead}><h2>{ux.forks.forkHere}</h2>
       <span><HelpLink article="gaffling" view={["CS_SELECTED", "CS_COURSES", "COURSE_SETTING"]} />
@@ -99,6 +103,7 @@ export function ForkPicker({ onFork, onClose }: { onFork: (kind: "FORK" | "LOOP"
 
 /** Raden när man arbetar i en gren: vilken gren, Nästa gren och Klar. */
 export function ForkBar({ letter, count, onNext, onDone }: { letter: string; count: number; onNext: () => void; onDone: () => void }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   return <div className={styles.forkBar} role="status" data-testid="course-setting-fork-bar">
     <strong>{ux.forks.branchOf(letter, count)}</strong><span>{ux.forks.working}</span>
     {count > 1 && <Button variant="secondary" onClick={onNext}>{ux.forks.next} →</Button>}
@@ -108,6 +113,7 @@ export function ForkBar({ letter, count, onNext, onDone }: { letter: string; cou
 
 /** "Alltid ny" medan man lägger till kontroller i en bana (samma som Alt). */
 export function ForceNew({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   return <label className={styles.forceNew} title={ux.snap.forceNewHelp}>
     <input type="checkbox" checked={on} onChange={event => onChange(event.target.checked)} />{ux.snap.forceNew}</label>;
 }
@@ -116,6 +122,7 @@ export function ForceNew({ on, onChange }: { on: boolean; onChange: (on: boolean
 export function ViewOptions({ others, onOthers, unused, toggles = [] }: { others: boolean; onOthers: (on: boolean) => void;
   unused?: { count: number; on: boolean; onChange: (on: boolean) => void } | undefined;
   toggles?: readonly { label: string; on: boolean; onChange: (on: boolean) => void }[] }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -138,6 +145,7 @@ export function ViewOptions({ others, onOthers, unused, toggles = [] }: { others
 /** Vinkeln för en passage: sifferfältet, "Vrid efter sträckan" och hjälpen om handtaget. */
 export function RotateControls({ orientation, readOnly, onSet, onAlong }: { orientation: number; readOnly: boolean;
   onSet: (degrees: number) => void; onAlong?: (() => void) | undefined }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   const [draft, setDraft] = useState(String(Math.round(orientation * 10) / 10));
   useEffect(() => setDraft(String(Math.round(orientation * 10) / 10)), [orientation]);
   const commit = () => { const value = Number(draft.replace(",", ".")); if (Number.isFinite(value) && value !== orientation) onSet(value); };

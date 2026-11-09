@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { moveSharedEn } from "../../i18n/course-setting-notes-en";
+import { useTexts } from "../language-provider";
 import { applyEdit } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
-import { moveSharedSv as text } from "../../i18n/course-setting-move-sv";
+import { moveSharedSv } from "../../i18n/course-setting-move-sv";
 import { applySteps, cancelDrag, endDrag, type EditorState } from "../../lib/course-setting-editor";
 import {
   courseNameList, localStore, MOVE_THRESHOLD_CHOICES, newControlEdit, readMoveThreshold, readRememberedChoice, sessionStore, sharedMoveQuestion,
@@ -20,6 +22,7 @@ type Change = (change: (current: EditorState) => EditorState) => void;
 
 /** Frågan som dialog (bred skärm och telefon): tre knappar under varandra och "Kom ihåg". */
 function MoveQuestion({ question, onChoose }: { question: SharedMove; onChoose: (outcome: MoveOutcome, remember: boolean) => void }) {
+  const text = useTexts(moveSharedSv, moveSharedEn);
   const ref = useRef<HTMLDialogElement>(null);
   const [remember, setRemember] = useState(false);
   useEffect(() => { const dialog = ref.current; if (dialog && !dialog.open) dialog.showModal?.(); }, []);
@@ -52,6 +55,7 @@ export function useMoveShared({ raceId, store, apply, edit, poke, say }: {
   raceId: string; store: EditorStore; apply: Change; edit: Change; poke: () => void;
   say: (message: { tone: "ok" | "attention"; text: string }) => void;
 }) {
+  const text = useTexts(moveSharedSv, moveSharedEn);
   const [pending, setPending] = useState<{ question: SharedMove; source: Source }>();
   const [threshold, setThreshold] = useState(() => readMoveThreshold(localStore()));
   const [remembered, setRemembered] = useState(() => readRememberedChoice(sessionStore(), raceId));

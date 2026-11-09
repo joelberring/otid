@@ -2,7 +2,8 @@ import {
   checkAcceptable, checkKey, checkLevel, forbiddenLegs, isAccepted, type CheckLevel, type CheckOptions, type CourseCheck, type CourseSettingDocument
 } from "@o-tid/course-setting";
 import type { LegAnalysis, LegInput } from "@o-tid/route-choice";
-import { courseSettingSv as text } from "../i18n/course-setting-sv";
+import { courseSettingSv } from "../i18n/course-setting-sv";
+import type { CourseSettingTexts } from "../i18n/course-setting-en";
 import type { LegLength } from "./course-setting-route-length";
 import { select, setView, type EditorState } from "./course-setting-editor";
 import { controlLabel, legInput } from "./course-setting-text";
@@ -50,13 +51,13 @@ function groupOf(check: CourseCheck, level: CheckLevel): string {
   return checkKey(check).split("/")[0]!;
 }
 
-const forbiddenWhat = (document: CourseSettingDocument, special: string) => {
+const forbiddenWhat = (document: CourseSettingDocument, special: string, text: CourseSettingTexts) => {
   const kind = document.specialObjects.find(item => item.id === special)?.kind ?? "out-of-bounds";
   return text.checks.forbidden[kind] ?? kind;
 };
 
-function rowText(document: CourseSettingDocument, check: CourseCheck, courses: string, levelText?: LevelCheckText): string {
-  const label = (control: string) => controlLabel(document, control);
+function rowText(document: CourseSettingDocument, check: CourseCheck, courses: string, levelText: LevelCheckText | undefined, text: CourseSettingTexts): string {
+  const label = (control: string) => controlLabel(document, control, text);
   switch (check.kind) {
     case "CONTROLS_TOO_CLOSE": return text.checks.CONTROLS_TOO_CLOSE(label(check.controls[0]), label(check.controls[1]), check.meters, check.limitMeters, check.feature);
     case "DUPLICATE_CODE": return text.checks.DUPLICATE_CODE(check.code, check.controls.length);
@@ -64,9 +65,9 @@ function rowText(document: CourseSettingDocument, check: CourseCheck, courses: s
     case "SAME_CONTROL_TWICE_IN_ROW": return text.checks.SAME_CONTROL_TWICE_IN_ROW(courses, label(check.control));
     case "LEG_THROUGH_CONTROL": return text.checks.LEG_THROUGH_CONTROL(courses, label(check.from), label(check.to), label(check.control));
     case "LEG_THROUGH_FORBIDDEN": return check.route === "NO_ROUTE"
-      ? text.checks.LEG_NO_ROUTE(courses, label(check.from), label(check.to), forbiddenWhat(document, check.special))
-      : text.checks.LEG_THROUGH_FORBIDDEN(courses, label(check.from), label(check.to), forbiddenWhat(document, check.special));
-    case "CONTROL_IN_FORBIDDEN": return text.checks.CONTROL_IN_FORBIDDEN(label(check.control), forbiddenWhat(document, check.special));
+      ? text.checks.LEG_NO_ROUTE(courses, label(check.from), label(check.to), forbiddenWhat(document, check.special, text))
+      : text.checks.LEG_THROUGH_FORBIDDEN(courses, label(check.from), label(check.to), forbiddenWhat(document, check.special, text));
+    case "CONTROL_IN_FORBIDDEN": return text.checks.CONTROL_IN_FORBIDDEN(label(check.control), forbiddenWhat(document, check.special, text));
     case "COURSE_WITHOUT_START_OR_FINISH": return text.checks.COURSE_WITHOUT_START_OR_FINISH(courses);
     case "UNUSED_CONTROL": return text.checks.UNUSED_CONTROL(label(check.control));
     case "MISSING_CODE": return text.checks.MISSING_CODE(label(check.control));
@@ -87,7 +88,7 @@ function controlsOf(check: CourseCheck): string[] {
 }
 
 /** Raderna: en per nyckel och nivå, med banorna i banornas ordning. */
-export function checkRows(document: CourseSettingDocument, checks: readonly CourseCheck[], levelText?: LevelCheckText): CheckRow[] {
+export function checkRows(document: CourseSettingDocument, checks: readonly CourseCheck[], levelText?: LevelCheckText, text: CourseSettingTexts = courseSettingSv): CheckRow[] {
   const order = new Map([...document.courses].sort((a, b) => a.order - b.order).map((course, index) => [course.id, index]));
   const merged = new Map<string, { level: CheckLevel; key: string; checks: CourseCheck[]; courses: Set<string> }>();
   for (const check of checks) {
@@ -104,7 +105,7 @@ export function checkRows(document: CourseSettingDocument, checks: readonly Cour
     const sorted = [...courses].sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9));
     const names = sorted.map(id => document.courses.find(course => course.id === id)?.name ?? id).join(", ");
     rows.push({ key, level, group: groupOf(first, level), acceptable: checkAcceptable(first), accepted: isAccepted(document, first),
-      text: rowText(document, first, names, levelText), controls: controlsOf(first), course: sorted[0],
+      text: rowText(document, first, names, levelText, text), controls: controlsOf(first), course: sorted[0],
       leg: first.kind === "LEG_THROUGH_FORBIDDEN" || first.kind === "LEG_THROUGH_CONTROL" ? { from: first.from, to: first.to }
         : first.kind === "LEVEL_DEVIATION" && first.from !== undefined && first.to !== undefined ? { from: first.from, to: first.to } : undefined,
       checks: list });
@@ -113,7 +114,7 @@ export function checkRows(document: CourseSettingDocument, checks: readonly Cour
 }
 
 /** Grupperna att visa (fel, varningar, notiser), de godtagna och antalet för fliken (fel och varningar). */
-export function checkGroups(rows: readonly CheckRow[]): { groups: CheckGroup[]; accepted: CheckRow[]; count: number } {
+export function checkGroups(rows: readonly CheckRow[], text: CourseSettingTexts = courseSettingSv): { groups: CheckGroup[]; accepted: CheckRow[]; count: number } {
   const open = rows.filter(row => !row.accepted);
   const groups: CheckGroup[] = [];
   for (const level of LEVELS) {
@@ -150,11 +151,11 @@ export function legRouteLookup(document: CourseSettingDocument, results: Readonl
 }
 
 /** Vald sträckas rad i vägvalspanelen när fågelvägen korsar ett förbjudet område (information, ingen varning). */
-export function legForbiddenNotice(document: CourseSettingDocument, course: string, from: string, to: string, analysis: LegAnalysis | undefined): string | undefined {
+export function legForbiddenNotice(document: CourseSettingDocument, course: string, from: string, to: string, analysis: LegAnalysis | undefined, text: CourseSettingTexts = courseSettingSv): string | undefined {
   if (!analysis || !document.courses.some(item => item.id === course)) return undefined;
   const hit = forbiddenLegs(document, course).find(item => item.from === from && item.to === to);
   if (!hit) return undefined;
-  const what = forbiddenWhat(document, hit.special);
+  const what = forbiddenWhat(document, hit.special, text);
   return analysis.best ? text.leg.aroundForbidden(what, analysis.best.meters - analysis.straightMeters) : text.leg.noRouteForbidden(what);
 }
 

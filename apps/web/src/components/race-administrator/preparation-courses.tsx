@@ -8,7 +8,7 @@ import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
-import { courseSettingLinkEn } from "../../i18n/workspace-last-en";
+import { courseSettingEn } from "../../i18n/course-setting-en";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { rogainingSv } from "../../i18n/rogaining-sv";
@@ -25,7 +25,7 @@ import type { Workspace } from "./workspace-state";
  */
 export function PreparationCourses({ ws }: { ws: Workspace }) {
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
-  const linkText = useTexts<Pick<typeof courseSettingSv, "link" | "linkHelp">>(courseSettingSv, courseSettingLinkEn);
+  const linkText = useTexts(courseSettingSv, courseSettingEn);
   const visible = ws.shows("COURSES");
   return <section className={styles.workflowGroup} aria-label={navigationText.steps.COURSES} hidden={!visible}>
     {visible && <CourseTable ws={ws} visible={visible} />}

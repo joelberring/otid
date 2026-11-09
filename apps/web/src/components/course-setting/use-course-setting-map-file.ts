@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
 import type { CourseSettingState } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
@@ -21,6 +23,7 @@ type MapFileStatus = "none" | "reading" | "ready" | "failed";
  */
 export function useCourseSettingMapFile(input: { readonly raceId: string; readonly mapFile: CourseSettingState["mapFile"];
   readonly storage: FieldStore; readonly say: (message: { tone: "attention"; text: string }) => void }) {
+  const offlineText = useTexts(offlineSv, offlineEn);
   const { raceId, mapFile, storage } = input;
   const [session, setSession] = useState<MapRenderSession>();
   const [bounds, setBounds] = useState<Bounds | undefined>(mapFile?.bounds);
@@ -49,7 +52,7 @@ export function useCourseSettingMapFile(input: { readonly raceId: string; readon
     };
     void (async () => {
       try {
-        const file = await loadMapFile(raceId, sha256, storage, controller.signal, () => say({ tone: "attention", text: offlineSv.olderMap }),
+        const file = await loadMapFile(raceId, sha256, storage, controller.signal, () => say({ tone: "attention", text: offlineText.olderMap }),
           onProgress);
         if (closed) return;
         setProgress(undefined);

@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { notesEn } from "../../i18n/course-setting-notes-en";
+import { useTexts } from "../language-provider";
 import type { CourseSettingLevel, CourseSettingNote, CourseSettingNoteKind, CourseSettingNoteTarget } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { notesSv } from "../../i18n/course-setting-notes-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
+import type { Texts } from "../../lib/language";
 import { editCourseSettingNote, replyCourseSettingNote, setCourseSettingNoteStatus } from "../../lib/course-setting-api";
 import type { QueuedItem } from "../../lib/course-setting-offline";
 import { filterNotes, noteInView, noteMarks, notePosition, type NoteFilter, type NoteKindFilter } from "../../lib/course-setting-note-marks";
@@ -47,6 +51,8 @@ export interface NotesInput {
 type Draft = { readonly target: CourseSettingNoteTarget; readonly kind: CourseSettingNoteKind };
 
 export function useCourseSettingNotes(input: NotesInput) {
+  const offlineText = useTexts(offlineSv, offlineEn);
+  const notesText = useTexts(notesSv, notesEn);
   const { raceId, document, view, offline, access, say } = input;
   const [showNotes, setShowNotes] = useState(true);
   const [selectedNote, setSelectedNote] = useState<string>();
@@ -98,19 +104,19 @@ export function useCourseSettingNotes(input: NotesInput) {
     try {
       await queueNote(draft.target, notePosition({ target: draft.target, at: null }, document) ?? null, values.text, values.photo, values.kind);
       setDraft(undefined);
-      if (offline.offline) say({ tone: "ok", text: offlineSv.noteHere.queued });
+      if (offline.offline) say({ tone: "ok", text: offlineText.noteHere.queued });
       return true;
     } catch (error) { console.error("Notisen sparades inte i telefonen", error); return false; }
   }
 
   /** Ta bort: alltid genom kön (som en ny notis), efter en bekräftelse. */
   async function remove(note: CourseSettingNote, replyId?: string) {
-    if (!window.confirm(replyId ? notesSv.deleteReplyConfirm : notesSv.deleteConfirm)) return;
+    if (!window.confirm(replyId ? notesText.deleteReplyConfirm : notesText.deleteConfirm)) return;
     try {
       await offline.enqueueDelete({ noteId: note.id, ...(replyId ? { replyId } : {}) });
       if (!replyId && selectedNote === note.id) setSelectedNote(undefined);
-      if (offline.offline) say({ tone: "ok", text: notesSv.deleteQueued });
-    } catch (error) { console.error("Borttagningen sparades inte i telefonen", error); say({ tone: "error", text: notesSv.deleteFailed }); }
+      if (offline.offline) say({ tone: "ok", text: notesText.deleteQueued });
+    } catch (error) { console.error("Borttagningen sparades inte i telefonen", error); say({ tone: "error", text: notesText.deleteFailed }); }
   }
   const canDelete = (createdBy: string) => createdBy === access.accountId || access.level === "EDIT";
 
@@ -121,12 +127,12 @@ export function useCourseSettingNotes(input: NotesInput) {
   function finishSketch() {
     if (!sketch) return;
     const shapes = sketchShapes(sketch.draft);
-    if (!shapes) { say({ tone: "attention", text: notesSv.sketch.empty }); return; }
+    if (!shapes) { say({ tone: "attention", text: notesText.sketch.empty }); return; }
     setDraft({ target: { kind: "SKETCH", shapes: [...shapes] }, kind: sketch.kind });
     setSketch(undefined);
   }
   function cancelSketch() {
-    if (sketch && sketch.draft.shapes.length > 0 && !window.confirm(notesSv.sketch.cancelConfirm)) return;
+    if (sketch && sketch.draft.shapes.length > 0 && !window.confirm(notesText.sketch.cancelConfirm)) return;
     setSketch(undefined);
   }
   const change = (next: (current: SketchDraft) => SketchDraft) => setSketch(current => current ? { ...current, draft: next(current.draft) } : current);
@@ -202,6 +208,7 @@ export function useCourseSettingNotes(input: NotesInput) {
 }
 
 /** Beskedet för en post i kön som servern inte tog emot (notis eller borttagning). */
-export function rejectedNoteText(item: Exclude<QueuedItem, { kind: "inspection" }>, status: number): string {
-  return item.kind === "note" ? offlineSv.rejectedNote(item.request.text, status) : notesSv.rejectedDelete(status);
+export function rejectedNoteText(item: Exclude<QueuedItem, { kind: "inspection" }>, status: number,
+  offline: Texts<typeof offlineSv> = offlineSv, notes: Texts<typeof notesSv> = notesSv): string {
+  return item.kind === "note" ? offline.rejectedNote(item.request.text, status) : notes.rejectedDelete(status);
 }

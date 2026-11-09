@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { courseSettingFieldEn } from "../../i18n/course-setting-notes-en";
+import { offlineEn } from "../../i18n/course-setting-collab-en";
+import { useTexts } from "../language-provider";
 import { createPortal } from "react-dom";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
-import { courseSettingFieldSv as text } from "../../i18n/course-setting-field-sv";
-import { offlineSv as copy } from "../../i18n/course-setting-offline-sv";
+import { courseSettingFieldSv } from "../../i18n/course-setting-field-sv";
+import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { F_QUICK, G_CHOICES, gChoiceOf, gSymbolId } from "../../lib/course-setting-field";
 import css from "./course-setting-field.module.css";
 
@@ -15,6 +18,7 @@ export function DetailsSheet({ label, boxes, standard, onSave, onClose }: {
   label: string; boxes: CourseSettingDocument["controls"][string]["descriptions"]; standard: CourseSettingDocument["event"]["descriptionStandard"];
   onSave: (f: string, g: string | null) => void; onClose: () => void;
 }) {
+  const text = useTexts(courseSettingFieldSv, courseSettingFieldEn);
   const [f, setF] = useState(boxes.find(box => box.box === "F")?.text ?? "");
   const currentG = boxes.find(box => box.box === "G")?.ref;
   const [g, setG] = useState<string | null>(currentG ?? null);
@@ -54,6 +58,7 @@ export function NoteHereSheet({ target, photo, photoMessage, busy, onPhoto, onSa
   target: string; photo: Photo | null; photoMessage: string | undefined; busy: boolean; onPhoto: () => void;
   onSave: (text: string) => void; onClose: () => void;
 }) {
+  const copy = useTexts(offlineSv, offlineEn);
   const [value, setValue] = useState("");
   const ready = Boolean(value.trim() || photo);
   return createPortal(<div className={css.sheet} role="dialog" aria-modal="true" aria-label={copy.noteHere.heading(target)}

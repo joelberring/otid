@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { courseSettingUxEn } from "../../i18n/course-setting-ux-en";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { useTexts } from "../language-provider";
 import {
   applyEdit, controlsOnlyIn, nextFreeCode, unusedControls, type CourseSettingEdit, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
-import { courseSettingUxSv as ux } from "../../i18n/course-setting-ux-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
+import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
 import {
   addPoint, addSplit, applySteps, beginDrag, dragTo, insertExisting, setTool, setView, toolControlKind, workInBranch, type EditorState, type Tool
 } from "../../lib/course-setting-editor";
@@ -53,6 +56,8 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   editor: EditorState; store: { readonly state: EditorState; update: (change: (current: EditorState) => EditorState) => void };
   apply: Change; edit: Change; readOnly: boolean; radiusMm: number; say: Say; setTab: (tab: DrawerTab) => void;
 }) {
+  const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const { document, view, selection, tool } = editor;
   const [palette, setPalette] = useState(false);
   const [forkPicker, setForkPicker] = useState(false);
@@ -188,7 +193,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
     };
     setConfirm({ title: ux.courses.removeHeading(found.name), body: <ConfirmList testId="course-setting-delete-course"
       intro={orphans.length > 0 ? ux.courses.removeOrphans(orphans.length) : ux.courses.removeNone}
-      items={orphans.map(id => controlLabel(document, id))}
+      items={orphans.map(id => controlLabel(document, id, text))}
       actions={[...(orphans.length > 0 ? [{ label: ux.courses.removeWithControls(orphans.length), onClick: () => remove(true) }] : []),
         { label: ux.courses.removeOnly, onClick: () => remove(false), variant: orphans.length > 0 ? "secondary" as const : "primary" as const },
         { label: ux.courses.cancel, onClick: () => setConfirm(undefined), variant: "quiet" as const }]} /> });
@@ -197,7 +202,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   function requestRemoveUnused() {
     const ids = [...unused];
     if (ids.length === 0) return;
-    const labels = ids.map(id => controlLabel(document, id));
+    const labels = ids.map(id => controlLabel(document, id, text));
     setConfirm({ title: ux.controls.removeUnused, body: <ConfirmList testId="course-setting-remove-unused"
       intro={ux.controls.removeUnusedConfirm(labels)} items={labels}
       actions={[{ label: ux.controls.removeUnused, onClick: () => {
@@ -211,11 +216,11 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   /** Det som ritas ovanpå banpåtrycket (bara på skärmen). */
   const rotateTarget = rotatable ? `${rotatable.kind}:${rotatable.id}:${rotatable.at.x},${rotatable.at.y}:${rotatable.orientation}` : "";
   const draw = useCallback((ctx: CanvasRenderingContext2D, mapView: Viewport) => {
-    if (unusedShown) drawUnused(ctx, mapView, unused.flatMap(id => document.controls[id] ? [{ at: document.controls[id].at, label: controlLabel(document, id) }] : []),
+    if (unusedShown) drawUnused(ctx, mapView, unused.flatMap(id => document.controls[id] ? [{ at: document.controls[id].at, label: controlLabel(document, id, text) }] : []),
       radiusMm);
     if (labels.length > 0) drawBranchLabels(ctx, mapView, labels, active?.start);
     if (rotatable) drawRotateHandle(ctx, mapView, rotating.current ?? rotatable, rotating.current !== undefined);
-    if (hover) drawSnapHint(ctx, mapView, { at: hover.at, radiusMm, text: ux.snap.insert(controlLabel(document, hover.control).replace(/^kontroll /, "")) });
+    if (hover) drawSnapHint(ctx, mapView, { at: hover.at, radiusMm, text: ux.snap.insert(controlLabel(document, hover.control, text).replace(/^(kontroll|control) /, "")) });
     // `rotateTarget` och `rotatingOn` står för vridhandtaget (objektet räknas om vid varje ritning).
   }, [unusedShown, unused, document, radiusMm, labels, active?.start, rotateTarget, rotatingOn, hover]);
 
@@ -235,7 +240,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
     {active && forkInfo && <ForkBar letter={active.letter} count={forkInfo.fork.branches.length} onNext={nextBranch}
       onDone={() => apply(current => ({ ...current, branch: undefined }))} />}
     {adding && tool !== "INSERT_EXISTING" && candidates.length > 0 && <ForceNew on={forceNew} onChange={setForceNew} />}
-    {hover && <p className={srOnly} role="status" data-testid="course-setting-snap">{ux.snap.insert(controlLabel(document, hover.control))}</p>}
+    {hover && <p className={srOnly} role="status" data-testid="course-setting-snap">{ux.snap.insert(controlLabel(document, hover.control, text))}</p>}
   </>;
   const rotateControls = (target: Rotatable | undefined) => target
     ? <RotateControls orientation={target.orientation} readOnly={readOnly} onSet={value => edit(next => applySteps(next, [rotateEdit(target, value)], applyEdit))}

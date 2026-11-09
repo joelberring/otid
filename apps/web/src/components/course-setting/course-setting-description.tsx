@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { courseSettingEn } from "../../i18n/course-setting-en";
+import { courseSettingSuggestEn } from "../../i18n/course-setting-notes-en";
+import { useTexts } from "../language-provider";
 import {
   descriptionSymbols, layoutDescription, symbolsForBox, type CourseSettingDocument, type CourseSettingEdit, type DescriptionKind,
   type DescriptionLayout, type DescriptionStandard, type DescriptionSymbol
@@ -22,7 +25,7 @@ import { DescriptionPicker, type PickedValue } from "./course-setting-descriptio
 import { DescriptionSvg } from "./description-svg";
 import { SuggestionPanel, type SuggestionsState } from "./course-setting-suggest";
 import { acceptEmptyEdits, previewDocument } from "../../lib/course-setting-suggest";
-import { courseSettingSuggestSv as suggestText } from "../../i18n/course-setting-suggest-sv";
+import { courseSettingSuggestSv } from "../../i18n/course-setting-suggest-sv";
 import type { Point } from "@o-tid/map-file";
 import styles from "./course-setting.module.css";
 
@@ -47,6 +50,8 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
   suggestions?: SuggestionsState | undefined; readOnly?: boolean | undefined;
   onHoverSuggestion?: ((shapes: readonly (readonly Point[])[] | undefined) => void) | undefined;
 }) {
+  const courseText = useTexts(courseSettingSv, courseSettingEn);
+  const suggestText = useTexts(courseSettingSuggestSv, courseSettingSuggestEn);
   const standard = document.event.descriptionStandard;
   const symbols = useMemo(() => safely("Symbolerna", () => descriptionSymbols(standard), [] as readonly DescriptionSymbol[]), [standard]);
   const lookup = useMemo(() => symbolLookup(symbols), [symbols]);
@@ -120,7 +125,7 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
     <h2 id="course-setting-description">{text.heading}</h2>
     {!layout && <p role="alert" className={styles.muted}>{text.failed}</p>}
     {layout && <div className={styles.description}>
-      <DescriptionSvg layout={layout} symbols={lookup} fluid label={text.label(course?.name ?? courseSettingSv.courses.all)}
+      <DescriptionSvg layout={layout} symbols={lookup} fluid label={text.label(course?.name ?? courseText.courses.all)}
         highlight={rowArea(layout, ref)} active={picking} onHit={onHit} hitLabel={hitLabel} testId="description-svg"
         preview={shown.preview} previewLabel={suggestText.preview} />
     </div>}

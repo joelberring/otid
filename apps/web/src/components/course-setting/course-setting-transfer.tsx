@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { courseSettingEn } from "../../i18n/course-setting-en";
 import { sourcesEn } from "../../i18n/workspace-tools-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
 import {
   syncApplyResponseSchema, syncConsequenceResponseSchema, type SyncApplyRequest, type SyncConsequence, type SyncPreviewResponse
 } from "@o-tid/contracts";
-import { courseSettingSv as text } from "../../i18n/course-setting-sv";
+import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { sourcesSv } from "../../i18n/sources-sv";
 import { courseSettingBase, previewCourseSettingTransfer } from "../../lib/course-setting-api";
 import { SourceReviewPanel } from "../race-administrator/source-review";
@@ -85,6 +86,7 @@ function useStandaloneReview(raceId: string, onApplied: () => void): SourceRevie
 
 /** "Överför till tävlingen": sparar först, visar sedan skillnaderna mot tävlingens banor och godkänns som en banfil. */
 export function TransferPanel({ raceId, ready, flush, version }: { raceId: string; ready: boolean; flush: () => Promise<boolean>; version: () => number }) {
+  const text = useTexts(courseSettingSv, courseSettingEn);
   const [problem, setProblem] = useState<string>();
   const [applied, setApplied] = useState(false);
   const [loading, setLoading] = useState(false);

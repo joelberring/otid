@@ -1,5 +1,6 @@
 "use client";
 
+import type { Texts } from "../../lib/language";
 import { useEffect } from "react";
 import { removalEn } from "../../i18n/workspace-tools-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
@@ -16,7 +17,7 @@ import { courseMeasures } from "../../lib/lists/result-list-model";
 import { focusCourseFile } from "./course-file-section";
 import type { Workspace } from "./workspace-state";
 import { forkingLetters } from "@o-tid/domain";
-import { forkingSv as forking } from "../../i18n/forking-sv";
+import type { forkingSv } from "../../i18n/forking-sv";
 import { ForkingDiagram } from "../forking/forking-diagram";
 import { ForkingEditor } from "./forking-editor";
 import { ControlMapButton } from "../control-map/control-map-dialog";
@@ -26,7 +27,7 @@ type CourseRow = CourseEditListResponse["courses"][number];
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
   const removalText = useTexts(removalSv, removalEn);
-  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn), forking = ws.forkingText;
   const { authenticated, busy, courseEditSaved, courseFormOpen, courseList, courseListError, data, editingCourseId, loadCourses,
     openAssignedClass, operation, pending, profile, raceId, saving, setCourseFormOpen, startCourseEdit, workflowLocked } = ws;
   const stale = !courseList || (data !== undefined && courseList.snapshotVersion < data.snapshotVersion);
@@ -129,7 +130,7 @@ function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"
  * Antal anmälda och avlästa per alternativ (enkel gaffling) eller för hela fjärilen (vid första slingan), efter grenens
  * bokstav. Inga antal när banan saknar anmälda, så att bilden är lugn medan banan byggs.
  */
-function branchCount(course: CourseRow) {
+function branchCount(course: CourseRow, forking: Texts<typeof forkingSv>) {
   return (item: number, branch: number) => {
     const view = course.forking;
     if (!view || course.entryCount === 0) return undefined;
@@ -148,7 +149,7 @@ function branchCount(course: CourseRow) {
  */
 function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
-  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn), forking = ws.forkingText;
   const { editingCourseId, profile, saving, startCourseEdit } = ws;
   const view = course.forking;
   const fairness = course.fairness;
@@ -159,7 +160,7 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
   return <div className={styles.courseVariants}>
     <strong>{variantText.forked(course.variants.length)}</strong>
     {course.readiness && <Readiness readiness={course.readiness} />}
-    {view && <ForkingDiagram items={view.items} letters={forkingLetters({ items: view.items })} count={branchCount(course)}
+    {view && <ForkingDiagram items={view.items} letters={forkingLetters({ items: view.items })} count={branchCount(course, forking)}
       label={forking.courseDiagram(course.name)} caption={lengths ? <span>{forking.lengths(lengths.shortest, lengths.longest)}</span> : undefined} />}
     <div className={styles.forkingTools}>
       <label htmlFor={id}>{forking.mode}

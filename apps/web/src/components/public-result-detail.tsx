@@ -12,6 +12,7 @@ import { anyStale, staleRetryMs } from "../lib/public-stale";
 import { STALE_RETRY_MS, timerShouldFetch } from "../lib/use-public-race-data";
 import { formatDuration } from "../lib/clock-time";
 import { forkingSv } from "../i18n/forking-sv";
+import { forkingEn } from "../i18n/forking-en";
 import { RunnerForking } from "./forking/runner-forking";
 import { PublicRunnerControlMap } from "./control-map/runner-control-map";
 
@@ -34,7 +35,7 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
   raceId: string; publicResultId: string; initial: PublicResultDetailResponse;
 }) {
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
-  const text = useTexts(publicResultSv, publicResultEn), listTexts = useListTexts();
+  const text = useTexts(publicResultSv, publicResultEn), listTexts = useListTexts(), forking = useTexts(forkingSv, forkingEn);
   const [response, setResponse] = useState(initial);
   const [unavailable, setUnavailable] = useState(false);
   const [showForking, setShowForking] = useState(false);
@@ -97,7 +98,7 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
     {"extraPunches" in result && result.extraPunches.length > 0 && <p><strong>{text.extra}:</strong> {result.extraPunches.join(", ")}</p>}
     {/* Steg 49: gafflad klass: banbilden med löparens variant ("Visa gafflingar"). */}
     {response.classCourse?.forking && "courseVariantCode" in result && result.courseVariantCode && <section className="public-result-forking">
-      <button type="button" className="secondary" aria-pressed={showForking} onClick={() => setShowForking(!showForking)}>{forkingSv.showForking}</button>
+      <button type="button" className="secondary" aria-pressed={showForking} onClick={() => setShowForking(!showForking)}>{forking.showForking}</button>
       {showForking && <RunnerForking view={response.classCourse.forking} code={result.courseVariantCode}
         name={`${result.givenName} ${result.familyName}`} compact={false} />}
     </section>}

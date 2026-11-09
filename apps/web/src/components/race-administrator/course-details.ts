@@ -3,7 +3,6 @@ import { useState } from "react";
 
 import { courseDetailsResponseSchema, type CourseDetailsRequest } from "@o-tid/contracts";
 
-import { forkingSv } from "../../i18n/forking-sv";
 import type { FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -96,7 +95,7 @@ export function createCourseDetailsActions(ws: Base & RaceDataActions & CourseEd
       if (!response.ok) throw new Error("Forking mode not saved");
       const receipt = courseDetailsResponseSchema.parse(await json(response, op));
       if (receipt.raceId !== raceId || receipt.requestId !== body.requestId) throw new Error("Forking mode receipt mismatch");
-      setDetailsMessage(forkingSv.modeSaved(forkingMode));
+      setDetailsMessage(ws.forkingText.modeSaved(forkingMode));
       await readCourses(op);
     } catch { if (current(op)) setDetailsMessage(text.courseDetailsError); }
     finally { finish(op); }

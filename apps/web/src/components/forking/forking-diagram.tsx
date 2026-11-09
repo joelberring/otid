@@ -3,7 +3,9 @@
 import { useMemo, type KeyboardEvent } from "react";
 import type { ForkingChoice, ForkingItem } from "@o-tid/domain";
 import { layoutForkingDiagram, type DiagramTarget } from "../../lib/forking-diagram";
-import { forkingSv as text } from "../../i18n/forking-sv";
+import { forkingSv } from "../../i18n/forking-sv";
+import { forkingEn } from "../../i18n/forking-en";
+import { useTexts } from "../language-provider";
 import styles from "./forking-diagram.module.css";
 
 type Props = {
@@ -27,6 +29,7 @@ const sameTarget = (left: DiagramTarget | undefined, right: DiagramTarget | unde
  * kontroller, sträckor och alternativ knappar (tangentbord och pekskärm). Bilden rullar i sidled inom sin ruta.
  */
 export function ForkingDiagram({ items, letters, choices, compact = false, count, onSelect, selected, label, caption }: Props) {
+  const text = useTexts(forkingSv, forkingEn);
   const layout = useMemo(() => layoutForkingDiagram(items, { compact, choices, ...(letters ? { letters } : {}), ...(count ? { count } : {}) }),
     [items, compact, choices, letters, count]);
   const press = (target: DiagramTarget) => (event: KeyboardEvent) => {

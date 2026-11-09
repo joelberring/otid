@@ -69,6 +69,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   utom gafflingsbilden. Kvar: hjälpen,
   banläggningen och utskriften, kartprojekten och kartredigeraren, klubbytan och arkivet, träningsgruppernas ledarvy,
   inbjudningarna och superadmin.
+- Del 24: gafflingarna (banbilden, redigeringen, gafflingssättet, längderna, löparens variant i resultatlistan och
+  deltagarsidan, Per sträcka/Per variant i sträcktidsanalysen) i `forking-en.ts`. Hela arbetsytan finns nu på engelska.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

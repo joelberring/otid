@@ -11,6 +11,7 @@ import { useListTexts } from "../lists/use-list-texts";
 import { formatDuration } from "../../lib/clock-time";
 import { legSplitGroup, resultListFromPublic, splitGroups, type ResultRow, type SplitGroup } from "../../lib/lists/result-list-model";
 import { forkingSv } from "../../i18n/forking-sv";
+import { forkingEn } from "../../i18n/forking-en";
 import { analysisClassNames, legLabel, routeHref } from "../../lib/split-analysis";
 import { useResultListData, type ResultListData } from "../lists/use-result-list-data";
 import { RadioLive } from "../radio/radio-live";
@@ -25,11 +26,11 @@ const slug = (value: string) => value.replace(/\W+/g, "-");
 type SplitTexts = Texts<typeof splitAnalysisSv>;
 const useSplitTexts = () => useTexts(splitAnalysisSv, splitAnalysisEn);
 
-function columnLabel(text: SplitTexts, column: SplitTableColumn, index: number) {
+function columnLabel(text: SplitTexts, forking: Texts<typeof forkingSv>, column: SplitTableColumn, index: number) {
   // Steg 49: tabell per sträcka: kolumnen är kontrollparet.
   if (column.fromCode !== undefined) {
-    const from = column.fromCode === "START" ? forkingSv.start : String(column.fromCode);
-    return { number: text.legNumber(index), control: forkingSv.legHeading(from, column.kind === "FINISH" ? text.finish : String(column.controlCode)) };
+    const from = column.fromCode === "START" ? forking.start : String(column.fromCode);
+    return { number: text.legNumber(index), control: forking.legHeading(from, column.kind === "FINISH" ? text.finish : String(column.controlCode)) };
   }
   return { number: text.legNumber(index), control: column.kind === "FINISH" ? text.finish : text.control(column.controlCode, column.occurrence) };
 }
@@ -62,7 +63,7 @@ function Cell({ cell, route, runner, leg }: { cell: SplitTableCell | null; route
 }
 
 function SplitGroupTable({ group, raceId, routeLegs, title }: { group: SplitGroup; raceId: string; routeLegs: Record<string, string[]>; title: string }) {
-  const text = useSplitTexts();
+  const text = useSplitTexts(), forking = useTexts(forkingSv, forkingEn);
   const [sorted, setSorted] = useState<number | null>(null);
   const { table, rows } = group;
   const order = useMemo(() => sortSplitRows(table, sorted === null ? null : { column: sorted, by: "LEG" }), [table, sorted]);
@@ -80,7 +81,7 @@ function SplitGroupTable({ group, raceId, routeLegs, title }: { group: SplitGrou
           <th scope="col" className={styles.stick}>{text.name}</th>
           <th scope="col" className={styles.num}>{text.time}</th>
           {table.columns.map((column, index) => {
-            const label = columnLabel(text, column, index);
+            const label = columnLabel(text, forking, column, index);
             const active = sorted === index;
             return <th key={column.leg} scope="col" className={styles.legHead} aria-sort={active ? "ascending" : "none"}>
               <button type="button" aria-pressed={active} aria-label={text.sortBy(legLabel(column.leg, text))} onClick={() => setSorted(active ? null : index)}>
@@ -139,7 +140,7 @@ function LossTable({ group, raceId, title }: { group: SplitGroup; raceId: string
  * Tabellen rullar i sidled med namnkolumnen fast; sidan rullar aldrig i sidled. Uppdateras av sig själv.
  */
 export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Props) {
-  const text = useSplitTexts(), listTexts = useListTexts();
+  const text = useSplitTexts(), listTexts = useListTexts(), forking = useTexts(forkingSv, forkingEn);
   const { data, failed } = useResultListData(raceId, initial);
   const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay, (data ?? initial).radio), [data, initial]);
   // Klasser med sträcktider, och (ADR-0172 beslut 5) klasser där någon passerat en radiokontroll.
@@ -172,9 +173,9 @@ export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Prop
         {(["SPLITS", "LOSS"] as const).map(id => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)}>
           {text.views[id]}</button>)}
       </div>
-      {legGroup && <div className={styles.segmented} role="group" aria-label={forkingSv.splitModeLabel}>
-        <button type="button" aria-pressed={!byVariant} onClick={() => setByVariant(false)}>{forkingSv.byLeg}</button>
-        <button type="button" aria-pressed={byVariant} onClick={() => setByVariant(true)}>{forkingSv.byVariant}</button>
+      {legGroup && <div className={styles.segmented} role="group" aria-label={forking.splitModeLabel}>
+        <button type="button" aria-pressed={!byVariant} onClick={() => setByVariant(false)}>{forking.byLeg}</button>
+        <button type="button" aria-pressed={byVariant} onClick={() => setByVariant(true)}>{forking.byVariant}</button>
       </div>}
     </div>
     {failed && <p className={styles.notice} role="alert">{listTexts.results.refreshFailed}</p>}

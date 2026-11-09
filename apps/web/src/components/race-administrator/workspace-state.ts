@@ -16,6 +16,8 @@ import { relaySv } from "../../i18n/relay-sv";
 import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { startDrawAdvancedEn } from "../../i18n/workspace-small-en";
 import { relayFormSv } from "../../i18n/relay-form-sv";
+import { forkingSv } from "../../i18n/forking-sv";
+import { forkingEn } from "../../i18n/forking-en";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { useTexts } from "../language-provider";
@@ -61,7 +63,8 @@ export function useWorkspaceState(raceId: string) {
   const relayText = useTexts(relaySv, relayEn);
   const drawAdvancedText = useTexts(startDrawAdvancedSv, startDrawAdvancedEn);
   const relayFormText = useTexts(relayFormSv, relayFormEn);
-  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, rogainingText, relayText, drawAdvancedText, relayFormText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
+  const forkingText = useTexts(forkingSv, forkingEn);
+  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, rogainingText, relayText, drawAdvancedText, relayFormText, forkingText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),

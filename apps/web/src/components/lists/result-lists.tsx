@@ -12,6 +12,7 @@ import { clubSummary, clubSummaryTotal, courseLine, filterResults, resultClassNa
 import { RadioLive } from "../radio/radio-live";
 import { RunnerForking } from "../forking/runner-forking";
 import { forkingSv } from "../../i18n/forking-sv";
+import { forkingEn } from "../../i18n/forking-en";
 import type { CourseForkingView } from "@o-tid/contracts";
 import { radioSv } from "../../i18n/radio-sv";
 import { download, ListFrame, useClubFilter, type IofExport } from "./list-frame";
@@ -142,7 +143,7 @@ function ScoredControlsBlock({ raceClass, context }: { raceClass: ResultClass; c
 }
 
 function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
-  const radioText = useTexts(radioSv, radioEn);
+  const radioText = useTexts(radioSv, radioEn), forkingText = useTexts(forkingSv, forkingEn);
   const { results: t, course } = useListTexts();
   const [showForking, setShowForking] = useState(false);
   if (raceClass.scored) return <ScoredClassBlock raceClass={raceClass} context={context} />;
@@ -155,7 +156,7 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
       <p>{raceClass.rows.length === 0 && raceClass.radio ? radioText.live.noneFinished : t.runners(raceClass.rows.length)}</p>
       {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}
       {forking && raceClass.rows.some(row => row.variant) && <button type="button" className={styles.toggle} aria-pressed={showForking}
-        aria-label={`${forkingSv.showForking}: ${raceClass.name}`} onClick={() => setShowForking(!showForking)}>{forkingSv.showForking}</button>}</div>
+        aria-label={`${forkingText.showForking}: ${raceClass.name}`} onClick={() => setShowForking(!showForking)}>{forkingText.showForking}</button>}</div>
     {raceClass.mixedCourses && <p className={styles.notice}>{t.mixedCourses}</p>}
     {raceClass.rows.length > 0 && <table className={styles.table} aria-labelledby={id}>
       <thead><tr><th scope="col" className={styles.place}>{t.place}</th><th scope="col">{t.name}</th>

@@ -7,7 +7,6 @@ import type { CourseEditListResponse, CourseForkingItem } from "@o-tid/contracts
 import { courseForkingFairness, forkingLetters, generateForkingVariants, validateCourseForking } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
-import { forkingSv as forking } from "../../i18n/forking-sv";
 import type { DiagramTarget } from "../../lib/forking-diagram";
 import { Button, Field, Notice } from "../ui";
 import { ForkingDiagram } from "../forking/forking-diagram";
@@ -26,7 +25,7 @@ const nameOf = (item: CourseForkingItem | undefined, fallback: string) =>
  * räknas fram direkt och sparas genom "Redigera bana" (besked först när resultat ändras).
  */
 export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow }) {
-  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn), forking = ws.forkingText;
   const { busy, cancelCourseEdit, changeCourseEditForking, courseEditAttempt, courseEditError, courseEditForking, courseEditPreview,
     previewCourseEdit, saveCourseEdit } = ws;
   const items = useMemo(() => courseEditForking ?? [], [courseEditForking]);

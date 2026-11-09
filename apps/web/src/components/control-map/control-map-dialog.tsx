@@ -6,7 +6,6 @@ import { useTexts } from "../language-provider";
 import { controlMapResponseSchema, type ControlMapResponse } from "@o-tid/contracts";
 import { forkingLetters } from "@o-tid/domain";
 import { controlMapSv } from "../../i18n/control-map-sv";
-import { forkingSv } from "../../i18n/forking-sv";
 import { controlMapView, loadLevel, typicalSpacing } from "../../lib/control-map";
 import { ForkingDiagram } from "../forking/forking-diagram";
 import { Button, Dialog, Notice } from "../ui";
@@ -121,7 +120,7 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
             {/* Utan lägen (eller som komplement): gafflingsbilden och kontrollerna i ordning. */}
             {mode === "COURSE" && course && (!view || course.forking) && <>
               {course.forking && letters && <ForkingDiagram items={course.forking.items} letters={letters} choices={choices}
-                label={forkingSv.courseDiagram(course.name)} />}
+                label={ws.forkingText.courseDiagram(course.name)} />}
               {(!view) && <div>{(variant ? course.variants.filter(row => row.code === variant) : course.variants).map(row =>
                 <p key={row.code ?? "bana"} className={styles.codes}><strong>{row.code ? text.variantControls(row.code) : text.courseControls}:</strong>{" "}
                   {row.controlCodes.join(" ")}</p>)}</div>}

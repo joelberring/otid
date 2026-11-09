@@ -4,7 +4,6 @@ import { useState } from "react";
 import { courseEditListResponseSchema, courseEditPreviewResponseSchema, courseEditResponseSchema,
   type CourseEditListResponse, type CourseEditPreviewResponse, type CourseEditRequest, type CourseForkingItem } from "@o-tid/contracts";
 import { validateCourseForking } from "@o-tid/domain";
-import { forkingSv } from "../../i18n/forking-sv";
 
 import { parseControlCodes, type CourseEditAttempt, type Operation } from "./types";
 import type { Base } from "./workspace-state";
@@ -96,7 +95,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
   function proposedForking(): { items: CourseForkingItem[] } | undefined {
     if (!courseEditForking) return undefined;
     const problems = validateCourseForking({ items: courseEditForking });
-    if (problems.length > 0) { setCourseEditError(forkingSv.problem(problems[0]!)); return undefined; }
+    if (problems.length > 0) { setCourseEditError(ws.forkingText.problem(problems[0]!)); return undefined; }
     return { items: courseEditForking };
   }
   type Proposal = { codes: number[]; forking?: undefined } | { codes?: undefined; forking: { items: CourseForkingItem[] } };
@@ -166,7 +165,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     pending.current = undefined; sent.current = false; setCourseEditAttempt(undefined);
     setEditingCourseId(""); setEditingVariantCode(""); setCourseEditControls(""); setCourseEditPreview(undefined); setCourseEditError("");
     setCourseEditForking(undefined); setCourseEditForkingOriginal("");
-    setCourseEditSaved(attempt.request.forking ? forkingSv.saved(receipt.recalculated.length) : text.courseEditSaved(receipt.recalculated.length));
+    setCourseEditSaved(attempt.request.forking ? ws.forkingText.saved(receipt.recalculated.length) : text.courseEditSaved(receipt.recalculated.length));
     try { await load(op); await readCourses(op); }
     catch { if (current(op)) setCourseListError(text.courseEditSavedLoadError); }
   }

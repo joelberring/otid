@@ -1,0 +1,25 @@
+/** Ägaren 2026-11-09: kartredigerarens snabbval (verktygshjulet, symbolrutorna, formen på ett objekt och cirkeln). */
+export const mapProjectQuickSv = {
+  wheel: "Verktygshjul",
+  wheelHelp: "Högerklicka eller håll fingret på kartan (mellanslag med musen över kartan) för verktygshjulet. 1–9 väljer de senaste symbolerna.",
+  close: "Stäng",
+  tools: { select: "Redigera", draw: "Rita", circle: "Cirkel", note: "Notis" },
+  toolKeys: { select: "E", draw: "P", circle: "O", note: "" },
+  recent: "Senaste symbolerna",
+  actions: "Objektet",
+  simplify: "Förenkla",
+  simplifyMore: "Förenkla mer",
+  smooth: "Gör mjuk",
+  straighten: "Gör rak",
+  switchTo: (code: string) => `Byt till ${code}`,
+  remove: "Ta bort",
+  simplified: (before: number, after: number) => `Förenklad: ${before} → ${after} punkter.`,
+  nothingToSimplify: "Inget att förenkla med den toleransen.",
+  smoothed: "Linjen går nu i mjuka kurvor genom samma punkter.",
+  straightened: "Kurvorna är nu raka sträckor.",
+  circleHint: (code: string) => `Cirkel med ${code}: dra från mitten ut till kanten, eller klicka i mitten och sedan på kanten.`,
+  circleNeedsShape: "Välj en linje- eller ytsymbol för cirkeln.",
+  grid: "Rutor",
+  list: "Lista",
+  view: "Visa symbolerna som"
+};

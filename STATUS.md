@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Kartredigeraren: verktygshjul, symbolrutor, förenkla, mjuk och cirkel
+- Högerklick, långt tryck eller mellanslag öppnar verktygshjulet (verktyg, senaste symboler, objektets åtgärder); 1–9 väljer
+  senaste symbolerna. Förenkla, gör mjuk, gör rak och cirkelverktyget (O). Symbolerna som rutor.
+- Verifierat: enhetstester `shape-edit` och `map-project-shape-actions`, E2E `kartprojekt-rita` (fem test), `kartprojekt`,
+  `kartprojekt-underlag`, `kartprojekt-rekning`.
+
 ### 2026-11-09 – Kartor till startens baksidor följer banläggningens baksida
 - Baksidorna under Kartor till starten (steg 61) använder baksidan som den är inställd i banläggningen (ADR-0213) när den
   finns: samma texter och variabler, så att t.ex. varianten bara står med när baksidan har {variant}.

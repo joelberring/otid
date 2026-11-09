@@ -45,11 +45,14 @@ import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar } from "./map-project-sidebar";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
+import { MapProjectToolWheel, type WheelAction, type WheelTool } from "./map-project-tool-wheel";
+import { mapProjectQuickSv as quick } from "../../i18n/map-project-quick-sv";
+import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
 import styles from "./map-project-editor.module.css";
 
 const text = mapProjectEditorSv;
-/** `area` = rita ett delområde (bara ägarna); `note` = tryck där en notis ska sitta (K3). */
-type Tool = "select" | "draw" | "area" | "note";
+/** `area` = rita ett delområde (bara ägarna); `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09). */
+type Tool = "select" | "draw" | "area" | "note" | "circle";
 interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
 type Drag =
   | { readonly mode: "vertex"; readonly address: VertexAddress; readonly original: MapObject }
@@ -60,13 +63,16 @@ type Drag =
   /** K3: sträckan böjs (dras i där man tog tag). */
   | { readonly mode: "bend"; readonly address: VertexAddress; readonly t: number; readonly start: Point; readonly original: MapObject }
   /** K3: punktens styrpunkt dras. */
-  | { readonly mode: "curveHandle"; readonly address: VertexAddress; readonly which: "in" | "out"; readonly original: MapObject };
+  | { readonly mode: "curveHandle"; readonly address: VertexAddress; readonly which: "in" | "out"; readonly original: MapObject }
+  /** Cirkeln dras från mitten ut till kanten. */
+  | { readonly mode: "circle"; readonly center: Point };
 
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
 const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
 const reconText = mapProjectReconSv;
 const notesText = mapProjectNotesSv;
 const DOUBLE_TAP_MS = 350;
+const recentKey = (projectId: string) => `otid-map-recent:${projectId}`;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
 /** En punkt på objektet: var en borttagning ligger (för delområdena när servern bara har objektet i grundfilen). */
 function anchorOf(object: MapObject): Point | undefined {
@@ -168,6 +174,18 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [panelOpen, setPanelOpen] = useState(false);
   const drag = useRef<Drag | undefined>(undefined);
   const lastTap = useRef<{ at: number; point: Point } | undefined>(undefined);
+  // Ägaren 2026-11-09: verktygshjulet (högerklick, långt tryck, mellanslag), de senaste symbolerna och cirkelns mitt.
+  const [wheel, setWheel] = useState<{ screen: { x: number; y: number }; bounds: { width: number; height: number } }>();
+  const [recent, setRecent] = useState<readonly string[]>([]);
+  const [circleCenter, setCircleCenter] = useState<Point>();
+  const [flash, setFlash] = useState<string>();
+  const mapArea = useRef<HTMLDivElement>(null);
+  const pointerAt = useRef<{ x: number; y: number }>(undefined);
+  useEffect(() => {
+    try { const stored = JSON.parse(localStorage.getItem(recentKey(view.projectId)) ?? "[]") as unknown; if (Array.isArray(stored)) setRecent(stored.filter(id => typeof id === "string").slice(0, 9)); }
+    catch { /* utan lagring: inga senaste */ }
+  }, [view.projectId]);
+  useEffect(() => { if (!flash) return; const timer = setTimeout(() => setFlash(undefined), 5000); return () => clearTimeout(timer); }, [flash]);
 
   selectedRef.current = selected;
   const symbols = useMemo(() => new Map(catalog.map(symbol => [symbol.id, symbol])), [catalog]);
@@ -181,7 +199,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const hiddenSymbols = useMemo(() => catalog.filter(entry => hiddenGroups.has(entry.group)).map(entry => entry.id), [catalog, hiddenGroups]);
 
   const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); setMoveWhole(false); };
-  const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); };
+  const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); setCircleCenter(undefined); };
 
   const save = useCallback((key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind, point?: Point): boolean => {
     const ok = commit({ key, ref, kind, after: object ? { kind: "OBJECT", object } : { kind: "DELETED" }, point });
@@ -224,22 +242,49 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (command) return;
       if (key === "e") { cancelDraft(); setTool("select"); }
       else if (key === "p" && canEdit) { deselect(); cancelDraft(); setTool("draw"); }
+      else if (key === "o" && canEdit) { deselect(); cancelDraft(); setTool("circle"); }
+      else if (event.key === " " && canEdit && pointerAt.current && mapArea.current) {
+        event.preventDefault();
+        const rect = mapArea.current.getBoundingClientRect();
+        setWheel({ screen: pointerAt.current, bounds: { width: rect.width, height: rect.height } });
+      }
+      else if (/^[1-9]$/.test(event.key) && canEdit && recent[Number(event.key) - 1] && symbols.has(recent[Number(event.key) - 1]!)) {
+        chooseSymbol(recent[Number(event.key) - 1]!);
+      }
       else if (event.key === "Escape") { if (draft.length) cancelDraft(); else deselect(); }
       else if (event.key === "Enter" && draft.length) { event.preventDefault(); finishDraft(); }
       else if ((event.key === "Delete" || event.key === "Backspace") && selected) { event.preventDefault(); removeSelected(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor, canEdit, draft, selected, finishDraft, removeSelected]);
+  }, [editor, canEdit, draft, selected, finishDraft, removeSelected, recent, symbols]);
 
   function chooseSymbol(id: string) {
     setSymbolId(id);
     setPanelOpen(false);
-    if (canEdit && !selected) { setTool("draw"); cancelDraft(); }
+    setRecent(current => {
+      const next = withRecent(current, id);
+      try { localStorage.setItem(recentKey(view.projectId), JSON.stringify(next)); } catch { /* utan lagring */ }
+      return next;
+    });
+    if (canEdit && !selected && tool !== "circle") { setTool("draw"); cancelDraft(); }
+  }
+
+  /** Formens åtgärd på det markerade objektet (förenkla, mjuk, rak) med beskedet. */
+  function reshape(result: MapObject | undefined, message: string) {
+    if (!selected || !canEdit) return;
+    if (result) { save(selected.key, selected.ref, result, "RESHAPE"); setActiveVertex(undefined); }
+    setFlash(message);
+  }
+  function placeCircle(center: Point, edge: Point) {
+    if (!symbol) return;
+    const object = circleFor(symbol.kind, symbol.id, center, edge);
+    setCircleCenter(undefined); setPreviewObject(undefined);
+    if (object) save(newKey(crypto.randomUUID()), null, object, "ADD");
   }
 
   const handlers: MapPointerHandlers = {
-    unlifted: tool === "draw" || tool === "area",
+    unlifted: tool === "draw" || tool === "area" || tool === "circle",
     onTap(point, tolerance, modifiers) {
       const now = performance.now();
       const previous = lastTap.current;
@@ -258,6 +303,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         const first = draft[0];
         if (double || (first && draft.length >= 3 && Math.hypot(first.at.x - point.x, first.at.y - point.y) <= tolerance)) { finishDraft(); return; }
         setDraft(points => [...points, { at: point }]);
+        return;
+      }
+      if (tool === "circle" && canEdit) {
+        if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) { setFlash(quick.circleNeedsShape); return; }
+        if (circleCenter) placeCircle(circleCenter, point); else setCircleCenter(point);
         return;
       }
       if (tool === "draw" && canEdit) {
@@ -301,6 +351,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     },
     onDragStart(point, tolerance) {
       if (!canEdit || tool === "area") return false;
+      if (tool === "circle") {
+        if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) return false;
+        drag.current = { mode: "circle", center: circleCenter ?? point };
+        return true;
+      }
       if (tool === "draw") {
         if (!symbol || symbol.kind === "text") return false;
         if (symbol.kind === "point") { drag.current = { mode: "place", at: point }; setPreviewObject({ kind: "point", symbol: symbol.id, at: point, angle: 0 }); return true; }
@@ -358,6 +413,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setPreviewObject(object => object ? rotatePoint(object, degreesTo(current.at, point)) : object);
         return;
       }
+      if (current.mode === "circle") { if (symbol) setPreviewObject(circleFor(symbol.kind, symbol.id, current.center, point)); return; }
       if (current.mode === "bend") { setPreviewObject(bendSegment(current.original, current.address, current.t,
         { x: point.x - current.start.x, y: point.y - current.start.y })); return; }
       if (current.mode === "curveHandle") { setPreviewObject(moveHandle(current.original, current.address, current.which, point)); return; }
@@ -383,11 +439,30 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         return;
       }
       if (current.mode === "place") { if (moved) save(newKey(crypto.randomUUID()), null, moved, "ADD"); return; }
+      if (current.mode === "circle") { setCircleCenter(undefined); if (moved) save(newKey(crypto.randomUUID()), null, moved, "ADD"); return; }
       if (!target || !moved) return;
       save(target.key, target.ref, moved, current.mode === "object" || current.mode === "rotate" ? "MOVE" : "RESHAPE");
     },
     onDragCancel() { drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); },
-    onHover(point) { if (tool !== "select" && draft.length) setCursor(point); }
+    onHover(point) {
+      if (tool !== "select" && (draft.length || circleCenter)) setCursor(point);
+      if (tool === "circle" && circleCenter && point && symbol) setPreviewObject(circleFor(symbol.kind, symbol.id, circleCenter, point));
+    },
+    // Ägaren 2026-11-09: högerklick avslutar det som ritas (som i Mapper), annars öppnas verktygshjulet. Ett objekt under
+    // pekaren markeras först, så att hjulets åtgärder gäller det.
+    onContextMenu(point, screen, tolerance) {
+      if (!canEdit) return;
+      if (draft.length) { finishDraft(); return; }
+      const rect = mapArea.current?.getBoundingClientRect();
+      const open = () => setWheel({ screen, bounds: { width: rect?.width ?? 800, height: rect?.height ?? 600 } });
+      if (tool !== "select" || (selected && hitDistance(selected.object, point, tolerance))) { open(); return; }
+      session?.hit(point, tolerance, hiddenSymbols, hits => {
+        // Det markerade objektet under pekaren behålls; annars det översta.
+        const next = (selected && hits.find(hit => hit.key === selected.key)) ?? hits[0];
+        if (next) { setSelected({ key: next.key, ref: next.ref, object: next.object }); setActiveVertex(undefined); setRotating(false); }
+        open();
+      });
+    }
   };
 
   // Öppna förslag streckade (de egna direkt efter synken, andras ur listan); förslaget som visas heldraget.
@@ -427,6 +502,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       drawDraftPoints(ctx, current, draft, cursor);
     }
     if (preview) drawPreview(ctx, current, preview, symbols.get(preview.symbol));
+    if (tool === "circle" && circleCenter) drawDraftPoints(ctx, current, [{ at: circleCenter }], cursor);
     if (tool === "draw" && symbol && draft.length) {
       const tentative = cursor ? [...draft, { at: cursor }] : draft;
       const object = symbol.kind === "line" || symbol.kind === "area" ? draftObject(symbol.kind, symbol.id, tentative) : undefined;
@@ -442,7 +518,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       const handles = activeVertex ? vertexHandles(shown, activeVertex) : undefined;
       if (handles) drawHandles(ctx, current, handles);
     }
-  }, [preview, selected, symbols, tool, symbol, draft, cursor, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
+  }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
@@ -450,12 +526,27 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     : tool === "note" ? notesText.toolHint
     : tool === "select" ? text.hints.select
     : !symbol ? text.tools.noSymbol
+    : tool === "circle" ? (symbol.kind === "line" || symbol.kind === "area" ? quick.circleHint(symbol.code) : quick.circleNeedsShape)
     : symbol.kind === "point" ? text.hints.drawPoint(symbol.code)
     : symbol.kind === "line" ? text.hints.drawLine(symbol.code)
     : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
-  const hintLine = `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
+  const hintLine = flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
+  // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
+  const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object) : [];
+  const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); setTool(next); };
+  const wheelTools: WheelTool[] = [
+    { id: "select", label: quick.tools.select, key: quick.toolKeys.select, active: tool === "select", onPick: pickTool("select") },
+    { id: "draw", label: quick.tools.draw, key: quick.toolKeys.draw, active: tool === "draw", onPick: pickTool("draw") },
+    { id: "circle", label: quick.tools.circle, key: quick.toolKeys.circle, active: tool === "circle", onPick: pickTool("circle") },
+    ...(notes.canWrite ? [{ id: "note", label: quick.tools.note, key: "", active: tool === "note", onPick: pickTool("note") }] : [])
+  ];
+  const wheelActions: WheelAction[] = selected && tool === "select" && canEdit ? [
+    ...shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => reshape(action.result, action.message) })),
+    ...(canSwitch ? [{ id: "switch", label: quick.switchTo(symbol.code), onPick: () => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL") }] : []),
+    { id: "remove", label: quick.remove, onPick: removeSelected }
+  ] : [];
   const pending = editor.state?.pending.length ?? 0;
   const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
 
@@ -481,6 +572,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           onClick={() => { cancelDraft(); setTool("select"); }}>{text.tools.select}</Button>
         <Button variant={tool === "draw" ? "primary" : "secondary"} aria-pressed={tool === "draw"} title={text.tools.drawHelp}
           onClick={() => { deselect(); cancelDraft(); setTool("draw"); }}>{text.tools.draw}</Button>
+        <Button variant={tool === "circle" ? "primary" : "secondary"} aria-pressed={tool === "circle"} title={`${quick.tools.circle} (O)`}
+          data-testid="map-project-circle-tool" onClick={pickTool("circle")}>{quick.tools.circle}</Button>
         {canDecide && <Button variant={tool === "area" ? "primary" : "secondary"} aria-pressed={tool === "area"}
           onClick={() => { deselect(); cancelDraft(); setTool("area"); }}>{text.collab.areaTool}</Button>}
         {notes.canWrite && <Button variant={tool === "note" ? "primary" : "secondary"} aria-pressed={tool === "note"} data-testid="map-project-note-tool"
@@ -497,6 +590,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             title={text.tools.moveWholeHelp} onClick={() => setMoveWhole(value => !value)} data-testid="map-project-move-whole">{text.tools.moveWhole}</Button>}
           {(selected.object.kind === "point") && <Button variant={rotating ? "primary" : "secondary"} aria-pressed={rotating}
             title={text.tools.rotateHelp} onClick={() => setRotating(value => !value)}>{text.tools.rotate}</Button>}
+          {shapes.filter(action => action.id !== "simplifyMore").map(action => <Button key={action.id} variant="secondary" disabled={!action.result} data-testid={`map-project-shape-${action.id}`}
+            onClick={() => reshape(action.result, action.message)}>{action.label}</Button>)}
           {canSwitch && <Button variant="secondary" onClick={() => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL")}>
             {text.tools.switchSymbol(symbol.code)}</Button>}
           {recon.canRecord && <Button variant={recon.validChecks.has(selected.key) ? "primary" : "secondary"} aria-pressed={recon.validChecks.has(selected.key)}
@@ -508,12 +603,18 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         </>}
       </div>
       <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
-      <div className={styles.mapArea}>
+      <div className={styles.mapArea} ref={mapArea} onPointerMove={event => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        pointerAt.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      }}>
+        {wheel && <MapProjectToolWheel at={wheel.screen} bounds={wheel.bounds} tools={wheelTools}
+          symbols={recent.map(id => symbols.get(id)).filter((entry): entry is CatalogSymbol => entry !== undefined).slice(0, 6)}
+          symbolId={symbolId} onSymbol={chooseSymbol} actions={wheelActions} onClose={() => setWheel(undefined)} />}
         {editor.mapStatus === "loading" && <p className={styles.loading}>{text.loading}</p>}
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
         {editor.bounds && <div className={styles.frame}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
-          label={text.mapLabel} cursor={tool === "draw" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
+          label={text.mapLabel} cursor={tool === "draw" || tool === "circle" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
           renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols}
           position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
           onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} handle={mapHandle} /></div>}

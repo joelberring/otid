@@ -51,7 +51,15 @@ export interface MapPointerHandlers {
   readonly onDragCancel?: (() => void) | undefined;
   /** Dragningen följer fingret där det är (ritläget), inte en bit ovanför (`liftedPoint`). */
   readonly unlifted?: boolean | undefined;
+  /**
+   * Högerklick, eller ett långt tryck med fingret som inte rör sig (kartritningens verktygshjul). `screen` är punkten i
+   * kartrutans pixlar. Saknas = webbläsarens egen meny.
+   */
+  readonly onContextMenu?: ((point: Point, screen: { readonly x: number; readonly y: number }, toleranceMm: number) => void) | undefined;
 }
+
+/** Ett långt tryck med fingret (ms) öppnar `onContextMenu`. */
+const LONG_PRESS_MS = 550;
 
 /** ADR-0181 beslut 8: notisernas ritningar (ett klick väljer notisen) och ritningen som pågår. Bara på skärmen. */
 export interface SketchLayer {
@@ -152,6 +160,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   const staleOverview = useRef(false);
   const [drawnVersion, setDrawnVersion] = useState(0);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const longPress = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const longPressAt = useRef(0);
   const gesture = useRef<{ kind: "pending" | "pan" | "drag" | "pinch"; startX: number; startY: number; lastX: number; lastY: number;
     distance?: number; pointerType: string; pointerId?: number; free?: boolean; alt?: boolean; shift?: boolean } | undefined>(undefined);
   const viewRef = useRef<Viewport | undefined>(undefined);
@@ -352,6 +362,17 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     }
     gesture.current = { kind: "pending", startX: at.x, startY: at.y, lastX: at.x, lastY: at.y, pointerType: event.pointerType, pointerId: event.pointerId,
       alt: event.altKey, shift: event.shiftKey };
+    if (event.pointerType !== "mouse" && handlers.onContextMenu) {
+      const started = gesture.current, current = view;
+      clearTimeout(longPress.current);
+      longPress.current = setTimeout(() => {
+        if (gesture.current !== started || started.kind !== "pending") return;
+        gesture.current = undefined;
+        pointers.current.clear();
+        longPressAt.current = Date.now();
+        handlers.onContextMenu?.(toMap(current, at), at, tolerancePx(started.pointerType) / current.pxPerMm);
+      }, LONG_PRESS_MS);
+    }
     // Fingret har ingen muspekare: markeringen före klicket (t.ex. "Lägg in 45") visas när fingret trycks ned.
     if (event.pointerType !== "mouse") handlers.onHover?.(toMap(view, at), modifiersOf(event, view));
   }
@@ -392,6 +413,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     }
     if (current.kind === "pending") {
       if (Math.hypot(at.x - current.startX, at.y - current.startY) < TAP_SLOP_PX) return;
+      clearTimeout(longPress.current);
       const start = toMap(view, { x: current.startX, y: current.startY });
       current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm, current.pointerType, view.pxPerMm) ? "drag" : "pan";
       if (current.kind === "pan") handlers.onHover?.(undefined, modifiersOf(event, view));
@@ -411,6 +433,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    clearTimeout(longPress.current);
     const current = gesture.current;
     pointers.current.delete(event.pointerId);
     if (!current || !view) return;
@@ -469,6 +492,15 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       // Kartan är ritad skarpt för vyn som visas (specarna väntar på den före skärmbilder).
       data-drawn={drawnVersion > 0 && drawn.current?.view === view ? "true" : undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+      onContextMenu={handlers.onContextMenu ? event => {
+        event.preventDefault();
+        // Telefonens eget långa tryck kommer också hit: bara ett hjul.
+        clearTimeout(longPress.current);
+        if (!view || Date.now() - longPressAt.current < 1000) return;
+        gesture.current = undefined;
+        const at = local(event);
+        handlers.onContextMenu?.(toMap(view, at), at, tolerancePx("mouse") / view.pxPerMm);
+      } : undefined}
       onPointerLeave={event => { if (event.pointerType === "mouse" && view) handlers.onHover?.(undefined, modifiersOf(event, view)); }}>
       <canvas ref={base} className={styles.layer} aria-hidden="true" />
       <canvas ref={overlay} className={styles.layer} aria-hidden="true" data-testid="course-setting-overprint"

@@ -332,3 +332,77 @@ test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({
   await owner.goto(`/organizer/map-projects/${projectId}`);
   await expect(owner.getByText("ny karta från O-Tid")).toBeVisible();
 });
+
+/**
+ * Ägaren 2026-11-09: snabbare verktyg. Symbolerna som rutor, verktygshjulet med högerklick och mellanslag, förenkla en linje
+ * med för många punkter, gör den mjuk, och rita en cirkel.
+ */
+test("kartprojekt: verktygshjul, symbolrutor, förenkla, mjuk och cirkel", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `hjul.${unique()}@exempel.se`, "Hjul Ritare");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Hjul", "x-otid-file-name": "Hjul.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const lines = async () => (await serverObjects(owner, projectId, baseURL!))
+    .filter(object => object.key.startsWith("n:") && object.state.kind === "OBJECT" && object.state.object?.kind === "line")
+    .map(object => object.state.object as Extract<MapObject, { kind: "line" }>);
+
+  // Symbolerna som rutor (valet sparas).
+  await owner.getByTestId("map-project-symbols-grid").click();
+  await expect(owner.getByTestId("map-project-symbols")).toHaveAttribute("data-view", "grid");
+  await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
+
+  // En stig med åtta punkter nästan på en rak linje (y = 85, ovanför kartans objekt).
+  for (let i = 0; i < 8; i += 1) {
+    const at = await screenOf(owner, { x: 15 + i * 9, y: 85 + (i % 2) * 0.02 });
+    await owner.mouse.click(at.x, at.y);
+    await owner.waitForTimeout(350);
+  }
+  await owner.keyboard.press("Enter");
+  await settled(owner);
+  expect((await lines())[0]!.path).toHaveLength(8);
+
+  // Högerklick på stigen: hjulet med objektets åtgärder. Förenkla ger två punkter, gör mjuk ger kurvor.
+  await owner.keyboard.press("e");
+  const on = await screenOf(owner, { x: 46.5, y: 85 });
+  await owner.mouse.click(on.x, on.y, { button: "right" });
+  const wheel = owner.getByTestId("map-project-wheel");
+  await expect(wheel).toBeVisible();
+  await expect(wheel.getByTestId("map-project-wheel-symbol")).toHaveAttribute("data-code", "505.0");
+  await reviewScreenshots(owner, "kartprojekt-verktygshjul");
+  await wheel.getByTestId("map-project-wheel-action-simplify").click();
+  await expect(wheel).toBeHidden();
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Förenklad: 8 → 2 punkter.");
+  await settled(owner);
+  expect((await lines())[0]!.path).toHaveLength(2);
+  await owner.mouse.click(on.x, on.y, { button: "right" });
+  await expect(owner.getByTestId("map-project-hint")).toContainText("505");
+  await owner.getByTestId("map-project-wheel-action-smooth").click();
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Linjen går nu i mjuka kurvor genom samma punkter.");
+  await settled(owner);
+  await expect.poll(async () => (await lines())[0]!.path.map(command => command.type), { timeout: 20_000 }).toEqual(["M", "C"]);
+
+  // Mellanslag med musen över kartan: hjulet, välj Cirkel och dra en cirkel med radien 5 mm.
+  const center = await screenOf(owner, { x: 60, y: 60 });
+  await owner.mouse.move(center.x, center.y);
+  await owner.keyboard.press(" ");
+  await owner.getByTestId("map-project-wheel-circle").click();
+  await expect(owner.getByTestId("map-project-hint")).toContainText("Cirkel med 505");
+  const px = Number(await map.getAttribute("data-px-per-mm"));
+  await owner.mouse.move(center.x, center.y);
+  await owner.mouse.down();
+  for (let step = 1; step <= 5; step += 1) await owner.mouse.move(center.x + step * px, center.y, { steps: 2 });
+  await owner.mouse.up();
+  await settled(owner);
+  await expect.poll(async () => (await lines()).length, { timeout: 20_000 }).toBe(2);
+  const circle = (await lines()).find(line => line.path.length === 5);
+  expect(circle?.path.map(command => command.type)).toEqual(["M", "C", "C", "C", "C"]);
+  expect(Math.abs(circle!.path[0]!.x - 65)).toBeLessThan(0.5);
+});

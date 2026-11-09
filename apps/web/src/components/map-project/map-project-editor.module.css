@@ -11,8 +11,12 @@
 .notice { padding: 6px 12px 0; }
 .offline { margin: 0; padding: 4px 12px; background: var(--attention-bg, #fff4ce); font-size: var(--text-sm, .9rem); }
 .workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; }
-.toolbar { grid-column: 1; display: flex; flex-wrap: wrap; gap: .4rem; padding: 6px 12px; border-bottom: 1px solid var(--line); }
-.hint { grid-column: 1; margin: 0; padding: 4px 12px; color: var(--muted); font-size: var(--text-sm, .9rem); min-height: 1.6em; }
+/* En rad som rullas i sidled: kartan flyttar sig inte när knapparna för det markerade objektet kommer och går. */
+.toolbar { grid-column: 1; display: flex; flex-wrap: nowrap; overflow-x: auto; gap: .4rem; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.toolbar > * { flex: none; }
+/* En rad (hela texten i title): kartan flyttar sig inte när tipset eller ett besked byts. */
+.hint { grid-column: 1; margin: 0; padding: 4px 12px; color: var(--muted); font-size: var(--text-sm, .9rem); min-height: 1.6em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .mapArea { grid-column: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 /* Kartvyn fyller rutan på alla bredder (banläggningens telefonregel för kartans ram gäller inte här). */
 .frame, .frame > div { position: absolute; inset: 0; }
@@ -112,3 +116,14 @@
 .revised input { min-height: 32px; }
 .stageKey { display: inline-flex; gap: 4px; align-items: center; margin-right: 10px; white-space: nowrap; }
 .stageKey i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+
+/* Ägaren 2026-11-09: symbolerna som rutor (som i Mapper). */
+.viewToggle { display: inline-flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; justify-self: start; }
+.viewToggle button { border: 0; background: none; padding: 4px 10px; font: inherit; color: inherit; cursor: pointer; min-height: 32px; }
+.viewToggle button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.paletteGrid { list-style: none; margin: .5rem 0 0; padding: 0; max-height: 50dvh; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 4px; }
+.tile { display: grid; justify-items: center; gap: 1px; width: 100%; padding: 3px 2px; border: 1px solid transparent; border-radius: 6px; background: none;
+  font: inherit; color: inherit; cursor: pointer; }
+.tile:hover { background: var(--surface-2, #f3f3f3); }
+.tile[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-2, #f3f3f3); }
+.tileCode { font-size: .7rem; font-weight: 700; line-height: 1.1; }

@@ -382,3 +382,18 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
 del får nu de automatiska numren där hela banan har dem; flyttade nummer (`numberAt`) gäller som förut. Storleken är normens
 (siffrorna 4,0 mm i ISOM 2017-2 och ISSprOM 2019-2, skalade med banans storlek och utskriftsskalan). Valet "Placera numren
 för varje variant för sig" under Utseende (händelsens `numbersPerVariant`, bara O-Tid) ger det tidigare beteendet.
+
+## Tillägg 2026-11-09: snabbare verktyg i kartredigeraren (ingen migration)
+
+Ägaren: "det måste finnas ett snabbare sätt att växla mellan lager och ritfunktioner än olika menyer … högerklick, något form
+av funktionshjul och symbolrutor som Mapper", och "funktioner som förenklar punkter i linjer, gör om till mjuka former och
+runda former".
+
+1. **Verktygshjulet:** högerklick, ett långt tryck med fingret eller mellanslag med musen över kartan öppnar ett hjul där man
+   är: verktygen (Redigera, Rita, Cirkel, Notis) och de senaste symbolerna (siffrorna 1–9 väljer dem också). Ett objekt under
+   pekaren markeras först, och hjulet visar dess åtgärder. Högerklick medan man ritar avslutar linjen (som i Mapper).
+2. **Formen** (`map-revision/shape-edit.ts`, rena funktioner): förenkla (Douglas–Peucker 0,05 eller 0,15 mm på kartan, även
+   kurvor som plattas ut först), gör mjuk (Catmull–Rom genom samma punkter, hörnpunkter förblir hörn), gör rak, och cirklar
+   (fyra kurvor) som linje eller yta med verktyget Cirkel (O): dra från mitten, eller klicka i mitten och på kanten.
+3. **Symbolrutorna:** symbolerna kan visas som rutor med bild och nummer (valet sparas i webbläsaren).
+4. Verktygsraden och tipsraden har en fast höjd, så att kartan inte flyttar sig när knapparna eller beskedet byts.

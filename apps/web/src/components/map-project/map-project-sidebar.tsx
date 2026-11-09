@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { mapProjectQuickSv as quick } from "../../i18n/map-project-quick-sv";
+import { SymbolIcon } from "./map-project-symbol-icon";
 import type { Conflict, ObjectKey } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
@@ -8,19 +10,8 @@ import { Button } from "../ui";
 import styles from "./map-project-editor.module.css";
 
 const text = mapProjectEditorSv;
+const GRID_KEY = "otid-map-symbol-grid";
 const GROUPS: readonly SymbolGroup[] = ["LANDFORMS", "ROCK", "WATER", "VEGETATION", "MANMADE", "TECHNICAL", "COURSE", "OTHER"];
-
-/** Symbolens lilla bild (PNG från Workern), som en bild-URL som släpps när den inte används. */
-function SymbolIcon({ icon }: { icon: Blob | undefined }) {
-  const [url, setUrl] = useState<string>();
-  useEffect(() => {
-    if (!icon) return;
-    const next = URL.createObjectURL(icon);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [icon]);
-  return url ? <img src={url} alt="" width={32} height={32} className={styles.icon} /> : <span className={styles.icon} />;
-}
 
 /**
  * ADR-0219 (K1): editorns sidopanel. Symbolerna i kartfilen (bara de som finns i filen, sökbara på nummer och namn), lagren
@@ -39,6 +30,10 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGro
   after?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
+  // Ägaren 2026-11-09: symbolerna som rutor (som i Mapper) eller som lista; valet sparas i webbläsaren.
+  const [grid, setGrid] = useState(false);
+  useEffect(() => { try { setGrid(localStorage.getItem(GRID_KEY) === "1"); } catch { /* utan lagring: listan */ } }, []);
+  const chooseView = (next: boolean) => { setGrid(next); try { localStorage.setItem(GRID_KEY, next ? "1" : "0"); } catch { /* utan lagring */ } };
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return catalog.filter(entry => entry.kind !== "text" && (!needle || entry.code.toLowerCase().startsWith(needle) || entry.name.toLowerCase().includes(needle)));
@@ -69,18 +64,23 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGro
 
     {canEdit && <section aria-labelledby="map-project-symbols" className={styles.panel}>
       <h2 id="map-project-symbols">{text.symbols.title}</h2>
+      <p className={styles.muted}>{quick.wheelHelp}</p>
       <label className={styles.search}>
         <span className={styles.srOnly}>{text.symbols.search}</span>
         <input type="search" value={query} placeholder={text.symbols.searchHelp} aria-label={text.symbols.search}
           onChange={event => setQuery(event.target.value)} />
       </label>
+      <div className={styles.viewToggle} role="group" aria-label={quick.view}>
+        <button type="button" aria-pressed={grid} onClick={() => chooseView(true)} data-testid="map-project-symbols-grid">{quick.grid}</button>
+        <button type="button" aria-pressed={!grid} onClick={() => chooseView(false)}>{quick.list}</button>
+      </div>
       {chosen && <p className={styles.muted}>{text.symbols.selected(chosen.code, chosen.name)}</p>}
-      <ul className={styles.palette} data-testid="map-project-symbols">
+      <ul className={grid ? styles.paletteGrid : styles.palette} data-testid="map-project-symbols" data-view={grid ? "grid" : "list"}>
         {shown.map(entry => <li key={entry.id}>
-          <button type="button" className={styles.symbol} aria-pressed={entry.id === symbolId} onClick={() => onSymbol(entry.id)}
-            title={`${entry.code} ${entry.name}`} data-code={entry.code}>
-            <SymbolIcon icon={entry.icon} />
-            <span><strong>{entry.code}</strong> {entry.name}</span>
+          <button type="button" className={grid ? styles.tile : styles.symbol} aria-pressed={entry.id === symbolId} onClick={() => onSymbol(entry.id)}
+            title={`${entry.code} ${entry.name}`} data-code={entry.code} aria-label={grid ? `${entry.code} ${entry.name}` : undefined}>
+            <SymbolIcon icon={entry.icon} size={grid ? 36 : 32} />
+            {grid ? <span className={styles.tileCode}>{entry.code}</span> : <span><strong>{entry.code}</strong> {entry.name}</span>}
           </button>
         </li>)}
       </ul>

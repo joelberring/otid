@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { notesEn } from "../../i18n/course-setting-notes-en";
 import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { useTexts } from "../language-provider";
+import { mapLinkEn } from "../../i18n/course-setting-link-en";
+import { mapLinkSv } from "../../i18n/map-link-sv";
 import Link from "next/link";
 import { AccountMenu } from "../account-menu";
 import type { CourseSettingNote } from "@o-tid/contracts";
@@ -74,6 +76,7 @@ async function renderCrop(session: MapRenderSession, note: CourseSettingNote, cr
  * och foto): utsnitten, texten och svaren, svarar, markerar klart och kan skriva ut eller ladda ned samma sak.
  */
 export function MapErrorsPage({ raceId }: { raceId: string }) {
+  const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
   const text = useTexts(notesSv.export, notesEn.export);
   const collabText = useTexts(collaborationSv, collaborationEn);
   const [document, setDocument] = useState<CourseSettingDocument | null>();
@@ -200,7 +203,7 @@ export function MapErrorsPage({ raceId }: { raceId: string }) {
           if (outcome !== "failed") await reload().catch(() => undefined);
           return outcome;
         }} />}
-      <span className={styles.muted}> – {replyAuthor(answer)}</span></li>)}</ul>}
+      <span className={styles.muted}> – {replyAuthor(answer, mapLinkText)}</span></li>)}</ul>}
     <form className={styles.row} onSubmit={event => {
       event.preventDefault();
       const value = reply[note.id]?.trim();

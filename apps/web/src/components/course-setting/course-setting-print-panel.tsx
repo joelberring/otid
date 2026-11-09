@@ -1,7 +1,9 @@
 "use client";
 
 import { COURSE_PRINT_SCALES, partsForChooser, type CourseSettingDocument, type CourseSettingEdit } from "@o-tid/course-setting";
-import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
@@ -21,6 +23,7 @@ export function PrintPanel({ document, view, readOnly, onEdits, onPreview, onLay
   /** Skalan hör till banan (ADR-0211 beslut 5): öppnar banans egenskaper. */
   onCourseProperties?: (() => void) | undefined;
 }) {
+  const text = useTexts(coursePrintSv, coursePrintEn);
   const parts = partsForChooser(document, view);
   const partOwnArea = part !== undefined ? document.courses.find(item => item.id === view)?.partPrintAreas?.[String(part)] : undefined;
   const course = document.courses.find(item => item.id === view);

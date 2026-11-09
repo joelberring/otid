@@ -45,7 +45,7 @@ export function BackSheet({ page, settings, clock, runnerBack }: { page: MapBack
   const { width, height } = sheetSize(settings);
   const position = printedPosition(settings);
   const content = page !== "TEST" && page.kind !== "DIVIDER" && runnerBack
-    ? backLines(runnerBack, backValues(page, clock)).map((item, index) => <span key={index} data-testid="map-back-line"
+    ? backLines(runnerBack, backValues(page, clock, text)).map((item, index) => <span key={index} data-testid="map-back-line"
       style={{ fontSize: `${item.sizeMm}mm`, fontWeight: item.bold ? 700 : 400, textAlign: item.align, lineHeight: 1.1 }}>{item.line}</span>)
     : page === "TEST" ? <span className={styles.labelName}>{text.testPageText}</span>
     : page.kind === "DIVIDER" ? <>

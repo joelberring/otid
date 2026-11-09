@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
 import {
   applyEdit, effectivePaper, paperClipPoints, paperLayoutOf, shapePoints, withPaperItem, type CourseSettingDocument, type CourseSettingEdit, type PaperRect,
   type Sheet, type SheetPaperItem
@@ -23,6 +26,7 @@ export function usePaperSpace({ raceId, document, save, canEdit, chosen, extra: 
   /** ADR-0213: fler att välja bland i panelen (baksidan per löpare). */
   extra?: readonly { id: string; name: string }[] | undefined;
 }) {
+  const printText = useTexts(coursePrintSv, coursePrintEn);
   const [course, setCourse] = useState<string>();
   const [selected, setSelected] = useState<PaperSelection>();
   // ADR-0211 beslut 8: fler markerade (Skift-klick, ruta på tomt papper); `selected` är det första (fälten i panelen).
@@ -36,7 +40,7 @@ export function usePaperSpace({ raceId, document, save, canEdit, chosen, extra: 
   const current = useRef<CourseSettingDocument | null | undefined>(document);
   if (pending.current === 0) current.current = document;
   const shown = view ?? document;
-  const courses = shown ? [...paperCourses(shown, chosen), ...extraCourses] : [];
+  const courses = shown ? [...paperCourses(shown, chosen, printText.print.allControls), ...extraCourses] : [];
   const paperCourse = course && courses.some(row => row.id === course) ? course : courses[0]?.id;
 
   const redo = useRef<CourseSettingEdit[][]>([]);

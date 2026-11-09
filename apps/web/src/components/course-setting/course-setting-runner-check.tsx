@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { runnerPrintSv as text } from "../../i18n/course-setting-runner-print-sv";
+import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
+import { useTexts } from "../language-provider";
+import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import { checkRowsCsv, sortCheckRows, CHECK_COLUMNS, type CheckColumn, type CheckRow } from "../../lib/course-setting-runner-select";
 import { Button } from "../ui";
 import { HelpLink } from "../help/help-panel";
@@ -13,6 +15,7 @@ import styles from "./course-setting-print-page.module.css";
  * sparas som CSV; ett klick på en rad visar löparens ark.
  */
 export function RunnerCheckTable({ rows, onPreview, selected }: { rows: readonly CheckRow[]; onPreview: (row: CheckRow) => void; selected: string | undefined }) {
+  const text = useTexts(runnerPrintSv, runnerPrintEn);
   const [sort, setSort] = useState<{ column: CheckColumn; descending: boolean }>({ column: "page", descending: false });
   const [filter, setFilter] = useState("");
   const [warningsOnly, setWarningsOnly] = useState(false);

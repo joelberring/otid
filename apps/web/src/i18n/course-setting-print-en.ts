@@ -1,0 +1,185 @@
+import type { Texts } from "../lib/language";
+import type { coursePrintSv } from "./course-setting-print-sv";
+import type { printOutputSv, printOverviewSv, sheetPaperSv } from "./course-setting-print-overview-sv";
+
+/** Engelska del 31: specialobjekten, utskriftssidan, översikten, Skriv ut och papperet för arket. */
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+export const coursePrintEn: Texts<typeof coursePrintSv> = {
+  tabs: { objects: "Objects", print: "Print" },
+  kinds: {
+    "out-of-bounds": "Out-of-bounds area", "white-out": "White background", "optional-crossing-point": "Optional crossing point",
+    descriptions: "Descriptions on the map", text: "Text", "forbidden-route": "Forbidden route", "dangerous-area": "Dangerous area",
+    "temporary-construction": "Temporary construction", boundary: "Boundary (must not be crossed)", line: "Line", rectangle: "Rectangle",
+    ellipse: "Ellipse", "first-aid": "First aid", water: "Water", "registration-mark": "Registration mark", image: "Image"
+  },
+  objects: {
+    heading: "Special objects",
+    help: "Choose a kind and click on the map. An area or line: click the corners and finish with Enter, Done or a click on the first point.",
+    drawing: (n: number) => `${count(n, "point", "points")} placed`,
+    finish: "Done",
+    cancel: "Cancel",
+    onMap: "On the map here",
+    none: "No special objects show here.",
+    select: (name: string) => `Select ${name}`,
+    selected: "Selected object",
+    courses: "Shown on",
+    allCourses: "All courses",
+    allControls: "All controls",
+    text: "Text",
+    textHelp: "$(CourseName), $(CourseLength), $(PrintScale) and the others from Purple Pen are filled in per course.",
+    height: "Height of the digits (mm on paper)",
+    color: "Colour",
+    colors: { purple: "Purple", "lower-purple": "Purple (below the map)", black: "Black" },
+    bold: "Bold",
+    columns: "Columns",
+    cellSize: "Box size (mm on paper)",
+    orientation: "Angle (degrees)",
+    lineWidth: "Line width (mm)",
+    remove: "Remove the object",
+    custom: "Custom colour (CMYK)"
+  },
+  print: {
+    heading: "Print",
+    help: "Paper, orientation, margin and map frame are set on the sheet in the Layout tab; a fixed frame can also be dragged here on the map.",
+    scale: "Print scale",
+    mapScale: (scale: string) => `The map's (1:${scale})`,
+    scaleChange: "Change in the course's properties",
+    preview: "Preview and print",
+    layout: "The paper in Layout",
+    allControls: "All controls",
+    parts: "Map exchanges",
+    part: "Part",
+    wholeCourse: "The whole course",
+    partName: (n: number) => `Part ${n}`,
+    partInherits: "The part has the course's print area until you change it in Layout.",
+    partOwnArea: "The part has its own print area."
+  },
+  paper: {
+    heading: "Control description on the map",
+    help: "The description is put in a corner where it does not cover the course; drag the box on the sheet to move it.",
+    showFor: (name: string) => `Control description on the map for ${name}`,
+    columns: "Columns",
+    box: "Box size",
+    boxOption: (mm: number) => `${mm} mm`,
+    corners: { TOP_LEFT: "the top left corner", TOP_RIGHT: "the top right corner", BOTTOM_LEFT: "the bottom left corner", BOTTOM_RIGHT: "the bottom right corner" },
+    source: (source: string | undefined, corner: string | undefined) => source === "AUTO" ? `Automatically in ${corner ?? "a corner"}`
+      : source === "PLACED" ? "Placed" : source === "FILE" ? "Where the Purple Pen file has it" : source === "TEMPLATE" ? "The place in Maps per sheet" : "",
+    overlaps: (n: number) => `Lies over ${count(n, "control, number or leg", "controls, numbers or legs")}: drag it to a free place.`,
+    automatic: "Automatic again",
+    off: "No description on the map.",
+    dragLabel: "The control description: drag to move, the arrow keys move 1 mm",
+    saved: "Saved.",
+    failed: "Saving failed. Try again.",
+    readOnly: "You can see the place but not change it."
+  },
+  page: {
+    title: "Print courses",
+    back: "← To course setting",
+    draft: "Draft from the browser: the colours are not print quality.",
+    courses: "Courses",
+    all: "All",
+    variants: "Variants",
+    eachVariant: "One page per variant",
+    header: "Heading at the top (event, course, length, scale)",
+    print: "Print",
+    loading: "Reading the course setting …",
+    readingMap: "Drawing the map …",
+    noSetting: "There is no course setting yet.",
+    noMap: "No map file: the pages are shown without a map.",
+    mapFailed: "The map file could not be drawn; the pages are shown without a map.",
+    failed: "The course setting could not be read.",
+    retry: "Try again",
+    pages: (n: number) => count(n, "page", "pages"),
+    none: "Choose at least one course.",
+    sheet: (title: string, sheet: number, sheets: number) => sheets > 1 ? `${title} (${sheet} of ${sheets})` : title,
+    failedCourse: (name: string) => `${name} could not be laid out.`,
+    sheets: (n: number) => count(n, "sheet", "sheets"),
+    mode: "What is printed",
+    modeCourses: "Courses",
+    modeRunners: "One map per runner (in the same order as Maps for the start)",
+    fill: "Fill the page in order",
+    repeat: "The same course in all frames",
+    order: "Order",
+    orderBundle: "Bundle order (per variant)",
+    orderStart: "Start order",
+    partsDuplex: "Double-sided: part 2 on the back of part 1 (map exchange)",
+    blankBack: "Back (empty)",
+    runnersLoading: "Reading the runners and their variants …",
+    runnersFailed: "The runners and their variants could not be read.",
+    runnersNone: "There are no entered runners with a course yet.",
+    runnerCounts: "Maps per variant",
+    runnerOk: "The check before printing: every runner has a variant and the number per variant matches Maps for the start.",
+    runnerProblems: "The check before printing found errors:",
+    problem: {
+      MISSING_VARIANT: (name: string, className: string) => `${name} (${className}) has no variant.`,
+      UNKNOWN_COURSE: (course: string) => `The course ${course} does not exist in the course setting.`,
+      UNKNOWN_VARIANT: (course: string, variant: string) => `Variant ${variant} does not exist on ${course} in the course setting.`,
+      EXCLUDED_VARIANT: (course: string, variant: string, runners: number) => `Variant ${variant} on ${course} is left out in the course setting and is ` +
+        `not printed, not even as a spare. ${count(runners, "runner has", "runners have")} it: transfer the courses and reallocate.`,
+      COUNT: (course: string, expected: number, actual: number) => `${course}: Maps for the start has ${expected} maps, the print ${actual}.`
+    },
+    bundlesLink: "Maps for the start",
+    noVariant: "without variant"
+  }
+};
+
+export const printOverviewEn: Texts<typeof printOverviewSv> = {
+  heading: (n: number) => `Overview: ${count(n, "sheet", "sheets")}`,
+  help: "Click a card to edit the sheet below, or mark cards to print them or give them a template.",
+  tools: "Marked sheets",
+  markAll: "Mark all",
+  marked: (n: number) => n === 0 ? "None marked" : `${n} marked`,
+  printMarked: "Print marked",
+  template: "Paper template",
+  applyMarked: (n: number) => n === 0 ? "Use the template on marked courses" : `Use the template on ${count(n, "course", "courses")}`,
+  applyAll: "Use on all courses",
+  open: (label: string) => `Edit ${label}`,
+  mark: (label: string) => `Mark ${label}`,
+  layout: (name: string) => `layout ${name}`,
+  follows: (name: string) => `Follows the template ”${name}”`,
+  changed: "Changed for the course",
+  back: "Back",
+  warnings: { DESCRIPTION_COVERS_MAP: "The description covers the map", COURSE_OUTSIDE_FRAME: "The course goes outside the frame" },
+  applied: (n: number, name: string) => `The template ”${name}” is now used on ${count(n, "course", "courses")}.`
+};
+
+export const printOutputEn: Texts<typeof printOutputSv> = {
+  heading: "Print",
+  what: "What is printed",
+  printer: "Print on a printer",
+  printerHelp: "A quick draft on your own printer; the colours are not print quality.",
+  pdf: "Create PDF for the printer",
+  pdfHelp: "The server writes a PDF with the map as vectors, spot colours and overprint.",
+  editor: "Edit the sheet",
+  preview: "The sheets that are printed",
+  editorHelp: "Select, drag and change directly on the sheet; the fields are beside it (below the sheet on a phone)."
+};
+
+export const sheetPaperEn: Texts<typeof sheetPaperSv> = {
+  heading: "Paper and map frame",
+  help: "Applies to the open sheet; the frame shows what of the map is included.",
+  readOnly: "You can see the paper but not change it.",
+  paper: "Paper",
+  orientation: "Orientation",
+  portrait: "Portrait",
+  landscape: "Landscape",
+  margins: "Margin (mm)",
+  scale: (scale: string) => `Scale for the course 1:${scale}.`,
+  scaleChange: "Change in the course's properties",
+  layoutScale: (scale: string, layout: string) => `Scale for the layout ${layout} 1:${scale}.`,
+  layoutScaleChange: "Change in the layout",
+  area: "Print area",
+  automatic: "Automatic (like Purple Pen)",
+  manual: "Fixed frame",
+  frameEdit: "Move the frame on the sheet",
+  reset: "Automatic again",
+  partReset: "As the course's again",
+  partInherits: "The part has the course's print area until you change it here.",
+  partOwn: "The part has its own print area.",
+  overlap: "Show overlap",
+  overlapNone: "None",
+  overlapLastLeg: "The last leg",
+  overlapPrevious: "The whole previous part",
+  failed: "Saving failed. Try again."
+};

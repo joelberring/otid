@@ -1,7 +1,8 @@
 import { courseDataDocument, CourseSettingEditError, keepPaperOnImport, type CourseSettingDocument } from "@o-tid/course-setting";
 import { decodeIofXml, IofValidationError, readCourseLayout } from "@o-tid/iof-xml";
 import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
-import { courseDataSv as text } from "../i18n/course-data-sv";
+import { courseDataSv } from "../i18n/course-data-sv";
+import type { Texts } from "./language";
 
 export type CourseDataConversion =
   /** `stays`: beskedet står kvar tills det stängs (varianter som blev egna banor). */
@@ -14,7 +15,7 @@ export type CourseDataConversion =
  * kontroller som bara har WGS 84 i filen.
  */
 export function courseSettingFromCourseData(bytes: Uint8Array, options: { readonly title?: string | undefined; readonly mapScale: number;
-  readonly georeference?: MapGeoreference | null | undefined }): CourseDataConversion {
+  readonly georeference?: MapGeoreference | null | undefined }, text: Texts<typeof courseDataSv> = courseDataSv): CourseDataConversion {
   const decoded = decodeIofXml(bytes);
   if ("issue" in decoded) return { kind: "problem", text: `${text.problems.invalid} ${decoded.issue}` };
   try {

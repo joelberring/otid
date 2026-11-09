@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { printColorsEn } from "../../i18n/course-setting-print-more-en";
+import { printPdfEn } from "../../i18n/course-setting-print-more-en";
+import { useTexts } from "../language-provider";
 import type { PrintJob, PrintJobKind, PrintJobs } from "@o-tid/contracts";
 import { officePrintProfile, type PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
-import { printPdfSv as text } from "../../i18n/course-setting-print-pdf-sv";
+import { printPdfSv } from "../../i18n/course-setting-print-pdf-sv";
 import { printColorsSv } from "../../i18n/course-setting-print-colors-sv";
 import {
   createPrintJob, deletePrintJob, fetchPrintJobs, pdfAllowed, pdfPreflight, printJobPdfUrl, printJobRequest, type PrintJobSelection
@@ -23,6 +26,8 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
   /** Rubriken och raden under (ADR-0211 beslut 7: "Skapa PDF för tryckeriet" bredvid "Skriv ut på skrivare"). */
   heading?: string | undefined; help?: string | undefined;
 }) {
+  const colorsText = useTexts(printColorsSv, printColorsEn);
+  const text = useTexts(printPdfSv, printPdfEn);
   const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
   const [warningsConfirmed, setWarningsConfirmed] = useState(false);
   const [mapSpots, setMapSpots] = useState(true);
@@ -80,7 +85,7 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
         : text.unconfirmed(report.unconfirmed.length)}</strong>{report.unconfirmed.length > 0 && <> <a href="#bl-proposal">{text.toProposal}</a></>}</p>}
       {report.findings.length === 0 ? <p className={styles.muted}>{text.noFindings}</p>
         : <ul className={styles.findings}>{report.findings.map((finding, index) => <li key={index} data-severity={finding.severity}>
-          <strong>{printColorsSv.severity[finding.severity]}</strong> {finding.text}
+          <strong>{colorsText.severity[finding.severity]}</strong> {finding.text}
           {finding.severity === "BLOCKING" && finding.rule && report.results.find(result => result.rule === finding.rule)?.status === "NEEDS_CONFIRMATION" &&
             <Button variant="quiet" onClick={() => setConfirmed(current => new Set([...current, finding.rule!]))}>{text.confirm}</Button>}
         </li>)}</ul>}

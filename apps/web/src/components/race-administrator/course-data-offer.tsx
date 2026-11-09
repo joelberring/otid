@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import type { CourseSettingState } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { courseDataSv } from "../../i18n/course-data-sv";
+import { courseDataEn } from "../../i18n/course-setting-link-en";
 import { fetchCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import { saveOnLatest } from "../../lib/course-setting-save-latest";
 import { SaveFailed } from "../course-setting/save-failed";
@@ -20,7 +21,7 @@ import styles from "./sources.module.css";
  * fråga, och den gamla blir en tidigare version (Fil → Tidigare versioner).
  */
 export function CourseDataOffer({ raceId, file }: { raceId: string; file: { readonly name: string; readonly bytes: ArrayBuffer } }) {
-  const text = useTexts(courseDataSv.offer, courseDataOfferEn);
+  const text = useTexts(courseDataSv.offer, courseDataOfferEn), courseDataText = useTexts(courseDataSv, courseDataEn);
   const [state, setState] = useState<CourseSettingState | "none">();
   const [confirming, setConfirming] = useState(false);
   const [phase, setPhase] = useState<"idle" | "working" | "done" | "failed">("idle");
@@ -39,7 +40,7 @@ export function CourseDataOffer({ raceId, file }: { raceId: string; file: { read
     setPhase("working"); setProblem(undefined); setConfirming(false);
     // Banfilens tolkning laddas först när den behövs (arbetsytan klarar sig utan den).
     const { courseSettingFromCourseData, keepEventSettings, rememberCourseSettingNotice } = await import("../../lib/course-data-course-setting");
-    const converted = courseSettingFromCourseData(new Uint8Array(file.bytes), { mapScale });
+    const converted = courseSettingFromCourseData(new Uint8Array(file.bytes), { mapScale }, courseDataText);
     if (converted.kind === "problem") { setProblem(converted.text); setPhase("idle"); return; }
     let appeared = false;
     let current: CourseSettingState | undefined;

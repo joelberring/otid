@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { mapLinkEn } from "../../i18n/course-setting-link-en";
+import { useTexts } from "../language-provider";
 import type { MapLinkError, MapLinkView, MapMakerVerdict } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { mapLinkSv } from "../../i18n/map-link-sv";
@@ -18,7 +20,6 @@ import { EditedMark, VerdictBadge } from "../course-setting/note-text";
 import { Button, Notice } from "../ui";
 import styles from "./map-link-page.module.css";
 
-const text = mapLinkSv.page;
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 const NAME_KEY = "otid-map-link-name";
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 };
@@ -41,6 +42,8 @@ function saveName(value: string) {
 
 /** Positionen från telefonen när den är påslagen (fältläget i banläggningen, utan "Flytta hit"). */
 function usePosition(active: boolean, georeference: MapGeoreference | null): { position?: MapPosition; problem?: string } {
+  const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
+  const text = useTexts(mapLinkText.page, mapLinkEn.page);
   const [fix, setFix] = useState<PositionFix>();
   const [problem, setProblem] = useState<string>();
   useEffect(() => {
@@ -69,6 +72,8 @@ function usePosition(active: boolean, georeference: MapGeoreference | null): { p
  * Inga banor, kontroller eller nummer på kontroller finns på sidan: servern lämnar inte ut dem.
  */
 export function MapLinkPage({ token, initial }: { token: string; initial: MapLinkView }) {
+  const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
+  const text = useTexts(mapLinkText.page, mapLinkEn.page);
   const [view, setView] = useState(initial);
   const [invalid, setInvalid] = useState(false);
   const [selected, setSelected] = useState<string>();
@@ -204,7 +209,7 @@ export function MapLinkPage({ token, initial }: { token: string; initial: MapLin
                 <VerdictBadge verdict={reply.verdict} />
                 {reply.text && <span className={styles.text}>{reply.text}</span>} <EditedMark editedAt={reply.editedAt} />
                 <span className={styles.muted}> – {reply.author ?? (reply.mapMaker ? text.mapMaker : text.courseSetter)}
-                  {reply.createdAt && <>, {mapLinkSv.time(reply.createdAt)}</>}</span>
+                  {reply.createdAt && <>, {mapLinkText.time(reply.createdAt)}</>}</span>
               </li>)}</ul>}
               <form className={styles.form} onSubmit={event => {
                 event.preventDefault();

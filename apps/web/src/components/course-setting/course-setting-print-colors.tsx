@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
+import { printColorsEn } from "../../i18n/course-setting-print-more-en";
+import { useTexts } from "../language-provider";
 import {
   BUILT_IN_PRINT_PROFILES, cmykToCss, colorPreflight, decisionFor, MAP_OWN_PRINT_PROFILE_ID, mapColorAdjust, parsePrintProfile, referenceRow, sourceMapColors,
   SUPERSEDED_PRINT_PROFILES, type Cmyk100, type CourseSettingEdit, type PressNorm, type PrintProfile
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
-import { printColorsSv as text } from "../../i18n/course-setting-print-colors-sv";
+import { printColorsSv } from "../../i18n/course-setting-print-colors-sv";
 import { downloadText } from "../../lib/course-setting-api";
 import { approvalEdits, proposalState } from "../../lib/course-setting-bl-proposal";
 import { blProfileIdFor, colorModeOf, colorSummary, usedColors } from "../../lib/course-setting-print-colors-mode";
@@ -50,6 +52,7 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
   /** BL:s hela lista (under Avancerat) och bara de tveksamma färgerna (läget "Tryck hos BL"), ritade av sidan. */
   cards?: ReactNode; doubtful?: ReactNode;
 }) {
+  const text = useTexts(printColorsSv, printColorsEn);
   const all = useMemo(() => [...BUILT_IN_PRINT_PROFILES, ...saved], [saved]);
   const listed = all.filter(item => !SUPERSEDED_PRINT_PROFILES[item.id] || item.id === profile.id);
   const status = useMemo(() => profileStatus(profile, colors, usage), [profile, colors, usage]);
@@ -179,6 +182,7 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
 function ColorDetails({ profile, colors, usage, layers, norm }: {
   profile: PrintProfile; colors: readonly MapColor[]; usage: ReadonlyMap<number, ColorUsage>; layers: PressLayers | undefined; norm: PressNorm;
 }) {
+  const text = useTexts(printColorsSv, printColorsEn);
   const used = useMemo(() => usedColors(colors, usage).sort((a, b) => a.rank - b.rank || a.id - b.id), [colors, usage]);
   const over = new Set(layers?.over ?? []);
   const list = (items: readonly MapColor[], testId: string) => items.length === 0 ? <p className={styles.muted} data-testid={testId}>{text.detailsNone}</p>
@@ -203,6 +207,7 @@ function ColorDetails({ profile, colors, usage, layers, norm }: {
 function ColorTable({ profile, colors, readOnly, onChange }: {
   profile: PrintProfile; colors: readonly MapColor[]; readOnly: boolean; onChange: (next: (current: PrintProfile) => PrintProfile) => void;
 }) {
+  const text = useTexts(printColorsSv, printColorsEn);
   const adjust = useMemo(() => mapColorAdjust(profile, colors), [profile, colors]);
   const ordered = useMemo(() => [...colors].sort((a, b) => a.rank - b.rank || a.id - b.id), [colors]);
   return <details className={styles.tableBox} data-testid="print-colors-manual">

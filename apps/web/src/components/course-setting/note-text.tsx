@@ -1,28 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import { mapLinkEn } from "../../i18n/course-setting-link-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import type { CourseSettingNoteReplyItem } from "@o-tid/contracts";
 import { mapLinkSv } from "../../i18n/map-link-sv";
 import { HttpStatusError } from "../../lib/course-setting-sync";
 import { Button } from "../ui";
 import styles from "./note-text.module.css";
 
-const text = mapLinkSv;
 
 /** Vem som skrev svaret: visningsnamnet, eller kartritaren med länken (namnet hen skrev eller "Kartritaren"). */
-export function replyAuthor(reply: Pick<CourseSettingNoteReplyItem, "createdBy" | "mapMaker">): string {
+export function replyAuthor(reply: Pick<CourseSettingNoteReplyItem, "createdBy" | "mapMaker">, text: Texts<typeof mapLinkSv> = mapLinkSv): string {
   if (reply.mapMaker) return reply.mapMaker.name ?? text.page.mapMaker;
   return reply.createdBy?.displayName ?? text.page.courseSetter;
 }
 
 /** Kartritarens besked i tråden ("Åtgärdat i kartan" / "Inte åtgärdat"). */
 export function VerdictBadge({ verdict }: { verdict: string | null | undefined }) {
+  const text = useTexts(mapLinkSv, mapLinkEn);
   if (!verdict) return null;
   return <strong className={styles.verdict} data-verdict={verdict}>{text.page.verdicts[verdict]}</strong>;
 }
 
 /** "(ändrad 5 nov. 14:02)" när texten har redigerats. */
 export function EditedMark({ editedAt }: { editedAt: string | null | undefined }) {
+  const text = useTexts(mapLinkSv, mapLinkEn);
   return editedAt ? <span className={styles.edited} data-testid="note-edited">{text.edit.edited(editedAt)}</span> : null;
 }
 
@@ -43,6 +47,7 @@ export async function editOutcome(run: () => Promise<unknown>): Promise<EditOutc
  */
 export function EditableText({ value, editedAt, canEdit, onSave, as = "p" }: { value: string; editedAt?: string | null | undefined; canEdit: boolean;
   onSave: (text: string, expectedText: string) => Promise<EditOutcome>; as?: "p" | "span" }) {
+  const text = useTexts(mapLinkSv, mapLinkEn);
   const [draft, setDraft] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [busy, setBusy] = useState(false);

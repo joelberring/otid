@@ -1,8 +1,10 @@
 "use client";
 
 import React from "react";
+import { courseSettingRaceTypeEn } from "../../i18n/course-setting-link-en";
+import { useTexts } from "../language-provider";
 import type { RaceType } from "@o-tid/contracts";
-import { courseSettingRaceTypeSv as text } from "../../i18n/course-data-sv";
+import { courseSettingRaceTypeSv } from "../../i18n/course-data-sv";
 import styles from "./course-setting.module.css";
 
 /**
@@ -13,6 +15,7 @@ export const newCourseKind = (raceType: RaceType | undefined): "NORMAL" | "SCORE
 export const canTransfer = (raceType: RaceType | undefined) => raceType !== "PARTY";
 
 export function RaceTypeHint({ raceType }: { raceType: RaceType | undefined }) {
+  const text = useTexts(courseSettingRaceTypeSv, courseSettingRaceTypeEn);
   if (raceType !== "ROGAINING" && raceType !== "PARTY") return null;
   return <p className={styles.muted} data-testid="course-setting-race-type">{text[raceType]}</p>;
 }

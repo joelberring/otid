@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
 import { courseLayerOf, passesKey, type PaperRect, type Sheet, type SheetDescription, type SheetFrame } from "@o-tid/course-setting";
 import type { PressLayers } from "../../lib/course-setting-press-layers";
-import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import { DESCRIPTION_FONT, descriptionNodes, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { pageName, pageNodes, type PrintNode } from "../../lib/course-setting-print";
 import { DescriptionShapes } from "./description-svg";
@@ -33,6 +35,7 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
   /** Översiktens små bilder har ett eget testid (inte "print-sheet"). */
   testId?: string | undefined;
 }) {
+  const text = useTexts(coursePrintSv, coursePrintEn);
   const sheetPaper = sheet.paper;
   const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)] && (!pressLayers || (images[`${frameImageKey(frame, colorsKey)}|OVER`]
     && (pressLayers.overWhite.length === 0 || images[`${frameImageKey(frame, colorsKey)}|OVERWHITE`]))));
@@ -137,6 +140,7 @@ const KEY_STEP_MM = 1;
  */
 function PaperDescription({ item, symbols, frame, onPlace }: { item: SheetDescription; symbols: SymbolLookup; frame: SheetFrame | undefined;
   onPlace?: ((description: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => void) | undefined }) {
+  const text = useTexts(coursePrintSv, coursePrintEn);
   const [drag, setDrag] = useState<{ dx: number; dy: number; scale: number }>();
   const start = useRef<{ x: number; y: number; mode: "move" | "resize" }>(undefined);
   const editable = Boolean(onPlace && frame && item.boxMm);

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { sheetPaperEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import {
   countCourseParts, paperLayoutOf, printAreaOf, HUNDREDTH_INCH_MM, PAPER_SIZES, type CourseSettingDocument, type CourseSettingEdit, type PaperName,
   type PartOverlap, type Sheet
 } from "@o-tid/course-setting";
-import { sheetPaperSv as text } from "../../i18n/course-setting-print-overview-sv";
+import { sheetPaperSv } from "../../i18n/course-setting-print-overview-sv";
 import { ownPrintArea, pageOfSheet, paperNameOf, printAreaEdit, type PrintPage } from "../../lib/course-setting-sheet-frame";
 import { Button } from "../ui";
 import { HelpLink } from "../help/help-panel";
@@ -29,6 +31,7 @@ export function SheetPaperPanel({ raceId, document, target, readOnly, onSave, fr
   /** ADR-0217: arket i en annan layout än huvudlayouten: skalan är layoutens och ändras i layouten (`onEdit`). */
   layout?: { readonly name: string; readonly onEdit: () => void } | undefined;
 }) {
+  const text = useTexts(sheetPaperSv, sheetPaperEn);
   const [failed, setFailed] = useState(false);
   if (!target) return null;
   const { course, part, sheet } = target;
@@ -86,6 +89,7 @@ export function SheetPaperPanel({ raceId, document, target, readOnly, onSave, fr
 
 /** Marginalen i mm, sparad när fältet lämnas (eller Enter). */
 function MarginField({ value, onCommit }: { value: number; onCommit: (mm: number) => void }) {
+  const text = useTexts(sheetPaperSv, sheetPaperEn);
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
   const commit = () => {

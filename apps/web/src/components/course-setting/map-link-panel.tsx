@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mapLinkEn } from "../../i18n/course-setting-link-en";
 import { notesEn } from "../../i18n/course-setting-notes-en";
 import { useTexts } from "../language-provider";
 import { suggestedMapLinkLastDay } from "@o-tid/domain";
@@ -11,7 +12,6 @@ import { createMapLink, fetchMapLinkState, mapLinkUrl, revokeMapLink } from "../
 import { Button, CopyButton, DateInput, Notice } from "../ui";
 import styles from "./map-link-panel.module.css";
 
-const text = mapLinkSv.share;
 
 /**
  * ADR-0214: "Dela med kartritaren" i Kartfel (den som får ändra banläggningen och administratörer). Länken visas en gång
@@ -19,6 +19,8 @@ const text = mapLinkSv.share;
  * Tiden är obegränsad som förval; "Begränsa tiden" föreslår tävlingsdagen plus en vecka.
  */
 export function MapLinkPanel({ raceId, nearCount }: { raceId: string; nearCount: number }) {
+  const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
+  const text = useTexts(mapLinkText.share, mapLinkEn.share);
   const notesText = useTexts(notesSv, notesEn);
   const [state, setState] = useState<MapLinkState>();
   const [token, setToken] = useState<string>();

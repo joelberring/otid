@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { routeChoiceAnalysisEn } from "../../i18n/route-choice-en";
 import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
 import { courseSettingUxEn } from "../../i18n/course-setting-ux-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
@@ -204,6 +205,7 @@ export function LegPanel({ legKey, analysis, status, highlighted, onHighlight, n
   status: "idle" | "waiting" | "analysing" | "failed" | "done"; highlighted?: number | undefined; onHighlight?: (index: number | undefined) => void;
   /** ADR-0199: fågelvägen korsar ett förbjudet område (vägvalet går runt, eller ingen laglig väg). */
   notice?: string | undefined }) {
+  const routeText = useTexts(routeChoiceSv, routeChoiceAnalysisEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const rows = analysis?.best ? [{ ...analysis.best, timeRatio: 1 }, ...analysis.alternatives] : [];
   return <section className={styles.panel} aria-labelledby="course-setting-leg" data-testid="course-setting-leg">
@@ -213,7 +215,7 @@ export function LegPanel({ legKey, analysis, status, highlighted, onHighlight, n
     {legKey && status === "analysing" && <p role="status" className={styles.muted}>{text.leg.analysing}</p>}
     {legKey && status === "failed" && <p role="alert" className={styles.muted}>{text.leg.failed}</p>}
     {legKey && analysis && status === "done" && <div role="status">
-      <p className={styles.verdict} data-verdict={analysis.verdict}>{routeChoiceSv.verdicts[analysis.verdict]}</p>
+      <p className={styles.verdict} data-verdict={analysis.verdict}>{routeText.verdicts[analysis.verdict]}</p>
       <p>{text.leg.straight(analysis.straightMeters)}</p>
       {analysis.best ? <p>{text.leg.best(analysis.best.meters, analysis.best.climbMeters, minutes(analysis.best.seconds))}</p> : <p>{text.leg.noRoute}</p>}
       {notice && <p className={styles.muted} data-testid="course-setting-leg-forbidden">{notice}</p>}

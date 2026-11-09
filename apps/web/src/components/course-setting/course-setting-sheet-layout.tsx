@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { sheetLayoutEn } from "../../i18n/course-setting-print-more-en";
+import { useTexts } from "../language-provider";
 import {
   BUILT_IN_SHEET_LAYOUTS, type CourseSettingEdit, type SheetLayout, type PaperName, type TemplateStrip, type TemplateText
 } from "@o-tid/course-setting";
-import { sheetLayoutSv as text } from "../../i18n/course-setting-print-profile-sv";
+import { sheetLayoutSv } from "../../i18n/course-setting-print-profile-sv";
 import { gridOf, regrid } from "../../lib/course-setting-print-settings";
 import { Button, Notice } from "../ui";
 import { HelpLink } from "../help/help-panel";
@@ -22,6 +24,7 @@ export function SheetLayoutPanel({ saved, selectedId, readOnly, onSelect, onDraf
   saved: readonly SheetLayout[]; selectedId: string; readOnly: boolean;
   onSelect: (id: string) => void; onDraft: (template: SheetLayout | undefined) => void; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
+  const text = useTexts(sheetLayoutSv, sheetLayoutEn);
   const all = useMemo(() => [...BUILT_IN_SHEET_LAYOUTS, ...saved], [saved]);
   const active = all.find(template => template.id === selectedId);
   const [draft, setDraftState] = useState<SheetLayout>();

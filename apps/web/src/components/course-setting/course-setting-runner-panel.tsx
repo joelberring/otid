@@ -1,10 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import Link from "next/link";
 import type { SheetItem } from "@o-tid/course-setting";
-import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
-import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
+import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import type { RunnerPrint, RunnerPrintProblem } from "../../lib/course-setting-runner-print";
 import { searchRunners, type RunnerSelection } from "../../lib/course-setting-runner-select";
 import { Button, Notice } from "../ui";
@@ -12,7 +16,7 @@ import styles from "./course-setting-print-page.module.css";
 
 export type BackMode = "NONE" | "DUPLEX" | "SEPARATE";
 
-function problemText(problem: RunnerPrintProblem): string {
+function problemText(problem: RunnerPrintProblem, text: Texts<typeof coursePrintSv>): string {
   switch (problem.kind) {
     case "MISSING_VARIANT": return text.page.problem.MISSING_VARIANT(problem.name, problem.className);
     case "UNKNOWN_COURSE": return text.page.problem.UNKNOWN_COURSE(problem.courseName);
@@ -35,6 +39,8 @@ export function RunnerControls({ bundlesState, runners, raceId, order, setOrder,
   /** Antalet kartor i urvalet. */
   chosen: number;
 }) {
+  const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
+  const text = useTexts(coursePrintSv, coursePrintEn);
   if (bundlesState === "reading" || bundlesState === "none") return <p role="status">{text.page.runnersLoading}</p>;
   if (bundlesState === "failed" || !runners) return <Notice tone="error">{text.page.runnersFailed}</Notice>;
   return <div className={styles.stack} data-testid="print-runners">
@@ -55,13 +61,14 @@ export function RunnerControls({ bundlesState, runners, raceId, order, setOrder,
       `${row.courseName} ${row.variantCode ?? text.page.noVariant}${row.layout ? ` (${row.layout})` : ""} ${row.count}`).join(" · ")}</p>}
     {runners.problems.length === 0 ? <Notice tone="ok"><p data-testid="print-runner-check">{text.page.runnerOk}</p></Notice>
       : <Notice tone="error"><p data-testid="print-runner-check">{text.page.runnerProblems}</p>
-        <ul className={styles.problems}>{runners.problems.map((problem, index) => <li key={index}>{problemText(problem)}</li>)}</ul>
+        <ul className={styles.problems}>{runners.problems.map((problem, index) => <li key={index}>{problemText(problem, text)}</li>)}</ul>
         <p><Link href={`/admin/${raceId}/maps`}>{text.page.bundlesLink}</Link></p></Notice>}
   </div>;
 }
 
 /** Vilka som skrivs ut: alla, valda klasser, valda löpare (sök på namn eller nummer) eller valda lag med sträcka. */
 function RunnerChooser({ items, selection, setSelection }: { items: readonly SheetItem[]; selection: RunnerSelection; setSelection: (selection: RunnerSelection) => void }) {
+  const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
   const classes = useMemo(() => [...new Set(items.flatMap(item => item.runner?.className ? [item.runner.className] : []))].sort((a, b) => a.localeCompare(b, "sv-SE")), [items]);
   const legs = useMemo(() => [...new Set(items.flatMap(item => item.runner?.leg !== undefined ? [item.runner.leg] : []))].sort((a, b) => a - b), [items]);
   const relay = legs.length > 0;

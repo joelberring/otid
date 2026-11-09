@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { sheetLayoutEn } from "../../i18n/course-setting-print-more-en";
+import { printPdfEn } from "../../i18n/course-setting-print-more-en";
+import { printOutputEn } from "../../i18n/course-setting-print-en";
+import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
 import { printWhatEn } from "../../i18n/course-setting-layout-en";
 import { trainingEn } from "../../i18n/course-setting-training-en";
 import { useTexts } from "../language-provider";
@@ -12,7 +17,7 @@ import {
   exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, descriptionSymbols, printSheetGroups, layoutEntries,
   sheetLayoutOfLayout, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
-import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import { sheetLayoutSv } from "../../i18n/course-setting-print-profile-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { fetchCourseSetting, saveCourseSettingEdits } from "../../lib/course-setting-api";
@@ -25,7 +30,7 @@ import { safely } from "../../lib/course-setting-safely";
 import { trainingSv } from "../../i18n/course-setting-training-sv";
 import { runnerPrintItems, type RunnerPrint } from "../../lib/course-setting-runner-print";
 import { ALL_RUNNERS, runnerCheckRows, runnerPages, selectRunnerItems, type CheckRow, type RunnerSelection } from "../../lib/course-setting-runner-select";
-import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
+import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import { RunnerControls, type BackMode } from "./course-setting-runner-panel";
 import { RunnerCheckTable } from "./course-setting-runner-check";
 import { fetchMapBundles } from "../../lib/map-bundles-client";
@@ -39,9 +44,9 @@ import { pressNormOf } from "../../lib/course-setting-press-layers";
 import { Button, Notice } from "../ui";
 import { BlProposalPanel } from "./course-setting-bl-proposal";
 import { PrintColors } from "./course-setting-print-colors";
-import { printOutputSv as outputText } from "../../i18n/course-setting-print-overview-sv";
+import { printOutputSv } from "../../i18n/course-setting-print-overview-sv";
 import { PdfPanel } from "./course-setting-pdf-panel";
-import { printPdfSv as pdfText } from "../../i18n/course-setting-print-pdf-sv";
+import { printPdfSv } from "../../i18n/course-setting-print-pdf-sv";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
 import { HelpButton, HelpLink } from "../help/help-panel";
 import { useDetailGaps } from "./course-setting-circle-cutting";
@@ -74,6 +79,11 @@ const clockIn = (timeZone: string) => (instant: string | null) => {
  * kartan som vektorer, dekorfärger och övertryck (`PdfPanel`).
  */
 export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: string; initialMode?: Mode }) {
+  const sheetLayoutText = useTexts(sheetLayoutSv, sheetLayoutEn);
+  const pdfText = useTexts(printPdfSv, printPdfEn);
+  const outputText = useTexts(printOutputSv, printOutputEn);
+  const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
+  const text = useTexts(coursePrintSv, coursePrintEn);
   const whatText = useTexts(printWhatSv, printWhatEn);
   const layoutText = useTexts(layoutSv, layoutEn);
   const trainingText = useTexts(trainingSv, trainingEn);
@@ -342,13 +352,13 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
               onChange={event => setPartsDuplex(event.target.checked)} />{text.page.partsDuplex}</label>}
             {lineChosen && <label className={styles.check}><input type="checkbox" checked={controllerMaps} data-testid="print-controller"
               onChange={event => setControllerMaps(event.target.checked)} />{trainingText.print.controller}</label>}
-            {template && template.frames.length > 1 && <label className={styles.field}>{sheetLayoutSv.mode}
+            {template && template.frames.length > 1 && <label className={styles.field}>{sheetLayoutText.mode}
               <select value={fill} onChange={event => setFill(event.target.value as "FILL" | "REPEAT")} data-testid="print-fill">
                 <option value="FILL">{text.page.fill}</option><option value="REPEAT">{text.page.repeat}</option></select></label>}
           </div>
         </> : <RunnerControls bundlesState={bundlesState} runners={runners} raceId={raceId} order={order} setOrder={setOrder} backMode={backMode} setBackMode={setBackMode}
           selection={selection} setSelection={setSelection} chosen={chosenRunners.length} />}
-        <span role="status" data-testid="print-count">{sheets.length === 0 ? text.page.none : frameCount > sheets.length ? `${text.page.sheets(sheets.length)}, ${sheetLayoutSv.frames(frameCount)}`
+        <span role="status" data-testid="print-count">{sheets.length === 0 ? text.page.none : frameCount > sheets.length ? `${text.page.sheets(sheets.length)}, ${sheetLayoutText.frames(frameCount)}`
           : text.page.pages(sheets.length)}{waiting ? ` – ${text.page.readingMap}` : ""}</span>
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
         <div className={styles.outputs}>

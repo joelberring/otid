@@ -4,6 +4,8 @@ import { useState } from "react";
 import { offlineEn } from "../../i18n/course-setting-collab-en";
 import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { useTexts } from "../language-provider";
+import { mapLinkEn } from "../../i18n/course-setting-link-en";
+import { mapLinkSv } from "../../i18n/map-link-sv";
 import type { Texts } from "../../lib/language";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-setting-en";
@@ -126,6 +128,7 @@ export interface NotesPanelProps {
 /** Notiserna: filter, lista (klick visar på kartan), tråden med svar, klar/öppen, foto och borttagning. */
 export function NotesPanel({ raceId, notes, document, show, onShow, selected, onSelect, onReveal, onReply, onStatus, onCourseNote, view, draft,
   readOnlyCourse, pending, filter, onFilter, kind, onKind, canDelete, onDelete, onDeleteReply, onSketch, canEdit, onEdit }: NotesPanelProps) {
+  const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
   const notesText = useTexts(notesSv, notesEn);
   const offlineText = useTexts(offlineSv, offlineEn);
   const courseText = useTexts(courseSettingSv, courseSettingEn);
@@ -174,7 +177,7 @@ export function NotesPanel({ raceId, notes, document, show, onShow, selected, on
               <VerdictBadge verdict={row.verdict} />
               {(row.text || !row.verdict) && <EditableText value={row.text} editedAt={row.editedAt} canEdit={canEdit(row.createdBy?.accountId ?? null)}
                 onSave={(value, expected) => onEdit(note, row.id, value, expected)} />}
-              <span className={styles.muted}>{text.notes.by(replyAuthor(row), row.createdAt)}</span>
+              <span className={styles.muted}>{text.notes.by(replyAuthor(row, mapLinkText), row.createdAt)}</span>
               {canDelete(row.createdBy?.accountId ?? "") && <Button variant="quiet" className={own.small} onClick={() => onDeleteReply(note, row.id)}>
                 {notesText.deleteReply}</Button>}</li>)}</ul>
             <form className={styles.row} onSubmit={event => {

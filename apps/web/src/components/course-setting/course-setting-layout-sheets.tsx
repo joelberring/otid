@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
+import { printOutputEn } from "../../i18n/course-setting-print-en";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
 import { useTexts } from "../language-provider";
 import {
@@ -8,9 +11,9 @@ import {
   type CourseSettingDocument, type CourseSettingEdit, type SheetLayout, type MapRect, type PaperRect, type PaperTemplate, type Sheet,
   type SheetDescription, type SheetFrame, type SheetItem
 } from "@o-tid/course-setting";
-import { coursePrintSv as printText } from "../../i18n/course-setting-print-sv";
-import { printOutputSv as outputText } from "../../i18n/course-setting-print-overview-sv";
-import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
+import { printOutputSv } from "../../i18n/course-setting-print-overview-sv";
+import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { sheetEdits } from "../../lib/course-setting-layouts";
 import { pageStyles } from "../../lib/course-setting-print";
@@ -49,6 +52,9 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; map: PrintMap; mapBounds: MapRect | undefined; symbols: SymbolLookup; onClose: () => void;
   layoutName: string;
 }) {
+  const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
+  const outputText = useTexts(printOutputSv, printOutputEn);
+  const printText = useTexts(coursePrintSv, coursePrintEn);
   const text = useTexts(layoutSv, layoutEn);
   const projected = useMemo(() => layoutDocument(document, layout), [document, layout]);
   const sheetSave = useMemo(() => (edits: CourseSettingEdit[]) => save(sheetEdits(document, layout, edits)), [save, document, layout]);
@@ -187,7 +193,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
           onSelect={id => { setDraft(undefined); void save([{ type: "UPDATE_LAYOUT", layout, changes: { layoutTemplate: id === "NONE" ? null : id } }]); }}
           onDraft={setDraft} onSave={save} />
         {panel && <PaperSpacePanel raceId={raceId} document={view} readOnly={!canEdit} {...panel} onCourse={choosePaperCourse} />}
-        <PaperDescriptionsPanel document={view} courses={paperCourses(view, chosen)} placed={placed} readOnly={!canEdit} onSave={paperSave} />
+        <PaperDescriptionsPanel document={view} courses={paperCourses(view, chosen, printText.print.allControls)} placed={placed} readOnly={!canEdit} onSave={paperSave} />
       </div>
     </div>
     <p className={printStyles.muted}>{outputText.editorHelp}</p>

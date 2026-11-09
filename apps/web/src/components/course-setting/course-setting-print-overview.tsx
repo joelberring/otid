@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { printOverviewEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
 import type { PaperTemplate } from "@o-tid/course-setting";
-import { printOverviewSv as text } from "../../i18n/course-setting-print-overview-sv";
+import { printOverviewSv } from "../../i18n/course-setting-print-overview-sv";
 import type { SheetCard } from "../../lib/course-setting-print-overview";
 import { Button } from "../ui";
 import styles from "./course-setting-print-overview.module.css";
@@ -21,6 +23,7 @@ export function PrintOverview({ cards, thumb, selected, onOpen, templates, readO
   onApplyTemplate: (template: PaperTemplate, courses: readonly string[] | "ALL") => void;
   onPrintMarked: (keys: readonly string[]) => void;
 }) {
+  const text = useTexts(printOverviewSv, printOverviewEn);
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
   const [templateId, setTemplateId] = useState("");
   const template = templates.find(item => item.id === templateId) ?? templates[0];

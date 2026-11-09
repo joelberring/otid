@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
 import { paperSpaceEn } from "../../i18n/course-setting-paper-en";
 import { useTexts } from "../language-provider";
 import {
@@ -13,7 +14,7 @@ import {
   anchorIn, anchorRect, newItemIdFor, newPaperItem, paperFontFamily, paperItemEdit, paperItemLabel, paperItemsOf, paperLayoutEdit
 } from "../../lib/course-setting-paper";
 import { VariableOptions } from "./course-setting-paper-variables";
-import { runnerPrintSv as runnerText } from "../../i18n/course-setting-runner-print-sv";
+import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import { uploadPaperImage } from "../../lib/course-setting-paper-api";
 import { Button } from "../ui";
 import { CLIP_SELECTION, WHITE_SELECTION, type PaperSelection } from "./course-setting-paper-items";
@@ -158,6 +159,7 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
   item: PaperItem; source: string; placed: PlacedPaper | undefined; readOnly: boolean;
   onChange: (item: PaperItem) => void; onRemove: () => void; onReset: () => void; onClose: () => void;
 }) {
+  const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
   const text = useTexts(paperSpaceSv, paperSpaceEn);
   const [draft, setDraft] = useState(item.kind === "TEXT" ? item.text : "");
   useEffect(() => { if (item.kind === "TEXT") setDraft(item.text); }, [item]);

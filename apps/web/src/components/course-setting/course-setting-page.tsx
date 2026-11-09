@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { raceMapEn } from "../../i18n/workspace-small-en";
+import { courseDataEn } from "../../i18n/course-setting-link-en";
 import { offlineEn } from "../../i18n/course-setting-collab-en";
 import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
@@ -44,6 +46,8 @@ async function phoneRecord(raceId: string): Promise<FieldRecord | undefined> {
   }
 }
 export function CourseSettingPage({ raceId }: { raceId: string }) {
+  const raceMapText = useTexts(raceMapSv, raceMapEn);
+  const courseDataText = useTexts(courseDataSv, courseDataEn);
   const offlineText = useTexts(offlineSv, offlineEn);
   const copy = useTexts(collaborationSv, collaborationEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
@@ -90,7 +94,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
 
   async function uploadMapFile(form: FormData): Promise<Message | undefined> {
     const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-    if (!csrf) return { tone: "error", text: raceMapSv.mapFile.failed };
+    if (!csrf) return { tone: "error", text: raceMapText.mapFile.failed };
     try {
       const response = await fetchUntilReached(`${courseSettingBase(raceId)}/map/source`, { method: "POST", credentials: "same-origin",
         headers: { "x-otid-csrf": csrf }, body: form });
@@ -98,17 +102,17 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       if (response.status === 422) {
         const parsed = raceMapProblemSchema.safeParse(await response.json()).data;
         const problem = parsed?.error;
-        return { tone: "error", text: problem === "MAP_FILE_TOO_LARGE" ? raceMapSv.mapFile.tooLarge
-          : problem === "IMAGE_TOO_LARGE" ? raceMapSv.mapFile.errors.TOO_LARGE
-          : problem === "STORAGE_QUOTA_EXCEEDED" ? raceMapSv.quota(parsed?.quota) : raceMapSv.mapFile.invalid };
+        return { tone: "error", text: problem === "MAP_FILE_TOO_LARGE" ? raceMapText.mapFile.tooLarge
+          : problem === "IMAGE_TOO_LARGE" ? raceMapText.mapFile.errors.TOO_LARGE
+          : problem === "STORAGE_QUOTA_EXCEEDED" ? raceMapText.quota(parsed?.quota) : raceMapText.mapFile.invalid };
       }
       if (!response.ok) {
         console.error("Kartfilen sparades inte", response.status, response.headers.get("content-type"));
-        return { tone: "error", text: raceMapSv.mapFile.failed };
+        return { tone: "error", text: raceMapText.mapFile.failed };
       }
       await load();
       return { tone: "ok", text: text.mapSaved };
-    } catch { return { tone: "error", text: raceMapSv.mapFile.failed }; }
+    } catch { return { tone: "error", text: raceMapText.mapFile.failed }; }
   }
 
   async function first(file: ReadFile) {
@@ -119,7 +123,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       const outcome = await importCourseSetting(raceId, { document, expectedVersion: 0, fileName: file.fileName, ppen: file.ppen });
       if (outcome.kind === "too-large") { setMessage({ tone: "error", text: text.file.tooLarge }); return; }
       // Någon annan hann börja: deras banläggning visas, filen ersätter den inte utan att banläggaren väljer det.
-      setNotice(outcome.kind === "conflict" ? courseDataSv.startConflict : outcome.kind === "saved" ? [text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
+      setNotice(outcome.kind === "conflict" ? courseDataText.startConflict : outcome.kind === "saved" ? [text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
         ...file.warnings.map(warning => `${warning.text.replace(/\.$/, "")}.`)].join(" ") : undefined);
       await load();
     } catch { setMessage({ tone: "error", text: text.file.failed }); } finally { setBusy(false); }
@@ -151,7 +155,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   return <main className={styles.page}>
     <header className={styles.head}>{back}<h1>{text.title}</h1><HelpButton view={["CS_START", "COURSE_SETTING"]} /><AccountMenu />{state.mapFile && <p>{state.mapFile.fileName} · 1:{state.mapFile.scale}</p>}</header>
     {!state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-map-file">
-      <h2 id="course-setting-map-file">{raceMapSv.mapFile.upload}</h2>
+      <h2 id="course-setting-map-file">{raceMapText.mapFile.upload}</h2>
       <p>{text.noMapFile}</p>
       {state.access.admin ? <>
         {/* ADR-0210: kartan ur klubbarkivet i stället för att ladda upp kartfilen. */}

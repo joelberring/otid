@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
 import { specialVisible, type CourseSettingDocument, type CourseSettingEdit, type SpecialKind, type SpecialObject } from "@o-tid/course-setting";
-import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import type { EditorState } from "../../lib/course-setting-editor";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { paperToMap, SPECIAL_TOOL_KINDS } from "../../lib/course-setting-specials";
@@ -24,6 +26,7 @@ export function SpecialsPanel({ document, state, readOnly, onKind, onFinish, onC
   /** ADR-0180 beslut 14: "Vrid efter sträckan" för en valfri passage. */
   onAlong?: (() => void) | undefined;
 }) {
+  const text = useTexts(coursePrintSv, coursePrintEn);
   const view = state.view;
   // Kontrollbeskrivningen (Purple Pens `descriptions`) är inget kartobjekt här; den placeras i utskriften.
   const shown = document.specialObjects.filter(special => special.kind !== "descriptions" && specialVisible(special, view));
@@ -56,6 +59,7 @@ function SpecialEditor({ document, view, special, readOnly, onEdits, onAlong }: 
   document: CourseSettingDocument; view: string; special: SpecialObject; readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
   onAlong?: (() => void) | undefined;
 }) {
+  const text = useTexts(coursePrintSv, coursePrintEn);
   const update = (changes: Extract<CourseSettingEdit, { type: "UPDATE_SPECIAL" }>["changes"]) =>
     onEdits([{ type: "UPDATE_SPECIAL", special: special.id, changes }]);
   const [draft, setDraft] = useState(special.text ?? "");

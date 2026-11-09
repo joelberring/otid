@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { coursePrintEn } from "../../i18n/course-setting-print-en";
+import { useTexts } from "../language-provider";
 import {
   descriptionShown, paperLayoutOf, type CourseSettingDocument, type CourseSettingEdit, type PaperDescriptions, type SheetDescription
 } from "@o-tid/course-setting";
-import { coursePrintSv as text } from "../../i18n/course-setting-print-sv";
+import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { Button } from "../ui";
 import { HelpLink } from "../help/help-panel";
@@ -27,6 +29,7 @@ export function PaperDescriptionsPanel({ document, courses, placed, readOnly, on
   placed: ReadonlyMap<string, SheetDescription>;
   readOnly: boolean; onSave: (edits: CourseSettingEdit[]) => Promise<boolean>;
 }) {
+  const text = useTexts(coursePrintSv, coursePrintEn);
   const [message, setMessage] = useState<{ course: string; ok: boolean }>();
   async function save(course: string, change: PaperDescriptions) {
     const ok = await onSave([paperDescriptionEdit(document, course, change)]);
@@ -69,8 +72,8 @@ export function PaperDescriptionsPanel({ document, courses, placed, readOnly, on
 }
 
 /** Banornas namn för panelen, med Alla kontroller om den är vald. */
-export function paperCourses(document: CourseSettingDocument, chosen: readonly string[]): { id: string; name: string }[] {
+export function paperCourses(document: CourseSettingDocument, chosen: readonly string[], allControls: string): { id: string; name: string }[] {
   const courses = [...document.courses].sort((a, b) => a.order - b.order).filter(course => chosen.includes(course.id))
     .map(course => ({ id: course.id, name: course.name }));
-  return chosen.includes(ALL_CONTROLS) ? [{ id: ALL_CONTROLS, name: text.print.allControls }, ...courses] : courses;
+  return chosen.includes(ALL_CONTROLS) ? [{ id: ALL_CONTROLS, name: allControls }, ...courses] : courses;
 }

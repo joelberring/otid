@@ -1,8 +1,10 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { startDrawAdvancedEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import own from "./start-draw-advanced.module.css";
-import { startDrawAdvancedSv as text } from "../../i18n/start-draw-advanced-sv";
+import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { Button, Field, Notice, Table } from "../ui";
 import { advancedChanged, drawClassOrder, type LaterStartKind } from "./start-draw-advanced";
 import type { Workspace } from "./workspace-state";
@@ -12,6 +14,7 @@ import type { Workspace } from "./workspace-state";
  * start per klass, och seedning med ranking från fil. Det enkla läget ovanför är oförändrat.
  */
 export function StartDrawAdvanced({ ws, locked }: { ws: Workspace; locked: boolean }) {
+  const text = useTexts(startDrawAdvancedSv, startDrawAdvancedEn);
   const { raceId, drawSetup, drawAdvanced, drawAdvancedErrors: errors, drawAdvancedOpen, setDrawAdvancedOpen,
     changeDrawAdvanced, selectDrawClasses } = ws;
   if (!drawSetup) return null;
@@ -51,6 +54,7 @@ export function StartDrawAdvanced({ ws, locked }: { ws: Workspace; locked: boole
 }
 
 function ClassOrder({ ws, locked }: { ws: Workspace; locked: boolean }) {
+  const text = useTexts(startDrawAdvancedSv, startDrawAdvancedEn);
   const { raceId, drawSetup, drawRows, drawAdvanced, drawAdvancedErrors: errors, changeLaterStart, moveDrawClass, resetDrawOrder } = ws;
   if (!drawSetup) return null;
   const order = drawClassOrder(drawSetup, drawRows, drawAdvanced);
@@ -93,6 +97,7 @@ function ClassOrder({ ws, locked }: { ws: Workspace; locked: boolean }) {
 }
 
 function Seeding({ ws, locked }: { ws: Workspace; locked: boolean }) {
+  const text = useTexts(startDrawAdvancedSv, startDrawAdvancedEn);
   const { raceId, drawSetup, drawRows, drawAdvanced, drawAdvancedErrors: errors, drawSeedClass, setDrawSeedClass, drawSeedImport,
     changeDrawAdvanced, changeSeed, clearClassSeeds, importSeedRanking } = ws;
   if (!drawSetup) return null;

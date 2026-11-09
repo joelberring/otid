@@ -1,6 +1,10 @@
+import type { Texts } from "../../lib/language";
+import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { useState } from "react";
+
+
 import type { StartDrawLaterStart, StartDrawRules, StartDrawSetupResponse } from "@o-tid/contracts";
-import { startDrawAdvancedSv as text } from "../../i18n/start-draw-advanced-sv";
+
 import { formatClockTime, parseRaceClockNear } from "../../lib/clock-time";
 import { matchSeedRanking } from "../../lib/seed-ranking-csv";
 import type { DrawRow } from "./start-draw";
@@ -81,7 +85,8 @@ export type AdvancedRequest = { rules: StartDrawRules; seeds: { entryId: string;
  * och löparnas seedning skickas.
  */
 export function advancedRequest(setup: StartDrawSetupResponse, rows: Record<string, DrawRow>, advanced: DrawAdvanced,
-  firstStartTime: string, selected: ReadonlySet<string>): { request: AdvancedRequest } | { errors: Record<string, string> } {
+  firstStartTime: string, selected: ReadonlySet<string>, text: Pick<Texts<typeof startDrawAdvancedSv>, "errors"> = startDrawAdvancedSv)
+  : { request: AdvancedRequest } | { errors: Record<string, string> } {
   const errors: Record<string, string> = {};
   const maxPerMinute = limit(advanced.maxPerMinute), maxPerMinutePerPen = limit(advanced.maxPerMinutePerPen);
   if (maxPerMinute === undefined) errors.maxPerMinute = text.errors.limit;

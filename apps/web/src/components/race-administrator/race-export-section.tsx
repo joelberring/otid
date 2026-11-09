@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { raceBackupEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { raceBackupStatusSchema } from "@o-tid/contracts";
-import { raceBackupSv as text } from "../../i18n/race-backup-sv";
+import { raceBackupSv } from "../../i18n/race-backup-sv";
 import { saveVerifiedDownload } from "../../lib/verified-download";
 import { Button, Notice, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -19,6 +21,7 @@ function fileName(response: Response): string {
  * att filen innehåller personuppgifter och när den senast laddades ner. Bara administratören.
  */
 export function RaceExportSection({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceBackupSv, raceBackupEn);
   const { assertCurrent, beginRequest, current, finish, pending, raceId, request, requireSession, saving, workflowLocked, writingRef } = ws;
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [lastDownloadedAt, setLastDownloadedAt] = useState<string | null>();

@@ -12,6 +12,10 @@ import type { checkinHistorySv } from "./checkin-history-sv";
 import type { checkinConflictReviewSv } from "./checkin-conflict-review-sv";
 import type { formErrorsSv } from "./form-errors-sv";
 import type { raceWorkflowDetailSv } from "./race-workflow-detail-sv";
+import type { startDrawAdvancedSv } from "./start-draw-advanced-sv";
+import type { raceBackupSv } from "./race-backup-sv";
+import type { controlMapSv } from "./control-map-sv";
+import type { stationsSv } from "./stations-sv";
 import { startRuleEn as rule } from "./workspace-admin-en";
 
 /** Engelska, arbetsytan del 11: de mindre delarna (banhemlighet, omläsning, beslut, otolkade, manuell tid, Rätta, fältfel …). */
@@ -301,4 +305,290 @@ export const raceWorkflowDetailEn: Texts<typeof raceWorkflowDetailSv> = {
   untimedControls: codes => `Punched without a valid time: ${codes}. The punch is before the start or after the finish, so the split time is unknown. Check the runner's start time and the unit's clock.`,
   extraPunches: "Extra punches",
   none: "None"
+};
+
+const and = (list: readonly string[]) => list.length <= 1 ? list.join("") : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+const minutesEn = (count: number) => plural(count, "minute", "minutes");
+
+/** Engelska, arbetsytan del 12: lottningens Avancerat. */
+export const startDrawAdvancedEn: Texts<typeof startDrawAdvancedSv> = {
+  title: "Advanced",
+  changed: "settings changed",
+  help: "The settings are saved with the draw and stay for next time. Classes that are not ticked keep their times; the new times are placed around them.",
+  selectAll: "Tick all classes", selectUndrawn: "Tick classes without start times",
+  rulesHeading: "Rules for the whole start",
+  groupControls: "Start group is decided by the first",
+  groupControlsOptions: { "1": "1 control", "2": "2 controls", "3": "3 controls" },
+  groupControlsHelp: "Classes whose courses begin with the same controls never start the same minute. A forked class counts to the group if any of its variants begins the same way.",
+  maxPerMinute: "Max starts per minute (total)",
+  maxPerMinutePerPen: "Max starts per minute and start pen",
+  limitHelp: "Leave empty for no limit. Vacant times count; a mass start counts as one start.",
+  penHelpSingle: "With one control each pen starts one class at a time. The limit per pen applies when more controls decide the start group.",
+  penHelp: "Start pen = classes whose courses have the same first control.",
+  lastStart: "Last start (clock, optional)",
+  lastStartHelp: "The preview warns if the starts do not fit.",
+  orderHeading: "Start order and later start",
+  orderHelp: "The classes are drawn in this order: higher up starts earlier in its start group. A class with a later start is placed first at its time and the others fill around it.",
+  orderAutomatic: "Automatic order: mass start first, then the largest class.",
+  orderCustom: "Own order.",
+  orderReset: "Use automatic order",
+  position: "Order", className: "Class", firstStart: "First start",
+  moveUp: className => `Move ${className} up`, moveDown: className => `Move ${className} down`,
+  laterKind: className => `First start ${className}`,
+  laterValue: className => `Time for first start ${className}`,
+  laterKinds: { NONE: "With the others", CLOCK: "Clock time", OFFSET: "Minutes after first start" },
+  laterPlaceholder: { CLOCK: "10:30", OFFSET: "60" },
+  notDrawn: "Not ticked",
+  seedingHeading: "Seeding",
+  seedingHelp: "Seeded runners are drawn after the others in the class; 1 is best and starts last. The others are drawn freely before.",
+  seeding: "Seeded are drawn", seedingOptions: { LAST: "Last in the class (best last)", SPREAD: "Evenly spread (best last)" },
+  seedClass: "Show runners in the class",
+  seedRank: "Seeding (1 = best)",
+  seedLabel: name => `Seeding ${name}`,
+  seededCount: count => `${count} seeded`,
+  noEntries: "No entries in the class.",
+  name: "Name", club: "Club", card: "Card", none: "–",
+  importLabel: "Import ranking (CSV)",
+  importHelp: "One row per runner: place and name, preferably club and card (for example Place;Name;Club;Card). The runners are matched by card, otherwise by name and club.",
+  imported: count => `${plural(count, "runner", "runners")} got seeding from the file.`,
+  importUnmatched: count => count === 1 ? "1 row matched no entry:" : `${count} rows matched no entry:`,
+  importLine: (line, text) => `row ${line}: ${text}`,
+  importError: "The file could not be read. Save it as CSV (semicolon or comma) and try again.",
+  clearSeeds: "Remove the seeding in the class",
+  errors: {
+    limit: "Write a whole number 1–1000 or leave empty.",
+    lastStart: "Write the last start as a clock time, for example 12:00, or leave empty.",
+    lastStartBefore: "The last start cannot be before the first start.",
+    clock: "Write a clock time, for example 10:30, after the first start.",
+    offset: "Write minutes after the first start, 1–1440.",
+    seed: "Write a whole number 1–10000 or leave empty.",
+    summary: "Correct the fields under Advanced."
+  },
+  warningsTitle: "Rules that cannot be kept",
+  afterLastStart: (classNames, lastStart, firstAfter, needed) =>
+    `The start window is not enough: ${and(classNames)} get starts after the last start ${lastStart} (from ${firstAfter}). The last start needs to be ${needed}, or raise the max starts per minute.`,
+  laterMoved: (className, wanted, actual) => `${className} cannot start ${wanted} without a clash and starts ${actual}.`,
+  existingOverLimit: (scope, limit, first, count) =>
+    `Existing times already have more than ${limit} ${scope === "TOTAL" ? "starts per minute" : "starts per minute in a start pen"} (${minutesEn(count)}, first ${first}).`,
+  existingClash: (classNames, first, count) => `${and(classNames)} already have times in the same start group the same minute (${minutesEn(count)}, first ${first}).`,
+  existingTitle: "Keep their times",
+  existingClass: (className, count, first, last) => `${className} (${plural(count, "start", "starts")} ${first === last ? first : `${first}–${last}`})`,
+  timelineTitle: "Minute by minute",
+  timelineHelp: "Where the new times end up among the existing ones. New times are marked New.",
+  timelineTime: "Minute", timelineStarts: "Starts",
+  newTag: "New",
+  startCount: count => count === 1 ? "" : ` ×${count}`,
+  seededSlot: rank => `seeded ${rank}`,
+  sameControls: (classNames, codes) => `${and(classNames)} begin with the same controls (${codes.join(", ")}) and never start the same minute.`
+};
+
+const dateTimeEn = (value: Date) => value.toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
+const sizeEn = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} kB`
+  : `${(bytes / 1024 / 1024).toLocaleString("en-GB", { maximumFractionDigits: 1 })} MB`;
+
+/** Engelska, arbetsytan del 12: säkerhetskopian och återställningen. */
+export const raceBackupEn: Texts<typeof raceBackupSv> = {
+  title: "Backup",
+  help: "A file with everything about the event: courses, map file, classes, participants, cards, start times, readouts, results and history. " +
+    "If the server breaks, the file can be restored as a new event, also on another server.",
+  when: "Take a copy after the draw, one before the start and one after the last finisher.",
+  personalDataTitle: "The file contains personal data.",
+  personalData: "Names, clubs, card numbers, results and email for those with access. Store it where only the organisers can reach " +
+    "it and delete it when it is not needed. You are responsible for the copies on your computer. Accounts, passwords and the Eventor key are not included.",
+  action: "Download backup",
+  downloaded: "The backup is downloaded.",
+  error: "The backup could not be created. Try again.",
+  last: at => `Last downloaded ${dateTimeEn(at)}.`,
+  never: "No backup has been downloaded yet.",
+  restoreHint: "Restore under My events → Restore event from backup.",
+  restore: {
+    open: "Restore event from backup",
+    openHint: "Has the server broken? Import a backup as a new event.",
+    title: "Restore event from backup",
+    intro: "Choose the file (otid-sakerhetskopia-….zip). It is checked first and shown before anything is saved. " +
+      "The event becomes a new event; no existing event changes.",
+    file: "Backup",
+    check: "Check the file",
+    checking: "Checking …",
+    previewTitle: "This becomes a new event",
+    createdAt: at => `The copy was taken ${dateTimeEn(at)}`,
+    formatVersion: version => `format version ${version}`,
+    size: bytes => sizeEn(bytes),
+    counts: counts => [
+      plural(counts.classes, "class", "classes"), plural(counts.entries, "participant", "participants"),
+      plural(counts.cardReadouts, "readout", "readouts"), plural(counts.resultRevisions, "result row", "result rows"),
+      ...(counts.teams > 0 ? [plural(counts.teams, "team", "teams")] : []), plural(counts.files, "file", "files")
+    ].join(" · "),
+    map: "The map comes along.",
+    stale: count => `${plural(count, "result", "results")} needed recalculation when the copy was taken and are marked so in the ` +
+      "new event too. Recalculate them after the restore.",
+    eventor: "The Eventor link comes along without the club's key. Paste the key under Settings → Eventor.",
+    radio: "The radio controls are switched off until you switch them on under Settings.",
+    unpublished: "The new event is unpublished and gets its own short address. Publish it when you have checked it.",
+    peopleTitle: "People with access",
+    peopleLink: "Invite them with the same roles (they get an email and the access when they sign in with the address)",
+    peopleSkip: "Only I get access",
+    peopleNone: "The copy has no other people with access.",
+    roles: { ADMIN: "administrator", FUNCTIONARY: "official", COURSE_EDIT: "course setting", COURSE_SUGGEST: "course setting (suggest)",
+      COURSE_COMMENT: "course setting (comment)", COURSE_MAP: "mapper" },
+    fromClub: "A person from the club (the address does not come along and gets no access here)",
+    personalData: "The file contains personal data. The new event gets the same data as the copy.",
+    submit: "Create the event",
+    restoring: "Restoring …",
+    cancel: "Cancel",
+    close: "Close",
+    restored: "The event is restored.",
+    invited: count => `${plural(count, "invitation has", "invitations have")} been created. The access applies when the person signs in ` +
+      "with the address. You see the invitations under People with access.",
+    openRace: "Open the event",
+    opening: "Opening …",
+    problems: {
+      NOT_A_BACKUP: () => "The file is not a backup from O-Tid. Choose the file called otid-sakerhetskopia-….zip.",
+      OLD_EXPORT: () => "The file is the old export (format version 1), which cannot be imported. Download a backup again from the event.",
+      UNKNOWN_FORMAT_VERSION: detail => `The backup has format version ${detail ?? "?"}, which this server cannot read ` +
+        "(it reads version 2). It was probably made with a newer version of O-Tid: update the server and try again.",
+      TOO_LARGE: () => "The file is too large (at most 200 MB).",
+      BROKEN_ARCHIVE: detail => `The file is broken${detail ? ` (${detail})` : ""}. Download the backup again.`,
+      CHECKSUM_MISMATCH: detail => `The file has changed or is incomplete${detail ? ` (${detail})` : ""}: the checksum does not match.`,
+      UNKNOWN_CONTENT: detail => "The backup contains something this version of O-Tid does not know" +
+        `${detail ? ` (${detail})` : ""}. It was probably made with a newer version: update the server and try again.`,
+      INVALID_CONTENT: detail => `The backup has an error${detail ? ` in ${detail}` : ""} and cannot be imported.`,
+      DATA_REJECTED: detail => `The database did not accept the content${detail ? ` (${detail})` : ""}. Nothing has been saved.`,
+      STORAGE_QUOTA_EXCEEDED: detail => `The map in the backup does not fit${detail ? ` (${detail})` : ""}. Remove maps in ` +
+        "events no longer used, or ask the server's owner to raise the limit. Nothing has been saved."
+    },
+    errors: {
+      session: "You are no longer signed in. Sign in and try again.",
+      conflict: "The attempt concerned another file or another choice. Choose the file again.",
+      network: "No contact with the server. Check the network and try again; the same attempt never creates two events.",
+      generic: status => `It did not work (error ${status}). Try again.`
+    }
+  }
+};
+
+const placeEn = (value: number | "S" | "M") => value === "S" ? "start" : value === "M" ? "finish" : String(value);
+
+/** Engelska, arbetsytan del 12: kontrollkartan (arbetsytan, deltagarkortet och den publika deltagarsidan). */
+export const controlMapEn: Texts<typeof controlMapSv> = {
+  open: "Control map",
+  openLabel: "Open the control map",
+  title: "Control map",
+  close: "Close",
+  loading: "Fetching the control map …",
+  failed: "The control map could not be fetched. Try again.",
+  retry: "Try again",
+  mode: "Show",
+  modeLoad: "Load",
+  modeCourse: "Course",
+  course: "Course",
+  variant: "Variant",
+  allVariants: "All variants",
+  variantOption: (code, entries) => `${code} (${plural(entries, "entry", "entries")})`,
+  metric: "Load by",
+  metricPlanned: "Planned runners",
+  metricPunched: "Punches",
+  mapLabel: "Control map with controls, start and finish",
+  courseMapLabel: course => `Control map: ${course}`,
+  noPositions: "The course file has no positions for the controls, so the map cannot be drawn. Import a course file with coordinates (IOF XML from OCAD or Purple Pen) to see the controls on the map.",
+  missingPositions: count => count === 1 ? "1 control has no position and is only in the table." : `${count} controls have no position and are only in the table.`,
+  paperNoScale: "The positions come from the map in the course file without scale; the distances are approximate.",
+  noMapImage: "No map under the controls yet. Upload the map file (OCAD or Mapper) or a map image under Results → Map and route choice.",
+  mapFileMismatch: "The course file does not seem to be made on this map. The controls are placed with the coordinates in the course file instead.",
+  scale: meters => meters >= 1000 ? `${meters / 1000} km` : `${meters} m`,
+  start: "Start",
+  finish: "Finish",
+  control: code => `Control ${code}`,
+  outOfOrder: "out of order",
+  legend: "Larger and darker ring = more runners. The numbers are also in the table.",
+  levels: ["None", "Low", "Medium", "High"],
+  table: {
+    caption: "Load per control",
+    code: "Control",
+    courses: "Courses",
+    variants: "Variants",
+    planned: "Planned",
+    punched: "Punches",
+    level: "Level",
+    status: "State"
+  },
+  courseControls: "Controls in order",
+  variantControls: code => `Variant ${code}`,
+  showOnMap: "Show on the map",
+  hideMap: "Hide the map",
+  runnerMapLabel: name => `Map: ${name}'s course with the punches`,
+  leg: leg => `Leg ${leg}`,
+  noReadout: "No readout yet; the course is shown without punches.",
+  allPunched: "All controls are punched.",
+  missing: (code, previous, next) => `Control ${code} is missing, between ${placeEn(previous)} and ${placeEn(next)}.`,
+  wrongOrder: (code, previous, next) => `Control ${code} is punched in the wrong order (should be between ${placeEn(previous)} and ${placeEn(next)}).`,
+  neutral: code => `Control ${code} is out of order and not needed.`,
+  marks: { OK: "Punched", MISSING: "Missing", WRONG_ORDER: "Wrong order", NEUTRAL: "Out of order" },
+  legendRunner: "Green ring = punched, red dashed = missing, orange = wrong order.",
+  courseOnly: "The controls in order:"
+};
+
+/** Engelska, arbetsytan del 12: läsa ut och ställa in enheter. */
+export const stationsEn: Texts<typeof stationsSv> = {
+  title: "Read out units",
+  back: "To the event",
+  trial: "Being tested: the readout is built from open descriptions of the protocol but not tried against real units yet. "
+    + "Nothing is written to the unit. Download the raw log and send it if something looks wrong.",
+  howTo: "Connect a master station (BSM7/BSM8) by USB. Put it in remote mode or let O-Tid do it, place the unit against the master station and press Read out. "
+    + "The master station is set back to direct mode afterwards.",
+  serialUnsupported: "The browser cannot reach the station. Use Chrome or Edge on a computer.",
+  connect: "Connect master station",
+  connected: "The master station is connected.",
+  disconnect: "Disconnect",
+  remote: "Read the unit lying against the master station (remote)",
+  direct: "Read the master station itself",
+  read: "Read out",
+  reading: (done, total) => total ? `Reading the backup memory: ${done} of ${total} …` : "Reading …",
+  problems: {
+    "no-station": "No unit answered. Place the unit against the master station (or wake it with a card) and try again.",
+    timeout: "The unit stopped answering. Try again.",
+    nak: "The unit refused the reading.",
+    unexpected: "The unit answered unexpectedly. Download the raw log.",
+    transport: "The contact with the master station was lost.",
+    open: "The port could not be opened. Close other tabs using the station.",
+    "invalid-plan": "Choose what to set (the code 1–511)."
+  },
+  facts: {
+    serial: "Serial number", model: "Model", firmware: "Firmware", code: "Code", mode: "Mode", battery: "Battery changed",
+    capacity: "Battery capacity (raw value)", memory: "Backup memory", clock: "Clock",
+    clockDiff: seconds => Math.abs(seconds) < 2 ? "matches the computer" : `${seconds > 0 ? "ahead of" : "behind"} the computer by ${Math.abs(Math.round(seconds))} s`,
+    memoryValue: (kb, count, overflow) => `${kb} kB, ${plural(count, "punch", "punches")}${overflow ? " (the memory has wrapped around)" : ""}`
+  },
+  modes: { CONTROL: "Control", START: "Start", FINISH: "Finish", READOUT: "Readout", CLEAR: "Clear", CHECK: "Check",
+    BEACON_CONTROL: "Control (Air+)", BEACON_START: "Start (Air+)", BEACON_FINISH: "Finish (Air+)" },
+  punches: "Punches in the backup memory",
+  truncated: "Only the latest 4,000 punches are shown.",
+  none: "No punches.",
+  card: "Card", time: "Time (12 h)", runner: "Runner", unknownCard: "Not in the event",
+  controlInRace: (code, used) => used ? `Code ${code} is on the event's courses.` : `Code ${code} is not on the event's courses.`,
+  csv: "Download the punches (CSV)",
+  rawLog: "Download raw log",
+  noPackage: "The event's participants could not be fetched; the cards are shown without names.",
+  write: {
+    title: "Set up the unit",
+    help: "The clock from the computer, the code and the mode. Nothing else changes; the backup memory is not touched. Afterwards the unit is read again so that you see that the change went through.",
+    time: "Set the clock from the computer",
+    code: "Code (leave empty to not change)",
+    mode: "Mode",
+    keepMode: "Do not change",
+    submit: "Set up",
+    confirm: serial => `Set up the unit ${serial}? The clock, the code and the mode are written to the unit.`,
+    writing: "Setting up …",
+    done: "Done. The unit read again:",
+    codeResult: (before, after, ok) => `Code ${before} → ${after}${ok ? "" : " (the change did not go through)"}`,
+    modeResult: (before, after, ok) => `Mode ${before} → ${after}${ok ? "" : " (the change did not go through)"}`,
+    clockResult: diff => Math.abs(diff) < 2 ? "The clock matches the computer." : `The clock differs ${Math.round(diff)} s from the computer.`,
+    noClock: "The clock could not be read afterwards."
+  },
+  register: {
+    label: "Save in the club's unit register",
+    none: "Do not save",
+    saved: club => `Saved in ${club}'s unit register.`,
+    failed: "Could not save in the unit register.",
+    help: "Every unit read out or set up is saved with serial number, code, battery and clock (you need to be a leader or administrator in the club)."
+  }
 };

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { controlMapEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { controlMapResponseSchema, type ControlMapResponse } from "@o-tid/contracts";
 import { forkingLetters } from "@o-tid/domain";
-import { controlMapSv as text } from "../../i18n/control-map-sv";
+import { controlMapSv } from "../../i18n/control-map-sv";
 import { forkingSv } from "../../i18n/forking-sv";
 import { controlMapView, loadLevel, typicalSpacing } from "../../lib/control-map";
 import { ForkingDiagram } from "../forking/forking-diagram";
@@ -21,6 +23,7 @@ import styles from "./control-map.module.css";
  * genomgång. Belastning (alla kontroller efter planerade löpare eller stämplingar) eller en bana (variant) med linjer.
  */
 export function ControlMapButton({ ws }: { ws: Workspace }) {
+  const text = useTexts(controlMapSv, controlMapEn);
   const [open, setOpen] = useState(false);
   return <>
     <Button variant="secondary" aria-haspopup="dialog" aria-expanded={open} aria-label={text.openLabel} onClick={() => setOpen(true)}>{text.open}</Button>
@@ -29,6 +32,7 @@ export function ControlMapButton({ ws }: { ws: Workspace }) {
 }
 
 function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void }) {
+  const text = useTexts(controlMapSv, controlMapEn);
   const { beginRequest, request, json, finish, current, raceId, navigateStep } = ws;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();

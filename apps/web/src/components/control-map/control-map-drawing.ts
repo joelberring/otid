@@ -122,9 +122,9 @@ export function runnerDrawing(data: RunnerControlMap, leg: RunnerControlMap["leg
 
 /** Beskeden under kartan: saknade, fel ordning och ur funktion, i banans ordning. */
 type RunnerMessage = { key: string; mark: RunnerControlMarkRowDto["mark"]; text: string };
-export function runnerMessages(leg: RunnerControlMap["legs"][number]): RunnerMessage[] {
+export function runnerMessages(leg: RunnerControlMap["legs"][number], messages: Pick<typeof text, "missing" | "wrongOrder" | "neutral"> = text): RunnerMessage[] {
   return (leg.marks ?? []).flatMap((row): RunnerMessage[] => row.mark === "MISSING"
-    ? [{ key: `${row.position}`, mark: row.mark, text: text.missing(row.code, row.previous, row.next) }]
-    : row.mark === "WRONG_ORDER" ? [{ key: `${row.position}`, mark: row.mark, text: text.wrongOrder(row.code, row.previous, row.next) }]
-      : row.mark === "NEUTRAL" ? [{ key: `${row.position}`, mark: row.mark, text: text.neutral(row.code) }] : []);
+    ? [{ key: `${row.position}`, mark: row.mark, text: messages.missing(row.code, row.previous, row.next) }]
+    : row.mark === "WRONG_ORDER" ? [{ key: `${row.position}`, mark: row.mark, text: messages.wrongOrder(row.code, row.previous, row.next) }]
+      : row.mark === "NEUTRAL" ? [{ key: `${row.position}`, mark: row.mark, text: messages.neutral(row.code) }] : []);
 }

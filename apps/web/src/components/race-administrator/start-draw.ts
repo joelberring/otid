@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 
+
+
 import {
   startDrawPreviewResponseSchema, startDrawResponseSchema, startDrawSetupResponseSchema, type StartDrawMethod,
   type StartDrawPreviewResponse, type StartDrawRequest, type StartDrawSetupResponse
@@ -13,7 +15,7 @@ import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 import { advancedChanged, advancedFromSetup, advancedRequest, createStartDrawAdvancedActions, useStartDrawAdvancedState,
   type DrawAdvanced } from "./start-draw-advanced";
-import { startDrawAdvancedSv as advancedText } from "../../i18n/start-draw-advanced-sv";
+
 import { applyDrawCommon, DRAW_COMMON_DEFAULT, type DrawCommon, type DrawCommonScope } from "./start-draw-common";
 
 export type DrawRow = { method: StartDrawMethod; interval: string; vacancies: string; vacancyKind: "COUNT" | "PERCENT"; selected: boolean };
@@ -42,12 +44,12 @@ export function useStartDrawState() {
  * ogiltigt, eller fältfelen under Avancerat.
  */
 function settingsFrom(setup: StartDrawSetupResponse, rows: Record<string, DrawRow>, first: string, clubSeparation: boolean,
-  advanced: DrawAdvanced) {
+  advanced: DrawAdvanced, advancedText: Pick<Base["drawAdvancedText"], "errors">) {
   const firstStartTime = parseRaceClock(setup.raceDate, first, setup.timeZone);
   const selected = setup.classes.filter(row => rows[row.id]?.selected);
   if (selected.length === 0) return "none" as const;
   if (!firstStartTime || Date.parse(firstStartTime) % 60_000 !== 0) return undefined;
-  const extra = advancedRequest(setup, rows, advanced, firstStartTime, new Set(selected.map(row => row.id)));
+  const extra = advancedRequest(setup, rows, advanced, firstStartTime, new Set(selected.map(row => row.id)), advancedText);
   if ("errors" in extra) return { errors: extra.errors };
   const classes = [];
   for (const raceClass of selected) {
@@ -66,12 +68,13 @@ const isSettings = (value: ReturnType<typeof settingsFrom>): value is DrawSettin
   value !== undefined && value !== "none" && !("errors" in value);
 
 export function createStartDrawActions(ws: Base & RaceDataActions) {
+  const advancedText = ws.drawAdvancedText;
   const text = ws.drawText;
   const { raceId, drawSetup, drawRows, drawFirst, drawClubSeparation, drawPreview, setDrawClubSeparation, writingRef, pending, sent, requireSession,
     beginRequest, finish, current, request, json, csrf, load, setDrawSetup, setDrawRows, setDrawFirst, setDrawPreview, setDrawError,
     setDrawSaved, setDrawAttempt, setPublicationPreview, setDrawFirstError, drawAdvanced, drawAdvancedLoaded, setDrawAdvanced,
     setDrawAdvancedLoaded, setDrawAdvancedOpen, setDrawAdvancedErrors, drawCommon, setDrawCommon, setDrawCommonApplied } = ws;
-  const settingsNow = (setup: StartDrawSetupResponse) => settingsFrom(setup, drawRows, drawFirst, drawClubSeparation, drawAdvanced);
+  const settingsNow = (setup: StartDrawSetupResponse) => settingsFrom(setup, drawRows, drawFirst, drawClubSeparation, drawAdvanced, advancedText);
 
   async function readSetup(op: Operation) {
     const response = await request("/draw", op);

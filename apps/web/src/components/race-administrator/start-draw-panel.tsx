@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { startDrawAdvancedEn } from "../../i18n/workspace-small-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { startDrawEn } from "../../i18n/workspace-tools-en";
 import { useTexts } from "../language-provider";
@@ -11,7 +12,7 @@ import { formatClockTime } from "../../lib/clock-time";
 import { Button, Field, Notice, Section, Table } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
-import { startDrawAdvancedSv as advancedText } from "../../i18n/start-draw-advanced-sv";
+import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { StartDrawAdvanced } from "./start-draw-advanced-panel";
 import own from "./start-draw-advanced.module.css";
 import { drawClassSummary, drawSelection } from "./start-draw-common";
@@ -137,6 +138,7 @@ function DrawCommonFields({ ws, locked }: { ws: Workspace; locked: boolean }) {
 }
 
 function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreviewResponse }) {
+  const advancedText = useTexts(startDrawAdvancedSv, startDrawAdvancedEn);
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(startDrawSv, startDrawEn);
   const { busy, cancelDrawPreview, drawAttempt, saveDraw, unknown } = ws;
@@ -154,7 +156,7 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
         : group.alternating ? text.alternating(group.classNames) : text.sameFirstControl(group.classNames, group.controlCodes[0]!)}</p>)}
     {preview.warnings.length > 0 && <Notice tone="attention" role="alert"><div className={own.warnings}>
       <strong>{advancedText.warningsTitle}</strong>
-      <ul>{preview.warnings.map((warning, index) => <li key={index}>{warningText(warning, time)}</li>)}</ul>
+      <ul>{preview.warnings.map((warning, index) => <li key={index}>{warningText(warning, time, advancedText)}</li>)}</ul>
     </div></Notice>}
     {preview.existingClasses.length > 0 && <p className={styles.drawNote}>{advancedText.existingTitle}: {preview.existingClasses.map(row =>
       advancedText.existingClass(row.className, row.startCount, short(row.firstStartTime), short(row.lastStartTime))).join("; ")}.</p>}
@@ -214,7 +216,8 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
   </section>;
 }
 
-function warningText(warning: StartDrawPreviewResponse["warnings"][number], time: (instant: string) => string) {
+function warningText(warning: StartDrawPreviewResponse["warnings"][number], time: (instant: string) => string,
+  advancedText: typeof startDrawAdvancedEn) {
   const short = (instant: string) => time(instant).slice(0, 5);
   switch (warning.code) {
     case "AFTER_LAST_START":
@@ -227,6 +230,7 @@ function warningText(warning: StartDrawPreviewResponse["warnings"][number], time
 
 /** Minut för minut (PLAN.md steg 26): var de nya tiderna hamnar bland klasserna som behåller sina tider. */
 function Timeline({ preview, time }: { preview: StartDrawPreviewResponse; time: (instant: string) => string }) {
+  const advancedText = useTexts(startDrawAdvancedSv, startDrawAdvancedEn);
   return <details className={styles.disclosure} open={preview.timeline.length <= 60 || undefined}>
     <summary>{advancedText.timelineTitle}</summary>
     <div className={styles.disclosureBody}>

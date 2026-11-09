@@ -1,6 +1,7 @@
 "use client";
 
 import { takeAfterLogin } from "../lib/after-login";
+import { raceBackupEn } from "../i18n/workspace-small-en";
 import { raceCopyEn } from "../i18n/workspace-tools-en";
 import { raceTypeEn } from "../i18n/workspace-en";
 import { ClubStep } from "./club-affiliation/club-step";
@@ -96,6 +97,7 @@ function GoogleLogin({ remember, copy }: { remember: boolean; copy: Copy }) {
 }
 
 export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  const backupText = useTexts(raceBackupSv, raceBackupEn);
   const raceCopyText = useTexts(raceCopySv, raceCopyEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const copy = useTexts(organizerSv, organizerEn);
@@ -519,8 +521,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
           </form>
           {/* ADR-0187: en säkerhetskopia blir en ny tävling (t.ex. på en ny server när den gamla har gått sönder). */}
           <div className={styles.restore}>
-            <p className={styles.muted}>{raceBackupSv.restore.openHint}</p>
-            <button type="button" className={styles.secondary} disabled={busy} onClick={() => setRestoreOpen(true)}>{raceBackupSv.restore.open}</button>
+            <p className={styles.muted}>{backupText.restore.openHint}</p>
+            <button type="button" className={styles.secondary} disabled={busy} onClick={() => setRestoreOpen(true)}>{backupText.restore.open}</button>
           </div></>}
         {attempt && <div className={styles.uncertain} role="alert">
           <h3>{attemptMatchesSession ? copy.createUnconfirmed : copy.savedAttemptOtherAccountTitle}</h3>

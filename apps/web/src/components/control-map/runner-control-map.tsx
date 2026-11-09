@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { controlMapEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { runnerControlMapSchema, type RunnerControlMap } from "@o-tid/contracts";
-import { controlMapSv as text } from "../../i18n/control-map-sv";
+import { controlMapSv } from "../../i18n/control-map-sv";
 import { controlMapView, typicalSpacing } from "../../lib/control-map";
 import { runnerDrawing, runnerMessages } from "./control-map-drawing";
 import { ControlMapSvg } from "./control-map-svg";
@@ -13,12 +15,13 @@ import styles from "./control-map.module.css";
  * stafett- eller teamsprintlöpare med flera sträckor väljer sträcka. Utan lägen: kontrollerna i ordning och beskeden.
  */
 export function RunnerControlMapView({ data, imageHref }: { data: RunnerControlMap; imageHref?: string | undefined }) {
+  const text = useTexts(controlMapSv, controlMapEn);
   const [index, setIndex] = useState(0);
   const leg = data.legs[Math.min(index, data.legs.length - 1)]!;
   const view = useMemo(() => controlMapView(data.bounds, data.map,
     typicalSpacing(data.controls.flatMap(control => control.position ? [control.position] : []))), [data]);
   const drawing = useMemo(() => view ? runnerDrawing(data, leg, view) : undefined, [data, leg, view]);
-  const messages = runnerMessages(leg);
+  const messages = runnerMessages(leg, text);
   return <section className={styles.runner} aria-label={text.runnerMapLabel(data.name)}>
     {data.legs.length > 1 && <div className={styles.legTabs} role="group" aria-label={text.mode}>
       {data.legs.map((row, legIndex) => <button key={legIndex} type="button" className="secondary" aria-pressed={legIndex === index}
@@ -41,6 +44,7 @@ export function RunnerControlMapView({ data, imageHref }: { data: RunnerControlM
  * hämtning utanför arbetsytans anropskö, så att den aldrig avbryter kortets andra läsningar (resultatet).
  */
 export function ParticipantControlMap({ raceId, entryId, refreshKey }: { raceId: string; entryId: string; refreshKey: string }) {
+  const text = useTexts(controlMapSv, controlMapEn);
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<RunnerControlMap>();
   const [image, setImage] = useState<string>();
@@ -76,6 +80,7 @@ export function ParticipantControlMap({ raceId, entryId, refreshKey }: { raceId:
 
 /** Den publika deltagarsidan: "Visa på kartan" när banorna är publika (ADR-0176). Inga andra löpares data. */
 export function PublicRunnerControlMap({ raceId, publicResultId }: { raceId: string; publicResultId: string }) {
+  const text = useTexts(controlMapSv, controlMapEn);
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<RunnerControlMap>();
   const [failed, setFailed] = useState(false);

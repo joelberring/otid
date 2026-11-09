@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { stationsEn } from "../i18n/workspace-small-en";
+import { useTexts } from "./language-provider";
 import { useEffect, useRef, useState } from "react";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import { WebSerialTransport, type WebSerialPortLike } from "@o-tid/device-transport";
 import { StationMode, WRITABLE_MODES, type StationClock, type StationReport, type StationWriteReport } from "@o-tid/sportident";
-import { stationsSv as text } from "../i18n/stations-sv";
+import { stationsSv } from "../i18n/stations-sv";
 import { fetchReadoutPackage } from "../readout/api";
 import { readStation, StationReadError, writeStation, type StationReadProblem, type TrafficEntry } from "../lib/station-read-runner";
 import { useClubDeviceRegister } from "./use-club-device-register";
@@ -36,6 +38,7 @@ function download(name: string, type: string, content: string) {
  * ligger mot den läses i fjärrläge. Brickorna i backupminnet visas med löparen om brickan finns i tävlingen.
  */
 export function StationsPage({ raceId }: { raceId: string }) {
+  const text = useTexts(stationsSv, stationsEn);
   const [transport, setTransport] = useState<WebSerialTransport>();
   const [remote, setRemote] = useState(true);
   const [busy, setBusy] = useState<{ done: number; total: number }>();

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { controlMapSv as text } from "../../i18n/control-map-sv";
+import { controlMapEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
+import { controlMapSv } from "../../i18n/control-map-sv";
 import { scaleBar, type ControlMapView, type XY } from "../../lib/control-map";
 import styles from "./control-map.module.css";
 
@@ -34,6 +36,7 @@ export function ControlMapSvg({ view, image, controls, lines, ends, metersPerUni
   /** Steg 60: ritas på kartbilden under kontrollerna (vägvalen). */
   underlay?: ReactNode;
 }) {
+  const text = useTexts(controlMapSv, controlMapEn);
   // Texten och strecken hålls läsbara när bilden är smal (mobilen): minst 11 px text och 1,5 px streck på skärmen.
   const svg = useRef<SVGSVGElement>(null);
   const [pixels, setPixels] = useState<number>();

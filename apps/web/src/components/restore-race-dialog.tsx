@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
+import { raceBackupEn } from "../i18n/workspace-small-en";
+import { useTexts } from "./language-provider";
 import { createPortal } from "react-dom";
 import {
   raceBackupPreviewSchema, raceBackupProblemSchema, raceRestoreResponseSchema, type RaceBackupPreview, type RaceRestoreResponse
@@ -11,7 +13,6 @@ import { readOrganizerCsrf } from "../lib/organizer-client";
 import { Button, Dialog, Field, Notice } from "./ui";
 import styles from "./copy-race-dialog.module.css";
 
-const text = raceBackupSv.restore;
 
 /** Skickar filen som den är. Ger svarets status och JSON (eller undefined). */
 async function send(path: string, file: File): Promise<{ status: number; json: unknown }> {
@@ -24,7 +25,7 @@ async function send(path: string, file: File): Promise<{ status: number; json: u
   return { status: response.status, json };
 }
 
-function failure(status: number, json: unknown): string {
+function failure(status: number, json: unknown, text: typeof raceBackupEn.restore): string {
   const parsed = raceBackupProblemSchema.safeParse(json);
   if (parsed.success) return text.problems[parsed.data.error](parsed.data.detail);
   if (status === 401) return text.errors.session;
@@ -45,6 +46,7 @@ export function RestoreRaceDialog({ open, onClose, onRestored }: {
 }
 
 function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void; onRestored?: ((response: RaceRestoreResponse) => void) | undefined }) {
+  const text = useTexts(raceBackupSv.restore, raceBackupEn.restore);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [file, setFile] = useState<File>();
   const [preview, setPreview] = useState<RaceBackupPreview>();
@@ -66,7 +68,7 @@ function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void
     try {
       const response = await send("/api/organizer/restore/preview", file);
       const parsed = raceBackupPreviewSchema.safeParse(response.json);
-      if (response.status !== 200 || !parsed.success) { setProblem(failure(response.status, response.json)); return; }
+      if (response.status !== 200 || !parsed.success) { setProblem(failure(response.status, response.json, text)); return; }
       setPreview(parsed.data);
     } catch { setProblem(text.errors.network); }
     finally { setBusy(false); }
@@ -78,7 +80,7 @@ function RestoreRaceDialogContent({ onClose, onRestored }: { onClose: () => void
     try {
       const response = await send(`/api/organizer/restore?requestId=${encodeURIComponent(requestId)}&people=${people}`, file);
       const parsed = raceRestoreResponseSchema.safeParse(response.json);
-      if ((response.status !== 200 && response.status !== 201) || !parsed.success) { setProblem(failure(response.status, response.json)); return; }
+      if ((response.status !== 200 && response.status !== 201) || !parsed.success) { setProblem(failure(response.status, response.json, text)); return; }
       setResult(parsed.data);
       onRestored?.(parsed.data);
     } catch { setProblem(text.errors.network); }

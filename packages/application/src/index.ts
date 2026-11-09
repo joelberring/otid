@@ -219,6 +219,9 @@ export {
 } from "./map-project-geo-jobs";
 export { createDwgJob, readGeoJobInput, type DwgJobResult } from "./map-project-geo-dwg";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";
+export {
+  createMapProjectSketch, createMapProjectWorkLayer, deleteMapProjectSketch, deleteMapProjectWorkLayer, listMapProjectWorkLayers, updateMapProjectWorkLayer
+} from "./map-project-work-layers";
 export { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";
 export type { MapProjectUploadFailure } from "./map-projects";

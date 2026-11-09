@@ -487,3 +487,16 @@ Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpa
    hörn, streck och luckor), borttagna borta, rätt antal och originalets bytes utanför de ändrade intervallen.
 5. Flaggan tas bort när en lappad fil har öppnats och sparats i riktiga OCAD (2018 eller senare) utan fel.
 
+### Tillägg 2026-11-09: lagren fas 2, arbetslager och skisslager (migration 0107)
+
+1. **Arbetslager** (`map_project_work_layer`, `SYMBOLS`): en namngiven grupp av normens symbolnummer, delad i projektet
+   (t.ex. "Stigar att reka"). Lagret tänds, släcks, låses och tonas som huvudlagren, per person i webbläsaren. Ordningen för en
+   symbol: symbolens eget val, sedan arbetslagren (släckt, låst eller tonat om något arbetslager med symbolen är det), sedan
+   normens huvudlager.
+2. **Skisslager** (`SKETCH`) med skisser (`map_project_sketch`): linjer på fri hand (förenklade på 0,15 mm), punkter och korta
+   texter i kartans mm, i lagrets färg. Skisserna hör inte till kartan och skrivs aldrig till kartfilen. Ett skisslager kan
+   släckas och tonas.
+3. **Behörighet:** alla medlemmar ser lagren och skisserna; Föreslå eller mer (projektet öppet) lägger till; den som skapade
+   och ägarna ändrar och tar bort. Ett skisslager tas bort med sina skisser. Högst 50 lager och 5 000 skisser per projekt.
+4. Kvar: tabell för äldre normers nummer (ISOM 2000, ISSOM 2007) när ägaren har en.
+

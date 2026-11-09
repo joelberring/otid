@@ -30,6 +30,10 @@ import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { MapProjectSymbolLayers } from "./map-project-symbol-layers";
 import { useMapProjectSymbolLayers } from "./use-map-project-symbol-layers";
+import { useMapProjectWorkLayers } from "./use-map-project-work-layers";
+import { MapProjectWorkLayers } from "./map-project-work-layers";
+import { drawSketches } from "../../lib/map-project-sketch";
+import { mapProjectWorkLayersSv as workText } from "../../i18n/map-project-work-layers-sv";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
@@ -205,7 +209,15 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const candidates = importer.candidates;
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   // Ägaren 2026-11-09: lagren efter normen. Släckta och låsta lager går inte att markera; låsta kan visas nedtonade.
-  const symbolLayers = useMapProjectSymbolLayers({ projectId: view.projectId, catalog, scale: editor.scale ?? georeference?.scale, session, commit });
+  const work = useMapProjectWorkLayers(view);
+  const workGroups = useMemo(() => work.layers.filter(layer => layer.kind === "SYMBOLS").map(layer => ({ layerId: layer.layerId, codes: layer.codes })),
+    [work.layers]);
+  const symbolLayers = useMapProjectSymbolLayers({ projectId: view.projectId, catalog, scale: editor.scale ?? georeference?.scale, session, commit,
+    work: workGroups });
+  // Skisslagren som syns (och om de är tonade).
+  const sketchLayers = useMemo(() => work.layers.filter(layer => layer.kind === "SKETCH" && !symbolLayers.state.work?.[layer.layerId]?.hidden)
+    .map(layer => ({ color: layer.color, dimmed: symbolLayers.state.work?.[layer.layerId]?.dimmed === true,
+      sketches: work.sketches.filter(sketch => sketch.layerId === layer.layerId) })), [work.layers, work.sketches, symbolLayers.state]);
   const hiddenSymbols = symbolLayers.hidden;
   const unselectable = useMemo(() => [...symbolLayers.hidden, ...symbolLayers.locked], [symbolLayers.hidden, symbolLayers.locked]);
   const lockedSymbols = symbolLayers.locked;
@@ -297,10 +309,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }
 
   const handlers: MapPointerHandlers = {
-    unlifted: tool === "draw" || tool === "area" || tool === "circle",
+    unlifted: tool === "draw" || tool === "area" || tool === "circle" || !!work.drawing,
     onTap(point, tolerance, modifiers) {
       if (control.active) { control.click(point); return; }
       if (rectify.picking) { rectify.click(point); return; }
+      if (work.drawing) { work.tap(point); return; }
       const now = performance.now();
       const previous = lastTap.current;
       const double = !!previous && now - previous.at < DOUBLE_TAP_MS && Math.hypot(previous.point.x - point.x, previous.point.y - point.y) < tolerance * 2;
@@ -366,6 +379,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     },
     onDragStart(point, tolerance) {
       if (control.active || rectify.picking) return false;
+      if (work.drawing) return work.dragStart(point);
       if (!canEdit || tool === "area") return false;
       if (tool === "circle") {
         if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) return false;
@@ -416,6 +430,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       return false;
     },
     onDragMove(point) {
+      if (work.dragging) { work.dragMove(point); return; }
       const current = drag.current;
       if (!current) return;
       if (current.mode === "handle") {
@@ -438,6 +453,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       else if (current.original.kind === "point" || current.original.kind === "text") setPreviewObject(rotatePoint(current.original, degreesTo(current.original.at, point)));
     },
     onDragEnd() {
+      if (work.dragging) { work.dragEnd(); return; }
       const current = drag.current;
       drag.current = undefined;
       const moved = previewRef.current;
@@ -528,6 +544,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (reconResult && recon.layers.has("STATUS")) drawReconMarkers(ctx, current, reconResult.markers, SHOWN_STATUSES);
     if (normIssues) drawNormIssues(ctx, current, normIssues, shownIssue);
     drawNotes(ctx, current, notes.notes, shownNote);
+    if (sketchLayers.length || work.dragging) drawSketches(ctx, current, sketchLayers, work.drawingLayer && { color: work.drawingLayer.color, points: work.stroke });
     if (control.active) drawControlPoints(ctx, current, control.markers);
     if (rectify.shown.length) drawProposed(ctx, current, rectify.shown, [], true);
     if (rectify.markers.length) drawControlPoints(ctx, current, rectify.markers);
@@ -539,7 +556,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue,
-    control.active, control.markers, rectify.shown, rectify.markers]);
+    control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
@@ -552,7 +569,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
   const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage)
-    : rectify.picking ? (rectify.pending ? rectifyText.hintTo : rectifyText.hintFrom) : flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
+    : rectify.picking ? (rectify.pending ? rectifyText.hintTo : rectifyText.hintFrom)
+    : work.drawingLayer ? workText.hint(work.drawingLayer.name) : flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object) : [];
@@ -601,6 +619,12 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           onClick={() => { cancelDraft(); setTool(tool === "note" ? "select" : "note"); }}>{notesText.tool}</Button>}
         <Button variant="secondary" disabled={editor.history.undo.length === 0} onClick={editor.undo} title="Ctrl/Cmd+Z">{text.tools.undo}</Button>
         <Button variant="secondary" disabled={editor.history.redo.length === 0} onClick={editor.redo} title="Ctrl/Cmd+Skift+Z">{text.tools.redo}</Button>
+        {work.drawingLayer && <>
+          <label className={styles.inlineField}>{workText.textLabel}<input value={work.label} maxLength={200} onChange={event => work.setLabel(event.target.value)}
+            data-testid="map-project-sketch-text" /></label>
+          <Button variant="secondary" disabled={!work.canUndo} onClick={work.undo}>{workText.undo}</Button>
+          <Button onClick={work.stop} data-testid="map-project-sketch-done">{workText.done}</Button>
+        </>}
         {draft.length > 0 && <>
           <Button onClick={finishDraft}>{text.tools.finish}</Button>
           <Button variant="secondary" onClick={cancelDraft}>{text.tools.cancel}</Button>
@@ -669,7 +693,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol}
         layers={<MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
           state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}
-          merging={symbolLayers.merging} message={symbolLayers.message} />} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
+          merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups}
+          workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
         after={<>
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />

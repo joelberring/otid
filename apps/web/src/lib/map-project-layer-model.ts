@@ -15,7 +15,11 @@ export interface LayerState {
   readonly layers: Readonly<Partial<Record<LayerId, LayerFlags>>>;
   /** Underlager: en symbol (id) med egna val; saknas = som lagret. */
   readonly symbols: Readonly<Record<string, LayerFlags>>;
+  /** Lagren fas 2: arbetslagrens och skisslagrens val (lagrets id). */
+  readonly work?: Readonly<Record<string, LayerFlags>> | undefined;
 }
+/** Ett arbetslager: normens symbolnummer i en egen grupp. */
+export interface WorkLayer { readonly layerId: string; readonly codes: readonly string[] }
 export const EMPTY_LAYERS: LayerState = { layers: {}, symbols: {} };
 export type Standard = "ISOM" | "ISSPROM";
 
@@ -46,17 +50,30 @@ export function layerRows(catalog: readonly CatalogSymbol[], standard: ReadonlyM
   });
 }
 
-/** En symbols val: underlagrets egna, annars lagrets. */
-export function symbolFlags(symbol: CatalogSymbol, standard: ReadonlyMap<string, string>, state: LayerState): Required<LayerFlags> {
+/**
+ * En symbols val: underlagrets egna, annars arbetslagrens (släckt, låst eller tonat om något arbetslager med symbolen är det),
+ * annars huvudlagrets.
+ */
+export function symbolFlags(symbol: CatalogSymbol, standard: ReadonlyMap<string, string>, state: LayerState,
+  work: readonly WorkLayer[] = []): Required<LayerFlags> {
   const layer = state.layers[layerOf(symbol, standard)] ?? {}, own = state.symbols[symbol.id] ?? {};
-  return { hidden: own.hidden ?? layer.hidden ?? false, locked: own.locked ?? layer.locked ?? false, dimmed: own.dimmed ?? layer.dimmed ?? false };
+  const code = normalCode(symbol.code);
+  const groups = work.filter(row => row.codes.includes(code)).map(row => state.work?.[row.layerId] ?? {});
+  const grouped = (flag: keyof LayerFlags) => groups.some(flags => flags[flag] === true) ? true : undefined;
+  return { hidden: own.hidden ?? grouped("hidden") ?? layer.hidden ?? false, locked: own.locked ?? grouped("locked") ?? layer.locked ?? false,
+    dimmed: own.dimmed ?? grouped("dimmed") ?? layer.dimmed ?? false };
+}
+
+/** Ett val för ett arbetslager eller skisslager. */
+export function withWorkFlag(state: LayerState, layerId: string, flag: keyof LayerFlags, value: boolean): LayerState {
+  return { ...state, work: { ...state.work, [layerId]: { ...state.work?.[layerId], [flag]: value } } };
 }
 
 /** Symbolerna (id) som är släckta, låsta och låsta och nedtonade. */
-export function layerSymbols(catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>, state: LayerState) {
+export function layerSymbols(catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>, state: LayerState, work: readonly WorkLayer[] = []) {
   const hidden: string[] = [], locked: string[] = [], dimmed: string[] = [];
   for (const symbol of catalog) {
-    const flags = symbolFlags(symbol, standard, state);
+    const flags = symbolFlags(symbol, standard, state, work);
     if (flags.hidden) hidden.push(symbol.id);
     else if (flags.locked) { locked.push(symbol.id); if (flags.dimmed) dimmed.push(symbol.id); }
   }

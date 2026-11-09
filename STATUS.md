@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
+- Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och
+  texter som inte hör till kartan. Delas i projektet; valen per person.
+- Verifierat: integrationstest `adr-0219-arbetslager`, enhetstester `map-project-layer-model` och `map-project-sketch`,
+  E2E `kartprojekt-rita` (arbetslager och skisslager) och `kartprojekt-underlag`.
+- Kvar: tabell för äldre normers nummer.
+
 ### 2026-11-09 – K7: OCAD-kartor lappas bakom flaggan OTID_OCAD_WRITE
 - Ny version av en OCAD-karta (version 9+): ta bort (status 0), ändra (på plats eller sist) och lägga till (ledig indexpost
   eller nytt block); kontroll efter skrivningen som för Mapper. Av tills den är prövad i riktiga OCAD.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_LAYERS, layerOf, layerRows, layerSymbols, mergeSuggestions, standardFor, standardSymbols, withLayerFlag, withSymbolFlag
+  EMPTY_LAYERS, layerOf, layerRows, layerSymbols, mergeSuggestions, standardFor, standardSymbols, withLayerFlag, withSymbolFlag, withWorkFlag
 } from "./map-project-layer-model";
 import type { CatalogSymbol } from "./map-project-protocol";
 
@@ -34,4 +34,14 @@ describe("lagren efter normen", () => {
   it("föreslår att slå ihop symboler med samma nummer eller namn, in i den som följer normen", () => {
     expect(mergeSuggestions(catalog, isom).map(row => [row.from.id, row.to.id, row.reason])).toEqual([["e", "b", "SAME_CODE"]]);
   });
+
+  it("arbetslager: släckt, låst eller tonat gäller symbolerna i lagret före huvudlagret, men inte före symbolens egna val", () => {
+    const work = [{ layerId: "w1", codes: ["101", "406"] }, { layerId: "w2", codes: ["406"] }];
+    let state = withWorkFlag(EMPTY_LAYERS, "w1", "hidden", true);
+    expect(layerSymbols(catalog, isom, state, work).hidden).toEqual(["a", "b", "e"]);
+    state = withWorkFlag(withWorkFlag(state, "w1", "hidden", false), "w2", "locked", true);
+    state = withSymbolFlag(state, "e", "locked", false);
+    expect(layerSymbols(catalog, isom, state, work)).toEqual({ hidden: [], locked: ["b"], dimmed: [] });
+  });
 });
+

@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { mapProjectSymbolLayersSv as text } from "../../i18n/map-project-symbol-layers-sv";
 import {
-  layerRows, mergeSuggestions, normalCode, symbolFlags, withLayerFlag, withSymbolFlag, type LayerFlags, type LayerId, type LayerState, type Standard
+  layerRows, mergeSuggestions, normalCode, symbolFlags, withLayerFlag, withSymbolFlag, type LayerFlags, type LayerId, type LayerState, type Standard,
+  type WorkLayer
 } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
@@ -15,11 +16,13 @@ import styles from "./map-project-editor.module.css";
  * lager fullt eller nedtonat. Symboler utanför normen (äldre norm, egna, sammanslagna kartor) slås ihop med en symbol i normen
  * med en tydlig förhandsvisning av vad som slås ihop.
  */
-export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, state, onState, canEdit, onMerge, merging, message }: {
+export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, state, onState, canEdit, onMerge, merging, message, work = [], workPanel }: {
   catalog: readonly CatalogSymbol[]; standard: Standard; standardSymbols: ReadonlyMap<string, string>;
   state: LayerState; onState: (state: LayerState) => void; canEdit: boolean;
   /** Slå ihop: alla objekt med `from` får symbolen `to`. */
   onMerge: (from: CatalogSymbol, to: CatalogSymbol) => void; merging: string | undefined; message: string | undefined;
+  /** Lagren fas 2: arbetslagren (för symbolernas val) och panelen för arbets- och skisslagren. */
+  work?: readonly WorkLayer[]; workPanel?: ReactNode;
 }) {
   const rows = useMemo(() => layerRows(catalog, standardSymbols, state), [catalog, standardSymbols, state]);
   const suggestions = useMemo(() => mergeSuggestions(catalog, standardSymbols), [catalog, standardSymbols]);
@@ -43,7 +46,7 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
           {row.id === "OUTSIDE" && <p className={styles.muted}>{text.outsideHelp(standard)}</p>}
           <ul className={styles.layerSymbols}>
             {row.symbols.map(symbol => {
-              const flags = symbolFlags(symbol, standardSymbols, state);
+              const flags = symbolFlags(symbol, standardSymbols, state, work);
               return <li key={symbol.id} data-testid="map-project-layer-symbol" data-code={symbol.code}>
                 <SymbolIcon icon={symbol.icon} size={24} />
                 <span className={styles.layerSymbolName} title={label(symbol)}><strong>{symbol.code}</strong> {symbol.name}</span>
@@ -57,6 +60,7 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
           onFlag={(flag, value) => layerFlag(row.id, flag, value)} name={text.layers[row.id]} />
       </li>)}
     </ul>
+    {workPanel}
 
     {canEdit && <details className={styles.settings} data-testid="map-project-merge">
       <summary>{text.mergeHeading}</summary>

@@ -465,3 +465,68 @@ test("kartprojekt: lager efter normen, lås, nedtonat och slå ihop symboler", a
   const contour = parsed.objects.find(object => object.kind === "line" && parsed.symbols.get(object.symbol)?.code.main === 101)!;
   expect(lines.map(object => object.state.object!.symbol)).toEqual([contour.symbol]);
 });
+
+/**
+ * Ägaren 2026-11-09, lagren fas 2: ett arbetslager med stenarna (206) släcks och stenen går inte att markera; ett skisslager
+ * får en linje på fri hand och en text, som sparas för projektet och finns kvar efter en omladdning.
+ */
+test("kartprojekt: arbetslager och skisslager", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `skiss.${unique()}@exempel.se`, "Sigge Skiss");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Skiss", "x-otid-file-name": "Skiss.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await warmRoute(owner, `/api/organizer/map-projects/${projectId}/work-layers`);
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const panel = owner.getByTestId("map-project-work-layers");
+
+  // Arbetslager: stenarna i en egen grupp, släckt.
+  const fresh = panel.getByTestId("map-project-work-new");
+  await fresh.locator("summary").click();
+  await fresh.getByTestId("map-project-work-name").fill("Stenar");
+  await fresh.locator("label", { hasText: /^206 / }).locator("input").check();
+  await fresh.getByTestId("map-project-work-create").click();
+  const row = panel.getByTestId("map-project-work-layer");
+  await expect(row).toHaveAttribute("data-name", "Stenar", { timeout: 15_000 });
+  await expect(row).toContainText("1 symbol");
+  await row.getByTestId("map-project-layer-visible").click();
+  const stone = parsed.objects.find(object => object.kind === "point")!;
+  if (stone.kind !== "point") throw new Error("ingen sten");
+  const at = await screenOf(owner, stone.at);
+  await owner.mouse.click(at.x, at.y);
+  await owner.waitForTimeout(500);
+  await expect(owner.getByTestId("map-project-hint")).not.toContainText("206");
+  await row.getByTestId("map-project-layer-visible").click();
+
+  // Skisslager: en linje på fri hand och en text.
+  const sketchNew = panel.getByTestId("map-project-sketch-new");
+  await sketchNew.locator("summary").click();
+  await sketchNew.getByTestId("map-project-sketch-name").fill("Fält");
+  await sketchNew.getByTestId("map-project-sketch-create").click();
+  await expect(owner.getByTestId("map-project-hint")).toContainText("Skissa i Fält", { timeout: 15_000 });
+  const start = await screenOf(owner, { x: 20, y: 20 }), end = await screenOf(owner, { x: 40, y: 30 });
+  await owner.mouse.move(start.x, start.y);
+  await owner.mouse.down();
+  for (let step = 1; step <= 10; step++) await owner.mouse.move(start.x + (end.x - start.x) * step / 10, start.y + (end.y - start.y) * step / 10 + (step % 2) * 3);
+  await owner.mouse.up();
+  await owner.getByTestId("map-project-sketch-text").fill("Ny stig?");
+  const textAt = await screenOf(owner, { x: 50, y: 50 });
+  await owner.mouse.click(textAt.x, textAt.y);
+  type Listed = { layers: { kind: string; name: string }[]; sketches: { kind: string; text: string | null; points: number[][] }[] };
+  await expect.poll(async () => ((await (await owner.request.get(`/api/organizer/map-projects/${projectId}/work-layers`)).json()) as Listed).sketches
+    .map(sketch => sketch.kind).sort(), { timeout: 15_000 }).toEqual(["LINE", "TEXT"]);
+  const listed = (await (await owner.request.get(`/api/organizer/map-projects/${projectId}/work-layers`)).json()) as Listed;
+  expect(listed.sketches.find(sketch => sketch.kind === "TEXT")?.text).toBe("Ny stig?");
+  expect(listed.sketches.find(sketch => sketch.kind === "LINE")!.points.length).toBeGreaterThanOrEqual(2);
+  await owner.getByTestId("map-project-sketch-done").click();
+  await reviewScreenshots(owner, "kartprojekt-skisslager");
+  await owner.reload();
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await expect(owner.getByTestId("map-project-sketch-layer")).toContainText("2 skisser", { timeout: 15_000 });
+});

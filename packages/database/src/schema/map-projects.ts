@@ -221,6 +221,29 @@ export const mapProjectNotes = pgTable("map_project_note", {
   resolvedBy: uuid("resolved_by")
 });
 
+/** Arbetslager och skisslager (0107, ägaren 2026-11-09): normens symboler i egna grupper, och skisser som inte hör till kartan. */
+export const mapProjectWorkLayers = pgTable("map_project_work_layer", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  kind: text("kind").$type<"SYMBOLS" | "SKETCH">().notNull(),
+  name: text("name").notNull(),
+  codes: jsonb("codes").$type<string[]>().notNull().default([]),
+  color: text("color").notNull().default("#c0262d"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, table => [index("map_project_work_layer_project_idx").on(table.projectId, table.createdAt)]);
+
+export const mapProjectSketches = pgTable("map_project_sketch", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  layerId: uuid("layer_id").notNull().references(() => mapProjectWorkLayers.id),
+  accountId: uuid("account_id").notNull(),
+  kind: text("kind").$type<"LINE" | "POINT" | "TEXT">().notNull(),
+  points: jsonb("points").$type<[number, number][]>().notNull(),
+  text: text("text"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, table => [index("map_project_sketch_layer_idx").on(table.layerId, table.createdAt), index("map_project_sketch_project_idx").on(table.projectId)]);
+
 /** Personen vill synas i kartprojektens topplistor (0096). */
 export const mapStatsOptIns = pgTable("map_stats_opt_in", {
   accountId: uuid("account_id").primaryKey().references(() => userAccounts.id),

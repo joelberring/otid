@@ -1,10 +1,13 @@
 import React from "react";
+import { checkinHistoryEn } from "../i18n/workspace-small-en";
+import { useTexts } from "./language-provider";
 import type { CheckinHistoryResponse } from "@o-tid/contracts";
-import { checkinHistorySv as text } from "../i18n/checkin-history-sv";
+import { checkinHistorySv } from "../i18n/checkin-history-sv";
 import { formatClockTime } from "../lib/clock-time";
 import styles from "./race-administrator-workspace.module.css";
 
 export function CheckinHistoryTable({ data, timeZone }: { data: CheckinHistoryResponse; timeZone: string }) {
+  const text = useTexts(checkinHistorySv, checkinHistoryEn);
   if (!data.rows.length) return <p>{text.empty}</p>;
   return <div className={styles.tableScroll} style={{ maxHeight: "24rem" }}>
     <p>{text.timeZone}: {timeZone}</p>

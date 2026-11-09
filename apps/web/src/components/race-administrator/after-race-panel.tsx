@@ -1,6 +1,7 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { decisionReviewEn } from "../../i18n/workspace-small-en";
 import { resultsOfficialEn } from "../../i18n/workspace-tools-en";
 import { startRuleEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
@@ -32,7 +33,7 @@ import { MapRoutesSection } from "./map-routes-section";
 import { RemainingRunnersSection } from "./remaining-runners";
 import { ResultsOfficialSection } from "./results-official-section";
 import { resultsOfficialSv } from "../../i18n/results-official-sv";
-import { decisionReviewSv as reviewText } from "../../i18n/decision-review-sv";
+import { decisionReviewSv } from "../../i18n/decision-review-sv";
 import { DecisionReviewList } from "./decision-review";
 import { ClubArchiveReminder } from "./club-archive-section";
 import { joinRaceParts, raceTitle } from "@o-tid/domain";
@@ -69,6 +70,7 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
  * under dem efterarbetet: fastställande (typer som har det) och omräkning. En bana rättas med "Redigera bana" (ADR-0169).
  */
 export function AfterRacePanel({ ws }: { ws: Workspace }) {
+  const reviewText = useTexts(decisionReviewSv, decisionReviewEn);
   const officialText = useTexts(resultsOfficialSv, resultsOfficialEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { formErrorsEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { INVITATION_BULK_MAX, invitationMailOutcomeSchema, type GroupLeaderView } from "@o-tid/contracts";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
@@ -19,6 +21,7 @@ const text = trainingGroupSv.leader;
  * konto; adressen står som "väntar på inloggning" tills personen loggar in med den.
  */
 export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChanged: () => void }) {
+  const formText = useTexts(formErrorsSv, formErrorsEn);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"LEADER" | "MEMBER">("LEADER");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -33,7 +36,7 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
     event.preventDefault();
     const { addresses, invalid } = parseInvitationAddresses(email);
     setProblem(""); setNotice("");
-    if (addresses.length === 0) { setProblem(invalid.length ? formErrorsSv.email : invitationSv.bulk.none); return; }
+    if (addresses.length === 0) { setProblem(invalid.length ? formText.email : invitationSv.bulk.none); return; }
     if (addresses.length > INVITATION_BULK_MAX) { setProblem(invitationSv.bulk.tooMany(INVITATION_BULK_MAX)); return; }
     const post = (address: string, id: string) => groupRequest(`/api/organizer/groups/${view.groupId}/members`, "POST", { formatVersion: 1,
       requestId: id, email: address, role });

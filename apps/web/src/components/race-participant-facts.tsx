@@ -1,9 +1,10 @@
 "use client";
 
 import type { EntryTransferCandidates } from "@o-tid/contracts";
+import { raceWorkflowDetailEn } from "../i18n/workspace-small-en";
 import { startRuleEn } from "../i18n/workspace-admin-en";
 import { useTexts } from "./language-provider";
-import { raceWorkflowDetailSv as text } from "../i18n/race-workflow-detail-sv";
+import { raceWorkflowDetailSv } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
 import { formatClockTime } from "../lib/clock-time";
 import { startRuleSv } from "../i18n/start-rule-sv";
@@ -20,6 +21,7 @@ export function RaceParticipantFacts({ entry, raceClass, timeZone, disabled, act
   activeAction: string;
   onEdit: (action: EditAction) => void;
 }) {
+  const text = useTexts(raceWorkflowDetailSv, raceWorkflowDetailEn);
   const startRule = useTexts(startRuleSv, startRuleEn);
   const assignment = entry.activeAssignment;
   const cardValue = entry.multipleActiveAssignments ? text.multipleCards : assignment === null ? text.noCard :

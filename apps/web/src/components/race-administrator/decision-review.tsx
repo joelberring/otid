@@ -1,11 +1,12 @@
 "use client";
 
 import type { DecisionReview } from "@o-tid/contracts";
+import { decisionReviewEn } from "../../i18n/workspace-small-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import controlStyles from "./readout-control.module.css";
-import { decisionReviewSv as text } from "../../i18n/decision-review-sv";
+import { decisionReviewSv } from "../../i18n/decision-review-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { decisionReviewText, withdrawChoiceFor } from "../../lib/decision-review";
 import { Button } from "../ui";
@@ -13,6 +14,7 @@ import type { Workspace } from "./workspace-state";
 
 /** Steg 45: deltagarkortets varning när ett beslut döljer en senare avläsning, med "Ta bort beslutet". */
 export function DecisionReviewNotice({ ws, review }: { ws: Workspace; review: DecisionReview }) {
+  const text = useTexts(decisionReviewSv, decisionReviewEn);
   return <section className={styles.review} role="alert" data-testid="decision-review" aria-label={text.listTitle}>
     <p><strong>! {decisionReviewText(review)}</strong></p>
     <p>{text.help}</p>
@@ -23,6 +25,7 @@ export function DecisionReviewNotice({ ws, review }: { ws: Workspace; review: De
 
 /** Steg 45: Resultat → Efterarbete → "Beslut att se över". */
 export function DecisionReviewList({ ws }: { ws: Workspace }) {
+  const text = useTexts(decisionReviewSv, decisionReviewEn);
   const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { classNames, data, disabled, openCorrection } = ws;
   const rows = (data?.entries ?? []).filter((entry) => entry.decisionReview);

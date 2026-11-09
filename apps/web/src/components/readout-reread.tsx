@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { readoutRereadEn } from "../i18n/workspace-small-en";
+import { useTexts } from "./language-provider";
 import type { ReadoutRereadItem, ReadoutRereadPreviewResponse } from "@o-tid/contracts";
-import { readoutRereadSv as text } from "../i18n/readout-reread-sv";
+import { readoutRereadSv } from "../i18n/readout-reread-sv";
 import { applyReadoutReread, previewReadoutReread, type ReadoutRereadFailure } from "../lib/readout-reread-client";
 import styles from "./race-administrator-workspace.module.css";
 
@@ -14,11 +16,12 @@ import styles from "./race-administrator-workspace.module.css";
 type Attempt = { preview: ReadoutRereadPreviewResponse; chosen: ReadonlySet<string>; requestId: string; uncertain: boolean };
 const key = (item: ReadoutRereadItem) => `${item.readoutId}:${item.entryId}`;
 
-function failureText(failure: ReadoutRereadFailure): string {
+function failureText(failure: ReadoutRereadFailure, text: typeof readoutRereadEn): string {
   return failure === "conflict" ? text.conflict : failure === "invalid" ? text.invalid : text.unreachable;
 }
 
 export function useReadoutReread(raceId: string, onSaved?: () => Promise<void> | void) {
+  const text = useTexts(readoutRereadSv, readoutRereadEn);
   const [attempt, setAttempt] = useState<Attempt>();
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState("");
   async function show(entryId?: string) {
@@ -28,7 +31,7 @@ export function useReadoutReread(raceId: string, onSaved?: () => Promise<void> |
       const result = await previewReadoutReread(raceId, entryId);
       if (result.ok) setAttempt({ preview: result.preview, chosen: new Set(result.preview.items.map(key)), requestId: crypto.randomUUID(),
         uncertain: false });
-      else setError(failureText(result.failure));
+      else setError(failureText(result.failure, text));
     } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
   function toggle(item: ReadoutRereadItem, on: boolean) {
@@ -46,7 +49,7 @@ export function useReadoutReread(raceId: string, onSaved?: () => Promise<void> |
       setAttempt({ ...attempt, uncertain: true });
       const result = await applyReadoutReread(raceId, items, attempt.requestId);
       setAttempt(undefined);
-      if (!result.ok) { setError(failureText(result.failure)); return; }
+      if (!result.ok) { setError(failureText(result.failure, text)); return; }
       await onSaved?.();
       setSaved(text.saved(result.receipt.saved.length));
     } catch { setError(text.unreachable); } finally { setBusy(false); }
@@ -58,6 +61,7 @@ export function useReadoutReread(raceId: string, onSaved?: () => Promise<void> |
 type Flow = ReturnType<typeof useReadoutReread>;
 
 function Change({ item }: { item: ReadoutRereadItem }) {
+  const text = useTexts(readoutRereadSv, readoutRereadEn);
   return <>
     <span>{text.card(item.cardNumber)} · {item.displayName} ({item.className}):{" "}
       {text.side(item.before.punchCount, item.before.status, item.before.elapsedMs)} →{" "}
@@ -68,6 +72,7 @@ function Change({ item }: { item: ReadoutRereadItem }) {
 
 /** Förhandsbeskedet: ändrade avläsningar med val, de som inte går att läsa om, och bekräftelse. */
 export function ReadoutRereadReview({ flow, title, single = false }: { flow: Flow; title: string; single?: boolean }) {
+  const text = useTexts(readoutRereadSv, readoutRereadEn);
   const { attempt, busy } = flow;
   if (!attempt) return null;
   const { preview } = attempt;
@@ -104,6 +109,7 @@ function Messages({ flow }: { flow: Flow }) {
 
 /** Avläsning → "Läs om avläsningar från rådata" för hela tävlingen. */
 export function ReadoutRereadPanel({ raceId, onChanged }: { raceId: string; onChanged: () => Promise<void> | void }) {
+  const text = useTexts(readoutRereadSv, readoutRereadEn);
   const flow = useReadoutReread(raceId, onChanged);
   return <div className={styles.disclosureBody}>
     <p className={styles.workflowHelp}>{text.help}</p>
@@ -121,6 +127,7 @@ export function ReadoutRereadPanel({ raceId, onChanged }: { raceId: string; onCh
  */
 export function ParticipantReadoutReread({ raceId, entryId, active, refreshKey, disabled, onChanged }: { raceId: string;
   entryId: string; active: boolean; refreshKey: string; disabled: boolean; onChanged: () => Promise<void> | void }) {
+  const text = useTexts(readoutRereadSv, readoutRereadEn);
   const flow = useReadoutReread(raceId, onChanged);
   const [item, setItem] = useState<ReadoutRereadItem>();
   useEffect(() => {

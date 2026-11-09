@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { publicLinkShareSv as text } from "../i18n/public-link-share-sv";
+import { publicLinkShareEn } from "../i18n/workspace-small-en";
+import { useTexts } from "./language-provider";
+import { publicLinkShareSv } from "../i18n/public-link-share-sv";
 import { copyPublicLink, sharePublicLink } from "../lib/public-link-share";
 
 function browser() {
@@ -14,6 +16,7 @@ function browser() {
 
 /** Interaction-only control for an already-authorized public URL. */
 export function PublicLinkShare({ path, title }: { path: string; title: string }) {
+  const text = useTexts(publicLinkShareSv, publicLinkShareEn);
   const [canShare, setCanShare] = useState(false);
   const [message, setMessage] = useState<string>();
   useEffect(() => { setCanShare(typeof navigator.share === "function"); }, []);

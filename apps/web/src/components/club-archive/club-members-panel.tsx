@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { formErrorsEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { INVITATION_BULK_MAX, invitationMailOutcomeSchema, type ClubRole, type ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
@@ -20,6 +22,7 @@ const ROLES: readonly ClubRole[] = ["READER", "LEADER", "ADMIN", "OWNER"];
  * visar adressen som "väntar på inloggning" tills personen loggat in med den. Medlemmar och ledare ser bara sin egen rad (ADR-0209).
  */
 export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChanged: () => Promise<void> }) {
+  const formText = useTexts(formErrorsSv, formErrorsEn);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ClubRole>("READER");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -43,7 +46,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   async function invite(event: FormEvent) {
     event.preventDefault();
     const { addresses, invalid } = parseInvitationAddresses(email);
-    if (addresses.length === 0) { setMessage({ tone: "error", text: invalid.length ? formErrorsSv.email : invitationSv.bulk.none }); return; }
+    if (addresses.length === 0) { setMessage({ tone: "error", text: invalid.length ? formText.email : invitationSv.bulk.none }); return; }
     if (addresses.length > INVITATION_BULK_MAX) { setMessage({ tone: "error", text: invitationSv.bulk.tooMany(INVITATION_BULK_MAX) }); return; }
     const post = (address: string, id: string) => clubRequest(`${clubBase(club.clubId)}/members`, "POST", { formatVersion: 1, requestId: id,
       email: address, role });

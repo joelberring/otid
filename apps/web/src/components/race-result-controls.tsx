@@ -1,16 +1,18 @@
 "use client";
 
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
-import { raceWorkflowDetailSv as text } from "../i18n/race-workflow-detail-sv";
+import { raceWorkflowDetailEn } from "../i18n/workspace-small-en";
+import { useTexts } from "./language-provider";
+import { raceWorkflowDetailSv } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
 import { formatClockTime, formatDuration } from "../lib/clock-time";
 
-function elapsed(value: number | null): string {
+function elapsed(value: number | null, text: Pick<typeof raceWorkflowDetailEn, "unknownTime">): string {
   if (value === null || !Number.isSafeInteger(value) || value < 0) return text.unknownTime;
   return formatDuration(value);
 }
 
-function wallTime(value: string | null, timeZone: string): string {
+function wallTime(value: string | null, timeZone: string, text: Pick<typeof raceWorkflowDetailEn, "notRecorded">): string {
   return value === null ? text.notRecorded : formatClockTime(value, timeZone);
 }
 
@@ -19,6 +21,7 @@ export function RaceResultControls({ result, resultError, timeZone }: {
   resultError: boolean;
   timeZone: string;
 }) {
+  const text = useTexts(raceWorkflowDetailSv, raceWorkflowDetailEn);
   const heading = <h2 id="race-result-controls-title">{text.resultTitle}</h2>;
   const panelClass = `${styles.panel} ${styles.resultControls}`;
   if (resultError) return <section className={panelClass} aria-labelledby="race-result-controls-title">{heading}<p role="status">{text.resultError}</p></section>;
@@ -39,8 +42,8 @@ export function RaceResultControls({ result, resultError, timeZone }: {
     <dl className={styles.resultFacts}>
       <div><dt>{text.resultClass}</dt><dd>{result.resultClass.name}</dd></div>
       <div><dt>{text.course}</dt><dd>{details.courseName}</dd></div>
-      <div><dt>{text.startRecorded}</dt><dd>{wallTime(details.startTime, timeZone)}</dd></div>
-      <div><dt>{text.finishRecorded}</dt><dd>{wallTime(details.finishTime, timeZone)}</dd></div>
+      <div><dt>{text.startRecorded}</dt><dd>{wallTime(details.startTime, timeZone, text)}</dd></div>
+      <div><dt>{text.finishRecorded}</dt><dd>{wallTime(details.finishTime, timeZone, text)}</dd></div>
     </dl>
     {details.controls.length === 0 ? <p>{text.noTechnicalDetails}</p> :
       <div className={styles.tableScroll} tabIndex={0} role="region" aria-label={text.resultTitle}>
@@ -51,8 +54,8 @@ export function RaceResultControls({ result, resultError, timeZone }: {
             <td className={styles.numeric}>{control.sequence}</td>
             <th scope="row">{control.controlCode}{control.occurrence > 1 ? <span className={styles.occurrence}> · {text.occurrence} {control.occurrence}</span> : null}</th>
             {control.outOfOrder ? <td colSpan={2}>{text.outOfOrder}</td> : <>
-              <td className={styles.numeric}>{control.legMs === null ? text.noSplit : elapsed(control.legMs)}</td>
-              <td className={styles.numeric}>{control.elapsedMs === null ? text.noSplit : elapsed(control.elapsedMs)}</td></>}
+              <td className={styles.numeric}>{control.legMs === null ? text.noSplit : elapsed(control.legMs, text)}</td>
+              <td className={styles.numeric}>{control.elapsedMs === null ? text.noSplit : elapsed(control.elapsedMs, text)}</td></>}
           </tr>)}</tbody>
         </table>
       </div>}

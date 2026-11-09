@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { courseSecrecyEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { courseSecrecyResponseSchema, publicTimingResponseSchema, racePublicationResponseSchema, type PublicTimingRequest } from "@o-tid/contracts";
 import { publicRaceSv } from "../../i18n/public-race-sv";
-import { courseSecrecySv as secrecyText } from "../../i18n/course-secrecy-sv";
+import { courseSecrecySv } from "../../i18n/course-secrecy-sv";
 import { displayAddress, formatRaceInstant, raceHubPath, raceQrPath } from "../../lib/public-race-format";
 import { PublicLinkShare } from "../public-link-share";
 import { Button, Notice, Section } from "../ui";
@@ -73,6 +75,7 @@ function RacePublicationSection({ ws, id }: { ws: Workspace; id: string }) {
  * inget resultat ändras.
  */
 function CourseSecrecySection({ ws, id }: { ws: Workspace; id: string }) {
+  const secrecyText = useTexts(courseSecrecySv, courseSecrecyEn);
   const { begin, busy, writingRef, csrf, current, data, finish, load, pending, raceId, request, json, requireSession, workflowLocked } = ws;
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const secrecy = data?.courseSecrecy;
@@ -111,6 +114,7 @@ function CourseSecrecySection({ ws, id }: { ws: Workspace; id: string }) {
  * ändras; inget resultat ändras.
  */
 function PublicTimingSection({ ws, id }: { ws: Workspace; id: string }) {
+  const secrecyText = useTexts(courseSecrecySv, courseSecrecyEn);
   const { begin, busy, writingRef, csrf, current, data, finish, load, pending, raceId, request, json, requireSession, workflowLocked } = ws;
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const timing = data?.courseSecrecy?.publicTiming;

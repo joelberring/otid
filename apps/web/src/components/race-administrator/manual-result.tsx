@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { manualResultEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import {
   entryStatusReceiptSchema, type AdministratorEffectiveResultResponse, type EntryStatusDecision, type EntryStatusRequest,
   type EntryStatusResponse
 } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
-import { manualResultSv as text } from "../../i18n/manual-result-sv";
+import { manualResultSv } from "../../i18n/manual-result-sv";
 import { formatClockTime, formatDuration, parseRaceClock, zonedDate } from "../../lib/clock-time";
 import { Button } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -37,7 +39,8 @@ type Form = { finish: string; start: string; elapsed: string; status: "OK" | "MP
 const emptyForm: Form = { finish: "", start: "", elapsed: "", status: "OK", reason: "" };
 
 /** Arrangörens manuella tid som beslut, eller ett fel i ord. */
-export function manualTimeDecision(form: Form, status: EntryStatusResponse, raceDate: string, timeZone: string):
+export function manualTimeDecision(form: Form, status: EntryStatusResponse, raceDate: string, timeZone: string,
+  text: typeof manualResultEn = manualResultSv):
   { decision: EntryStatusDecision; elapsedMs: number } | string {
   if (!form.reason.trim()) return text.reasonRequired;
   const known = status.manualTime.knownStartTime;
@@ -71,6 +74,7 @@ export function manualTimeDecision(form: Form, status: EntryStatusResponse, race
  * händer och sparar beslutet i statusflödet med orsak. Ett svar som uteblir skickas om med samma begäran.
  */
 export function ManualResult({ ws, result }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined }) {
+  const text = useTexts(manualResultSv, manualResultEn);
   const { data, disabled, busy, selected } = ws;
   const [open, setOpen] = useState<"" | "TIME" | "CONTROLS">("");
   const [status, setStatus] = useState<EntryStatusResponse>();
@@ -124,7 +128,7 @@ export function ManualResult({ ws, result }: { ws: Workspace; result: Administra
   }
 
   const timeZone = data.timeZone;
-  const planned = status && open === "TIME" ? manualTimeDecision(form, status, data.raceDate, timeZone) : undefined;
+  const planned = status && open === "TIME" ? manualTimeDecision(form, status, data.raceDate, timeZone, text) : undefined;
   const locked = disabled || busy || !!sending && !error;
   const remaining = status ? status.approvableControls.length - controls.length : 0;
   return <section className={styles.workspace} aria-label={text.manualTimeTitle}>

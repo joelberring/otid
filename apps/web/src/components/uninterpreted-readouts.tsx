@@ -1,10 +1,12 @@
 "use client";
 
 import { DateInput } from "./ui";
+import { uninterpretedReadoutsEn } from "../i18n/workspace-small-en";
+import { useTexts } from "./language-provider";
 import { useState } from "react";
 import type { UninterpretedReadoutListResponse } from "@o-tid/contracts";
 import { parseRaceClock } from "@o-tid/domain";
-import { uninterpretedReadoutsSv as text } from "../i18n/uninterpreted-readouts-sv";
+import { uninterpretedReadoutsSv } from "../i18n/uninterpreted-readouts-sv";
 import { formatClockTime, zonedDate } from "../lib/clock-time";
 import { listUninterpretedReadouts, rereadUninterpretedReadout } from "../lib/uninterpreted-readouts-client";
 import styles from "./race-administrator-workspace.module.css";
@@ -17,6 +19,7 @@ type Row = UninterpretedReadoutListResponse["readouts"][number];
  */
 export function UninterpretedReadoutsPanel({ raceId, timeZone, onChanged }: { raceId: string; timeZone: string;
   onChanged: () => Promise<void> | void }) {
+  const text = useTexts(uninterpretedReadoutsSv, uninterpretedReadoutsEn);
   const [list, setList] = useState<UninterpretedReadoutListResponse>();
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   async function load() {
@@ -35,6 +38,7 @@ export function UninterpretedReadoutsPanel({ raceId, timeZone, onChanged }: { ra
 }
 
 function UninterpretedRow({ raceId, row, timeZone, onRead }: { raceId: string; row: Row; timeZone: string; onRead: () => Promise<void> }) {
+  const text = useTexts(uninterpretedReadoutsSv, uninterpretedReadoutsEn);
   const [date, setDate] = useState(() => zonedDate(row.stationReceivedAt, timeZone));
   const [clock, setClock] = useState(""), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());

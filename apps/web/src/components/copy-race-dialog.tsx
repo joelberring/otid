@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
+import { formErrorsEn } from "../i18n/workspace-small-en";
 import { raceCopyEn } from "../i18n/workspace-tools-en";
 import { useTexts } from "./language-provider";
 import { createPortal } from "react-dom";
@@ -54,6 +55,7 @@ export function CopyRaceDialog({ source, onClose, onCopied }: {
 function CopyRaceDialogContent({ source, onClose, onCopied }: {
   source: CopySource; onClose: () => void; onCopied?: ((response: RaceCopyResponse) => void) | undefined;
 }) {
+  const formText = useTexts(formErrorsSv, formErrorsEn);
   const text = useTexts(raceCopySv, raceCopyEn);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<Form>(() => initialForm(source));
@@ -73,9 +75,9 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
   async function submit(event: FormEvent) {
     event.preventDefault();
     // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
-    const next = { eventName: form.eventName.trim().length >= 2 ? undefined : formErrorsSv.eventName,
-      raceName: isRaceName(form.raceName) ? undefined : formErrorsSv.stageName,
-      raceDate: isIsoDate(form.raceDate) ? undefined : formErrorsSv.raceDate };
+    const next = { eventName: form.eventName.trim().length >= 2 ? undefined : formText.eventName,
+      raceName: isRaceName(form.raceName) ? undefined : formText.stageName,
+      raceDate: isIsoDate(form.raceDate) ? undefined : formText.raceDate };
     setErrors(next);
     if (hasErrors(next)) { focusFirstError(event.currentTarget as HTMLFormElement); return; }
     setBusy(true);

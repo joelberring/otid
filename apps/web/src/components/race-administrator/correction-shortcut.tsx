@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { correctionEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
-import { correctionSv as text } from "../../i18n/correction-sv";
+import { correctionSv } from "../../i18n/correction-sv";
 import { Button } from "../ui";
 import type { Workspace } from "./workspace-state";
 
@@ -11,6 +13,7 @@ import type { Workspace } from "./workspace-state";
  * Rätta, där allt som ändrar en löpares resultat finns.
  */
 export function CorrectionShortcut({ ws }: { ws: Workspace }) {
+  const text = useTexts(correctionSv, correctionEn);
   const { data, disabled, functionary, openCorrection, raceId } = ws;
   const [entryId, setEntryId] = useState("");
   if (!data || functionary) return null;

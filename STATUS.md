@@ -60,7 +60,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 17: stafetten (klasser, mallar, lag, lagkortet, start, avläsningens lag ute och omstarter; `workspace-relay-en.ts`).
 - Del 18: festen i arbetsytan (start, utseende, varor, skyltar, köp, gäster och export).
 - Del 19: avläsningen och bardisken (appskalet läser språkkakan, annars webbläsarens språk; `readout/text-en.ts`), också
-  kvittot, brickans stämplingar och placeringen vid avläsningen (`placement-text-en.ts`, engelska ordningstal). Kvar: hjälpen,
+  kvittot, brickans stämplingar och placeringen vid avläsningen (`placement-text-en.ts`, engelska ordningstal).
+- Del 21: de mindre delarna i arbetsytan (banhemlighet, omläsning, beslut att se över, otolkade avläsningar, manuell tid,
+  Rätta, start- och återkomsthistorik, konfliktgranskning, fältfel, sträcktiderna i kortet; `workspace-small-en.ts`). Kvar
+  i arbetsytan: avancerad lottning, kartan, kartbuntarna, säkerhetskopian, kontrollkartan, enheterna och gafflingsbilden. Kvar: hjälpen,
   banläggningen och utskriften, kartprojekten och kartredigeraren, klubbytan och arkivet, träningsgruppernas ledarvy,
   inbjudningarna och superadmin.
 

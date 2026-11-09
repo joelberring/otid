@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { formErrorsEn } from "../../i18n/workspace-small-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import { INVITATION_BULK_MAX, racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
@@ -27,6 +28,7 @@ type Message = { tone: "ok" | "error"; text: string };
  */
 export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: string; disabled: boolean;
   onPendingChange: (pending: boolean) => void }) {
+  const formText = useTexts(formErrorsSv, formErrorsEn);
   const text = useTexts(raceTypeSv.settings.people, raceTypeEn.settings.people);
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator/people`;
   const [data, setData] = useState<RacePeopleResponse>();
@@ -67,7 +69,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
     event.preventDefault();
     if (busy) return;
     const { addresses, invalid } = parseInvitationAddresses(email);
-    if (addresses.length === 0) { setEmailError(invalid.length ? formErrorsSv.email : invitationSv.bulk.none); return; }
+    if (addresses.length === 0) { setEmailError(invalid.length ? formText.email : invitationSv.bulk.none); return; }
     if (addresses.length > INVITATION_BULK_MAX) { setEmailError(invitationSv.bulk.tooMany(INVITATION_BULK_MAX)); return; }
     setEmailError("");
     const grant = async (address: string) => {

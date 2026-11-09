@@ -1,6 +1,11 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { readoutRereadEn } from "../../i18n/workspace-small-en";
+import { uninterpretedReadoutsEn } from "../../i18n/workspace-small-en";
+import { correctionEn } from "../../i18n/workspace-small-en";
+import { checkinHistoryEn } from "../../i18n/workspace-small-en";
+import { checkinConflictReviewEn } from "../../i18n/workspace-small-en";
 import { forestWatchEn, raceCorrectionsEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
@@ -9,7 +14,7 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { forestWatchSv } from "../../i18n/forest-watch-sv";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
-import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
+import { checkinConflictReviewSv } from "../../i18n/checkin-conflict-review-sv";
 import { ForestWatchReport } from "../forest-watch-report";
 import { CheckinHistoryTable } from "../checkin-history-table";
 import { AdministratorConflictEvidence } from "../administrator-conflict-evidence";
@@ -100,6 +105,11 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
  * under Mer (ADR-0191 beslut 1). Funktionären ser bara granskningen av sin egen återkomst eller sitt startläge.
  */
 export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
+  const rereadText = useTexts(readoutRereadSv, readoutRereadEn);
+  const uninterpretedText = useTexts(uninterpretedReadoutsSv, uninterpretedReadoutsEn);
+  const correctionText = useTexts(correctionSv, correctionEn);
+  const historyText = useTexts(checkinHistorySv, checkinHistoryEn);
+  const reviewText = useTexts(checkinConflictReviewSv, checkinConflictReviewEn);
   const correctionsText = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const forestText = useTexts(forestWatchSv, forestWatchEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
@@ -142,31 +152,31 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     <CorrectionShortcut ws={ws} />
     {/* Verktygen för hela tävlingen (PLAN.md steg 31, 36 och 45) under Mer; bara administratören. */}
     {data && !functionary && <details className={styles.disclosure} id={`readout-more-${raceId}`}>
-      <summary>{correctionSv.readoutMore}</summary>
+      <summary>{correctionText.readoutMore}</summary>
       <div className={styles.disclosureBody}>
-      <p className={styles.workflowHelp}>{correctionSv.readoutMoreHelp}</p>
+      <p className={styles.workflowHelp}>{correctionText.readoutMoreHelp}</p>
       <details ref={checkinHistoryPanel} className={styles.disclosure}>
-        <summary>{checkinHistorySv.title}</summary>
+        <summary>{historyText.title}</summary>
         <div className={styles.disclosureBody}>
-        <p className={styles.workflowHelp}>{checkinHistorySv.help}</p>
-        <p><strong>{data?.entries.find(entry => entry.id === entryId)?.displayName ?? checkinHistorySv.choose}</strong></p>
+        <p className={styles.workflowHelp}>{historyText.help}</p>
+        <p><strong>{data?.entries.find(entry => entry.id === entryId)?.displayName ?? historyText.choose}</strong></p>
         <div className={styles.actions}>
-          <Button variant="secondary" disabled={disabled || !entryId} onClick={() => void loadCheckinHistory()}>{checkinHistorySv.latest}</Button>
+          <Button variant="secondary" disabled={disabled || !entryId} onClick={() => void loadCheckinHistory()}>{historyText.latest}</Button>
           <Button variant="secondary" disabled={disabled || !entryId} onClick={() => void loadConflictReview()}>{reviewText.load}</Button>
         </div>
-        {checkinHistory?.entryId === entryId && <section aria-label={checkinHistorySv.title}>
+        {checkinHistory?.entryId === entryId && <section aria-label={historyText.title}>
           <CheckinHistoryTable data={checkinHistory} timeZone={data?.timeZone ?? "UTC"} />
-          {checkinHistory.nextCursor && <Button variant="secondary" disabled={disabled} onClick={() => void loadCheckinHistory(checkinHistory.nextCursor!)}>{checkinHistorySv.older}</Button>}
+          {checkinHistory.nextCursor && <Button variant="secondary" disabled={disabled} onClick={() => void loadCheckinHistory(checkinHistory.nextCursor!)}>{historyText.older}</Button>}
         </section>}
         </div>
       </details>
       <Section id={`race-corrections-${raceId}`} title={correctionsText.title} help={correctionsText.help}>
         <RaceCorrectionsPanel raceId={raceId} onChanged={ws.reloadQuietly} />
       </Section>
-      <Section id={`readout-reread-${raceId}`} title={readoutRereadSv.title}>
+      <Section id={`readout-reread-${raceId}`} title={rereadText.title}>
         <ReadoutRereadPanel raceId={raceId} onChanged={ws.reloadQuietly} />
       </Section>
-      <Section id={`uninterpreted-readouts-${raceId}`} title={uninterpretedReadoutsSv.title}>
+      <Section id={`uninterpreted-readouts-${raceId}`} title={uninterpretedText.title}>
         <UninterpretedReadoutsPanel raceId={raceId} timeZone={data.timeZone} onChanged={ws.reloadQuietly} />
       </Section>
       </div>

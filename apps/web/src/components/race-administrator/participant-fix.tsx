@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { correctionEn } from "../../i18n/workspace-small-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { participantCardEn, type CardTexts } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
@@ -10,7 +11,7 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
-import { correctionSv as fixText } from "../../i18n/correction-sv";
+import { correctionSv } from "../../i18n/correction-sv";
 import { sv } from "../../i18n/sv";
 import { availableStatusChoices, isStatusChoice } from "../../lib/participant-status-choices";
 import { ManualFinishTimeCorrection, ManualFinishTimeCorrectionWithdrawal, ManualPunchStartTimeCorrection,
@@ -29,6 +30,7 @@ import type { Workspace } from "./workspace-state";
  * eller anmälningsflöde som förut, med förhandsbesked, bekräftelse och journal.
  */
 export function ParticipantFix({ ws, result }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined }) {
+  const fixText = useTexts(correctionSv, correctionEn);
   const { chooseAction, data, disabled, functionary, raceId, selected, selectedClass } = ws;
   if (!selected || !data) return null;
   const id = participantFixId(raceId);

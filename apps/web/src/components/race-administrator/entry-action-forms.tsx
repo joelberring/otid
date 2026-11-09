@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import type { RunnerSuggestion } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { formatClockTime, parseRaceClockNear, startReference } from "../../lib/clock-time";
 import { TargetClassStartTimes } from "../target-class-start-times";
 import { Button, Field, Notice } from "../ui";
@@ -12,6 +14,7 @@ import { runnerSuggestionLabel, useRunnerSuggestions } from "./runner-suggestion
 
 /** Deltagaråtgärder: byt klass, bricka och hyrbricka, starttid och identitet. */
 export function EntryActionForms({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { action, busy, cardAttempt, cardSwap, setCardSwap, prepareCardSwap, classId, data, disabled, familyName, givenName, identityAttempt,
     identityMatches, loadIdentity, newCard, organisationName,
     pending, prepareCard, prepareIdentity, prepareRental,
@@ -171,6 +174,7 @@ export function EntryActionForms({ ws }: { ws: Workspace }) {
  * deltagare och raden under säger vem som lades till. Bara en möjlig dubblett kräver ett val, direkt i formuläret.
  */
 export function RegistrationForm({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { action, busy, chooseAction, classId, confirmDistinctPerson, data, familyName, givenName, newCard, organisationName,
     prepareRegistration, raceId, registrationAttempt, registrationErrors, registrationForm, registrationSaved, selectRegistrationCandidate,
     sent, setClassId, setConfirmDistinctPerson, setFamilyName, setGivenName, setNewCard, setOrganisationName, setRegistrationAttempt,

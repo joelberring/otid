@@ -1,9 +1,10 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
@@ -28,6 +29,7 @@ import { sectionById } from "../../lib/race-sections";
 
 /** Avläsning: kontrollvyn och hela skogslistan med manuell återkomst. Speakern har en egen sida (ADR-0170). */
 export function DuringRaceOverview({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { data, disabled, entryId, forestAutoRefresh, forestClass, forestData, forestOpen, forestQuery, forestSortByAge,
     forestStale, functionary, loadForest, prepareReturn, prepareStartCorrection, printPrivate, raceId, select, setEntryId, setForestAutoRefresh,
@@ -96,6 +98,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
  * under Mer (ADR-0191 beslut 1). Funktionären ser bara granskningen av sin egen återkomst eller sitt startläge.
  */
 export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, checkinHistory, checkinHistoryPanel, data, disabled, entryId, functionary, loadCheckinHistory,
     loadConflictReview, pending, raceId, returnAttempt, reviewAttempt, reviewCandidate, reviewConfirmed,
     reviewReason, sent, setReturnAttempt, setReviewCandidate, setReviewConfirmed, setReviewReason, setStartCorrection, startCorrection, submitConflictReview, submitReturn,

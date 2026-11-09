@@ -1,7 +1,9 @@
 import { useState } from "react";
+
+
 import { classEditPreviewResponseSchema, classEditResponseSchema, type ClassEditPreviewResponse,
   type ClassEditRequest } from "@o-tid/contracts";
-import { classTableSv as text } from "../../i18n/class-table-sv";
+
 import { isDuplicateName } from "../../lib/duplicate-name";
 import type { ClassEditAttempt, Operation } from "./types";
 import type { Base } from "./workspace-state";
@@ -39,6 +41,7 @@ export function parseMaxTime(value: string): number | null | undefined {
 }
 
 export function createClassEditActions(ws: Base & RaceDataActions & CourseEditActions) {
+  const text = ws.classText;
   const { raceId, courseList, editingClassId, classEditName, classEditCourseId, classEditStartRule, classEditPreview, classEditMaxTime,
     writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, readCourses, setCourseListError,
     setEditingClassId, setClassEditName, setClassEditCourseId, setClassEditStartRule, setClassEditPreview, setClassEditError,

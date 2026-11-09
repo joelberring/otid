@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
+
+
 import {
   entryIdentityAdminListResponseSchema, entryIdentityChangeRequestSchema, type EntryIdentityAdminListResponse
 } from "@o-tid/contracts";
 import { parseIdentityReceipt } from "../../lib/entry-identity-client";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { IdentityAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -16,6 +18,7 @@ export function useEntryIdentityState() {
 }
 
 export function createEntryIdentityActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, data, entryId, givenName, familyName, organisationName, identityCandidate, identityMatches, writingRef, pending, sent,
     requireSession, begin, finish, current, request, json, csrf, load, setGivenName, setFamilyName, setOrganisationName, setIdentityCandidates,
     setMessage, setUnknown, setData, setEntryId, setIdentityAttempt, setQuery, setPage } = ws;

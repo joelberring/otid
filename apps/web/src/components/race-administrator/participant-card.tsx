@@ -1,12 +1,15 @@
 "use client";
 
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
+import { participantCardEn, startRuleEn } from "../../i18n/workspace-admin-en";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
-import { participantCardSv as text } from "../../i18n/participant-card-sv";
+import { startRuleSv } from "../../i18n/start-rule-sv";
+import { participantCardSv } from "../../i18n/participant-card-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
@@ -30,6 +33,8 @@ import type { Workspace } from "./workspace-state";
  * klass, bricka, starttid, resultat med sträcktider, Rätta (ADR-0191) och historik.
  */
 export function ParticipantCard({ ws }: { ws: Workspace }) {
+  const text = useTexts(participantCardSv, participantCardEn);
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { action, cardAttempt, classesById, data, disabled, effectiveResult, effectiveResultError, filtered,
     identityAttempt, navigateParticipantSequence, raceId, rentalAttempt,
@@ -94,6 +99,9 @@ function WrongMap({ ws, wrongMap }: { ws: Workspace; wrongMap: { assignedCode: s
 
 /** Resultatet i ord: status, löptid, orsak och gällande beslut. */
 function CardResult({ ws, result, error }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined; error: boolean }) {
+  const startRule = useTexts(startRuleSv, startRuleEn);
+  const text = useTexts(participantCardSv, participantCardEn);
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { chooseStatusChange, disabled } = ws;
   return <section className={styles.resultSummary} aria-label={text.result}>
     <h3>{text.result}</h3>
@@ -111,7 +119,7 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
           {result.decisionNote && !result.notes?.disqualificationReason && <p data-testid="decision-note">{text.decisionNoteShown(result.decisionNote)}</p>}
           {result.notes?.startPunch && <p className={result.notes.startPunch.kind === "FROM_PUNCH" ? styles.muted : styles.warning} role="note"
             data-testid="start-punch-note">
-            {result.notes.startPunch.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(result.notes.startPunch, result.timeZone)}</p>}
+            {result.notes.startPunch.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(result.notes.startPunch, result.timeZone, startRule)}</p>}
           {/* Steg 61: fel karta vid starten. Inget byts förrän arrangören väljer "Godkänn på …". */}
           {result.notes?.wrongMap && <WrongMap ws={ws} wrongMap={result.notes.wrongMap} />}
           {/* ADR-0198: stämplingarna passar en variant som banläggningen valt bort; inget byts. */}
@@ -128,6 +136,7 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
 
 /** Kort historik över resultatändringar, nyaste först, med klockslag i tävlingens tidszon. */
 function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveResultResponse; timeZone: string }) {
+  const text = useTexts(participantCardSv, participantCardEn);
   return <section className={styles.workspace} aria-label={text.history}>
     <h3>{text.history}</h3>
     {result.history.length === 0 ? <p>{text.historyEmpty}</p> : <ul className={styles.changeList}>
@@ -139,6 +148,8 @@ function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveRes
 
 /** Ändringar i anmälan (namn, klubb, klass, bricka, starttid), läses in på begäran. */
 function EntryChanges({ ws }: { ws: Workspace }) {
+  const text = useTexts(participantCardSv, participantCardEn);
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { action, chooseAction, disabled, entryChanges, loadHistory, selected } = ws;
   if (!selected) return null;
   return <Disclosure className={styles.disclosure} open={action === "HISTORY" || undefined}

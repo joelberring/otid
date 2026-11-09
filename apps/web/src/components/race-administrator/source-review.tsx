@@ -1,7 +1,9 @@
 "use client";
 
 import type { SyncRow } from "@o-tid/contracts";
-import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { sourcesSv } from "../../i18n/sources-sv";
 import { Button, Notice } from "../ui";
 import styles from "./sources.module.css";
@@ -23,6 +25,7 @@ function Change({ change }: { change: SyncRow["changes"][number] }) {
  * går att välja har en kryssruta; beskedet om resultaten följer urvalet (samma text som "Redigera bana").
  */
 export function SourceReviewPanel({ review, busy, sourceName }: { review: SourceReview; busy: boolean; sourceName: string }) {
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { preview, excluded, consequence, attempt, toggle, apply, close } = review;
   if (!preview) return null;
   const selected = preview.rows.filter(row => row.kind !== "CONFLICT" && !excluded.includes(row.id)).length;

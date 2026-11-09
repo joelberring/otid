@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { raceAdministratorEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import type { ClassResultRecalculationAttempt, ClassResultRecalculationCandidates } from "../lib/class-result-recalculation-admin-client";
-import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../i18n/race-administrator-sv";
 import styles from "./race-administrator-workspace.module.css";
 
 type ClassOption = { id: string; name: string };
@@ -20,6 +22,7 @@ export function ClassResultRecalculation({ classes, disabled, candidates, attemp
   onRetry: () => void;
   onCancel: () => void;
 }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const [classId, setClassId] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const ready = useMemo(() => candidates?.entries.filter((entry) => entry.readiness === "READY") ?? [], [candidates]);

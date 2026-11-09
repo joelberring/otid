@@ -1,6 +1,8 @@
 "use client";
 
 import type { EntryTransferCandidates } from "@o-tid/contracts";
+import { startRuleEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import { raceWorkflowDetailSv as text } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
 import { formatClockTime } from "../lib/clock-time";
@@ -18,11 +20,12 @@ export function RaceParticipantFacts({ entry, raceClass, timeZone, disabled, act
   activeAction: string;
   onEdit: (action: EditAction) => void;
 }) {
+  const startRule = useTexts(startRuleSv, startRuleEn);
   const assignment = entry.activeAssignment;
   const cardValue = entry.multipleActiveAssignments ? text.multipleCards : assignment === null ? text.noCard :
     `${assignment.cardNumber}${assignment.isRental ? ` · ${text.cardRental} · ${assignment.rentalReturned ? text.returned : text.notReturned}` : ""}`;
   // Ett ordval för startsätt (PLAN.md steg 24): Fri start, eller Minutstart med tiden.
-  const startValue = raceClass.startRule === "PUNCH" ? text.free : `${startRuleSv.rules.FIXED} · ${entry.fixedStartTime === null
+  const startValue = raceClass.startRule === "PUNCH" ? text.free : `${startRule.rules.FIXED} · ${entry.fixedStartTime === null
     ? text.noFixedTime : formatClockTime(entry.fixedStartTime, timeZone)}`;
 
   return <section className={`${styles.panel} ${styles.participantFacts}`} aria-labelledby="race-participant-facts-title">

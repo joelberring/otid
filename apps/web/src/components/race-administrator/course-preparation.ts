@@ -1,6 +1,8 @@
 import { useRef, useState, type FormEvent } from "react";
+
+
 import { manualCourseClassCreateResponseSchema } from "@o-tid/contracts";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import { isDuplicateName } from "../../lib/duplicate-name";
 import { hasErrors, validateCourseClass, type FieldErrors } from "../../lib/form-validation";
 import { focusFirstError, focusWhenEnabled } from "../ui";
@@ -31,6 +33,7 @@ export function useCoursePreparationState() {
 }
 
 export function createCoursePreparationActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, data, courseName, courseClassName, courseControls, courseStartRule, courseTimeLimit, coursePenalty, writingRef, pending, sent, requireSession,
     begin, finish, current, request, json, csrf, load, setMessage, setCourseClassError, setCourseClassErrors, courseForm,
     setCourseClassAttempt, setCourseName, setCourseClassName, setCourseControls, setCourseStartRule, setCourseTimeLimit, setCoursePenalty } = ws;

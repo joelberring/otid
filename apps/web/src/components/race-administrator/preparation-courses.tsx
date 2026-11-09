@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { startRuleEn } from "../../i18n/workspace-admin-en";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { rogainingSv } from "../../i18n/rogaining-sv";
 import { startRuleSv } from "../../i18n/start-rule-sv";
@@ -37,6 +39,8 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
  * rogainingens tidsgräns och straff gäller klassen och visas bara då. Står kvar efter sparandet för nästa bana.
  */
 export function CourseClassForm({ ws }: { ws: Workspace }) {
+  const startRule = useTexts(startRuleSv, startRuleEn);
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, saving, courseClassAttempt, courseClassError, courseClassErrors, courseClassName, courseControls, courseForm, courseFormOpen,
     courseName, courseStartRule, coursePenalty, courseTimeLimit, profile, raceId, saveCourseClass, setCourseClassErrors, setCourseClassName,
     setCourseControls, setCourseFormOpen, setCourseName, setCourseStartRule, setCoursePenalty, setCourseTimeLimit, submitCourseClass } = ws;
@@ -60,7 +64,7 @@ export function CourseClassForm({ ws }: { ws: Workspace }) {
       <Field label={text.courseClassName} error={courseClassErrors.className}><input value={courseClassName} maxLength={160} disabled={locked}
         autoComplete="off" onChange={event => { setCourseClassName(event.target.value); clear("className"); }} /></Field>
       {withClass && profile.features.startRuleChoice && <Field label={text.courseStartRule}
-        help={startRuleSv.details[courseStartRule]}><select value={courseStartRule} disabled={locked}
+        help={startRule.details[courseStartRule]}><select value={courseStartRule} disabled={locked}
         onChange={event => setCourseStartRule(event.target.value as NonNullable<CourseClassRequest["startRule"]>)}>
         <option value="PUNCH">{text.courseFreeStart}</option><option value="FIXED">{text.courseFixedStart}</option>
       </select></Field>}

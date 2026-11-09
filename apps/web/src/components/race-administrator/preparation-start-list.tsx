@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { startListPublicationSv as publicationText } from "../../i18n/start-list-publication-sv";
 import { formatClockTime } from "../../lib/clock-time";
@@ -24,6 +25,7 @@ import { mapBundlesSv as mapText } from "../../i18n/map-bundles-sv";
  * och igen när deltagarlistan ändrats, så att "ändrad sedan publiceringen" alltid stämmer.
  */
 function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, data, disabled, loadPublication, preparePublication, publicationAttempt, publicationPreview, raceId, submitPublication,
     unknown, operation, pending, saveStartListLive, startListLiveMessage } = ws;
   const attempted = useRef<number | undefined>(undefined);

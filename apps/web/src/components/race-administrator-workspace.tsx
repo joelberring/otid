@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { raceAdministratorEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import Link from "next/link";
 import { flushSync } from "react-dom";
-import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../i18n/race-administrator-sv";
 import styles from "./race-administrator-workspace.module.css";
 import shell from "./race-administrator/shell.module.css";
 import { useWorkspace } from "./race-administrator/workspace-state";
@@ -28,6 +30,7 @@ import { SiteFooter } from "./about/site-footer";
  * Varje del finns i `race-administrator/`.
  */
 export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const ws = useWorkspace(raceId);
   const { authenticated, message, expiresAt, navigationBlocked, navigationLocked, printTarget, deadline, begin, session,
     current, lock, finish, invalidate, loadRaceDayAttention, setPrintTarget } = ws;

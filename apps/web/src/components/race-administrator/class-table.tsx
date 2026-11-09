@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
+import { classTableEn } from "../../i18n/workspace-admin-en";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import type { CourseEditListResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
-import { classTableSv as text } from "../../i18n/class-table-sv";
-import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
+import { classTableSv } from "../../i18n/class-table-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
 import { classTableStatus } from "../../lib/class-table-status";
@@ -18,6 +21,8 @@ type ClassRow = CourseEditListResponse["classes"][number];
 
 /** Klasser som tabell med redigering i raden: namn, bana och startsätt (ADR-0169 beslut 4). */
 export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const text = useTexts(classTableSv, classTableEn);
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { authenticated, busy, classEditSaved, courseList, courseListError, selectedClassId, data, editingClassId, manualClassOpen,
     loadCourses, navigateStep, pending, profile, raceId, saving, section, setManualClassOpen, startClassEdit, workflowLocked,
     openMissingFixedStart, distributeVariants, distributionMessage, operation } = ws;
@@ -96,6 +101,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
 }
 
 function ClassStatus({ row, disabled, onMissingStartTimes }: { row: ClassRow; disabled: boolean; onMissingStartTimes: () => void }) {
+  const text = useTexts(classTableSv, classTableEn);
   const status = classTableStatus(row);
   switch (status.kind) {
     case "NO_ENTRIES": return <>{text.statusNoEntries}</>;
@@ -110,6 +116,8 @@ function ClassStatus({ row, disabled, onMissingStartTimes }: { row: ClassRow; di
 }
 
 function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
+  const text = useTexts(classTableSv, classTableEn);
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, cancelClassEdit, changeClassEdit, classEditAttempt, classEditCourseId, classEditError, classEditName,
     classEditPreview, classEditStartRule, courseList, previewClassEdit, raceId, saveClassEdit, classEditMaxTime, classEditMaxTimeError } = ws;
   const id = `class-edit-${raceId}`;

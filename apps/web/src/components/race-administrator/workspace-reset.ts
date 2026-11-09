@@ -1,4 +1,5 @@
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
+
 import type { WorkspaceState } from "./workspace-state";
 
 /**
@@ -60,7 +61,7 @@ export function resetWorkspaceOnLock(s: WorkspaceState, discard: boolean) {
   setFinalizationCandidates(undefined); setFinalizationScope("RACE");
   if (discard || !sent.current) setFinalizationAttempt(undefined);
   setEntryId(""); setClassId(""); setQuery(""); setOlderResultsOnly(false); setRentalCardsOnly(false);
-  setResultState("ALL"); setPage(0); setBusy(false); setMessage(text.denied);
+  setResultState("ALL"); setPage(0); setBusy(false); setMessage(s.adminText.denied);
   setStartClock("");
   setCapacityClassId(""); setCapacityInput(""); setNewCard(""); setRentalReuseSourceId("");
   setEffectiveResult(undefined); setEffectiveResultError(false);

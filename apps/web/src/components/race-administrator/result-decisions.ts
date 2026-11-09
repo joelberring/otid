@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { type AdminTexts } from "../../i18n/workspace-admin-en";
+
 import {
   administratorEntryChangesResponseSchema, entryStatusReceiptSchema, entryStatusResponseSchema,
   type AdministratorEntryChangesResponse
 } from "@o-tid/contracts";
 import { parseResultRecalculationCandidates, parseResultRecalculationResponse,
   resultRecalculationBody } from "../../lib/result-recalculation-admin-client";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { DecisionAttempt, Operation, RecalculationAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -22,7 +24,7 @@ export function useResultDecisionState() {
 export type StatusAttempt = DecisionAttempt | RecalculationAttempt;
 
 /** Besked efter ett sparat eller avvisat beslut, per val i menyn. */
-const DECISION_TEXT: Record<DecisionAttempt["choice"], { saved: string; conflict: string }> = {
+const decisionText = (text: AdminTexts): Record<DecisionAttempt["choice"], { saved: string; conflict: string }> => ({
   APPROVAL: { saved: text.approvalSaved, conflict: text.approvalConflict },
   APPROVAL_WITHDRAWAL: { saved: text.approvalWithdrawalSaved, conflict: text.approvalConflict },
   DSQ: { saved: text.dsqSaved, conflict: text.dsqConflict },
@@ -39,10 +41,10 @@ const DECISION_TEXT: Record<DecisionAttempt["choice"], { saved: string; conflict
   CONTROL_APPROVAL_WITHDRAWAL: { saved: text.controlApprovalWithdrawalSaved, conflict: text.approvalConflict },
   CONFIRM_MP: { saved: text.confirmMpSaved, conflict: text.confirmMpConflict },
   CONFIRM_MP_WITHDRAWAL: { saved: text.confirmMpWithdrawalSaved, conflict: text.confirmMpConflict }
-};
+});
 
 /** Hur ett försök skickas: adress, nyckel, kropp, kvittokontroll och besked. */
-function submission(value: StatusAttempt, raceId: string) {
+function submission(value: StatusAttempt, raceId: string, text: AdminTexts) {
   if (value.kind === "DECISION") {
     const { request } = value;
     return { entryId: value.entryId, endpoint: "status", key: `entry-status:${request.requestId}`, body: request,
@@ -53,7 +55,7 @@ function submission(value: StatusAttempt, raceId: string) {
         }
         return receipt;
       },
-      ...DECISION_TEXT[value.choice], unknown: text.unreachable };
+      ...decisionText(text)[value.choice], unknown: text.unreachable };
   }
   return { entryId: value.value.entryId, endpoint: "recalculate", key: `result-recalculation:${value.value.requestId}`,
     body: resultRecalculationBody(value.value),
@@ -62,6 +64,7 @@ function submission(value: StatusAttempt, raceId: string) {
 }
 
 export function createResultDecisionActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, entryId, writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, setMessage,
     setUnknown, setEntryId, setEntryChanges, setRecalculationAttempt, setDecisionAttempt } = ws;
   /** Löparens läge (senaste revision, gällande beslut, vilka beslut som går) bundet till deltagarlistan. */
@@ -118,7 +121,7 @@ export function createResultDecisionActions(ws: Base & RaceDataActions) {
   async function submitStatusAttempt(value: StatusAttempt) {
     if (writingRef.current || pending.current !== value || !requireSession()) return;
     const wasUnknown = sent.current, op = begin();
-    const target = submission(value, raceId);
+    const target = submission(value, raceId, text);
     let committed = false;
     try {
       const token = csrf(); sent.current = true;

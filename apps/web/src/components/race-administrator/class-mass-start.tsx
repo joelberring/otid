@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { classTableEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import { startDrawPreviewResponseSchema, startDrawResponseSchema, startDrawSetupResponseSchema, type StartDrawRequest } from "@o-tid/contracts";
 import { formatClockTime, parseRaceClock } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
-import { classTableSv as text } from "../../i18n/class-table-sv";
+import { classTableSv } from "../../i18n/class-table-sv";
 import { Button, Field } from "../ui";
 import type { Workspace } from "./workspace-state";
 
@@ -13,6 +15,7 @@ import type { Workspace } from "./workspace-state";
  * Lottning. Alla i klassen får tiden, och efteranmälda får den också (lottningens efteranmälan). Klassen ska ha minutstart.
  */
 export function ClassMassStart({ ws, classId, startRule }: { ws: Workspace; classId: string; startRule: "PUNCH" | "FIXED" }) {
+  const text = useTexts(classTableSv, classTableEn);
   const [clock, setClock] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
   const [busy, setBusy] = useState(false);

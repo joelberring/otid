@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
 import styles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { sv } from "../../i18n/sv";
@@ -68,6 +69,7 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
 
 /** Deltagarlistan: sök och klass alltid, övriga filter under "Fler filter" (bara de som har något att visa). */
 export function ParticipantList({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { classesById, currentPage, data, disabled, entryId, filtered, lastPage, listPanel, missingFixedStartOnly,
@@ -204,6 +206,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
 
 /** Utskrift av hyrbrickor som inte är återlämnade. */
 export function RentalPrint({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { classNames, data, rentalEntries } = ws;
   return <>
     {data && rentalEntries.length > 0 && <section className={styles.rentalPrint} data-rental-print aria-label={text.rentalPrintHeading}>

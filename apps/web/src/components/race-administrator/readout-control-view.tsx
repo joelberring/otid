@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import styles from "./readout-control.module.css";
 import workspaceStyles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceDayStarted } from "@o-tid/domain";
@@ -18,6 +20,7 @@ import { Button, Notice } from "../ui";
  * felstämplade att titta på och senaste avläsningar på en skärm.
  */
 export function ReadoutControlView({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { authenticated, busy, data, disabled, forestData, forestStale, functionary, loadRaceDayAttention, operation, pending, profile, raceId,
     openCorrection, shows, workflowLocked } = ws;
   // PLAN.md steg 24: läget läses in av sig självt när steget visas (en gång; sedan finns Uppdatera).
@@ -81,6 +84,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
 
 /** Felstämplade att titta på, med "Öppna" till deltagarkortet. Visas i kontrollvyn och under Resultat. */
 export function MispunchedList({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { classNames, data, disabled, functionary, raceId, openCorrection } = ws;
   const rows = data ? mispunchedEntries(data) : [];
   return <>
@@ -98,6 +102,7 @@ export function MispunchedList({ ws }: { ws: Workspace }) {
 }
 
 function LatestReadouts({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { latestReadouts } = ws;
   if (!latestReadouts) return <p>{text.controlNotLoaded}</p>;
   if (latestReadouts.rows.length === 0) return <p>{text.controlLatestNone}</p>;
@@ -120,6 +125,7 @@ function LatestReadouts({ ws }: { ws: Workspace }) {
  * Funktionären direktanmäler bara (ADR-0172 beslut 3).
  */
 function UnknownCards({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, data, functionary, inspectUnknownReadoutResolution, pending, raceId, sent, setUnknownReadoutAttempt,
     setUnknownReadoutClassId, setUnknownReadoutEntryId, setUnknownReadoutFamilyName, setUnknownReadoutGivenName,
     setUnknownReadoutId, setUnknownReadoutOrganisationName, setUnknownReadoutTarget, submitUnknownReadoutResolution,

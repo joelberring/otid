@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
+
+
 import {
   entryStartTimeChangeRequestSchema, entryStartTimeChangeResponseSchema, entryTransferRequestSchema, entryTransferResponseSchema
 } from "@o-tid/contracts";
 import { parseRaceClockNear, startReference } from "../../lib/clock-time";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { TimeAttempt, TransferAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -16,6 +18,7 @@ export function useEntryClassState() {
 }
 
 export function createEntryClassActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, data, entryId, classId, startClock, writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load,
     setMessage, setUnknown, setTransferAttempt, setData, setEntryId, setClassId, setNewCard, setStartClock, setTimeAttempt } = ws;
   function prepareTransfer(event: FormEvent) {

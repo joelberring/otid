@@ -1,7 +1,9 @@
 import { useCallback, useRef, useState } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { fetchUntilReached, fetchWithRetry } from "../../lib/retrying-fetch";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import type { Operation, PendingAttempt } from "./types";
 import type { WorkspaceState } from "./workspace-state";
 import { clearBeforeOperation, clearBeforeRequest, resetWorkspaceOnLock } from "./workspace-reset";
@@ -12,6 +14,7 @@ import { clearBeforeOperation, clearBeforeRequest, resetWorkspaceOnLock } from "
  * startar användaren något medan en läsning pågår avbryts läsningen och görs om när den behövs.
  */
 export function useOperationState() {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const [expiresAt, setExpiresAt] = useState<string>();
   const [authenticated, setAuthenticated] = useState(false);
   const [unknown, setUnknown] = useState(false);

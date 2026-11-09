@@ -1,7 +1,9 @@
 import { useRef, useState, type FormEvent } from "react";
+
+
 import { classCapacityRequestSchema, classCapacityResponseSchema, manualClassCreateRequestSchema,
   manualClassCreateResponseSchema, type ManualClassCreateRequest } from "@o-tid/contracts";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import { isDuplicateName } from "../../lib/duplicate-name";
 import { hasErrors, validateManualClass, type FieldErrors } from "../../lib/form-validation";
 import { focusFirstError } from "../ui";
@@ -42,6 +44,7 @@ export function deriveClassPreparation(s: WorkspaceState) {
 }
 
 export function createClassPreparationActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, data, manualClassCourseVersionId, manualClassName, manualClassStartRule, capacityClassId, capacityInput,
     writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf, load, setMessage, setUnknown, setData,
     setEntryId, setClassId, setManualClassError, setManualClassAttempt, setManualClassName,

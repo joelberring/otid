@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+
+
 import { administratorForestWatchResponseSchema, administratorReturnRequestSchema, administratorReturnResponseSchema,
   administratorStartCorrectionRequestSchema, administratorStartCorrectionResponseSchema, canonicalAdministratorReturnRequest,
   canonicalAdministratorStartCorrectionRequest, checkinHistoryResponseSchema, StartCheckinConflictReviewCandidateSchema,
@@ -13,7 +15,7 @@ import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 import { forestWatchSv as forestText } from "../../i18n/forest-watch-sv";
 import { decisionReviewText } from "../../lib/decision-review";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import { relaySv as relayText } from "../../i18n/relay-sv";
 import type { ConflictReviewAttempt, Operation, ReturnAttempt, StartCorrectionAttempt, UnknownReadoutResolutionAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
@@ -86,6 +88,7 @@ export function deriveDuringRace(s: WorkspaceState) {
 }
 
 export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayActions, "readRelay">) {
+  const text = ws.adminText;
   const { raceId, entryId, functionary, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,
     targetStartState, unknownReadoutCandidate, unknownReadoutId, unknownReadoutTarget, unknownReadoutEntryId,
     unknownReadoutClassId, unknownReadoutGivenName, unknownReadoutFamilyName, unknownReadoutOrganisationName, writingRef, pending,

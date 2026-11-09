@@ -1,10 +1,13 @@
 import React from "react";
+import { raceAdministratorEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import type { AdministratorEntryChangesResponse } from "@o-tid/contracts";
 import { formatClockTime } from "../lib/clock-time";
-import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../i18n/race-administrator-sv";
 import styles from "./race-administrator-workspace.module.css";
 
 export function AdministratorEntryChanges({ data }: { data: AdministratorEntryChangesResponse }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const value = (field: string, content: string | null) => {
     if (content === null) return text.historyMissing;
     if (field === "START_TIME") return formatClockTime(content, data.timeZone);

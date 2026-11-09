@@ -1,9 +1,11 @@
 import { useState } from "react";
+
+
 import { startListPublicationPreviewResponseSchema, startListPublicationRequestSchema,
   type StartListPublicationPreviewResponse } from "@o-tid/contracts";
 import { parseAdministratorPublicationReceipt, type AdministratorPublicationAttempt } from "../../lib/administrator-publication-client";
 import { startListPublicationSv as publicationText } from "../../i18n/start-list-publication-sv";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -19,6 +21,7 @@ export function useStartListState() {
 }
 
 export function createStartListActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, data, publicationPreview, writingRef, pending, sent, requireSession, beginRequest, finish, current, assertCurrent, request, json, csrf,
     setMessage, setUnknown, setPublicationPreview, setPublicationAttempt } = ws;
   async function readPublication(op: Operation) {

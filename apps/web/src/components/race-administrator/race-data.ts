@@ -1,8 +1,10 @@
 import { useState } from "react";
+
+
 import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceSessionStatusSchema,
   type AdministratorEffectiveResultResponse, type CourseSettingLevel, type EntryTransferCandidates } from "@o-tid/contracts";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { WorkspaceRole } from "../../lib/race-sections";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
@@ -26,6 +28,7 @@ export function useRaceDataState() {
 
 /** Session och dataladdning: inloggning med kontot, utloggning och ny läsning av ögonblicksbilden. */
 export function createRaceDataActions(ws: Base & MobileNavigation) {
+  const text = ws.adminText;
   const { raceId, entryId, pending, sent, writingRef, deadline, base, setEffectiveResult, setEffectiveResultError, setData,
     setEntryChanges, setIdentityCandidates, setSelectedClassId, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
     setEntryId, setClassId, setPage, setNewCard, setRole, setCourseSetting, request, json, assertCurrent, current, begin, finish, lock,

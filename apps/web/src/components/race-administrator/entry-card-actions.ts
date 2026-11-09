@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
+import { type AdminTexts } from "../../i18n/workspace-admin-en";
+
 import {
   entryCardChangeRequestSchema, entryCardChangeResponseSchema, entryCardInUseResponseSchema, entryCardRentalChangeRequestSchema,
   entryCardRentalChangeResponseSchema, entryCardRentalReturnChangeRequestSchema, entryCardRentalReturnChangeResponseSchema,
   entryCardRentalReuseRequestSchema, entryCardRentalReuseResponseSchema, type EntryCardChangeResponse, type EntryCardInUseResponse
 } from "@o-tid/contracts";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { CardAttempt, RentalAttempt, RentalReturnAttempt, RentalReuseAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -13,7 +15,7 @@ import type { RaceDataActions } from "./race-data";
 export type CardSwap = { entryId: string; cardNumber: string; holder: EntryCardInUseResponse["holder"]; canSwap: boolean };
 
 /** Raden efter ett sparat brickbyte: bytet, avläsningar som kopplades och resultat som väntar på ny avläsning. */
-export function cardSavedMessage(receipt: EntryCardChangeResponse): string {
+export function cardSavedMessage(receipt: EntryCardChangeResponse, text: AdminTexts): string {
   const parts = [receipt.swappedWith ? text.cardSwapped(receipt.swappedWith.displayName) : text.cardSaved];
   for (const linked of receipt.linkedReadouts ?? []) parts.push(text.cardReadoutLinked(linked.cardNumber, text.cardLinkedStatus[linked.status]));
   if (receipt.staleResults?.length) parts.push(text.cardStaleResults(receipt.staleResults.map((row) => row.displayName).join(", ")));
@@ -35,6 +37,7 @@ export function useEntryCardState() {
 
 /** Brickbyte och hyrbricka sparas direkt när formuläret skickas (inget resultat påverkas). */
 export function createEntryCardActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, data, entryId, newCard, rentalReuseSourceId, writingRef, pending, sent, requireSession, begin, finish, current, request, json, csrf,
     load, setMessage, setUnknown, setData, setEntryId, setClassId, setNewCard, setStartClock, setCardAttempt, setCardSwap, cardSwap,
     setRentalAttempt, setRentalReturnAttempt, setRentalReuseAttempt, setRentalReuseSourceId } = ws;
@@ -111,7 +114,7 @@ export function createEntryCardActions(ws: Base & RaceDataActions) {
         receipt.entryVersionBefore !== value.request.expectedEntryVersion ||
         receipt.swappedWith?.entryId !== value.request.swapWith?.entryId) throw new Error("Card receipt mismatch");
       committed = true; pending.current = undefined; sent.current = false; setCardAttempt(undefined); setUnknown(false);
-      setData(undefined); setClassId(""); setNewCard(""); setMessage(cardSavedMessage(receipt));
+      setData(undefined); setClassId(""); setNewCard(""); setMessage(cardSavedMessage(receipt, text));
       setStartClock("");
       await load(op, value.entryId); setEntryId(value.entryId);
     } catch {

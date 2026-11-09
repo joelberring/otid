@@ -128,6 +128,10 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   await expect(parts.getByRole("button", { name: "Courses & classes" })).toBeVisible({ timeout: 30_000 });
   await expect(parts.getByText("No course yet")).toBeVisible();
   await expect(owner.getByRole("link", { name: "‹ My events" })).toBeVisible();
+  // Arbetsytan del 2: arbetsytans egna texter (Ny bana).
+  await expect(owner.getByRole("button", { name: "New course" }).first()).toBeVisible();
+  await owner.getByRole("button", { name: "New course" }).first().click();
+  await expect(owner.getByLabel("Course name")).toBeVisible();
   await parts.getByRole("button", { name: "Settings" }).click();
   await expect(owner.getByRole("heading", { name: "People with access" })).toBeVisible();
   await expect(owner.getByRole("group", { name: "Type of event" })).toContainText("Training");

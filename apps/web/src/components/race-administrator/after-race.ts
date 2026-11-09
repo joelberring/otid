@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+
 import type { RaceResultFinalizationMetadata } from "@o-tid/contracts";
 import { iofResultListExportFilename, parseFrozenRaceFinalizations, parseIofResultListExportMetadata,
   validateFrozenIofResultListResponse } from "../../lib/iof-result-list-export-admin-client";
@@ -8,7 +10,7 @@ import { createClassFinalizationAttempt, isDefinitiveResultFinalizationRejection
 import { classResultRecalculationBody, createClassResultRecalculationAttempt, parseClassResultRecalculationCandidates,
   parseClassResultRecalculationResponse, type ClassResultRecalculationAttempt,
   type ClassResultRecalculationCandidates } from "../../lib/class-result-recalculation-admin-client";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { FinalizationAttempt, Operation } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -41,6 +43,7 @@ export function deriveAfterRace(s: WorkspaceState) {
 }
 
 export function createAfterRaceActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, classRecalculationCandidates, finalizationCandidates, finalizationScope, finalizations, finalizationId,
     writingRef, pending, sent, requireSession, beginRequest, finish, current, assertCurrent, request,
     json, csrf, load, setMessage, setUnknown, setClassRecalculationCandidates, setClassRecalculationAttempt,

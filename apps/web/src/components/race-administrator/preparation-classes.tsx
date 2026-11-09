@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { startRuleEn } from "../../i18n/workspace-admin-en";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { startRuleSv } from "../../i18n/start-rule-sv";
 import type { ManualClassCreateRequest } from "@o-tid/contracts";
@@ -15,6 +17,7 @@ import type { Workspace } from "./workspace-state";
 
 /** Klasser: tabell (namn, bana, startsätt), "Ny klass" och maxantal. Det som inte ändrar resultat sparas direkt. */
 export function PreparationClasses({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { busy, capacityAttempt, capacityClass, capacityClassId, capacityInput, selectedClassId, data,
     disabled, courseList, profile, saveCapacity, setCapacityClassId, setCapacityInput, setSelectedClassId, setMessage, shows,
@@ -54,6 +57,8 @@ export function PreparationClasses({ ws }: { ws: Workspace }) {
 
 /** "Ny klass" på en bana som finns. Banan ändras inte. Står kvar efter sparandet för nästa klass. */
 function ManualClassForm({ ws }: { ws: Workspace }) {
+  const startRule = useTexts(startRuleSv, startRuleEn);
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, manualClassAttempt, manualClassCourseVersionId, manualClassError, manualClassErrors, manualClassForm, manualClassName,
     manualClassOpen, manualClassStartRule, manualClassTargets, profile, raceId, saveManualClass, setManualClassCourseVersionId,
     setManualClassErrors, setManualClassName, setManualClassOpen, setManualClassStartRule, submitManualClass, courseList, courseListError, loadCourses } = ws;
@@ -80,7 +85,7 @@ function ManualClassForm({ ws }: { ws: Workspace }) {
         <option value="">{text.manualClassChooseTarget}</option>
         {manualClassTargets.map(target => <option key={target.courseVersionId} value={target.courseVersionId}>{target.courseName}</option>)}
       </select></Field>
-      {profile.features.startRuleChoice && <Field label={text.manualClassStartRule} help={startRuleSv.details[manualClassStartRule]}>
+      {profile.features.startRuleChoice && <Field label={text.manualClassStartRule} help={startRule.details[manualClassStartRule]}>
         <select value={manualClassStartRule} disabled={locked}
           onChange={event => setManualClassStartRule(event.target.value as ManualClassCreateRequest["startRule"])}>
           <option value="PUNCH">{text.courseFreeStart}</option><option value="FIXED">{text.courseFixedStart}</option>

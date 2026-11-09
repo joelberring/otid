@@ -1,3 +1,8 @@
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
+import { classTableEn, participantCardEn, raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { participantCardSv } from "../../i18n/participant-card-sv";
+import { classTableSv } from "../../i18n/class-table-sv";
+import { useTexts } from "../language-provider";
 import { useOperationState, useOperations, type Operations } from "./operations";
 import { createMobileNavigation, createWorkflowNavigation, deriveSections, useNavigationState } from "./navigation";
 import { createRaceDataActions, useRaceDataState } from "./race-data";
@@ -25,7 +30,11 @@ import { createResultsOfficialActions, useResultsOfficialState } from "./results
 
 /** Allt tillstånd i arbetsytan, samlat per område. */
 export function useWorkspaceState(raceId: string) {
-  return { raceId, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
+  // Engelska, arbetsytan del 2: arbetsytans texter på användarens språk, också för meddelandena från åtgärderna.
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
+  const cardText = useTexts(participantCardSv, participantCardEn);
+  const classText = useTexts(classTableSv, classTableEn);
+  return { raceId, adminText, cardText, classText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),

@@ -1,6 +1,8 @@
 import { useState } from "react";
+
+
 import { courseDetailsResponseSchema, type CourseDetailsRequest } from "@o-tid/contracts";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import { forkingSv } from "../../i18n/forking-sv";
 import type { FieldErrors } from "../../lib/form-validation";
 import type { Base } from "./workspace-state";
@@ -33,6 +35,7 @@ export function parseMeters(value: string, minimum: number, maximum: number): nu
 }
 
 export function createCourseDetailsActions(ws: Base & RaceDataActions & CourseEditActions) {
+  const text = ws.adminText;
   const { courseList, detailsCourseId, detailsLength, detailsClimb, detailsName, detailsRequest, raceId, writingRef, pending, requireSession, begin,
     finish, current, request, json, csrf, readCourses, setDetailsCourseId, setDetailsLength, setDetailsClimb, setDetailsName, setDetailsErrors,
     setDetailsMessage, setDetailsRequest } = ws;

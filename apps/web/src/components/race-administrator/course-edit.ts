@@ -1,9 +1,11 @@
 import { useState } from "react";
+
+
 import { courseEditListResponseSchema, courseEditPreviewResponseSchema, courseEditResponseSchema,
   type CourseEditListResponse, type CourseEditPreviewResponse, type CourseEditRequest, type CourseForkingItem } from "@o-tid/contracts";
 import { validateCourseForking } from "@o-tid/domain";
 import { forkingSv } from "../../i18n/forking-sv";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import { parseControlCodes, type CourseEditAttempt, type Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -34,6 +36,7 @@ const sameCodes = (left: readonly number[], right: readonly number[]) =>
   left.length === right.length && left.every((code, index) => code === right[index]);
 
 export function createCourseEditActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, courseList, editingCourseId, editingVariantCode, setEditingVariantCode, courseEditControls, courseEditPreview, writingRef, pending, sent, requireSession,
     begin, finish, current, request, json, csrf, load, setCourseList, setCourseListError, setEditingCourseId,
     setCourseEditControls, setCourseEditPreview, setCourseEditError, setCourseEditSaved, setCourseEditAttempt,

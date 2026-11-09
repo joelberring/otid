@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import type { CourseEditListResponse, CourseForkingItem } from "@o-tid/contracts";
 import { courseForkingFairness, forkingLetters, generateForkingVariants, validateCourseForking } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { forkingSv as forking } from "../../i18n/forking-sv";
 import type { DiagramTarget } from "../../lib/forking-diagram";
 import { Button, Field, Notice } from "../ui";
@@ -24,6 +26,7 @@ const nameOf = (item: CourseForkingItem | undefined, fallback: string) =>
  * räknas fram direkt och sparas genom "Redigera bana" (besked först när resultat ändras).
  */
 export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, cancelCourseEdit, changeCourseEditForking, courseEditAttempt, courseEditError, courseEditForking, courseEditPreview,
     previewCourseEdit, saveCourseEdit } = ws;
   const items = useMemo(() => courseEditForking ?? [], [courseEditForking]);

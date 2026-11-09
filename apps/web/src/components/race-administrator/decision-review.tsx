@@ -1,10 +1,12 @@
 "use client";
 
 import type { DecisionReview } from "@o-tid/contracts";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import controlStyles from "./readout-control.module.css";
 import { decisionReviewSv as text } from "../../i18n/decision-review-sv";
-import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { decisionReviewText, withdrawChoiceFor } from "../../lib/decision-review";
 import { Button } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -21,6 +23,7 @@ export function DecisionReviewNotice({ ws, review }: { ws: Workspace; review: De
 
 /** Steg 45: Resultat → Efterarbete → "Beslut att se över". */
 export function DecisionReviewList({ ws }: { ws: Workspace }) {
+  const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { classNames, data, disabled, openCorrection } = ws;
   const rows = (data?.entries ?? []).filter((entry) => entry.decisionReview);
   return <div data-testid="decision-review-list">

@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { type CardTexts } from "../../i18n/workspace-admin-en";
+
+import { type AdminTexts } from "../../i18n/workspace-admin-en";
+
 import type { EntryStatusDecision, EntryStatusReadiness, EntryStatusResponse } from "@o-tid/contracts";
 import { createResultRecalculationAttempt } from "../../lib/result-recalculation-admin-client";
 import type { StatusChoice } from "../../lib/participant-status-choices";
-import { raceAdministratorSv as adminText } from "../../i18n/race-administrator-sv";
-import { participantCardSv as text } from "../../i18n/participant-card-sv";
+
+
 import type { DecisionAttempt, Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -37,7 +41,7 @@ const DECISIONS: Record<DecisionChoice, { decision: EntryStatusDecision; withdra
 };
 
 /** Beskedet när ett beslut inte går att fatta (samma texter som tidigare per beslut). */
-function blocked(choice: DecisionChoice, readiness: EntryStatusReadiness): string {
+function blocked(choice: DecisionChoice, readiness: EntryStatusReadiness, adminText: AdminTexts, text: CardTexts): string {
   const texts: Partial<Record<DecisionChoice, Partial<Record<EntryStatusReadiness, string>>>> = {
     APPROVAL: adminText.approvalReadiness, DSQ: adminText.dsqReadiness, NT: adminText.ntReadiness,
     OOC: adminText.oocReadiness, DNF: adminText.dnfReadiness, CONFIRM_MP: adminText.confirmMpReadiness };
@@ -47,6 +51,8 @@ function blocked(choice: DecisionChoice, readiness: EntryStatusReadiness): strin
 }
 
 export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDecisionActions) {
+  const text = ws.cardText;
+  const adminText = ws.adminText;
   const { entryId, data, writingRef, pending, sent, requireSession, begin, finish, current, setMessage, setUnknown,
     setStatusChoice, setStatusBlocked, setDecisionAttempt, setRecalculationAttempt, readEntryStatus,
     readRecalculationBasis, submitStatusAttempt, cancelStatusAttempt } = ws;
@@ -67,7 +73,7 @@ export function createStatusChangeActions(ws: Base & RaceDataActions & ResultDec
     // Rättad mål- eller starttid och manuell tid tas bort med samma val (steg 31).
     if (choice === "MANUAL_TIME_WITHDRAWAL" && (!["FINISH_TIME", "START_TIME", "MANUAL_TIME"].includes(status.governingDecision) ||
       readiness !== "READY")) return text.notAvailable;
-    if (readiness !== "READY") return blocked(choice, readiness);
+    if (readiness !== "READY") return blocked(choice, readiness, adminText, text);
     const attempt: DecisionAttempt = { kind: "DECISION", choice, entryId: id, restores: status.withdrawRestores,
       request: { formatVersion: 1, requestId: crypto.randomUUID(), expectedRevision: status.headRevision, decision } };
     return { attempt, show: () => setDecisionAttempt(attempt) };

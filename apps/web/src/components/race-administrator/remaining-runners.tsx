@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import { markRemainingDidNotStartResponseSchema, remainingRunnersResponseSchema, type MarkRemainingDidNotStartRequest,
   type RemainingRunnersResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { Button, Notice } from "../ui";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -20,6 +22,7 @@ export function useRemainingRunnersState() {
 }
 
 export function createRemainingRunnersActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, remaining, remainingRequest, writingRef, pending, requireSession, begin, finish, current, request, json, csrf, load,
     setRemaining, setRemainingRequest, setRemainingMessage } = ws;
   async function loadRemaining() {
@@ -59,6 +62,7 @@ export function createRemainingRunnersActions(ws: Base & RaceDataActions) {
 
 /** Efter tävlingen: förhandsvisningen med två listor och en knapp som markerar alla på en gång. */
 export function RemainingRunnersSection({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, cancelRemaining, disabled, loadRemaining, markRemaining, remaining, remainingMessage, remainingRequest } = ws;
   return <div className={styles.disclosureBody} data-testid="remaining-runners">
     <p className={styles.workflowHelp}>{text.remainingHelp}</p>

@@ -1,4 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
+
+
 import {
   entryRegistrationCandidatesResponseSchema, entryRegistrationRequestSchema, type RunnerClub, type RunnerSuggestion
 } from "@o-tid/contracts";
@@ -7,7 +9,7 @@ import { formatClockTime, parseRaceClockNear, startReference } from "../../lib/c
 import { hasErrors, validateRegistration, type FieldErrors } from "../../lib/form-validation";
 import { focusFirstError, focusWhenEnabled } from "../ui";
 import { parseRegistrationReceipt } from "../../lib/entry-registration-client";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+
 import type { RegistrationAttempt } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -30,6 +32,7 @@ export function useEntryRegistrationState() {
 }
 
 export function createEntryRegistrationActions(ws: Base & RaceDataActions) {
+  const text = ws.adminText;
   const { raceId, data, startClock, newCard, givenName, familyName, organisationName, confirmDistinctPerson, target, targetFull, startTimeOptional,
     registrationForm, writingRef, pending, sent, registrationRunner, registrationClubs, setRegistrationRunner, requireSession, begin, finish,
     current, request, json, csrf, load, setGivenName, setFamilyName, setMessage, setUnknown, setNewCard, setStartClock, setConfirmDistinctPerson,

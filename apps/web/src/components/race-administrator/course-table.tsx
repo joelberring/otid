@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import type { CourseEditListResponse } from "@o-tid/contracts";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
 import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
 import { RemovalReview } from "./removal-review";
@@ -21,6 +23,7 @@ type CourseRow = CourseEditListResponse["courses"][number];
 
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { authenticated, busy, courseEditSaved, courseFormOpen, courseList, courseListError, data, editingCourseId, loadCourses,
     openAssignedClass, operation, pending, profile, raceId, saving, setCourseFormOpen, startCourseEdit, workflowLocked } = ws;
   const stale = !courseList || (data !== undefined && courseList.snapshotVersion < data.snapshotVersion);
@@ -140,6 +143,7 @@ function branchCount(course: CourseRow) {
  * till struktur när det går.
  */
 function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { editingCourseId, profile, saving, startCourseEdit } = ws;
   const view = course.forking;
   const fairness = course.fairness;
@@ -189,6 +193,7 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
 }
 
 function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, cancelCourseEdit, changeCourseEditControls, courseEditAttempt, courseEditControls, courseEditError,
     courseEditPreview, editingVariantCode, previewCourseEdit, raceId, saveCourseEdit } = ws;
   const inputId = `course-edit-controls-${raceId}`;
@@ -228,6 +233,7 @@ function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string })
 
 /** Namn (ägaren 2026-11-08), längd och stigning i meter (PLAN.md steg 25). Påverkar inga resultat och sparas direkt. */
 function CourseDetailsEditor({ ws, courseName }: { ws: Workspace; courseName: string }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, cancelCourseDetails, changeCourseDetails, detailsClimb, detailsErrors, detailsLength, detailsName, saveCourseDetails } = ws;
   return <form className={styles.editor} aria-label={text.courseDetailsOpenLabel(courseName)} noValidate
     onSubmit={event => { event.preventDefault(); void saveCourseDetails(); }}>

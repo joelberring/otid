@@ -1,9 +1,11 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
+import { startRuleEn } from "../../i18n/workspace-admin-en";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
-import { raceAdministratorSv as text } from "../../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import Link from "next/link";
 import { ClassResultRecalculation } from "../class-result-recalculation";
 import { RecalculateRace } from "../race-corrections";
@@ -39,6 +41,7 @@ import { joinRaceParts, raceTitle } from "@o-tid/domain";
  * resultaten. Hämtas när Resultat visas och uppdateras sedan av sig själv.
  */
 function AdminResultLists({ ws }: { ws: Workspace }) {
+  const startRule = useTexts(startRuleSv, startRuleEn);
   const { authenticated, data, disabled, downloadResults, raceId, shows } = ws;
   const { data: lists, failed } = useResultListData(raceId, undefined, authenticated && shows("RESULTS"), 15_000);
   const model = useMemo(() => lists ? resultListFromPublic(lists.results, lists.relay, lists.radio) : undefined, [lists]);
@@ -48,8 +51,8 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
     for (const entry of data?.entries ?? []) {
       if (!entry.publicResultId || !entry.notes) continue;
       const punch = entry.notes.startPunch;
-      map.set(entry.publicResultId, { ...(punch ? { mark: startRuleSv.startPunch.mark[punch.kind],
-        detail: startPunchText(punch, data!.timeZone), warning: punch.kind !== "FROM_PUNCH" } : {}),
+      map.set(entry.publicResultId, { ...(punch ? { mark: startRule.startPunch.mark[punch.kind],
+        detail: startPunchText(punch, data!.timeZone, startRule), warning: punch.kind !== "FROM_PUNCH" } : {}),
         ...(entry.notes.disqualificationReason ? { disqualificationReason: entry.notes.disqualificationReason } : {}) });
     }
     return map;
@@ -65,6 +68,7 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
  * under dem efterarbetet: fastställande (typer som har det) och omräkning. En bana rättas med "Redigera bana" (ADR-0169).
  */
 export function AfterRacePanel({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { busy, classRecalculationAttempt, classRecalculationCandidates, classRecalculationError,
     classRecalculationSaved, classRecalculationUnknown, data, disabled, finalizationAttempt, finalizationCandidate,
@@ -151,6 +155,7 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
 
 /** Fastställda listor (IOF XML) i fastställandet. Den aktuella resultatlistan exporteras från listornas verktygsrad. */
 function FinalizedExports({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { data, disabled, downloadFinalization, finalizationId, finalizations, loadFinalizations, setFinalizationId } = ws;
   const timeZone = data?.timeZone ?? "UTC";
   return <>

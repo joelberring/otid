@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type SyntheticEvent } from "react";
+import { raceAdministratorEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import type { EntryStatusRequest, EntryStatusResponse } from "@o-tid/contracts";
-import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../i18n/race-administrator-sv";
 import { formatClockTime, parseRaceClockNear, zonedDate } from "../lib/clock-time";
 import { entryStatusRequest, fetchEntryStatus, postEntryStatus } from "../lib/entry-status-client";
 import { sv } from "../i18n/sv";
@@ -35,6 +37,7 @@ function inputInstant(reference: string, clock: string, timeZone: string): strin
 
 /** Gemensamt för alla fyra: läsning, försök, kvitto och att arbetsytan vet att något pågår. */
 function useCorrection(props: Props) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { entryId } = props;
   const [candidate, setCandidate] = useState<Candidate>();
   const [acknowledged, setAcknowledged] = useState(false), [attempt, setAttempt] = useState<Attempt>();
@@ -77,6 +80,7 @@ function useCorrection(props: Props) {
 }
 
 export function ManualFinishTimeCorrection(props: Props) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const c = useCorrection(props);
   const [finishLocal, setFinishLocal] = useState("");
   const { timeZone } = props;
@@ -135,6 +139,7 @@ export function ManualFinishTimeCorrection(props: Props) {
 }
 
 export function ManualPunchStartTimeCorrection(props: Props) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const c = useCorrection(props);
   const [startLocal, setStartLocal] = useState("");
   const { timeZone } = props;
@@ -184,6 +189,7 @@ type WithdrawalText = { title: string; help: string; load: string; loadError: st
 
 /** Tar bort en ändrad mål- eller starttid: löparen får tillbaka tiden från avläsningen. */
 function ManualTimeCorrectionWithdrawal({ field, labels, ...props }: Props & { field: "finishTime" | "startTime"; labels: WithdrawalText }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const c = useCorrection(props);
   const governing = field === "finishTime" ? "FINISH_TIME" : "START_TIME";
   const { timeZone } = props;
@@ -218,6 +224,7 @@ function ManualTimeCorrectionWithdrawal({ field, labels, ...props }: Props & { f
 }
 
 export function ManualFinishTimeCorrectionWithdrawal(props: Props) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   return <ManualTimeCorrectionWithdrawal {...props} field="finishTime" labels={{ title: text.finishTimeCorrectionWithdrawalTitle,
     help: text.finishTimeCorrectionWithdrawalHelp, load: text.finishTimeCorrectionWithdrawalLoad,
     loadError: text.finishTimeCorrectionWithdrawalLoadError, source: text.finishTimeCorrectionWithdrawalSource,
@@ -229,6 +236,7 @@ export function ManualFinishTimeCorrectionWithdrawal(props: Props) {
 }
 
 export function ManualPunchStartTimeCorrectionWithdrawal(props: Props) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   return <ManualTimeCorrectionWithdrawal {...props} field="startTime" labels={{ title: text.punchStartTimeCorrectionWithdrawalTitle,
     help: text.punchStartTimeCorrectionWithdrawalHelp, load: text.punchStartTimeCorrectionWithdrawalLoad,
     loadError: text.punchStartTimeCorrectionWithdrawalLoadError, source: text.punchStartTimeCorrectionWithdrawalSource,

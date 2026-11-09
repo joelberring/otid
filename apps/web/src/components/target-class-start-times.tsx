@@ -1,13 +1,16 @@
 import React, { useState } from "react";
+import { raceAdministratorEn } from "../i18n/workspace-admin-en";
+import { useTexts } from "./language-provider";
 import type { EntryTransferCandidates } from "@o-tid/contracts";
 import { projectTargetClassStartTimes } from "../lib/target-class-start-times";
 import { formatClockTime } from "../lib/clock-time";
-import { raceAdministratorSv as text } from "../i18n/race-administrator-sv";
+import { raceAdministratorSv } from "../i18n/race-administrator-sv";
 import styles from "./race-administrator-workspace.module.css";
 
 export function TargetClassStartTimes({ entries, classId, timeZone, proposedTime }: {
   entries: EntryTransferCandidates["entries"]; classId: string; timeZone: string; proposedTime: string | null;
 }) {
+  const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const [page, setPage] = useState(0);
   const projection = projectTargetClassStartTimes(entries, classId, proposedTime);
   const lastPage = Math.max(0, Math.ceil(projection.rows.length / 20) - 1);

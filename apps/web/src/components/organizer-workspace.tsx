@@ -25,6 +25,8 @@ import {
 import { organizerSv } from "../i18n/organizer-sv";
 import { organizerEn } from "../i18n/organizer-en";
 import { useTexts } from "./language-provider";
+import { formErrorsSv } from "../i18n/form-errors-sv";
+import { formErrorsEn } from "../i18n/workspace-small-en";
 import { raceMapSv } from "../i18n/race-map-sv";
 import { raceMapEn } from "../i18n/workspace-small-en";
 import type { Texts } from "../lib/language";
@@ -104,6 +106,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const backupText = useTexts(raceBackupSv, raceBackupEn);
   const raceCopyText = useTexts(raceCopySv, raceCopyEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
+  const formErrorText = useTexts(formErrorsSv, formErrorsEn);
   const copy = useTexts(organizerSv, organizerEn);
   const [session, setSession] = useState<Session>();
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -335,8 +338,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     const form = new FormData(element);
     const value = (name: string) => { const field = form.get(name); return typeof field === "string" ? field : ""; };
     const input = { eventName: value("eventName"), stageName: value("raceName"), raceDate: value("raceDate").trim(), timeZone: value("timeZone") };
-    // Svenska fältfel i stället för webbläsarens (PLAN.md steg 24).
-    const errors = validateCreateRace(input);
+    // Egna fältfel i stället för webbläsarens (PLAN.md steg 24).
+    const errors = validateCreateRace(input, formErrorText);
     setCreateErrors(errors);
     if (hasErrors(errors)) { focusFirstError(element); return; }
     try {

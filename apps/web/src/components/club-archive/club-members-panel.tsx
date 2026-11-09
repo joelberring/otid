@@ -1,5 +1,6 @@
 "use client";
 
+import { invitationMailNoteEn, invitationSummaryEn } from "../../i18n/workspace-last-en";
 import { useClubFailure } from "./use-club-failure";
 import { useState, type FormEvent } from "react";
 import { clubArchiveEn } from "../../i18n/club-archive-en";
@@ -27,6 +28,8 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const text = useTexts(clubArchiveSv.members, clubArchiveEn.members);
   const formText = useTexts(formErrorsSv, formErrorsEn);
+  const mailNoteText = useTexts(invitationMailNote, invitationMailNoteEn);
+  const summaryText = useTexts(invitationSummary, invitationSummaryEn);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ClubRole>("READER");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -61,7 +64,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
         setRequestId(crypto.randomUUID());
         if (result.status === 200 || result.status === 201) {
           const mail = invitationMailOutcomeSchema.catch("off").parse((result.json as { mail?: unknown } | undefined)?.mail);
-          setMessage({ tone: "ok", text: `${text.invited} ${invitationMailNote[mail]}` });
+          setMessage({ tone: "ok", text: `${text.invited} ${mailNoteText[mail]}` });
           setEmail(""); await onChanged();
         } else setMessage({ tone: "error", text: result.status === 409 ? text.exists : failure(result.status) });
         return;
@@ -74,7 +77,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
         if (fatalStatus(result.status)) return { fatal: result.status };
         return result.status === 409 ? "existing" : "error";
       });
-      setMessage(fatal ? { tone: "error", text: failure(fatal) } : { tone: tally.other || tally.invalid ? "error" : "ok", text: invitationSummary(tally) });
+      setMessage(fatal ? { tone: "error", text: failure(fatal) } : { tone: tally.other || tally.invalid ? "error" : "ok", text: summaryText(tally) });
       if (!fatal) setEmail("");
       await onChanged();
     } finally { setBusy(false); }

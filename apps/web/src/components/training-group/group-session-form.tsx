@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { trainingGroupEn } from "../../i18n/training-group-en";
+import { useTexts } from "../language-provider";
 import type { GroupLeaderView, MapAgreementIssueCode } from "@o-tid/contracts";
 import { mapAgreementIssues } from "@o-tid/domain";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
@@ -10,7 +12,6 @@ import { isIsoDate } from "../../lib/form-validation";
 import { MapAgreementSummary } from "./map-agreement";
 import styles from "./training-group.module.css";
 
-const text = trainingGroupSv.leader;
 type Source = "TEMPLATE" | "PREVIOUS" | "RACE";
 
 /**
@@ -19,6 +20,8 @@ type Source = "TEMPLATE" | "PREVIOUS" | "RACE";
  * visas varningen med "Skapa ändå".
  */
 export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; onCreated: (message: string) => void }) {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
+  const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
   const [source, setSource] = useState<Source>(view.settings.templateRaceId ? "TEMPLATE" : "PREVIOUS");
   const [sourceRaceId, setSourceRaceId] = useState(view.sessions.at(-1)?.raceId ?? "");
   const [eventName, setEventName] = useState(view.settings.name);
@@ -55,7 +58,7 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
         repeat: repeat ? { weekday: weekdayOf(raceDate), lastDate } : null, acknowledgeAgreement });
       const body = result.json as { error?: string; issues?: MapAgreementIssueCode[]; raceIds?: string[] } | undefined;
       if (result.status === 409 && body?.error === "MAP_AGREEMENT") { setAgreementIssues(body.issues ?? []); return; }
-      if (result.status !== 201 && result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 201 && result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       setRequestId(crypto.randomUUID()); setAgreementIssues(undefined);
       onCreated(text.created(body?.raceIds?.length ?? 1));
     } finally { setBusy(false); }
@@ -95,7 +98,7 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
     {agreementIssues && <div role="alert">
       <Notice tone="attention">{text.agreementStop}</Notice>
       {map && <MapAgreementSummary agreement={map} issues={agreementIssues} />}
-      {!map && <ul className={styles.issues}>{agreementIssues.map(issue => <li key={issue}>{trainingGroupSv.agreement.issues[issue]}</li>)}</ul>}
+      {!map && <ul className={styles.issues}>{agreementIssues.map(issue => <li key={issue}>{trainingGroupText.agreement.issues[issue]}</li>)}</ul>}
       <Button variant="secondary" disabled={busy} onClick={event => void submit(event, true)}>{text.createAnyway}</Button>
     </div>}
     <Button type="submit" disabled={busy || (repeat && count < 1)} aria-busy={busy}>{repeat ? text.createRepeat(Math.max(count, 0)) : text.create}</Button>

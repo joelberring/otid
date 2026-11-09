@@ -22,8 +22,7 @@ export async function groupRequest(path: string, method: "GET" | "POST" | "PUT" 
 }
 
 /** Ett begripligt besked för ett misslyckat anrop. */
-export function groupFailure(status: number): string {
-  const errors = trainingGroupSv.leader.errors;
+export function groupFailure(status: number, errors: typeof trainingGroupSv.leader.errors = trainingGroupSv.leader.errors): string {
   if (status === 401) return errors.session;
   if (status === 400) return errors.invalid;
   if (status === 404) return errors.notFound;

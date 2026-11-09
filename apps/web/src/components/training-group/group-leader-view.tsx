@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trainingGroupEn } from "../../i18n/training-group-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
@@ -18,7 +19,6 @@ import { GroupSessionForm } from "./group-session-form";
 import { GroupSettingsForm } from "./group-settings";
 import styles from "./training-group.module.css";
 
-const text = trainingGroupSv.leader;
 
 /**
  * Steg 68 (ADR-0182): ledarnas vy av gruppen under Mina tävlingar – ny träning och upprepning, tillfällena (var och en med
@@ -26,6 +26,8 @@ const text = trainingGroupSv.leader;
  * säsongen. Bara ledare får vyn (servern svarar annars 404).
  */
 export function GroupLeaderView({ groupId }: { groupId: string }) {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
+  const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const [view, setView] = useState<View>();
   const [state, setState] = useState<"loading" | "ok" | "not-found" | "error">("loading");
@@ -38,7 +40,7 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
     const result = await groupRequest(`/api/organizer/groups/${encodeURIComponent(groupId)}`);
     if (result.status === 200) { setView(result.json as View); setState("ok"); setGeneration(value => value + 1); return; }
     setState(result.status === 404 || result.status === 401 ? "not-found" : "error");
-    setProblem(groupFailure(result.status));
+    setProblem(groupFailure(result.status, trainingGroupText.leader.errors));
   }
   useEffect(() => { void load(); }, [groupId]);
 
@@ -49,7 +51,7 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
     setBusy(true);
     try {
       const result = await groupRequest(`/api/organizer/groups/${groupId}/series/${seriesId}/undo`, "POST");
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       const body = result.json as { removed: number; kept: number };
       changed(text.undone(body.removed, body.kept));
     } finally { setBusy(false); }
@@ -60,7 +62,7 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
     setBusy(true);
     try {
       const result = await groupRequest(`/api/organizer/groups/${groupId}/sessions/${session.raceId}`, "DELETE");
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       changed(text.removed);
     } finally { setBusy(false); }
   }
@@ -90,7 +92,7 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
   return <main className={styles.leader}>
     <header className={styles.leaderHeader}>
       <div>
-        <p className={styles.kicker}><Link href="/organizer">{text.back}</Link> · {trainingGroupSv.myGroups.title}</p>
+        <p className={styles.kicker}><Link href="/organizer">{text.back}</Link> · {trainingGroupText.myGroups.title}</p>
         <h1>{view.settings.name}</h1>
       </div>
       <div className={styles.rowActions}>

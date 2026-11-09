@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { superadminEn } from "../../i18n/superadmin-en";
+import { useTexts } from "../language-provider";
 import type { SuperadminActionRequest } from "@o-tid/contracts";
-import { superadminSv as text } from "../../i18n/superadmin-sv";
+import { superadminSv } from "../../i18n/superadmin-sv";
 import { Button, CopyButton, Field, Notice } from "../ui";
 import styles from "../account-pages.module.css";
+
 
 export type PendingAction =
   | { kind: "HIDE_RACE" | "UNHIDE_RACE"; raceId: string; label: string }
@@ -26,6 +29,7 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
   action: PendingAction; busy: boolean; error: string | undefined;
   onSubmit: (reason: string, confirmation: string) => void; onCancel: () => void;
 }) {
+  const text = useTexts(superadminSv, superadminEn);
   const [reason, setReason] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
@@ -55,6 +59,7 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
 
 /** Återställningslänken visas en gång, med kopiering. */
 export function ResetLink({ url, expiresAt, onClose }: { url: string; expiresAt: string; onClose: () => void }) {
+  const text = useTexts(superadminSv, superadminEn);
   const [copied, setCopied] = useState<string>();
   const time = new Date(expiresAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
   return <div className={styles.panel} role="status">

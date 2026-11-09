@@ -21,7 +21,7 @@ export async function handlePeopleRoute(context: RaceAdministratorRouteContext):
     let body: unknown;
     try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
     return invitationResendResponse(await dependencies.resendPersonInvitation(db, { ...proof, raceId, invitationId: action.invitationId,
-      request: body }, routeMailer(context.environment)));
+      request: body }, routeMailer(context.environment, request)));
   }
   if (action.kind !== "people") return undefined;
   if (request.method === "GET") {
@@ -36,7 +36,7 @@ export async function handlePeopleRoute(context: RaceAdministratorRouteContext):
   const input = { ...proof, raceId, idempotencyKey: request.headers.get("idempotency-key"), readBody: async () => body };
   if (request.method === "POST") {
     // ADR-0206: inbjudan mejlas när e-post finns på servern.
-    const result = await dependencies.grantPerson(db, input, new Date(), routeMailer(context.environment));
+    const result = await dependencies.grantPerson(db, input, new Date(), routeMailer(context.environment, request));
     if (result.status !== "granted") return resultFailure(result.status);
     return json(racePersonGrantResponseSchema.parse(result.response));
   }

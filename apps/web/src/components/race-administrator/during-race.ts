@@ -323,7 +323,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
       setUnknownReadoutCandidate(undefined); setUnknownReadoutFetchedAt(undefined); setUnknownReadoutAttentionStale(true);
       setUnknownReadoutError(""); setUnknown(false); setData(undefined);
       // Steg 45: ett beslut som ligger kvar (t.ex. brutit utan bricka) gäller fortfarande.
-      setMessage(receipt.decisionReview ? `${text.unknownReadoutSaved} ${decisionReviewText(receipt.decisionReview)}` : text.unknownReadoutSaved);
+      setMessage(receipt.decisionReview ? `${text.unknownReadoutSaved} ${decisionReviewText(receipt.decisionReview, ws.reviewText)}` : text.unknownReadoutSaved);
       await load(op);
       // Nästa okända bricka visas direkt utan ett extra klick.
       try { await readUnknownReadoutCandidates(op); }

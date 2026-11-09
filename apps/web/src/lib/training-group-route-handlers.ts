@@ -113,7 +113,7 @@ export async function groupMemberAddRoute(db: Database, request: Request, groupI
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await addGroupMember(db, { ...input.proof, groupId, request: input.body }, new Date(), routeMailer(environment));
+    const result = await addGroupMember(db, { ...input.proof, groupId, request: input.body }, new Date(), routeMailer(environment, request));
     return result.status === "added" ? privateJson({ formatVersion: 1, member: result.member, mail: result.mail }, result.replayed ? 200 : 201)
       : failure(result.status);
   });

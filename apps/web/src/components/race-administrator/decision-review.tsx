@@ -16,7 +16,7 @@ import type { Workspace } from "./workspace-state";
 export function DecisionReviewNotice({ ws, review }: { ws: Workspace; review: DecisionReview }) {
   const text = useTexts(decisionReviewSv, decisionReviewEn);
   return <section className={styles.review} role="alert" data-testid="decision-review" aria-label={text.listTitle}>
-    <p><strong>! {decisionReviewText(review)}</strong></p>
+    <p><strong>! {decisionReviewText(review, text)}</strong></p>
     <p>{text.help}</p>
     <div><Button variant="secondary" disabled={ws.disabled}
       onClick={() => void ws.chooseStatusChange(withdrawChoiceFor(review.decision))}>{text.remove}</Button></div>
@@ -34,7 +34,7 @@ export function DecisionReviewList({ ws }: { ws: Workspace }) {
     {rows.length === 0 ? <p>{text.listEmpty}</p> : <ul className={controlStyles.controlList}>
       {rows.map((entry) => <li key={entry.id} className={controlStyles.controlRowAction}>
         <span><strong>{entry.displayName}</strong>
-          <span>{[entry.organisationName ?? adminText.none, classNames.get(entry.classId)].join(" · ")} · {decisionReviewText(entry.decisionReview!)}</span></span>
+          <span>{[entry.organisationName ?? adminText.none, classNames.get(entry.classId)].join(" · ")} · {decisionReviewText(entry.decisionReview!, text)}</span></span>
         <Button variant="secondary" disabled={disabled} aria-label={`${text.open} ${entry.displayName}`}
           onClick={() => openCorrection(entry.id)}>{text.open}</Button>
       </li>)}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { trainingGroupEn } from "../i18n/training-group-en";
 import { clubArchiveEn } from "../i18n/club-archive-en";
 import { mapProjectEn } from "../i18n/map-project-en";
 import { useTexts } from "./language-provider";
@@ -23,6 +24,7 @@ import styles from "./my-places-strip.module.css";
  * Ankarna `#mina-klubbar` och `#mina-grupper` nås från kontomenyn på alla sidor.
  */
 export function MyPlacesStrip() {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const mapProjectText = useTexts(mapProjectSv, mapProjectEn);
   const [clubs, setClubs] = useState<ClubSummary[]>();
@@ -78,7 +80,7 @@ export function MyPlacesStrip() {
         {groups.map(group => <li key={group.groupId}>
           <Link className={styles.chip} href={group.role === "LEADER" ? `/organizer/groups/${encodeURIComponent(group.groupId)}` : `/g/${group.code}`}>
             <strong>{group.name}</strong>
-            <span>{trainingGroupSv.myGroups.role[group.role]} · {trainingGroupSv.myGroups.sessions(group.sessions)}</span>
+            <span>{trainingGroupText.myGroups.role[group.role]} · {trainingGroupText.myGroups.sessions(group.sessions)}</span>
           </Link>
         </li>)}
       </ul>}

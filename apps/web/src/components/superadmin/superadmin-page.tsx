@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { superadminEn } from "../../i18n/superadmin-en";
+import { useTexts } from "../language-provider";
 import { useEffect, useState, type FormEvent } from "react";
 import { superadminActionResponseSchema, superadminOverviewSchema, type SuperadminOverview } from "@o-tid/contracts";
-import { superadminSv as text } from "../../i18n/superadmin-sv";
+import { superadminSv } from "../../i18n/superadmin-sv";
 import { accountSv } from "../../i18n/account-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { accountRequest } from "../../lib/account-client";
@@ -12,10 +14,12 @@ import { actionRequest, ResetLink, SuperadminActionPanel, type PendingAction } f
 import styles from "../account-pages.module.css";
 import { raceTitle, shownRaceName } from "@o-tid/domain";
 
+
 const dateTime = (value: string) => new Date(value).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
 const date = (value: string) => new Date(value).toLocaleDateString("sv-SE");
 
 function SearchForm({ label, value, onSearch }: { label: string; value: string; onSearch: (value: string) => void }) {
+  const text = useTexts(superadminSv, superadminEn);
   const [draft, setDraft] = useState(value);
   const submit = (event: FormEvent) => { event.preventDefault(); onSearch(draft.trim()); };
   return <form className={styles.search} role="search" onSubmit={submit}>
@@ -29,6 +33,7 @@ function SearchForm({ label, value, onSearch }: { label: string; value: string; 
  * Sidan visas bara för konton med superadmin; servern kontrollerar varje anrop.
  */
 export function SuperadminPage() {
+  const text = useTexts(superadminSv, superadminEn);
   const [overview, setOverview] = useState<SuperadminOverview>();
   const [problem, setProblem] = useState<string>();
   const [query, setQuery] = useState({ accounts: "", races: "" });

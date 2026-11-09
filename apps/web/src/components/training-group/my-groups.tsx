@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { trainingGroupEn } from "../../i18n/training-group-en";
+import { useTexts } from "../language-provider";
 import type { GroupSummary } from "@o-tid/contracts";
 import { GROUP_CODE_PATTERN, suggestGroupCode } from "@o-tid/domain";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
@@ -8,13 +10,13 @@ import { groupRequest } from "../../lib/training-group-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./training-group.module.css";
 
-const text = trainingGroupSv.myGroups;
 
 /**
  * Steg 68 (ADR-0182 beslut 2): en ny träningsgrupp från Mina tävlingar; kortnamnet till länken föreslås ur namnet. Ägaren
  * 2026-11-04: en liten åtgärd i remsan Mina grupper överst (`MyPlacesStrip`).
  */
 export function NewGroupForm({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const text = useTexts(trainingGroupSv.myGroups, trainingGroupEn.myGroups);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [codeTouched, setCodeTouched] = useState(false);

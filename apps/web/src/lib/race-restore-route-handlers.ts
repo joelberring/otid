@@ -60,7 +60,7 @@ export async function raceRestoreRoute(db: Database, request: Request, environme
   const search = new URL(request.url).searchParams;
   try {
     const result = await restore(db, { ...sessionProof(request, input.policy, true), requireCsrf: true, bytes: input.bytes,
-      options: { requestId: search.get("requestId"), people: search.get("people") } }, new Date(), routeMailer(environment));
+      options: { requestId: search.get("requestId"), people: search.get("people") } }, new Date(), routeMailer(environment, request));
     if (result.status === "invalid") return problem(result.problem);
     if (result.status !== "restored") return failure(result.status);
     const response = raceRestoreResponseSchema.parse(result.response);

@@ -155,7 +155,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   async function previewDraw() {
     if (writingRef.current || pending.current || !requireSession() || !drawSetup) return;
     setDrawError(""); setDrawSaved(""); setDrawPreview(undefined);
-    const firstError = validateFirstStart(drawFirst);
+    const firstError = validateFirstStart(drawFirst, ws.formErrorText);
     setDrawFirstError(firstError ?? "");
     if (firstError) { document.getElementById(`draw-first-${raceId}`)?.focus(); return; }
     const op = beginRequest();

@@ -1,10 +1,11 @@
 import type { DecisionReview } from "@o-tid/contracts";
-import { decisionReviewSv as text } from "../i18n/decision-review-sv";
+import { decisionReviewSv } from "../i18n/decision-review-sv";
 import { formatDuration } from "./clock-time";
+import type { Texts } from "./language";
 import type { StatusChoice } from "./participant-status-choices";
 
 /** "Avläsningen ger Godkänd 45:12 men beslutet Brutit gäller." */
-export function decisionReviewText(review: DecisionReview): string {
+export function decisionReviewText(review: DecisionReview, text: Texts<typeof decisionReviewSv> = decisionReviewSv): string {
   const readout = `${text.statuses[review.status]}${review.elapsedMs !== undefined ? ` ${formatDuration(review.elapsedMs)}` : ""}`;
   return text.message(readout, text.decisions[review.decision]);
 }

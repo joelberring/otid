@@ -79,7 +79,7 @@ export async function mapProjectMembersRoute(db: Database, request: Request, pro
   return guarded(async () => {
     const args = { ...input.proof, projectId, request: input.body };
     if (request.method === "POST") {
-      const result = await inviteMapProjectMember(db, args, new Date(), routeMailer(environment));
+      const result = await inviteMapProjectMember(db, args, new Date(), routeMailer(environment, request));
       // Samma svar med och utan konto (ADR-0188 beslut 6), och vad som hände med mejlet (ADR-0206).
       return result.status === "invited" ? privateJson({ formatVersion: 1, invitationId: result.invitationId, mail: result.mail },
         result.replayed ? 200 : 201) : failure(result.status);

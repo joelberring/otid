@@ -46,7 +46,7 @@ export function createEntryRegistrationActions(ws: Base & RaceDataActions) {
     event.preventDefault(); if (writingRef.current || pending.current || !requireSession() || !data) return;
     setRegistrationSaved("");
     const errors = validateRegistration({ classId: target?.id ?? "", classFull: targetFull, givenName, familyName, card: newCard,
-      startClock, fixedStart: target?.startRule === "FIXED" && !target.startDrawn, timeOptional: startTimeOptional });
+      startClock, fixedStart: target?.startRule === "FIXED" && !target.startDrawn, timeOptional: startTimeOptional }, ws.formErrorText);
     setRegistrationErrors(errors);
     if (hasErrors(errors) || !target) { focusFirstError(registrationForm.current); return; }
     const clock = startClock.trim();

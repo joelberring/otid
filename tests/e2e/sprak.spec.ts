@@ -152,6 +152,11 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   // Del 33: kartprojekten.
   await owner.goto("/organizer/map-projects");
   await expect(owner.getByRole("heading", { name: "My map projects" })).toBeVisible({ timeout: 30_000 });
+  // Del 35: träningsgrupperna.
+  await owner.goto("/organizer");
+  await owner.getByRole("button", { name: "New group" }).click();
+  await expect(owner.getByLabel("Group name")).toBeVisible();
+  await expect(owner.getByRole("button", { name: "Create group" })).toBeVisible();
   // Del 28: banläggningen utan kartfil.
   await owner.goto(`/admin/${raceId}/course-setting`);
   await expect(owner.getByText("Upload the map file first.", { exact: false })).toBeVisible({ timeout: 30_000 });

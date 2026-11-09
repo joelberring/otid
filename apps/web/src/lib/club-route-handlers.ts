@@ -157,7 +157,7 @@ export async function clubMembersRoute(db: Database, request: Request, clubId: s
   return guarded(async () => {
     const args = { ...input.proof, clubId, request: input.body };
     if (request.method === "POST") {
-      const result = await inviteClubMember(db, args, new Date(), routeMailer(environment));
+      const result = await inviteClubMember(db, args, new Date(), routeMailer(environment, request));
       // Samma svar med och utan konto (ADR-0188 beslut 6). ADR-0206: och vad som hände med mejlet.
       return result.status === "invited" ? privateJson({ formatVersion: 1, invitationId: result.invitationId, mail: result.mail },
         result.replayed ? 200 : 201) : failure(result.status);

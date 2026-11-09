@@ -1,11 +1,12 @@
 "use client";
 
 import type { MapAgreement, MapAgreementIssueCode } from "@o-tid/contracts";
+import { trainingGroupEn } from "../../i18n/training-group-en";
+import { useTexts } from "../language-provider";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { DateInput, Field } from "../ui";
 import styles from "./training-group.module.css";
 
-const text = trainingGroupSv.agreement;
 
 /** Ett tomt avtal: klubbens egen karta utan villkor. */
 export const emptyAgreement: MapAgreement = { ownership: "CLUB", ownerKind: null, ownerName: null, agreement: null, validUntil: null, contact: null,
@@ -17,6 +18,7 @@ export const emptyAgreement: MapAgreement = { ownership: "CLUB", ownerKind: null
  */
 export function MapAgreementSummary({ agreement, issues = [], title }: { agreement: MapAgreement; issues?: readonly MapAgreementIssueCode[];
   title?: string | undefined }) {
+  const text = useTexts(trainingGroupSv.agreement, trainingGroupEn.agreement);
   const conditions = [agreement.trainingOnly && text.trainingOnly, agreement.feePerPrint && text.feePerPrint,
     agreement.noPublicDisplay && text.noPublicDisplay].filter(Boolean);
   const serious: readonly MapAgreementIssueCode[] = issues.filter(issue => issue !== "FEE_PER_PRINT");
@@ -37,6 +39,7 @@ export function MapAgreementSummary({ agreement, issues = [], title }: { agreeme
 
 /** Formulärets fält för avtalet. */
 export function MapAgreementFields({ value, onChange, disabled }: { value: MapAgreement; onChange: (value: MapAgreement) => void; disabled?: boolean }) {
+  const text = useTexts(trainingGroupSv.agreement, trainingGroupEn.agreement);
   const set = (patch: Partial<MapAgreement>) => onChange({ ...value, ...patch });
   const external = value.ownership === "EXTERNAL";
   return <>

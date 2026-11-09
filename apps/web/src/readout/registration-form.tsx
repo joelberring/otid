@@ -9,6 +9,8 @@ import {
   classSuggestions, clubByName, entrySuggestions, runnerForCard, runnerIndex, runnerLabel, searchRunners, type EntrySuggestion
 } from "./runner-lookup";
 import { readoutText } from "./text-sv";
+import { formErrorsSv } from "../i18n/form-errors-sv";
+import { formErrorsEn } from "../i18n/workspace-small-en";
 
 type Fields = ReadoutRegistrationInput;
 const EMPTY: Fields = { classId: "", givenName: "", familyName: "", club: "" };
@@ -48,6 +50,7 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
   registrations: readonly QueuedRegistration[]; search: ((request: RunnerSearchRequest) => Promise<RunnerSearchResponse | undefined>) | undefined;
   onSubmit: (fields: RegistrationFields) => Promise<void>; onLink: (entry: EntrySuggestion) => Promise<void> }) {
   const t = useTexts(readoutText, readoutTextEn);
+  const formErrorText = useTexts(formErrorsSv, formErrorsEn);
   const classes = useMemo(() => registrationClasses(pkg), [pkg]);
   const classIds = useMemo(() => new Set(classes.map((raceClass) => raceClass.id)), [classes]);
   const local = runnerForCard(pkg, cardNumber);
@@ -119,7 +122,7 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
     document.getElementById("register-classId")?.focus();
   }
   async function submit() {
-    const found = validateReadoutRegistration(fields);
+    const found = validateReadoutRegistration(fields, formErrorText);
     setErrors(found);
     const first = (Object.keys(found) as (keyof Fields)[]).find((key) => found[key]);
     if (first) { document.getElementById(`register-${first}`)?.focus(); return; }

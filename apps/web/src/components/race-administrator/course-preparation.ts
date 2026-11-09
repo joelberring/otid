@@ -45,7 +45,7 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
     setCourseClassError("");
     const rogaining = ws.profile.features.rogaining;
     const errors = validateCourseClass({ courseName, className: courseClassName, controls: courseControls,
-      rogaining: rogaining ? { timeLimit: courseTimeLimit, penalty: coursePenalty } : undefined });
+      rogaining: rogaining ? { timeLimit: courseTimeLimit, penalty: coursePenalty } : undefined }, ws.formErrorText);
     setCourseClassErrors(errors);
     if (hasErrors(errors)) { focusFirstError(courseForm.current); return; }
     const course = courseName.trim(), raceClass = courseClassName.trim();

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { trainingGroupEn } from "../../i18n/training-group-en";
+import { useTexts } from "../language-provider";
 import type { GroupLeaderView, GroupSettings } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { groupFailure, groupRequest } from "../../lib/training-group-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./training-group.module.css";
 
-const text = trainingGroupSv.leader;
 
 function Radios<T extends string>({ legend, name, options, value, onChange, disabled, help }: { legend: string; name: string;
   options: Record<T, string>; value: T; onChange: (value: T) => void; disabled: boolean; help?: string }) {
@@ -21,6 +22,8 @@ function Radios<T extends string>({ legend, name, options, value, onChange, disa
 
 /** Steg 68 (ADR-0182 beslut 7): synligheten per grupp med försiktiga standardvärden, poängserien och gruppens mall. */
 export function GroupSettingsForm({ view, onSaved }: { view: GroupLeaderView; onSaved: (message: string) => void }) {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
+  const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
   const [settings, setSettings] = useState<GroupSettings>(view.settings);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
@@ -33,14 +36,14 @@ export function GroupSettingsForm({ view, onSaved }: { view: GroupLeaderView; on
       const result = await groupRequest(`/api/organizer/groups/${view.groupId}`, "PUT", { formatVersion: 1, name: settings.name.trim(),
         pageVisibility: settings.pageVisibility, nameDisplay: settings.nameDisplay, statsVisibility: settings.statsVisibility,
         pointsMode: settings.pointsMode, templateRaceId: settings.templateRaceId });
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       onSaved(text.saved);
     } finally { setBusy(false); }
   }
 
   return <form className={styles.form} noValidate onSubmit={event => void save(event)} aria-label={text.sections.settings}>
     <p className={styles.muted}>{text.settingsHint}</p>
-    <Field label={trainingGroupSv.myGroups.name}><input value={settings.name} maxLength={120} disabled={busy}
+    <Field label={trainingGroupText.myGroups.name}><input value={settings.name} maxLength={120} disabled={busy}
       onChange={event => set({ name: event.target.value })} /></Field>
     <Radios legend={text.pageVisibility} name="page-visibility" options={text.pageVisibilityOptions} value={settings.pageVisibility}
       onChange={pageVisibility => set({ pageVisibility })} disabled={busy} />

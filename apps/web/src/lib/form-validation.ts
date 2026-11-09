@@ -1,8 +1,11 @@
-import { formErrorsSv as text } from "../i18n/form-errors-sv";
+import { formErrorsSv } from "../i18n/form-errors-sv";
+import type { Texts } from "./language";
+
+type FormErrorTexts = Texts<typeof formErrorsSv>;
 
 /**
- * Fältfel för arbetsytans formulär (PLAN.md steg 24). Rena funktioner: indata in, ett fel per fält ut (svenska, med
- * fältets namn). Formulären har `noValidate` och visar felen vid fälten med `Field error`.
+ * Fältfel för arbetsytans formulär (PLAN.md steg 24). Rena funktioner: indata in, ett fel per fält ut (på besökarens
+ * språk när formulären skickar med texterna, annars svenska, med fältets namn). Formulären har `noValidate` och visar felen vid fälten med `Field error`.
  */
 export type FieldErrors<K extends string> = { [Field in K]?: string | undefined };
 
@@ -38,7 +41,7 @@ const name = (value: string, min: number, max: number) => value.trim().length >=
 export const isRaceName = (value: string) => value.trim().length <= 160;
 
 export type CreateRaceInput = { eventName: string; stageName: string; raceDate: string; timeZone: string };
-export function validateCreateRace(input: CreateRaceInput): FieldErrors<keyof CreateRaceInput> {
+export function validateCreateRace(input: CreateRaceInput, text: FormErrorTexts = formErrorsSv): FieldErrors<keyof CreateRaceInput> {
   return {
     eventName: name(input.eventName, 2, 160) ? undefined : text.eventName,
     stageName: isRaceName(input.stageName) ? undefined : text.stageName,
@@ -49,7 +52,7 @@ export function validateCreateRace(input: CreateRaceInput): FieldErrors<keyof Cr
 
 export type CourseClassInput = { courseName: string; className: string; controls: string;
   rogaining?: { timeLimit: string; penalty: string } | undefined };
-export function validateCourseClass(input: CourseClassInput): FieldErrors<"courseName" | "className" | "controls" | "timeLimit" | "penalty"> {
+export function validateCourseClass(input: CourseClassInput, text: FormErrorTexts = formErrorsSv): FieldErrors<"courseName" | "className" | "controls" | "timeLimit" | "penalty"> {
   const limit = input.rogaining?.timeLimit.trim() ?? "", penalty = input.rogaining?.penalty.trim() ?? "";
   // Steg 55: klassnamnet är valfritt; tidsgräns och straff gäller klassen och prövas bara när ett klassnamn finns.
   const withClass = input.className.trim() !== "";
@@ -63,7 +66,7 @@ export function validateCourseClass(input: CourseClassInput): FieldErrors<"cours
 }
 
 export type ManualClassInput = { className: string; courseVersionId: string };
-export function validateManualClass(input: ManualClassInput): FieldErrors<keyof ManualClassInput> {
+export function validateManualClass(input: ManualClassInput, text: FormErrorTexts = formErrorsSv): FieldErrors<keyof ManualClassInput> {
   return {
     className: name(input.className, 1, 160) ? undefined : text.className,
     courseVersionId: input.courseVersionId ? undefined : text.chooseCourse
@@ -73,7 +76,7 @@ export function validateManualClass(input: ManualClassInput): FieldErrors<keyof 
 /** Starttiden: krävs bara för minutstart som inte kan få sin tid av lottningen (`timeOptional`). */
 export type RegistrationInput = { classId: string; classFull: boolean; givenName: string; familyName: string; card: string;
   startClock: string; fixedStart: boolean; timeOptional: boolean };
-export function validateRegistration(input: RegistrationInput): FieldErrors<"classId" | "givenName" | "familyName" | "card" | "startClock"> {
+export function validateRegistration(input: RegistrationInput, text: FormErrorTexts = formErrorsSv): FieldErrors<"classId" | "givenName" | "familyName" | "card" | "startClock"> {
   const card = input.card.trim(), clock = input.startClock.trim();
   return {
     classId: !input.classId ? text.chooseClass : input.classFull ? text.classFull : undefined,
@@ -85,13 +88,13 @@ export function validateRegistration(input: RegistrationInput): FieldErrors<"cla
   };
 }
 
-export function validateFirstStart(value: string): string | undefined {
+export function validateFirstStart(value: string, text: FormErrorTexts = formErrorsSv): string | undefined {
   return isClock(value) ? undefined : text.firstStart;
 }
 
 /** Direktanmälan på avläsningssidan (PLAN.md steg 25): klass, förnamn och efternamn krävs; klubben är valfri. */
 export type ReadoutRegistrationInput = { classId: string; givenName: string; familyName: string; club: string };
-export function validateReadoutRegistration(input: ReadoutRegistrationInput): FieldErrors<keyof ReadoutRegistrationInput> {
+export function validateReadoutRegistration(input: ReadoutRegistrationInput, text: FormErrorTexts = formErrorsSv): FieldErrors<keyof ReadoutRegistrationInput> {
   return {
     classId: input.classId ? undefined : text.chooseClass,
     givenName: !input.givenName.trim() ? text.givenName : input.givenName.trim().length > 160 ? text.tooLong(160) : undefined,

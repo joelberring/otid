@@ -5,6 +5,7 @@ import {
 import { invitationLinkRequestSchema, invitationLinkViewSchema, invitationResendResponseSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { invitationMailer } from "./invitation-mail";
+import { requestLanguage } from "./language";
 import {
   SecurityConfigurationError, accountFailure, hasExpectedOrigin, privateJson, readJsonBody, securityPolicy, sessionProof, type SecurityPolicy
 } from "./security-policy";
@@ -26,10 +27,10 @@ function policy(environment: Environment): SecurityPolicy | undefined {
   }
 }
 
-/** Mejlaren för en route (undefined utan e-post på servern). */
-export function routeMailer(environment: Environment = process.env): InvitationMailer | undefined {
+/** Mejlaren för en route (undefined utan e-post på servern), med mejlet på språket hos den som bjuder in. */
+export function routeMailer(environment: Environment = process.env, request?: Request): InvitationMailer | undefined {
   const configured = policy(environment);
-  return configured ? invitationMailer(environment, configured.publicOrigin) : undefined;
+  return configured ? invitationMailer(environment, configured.publicOrigin, undefined, undefined, request ? requestLanguage(request) : "sv") : undefined;
 }
 
 /** Om e-post finns på servern, för listornas "Skicka igen" eller "Kopiera länken". */
@@ -77,7 +78,7 @@ export async function invitationResendRoute(db: Database, request: Request, scop
   let body: unknown;
   try { body = await readJsonBody(request, BODY_MAX); } catch { return accountFailure(400, "INVALID_REQUEST"); }
   const proof = sessionProof(request, configured, true);
-  const mailer = invitationMailer(environment, configured.publicOrigin);
+  const mailer = routeMailer(environment, request);
   try {
     const input = { ...proof, invitationId, request: body };
     const result = scope.kind === "CLUB" ? await resendClubInvitation(db, { ...input, clubId: scope.clubId }, mailer)

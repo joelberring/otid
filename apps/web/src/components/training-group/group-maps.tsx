@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { trainingGroupEn } from "../../i18n/training-group-en";
+import { useTexts } from "../language-provider";
 import { useState, type FormEvent } from "react";
 import type { GroupLeaderView, GroupLibraryMap, MapAgreement } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
@@ -9,7 +11,6 @@ import { Button, Field, Notice } from "../ui";
 import { MapAgreementFields, MapAgreementSummary, emptyAgreement } from "./map-agreement";
 import styles from "./training-group.module.css";
 
-const text = trainingGroupSv.leader;
 
 const agreementOf = (map: GroupLibraryMap): MapAgreement => ({ ownership: map.ownership, ownerKind: map.ownerKind, ownerName: map.ownerName,
   agreement: map.agreement, validUntil: map.validUntil, contact: map.contact, trainingOnly: map.trainingOnly, feePerPrint: map.feePerPrint,
@@ -20,6 +21,8 @@ const agreementOf = (map: GroupLibraryMap): MapAgreement => ({ ownership: map.ow
  * banläggningen kopieras) med sina rättigheter; avtalet kan ändras och gäller då också tillfällena som valt kartan.
  */
 export function GroupMaps({ view, onChanged }: { view: GroupLeaderView; onChanged: (message: string) => void }) {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
+  const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
   const [editing, setEditing] = useState<string>();
   const [draft, setDraft] = useState<MapAgreement>(emptyAgreement);
   const [draftName, setDraftName] = useState("");
@@ -37,7 +40,7 @@ export function GroupMaps({ view, onChanged }: { view: GroupLeaderView; onChange
     try {
       const result = await groupRequest(`/api/organizer/groups/${view.groupId}/maps`, "POST", { formatVersion: 1, requestId, raceId,
         name: name.trim(), includeCourseSetting, agreement });
-      if (result.status !== 201 && result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 201 && result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       setName(""); setAgreement(emptyAgreement); setRequestId(crypto.randomUUID());
       onChanged(text.saved);
     } finally { setBusy(false); }
@@ -49,7 +52,7 @@ export function GroupMaps({ view, onChanged }: { view: GroupLeaderView; onChange
     try {
       const result = await groupRequest(`/api/organizer/groups/${view.groupId}/maps/${mapId}`, "PUT", { formatVersion: 1, name: draftName.trim(),
         agreement: draft });
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       setEditing(undefined);
       onChanged(text.mapUpdated((result.json as { races: number }).races));
     } finally { setBusy(false); }
@@ -60,7 +63,7 @@ export function GroupMaps({ view, onChanged }: { view: GroupLeaderView; onChange
     setBusy(true); setProblem("");
     try {
       const result = await groupRequest(`/api/organizer/groups/${view.groupId}/maps/${mapId}`, "DELETE");
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       onChanged(text.saved);
     } finally { setBusy(false); }
   }

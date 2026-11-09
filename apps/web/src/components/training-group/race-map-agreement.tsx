@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trainingGroupEn } from "../../i18n/training-group-en";
+import { useTexts } from "../language-provider";
 import type { RaceMapAgreementView } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { groupFailure, groupRequest } from "../../lib/training-group-client";
 import { Button, Notice } from "../ui";
 import { MapAgreementSummary } from "./map-agreement";
 
-const text = trainingGroupSv.agreement;
 
 /**
  * Steg 68 (ADR-0182 beslut 4): kartans avtal på tävlingens kartsida (Resultat → Karta och vägval). När avtalet har gått ut
@@ -15,6 +16,8 @@ const text = trainingGroupSv.agreement;
  * att visa dem ändå (spärr med möjlighet att gå vidare). Utan avtal visas inget.
  */
 export function RaceMapAgreementNotice({ raceId, version }: { raceId: string; version?: string | undefined }) {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
+  const text = useTexts(trainingGroupSv.agreement, trainingGroupEn.agreement);
   const [agreement, setAgreement] = useState<RaceMapAgreementView | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
@@ -32,7 +35,7 @@ export function RaceMapAgreementNotice({ raceId, version }: { raceId: string; ve
     setBusy(true); setProblem("");
     try {
       const result = await groupRequest(`/api/organizer/races/${raceId}/map-agreement`, "PUT", { formatVersion: 1, acknowledge: value });
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       setAgreement((result.json as { agreement: RaceMapAgreementView }).agreement);
     } finally { setBusy(false); }
   }

@@ -31,6 +31,7 @@ export function invitationTargetPhrase(kind: InvitationKind, name: string, raceD
 
 export const invitationSv = {
   mail: {
+    greeting: "Hej!",
     subject: (target: string) => `Inbjudan till ${target} i O-Tid`,
     invited: (inviter: string, target: string, role: string) => `${inviter} har bjudit in dig till ${target} i O-Tid som ${role}.`,
     open: "Öppna länken för att ta emot inbjudan. Där skapar du ett konto med den här adressen, eller loggar in om du redan har ett:",

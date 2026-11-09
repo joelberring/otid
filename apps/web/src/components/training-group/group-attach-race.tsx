@@ -1,19 +1,22 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { trainingGroupEn } from "../../i18n/training-group-en";
+import { useTexts } from "../language-provider";
 import type { GroupLeaderView, OrganizerMyEventsResponse } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { groupFailure, groupRequest } from "../../lib/training-group-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./training-group.module.css";
 
-const text = trainingGroupSv.leader;
 
 /**
  * Steg 68 (ADR-0182 beslut 1): en tävling som ledaren redan administrerar läggs till i gruppen (hela evenemanget). Därefter
  * är gruppens alla ledare administratörer på den.
  */
 export function GroupAttachRace({ view, onAttached }: { view: GroupLeaderView; onAttached: (message: string) => void }) {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
+  const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
   const [races, setRaces] = useState<{ raceId: string; label: string }[]>([]);
   const [raceId, setRaceId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,7 +39,7 @@ export function GroupAttachRace({ view, onAttached }: { view: GroupLeaderView; o
     setBusy(true); setProblem("");
     try {
       const result = await groupRequest(`/api/organizer/races/${raceId}/group`, "PUT", { formatVersion: 1, groupId: view.groupId });
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       setRaceId(""); onAttached(text.attached);
     } finally { setBusy(false); }
   }

@@ -55,7 +55,7 @@ export function createClassPreparationActions(ws: Base & RaceDataActions) {
     event.preventDefault();
     if (writingRef.current || pending.current || !requireSession() || !data) return;
     setManualClassError("");
-    const errors = validateManualClass({ className: manualClassName, courseVersionId: manualClassCourseVersionId });
+    const errors = validateManualClass({ className: manualClassName, courseVersionId: manualClassCourseVersionId }, ws.formErrorText);
     setManualClassErrors(errors);
     if (hasErrors(errors)) { focusFirstError(manualClassForm.current); return; }
     // Samma urval som listan: alla banor i loppet, även de som ännu saknar klass.

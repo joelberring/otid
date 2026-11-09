@@ -30,6 +30,16 @@ describe("ADR-0206: inbjudningsmejlet", () => {
     expect(invitationMessage({ ...base, role: "LEADER", target: club }, link).text).toContain("som ledare.");
   });
 
+  it("på engelska när den som bjuder in använder engelska", () => {
+    const { subject, text } = invitationMessage({ ...base, role: "COURSE_EDIT",
+      target: { kind: "RACE", raceId: "r", name: "Night champs", raceDate: "2027-10-07" } }, link, "en");
+    expect(subject).toBe("Invitation to the event Night champs on 7 October 2027 in O-Tid");
+    expect(text).toMatch(/^Hello!/);
+    expect(text).toContain("Anna Arrangör has invited you to the event Night champs on 7 October 2027 in O-Tid as course setter – can edit.");
+    expect(text).toContain("The link is valid until 17 November 2026.");
+    expect(text).not.toMatch(/Hej|Länken|Inbjudan/);
+  });
+
   it("träningsgruppen och medlem", () => {
     expect(invitationMessage({ ...base, role: "MEMBER", target: { kind: "GROUP", groupId: "g", name: "Torsdagsgänget" } }, link).text)
       .toContain("till träningsgruppen Torsdagsgänget i O-Tid som medlem.");

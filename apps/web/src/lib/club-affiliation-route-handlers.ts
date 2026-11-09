@@ -162,7 +162,7 @@ export async function clubPickerRoute(db: Database, request: Request, environmen
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await inviteFromClub(db, { ...input.proof, request: input.body }, new Date(), routeMailer(environment));
+    const result = await inviteFromClub(db, { ...input.proof, request: input.body }, new Date(), routeMailer(environment, request));
     return result.status === "ok" ? privateJson(result.response) : failure(result.status);
   });
 }

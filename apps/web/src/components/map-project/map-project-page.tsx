@@ -1,5 +1,6 @@
 "use client";
 
+import { invitationMailNoteEn } from "../../i18n/workspace-last-en";
 import { useMapProjectFailure } from "./use-map-project-failure";
 import { useEffect, useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
@@ -146,6 +147,7 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
   mailEnabled: boolean; run: Run; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
   const failure = useMapProjectFailure();
   const text = useTexts(mapProjectSv, mapProjectEn);
+  const mailNoteText = useTexts(invitationMailNote, invitationMailNoteEn);
   const copy = text.members;
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MapProjectRole>("EDIT");
@@ -158,7 +160,7 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
     setRequestId(crypto.randomUUID());
     if (result.status === 200 || result.status === 201) {
       const mail = invitationMailOutcomeSchema.catch("off").parse((result.json as { mail?: unknown } | undefined)?.mail);
-      onMessage({ tone: "ok", text: `${copy.invited} ${invitationMailNote[mail]}` });
+      onMessage({ tone: "ok", text: `${copy.invited} ${mailNoteText[mail]}` });
       setEmail(""); await onChanged();
     } else onMessage({ tone: "error", text: result.status === 409 ? copy.exists : failure(result.status) });
   }

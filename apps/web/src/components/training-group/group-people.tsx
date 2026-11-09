@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { trainingGroupEn } from "../../i18n/training-group-en";
 import { formErrorsEn } from "../../i18n/workspace-small-en";
 import { useTexts } from "../language-provider";
 import { INVITATION_BULK_MAX, invitationMailOutcomeSchema, type GroupLeaderView } from "@o-tid/contracts";
@@ -8,20 +9,25 @@ import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
 import { fatalStatus, inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
+import { invitationEn, invitationMailNoteEn, invitationSummaryEn } from "../../i18n/workspace-last-en";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { groupFailure, groupRequest } from "../../lib/training-group-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./training-group.module.css";
 import { FromClubPicker } from "../club-affiliation/from-club-picker";
 
-const text = trainingGroupSv.leader;
 
 /**
  * Steg 68 (ADR-0182 beslut 1): ledare och medlemmar läggs till med e-post. ADR-0189 beslut 9: svaret är detsamma med och utan
  * konto; adressen står som "väntar på inloggning" tills personen loggar in med den.
  */
 export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChanged: () => void }) {
+  const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
+  const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
   const formText = useTexts(formErrorsSv, formErrorsEn);
+  const invitationText = useTexts(invitationSv.list, invitationEn.list);
+  const mailNoteText = useTexts(invitationMailNote, invitationMailNoteEn);
+  const summaryText = useTexts(invitationSummary, invitationSummaryEn);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"LEADER" | "MEMBER">("LEADER");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -47,8 +53,8 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
         const result = await post(addresses[0]!, requestId);
         setRequestId(crypto.randomUUID());
         if (result.status === 409) { setProblem(text.personExists); return; }
-        if (result.status !== 201 && result.status !== 200) { setProblem(groupFailure(result.status)); return; }
-        setNotice(invitationMailNote[mailOf(result.json)]);
+        if (result.status !== 201 && result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
+        setNotice(mailNoteText[mailOf(result.json)]);
         setEmail(""); onChanged();
         return;
       }
@@ -58,8 +64,8 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
         if (fatalStatus(result.status)) return { fatal: result.status };
         return result.status === 409 ? "existing" : "error";
       });
-      if (fatal) { setProblem(groupFailure(fatal)); return; }
-      if (tally.other || tally.invalid) setProblem(invitationSummary(tally)); else setNotice(invitationSummary(tally));
+      if (fatal) { setProblem(groupFailure(fatal, trainingGroupText.leader.errors)); return; }
+      if (tally.other || tally.invalid) setProblem(summaryText(tally)); else setNotice(summaryText(tally));
       setEmail(""); onChanged();
     } finally { setBusy(false); }
   }
@@ -69,7 +75,7 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
     try {
       const result = await groupRequest(`/api/organizer/groups/${view.groupId}/members`, "DELETE", { formatVersion: 1, memberId });
       if (result.status === 409) { setProblem(text.lastLeader); return; }
-      if (result.status !== 200) { setProblem(groupFailure(result.status)); return; }
+      if (result.status !== 200) { setProblem(groupFailure(result.status, trainingGroupText.leader.errors)); return; }
       onChanged();
     } finally { setBusy(false); }
   }
@@ -79,8 +85,8 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
     <ul className={styles.plainList} aria-label={text.sections.people}>
       {view.members.map(member => <li key={member.memberId}>
         <div><strong>{member.displayName ?? member.email}</strong><span>{member.pending
-          ? [trainingGroupSv.myGroups.role[member.role], text.pending, invitationSentText(member.sentAt, mailEnabled)].filter(Boolean).join(" · ")
-          : [member.email, trainingGroupSv.myGroups.role[member.role]].filter(Boolean).join(" · ")}</span></div>
+          ? [trainingGroupText.myGroups.role[member.role], text.pending, invitationSentText(member.sentAt, mailEnabled, invitationText)].filter(Boolean).join(" · ")
+          : [member.email, trainingGroupText.myGroups.role[member.role]].filter(Boolean).join(" · ")}</span></div>
         {(member.pending || member.role !== "LEADER" || leaders > 1) && <div className={styles.memberActions}>
           {member.pending && <InvitationActions name={member.displayName ?? member.email} fromClub={!member.email}
             mailEnabled={mailEnabled} disabled={busy} onSent={onChanged}
@@ -96,8 +102,8 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
           disabled={busy} onChange={event => { setEmail(event.target.value); setRequestId(crypto.randomUUID()); }} /></Field>
         <Field label={text.personRole}><select value={role} disabled={busy}
           onChange={event => { setRole(event.target.value as "LEADER" | "MEMBER"); setRequestId(crypto.randomUUID()); }}>
-          <option value="LEADER">{trainingGroupSv.myGroups.role.LEADER}</option>
-          <option value="MEMBER">{trainingGroupSv.myGroups.role.MEMBER}</option>
+          <option value="LEADER">{trainingGroupText.myGroups.role.LEADER}</option>
+          <option value="MEMBER">{trainingGroupText.myGroups.role.MEMBER}</option>
         </select></Field>
       </div>
       <Button type="submit" disabled={busy || !email.includes("@")}>{text.add}</Button>
@@ -105,7 +111,7 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
       {notice && <Notice tone="ok" role="status">{notice}</Notice>}
     </form>
     {/* ADR-0209: "Från klubben" med rollen som är vald ovan. */}
-    <FromClubPicker context={{ kind: "TRAINING_GROUP", id: view.groupId }} role={role} roleLabel={trainingGroupSv.myGroups.role[role]} disabled={busy}
+    <FromClubPicker context={{ kind: "TRAINING_GROUP", id: view.groupId }} role={role} roleLabel={trainingGroupText.myGroups.role[role]} disabled={busy}
       onInvited={onChanged} />
   </>;
 }

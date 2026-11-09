@@ -235,3 +235,14 @@ export const invitationMailNoteEn: Record<InvitationMailOutcome, string> = {
   throttled: "The invitation was not sent (too many right now). Use Send again later.",
   failed: "The invitation could not be sent. Use Send again."
 };
+
+/** Engelska del 35: mejlet med inbjudan, på språket hos den som bjuder in. */
+export const invitationMailEn: Texts<typeof invitationSv.mail> = {
+  greeting: "Hello!",
+  subject: (target: string) => `Invitation to ${target} in O-Tid`,
+  invited: (inviter: string, target: string, role: string) => `${inviter} has invited you to ${target} in O-Tid as ${role}.`,
+  open: "Open the link to accept the invitation. There you create an account with this address, or sign in if you already have one:",
+  validUntil: (date: string) => `The link is valid until ${date}. The invitation applies once you have signed in with this address and confirmed it.`,
+  ignore: "If you do not recognise the invitation you can ignore this message. Nothing happens unless you sign in.",
+  signature: "O-Tid"
+};

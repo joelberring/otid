@@ -12,7 +12,7 @@
  *   OTID_GEO_WORKER_NAME       namnet i loggen (förval datorns namn)
  *   OTID_PULLAUTA              Karttapullautin (förval /opt/pullauta/pullauta)
  *   OTID_PULLAUTA_INI          grundinställningarna (förval /opt/pullauta/pullauta.default.ini)
- *   OTID_DWG2DXF               LibreDWG:s dwg2dxf för DWG-jobben (förval /opt/libredwg/bin/dwg2dxf)
+ *   OTID_DWGREAD               LibreDWG:s dwgread för DWG-jobben (förval /opt/libredwg/bin/dwgread)
  *   OTID_GEO_WORKDIR           arbetskatalogen (förval /tmp/otid-geo); rensas efter varje jobb
  *   OTID_GEO_ONCE=1            ett jobb (eller tom kö) och sedan slut (testerna)
  *   OTID_GEO_EXIT_IDLE_MIN     sluta efter så många minuter utan jobb (0 = aldrig)
@@ -24,6 +24,8 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { createReadStream } from "node:fs";
+import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 
@@ -43,7 +45,7 @@ const token = env.OTID_GEO_WORKER_TOKEN ?? "";
 const workerName = (env.OTID_GEO_WORKER_NAME || hostname()).replace(/[^A-Za-z0-9_.:-]/g, "-").slice(0, 80) || "geo";
 const pullauta = env.OTID_PULLAUTA || "/opt/pullauta/pullauta";
 const defaultIni = env.OTID_PULLAUTA_INI || "/opt/pullauta/pullauta.default.ini";
-const dwg2dxf = env.OTID_DWG2DXF || "/opt/libredwg/bin/dwg2dxf";
+const dwgread = env.OTID_DWGREAD || "/opt/libredwg/bin/dwgread";
 const workdir = env.OTID_GEO_WORKDIR || "/tmp/otid-geo";
 const once = env.OTID_GEO_ONCE === "1";
 const exitIdleMs = Math.max(0, Number(env.OTID_GEO_EXIT_IDLE_MIN ?? 0)) * 60_000;
@@ -99,7 +101,7 @@ function run(args: readonly string[], cwd: string, signal: AbortSignal, program 
       signal.removeEventListener("abort", abort);
       if (signal.aborted) reject(new Stopped());
       else if (code === 0) resolve();
-      else reject(new Error(`${program === pullauta ? "Karttapullautin" : "dwg2dxf"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
+      else reject(new Error(`${program === pullauta ? "Karttapullautin" : "dwgread"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
     });
   });
 }
@@ -203,8 +205,8 @@ async function runJob(job: Job): Promise<void> {
 }
 
 /**
- * K6b: en DWG-ritning blir DXF med LibreDWG (dwg2dxf). Ritningen hämtas från O-Tid och resultatet skickas tillbaka som
- * `ritning.dxf`, som läses in som kandidater i editorn.
+ * K6b: en DWG-ritning läses med LibreDWG (`dwgread -O JSON`, som får med skraffyrerna där baskartans ytor ligger) och blir
+ * GeoJSON med lagrens namn (`geo-dwg.ts`). Resultatet skickas tillbaka som `ritning.geojson` och läses in som kandidater.
  */
 async function runDwgJob(job: Job): Promise<void> {
   const dir = join(workdir, job.jobId);
@@ -222,16 +224,17 @@ async function runDwgJob(job: Job): Promise<void> {
     const input = await call(`/api/geo-worker/jobs/${job.jobId}/input`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
     if (!input.ok || !input.body) throw new Error(`Ritningen kunde inte hämtas (${input.status})`);
     await pipeline(Readable.fromWeb(input.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, "ritning.dwg")));
-    await beat("Gör om DWG till DXF");
-    await run(["-y", "-o", "ritning.dxf", "ritning.dwg"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), dwg2dxf);
-    const bytes = await readFile(join(dir, "ritning.dxf")).catch(() => undefined);
-    if (!bytes || bytes.byteLength === 0) throw new Error("dwg2dxf gav ingen DXF");
+    await beat("Läser ritningen");
+    await run(["-O", "JSON", "-o", "ritning.json", "ritning.dwg"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), dwgread);
+    const read = await dwgFeatures(dwgObjects(createReadStream(join(dir, "ritning.json"), { encoding: "utf8", highWaterMark: 1 << 20 }) as AsyncIterable<string>));
+    if (read.features.length === 0) throw new Error("Ritningen har inga linjer, ytor eller punkter i modellrymden");
+    const bytes = Buffer.from(JSON.stringify({ type: "FeatureCollection", features: read.features }));
     await beat("Skickar resultatet");
-    const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/ritning.dxf`, { method: "PUT", body: new Uint8Array(bytes),
-      headers: { "content-type": "application/dxf", "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
-    if (!response.ok) throw new Error(`ritning.dxf kunde inte skickas (${response.status})`);
+    const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/ritning.geojson`, { method: "PUT", body: new Uint8Array(bytes),
+      headers: { "content-type": "application/geo+json", "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
+    if (!response.ok) throw new Error(`ritning.geojson kunde inte skickas (${response.status})`);
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { bytes: bytes.byteLength } }) });
+      body: JSON.stringify({ status: "DONE", summary: { features: read.features.length, skipped: read.skipped } }) });
     console.log(`Geo-jobb ${job.jobId}: DWG klart (svar ${finished.status})`);
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);

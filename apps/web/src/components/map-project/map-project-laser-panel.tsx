@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GeoJobList, GeoJobView, MapProjectView, MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { parseDxf, VectorParseError } from "@o-tid/map-revision";
+import { parseDxf, parseGeoJson, VectorParseError } from "@o-tid/map-revision";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -114,7 +114,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     try {
       const response = await fetch(`${base}/geo-jobs/${job.jobId}/outputs/${output}`, { credentials: "same-origin" }).catch(() => undefined);
       if (!response?.ok) { say(response?.status); return; }
-      const data = parseDxf(await response.text());
+      const body = await response.text();
+      const data = output.endsWith(".geojson") ? parseGeoJson(body) : parseDxf(body);
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 });
       setMessage({ tone: "ok", text: text.loaded(label) });

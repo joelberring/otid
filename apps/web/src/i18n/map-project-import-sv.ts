@@ -29,7 +29,7 @@ export const mapProjectImportSv = {
       outside && `${outside} utanför kartan`, mismatched && `${mismatched} med fel form`].filter(Boolean).map(part => ` · ${part}`).join(""),
   propose: (count: number) => `Lämna ${plural(count, "kandidat", "kandidater")} som förslag`,
   sending: (done: number, total: number) => `Skickar ${done} av ${total} …`,
-  dwgSent: (file: string) => `${file} görs om till DXF på geo-servern. Läs in ritningen under Laserdata och Karttapullautin → Jobben när den är klar.`,
+  dwgSent: (file: string) => `${file} läses på geo-servern. Läs in ritningen under Laserdata och Karttapullautin → Jobben när den är klar.`,
   sent: (count: number) => `${plural(count, "förslag", "förslag")} lämnade. Godkänn eller avvisa dem under Förslag.`,
   note: (file: string, part: number, parts: number) => `Import ${file}${parts > 1 ? `, del ${part} av ${parts}` : ""}`.slice(0, 500),
   cancel: "Avbryt",

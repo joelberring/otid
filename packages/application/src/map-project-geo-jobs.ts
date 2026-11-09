@@ -30,7 +30,7 @@ const STALE_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 2;
 const ACTIVE_PER_ACCOUNT = 2;
 const DEFAULT_TILES_PER_MONTH = 200;
-const MEDIA_TYPES: ReadonlySet<string> = new Set(["image/png", "text/plain", "application/dxf"]);
+const MEDIA_TYPES: ReadonlySet<string> = new Set(["image/png", "text/plain", "application/dxf", "application/geo+json"]);
 /** Bilden och dess världsfil från arbetaren; blir ett underlag när jobbet är klart. */
 export const GEO_MAP_IMAGE = "karta.png";
 export const GEO_MAP_WORLD = "karta.pgw";

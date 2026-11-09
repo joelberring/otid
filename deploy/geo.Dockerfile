@@ -3,7 +3,7 @@
 # ur källkoden vid taggen nedan och körs som ett eget program; ingen kod kopieras in i O-Tid.
 ARG PULLAUTIN_TAG=v2.15.4
 ARG PULLAUTIN_COMMIT=7a25b61e46609e11a0c41be0686307c651227598
-# K6b: LibreDWG (GPL-3, https://www.gnu.org/software/libredwg/) för DWG-ritningar; bara programmet dwg2dxf, oförändrat.
+# K6b: LibreDWG (GPL-3, https://www.gnu.org/software/libredwg/) för DWG-ritningar; bara programmet dwgread, oförändrat.
 ARG LIBREDWG_VERSION=0.13.3
 ARG LIBREDWG_SHA256=83f1f6e78a744777a481ff4520e4cef3f8ac4b2c1c25671077ca12fe81e8816e
 
@@ -27,7 +27,7 @@ RUN set -eu; \
   RUSTFLAGS='-C target-feature=+crt-static -C strip=symbols' cargo build --release --locked --target "${target}"; \
   cp "target/${target}/release/pullauta" /pullauta
 
-# dwg2dxf korskompileras likadant på byggdatorns plattform (Debian bookworm, samma glibc som Node-avbildningen). Två
+# dwgread korskompileras likadant på byggdatorns plattform (Debian bookworm, samma glibc som Node-avbildningen). Två
 # parallella kompileringar räcker; fler tar slut på minnet i den stora avkodaren.
 FROM --platform=$BUILDPLATFORM debian:bookworm AS libredwg
 ARG LIBREDWG_VERSION
@@ -45,14 +45,14 @@ RUN set -eu; \
   echo "${LIBREDWG_SHA256}  /tmp/libredwg.tar.xz" | sha256sum -c -; \
   mkdir /src; tar -xJf /tmp/libredwg.tar.xz -C /src --strip-components=1; cd /src; \
   ./configure ${host} --disable-bindings --enable-release --disable-shared --prefix=/usr/local; \
-  make -j2 -C src; make -j2 -C programs dwg2dxf; \
-  mkdir -p /opt/libredwg/bin; "${strip}" -o /opt/libredwg/bin/dwg2dxf programs/dwg2dxf; cp COPYING /opt/libredwg/
+  make -j2 -C src; make -j2 -C programs dwgread; \
+  mkdir -p /opt/libredwg/bin; "${strip}" -o /opt/libredwg/bin/dwgread programs/dwgread; cp COPYING /opt/libredwg/
 
 FROM node:24-bookworm-slim
 ARG PULLAUTIN_TAG
 ARG LIBREDWG_VERSION
 ENV NODE_ENV=production OTID_PULLAUTA=/opt/pullauta/pullauta OTID_PULLAUTA_INI=/opt/pullauta/pullauta.default.ini OTID_GEO_WORKDIR=/work \
-  OTID_DWG2DXF=/opt/libredwg/bin/dwg2dxf
+  OTID_DWGREAD=/opt/libredwg/bin/dwgread
 COPY --from=pullautin /pullauta /opt/pullauta/pullauta
 COPY --from=pullautin /src/pullauta.default.ini /src/LICENSE /opt/pullauta/
 COPY --from=libredwg /opt/libredwg /opt/libredwg
@@ -60,7 +60,7 @@ RUN echo "Karttapullautin ${PULLAUTIN_TAG}, GPL-3. Källkoden: https://github.co
   && echo "LibreDWG ${LIBREDWG_VERSION}, GPL-3. Källkoden: https://github.com/LibreDWG/libredwg/releases/tag/${LIBREDWG_VERSION}" > /opt/libredwg/KALLA.txt \
   && mkdir -p /work /app && chown node:node /work
 # Geo-arbetaren och fuktigheten (K5c) körs direkt av Node (typerna tas bort); package.json gör dem till ES-moduler.
-COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts /app/
+COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts scripts/geo-dwg.ts /app/
 RUN echo '{ "type": "module", "private": true }' > /app/package.json
 USER node
 WORKDIR /app

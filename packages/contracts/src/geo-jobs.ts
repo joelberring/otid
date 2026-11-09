@@ -69,7 +69,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("FAILED"), error: z.string().min(1).max(2000) }).strict()
 ]);
 export const GEO_OUTPUT_NAME = /^[a-z0-9_.-]{1,60}$/;
-/** K6b: DWG-ritningen som geo-arbetaren gör om till DXF (indata, sparad som jobbets fil; resultatet heter ritning.dxf). */
+/** K6b: DWG-ritningen som geo-arbetaren läser (indata, sparad som jobbets fil; resultatet heter ritning.geojson). */
 export const GEO_DWG_INPUT = "indata.dwg";
 export const GEO_DWG_MAX_BYTES = 75 * 1024 * 1024;
 /** Största resultatfil (bilden kan bli stor när flera rutor slås ihop). */

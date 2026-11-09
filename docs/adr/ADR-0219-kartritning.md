@@ -415,7 +415,12 @@ runda former".
 1. **DWG-ritningar** (t.ex. kommunens baskarta) läses in som andra vektorfiler: importen skickar ritningen till servern
    (`POST …/geo-jobs/dwg`, högst 75 MB, måste börja med en DWG-version `AC10xx`), den sparas som jobbets fil `indata.dwg` och
    ett geo-jobb av slaget `DWG` läggs (migration 0106 vidgar jobbets kontroll av slaget; inga data ändras).
-2. **Geo-arbetaren** hämtar ritningen (`GET /api/geo-worker/jobs/:id/input`), kör LibreDWG:s `dwg2dxf` (GPL-3, korskompilerat
-   ur källkoden 0.13.3 med kontrollsumma, eget program) och skickar `ritning.dxf`. DWG tolkas aldrig på O-Tids egen server.
-3. **Resultatet** läses in som kandidater från jobblistan; koordinatsystemet gissas ur koordinaterna eller anges i importen.
+2. **Geo-arbetaren** hämtar ritningen (`GET /api/geo-worker/jobs/:id/input`) och läser den med LibreDWG:s `dwgread -O JSON`
+   (GPL-3, korskompilerat ur källkoden 0.13.3 med kontrollsumma, eget program). Omvandlingen till DXF och till GeoJSON tappar
+   skraffyrerna, där baskartans ytor ligger, så `scripts/geo-dwg.ts` tolkar JSON:en själv, ett objekt i taget ur strömmen:
+   modellrymdens linjer, polylinjer med bågar, cirklar, bågar, skraffyrer (ytor med hål), fyllda fyrhörningar, punkter och
+   blockens insättningspunkter (med blockets namn), med lagrets namn. Texter hoppas över. Resultatet är `ritning.geojson`.
+   DWG tolkas aldrig på O-Tids egen server.
+3. **Resultatet** läses in som kandidater från jobblistan; koordinatsystemet gissas ur koordinaterna eller anges i importen,
+   och Stockholms lagernamn ger symbolförslag som förut.
 4. **Kvar (K6b):** städning av baskartor (ytor av slutna kanter, trappor) och passpunkter för att räta upp en karta.

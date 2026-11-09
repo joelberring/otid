@@ -29,6 +29,7 @@ import { MapProjectGeneralizePanel } from "./map-project-generalize-panel";
 import { useMapProjectGeneralize } from "./use-map-project-generalize";
 import { useMapProjectRectify } from "./use-map-project-rectify";
 import { MapProjectRectifyPanel } from "./map-project-rectify-panel";
+import { MapProjectNorthPanel } from "./map-project-north-panel";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
@@ -714,6 +715,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
           <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
           {georeference && <MapProjectRectifyPanel rectify={rectify} areas={collab.areas} scale={georeference.scale} />}
+          {georeference && <MapProjectNorthPanel georeference={georeference} />}
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
             control={control} scale={georeference.scale} area={editor.bounds ?? undefined}
             after={<>

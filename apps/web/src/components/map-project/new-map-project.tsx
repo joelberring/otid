@@ -3,11 +3,12 @@
 import { useMapProjectFailure } from "./use-map-project-failure";
 import { useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
 import { MAP_PROJECT_NEW_SCALES } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest } from "../../lib/club-archive-client";
-import { areaFromCenter, areaFromGeoJson, parseLatLon, type AreaInput } from "../../lib/map-project-area-input";
+import { areaCenterWgs84, areaFromCenter, areaFromGeoJson, parseLatLon, type AreaInput } from "../../lib/map-project-area-input";
+import { declinationAt } from "@o-tid/map-file";
 import { mapProjectsBase } from "../../lib/map-project-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./map-project.module.css";
@@ -30,6 +31,7 @@ export function NewMapProject() {
   const [center, setCenter] = useState("");
   const [width, setWidth] = useState("1500");
   const [height, setHeight] = useState("1500");
+  const language = useLanguage();
   const [declination, setDeclination] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
@@ -41,6 +43,11 @@ export function NewMapProject() {
     const w = Number(width), h = Number(height);
     return point && w > 0 && h > 0 ? areaFromCenter(point, w, h) : undefined;
   }
+
+  // ADR-0223: dagens missvisning enligt World Magnetic Model i områdets mitt (används när fältet är tomt).
+  const chosenArea = area();
+  const middle = chosenArea ? areaCenterWgs84(chosenArea) : undefined;
+  const suggested = middle ? declinationAt(middle.latitude, middle.longitude, new Date()) : undefined;
 
   async function create(event: FormEvent) {
     event.preventDefault();
@@ -101,8 +108,10 @@ export function NewMapProject() {
       </>}
       {source === "file" && fileArea && <p className={styles.muted} data-testid="new-map-area">
         {text.areaSummary(fileArea.rings.length, fileArea.rings.reduce((sum, ring) => sum + ring.length, 0))}</p>}
-      <Field label={text.declination} help={text.declinationHelp}>
-        <input value={declination} inputMode="decimal" onChange={event => setDeclination(event.target.value)} /></Field>
+      <Field label={text.declination} help={suggested !== undefined ? text.declinationSuggested(suggested.toLocaleString(language === "en" ? "en-GB" : "sv-SE"))
+        : text.declinationHelp}>
+        <input value={declination} inputMode="decimal" placeholder={suggested !== undefined ? String(suggested) : undefined}
+          onChange={event => setDeclination(event.target.value)} /></Field>
       <div className={styles.actions}><Button type="submit" disabled={busy || !ready} aria-busy={busy}>{text.button}</Button></div>
       {message && <Notice tone="error" role="alert">{message}</Notice>}
     </form>

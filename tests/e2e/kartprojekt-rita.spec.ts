@@ -303,6 +303,8 @@ test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({
   await form.getByLabel("GeoJSON-fil").setInputFiles({ name: "kungshatt.geojson", mimeType: "application/geo+json",
     buffer: Buffer.from(JSON.stringify(island)) });
   await expect(form.getByTestId("new-map-area")).toHaveText("6 punkter");
+  // ADR-0223: förslaget enligt World Magnetic Model för områdets mitt (ungefär 7,5° vid Kungshatt 2026).
+  await expect(form.getByText(/World Magnetic Model för områdets mitt: [78],\d°/)).toBeVisible();
   await form.getByLabel("Missvisning (grader, östlig positiv)").fill("6,5");
   if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-ny-karta-formular.png`, fullPage: true });
   await form.getByRole("button", { name: "Skapa kartan" }).click();
@@ -329,6 +331,11 @@ test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({
   const objects = await serverObjects(owner, projectId, baseURL!);
   expect(objects.map(object => object.state.object?.kind).sort()).toEqual(["line", "point"]);
   await reviewScreenshots(owner, "kartprojekt-ny-karta");
+  // ADR-0223: kartans nordlinjer (6,5°) mot dagens missvisning.
+  const north = owner.getByTestId("map-project-north");
+  await north.locator("summary").click();
+  await expect(north).toContainText("ritade för missvisningen 6,5°");
+  await expect(north).toContainText(/Skillnad [01],\d° åt öster/);
   await owner.goto(`/organizer/map-projects/${projectId}`);
   await expect(owner.getByText("ny karta från O-Tid")).toBeVisible();
 });

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { MAP_PROJECT_NEW_MAX_SIDE_M, mapProjectNewRequestSchema } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  MAP_READER_VERSION, newMapFile, projectedToMapPoint, readMapFile, wgs84ToProjected, type ProjectedPoint
+  MAP_READER_VERSION, declinationAt, newMapFile, projectedToMapPoint, projectedToWgs84, readMapFile, wgs84ToProjected, type ProjectedPoint
 } from "@o-tid/map-file";
 import { areaPolygonProblem } from "@o-tid/map-revision";
 import type { ClubFailure, ClubProof } from "./club-access";
@@ -44,7 +44,10 @@ export async function createMapProjectNew(db: Database, input: ClubProof & { req
     const refPoint = { easting: Math.round((minE + maxE) / 2), northing: Math.round((minN + maxN) / 2) };
     let bytes: Uint8Array;
     try {
-      bytes = newMapFile({ symbolSet: request.symbolSet, scale: request.scale, refPoint, declinationDegrees: request.declination,
+      // ADR-0223: utan angiven missvisning dagens enligt World Magnetic Model i områdets mitt.
+      const center = projectedToWgs84({ kind: "EPSG", code: 3006 }, refPoint.easting, refPoint.northing);
+      const declination = request.declination ?? declinationAt(center.latitude, center.longitude, now);
+      bytes = newMapFile({ symbolSet: request.symbolSet, scale: request.scale, refPoint, declinationDegrees: declination,
         notes: `${request.name}. Ny karta från O-Tid.` });
     } catch {
       // Utanför Sverige eller en skala normen inte har.

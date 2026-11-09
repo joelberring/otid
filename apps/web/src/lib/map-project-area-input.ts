@@ -2,6 +2,8 @@
  * ADR-0219 (K1, nya kartor): kartans område till API:t (`mapProjectAreaInputSchema`). Ur en GeoJSON-fil (största polygonen,
  * med hål) eller en mittpunkt med bredd och höjd. Koordinater större än 180 tolkas som SWEREF 99 TM (meter), annars WGS 84.
  */
+import { projectedToWgs84 } from "@o-tid/map-file";
+
 export interface AreaInput { readonly crs: "WGS84" | "SWEREF99TM"; readonly rings: [number, number][][] }
 
 type Ring = [number, number][];
@@ -78,4 +80,13 @@ export function areaFromCenter(center: { latitude: number; longitude: number }, 
   const dLon = width / 2 / (111_320 * Math.cos(center.latitude * Math.PI / 180));
   const { latitude: lat, longitude: lon } = center;
   return { crs: "WGS84", rings: [[[lon - dLon, lat - dLat], [lon + dLon, lat - dLat], [lon + dLon, lat + dLat], [lon - dLon, lat + dLat]]] };
+}
+
+/** ADR-0223: områdets mitt i WGS 84 (medelvärdet av den yttre ringens punkter), för förslaget på missvisning. */
+export function areaCenterWgs84(area: AreaInput): { latitude: number; longitude: number } | undefined {
+  const ring = area.rings[0];
+  if (!ring || ring.length === 0) return undefined;
+  const [x, y] = [ring.reduce((sum, point) => sum + point[0], 0) / ring.length, ring.reduce((sum, point) => sum + point[1], 0) / ring.length];
+  if (area.crs === "WGS84") return { latitude: y, longitude: x };
+  try { return projectedToWgs84({ kind: "EPSG", code: 3006 }, x, y); } catch { return undefined; }
 }

@@ -10,6 +10,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Magnetisk nord, del 1 (ADR-0223)
+- World Magnetic Model 2025 i `@o-tid/map-file` (kontrollerad mot pygeomag). Ny karta: tomt fält ger dagens missvisning i
+  områdets mitt, och formuläret visar förslaget. Kartredigeraren visar under "Magnetisk nord" kartans missvisning, dagens och
+  skillnaden.
+- Verifierat: enhet `map-file/wmm`, integration `adr-0219-ny-karta`, E2E `kartprojekt-rita` (ny karta).
+- Del 2, att rikta om kartan, kräver att grivationen skrivs tillbaka i kartfilen; väntar på ägaren (ADR-0223).
+- Engelska del 36: Google-flytten; hela appen finns nu på engelska.
+
 ### 2026-11-09 – Moment och nivåer på träningar (ADR-0222)
 - Moment ur en fast lista (Kurvbild, Kompass, Vägval, Stråk …) och nivåer Grön–Svart, plus egna ord, i terminsplaneringen och i
   klubbarkivet; planens följer med vid "Lägg i klubbarkivet". Nivån föreslås ur banornas namn. Migration 0110.

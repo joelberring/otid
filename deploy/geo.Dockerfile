@@ -34,7 +34,7 @@ ARG LIBREDWG_VERSION
 ARG LIBREDWG_SHA256
 ARG TARGETARCH
 RUN set -eu; \
-  apt-get update; apt-get install -y --no-install-recommends build-essential ca-certificates curl xz-utils; \
+  apt-get update; apt-get install -y --no-install-recommends build-essential ca-certificates curl python3 xz-utils; \
   case "${TARGETARCH}" in \
     amd64) host=""; strip=strip ;; \
     arm64) apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu; \

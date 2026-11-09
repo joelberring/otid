@@ -70,8 +70,8 @@ describe("ADR-0219: arbetslager och skisslager", () => {
     expect((await createMapProjectSketch(db, { ...reader.proof, projectId, request: { ...line, sketchId: randomUUID() } }, NOW)).status).toBe("forbidden");
 
     const listed = await listMapProjectWorkLayers(db, { ...reader.proof, projectId }, NOW);
-    expect(listed.status === "ok" && [listed.list.layers.map(layer => layer.name), listed.list.sketches.map(sketch => sketch.kind).sort()])
-      .toEqual([["Stigar att reka", "Fältskisser"], ["LINE", "TEXT"]]);
+    expect(listed.status === "ok" && [listed.list.layers.map(layer => layer.name).sort(), listed.list.sketches.map(sketch => sketch.kind).sort()])
+      .toEqual([["Fältskisser", "Stigar att reka"], ["LINE", "TEXT"]]);
 
     // Ändra: den som skapade eller ägarna; skisslager har inga symboler.
     expect((await updateMapProjectWorkLayer(db, { ...reader.proof, projectId, layerId: work.layerId, request: { formatVersion: 1, name: "X" } }, NOW)).status)

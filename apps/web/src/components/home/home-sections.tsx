@@ -44,9 +44,10 @@ export function HomePersonal({ personal, language }: { personal: Personal; langu
 }
 
 /** Vad O-Tid gör utöver tidtagning, hur det är byggt och var koden finns. */
-export function HomeAbout({ language }: { language: Language }) {
+export function HomeAbout({ language, demo }: { language: Language; demo?: string | undefined }) {
   const text = texts(language);
   return <>
+    {demo && <p className={styles.demo} data-testid="home-demo"><Link href={demo}>{text.demo}</Link> <span>{text.demoHelp}</span></p>}
     <section className={styles.features} aria-labelledby="home-features" data-testid="home-features">
       <h2 id="home-features">{text.featuresTitle}</h2>
       <ul className={styles.featureGrid}>

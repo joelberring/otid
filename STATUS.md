@@ -14,7 +14,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Tävlingarna först som förut; den inloggade ser "Ditt O-Tid" (klubbar, träningsgrupper, öppna kartprojekt); alla ser "Mer
   än tidtagning" (sex delar), hur O-Tid är byggt och länken till koden på GitHub. Svenska och engelska.
 - Verifierat: E2E `startsida`, `sprak`, `publikt`.
-- Kvar: ägaren väljer licens för koden (repot är publikt men har ingen LICENSE-fil); demoläget.
+- Demoläget, första steget: `OTID_DEMO_RACE` (kort kod till en publicerad tävling) ger länken "Prova: se en demotävling".
+- Kvar: ägaren väljer licens för koden (repot är publikt men har ingen LICENSE-fil) och en demotävling; att prova arbetsytan
+  utan konto (gästkonto med egen kopia) kräver ägarens beslut.
 
 ### 2026-11-09 – Engelska, del 1: språkval och de publika ingångssidorna
 - Språket ur kakan `otid-lang` (länken English/Svenska i sidhuvudet, `/sprak`), annars engelska bara när webbläsaren inte

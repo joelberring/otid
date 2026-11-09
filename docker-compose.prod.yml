@@ -155,6 +155,7 @@ services:
       # K5c: SLU:s markfuktighetskarta (WMS). Tom = Skogsstyrelsens öppna tjänst; CI pekar på en falsk.
       OTID_SLU_MOISTURE_WMS_URL: ${OTID_SLU_MOISTURE_WMS_URL:-}
       OTID_OCAD_WRITE: ${OTID_OCAD_WRITE:-}
+      OTID_DEMO_RACE: ${OTID_DEMO_RACE:-}
       OTID_GEO_WORKER_TOKEN: ${OTID_GEO_WORKER_TOKEN:-}
       OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
       # ADR-0219 K5b: geo-servern hos Hetzner (startas när geo-jobb väntar, raderas efter tomgång). Tom nyckel = ingen geo-server.

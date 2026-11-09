@@ -16,3 +16,12 @@ export function introFilmUrl(environment: Record<string, string | undefined> = p
   const url = new URL(value);
   return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
 }
+
+/**
+ * Idéerna 2026-11-08 (demoläge, första steget): `OTID_DEMO_RACE` är den korta koden till en publicerad tävling som ägaren
+ * valt som demo (t.ex. en träning på Kungshatt). Startsidan länkar dit; utan giltig kod visas ingen länk.
+ */
+export function demoRacePath(environment: Record<string, string | undefined> = process.env): string | undefined {
+  const value = environment.OTID_DEMO_RACE?.trim().toLowerCase();
+  return value && /^[2-9a-hjkmnp-z]{6}$/.test(value) ? `/t/${value}` : undefined;
+}

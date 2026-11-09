@@ -5,7 +5,7 @@ import { authenticateUserAccountSession, listMapProjects, listMyClubs, listMyGro
 import { db } from "../lib/db";
 import { accountSessionToken } from "../lib/public-race-gate";
 import { todayIn } from "../lib/public-race-format";
-import { introFilmUrl } from "../lib/intro-film";
+import { demoRacePath, introFilmUrl } from "../lib/intro-film";
 import { currentLanguage } from "../lib/language-server";
 import { publicHomeEn, siteEn } from "../i18n/public-en";
 import { sv } from "../i18n/sv";
@@ -84,7 +84,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       {section("kommande", text.upcoming, listing.upcoming, "UPCOMING", text.noneUpcoming)}
       {section("senaste", text.recent, listing.recent, "RECENT", text.noneRecent, listing.moreRecent)}
       {film && <p className={styles.introFilm}><a href={film}>{text.introFilm}</a></p>}
-      {!search && <HomeAbout language={language} />}
+      {!search && <HomeAbout language={language} demo={demoRacePath()} />}
     </main>
   </>;
 }

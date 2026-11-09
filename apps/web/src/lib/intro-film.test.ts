@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { introFilmUrl } from "./intro-film";
+import { demoRacePath, introFilmUrl } from "./intro-film";
 
 describe("introFilmUrl", () => {
   it("ger ingen adress när variabeln saknas eller är tom", () => {
@@ -18,4 +18,12 @@ describe("introFilmUrl", () => {
     expect(introFilmUrl({ NEXT_PUBLIC_INTRO_FILM_URL: "//annan.se/film" })).toBeUndefined();
     expect(introFilmUrl({ NEXT_PUBLIC_INTRO_FILM_URL: "film.mp4" })).toBeUndefined();
   });
+
+  it("demotävlingen: bara en giltig kort kod ger en länk", () => {
+    expect(demoRacePath({ OTID_DEMO_RACE: " K7M2QX " })).toBe("/t/k7m2qx");
+    expect(demoRacePath({ OTID_DEMO_RACE: "k7m2q" })).toBeUndefined();
+    expect(demoRacePath({ OTID_DEMO_RACE: "../adm" })).toBeUndefined();
+    expect(demoRacePath({})).toBeUndefined();
+  });
 });
+

@@ -322,5 +322,7 @@ export const homeEn: Texts<typeof homeSv> = {
     + "and WebUSB). Lidar and drawings run on a separate geo server with Karttapullautin and LibreDWG, as separate programs.",
   code: "The source code is openly available on GitHub.",
   codeLink: "O-Tid on GitHub",
-  about: "More about O-Tid"
+  about: "More about O-Tid",
+  demo: "Try it: see a demo event",
+  demoHelp: "Start list, results, Live and split times from a real training, without signing in."
 };

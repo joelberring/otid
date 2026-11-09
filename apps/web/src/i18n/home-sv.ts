@@ -24,5 +24,7 @@ export const homeSv = {
     + "och WebUSB). Laserdata och ritningar körs på en separat geo-server med Karttapullautin och LibreDWG, som egna program.",
   code: "Källkoden finns öppet på GitHub.",
   codeLink: "O-Tid på GitHub",
-  about: "Mer om O-Tid"
+  about: "Mer om O-Tid",
+  demo: "Prova: se en demotävling",
+  demoHelp: "Startlista, resultat, Live och sträcktider från en riktig träning, utan att logga in."
 } as const;

@@ -85,6 +85,23 @@ export const accountHelpArticlesEn: readonly HelpArticle[] = [
 
 export const routeChoiceHelpArticlesEn: readonly HelpArticle[] = [
   {
+    id: "vagval-strackan",
+    title: "Route choice in course setting",
+    views: ["CS_SELECTED", "CS_COURSES"],
+    body: [
+      "Choose a course at the top and click a leg. The tab ”Selected” shows ”Selected leg” with the route choices, calculated from the map file.",
+      [
+        "Straight line: a straight line between the controls.",
+        "Best route: the fastest route with length, climb and approximate time. It is drawn as a blue line.",
+        "Options: other route choices, dashed and numbered. +12 % means 12 % longer time than the best route.",
+        "Only route choices at most 25 % worse are shown. The shaded corridor is routes at most 5 % worse.",
+        "Choose a row in the list and that route is marked on the map."
+      ],
+      "The route choices are recalculated when you move a control. ”Calculate along route choices” in the tab ”Courses” gives the whole course's length along the best route choices.",
+      "How the time is calculated: [The route choice analysis](#vagval)."
+    ]
+  },
+  {
     id: "kontrollkarta",
     title: "The control map",
     views: ["CONTROL_MAP", "COURSES"],

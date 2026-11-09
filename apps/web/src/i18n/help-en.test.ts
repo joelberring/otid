@@ -35,7 +35,7 @@ const swedish = uiOf(false);
 for (const text of [...strings(readoutText), ...strings(partyText)]) swedish.add(text.trim());
 
 /** Knappar i delar som inte är översatta än (banläggningen, klubbarkivet, kontosammanslagningen). */
-const SWEDISH_STILL = ["Välj karta från klubbarkivet", "Från klubben", "Flytta kopplingen och ta bort dubbletten"];
+const SWEDISH_STILL = ["Använd igen", "Använd kartan", "Flytta kopplingen och ta bort dubbletten", "Från klubben", "Välj karta från klubbarkivet"];
 
 const quoted = (text: string) => [...text.matchAll(/”([^”]+)”/g)].map(match => match[1]!);
 const shown = (text: string) => text.replace(HELP_LINK, "$1");
@@ -52,7 +52,7 @@ describe("de engelska hjälpartiklarna", () => {
     expect(missing.map(({ article, label }) => `${article}: ${label}`)).toEqual([]);
     // Ett svenskt citat ska inte stå kvar när knappen finns på engelska: då är citatet inte översatt.
     const swedishOnly = citations.filter(({ label }) => !english.has(label));
-    expect(swedishOnly.map(({ label }) => label)).toEqual(SWEDISH_STILL);
+    expect([...new Set(swedishOnly.map(({ label }) => label))].sort()).toEqual(SWEDISH_STILL);
   });
 
   it("har samma id, vyer och form som de svenska, och citattecken i par", () => {

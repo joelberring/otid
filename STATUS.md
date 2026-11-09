@@ -82,8 +82,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 28: banläggningen, grunden (banor, verktyg, vald, varningar, fil och versioner, överföring, objektpaletten,
   samarbetet, notiserna och kartfelen, fältläget utan nät, flytt av delade kontroller, beskrivningsförslag och ringklipp).
 - Del 31: utskriften (specialobjekt, förhandsvisning, översikt, färger för tryck, PDF, kartor per ark, en karta per löpare),
-  kartritarens länk och sidan /kartfel, banfilen i banläggningen och speakersidans rubrik. Banläggningen är nu på engelska;
-  kvar är dess hjälpartiklar.
+  kartritarens länk och sidan /kartfel, banfilen i banläggningen och speakersidans rubrik. Banläggningen är nu på engelska.
+- Del 32: banläggningens hjälp på engelska (Kom igång, editorn, varningar, notiser, samarbetet, nivåstödet, fältläget,
+  utskriften, papperet, färgerna, PDF:en och kartbytena). Kvar på svenska: klubbarkivets och klubbytans artiklar.
 - Del 30: träningsläget, Layout-fliken (överblick, layouter, ark, klasser, lägen) och papperet (texter, bilder, klippning, mallar).
 - Del 29: banans egenskaper, kontrollbeskrivningen, varianterna, nivåstödet (Green–Black), utseendet, BL-förslaget och
   förslagens åtgärder i text (flyttade till `course-setting-edits-sv/en.ts`, en post per åtgärd).

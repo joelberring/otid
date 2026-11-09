@@ -1,11 +1,13 @@
 import type { Texts } from "../lib/language";
 import type { HelpArticle, helpSv } from "./help-sv";
 import { accountHelpArticlesEn, routeChoiceHelpArticlesEn } from "./help-more-en";
+import { courseSettingHelpArticlesEn, gettingStartedHelpArticlesEn, levelHelpArticlesEn } from "./help-course-setting-en";
+import { fieldPrintHelpArticlesEn } from "./help-print-en";
 
 /**
  * Engelska del 27: hjälpen (panelen och artiklarna för arbetsytan, avläsningen, kontot, kontrollkartan och vägvalen). Samma
  * id och regler som `help-sv.ts`; `help-en.test.ts` slår upp varje ”…” i de engelska UI-texterna. Artiklarna om
- * banläggningen, utskriften, klubbarkivet och klubbytan är kvar på svenska tills de delarna är översatta.
+ * klubbarkivet och klubbytan är kvar på svenska tills de delarna är översatta.
  */
 export const helpEn: Texts<typeof helpSv> = {
   button: "Help",
@@ -81,6 +83,27 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "OCAD: O-Tid has no format of its own for it. OCAD's course setting can read the same IOF XML file. For Purple Pen: ”Download .ppen”."
       ],
       "To put the courses on the map in O-Tid: see [Course setting: open it and load the map](#banlaggning-start)."
+    ]
+  },
+  {
+    id: "traning",
+    title: "Training forms in course setting",
+    views: ["CS_TRAINING", "COURSES"],
+    body: [
+      "The tab ”Training” (or the button ”Training” among the tools) turns the selected course into a training. Choose the course at the top first.",
+      "The forms apply to sections of the course and can follow each other, for example corridor to 4, contours only to 8 and window to the finish.",
+      [
+        "”Corridor”: only a strip along the legs shows, angular or smooth. The width can be changed per leg.",
+        "”Contours”, ”Window” and ”Without map”: a filter along part of the course, circles around the controls or legs without a map.",
+        "”Outside the sections”: what shows around the sections – the whole map, white, tinted or a filter.",
+        "”The map for the whole course”: a filter that applies everywhere, e.g. ”Contours only” or ”Without paths”.",
+        "”Last safe point”: a smaller circle on the leg. It is not a control and does not show in the description, the length or the readout.",
+        "”Area”: draw an area with its own filter. It can apply to ”This course” or ”All courses”.",
+        "”Star”, ”Line”, ”Cap” and ”Map pieces”: star course, line orienteering, cap orienteering in pairs and a small map per leg.",
+        "”Mirror”: the map and the course mirrored in print. The numbers read as usual; in course setting the map is drawn as usual."
+      ],
+      "”Show the training on the map” shows before and after. The print and the PDF have the same masking in the map's colours; see [Print and preview](#utskrift).",
+      "The training follows along in the .ppen file but disappears if the file is saved in Purple Pen. ”Remove the training for the course” makes the course ordinary again."
     ]
   },
   {
@@ -334,7 +357,8 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
 
 /** Engelska artiklar i stället för de svenska med samma id; resten (banläggningen, klubbarkivet) är svenska än så länge. */
 export const helpArticlesEnById: ReadonlyMap<string, HelpArticle> = new Map(
-  [...raceDayHelpArticlesEn, ...accountHelpArticlesEn, ...routeChoiceHelpArticlesEn].map(article => [article.id, article]));
+  [...raceDayHelpArticlesEn, ...gettingStartedHelpArticlesEn, ...courseSettingHelpArticlesEn, ...levelHelpArticlesEn,
+    ...fieldPrintHelpArticlesEn, ...accountHelpArticlesEn, ...routeChoiceHelpArticlesEn].map(article => [article.id, article]));
 
 export const helpArticlesFor = (articles: readonly HelpArticle[]): readonly HelpArticle[] =>
   articles.map(article => helpArticlesEnById.get(article.id) ?? article);

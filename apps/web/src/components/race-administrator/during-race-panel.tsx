@@ -1,7 +1,7 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
-import { forestWatchEn } from "../../i18n/workspace-tools-en";
+import { forestWatchEn, raceCorrectionsEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
@@ -100,6 +100,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
  * under Mer (ADR-0191 beslut 1). Funktionären ser bara granskningen av sin egen återkomst eller sitt startläge.
  */
 export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
+  const correctionsText = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const forestText = useTexts(forestWatchSv, forestWatchEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, checkinHistory, checkinHistoryPanel, data, disabled, entryId, functionary, loadCheckinHistory,
@@ -159,7 +160,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
         </section>}
         </div>
       </details>
-      <Section id={`race-corrections-${raceId}`} title={raceCorrectionsSv.title} help={raceCorrectionsSv.help}>
+      <Section id={`race-corrections-${raceId}`} title={correctionsText.title} help={correctionsText.help}>
         <RaceCorrectionsPanel raceId={raceId} onChanged={ws.reloadQuietly} />
       </Section>
       <Section id={`readout-reread-${raceId}`} title={readoutRereadSv.title}>

@@ -9,6 +9,8 @@ import type { resultsOfficialSv } from "./results-official-sv";
 import type { raceCopySv } from "./race-copy-sv";
 import type { courseVariantsSv } from "./course-variants-sv";
 import { startRuleEn as rule } from "./workspace-admin-en";
+import { formatPunchDate, type CardPunchTexts } from "./card-punches-sv";
+import { raceCorrectionsSv } from "./race-corrections-sv";
 
 /** Engelska, arbetsytan del 4–6: lottningen, publiceringen, kvar i skogen, källorna, ta bort, resultaten klara, kopiera och gafflingarna. */
 const names = (list: readonly string[]) =>
@@ -481,4 +483,93 @@ export const courseVariantsEn: Texts<typeof courseVariantsSv> = {
   variantShort: code => `Variant ${code}`,
   variantGuessed: code => `Variant ${code} (from the punches)`,
   importVariants: (variants, persons) => `${variants} variants${persons === undefined ? "" : `, ${plural(persons, "runner", "runners")} got their variant`}`
+};
+
+const list = (values: readonly string[]) => values.length <= 1 ? values.join("")
+  : `${values.slice(0, -1).join(", ")} and ${values[values.length - 1]}`;
+
+/** Engelska, arbetsytan del 7: brickans stämplingar i deltagarkortet. */
+export const cardPunchesEn: CardPunchTexts = {
+  title: "The card's punches",
+  readAt: time => `Last read out ${time}`,
+  order: "No", code: "Code", time: "Time", status: "Belongs to",
+  placement: { ON_COURSE: "on the course", EXTRA: "extra", OTHER_DAY: "outside the race day", OLD: "before check, does not count", NO_COURSE: "–" },
+  mark: { ON_COURSE: "", EXTRA: "+", OTHER_DAY: "!", OLD: "!", NO_COURSE: "" },
+  legend: "+ extra · ! outside the race day or before check",
+  check: "Check", start: "Start", finish: "Finish", missing: "missing",
+  noPunches: "The card has no control punches.",
+  otherDay: (dates, raceDate, all) =>
+    `${all ? "The punches" : "Some punches"} are from ${list(dates.map(date => formatPunchDate(date, "en-GB")))}, not from the race day (${formatPunchDate(raceDate, "en-GB")}).`,
+  noStart: "The card has no start punch.",
+  noFinish: "The card has no finish punch.",
+  missingControls: codes => `Missing controls: ${codes.join(", ")}.`,
+  oldCardHint: "The card was probably not cleared before the race.",
+  table: "The card's punches in order",
+  adjusted: labels => `The time is adjusted for the whole event: ${labels.join(", ")}.`,
+  ignored: count => `${plural(count, "old punch", "old punches")} did not count (the card was not cleared).`
+};
+
+type Station = "START" | "FINISH" | "CONTROL" | "ALL";
+const stationLabelEn = (station: Station, controlCode: number | null) =>
+  station === "CONTROL" ? `Control ${controlCode ?? ""}`.trim() : station === "START" ? "Start" : station === "ALL" ? "All units" : "Finish";
+
+/** Engelska, arbetsytan del 7: rättningar för hela tävlingen. */
+export const raceCorrectionsEn: Texts<typeof raceCorrectionsSv> = {
+  title: "Corrections for the whole event",
+  help: "Applies to all runners who have already read out and all who read out later. The readouts never change; everything can be removed again.",
+  timeTitle: "Adjust time for a station",
+  timeHelp: "When a unit had the wrong clock: give the station and how much the time should change. The time changes for everyone who punched there, before the result is calculated.",
+  station: "Station",
+  stations: { START: "Start", FINISH: "Finish", CONTROL: "Control", ALL: "All units (start, finish and controls)" },
+  allHelp: "All units: start, finish and all controls change by the same amount, for example when the units are still on summer time. With punch start the running times stay the same; with drawn start they become right. Added to an adjustment for a single unit.",
+  controlCode: "The control's code",
+  direction: "Change",
+  later: "Later (+)",
+  earlier: "Earlier (−)",
+  minutes: "Minutes",
+  seconds: "Seconds",
+  reason: "Why",
+  reasonPlaceholder: "E.g. the finish clock was an hour wrong",
+  outTitle: "Control out of order",
+  outHelp: "The control is not required on any course, also forked ones. The split time goes from the control before to the control after, and the control shows as out of order in the split times.",
+  outReasonPlaceholder: "E.g. the unit was missing at the control",
+  show: "Show what happens",
+  confirm: "Save and recalculate",
+  cancel: "Cancel",
+  retry: "Try again",
+  active: "Active corrections",
+  none: "No corrections.",
+  history: "Removed",
+  remove: "Remove",
+  removeReview: label => `Remove: ${label}`,
+  stationLabel: stationLabelEn,
+  adjustmentLabel: (station, controlCode, offsetMs) => `${stationLabelEn(station, controlCode)}: ${raceCorrectionsSv.signedMinutes(offsetMs)}`,
+  outLabel: controlCode => `Control ${controlCode ?? ""} out of order`,
+  signedMinutes: raceCorrectionsSv.signedMinutes,
+  readOut: count => `${plural(count, "runner has", "runners have")} read out.`,
+  affected: count => count === 0 ? "Nobody gets a new time or a new status." : `${plural(count, "runner gets", "runners get")} a new time or a new status.`,
+  statusChanges: "Changes status",
+  noStatusChanges: "Nobody changes status.",
+  notRecalculated: count => `${plural(count, "runner has a", "runners have")} manually corrected time and ${count === 1 ? "is" : "are"} not recalculated. Remove the correction in the participant card if the new time should apply.`,
+  notSaved: "Nothing is saved yet.",
+  saved: count => `Saved. ${plural(count, "result was", "results were")} recalculated.`,
+  conflict: "Something has changed since you pressed Show what happens. Show again.",
+  duplicate: "There is already such a correction. Remove it first.",
+  invalid: "Check the details. A control out of order must be on some course.",
+  unreachable: "The server is not answering. Nothing is confirmed saved; try again.",
+  loadError: "The corrections could not be read.",
+  status: { OK: "Approved", OVERTIME: "Maximum time", MP: "Mispunched", UNKNOWN_CARD: "Unknown card" },
+  shiftTitle: "Move start times",
+  shiftHelp: "All given start times in the class move by the same amount, also a common start. Those who have read out are recalculated. Undo by moving back by the same amount.",
+  shiftNoClasses: "No class has drawn or given start times.",
+  shiftClass: "Class",
+  shiftChooseClass: "Choose class",
+  shiftReasonPlaceholder: "E.g. the start got going five minutes late",
+  shiftReview: (className, offset) => `Move start times: ${className} ${offset}`,
+  shiftCount: count => `${plural(count, "start time moves", "start times move")}.`,
+  shiftFirst: "First start",
+  shiftLast: "Last start",
+  shiftSaved: count => `Saved. ${plural(count, "result was", "results were")} recalculated. Publish the start list again so that it shows the new times.`,
+  recalculateTitle: "Recalculate the whole event",
+  recalculateHelp: "Assesses everyone who has read out again against the courses, classes and corrections as they are now. Manual decisions (disqualified, approved manually and similar) stay."
 };

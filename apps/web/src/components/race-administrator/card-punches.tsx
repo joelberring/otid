@@ -2,7 +2,10 @@
 
 import type { CardPunchListDto } from "@o-tid/contracts";
 import styles from "../race-workflow-detail.module.css";
-import { cardPunchesSv as text, cardPunchSummary, formatPunchDate, punchTimeText } from "../../i18n/card-punches-sv";
+import { cardPunchesSv, cardPunchSummary, formatPunchDate, punchTimeText } from "../../i18n/card-punches-sv";
+import { raceCorrectionsSv } from "../../i18n/race-corrections-sv";
+import { cardPunchesEn, raceCorrectionsEn } from "../../i18n/workspace-tools-en";
+import { useLanguage, useTexts } from "../language-provider";
 import { formatClockTime } from "../../lib/clock-time";
 
 /**
@@ -10,9 +13,12 @@ import { formatClockTime } from "../../lib/clock-time";
  * annan dag eller en annan bana, med en kort förklaring överst. Bara i arbetsytan.
  */
 export function CardPunches({ punches, timeZone }: { punches: CardPunchListDto; timeZone: string }) {
-  const summary = cardPunchSummary(punches);
+  const text = useTexts(cardPunchesSv, cardPunchesEn);
+  const corrections = useTexts(raceCorrectionsSv, raceCorrectionsEn);
+  const locale = useLanguage() === "en" ? "en-GB" : "sv-SE";
+  const summary = cardPunchSummary(punches, {}, text, corrections);
   const station = (label: string, stamp: CardPunchListDto["start"]) => <div>
-    <dt>{label}</dt><dd>{stamp ? punchTimeText(stamp, punches.raceDate, timeZone) : <span className={styles.missing}>{text.missing}</span>}</dd>
+    <dt>{label}</dt><dd>{stamp ? punchTimeText(stamp, punches.raceDate, timeZone, locale) : <span className={styles.missing}>{text.missing}</span>}</dd>
   </div>;
   return <section className={`${styles.panel} ${styles.resultControls}`} aria-labelledby="card-punches-title" data-testid="card-punches">
     <h2 id="card-punches-title">{text.title}</h2>
@@ -39,7 +45,8 @@ export function CardPunches({ punches, timeZone }: { punches: CardPunchListDto; 
 
 /** Klockslaget, med veckodag och datum på en egen rad när stämplingen inte är från tävlingsdagen (smalt på mobil). */
 function PunchTime({ stamp, raceDate, timeZone }: { stamp: { punchedAt: string; localDate: string }; raceDate: string; timeZone: string }) {
+  const locale = useLanguage() === "en" ? "en-GB" : "sv-SE";
   const time = formatClockTime(stamp.punchedAt, timeZone);
   if (stamp.localDate === raceDate) return <>{time}</>;
-  return <>{time}<span className={styles.punchDate}>{formatPunchDate(stamp.localDate)}</span></>;
+  return <>{time}<span className={styles.punchDate}>{formatPunchDate(stamp.localDate, locale)}</span></>;
 }

@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { raceCorrectionsEn } from "../i18n/workspace-tools-en";
+import { useTexts } from "./language-provider";
 import type { RaceCorrection, RaceCorrectionAction, RaceCorrectionPreviewResponse } from "@o-tid/contracts";
-import { raceCorrectionsSv as text } from "../i18n/race-corrections-sv";
+import type { Texts } from "../lib/language";
+import { raceCorrectionsSv } from "../i18n/race-corrections-sv";
 import { applyRaceCorrection, fetchRaceCorrections, previewRaceCorrection, type RaceCorrectionFailure } from "../lib/race-corrections-client";
 import { formatClockTime } from "../lib/clock-time";
 import styles from "./race-administrator-workspace.module.css";
@@ -13,14 +16,16 @@ import { Disclosure } from "./ui";
  * läst ut, hur många som får ny tid eller status och vilka som byter status) och sparas sedan. Sparandet räknar om alla
  * avlästa. Bara administratören ser panelen; funktionärens vy har den inte.
  */
+type CorrectionTexts = Texts<typeof raceCorrectionsSv>;
 type Attempt = { preview: RaceCorrectionPreviewResponse; requestId: string; uncertain: boolean };
 
-function failureText(failure: RaceCorrectionFailure, duplicate = false): string {
+function failureText(text: CorrectionTexts, failure: RaceCorrectionFailure, duplicate = false): string {
   return failure === "conflict" ? (duplicate ? text.duplicate : text.conflict) : failure === "invalid" ? text.invalid : text.unreachable;
 }
 
 /** Gemensamt flöde: visa, spara (med samma requestId vid omförsök) och kvitto. */
 export function useRaceCorrection(raceId: string, onSaved?: () => Promise<void> | void) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const [attempt, setAttempt] = useState<Attempt>();
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState("");
   async function show(correction: RaceCorrectionAction) {
@@ -29,7 +34,7 @@ export function useRaceCorrection(raceId: string, onSaved?: () => Promise<void> 
     try {
       const result = await previewRaceCorrection(raceId, correction);
       if (result.ok) setAttempt({ preview: result.preview, requestId: crypto.randomUUID(), uncertain: false });
-      else setError(failureText(result.failure, correction.action.startsWith("ADD_")));
+      else setError(failureText(text, result.failure, correction.action.startsWith("ADD_")));
     } catch { setError(text.unreachable); } finally { setBusy(false); }
   }
   async function confirm(savedText: (count: number) => string = text.saved) {
@@ -39,7 +44,7 @@ export function useRaceCorrection(raceId: string, onSaved?: () => Promise<void> 
       setAttempt({ ...attempt, uncertain: true });
       const result = await applyRaceCorrection(raceId, attempt.preview, attempt.requestId);
       setAttempt(undefined);
-      if (!result.ok) { setError(failureText(result.failure)); return; }
+      if (!result.ok) { setError(failureText(text, result.failure)); return; }
       const notRecalculated = result.receipt.summary.notRecalculatedCount;
       // Listan och arbetsytan läses in på nytt innan beskedet visas, så att deltagarkortet visar de nya resultaten.
       await onSaved?.();
@@ -54,6 +59,7 @@ export function useRaceCorrection(raceId: string, onSaved?: () => Promise<void> 
 /** Förhandsbeskedet med bekräftelse. `extra` visar åtgärdens egna uppgifter (t.ex. nya starttider). */
 export function RaceCorrectionReview({ flow, title, extra, savedText }: { flow: ReturnType<typeof useRaceCorrection>; title: string;
   extra?: ReactNode; savedText?: (count: number) => string }) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const { attempt, busy } = flow;
   if (!attempt) return null;
   const summary = attempt.preview.summary;
@@ -79,12 +85,13 @@ export function RaceCorrectionMessages({ flow }: { flow: ReturnType<typeof useRa
   return <>{flow.error && <p className={styles.warning} role="alert">{flow.error}</p>}{flow.saved && <p role="status">{flow.saved}</p>}</>;
 }
 
-function correctionLabel(row: RaceCorrection): string {
+function correctionLabel(row: RaceCorrection, text: CorrectionTexts): string {
   return row.kind === "TIME_ADJUSTMENT" ? text.adjustmentLabel(row.station, row.controlCode, row.offsetMs ?? 0) : text.outLabel(row.controlCode);
 }
 
 /** "Justera tid för en station". */
 function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () => Promise<void> }) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const flow = useRaceCorrection(raceId, onSaved);
   const [station, setStation] = useState<"START" | "FINISH" | "CONTROL" | "ALL">("FINISH");
   const [code, setCode] = useState(""), [sign, setSign] = useState<"-" | "+">("-");
@@ -133,6 +140,7 @@ function TimeAdjustmentForm({ raceId, onSaved }: { raceId: string; onSaved: () =
 
 /** "Kontroll ur funktion": koden krävs inte på någon bana. */
 function OutOfOrderForm({ raceId, onSaved }: { raceId: string; onSaved: () => Promise<void> }) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const flow = useRaceCorrection(raceId, onSaved);
   const [code, setCode] = useState(""), [reason, setReason] = useState(""), [open, setOpen] = useState(false);
   const controlCode = Number(code);
@@ -158,25 +166,27 @@ function OutOfOrderForm({ raceId, onSaved }: { raceId: string; onSaved: () => Pr
 
 /** Aktiva rättningar med "Ta bort" (räknar om tillbaka) och de borttagna som historik. */
 function CorrectionList({ raceId, corrections, onSaved }: { raceId: string; corrections: readonly RaceCorrection[]; onSaved: () => Promise<void> }) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const flow = useRaceCorrection(raceId, onSaved);
   const [removing, setRemoving] = useState<RaceCorrection>();
   const active = corrections.filter(row => row.removedAt === null), removed = corrections.filter(row => row.removedAt !== null);
   return <div className={styles.disclosureBody}>
     <h3>{text.active}</h3>
     {active.length === 0 ? <p>{text.none}</p> : <ul className={styles.followUpList}>{active.map(row => <li key={row.id}>
-      <span><strong>{correctionLabel(row)}</strong> · {row.reason}</span>{" "}
+      <span><strong>{correctionLabel(row, text)}</strong> · {row.reason}</span>{" "}
       <button type="button" className="secondary" disabled={flow.busy || !!flow.attempt}
         onClick={() => { setRemoving(row); void flow.show({ action: "REMOVE", correctionId: row.id }); }}>{text.remove}</button>
     </li>)}</ul>}
-    {removing && <RaceCorrectionReview flow={flow} title={text.removeReview(correctionLabel(removing))} />}
+    {removing && <RaceCorrectionReview flow={flow} title={text.removeReview(correctionLabel(removing, text))} />}
     <RaceCorrectionMessages flow={flow} />
     {removed.length > 0 && <Disclosure className={styles.disclosure} summary={<>{text.history} ({removed.length})</>}>
-      <ul className={styles.followUpList}>{removed.map(row => <li key={row.id}>{correctionLabel(row)} · {row.reason}</li>)}</ul>
+      <ul className={styles.followUpList}>{removed.map(row => <li key={row.id}>{correctionLabel(row, text)} · {row.reason}</li>)}</ul>
     </Disclosure>}
   </div>;
 }
 
 export function RaceCorrectionsPanel({ raceId, onChanged }: { raceId: string; onChanged?: () => Promise<void> }) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const [corrections, setCorrections] = useState<readonly RaceCorrection[]>();
   const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -199,6 +209,7 @@ export function RaceCorrectionsPanel({ raceId, onChanged }: { raceId: string; on
 export function ShiftStartTimes({ raceId, classes, timeZone, onChanged }: { raceId: string; timeZone: string;
   classes: readonly { id: string; name: string; startRule: "FIXED" | "PUNCH"; relayLegCount?: number | undefined }[];
   onChanged?: () => Promise<void> }) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const flow = useRaceCorrection(raceId, onChanged);
   const fixed = classes.filter(row => row.startRule === "FIXED" && row.relayLegCount === undefined);
   const [classId, setClassId] = useState(""), [sign, setSign] = useState<"-" | "+">("+");
@@ -244,6 +255,7 @@ export function ShiftStartTimes({ raceId, classes, timeZone, onChanged }: { race
 
 /** "Räkna om hela tävlingen" (PLAN.md steg 31) under Resultat → Efterarbete: alla med avläsning, efter en förhandsvisning. */
 export function RecalculateRace({ raceId, onChanged }: { raceId: string; onChanged?: () => Promise<void> }) {
+  const text = useTexts(raceCorrectionsSv, raceCorrectionsEn);
   const flow = useRaceCorrection(raceId, onChanged);
   const [open, setOpen] = useState(false);
   return <Disclosure className={styles.disclosure} open={open || !!flow.attempt} onToggle={setOpen} summary={text.recalculateTitle}>

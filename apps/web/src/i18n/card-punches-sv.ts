@@ -2,12 +2,13 @@ import type { CardPunchList, CardPunchPlacement as Placement } from "@o-tid/doma
 import { formatClockTime } from "../lib/clock-time";
 import { raceCorrectionsSv } from "./race-corrections-sv";
 import { plural } from "./plural";
+import type { Texts } from "../lib/language";
 
 /** "ons 14 okt" för ett datum (ÅÅÅÅ-MM-DD), utan tidszon eftersom datumet redan är tävlingens. */
-export function formatPunchDate(date: string): string {
+export function formatPunchDate(date: string, locale = "sv-SE"): string {
   const instant = new Date(`${date}T12:00:00Z`);
   if (!Number.isFinite(instant.getTime())) return date;
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
+  return new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
     .format(instant).replaceAll(".", "");
 }
 
@@ -29,7 +30,7 @@ export const cardPunchesSv = {
   check: "Check", start: "Start", finish: "Mål", missing: "saknas",
   noPunches: "Brickan har inga kontrollstämplingar.",
   otherDay: (dates: readonly string[], raceDate: string, all: boolean) =>
-    `${all ? "Stämplingarna" : "Några stämplingar"} är från ${list(dates.map(formatPunchDate))}, inte från tävlingsdagen (${formatPunchDate(raceDate)}).`,
+    `${all ? "Stämplingarna" : "Några stämplingar"} är från ${list(dates.map(date => formatPunchDate(date)))}, inte från tävlingsdagen (${formatPunchDate(raceDate)}).`,
   noStart: "Brickan har ingen startstämpling.",
   noFinish: "Brickan har ingen målstämpling.",
   missingControls: (codes: readonly number[]) => `Saknade kontroller: ${codes.join(", ")}.`,
@@ -38,13 +39,17 @@ export const cardPunchesSv = {
   adjusted: (labels: readonly string[]) => `Tiden är justerad för hela tävlingen: ${labels.join(", ")}.`,
   ignored: (count: number) => `${plural(count, "gammal stämpling", "gamla stämplingar")} räknades inte (brickan var inte tömd).`
 } as const;
+const cardPunchesSvTexts = cardPunchesSv;
+export type CardPunchTexts = Texts<typeof cardPunchesSv>;
 
 /**
  * Sammanfattningens rader i ordning: annan dag, start, mål och saknade kontroller. Avläsningens besked har redan en rad
  * om saknade kontroller (`missing: false`).
  */
-export function cardPunchSummary(punches: CardPunchList, options: { missing?: boolean } = {}): string[] {
-  const adjusted = (punches.adjustments ?? []).map((row) => raceCorrectionsSv.adjustmentLabel(row.station, row.controlCode ?? null, row.offsetMs));
+export function cardPunchSummary(punches: CardPunchList, options: { missing?: boolean } = {},
+  cardPunchesSv: CardPunchTexts = cardPunchesSvTexts,
+  corrections: Pick<typeof raceCorrectionsSv, "adjustmentLabel"> = raceCorrectionsSv): string[] {
+  const adjusted = (punches.adjustments ?? []).map((row) => corrections.adjustmentLabel(row.station, row.controlCode ?? null, row.offsetMs));
   return [
     punches.otherDates.length > 0 ? cardPunchesSv.otherDay(punches.otherDates, punches.raceDate, punches.allOtherDay) : "",
     punches.allOtherDay ? cardPunchesSv.oldCardHint : "",
@@ -58,7 +63,7 @@ export function cardPunchSummary(punches: CardPunchList, options: { missing?: bo
 }
 
 /** Klockslaget i tävlingens tidszon, med veckodag och datum när stämplingen inte är från tävlingsdagen. */
-export function punchTimeText(stamp: { punchedAt: string; localDate: string }, raceDate: string, timeZone: string): string {
+export function punchTimeText(stamp: { punchedAt: string; localDate: string }, raceDate: string, timeZone: string, locale = "sv-SE"): string {
   const time = formatClockTime(stamp.punchedAt, timeZone);
-  return stamp.localDate === raceDate ? time : `${formatPunchDate(stamp.localDate)} ${time}`;
+  return stamp.localDate === raceDate ? time : `${formatPunchDate(stamp.localDate, locale)} ${time}`;
 }

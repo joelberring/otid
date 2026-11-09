@@ -222,3 +222,27 @@ export function drawMapArea(ctx: Context, view: Viewport, polygon: readonly (rea
   ctx.strokeStyle = "#111"; ctx.lineWidth = 1.5; ctx.setLineDash([12, 4, 2, 4]); ctx.stroke();
   ctx.restore();
 }
+
+/**
+ * K6b: passpunkterna. Var bildens punkt ligger nu (ett rött kryss), var den ska ligga (en blå ring) och en linje mellan dem.
+ * Formerna skiljer dem åt, inte bara färgen.
+ */
+export function drawControlPoints(ctx: Context, view: Viewport, markers: readonly { image: Point; map: Point | undefined }[]) {
+  ctx.save();
+  ctx.lineWidth = 2;
+  markers.forEach((marker, index) => {
+    const image = toScreen(view, marker.image);
+    if (marker.map) {
+      const map = toScreen(view, marker.map);
+      ctx.strokeStyle = "#1f5fbf"; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(image.x, image.y); ctx.lineTo(map.x, map.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(map.x, map.y, 7, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.strokeStyle = "#c0262d";
+    ctx.beginPath(); ctx.moveTo(image.x - 6, image.y - 6); ctx.lineTo(image.x + 6, image.y + 6);
+    ctx.moveTo(image.x + 6, image.y - 6); ctx.lineTo(image.x - 6, image.y + 6); ctx.stroke();
+    ctx.fillStyle = "#000"; ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText(String(index + 1), image.x + 8, image.y - 8);
+  });
+  ctx.restore();
+}

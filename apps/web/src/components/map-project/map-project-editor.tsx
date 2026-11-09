@@ -12,7 +12,7 @@ import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { Viewport } from "../../lib/course-setting-viewport";
 import { draftObject, nearestVertex, rotatePoint, translateObject, type DraftPoint } from "../../lib/map-project-draw";
 import {
-  drawAreas, drawDraftPoints, drawHandles, drawMapArea, drawPreview, drawProposed, drawSelection, STAGE_COLORS, stageAge, type AreaDrawing
+  drawAreas, drawControlPoints, drawDraftPoints, drawHandles, drawMapArea, drawPreview, drawProposed, drawSelection, STAGE_COLORS, stageAge, type AreaDrawing
 } from "../../lib/map-project-overlay";
 import { coverageImage, drawCoverage, drawNormIssues, drawNotes, drawReconMarkers, drawTracks, noteAt } from "../../lib/map-project-recon-overlay";
 import { MapProjectNormPanel } from "./map-project-norm-panel";
@@ -38,6 +38,8 @@ import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { useMapProjectLayers } from "./use-map-project-layers";
+import { useMapProjectControlPoints } from "./use-map-project-control-points";
+import { mapProjectLayersSv as layersText } from "../../i18n/map-project-layers-sv";
 import { MapProjectImportPanel } from "./map-project-import-panel";
 import { useMapProjectImport } from "./use-map-project-import";
 import { drawLayers } from "../../lib/map-project-layers";
@@ -117,7 +119,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const georeference = editor.georeference;
   // K4a: egna underlag (ritas först, under allt annat ovanpå kartan).
   const layers = useMapProjectLayers(view, georeference ?? undefined);
-  const drawnLayers = layers.drawn;
+  const control = useMapProjectControlPoints(layers);
+  const drawnLayers = control.drawn;
   // Normkontrollen (av från början).
   const norm = useMapProjectNorm(session, editor.renderKey);
   const [shownIssue, setShownIssue] = useState<Point>();
@@ -292,6 +295,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const handlers: MapPointerHandlers = {
     unlifted: tool === "draw" || tool === "area" || tool === "circle",
     onTap(point, tolerance, modifiers) {
+      if (control.active) { control.click(point); return; }
       const now = performance.now();
       const previous = lastTap.current;
       const double = !!previous && now - previous.at < DOUBLE_TAP_MS && Math.hypot(previous.point.x - point.x, previous.point.y - point.y) < tolerance * 2;
@@ -356,6 +360,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       });
     },
     onDragStart(point, tolerance) {
+      if (control.active) return false;
       if (!canEdit || tool === "area") return false;
       if (tool === "circle") {
         if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) return false;
@@ -518,6 +523,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (reconResult && recon.layers.has("STATUS")) drawReconMarkers(ctx, current, reconResult.markers, SHOWN_STATUSES);
     if (normIssues) drawNormIssues(ctx, current, normIssues, shownIssue);
     drawNotes(ctx, current, notes.notes, shownNote);
+    if (control.active) drawControlPoints(ctx, current, control.markers);
     if (noteDraft) drawNotes(ctx, current, [{ noteId: "", at: noteDraft.at, status: "OPEN", pending: true }], "");
     if (shown && tool === "select" && selected) {
       drawSelection(ctx, current, shown, activeVertex);
@@ -525,7 +531,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (handles) drawHandles(ctx, current, handles);
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
-    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue]);
+    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue,
+    control.active, control.markers]);
 
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
@@ -537,7 +544,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     : symbol.kind === "line" ? text.hints.drawLine(symbol.code)
     : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
-  const hintLine = flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
+  const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage) : flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object) : [];
@@ -661,6 +668,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
           <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
           {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
+            control={control} scale={georeference.scale} area={editor.bounds ?? undefined}
             after={<>
               <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />
               <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />

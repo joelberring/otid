@@ -2,7 +2,7 @@
 export const mapProjectLayersSv = {
   heading: "Underlag",
   help: "Lägg upp ett eget underlag: ortofoto, laserdata, skuggning eller en skannad karta som GeoTIFF, eller PNG/JPEG med världsfil (.pgw, .jgw, .wld). "
-    + "Bilden görs klar här i telefonen eller datorn och delas med projektet.",
+    + "En bild utan världsfil läggs mitt på kartan och rättas med passpunkter. Bilden görs klar här i telefonen eller datorn och delas med projektet.",
   none: "Inga underlag ännu.",
   choose: "Välj filer",
   chosen: (names: string) => `Valt: ${names}`,
@@ -19,6 +19,24 @@ export const mapProjectLayersSv = {
   down: (name: string) => `Flytta ned ${name}`,
   removeConfirm: "Ta bort underlaget för alla i projektet?",
   by: (name: string | null, size: string) => `${name ?? "Okänd"} · ${size}`,
+  control: {
+    start: "Passpunkter",
+    startFor: (name: string) => `Passpunkter för ${name}`,
+    heading: (name: string) => `Passpunkter: ${name}`,
+    help: "Klicka på en tydlig punkt i bilden (en vägkorsning, ett hörn på ett hus), sedan där den ska ligga på kartan. "
+      + "Två punkter flyttar, vrider och skalar bilden; tre eller fler rättar den också snett. Sprid punkterna över bilden.",
+    hintImage: "Passpunkter: klicka på en punkt i bilden.",
+    hintMap: "Passpunkter: klicka där punkten ska ligga på kartan.",
+    none: "Inga punkter ännu.",
+    point: (index: number, meters: string) => `Punkt ${index}: ${meters} m`,
+    removePoint: (index: number) => `Ta bort punkt ${index}`,
+    fit: (kind: "similarity" | "affine", meters: string) => `${kind === "affine" ? "Affin" : "Likformig"}, medelavvikelse ${meters} m`,
+    similarity: "Bara flytta, vrida och skala (likformig)",
+    undo: "Ångra senaste",
+    save: "Spara placeringen",
+    saving: "Sparar …",
+    cancel: "Avbryt"
+  },
   problems: {
     NO_IMAGE: "Välj en bild (GeoTIFF, PNG eller JPEG).",
     NO_GEOREFERENCE: "Bilden saknar georeferens. Välj världsfilen tillsammans med bilden.",

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { writeArrayBuffer } from "geotiff";
-import { mapPointToProjected, readMapFile } from "../../packages/map-file/src";
+import { mapPointToProjected, projectedToMapPoint, readMapFile } from "../../packages/map-file/src";
 import { registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
 
 /**
@@ -117,6 +117,68 @@ test("kartprojekt: eget underlag med världsfil", async ({ browser, baseURL }) =
     await context.unroute("**/*", noNetwork);
     await context.setOffline(false);
   } else test.info().annotations.push({ type: "utan nät", description: "Omladdningen utan nät provas mot driftbygget (E2E_BASE_URL)" });
+});
+
+/** Ett klick på kartan i en punkt i kartans mm. */
+async function clickMap(page: Page, point: { x: number; y: number }) {
+  const map = page.getByTestId("course-setting-map");
+  const [cx, cy] = (await map.getAttribute("data-center"))!.split(",").map(Number) as [number, number];
+  const px = Number(await map.getAttribute("data-px-per-mm"));
+  const box = (await page.getByTestId("course-setting-overprint").boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2 + (point.x - cx) * px, box.y + box.height / 2 - (point.y - cy) * px);
+}
+
+/**
+ * ADR-0219 K6b: en skannad bild utan världsfil läggs mitt på kartan och rättas med två passpunkter. Placeringen sparas som en ny
+ * världsfil i kartans koordinatsystem.
+ */
+test("kartprojekt: skannad bild utan världsfil rättas med passpunkter", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `passpunkt.${unique()}@exempel.se`, "Pia Passpunkt");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Passpunkter", "x-otid-file-name": "Pass.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  const api = `/api/organizer/map-projects/${projectId}`;
+  await warmRoute(owner, `${api}/layers`);
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+
+  const panel = owner.getByTestId("map-project-layers");
+  await panel.getByText("Lägg till", { exact: true }).first().click();
+  await panel.getByTestId("map-project-layer-file").setInputFiles([{ name: "skannad.png", mimeType: "image/png", buffer: png }]);
+  await panel.getByTestId("map-project-layer-upload").click();
+  await expect(panel.getByTestId("map-project-layer")).toContainText("skannad", { timeout: 30_000 });
+  type Stored = { layers: { width: number; height: number; crs: number; transform: { a: number; b: number; c: number; d: number; e: number; f: number } }[] };
+  const placed = (await (await owner.request.get(`${api}/layers`)).json() as Stored).layers[0]!;
+  expect(placed.crs).toBe(georef.crs.kind === "EPSG" ? georef.crs.code : 0);
+  const at = (t: Stored["layers"][number]["transform"], column: number, row: number) =>
+    projectedToMapPoint(georef, { easting: t.a * column + t.b * row + t.c, northing: t.d * column + t.e * row + t.f });
+  const pixels = [[width * 0.25, height * 0.25], [width * 0.75, height * 0.7]] as const;
+  const shift = { x: 4, y: -3 };
+
+  await panel.getByTestId("map-project-layer-control").click();
+  const control = panel.getByTestId("map-project-control-points");
+  await expect(control.getByTestId("map-project-control-hint")).toHaveText("Passpunkter: klicka på en punkt i bilden.");
+  for (const [column, row] of pixels) {
+    const from = at(placed.transform, column, row);
+    await clickMap(owner, from);
+    await expect(control.getByTestId("map-project-control-hint")).toHaveText("Passpunkter: klicka där punkten ska ligga på kartan.");
+    await clickMap(owner, { x: from.x + shift.x, y: from.y + shift.y });
+  }
+  await expect(control.getByTestId("map-project-control-list").locator("li")).toHaveCount(2);
+  await expect(control.getByTestId("map-project-control-fit")).toContainText("Likformig, medelavvikelse");
+  await control.getByTestId("map-project-control-save").click();
+  await expect(control).toHaveCount(0, { timeout: 15_000 });
+
+  const moved = (await (await owner.request.get(`${api}/layers`)).json() as Stored).layers[0]!;
+  for (const [column, row] of pixels) {
+    const before = at(placed.transform, column, row), after = at(moved.transform, column, row);
+    expect(Math.abs(after.x - before.x - shift.x)).toBeLessThan(0.3);
+    expect(Math.abs(after.y - before.y - shift.y)).toBeLessThan(0.3);
+  }
 });
 
 /**

@@ -85,7 +85,7 @@ async function ownOrOwner(tx: Parameters<typeof requireMapProject>[0], input: Cl
   return { status: "ok" as const, access, row };
 }
 
-/** Byt namn, genomskinlighet och ordning (den som lade till det eller ägarna). */
+/** Byt namn, genomskinlighet, ordning och georeferens (den som lade till det eller ägarna). */
 export async function updateMapProjectLayer(db: Database, input: ClubProof & { projectId: string; layerId: string; request: unknown }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; layer: MapProjectLayerView }> {
   const parsed = mapProjectLayerUpdateRequestSchema.safeParse(input.request);
@@ -93,8 +93,9 @@ export async function updateMapProjectLayer(db: Database, input: ClubProof & { p
     const found = await ownOrOwner(tx, input, now);
     if (found.status !== "ok") return found;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    const { name, opacity, sort } = parsed.data;
-    await tx.update(layers).set({ ...(name ? { name } : {}), ...(opacity !== undefined ? { opacity } : {}), ...(sort !== undefined ? { sort } : {}) })
+    const { name, opacity, sort, crs, transform } = parsed.data;
+    await tx.update(layers).set({ ...(name ? { name } : {}), ...(opacity !== undefined ? { opacity } : {}), ...(sort !== undefined ? { sort } : {}),
+      ...(crs !== undefined && transform ? { crs, transform } : {}) })
       .where(eq(layers.id, found.row.id));
     return { status: "ok", layer: toView((await rows(tx, found.access.project.id, found.row.id))[0]!, found.access.accountId) } as const;
   });

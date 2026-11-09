@@ -80,6 +80,12 @@ describe("ADR-0219 K4a: underlag", () => {
     const updated = await updateMapProjectLayer(db, { ...editor.proof, projectId, layerId, request: { formatVersion: 1, opacity: 0.8, name: "Flygbild" } }, NOW);
     expect(updated).toMatchObject({ status: "ok", layer: { name: "Flygbild" } });
     expect(updated.status === "ok" && updated.layer.opacity).toBeCloseTo(0.8, 5);
+    // K6b: passpunkterna ger en ny georeferens (koordinatsystem och transform tillsammans).
+    const transform = { a: 0.5, b: 0.01, c: 675010, d: 0.02, e: -0.5, f: 6580500 };
+    expect((await updateMapProjectLayer(db, { ...editor.proof, projectId, layerId, request: { formatVersion: 1, transform } }, NOW)).status)
+      .toBe("invalid-request");
+    const placed = await updateMapProjectLayer(db, { ...editor.proof, projectId, layerId, request: { formatVersion: 1, crs: 3006, transform } }, NOW);
+    expect(placed).toMatchObject({ status: "ok", layer: { crs: 3006, transform, name: "Flygbild" } });
     // Ta bort: innehållet försvinner (ingen annan pekar på det).
     expect((await deleteMapProjectLayer(db, { ...owner.proof, projectId, layerId }, NOW)).status).toBe("deleted");
     expect(await db.select().from(schema.mapContents).where(eq(schema.mapContents.sha256, sha256Hex(image)))).toEqual([]);

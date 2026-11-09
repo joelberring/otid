@@ -455,3 +455,15 @@ Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpa
    stegens mitter. Grupper med färre än tre steg lämnas som de är.
 4. Allt sker bara inom samma symbol; olika symboler slås aldrig ihop vid importen. Antalen visas i importens sammanfattning.
 
+### Tillägg 2026-11-09: passpunkter för underlag (K6b)
+
+1. En PNG eller JPEG (eller GeoTIFF) **utan georeferens** läggs mitt på kartan (90 % av kartans utbredning, i kartans
+   koordinatsystem) i stället för att avvisas.
+2. **Passpunkter** för ett underlag (den som lade till det eller ägarna): ett klick på en punkt i bilden, sedan där den ska
+   ligga på kartan. Två punkter ger en likformig transform (flytt, vridning, skala), tre eller fler en affin med minsta kvadrat
+   (likformig kan väljas). Bilden flyttas direkt; avvikelsen visas per punkt och som medel i meter. Ritningen skiljer bildens
+   punkt (kryss) från målet (ring).
+3. **Spara** ger underlaget en ny världsfil i kartans koordinatsystem (`PUT …/layers/:id` med `crs` och `transform`, som bara
+   ändras tillsammans). Ingen migration: kolumnerna finns sedan 0097.
+4. Gummiduk (olika rättning i olika delar av bilden) och rättning av kartans egna objekt mot passpunkter är nästa steg.
+

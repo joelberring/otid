@@ -124,8 +124,11 @@ export const mapProjectLayerMetadataSchema = z.object({
 }).strict();
 export const mapProjectLayerUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: z.string().trim().min(1).max(80).optional(), opacity: z.number().finite().min(0).max(1).optional(),
-  sort: z.number().int().min(0).max(100_000).optional()
-}).strict().refine(value => Object.keys(value).length > 1);
+  sort: z.number().int().min(0).max(100_000).optional(),
+  /** K6b: ny georeferens ur passpunkter (världsfilens sex tal i koordinatsystemet `crs`). */
+  crs: z.number().int().min(1).max(999_999).optional(), transform: affine.optional()
+}).strict().refine(value => Object.keys(value).length > 1).refine(value => (value.crs === undefined) === (value.transform === undefined),
+  { message: "Koordinatsystem och transform ändras tillsammans" });
 
 export interface MapProjectLayerView {
   layerId: string; name: string; mediaType: "image/png" | "image/jpeg"; width: number; height: number; crs: number;

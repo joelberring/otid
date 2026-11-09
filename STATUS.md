@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K6b: passpunkter för skannade underlag
+- En bild utan världsfil läggs mitt på kartan; passpunkter (bild → karta) rättar den likformigt (2) eller affint (3+), med
+  avvikelser i meter. Placeringen sparas som en ny världsfil i kartans koordinatsystem.
+- Verifierat: enhetstester `map-project-control-points`, integrationstest `adr-0219-underlag`, E2E `kartprojekt-underlag`
+  (sju test) och `kartprojekt-rita`.
+- Kvar: gummiduk och rättning av kartans objekt mot passpunkter (äldre kartor).
+
 ### 2026-11-09 – K6b: städning av baskartor (ytor av slutna linjer, trappor av steg)
 - Fasadlinjer som sluter sig blir byggnadsytor, samma byggnad som skraffyr och linjer blir en, korta parallella steg i
   trapplagret blir en trapplinje (532). Bara inom samma symbol; antalen syns i importen.

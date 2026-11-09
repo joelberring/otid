@@ -7,8 +7,9 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { savedMapProjectLayers, saveMapProjectLayers } from "../../lib/map-project-offline";
-import { LayerFileError, prepareLayer, prepareRemoteLayer, type LayerFileProblem, type PreparedLayer } from "../../lib/map-project-layer-file";
+import { LayerFileError, prepareLayer, prepareRemoteLayer, type LayerFileProblem, type Placement, type PreparedLayer } from "../../lib/map-project-layer-file";
 import { layerToMap, type Affine } from "../../lib/map-project-layers";
+import { placeInBounds, worldFromMap } from "../../lib/map-project-control-points";
 import type { Bounds } from "../../lib/course-setting-viewport";
 
 /** Ett underlag att rita: bilden och transformen från bildens pixlar till kartans mm. */
@@ -98,8 +99,24 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
       return false;
     } finally { setBusy(undefined); }
   }, [base, load]);
-  const upload = useCallback((files: readonly File[], name: string, fallbackCrs: number | undefined) =>
-    add(() => prepareLayer(files, fallbackCrs), name), [add]);
+  /** K6b: en bild utan georeferens läggs mitt i `area` (kartans mm) i kartans koordinatsystem och rättas sedan med passpunkter. */
+  const upload = useCallback((files: readonly File[], name: string, fallbackCrs: number | undefined, area?: Bounds) => {
+    const mapCrs = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
+    const place: Placement | undefined = georeference && area && mapCrs !== undefined
+      ? (width, height) => ({ crs: mapCrs, transform: worldFromMap(placeInBounds(width, height, area), width, height, georeference) }) : undefined;
+    return add(() => prepareLayer(files, fallbackCrs, place), name);
+  }, [add, georeference]);
+
+  /** K6b: ny georeferens ur passpunkterna (bildens pixlar → kartans mm), sparad i kartans koordinatsystem. */
+  const placeLayer = useCallback(async (layerId: string, toMapAffine: Affine): Promise<boolean> => {
+    const layer = layers.find(row => row.layerId === layerId);
+    if (!layer || !georeference || georeference.crs.kind !== "EPSG") return false;
+    const crs = georeference.crs.code, transform = worldFromMap(toMapAffine, layer.width, layer.height, georeference);
+    const response = await clubRequest(`${base}/layers/${encodeURIComponent(layerId)}`, "PUT", { formatVersion: 1, crs, transform }).catch(() => undefined);
+    if (response?.status !== 200) { setProblem(response?.status ?? 0); return false; }
+    setLayers(current => current.map(row => row.layerId === layerId ? { ...row, crs, transform } : row));
+    return true;
+  }, [layers, georeference, base]);
   /** K4c: en del av en bild på nätet (ortofoto genom serverns `asset`-anrop) för rutan (kartans mm). */
   const addRemote = useCallback((url: string, area: Bounds, name: string, reload: boolean) => georeference
     ? add(() => prepareRemoteLayer(url, area, georeference, name), name, reload) : Promise.resolve(false), [add, georeference]);
@@ -143,6 +160,6 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
 
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
-  return { layers: listed, hidden, toggle, drawn, upload, addRemote, reload: load, busy, problem, setProblem, setOpacity, remove, move,
+  return { layers: listed, hidden, toggle, drawn, upload, addRemote, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
     canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

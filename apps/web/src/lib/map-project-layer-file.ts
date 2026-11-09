@@ -25,15 +25,21 @@ const JPEG_QUALITY = 0.85;
 const USER_DEFINED = 32767;
 const stem = (name: string) => name.replace(/\.[^.]+$/, "");
 
+/**
+ * En placering för en bild utan georeferens (K6b): bildens storlek i pixlar → koordinatsystem och världsfil. Bilden läggs då mitt
+ * på kartan och rättas med passpunkter.
+ */
+export type Placement = (width: number, height: number) => { readonly crs: number; readonly transform: Affine };
+
 /** Filerna som valts (bilden och kanske en världsfil) → bilden att skicka. `fallbackCrs` gäller när filen inte säger något. */
-export async function prepareLayer(files: readonly File[], fallbackCrs: number | undefined): Promise<PreparedLayer> {
+export async function prepareLayer(files: readonly File[], fallbackCrs: number | undefined, place?: Placement): Promise<PreparedLayer> {
   const image = files.find(file => IMAGE.test(file.name) || /^image\/(png|jpeg|tiff)$/.test(file.type));
   if (!image) throw new LayerFileError("NO_IMAGE");
   const worldFile = files.find(file => WORLD.test(file.name));
   const world = worldFile ? parseWorldFile(await worldFile.text()) : undefined;
   if (worldFile && !world) throw new LayerFileError("NO_GEOREFERENCE");
   const tiff = /\.tiff?$/i.test(image.name) || image.type === "image/tiff";
-  const prepared = tiff ? await fromTiff(image, world, fallbackCrs) : await fromPicture(image, world, fallbackCrs);
+  const prepared = tiff ? await fromTiff(image, world, fallbackCrs, place) : await fromPicture(image, world, fallbackCrs, place);
   if (prepared.bytes.size > MAP_PROJECT_LAYER_MAX_BYTES) throw new LayerFileError("TOO_LARGE");
   return prepared;
 }
@@ -69,12 +75,14 @@ function surface(width: number, height: number): { canvas: OffscreenCanvas | HTM
   return { canvas, ctx };
 }
 
-async function fromPicture(file: File, world: Affine | undefined, fallbackCrs: number | undefined): Promise<PreparedLayer> {
-  if (!world) throw new LayerFileError("NO_GEOREFERENCE");
-  const crs = checkedCrs(fallbackCrs);
+async function fromPicture(file: File, given: Affine | undefined, fallbackCrs: number | undefined, place: Placement | undefined): Promise<PreparedLayer> {
+  if (!given && !place) throw new LayerFileError("NO_GEOREFERENCE");
   let bitmap: ImageBitmap;
   try { bitmap = await createImageBitmap(file); } catch { throw new LayerFileError("UNREADABLE"); }
   try {
+    const placed = given ? undefined : place!(bitmap.width, bitmap.height);
+    const world = given ?? placed!.transform;
+    const crs = checkedCrs(placed?.crs ?? fallbackCrs);
     const size = fitted(bitmap.width, bitmap.height);
     if (size.factor === 1) return { bytes: file, crs, transform: world, width: bitmap.width, height: bitmap.height, name: stem(file.name) };
     const { canvas, ctx } = surface(size.width, size.height);
@@ -99,17 +107,17 @@ export function tiffGeoreference(image: { getGeoKeys(): unknown; getOrigin(): nu
   return { transform, crs };
 }
 
-async function fromTiff(file: File, world: Affine | undefined, fallbackCrs: number | undefined): Promise<PreparedLayer> {
+async function fromTiff(file: File, world: Affine | undefined, fallbackCrs: number | undefined, place: Placement | undefined): Promise<PreparedLayer> {
   const { fromArrayBuffer } = await import("geotiff");
   let tiff: Awaited<ReturnType<typeof fromArrayBuffer>>;
   try { tiff = await fromArrayBuffer(await file.arrayBuffer()); } catch { throw new LayerFileError("UNREADABLE"); }
   const image = await tiff.getImage();
   const width = image.getWidth(), height = image.getHeight();
   const georef = tiffGeoreference(image);
-  const transform = world ?? georef.transform;
+  const placed = world ?? georef.transform ? undefined : place?.(width, height);
+  const transform = world ?? georef.transform ?? placed?.transform;
   if (!transform) throw new LayerFileError("NO_GEOREFERENCE");
-  const fileCrs = georef.crs;
-  const crs = checkedCrs(fileCrs ?? fallbackCrs);
+  const crs = checkedCrs(placed?.crs ?? georef.crs ?? fallbackCrs);
   const size = fitted(width, height);
   let rgb: ArrayLike<number> & { width?: number };
   try { rgb = await image.readRGB({ interleave: true, width: size.width, height: size.height, resampleMethod: "bilinear" }) as unknown as ArrayLike<number>; }

@@ -141,6 +141,14 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   await parts.getByRole("button", { name: "Publish" }).click();
   await expect(owner.getByRole("button", { name: "Publish the event" })).toBeVisible();
   await expect(owner.getByRole("link", { name: "Preview the event page" })).toBeVisible();
+  // Del 27: hjälpen på engelska, med sökning.
+  await owner.getByTestId("help-button").first().click();
+  const help = owner.getByRole("dialog", { name: "Help" });
+  await expect(help.getByRole("heading", { name: "Help for this page" })).toBeVisible();
+  await expect(help.getByText("Publish the event", { exact: true }).first()).toBeVisible();
+  await help.getByLabel("Search the help").fill("borrowed card");
+  await expect(help.getByText("Unknown card, direct entry and borrowed card")).toBeVisible();
+  await help.getByRole("button", { name: "Close" }).click();
   // Avläsningen (eget appskal) följer språket.
   await owner.goto(`/admin/${raceId}/readout`);
   await expect(owner.getByRole("button", { name: "Start practice station" })).toBeVisible({ timeout: 30_000 });

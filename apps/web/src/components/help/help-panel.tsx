@@ -2,12 +2,22 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { helpArticles, helpSv as text, type HelpArticle, type HelpView } from "../../i18n/help-sv";
+import { helpArticles, helpSv, helpSynonyms, type HelpArticle, type HelpView } from "../../i18n/help-sv";
+import { helpArticlesFor, helpEn, helpSynonymsEn } from "../../i18n/help-en";
+import { useLanguage } from "../language-provider";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
 import { helpTextParts, listHelpArticles } from "../../lib/help-search";
 import styles from "./help-panel.module.css";
 
 type Views = HelpView | readonly HelpView[];
+
+/** Panelens texter, artiklarna och synonymerna på sidans språk (engelska artiklar där de finns, annars svenska). */
+function useHelp() {
+  const en = useLanguage() === "en";
+  return en ? { text: helpEn, articles: englishArticles, synonyms: helpSynonymsEn }
+    : { text: helpSv, articles: helpArticles, synonyms: helpSynonyms };
+}
+const englishArticles = helpArticlesFor(helpArticles);
 
 /**
  * Knappen Hjälp och hjälppanelen (PLAN.md steg 37, grenen hjalp-banlaggning). Panelen är en modal `<dialog>` vid sidans
@@ -20,6 +30,7 @@ type Views = HelpView | readonly HelpView[];
  * `compact`: bara frågetecknet på smal skärm (banläggningens rad överst).
  */
 export function HelpButton({ view, large = false, compact = false }: { view: Views; large?: boolean; compact?: boolean }) {
+  const { text } = useHelp();
   const [open, setOpen] = useState(false);
   const className = [styles.button, large ? styles.large : "", compact ? styles.compact : ""].filter(Boolean).join(" ");
   return <>
@@ -39,7 +50,8 @@ export function HelpLink({ article, view, label: shownLabel }: { article: string
   /** En textlänk i stället för "?" (t.ex. "Hur lägger man en gul bana?"). */
   label?: string | undefined }) {
   const [open, setOpen] = useState(false);
-  const found = helpArticles.find(row => row.id === article);
+  const { text, articles } = useHelp();
+  const found = articles.find(row => row.id === article);
   if (!found) throw new Error(`Hjälpartikeln ${article} finns inte`);
   const label = text.link(found.title);
   return <>
@@ -53,6 +65,7 @@ export function HelpLink({ article, view, label: shownLabel }: { article: string
 }
 
 function HelpDialog({ views, first: initialFirst, onClose }: { views: Views; first?: string | undefined; onClose: () => void }) {
+  const { text, articles, synonyms } = useHelp();
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -77,7 +90,7 @@ function HelpDialog({ views, first: initialFirst, onClose }: { views: Views; fir
   }, [target]);
   const searching = query.trim() !== "";
   const first = searching ? undefined : target?.id;
-  const { here, rest } = listHelpArticles(helpArticles, views, query, { first });
+  const { here, rest } = listHelpArticles(articles, views, query, { first, synonyms });
   const count = here.length + rest.length;
   const follow = (id: string) => { setQuery(""); setTarget(current => ({ id, count: (current?.count ?? 1) + 1 })); };
   const article = (row: HelpArticle) => <Article key={`${row.id}-${searching}-${row.id === first ? target?.count : 0}`} article={row}

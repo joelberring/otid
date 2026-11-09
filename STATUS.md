@@ -76,6 +76,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   `/inbjudan`, Skicka igen/Kopiera länken, flera adresser). Inbjudningsmejlet är kvar på svenska.
 - Del 26: vägvalsanalysen i kontrollkartan (tabellen, kartan, inställningarna, kalibreringen och publiceringen). Arbetsytan
   är nu helt på engelska; banläggningen och dess vägvalspanel är kvar.
+- Del 27: hjälpen på engelska (panelen, sökningen med engelska synonymer och artiklarna för arbetsytan, avläsningen,
+  kontot, kontrollkartan och vägvalen; `help-en.ts`, `help-more-en.ts`). Artiklarna om banläggningen, utskriften och
+  klubbarkivet är kvar på svenska. `help-en.test.ts` kräver engelska citat och listar de svenska knappar som återstår.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

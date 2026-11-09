@@ -45,8 +45,8 @@ function searchable(value: string): string {
  * Synonymerna (`helpSynonyms`): ett ord som börjar med en stam i en grupp träffar också texter med gruppens andra stammar,
  * så att "kartdef" hittar kontrollbeskrivningen och "ppen" hittar Purple Pen. Orden är vikta som texten.
  */
-function alternativesFor(word: string): readonly string[] {
-  const groups = helpSynonyms.map(group => group.map(foldForSearch)).filter(group => group.some(stem => word.startsWith(stem)));
+function alternativesFor(word: string, synonyms: readonly (readonly string[])[]): readonly string[] {
+  const groups = synonyms.map(group => group.map(foldForSearch)).filter(group => group.some(stem => word.startsWith(stem)));
   return [word, ...groups.flat()];
 }
 
@@ -60,6 +60,8 @@ export type HelpListing = {
 export type HelpListingOptions = {
   /** En artikel som ska stå först bland vyns artiklar (från en länk eller en "?" vid en knapp). */
   first?: string | undefined;
+  /** Synonymgrupperna för sidans språk (förval de svenska). */
+  synonyms?: readonly (readonly string[])[] | undefined;
 };
 
 /**
@@ -84,7 +86,7 @@ export function listHelpArticles(articles: readonly HelpArticle[], view: HelpVie
     const text = searchable(helpArticleText(article));
     let score = 0;
     for (const word of words) {
-      const alternatives = alternativesFor(word);
+      const alternatives = alternativesFor(word, options.synonyms ?? helpSynonyms);
       if (title.includes(word)) score += 4;
       else if (alternatives.some(stem => title.includes(stem))) score += 3;
       else if (text.includes(word)) score += 2;

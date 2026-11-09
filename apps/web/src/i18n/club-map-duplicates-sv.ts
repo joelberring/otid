@@ -92,6 +92,8 @@ export const clubMapDuplicatesSv = {
   },
   picker: {
     open: "Välj karta från klubbarkivet",
+    /** ADR-0221: kartan som valdes i terminsplaneringen för träningen. */
+    planned: "Kartan i klubbens terminsplanering",
     close: "Stäng klubbarkivet",
     help: "Kartorna i dina klubbars arkiv. Senaste versionen är förvald; kartans rättigheter följer med till tävlingen.",
     none: "Det finns inga kartor i dina klubbars arkiv.",

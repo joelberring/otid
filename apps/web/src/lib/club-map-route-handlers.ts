@@ -74,7 +74,8 @@ export async function usableClubMapsRoute(db: Database, request: Request, enviro
   const input = await readProof(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await listUsableClubMaps(db, input.proof);
+    const race = new URL(request.url).searchParams.get("race") ?? undefined;
+    const result = await listUsableClubMaps(db, input.proof, new Date(), race);
     return result.status === "ok" ? privateJson(result.response) : failure(result.status);
   });
 }

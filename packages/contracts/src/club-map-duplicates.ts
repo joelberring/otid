@@ -86,4 +86,8 @@ export interface UsableClubMap {
   issues: ("EXPIRED" | "TRAINING_ONLY" | "FEE_PER_PRINT")[];
 }
 
-export interface UsableClubMapsResponse { formatVersion: 1; maps: UsableClubMap[] }
+export interface UsableClubMapsResponse {
+  formatVersion: 1; maps: UsableClubMap[];
+  /** ADR-0221: kartan som terminsplaneringen valde för tävlingen (`?race=`), när den finns bland kartorna. */
+  plannedMapId?: string | null;
+}

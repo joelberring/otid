@@ -8,6 +8,9 @@ import { createPlannedRace, createPlanTask, listMyPlanTasks, removePlanTask, set
 import { requireCourseSettingForAccount } from "../../src/course-setting-access";
 import { readClubArchive, updateClubArchiveEntry } from "../../src/club-archive";
 import { liftRaceToClubArchive } from "../../src/race-club-archive";
+import { uploadClubMapVersion } from "../../src/club-maps";
+import { listUsableClubMaps } from "../../src/club-map-picker";
+import { readFile } from "node:fs/promises";
 import { activeEventAdministrationGrant } from "../../src/race-session";
 import { registerTestAccount } from "./accounts";
 
@@ -205,5 +208,26 @@ describe("ADR-0221: terminsplaneringen", () => {
     expect(await updateClubArchiveEntry(db, { ...owner.proof, clubId, entryId: entry.entryId, request: update }, NOW)).toEqual({ status: "ok" });
     const again = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
     expect(again.status === "ok" && again.list.entries[0]).toMatchObject({ moments: ["NATT"], levels: ["SVART"], tags: ["Höstlov"] });
+  });
+
+  it("kartan i planen står först i Välj karta från klubbarkivet när träningen skapats ur planen", async () => {
+    const { owner, clubId, leader } = await setup();
+    const omap = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.omap", import.meta.url)));
+    const uploaded = await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: null, newMapName: "Älvsjöskogen", fileName: "Älvsjöskogen.omap",
+      versionDate: null, note: null, body: (async function* () { yield omap; })() }, NOW);
+    if (uploaded.status !== "created") throw new Error(uploaded.status);
+    const mapId = uploaded.mapId;
+    const term = await createClubTerm(db, { ...leader.proof, clubId,
+      request: { formatVersion: 1, requestId: randomUUID(), name: "VT 2027", startsOn: "2027-01-01", endsOn: "2027-06-30" } }, NOW);
+    if (term.status !== "ok") throw new Error(term.status);
+    const created = await createPlanSessions(db, { ...leader.proof, clubId, request: { ...session(term.termId), clubMapId: mapId } }, NOW);
+    if (created.status !== "ok") throw new Error(created.status);
+    const race = await createPlannedRace(db, { ...leader.proof, clubId, sessionId: created.sessionIds[0]! }, NOW);
+    if (race.status !== "ok") throw new Error(race.status);
+    const usable = await listUsableClubMaps(db, leader.proof, NOW, race.raceId);
+    if (usable.status !== "ok") throw new Error(usable.status);
+    expect(usable.response.plannedMapId).toBe(mapId);
+    const other = await listUsableClubMaps(db, leader.proof, NOW, randomUUID());
+    expect(other.status === "ok" && other.response.plannedMapId).toBe(null);
   });
 });

@@ -35,19 +35,24 @@ export async function applyClubMap(choice: ClubMapChoice, raceId: string, onStag
   return (saved.json as { error?: string } | undefined)?.error === "MAP_FILE_TOO_LARGE" ? text.tooLarge : text.failed;
 }
 
-function useUsableMaps() {
+function useUsableMaps(raceId?: string) {
   const [maps, setMaps] = useState<UsableClubMap[]>();
+  const [plannedMapId, setPlannedMapId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
-    void clubRequest("/api/organizer/club-maps").then(result => {
+    void clubRequest(raceId ? `/api/organizer/club-maps?race=${encodeURIComponent(raceId)}` : "/api/organizer/club-maps").then(result => {
       if (!active) return;
-      if (result.status === 200) setMaps((result.json as UsableClubMapsResponse).maps);
+      if (result.status === 200) {
+        const response = result.json as UsableClubMapsResponse;
+        setMaps(response.maps);
+        setPlannedMapId(response.plannedMapId ?? null);
+      }
       else { setFailed(result.status !== 401); setMaps([]); }
     }).catch((error: unknown) => { console.error("Klubbarnas kartor kunde inte hämtas", error); if (active) { setFailed(true); setMaps([]); } });
     return () => { active = false; };
-  }, []);
-  return { maps, failed };
+  }, [raceId]);
+  return { maps, plannedMapId, failed };
 }
 
 function PickerItem({ item, multipleClubs, raceType, busy, onUse }: { item: UsableClubMap; multipleClubs: boolean; raceType?: string | undefined;
@@ -79,10 +84,10 @@ function PickerItem({ item, multipleClubs, raceType, busy, onUse }: { item: Usab
  * Listan att välja ur. `onUse` får valet (sparas direkt i en tävling, eller kommer ihåg valet tills tävlingen är skapad).
  * Utan kartor i kontots klubbar visas ingenting.
  */
-export function ClubMapPicker({ raceType, busy = false, label, onUse }: { raceType?: string | undefined; busy?: boolean; label?: string;
-  onUse: (choice: ClubMapChoice) => void }) {
+export function ClubMapPicker({ raceType, busy = false, label, raceId, onUse }: { raceType?: string | undefined; busy?: boolean; label?: string;
+  raceId?: string | undefined; onUse: (choice: ClubMapChoice) => void }) {
   const text = useTexts(clubMapDuplicatesSv.picker, clubMapDuplicatesEn.picker);
-  const { maps, failed } = useUsableMaps();
+  const { maps, plannedMapId, failed } = useUsableMaps(raceId);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
@@ -93,8 +98,12 @@ export function ClubMapPicker({ raceType, busy = false, label, onUse }: { raceTy
   if (failed) return <Notice tone="error" role="alert">{text.loadFailed}</Notice>;
   if (!maps || maps.length === 0) return null;
   const multipleClubs = new Set(maps.map(item => item.clubId)).size > 1;
+  // ADR-0221: kartan som valdes i klubbens terminsplanering står först, utan att listan behöver öppnas.
+  const planned = plannedMapId ? maps.find(item => item.map.mapId === plannedMapId) : undefined;
   return <div className={styles.picker} data-testid="club-map-picker">
     {label && <span className={styles.meta}>{label}</span>}
+    {planned && <div data-testid="club-map-planned"><span className={styles.meta}>{text.planned}</span>
+      <ul className={styles.pickerList}><PickerItem item={planned} multipleClubs={multipleClubs} raceType={raceType} busy={busy} onUse={onUse} /></ul></div>}
     <div className={styles.buttons}>
       <Button variant="secondary" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? text.close : text.open}</Button>
     </div>
@@ -127,7 +136,7 @@ export function ClubMapToRace({ raceId, raceType, disabled, onSaved, onMessage }
     } finally { setStage(undefined); }
   }
   return <>
-    <ClubMapPicker raceType={raceType} busy={disabled || stage !== undefined} onUse={choice => void use(choice)} />
+    <ClubMapPicker raceType={raceType} raceId={raceId} busy={disabled || stage !== undefined} onUse={choice => void use(choice)} />
     {stage && <p role="status">{text.working[stage]}</p>}
   </>;
 }

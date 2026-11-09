@@ -174,6 +174,7 @@ export const clubMapDuplicatesEn: Texts<typeof clubMapDuplicatesSv> = {
   },
   picker: {
     open: "Choose map from the club archive",
+    planned: "The map in the club's term planning",
     close: "Close the club archive",
     help: "The maps in your clubs' archives. The latest version is preselected; the map's rights follow along to the event.",
     none: "There are no maps in your clubs' archives.",

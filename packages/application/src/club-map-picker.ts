@@ -7,6 +7,7 @@ import { clubMapViewsByClub } from "./club-archive";
 import { clubMapUseIssues, mayUseClubMap } from "./club-map-use";
 import { applyEventorMemberships, clubLinkFactsMany, derivedClubIds } from "./club-affiliation-access";
 import type { DbExecutor } from "./snapshot";
+import { UUID_PATTERN } from "./serialization";
 import { authenticateUserAccountSessionForProtectedRead } from "./user-account";
 
 /**
@@ -38,7 +39,8 @@ async function memberClubs(tx: DbExecutor, accountId: string): Promise<{ clubId:
 }
 
 /** Kartorna (med versioner) i klubbarna där kontot är medlem och får använda kartan; kartor utan versioner tas inte med. */
-export async function listUsableClubMaps(db: Database, proof: ClubProof, now = new Date()): Promise<ClubFailure | { status: "ok"; response: UsableClubMapsResponse }> {
+export async function listUsableClubMaps(db: Database, proof: ClubProof, now = new Date(), raceId?: string)
+  : Promise<ClubFailure | { status: "ok"; response: UsableClubMapsResponse }> {
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, proof, now);
     if (auth.status !== "authenticated") return auth;
@@ -61,6 +63,13 @@ export async function listUsableClubMaps(db: Database, proof: ClubProof, now = n
         maps.push({ clubId: club.clubId, clubName: club.name, map, issues: clubMapUseIssues(map, today) });
       }
     }
-    return { status: "ok", response: { formatVersion: 1, maps } } as const;
+    // ADR-0221: tävlingen skapades ur klubbens terminsplan med en vald karta; den visas först (bara om kontot får använda den).
+    let plannedMapId: string | null = null;
+    if (raceId && UUID_PATTERN.test(raceId)) {
+      const [planned] = await tx.select({ mapId: schema.clubPlanSessions.clubMapId, clubId: schema.clubPlanSessions.clubId })
+        .from(schema.clubPlanSessions).where(eq(schema.clubPlanSessions.raceId, raceId)).limit(1);
+      if (planned?.mapId && maps.some(item => item.map.mapId === planned.mapId && item.clubId === planned.clubId)) plannedMapId = planned.mapId;
+    }
+    return { status: "ok", response: { formatVersion: 1, maps, plannedMapId } } as const;
   });
 }

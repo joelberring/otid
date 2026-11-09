@@ -17,6 +17,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Verifierat: enhet `map-file/wmm`, integration `adr-0219-ny-karta`, E2E `kartprojekt-rita` (ny karta).
 - Del 2, att rikta om kartan, kräver att grivationen skrivs tillbaka i kartfilen; väntar på ägaren (ADR-0223).
 - Engelska del 36: Google-flytten; hela appen finns nu på engelska.
+- Terminsplaneringen: kartan som valdes i planen står först under "Välj karta från klubbarkivet" i träningens banläggning
+  (`?race=` till `/api/organizer/club-maps`). Verifierat: integration `adr-0221-terminsplanering`, E2E `kartor-sammanfoga`.
 
 ### 2026-11-09 – Moment och nivåer på träningar (ADR-0222)
 - Moment ur en fast lista (Kurvbild, Kompass, Vägval, Stråk …) och nivåer Grön–Svart, plus egna ord, i terminsplaneringen och i

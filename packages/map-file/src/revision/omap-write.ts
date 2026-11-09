@@ -64,14 +64,14 @@ export function symbolObjectKind(symbols: ReadonlyMap<string, MapSymbol>, id: st
 }
 
 /** Ett objekt med ny geometri (typen är redan kontrollerad). */
-function withGeometry(object: MapObject, geometry: RevisionGeometry): MapObject {
+export function withGeometry(object: MapObject, geometry: RevisionGeometry): MapObject {
   if (geometry.kind === "line" && object.kind === "line") return { ...object, path: geometry.path };
   if (geometry.kind === "area" && object.kind === "area") return { ...object, rings: geometry.rings };
   if ((geometry.kind === "point" || geometry.kind === "text") && (object.kind === "point" || object.kind === "text")) return { ...object, at: geometry.at };
   return object;
 }
 
-function stripSource(object: MapObject): MapObject {
+export function stripSource(object: MapObject): MapObject {
   const copy = { ...object };
   delete copy.source;
   return copy;

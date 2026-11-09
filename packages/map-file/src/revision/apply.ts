@@ -1,7 +1,7 @@
 /**
  * ADR-0219: skriv en ändringssats till en ny fil och kontrollera den. Det här är den enda vägen som appen använder för att
  * lämna ut en reviderad fil: `applyMapRevision` skriver och kontrollerar, och vägrar om kontrollen hittar något.
- * Mapper (.omap/.xmap) skrivs; OCAD vägras tills K7.
+ * Mapper (.omap/.xmap) skrivs; OCAD (version 9+) bara med `ocad: true` (K7, bakom en flagga tills det är prövat i riktiga OCAD).
  */
 import { MapFileError } from "../model";
 import { readOmap } from "../omap/read";
@@ -9,6 +9,7 @@ import { findConflicts, type ByteEdit, type MapRevisionApplyResult, type MapRevi
 import { scanParts, ScanError } from "./omap-scan";
 import { verifyOmap } from "./omap-verify";
 import { planOmapRevision, type PlannedEdit } from "./omap-write";
+import { applyOcdRevision } from "./ocd-write";
 import { sha256Hex } from "./sha256";
 
 const fail = (code: MapRevisionRefusal["code"], message: string): MapRevisionApplyResult => ({ ok: false, refusals: [{ code, message }] });
@@ -51,7 +52,7 @@ function applyEdits(text: string, edits: readonly PlannedEdit[], offset: number)
  * Lappar `original` med ändringarna och kontrollerar resultatet. `original` ändras aldrig; de nya bytesen sparas som en ny
  * kartversion bredvid originalet. En tom sats ger en kopia som är byte för byte lik originalet.
  */
-export function applyMapRevision(original: Uint8Array, changeSet: MapRevisionChangeSet): MapRevisionApplyResult {
+export function applyMapRevision(original: Uint8Array, changeSet: MapRevisionChangeSet, options: { readonly ocad?: boolean } = {}): MapRevisionApplyResult {
   const baseSha = sha256Hex(original);
   if (baseSha !== changeSet.baseFileSha256) return fail("BASE_MISMATCH", "Filen är inte grundfilen som ändringarna gjordes på.");
   if ((changeSet.format === "OCD") !== isOcd(original)) return fail("BASE_MISMATCH", "Filen har inte ändringssatsens format.");
@@ -60,7 +61,10 @@ export function applyMapRevision(original: Uint8Array, changeSet: MapRevisionCha
     return { ok: false, refusals: conflicts.map(([first, second]) => ({ code: "CONFLICT" as const, change: second,
       message: `Ändring ${second + 1} gäller samma objekt som ändring ${first + 1}.` })) };
   }
-  if (changeSet.format === "OCD") return fail("UNSUPPORTED_VERSION", "OCAD-revidering kommer senare (K7).");
+  if (changeSet.format === "OCD") {
+    return options.ocad ? applyOcdRevision(original, changeSet, baseSha)
+      : fail("UNSUPPORTED_VERSION", "OCAD-kartor kan inte skrivas här än. Spara kartan i Mapper (.omap) eller exportera ändringarna.");
+  }
 
   const bom = original.length >= 3 && original[0] === 0xef && original[1] === 0xbb && original[2] === 0xbf ? 3 : 0;
   let text: string;

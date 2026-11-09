@@ -474,3 +474,16 @@ Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpa
 5. Försök som sparas och jämförs (planens `map_project_variant`) och kartans georeferens som rättas i stället för objekten är
    nästa steg.
 
+### Tillägg 2026-11-09: K7, begränsad revidering av OCAD (bakom flaggan `OTID_OCAD_WRITE`)
+
+1. `applyMapRevision(original, sats, { ocad: true })` lappar OCAD 9 och senare. Servern skickar flaggan bara när
+   `OTID_OCAD_WRITE=1`; utan den vägras en ny version av en OCAD-karta som förut (ändringarna kan exporteras).
+2. **Ta bort** = indexpostens status 0. **Ändra** = ny objektpost på samma plats om den ryms i indexets längd, annars sist i
+   filen; indexposten får ny position, längd, symbol och rektangel. Objekthuvudets övriga fält behålls, och punkter som inte
+   ändrats får tillbaka originalets heltal med alla flaggbitar. **Lägga till** = ny post sist och en ledig indexpost, eller ett
+   nytt indexblock som länkas sist. Nya objekt får huvudet, färgen och visningen från ett befintligt objekt med samma symbol.
+3. **Vägras:** version 8, krypterade objekt, objekt med objektsträngar (databasattribut, version 12+) och nya textobjekt.
+4. **Kontrollen** läser filen igen: orörda objekt på samma plats med samma bytes, ändrade och nya som beställt (0,01 mm,
+   hörn, streck och luckor), borttagna borta, rätt antal och originalets bytes utanför de ändrade intervallen.
+5. Flaggan tas bort när en lappad fil har öppnats och sparats i riktiga OCAD (2018 eller senare) utan fel.
+

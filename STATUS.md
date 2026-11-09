@@ -10,6 +10,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K7: OCAD-kartor lappas bakom flaggan OTID_OCAD_WRITE
+- Ny version av en OCAD-karta (version 9+): ta bort (status 0), ändra (på plats eller sist) och lägga till (ledig indexpost
+  eller nytt block); kontroll efter skrivningen som för Mapper. Av tills den är prövad i riktiga OCAD.
+- Verifierat: enhetstester `revision-ocd` (version 2018, 11 och 9; flaggbitar; nytt indexblock; vägran), integrationstest
+  `adr-0219-kartprojekt` (OCAD med och utan flaggan).
+- Kvar: prov i riktiga OCAD (ägaren), sedan ta bort flaggan.
+
 ### 2026-11-09 – K6b: passpunkter för skannade underlag och för att rätta kartan
 - En bild utan världsfil läggs mitt på kartan; passpunkter (bild → karta) rättar den likformigt (2) eller affint (3+), med
   avvikelser i meter. Placeringen sparas som en ny världsfil i kartans koordinatsystem.

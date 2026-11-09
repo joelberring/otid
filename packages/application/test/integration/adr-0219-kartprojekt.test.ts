@@ -292,4 +292,33 @@ describe("ADR-0219 kartprojekt", () => {
     const [gone] = await db.select().from(schema.mapProjects).where(eq(schema.mapProjects.id, projectId));
     expect(gone).toBeUndefined();
   });
+
+  it("K7: en ny version av en OCAD-karta skrivs bara med flaggan OTID_OCAD_WRITE", async () => {
+    const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
+    const ocdSha = sha256Hex(ocd);
+    const ocdMap = readMapFile(ocd, "Ocad.ocd", { sources: true });
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const created = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Ocad",
+      fileName: "Ocad.ocd" }, file: ocd }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    const projectId = created.projectId;
+    const point = ocdMap.objects.find(object => object.kind === "point") as Extract<MapObject, { kind: "point" }>;
+    const ref = objectRefFor(ocdSha, point)!;
+    await sync(owner.proof, projectId, [{ editId: randomUUID(), key: baseKey(ref), ref, base: null, kind: "MOVE", at: NOW.toISOString(),
+      state: { kind: "OBJECT", object: { ...point, at: { x: point.at.x + 2, y: point.at.y } } } }]);
+    const write = () => writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, NOW);
+    const refused = await write();
+    expect(refused.status === "ok" && refused.response).toMatchObject({ status: "refused", refusals: [{ code: "UNSUPPORTED_VERSION" }] });
+    process.env.OTID_OCAD_WRITE = "1";
+    try {
+      const written = await write();
+      if (written.status !== "ok" || written.response.status !== "created") throw new Error(JSON.stringify(written));
+      expect(written.response).toMatchObject({ fileName: "Ocad reviderad 2026-11-07.ocd", changes: 1 });
+      const output = await readMapProjectOutput(db, { ...owner.proof, projectId, outputId: written.response.outputId }, NOW);
+      if (output.status !== "ok") throw new Error(output.status);
+      const reread = readMapFile(new Uint8Array((await readMapContent(db, output.sha256))!), output.fileName);
+      expect(reread.objects).toHaveLength(ocdMap.objects.length);
+      expect(reread.objects.some(object => object.kind === "point" && Math.abs(object.at.x - point.at.x - 2) < 0.006)).toBe(true);
+    } finally { delete process.env.OTID_OCAD_WRITE; }
+  });
 });

@@ -65,7 +65,7 @@ export const mapProjectSv = {
     changes: "Ändringar",
     changed: (count: number) => plural(count, "ändrat objekt", "ändrade objekt"),
     closed: "Projektet är avslutat. Ingen kan ändra kartan förrän det öppnas igen.",
-    ocadLater: "Grundfilen är en OCAD-fil. Att skriva tillbaka till OCAD kommer senare; exportera ändringarna som GeoJSON så länge.",
+    ocadLater: "Grundfilen är en OCAD-fil. Att skriva en ny OCAD-version prövas och fungerar bara där servern har det påslaget; annars exportera ändringarna som GeoJSON.",
     download: "Ladda ner grundfilen",
     downloadShort: "Ladda ner",
     exportMapper: "Exportera ändringarna (Mapper)",

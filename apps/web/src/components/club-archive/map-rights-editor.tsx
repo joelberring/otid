@@ -1,14 +1,16 @@
 "use client";
 
+import { useClubFailure } from "./use-club-failure";
 import { useState, type FormEvent } from "react";
+import { clubArchiveChecksEn } from "../../i18n/club-archive-more-en";
+import { useTexts } from "../language-provider";
 import type { MapAgreement } from "@o-tid/contracts";
 import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
-import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-archive-client";
 import { Button, Notice } from "../ui";
 import { MapAgreementFields } from "../training-group/map-agreement";
 import styles from "./archive-checks.module.css";
 
-const text = clubArchiveChecksSv.rights;
 
 /**
  * ADR-0196 (ADR-0182 beslut 4, ADR-0194 beslut 2): kartans rättigheter ändras direkt där de visas, i Kartor-fliken och på
@@ -16,6 +18,8 @@ const text = clubArchiveChecksSv.rights;
  */
 export function MapRightsEditor({ clubId, map, onSaved }: { clubId: string; map: MapAgreement & { mapId: string; name: string };
   onSaved: () => Promise<void> | void }) {
+  const failure = useClubFailure();
+  const text = useTexts(clubArchiveChecksSv.rights, clubArchiveChecksEn.rights);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState<MapAgreement>(() => agreementOf(map));
@@ -25,7 +29,7 @@ export function MapRightsEditor({ clubId, map, onSaved }: { clubId: string; map:
     setBusy(true);
     try {
       const result = await clubRequest(`${clubBase(clubId)}/maps/${map.mapId}`, "PUT", { formatVersion: 1, name: map.name, agreement: value });
-      if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      if (result.status !== 200) { setMessage({ tone: "error", text: failure(result.status) }); return; }
       setMessage({ tone: "ok", text: text.saved });
       setOpen(false);
       await onSaved();

@@ -1,20 +1,24 @@
 "use client";
 
+import { useClubFailure } from "../club-archive/use-club-failure";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { clubAffiliationEn } from "../../i18n/club-space-en";
+import { clubStartEn } from "../../i18n/club-space-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import type { ClubAccessSettingsResponse, ClubAffiliationPerson, ClubAffiliationView, ClubAreaAccess } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { clubBase, clubFailure } from "../../lib/club-archive-client";
+import { clubBase } from "../../lib/club-archive-client";
 import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Field, Notice } from "../ui";
 import { EventorRequestDialog } from "../club-archive/club-start-card";
 import { clubStartSv } from "../../i18n/club-start-sv";
 import styles from "./club-affiliation.module.css";
 
-const text = clubAffiliationSv.space;
 type Message = { tone: "ok" | "error"; text: string } | undefined;
-const problemText = (json: unknown, status: number) => {
+const problemText = (json: unknown, status: number, text: Texts<typeof clubAffiliationSv.space>, failure: (status: number) => string) => {
   const code = (json as { error?: string } | undefined)?.error;
-  return code && text.problems[code] ? text.problems[code] : clubFailure(status);
+  return code && text.problems[code] ? text.problems[code] : failure(status);
 };
 const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
 
@@ -27,6 +31,9 @@ export type ClubSpaceFocus = { target: "eventor" | "access"; seq: number };
  */
 function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: ClubAffiliationView; clubId: string; clubName: string;
   onChanged: () => Promise<void>; onInvite: (() => void) | undefined }) {
+  const failure = useClubFailure();
+  const text = useTexts(clubAffiliationSv.space, clubAffiliationEn.space);
+  const clubStartText = useTexts(clubStartSv, clubStartEn);
   const [key, setKey] = useState("");
   const [asking, setAsking] = useState(false);
   const [replacing, setReplacing] = useState(false);
@@ -41,7 +48,7 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
     // Nyckeln stannar inte i sidan efter försöket.
     setKey("");
     setBusy("");
-    if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status) }); return; }
+    if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status, text, failure) }); return; }
     setReplacing(false);
     await onChanged();
   }
@@ -50,7 +57,7 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
     setBusy(method); setMessage(undefined);
     const result = await clubRequest(`${clubBase(clubId)}/eventor`, method);
     setBusy("");
-    if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status) }); return; }
+    if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status, text, failure) }); return; }
     await onChanged();
   }
 
@@ -76,8 +83,8 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
       <div className={styles.actions}><Button type="submit" disabled={busy !== "" || key.trim().length < 16}>{busy === "link" ? text.linking : text.link}</Button></div>
     </form>}
     {!eventor.linked && <div className={styles.actions}>
-      <span className={styles.muted}>{clubStartSv.steps.eventor.noKey}</span>
-      <Button variant="secondary" onClick={() => setAsking(true)}>{clubStartSv.ask.open}</Button>
+      <span className={styles.muted}>{clubStartText.steps.eventor.noKey}</span>
+      <Button variant="secondary" onClick={() => setAsking(true)}>{clubStartText.ask.open}</Button>
     </div>}
     {asking && <EventorRequestDialog clubId={clubId} clubName={clubName} onClose={() => setAsking(false)} onInvite={onInvite} />}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
@@ -85,6 +92,8 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
 }
 
 function AccessCard({ view, clubId, onSaved }: { view: ClubAffiliationView; clubId: string; onSaved: (view: ClubAffiliationView) => void }) {
+  const failure = useClubFailure();
+  const text = useTexts(clubAffiliationSv.space, clubAffiliationEn.space);
   const [archive, setArchive] = useState<ClubAreaAccess>(view.access.archive);
   const [mapBank, setMapBank] = useState<ClubAreaAccess>(view.access.mapBank);
   const [busy, setBusy] = useState(false);
@@ -94,7 +103,7 @@ function AccessCard({ view, clubId, onSaved }: { view: ClubAffiliationView; club
     setBusy(true); setMessage(undefined);
     const result = await clubRequest(`${clubBase(clubId)}/access`, "PUT", { formatVersion: 1, archive, mapBank });
     setBusy(false);
-    if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+    if (result.status !== 200) { setMessage({ tone: "error", text: failure(result.status) }); return; }
     onSaved({ ...view, access: (result.json as ClubAccessSettingsResponse).access });
     setMessage({ tone: "ok", text: text.accessSaved });
   }
@@ -127,6 +136,9 @@ export function ClubSpacePanel({ clubId, clubName, focus, onInvite, onChanged }:
   focus?: ClubSpaceFocus | undefined; onInvite?: () => void;
   /** Kopplingen ändrades: sidan hämtar klubbytan igen (märket i rubriken och Kom igång). */
   onChanged?: () => Promise<void> }) {
+  const failure = useClubFailure();
+  const clubAffiliationText = useTexts(clubAffiliationSv, clubAffiliationEn);
+  const text = useTexts(clubAffiliationSv.space, clubAffiliationEn.space);
   const [view, setView] = useState<ClubAffiliationView>();
   const [failed, setFailed] = useState<number>();
   const [busy, setBusy] = useState(false);
@@ -153,18 +165,18 @@ export function ClubSpacePanel({ clubId, clubName, focus, onInvite, onChanged }:
     setBusy(true); setMessage(undefined);
     try {
       const result = await clubRequest(`${clubBase(clubId)}/affiliation/decisions`, "POST", { formatVersion: 1, membershipId: person.membershipId, decision });
-      if (result.status !== 200) { setMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      if (result.status !== 200) { setMessage({ tone: "error", text: failure(result.status) }); return; }
       setView(result.json as ClubAffiliationView);
     } catch {
       setMessage({ tone: "error", text: text.failed });
     } finally { setBusy(false); }
   }
 
-  if (failed) return <Notice tone="error" role="alert">{clubFailure(failed)}</Notice>;
+  if (failed) return <Notice tone="error" role="alert">{failure(failed)}</Notice>;
   if (!view) return <p role="status">…</p>;
   const person = (row: ClubAffiliationPerson) => <div>
     <strong>{row.displayName}</strong>
-    <span>{[row.freeText ? text.freeText(row.freeText) : "", row.via ? clubAffiliationSv.confirmedVia[row.via] : ""].filter(Boolean).join(" · ")}</span>
+    <span>{[row.freeText ? text.freeText(row.freeText) : "", row.via ? clubAffiliationText.confirmedVia[row.via] : ""].filter(Boolean).join(" · ")}</span>
   </div>;
   return <div className={styles.form} style={{ maxWidth: "48rem" }}>
     <EventorCard view={view} clubId={clubId} clubName={clubName} onChanged={async () => { await load(); await onChanged?.(); }} onInvite={onInvite} />

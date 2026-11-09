@@ -1,5 +1,6 @@
 import { IOF_IMPORT_CONTENT_TYPE, RACE_MAP_SOURCE_PARTS, type RaceMapSourceMetadata } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
+import type { Texts } from "./language";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { importCourseSetting, saveCourseSetting } from "./course-setting-api";
@@ -35,8 +36,7 @@ export async function clubRequest(path: string, method: "GET" | "POST" | "PUT" |
   return { status: response.status, json };
 }
 
-export function clubFailure(status: number): string {
-  const errors = clubArchiveSv.errors;
+export function clubFailure(status: number, errors: Texts<typeof clubArchiveSv.errors> = clubArchiveSv.errors): string {
   if (status === 401) return errors.session;
   if (status === 400) return errors.invalid;
   if (status === 403) return errors.forbidden;
@@ -127,15 +127,16 @@ export interface ReuseInput {
 }
 
 /** "Använd igen": skapar träningen och fyller den steg för steg. Ett steg som går fel lämnar träningen med det som hann bli klart. */
-export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseStage) => void): Promise<ReuseOutcome> {
+export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseStage) => void,
+  text: Texts<typeof clubArchiveSv> = clubArchiveSv): Promise<ReuseOutcome> {
   const token = csrf();
-  if (!token) return { kind: "failed", problem: clubArchiveSv.errors.session };
+  if (!token) return { kind: "failed", problem: text.errors.session };
   onStage("race");
   const created = await fetch("/api/organizer/events", { method: "POST", credentials: "same-origin",
     headers: { "content-type": "application/json", "x-otid-csrf": token, "Idempotency-Key": `organizer-event-create:${input.requestId}` },
     body: JSON.stringify({ formatVersion: 1, eventName: input.eventName, raceName: "Träning", raceDate: input.raceDate, timeZone: "Europe/Stockholm",
       raceType: "TRAINING" }) });
-  if (!created.ok) return { kind: "failed", problem: `${clubArchiveSv.reuse.failed.race} ${clubFailure(created.status)}` };
+  if (!created.ok) return { kind: "failed", problem: `${text.reuse.failed.race} ${clubFailure(created.status, text.errors)}` };
   const raceId = ((await created.json()) as { raceId: string }).raceId;
   if (input.groupId) {
     onStage("group");

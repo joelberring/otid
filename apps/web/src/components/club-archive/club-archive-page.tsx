@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { clubArchiveEn } from "../../i18n/club-archive-en";
+import { clubAffiliationEn } from "../../i18n/club-space-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { ClubArchiveList, ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
@@ -20,7 +23,6 @@ import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
 import styles from "./club-archive.module.css";
 
-const text = clubArchiveSv;
 type Tab = "trainings" | "maps" | "members" | "devices" | "club" | "import";
 const TABS: readonly Tab[] = ["trainings", "maps", "members", "devices", "club", "import"];
 const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", devices: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
@@ -37,6 +39,8 @@ function initialTab(): Tab {
  * slå ihop och dela, ny version), Medlemmar och Import (nyckeln och kommandot). Aldrig publikt; behörigheten avgörs av API:et.
  */
 export function ClubArchivePage({ clubId }: { clubId: string }) {
+  const text = useTexts(clubArchiveSv, clubArchiveEn);
+  const clubAffiliationText = useTexts(clubAffiliationSv, clubAffiliationEn);
   const [list, setList] = useState<ClubArchiveList>();
   const [club, setClub] = useState<ClubView>();
   const [failed, setFailed] = useState(false);
@@ -84,8 +88,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
         <p className={styles.kicker}><Link href="/organizer">{text.back}</Link> · {text.title}</p>
         <h1>{list.clubName}</h1>
         {/* ADR-0209 beslut D: en klubbyta utan Eventor-nyckel är inte bevisad. */}
-        <p className={styles.muted} data-testid="club-eventor-badge">{club.eventorClub ? clubAffiliationSv.space.linkedBadge(club.eventorClub)
-          : clubAffiliationSv.space.unlinked}</p>
+        <p className={styles.muted} data-testid="club-eventor-badge">{club.eventorClub ? clubAffiliationText.space.linkedBadge(club.eventorClub)
+          : clubAffiliationText.space.unlinked}</p>
       </div>
       <div className={styles.headSide}>
         <p className={styles.usage} data-testid="club-usage">{usage}</p>
@@ -101,9 +105,9 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     </div>
     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
       {tab === "trainings" && (list.viewer.access.archive ? <ArchiveList clubId={clubId} list={list} admin={admin} />
-        : <Notice role="status">{clubAffiliationSv.space.archiveClosed}</Notice>)}
+        : <Notice role="status">{clubAffiliationText.space.archiveClosed}</Notice>)}
       {tab === "maps" && (list.viewer.access.archive ? <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} mapBank={list.viewer.access.mapBank}
-        onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationSv.space.archiveClosed}</Notice>)}
+        onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationText.space.archiveClosed}</Notice>)}
       {tab === "members" && <ClubMembersPanel club={club} onChanged={load} />}
       {tab === "devices" && <ClubDevicesPanel clubId={clubId} />}
       {tab === "club" && admin && <ClubSpacePanel clubId={clubId} clubName={list.clubName} focus={focus} onInvite={() => choose("members")}

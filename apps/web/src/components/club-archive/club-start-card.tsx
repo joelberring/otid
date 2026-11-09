@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { clubStartEn } from "../../i18n/club-space-en";
+import { useTexts } from "../language-provider";
 import type { ClubView } from "@o-tid/contracts";
 import { clubStartSv } from "../../i18n/club-start-sv";
 import { CLUB_START_STEPS, clubStartHidden, clubStartStatus, hideClubStart, mailtoHref, showClubStart, type ClubStartStep } from "../../lib/club-start";
 import { Button, Notice } from "../ui";
 import styles from "./club-start.module.css";
 
-const text = clubStartSv;
 /** Vart en knapp i kortet leder: en flik, eller en ruta under fliken Klubben. */
 export type ClubStartTarget = "eventor" | "access" | "members" | "maps" | "import";
 
@@ -17,6 +18,7 @@ export type ClubStartTarget = "eventor" | "access" | "members" | "maps" | "impor
  */
 export function EventorRequestDialog({ clubId, clubName, onClose, onInvite }: { clubId: string; clubName: string; onClose: () => void;
   onInvite?: (() => void) | undefined }) {
+  const text = useTexts(clubStartSv, clubStartEn);
   const dialog = useRef<HTMLDialogElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const [copy, setCopy] = useState<"copied" | "failed">();
@@ -63,6 +65,7 @@ export function EventorRequestDialog({ clubId, clubName, onClose, onInvite }: { 
  * är kopplingen till Eventor.
  */
 export function ClubStartCard({ club, clubName, onGo }: { club: ClubView; clubName: string; onGo: (target: ClubStartTarget) => void }) {
+  const text = useTexts(clubStartSv, clubStartEn);
   // Läses först efter första ritningen: sidan ritas på servern utan lagring.
   const [hidden, setHidden] = useState(true);
   const [asking, setAsking] = useState(false);

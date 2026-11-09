@@ -1,10 +1,13 @@
 "use client";
 
+import { useClubFailure } from "./use-club-failure";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { clubArchiveEn } from "../../i18n/club-archive-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { ClubArchiveEntryView, MapAgreement } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
-import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-archive-client";
 import { Button, DateInput, Field, Notice } from "../ui";
 import { MapAgreementSummary } from "../training-group/map-agreement";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
@@ -16,10 +19,11 @@ import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
 import styles from "./club-archive.module.css";
 
-const text = clubArchiveSv.entry;
 type Message = { tone: "ok" | "error"; text: string };
 
 function EditForm({ view, onSaved, onCancel }: { view: ClubArchiveEntryView; onSaved: () => Promise<void>; onCancel: () => void }) {
+  const failure = useClubFailure();
+  const text = useTexts(clubArchiveSv.entry, clubArchiveEn.entry);
   const entry = view.entry;
   const [date, setDate] = useState(entry.trainingDate ?? "");
   const [place, setPlace] = useState(entry.place);
@@ -33,7 +37,7 @@ function EditForm({ view, onSaved, onCancel }: { view: ClubArchiveEntryView; onS
     const result = await clubRequest(`${clubBase(view.clubId)}/archive/${entry.entryId}`, "PUT", { formatVersion: 1, trainingDate: date || null,
       place: place.trim(), title: title.trim(), leader: leader.trim(), notes: notes.trim(),
       tags: [...new Set(tags.split(",").map(tag => tag.trim()).filter(Boolean))].slice(0, 30) });
-    if (result.status !== 200) { setProblem(clubFailure(result.status)); return; }
+    if (result.status !== 200) { setProblem(failure(result.status)); return; }
     await onSaved();
   }
   return <form className={styles.form} onSubmit={event => void save(event)} aria-label={text.edit}>
@@ -63,6 +67,9 @@ const agreementOf = (map: ClubArchiveEntryView["maps"][number]): MapAgreement =>
  * rubrik, datum, ledare, taggar och anteckning och väljer karta för hand.
  */
 export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId: string }) {
+  const failure = useClubFailure();
+  const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
+  const text = useTexts(clubArchiveSv.entry, clubArchiveEn.entry);
   const [view, setView] = useState<ClubArchiveEntryView>();
   const [failed, setFailed] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -96,7 +103,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
 
   async function setMap(courseFileId: string, mapVersionId: string) {
     const result = await clubRequest(`${clubBase(clubId)}/course-files/${courseFileId}`, "PUT", { formatVersion: 1, mapVersionId: mapVersionId || null });
-    setMessage(result.status === 200 ? { tone: "ok", text: text.saved } : { tone: "error", text: clubFailure(result.status) });
+    setMessage(result.status === 200 ? { tone: "ok", text: text.saved } : { tone: "error", text: failure(result.status) });
     await load();
   }
 
@@ -104,12 +111,12 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
     if (!window.confirm(text.removeConfirm)) return;
     const result = await clubRequest(`${clubBase(clubId)}/archive/${entryId}`, "DELETE");
     if (result.status === 200) window.location.assign(`/organizer/clubs/${clubId}`);
-    else setMessage({ tone: "error", text: clubFailure(result.status) });
+    else setMessage({ tone: "error", text: failure(result.status) });
   }
 
-  const back = <Link href={`/organizer/clubs/${clubId}`}>{clubArchiveSv.backToArchive}</Link>;
-  if (failed) return <main className={styles.page}><p className={styles.kicker}>{back}</p><Notice tone="error" role="alert">{clubArchiveSv.loadFailed}</Notice></main>;
-  if (!view) return <main className={styles.page}><p className={styles.kicker}>{back}</p><p role="status">{clubArchiveSv.loading}</p></main>;
+  const back = <Link href={`/organizer/clubs/${clubId}`}>{clubArchiveText.backToArchive}</Link>;
+  if (failed) return <main className={styles.page}><p className={styles.kicker}>{back}</p><Notice tone="error" role="alert">{clubArchiveText.loadFailed}</Notice></main>;
+  if (!view) return <main className={styles.page}><p className={styles.kicker}>{back}</p><p role="status">{clubArchiveText.loading}</p></main>;
   const entry = view.entry;
   const admin = view.viewer.role === "OWNER" || view.viewer.role === "ADMIN";
   const mapBank = view.viewer.access.mapBank;
@@ -120,10 +127,10 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
       <div>
         <p className={styles.kicker}>{back} · {view.clubName}</p>
         <h1>{entry.title}</h1>
-        <p className={styles.muted}>{[entry.trainingDate ?? entry.year, entry.leader, clubArchiveSv.status[entry.status]].filter(Boolean).join(" · ")}</p>
+        <p className={styles.muted}>{[entry.trainingDate ?? entry.year, entry.leader, clubArchiveText.status[entry.status]].filter(Boolean).join(" · ")}</p>
       </div>
       <div className={styles.actions}>
-        {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>}
+        {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveText.reuse.open}</Button>}
         {admin && !editing && <Button variant="secondary" onClick={() => setEditing(true)}>{text.edit}</Button>}
         <HelpButton view={["ARCHIVE_ENTRY", "ARCHIVE_MAPS"]} />
         <AccountMenu />
@@ -147,7 +154,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         {/* Ägaren 2026-11-03 försökte flytta en start här: arkivet visar bara; ändringar görs i en kopia (Använd igen). */}
         <div className={styles.readOnlyHint} data-testid="archive-read-only">
           <p>{text.readOnlyHint}</p>
-          {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveSv.reuse.open}</Button>}
+          {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveText.reuse.open}</Button>}
         </div>
         {entry.tags.length > 0 && <p className={styles.actions}>{entry.tags.map(tag => <span key={tag} className={styles.tag}>{tag}</span>)}</p>}
         {entry.notes && <p>{entry.notes}</p>}
@@ -194,7 +201,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
               {usedVersionIds.has(version.versionId) && <span className={styles.small}>{text.usedHere}</span>}
               <MapCheckChip check={version.check} />
             </span>
-            {version.versionId === map.latestVersionId ? <span className={styles.latest}>{clubArchiveSv.maps.latest}</span> : <span />}
+            {version.versionId === map.latestVersionId ? <span className={styles.latest}>{clubArchiveText.maps.latest}</span> : <span />}
           </li>)}</ul>
         </div>)}
         {admin && <p><Button variant="quiet" onClick={() => void remove()}>{text.remove}</Button></p>}

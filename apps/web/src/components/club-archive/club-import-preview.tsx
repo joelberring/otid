@@ -1,11 +1,12 @@
 "use client";
 
 import { SKIP_LABELS, STATUS_LABELS, type ImportPlan, type ScannedFile, type SkipCategory } from "@o-tid/club-archive";
+import { clubWebImportEn } from "../../i18n/club-archive-more-en";
+import { useTexts } from "../language-provider";
 import { clubWebImportSv } from "../../i18n/club-import-web-sv";
 import { Notice } from "../ui";
 import styles from "./club-archive.module.css";
 
-const text = clubWebImportSv;
 const LIST_MAX = 300;
 
 export interface ServerState { readonly known: ReadonlySet<string>; readonly knownEntries: ReadonlySet<string> }
@@ -20,6 +21,7 @@ export function previewNumbers(plan: ImportPlan, server: ServerState) {
 }
 
 function Paths({ paths, summary }: { paths: readonly string[]; summary: string }) {
+  const text = useTexts(clubWebImportSv, clubWebImportEn);
   if (paths.length === 0) return null;
   return <details className={styles.details}>
     <summary>{summary}</summary>
@@ -36,6 +38,7 @@ function Paths({ paths, summary }: { paths: readonly string[]; summary: string }
  */
 export function ClubImportPreview({ plan, scanned, problems, server, quota }: { plan: ImportPlan; scanned: readonly ScannedFile[];
   problems: readonly string[]; server: ServerState; quota: { used: number; limit: number | null } }) {
+  const text = useTexts(clubWebImportSv, clubWebImportEn);
   const numbers = previewNumbers(plan, server);
   const t = plan.totals;
   const count = (status: keyof typeof STATUS_LABELS) => plan.trainings.filter(training => training.status === status).length;

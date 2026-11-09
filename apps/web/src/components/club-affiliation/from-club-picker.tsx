@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { clubAffiliationEn } from "../../i18n/club-space-en";
+import { useTexts } from "../language-provider";
 import type { ClubInviteContext, ClubInviteFromClubResponse, ClubPickerResponse } from "@o-tid/contracts";
 import { normalizeClubSearch } from "@o-tid/domain";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
@@ -8,7 +10,6 @@ import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-cl
 import { Button, Notice } from "../ui";
 import styles from "./club-affiliation.module.css";
 
-const text = clubAffiliationSv.fromClub;
 
 /**
  * ADR-0209 beslut 3: "Från klubben" bredvid fältet för e-postadressen. En sökbar lista med bekräftade medlemmar i den inloggades
@@ -17,6 +18,7 @@ const text = clubAffiliationSv.fromClub;
  */
 export function FromClubPicker({ context, role, roleLabel, disabled, onInvited }: { context: ClubInviteContext; role: string; roleLabel?: string;
   disabled?: boolean; onInvited: () => Promise<void> | void }) {
+  const text = useTexts(clubAffiliationSv.fromClub, clubAffiliationEn.fromClub);
   const [data, setData] = useState<ClubPickerResponse>();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);

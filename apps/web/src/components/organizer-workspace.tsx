@@ -1,6 +1,7 @@
 "use client";
 
 import { takeAfterLogin } from "../lib/after-login";
+import { clubMapDuplicatesEn } from "../i18n/club-space-en";
 import { raceBackupEn } from "../i18n/workspace-small-en";
 import { raceCopyEn } from "../i18n/workspace-tools-en";
 import { raceTypeEn } from "../i18n/workspace-en";
@@ -24,6 +25,8 @@ import {
 import { organizerSv } from "../i18n/organizer-sv";
 import { organizerEn } from "../i18n/organizer-en";
 import { useTexts } from "./language-provider";
+import { raceMapSv } from "../i18n/race-map-sv";
+import { raceMapEn } from "../i18n/workspace-small-en";
 import type { Texts } from "../lib/language";
 
 type Copy = Texts<typeof organizerSv>;
@@ -97,6 +100,7 @@ function GoogleLogin({ remember, copy }: { remember: boolean; copy: Copy }) {
 }
 
 export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  const clubMapDuplicatesText = useTexts(clubMapDuplicatesSv, clubMapDuplicatesEn), raceMapText = useTexts(raceMapSv, raceMapEn);
   const backupText = useTexts(raceBackupSv, raceBackupEn);
   const raceCopyText = useTexts(raceCopySv, raceCopyEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
@@ -304,7 +308,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       setAttempt(undefined);
       // ADR-0210: kartan ur klubbarkivet blir tävlingens kartfil, och banläggningen öppnas med den.
       if (clubMap) {
-        const problem = await applyClubMap(clubMap, result.raceId, stage => setMessage(clubMapDuplicatesSv.picker.working[stage]));
+        const problem = await applyClubMap(clubMap, result.raceId, stage => setMessage(clubMapDuplicatesText.picker.working[stage]),
+          clubMapDuplicatesText.picker, raceMapText.mapFile.errors);
         setClubMap(undefined);
         if (problem) {
           setMessage(problem);

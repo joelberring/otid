@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { clubDevicesEn } from "../../i18n/club-archive-more-en";
+import { useTexts } from "../language-provider";
 import type { ClubDeviceList } from "@o-tid/contracts";
-import { clubDevicesSv as text } from "../../i18n/club-devices-sv";
+import { clubDevicesSv } from "../../i18n/club-devices-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { Button, Notice } from "../ui";
 import styles from "./club-archive.module.css";
@@ -13,6 +15,7 @@ const OLD_BATTERY_YEARS = 5;
 
 /** Ägaren 2026-11-08: klubbens enhetsregister (fliken Enheter): batteriets ålder, klockan, senaste läsningen och anteckningen. */
 export function ClubDevicesPanel({ clubId }: { clubId: string }) {
+  const text = useTexts(clubDevicesSv, clubDevicesEn);
   const [list, setList] = useState<ClubDeviceList>();
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [failed, setFailed] = useState(false);

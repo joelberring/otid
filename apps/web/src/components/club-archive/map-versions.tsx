@@ -1,9 +1,12 @@
 "use client";
 
+import { useClubFailure } from "./use-club-failure";
 import { useState, type FormEvent } from "react";
+import { clubMapDuplicatesEn } from "../../i18n/club-space-en";
+import { useTexts } from "../language-provider";
 import type { ClubMapCopyField, ClubMapVersionView, ClubMapView } from "@o-tid/contracts";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
-import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-archive-client";
 import { Button, Field } from "../ui";
 import { StartMapProject } from "../map-project/start-map-project";
 import styles from "./map-duplicates.module.css";
@@ -12,7 +15,6 @@ import styles from "./map-duplicates.module.css";
  * ADR-0210 beslut 3 och 4: versionens år (gissat eller inskrivet), kartritaren och anteckningen, "Kopiera till alla
  * versioner" och "Från kartan" med en förhandsvisning av vad som ändras, och kartans historik med "Ångra sammanslagning".
  */
-const text = clubMapDuplicatesSv.versions;
 type Message = { tone: "ok" | "error"; text: string };
 type Copy = { fromVersionId: string | null; fields: ClubMapCopyField[]; versionIds: string[]; title: string };
 
@@ -28,6 +30,8 @@ export function copyChanges(map: ClubMapView, copy: Pick<Copy, "fromVersionId" |
 /** Förhandsvisningen och knappen "Kopiera". */
 function CopyPreview({ clubId, map, copy, onClose, onChanged, onMessage }: { clubId: string; map: ClubMapView; copy: Copy; onClose: () => void;
   onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
+  const failure = useClubFailure();
+  const text = useTexts(clubMapDuplicatesSv.versions, clubMapDuplicatesEn.versions);
   const [fields, setFields] = useState(copy.fields);
   const [busy, setBusy] = useState(false);
   const changes = copyChanges(map, { ...copy, fields });
@@ -36,7 +40,7 @@ function CopyPreview({ clubId, map, copy, onClose, onChanged, onMessage }: { clu
     try {
       const result = await clubRequest(`${clubBase(clubId)}/maps/${map.mapId}/versions-copy`, "POST", { formatVersion: 1, fromVersionId: copy.fromVersionId,
         fields, versionIds: copy.versionIds });
-      if (result.status !== 200) { onMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      if (result.status !== 200) { onMessage({ tone: "error", text: failure(result.status) }); return; }
       onMessage({ tone: "ok", text: text.copied((result.json as { updated: number }).updated) });
       onClose();
       await onChanged();
@@ -64,6 +68,8 @@ function CopyPreview({ clubId, map, copy, onClose, onChanged, onMessage }: { clu
 /** Året och varifrån det kommer, kartritaren, och (för administratörer) ändra och kopiera. */
 export function VersionDetails({ clubId, map, version, admin, onChanged, onMessage }: { clubId: string; map: ClubMapView; version: ClubMapVersionView;
   admin: boolean; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
+  const failure = useClubFailure();
+  const text = useTexts(clubMapDuplicatesSv.versions, clubMapDuplicatesEn.versions);
   const [editing, setEditing] = useState(false);
   const [copy, setCopy] = useState<Copy>();
   const [year, setYear] = useState("");
@@ -79,7 +85,7 @@ export function VersionDetails({ clubId, map, version, admin, onChanged, onMessa
       const value = year.trim() === "" ? null : Number(year);
       const result = await clubRequest(`${clubBase(clubId)}/map-versions/${version.versionId}`, "PUT", { formatVersion: 1, versionDate: version.versionDate,
         note: note.trim(), versionYear: value, maker: maker.trim() });
-      if (result.status !== 200) { onMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      if (result.status !== 200) { onMessage({ tone: "error", text: failure(result.status) }); return; }
       onMessage({ tone: "ok", text: text.saved });
       setEditing(false);
       await onChanged();
@@ -122,9 +128,11 @@ export function VersionDetails({ clubId, map, version, admin, onChanged, onMessa
 /** Kartritaren från kartan till alla versioner (med förhandsvisning). */
 export function MapMakerToVersions({ clubId, map, onChanged, onMessage }: { clubId: string; map: ClubMapView; onChanged: () => Promise<void>;
   onMessage: (message: Message) => void }) {
+  const clubMapDuplicatesText = useTexts(clubMapDuplicatesSv, clubMapDuplicatesEn);
+  const text = useTexts(clubMapDuplicatesSv.versions, clubMapDuplicatesEn.versions);
   const [open, setOpen] = useState(false);
   if (!map.maker || map.versions.length === 0) return null;
-  const title = `${text.copyAll}: ${clubMapDuplicatesSv.mapInfo.maker.toLowerCase()} ${map.maker}`;
+  const title = `${text.copyAll}: ${clubMapDuplicatesText.mapInfo.maker.toLowerCase()} ${map.maker}`;
   return open ? <CopyPreview clubId={clubId} map={map} copy={{ fromVersionId: null, fields: ["maker"], versionIds: map.versions.map(version => version.versionId),
     title }} onClose={() => setOpen(false)} onChanged={onChanged} onMessage={onMessage} />
     : <div className={styles.buttons}><Button variant="secondary" aria-label={title} onClick={() => setOpen(true)}>{text.copyAll}</Button></div>;
@@ -135,15 +143,17 @@ const day = (iso: string) => iso.slice(0, 10);
 /** Sammanslagningarna in i kartan; den senaste går att ångra tills kartan har ändrats. */
 export function MergeHistory({ clubId, map, admin, onChanged, onMessage }: { clubId: string; map: ClubMapView; admin: boolean; onChanged: () => Promise<void>;
   onMessage: (message: Message) => void }) {
+  const failure = useClubFailure();
+  const clubMapDuplicatesText = useTexts(clubMapDuplicatesSv, clubMapDuplicatesEn);
   const [busy, setBusy] = useState(false);
-  const history = clubMapDuplicatesSv.history;
+  const history = clubMapDuplicatesText.history;
   if (map.merges.length === 0) return null;
   async function undo(mergeId: string) {
     setBusy(true);
     try {
       const result = await clubRequest(`${clubBase(clubId)}/map-merges/${mergeId}/undo`, "POST");
       if (result.status === 409) { onMessage({ tone: "error", text: history.conflict }); return; }
-      if (result.status !== 200) { onMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      if (result.status !== 200) { onMessage({ tone: "error", text: failure(result.status) }); return; }
       onMessage({ tone: "ok", text: history.undoDone });
       await onChanged();
     } finally { setBusy(false); }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { clubArchiveEn } from "../../i18n/club-archive-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { ClubArchiveEntryStatus, ClubArchiveList } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
@@ -10,12 +12,12 @@ import { EntryThumbnail } from "./map-check";
 import checks from "./archive-checks.module.css";
 import styles from "./club-archive.module.css";
 
-const text = clubArchiveSv;
 const STATUSES: readonly ClubArchiveEntryStatus[] = ["COMPLETE", "COURSES_ONLY", "MAP_MISSING", "MAP_ONLY"];
 const STORAGE_KEY = "otid.club-archive.filter";
 
 /** ADR-0194: arkivets träningar med sökning och filter (år, karta, tagg, ledare, läge). Filtret sparas i webbläsaren. */
 export function ArchiveList({ clubId, list, admin }: { clubId: string; list: ClubArchiveList; admin: boolean }) {
+  const text = useTexts(clubArchiveSv, clubArchiveEn);
   const [filter, setFilter] = useState<ArchiveFilter>(EMPTY_FILTER);
   useEffect(() => {
     try {

@@ -1,13 +1,15 @@
 "use client";
 
+import { useClubFailure } from "./use-club-failure";
 import { useState, type FormEvent } from "react";
+import { clubArchiveEn } from "../../i18n/club-archive-en";
+import { useTexts } from "../language-provider";
 import type { ClubSummary } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
-import { clubFailure, clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-archive-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./club-archive.module.css";
 
-const text = clubArchiveSv.myClubs;
 /** Samma gräns som servern (`clubNameSchema`). */
 const NAME_MAX = 120;
 
@@ -16,6 +18,8 @@ const NAME_MAX = 120;
  * i remsan Mina klubbar överst (`MyPlacesStrip`); formuläret visas under remsan.
  */
 export function NewClubForm({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const failure = useClubFailure();
+  const text = useTexts(clubArchiveSv.myClubs, clubArchiveEn.myClubs);
   const [name, setName] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
@@ -37,7 +41,7 @@ export function NewClubForm({ open, onToggle }: { open: boolean; onToggle: () =>
         // Serverns besked som text vid fältet: finns redan, eller ett namn som servern inte godtar.
         if (result.status === 409 && code === "NAME_TAKEN") { setNameError(text.nameTaken); return; }
         if (result.status === 400) { setNameError(trimmed.length > NAME_MAX ? text.nameTooLong(NAME_MAX) : text.nameMissing); return; }
-        setProblem(`${text.failed} ${clubFailure(result.status)}`);
+        setProblem(`${text.failed} ${failure(result.status)}`);
         return;
       }
       const club = (result.json as { club: ClubSummary }).club;

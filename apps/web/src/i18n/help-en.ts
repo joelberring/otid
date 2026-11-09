@@ -2,6 +2,7 @@ import type { Texts } from "../lib/language";
 import type { HelpArticle, helpSv } from "./help-sv";
 import { accountHelpArticlesEn, routeChoiceHelpArticlesEn } from "./help-more-en";
 import { courseSettingHelpArticlesEn, gettingStartedHelpArticlesEn, levelHelpArticlesEn } from "./help-course-setting-en";
+import { clubHelpArticlesEn } from "./help-club-en";
 import { fieldPrintHelpArticlesEn } from "./help-print-en";
 
 /**
@@ -55,7 +56,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "”Rogaining”: controls with points and a time limit."
       ],
       "Press ”Create event” and the workspace opens. The type can be changed under ”Settings” without anything being removed.",
-      "If the club has a club archive you can take the map with ”Välj karta från klubbarkivet” before pressing ”Create event”; course setting then opens with the map."
+      "If the club has a club archive you can take the map with ”Choose map from the club archive” before pressing ”Create event”; course setting then opens with the map."
     ]
   },
   {
@@ -262,7 +263,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "”Remove” removes the invitation, and the link then shows ”The invitation is no longer valid”."
       ],
       "Several addresses can be added at once, separated by commas, spaces or new lines, and everyone gets the same role and an email each.",
-      "Invitations ”Från klubben” are emailed the same way, but you only see the person's name."
+      "Invitations ”From the club” are emailed the same way, but you only see the person's name."
     ]
   },
   {
@@ -355,10 +356,10 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
   }
 ];
 
-/** Engelska artiklar i stället för de svenska med samma id; resten (banläggningen, klubbarkivet) är svenska än så länge. */
+/** Engelska artiklar i stället för de svenska med samma id; resten är svenska än så länge. */
 export const helpArticlesEnById: ReadonlyMap<string, HelpArticle> = new Map(
   [...raceDayHelpArticlesEn, ...gettingStartedHelpArticlesEn, ...courseSettingHelpArticlesEn, ...levelHelpArticlesEn,
-    ...fieldPrintHelpArticlesEn, ...accountHelpArticlesEn, ...routeChoiceHelpArticlesEn].map(article => [article.id, article]));
+    ...fieldPrintHelpArticlesEn, ...accountHelpArticlesEn, ...routeChoiceHelpArticlesEn, ...clubHelpArticlesEn].map(article => [article.id, article]));
 
 export const helpArticlesFor = (articles: readonly HelpArticle[]): readonly HelpArticle[] =>
   articles.map(article => helpArticlesEnById.get(article.id) ?? article);

@@ -1,9 +1,13 @@
 "use client";
 
+import { useClubFailure } from "./use-club-failure";
 import { useEffect, useState } from "react";
+import { clubMapDuplicatesEn } from "../../i18n/club-space-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import type { ClubMapDuplicateCluster, ClubMapDuplicateReason, ClubMapDuplicatesResponse, ClubMapMergeResponse, ClubMapView } from "@o-tid/contracts";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
-import { clubBase, clubFailure, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-archive-client";
 import { Button, Notice } from "../ui";
 import { MapThumbnail } from "./map-check";
 import styles from "./map-duplicates.module.css";
@@ -13,17 +17,16 @@ import styles from "./map-duplicates.module.css";
  * markerade". Varje grupp visar kartorna sida vid sida med bild, namn, år och yta och varför de föreslås; ägaren väljer vilken
  * karta som behåller namnet och uppgifterna. Inget slås ihop av sig självt.
  */
-const text = clubMapDuplicatesSv.duplicates;
 type Message = { tone: "ok" | "error"; text: string };
 type Extent = ClubMapDuplicateCluster["extents"][number];
 
-export function reasonText(reason: ClubMapDuplicateReason): string {
+export function reasonText(reason: ClubMapDuplicateReason, text: Texts<typeof clubMapDuplicatesSv.duplicates>): string {
   if (reason.kind === "AREA") return text.reasons.area(reason.overlap, reason.contained);
   if (reason.kind === "SHARED_TRAININGS") return text.reasons.trainings(reason.count);
   return text.reasons[reason.kind];
 }
 
-function extentText(extent: Extent | undefined): string {
+function extentText(extent: Extent | undefined, text: Texts<typeof clubMapDuplicatesSv.duplicates>): string {
   if (extent?.ground) return text.extent.ground(extent.ground.width, extent.ground.height);
   if (extent?.paper) return text.extent.paper(extent.paper.width, extent.paper.height, extent.paper.scale);
   return text.extent.none;
@@ -39,6 +42,9 @@ export function MergeChooser({ clubId, maps, keepDefault, extents, reasons, labe
   clubId: string; maps: readonly ClubMapView[]; keepDefault: string; extents?: readonly Extent[]; reasons?: readonly ClubMapDuplicateReason[];
   label: string; onMerged: () => Promise<void>; onDismissed?: () => Promise<void>; onMessage: (message: Message) => void
 }) {
+  const failure = useClubFailure();
+  const clubMapDuplicatesText = useTexts(clubMapDuplicatesSv, clubMapDuplicatesEn);
+  const text = useTexts(clubMapDuplicatesSv.duplicates, clubMapDuplicatesEn.duplicates);
   const [keep, setKeep] = useState(keepDefault);
   const [included, setIncluded] = useState(() => new Set(maps.map(map => map.mapId)));
   const [busy, setBusy] = useState(false);
@@ -50,7 +56,7 @@ export function MergeChooser({ clubId, maps, keepDefault, extents, reasons, labe
     setBusy(true);
     try {
       const result = await clubRequest(`${clubBase(clubId)}/map-merges`, "POST", { formatVersion: 1, keepMapId: keep, mapIds: chosen.map(map => map.mapId) });
-      if (result.status !== 200) { onMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      if (result.status !== 200) { onMessage({ tone: "error", text: failure(result.status) }); return; }
       onMessage({ tone: "ok", text: text.merged(kept.name, (result.json as ClubMapMergeResponse).versionsMoved) });
       await onMerged();
     } finally { setBusy(false); }
@@ -60,7 +66,7 @@ export function MergeChooser({ clubId, maps, keepDefault, extents, reasons, labe
     setBusy(true);
     try {
       const result = await clubRequest(`${clubBase(clubId)}/map-duplicates/dismiss`, "POST", { formatVersion: 1, mapIds: maps.map(map => map.mapId) });
-      if (result.status !== 200) { onMessage({ tone: "error", text: clubFailure(result.status) }); return; }
+      if (result.status !== 200) { onMessage({ tone: "error", text: failure(result.status) }); return; }
       onMessage({ tone: "ok", text: text.dismissed });
       await onDismissed?.();
     } finally { setBusy(false); }
@@ -78,9 +84,9 @@ export function MergeChooser({ clubId, maps, keepDefault, extents, reasons, labe
               onChange={() => setKeep(map.mapId)} />
             <strong>{map.name}</strong>
           </label>
-          <span className={styles.meta}>{clubMapDuplicatesSv.versions.summary(map.versions.length, map.years)}</span>
+          <span className={styles.meta}>{clubMapDuplicatesText.versions.summary(map.versions.length, map.years)}</span>
           <span className={styles.meta}>{map.versions.map(version => version.fileName).join(", ")}</span>
-          {extents && <span className={styles.meta}>{extentText(extents.find(extent => extent.mapId === map.mapId))}</span>}
+          {extents && <span className={styles.meta}>{extentText(extents.find(extent => extent.mapId === map.mapId), text)}</span>}
           {maps.length > 2 && <label className={styles.include}>
             <input type="checkbox" checked={included.has(map.mapId)} onChange={event => {
               const next = new Set(included);
@@ -92,7 +98,7 @@ export function MergeChooser({ clubId, maps, keepDefault, extents, reasons, labe
       })}
     </ul>
     {reasons && reasons.length > 0 && <ul className={styles.reasons} data-testid="duplicate-reasons">
-      {reasons.map(reason => <li key={reason.kind}>{reasonText(reason)}</li>)}</ul>}
+      {reasons.map(reason => <li key={reason.kind}>{reasonText(reason, text)}</li>)}</ul>}
     <p className={styles.help}>{text.mergeHelp}</p>
     <div className={styles.buttons}>
       <Button onClick={() => void merge()} disabled={busy || chosen.length < 2 || !included.has(keep)}>{text.merge}</Button>
@@ -104,6 +110,7 @@ export function MergeChooser({ clubId, maps, keepDefault, extents, reasons, labe
 /** "Möjliga dubbletter (n)": förslagen hämtas när kartorna ändras. */
 export function DuplicatesCard({ clubId, maps, onChanged, onMessage }: { clubId: string; maps: readonly ClubMapView[]; onChanged: () => Promise<void>;
   onMessage: (message: Message) => void }) {
+  const text = useTexts(clubMapDuplicatesSv.duplicates, clubMapDuplicatesEn.duplicates);
   const [clusters, setClusters] = useState<ClubMapDuplicateCluster[]>();
   const [failed, setFailed] = useState(false);
   const [revision, setRevision] = useState(0);

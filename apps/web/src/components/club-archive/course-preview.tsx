@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clubArchiveEn } from "../../i18n/club-archive-en";
+import { clubArchiveChecksEn } from "../../i18n/club-archive-more-en";
+import { useTexts } from "../language-provider";
 import type { ClubArchiveCourseFileView } from "@o-tid/contracts";
 import { controlBounds, layoutOverprint, type CourseSettingDocument, type OverprintPrimitive } from "@o-tid/course-setting";
 import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
@@ -12,7 +15,6 @@ import { fitBounds, toScreen, type Bounds, type Viewport } from "../../lib/cours
 import type { MapFileRenderResult } from "../../lib/map-file-worker-protocol";
 import styles from "./club-archive.module.css";
 
-const text = clubArchiveSv.entry;
 
 /** `reason` är skälet på svenska när kartan inte kunde ritas (ADR-0196), t.ex. "OCAD 7 stöds inte. …". */
 export type RenderedVersion = { state: "loading" } | { state: "failed"; reason: string }
@@ -20,6 +22,7 @@ export type RenderedVersion = { state: "loading" } | { state: "failed"; reason: 
 
 /** Kartversionen ritad i kartfilens Worker (en gång per version och sida). */
 export function useRenderedVersion(clubId: string, version: { versionId: string; fileName: string } | null): RenderedVersion | null {
+  const checksText = useTexts(clubArchiveChecksSv, clubArchiveChecksEn);
   const [result, setResult] = useState<RenderedVersion | null>(null);
   const versionId = version?.versionId, fileName = version?.fileName;
   useEffect(() => {
@@ -30,13 +33,13 @@ export function useRenderedVersion(clubId: string, version: { versionId: string;
       try {
         const rendered = await renderMapVersion(clubId, versionId, fileName, () => undefined, controller.signal);
         if (controller.signal.aborted) return;
-        if (rendered.type === "error") { setResult({ state: "failed", reason: renderFailureReason(rendered.code, rendered.message) }); return; }
+        if (rendered.type === "error") { setResult({ state: "failed", reason: renderFailureReason(rendered.code, rendered.message, checksText) }); return; }
         const bitmap = await createImageBitmap(rendered.png);
         if (!controller.signal.aborted) setResult({ state: "ready", rendered, bitmap });
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Kartan kunde inte ritas", error);
-          setResult({ state: "failed", reason: renderFailureReason("FAILED") });
+          setResult({ state: "failed", reason: renderFailureReason("FAILED", undefined, checksText) });
         }
       }
     })();
@@ -115,6 +118,8 @@ export function CoursePreview({ version, document, courseId, courseData, label }
   courseData?: CourseData | undefined;
   label: string;
 }) {
+  const text = useTexts(clubArchiveSv.entry, clubArchiveEn.entry);
+  const clubArchiveChecksText = useTexts(clubArchiveChecksSv, clubArchiveChecksEn);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -147,6 +152,6 @@ export function CoursePreview({ version, document, courseId, courseData, label }
     <canvas ref={canvas} role="img" aria-label={label} data-testid="course-preview" data-ready={version?.state === "ready" ? "true" : "false"} />
     {status && <p className={styles.previewStatus} role="status">{status}</p>}
     {version?.state === "failed" && <p className={styles.previewStatus} role="status" data-testid="preview-failed">
-      {clubArchiveChecksSv.previewFailed(version.reason)} {clubArchiveChecksSv.previewDownload}</p>}
+      {clubArchiveChecksText.previewFailed(version.reason)} {clubArchiveChecksText.previewDownload}</p>}
   </div>;
 }

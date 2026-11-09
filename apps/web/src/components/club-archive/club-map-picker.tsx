@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { clubMapDuplicatesEn } from "../../i18n/club-space-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import type { UsableClubMap, UsableClubMapsResponse } from "@o-tid/contracts";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
+import { raceMapEn } from "../../i18n/workspace-small-en";
 import { clubRequest, renderMapVersion, sendRenderedMap } from "../../lib/club-archive-client";
 import { Button, Notice } from "../ui";
 import { MapThumbnail } from "./map-check";
@@ -15,15 +19,16 @@ import styles from "./map-duplicates.module.css";
  * "Använd igen": versionen ritas i webbläsaren och tävlingen pekar på arkivets innehåll (ADR-0189), bara bilden skickas,
  * och kartans rättigheter följer med. Vem som får använda kartan avgör servern (`mayUseClubMap`).
  */
-const text = clubMapDuplicatesSv.picker;
 export type ClubMapChoice = { clubId: string; versionId: string; fileName: string; mapName: string; year: number };
-type Stage = keyof typeof text.working;
+type Stage = keyof typeof clubMapDuplicatesSv.picker.working;
 
 /** Kartversionen ritas och sparas som tävlingens kartfil. Ger felets text, eller undefined när det gick. */
-export async function applyClubMap(choice: ClubMapChoice, raceId: string, onStage: (stage: Stage) => void): Promise<string | undefined> {
+export async function applyClubMap(choice: ClubMapChoice, raceId: string, onStage: (stage: Stage) => void,
+  text: Pick<Texts<typeof clubMapDuplicatesSv.picker>, "tooLarge" | "failed"> = clubMapDuplicatesSv.picker,
+  mapErrors: Texts<typeof raceMapSv.mapFile.errors> = raceMapSv.mapFile.errors): Promise<string | undefined> {
   onStage("reading");
   const rendered = await renderMapVersion(choice.clubId, choice.versionId, choice.fileName, stage => onStage(stage));
-  if (rendered.type === "error") return raceMapSv.mapFile.errors[rendered.code];
+  if (rendered.type === "error") return mapErrors[rendered.code];
   onStage("saving");
   const saved = await sendRenderedMap(choice.clubId, choice.versionId, "race", raceId, rendered);
   if (saved.status === 200) return undefined;
@@ -47,6 +52,8 @@ function useUsableMaps() {
 
 function PickerItem({ item, multipleClubs, raceType, busy, onUse }: { item: UsableClubMap; multipleClubs: boolean; raceType?: string | undefined;
   busy: boolean; onUse: (choice: ClubMapChoice) => void }) {
+  const clubMapDuplicatesText = useTexts(clubMapDuplicatesSv, clubMapDuplicatesEn);
+  const text = useTexts(clubMapDuplicatesSv.picker, clubMapDuplicatesEn.picker);
   const { map } = item;
   const [versionId, setVersionId] = useState(map.latestVersionId ?? "");
   const version = map.versions.find(candidate => candidate.versionId === versionId) ?? map.versions[0]!;
@@ -54,7 +61,7 @@ function PickerItem({ item, multipleClubs, raceType, busy, onUse }: { item: Usab
     <MapThumbnail clubId={item.clubId} version={version} name={map.name} />
     <h4>{map.name}</h4>
     {multipleClubs && <span className={styles.meta}>{text.club(item.clubName)}</span>}
-    <span className={styles.meta} data-testid="club-map-choice-summary">{clubMapDuplicatesSv.versions.summary(map.versions.length, map.years)}</span>
+    <span className={styles.meta} data-testid="club-map-choice-summary">{clubMapDuplicatesText.versions.summary(map.versions.length, map.years)}</span>
     {item.issues.map(issue => <span key={issue} className={styles.issue}>{text.issues[issue]}</span>)}
     {raceType && raceType !== "TRAINING" && item.issues.includes("TRAINING_ONLY") && <span className={styles.issue}>{text.trainingOnlyRace}</span>}
     {map.versions.length > 1 && <label className={styles.meta}>{text.version}
@@ -74,6 +81,7 @@ function PickerItem({ item, multipleClubs, raceType, busy, onUse }: { item: Usab
  */
 export function ClubMapPicker({ raceType, busy = false, label, onUse }: { raceType?: string | undefined; busy?: boolean; label?: string;
   onUse: (choice: ClubMapChoice) => void }) {
+  const text = useTexts(clubMapDuplicatesSv.picker, clubMapDuplicatesEn.picker);
   const { maps, failed } = useUsableMaps();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -103,11 +111,13 @@ export function ClubMapPicker({ raceType, busy = false, label, onUse }: { raceTy
 /** Banläggningens start: välj kartan och spara den direkt i tävlingen. */
 export function ClubMapToRace({ raceId, raceType, disabled, onSaved, onMessage }: { raceId: string; raceType?: string | undefined; disabled: boolean;
   onSaved: () => Promise<void>; onMessage: (message: { tone: "ok" | "error"; text: string } | undefined) => void }) {
+  const raceMapText = useTexts(raceMapSv, raceMapEn);
+  const text = useTexts(clubMapDuplicatesSv.picker, clubMapDuplicatesEn.picker);
   const [stage, setStage] = useState<Stage>();
   async function use(choice: ClubMapChoice) {
     onMessage(undefined);
     try {
-      const problem = await applyClubMap(choice, raceId, setStage);
+      const problem = await applyClubMap(choice, raceId, setStage, text, raceMapText.mapFile.errors);
       if (problem) { onMessage({ tone: "error", text: problem }); return; }
       onMessage({ tone: "ok", text: text.saved(choice.mapName) });
       await onSaved();
@@ -125,6 +135,7 @@ export function ClubMapToRace({ raceId, raceType, disabled, onSaved, onMessage }
 /** Ny tävling: kartan väljs i formuläret och sparas när tävlingen är skapad (`applyClubMap`). */
 export function ClubMapChoiceField({ value, disabled, onChange }: { value: ClubMapChoice | undefined; disabled: boolean;
   onChange: (choice: ClubMapChoice | undefined) => void }) {
+  const text = useTexts(clubMapDuplicatesSv.picker, clubMapDuplicatesEn.picker);
   if (value) {
     return <div className={styles.picker} data-testid="club-map-chosen">
       <span className={styles.meta}>{text.createLabel}</span>

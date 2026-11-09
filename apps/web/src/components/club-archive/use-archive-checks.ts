@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { clubArchiveChecksEn } from "../../i18n/club-archive-more-en";
+import { useTexts } from "../language-provider";
 import type { ClubArchiveEntryView, ClubArchiveList, ClubArchiveListItem } from "@o-tid/contracts";
 import { courseSummaries, layoutOverprint, readPpen, type CourseSettingDocument, type OverprintPrimitive } from "@o-tid/course-setting";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
@@ -19,7 +21,6 @@ import { paintCourseOnMap, type CourseData } from "./course-preview";
  * den. Automatiskt görs bara det som saknas eller ritades med en äldre läsare, högst sex kartversioner per besök; "Kontrollera
  * alla kartor igen" gör om allt. Servern sparar resultatet, så en körning som avbryts fortsätter nästa gång.
  */
-const text = clubArchiveChecksSv;
 const RENDER_MAX_SIDE = 2400;
 const MAP_THUMBNAIL_SIDE = 480;
 const ENTRY_THUMBNAIL = { width: 360, height: 240 };
@@ -100,7 +101,7 @@ async function runJob(clubId: string, job: Job, signal: AbortSignal): Promise<bo
       const { image, courseName } = await entryImage(clubId, entry, ready);
       await saveEntryThumbnail(clubId, entry.entryId, image
         ? { readerVersion: MAP_READER_VERSION, status: "OK", detail: null, mapVersionId: job.versionId, courseName, image }
-        : { readerVersion: MAP_READER_VERSION, status: "MAP_FAILED", detail: text.explain.TOO_LARGE, mapVersionId: job.versionId, courseName, image: null });
+        : { readerVersion: MAP_READER_VERSION, status: "MAP_FAILED", detail: clubArchiveChecksSv.explain.TOO_LARGE, mapVersionId: job.versionId, courseName, image: null });
     }
     return true;
   } finally {
@@ -114,6 +115,7 @@ async function runJob(clubId: string, job: Job, signal: AbortSignal): Promise<bo
  * arkivet på nytt efter varje kartversion, så att bilderna och märkena syns efter hand.
  */
 export function useArchiveChecks(clubId: string, list: ClubArchiveList | undefined, canCheck: boolean, reload: () => Promise<void>) {
+  const text = useTexts(clubArchiveChecksSv, clubArchiveChecksEn);
   const [state, setState] = useState<ChecksState>({ running: false });
   const controller = useRef<AbortController | null>(null);
   const started = useRef(false);

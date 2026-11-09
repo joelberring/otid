@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clubArchiveEn } from "../../i18n/club-archive-en";
+import { useTexts } from "../language-provider";
 import type { ClubArchiveEntryView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { alignedDocument, checkAlignment, controlsOutside } from "../../lib/club-archive-align";
@@ -10,8 +12,6 @@ import { usePpen } from "./use-ppen";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
 import styles from "./club-archive.module.css";
 
-const text = clubArchiveSv.reuse;
-const align = clubArchiveSv.align;
 const today = () => new Date().toLocaleDateString("sv-SE");
 
 /**
@@ -20,6 +20,9 @@ const today = () => new Date().toLocaleDateString("sv-SE");
  * ("Flytta banorna till senaste kartversionen") med förhandsvisning och, utan säker georeferens, förskjutning för hand.
  */
 export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiveEntryView; initialFileId: string | undefined; onClose: () => void }) {
+  const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
+  const align = useTexts(clubArchiveSv.align, clubArchiveEn.align);
+  const text = useTexts(clubArchiveSv.reuse, clubArchiveEn.reuse);
   const dialog = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(view.entry.title);
   const [date, setDate] = useState(today());
@@ -62,7 +65,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         : file.kind === "COURSE_DATA" ? { kind: "COURSE_DATA" as const, bytes: await fetchCourseFileBytes(view.clubId, file.courseFileId) } : null;
       const outcome = await reuseTraining({ clubId: view.clubId, requestId, eventName: name.trim(), raceDate: date, groupId: groupId || null,
         map: chosen ? { versionId: chosen.versionId, fileName: chosen.fileName } : null,
-        rendered: target?.state === "ready" ? target.rendered : undefined, course }, next => setStage(next));
+        rendered: target?.state === "ready" ? target.rendered : undefined, course }, next => setStage(next), clubArchiveText);
       if (outcome.kind === "failed") { setStage(undefined); setProblem(outcome.problem); return; }
       if (outcome.kind === "partial") {
         setStage(undefined);
@@ -75,7 +78,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
     } catch (error) {
       console.error("Använd igen misslyckades", error);
       setStage(undefined);
-      setProblem(clubArchiveSv.errors.generic(0));
+      setProblem(clubArchiveText.errors.generic(0));
     }
   }
 
@@ -104,7 +107,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         </select></Field>}
       {moving && <section aria-labelledby="align-title" className={styles.card}>
         <h3 id="align-title">{align.title}</h3>
-        {!check && <p role="status">{source?.state === "failed" || target?.state === "failed" ? clubArchiveSv.entry.previewFailed : align.checking}</p>}
+        {!check && <p role="status">{source?.state === "failed" || target?.state === "failed" ? clubArchiveText.entry.previewFailed : align.checking}</p>}
         {check && <p role="status" className={manual ? styles.warning : undefined} data-testid="alignment">
           {check.alignment.kind === "MANUAL" ? align.MANUAL[check.alignment.reason] : align[check.alignment.kind]}</p>}
         {check?.extentChanged && <p className={styles.small}>{align.extentChanged}</p>}
@@ -135,7 +138,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
       {problem && <Notice tone="error" role="alert">{problem}</Notice>}
       <div className={styles.actions}>
         <Button disabled={!ready} onClick={() => void start()}>{text.start}</Button>
-        <Button variant="secondary" disabled={Boolean(stage) && stage !== "done"} onClick={() => dialog.current?.close()}>{clubArchiveSv.entry.cancel}</Button>
+        <Button variant="secondary" disabled={Boolean(stage) && stage !== "done"} onClick={() => dialog.current?.close()}>{clubArchiveText.entry.cancel}</Button>
       </div>
     </div>
   </Dialog>;

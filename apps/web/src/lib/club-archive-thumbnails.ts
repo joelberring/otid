@@ -4,6 +4,7 @@ import {
 } from "@o-tid/contracts";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
 import { clubArchiveChecksSv } from "../i18n/club-archive-checks-sv";
+import type { Texts } from "./language";
 import { clubBase, clubRequest } from "./club-archive-client";
 import type { MapFileWorkerErrorCode } from "./map-file-worker-protocol";
 
@@ -11,7 +12,7 @@ import type { MapFileWorkerErrorCode } from "./map-file-worker-protocol";
  * ADR-0196: klubbarkivets kontroll av kartorna och de små bilderna. Kartorna ritas i den här webbläsaren (kartfilens Worker)
  * och bilden och beskedet sparas på servern, så att arkivet visar dem utan att rita igen.
  */
-const text = clubArchiveChecksSv;
+type ChecksTexts = Texts<typeof clubArchiveChecksSv>;
 
 /** Arbetarens felkod som kontrollens status. */
 export function checkStatusOf(code: MapFileWorkerErrorCode): ClubMapCheckStatus {
@@ -20,12 +21,12 @@ export function checkStatusOf(code: MapFileWorkerErrorCode): ClubMapCheckStatus 
 }
 
 /** Skälet i klartext: läsarens eget besked när det finns (t.ex. "OCAD 7 stöds inte. …"), annars en förklaring per fel. */
-export function renderFailureReason(code: MapFileWorkerErrorCode, message?: string | null): string {
+export function renderFailureReason(code: MapFileWorkerErrorCode, message?: string | null, text: ChecksTexts = clubArchiveChecksSv): string {
   return message?.trim() || text.explain[checkStatusOf(code)];
 }
 
 /** Kort etikett till statusmärket: "Fungerar · OCAD 11.2", "OCAD 7 stöds inte", "Filen är skadad" … */
-export function checkLabel(check: ClubMapCheckView | null): string {
+export function checkLabel(check: ClubMapCheckView | null, text: ChecksTexts = clubArchiveChecksSv): string {
   if (!check) return text.notChecked;
   if (check.status === "OK") return text.works(check.fileVersion);
   if (check.status === "UNSUPPORTED_VERSION" && check.detail) return check.detail.split(/\.\s/)[0]!.replace(/\.$/, "");
@@ -33,7 +34,7 @@ export function checkLabel(check: ClubMapCheckView | null): string {
 }
 
 /** Hela förklaringen (title och text under märket). */
-export function checkExplanation(check: ClubMapCheckView | null): string {
+export function checkExplanation(check: ClubMapCheckView | null, text: ChecksTexts = clubArchiveChecksSv): string {
   if (!check || check.status === "OK") return "";
   return check.detail ?? text.explain[check.status];
 }

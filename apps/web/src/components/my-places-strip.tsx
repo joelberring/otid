@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { clubArchiveEn } from "../i18n/club-archive-en";
 import { mapProjectEn } from "../i18n/map-project-en";
 import { useTexts } from "./language-provider";
 import { useEffect, useState } from "react";
@@ -22,6 +23,7 @@ import styles from "./my-places-strip.module.css";
  * Ankarna `#mina-klubbar` och `#mina-grupper` nås från kontomenyn på alla sidor.
  */
 export function MyPlacesStrip() {
+  const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const mapProjectText = useTexts(mapProjectSv, mapProjectEn);
   const [clubs, setClubs] = useState<ClubSummary[]>();
   const [groups, setGroups] = useState<GroupSummary[]>();
@@ -62,7 +64,7 @@ export function MyPlacesStrip() {
         {clubs.map(club => <li key={club.clubId}>
           <Link className={styles.chip} href={`/organizer/clubs/${encodeURIComponent(club.clubId)}`}>
             <strong>{club.name}</strong>
-            <span>{clubArchiveSv.roles[club.role]} · {clubArchiveSv.myClubs.entries(club.entries)}</span>
+            <span>{clubArchiveText.roles[club.role]} · {clubArchiveText.myClubs.entries(club.entries)}</span>
             {(club.pending ?? 0) > 0 && <span className={styles.badge}>{text.pending(club.pending!)}</span>}
           </Link>
         </li>)}

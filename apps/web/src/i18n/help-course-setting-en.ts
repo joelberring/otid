@@ -13,7 +13,7 @@ export const gettingStartedHelpArticlesEn: readonly HelpArticle[] = [
       "From an empty event to printed maps and readout. The club spaces and training groups are at the top of ”My events” (”My clubs”, ”My groups”) and in the menu with your name.",
       { steps: [
         "Write the name and date on ”My events”, choose ”Training” and press ”Create event”. See [Create an event](#skapa-tavling).",
-        "Open ”Course setting” and upload the map file, or take it with ”Välj karta från klubbarkivet”. See [Course setting and the map file](#banlaggning-start).",
+        "Open ”Course setting” and upload the map file, or take it with ”Choose map from the club archive”. See [Course setting and the map file](#banlaggning-start).",
         "Press ”Start with an empty course setting” (or ”Import .ppen” if the course is in Purple Pen).",
         "Press ”New course” and choose ”Scale for the course” in the course's properties. Click out the controls, start and finish. See [Controls and courses](#kontroller-banor).",
         "Corridor, contours or another form: the tab ”Training”. See [Training forms](#traning).",
@@ -62,7 +62,7 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
         "OCAD 7 and older do not work: open the map and save it in a newer OCAD or in Mapper.",
         "The map file is the same as under ”Map and route choice” in the workspace.",
         "If the map has no georeference, set three points under ”Map and route choice”. The position in field mode needs it.",
-        "If the map is in the club's archive: ”Välj karta från klubbarkivet” → ”Använd kartan”. See [Duplicates and versions of maps](#arkiv-dubbletter)."
+        "If the map is in the club's archive: ”Choose map from the club archive” → ”Use the map”. See [Duplicates and versions of maps](#arkiv-dubbletter)."
       ],
       "Then: ”Import .ppen” from Purple Pen or ”Start with an empty course setting”."
     ]
@@ -91,7 +91,7 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
       [
         "”Courses” → ”Import course file”: if the event has a map file, ”Put the courses in course setting” is offered.",
         "If there are courses already: ”Replace the course setting's courses …” and ”Yes, replace”. The old one is saved as an earlier version.",
-        "”Använd igen” in the club archive on a training with only a course file opens course setting with the courses directly.",
+        "”Use again” in the club archive on a training with only a course file opens course setting with the courses directly.",
         "The controls end up in the same place on the map file as in the program that wrote the file. Start, finish, crossings, score courses and classes come along.",
         "Variants become forks or loops when it fits exactly; otherwise each variant becomes its own course and the message says so.",
         "The course file has no control descriptions. Fill them in under the tab ”Description”."

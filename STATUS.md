@@ -88,6 +88,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 33: kartprojekten och kartredigeraren (listan, sidan, medlemmar, nya versioner, verktyg, lager, underlag, ortofoto,
   laser, markfuktighet, vektorimport, generalisering, normkontroll, rättning, rekning, notiser och statistik). Rättat även
   kartritarens länk där texten valdes två gånger.
+- Del 34: klubbytan och klubbarkivet (träningar, kartor, dubbletter, medlemmar, enheter, kontrollen, importen, Eventor,
+  Kom igång, Från klubben) och hjälpartiklarna om klubben och arkivet. Kvar på svenska: träningsgrupper, superadmin,
+  inbjudningsmejlet, formulärkontrollen och beslutsgranskningen.
 - Del 30: träningsläget, Layout-fliken (överblick, layouter, ark, klasser, lägen) och papperet (texter, bilder, klippning, mallar).
 - Del 29: banans egenskaper, kontrollbeskrivningen, varianterna, nivåstödet (Green–Black), utseendet, BL-förslaget och
   förslagens åtgärder i text (flyttade till `course-setting-edits-sv/en.ts`, en post per åtgärd).

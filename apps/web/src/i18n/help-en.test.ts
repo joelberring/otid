@@ -35,7 +35,7 @@ const swedish = uiOf(false);
 for (const text of [...strings(readoutText), ...strings(partyText)]) swedish.add(text.trim());
 
 /** Knappar i delar som inte är översatta än (banläggningen, klubbarkivet, kontosammanslagningen). */
-const SWEDISH_STILL = ["Använd igen", "Använd kartan", "Flytta kopplingen och ta bort dubbletten", "Från klubben", "Välj karta från klubbarkivet"];
+const SWEDISH_STILL = ["Flytta kopplingen och ta bort dubbletten"];
 
 const quoted = (text: string) => [...text.matchAll(/”([^”]+)”/g)].map(match => match[1]!);
 const shown = (text: string) => text.replace(HELP_LINK, "$1");

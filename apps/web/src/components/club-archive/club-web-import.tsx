@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { clubWebImportEn } from "../../i18n/club-archive-more-en";
+import { clubArchiveEn } from "../../i18n/club-archive-en";
+import { useTexts } from "../language-provider";
 import { buildImportPlan, formatReport, LEADERS_BY_DEFAULT, uploadPlan, type ScanResult, type UploadEvent } from "@o-tid/club-archive";
 import { openBrowserSources, scanBrowserSources, type BrowserRoot } from "@o-tid/club-archive/browser";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, type ClubView } from "@o-tid/contracts";
@@ -13,7 +16,6 @@ import { Button, Notice } from "../ui";
 import { ClubImportPreview, type ServerState } from "./club-import-preview";
 import styles from "./club-archive.module.css";
 
-const text = clubWebImportSv;
 /** Träningar per omgång i webbläsaren (kommandot tar 100): förloppet rör sig oftare. */
 const ENTRIES_PER_BATCH = 25;
 
@@ -40,6 +42,8 @@ const directoryInput = { webkitdirectory: "", directory: "" } as Record<string, 
  * helst; importen är idempotent, så "Importera" igen fortsätter där den slutade, också efter en stängd flik.
  */
 export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: () => Promise<void> }) {
+  const text = useTexts(clubWebImportSv, clubWebImportEn);
+  const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const [roots, setRoots] = useState<BrowserRoot[]>([]);
   const [withoutLeaders, setWithoutLeaders] = useState(!LEADERS_BY_DEFAULT);
   const [phase, setPhase] = useState<Phase>({ kind: "choose" });
@@ -90,7 +94,7 @@ export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: 
   async function refreshServer(result: Scanned, signal: AbortSignal) {
     setPhase({ kind: "checking" });
     const preview = buildImportPlan(result.scan.scanned, { withLeaders: !withoutLeaders });
-    const status = await createWebImportClient(club.clubId, signal).status(preview.maps.flatMap(map => map.versions.map(version => version.sha256)),
+    const status = await createWebImportClient(club.clubId, signal, text.errors).status(preview.maps.flatMap(map => map.versions.map(version => version.sha256)),
       preview.trainings.map(training => training.key));
     setServer(status);
   }
@@ -131,7 +135,7 @@ export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: 
       else step(text.progressTrainings(event.done + event.size, event.total));
     };
     try {
-      const result = await uploadPlan({ plan, scan: scanned.scan, client: createWebImportClient(club.clubId, signal), onEvent, signal,
+      const result = await uploadPlan({ plan, scan: scanned.scan, client: createWebImportClient(club.clubId, signal, text.errors), onEvent, signal,
         maxEntriesPerBatch: ENTRIES_PER_BATCH });
       const line = text.done(result.uploaded, result.skippedUploads, result.created, result.existing, result.courseFiles);
       await onChanged();
@@ -187,7 +191,7 @@ export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: 
         <input type="checkbox" checked={withoutLeaders} disabled={phase.kind === "uploading"} onChange={event => setWithoutLeaders(event.target.checked)} />
         {text.leaders}
       </label>
-      <p className={styles.small}>{text.leadersHint} <code>{clubArchiveSv.importer.leadersFlag}</code>.</p>
+      <p className={styles.small}>{text.leadersHint} <code>{clubArchiveText.importer.leadersFlag}</code>.</p>
       <div className={styles.actions}>
         {(phase.kind === "choose" || (phase.kind === "stopped" && !scanned)) &&
           <Button disabled={fileCount === 0} onClick={() => void preview()}>{text.preview}</Button>}

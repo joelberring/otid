@@ -44,7 +44,7 @@ RUN set -eu; \
   curl -fsSL -o /tmp/libredwg.tar.xz "https://github.com/LibreDWG/libredwg/releases/download/${LIBREDWG_VERSION}/libredwg-${LIBREDWG_VERSION}.tar.xz"; \
   echo "${LIBREDWG_SHA256}  /tmp/libredwg.tar.xz" | sha256sum -c -; \
   mkdir /src; tar -xJf /tmp/libredwg.tar.xz -C /src --strip-components=1; cd /src; \
-  ./configure ${host} --disable-bindings --enable-release --disable-shared --prefix=/usr/local; \
+  ./configure ${host} --disable-bindings --disable-python --enable-release --disable-shared --prefix=/usr/local; \
   make -j2 -C src; make -j2 -C programs dwgread; \
   mkdir -p /opt/libredwg/bin; "${strip}" -o /opt/libredwg/bin/dwgread programs/dwgread; cp COPYING /opt/libredwg/
 

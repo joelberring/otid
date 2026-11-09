@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { partyEn } from "../../i18n/workspace-more-en";
+import { useTexts } from "../language-provider";
 import { partyStateResponseSchema, type PartyChangeRequest, type PartyStateResponse } from "@o-tid/contracts";
 import { formatPartyKronor, formatPartyTime, parseRaceClock, PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName, partyDisplayName, partyMemoryWarning, partyPurchasesCsv, partySummaryCsv,
   type PartyLedger } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import local from "./party.module.css";
-import { partySv as text } from "../../i18n/party-sv";
+import { partySv } from "../../i18n/party-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Notice, Section, Table, numeric, DateInput } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -42,6 +44,7 @@ export function PartyPanel({ ws }: { ws: Workspace }) {
 }
 
 function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean; ws: Workspace }) {
+  const text = useTexts(partySv, partyEn);
   const [state, setState] = useState<PartyStateResponse>();
   const [problem, setProblem] = useState<string>();
   const [saved, setSaved] = useState<string>();
@@ -224,6 +227,7 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
 
 function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: boolean;
   onSave: (startsAt: string, names: boolean, doublePunchSeconds: number) => Promise<boolean> }) {
+  const text = useTexts(partySv, partyEn);
   const current = state.startsAt ? formatPartyTime(state.startsAt, state.timeZone) : undefined;
   const today = formatPartyTime(new Date().toISOString(), state.timeZone).slice(0, 10);
   const [date, setDate] = useState(current?.slice(0, 10) ?? today);
@@ -257,6 +261,7 @@ function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: b
 }
 
 function AddItemForm({ busy, onAdd }: { busy: boolean; onAdd: (code: number, name: string, priceOre: number, group: string | null) => Promise<boolean> }) {
+  const text = useTexts(partySv, partyEn);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [group, setGroup] = useState("");
@@ -283,6 +288,7 @@ function AddItemForm({ busy, onAdd }: { busy: boolean; onAdd: (code: number, nam
 
 function ItemRow({ item, busy, onSave }: { item: PartyStateResponse["items"][number]; busy: boolean;
   onSave: (name: string, priceOre: number, hidden: boolean, group: string | null) => Promise<boolean> }) {
+  const text = useTexts(partySv, partyEn);
   const [name, setName] = useState(item.name);
   const [group, setGroup] = useState(item.group ?? "");
   const [price, setPrice] = useState(formatPartyKronor(item.priceOre));
@@ -304,6 +310,7 @@ function ItemRow({ item, busy, onSave }: { item: PartyStateResponse["items"][num
 
 function GuestName({ guest, busy, onSave }: { guest: PartyStateResponse["guests"][number]; busy: boolean;
   onSave: (name: string, club: string, displayName: string) => Promise<boolean> }) {
+  const text = useTexts(partySv, partyEn);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(guest.name ?? "");
   const [club, setClub] = useState(guest.club ?? "");

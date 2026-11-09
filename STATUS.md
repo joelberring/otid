@@ -58,7 +58,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 16: rogaining, speakersidan och radiokontrollerna (inställningar, resultatlistan, Live och speakern;
   `workspace-more-en.ts`).
 - Del 17: stafetten (klasser, mallar, lag, lagkortet, start, avläsningens lag ute och omstarter; `workspace-relay-en.ts`).
-  Kvar: festens bardisk, avläsningen, hjälpen och banläggningen.
+- Del 18: festen i arbetsytan (start, utseende, varor, skyltar, köp, gäster och export). Kvar: bardisken och avläsningen,
+  hjälpen och banläggningen.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

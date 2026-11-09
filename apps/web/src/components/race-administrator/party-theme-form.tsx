@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { partyEn } from "../../i18n/workspace-more-en";
+import { useTexts } from "../language-provider";
 import type { PartyChangeRequest, PartyStateResponse } from "@o-tid/contracts";
 import { contrastRatio } from "@o-tid/domain";
 import local from "./party.module.css";
 import styles from "../race-administrator-workspace.module.css";
-import { partySv as text } from "../../i18n/party-sv";
+import { partySv } from "../../i18n/party-sv";
 import { CENTRUM_PRESET, NEUTRAL_PARTY_COLORS, partyThemeStyle } from "../../lib/party-theme-style";
 import { Button } from "../ui";
 
@@ -16,6 +18,7 @@ const LOGO_MAX_BYTES = 1_048_576;
 export function PartyThemeForm({ state, busy, onChange, onLogo }: { state: PartyStateResponse; busy: boolean;
   onChange: (change: Extract<PartyChangeRequest["change"], { kind: "theme" }>) => Promise<boolean>;
   onLogo: (file: File | null) => Promise<boolean> }) {
+  const text = useTexts(partySv, partyEn);
   const theme = state.theme;
   const [title, setTitle] = useState(theme?.title ?? "");
   const [primary, setPrimary] = useState(theme?.primary ?? "");

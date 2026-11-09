@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { partyEn } from "../../i18n/workspace-more-en";
+import { useTexts } from "../language-provider";
 import { partyStateResponseSchema, type PartyStateResponse } from "@o-tid/contracts";
 import { formatPartyKronor } from "@o-tid/domain";
-import { partySv as text } from "../../i18n/party-sv";
+import { partySv } from "../../i18n/party-sv";
 import styles from "./party-labels.module.css";
 
 /**
@@ -15,6 +17,7 @@ const SIZES = { SMALL: { width: 45, height: 30 }, MEDIUM: { width: 60, height: 3
 type Size = keyof typeof SIZES;
 
 export function PartyLabels({ raceId }: { raceId: string }) {
+  const text = useTexts(partySv, partyEn);
   const [state, setState] = useState<PartyStateResponse>();
   const [failed, setFailed] = useState(false);
   const [size, setSize] = useState<Size>("SMALL");

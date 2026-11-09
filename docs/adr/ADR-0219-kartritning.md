@@ -441,3 +441,17 @@ norm, och när kartor kombineras ska det synas tydligt vad som slås ihop.
    finns i normen. Varje objekt blir en ändring av symbolen (som går att ångra, och blir förslag där det gäller).
 4. **Nästa steg:** skisslager och egna arbetslager (objekt som inte hör till kartan) kräver en egen lagring och kommer
    därefter, liksom en tabell för äldre normers nummer (ISOM 2000, ISSOM 2007).
+
+### Tillägg 2026-11-09: städning av baskartor vid importen (K6b)
+
+Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpar, slår ihop brutna linjer). Nytt:
+
+1. **Ytor av slutna linjer:** öppna linjer i ett lager som kopplats till en yta (t.ex. fasadlinjer → byggnad 521) slås ihop,
+   och de som sluter sig (ändarna inom 0,05 mm) blir ytor. Det som inte sluter sig räknas som fel form, som förut.
+2. **Samma yta från två lager:** dubbletter jämförs oberoende av startpunkt och riktning, så en byggnad som finns både som
+   skraffyr och som fasadlinjer blir en yta.
+3. **Trappor av steg:** i ett lager som kopplats till trappan (532) blir korta raka steglinjer (högst 3 mm) som ligger
+   parallellt (högst 15°) och tätt (högst 1 mm mellan mitterna, inte i förlängningen av varandra) en trapplinje genom
+   stegens mitter. Grupper med färre än tre steg lämnas som de är.
+4. Allt sker bara inom samma symbol; olika symboler slås aldrig ihop vid importen. Antalen visas i importens sammanfattning.
+

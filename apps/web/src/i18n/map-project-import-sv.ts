@@ -23,9 +23,11 @@ export const mapProjectImportSv = {
       areas && plural(areas, "yta", "ytor")].filter(Boolean).join(", "),
   skip: "Hoppa över",
   symbolFor: (layer: string) => `Symbol för ${layer}`,
-  result: (objects: number, joined: number, duplicates: number, short: number, outside: number, mismatched: number, clipped: number) =>
+  result: (objects: number, joined: number, duplicates: number, short: number, outside: number, mismatched: number, clipped: number,
+    closedAreas: number, stairs: number, steps: number) =>
     `${plural(objects, "kandidat", "kandidater")}`
-    + [joined && `${joined} hopslagna`, clipped && `${clipped} klippta vid kanten`, duplicates && `${duplicates} dubbletter borta`, short && `${short} korta stumpar borta`,
+    + [joined && `${joined} hopslagna`, closedAreas && `${plural(closedAreas, "yta", "ytor")} av slutna linjer`,
+      stairs && `${plural(stairs, "trappa", "trappor")} av ${steps} steg`, clipped && `${clipped} klippta vid kanten`, duplicates && `${duplicates} dubbletter borta`, short && `${short} korta stumpar borta`,
       outside && `${outside} utanför kartan`, mismatched && `${mismatched} med fel form`].filter(Boolean).map(part => ` · ${part}`).join(""),
   propose: (count: number) => `Lämna ${plural(count, "kandidat", "kandidater")} som förslag`,
   sending: (done: number, total: number) => `Skickar ${done} av ${total} …`,

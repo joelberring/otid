@@ -121,6 +121,8 @@ export interface ImportOptions {
   readonly bounds?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
   /** Kortare linjer (mm) hoppas över; förval 0,3 mm. */
   readonly minLengthMm?: number;
+  /** Trappsymbolerna (id): korta parallella steglinjer i en trappsymbol blir en trapplinja längs trappan. */
+  readonly stairSymbols?: ReadonlySet<string> | undefined;
 }
 export interface ImportResult {
   readonly objects: MapObject[];
@@ -129,6 +131,10 @@ export interface ImportResult {
   readonly clipped: number;
   /** Objekt vars form inte passar symbolen (en öppen linje som yta, en yta som punkt). */
   readonly mismatched: number;
+  /** Ytor som byggts av öppna linjer som sluter sig när de slagits ihop (t.ex. fasadlinjer till en byggnad). */
+  readonly closedAreas: number;
+  /** Trappor som byggts av steglinjer, och hur många steglinjer de ersatte. */
+  readonly stairs: number; readonly steps: number;
 }
 
 const length = (points: readonly Point[]) => points.reduce((sum, point, index) => index === 0 ? 0 : sum + Math.hypot(point.x - points[index - 1]!.x,
@@ -229,11 +235,13 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
   let outside = 0, mismatched = 0, short = 0, clipped = 0;
   const objects: MapObject[] = [];
   const openLines = new Map<string, Point[][]>();
+  const openAreas = new Map<string, Point[][]>();
   for (const { layer, geometry } of features) {
     const target = options.mapping.get(layer);
     if (!target) continue;
     const converted = convert(geometry, target.kind, map);
     if (!converted) { mismatched += 1; continue; }
+    if (target.kind === "area" && converted.kind === "line") { openAreas.set(target.symbol, [...(openAreas.get(target.symbol) ?? []), converted.points]); continue; }
     if (converted.kind === "point") {
       if (bounds && !within(bounds, converted.at)) { outside += 1; continue; }
       objects.push({ kind: "point", symbol: target.symbol, at: converted.at, angle: 0 });
@@ -252,8 +260,32 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
       else for (const piece of pieces) openLines.set(target.symbol, [...(openLines.get(target.symbol) ?? []), piece]);
     }
   }
-  let joined = 0;
-  for (const [symbol, lines] of openLines) {
+  let joined = 0, closedAreas = 0, stairs = 0, steps = 0;
+  const pushArea = (symbol: string, ring: Point[]) => {
+    const kept = bounds ? clipRing(ring, bounds) : ring;
+    if (kept.length < 3) { outside += 1; return false; }
+    if (!same(kept, ring)) clipped += 1;
+    objects.push({ kind: "area", symbol, rings: [pathOf(kept)], angle: 0 });
+    return true;
+  };
+  for (const [symbol, lines] of openAreas) {
+    const result = joinLines(lines);
+    joined += result.joined;
+    for (const line of result.lines) {
+      const first = line[0]!, last = line[line.length - 1]!;
+      if (line.length >= 4 && Math.hypot(first.x - last.x, first.y - last.y) <= CLOSE_MM) {
+        if (pushArea(symbol, line.slice(0, -1))) closedAreas += 1;
+      } else mismatched += 1;
+    }
+  }
+  for (const [symbol, all] of openLines) {
+    let lines = all;
+    if (options.stairSymbols?.has(symbol)) {
+      const found = stairsFromSteps(all);
+      lines = found.rest;
+      stairs += found.stairs.length; steps += found.steps;
+      for (const stair of found.stairs) objects.push({ kind: "line", symbol, path: pathOf(stair) });
+    }
     const result = joinLines(lines);
     joined += result.joined;
     for (const line of result.lines) {
@@ -267,13 +299,14 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
   // Dubbletter: samma symbol och samma punkter (på 0,01 mm).
   const seen = new Set<string>();
   const unique = objects.filter(object => {
-    const points = object.kind === "point" || object.kind === "text" ? [object.at] : object.kind === "line" ? object.path : object.rings.flat();
-    const key = `${object.symbol}|${points.map(keyOf).join(";")}`;
+    const key = object.kind === "point" || object.kind === "text" ? `${object.symbol}|${keyOf(object.at)}`
+      : object.kind === "line" ? `${object.symbol}|${object.path.map(keyOf).join(";")}`
+      : `${object.symbol}|${object.rings.map(ringKey).join("|")}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-  return { objects: unique, outside, clipped, duplicates: objects.length - unique.length, short, joined, mismatched };
+  return { objects: unique, outside, clipped, duplicates: objects.length - unique.length, short, joined, mismatched, closedAreas, stairs, steps };
 }
 
 type Converted = { kind: "point"; at: Point } | { kind: "line"; points: Point[]; closed: boolean } | { kind: "area"; rings: Point[][] };
@@ -286,5 +319,82 @@ function convert(geometry: SourceGeometry, kind: TargetKind, map: (points: reado
     return { kind: "line", points: map(geometry.rings[0] ?? []), closed: true };
   }
   if (geometry.kind === "area") return { kind: "area", rings: geometry.rings.map(ring => map(ring)) };
-  return geometry.closed && geometry.points.length >= 3 ? { kind: "area", rings: [map(geometry.points)] } : undefined;
+  if (geometry.closed && geometry.points.length >= 3) return { kind: "area", rings: [map(geometry.points)] };
+  // En öppen linje till en yta: sparas och slås ihop med andra; sluter de sig blir de en yta.
+  return geometry.points.length >= 2 ? { kind: "line", points: map(geometry.points), closed: false } : undefined;
+}
+
+const CLOSE_MM = 0.05;
+const STEP_MAX_MM = 3;
+const STEP_GAP_MM = 1;
+const STEP_ANGLE = 15 * Math.PI / 180;
+const MIN_STEPS = 3;
+
+/** En nästan rak linje (alla punkter inom 0,05 mm från kordan). */
+function straight(points: readonly Point[]): boolean {
+  const a = points[0]!, b = points[points.length - 1]!;
+  const chord = Math.hypot(b.x - a.x, b.y - a.y);
+  if (chord === 0) return false;
+  return points.every(point => Math.abs((b.x - a.x) * (a.y - point.y) - (a.x - point.x) * (b.y - a.y)) / chord <= 0.05);
+}
+
+/**
+ * Trappor ur steglinjer: korta raka linjer som ligger parallellt och tätt (högst 1 mm mellan mitterna, högst 15° vinkelskillnad)
+ * blir en linje genom stegens mittpunkter, i trappans riktning. Grupper med färre än tre steg lämnas som de är.
+ */
+export function stairsFromSteps(lines: readonly Point[][]): { stairs: Point[][]; rest: Point[][]; steps: number } {
+  const steps: { line: Point[]; mid: Point; angle: number; length: number }[] = [];
+  const rest: Point[][] = [];
+  for (const line of lines) {
+    const a = line[0]!, b = line[line.length - 1]!;
+    const lengthMm = Math.hypot(b.x - a.x, b.y - a.y);
+    if (lengthMm > 0 && lengthMm <= STEP_MAX_MM && straight(line)) {
+      // Riktningen modulo 180°.
+      let angle = Math.atan2(b.y - a.y, b.x - a.x);
+      if (angle < 0) angle += Math.PI;
+      if (angle >= Math.PI) angle -= Math.PI;
+      steps.push({ line, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, angle, length: lengthMm });
+    } else rest.push(line);
+  }
+  const parent = steps.map((_, index) => index);
+  const find = (index: number): number => { while (parent[index] !== index) { parent[index] = parent[parent[index]!]!; index = parent[index]!; } return index; };
+  for (let i = 0; i < steps.length; i += 1) for (let j = i + 1; j < steps.length; j += 1) {
+    const s = steps[i]!, t = steps[j]!;
+    let turn = Math.abs(s.angle - t.angle);
+    turn = Math.min(turn, Math.PI - turn);
+    if (turn > STEP_ANGLE) continue;
+    const dx = t.mid.x - s.mid.x, dy = t.mid.y - s.mid.y;
+    if (Math.hypot(dx, dy) > STEP_GAP_MM) continue;
+    // Stegen ska ligga bredvid varandra, inte i förlängningen av varandra.
+    const along = Math.abs(dx * Math.cos(s.angle) + dy * Math.sin(s.angle));
+    if (along > Math.min(s.length, t.length) / 2) continue;
+    parent[find(j)] = find(i);
+  }
+  const groups = new Map<number, number[]>();
+  steps.forEach((_, index) => groups.set(find(index), [...(groups.get(find(index)) ?? []), index]));
+  const stairs: Point[][] = [];
+  let used = 0;
+  for (const members of groups.values()) {
+    if (members.length < MIN_STEPS) { for (const index of members) rest.push(steps[index]!.line); continue; }
+    const angle = members.reduce((sum, index) => sum + steps[index]!.angle, 0) / members.length;
+    const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
+    const mids = members.map(index => steps[index]!.mid).sort((p, q) => (p.x * normal.x + p.y * normal.y) - (q.x * normal.x + q.y * normal.y));
+    stairs.push(mids);
+    used += members.length;
+  }
+  return { stairs, rest, steps: used };
+}
+
+/** Ringens nyckel oberoende av startpunkt och riktning, så att samma yta från två lager känns igen. */
+function ringKey(ring: readonly Point[]): string {
+  const keys = ring.map(keyOf);
+  if (keys.length > 1 && keys[0] === keys[keys.length - 1]) keys.pop();
+  if (keys.length === 0) return "";
+  // Börja i den minsta punkten och välj det håll som ger den minsta nyckeln (linjärt, även för långa ringar).
+  let start = 0;
+  keys.forEach((key, at) => { if (key < keys[start]!) start = at; });
+  const forward = [...keys.slice(start), ...keys.slice(0, start)];
+  const backward = [forward[0]!, ...forward.slice(1).reverse()];
+  const a = forward.join(";"), b = backward.join(";");
+  return a < b ? a : b;
 }

@@ -76,7 +76,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
         {text.profileUsed(importer.profile.name, importer.profile.matched, importer.profile.layers)}</p>}
       <ProfileForm importer={importer} />
       {result && <p className={styles.muted} data-testid="map-project-import-result" role="status">
-        {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped)}</p>}
+        {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped, result.closedAreas, result.stairs, result.steps)}</p>}
       {!result && importer.crs !== undefined && <p role="alert" className={styles.problem}>{text.problems.crs}</p>}
       <span className={styles.actions}>
         <Button type="submit" disabled={!result || result.objects.length === 0 || !!importer.progress} data-testid="map-project-import-propose">

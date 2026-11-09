@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – K6b: städning av baskartor (ytor av slutna linjer, trappor av steg)
+- Fasadlinjer som sluter sig blir byggnadsytor, samma byggnad som skraffyr och linjer blir en, korta parallella steg i
+  trapplagret blir en trapplinje (532). Bara inom samma symbol; antalen syns i importen.
+- Verifierat: enhetstester `vector-import` (åtta test).
+- Kvar: passpunkter (gummiduk) för skannade kartor och äldre kartor.
+
 ### 2026-11-09 – Kartredigeraren: lager efter normen, lås, nedtonat och slå ihop symboler
 - Lagren är normens grupper med symbolerna som underlager och ett lager för det som är utanför normen; tänd, släck, lås och
   visa låsta lager nedtonade. Slå ihop symboler med förslag (samma nummer eller namn) och en tydlig förhandsvisning.

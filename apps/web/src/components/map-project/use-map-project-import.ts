@@ -140,7 +140,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       if (kind === "point" || kind === "line" || kind === "area") targets.set(layer, { symbol: id, kind });
     }
     try {
-      return importObjects(file.data.features, { mapping: targets, toMap: (x, y) => sourcePointToMap(georeference, crs, x, y), bounds: clip ?? bounds });
+      // Trappan (532) byggs av baskartornas steglinjer.
+      const stairSymbols = new Set([...symbols.values()].filter(symbol => symbol.code.replace(/\.0+$/, "") === "532").map(symbol => symbol.id));
+      return importObjects(file.data.features, { mapping: targets, toMap: (x, y) => sourcePointToMap(georeference, crs, x, y), bounds: clip ?? bounds,
+        stairSymbols });
     } catch { return undefined; }
   }, [file, georeference, crs, mapping, symbols, bounds, clip]);
 

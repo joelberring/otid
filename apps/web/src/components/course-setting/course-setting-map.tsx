@@ -93,7 +93,7 @@ const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
  */
 export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts, others, marks, analysis, label, cursor, handlers, handle, noteMarks,
   selectedNote, onNoteTap, suggestion, cursorAt, highlightRoute, position, cross, inspected, onPan, symbols, overlayExtra, sketches, mapPasses, renderKey,
-  hiddenSymbols }: {
+  hiddenSymbols, dimmedSymbols }: {
   /** Bara `render` används (kartprojektets editor har en egen Worker med samma beställning, ADR-0219). */
   session: Pick<MapRenderSession, "render"> | undefined;
   mapBounds: Bounds | undefined;
@@ -138,6 +138,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   renderKey?: unknown;
   /** ADR-0219 (K1): symbolerna (id) som inte ritas (lagren i kartprojektets editor). */
   hiddenSymbols?: readonly string[] | undefined;
+  /** Kartprojektet: låsta lager som ritas nedtonade. */
+  dimmedSymbols?: readonly string[] | undefined;
 }) {
   const [imageVersion, setImageVersion] = useState(0);
   const [hoverCursor, setHoverCursor] = useState<string>();
@@ -232,7 +234,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const timer = setTimeout(() => {
       const ratio = Math.min(window.devicePixelRatio || 1, MAX_RENDER_SIDE / Math.max(view.width, view.height));
       const request = { width: view.width * ratio, height: view.height * ratio, pxPerMm: view.pxPerMm * ratio, origin: topLeft(view),
-        ...(mapPasses ? { passes: mapPasses } : {}), ...(hiddenSymbols ? { hiddenSymbols } : {}) };
+        ...(mapPasses ? { passes: mapPasses } : {}), ...(hiddenSymbols ? { hiddenSymbols } : {}),
+        ...(dimmedSymbols?.length ? { dimmedSymbols } : {}) };
       session.render(request, (_id, bitmap) => {
         const next = { bitmap, view, passes: mapPasses?.length ?? 0 };
         if (staleOverview.current) {
@@ -250,16 +253,16 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       });
     }, 120);
     return () => clearTimeout(timer);
-  }, [session, view, mapPasses, renderKey, hiddenSymbols]);
+  }, [session, view, mapPasses, renderKey, hiddenSymbols, dimmedSymbols]);
   // En ny träning, ändrad karta eller andra lager: översiktsbilden gäller inte längre (den ritades med det gamla) och byts mot
   // nästa bild.
-  const passesRef = useRef<unknown[]>([mapPasses, renderKey, hiddenSymbols]);
+  const passesRef = useRef<unknown[]>([mapPasses, renderKey, hiddenSymbols, dimmedSymbols]);
   useEffect(() => {
-    const [passes, key, hidden] = passesRef.current;
-    if (passes === mapPasses && key === renderKey && hidden === hiddenSymbols) return;
-    passesRef.current = [mapPasses, renderKey, hiddenSymbols];
+    const [passes, key, hidden, dimmed] = passesRef.current;
+    if (passes === mapPasses && key === renderKey && hidden === hiddenSymbols && dimmed === dimmedSymbols) return;
+    passesRef.current = [mapPasses, renderKey, hiddenSymbols, dimmedSymbols];
     staleOverview.current = true;
-  }, [mapPasses, renderKey, hiddenSymbols]);
+  }, [mapPasses, renderKey, hiddenSymbols, dimmedSymbols]);
   useEffect(() => () => {
     if (drawn.current && drawn.current !== overview.current) drawn.current.bitmap.close();
     overview.current?.bitmap.close();

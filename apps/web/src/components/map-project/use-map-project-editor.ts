@@ -44,6 +44,8 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   const [bounds, setBounds] = useState<Bounds>();
   const [colors, setColors] = useState<readonly MapColor[]>([]);
   const [georeference, setGeoreference] = useState<MapGeoreference | null>(null);
+  /** Kartans skala (normen för lagren). */
+  const [scale, setScale] = useState<number>();
   const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [catalog, setCatalog] = useState<readonly CatalogSymbol[]>([]);
   const [client, setClient] = useState<StoredClient>();
@@ -67,7 +69,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const created = new MapProjectSession(createWorker, loaded => {
       if (closed) return;
       // En ny tom karta: kartvyn täcker området.
-      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); setGeoreference(loaded.georeference); setMapStatus("ready");
+      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); setGeoreference(loaded.georeference); setScale(loaded.scale); setMapStatus("ready");
       created.catalog(symbols => { if (!closed) setCatalog(symbols); });
     }, () => { if (!closed) setMapStatus("failed"); });
     void (async () => {
@@ -212,7 +214,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   }, [store, scheduleSend]);
 
   return {
-    session, bounds, colors, georeference, mapStatus, catalog, renderKey, sync, notice, setNotice,
+    session, bounds, colors, georeference, scale, mapStatus, catalog, renderKey, sync, notice, setNotice,
     state: client?.state, history, commit, undo: () => step("undo"), redo: () => step("redo"), resolve, syncNow,
     /** Objekten som dras (ritas inte av Workern medan förhandsvisningen syns ovanpå). */
     setPreview

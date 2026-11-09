@@ -24,7 +24,9 @@ import { NoteDetail, NoteForm, NotesPanel } from "./map-project-notes";
 import { useMapProjectNotes } from "./use-map-project-notes";
 import { metersPerMm, toMapPosition } from "../../lib/course-setting-geo";
 import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
-import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
+import type { CatalogSymbol } from "../../lib/map-project-protocol";
+import { MapProjectSymbolLayers } from "./map-project-symbol-layers";
+import { useMapProjectSymbolLayers } from "./use-map-project-symbol-layers";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
@@ -154,7 +156,6 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [newArea, setNewArea] = useState<readonly Point[]>();
   const [tool, setTool] = useState<Tool>("select");
   const [symbolId, setSymbolId] = useState<string>();
-  const [hiddenGroups, setHiddenGroups] = useState<ReadonlySet<SymbolGroup>>(new Set());
   const [selected, setSelected] = useState<Selected>();
   const [activeVertex, setActiveVertex] = useState<VertexAddress>();
   const [rotating, setRotating] = useState(false);
@@ -196,7 +197,12 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const generalizer = useMapProjectGeneralize(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const candidates = importer.candidates;
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
-  const hiddenSymbols = useMemo(() => catalog.filter(entry => hiddenGroups.has(entry.group)).map(entry => entry.id), [catalog, hiddenGroups]);
+  // Ägaren 2026-11-09: lagren efter normen. Släckta och låsta lager går inte att markera; låsta kan visas nedtonade.
+  const symbolLayers = useMapProjectSymbolLayers({ projectId: view.projectId, catalog, scale: editor.scale ?? georeference?.scale, session, commit });
+  const hiddenSymbols = symbolLayers.hidden;
+  const unselectable = useMemo(() => [...symbolLayers.hidden, ...symbolLayers.locked], [symbolLayers.hidden, symbolLayers.locked]);
+  const lockedSymbols = symbolLayers.locked;
+  useEffect(() => { if (selected && lockedSymbols.has(selected.object.symbol)) deselect(); }, [lockedSymbols, selected]);
 
   const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); setMoveWhole(false); };
   const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); setCircleCenter(undefined); };
@@ -340,7 +346,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         // objektet under nås med Alt-klick eller ett klick inne i en yta.
         if (!modifiers.alt && nearestSegment(selected.object, point, tolerance)) { setActiveVertex(undefined); return; }
       }
-      session?.hit(point, tolerance, hiddenSymbols, hits => {
+      session?.hit(point, tolerance, unselectable, hits => {
         if (hits.length === 0) { deselect(); return; }
         const at = selected ? hits.findIndex(hit => hit.key === selected.key) : -1;
         const next = hits[at >= 0 ? (at + 1) % hits.length : 0]!;
@@ -456,7 +462,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       const rect = mapArea.current?.getBoundingClientRect();
       const open = () => setWheel({ screen, bounds: { width: rect?.width ?? 800, height: rect?.height ?? 600 } });
       if (tool !== "select" || (selected && hitDistance(selected.object, point, tolerance))) { open(); return; }
-      session?.hit(point, tolerance, hiddenSymbols, hits => {
+      session?.hit(point, tolerance, unselectable, hits => {
         // Det markerade objektet under pekaren behålls; annars det översta.
         const next = (selected && hits.find(hit => hit.key === selected.key)) ?? hits[0];
         if (next) { setSelected({ key: next.key, ref: next.ref, object: next.object }); setActiveVertex(undefined); setRotating(false); }
@@ -615,7 +621,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
         {editor.bounds && <div className={styles.frame}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
           label={text.mapLabel} cursor={tool === "draw" || tool === "circle" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
-          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols}
+          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols} dimmedSymbols={symbolLayers.dimmed}
           position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
           onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} handle={mapHandle} /></div>}
         {editor.mapStatus === "ready" && georeference && <MapProjectFieldControls mode={positionMode} onMode={setPositionMode} problem={position.problem}
@@ -645,12 +651,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             onRemove={() => void notes.remove(note.noteId).then(ok => { if (ok) setShownNote(undefined); })} /> : null;
         })()}
       </div>
-      <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} hiddenGroups={hiddenGroups}
-        onToggleGroup={group => setHiddenGroups(current => {
-          const next = new Set(current);
-          if (next.has(group)) next.delete(group); else next.add(group);
-          return next;
-        })} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
+      <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol}
+        layers={<MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
+          state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}
+          merging={symbolLayers.merging} message={symbolLayers.message} />} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
         after={<>
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />

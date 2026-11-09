@@ -10,6 +10,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Kartredigeraren: lager efter normen, lås, nedtonat och slå ihop symboler
+- Lagren är normens grupper med symbolerna som underlager och ett lager för det som är utanför normen; tänd, släck, lås och
+  visa låsta lager nedtonade. Slå ihop symboler med förslag (samma nummer eller namn) och en tydlig förhandsvisning.
+- Verifierat: enhetstester `map-project-layer-model`, E2E `kartprojekt-rita` (sex test) och övriga kartprojekt-test.
+- Kvar: skisslager och egna arbetslager, tabell för äldre normer.
+
 ### 2026-11-09 – K6b del 2: DWG via LibreDWG i geo-arbetaren (migration 0106)
 - En DWG-ritning i importen blir ett geo-jobb; geo-servern läser den med LibreDWG (`dwgread -O JSON`, så att skraffyrerna
   kommer med) och ritningen blir GeoJSON som läses in som kandidater. Avbildningen otid-geo bygger dwgread ur källkoden.

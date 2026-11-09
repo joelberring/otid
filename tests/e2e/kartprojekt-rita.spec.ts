@@ -406,3 +406,62 @@ test("kartprojekt: verktygshjul, symbolrutor, förenkla, mjuk och cirkel", async
   expect(circle?.path.map(command => command.type)).toEqual(["M", "C", "C", "C", "C"]);
   expect(Math.abs(circle!.path[0]!.x - 65)).toBeLessThan(0.5);
 });
+
+/**
+ * Ägaren 2026-11-09: lagren efter normen. Lås berg och stenar (stenen går inte att markera), visa dem nedtonade, lås upp, och
+ * slå ihop en symbol med en annan med förhandsvisningen.
+ */
+test("kartprojekt: lager efter normen, lås, nedtonat och slå ihop symboler", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `lager.${unique()}@exempel.se`, "Lage Lager");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Lager", "x-otid-file-name": "Lager.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+
+  const layers = owner.getByTestId("map-project-symbol-layers");
+  await expect(layers).toContainText("Lagren följer ISOM 2017-2");
+  await expect(layers.getByTestId("map-project-layer-row")).toHaveCount(5);
+  const rock = layers.locator("[data-layer=ROCK]");
+  await expect(rock).toContainText("Berg och stenar (2xx)");
+  await expect(rock).toContainText("3 objekt");
+
+  // Låst: stenen går inte att markera; nedtonat ritas om.
+  await rock.getByTestId("map-project-layer-lock").last().click();
+  await expect(rock.getByTestId("map-project-layer-lock").last()).toHaveAttribute("aria-pressed", "true");
+  const stone = parsed.objects.find(object => object.kind === "point")!;
+  if (stone.kind !== "point") throw new Error("ingen sten");
+  const at = await screenOf(owner, stone.at);
+  await owner.mouse.click(at.x, at.y);
+  await owner.waitForTimeout(500);
+  await expect(owner.getByTestId("map-project-hint")).not.toContainText("206");
+  await rock.getByTestId("map-project-layer-dim").last().click();
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 20_000 });
+  // Valen finns kvar efter en omladdning.
+  await owner.reload();
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await expect(owner.getByTestId("map-project-symbol-layers").locator("[data-layer=ROCK]").getByTestId("map-project-layer-dim").last()).toHaveAttribute("aria-pressed", "true");
+  await owner.getByTestId("map-project-symbol-layers").locator("[data-layer=ROCK]").getByTestId("map-project-layer-lock").last().click();
+  await owner.mouse.click(at.x, at.y);
+  await expect(owner.getByTestId("map-project-hint")).toContainText("206");
+
+  // Slå ihop: stigen får höjdkurvans symbol (båda finns i normen: varningen syns).
+  const merge = owner.getByTestId("map-project-merge");
+  await merge.locator("summary").click();
+  await merge.getByTestId("map-project-merge-from").selectOption({ label: "505.0 Stig (1)" });
+  await merge.getByTestId("map-project-merge-to").selectOption({ label: "101.0 Höjdkurva" });
+  await expect(merge.getByTestId("map-project-merge-preview")).toContainText("1 objekt med 505.0 Stig får symbolen 101.0 Höjdkurva.");
+  await expect(merge.getByTestId("map-project-merge-preview")).toContainText("båda finns i normen");
+  await merge.getByTestId("map-project-merge-run").click();
+  await expect(merge.getByTestId("map-project-merge-message")).toHaveText("1 objekt med 505.0 Stig har nu symbolen 101.0 Höjdkurva.");
+  await settled(owner);
+  const lines = (await serverObjects(owner, projectId, baseURL!)).filter(object => object.state.object?.kind === "line");
+  const contour = parsed.objects.find(object => object.kind === "line" && parsed.symbols.get(object.symbol)?.code.main === 101)!;
+  expect(lines.map(object => object.state.object!.symbol)).toEqual([contour.symbol]);
+});

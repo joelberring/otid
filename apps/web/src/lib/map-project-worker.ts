@@ -31,6 +31,9 @@ function rebuild(states: ReadonlyMap<ObjectKey, KeyedState>) {
   current = { map: { ...base, objects: edited.objects }, keys: edited.keys, boxes: edited.objects.map(objectBox) };
 }
 
+/** Låsta och nedtonade lager ritas med så här stor andel av färgen. */
+const DIMMED_TINT = 0.3;
+
 function render(request: Extract<MapProjectRequest, { type: "render" }>) {
   if (!current) return;
   const width = Math.max(1, Math.min(MAX_RENDER_SIDE, Math.round(request.width)));
@@ -38,8 +41,16 @@ function render(request: Extract<MapProjectRequest, { type: "render" }>) {
   const canvas = new OffscreenCanvas(width, height);
   const context = canvas.getContext("2d");
   if (!context) { post({ type: "error", code: "NO_CANVAS" }); return; }
-  drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true,
-    ...(request.hiddenSymbols?.length ? { hiddenSymbols: new Set(request.hiddenSymbols) } : {}) });
+  const hidden = new Set(request.hiddenSymbols ?? []);
+  const dimmed = new Set((request.dimmedSymbols ?? []).filter(id => !hidden.has(id)));
+  if (dimmed.size === 0) {
+    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, ...(hidden.size ? { hiddenSymbols: hidden } : {}) });
+  } else {
+    // Låsta lager nedtonade: först de nedtonade symbolerna (tonade, med papperet), sedan resten ovanpå utan papper.
+    const others = new Set([...current.map.symbols.keys()].filter(id => !dimmed.has(id)));
+    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, hiddenSymbols: others, tint: DIMMED_TINT });
+    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, background: false, hiddenSymbols: new Set([...hidden, ...dimmed]) });
+  }
   const bitmap = canvas.transferToImageBitmap();
   post({ type: "rendered", id: request.id, bitmap }, [bitmap]);
 }
@@ -189,6 +200,15 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       coverage = coverageGrid(request.tracks, bounds, request.settings, map.scale);
     }
     post({ type: "recon", id: request.id, result: { markers, coverage } }, coverage ? [coverage.cells.buffer] : []);
+    return;
+  }
+  if (request.type === "bySymbol") {
+    const objects = current ? current.map.objects.flatMap((object, index) => {
+      if (object.symbol !== request.symbol) return [];
+      const key = current!.keys[index]!;
+      return [{ key, ref: refs.get(key) ?? null, object }];
+    }) : [];
+    post({ type: "bySymbol", id: request.id, objects });
     return;
   }
   if (request.type === "norm" || request.type === "generalize") {

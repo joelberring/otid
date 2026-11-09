@@ -1,5 +1,4 @@
 import { plural } from "./plural";
-import type { SymbolGroup } from "../lib/map-project-protocol";
 
 /** ADR-0219 (K1): kartprojektets editor (kartan, ritverktygen, lagren och synken). */
 export const mapProjectEditorSv = {
@@ -47,20 +46,6 @@ export const mapProjectEditorSv = {
     count: (count: number) => plural(count, "objekt", "objekt"),
     none: "Inga symboler matchar.",
     selected: (code: string, name: string) => `Vald: ${code} ${name}`
-  },
-  layers: {
-    title: "Lager",
-    help: "Dölj symbolgrupper för att se och markera det som ligger under.",
-    groups: {
-      LANDFORMS: "Höjder och landformer (1xx)",
-      ROCK: "Berg och stenar (2xx)",
-      WATER: "Vatten och sankmark (3xx)",
-      VEGETATION: "Vegetation (4xx)",
-      MANMADE: "Anläggningar (5xx)",
-      TECHNICAL: "Tekniska symboler (6xx)",
-      COURSE: "Banpåtryck (7xx)",
-      OTHER: "Övrigt"
-    } satisfies Record<SymbolGroup, string>
   },
   sync: {
     synced: "Sparat",

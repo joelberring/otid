@@ -5,23 +5,23 @@ import { mapProjectQuickSv as quick } from "../../i18n/map-project-quick-sv";
 import { SymbolIcon } from "./map-project-symbol-icon";
 import type { Conflict, ObjectKey } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
-import type { CatalogSymbol, SymbolGroup } from "../../lib/map-project-protocol";
+import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
 import styles from "./map-project-editor.module.css";
 
 const text = mapProjectEditorSv;
 const GRID_KEY = "otid-map-symbol-grid";
-const GROUPS: readonly SymbolGroup[] = ["LANDFORMS", "ROCK", "WATER", "VEGETATION", "MANMADE", "TECHNICAL", "COURSE", "OTHER"];
 
 /**
  * ADR-0219 (K1): editorns sidopanel. Symbolerna i kartfilen (bara de som finns i filen, sökbara på nummer och namn), lagren
  * (symbolgrupperna efter ISOM-numret), krockarna att välja i och samarbetet.
  */
-export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGroups, onToggleGroup, conflicts, symbols, onResolve, canEdit, children, after }: {
+export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, layers, conflicts, symbols, onResolve, canEdit, children, after }: {
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid). */
   open: boolean;
   catalog: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
-  hiddenGroups: ReadonlySet<SymbolGroup>; onToggleGroup: (group: SymbolGroup) => void;
+  /** Lagren efter normen (ägaren 2026-11-09). */
+  layers: ReactNode;
   conflicts: readonly Conflict[]; symbols: ReadonlyMap<string, CatalogSymbol>; onResolve: (key: ObjectKey, keep: "MINE" | "THEIRS") => void;
   canEdit: boolean;
   /** Samarbetet (förslag, delområden, arbetssätt), efter krockarna. */
@@ -38,11 +38,6 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGro
     const needle = query.trim().toLowerCase();
     return catalog.filter(entry => entry.kind !== "text" && (!needle || entry.code.toLowerCase().startsWith(needle) || entry.name.toLowerCase().includes(needle)));
   }, [catalog, query]);
-  const counts = useMemo(() => {
-    const out = new Map<SymbolGroup, number>();
-    for (const entry of catalog) out.set(entry.group, (out.get(entry.group) ?? 0) + entry.count);
-    return out;
-  }, [catalog]);
   const chosen = symbolId ? symbols.get(symbolId) : undefined;
 
   return <aside id="map-project-sidebar" className={styles.sidebar} data-open={open}>
@@ -87,16 +82,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, hiddenGro
       {shown.length === 0 && <p className={styles.muted}>{text.symbols.none}</p>}
     </section>}
 
-    <section aria-labelledby="map-project-layers" className={styles.panel}>
-      <h2 id="map-project-layers">{text.layers.title}</h2>
-      <p className={styles.muted}>{text.layers.help}</p>
-      <ul className={styles.rows}>{GROUPS.filter(group => (counts.get(group) ?? 0) > 0).map(group => <li key={group}>
-        <label className={styles.check}>
-          <input type="checkbox" checked={!hiddenGroups.has(group)} onChange={() => onToggleGroup(group)} />
-          <span>{text.layers.groups[group]} <small className={styles.muted}>{text.symbols.count(counts.get(group) ?? 0)}</small></span>
-        </label>
-      </li>)}</ul>
-    </section>
+    {layers}
     {after}
   </aside>;
 }

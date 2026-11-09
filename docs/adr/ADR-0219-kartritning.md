@@ -424,3 +424,20 @@ runda former".
 3. **Resultatet** läses in som kandidater från jobblistan; koordinatsystemet gissas ur koordinaterna eller anges i importen,
    och Stockholms lagernamn ger symbolförslag som förut.
 4. **Kvar (K6b):** städning av baskartor (ytor av slutna kanter, trappor) och passpunkter för att räta upp en karta.
+
+## Tillägg 2026-11-09: lagren efter normen (ingen migration)
+
+Ägaren: lagerhanteringen ska bygga på normen, och målet är kartor som följer normen. Äldre kartor kan ha objekt efter en äldre
+norm, och när kartor kombineras ska det synas tydligt vad som slås ihop.
+
+1. **Huvudlagren** är normens grupper (ISOM 2017-2 eller ISSprOM 2019-2 efter kartans skala: landformer, berg, vatten,
+   vegetation, anläggningar, tekniska, banpåtryck) med kartans symboler som underlager. Symboler vars nummer inte finns i
+   normen ligger i lagret **Utanför normen**.
+2. **Tänd, släck och lås** per lager och per symbol (symbolens val går före lagrets tills lagret ändras igen). Släckta och
+   låsta lager går inte att markera; ett låst lager visas fullt eller **nedtonat** (Workern ritar de nedtonade symbolerna
+   först med 30 % av färgen och resten ovanpå). Valen sparas i webbläsaren per projekt och person.
+3. **Slå ihop symboler:** förslag när två symboler har samma nummer (t.ex. två kartor med var sin 406) eller samma namn, och
+   ett eget val (från, till; samma slag). Förhandsvisningen säger hur många objekt som får vilken symbol och varnar när båda
+   finns i normen. Varje objekt blir en ändring av symbolen (som går att ångra, och blir förslag där det gäller).
+4. **Nästa steg:** skisslager och egna arbetslager (objekt som inte hör till kartan) kräver en egen lagring och kommer
+   därefter, liksom en tabell för äldre normers nummer (ISOM 2000, ISSOM 2007).

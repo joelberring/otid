@@ -10,13 +10,17 @@ import { displayAddress, formatRaceDate, raceHubPath } from "../../../../lib/pub
 import { PreviewBanner } from "../../../../components/public-race/preview-banner";
 import { QrSheet } from "../../../../components/public-race/qr-sheet";
 import { raceDetails } from "@o-tid/domain";
+import { qrEn, raceTypeNamesEn } from "../../../../i18n/public-en";
+import { currentLanguage } from "../../../../lib/language-server";
+import { LOCALE } from "../../../../lib/language";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
-  return { title: hub ? `${publicRaceSv.qr.title}: ${hub.eventName} – ${sv.appName}` : `${publicRaceSv.notPublished.title} – ${sv.appName}`,
+  const qrTitle = await currentLanguage() === "en" ? qrEn.title : publicRaceSv.qr.title;
+  return { title: hub ? `${qrTitle}: ${hub.eventName} – ${sv.appName}` : `${publicRaceSv.notPublished.title} – ${sv.appName}`,
     robots: NO_INDEX_ROBOTS };
 }
 
@@ -30,9 +34,11 @@ export default async function RaceQrPage({ params }: Params) {
   const origin = await publicOrigin();
   const url = new URL(path, origin).toString();
   const svg = await QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 2, color: { dark: "#000000", light: "#ffffff" } });
-  const details = raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate), raceTypeSv.types[hub.raceType].name]);
+  const language = await currentLanguage();
+  const details = raceDetails(hub.eventName, hub.raceName, [formatRaceDate(hub.raceDate, undefined, LOCALE[language]),
+    language === "en" ? raceTypeNamesEn[hub.raceType] : raceTypeSv.types[hub.raceType].name]);
   return <main className="stack">
-    <PreviewBanner access={hub.access} />
+    <PreviewBanner access={hub.access} language={language} />
     <QrSheet hubPath={path} eventName={hub.eventName} details={details} address={displayAddress(origin, path)}
       qrImage={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
   </main>;

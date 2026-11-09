@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { publicRaceSv } from "../../i18n/public-race-sv";
+import { hubEn, qrEn } from "../../i18n/public-en";
+import { useLanguage } from "../language-provider";
 import { Button } from "../ui";
 import styles from "./public-race.module.css";
 
-const text = publicRaceSv.qr;
 type Size = "A4" | "A5";
 
 /**
@@ -16,11 +17,13 @@ type Size = "A4" | "A5";
 export function QrSheet({ hubPath, eventName, details, qrImage, address }: {
   hubPath: string; eventName: string; details: string; qrImage: string; address: string;
 }) {
+  const en = useLanguage() === "en";
+  const text = en ? qrEn : publicRaceSv.qr, back = en ? hubEn.back : publicRaceSv.hub.back;
   const [size, setSize] = useState<Size>("A4");
   return <div className={styles.qrPage}>
     <style>{`@page { size: ${size} portrait; margin: 12mm; }`}</style>
     <div className={styles.qrTools}>
-      <Link href={hubPath}>{publicRaceSv.hub.back}</Link>
+      <Link href={hubPath}>{back}</Link>
       <fieldset>
         <legend>{text.size}</legend>
         {(["A4", "A5"] as const).map(value => <label key={value}>

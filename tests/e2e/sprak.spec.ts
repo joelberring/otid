@@ -55,6 +55,10 @@ test("språk: tävlingssidan och resultatlistan på engelska", async ({ browser 
   await visitor.getByRole("link", { name: "‹ Event page" }).click();
   await visitor.getByRole("link", { name: /^Live/ }).click();
   await expect(visitor.getByRole("heading", { name: "No finishers yet – the page updates by itself." })).toBeVisible();
+  // Del 5: QR-sidan.
+  await visitor.goto(visitor.url().replace(/\/live$/, "/qr"));
+  await expect(visitor.getByRole("button", { name: "Print" })).toBeVisible();
+  await expect(visitor.getByText("Results and split times")).toBeVisible();
 });
 
 /** Del 4: inloggningen och Skapa konto på engelska. */

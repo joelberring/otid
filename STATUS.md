@@ -30,7 +30,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 4: inloggningen, Skapa konto och Mina tävlingar (`organizer-en.ts`, språket i /organizer), bekräftelsen av adressen,
   Glömt lösenordet och mejlen (bekräftelse, återställning, redan ett konto) på det språk sidan visades på.
   E2E `sprak`, `konton`, `konto-inloggning`, `konto-meny`, `aterstallning`, `inbjudan`; enhetstest `mail`.
-- Kvar: vägvalsvyn, QR-sidan, festen och träningsgruppens sida, Mitt konto, sedan arbetsytan del för del.
+- Del 5: träningsgruppens sida (med självanmälan) och QR-sidorna. E2E `sprak`, `traningsgrupp`, `publikt`.
+- Kvar: vägvalsvyn, festen, Mitt konto, sedan arbetsytan del för del.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

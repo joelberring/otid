@@ -8,6 +8,7 @@ import type { raceInfoSv } from "./race-info-sv";
 import type { splitAnalysisSv } from "./split-analysis-sv";
 import type { selfRegistrationSv } from "./self-registration-sv";
 import type { homeSv } from "./home-sv";
+import type { trainingGroupSv } from "./training-group-sv";
 
 /**
  * Idéerna 2026-11-08: engelska, de publika sidorna först (startsidan, sidhuvudet, sidfoten, Om O-Tid och tävlingslistan).
@@ -325,4 +326,50 @@ export const homeEn: Texts<typeof homeSv> = {
   about: "More about O-Tid",
   demo: "Try it: see a demo event",
   demoHelp: "Start list, results, Live and split times from a real training, without signing in."
+};
+
+/** Del 5: träningsgruppens publika sida. */
+export const groupPublicEn: Texts<typeof trainingGroupSv.public> & { readonly attended: string; readonly points: string } = {
+  kicker: "Training group",
+  upcoming: "Upcoming",
+  noUpcoming: "No upcoming sessions right now.",
+  latest: "Latest results",
+  noLatest: "No results yet.",
+  archive: "Archive",
+  noArchive: "Nothing in the archive yet.",
+  open: "Event page",
+  results: "Results",
+  today: "Today",
+  todayRegister: "Enter today's training",
+  sameAgain: name => `Same as last time: ${name}`,
+  season: "The season",
+  address: "Address",
+  qr: "QR code",
+  loginTitle: "Only for the group's members",
+  loginHint: "Sign in with your O-Tid account to see the group's page. The leaders add members.",
+  login: "Sign in",
+  namesHidden: "Names are not shown on the group's page.",
+  firstNames: "Only first names are shown.",
+  place: "Pl",
+  name: "Name",
+  className: "Class",
+  time: "Time",
+  status: { OK: "", MP: "Mispunch", DNF: "Did not finish", DSQ: "Disq.", DNS: "Did not start", OOC: "Not competing", OVERTIME: "Over time", NT: "No time" },
+  notFoundTitle: "The group does not exist",
+  rateLimitedTitle: "Too many attempts",
+  rateLimited: "This address has tried many links that do not exist. Wait an hour, or ask the group's leaders for the link.",
+  attended: "Attendance",
+  points: "Points"
+};
+
+/** Del 5: QR-sidan. */
+export const qrEn: Texts<typeof publicRaceSv.qr> = {
+  title: "QR code to print",
+  line: "Results and split times",
+  scan: "Scan the code or go to",
+  print: "Print",
+  size: "Size",
+  a4: "Full page (A4)",
+  a5: "Half page (A5)",
+  image: name => `QR code to the event page for ${name}`
 };

@@ -10,7 +10,7 @@ import { PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName } from "@o-tid/domain";
 import { Button, Field, Notice, focusFirstError } from "../ui";
 import type { FieldErrors } from "../../lib/form-validation";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
-import { selfRegistrationEn } from "../../i18n/public-en";
+import { groupPublicEn, selfRegistrationEn } from "../../i18n/public-en";
 import { useLanguage } from "../language-provider";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import styles from "./self-registration.module.css";
@@ -68,7 +68,8 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
    * webbläsaren) och erbjuder "Samma som förra gången" vid nästa träning; servern lämnar aldrig ut namn för en bricka.
    */
   rememberKey?: string | undefined }) {
-  const text = useLanguage() === "en" ? selfRegistrationEn : selfRegistrationSv;
+  const en = useLanguage() === "en";
+  const text = en ? selfRegistrationEn : selfRegistrationSv;
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const [info, setInfo] = useState<SelfRegistrationInfoResponse>();
@@ -165,7 +166,7 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
           const classId = info.classes.find(row => row.name === remembered.className)?.id ?? "";
           setForm(current => ({ ...current, cardNumber: remembered.cardNumber, givenName: remembered.givenName, familyName: remembered.familyName,
             club: remembered.club, classId })); setErrors({});
-        }}>{trainingGroupSv.public.sameAgain(`${remembered.givenName}, ${remembered.cardNumber}${remembered.className ? `, ${remembered.className}` : ""}`)}</Button>}
+        }}>{(en ? groupPublicEn : trainingGroupSv.public).sameAgain(`${remembered.givenName}, ${remembered.cardNumber}${remembered.className ? `, ${remembered.className}` : ""}`)}</Button>}
         <Field label={text.cardNumber} help={text.cardHelp} error={errors.cardNumber}>
           <input name="cardNumber" inputMode="numeric" autoComplete="off" maxLength={9} value={form.cardNumber} onChange={change("cardNumber")} />
         </Field>

@@ -7,6 +7,9 @@ import { readGroupPublicView, type GroupPublicResultRead } from "@o-tid/applicat
 import type { GroupPublicResult, GroupPublicSession } from "@o-tid/contracts";
 import { sv } from "../../../i18n/sv";
 import { trainingGroupSv } from "../../../i18n/training-group-sv";
+import { groupPublicEn } from "../../../i18n/public-en";
+import { currentLanguage } from "../../../lib/language-server";
+import { LOCALE, type Language } from "../../../lib/language";
 import { publicDb } from "../../../lib/db";
 import { accountSessionToken } from "../../../lib/public-race-gate";
 import { clientAddressFrom } from "../../../lib/security-policy";
@@ -18,7 +21,8 @@ import { SelfRegistrationForm } from "../../../components/self-registration/self
 import styles from "../../../components/training-group/training-group.module.css";
 
 export const dynamic = "force-dynamic";
-const text = trainingGroupSv.public;
+const texts = (language: Language) => language === "en" ? groupPublicEn : { ...trainingGroupSv.public, attended: trainingGroupSv.leader.attended,
+  points: trainingGroupSv.leader.points };
 type Params = { params: Promise<{ code: string }> };
 
 /** Sidan och dess metadata delar en läsning per begäran. */
@@ -28,13 +32,14 @@ const load = cache(async (code: string): Promise<GroupPublicResultRead> =>
 /** Steg 68 (ADR-0182 beslut 7): gruppens sidor indexeras aldrig (robots.txt, X-Robots-Tag och här). */
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const read = await load((await params).code);
+  const text = texts(await currentLanguage());
   const title = read.status === "ok" ? read.view.name : read.status === "login-required" ? read.name
     : read.status === "rate-limited" ? text.rateLimitedTitle : text.notFoundTitle;
   return { title: `${title} – ${sv.appName}`, robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } } };
 }
 
-function sessionLine(session: GroupPublicSession) {
-  return [formatRaceDate(session.raceDate), session.firstStartTime, session.raceName].filter(Boolean).join(" · ");
+function sessionLine(session: GroupPublicSession, language: Language) {
+  return [formatRaceDate(session.raceDate, undefined, LOCALE[language]), session.firstStartTime, session.raceName].filter(Boolean).join(" · ");
 }
 
 function resultsByClass(results: readonly GroupPublicResult[]) {
@@ -50,6 +55,7 @@ function resultsByClass(results: readonly GroupPublicResult[]) {
  */
 export default async function GroupPage({ params }: Params) {
   const read = await load((await params).code);
+  const language = await currentLanguage(), text = texts(language);
   if (read.status === "not-found") notFound();
   // ADR-0189 beslut 8: för många gissade koder från samma adress.
   if (read.status === "rate-limited") return <main className={styles.public}>
@@ -73,14 +79,14 @@ export default async function GroupPage({ params }: Params) {
     </section>
 
     {view.today && <section aria-labelledby="group-today">
-      <h2 id="group-today">{text.today}: {sessionLine(view.today)}</h2>
+      <h2 id="group-today">{text.today}: {sessionLine(view.today, language)}</h2>
       <SelfRegistrationForm raceId={view.today.raceId} rememberKey={view.code} />
     </section>}
 
     <section aria-labelledby="group-upcoming">
       <h2 id="group-upcoming">{text.upcoming}</h2>
       {view.upcoming.length === 0 ? <p className={styles.muted}>{text.noUpcoming}</p> : <ul className={styles.sessionList}>
-        {view.upcoming.map(session => <li key={session.raceId}><div><strong>{session.eventName}</strong><span>{sessionLine(session)}</span></div>
+        {view.upcoming.map(session => <li key={session.raceId}><div><strong>{session.eventName}</strong><span>{sessionLine(session, language)}</span></div>
           {sessionLink(session)}</li>)}
       </ul>}
     </section>
@@ -88,7 +94,7 @@ export default async function GroupPage({ params }: Params) {
     <section aria-labelledby="group-latest">
       <h2 id="group-latest">{text.latest}</h2>
       {!view.latest ? <p className={styles.muted}>{text.noLatest}</p> : <>
-        <p><strong>{view.latest.eventName}</strong> · {sessionLine(view.latest)}
+        <p><strong>{view.latest.eventName}</strong> · {sessionLine(view.latest, language)}
           {view.latest.shortCode && <> · <Link href={`/results/${view.latest.raceId}`}>{text.results}</Link></>}</p>
         {resultsByClass(view.latest.results).map(([className, rows]) => <div key={className} style={{ overflowX: "auto" }}>
           <h3>{className}</h3>
@@ -117,7 +123,7 @@ export default async function GroupPage({ params }: Params) {
     <section aria-labelledby="group-archive">
       <h2 id="group-archive">{text.archive}</h2>
       {view.archive.length === 0 ? <p className={styles.muted}>{text.noArchive}</p> : <ul className={styles.sessionList}>
-        {view.archive.map(session => <li key={session.raceId}><div><strong>{session.eventName}</strong><span>{sessionLine(session)}</span></div>
+        {view.archive.map(session => <li key={session.raceId}><div><strong>{session.eventName}</strong><span>{sessionLine(session, language)}</span></div>
           <div className={styles.rowActions}>{session.hasResults && <Link href={`/results/${session.raceId}`}>{text.results}</Link>}{sessionLink(session)}</div></li>)}
       </ul>}
     </section>

@@ -11,6 +11,8 @@ import { clientAddressFrom } from "../../../../lib/security-policy";
 import { publicOrigin } from "../../../../lib/public-origin";
 import { displayAddress } from "../../../../lib/public-race-format";
 import { QrSheet } from "../../../../components/public-race/qr-sheet";
+import { groupPublicEn } from "../../../../i18n/public-en";
+import { currentLanguage } from "../../../../lib/language-server";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
@@ -27,7 +29,7 @@ export default async function GroupQrPage({ params }: Params) {
   const svg = await QRCode.toString(new URL(path, origin).toString(), { type: "svg", errorCorrectionLevel: "M", margin: 2,
     color: { dark: "#000000", light: "#ffffff" } });
   return <main className="stack">
-    <QrSheet hubPath={path} eventName={read.view.name} details={trainingGroupSv.public.kicker} address={displayAddress(origin, path)}
+    <QrSheet hubPath={path} eventName={read.view.name} details={await currentLanguage() === "en" ? groupPublicEn.kicker : trainingGroupSv.public.kicker} address={displayAddress(origin, path)}
       qrImage={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
   </main>;
 }

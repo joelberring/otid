@@ -524,10 +524,17 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
   });
   // Som Purple Pen läggs de flyttade numren först, så att de automatiska undviker dem.
   const placed: Box[] = labels.flatMap(({ cc, text }) => cc.numberAt ? [labelBox(cc.numberAt, text, sizes.numberHeight)] : []);
+  // En variant eller del (utskriften per löpare) får numren där hela banan har dem (ägaren 2026-11-09: numren hoppade mellan
+  // banläggningen och utskriften), så att de står still mellan editorn, varianterna och PDF:en.
+  const stable = choices !== null || part !== undefined ? wholeCourseNumbers(document, options, printScale) : undefined;
   for (const { object, cc, text } of labels) {
     let at: Point;
+    const steady = stable?.get(object.control.id);
     if (cc.numberAt) {
       at = cc.numberAt;
+    } else if (steady) {
+      at = steady;
+      placed.push(labelBox(at, text, sizes.numberHeight));
     } else {
       const box = placeLabel(object.control.at, apparentRadius("NORMAL", sizes), sizes.numberDistance, text, sizes.numberHeight, legLines,
         circles.filter(c => c.center !== object.control.at), placed, sizes.line, undefined, options.numberObstacles?.[object.control.id],
@@ -536,6 +543,18 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
       at = { x: box.cx, y: box.cy };
     }
     out.push({ kind: "text", role: "NUMBER", color: "COURSE", at, text, heightMm: sizes.numberHeight * NUMBER_EM_PER_DIGIT, align: "center", ref: object.ref });
+  }
+  return out;
+}
+
+/** Numrens lägen för hela banan (alla varianter, ingen del), per kontroll. */
+function wholeCourseNumbers(document: CourseSettingDocument, options: OverprintOptions, printScale: number): Map<string, Point> {
+  const whole: OverprintOptions = { ...options, variant: undefined, part: undefined };
+  const out = new Map<string, Point>();
+  for (const figure of layoutCourse(document, whole, printScale)) {
+    if (figure.kind !== "text" || figure.role !== "NUMBER" || !figure.ref) continue;
+    const control = document.courseControls[figure.ref]?.control;
+    if (control && !out.has(control)) out.set(control, figure.at);
   }
   return out;
 }

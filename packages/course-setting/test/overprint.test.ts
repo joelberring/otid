@@ -133,6 +133,22 @@ describe("layoutOverprint", () => {
     expect(() => layoutOverprint(b.document, { course, variant: "X" })).toThrow();
   });
 
+  it("gafflad bana: numren står där hela banan har dem, i varje variant", () => {
+    // Ägaren 2026-11-09: numren hoppade mellan banläggningen (hela banan) och utskriften (en variant). Gren A går ut åt 30°,
+    // där numret för gaffelkontrollen annars hamnar; i variant B är det läget fritt men numret ska ändå stå still.
+    const { b, course, controls } = lineCourse(2);
+    const at = b.cc(course, controls[0]!);
+    b.edit({ type: "ADD_SPLIT", course, at, kind: "FORK", branches: 2 });
+    const [branchA, branchB] = b.document.courseControls[at]!.split!.branches;
+    b.insert(course, b.control("NORMAL", 17.32, 10), branchA);
+    b.insert(course, b.control("NORMAL", 10, -15), branchB);
+    const numberAt = (variant?: string) => new Map(texts(layoutOverprint(b.document, { course, ...(variant ? { variant } : {}) }))
+      .filter(t => t.role === "NUMBER").map(t => [b.document.courseControls[t.ref!]!.control, t.at]));
+    const whole = numberAt(), a = numberAt("A"), other = numberAt("B");
+    expect(whole.get(controls[0]!)!.y).toBeLessThan(5);
+    for (const [control, place] of [...a, ...other]) expect(place, control).toEqual(whole.get(control));
+  });
+
   it("alla kontroller med koder", () => {
     const { b } = lineCourse(2, { mapScale: 15000 });
     const p = layoutOverprint(b.document, { course: "ALL_CONTROLS" });

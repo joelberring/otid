@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { mapProjectRectifyEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
 import type { WarpKind } from "@o-tid/map-revision";
 import type { BoxArea } from "../../lib/map-project-area-box";
 import { residualMeters } from "../../lib/map-project-control-points";
@@ -9,12 +11,12 @@ import { Button } from "../ui";
 import type { useMapProjectRectify } from "./use-map-project-rectify";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectRectifySv;
 type Area = BoxArea & { areaId: string };
 const KINDS: readonly WarpKind[] = ["similarity", "affine", "rubber"];
 
 /** ADR-0219 K6b: passpunkterna för hela kartan i sidopanelen: sätt punkter, välj sätt och område, räkna fram och föreslå. */
 export function MapProjectRectifyPanel({ rectify, areas, scale }: { rectify: ReturnType<typeof useMapProjectRectify>; areas: readonly Area[]; scale: number }) {
+  const text = useTexts(mapProjectRectifySv, mapProjectRectifyEn);
   const [where, setWhere] = useState("");
   if (!rectify.canPropose) return null;
   const area = areas.find(row => row.areaId === where);

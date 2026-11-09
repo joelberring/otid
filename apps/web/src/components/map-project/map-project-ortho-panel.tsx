@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { mapSourcesEn } from "../../i18n/map-sources-en";
+import { useTexts } from "../language-provider";
 import type { MapProjectView, MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
@@ -13,7 +15,6 @@ import { Button } from "../ui";
 import type { useMapProjectLayers } from "./use-map-project-layers";
 import styles from "./map-project-editor.module.css";
 
-const text = mapSourcesSv.ortho;
 interface OrthoItem { id: string; collection: string | null; datetime: string | null; href: string; title: string | null }
 type Area = BoxArea & { areaId: string };
 
@@ -23,6 +24,7 @@ type Area = BoxArea & { areaId: string };
  */
 export function MapProjectOrthoPanel({ view, layers, georeference, bounds, areas }: { view: MapProjectView; layers: ReturnType<typeof useMapProjectLayers>;
   georeference: MapGeoreference | undefined; bounds: Bounds | undefined; areas: readonly Area[] }) {
+  const text = useTexts(mapSourcesSv.ortho, mapSourcesEn.ortho);
   const base = mapProjectBase(view.projectId);
   const [credential, setCredential] = useState<MapSourceCredentialView>();
   const [where, setWhere] = useState("");

@@ -1,32 +1,37 @@
 "use client";
 
+import { useMapProjectFailure } from "./use-map-project-failure";
 import { useEffect, useState, type FormEvent } from "react";
+import { mapProjectEn } from "../../i18n/map-project-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { MapProjectList } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
-import { mapProjectFailure, mapProjectsBase } from "../../lib/map-project-client";
+import { mapProjectsBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
 import { Button, Field, Notice } from "../ui";
 import { MyMapStatsSection } from "./map-stats-sections";
 import { NewMapProject } from "./new-map-project";
 import styles from "./map-project.module.css";
 
-const text = mapProjectSv.list;
 
 /** ADR-0219: kontots kartprojekt (som medlem, eller som administratör i projektets klubb), en ny karta och ett eget projekt från en fil. */
 export function MyMapProjects() {
+  const failure = useMapProjectFailure();
+  const mapProjectText = useTexts(mapProjectSv, mapProjectEn);
+  const text = useTexts(mapProjectSv.list, mapProjectEn.list);
   const [list, setList] = useState<MapProjectList>();
   const [problem, setProblem] = useState("");
   useEffect(() => {
     void clubRequest(mapProjectsBase).then(result => {
       if (result.status === 200) setList(result.json as MapProjectList);
-      else setProblem(mapProjectFailure(result.status));
+      else setProblem(failure(result.status));
     });
   }, []);
   return <main className={styles.page}>
     <header className={styles.header}>
-      <div><p className={styles.kicker}><Link href="/organizer">Mina tävlingar</Link></p><h1>{text.title}</h1></div>
+      <div><p className={styles.kicker}><Link href="/organizer">{text.back}</Link></p><h1>{text.title}</h1></div>
       <AccountMenu />
     </header>
     <p className={styles.muted}>{text.hint}</p>
@@ -35,7 +40,7 @@ export function MyMapProjects() {
     {list && list.projects.length > 0 && <ul className={styles.list} data-testid="map-projects">
       {list.projects.map(project => <li key={project.projectId}>
         <div><Link href={`/organizer/map-projects/${project.projectId}`}>{project.name}</Link>
-          <span>{[project.club?.name ?? text.own, project.base.fileName, mapProjectSv.roles[project.role], text.changed(project.changedObjects),
+          <span>{[project.club?.name ?? text.own, project.base.fileName, mapProjectText.roles[project.role], text.changed(project.changedObjects),
             project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
       </li>)}
     </ul>}
@@ -43,10 +48,11 @@ export function MyMapProjects() {
   </main>;
 }
 
-const upload = mapProjectSv.upload;
 
 /** Nytt eget projekt (ingen klubb) från en kartfil; filen strömmas som kroppen och uppgifterna står i rubrikerna. */
 function UploadProject() {
+  const failure = useMapProjectFailure();
+  const upload = useTexts(mapProjectSv.upload, mapProjectEn.upload);
   const [name, setName] = useState("");
   const [file, setFile] = useState<File>();
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -69,7 +75,7 @@ function UploadProject() {
       setRequestId(crypto.randomUUID());
       const error = response.status === 422 ? (await response.json().catch(() => ({})) as { error?: string }).error : undefined;
       setMessage(error === "MAP_FILE_TOO_LARGE" ? upload.tooLarge : error === "UNSUPPORTED_MAP_FILE" ? upload.unsupported
-        : error === "STORAGE_QUOTA_EXCEEDED" ? upload.quota : mapProjectFailure(response.status));
+        : error === "STORAGE_QUOTA_EXCEEDED" ? upload.quota : failure(response.status));
     } finally { setBusy(false); }
   }
 

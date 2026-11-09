@@ -62,6 +62,7 @@ export const organizerSv = {
   myAccount: "Mitt konto",
   superadmin: "Superadmin",
   yourEvents: "Mina tävlingar",
+  kicker: "O-Tid · Arrangör",
   eventsSection: "Dina tävlingar",
   eventsHint: "Tävlingar som hör till ditt konto.",
   eventSearchLabel: "Sök tävling eller lopp",

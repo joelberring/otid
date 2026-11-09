@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { mapProjectRectifyEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectView } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
 import {
@@ -11,7 +13,6 @@ import { mapProjectBase } from "../../lib/map-project-client";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 
-const text = mapProjectRectifySv;
 const MAX_PROPOSAL_BYTES = 3 * 1024 * 1024;
 type Box = { minX: number; minY: number; maxX: number; maxY: number };
 
@@ -22,6 +23,7 @@ type Box = { minX: number; minY: number; maxX: number; maxY: number };
  */
 export function useMapProjectRectify(view: MapProjectView, session: MapProjectSession | undefined, state: RevisionClientState | undefined,
   onSent: () => void) {
+  const text = useTexts(mapProjectRectifySv, mapProjectRectifyEn);
   const base = mapProjectBase(view.projectId);
   const [picking, setPicking] = useState(false);
   const [pairs, setPairs] = useState<readonly WarpPair[]>([]);

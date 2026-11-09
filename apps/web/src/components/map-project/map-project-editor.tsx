@@ -1,6 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { mapProjectNotesEn } from "../../i18n/map-project-tools-en";
+import { mapProjectReconEn } from "../../i18n/map-project-more-en";
+import { mapProjectEditorEn } from "../../i18n/map-project-en";
+import { mapProjectQuickEn } from "../../i18n/map-project-tools-en";
+import { mapProjectLayersEn } from "../../i18n/map-project-en";
+import { mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
+import { mapProjectRectifyEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapObject, Point } from "@o-tid/map-file";
@@ -20,7 +29,7 @@ import { MapProjectGeneralizePanel } from "./map-project-generalize-panel";
 import { useMapProjectGeneralize } from "./use-map-project-generalize";
 import { useMapProjectRectify } from "./use-map-project-rectify";
 import { MapProjectRectifyPanel } from "./map-project-rectify-panel";
-import { mapProjectRectifySv as rectifyText } from "../../i18n/map-project-rectify-sv";
+import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { NoteDetail, NoteForm, NotesPanel } from "./map-project-notes";
@@ -33,7 +42,7 @@ import { useMapProjectSymbolLayers } from "./use-map-project-symbol-layers";
 import { useMapProjectWorkLayers } from "./use-map-project-work-layers";
 import { MapProjectWorkLayers } from "./map-project-work-layers";
 import { drawSketches } from "../../lib/map-project-sketch";
-import { mapProjectWorkLayersSv as workText } from "../../i18n/map-project-work-layers-sv";
+import { mapProjectWorkLayersSv } from "../../i18n/map-project-work-layers-sv";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
@@ -46,7 +55,7 @@ import { MapProjectLaserPanel } from "./map-project-laser-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { useMapProjectLayers } from "./use-map-project-layers";
 import { useMapProjectControlPoints } from "./use-map-project-control-points";
-import { mapProjectLayersSv as layersText } from "../../i18n/map-project-layers-sv";
+import { mapProjectLayersSv } from "../../i18n/map-project-layers-sv";
 import { MapProjectImportPanel } from "./map-project-import-panel";
 import { useMapProjectImport } from "./use-map-project-import";
 import { drawLayers } from "../../lib/map-project-layers";
@@ -57,11 +66,10 @@ import { MapProjectSidebar } from "./map-project-sidebar";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
 import { MapProjectToolWheel, type WheelAction, type WheelTool } from "./map-project-tool-wheel";
-import { mapProjectQuickSv as quick } from "../../i18n/map-project-quick-sv";
+import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectEditorSv;
 /** `area` = rita ett delområde (bara ägarna); `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09). */
 type Tool = "select" | "draw" | "area" | "note" | "circle";
 interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
@@ -80,8 +88,6 @@ type Drag =
 
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
 const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
-const reconText = mapProjectReconSv;
-const notesText = mapProjectNotesSv;
 const DOUBLE_TAP_MS = 350;
 const recentKey = (projectId: string) => `otid-map-recent:${projectId}`;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
@@ -112,6 +118,13 @@ function proposedDrawing(edits: readonly { state: unknown; point?: Point | null 
 export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   /** K3: projektet kommer från telefonen (utan nät), sparat då. */
   offlineSince?: string | undefined }) {
+  const notesText = useTexts(mapProjectNotesSv, mapProjectNotesEn);
+  const reconText = useTexts(mapProjectReconSv, mapProjectReconEn);
+  const text = useTexts(mapProjectEditorSv, mapProjectEditorEn);
+  const quick = useTexts(mapProjectQuickSv, mapProjectQuickEn);
+  const layersText = useTexts(mapProjectLayersSv, mapProjectLayersEn);
+  const workText = useTexts(mapProjectWorkLayersSv, mapProjectWorkLayersEn);
+  const rectifyText = useTexts(mapProjectRectifySv, mapProjectRectifyEn);
   const collab = useMapProjectCollaboration(view);
   const { loadProposals } = collab;
   // Efter en synk med egna ändringar eller andras: förslagen kan ha ändrats.
@@ -573,7 +586,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     : work.drawingLayer ? workText.hint(work.drawingLayer.name) : flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
-  const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object) : [];
+  const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, quick) : [];
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); setTool(next); };
   const wheelTools: WheelTool[] = [
     { id: "select", label: quick.tools.select, key: quick.toolKeys.select, active: tool === "select", onPick: pickTool("select") },
@@ -600,7 +613,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     </header>
     {offlineSince && <p className={styles.offline} role="status" data-testid="map-project-offline">
       {text.offline(new Date(offlineSince).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</p>}
-    {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice)}{" "}
+    {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice, text)}{" "}
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
     <div className={styles.workspace}>
       <div className={styles.toolbar} role="toolbar" aria-label={text.tools.label}>
@@ -725,6 +738,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
 }
 
 function SyncBadge({ sync, pending }: { sync: ReturnType<typeof useMapProjectEditor>["sync"]; pending: number }) {
+  const text = useTexts(mapProjectEditorSv, mapProjectEditorEn);
   const copy = text.sync;
   const label = sync.kind === "offline" ? copy.offline : sync.kind === "error" ? copy.error(sync.status ?? 0)
     : sync.kind === "syncing" || pending > 0 ? `${copy.syncing}${pending ? ` ${copy.pending(pending)}` : ""}` : copy.synced;
@@ -732,7 +746,7 @@ function SyncBadge({ sync, pending }: { sync: ReturnType<typeof useMapProjectEdi
 }
 
 const NOTICES = ["noStore", "conflict", "conflictFirst", "rejected", "changedByOther", "proposed"] as const;
-function noticeText(notice: string): string {
+function noticeText(notice: string, text: Texts<typeof mapProjectEditorSv>): string {
   const key = NOTICES.find(value => value === notice);
   return key ? text.sync[key] : notice;
 }

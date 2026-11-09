@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { mapProjectEditorEn } from "../../i18n/map-project-en";
+import { useTexts } from "../language-provider";
 import type { MapProjectAreaStatus, MapProjectMode, MapProjectProposalView, MapProjectView } from "@o-tid/contracts";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { Button, Notice } from "../ui";
@@ -10,7 +12,6 @@ import styles from "./map-project-editor.module.css";
 
 const STAGE_AGES: readonly StageAge[] = ["YEAR", "THREE", "SIX", "OLDER", "NEVER"];
 
-const text = mapProjectEditorSv.collab;
 const MODES: readonly MapProjectMode[] = ["SHARED", "LEAD"];
 const STATUSES: readonly MapProjectAreaStatus[] = ["BASE", "DRAFTED", "SURVEYED", "DONE"];
 type Collaboration = ReturnType<typeof useMapProjectCollaboration>;
@@ -35,6 +36,7 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
   onSaveArea: (name: string, assigneeAccountId: string | null) => void;
   onCancelArea: () => void;
 }) {
+  const text = useTexts(mapProjectEditorSv.collab, mapProjectEditorEn.collab);
   const viewer = view.viewer;
   const open = collab.proposals.filter(proposal => proposal.status === "OPEN");
   const decided = collab.proposals.filter(proposal => proposal.status !== "OPEN").slice(0, 5);
@@ -116,6 +118,7 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
 function ProposalRow({ proposal, collab, canDecide, mine, shown, onShow }: {
   proposal: MapProjectProposalView; collab: Collaboration; canDecide: boolean; mine: boolean; shown: boolean; onShow: () => void;
 }) {
+  const text = useTexts(mapProjectEditorSv.collab, mapProjectEditorEn.collab);
   const author = proposal.source === "AI" ? text.ai : proposal.author.name ?? text.unknownAuthor;
   const conflicts = proposal.edits.filter(edit => edit.outcome === "CONFLICT").length;
   const isOpen = proposal.status === "OPEN";
@@ -142,6 +145,8 @@ function NewAreaForm({ defaultName, editors, busy, onSave, onCancel }: {
   defaultName: string; editors: readonly { accountId: string; name: string }[]; busy: boolean;
   onSave: (name: string, assigneeAccountId: string | null) => void; onCancel: () => void;
 }) {
+  const mapProjectEditorText = useTexts(mapProjectEditorSv, mapProjectEditorEn);
+  const text = useTexts(mapProjectEditorSv.collab, mapProjectEditorEn.collab);
   const [name, setName] = useState(defaultName);
   const [assignee, setAssignee] = useState("");
   return <form className={styles.areaForm} onSubmit={event => { event.preventDefault(); if (name.trim()) onSave(name.trim(), assignee || null); }}>
@@ -152,7 +157,7 @@ function NewAreaForm({ defaultName, editors, busy, onSave, onCancel }: {
     </select></label>
     <span className={styles.actions}>
       <Button type="submit" disabled={busy}>{text.saveArea}</Button>
-      <Button variant="secondary" onClick={onCancel}>{mapProjectEditorSv.tools.cancel}</Button>
+      <Button variant="secondary" onClick={onCancel}>{mapProjectEditorText.tools.cancel}</Button>
     </span>
   </form>;
 }

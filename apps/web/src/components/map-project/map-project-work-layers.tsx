@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { mapProjectSymbolLayersEn } from "../../i18n/map-project-more-en";
+import { mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SKETCH_COLORS } from "@o-tid/contracts";
-import { mapProjectWorkLayersSv as text } from "../../i18n/map-project-work-layers-sv";
-import { mapProjectSymbolLayersSv as layerText } from "../../i18n/map-project-symbol-layers-sv";
+import { mapProjectWorkLayersSv } from "../../i18n/map-project-work-layers-sv";
+import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
 import { normalCode, withWorkFlag, type LayerFlags, type LayerState } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
@@ -20,6 +23,7 @@ type Work = ReturnType<typeof useMapProjectWorkLayers>;
 export function MapProjectWorkLayers({ work, catalog, state, onState }: {
   work: Work; catalog: readonly CatalogSymbol[]; state: LayerState; onState: (state: LayerState) => void;
 }) {
+  const text = useTexts(mapProjectWorkLayersSv, mapProjectWorkLayersEn);
   const [name, setName] = useState("");
   const [codes, setCodes] = useState<ReadonlySet<string>>(new Set());
   const [filter, setFilter] = useState("");
@@ -118,6 +122,7 @@ export function MapProjectWorkLayers({ work, catalog, state, onState }: {
 /** Tänd, släck, lås och tona (skisslager: tänd och tona). */
 function Toggles({ flags, onFlag, name, sketch = false }: { flags: Required<LayerFlags>; onFlag: (flag: keyof LayerFlags, value: boolean) => void; name: string;
   sketch?: boolean }) {
+  const layerText = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
   return <span className={styles.layerToggles}>
     <button type="button" aria-pressed={!flags.hidden} aria-label={flags.hidden ? layerText.show(name) : layerText.hide(name)}
       onClick={() => onFlag("hidden", !flags.hidden)} data-testid="map-project-layer-visible">{flags.hidden ? layerText.hiddenMark : layerText.visibleMark}</button>

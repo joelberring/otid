@@ -1,20 +1,23 @@
 "use client";
 
+import { useMapProjectFailure } from "./use-map-project-failure";
 import { useEffect, useState, type FormEvent } from "react";
+import { mapProjectEn } from "../../i18n/map-project-en";
+import { mapProjectEditorEn } from "../../i18n/map-project-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import { invitationMailOutcomeSchema, type MapProjectOutputResponse, type MapProjectRole, type MapProjectView } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { invitationMailNote } from "../../i18n/invitation-sv";
 import { clubRequest } from "../../lib/club-archive-client";
-import { mapProjectBase, mapProjectFailure } from "../../lib/map-project-client";
+import { mapProjectBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
 import { ProjectStatsSection } from "./map-stats-sections";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
 
-const text = mapProjectSv;
 const ROLES: readonly MapProjectRole[] = ["READ", "SUGGEST", "EDIT", "OWNER"];
 type Message = { tone: "ok" | "error"; text: string; refusals?: string[] };
 const day = (iso: string) => iso.slice(0, 10);
@@ -25,6 +28,9 @@ const day = (iso: string) => iso.slice(0, 10);
  * Behörigheten avgörs av API:et (404 för den som inte är med).
  */
 export function MapProjectPage({ projectId }: { projectId: string }) {
+  const failure = useMapProjectFailure();
+  const text = useTexts(mapProjectSv, mapProjectEn);
+  const mapProjectEditorText = useTexts(mapProjectEditorSv, mapProjectEditorEn);
   const [view, setView] = useState<MapProjectView>();
   const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
   const [problem, setProblem] = useState("");
@@ -36,7 +42,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
   async function load() {
     const result = await clubRequest(base);
     if (result.status === 200) { setView(result.json as MapProjectView); setState("ok"); return; }
-    setState("missing"); setProblem(mapProjectFailure(result.status));
+    setState("missing"); setProblem(failure(result.status));
   }
   useEffect(() => { void load(); }, [projectId]);
 
@@ -45,7 +51,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
     try {
       const result = await action();
       if (result.status >= 200 && result.status < 300) { setMessage({ tone: "ok", text: ok }); await load(); return result; }
-      setMessage({ tone: "error", text: result.status === 409 && conflict ? conflict : mapProjectFailure(result.status) });
+      setMessage({ tone: "error", text: result.status === 409 && conflict ? conflict : failure(result.status) });
       return undefined;
     } finally { setBusy(false); }
   }
@@ -60,7 +66,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
     try {
       const result = await clubRequest(`${base}/versions`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), archive: toArchive });
       if (result.status === 409) { setMessage({ tone: "error", text: text.version.conflict }); return; }
-      if (result.status !== 200 && result.status !== 201) { setMessage({ tone: "error", text: mapProjectFailure(result.status) }); return; }
+      if (result.status !== 200 && result.status !== 201) { setMessage({ tone: "error", text: failure(result.status) }); return; }
       const response = result.json as MapProjectOutputResponse;
       if (response.status === "created") {
         setMessage({ tone: "ok", text: result.status !== 201 ? text.version.same(response.fileName)
@@ -95,8 +101,8 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
           <dt>{text.page.changes}</dt><dd>{text.page.changed(project.changedObjects)}</dd>
         </dl>
         <div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
-          data-testid="map-project-open-map">{mapProjectEditorSv.openMap}</Link></div>
-        <p className={styles.muted}>{mapProjectEditorSv.openMapHelp}</p>
+          data-testid="map-project-open-map">{mapProjectEditorText.openMap}</Link></div>
+        <p className={styles.muted}>{mapProjectEditorText.openMapHelp}</p>
         {project.base.format === "OCD" && <p className={styles.muted}>{text.page.ocadLater}</p>}
         <div className={styles.actions}>
           <a className={styles.buttonLink} href={`${base}/source`} download>{text.page.download}</a>
@@ -138,6 +144,8 @@ type Run = (action: () => Promise<{ status: number; json: unknown }>, ok: string
 
 function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessage }: { view: MapProjectView; base: string; busy: boolean;
   mailEnabled: boolean; run: Run; onChanged: () => Promise<void>; onMessage: (message: Message) => void }) {
+  const failure = useMapProjectFailure();
+  const text = useTexts(mapProjectSv, mapProjectEn);
   const copy = text.members;
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MapProjectRole>("EDIT");
@@ -152,7 +160,7 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
       const mail = invitationMailOutcomeSchema.catch("off").parse((result.json as { mail?: unknown } | undefined)?.mail);
       onMessage({ tone: "ok", text: `${copy.invited} ${invitationMailNote[mail]}` });
       setEmail(""); await onChanged();
-    } else onMessage({ tone: "error", text: result.status === 409 ? copy.exists : mapProjectFailure(result.status) });
+    } else onMessage({ tone: "error", text: result.status === 409 ? copy.exists : failure(result.status) });
   }
 
   const remove = (who: string, body: { accountId: string | null; invitationId: string | null }, self = false) => {
@@ -207,6 +215,7 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
 }
 
 function ProjectSettings({ view, base, busy, run }: { view: MapProjectView; base: string; busy: boolean; run: Run }) {
+  const text = useTexts(mapProjectSv, mapProjectEn);
   const [name, setName] = useState(view.name);
   const save = (event: FormEvent) => {
     event.preventDefault();

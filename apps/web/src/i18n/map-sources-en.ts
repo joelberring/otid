@@ -1,0 +1,114 @@
+import type { Texts } from "../lib/language";
+import type { mapSourcesSv } from "./map-sources-sv";
+import { mapSourcesAccountEn } from "./account-en";
+
+/** Engelska del 33: ortofoton, markfuktighet och laserdata med Karttapullautin i kartprojektet. */
+type Sources = typeof mapSourcesSv;
+
+export const mapSourcesOrthoEn: Texts<Sources["ortho"]> = {
+  heading: "Orthophoto from Lantmäteriet",
+  help: "Search aerial photos for the whole map or a stage with your own credentials for Lantmäteriet; the chosen ones are added as base layers (one per image tile). © Lantmäteriet.",
+  noCredential: "Add your credentials for Lantmäteriet under My account first.",
+  account: "My account",
+  where: "Area",
+  whole: "The whole map",
+  search: "Search orthophotos",
+  searching: "Searching …",
+  none: "No orthophotos were found for the area.",
+  item: (when: string | null, collection: string | null, id: string) => [when?.slice(0, 10), collection, id].filter(Boolean).join(" · "),
+  add: (n: number) => n === 1 ? "Add 1 image as a base layer" : `Add ${n} images as base layers`,
+  adding: (done: number, total: number) => `Fetching image ${done} of ${total} …`,
+  added: (n: number) => n === 1 ? "1 base layer added." : `${n} base layers added.`,
+  name: (collection: string | null, id: string) => `Orthophoto ${collection ?? ""} ${id}`.replace(/\s+/g, " ").trim().slice(0, 80),
+  problems: {
+    SOURCE_NO_CREDENTIAL: "Add your credentials for Lantmäteriet under My account first.",
+    SOURCE_REJECTED: "Lantmäteriet did not accept the credentials, or the product is not ordered on Geotorget.",
+    SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Choose a stage.",
+    SOURCE_THROTTLED: "Too many searches in the last hour. Try again later.",
+    SOURCE_UNAVAILABLE: "Lantmäteriet did not answer right now. Try again in a while.",
+    OUTSIDE: "The image does not cover the area.",
+    generic: (status: number | string) => `That did not work (${status}).`
+  }
+};
+
+export const mapSourcesMoistureEn: Texts<Sources["moisture"]> = {
+  heading: "Soil moisture (SLU)",
+  help: "SLU's soil moisture map (2 m, open data from the Swedish Forest Agency) for the whole map or a stage, as a base layer. Blue is wet: "
+    + "use it to find marshes, wet channels and ditches to survey.",
+  fetch: "Fetch soil moisture",
+  fetching: "Fetching soil moisture …",
+  name: (area?: string) => `Soil moisture SLU ${area ?? "whole map"}`.slice(0, 80),
+  added: "The soil moisture is added as a base layer.",
+  attribution: "Soil moisture map SLU, Swedish Forest Agency."
+};
+
+export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
+  heading: "Laser data and Karttapullautin",
+  help: "Search laser tiles (2.5 × 2.5 km) for the whole map or a stage with your own credentials for Lantmäteriet. The geo server runs "
+    + "Karttapullautin: the image is added as a base layer, and contours, form lines, cliffs and knolls can be loaded as candidates.",
+  attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (processed with Karttapullautin, GPL-3).",
+  search: "Search laser tiles",
+  searching: "Searching …",
+  none: "No laser tiles were found for the area.",
+  item: (when: string | null, id: string, bytes: number | null) =>
+    [when?.slice(0, 10), id, bytes ? `${Math.round(bytes / 1_000_000)} MB` : null].filter(Boolean).join(" · "),
+  name: "Name of the result",
+  defaultName: (area?: string) => `Karttapullautin ${area ?? "whole map"}`.slice(0, 80),
+  interval: "Contour interval",
+  intervalOption: (meters: number) => `${meters} m`,
+  formlines: "Form lines",
+  formlineOptions: { 0: "None", 1: "Some", 2: "More" },
+  moisture: "Also calculate the moisture (marshes and wet channels from the terrain model)",
+  channel: "Wet channels from catchment",
+  channelOption: (ha: number) => `${ha} ha`,
+  wet: "Wet below",
+  wetOption: (meters: number) => `${meters} m above the channel`,
+  moistureAdded: "The moisture is added as a base layer.",
+  vegetation: "Also make areas of the vegetation (open land, green and undergrowth from the laser returns)",
+  minArea: "Smallest area",
+  minAreaOption: (m2: number) => `${m2} m²`,
+  start: (n: number) => n === 1 ? "Run Karttapullautin on 1 tile" : `Run Karttapullautin on ${n} tiles`,
+  started: "The job is in the queue.",
+  jobs: "The jobs",
+  status: {
+    QUEUED: "Waiting for the geo server", RUNNING: "Running", DONE: "Done", FAILED: "Failed", CANCELLED: "Cancelled"
+  },
+  progress: (step: string, done: number, total: number) => total > 1 ? `${step} (${done} of ${total})` : step,
+  dwgJob: "DWG drawing",
+  tiles: (n: number) => n === 1 ? "1 tile" : `${n} tiles`,
+  layerAdded: "The image is added as a base layer.",
+  outputs: {
+    "kurvor.dxf": "Contours", "formlinjer.dxf": "Form lines", "branter.dxf": "Cliffs", "stup.dxf": "Steep cliffs", "knollar.dxf": "Knolls",
+    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "ritning.geojson": "The drawing"
+  },
+  load: (label: string) => `Load ${label.toLowerCase()} as candidates`,
+  loaded: (label: string) => `${label} are shown as candidates below under Vector file.`,
+  cancel: "Cancel",
+  remove: "Remove",
+  server: {
+    READY: "The geo server is running.",
+    STARTING: "The geo server is starting (a few minutes).",
+    OFF: "The geo server starts when a job is waiting.",
+    UNAVAILABLE: "The geo server cannot be started right now. The jobs wait in the queue; whoever runs O-Tid has been notified.",
+    BUDGET: "The month's budget for the geo server is used up. The jobs wait in the queue until next month or until the budget is raised.",
+    NOT_CONFIGURED: "The geo server is not set up on this installation. The jobs wait in the queue."
+  },
+  problems: {
+    SOURCE_NO_CREDENTIAL: "Add your credentials for Lantmäteriet under My account first.",
+    SOURCE_REJECTED: "Lantmäteriet did not accept the credentials, or Laserdata Nedladdning skog is not ordered on Geotorget.",
+    SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Choose a stage.",
+    SOURCE_THROTTLED: "Too many searches in the last hour. Try again later.",
+    SOURCE_UNAVAILABLE: "Lantmäteriet did not answer right now. Try again in a while.",
+    GEO_JOB_BUSY: "You already have two jobs waiting or running. Wait until one is done.",
+    GEO_JOB_QUOTA: "The month's quota of laser tiles is used up for your account.",
+    generic: (status: number | string) => `That did not work (${status}).`
+  }
+};
+
+/** Hela `mapSourcesSv` på engelska (kontot står i `account-en.ts`). */
+export const mapSourcesEn: Texts<Sources> = {
+  account: mapSourcesAccountEn,
+  ortho: mapSourcesOrthoEn,
+  moisture: mapSourcesMoistureEn,
+  laser: mapSourcesLaserEn
+};

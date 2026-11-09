@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject } from "@o-tid/map-file";
 import {
@@ -15,7 +17,6 @@ import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 
-const text = mapProjectImportSv;
 /** Ett förslag hålls under synkens gränser (antal och storlek). */
 const MAX_PROPOSAL_BYTES = 3 * 1024 * 1024;
 /** "unsupported", "crs", ett meddelande från läsningen eller en HTTP-status. */
@@ -27,6 +28,7 @@ type Problem = string | number;
  */
 export function useMapProjectImport(view: MapProjectView, georeference: MapGeoreference | undefined, bounds: Bounds | undefined,
   symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void) {
+  const text = useTexts(mapProjectImportSv, mapProjectImportEn);
   const base = mapProjectBase(view.projectId);
   const [file, setFile] = useState<{ name: string; data: SourceData }>();
   /** K4c: hämtat för en etapp klipps mot etappens ruta i stället för kartans. */

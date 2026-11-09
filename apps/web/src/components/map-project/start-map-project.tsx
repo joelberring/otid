@@ -1,16 +1,20 @@
 "use client";
 
+import { useMapProjectFailure } from "./use-map-project-failure";
 import { useState, type FormEvent } from "react";
+import { mapProjectEn } from "../../i18n/map-project-en";
+import { useTexts } from "../language-provider";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest } from "../../lib/club-archive-client";
-import { mapProjectFailure, mapProjectsBase } from "../../lib/map-project-client";
+import { mapProjectsBase } from "../../lib/map-project-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./map-project.module.css";
 
-const text = mapProjectSv.start;
 
 /** ADR-0219: "Starta kartprojekt" från en kartversion i klubbarkivet (klubbens administratörer och ägare). */
 export function StartMapProject({ clubId, versionId, mapName, fileName }: { clubId: string; versionId: string; mapName: string; fileName: string }) {
+  const failure = useMapProjectFailure();
+  const text = useTexts(mapProjectSv.start, mapProjectEn.start);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(() => text.defaultName(mapName));
   const [requestId] = useState(() => crypto.randomUUID());
@@ -22,7 +26,7 @@ export function StartMapProject({ clubId, versionId, mapName, fileName }: { club
     setBusy(true); setProblem("");
     try {
       const result = await clubRequest(mapProjectsBase, "POST", { formatVersion: 1, requestId, clubId, baseVersionId: versionId, name: name.trim() });
-      if (result.status !== 200 && result.status !== 201) { setProblem(`${text.failed} ${mapProjectFailure(result.status)}`); return; }
+      if (result.status !== 200 && result.status !== 201) { setProblem(`${text.failed} ${failure(result.status)}`); return; }
       window.location.assign(`/organizer/map-projects/${encodeURIComponent((result.json as { projectId: string }).projectId)}`);
     } finally { setBusy(false); }
   }

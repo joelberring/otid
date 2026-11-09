@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { mapProjectSymbolLayersEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
 import { withSymbol, type EditKind, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
 import type { MapObject } from "@o-tid/map-file";
-import { mapProjectSymbolLayersSv as text } from "../../i18n/map-project-symbol-layers-sv";
+import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
 import {
   EMPTY_LAYERS, layerSymbols, readLayerState, saveLayerState, standardFor, standardSymbols, type LayerState, type WorkLayer
 } from "../../lib/map-project-layer-model";
@@ -20,6 +22,7 @@ export function useMapProjectSymbolLayers({ projectId, catalog, scale, session, 
   /** Lagren fas 2: projektets arbetslager. */
   work: readonly WorkLayer[];
 }) {
+  const text = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
   const [state, setState] = useState<LayerState>(EMPTY_LAYERS);
   useEffect(() => { setState(readLayerState(projectId)); }, [projectId]);
   const update = useCallback((next: LayerState) => { setState(next); saveLayerState(projectId, next); }, [projectId]);

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { mapProjectSymbolLayersSv as text } from "../../i18n/map-project-symbol-layers-sv";
+import { mapProjectSymbolLayersEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
+import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
 import {
   layerRows, mergeSuggestions, normalCode, symbolFlags, withLayerFlag, withSymbolFlag, type LayerFlags, type LayerId, type LayerState, type Standard,
   type WorkLayer
@@ -24,6 +26,7 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
   /** Lagren fas 2: arbetslagren (för symbolernas val) och panelen för arbets- och skisslagren. */
   work?: readonly WorkLayer[]; workPanel?: ReactNode;
 }) {
+  const text = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
   const rows = useMemo(() => layerRows(catalog, standardSymbols, state), [catalog, standardSymbols, state]);
   const suggestions = useMemo(() => mergeSuggestions(catalog, standardSymbols), [catalog, standardSymbols]);
   const [from, setFrom] = useState("");
@@ -96,6 +99,7 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
 }
 
 function Toggles({ flags, onFlag, name }: { flags: Required<LayerFlags>; onFlag: (flag: keyof LayerFlags, value: boolean) => void; name: string }) {
+  const text = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
   return <span className={styles.layerToggles}>
     <button type="button" aria-pressed={!flags.hidden} title={flags.hidden ? text.show(name) : text.hide(name)} aria-label={flags.hidden ? text.show(name) : text.hide(name)}
       onClick={() => onFlag("hidden", !flags.hidden)} data-testid="map-project-layer-visible">{flags.hidden ? text.hiddenMark : text.visibleMark}</button>

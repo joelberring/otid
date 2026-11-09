@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { mapSourcesEn } from "../../i18n/map-sources-en";
+import { useTexts } from "../language-provider";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
@@ -12,7 +14,6 @@ import { Button } from "../ui";
 import type { useMapProjectLayers } from "./use-map-project-layers";
 import styles from "./map-project-editor.module.css";
 
-const text = mapSourcesSv.moisture;
 type Area = BoxArea & { areaId: string };
 
 /**
@@ -21,12 +22,14 @@ type Area = BoxArea & { areaId: string };
  */
 export function MapProjectMoisturePanel({ view, layers, georeference, bounds, areas }: { view: MapProjectView;
   layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference | undefined; bounds: Bounds | undefined; areas: readonly Area[] }) {
+  const mapSourcesText = useTexts(mapSourcesSv, mapSourcesEn);
+  const text = useTexts(mapSourcesSv.moisture, mapSourcesEn.moisture);
   const [where, setWhere] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   if (!layers.canAdd || !georeference || !bounds) return null;
   const area = areas.find(row => row.areaId === where);
-  const problems = mapSourcesSv.laser.problems as unknown as Record<string, string>;
+  const problems = mapSourcesText.laser.problems as unknown as Record<string, string>;
 
   async function fetchMoisture() {
     setBusy(true); setMessage(undefined);
@@ -37,7 +40,7 @@ export function MapProjectMoisturePanel({ view, layers, georeference, bounds, ar
         body: JSON.stringify({ formatVersion: 1, box: areaBox(bounds!, georeference!, area).wgs84 }) }).catch(() => undefined);
       if (!response?.ok) {
         const body = await response?.json().catch(() => undefined) as { error?: string } | undefined;
-        setMessage({ tone: "error", text: body?.error && body.error in problems ? problems[body.error]! : mapSourcesSv.laser.problems.generic(response?.status ?? 0) });
+        setMessage({ tone: "error", text: body?.error && body.error in problems ? problems[body.error]! : mapSourcesText.laser.problems.generic(response?.status ?? 0) });
         return;
       }
       const world = decodeURIComponent(response.headers.get("x-otid-world") ?? "");
@@ -50,8 +53,8 @@ export function MapProjectMoisturePanel({ view, layers, georeference, bounds, ar
   return <details className={styles.settings} data-testid="map-project-moisture">
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
-    <label>{mapSourcesSv.ortho.where}<select value={where} onChange={event => setWhere(event.target.value)}>
-      <option value="">{mapSourcesSv.ortho.whole}</option>
+    <label>{mapSourcesText.ortho.where}<select value={where} onChange={event => setWhere(event.target.value)}>
+      <option value="">{mapSourcesText.ortho.whole}</option>
       {areas.map(row => <option key={row.areaId} value={row.areaId}>{row.name}</option>)}
     </select></label>
     <span className={styles.actions}>

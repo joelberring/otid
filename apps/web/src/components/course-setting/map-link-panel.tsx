@@ -19,8 +19,7 @@ import styles from "./map-link-panel.module.css";
  * Tiden är obegränsad som förval; "Begränsa tiden" föreslår tävlingsdagen plus en vecka.
  */
 export function MapLinkPanel({ raceId, nearCount }: { raceId: string; nearCount: number }) {
-  const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
-  const text = useTexts(mapLinkText.share, mapLinkEn.share);
+  const text = useTexts(mapLinkSv.share, mapLinkEn.share);
   const notesText = useTexts(notesSv, notesEn);
   const [state, setState] = useState<MapLinkState>();
   const [token, setToken] = useState<string>();

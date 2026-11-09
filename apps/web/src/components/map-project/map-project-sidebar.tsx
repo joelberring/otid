@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { mapProjectQuickSv as quick } from "../../i18n/map-project-quick-sv";
+import { mapProjectEditorEn } from "../../i18n/map-project-en";
+import { mapProjectQuickEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
+import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { SymbolIcon } from "./map-project-symbol-icon";
 import type { Conflict, ObjectKey } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
@@ -9,7 +12,6 @@ import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectEditorSv;
 const GRID_KEY = "otid-map-symbol-grid";
 
 /**
@@ -29,6 +31,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, layers, c
   /** Efter symbolerna och lagren (K3: rekningen). */
   after?: ReactNode;
 }) {
+  const text = useTexts(mapProjectEditorSv, mapProjectEditorEn);
+  const quick = useTexts(mapProjectQuickSv, mapProjectQuickEn);
   const [query, setQuery] = useState("");
   // Ägaren 2026-11-09: symbolerna som rutor (som i Mapper) eller som lista; valet sparas i webbläsaren.
   const [grid, setGrid] = useState(false);

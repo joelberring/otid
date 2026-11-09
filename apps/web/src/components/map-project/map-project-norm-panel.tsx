@@ -1,16 +1,18 @@
 "use client";
 
 import { NORM_RULES, type NormIssue } from "@o-tid/map-revision";
+import { mapProjectNormEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
 import { mapProjectNormSv } from "../../i18n/map-project-norm-sv";
 import { Button } from "../ui";
 import type { useMapProjectNorm } from "./use-map-project-norm";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectNormSv;
 const SHOWN = 30;
 
 /** Normkontrollen i sidopanelen: av och på, standarden, antal per regel och ställena (Visa flyttar kartan dit). */
 export function MapProjectNormPanel({ norm, onShow }: { norm: ReturnType<typeof useMapProjectNorm>; onShow: (issue: NormIssue) => void }) {
+  const text = useTexts(mapProjectNormSv, mapProjectNormEn);
   const result = norm.result;
   return <section className={styles.panel} aria-labelledby="map-project-norm" data-testid="map-project-norm">
     <h2 id="map-project-norm">{text.heading}</h2>

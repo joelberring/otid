@@ -1,15 +1,17 @@
 "use client";
 
+import { useMapProjectFailure } from "./use-map-project-failure";
 import { useState, type FormEvent } from "react";
+import { mapProjectEn } from "../../i18n/map-project-en";
+import { useTexts } from "../language-provider";
 import { MAP_PROJECT_NEW_SCALES } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { areaFromCenter, areaFromGeoJson, parseLatLon, type AreaInput } from "../../lib/map-project-area-input";
-import { mapProjectFailure, mapProjectsBase } from "../../lib/map-project-client";
+import { mapProjectsBase } from "../../lib/map-project-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./map-project.module.css";
 
-const text = mapProjectSv.newMap;
 type Norm = keyof typeof MAP_PROJECT_NEW_SCALES;
 const NORMS = Object.keys(MAP_PROJECT_NEW_SCALES) as Norm[];
 
@@ -18,6 +20,8 @@ const NORMS = Object.keys(MAP_PROJECT_NEW_SCALES) as Norm[];
  * GeoJSON-fil (polygonen, t.ex. strandlinjen runt en ö) eller en mittpunkt med bredd och höjd. Kartan skapas på servern.
  */
 export function NewMapProject() {
+  const failure = useMapProjectFailure();
+  const text = useTexts(mapProjectSv.newMap, mapProjectEn.newMap);
   const [name, setName] = useState("");
   const [norm, setNorm] = useState<Norm>("ISOM2017-2");
   const [scale, setScale] = useState<number>(MAP_PROJECT_NEW_SCALES["ISOM2017-2"][0]);
@@ -54,8 +58,8 @@ export function NewMapProject() {
       setRequestId(crypto.randomUUID());
       const error = result.status === 422 ? (result.json as { error?: string } | undefined)?.error : undefined;
       setMessage(error === "AREA_TOO_LARGE" ? text.tooLarge : error === "STORAGE_QUOTA_EXCEEDED" ? text.quota
-        : result.status === 400 ? text.invalid : mapProjectFailure(result.status));
-    } catch { setMessage(mapProjectFailure(0)); } finally { setBusy(false); }
+        : result.status === 400 ? text.invalid : failure(result.status));
+    } catch { setMessage(failure(0)); } finally { setBusy(false); }
   }
 
   const ready = !!name.trim() && (source === "file" ? !!fileArea : !!center.trim());

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { mapProjectNotesEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { photoFromFile } from "../course-setting/course-setting-notes";
 import { Button } from "../ui";
 import type { ShownNote } from "./use-map-project-notes";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectNotesSv;
 const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 type Photo = { mediaType: "image/jpeg"; base64: string };
 
@@ -16,6 +17,7 @@ type Photo = { mediaType: "image/jpeg"; base64: string };
  * listan i panelen. Formuläret och detaljen ligger nertill över kartan, som fältlägets ark i banläggningen.
  */
 export function NoteForm({ onSave, onCancel }: { onSave: (value: string, photo: Photo | undefined) => Promise<void>; onCancel: () => void }) {
+  const text = useTexts(mapProjectNotesSv, mapProjectNotesEn);
   const [value, setValue] = useState("");
   const [photo, setPhoto] = useState<Photo>();
   const [problem, setProblem] = useState<string>();
@@ -49,6 +51,7 @@ export function NoteForm({ onSave, onCancel }: { onSave: (value: string, photo: 
 
 export function NoteDetail({ note, canManage, onStatus, onRemove, onClose }: { note: ShownNote; canManage: boolean;
   onStatus: (status: "OPEN" | "DONE") => void; onRemove: () => void; onClose: () => void }) {
+  const text = useTexts(mapProjectNotesSv, mapProjectNotesEn);
   return <section className={styles.sheet} data-testid="map-project-note" data-status={note.status} aria-label={text.heading}>
     {note.text && <p className={styles.noteText}>{note.text}</p>}
     {note.photoUrl && <img className={styles.notePhoto} src={note.photoUrl} alt={text.photo} />}
@@ -64,6 +67,7 @@ export function NoteDetail({ note, canManage, onStatus, onRemove, onClose }: { n
 }
 
 export function NotesPanel({ notes, onShow, problem }: { notes: readonly ShownNote[]; onShow: (note: ShownNote) => void; problem?: number | undefined }) {
+  const text = useTexts(mapProjectNotesSv, mapProjectNotesEn);
   const [showDone, setShowDone] = useState(false);
   const open = notes.filter(note => note.status === "OPEN");
   const shown = showDone ? notes : open;

@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { mapProjectReconEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
 import type { MapProjectView } from "@o-tid/contracts";
 import { DEFAULT_RECON, pointInPolygon, RECON_GROUPS, type ReconSettings, type ReconStatus } from "@o-tid/map-revision";
 import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
@@ -10,7 +12,6 @@ import { Button } from "../ui";
 import type { ReconLayer, useMapProjectRecon } from "./use-map-project-recon";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectReconSv;
 const LAYERS: readonly ReconLayer[] = ["STATUS", "COVERAGE", "TRACKS"];
 const STATUSES: readonly ReconStatus[] = ["UNSEEN", "PASSED", "CHECKED"];
 const clock = () => new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
@@ -23,6 +24,7 @@ type Recon = ReturnType<typeof useMapProjectRecon>;
  * bort det egna), delområdenas framsteg med "Godkänn passerade" och siktavstånden (ägarna).
  */
 export function MapProjectReconPanel({ view, recon, hasGeoreference }: { view: MapProjectView; recon: Recon; hasGeoreference: boolean }) {
+  const text = useTexts(mapProjectReconSv, mapProjectReconEn);
   const file = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const markers = recon.result?.markers;
@@ -86,6 +88,7 @@ export function MapProjectReconPanel({ view, recon, hasGeoreference }: { view: M
 }
 
 function TrackList({ recon }: { recon: Recon }) {
+  const text = useTexts(mapProjectReconSv, mapProjectReconEn);
   const [renaming, setRenaming] = useState<{ id: string; name: string }>();
   const pending = recon.local.filter(track => !recon.serverTracks.some(row => row.trackId === track.trackId && row.endedAt)
     && track.trackId !== recon.recording?.trackId);
@@ -111,6 +114,7 @@ function TrackList({ recon }: { recon: Recon }) {
 }
 
 function SettingsForm({ settings, onSave }: { settings: ReconSettings; onSave: (settings: ReconSettings | null) => Promise<boolean> }) {
+  const text = useTexts(mapProjectReconSv, mapProjectReconEn);
   const [draft, setDraft] = useState(settings);
   const number = (value: string, fallback: number) => { const parsed = Number(value.replace(",", ".")); return Number.isFinite(parsed) ? parsed : fallback; };
   return <details className={styles.settings}>

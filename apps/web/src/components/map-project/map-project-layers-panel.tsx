@@ -1,6 +1,9 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import { mapProjectLayersEn } from "../../i18n/map-project-en";
+import { useTexts } from "../language-provider";
+import type { Texts } from "../../lib/language";
 import { mapProjectLayersSv } from "../../i18n/map-project-layers-sv";
 import { Button } from "../ui";
 import type { Bounds } from "../../lib/course-setting-viewport";
@@ -9,13 +12,12 @@ import type { LayerProblem, useMapProjectLayers } from "./use-map-project-layers
 import type { useMapProjectControlPoints } from "./use-map-project-control-points";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectLayersSv;
 type Layers = ReturnType<typeof useMapProjectLayers>;
 type Control = ReturnType<typeof useMapProjectControlPoints>;
-const meters = (value: number) => value.toLocaleString("sv-SE", { maximumFractionDigits: value < 10 ? 1 : 0 });
+const meters = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: value < 10 ? 1 : 0 });
 const megabytes = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
 
-function problemText(problem: LayerProblem): string {
+function problemText(problem: LayerProblem, text: Texts<typeof mapProjectLayersSv>): string {
   if (typeof problem === "number") return text.problems.generic(problem);
   return problem === "quota" ? text.problems.quota : text.problems[problem];
 }
@@ -29,6 +31,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, after, control, scale, 
   after?: ReactNode;
   /** K6b: passpunkterna, kartans skala (för avvikelserna i meter) och området där en bild utan georeferens läggs. */
   control: Control; scale: number; area: Bounds | undefined }) {
+  const text = useTexts(mapProjectLayersSv, mapProjectLayersEn);
   const input = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState("");
@@ -64,7 +67,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, after, control, scale, 
         {control.layerId === layer.layerId && <ControlPoints control={control} name={layer.name} scale={scale} />}
       </li>)}
     </ul>}
-    {problem !== undefined && <p role="alert" className={styles.problem}>{problemText(problem)}{" "}
+    {problem !== undefined && <p role="alert" className={styles.problem}>{problemText(problem, text)}{" "}
       <Button variant="quiet" onClick={() => layers.setProblem(undefined)}>OK</Button></p>}
     {layers.canAdd && <details className={styles.settings} open={adding} onToggle={event => setAdding(event.currentTarget.open)}>
       <summary>{text.upload}</summary>
@@ -96,6 +99,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, after, control, scale, 
 
 /** K6b: passpunkterna för ett underlag med avvikelserna, valet likformig och knapparna. */
 function ControlPoints({ control, name, scale }: { control: Control; name: string; scale: number }) {
+  const text = useTexts(mapProjectLayersSv, mapProjectLayersEn);
   const t = text.control;
   const fit = control.fit;
   return <div className={styles.controlPoints} data-testid="map-project-control-points">

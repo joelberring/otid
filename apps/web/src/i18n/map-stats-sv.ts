@@ -4,6 +4,7 @@ const count = (value: number, one: string, many: string) => `${number(value)} ${
 
 export const mapStatsSv = {
   title: "Statistik",
+  badgesLabel: "Märken",
   mine: "Din kartstatistik",
   myHelp: "Räknas ur det du gjort i kartprojekten. Det Claude föreslog räknas inte som ditt.",
   season: "Säsong",

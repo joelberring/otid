@@ -1,12 +1,13 @@
 "use client";
 
 import type { PositionProblem } from "./use-map-project-position";
+import { mapProjectNotesEn } from "../../i18n/map-project-tools-en";
+import { mapProjectReconEn } from "../../i18n/map-project-more-en";
+import { useTexts } from "../language-provider";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectReconSv;
-const notesText = mapProjectNotesSv;
 export type PositionMode = "off" | "on" | "follow";
 
 /**
@@ -23,6 +24,8 @@ export function MapProjectFieldControls(props: {
   point?: { code: string; onPlace: () => void } | undefined;
   walk?: { code: string; walking: number | undefined; onStart: () => void; onStop: () => void } | undefined;
 }) {
+  const notesText = useTexts(mapProjectNotesSv, mapProjectNotesEn);
+  const text = useTexts(mapProjectReconSv, mapProjectReconEn);
   const { mode, onMode, problem, canRecord, recording, onRecord, point, walk, note } = props;
   const next: Record<PositionMode, PositionMode> = { off: "on", on: "follow", follow: "off" };
   return <div className={styles.fieldControls} data-testid="map-project-field">

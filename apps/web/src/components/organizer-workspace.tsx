@@ -409,7 +409,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
   return <main className={styles.main}>
     <header className={styles.header}>
-      <div><p className={styles.kicker}>O-Tid · Arrangör</p><h1>{copy.yourEvents}</h1>
+      <div><p className={styles.kicker}>{copy.kicker}</p><h1>{copy.yourEvents}</h1>
         {session && events.length > 0 && <a className={styles.createJump} href="#organizer-create-event">{copy.createJump}</a>}</div>
       {session && <div className={styles.account}>
         {session.superadmin && <Link href="/superadmin">{copy.superadmin}</Link>}

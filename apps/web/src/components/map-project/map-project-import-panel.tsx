@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
 import type { Point } from "@o-tid/map-file";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
@@ -8,7 +10,6 @@ import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectImportSv;
 type Import = ReturnType<typeof useMapProjectImport>;
 
 /**
@@ -17,6 +18,7 @@ type Import = ReturnType<typeof useMapProjectImport>;
  */
 export function MapProjectImportPanel({ importer, symbols, areas }: { importer: Import; symbols: ReadonlyMap<string, CatalogSymbol>;
   areas: readonly { areaId: string; name: string; polygon: readonly (readonly Point[])[] }[] }) {
+  const text = useTexts(mapProjectImportSv, mapProjectImportEn);
   const input = useRef<HTMLInputElement>(null);
   const [where, setWhere] = useState("");
   const { file, result, problem } = importer;
@@ -89,6 +91,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
 
 /** K6b: spara lagrens val som en profil (för kontot eller delad med projektets klubb). */
 function ProfileForm({ importer }: { importer: Import }) {
+  const text = useTexts(mapProjectImportSv, mapProjectImportEn);
   const [name, setName] = useState("");
   const [share, setShare] = useState(false);
   const [saved, setSaved] = useState(false);

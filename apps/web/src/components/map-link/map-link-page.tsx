@@ -42,8 +42,7 @@ function saveName(value: string) {
 
 /** Positionen från telefonen när den är påslagen (fältläget i banläggningen, utan "Flytta hit"). */
 function usePosition(active: boolean, georeference: MapGeoreference | null): { position?: MapPosition; problem?: string } {
-  const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
-  const text = useTexts(mapLinkText.page, mapLinkEn.page);
+  const text = useTexts(mapLinkSv.page, mapLinkEn.page);
   const [fix, setFix] = useState<PositionFix>();
   const [problem, setProblem] = useState<string>();
   useEffect(() => {
@@ -73,7 +72,7 @@ function usePosition(active: boolean, georeference: MapGeoreference | null): { p
  */
 export function MapLinkPage({ token, initial }: { token: string; initial: MapLinkView }) {
   const mapLinkText = useTexts(mapLinkSv, mapLinkEn);
-  const text = useTexts(mapLinkText.page, mapLinkEn.page);
+  const text = useTexts(mapLinkSv.page, mapLinkEn.page);
   const [view, setView] = useState(initial);
   const [invalid, setInvalid] = useState(false);
   const [selected, setSelected] = useState<string>();

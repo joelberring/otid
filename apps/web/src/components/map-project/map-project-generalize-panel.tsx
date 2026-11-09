@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { mapProjectGeneralizeEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
 import type { BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectGeneralizeSv } from "../../i18n/map-project-generalize-sv";
 import { Button } from "../ui";
 import type { useMapProjectGeneralize } from "./use-map-project-generalize";
 import styles from "./map-project-editor.module.css";
 
-const text = mapProjectGeneralizeSv;
 const TOLERANCES = [0, 0.05, 0.1, 0.2] as const;
 type Area = BoxArea & { areaId: string };
 
 /** ADR-0219 K6 (del 1): generaliseringen i sidopanelen: välj område och steg, räkna fram och lämna som förslag. */
 export function MapProjectGeneralizePanel({ generalize, areas }: { generalize: ReturnType<typeof useMapProjectGeneralize>; areas: readonly Area[] }) {
+  const text = useTexts(mapProjectGeneralizeSv, mapProjectGeneralizeEn);
   const [where, setWhere] = useState("");
   const [tolerance, setTolerance] = useState<number>(0.1);
   const [removeSmall, setRemoveSmall] = useState(true);

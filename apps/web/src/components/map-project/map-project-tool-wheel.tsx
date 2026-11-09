@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { mapProjectQuickSv as text } from "../../i18n/map-project-quick-sv";
+import { mapProjectQuickEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
+import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { SymbolIcon } from "./map-project-symbol-icon";
 import styles from "./map-project-tool-wheel.module.css";
@@ -23,6 +25,7 @@ export function MapProjectToolWheel({ at, bounds, tools, symbols, symbolId, onSy
   tools: readonly WheelTool[]; symbols: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
   actions: readonly WheelAction[]; onClose: () => void;
 }) {
+  const text = useTexts(mapProjectQuickSv, mapProjectQuickEn);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); } };

@@ -61,6 +61,7 @@ export const organizerEn: Texts<typeof organizerSv> = {
   myAccount: "My account",
   superadmin: "Superadmin",
   yourEvents: "My events",
+  kicker: "O-Tid · Organiser",
   eventsSection: "Your events",
   eventsHint: "Events that belong to your account.",
   eventSearchLabel: "Search event or race",

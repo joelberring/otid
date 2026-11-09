@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { mapSourcesEn } from "../../i18n/map-sources-en";
+import { useTexts } from "../language-provider";
 import type { GeoJobList, GeoJobView, MapProjectView, MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { parseDxf, parseGeoJson, VectorParseError } from "@o-tid/map-revision";
@@ -15,7 +17,6 @@ import type { useMapProjectImport } from "./use-map-project-import";
 import type { useMapProjectLayers } from "./use-map-project-layers";
 import styles from "./map-project-editor.module.css";
 
-const text = mapSourcesSv.laser;
 interface LaserItem { id: string; datetime: string | null; href: string; bbox: [number, number, number, number] | null; bytes: number | null; epsg: number | null }
 type Area = BoxArea & { areaId: string };
 const INTERVALS = [2.5, 5] as const;
@@ -28,6 +29,8 @@ const ACTIVE = new Set(["QUEUED", "RUNNING"]);
 export function MapProjectLaserPanel({ view, layers, importer, georeference, bounds, areas }: { view: MapProjectView;
   layers: ReturnType<typeof useMapProjectLayers>; importer: ReturnType<typeof useMapProjectImport>; georeference: MapGeoreference | undefined;
   bounds: Bounds | undefined; areas: readonly Area[] }) {
+  const mapSourcesText = useTexts(mapSourcesSv, mapSourcesEn);
+  const text = useTexts(mapSourcesSv.laser, mapSourcesEn.laser);
   const base = mapProjectBase(view.projectId);
   const [credential, setCredential] = useState<MapSourceCredentialView>();
   const [list, setList] = useState<GeoJobList>();
@@ -131,9 +134,9 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     <p className={styles.muted}>{text.help}</p>
     {list && <p className={styles.muted} role="status" data-testid="map-project-laser-server">{text.server[list.server.state]}
       {list.server.detail ? ` ${list.server.detail}` : ""}</p>}
-    {credential && !ready ? <p className={styles.muted}>{mapSourcesSv.ortho.noCredential} <a href="/konto#konto-lantmateriet">{mapSourcesSv.ortho.account}</a></p> : <>
-      <label>{mapSourcesSv.ortho.where}<select value={where} onChange={event => setWhere(event.target.value)} data-testid="map-project-laser-area">
-        <option value="">{mapSourcesSv.ortho.whole}</option>
+    {credential && !ready ? <p className={styles.muted}>{mapSourcesText.ortho.noCredential} <a href="/konto#konto-lantmateriet">{mapSourcesText.ortho.account}</a></p> : <>
+      <label>{mapSourcesText.ortho.where}<select value={where} onChange={event => setWhere(event.target.value)} data-testid="map-project-laser-area">
+        <option value="">{mapSourcesText.ortho.whole}</option>
         {areas.map(row => <option key={row.areaId} value={row.areaId}>{row.name}</option>)}
       </select></label>
       <span className={styles.actions}>

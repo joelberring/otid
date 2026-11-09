@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { mapProjectGeneralizeEn } from "../../i18n/map-project-tools-en";
+import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectView } from "@o-tid/contracts";
 import { proposalBase, type GeneralizeOptions, type GeneralizeResult, type ObjectKey, type ObjectRef, type RevisionClientState, type RevisionEdit } from "@o-tid/map-revision";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -8,7 +10,6 @@ import { mapProjectBase } from "../../lib/map-project-client";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 import { mapProjectGeneralizeSv } from "../../i18n/map-project-generalize-sv";
 
-const text = mapProjectGeneralizeSv;
 const MAX_PROPOSAL_BYTES = 3 * 1024 * 1024;
 
 /**
@@ -17,6 +18,7 @@ const MAX_PROPOSAL_BYTES = 3 * 1024 * 1024;
  */
 export function useMapProjectGeneralize(view: MapProjectView, session: MapProjectSession | undefined, state: RevisionClientState | undefined,
   onSent: () => void) {
+  const text = useTexts(mapProjectGeneralizeSv, mapProjectGeneralizeEn);
   const base = mapProjectBase(view.projectId);
   const [result, setResult] = useState<{ value: GeneralizeResult; refs: ReadonlyMap<ObjectKey, ObjectRef>; options: GeneralizeOptions }>();
   const [busy, setBusy] = useState<string>();

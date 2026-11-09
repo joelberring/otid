@@ -1,6 +1,7 @@
 import type { MapObject } from "@o-tid/map-file";
 import { circleShape, simplifyShape, smoothShape, straightenShape, vertexCount } from "@o-tid/map-revision";
-import { mapProjectQuickSv as text } from "../i18n/map-project-quick-sv";
+import { mapProjectQuickSv } from "../i18n/map-project-quick-sv";
+import type { Texts } from "./language";
 
 /** Förenklingens tolerans i kartans mm: lite (0,05 mm) och mer (0,15 mm). */
 export const SIMPLIFY_MM = { little: 0.05, more: 0.15 } as const;
@@ -12,7 +13,7 @@ export interface ShapeAction { readonly id: ShapeActionId; readonly label: strin
  * Ägaren 2026-11-09: formens åtgärder för ett markerat objekt (linjer och ytor). Varje åtgärd har sitt resultat räknat (eller
  * inget när den inte ändrar något) och beskedet som visas efteråt.
  */
-export function shapeActions(object: MapObject): ShapeAction[] {
+export function shapeActions(object: MapObject, text: Texts<typeof mapProjectQuickSv> = mapProjectQuickSv): ShapeAction[] {
   if (object.kind !== "line" && object.kind !== "area") return [];
   const before = vertexCount(object);
   const simplified = (tolerance: number, id: ShapeActionId, label: string): ShapeAction => {

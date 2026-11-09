@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { mapProjectEn } from "../i18n/map-project-en";
+import { useTexts } from "./language-provider";
 import { useEffect, useState } from "react";
 import type { ClubSummary, GroupSummary, MapProjectSummary } from "@o-tid/contracts";
 import { myPlacesSv as text } from "../i18n/my-places-sv";
@@ -20,6 +22,7 @@ import styles from "./my-places-strip.module.css";
  * Ankarna `#mina-klubbar` och `#mina-grupper` nås från kontomenyn på alla sidor.
  */
 export function MyPlacesStrip() {
+  const mapProjectText = useTexts(mapProjectSv, mapProjectEn);
   const [clubs, setClubs] = useState<ClubSummary[]>();
   const [groups, setGroups] = useState<GroupSummary[]>();
   const [creating, setCreating] = useState<"club" | "group">();
@@ -81,14 +84,14 @@ export function MyPlacesStrip() {
     </section>
     {/* Kartritningen syns alltid, också utan projekt (ägaren 2026-11-08: den var svår att hitta). */}
     <section id="mina-kartprojekt" className={styles.place} aria-labelledby="my-map-projects-heading">
-      <h2 id="my-map-projects-heading"><Link href="/organizer/map-projects">{mapProjectSv.list.title}</Link></h2>
+      <h2 id="my-map-projects-heading"><Link href="/organizer/map-projects">{mapProjectText.list.title}</Link></h2>
       {projects.length === 0 && <p className={styles.empty}>{text.noMapProjects}{" "}
         <Link href="/organizer/map-projects#nytt-kartprojekt" data-testid="my-places-new-map-project">{text.newMapProject}</Link></p>}
       {projects.length > 0 && <ul className={styles.chips}>
         {projects.map(project => <li key={project.projectId}>
           <Link className={styles.chip} href={`/organizer/map-projects/${encodeURIComponent(project.projectId)}`}>
             <strong>{project.name}</strong>
-            <span>{mapProjectSv.roles[project.role]} · {mapProjectSv.list.changed(project.changedObjects)}</span>
+            <span>{mapProjectText.roles[project.role]} · {mapProjectText.list.changed(project.changedObjects)}</span>
           </Link>
         </li>)}
       </ul>}

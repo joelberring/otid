@@ -39,6 +39,10 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   await form.getByLabel("Rubrik eller övning").fill("Kurvbildsträning");
   await form.getByLabel("Plats").fill("Älvsjöskogen");
   await form.getByLabel("Ansvarig").selectOption({ label: "Petra Planerare" });
+  // ADR-0222: moment, nivå och egna ord.
+  await form.getByRole("button", { name: "Kurvbild" }).click();
+  await form.getByRole("button", { name: "Gul" }).click();
+  await form.getByLabel("Egna ord").fill("Ungdom");
   await form.getByText("Varje vecka till terminens slut").click();
   await expect(form.getByText("Samma träning varje tisdag", { exact: false })).toBeVisible();
   await form.getByRole("button", { name: "Spara" }).click();
@@ -46,6 +50,9 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   const first = planning.getByTestId("plan-session").first();
   await expect(first).toContainText("Kurvbildsträning");
   await expect(first).toContainText("Ansvarig: Petra Planerare");
+  await expect(first.getByTestId("moment-badges")).toContainText("Gul");
+  await expect(first.getByTestId("moment-badges")).toContainText("Kurvbild");
+  await expect(first.getByTestId("moment-badges")).toContainText("Ungdom");
   await expect(planning.getByTestId("plan-week").first()).toContainText("Ingen träning planerad.");
 
   // En uppgift till en förälders adress (som inte har konto än).

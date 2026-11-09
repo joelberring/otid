@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { ClubPlanResponse, ClubPlanSessionView } from "@o-tid/contracts";
+import type { ClubPlanResponse, ClubPlanSessionView, TrainingLevel, TrainingMoment } from "@o-tid/contracts";
 import { isoWeekday } from "@o-tid/domain";
 import { clubPlanningEn } from "../../i18n/club-planning-en";
 import { clubPlanningSv } from "../../i18n/club-planning-sv";
 import { isClock, isIsoDate } from "../../lib/form-validation";
 import { useTexts } from "../language-provider";
+import { MomentPicker, tagsFromText } from "../training-moments/moment-picker";
 import { Button, DateInput, Field, Select } from "../ui";
 import styles from "./club-planning.module.css";
 
 export type PlanSessionFields = { sessionDate: string; startTime: string | null; title: string; place: string; note: string;
-  clubMapId: string | null; trainingGroupId: string | null; responsibleAccountId: string | null };
-type Body = { formatVersion: 1 } & PlanSessionFields & ({ requestId: string; termId: string; weekly: boolean } | { version: number });
+  clubMapId: string | null; trainingGroupId: string | null; responsibleAccountId: string | null; moments: TrainingMoment[]; levels: TrainingLevel[] };
+type Body = { formatVersion: 1; tags: string[] } & PlanSessionFields & ({ requestId: string; termId: string; weekly: boolean } | { version: number });
 
 /** ADR-0221: en planerad träning – ny (med "Varje vecka till terminens slut") eller ändrad. */
 export function PlanSessionForm({ plan, termId, initialDate, session, busy, onSave, onCancel }: {
@@ -23,7 +24,8 @@ export function PlanSessionForm({ plan, termId, initialDate, session, busy, onSa
   const [fields, setFields] = useState<PlanSessionFields>(() => ({ sessionDate: session?.sessionDate ?? initialDate ?? "",
     startTime: session?.startTime ?? null, title: session?.title ?? "", place: session?.place ?? "", note: session?.note ?? "",
     clubMapId: session?.clubMapId ?? null, trainingGroupId: session?.trainingGroupId ?? null,
-    responsibleAccountId: session?.responsibleAccountId ?? null }));
+    responsibleAccountId: session?.responsibleAccountId ?? null, moments: [...session?.moments ?? []], levels: [...session?.levels ?? []] }));
+  const [tags, setTags] = useState((session?.tags ?? []).join(", "));
   const [time, setTime] = useState(session?.startTime ?? "");
   const [weekly, setWeekly] = useState(false);
   const [requestId] = useState(() => crypto.randomUUID());
@@ -41,7 +43,7 @@ export function PlanSessionForm({ plan, termId, initialDate, session, busy, onSa
     setTried(true);
     if (Object.values(errors).some(Boolean)) return;
     const clock = time.trim() === "" ? null : time.trim().replace(".", ":").padStart(5, "0").slice(0, 5);
-    const values = { ...fields, startTime: clock, title: fields.title.trim(), place: fields.place.trim(), note: fields.note.trim() };
+    const values = { ...fields, startTime: clock, title: fields.title.trim(), place: fields.place.trim(), note: fields.note.trim(), tags: tagsFromText(tags) };
     await onSave(session ? { formatVersion: 1, version: session.version, ...values } : { formatVersion: 1, requestId, termId, weekly, ...values });
   }
 
@@ -73,6 +75,11 @@ export function PlanSessionForm({ plan, termId, initialDate, session, busy, onSa
       <option value="">{text.session.noGroup}</option>
       {groups.map(group => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
     </Select>}
+    <MomentPicker moments={fields.moments} levels={fields.levels} tags={tags} onChange={change => {
+      if (change.moments) set("moments", change.moments);
+      if (change.levels) set("levels", change.levels);
+      if (change.tags !== undefined) setTags(change.tags);
+    }} />
     <Field label={text.session.note}><textarea value={fields.note} maxLength={2000} onChange={event => set("note", event.target.value)} /></Field>
     {!session && <label className={styles.check}><input type="checkbox" checked={weekly} onChange={event => setWeekly(event.target.checked)} />
       <span>{text.session.weekly}</span></label>}

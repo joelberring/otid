@@ -6,7 +6,12 @@ import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { ClubArchiveEntryStatus, ClubArchiveList } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
-import { archiveFacets, EMPTY_FILTER, filterArchive, type ArchiveFilter } from "../../lib/club-archive-filter";
+import { archiveFacets, EMPTY_FILTER, filterArchive, savedFilter, type ArchiveFilter } from "../../lib/club-archive-filter";
+import { TRAINING_LEVELS } from "@o-tid/contracts";
+import { trainingMomentsEn } from "../../i18n/training-moments-en";
+import { trainingMomentsSv } from "../../i18n/training-moments-sv";
+import { Chips } from "../training-moments/moment-picker";
+import moments from "../training-moments/moments.module.css";
 import { Button, EmptyState } from "../ui";
 import { EntryThumbnail } from "./map-check";
 import checks from "./archive-checks.module.css";
@@ -15,14 +20,15 @@ import styles from "./club-archive.module.css";
 const STATUSES: readonly ClubArchiveEntryStatus[] = ["COMPLETE", "COURSES_ONLY", "MAP_MISSING", "MAP_ONLY"];
 const STORAGE_KEY = "otid.club-archive.filter";
 
-/** ADR-0194: arkivets träningar med sökning och filter (år, karta, tagg, ledare, läge). Filtret sparas i webbläsaren. */
+/** ADR-0194: arkivets träningar med sökning och filter (år, karta, ledare, läge; ADR-0222 moment, nivåer och egna ord). Filtret sparas i webbläsaren. */
 export function ArchiveList({ clubId, list, admin }: { clubId: string; list: ClubArchiveList; admin: boolean }) {
   const text = useTexts(clubArchiveSv, clubArchiveEn);
+  const momentText = useTexts(trainingMomentsSv, trainingMomentsEn);
   const [filter, setFilter] = useState<ArchiveFilter>(EMPTY_FILTER);
   useEffect(() => {
     try {
       const saved = JSON.parse(window.sessionStorage.getItem(`${STORAGE_KEY}.${clubId}`) ?? "null") as Partial<ArchiveFilter> | null;
-      if (saved) setFilter({ ...EMPTY_FILTER, ...saved });
+      if (saved) setFilter(savedFilter(saved));
     } catch { /* inget sparat filter */ }
   }, [clubId]);
   const update = (change: Partial<ArchiveFilter>) => setFilter(current => {
@@ -31,7 +37,8 @@ export function ArchiveList({ clubId, list, admin }: { clubId: string; list: Clu
     return next;
   });
   const facets = useMemo(() => archiveFacets(list.entries), [list.entries]);
-  const shown = useMemo(() => filterArchive(list.entries, filter), [list.entries, filter]);
+  const shown = useMemo(() => filterArchive(list.entries, filter, moment => momentText.momentNames[moment]), [list.entries, filter, momentText]);
+  const levels = useMemo(() => TRAINING_LEVELS.filter(level => list.entries.some(entry => entry.levels.includes(level))), [list.entries]);
 
   if (list.entries.length === 0) return <EmptyState title={text.empty.title}>{admin ? text.empty.admin : text.empty.reader}</EmptyState>;
   const f = text.filters;
@@ -42,13 +49,18 @@ export function ArchiveList({ clubId, list, admin }: { clubId: string; list: Clu
         <option value="">{f.all}</option>{facets.years.map(year => <option key={year}>{year}</option>)}</select></label>
       <label>{f.map}<select value={filter.mapId} onChange={event => update({ mapId: event.target.value })}>
         <option value="">{f.all}</option>{list.maps.map(map => <option key={map.mapId} value={map.mapId}>{map.name}</option>)}</select></label>
-      <label>{f.tag}<select value={filter.tag} onChange={event => update({ tag: event.target.value })}>
-        <option value="">{f.all}</option>{facets.tags.map(tag => <option key={tag}>{tag}</option>)}</select></label>
       <label>{f.leader}<select value={filter.leader} onChange={event => update({ leader: event.target.value })}>
         <option value="">{f.all}</option>{facets.leaders.map(leader => <option key={leader}>{leader}</option>)}</select></label>
       <label>{f.status}<select value={filter.status} onChange={event => update({ status: event.target.value as ArchiveFilter["status"] })}>
         <option value="">{f.all}</option>{STATUSES.map(status => <option key={status} value={status}>{text.status[status]}</option>)}</select></label>
     </div>
+    {(facets.moments.length > 0 || levels.length > 0 || facets.tags.length > 0) && <div className={styles.momentFilters} data-testid="archive-moment-filters">
+      {levels.length > 0 && <Chips legend={momentText.filterLevels} help={momentText.filterLevelsHelp} options={levels} chosen={filter.levels}
+        name={level => momentText.levelNames[level]} dots onChange={next => update({ levels: next })} />}
+      {facets.moments.length > 0 && <Chips legend={momentText.filterMoments} help={momentText.filterMomentsHelp} options={facets.moments}
+        chosen={filter.moments} name={moment => momentText.momentNames[moment]} onChange={next => update({ moments: next })} />}
+      {facets.tags.length > 0 && <Chips legend={f.tag} options={facets.tags} chosen={filter.tags} name={tag => tag} onChange={next => update({ tags: next })} />}
+    </div>}
     <div className={styles.count}>
       <span role="status" aria-live="polite">{f.count(shown.length, list.entries.length)}</span>
       {JSON.stringify(filter) !== JSON.stringify(EMPTY_FILTER) && <Button variant="quiet" onClick={() => update(EMPTY_FILTER)}>{f.clear}</Button>}
@@ -64,6 +76,9 @@ export function ArchiveList({ clubId, list, admin }: { clubId: string; list: Clu
             {entry.leader && <span>{entry.leader}</span>}
             {entry.maps.length > 0 && <span>{entry.maps.map(map => map.name).join(", ")}</span>}
             {entry.courseNames.length > 0 && <span>{text.entry.courseCount(entry.courseNames.length)}</span>}
+            {entry.levels.map(level => <span key={level} className={styles.tag}><span className={moments.dot} data-level={level} aria-hidden="true" />
+              {" "}{momentText.levelNames[level]}</span>)}
+            {entry.moments.map(moment => <span key={moment} className={styles.tag}>{momentText.momentNames[moment]}</span>)}
             {entry.tags.map(tag => <span key={tag} className={styles.tag}>{tag}</span>)}
           </span>
         </Link>

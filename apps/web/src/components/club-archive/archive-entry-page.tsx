@@ -5,9 +5,11 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { clubArchiveEn } from "../../i18n/club-archive-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
-import type { ClubArchiveEntryView, MapAgreement } from "@o-tid/contracts";
+import type { ClubArchiveEntryView, MapAgreement, TrainingLevel, TrainingMoment } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { levelsFromCourseNames } from "../../lib/club-archive-filter";
+import { MomentBadges, MomentPicker, tagsFromText } from "../training-moments/moment-picker";
 import { Button, DateInput, Field, Notice } from "../ui";
 import { MapAgreementSummary } from "../training-group/map-agreement";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
@@ -30,13 +32,16 @@ function EditForm({ view, onSaved, onCancel }: { view: ClubArchiveEntryView; onS
   const [title, setTitle] = useState(entry.title);
   const [leader, setLeader] = useState(entry.leader ?? "");
   const [tags, setTags] = useState(entry.tags.join(", "));
+  const [moments, setMoments] = useState<TrainingMoment[]>([...entry.moments]);
+  const [levels, setLevels] = useState<TrainingLevel[]>([...entry.levels]);
+  const suggested = useMemo(() => levelsFromCourseNames(view.courseFiles.flatMap(file => file.courses.map(course => course.name))), [view.courseFiles]);
   const [notes, setNotes] = useState(entry.notes ?? "");
   const [problem, setProblem] = useState("");
   async function save(event: FormEvent) {
     event.preventDefault();
     const result = await clubRequest(`${clubBase(view.clubId)}/archive/${entry.entryId}`, "PUT", { formatVersion: 1, trainingDate: date || null,
       place: place.trim(), title: title.trim(), leader: leader.trim(), notes: notes.trim(),
-      tags: [...new Set(tags.split(",").map(tag => tag.trim()).filter(Boolean))].slice(0, 30) });
+      tags: tagsFromText(tags), moments, levels });
     if (result.status !== 200) { setProblem(failure(result.status)); return; }
     await onSaved();
   }
@@ -47,7 +52,11 @@ function EditForm({ view, onSaved, onCancel }: { view: ClubArchiveEntryView; onS
     </div>
     <Field label={text.titleField}><input value={title} maxLength={200} onChange={event => setTitle(event.target.value)} /></Field>
     <Field label={text.leader}><input value={leader} maxLength={200} onChange={event => setLeader(event.target.value)} /></Field>
-    <Field label={text.tags} help={text.tagsHelp}><input value={tags} onChange={event => setTags(event.target.value)} /></Field>
+    <MomentPicker moments={moments} levels={levels} tags={tags} suggestedLevels={suggested} onChange={change => {
+      if (change.moments) setMoments(change.moments);
+      if (change.levels) setLevels(change.levels);
+      if (change.tags !== undefined) setTags(change.tags);
+    }} />
     <Field label={text.notes}><textarea value={notes} maxLength={4000} onChange={event => setNotes(event.target.value)} /></Field>
     <div className={styles.actions}>
       <Button type="submit" disabled={!title.trim()}>{text.save}</Button>
@@ -156,7 +165,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
           <p>{text.readOnlyHint}</p>
           {mapBank && <Button onClick={() => setReuseOpen(true)} disabled={view.courseFiles.length === 0 && allVersions.length === 0}>{clubArchiveText.reuse.open}</Button>}
         </div>
-        {entry.tags.length > 0 && <p className={styles.actions}>{entry.tags.map(tag => <span key={tag} className={styles.tag}>{tag}</span>)}</p>}
+        <MomentBadges moments={entry.moments} levels={entry.levels} tags={entry.tags} />
         {entry.notes && <p>{entry.notes}</p>}
         {!mapBank && <p className={styles.muted} data-testid="map-bank-closed">{text.mapBankClosed}</p>}
         <dl className={styles.facts}>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema } from "./account";
 import { uuidSchema } from "./ids";
+import { trainingLevelsSchema, trainingMomentsSchema, type TrainingLevel, type TrainingMoment } from "./training-moments";
 
 /**
  * ADR-0221: terminsplaneringen i klubbytan. Ledare, administratörer och ägare läser och ändrar planen; den som har en
@@ -25,7 +26,11 @@ const sessionFields = {
   note: z.string().trim().max(2000),
   clubMapId: uuidSchema.nullable(),
   trainingGroupId: uuidSchema.nullable(),
-  responsibleAccountId: uuidSchema.nullable()
+  responsibleAccountId: uuidSchema.nullable(),
+  /** ADR-0222: moment, nivåer och egna ord (följer med till klubbarkivet). */
+  moments: trainingMomentsSchema.default([]),
+  levels: trainingLevelsSchema.default([]),
+  tags: z.array(z.string().trim().min(1).max(40)).max(30).default([]).transform(values => [...new Set(values)])
 };
 
 export const clubPlanSessionCreateSchema = z.object({
@@ -64,6 +69,7 @@ export interface ClubPlanSessionView {
   readonly responsibleAccountId: string | null; readonly responsibleName: string | null;
   /** Träningen som skapades ur planen (null tills "Skapa träningen", eller om den har tagits bort). */
   readonly raceId: string | null;
+  readonly moments: readonly TrainingMoment[]; readonly levels: readonly TrainingLevel[]; readonly tags: readonly string[];
   readonly tasks: readonly ClubPlanTaskView[];
 }
 

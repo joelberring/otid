@@ -10,6 +10,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Moment och nivåer på träningar (ADR-0222)
+- Moment ur en fast lista (Kurvbild, Kompass, Vägval, Stråk …) och nivåer Grön–Svart, plus egna ord, i terminsplaneringen och i
+  klubbarkivet; planens följer med vid "Lägg i klubbarkivet". Nivån föreslås ur banornas namn. Migration 0110.
+- Arkivets sökning: knappar för nivå (någon), moment och egna ord (alla); fritexten hittar momentens namn. Klubbytans flikar
+  följer adressens #flik också utan omladdning.
+- Verifierat: enhet `club-archive-align` (filter, förslag, sparat filter), integration `adr-0221-terminsplanering` (planen →
+  arkivet), `adr-0194`, `adr-0209`, E2E `klubbarkiv`, `terminsplanering`, `sprak`, `hjalp`.
+- Ägaren: migration 0110 (med 0109) när servern uppdateras.
+
 ### 2026-11-09 – Steg 69: terminsplanering i klubbytan (ADR-0221)
 - Fliken Planering (ledare, administratörer, ägare): terminer vecka för vecka med tomma veckor, planerade träningar (datum, tid,
   rubrik, plats, karta, grupp, ansvarig, anteckning), "Varje vecka till terminens slut" och "Skapa träningen" (den ansvarige blir

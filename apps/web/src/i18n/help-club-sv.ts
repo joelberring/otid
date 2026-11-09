@@ -117,7 +117,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
       "Fliken ”Planering” i klubbytan är för ledare, administratörer och ägare. Där planerar ni en termin i taget, vecka för vecka.",
       { steps: [
         "Välj ”Ny termin”. O-Tid föreslår nästa termin; ändra namn och datum om det behövs och välj ”Spara terminen”.",
-        "Välj ”Lägg till träning” i veckan. Skriv datum, tid, rubrik och plats, och välj karta, ansvarig och träningsgrupp om ni vill.",
+        "Välj ”Lägg till träning” i veckan. Skriv datum, tid, rubrik och plats, och välj karta, ansvarig, grupp, moment och nivå om ni vill.",
         "Kryssa i ”Varje vecka till terminens slut” för en träning som går samma veckodag hela terminen. Varje vecka kan sedan ändras för sig.",
         "Under ”Uppgifter” lägger du till vad som ska göras, till exempel ”Skriva ut kartor” eller ”Sätta ut kontroller”, och vem som gör det.",
         "När det är dags: ”Skapa träningen”. Den blir en riktig träning med rubriken, datumet och tiden, och den ansvarige blir administratör."
@@ -128,7 +128,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "När träningen finns får personen läsrätt i banläggningen för just den träningen: banorna, kontrollkartan, beskrivningarna och utskriften.",
         "Tas uppgiften bort försvinner läsrätten också."
       ],
-      "Planen är aldrig publik. Medlemmar utan ledarroll ser inte planen, bara sina egna uppgifter."
+      "Moment, nivåer och egna ord följer med när träningen läggs i klubbarkivet, där du kan söka på dem. I arkivet föreslås nivån ur banornas namn. Planen är aldrig publik; medlemmar utan ledarroll ser bara sina egna uppgifter."
     ]
   }
 ];

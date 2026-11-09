@@ -117,7 +117,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       "The club archive keeps the club's maps and courses from earlier trainings, so they can be used again. It is never public; only those invited see it.",
       "Create it at the top of ”My events” → ”My clubs” → ”New club space”. Whoever creates the club becomes its owner.",
       [
-        "”Trainings”: search for place, exercise or course and filter by year, map, tag and leader.",
+        "”Trainings”: search for place, exercise or course and filter by year, map, leader, elements, level and own words.",
         "”Maps”: the maps with all versions. See [Maps, versions and rights](#arkiv-kartor).",
         "”Members”: who sees and changes the archive. See [Members](#arkiv-medlemmar).",
         "”Import”: read in the club's old trainings from your computer. See [Import to the archive](#arkiv-import)."
@@ -234,7 +234,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       "The tab ”Planning” in the club space is for leaders, administrators and owners. There you plan one term at a time, week by week.",
       { steps: [
         "Choose ”New term”. O-Tid suggests the next term; change the name and dates if needed and choose ”Save the term”.",
-        "Choose ”Add training” in the week. Write date, time, heading and place, and choose map, responsible and training group if you like.",
+        "Choose ”Add training” in the week. Write date, time, heading and place, and choose map, responsible, group, elements and level if you like.",
         "Tick ”Every week until the end of the term” for a training on the same weekday all term. Each week can then be changed on its own.",
         "Under ”Tasks” you add what needs doing, for example ”Print maps” or ”Put out controls”, and who does it.",
         "When it is time: ”Create the training”. It becomes a real training with the heading, date and time, and the responsible person becomes administrator."
@@ -245,7 +245,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "When the training exists the person gets read access to the course setting of that training: the courses, control map, descriptions and printing.",
         "If the task is removed, the read access goes too."
       ],
-      "The plan is never public. Members without a leader role do not see the plan, only their own tasks."
+      "Elements, levels and own words follow the training when it is put in the club archive, where you can search for them. In the archive the level is suggested from the courses' names. The plan is never public; members without a leader role only see their own tasks."
     ]
   }
 ];

@@ -1141,6 +1141,7 @@ ADR-0221 (ägaren 2026-11-09). Migration 0109.
 - [x] **Planerad träning:** datum, tid, rubrik, plats, karta, grupp, ansvarig och anteckning; "Skapa träningen" gör en riktig träning.
 - [x] **Uppgifter** till klubbens medlemmar eller en e-postadress; "Mina uppgifter" visar bara de egna, med läsrätt i banläggningen.
 - [x] **Tester:** domän (veckorna), integration (behörigheten för ledare, medlemmar och den med uppgift), rollmatrisen, Playwright hela flödet.
+- [x] **Moment och nivåer** (ADR-0222, migration 0110): i planen och i klubbarkivet, förslag på nivå ur banornas namn, sökning på flera.
 - [ ] Kvar för ägaren: prova en riktig termin; senare kanske planens karta förvald i banläggningen och en utskrift av terminsplanen.
 
 ## [x] Steg 64 – Banpåtryck och utskriftslayout

@@ -48,7 +48,13 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
   const [tab, setTab] = useState<Tab>("trainings");
   const [focus, setFocus] = useState<ClubSpaceFocus>();
   const tabs = useRef<HTMLDivElement>(null);
-  useEffect(() => { setTab(initialTab()); }, []);
+  useEffect(() => {
+    setTab(initialTab());
+    // Länkar till en annan flik på samma sida (#members, #planning …) byter flik utan att sidan laddas om.
+    const follow = () => setTab(initialTab());
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
 
   const load = useCallback(async () => {
     const [archive, view] = await Promise.all([clubRequest(`${clubBase(clubId)}/archive`), clubRequest(clubBase(clubId))]);

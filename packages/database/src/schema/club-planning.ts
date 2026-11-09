@@ -26,6 +26,10 @@ export const clubPlanSessions = pgTable("club_plan_session", {
   trainingGroupId: uuid("training_group_id"),
   responsibleAccountId: uuid("responsible_account_id"),
   raceId: uuid("race_id"),
+  /** ADR-0222 (migration 0110): moment, nivåer och egna ord, som följer med till klubbarkivet. */
+  moments: text("moments").array().notNull().default([]),
+  levels: text("levels").array().notNull().default([]),
+  tags: text("tags").array().notNull().default([]),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").notNull(),

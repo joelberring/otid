@@ -80,7 +80,8 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     const entries = owner.getByTestId("archive-entries").getByRole("listitem");
     await expect(entries).toHaveCount(4);
     await expect(owner.getByTestId("club-usage")).toContainText("2 kartor (3 versioner) · 4 träningar");
-    await owner.getByLabel("Tagg").selectOption("Keps");
+    // ADR-0222: egna ord, moment och nivåer väljs som knappar (flera samtidigt).
+    await owner.getByTestId("archive-moment-filters").getByRole("button", { name: "Keps" }).click();
     await expect(entries).toHaveCount(1);
     await expect(entries.first()).toContainText("Ängen");
     await expect(entries.first()).toContainText("Banor, kartan från annan träning");
@@ -110,6 +111,29 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await expect(owner.getByTestId("course-file")).toContainText("äldre version");
     await expect(owner.getByTestId("course-preview")).toHaveAttribute("data-ready", "true", { timeout: 60_000 });
     await reviewScreenshots(owner, "klubbarkiv-traning");
+
+    // ADR-0222: moment och nivå på träningen, och sökningen på dem.
+    await owner.getByRole("button", { name: "Ändra", exact: true }).click();
+    const edit = owner.getByRole("form", { name: "Ändra" });
+    await edit.getByRole("button", { name: "Kurvbild" }).click();
+    await edit.getByRole("button", { name: "Kompass" }).click();
+    await edit.getByRole("button", { name: "Gul" }).click();
+    await expect(edit.getByRole("button", { name: "Kurvbild" })).toHaveAttribute("aria-pressed", "true");
+    await edit.getByRole("button", { name: "Spara" }).click();
+    await expect(owner.getByTestId("moment-badges")).toContainText("Kurvbild");
+    await expect(owner.getByTestId("moment-badges")).toContainText("Gul");
+    await owner.goto(`/organizer/clubs/${clubId}#trainings`);
+    const momentFilters = owner.getByTestId("archive-moment-filters");
+    await momentFilters.getByRole("button", { name: "Kompass" }).click();
+    await momentFilters.getByRole("button", { name: "Kurvbild" }).click();
+    await expect(entries).toHaveCount(1);
+    await expect(entries.first()).toContainText("Ängen");
+    await owner.getByRole("button", { name: "Rensa" }).click();
+    await momentFilters.getByRole("button", { name: "Gul" }).click();
+    await expect(entries).toHaveCount(1);
+    await reviewScreenshots(owner, "klubbarkiv-moment");
+    await owner.getByRole("button", { name: "Rensa" }).click();
+    await expect(entries).toHaveCount(4);
 
     // Bjud in en läsare (en medlem; kartbanken är för alla medlemmar som förval, ADR-0209).
     const reader = await registerAccount(browser, `lasare.${suffix}@exempel.se`, "Lisa Läsare");

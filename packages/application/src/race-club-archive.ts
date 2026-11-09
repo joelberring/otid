@@ -223,9 +223,14 @@ export async function liftRaceToClubArchive(db: Database, input: RaceSessionProo
       if (imported) files.push({ kind: "COURSE_DATA", fileName: imported.fileName ?? `${safeName(title)} banor.xml`, bytes: Buffer.from(imported.xml, "utf8") });
     }
 
+    // ADR-0222: moment, nivåer och egna ord från terminsplaneringen när träningen skapades ur klubbens plan.
+    const [planned] = await tx.select({ moments: schema.clubPlanSessions.moments, levels: schema.clubPlanSessions.levels,
+      tags: schema.clubPlanSessions.tags }).from(schema.clubPlanSessions)
+      .where(and(eq(schema.clubPlanSessions.raceId, raceId), eq(schema.clubPlanSessions.clubId, clubId))).limit(1);
     const entryId = randomUUID();
     await tx.insert(schema.clubArchiveEntries).values({ id: entryId, clubId, trainingDate: facts.race.raceDate, year: Number(facts.race.raceDate.slice(0, 4)),
-      place: mapName, title, leader: null, tags: [facts.race.raceType === "TRAINING" ? "Träning" : "Tävling"], notes: null, sourcePath: null,
+      place: mapName, title, leader: null, tags: [...new Set([facts.race.raceType === "TRAINING" ? "Träning" : "Tävling", ...planned?.tags ?? []])].slice(0, 30),
+      moments: planned?.moments ?? [], levels: planned?.levels ?? [], notes: null, sourcePath: null,
       importKey: `race:${raceId}:${entryId}`, createdAt: now, createdBy: accountId, updatedAt: now });
     if (versionId) await tx.insert(schema.clubArchiveEntryMaps).values({ entryId, versionId });
     const seen = new Set<string>();

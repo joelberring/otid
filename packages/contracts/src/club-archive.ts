@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema } from "./account";
 import { uuidSchema, sha256HexSchema } from "./ids";
+import { trainingLevelsSchema, trainingMomentsSchema, type TrainingLevel, type TrainingMoment } from "./training-moments";
 import type { ClubEntryThumbnailSource, ClubEntryThumbnailView, ClubMapCheckView } from "./club-archive-checks";
 import type { ClubMapMergeView } from "./club-map-duplicates";
 import { mapAgreementSchema, type MapAgreement } from "./training-group";
@@ -43,7 +44,10 @@ export const clubArchiveEntryUpdateRequestSchema = z.object({
   title: z.string().trim().min(1).max(200),
   leader: optionalText(200),
   tags: z.array(clubTagSchema).max(30),
-  notes: optionalText(4000)
+  notes: optionalText(4000),
+  /** ADR-0222: utelämnade = oförändrade. */
+  moments: trainingMomentsSchema.optional(),
+  levels: trainingLevelsSchema.optional()
 }).strict();
 
 /** ADR-0210: `description` och `maker` (valfria; utelämnade = oförändrade) sätts en gång på kartan. */
@@ -159,6 +163,8 @@ export type ClubArchiveEntryStatus = "COMPLETE" | "COURSES_ONLY" | "MAP_MISSING"
 
 export interface ClubArchiveListItem {
   entryId: string; trainingDate: string | null; year: number | null; place: string; title: string; leader: string | null; tags: string[];
+  /** ADR-0222: momentens koder och nivåerna, i listornas ordning. */
+  moments: TrainingMoment[]; levels: TrainingLevel[];
   courseNames: string[]; courseFiles: number; maps: { mapId: string; name: string }[]; status: ClubArchiveEntryStatus;
   /** ADR-0196: träningens bild (null = inte ritad än) och vad den ritas av (null = ingen karta). */
   thumbnail: ClubEntryThumbnailView | null; thumbnailSource: ClubEntryThumbnailSource | null;

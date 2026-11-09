@@ -6,6 +6,8 @@ import { createClub } from "../../src/clubs";
 import { changeClubTerm, createClubTerm, createPlanSessions, readClubPlan, removePlanSession, updatePlanSession } from "../../src/club-planning";
 import { createPlannedRace, createPlanTask, listMyPlanTasks, removePlanTask, setPlanTaskDone, type PlanTaskMail } from "../../src/club-plan-tasks";
 import { requireCourseSettingForAccount } from "../../src/course-setting-access";
+import { readClubArchive, updateClubArchiveEntry } from "../../src/club-archive";
+import { liftRaceToClubArchive } from "../../src/race-club-archive";
 import { activeEventAdministrationGrant } from "../../src/race-session";
 import { registerTestAccount } from "./accounts";
 
@@ -165,5 +167,43 @@ describe("ADR-0221: terminsplaneringen", () => {
       .where(and(eq(schema.courseSettingGrants.raceId, race.raceId), eq(schema.courseSettingGrants.accountId, parent.accountId)));
     expect(await removePlanTask(db, { ...leader.proof, clubId, sessionId, taskId: place.taskId }, NOW)).toEqual({ status: "ok" });
     expect((await access(parent.accountId)).status).toBe("authenticated");
+  });
+
+  it("ADR-0222: moment, nivåer och egna ord i planen följer med till klubbarkivet och kan ändras där", async () => {
+    const { owner, clubId, leader } = await setup();
+    // Klubbytan kopplad till klubbens organisation (som efter "Koppla till Eventor"), så att träningen kan läggas i arkivet.
+    const organisationId = randomUUID();
+    await db.insert(schema.organisations).values({ id: organisationId, eventorId: `e${randomUUID().slice(0, 8)}`, name: "OK Planering",
+      type: "CLUB", searchText: "ok planering", updatedAt: NOW });
+    await db.insert(schema.clubSettings).values({ clubId, organisationId, eventorKeyId: "k", eventorKeyIv: "iv", eventorKeyTag: "tag",
+      eventorKeyCiphertext: "chiffer", eventorKeyHint: "1234", linkedBy: owner.accountId, linkedAt: NOW, updatedBy: owner.accountId, updatedAt: NOW });
+    const term = await createClubTerm(db, { ...leader.proof, clubId,
+      request: { formatVersion: 1, requestId: randomUUID(), name: "HT 2026", startsOn: "2026-08-01", endsOn: "2026-12-31" } }, NOW);
+    if (term.status !== "ok") throw new Error(term.status);
+    const created = await createPlanSessions(db, { ...leader.proof, clubId, request: { ...session(term.termId, { sessionDate: "2026-11-03",
+      responsibleAccountId: owner.accountId }), moments: ["VAGVAL", "KURVBILD", "KURVBILD"], levels: ["ORANGE", "GUL"], tags: ["Höstlov", "Höstlov"] } }, NOW);
+    if (created.status !== "ok") throw new Error(created.status);
+    expect((await createPlanSessions(db, { ...leader.proof, clubId, request: { ...session(term.termId), moments: ["OKAND"] } }, NOW)).status)
+      .toBe("invalid-request");
+    const plan = await readClubPlan(db, { ...leader.proof, clubId, termId: term.termId }, NOW);
+    if (plan.status !== "ok") throw new Error(plan.status);
+    expect(plan.response.term?.planSessions[0]).toMatchObject({ moments: ["KURVBILD", "VAGVAL"], levels: ["GUL", "ORANGE"], tags: ["Höstlov"] });
+
+    const race = await createPlannedRace(db, { ...leader.proof, clubId, sessionId: created.sessionIds[0]! }, NOW);
+    if (race.status !== "ok") throw new Error(race.status);
+    const lifted = await liftRaceToClubArchive(db, { ...owner.proof, raceId: race.raceId, request: { formatVersion: 1, confirmSecrecy: false } }, NOW);
+    if (lifted.status !== "ok") throw new Error(lifted.status);
+    const archive = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
+    if (archive.status !== "ok") throw new Error(archive.status);
+    const entry = archive.list.entries[0]!;
+    expect(entry).toMatchObject({ title: "Kurvbildsträning", moments: ["KURVBILD", "VAGVAL"], levels: ["GUL", "ORANGE"], tags: ["Träning", "Höstlov"] });
+
+    const update = { formatVersion: 1, trainingDate: "2026-11-03", place: "Älvsjöskogen", title: "Kurvbildsträning", leader: null, tags: ["Höstlov"], notes: null };
+    expect(await updateClubArchiveEntry(db, { ...owner.proof, clubId, entryId: entry.entryId, request: { ...update, moments: ["NATT"], levels: ["SVART"] } }, NOW))
+      .toEqual({ status: "ok" });
+    // Utan moment och nivåer i begäran står de kvar (äldre klienter).
+    expect(await updateClubArchiveEntry(db, { ...owner.proof, clubId, entryId: entry.entryId, request: update }, NOW)).toEqual({ status: "ok" });
+    const again = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
+    expect(again.status === "ok" && again.list.entries[0]).toMatchObject({ moments: ["NATT"], levels: ["SVART"], tags: ["Höstlov"] });
   });
 });

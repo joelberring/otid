@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   clubArchiveEntryUpdateRequestSchema, clubCourseFileMapRequestSchema, type ClubArchiveCourseFileView, type ClubArchiveEntryStatus,
-  type ClubArchiveEntryView, type ClubArchiveList, type ClubArchiveListItem, type ClubMapVersionView, type ClubMapView
+  type ClubArchiveEntryView, type ClubArchiveList, type ClubArchiveListItem, type ClubMapVersionView, type ClubMapView,
+  orderedLevels, orderedMoments
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { versionYearSpan } from "@o-tid/domain";
@@ -152,7 +153,7 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
       if (map) maps.set(map.mapId, map);
     }
     return { entryId: entry.id, trainingDate: entry.trainingDate, year: entry.year, place: entry.place, title: entry.title, leader: entry.leader,
-      tags: entry.tags, courseNames: own.flatMap(file => file.summary.courses.map(course => course.name)).slice(0, 40), courseFiles: own.length,
+      tags: entry.tags, moments: orderedMoments(entry.moments), levels: orderedLevels(entry.levels), courseNames: own.flatMap(file => file.summary.courses.map(course => course.name)).slice(0, 40), courseFiles: own.length,
       maps: [...maps.values()], status: statusOf(own, folderMaps.length), thumbnail: thumbnails.get(entry.id) ?? null,
       thumbnailSource: sources.get(entry.id) ?? null };
   });
@@ -229,7 +230,8 @@ export async function updateClubArchiveEntry(db: Database, input: ClubProof & { 
     const data = parsed.data;
     const [row] = await tx.update(schema.clubArchiveEntries).set({ trainingDate: data.trainingDate,
       year: data.trainingDate ? Number(data.trainingDate.slice(0, 4)) : sql`${schema.clubArchiveEntries.year}`, place: data.place, title: data.title,
-      leader: data.leader, tags: [...new Set(data.tags)], notes: data.notes, updatedAt: now })
+      leader: data.leader, tags: [...new Set(data.tags)], notes: data.notes, updatedAt: now,
+      ...(data.moments ? { moments: data.moments } : {}), ...(data.levels ? { levels: data.levels } : {}) })
       .where(and(eq(schema.clubArchiveEntries.id, input.entryId), eq(schema.clubArchiveEntries.clubId, input.clubId))).returning({ id: schema.clubArchiveEntries.id });
     if (!row) return { status: "not-found" } as const;
     await clubJournal(tx, { clubId: input.clubId, action: "CLUB_ARCHIVE_ENTRY_UPDATED", actorAccountId: member.accountId, details: { entryId: row.id }, now });

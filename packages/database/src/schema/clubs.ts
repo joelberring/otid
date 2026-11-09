@@ -115,6 +115,9 @@ export const clubArchiveEntries = pgTable("club_archive_entry", {
   tags: text("tags").array().notNull(),
   notes: text("notes"),
   sourcePath: text("source_path"),
+  /** ADR-0222 (migration 0110): momentens koder och nivåerna (GRON–SVART). */
+  moments: text("moments").array().notNull().default([]),
+  levels: text("levels").array().notNull().default([]),
   importKey: text("import_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").notNull(),

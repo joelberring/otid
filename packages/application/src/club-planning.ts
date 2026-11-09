@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
-  clubPlanSessionCreateSchema, clubPlanSessionUpdateSchema, clubTermRequestSchema, clubTermUpdateSchema,
+  orderedLevels, orderedMoments, clubPlanSessionCreateSchema, clubPlanSessionUpdateSchema, clubTermRequestSchema, clubTermUpdateSchema,
   type ClubPlanResponse, type ClubPlanSessionView, type ClubTermView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
@@ -58,6 +58,7 @@ async function sessionViews(tx: Transaction, termId: string): Promise<ClubPlanSe
     trainingGroupId: groupName ? session.trainingGroupId : null, groupName: groupName ?? null,
     responsibleAccountId: responsibleName ? session.responsibleAccountId : null, responsibleName: responsibleName ?? null,
     raceId: raceExists ? session.raceId : null,
+    moments: orderedMoments(session.moments), levels: orderedLevels(session.levels), tags: session.tags,
     tasks: taskRows.filter(row => row.task.sessionId === session.id).map(({ task, name }) => ({ taskId: task.id, title: task.title,
       assigneeName: name ?? null, assigneeEmail: name ? null : task.assigneeEmail, pending: !name && task.assigneeEmail !== null,
       done: task.doneAt !== null }))

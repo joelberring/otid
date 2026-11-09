@@ -108,7 +108,7 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
       "Klubbarkivet sparar klubbens kartor och banor från tidigare träningar, så att de kan användas igen. Det är aldrig publikt; bara inbjudna ser det.",
       "Skapa det överst på ”Mina tävlingar” → ”Mina klubbar” → ”Ny klubbyta”. Den som skapar klubben blir ägare.",
       [
-        "”Träningar”: sök på plats, övning eller bana och filtrera på år, karta, tagg och ledare.",
+        "”Träningar”: sök på plats, övning eller bana och filtrera på år, karta, ledare, moment, nivå och egna ord.",
         "”Kartor”: kartorna med alla versioner. Se [Kartor, versioner och rättigheter](#arkiv-kartor).",
         "”Medlemmar”: vem som ser och ändrar arkivet. Se [Medlemmar](#arkiv-medlemmar).",
         "”Import”: läs in klubbens gamla träningar från din dator. Se [Importera till arkivet](#arkiv-import)."

@@ -11,7 +11,7 @@ const version = (versionId: string, versionCheck: ClubMapCheckView | null): Club
   trainings: 0, check: versionCheck, year: 2026, yearSource: "UPLOAD", maker: null });
 
 const entry = (entryId: string, patch: Partial<ClubArchiveListItem>): ClubArchiveListItem => ({ entryId, trainingDate: null, year: 2020, place: "", title: entryId,
-  leader: null, tags: [], courseNames: [], courseFiles: 0, maps: [], status: "COMPLETE", thumbnail: null, thumbnailSource: null, ...patch });
+  leader: null, tags: [], moments: [], levels: [], courseNames: [], courseFiles: 0, maps: [], status: "COMPLETE", thumbnail: null, thumbnailSource: null, ...patch });
 
 const list = (versions: ClubMapVersionView[], entries: ClubArchiveListItem[]): ClubArchiveList => ({ formatVersion: 1, clubId: "c", clubName: "Klubben",
   viewer: { role: "OWNER", access: { archive: true, mapBank: true } }, entries, maps: [{ mapId: "m1", name: "Älvsjöskogen", versions, latestVersionId: versions[0]?.versionId ?? null, trainings: 0,

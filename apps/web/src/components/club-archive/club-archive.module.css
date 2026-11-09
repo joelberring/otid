@@ -31,7 +31,7 @@
 /* Globala `button:hover:not(:disabled)` (svart bakgrund) vinner annars över `.tabs button`: fliken blev svart med svart text. */
 .tabs button:hover:not(:disabled), .tabs button:focus-visible { background: none; color: var(--ink); }
 
-.filters { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(5, minmax(0, 1fr)); gap: .5rem .65rem; align-items: end; margin-bottom: 10px; }
+.filters { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(0, 1fr)); gap: .5rem .65rem; align-items: end; margin-bottom: 10px; }
 .filters label { display: grid; gap: .15rem; min-width: 0; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
 .filters input, .filters select { width: 100%; min-width: 0; min-height: 44px; }
 .count { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; margin: 4px 0 8px;
@@ -158,3 +158,4 @@
 .deviceTable th, .deviceTable td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line, #ddd); vertical-align: middle; }
 .deviceTable input { width: 100%; min-width: 10ch; }
 .deviceWrap { overflow-x: auto; }
+.momentFilters { display: grid; gap: .6rem; margin: 0 0 10px; }

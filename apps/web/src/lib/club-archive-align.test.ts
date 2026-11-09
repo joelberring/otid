@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { RaceMapSourceMetadata } from "@o-tid/contracts";
 import { readPpen } from "@o-tid/course-setting";
 import { alignedDocument, checkAlignment, controlsOutside, type VersionFacts } from "./club-archive-align";
-import { archiveFacets, EMPTY_FILTER, filterArchive } from "./club-archive-filter";
+import { archiveFacets, EMPTY_FILTER, filterArchive, levelsFromCourseNames, savedFilter } from "./club-archive-filter";
 
 /** ADR-0194 beslut 4: "Flytta banorna till senaste kartversionen" och arkivets filter. */
 const georeference = (easting: number, grivationDegrees = 0): NonNullable<RaceMapSourceMetadata["georeference"]> => ({
@@ -58,16 +58,37 @@ describe("kartversionerna jämförs", () => {
 describe("arkivets sökning och filter", () => {
   const entries = [
     { entryId: "a", trainingDate: "2019-04-02", year: 2019, place: "Älvsjöskogen", title: "Älvsjöskogen räv", leader: "Anna", tags: ["Rävorientering"],
-      courseNames: ["Lång"], courseFiles: 1, maps: [{ mapId: "m1", name: "Älvsjöskogen" }], status: "COMPLETE" as const,
+      moments: ["KURVBILD" as const, "VAGVAL" as const], levels: ["GUL" as const], courseNames: ["Lång"], courseFiles: 1, maps: [{ mapId: "m1", name: "Älvsjöskogen" }], status: "COMPLETE" as const,
       thumbnail: null, thumbnailSource: null },
-    { entryId: "b", trainingDate: null, year: 2020, place: "Parken", title: "Sprint", leader: null, tags: ["Sprint"], courseNames: [], courseFiles: 0,
+    { entryId: "b", trainingDate: null, year: 2020, place: "Parken", title: "Sprint", leader: null, tags: ["Sprint"], moments: ["SPRINT" as const],
+      levels: ["ORANGE" as const, "VIOLETT" as const], courseNames: [], courseFiles: 0,
       maps: [], status: "MAP_ONLY" as const, thumbnail: null, thumbnailSource: null }
   ];
   it("söker utan accenter och versaler, filtrerar på år, karta, tagg, ledare och läge", () => {
     expect(filterArchive(entries, { ...EMPTY_FILTER, text: "alvsjo rav" }).map(entry => entry.entryId)).toEqual(["a"]);
     expect(filterArchive(entries, { ...EMPTY_FILTER, year: "2020" }).map(entry => entry.entryId)).toEqual(["b"]);
-    expect(filterArchive(entries, { ...EMPTY_FILTER, mapId: "m1", tag: "Rävorientering", leader: "Anna" })).toHaveLength(1);
+    expect(filterArchive(entries, { ...EMPTY_FILTER, mapId: "m1", tags: ["Rävorientering"], leader: "Anna" })).toHaveLength(1);
     expect(filterArchive(entries, { ...EMPTY_FILTER, status: "MAP_MISSING" })).toHaveLength(0);
-    expect(archiveFacets(entries)).toEqual({ years: ["2020", "2019"], tags: ["Rävorientering", "Sprint"], leaders: ["Anna"] });
+    expect(archiveFacets(entries)).toEqual({ years: ["2020", "2019"], tags: ["Rävorientering", "Sprint"], moments: ["KURVBILD", "VAGVAL", "SPRINT"],
+      leaders: ["Anna"] });
+  });
+
+  it("ADR-0222: alla valda moment, någon av nivåerna, momentens namn i sökningen och ett äldre sparat filter", () => {
+    const ids = (filter: Partial<typeof EMPTY_FILTER>) => filterArchive(entries, { ...EMPTY_FILTER, ...filter }, moment => moment === "VAGVAL" ? "Vägval" : moment)
+      .map(entry => entry.entryId);
+    expect(ids({ moments: ["KURVBILD", "VAGVAL"] })).toEqual(["a"]);
+    expect(ids({ moments: ["KURVBILD", "SPRINT"] })).toEqual([]);
+    expect(ids({ levels: ["GUL", "VIOLETT"] })).toEqual(["a", "b"]);
+    expect(ids({ levels: ["SVART"] })).toEqual([]);
+    expect(ids({ text: "vagval" })).toEqual(["a"]);
+    expect(savedFilter({ tag: "Sprint", year: "2020", moments: ["NATT", "OKAND"] as never })).toEqual({ ...EMPTY_FILTER, year: "2020", tags: ["Sprint"],
+      moments: ["NATT"] });
+  });
+});
+
+describe("ADR-0222: nivåerna ur banornas namn", () => {
+  it("färgerna, klasserna och de öppna klasserna, i färgernas ordning", () => {
+    expect(levelsFromCourseNames(["Orange", "Gul 2", "Lång", "H12", "Inskolning"])).toEqual(["GRON", "GUL", "ORANGE"]);
+    expect(levelsFromCourseNames(["Bana 1", "Sprint"])).toEqual([]);
   });
 });

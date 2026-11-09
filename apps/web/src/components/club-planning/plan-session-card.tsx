@@ -8,6 +8,7 @@ import { clubPlanningSv } from "../../i18n/club-planning-sv";
 import { planRequest, shortDate } from "../../lib/club-planning-client";
 import { useLanguage, useTexts } from "../language-provider";
 import { Button } from "../ui";
+import { MomentBadges } from "../training-moments/moment-picker";
 import { PlanSessionForm } from "./plan-session-form";
 import { PlanTasks } from "./plan-tasks";
 import styles from "./club-planning.module.css";
@@ -37,6 +38,7 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
         <h4>{session.title}</h4>
         {facts.length > 0 && <p className={styles.small}>{facts.join(" · ")}</p>}
         <p className={styles.small}>{session.responsibleName ? text.session.responsibleIs(session.responsibleName) : text.session.noResponsibleYet}</p>
+        <MomentBadges moments={session.moments} levels={session.levels} tags={session.tags} />
         {session.note && <p className={styles.note}>{session.note}</p>}
       </div>
       <div className={styles.actions}>

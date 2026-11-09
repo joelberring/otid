@@ -69,7 +69,13 @@ export const mapBundleResponseSchema = z.object({
   groups: z.array(mapBundleGroupSchema).max(20_000),
   rows: z.array(mapBundleRowSchema).max(20_000),
   missingVariant: z.array(z.object({ entryId: uuid, name, className: name, team: team.optional(), leg: leg.optional() }).strict()).max(20_000),
-  prints: z.object({ BUNDLE: printSchema.optional(), BACKS: printSchema.optional() }).strict()
+  prints: z.object({ BUNDLE: printSchema.optional(), BACKS: printSchema.optional() }).strict(),
+  /**
+   * Ägaren 2026-11-09: baksidan som den är inställd i banläggningen (ADR-0213, händelsens `runnerBack`): texterna uppifrån
+   * med löparens variabler ({variant}, {startnummer}, {namn} …). Saknas = Kartor till startens egen baksida.
+   */
+  runnerBack: z.array(z.object({ text: z.string().max(2000), sizeMm: z.number().positive().max(100), bold: z.boolean(),
+    align: z.enum(["left", "center", "right"]) }).strict()).max(40).optional()
 }).strict();
 
 export const mapPrintRequestSchema = z.object({ formatVersion: z.literal(1), list: mapPrintListSchema,

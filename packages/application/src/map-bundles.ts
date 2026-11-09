@@ -30,6 +30,8 @@ interface MapBundleBasis {
   readonly reserve: MapReserve;
   readonly classes: readonly MapBundleClassInput[];
   readonly plan: MapBundlePlan;
+  /** Banläggningens baksida (ADR-0213) som texter, om den är inställd. */
+  readonly runnerBack?: { text: string; sizeMm: number; bold: boolean; align: "left" | "center" | "right" }[] | undefined;
 }
 
 async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis | undefined> {
@@ -71,7 +73,19 @@ async function loadBasis(tx: DbExecutor, raceId: string): Promise<MapBundleBasis
   const plan = planMapBundles({ classes: [...classes, ...relay.classes], reserve, entries: [...entries.map(row => ({ id: row.id, name: `${row.givenName} ${row.familyName}`.trim(),
     club: row.club, classId: row.classId, variantCode: row.variantCode,
     startTime: startRule.get(row.classId) === "FIXED" ? row.startTime?.toISOString() ?? null : null })), ...relay.entries] });
-  return { race, reserve, classes: [...classes, ...relay.classes], plan };
+  return { race, reserve, classes: [...classes, ...relay.classes], plan, runnerBack: runnerBackTexts(setting?.document) };
+}
+
+/** Banläggningens baksida (ADR-0213) som texter uppifrån, eller inget om den inte är inställd. */
+function runnerBackTexts(document: unknown): { text: string; sizeMm: number; bold: boolean; align: "left" | "center" | "right" }[] | undefined {
+  const items = (document as { event?: { runnerBack?: { items?: unknown } } } | null | undefined)?.event?.runnerBack?.items;
+  if (!Array.isArray(items)) return undefined;
+  return (items as { kind?: string; hide?: boolean; text?: unknown; sizeMm?: unknown; bold?: unknown; align?: unknown; at?: { y?: unknown } }[])
+    .filter(item => item.kind === "TEXT" && !item.hide && typeof item.text === "string" && typeof item.sizeMm === "number" && item.sizeMm > 0)
+    .sort((a, b) => (typeof a.at?.y === "number" ? a.at.y : 0) - (typeof b.at?.y === "number" ? b.at.y : 0))
+    .slice(0, 40)
+    .map(item => ({ text: (item.text as string).slice(0, 2000), sizeMm: Math.min(100, item.sizeMm as number), bold: item.bold === true,
+      align: item.align === "left" || item.align === "center" ? item.align : "right" as const }));
 }
 
 /**
@@ -152,7 +166,8 @@ export async function readMapBundlesAsAdmin(db: Database, input: Authentication,
         startMode: row.startMode, ...(row.leg !== undefined ? { leg: row.leg } : {}), ...(row.layout ? { layout: row.layout } : {}) })),
       groups: plan.groups.map(group => ({ courseName: group.courseName, variantCode: group.variantCode, items: group.items,
         runnerCount: group.runnerCount, vacancyCount: group.vacancyCount, reserveCount: group.reserveCount, printCount: group.printCount,
-        ...(group.layout ? { layout: group.layout } : {}) })), rows: plan.rows, missingVariant: plan.missingVariant, prints }) };
+        ...(group.layout ? { layout: group.layout } : {}) })), rows: plan.rows, missingVariant: plan.missingVariant, prints,
+      ...(basis.runnerBack ? { runnerBack: basis.runnerBack } : {}) }) };
   }, { isolationLevel: "repeatable read" });
 }
 

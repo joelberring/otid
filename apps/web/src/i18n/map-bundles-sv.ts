@@ -81,5 +81,8 @@ export const mapBundlesSv = {
   dividerHelp: (variant: string | null) => `Lägg kartbunt ${variant ?? "utan variant"} här`,
   reservePage: (variant: string | null) => variant ? `Reserv · variant ${variant}` : "Reserv",
   vacantPage: (time: string) => `Ledig tid ${time}`,
+  vacantName: "Ledig",
+  reserveName: "Reserv",
+  backsFromCourseSetting: "Texterna följer baksidan som den är inställd i banläggningen (Utskrift → baksida per löpare).",
   pages: (count: number) => plural(count, "sida", "sidor")
 } as const;

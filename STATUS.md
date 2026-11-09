@@ -10,6 +10,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-09 – Kartor till startens baksidor följer banläggningens baksida
+- Baksidorna under Kartor till starten (steg 61) använder baksidan som den är inställd i banläggningen (ADR-0213) när den
+  finns: samma texter och variabler, så att t.ex. varianten bara står med när baksidan har {variant}.
+- Verifierat: enhetstest `map-back-lines`, integrationstest `steg-61-gafflingar-start`.
+
 ### 2026-11-09 – Kontrollnumren står still mellan banläggning och utskrift
 - En variant (utskriften per löpare) eller del får de automatiska numren där hela den gafflade banan har dem; valet
   "Placera numren för varje variant för sig" under Utseende placerar dem efter variantens egna sträckor.

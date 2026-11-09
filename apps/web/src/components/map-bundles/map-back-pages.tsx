@@ -2,6 +2,7 @@
 
 import type { MapBackPage } from "@o-tid/domain";
 import { mapBundlesSv as text } from "../../i18n/map-bundles-sv";
+import { backLines, backValues, type RunnerBackTexts } from "../../lib/map-back-lines";
 import styles from "./map-bundles.module.css";
 
 /** Pappersformatet för baksidorna (steg 61). Webbläsarens utskrift i 100 % skala. */
@@ -35,10 +36,15 @@ export function printedPosition(settings: BackSettings): BackPosition {
   return swap[settings.position];
 }
 
-export function BackSheet({ page, settings, clock }: { page: MapBackPage | "TEST"; settings: BackSettings; clock: (instant: string | null) => string }) {
+export function BackSheet({ page, settings, clock, runnerBack }: { page: MapBackPage | "TEST"; settings: BackSettings; clock: (instant: string | null) => string;
+  /** Ägaren 2026-11-09: baksidan som den är inställd i banläggningen, annars Kartor till startens egen. */
+  runnerBack?: RunnerBackTexts | undefined }) {
   const { width, height } = sheetSize(settings);
   const position = printedPosition(settings);
-  const content = page === "TEST" ? <span className={styles.labelName}>{text.testPageText}</span>
+  const content = page !== "TEST" && page.kind !== "DIVIDER" && runnerBack
+    ? backLines(runnerBack, backValues(page, clock)).map((item, index) => <span key={index} data-testid="map-back-line"
+      style={{ fontSize: `${item.sizeMm}mm`, fontWeight: item.bold ? 700 : 400, textAlign: item.align, lineHeight: 1.1 }}>{item.line}</span>)
+    : page === "TEST" ? <span className={styles.labelName}>{text.testPageText}</span>
     : page.kind === "DIVIDER" ? <>
       <span className={styles.labelName}>{text.divider(page.variantCode, page.printCount)}</span>
       <span className={styles.labelLine}>{page.courseName}{page.layout ? ` · ${page.layout.name}` : ""}</span>

@@ -195,5 +195,15 @@ describe("steg 61: gafflingar till start och karta", () => {
     expect(audit.after).toMatchObject({ courseVariantCode: other, reason: "Fel karta vid starten" });
     expect((await pool.query<{ status: string }>("select status from result_revision where entry_id = $1 order by revision", [people.Eva]))
       .rows.map(row => row.status)).toEqual(["MP", "OK"]);
+
+    // Ägaren 2026-11-09: baksidan som den är inställd i banläggningen följer med (texterna uppifrån, dolda står inte).
+    expect((await bundles(proof)).runnerBack).toBeUndefined();
+    const text = (id: string, value: string, y: number, extra: Record<string, unknown> = {}) => ({ id, kind: "TEXT", text: value, sizeMm: 5,
+      widthMm: 120, align: "right", relativeTo: "PAGE", at: { corner: "TOP_RIGHT", x: 10, y }, ...extra });
+    await pool.query("insert into course_setting (race_id, document, version, updated_at, updated_by) values ($1, $2, 1, now(), $3)",
+      [proof.raceId, JSON.stringify({ version: 1, event: { runnerBack: { items: [text("b3", "{namn}", 30, { bold: true }), text("b2", "{startnummer}", 10),
+        text("b1", "{variant}", 5, { hide: true })] } } }), randomUUID()]);
+    expect((await bundles(proof)).runnerBack).toEqual([{ text: "{startnummer}", sizeMm: 5, bold: false, align: "right" },
+      { text: "{namn}", sizeMm: 5, bold: true, align: "right" }]);
   });
 });

@@ -129,6 +129,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
       <h2 id="map-backs-title">{text.backsTitle}</h2>
       <PrintStatus print={data.prints.BACKS} clock={instant => formatClockTime(instant, timeZone).slice(0, 5)} />
       <p className={styles.help}>{text.backsHelp}</p>
+      {data.runnerBack && <p className={styles.help} data-testid="map-back-from-course-setting">{text.backsFromCourseSetting}</p>}
       <div className={styles.tools}>
         <label>{text.paper}<select value={settings.paper} onChange={event => changeSettings({ paper: event.target.value as BackSettings["paper"] })}>
           {(["A4", "A3"] as const).map(id => <option key={id} value={id}>{text.papers[id]}</option>)}</select></label>
@@ -148,12 +149,12 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
       </div>
       <div className={styles.preview} aria-hidden="true">
         {pages.slice(0, 8).map((page, index) => <div key={index} className={styles.previewSheet}>
-          <BackSheet page={page} settings={settings} clock={clock} /></div>)}
+          <BackSheet page={page} settings={settings} clock={clock} runnerBack={data.runnerBack} /></div>)}
       </div>
     </section>}
     {(printing === "BACKS" || printing === "TEST") && <div className={styles.printPages} data-testid="map-back-print">
       {printing === "TEST" ? <BackSheet page="TEST" settings={settings} clock={clock} />
-        : pages.map((page, index) => <BackSheet key={index} page={page} settings={settings} clock={clock} />)}
+        : pages.map((page, index) => <BackSheet key={index} page={page} settings={settings} clock={clock} runnerBack={data.runnerBack} />)}
     </div>}
   </main>;
 }

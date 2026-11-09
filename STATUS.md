@@ -63,9 +63,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   kvittot, brickans stämplingar och placeringen vid avläsningen (`placement-text-en.ts`, engelska ordningstal).
 - Del 21: de mindre delarna i arbetsytan (banhemlighet, omläsning, beslut att se över, otolkade avläsningar, manuell tid,
   Rätta, start- och återkomsthistorik, konfliktgranskning, fältfel, sträcktiderna i kortet; `workspace-small-en.ts`). Kvar
-  i arbetsytan: kartan, kartbuntarna och gafflingsbilden.
+  i arbetsytan: gafflingsbilden.
 - Del 22: lottningens Avancerat, säkerhetskopian och återställningen, kontrollkartan (också publikt) och Läs ut enheter.
-  Kvar: hjälpen,
+- Del 23: Karta och vägval (kartbild, kartfil, georeferens, rutter) och Kartor till starten. Arbetsytan är nu på engelska
+  utom gafflingsbilden. Kvar: hjälpen,
   banläggningen och utskriften, kartprojekten och kartredigeraren, klubbytan och arkivet, träningsgruppernas ledarvy,
   inbjudningarna och superadmin.
 

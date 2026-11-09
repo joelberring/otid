@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, type MouseEvent } from "react";
+import { raceMapEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import type { AdminRaceMapState, RaceMapTiePoint } from "@o-tid/contracts";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { formatCoordinate, parseCoordinate } from "../../lib/coordinate";
 import { Button, Field } from "../ui";
 import styles from "./map-routes.module.css";
 
-const text = raceMapSv.georeference;
 type PointInput = { pixelX: string; pixelY: string; coordinate: string };
 type Map = NonNullable<AdminRaceMapState["map"]>;
 
@@ -38,6 +39,7 @@ export function MapGeoreference({ map, image, busy, onSave, onInvalid }: {
   map: Map; image: string; busy: boolean; onSave: (points: [RaceMapTiePoint, RaceMapTiePoint, RaceMapTiePoint]) => Promise<void>;
   onInvalid: () => void;
 }) {
+  const text = useTexts(raceMapSv.georeference, raceMapEn.georeference);
   const [points, setPoints] = useState<PointInput[]>(() => initialPoints(map));
   const [active, setActive] = useState(0);
   const [imageFailed, setImageFailed] = useState(false);

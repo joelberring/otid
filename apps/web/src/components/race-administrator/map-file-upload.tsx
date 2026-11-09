@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { raceMapEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { RACE_MAP_SOURCE_MAX_BYTES, RACE_MAP_SOURCE_PARTS, type AdminRaceMapState } from "@o-tid/contracts";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { renderMapFile, type MapFileWorkerErrorCode } from "../../lib/map-file-worker-protocol";
@@ -8,7 +10,6 @@ import { Button, Field } from "../ui";
 import type { Message } from "./source-sync-actions";
 import styles from "./map-routes.module.css";
 
-const text = raceMapSv.mapFile;
 type Source = NonNullable<AdminRaceMapState["source"]>;
 
 /** Workern som läser och ritar kartfilen (egen fil så att den byggs som Worker). */
@@ -25,6 +26,7 @@ export function MapFileUpload({ disabled, hasMap, upload, onMessage }: {
   upload: (form: FormData, georeferenced: boolean) => Promise<Message | undefined>;
   onMessage: (message: Message | undefined) => void;
 }) {
+  const text = useTexts(raceMapSv.mapFile, raceMapEn.mapFile);
   const input = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<"reading" | "drawing" | "saving">();
 
@@ -63,6 +65,7 @@ export function MapFileUpload({ disabled, hasMap, upload, onMessage }: {
 
 /** Raden efter uppladdningen: format och version, skala, koordinatsystem, antal objekt, förenklingar och georeferensen. */
 export function MapFileSummary({ source, downloadHref }: { source: Source; downloadHref: string }) {
+  const text = useTexts(raceMapSv.mapFile, raceMapEn.mapFile);
   const summary = text.summary;
   const crs = source.crs ? (source.crs.kind === "EPSG" ? summary.crs(source.crs.code) : summary.crs(null)) : summary.noCrs;
   const skipped = source.summary.warnings.filter(warning => warning.count > 0);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { mapBundlesEn } from "../../i18n/workspace-small-en";
 import { startListPublicationEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
@@ -19,7 +20,7 @@ import { RelayStartTimes } from "./relay-panels";
 import { ShiftStartTimes } from "../race-corrections";
 import type { Workspace } from "./workspace-state";
 import { RaceInfo } from "../race-info";
-import { mapBundlesSv as mapText } from "../../i18n/map-bundles-sv";
+import { mapBundlesSv } from "../../i18n/map-bundles-sv";
 
 /**
  * Publiceringen av startlistan (PLAN.md steg 13): läget i en mening och en tydlig åtgärd. Läses in när Start visas
@@ -83,6 +84,7 @@ function StartPublication({ ws, visible, number }: { ws: Workspace; visible: boo
  * exportera) och 3 Publicera startlistan (PLAN.md steg 24). Funktionären ser bara startlistan (ADR-0172 beslut 3).
  */
 export function PreparationStartList({ ws }: { ws: Workspace }) {
+  const mapText = useTexts(mapBundlesSv, mapBundlesEn);
   const publicationText = useTexts(startListPublicationSv, startListPublicationEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const { data, disabled, downloadStartList, functionary, profile, raceId, select, shows } = ws;

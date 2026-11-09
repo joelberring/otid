@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { raceMapEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import { useEffect, useRef, useState } from "react";
 import { adminRaceMapStateSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, participantRouteUploadResponseSchema, RACE_MAP_MAX_BYTES,
   raceMapProblemSchema, type AdminRaceMapState, type RaceMapProblem, type RaceMapQuotaProblem } from "@o-tid/contracts";
@@ -13,7 +15,6 @@ import type { Message } from "./source-sync-actions";
 import styles from "./map-routes.module.css";
 import type { Workspace } from "./workspace-state";
 
-const text = raceMapSv;
 
 async function problemOf(response: Response): Promise<{ error: RaceMapProblem; quota?: RaceMapQuotaProblem | undefined } | undefined> {
   if (response.status !== 422) return undefined;
@@ -26,6 +27,7 @@ async function problemOf(response: Response): Promise<{ error: RaceMapProblem; q
  * GPX-rutter. Bara admin skriver; den publika sträcktidsanalysen visar vägvalen när kartan är georefererad.
  */
 export function MapRoutesSection({ ws }: { ws: Workspace }) {
+  const text = useTexts(raceMapSv, raceMapEn);
   const { authenticated, busy, operation, writingRef, beginRequest, request, json, finish, current, csrf, requireSession, raceId } = ws;
   const [state, setState] = useState<AdminRaceMapState>();
   const [loadFailed, setLoadFailed] = useState(false);

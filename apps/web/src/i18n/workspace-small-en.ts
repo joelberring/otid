@@ -16,6 +16,8 @@ import type { startDrawAdvancedSv } from "./start-draw-advanced-sv";
 import type { raceBackupSv } from "./race-backup-sv";
 import type { controlMapSv } from "./control-map-sv";
 import type { stationsSv } from "./stations-sv";
+import type { raceMapSv } from "./race-map-sv";
+import type { mapBundlesSv } from "./map-bundles-sv";
 import { startRuleEn as rule } from "./workspace-admin-en";
 
 /** Engelska, arbetsytan del 11: de mindre delarna (banhemlighet, omläsning, beslut, otolkade, manuell tid, Rätta, fältfel …). */
@@ -591,4 +593,202 @@ export const stationsEn: Texts<typeof stationsSv> = {
     failed: "Could not save in the unit register.",
     help: "Every unit read out or set up is saved with serial number, code, battery and clock (you need to be a leader or administrator in the club)."
   }
+};
+
+/** Engelska, arbetsytan del 13: Karta och vägval. */
+export const raceMapEn: Texts<typeof raceMapSv> = {
+  quota: quota => !quota ? "There is no room for more maps. Remove maps that are not used, or ask the server's owner to raise the limit."
+    : quota.scope === "ACCOUNT"
+      ? `The maps you have uploaded already take ${quota.usedMb} MB of your ${quota.limitMb} MB, and this one needs ${quota.neededMb} MB. ` +
+        "Remove maps in events no longer used (copies and training sessions share the same file and cost nothing), " +
+        "or ask the server's owner to raise the limit."
+      : `The server has no room for more maps (${quota.usedMb} of ${quota.limitMb} MB used, this one needs ${quota.neededMb} MB). ` +
+        "Ask the server's owner for more space.",
+  title: "Map and route choice",
+  help: "Upload the map, give where three points are and upload the runners' GPS routes (GPX). The route choices show in the public " +
+    "split time analysis as soon as the map is georeferenced. The routes are linked to the legs with the punch times; only the part between " +
+    "start and finish is shown.",
+  analysisLink: "Show the split time analysis",
+  loading: "Fetching map and routes…",
+  loadFailed: "Map and routes could not be fetched.",
+  retry: "Try again",
+  map: {
+    heading: "1. Map image",
+    file: "Map image (PNG or JPEG, at most 30 MB)",
+    fileHelp: "Export the map with the courses from OCAD, Purple Pen or Condes, or scan it.",
+    none: "No map uploaded yet. Upload the map image when the courses are ready.",
+    upload: "Upload map", replace: "Replace map", remove: "Remove the map",
+    current: (fileName, width, height) => `${fileName} · ${width} × ${height} px`,
+    georeferenced: "Georeferenced", notGeoreferenced: "Not georeferenced yet",
+    saved: "The map is uploaded. Give the three points below.",
+    removed: "The map is removed. The routes stay but are not shown until a new map is georeferenced.",
+    chooseFile: "Choose an image first.",
+    tooLarge: "The image is larger than 30 MB.",
+    invalid: "The file is not a PNG or JPEG image.",
+    failed: "The map could not be saved.",
+    replacesMapFile: "A new map image replaces the map file."
+  },
+  mapFile: {
+    upload: "Upload map file (OCAD or Mapper)",
+    replace: "Replace map file",
+    file: "Map file (.ocd, .omap or .xmap, at most 75 MB)",
+    fileHelp: "The map is drawn in your browser. If the map is georeferenced in the file it lands right directly, otherwise you set three points below.",
+    chooseFile: "Choose a map file first.",
+    tooLarge: "The map file is larger than 75 MB.",
+    reading: "Reading the map file …",
+    drawing: "Drawing the map …",
+    saving: "Saving the map …",
+    saved: "The map is drawn and saved.",
+    savedNeedsPoints: "The map is drawn and saved. The file lacks a georeference O-Tid can use, so give three points below.",
+    errors: {
+      NOT_A_MAP_FILE: "The file is not a map file from OCAD or Mapper.",
+      UNSUPPORTED_VERSION: "The map file is from an OCAD version that is not supported (older than OCAD 8). Open and save it in newer OCAD or in Mapper.",
+      TRUNCATED: "The map file is truncated or broken.",
+      INVALID: "The map file cannot be read.",
+      EMPTY: "The map file contains no objects to draw.",
+      NO_CANVAS: "The browser cannot draw the map. Try a newer browser.",
+      TOO_LARGE: "The map becomes too large as an image.",
+      FAILED: "The map file could not be drawn."
+    },
+    invalid: "The server did not accept the map file. Check that it is a map file from OCAD or Mapper.",
+    failed: "The map file could not be saved.",
+    download: "Download the map file",
+    summary: {
+      format: (format, version) => {
+        const name = format === "OCD" ? "OCAD" : "Mapper";
+        return version.toLowerCase().startsWith(name.toLowerCase()) ? version : `${name} ${version}`;
+      },
+      scale: scale => `1:${scale.toLocaleString("en-GB")}`,
+      crs: code => code === 3006 ? "SWEREF 99 TM" : code === 3021 ? "RT 90 2.5 gon V"
+        : code !== null && code >= 3007 && code <= 3018 ? "SWEREF 99 local zone" : code !== null ? `EPSG ${code}` : "Unknown coordinate system",
+      noCrs: "No georeference in the file",
+      objects: count => count === 1 ? "1 object" : `${count.toLocaleString("en-GB")} objects`,
+      fromFile: "Georeferenced from the file",
+      setPoints: "Set three points",
+      simplifications: "Simplified in the image"
+    }
+  },
+  georeference: {
+    heading: "2. Georeference",
+    help: "Choose a point, click on the map where you know where it is (e.g. a road crossing or a corner of the map) and write the " +
+      "coordinate. The coordinate can be copied from a web map, e.g. by right-clicking in Google Maps. Choose points far " +
+      "from each other and not on a straight line.",
+    point: index => `Point ${index + 1}`,
+    choose: index => `Place point ${index + 1} on the map`,
+    pixelX: "x (px)", pixelY: "y (px)",
+    coordinate: "Coordinate (lat, lon)",
+    coordinatePlaceholder: "59.33012, 18.06021",
+    mapImage: "The map. Click to place the chosen point.",
+    save: "Save georeference",
+    saved: "The georeference is saved. The route choices now show in the split time analysis.",
+    incomplete: "Place all three points and write the coordinates (latitude, longitude).",
+    invalid: "The points cannot be used. Choose three points that are not on a straight line and check the coordinates.",
+    failed: "The georeference could not be saved.",
+    imageFailed: "The map image could not be shown."
+  },
+  routes: {
+    heading: "3. Routes",
+    help: "Choose the runner and the GPX file from the watch or the app (Garmin, Strava, Suunto and others). A new file replaces the previous one.",
+    runner: "Runner", chooseRunner: "Choose runner",
+    file: "GPX file",
+    upload: "Upload route",
+    saved: (name, covered, legs) => legs === 0
+      ? `The route for ${name} is saved. It is linked to the legs when the runner has a result.`
+      : `The route for ${name} is saved and covers ${covered} of ${legs} legs.`,
+    chooseBoth: "Choose runner and GPX file.",
+    invalid: "The file is not a GPX route that can be read.",
+    noTimes: "The route has no times. Upload the GPX file from the watch or the app, not a drawn route.",
+    notIndividual: "Routes can only be uploaded for individual runners, not relay runners.",
+    failed: "The route could not be saved.",
+    removed: "The route is removed.",
+    none: "No routes uploaded yet.",
+    table: "Uploaded routes",
+    columns: { runner: "Runner", className: "Class", file: "File", covered: "Covers", actions: "Action" },
+    covered: (covered, legs) => legs === 0 ? "No result yet" : `${covered} of ${legs} legs`,
+    remove: "Remove",
+    removeLabel: name => `Remove the route for ${name}`,
+    noMapYet: "The routes show when the map is uploaded and georeferenced."
+  }
+};
+
+const mapsEn = (count: number) => plural(count, "map", "maps");
+const variantNameEn = (code: string | null) => code ?? "no variant";
+
+/** Engelska, arbetsytan del 13: kartor till starten. */
+export const mapBundlesEn: Texts<typeof mapBundlesSv> = {
+  title: "Maps for the start",
+  pageHelp: "Here you see how many maps each variant needs, in which order they should lie at the start and which runner gets which map, also the relay's teams and legs. The maps are printed in course setting, one map per runner in the same order, as a PDF for the printer or the office printer.",
+  printLink: "Print one map per runner",
+  checkLink: "Check the link",
+  leg: leg => `leg ${leg}`,
+  teamLeg: (team, leg) => leg !== undefined ? `team ${team}, leg ${leg}` : `team ${team}`,
+  back: "Back to the workspace",
+  loading: "Loading the maps …",
+  loadError: "The maps could not be loaded. Try again.",
+  retry: "Try again",
+  link: "Maps for the start",
+  linkHelp: "Print count per variant, the maps in start order and backs per runner.",
+  views: { COUNTS: "Print count", BUNDLE: "Maps in order", BACKS: "Backs" },
+  countsTitle: "Print count per variant",
+  countsHelp: "Runners with the variant, free start times (so that late entries get a map) and reserve.",
+  reserve: "Reserve per variant",
+  reserveKinds: { PERCENT: "percent", COUNT: "maps" },
+  reserveSave: "Save the reserve",
+  reserveSaved: "The reserve is saved.",
+  reserveError: "The reserve could not be saved. Try again.",
+  reserveInvalid: "Give a whole number between 0 and 1000.",
+  course: "Course", variant: "Variant", runners: "Runners", vacancies: "Free times", reserveColumn: "Reserve", print: "To print",
+  noVariant: "–",
+  total: "Total",
+  missingVariantTitle: count => `${plural(count, "runner is", "runners are")} missing a variant and get no map yet`,
+  missingVariantHelp: "Distribute the forkings under Classes first.",
+  bundleTitle: "Maps in order",
+  bundleHelp: "The maps in the order they should lie at the start.",
+  orderLabel: "Order",
+  order: { TIME: "By start time", CLASS: "By class and variant (mass start)" },
+  number: "No", name: "Name", club: "Club", className: "Class", startTime: "Start",
+  vacant: "Free time",
+  freeStart: "Free start",
+  bundleEmpty: "No maps to lay out yet.",
+  printList: "Print",
+  csv: "Save as CSV",
+  csvHeader: ["No", "Start time", "Class", "Course", "Variant", "Name", "Club"],
+  csvFile: "map-bundle-list",
+  printedAt: time => `Printed ${time}`,
+  notPrinted: "Not printed yet.",
+  changesSince: (count, time) => count === 1 ? `1 change since the list was printed ${time}` : `${count} changes since the list was printed ${time}`,
+  noChanges: time => `No changes since the list was printed ${time}.`,
+  printChanged: "The list has changed since it was loaded. It is loaded again; look at the changes and print once more.",
+  printError: "The printout could not be saved. Try again.",
+  change: (change, clock) => {
+    switch (change.kind) {
+      case "ADDED": return `New: ${change.name} (${change.className}${change.variantCode ? `, ${change.variantCode}` : ""})`;
+      case "REMOVED": return `Removed: ${change.name} (${change.className})`;
+      case "VARIANT": return `${change.name} (${change.className}): ${variantNameEn(change.from)} → ${variantNameEn(change.to)}`;
+      case "CLASS": return `${change.name}: ${change.from} → ${change.to}`;
+      case "START_TIME": return `${change.name} (${change.className}): start ${clock(change.from)} → ${clock(change.to)}`;
+      case "COUNT": return `${change.courseName}${change.variantCode ? ` ${change.variantCode}` : ""}${change.layout ? ` (${change.layout})` : ""}: ${mapsEn(change.from)} → ${mapsEn(change.to)}`;
+      case "NUMBERS": return change.count === 1 ? "1 runner has a new number" : `${change.count} runners have new numbers`;
+    }
+  },
+  backsTitle: "Backs per runner",
+  backsHelp: "One page per map in the same order as the variant's map bundle, with reserve pages so that the number of pages is the print count. Run the printed bundle through the printer again for the back, or use the page as a cover.",
+  paper: "Paper",
+  papers: { A4: "A4", A3: "A3" },
+  orientation: "Orientation",
+  orientations: { portrait: "Portrait", landscape: "Landscape" },
+  position: "Text position",
+  positions: { TOP_LEFT: "Top left", TOP_RIGHT: "Top right", CENTER: "Centre", BOTTOM_LEFT: "Bottom left", BOTTOM_RIGHT: "Bottom right" },
+  mirror: "Mirror for the back (the text ends up behind the same corner of the map)",
+  testPage: "Print a test page",
+  printBacks: "Print the backs",
+  testPageText: "Test page – the text ends up here",
+  divider: (variant, count) => `${variant ? `Variant ${variant}` : "Without variant"} · ${mapsEn(count)}`,
+  dividerHelp: variant => `Put map bundle ${variant ?? "without variant"} here`,
+  reservePage: variant => variant ? `Reserve · variant ${variant}` : "Reserve",
+  vacantPage: time => `Free time ${time}`,
+  vacantName: "Free",
+  reserveName: "Reserve",
+  backsFromCourseSetting: "The texts follow the back as set in course setting (Printing → back per runner).",
+  pages: count => plural(count, "page", "pages")
 };

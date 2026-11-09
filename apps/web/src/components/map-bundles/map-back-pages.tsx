@@ -1,7 +1,9 @@
 "use client";
 
 import type { MapBackPage } from "@o-tid/domain";
-import { mapBundlesSv as text } from "../../i18n/map-bundles-sv";
+import { mapBundlesEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
+import { mapBundlesSv } from "../../i18n/map-bundles-sv";
 import { backLines, backValues, type RunnerBackTexts } from "../../lib/map-back-lines";
 import styles from "./map-bundles.module.css";
 
@@ -39,6 +41,7 @@ export function printedPosition(settings: BackSettings): BackPosition {
 export function BackSheet({ page, settings, clock, runnerBack }: { page: MapBackPage | "TEST"; settings: BackSettings; clock: (instant: string | null) => string;
   /** Ägaren 2026-11-09: baksidan som den är inställd i banläggningen, annars Kartor till startens egen. */
   runnerBack?: RunnerBackTexts | undefined }) {
+  const text = useTexts(mapBundlesSv, mapBundlesEn);
   const { width, height } = sheetSize(settings);
   const position = printedPosition(settings);
   const content = page !== "TEST" && page.kind !== "DIVIDER" && runnerBack

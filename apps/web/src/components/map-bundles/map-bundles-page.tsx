@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { mapBundlesEn } from "../../i18n/workspace-small-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { MapBundleResponse, MapBundleRowDto, MapPrintList, MapReserveDto } from "@o-tid/contracts";
 import { mapBackPages, mapBundlesByClass, mapBundlesByTime, joinRaceParts, raceTitle, type MapBundleClassKey } from "@o-tid/domain";
-import { mapBundlesSv as text } from "../../i18n/map-bundles-sv";
+import { mapBundlesSv } from "../../i18n/map-bundles-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { toCsv } from "../../lib/lists/csv";
 import { fetchMapBundles, recordMapPrint, saveMapReserve } from "../../lib/map-bundles-client";
@@ -23,7 +25,7 @@ type Printing = "BUNDLE" | "BACKS" | "TEST";
 const PAGE_STYLE_ID = "otid-map-page";
 const SETTINGS_KEY = "otid-map-backs";
 
-function short(instant: string | null, timeZone: string): string {
+function short(instant: string | null, timeZone: string, text: Pick<typeof mapBundlesEn, "freeStart">): string {
   if (!instant) return text.freeStart;
   const full = formatClockTime(instant, timeZone);
   return full.endsWith(":00") ? full.slice(0, 5) : full;
@@ -37,6 +39,7 @@ function readSettings(): BackSettings {
 }
 
 export function MapBundlesPage({ raceId }: { raceId: string }) {
+  const text = useTexts(mapBundlesSv, mapBundlesEn);
   const [data, setData] = useState<MapBundleResponse>();
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<View>("COUNTS");
@@ -65,7 +68,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
   }, [printing, settings]);
 
   const timeZone = data?.timeZone ?? "UTC";
-  const clock = (instant: string | null) => short(instant, timeZone);
+  const clock = (instant: string | null) => short(instant, timeZone, text);
   const massOnly = !!data && data.classes.length > 0 && data.classes.every(row => row.startMode === "MASS");
   const chosenOrder: Order = order ?? (massOnly ? "CLASS" : "TIME");
   const pages = useMemo(() => data ? mapBackPages(data.groups) : [], [data]);
@@ -119,7 +122,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
           {(["TIME", "CLASS"] as const).map(id => <option key={id} value={id}>{text.order[id]}</option>)}</select></label>
         <button type="button" onClick={() => void print("BUNDLE", "BUNDLE")}>{text.printList}</button>
         <button type="button" className="secondary" onClick={() => download(`${text.csvFile}-${data.raceDate}.csv`,
-          bundleCsv(orderedRows(data, chosenOrder), clock), "text/csv;charset=utf-8")}>{text.csv}</button>
+          bundleCsv(orderedRows(data, chosenOrder), clock, text), "text/csv;charset=utf-8")}>{text.csv}</button>
       </div>
       <header className={styles.printHeader}><h2>{text.bundleTitle} · {text.order[chosenOrder]}</h2><p>{race}</p>
         {data.prints.BUNDLE && <p>{text.printedAt(formatClockTime(data.prints.BUNDLE.printedAt, timeZone).slice(0, 5))}</p>}</header>
@@ -160,6 +163,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
 }
 
 function PrintStatus({ print, clock }: { print: MapBundleResponse["prints"]["BUNDLE"]; clock: (instant: string) => string }) {
+  const text = useTexts(mapBundlesSv, mapBundlesEn);
   if (!print) return <p className={`${styles.muted} ${styles.noPrint}`}>{text.notPrinted}</p>;
   const time = clock(print.printedAt);
   if (print.changes.length === 0) return <p className={`${styles.ok} ${styles.noPrint}`} role="status">{text.noChanges(time)}</p>;
@@ -170,6 +174,7 @@ function PrintStatus({ print, clock }: { print: MapBundleResponse["prints"]["BUN
 }
 
 function Counts({ data, raceId, onSaved }: { data: MapBundleResponse; raceId: string; onSaved: () => Promise<void> }) {
+  const text = useTexts(mapBundlesSv, mapBundlesEn);
   const [kind, setKind] = useState<MapReserveDto["kind"]>(data.reserve.kind);
   const [value, setValue] = useState(String(data.reserve.value));
   const [status, setStatus] = useState("");
@@ -218,12 +223,14 @@ function orderedRows(data: MapBundleResponse, order: Order): MapBundleRowDto[] {
   return mapBundlesByClass(data.rows, variantOrderOf(data)).flatMap(group => group.rows);
 }
 
-function bundleCsv(rows: readonly MapBundleRowDto[], clock: (instant: string | null) => string): string {
-  return toCsv(text.csvHeader, rows.map(row => [row.number, row.startMode === "FREE" ? text.freeStart : clock(row.startTime), row.className,
+function bundleCsv(rows: readonly MapBundleRowDto[], clock: (instant: string | null) => string,
+  text: Pick<typeof mapBundlesEn, "csvHeader" | "freeStart" | "vacant">): string {
+  return toCsv([...text.csvHeader], rows.map(row => [row.number, row.startMode === "FREE" ? text.freeStart : clock(row.startTime), row.className,
     row.courseName, row.variantCode ?? "", row.name ?? text.vacant, row.club ?? ""]));
 }
 
 function BundleTable({ data, order, clock }: { data: MapBundleResponse; order: Order; clock: (instant: string | null) => string }) {
+  const text = useTexts(mapBundlesSv, mapBundlesEn);
   if (data.rows.length === 0) return <p>{text.bundleEmpty}</p>;
   const groups = order === "TIME"
     ? mapBundlesByTime(data.rows).map(group => ({ key: `${group.startTime}-${group.rows[0]!.classId}`,

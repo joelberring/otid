@@ -1,6 +1,7 @@
 "use client";
 
 import { takeAfterLogin } from "../lib/after-login";
+import { raceCopyEn } from "../i18n/workspace-tools-en";
 import { raceTypeEn } from "../i18n/workspace-en";
 import { ClubStep } from "./club-affiliation/club-step";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -95,6 +96,7 @@ function GoogleLogin({ remember, copy }: { remember: boolean; copy: Copy }) {
 }
 
 export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  const raceCopyText = useTexts(raceCopySv, raceCopyEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const copy = useTexts(organizerSv, organizerEn);
   const [session, setSession] = useState<Session>();
@@ -387,8 +389,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
               <div><strong>{name ?? race.raceDate}</strong><span>{name ? `${race.raceDate} · ` : ""}{raceTypeText.types[race.raceType].name}</span></div>
               <div className={styles.raceActions}>
                 {(event.role === "OWNER" || event.role === "ADMIN") && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
-                  aria-label={raceCopySv.actionLabel(name ?? event.eventName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
-                    raceName: race.raceName, raceDate: race.raceDate })}>{raceCopySv.action}</button>}
+                  aria-label={raceCopyText.actionLabel(name ?? event.eventName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
+                    raceName: race.raceName, raceDate: race.raceDate })}>{raceCopyText.action}</button>}
                 {event.role !== "COURSE_SETTER" && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
                   aria-busy={enteringRaceId === race.raceId} onClick={() => enterRace(race.raceId)}>
                   {enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>}

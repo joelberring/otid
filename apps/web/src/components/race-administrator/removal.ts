@@ -1,6 +1,9 @@
+import type { removalSv } from "../../i18n/removal-sv";
 import { useState } from "react";
+
+
 import { classRemovalResponseSchema, courseRemovalResponseSchema, entryRemovalResponseSchema, type RemovalOutcome } from "@o-tid/contracts";
-import { removalSv as text } from "../../i18n/removal-sv";
+
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 import type { CourseEditActions } from "./course-edit";
@@ -21,10 +24,11 @@ export function useRemovalState() {
   return { removalAttempt, setRemovalAttempt, removalMessage, setRemovalMessage, removalUnknown, setRemovalUnknown };
 }
 
-const blockedText = (outcome: Extract<RemovalOutcome, { outcome: "BLOCKED" }>) =>
+const blockedText = (outcome: Extract<RemovalOutcome, { outcome: "BLOCKED" }>, text: Pick<typeof removalSv, "blocked">) =>
   text.blocked(outcome.blocker, { count: outcome.count, names: outcome.names });
 
 export function createRemovalActions(ws: Base & RaceDataActions & CourseEditActions) {
+  const text = ws.removalText;
   const { raceId, courseList, selected, effectiveResult, removalAttempt, writingRef, pending, requireSession, begin, finish, current,
     request, json, csrf, load, readCourses, setEntryId, setRemovalAttempt, setRemovalMessage, setRemovalUnknown } = ws;
 
@@ -91,7 +95,7 @@ export function createRemovalActions(ws: Base & RaceDataActions & CourseEditActi
       if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Removal receipt mismatch");
       setRemovalAttempt(undefined); setRemovalUnknown(false);
       const outcome = receipt.result;
-      if (outcome.outcome === "BLOCKED") { message("attention", blockedText(outcome)); return; }
+      if (outcome.outcome === "BLOCKED") { message("attention", blockedText(outcome, text)); return; }
       message("ok", attempt.kind === "ENTRY" ? (outcome.outcome === "STRUCK" ? text.entryStruck(attempt.name)
         : outcome.outcome === "ANONYMIZED" ? text.entryAnonymized : text.entryDeleted(attempt.name))
         : attempt.kind === "CLASS" ? text.classDeleted(attempt.name) : text.courseDeleted(attempt.name));

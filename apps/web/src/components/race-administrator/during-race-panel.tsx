@@ -1,7 +1,7 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
-import { forestWatchEn } from "../../i18n/workspace-admin-en";
+import { forestWatchEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";

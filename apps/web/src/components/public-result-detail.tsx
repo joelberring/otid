@@ -1,8 +1,9 @@
 "use client";
 
 import { publicResultDetailResponseSchema, type PublicResultDetailResponse } from "@o-tid/contracts";
+import { courseVariantsEn } from "../i18n/workspace-tools-en";
 import React, { useEffect, useRef, useState } from "react";
-import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
+import { courseVariantsSv } from "../i18n/course-variants-sv";
 import { useListTexts } from "./lists/use-list-texts";
 import { publicResultEn, publicResultSv } from "../i18n/public-en";
 import { useTexts } from "./language-provider";
@@ -32,6 +33,7 @@ function resultClass(status: PublicResultDetailResponse["result"]["status"]): st
 export function PublicResultDetail({ raceId, publicResultId, initial }: {
   raceId: string; publicResultId: string; initial: PublicResultDetailResponse;
 }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(publicResultSv, publicResultEn), listTexts = useListTexts();
   const [response, setResponse] = useState(initial);
   const [unavailable, setUnavailable] = useState(false);

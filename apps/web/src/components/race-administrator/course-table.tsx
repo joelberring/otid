@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import { removalEn } from "../../i18n/workspace-tools-en";
+import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import type { CourseEditListResponse } from "@o-tid/contracts";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
-import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
 import { RemovalReview } from "./removal-review";
-import { removalSv as removalText } from "../../i18n/removal-sv";
+import { removalSv } from "../../i18n/removal-sv";
 import { courseMeasures } from "../../lib/lists/result-list-model";
 import { focusCourseFile } from "./course-file-section";
 import type { Workspace } from "./workspace-state";
@@ -23,6 +25,7 @@ type CourseRow = CourseEditListResponse["courses"][number];
 
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const removalText = useTexts(removalSv, removalEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { authenticated, busy, courseEditSaved, courseFormOpen, courseList, courseListError, data, editingCourseId, loadCourses,
     openAssignedClass, operation, pending, profile, raceId, saving, setCourseFormOpen, startCourseEdit, workflowLocked } = ws;
@@ -106,6 +109,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
 
 /** Steg 61: kontrollen före tävlingen i klartext, en rad per bana. Stoppar aldrig något. */
 function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"]> }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   // ADR-0198: varianter som banläggningen valt bort.
   const excluded = readiness.excludedCount ? ` · ${variantText.readinessExcluded(readiness.excludedCount)}` : "";
   if (readiness.ok) return <p className={styles.workflowHelp} role="status" data-testid="forking-readiness">
@@ -143,6 +147,7 @@ function branchCount(course: CourseRow) {
  * till struktur när det går.
  */
 function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { editingCourseId, profile, saving, startCourseEdit } = ws;
   const view = course.forking;
@@ -193,6 +198,7 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
 }
 
 function CourseEditor({ ws, courseName }: { ws: Workspace; courseName: string }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { busy, cancelCourseEdit, changeCourseEditControls, courseEditAttempt, courseEditControls, courseEditError,
     courseEditPreview, editingVariantCode, previewCourseEdit, raceId, saveCourseEdit } = ws;

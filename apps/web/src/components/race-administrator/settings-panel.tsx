@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { raceCopyEn } from "../../i18n/workspace-tools-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
@@ -61,6 +62,7 @@ function DateMoveReview({ ws }: { ws: Workspace }) {
  * (för ägaren) att ta bort tävlingen.
  */
 export function SettingsPanel({ ws }: { ws: Workspace }) {
+  const raceCopyText = useTexts(raceCopySv, raceCopyEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const text = useTexts(raceTypeSv.settings, raceTypeEn.settings);
   const { changeSettings, data, navigateStep, profile, raceId, saveSettings, saving, setPeoplePending, settingsAttempt, settingsErrors, settingsForm,
@@ -137,9 +139,9 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     {profile.features.import && entries && <Section id={`${id}-import`} title={text.import} help={text.importHelp}>
       <div><Button variant="secondary" onClick={() => navigateStep(entries.id)}>{text.importOpen}</Button></div>
     </Section>}
-    <Section id={`${id}-copy`} title={raceCopySv.settingsTitle} help={raceCopySv.settingsHelp}>
+    <Section id={`${id}-copy`} title={raceCopyText.settingsTitle} help={raceCopyText.settingsHelp}>
       <div><Button variant="secondary" disabled={locked} onClick={() => setCopySource({ raceId, eventName: data.eventName,
-        raceName: data.raceName, raceDate: data.raceDate })}>{raceCopySv.settingsAction}</Button></div>
+        raceName: data.raceName, raceDate: data.raceDate })}>{raceCopyText.settingsAction}</Button></div>
       <CopyRaceDialog source={copySource} onClose={() => setCopySource(undefined)} />
     </Section>
     <RaceExportSection ws={ws} />

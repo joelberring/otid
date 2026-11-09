@@ -1,5 +1,5 @@
 import React from "react";
-import { forestWatchEn } from "../i18n/workspace-admin-en";
+import { forestWatchEn } from "../i18n/workspace-tools-en";
 import { useTexts } from "./language-provider";
 import type { StartCheckinConflictReviewCandidate } from "@o-tid/contracts";
 import { checkinConflictReviewSv as text } from "../i18n/checkin-conflict-review-sv";

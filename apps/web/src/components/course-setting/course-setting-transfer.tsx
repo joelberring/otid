@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { sourcesEn } from "../../i18n/workspace-tools-en";
+import { useTexts } from "../language-provider";
 import Link from "next/link";
 import {
   syncApplyResponseSchema, syncConsequenceResponseSchema, type SyncApplyRequest, type SyncConsequence, type SyncPreviewResponse
@@ -14,13 +16,13 @@ import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
 import { adminFetch } from "../../lib/retrying-fetch";
 
-const review = sourcesSv.review;
 
 /**
  * Banfilssynkens granskning (ADR-0170 beslut 4) utan arbetsytan: samma rader, urval, besked och godkännande med request-id
  * (`source-sync-actions.ts`), med egna anrop från banläggningens sida.
  */
 function useStandaloneReview(raceId: string, onApplied: () => void): SourceReview & { busy: boolean } {
+  const review = useTexts(sourcesSv.review, sourcesEn.review);
   const [preview, setPreview] = useState<SyncPreviewResponse>();
   const [excluded, setExcluded] = useState<string[]>([]);
   const [consequence, setConsequence] = useState<SyncConsequence>();

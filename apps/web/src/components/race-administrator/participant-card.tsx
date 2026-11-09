@@ -1,6 +1,8 @@
 "use client";
 
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
+import { removalEn } from "../../i18n/workspace-tools-en";
+import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { participantCardEn, startRuleEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
@@ -10,7 +12,7 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { startRuleSv } from "../../i18n/start-rule-sv";
 import { participantCardSv } from "../../i18n/participant-card-sv";
-import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { RaceParticipantFacts } from "../race-participant-facts";
@@ -24,7 +26,7 @@ import { ParticipantControlMap } from "../control-map/runner-control-map";
 import { RemovalReview } from "./removal-review";
 import { DecisionReviewNotice } from "./decision-review";
 import { ParticipantFix } from "./participant-fix";
-import { removalSv as removalText } from "../../i18n/removal-sv";
+import { removalSv } from "../../i18n/removal-sv";
 import { Button, Disclosure } from "../ui";
 import type { Workspace } from "./workspace-state";
 
@@ -88,6 +90,7 @@ export function ParticipantCard({ ws }: { ws: Workspace }) {
 
 /** Steg 61: "Felstämplad mot AC, men stämplingarna passar BD. Fick löparen fel karta?" med "Godkänn på BD". */
 function WrongMap({ ws, wrongMap }: { ws: Workspace; wrongMap: { assignedCode: string; fittingCodes: readonly string[] } }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const { chooseEntryVariant, disabled, functionary } = ws;
   return <div className={styles.warning} role="note" data-testid="wrong-map">
     <p>{variantText.wrongMap(wrongMap.assignedCode, wrongMap.fittingCodes)}</p>
@@ -99,6 +102,7 @@ function WrongMap({ ws, wrongMap }: { ws: Workspace; wrongMap: { assignedCode: s
 
 /** Resultatet i ord: status, löptid, orsak och gällande beslut. */
 function CardResult({ ws, result, error }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined; error: boolean }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const startRule = useTexts(startRuleSv, startRuleEn);
   const text = useTexts(participantCardSv, participantCardEn);
   const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
@@ -167,6 +171,7 @@ function EntryChanges({ ws }: { ws: Workspace }) {
  * men avläsningen och historiken sparas. Bekräftas i kortet.
  */
 function EntryRemoval({ ws, result }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined }) {
+  const removalText = useTexts(removalSv, removalEn);
   const { disabled, prepareEntryRemoval, removalAttempt, selected } = ws;
   if (!selected || !result) return null;
   const strike = result.state !== "NO_PUBLISHED_RESULT" || result.history.length > 0 || !!result.cardPunches;

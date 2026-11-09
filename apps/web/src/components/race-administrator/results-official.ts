@@ -1,9 +1,11 @@
 import { useState } from "react";
+
+
 import { resultsOfficialResponseSchema, resultsOfficialStateSchema, type ResultsOfficialOutcome, type ResultsOfficialRequest,
   type ResultsOfficialState } from "@o-tid/contracts";
 import { parseFrozenRaceFinalizations, validateFrozenIofResultListResponse } from "../../lib/iof-result-list-export-admin-client";
 import { saveVerifiedDownload } from "../../lib/verified-download";
-import { resultsOfficialSv as text } from "../../i18n/results-official-sv";
+
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
@@ -19,6 +21,7 @@ export function useResultsOfficialState() {
 }
 
 export function createResultsOfficialActions(ws: Base & RaceDataActions) {
+  const text = ws.officialText;
   const { raceId, resultsOfficialRequest, writingRef, pending, requireSession, begin, beginRequest, finish, current, assertCurrent,
     request, json, csrf, setResultsOfficial, setResultsOfficialBlocked, setResultsOfficialMessage, setResultsOfficialRequest } = ws;
 

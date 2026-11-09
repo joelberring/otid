@@ -51,8 +51,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Del 12, arbetsytan del 2–3: arbetsytans egna texter (`raceAdministratorSv`: banor, klasser, anmälda, deltagarlistan, brickor,
   beslut, rättningar, efterarbetet), startsätten, deltagarkortet och klasstabellen (`workspace-admin-en.ts`). Åtgärdernas besked
   får texterna genom arbetsytans tillstånd.
-- Del 13: lottningen, startlistans publicering och kvar i skogen (målpersonalens lista). Kvar: källor/import, stafett,
-  rogaining, festens bardisk, avläsningen, speakern och banläggningen.
+- Del 13: lottningen, startlistans publicering och kvar i skogen (målpersonalens lista).
+- Del 14: Eventor, löpardatabasen, banfilen och granskningen av skillnader, ta bort och stryk, Resultaten är klara, Ny
+  tävling som den här och gafflingarna (`workspace-tools-en.ts`). Kvar: brickans stämplingar, stafett, rogaining, festens
+  bardisk, radiokontroller, avläsningen, speakern, hjälpen och banläggningen.
 
 ### 2026-11-09 – Lagren fas 2: arbetslager och skisslager (migration 0107)
 - Arbetslager = egna grupper av normens symboler (tänd, släck, lås, tona); skisslager med linjer på fri hand, punkter och

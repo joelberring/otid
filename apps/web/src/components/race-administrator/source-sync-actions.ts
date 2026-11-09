@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { sourcesEn } from "../../i18n/workspace-tools-en";
+import { useTexts } from "../language-provider";
 import {
   syncApplyResponseSchema, syncConsequenceResponseSchema, type SyncApplyRequest, type SyncConsequence, type SyncPreviewResponse
 } from "@o-tid/contracts";
 import { sourcesSv } from "../../i18n/sources-sv";
 import type { Workspace } from "./workspace-state";
 
-const text = sourcesSv.review;
 export type Message = { tone: "ok" | "error" | "attention"; text: string };
 
 /**
@@ -14,6 +15,7 @@ export type Message = { tone: "ok" | "error" | "attention"; text: string };
  * behålls tills kvittot kommit (samma id ger samma kvitto vid omförsök).
  */
 export function useSourceReview(ws: Workspace) {
+  const sources = useTexts(sourcesSv, sourcesEn), text = sources.review;
   const { writingRef, beginRequest, request, json, finish, current, csrf, requireSession, load, raceId } = ws;
   const [preview, setPreview] = useState<SyncPreviewResponse>();
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -41,7 +43,7 @@ export function useSourceReview(ws: Workspace) {
       const value = syncConsequenceResponseSchema.parse(await json(response, op));
       if (value.snapshotId !== preview.snapshotId) throw new Error("Consequence mismatch");
       setConsequence(value.consequence);
-    } catch { if (current(op)) setMessage({ tone: "error", text: sourcesSv.eventor.failed }); }
+    } catch { if (current(op)) setMessage({ tone: "error", text: sources.eventor.failed }); }
     finally { finish(op); }
   }
 

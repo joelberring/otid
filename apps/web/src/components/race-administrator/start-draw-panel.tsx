@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { startDrawEn } from "../../i18n/workspace-admin-en";
+import { courseVariantsEn } from "../../i18n/workspace-tools-en";
+import { startDrawEn } from "../../i18n/workspace-tools-en";
 import { useTexts } from "../language-provider";
 import type { StartDrawPreviewResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
@@ -9,7 +10,7 @@ import { startDrawSv } from "../../i18n/start-draw-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { Button, Field, Notice, Section, Table } from "../ui";
 import type { Workspace } from "./workspace-state";
-import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { startDrawAdvancedSv as advancedText } from "../../i18n/start-draw-advanced-sv";
 import { StartDrawAdvanced } from "./start-draw-advanced-panel";
 import own from "./start-draw-advanced.module.css";
@@ -136,6 +137,7 @@ function DrawCommonFields({ ws, locked }: { ws: Workspace; locked: boolean }) {
 }
 
 function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreviewResponse }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(startDrawSv, startDrawEn);
   const { busy, cancelDrawPreview, drawAttempt, saveDraw, unknown } = ws;
   const time = (instant: string) => formatClockTime(instant, preview.timeZone);

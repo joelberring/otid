@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { courseVariantsEn } from "../i18n/workspace-tools-en";
+import { useTexts } from "./language-provider";
 import Link from "next/link";
 import { IOF_IMPORT_CONFIRM_HEADER, IOF_IMPORT_CONTENT_TYPE, iofImportErrorResponseSchema, raceSessionStatusSchema,
   type IofEntryListChange } from "@o-tid/contracts";
 import { importIssues } from "../lib/import-issues";
 import { sv } from "../i18n/sv";
-import { courseVariantsSv as variantText } from "../i18n/course-variants-sv";
+import type { Texts } from "../lib/language";
+import { courseVariantsSv } from "../i18n/course-variants-sv";
 import { relaySv as relayText } from "../i18n/relay-sv";
 import {
   createIofImportAttempt,
@@ -28,7 +31,7 @@ function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : sv.importUnknownError;
 }
 
-function reportSummary(result: IofImportResponse): string {
+function reportSummary(result: IofImportResponse, variantText: Texts<typeof courseVariantsSv>): string {
   if (result.report.kind === "CourseData") {
     const { courses, classes, variants, personAssignments, teamAssignments } = result.report.imported;
     // Gafflingar (ADR-0169 beslut 2–3): varianter, löpare och stafettsträckor som fått sin variant ur filen.
@@ -50,6 +53,7 @@ function reportSummary(result: IofImportResponse): string {
 }
 
 export function ImportAdmin({ raceId }: { raceId: string }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const [authenticated, setAuthenticated] = useState<boolean>();
   const [attempt, setAttempt] = useState<IofImportAttempt>();
   const [attemptUncertain, setAttemptUncertain] = useState(false);
@@ -155,8 +159,8 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
       setLastResult(result);
       clearAttempt();
       setMessage(result.status === "stored"
-        ? `${sv.importStored}: ${reportSummary(result)}.`
-        : `${sv.importDuplicate}: ${reportSummary(result)}.`);
+        ? `${sv.importStored}: ${reportSummary(result, variantText)}.`
+        : `${sv.importDuplicate}: ${reportSummary(result, variantText)}.`);
     } catch (error) {
       setAttemptUncertain(commitMayBeUnknown);
       setMessage(`${messageFrom(error)} ${sv.importAttemptRetained}`);
@@ -244,7 +248,7 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
     {lastResult !== undefined && <section className="panel import-result" aria-labelledby="import-result-heading">
       <h2 id="import-result-heading">✓ {sv.importConfirmed}</h2>
       <p>{lastResult.status === "stored" ? sv.importStored : sv.importDuplicate}</p>
-      <p>{reportSummary(lastResult)} · {sv.importByteCount(lastResult.byteCount)}</p>
+      <p>{reportSummary(lastResult, variantText)} · {sv.importByteCount(lastResult.byteCount)}</p>
       {lastResult.report.warnings.length > 0 && <ul>{lastResult.report.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
     </section>}
 

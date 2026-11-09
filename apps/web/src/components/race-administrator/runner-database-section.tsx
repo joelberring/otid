@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { sourcesEn } from "../../i18n/workspace-tools-en";
+import { useTexts } from "../language-provider";
 import {
   runnerDatabaseRefreshResponseSchema, runnerDatabaseSettingsResponseSchema, type RunnerClub, type RunnerDatabaseSettingsResponse
 } from "@o-tid/contracts";
@@ -12,7 +14,6 @@ import { useRunnerSuggestions } from "./runner-suggestions";
 import type { Message } from "./source-sync-actions";
 import type { Workspace } from "./workspace-state";
 
-const text = sourcesSv.runnerDatabase;
 
 /**
  * Inställningar → Eventor → Löpardatabasen (PLAN.md steg 29): hämta klubbens (och tillagda klubbars, eller hela landets)
@@ -20,6 +21,8 @@ const text = sourcesSv.runnerDatabase;
  * av klubbens tävlingar. Uppdateringen kan ta tid (hela Sverige) och räknas som en skrivning.
  */
 export function RunnerDatabaseSection({ ws, timeZone }: { ws: Workspace; timeZone: string }) {
+  const eventorText = useTexts(sourcesSv.eventor, sourcesEn.eventor);
+  const text = useTexts(sourcesSv.runnerDatabase, sourcesEn.runnerDatabase);
   const { authenticated, busy, operation, writingRef, beginRequest, request, json, finish, current, csrf, requireSession, raceId } = ws;
   const [settings, setSettings] = useState<RunnerDatabaseSettingsResponse>();
   const [loadFailed, setLoadFailed] = useState(false);
@@ -82,7 +85,7 @@ export function RunnerDatabaseSection({ ws, timeZone }: { ws: Workspace; timeZon
   if (!settings) return <section className={styles.block} aria-labelledby={id}>
     <h3 id={id} className={styles.subhead}>{text.title}</h3>
     {loadFailed ? <Notice tone="error" role="alert"><p>{text.failed}</p>
-      <div><Button variant="secondary" disabled={busy} onClick={() => setLoadFailed(false)}>{sourcesSv.eventor.retry}</Button></div></Notice>
+      <div><Button variant="secondary" disabled={busy} onClick={() => setLoadFailed(false)}>{eventorText.retry}</Button></div></Notice>
       : <p className={styles.muted}>…</p>}
   </section>;
   const database = settings.database;
@@ -120,7 +123,7 @@ export function RunnerDatabaseSection({ ws, timeZone }: { ws: Workspace; timeZon
       </div>
       {confirmRemove && <Notice tone="attention" role="alert"><p>{text.removeConfirm}</p>
         <div className={styles.actions}><Button disabled={busy} onClick={() => void remove()}>{text.removeYes}</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => setConfirmRemove(false)}>{sourcesSv.eventor.cancel}</Button></div></Notice>}
+          <Button variant="secondary" disabled={busy} onClick={() => setConfirmRemove(false)}>{eventorText.cancel}</Button></div></Notice>}
     </>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
   </section>;

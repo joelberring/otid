@@ -1,6 +1,7 @@
 "use client";
 
 import type { SyncRow } from "@o-tid/contracts";
+import { sourcesEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
@@ -9,10 +10,10 @@ import { Button, Notice } from "../ui";
 import styles from "./sources.module.css";
 import type { SourceReview } from "./source-sync-actions";
 
-const text = sourcesSv.review;
 const groups: readonly SyncRow["kind"][] = ["NEW", "CHANGED", "WITHDRAWN", "CONFLICT"];
 
 function Change({ change }: { change: SyncRow["changes"][number] }) {
+  const text = useTexts(sourcesSv.review, sourcesEn.review);
   if (change.field === "LEGS") return <li><span className={styles.field}>{text.field.LEGS} {change.from}</span> {change.to}</li>;
   return <li><span className={styles.field}>{text.field[change.field]}</span>{" "}
     {change.from !== null && <><span className={styles.from}>{change.from}</span>{change.to !== null && <span aria-hidden="true"> → </span>}</>}
@@ -25,6 +26,7 @@ function Change({ change }: { change: SyncRow["changes"][number] }) {
  * går att välja har en kryssruta; beskedet om resultaten följer urvalet (samma text som "Redigera bana").
  */
 export function SourceReviewPanel({ review, busy, sourceName }: { review: SourceReview; busy: boolean; sourceName: string }) {
+  const text = useTexts(sourcesSv.review, sourcesEn.review);
   const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { preview, excluded, consequence, attempt, toggle, apply, close } = review;
   if (!preview) return null;

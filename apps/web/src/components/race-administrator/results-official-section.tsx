@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { resultsOfficialEn } from "../../i18n/workspace-tools-en";
+import { useTexts } from "../language-provider";
 import { formatDayMonthTime } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
-import { resultsOfficialSv as text } from "../../i18n/results-official-sv";
+import { resultsOfficialSv } from "../../i18n/results-official-sv";
 import { sv } from "../../i18n/sv";
 import { mispunchedEntries } from "../../lib/section-status";
 import { Button, Notice, Section } from "../ui";
@@ -16,6 +18,7 @@ import type { Workspace } from "./workspace-state";
  * tills arrangören trycker igen. Finns inte för Träning och Liten tävling.
  */
 export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
+  const text = useTexts(resultsOfficialSv, resultsOfficialEn);
   const { authenticated, busy, data, disabled, downloadOfficialResults, functionary, loadResultsOfficial, markResults, operation, pending,
     raceId, resultsOfficial, resultsOfficialBlocked, resultsOfficialMessage, resultsOfficialRequest, openCorrection, shows } = ws;
   const visible = shows("RESULTS");

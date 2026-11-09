@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { sourcesEn } from "../../i18n/workspace-tools-en";
+import { useTexts } from "../language-provider";
 import { IOF_IMPORT_CONTENT_TYPE, IOF_IMPORT_MAX_BYTES, sourceSyncStatusSchema, syncPreviewResponseSchema, type SourceSyncStatus } from "@o-tid/contracts";
 import { sourcesSv } from "../../i18n/sources-sv";
 import { Button, Field, Notice, Section } from "../ui";
@@ -12,7 +14,6 @@ import { useSourceReview, type Message } from "./source-sync-actions";
 import type { Workspace } from "./workspace-state";
 import { CourseDataOffer } from "./course-data-offer";
 
-const text = sourcesSv.courseFile;
 
 /** "eller läs in banfil" i Banors tomläge flyttar hit (PLAN.md steg 24). */
 export function focusCourseFile(raceId: string) {
@@ -27,6 +28,7 @@ export function focusCourseFile(raceId: string) {
  * besked som "Redigera bana" innan något sparas. Alla tävlingstyper kan läsa banfil.
  */
 export function CourseFileSection({ ws }: { ws: Workspace }) {
+  const text = useTexts(sourcesSv.courseFile, sourcesEn.courseFile);
   const { authenticated, busy, operation, writingRef, beginRequest, request, json, finish, current, csrf, requireSession, data, raceId } = ws;
   const [status, setStatus] = useState<SourceSyncStatus>();
   const [message, setMessage] = useState<Message>();

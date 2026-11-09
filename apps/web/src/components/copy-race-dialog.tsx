@@ -1,9 +1,12 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
+import { raceCopyEn } from "../i18n/workspace-tools-en";
+import { useTexts } from "./language-provider";
 import { createPortal } from "react-dom";
 import { defaultRaceCopyDate, raceCopyResponseSchema, type RaceCopyResponse } from "@o-tid/contracts";
-import { raceCopySv as text } from "../i18n/race-copy-sv";
+import type { Texts } from "../lib/language";
+import { raceCopySv } from "../i18n/race-copy-sv";
 import { accountRequest } from "../lib/account-client";
 import { formErrorsSv } from "../i18n/form-errors-sv";
 import { hasErrors, isIsoDate, isRaceName, type FieldErrors } from "../lib/form-validation";
@@ -25,7 +28,7 @@ function initialForm(source: CopySource): Form {
   return { eventName: source.eventName, raceName: source.raceName, raceDate: defaultRaceCopyDate(source.raceDate, today()), includePeople: true };
 }
 
-function failure(status: number): string {
+function failure(status: number, text: Texts<typeof raceCopySv>): string {
   if (status === 401) return text.errors.session;
   if (status === 403) return text.errors.forbidden;
   if (status === 404) return text.errors.notFound;
@@ -51,6 +54,7 @@ export function CopyRaceDialog({ source, onClose, onCopied }: {
 function CopyRaceDialogContent({ source, onClose, onCopied }: {
   source: CopySource; onClose: () => void; onCopied?: ((response: RaceCopyResponse) => void) | undefined;
 }) {
+  const text = useTexts(raceCopySv, raceCopyEn);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<Form>(() => initialForm(source));
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -80,7 +84,7 @@ function CopyRaceDialogContent({ source, onClose, onCopied }: {
       const response = await accountRequest(`/api/organizer/races/${encodeURIComponent(source.raceId)}/copy`, { method: "POST", csrf: true,
         body: { formatVersion: 1, requestId, eventName: form.eventName.trim(), raceName: form.raceName.trim(), raceDate: form.raceDate,
           includePeople: form.includePeople } });
-      if (response.status !== 200 && response.status !== 201) { setProblem(failure(response.status)); return; }
+      if (response.status !== 200 && response.status !== 201) { setProblem(failure(response.status, text)); return; }
       const parsed = raceCopyResponseSchema.safeParse(response.json);
       if (!parsed.success) { setProblem(text.errors.generic(response.status)); return; }
       setResult(parsed.data);

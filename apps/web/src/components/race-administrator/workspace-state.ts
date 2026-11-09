@@ -1,10 +1,14 @@
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
-import { classTableEn, forestWatchEn, participantCardEn, raceAdministratorEn, startDrawEn, startListPublicationEn } from "../../i18n/workspace-admin-en";
+import { classTableEn, participantCardEn, raceAdministratorEn } from "../../i18n/workspace-admin-en";
+import { forestWatchEn, startDrawEn, startListPublicationEn, courseVariantsEn, removalEn, resultsOfficialEn } from "../../i18n/workspace-tools-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { startDrawSv } from "../../i18n/start-draw-sv";
 import { startListPublicationSv } from "../../i18n/start-list-publication-sv";
 import { forestWatchSv } from "../../i18n/forest-watch-sv";
+import { courseVariantsSv } from "../../i18n/course-variants-sv";
+import { resultsOfficialSv } from "../../i18n/results-official-sv";
+import { removalSv } from "../../i18n/removal-sv";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { useTexts } from "../language-provider";
@@ -43,7 +47,10 @@ export function useWorkspaceState(raceId: string) {
   const publicationText = useTexts(startListPublicationSv, startListPublicationEn);
   const forestText = useTexts(forestWatchSv, forestWatchEn);
   const settingsText = useTexts(raceTypeSv.settings, raceTypeEn.settings);
-  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
+  const officialText = useTexts(resultsOfficialSv, resultsOfficialEn);
+  const removalText = useTexts(removalSv, removalEn);
+  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),

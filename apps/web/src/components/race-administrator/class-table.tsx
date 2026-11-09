@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { removalEn } from "../../i18n/workspace-tools-en";
+import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { classTableEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
@@ -8,12 +10,12 @@ import type { CourseEditListResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
-import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
 import { classTableStatus } from "../../lib/class-table-status";
 import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
 import { RemovalReview } from "./removal-review";
-import { removalSv as removalText } from "../../i18n/removal-sv";
+import { removalSv } from "../../i18n/removal-sv";
 import type { Workspace } from "./workspace-state";
 import { ClassMassStart } from "./class-mass-start";
 
@@ -21,6 +23,8 @@ type ClassRow = CourseEditListResponse["classes"][number];
 
 /** Klasser som tabell med redigering i raden: namn, bana och startsätt (ADR-0169 beslut 4). */
 export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const removalText = useTexts(removalSv, removalEn);
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(classTableSv, classTableEn);
   const adminText = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { authenticated, busy, classEditSaved, courseList, courseListError, selectedClassId, data, editingClassId, manualClassOpen,

@@ -1,7 +1,9 @@
 "use client";
 
 import styles from "../race-administrator-workspace.module.css";
-import { removalSv as text } from "../../i18n/removal-sv";
+import { removalEn } from "../../i18n/workspace-tools-en";
+import { useTexts } from "../language-provider";
+import { removalSv } from "../../i18n/removal-sv";
 import { Button, Notice } from "../ui";
 import type { RemovalAttempt } from "./removal";
 import type { Workspace } from "./workspace-state";
@@ -11,6 +13,7 @@ import type { Workspace } from "./workspace-state";
  * En mening om följden, en knapp som gör det och Avbryt; efter ett nätfel blir knappen "Försök igen" med samma begäran.
  */
 export function RemovalReview({ ws, kind, id }: { ws: Workspace; kind: RemovalAttempt["kind"]; id: string }) {
+  const text = useTexts(removalSv, removalEn);
   const { busy, removalAttempt, removalMessage, removalUnknown, confirmRemoval, cancelRemoval } = ws;
   const attempt = removalAttempt?.kind === kind && removalAttempt.id === id ? removalAttempt : undefined;
   const message = removalMessage?.kind === kind && removalMessage.id === id ? removalMessage : undefined;

@@ -1,5 +1,5 @@
 import React from "react";
-import { forestWatchEn } from "../i18n/workspace-admin-en";
+import { forestWatchEn } from "../i18n/workspace-tools-en";
 import { useTexts } from "./language-provider";
 import type { StartCheckinRosterResponse } from "@o-tid/contracts";
 import { forestWatchSv } from "../i18n/forest-watch-sv";

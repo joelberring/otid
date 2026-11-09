@@ -1,7 +1,9 @@
 import { useState } from "react";
+
+
 import { classVariantDistributionResponseSchema, entryVariantPreviewResponseSchema, entryVariantResponseSchema,
   type ClassVariantDistributionRequest, type EntryVariantPreviewResponse, type EntryVariantRequest } from "@o-tid/contracts";
-import { courseVariantsSv as text } from "../../i18n/course-variants-sv";
+
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
@@ -25,6 +27,7 @@ export function useCourseVariantState() {
 }
 
 export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEditActions) {
+  const text = ws.variantText;
   const { raceId, data, selected, courseList, entryVariantAttempt, distributionAttempt, writingRef, pending, requireSession,
     begin, finish, current, request, json, csrf, load, readCourses, setEntryVariantPreview, setEntryVariantAttempt,
     setEntryVariantMessage, setEntryVariantError, setDistributionAttempt, setDistributionMessage, setCourseListError } = ws;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { raceWorkspaceNavigationEn } from "../../i18n/workspace-en";
@@ -13,7 +14,7 @@ import { raceTypeSv } from "../../i18n/race-type-sv";
 import { sv } from "../../i18n/sv";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
 import { relaySv as relayText } from "../../i18n/relay-sv";
-import { courseVariantsSv as variantText } from "../../i18n/course-variants-sv";
+import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { rosterStatusOptions } from "../../lib/administrator-roster-filter";
 import { sectionForPanel } from "../../lib/race-sections";
@@ -69,6 +70,7 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
 
 /** Deltagarlistan: sök och klass alltid, övriga filter under "Fler filter" (bara de som har något att visa). */
 export function ParticipantList({ ws }: { ws: Workspace }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);

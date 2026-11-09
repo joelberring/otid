@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { sourcesEn } from "../../i18n/workspace-tools-en";
+import { useTexts } from "../language-provider";
 import {
   eventorEventChoiceResponseSchema, eventorEventsResponseSchema, eventorSettingsResponseSchema, eventorSyncProblemSchema,
   eventorTestResponseSchema, syncPreviewResponseSchema, type EventorEventSummary, type EventorSettingsResponse
@@ -14,7 +16,6 @@ import { RunnerDatabaseSection } from "./runner-database-section";
 import { useSourceReview, type Message } from "./source-sync-actions";
 import type { Workspace } from "./workspace-state";
 
-const text = sourcesSv.eventor;
 
 /** "Senast uppdaterad från Eventor 09:41" (samma dag) eller med datum. */
 export function sourceTime(instant: string, timeZone: string): string {
@@ -29,6 +30,7 @@ export function sourceTime(instant: string, timeZone: string): string {
  */
 /** `runnersOnly`: fest (steg 42) – bara nyckeln och löpardatabasen, ingen tävling att välja eller hämta. */
 export function EventorSection({ ws, runnersOnly = false }: { ws: Workspace; runnersOnly?: boolean }) {
+  const text = useTexts(sourcesSv.eventor, sourcesEn.eventor);
   const { authenticated, busy, operation, writingRef, beginRequest, request, json, finish, current, csrf, requireSession, data, raceId } = ws;
   const [settings, setSettings] = useState<EventorSettingsResponse>();
   const [keyInput, setKeyInput] = useState("");

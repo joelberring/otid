@@ -58,6 +58,7 @@ test("kartprojekt: eget underlag med världsfil", async ({ browser, baseURL }) =
   // I datorn syns panelen bredvid kartan.
   const panel = owner.getByTestId("map-project-layers");
   await expect(panel).toContainText("Inga underlag ännu.");
+  await owner.getByTestId("map-project-tab-layers").click();
   await panel.getByText("Lägg till", { exact: true }).first().click();
   await panel.getByTestId("map-project-layer-file").setInputFiles([
     { name: "flygfoto.png", mimeType: "image/png", buffer: png },
@@ -112,6 +113,7 @@ test("kartprojekt: eget underlag med världsfil", async ({ browser, baseURL }) =
     await context.route("**/*", noNetwork);
     await owner.reload();
     await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
+    await owner.getByTestId("map-project-tab-layers").click();
     await expect(owner.getByTestId("map-project-layer")).toContainText("ortofoto", { timeout: 15_000 });
     await expect.poll(() => alphaAt(owner, { x: 50, y: 55 }), { timeout: 20_000 }).toBeGreaterThan(0);
     await context.unroute("**/*", noNetwork);
@@ -147,6 +149,7 @@ test("kartprojekt: skannad bild utan världsfil rättas med passpunkter", async 
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
 
   const panel = owner.getByTestId("map-project-layers");
+  await owner.getByTestId("map-project-tab-layers").click();
   await panel.getByText("Lägg till", { exact: true }).first().click();
   await panel.getByTestId("map-project-layer-file").setInputFiles([{ name: "skannad.png", mimeType: "image/png", buffer: png }]);
   await panel.getByTestId("map-project-layer-upload").click();
@@ -210,6 +213,7 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
+  await owner.getByTestId("map-project-tab-layers").click();
   await importer.getByText("Importera vektorer").click();
   await importer.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
   await expect(importer.getByTestId("map-project-import-crs")).toHaveValue("3006");
@@ -244,6 +248,7 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   const proposals = owner.getByTestId("map-project-proposals");
   await expect(proposals).toContainText("Förslag (1 öppet)", { timeout: 20_000 });
   await expect(proposals).toContainText("Import baskarta.dxf");
+  await owner.getByTestId("map-project-tab-review").click();
   await proposals.getByRole("button", { name: "Godkänn" }).click();
   await expect(proposals).toContainText("Godkänt", { timeout: 15_000 });
   const sync = await owner.request.post(`${api}/sync`, { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner), "content-type": "application/json" },
@@ -278,6 +283,7 @@ test("kartprojekt: etapper med revideringsdatum", async ({ browser, baseURL }) =
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const areas = owner.getByTestId("map-project-areas");
+  await owner.getByTestId("map-project-tab-review").click();
   await areas.getByLabel("Reviderad: Etapp 1").fill("2024-05-31");
   await expect.poll(async () => (await (await owner.request.get(`${api}/areas`)).json() as { areas: { revisedOn: string | null }[] }).areas[0]!.revisedOn,
     { timeout: 10_000 }).toBe("2024-05-31");
@@ -309,6 +315,7 @@ test("kartprojekt: normkontroll av kurvavståndet", async ({ browser, baseURL })
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const panel = owner.getByTestId("map-project-norm");
+  await owner.getByTestId("map-project-tab-review").click();
   await panel.getByTestId("map-project-norm-toggle").check();
   await expect(panel.getByTestId("map-project-norm-count")).toContainText("att se över", { timeout: 20_000 });
   const rule = panel.locator("[data-rule='CONTOUR_GAP']");
@@ -347,6 +354,7 @@ test("kartprojekt: hämta OpenStreetMap för en etapp", async ({ browser, baseUR
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
+  await owner.getByTestId("map-project-tab-layers").click();
   await importer.getByText("Importera vektorer").click();
   const osm = importer.getByTestId("map-project-osm");
   await osm.getByTestId("map-project-osm-area").selectOption({ label: "Etapp 1" });
@@ -396,6 +404,7 @@ test("kartprojekt: ortofoto från Lantmäteriet med egna uppgifter", async ({ br
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const ortho = owner.getByTestId("map-project-ortho");
+  await owner.getByTestId("map-project-tab-layers").click();
   await ortho.getByText("Ortofoto från Lantmäteriet").click();
   await ortho.getByTestId("map-project-ortho-search").click();
   const items = ortho.getByTestId("map-project-ortho-items");
@@ -435,16 +444,19 @@ test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) =>
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
+  await owner.getByTestId("map-project-tab-layers").click();
   await importer.getByText("Importera vektorer").click();
   await importer.getByTestId("map-project-import-file").setInputFiles({ name: "tat.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
   await expect(importer.getByTestId("map-project-import-result")).toContainText("2 kandidater");
   await importer.getByTestId("map-project-import-propose").click();
   const proposals = owner.getByTestId("map-project-proposals");
   await expect(proposals).toContainText("Förslag (1 öppet)", { timeout: 20_000 });
+  await owner.getByTestId("map-project-tab-review").click();
   await proposals.getByRole("button", { name: "Godkänn" }).click();
   await expect(proposals).toContainText("Godkänt", { timeout: 15_000 });
 
   const general = owner.getByTestId("map-project-generalize");
+  await owner.getByTestId("map-project-tab-process").click();
   await general.getByText("Generalisering").first().click();
   await general.getByTestId("map-project-generalize-tolerance").selectOption("0.1");
   await expect(async () => {
@@ -457,6 +469,7 @@ test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) =>
   await general.getByTestId("map-project-generalize-propose").click();
   await expect(general.getByTestId("map-project-generalize-message")).toHaveText("Förslaget är skickat. Ägaren ser det under Förslag.", { timeout: 20_000 });
   await expect(proposals).toContainText("Generalisering: förenkla 0,1 mm, ta bort det som är mindre än normen", { timeout: 20_000 });
+  await owner.getByTestId("map-project-tab-review").click();
   await proposals.getByRole("button", { name: "Godkänn" }).click();
   await expect(proposals).not.toContainText("öppet", { timeout: 15_000 });
 
@@ -489,6 +502,7 @@ test("kartprojekt: rätta kartan med passpunkter som förslag", async ({ browser
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
 
   const rectify = owner.getByTestId("map-project-rectify");
+  await owner.getByTestId("map-project-tab-process").click();
   await rectify.getByText("Rätta kartan med passpunkter").click();
   await rectify.getByTestId("map-project-rectify-start").click();
   for (const from of [{ x: 30, y: 40 }, { x: 70, y: 60 }]) {
@@ -509,5 +523,6 @@ test("kartprojekt: rätta kartan med passpunkter som förslag", async ({ browser
   const listed = (await (await owner.request.get(`${api}/proposals`)).json() as { proposals: { source: string; note: string | null }[] }).proposals;
   expect(listed.every(row => row.source === "PROCESS")).toBe(true);
   expect(listed[0]!.note).toMatch(/^Rättad med 2 passpunkter \(likformig\)/);
+  await owner.getByTestId("map-project-tab-review").click();
   await expect(owner.getByTestId("map-project-proposals")).toContainText("Rättad med 2 passpunkter", { timeout: 20_000 });
 });

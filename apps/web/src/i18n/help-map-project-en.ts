@@ -1,0 +1,59 @@
+import type { HelpArticle } from "./help-sv";
+
+/** The owner 2026-11-10: the help in the map project's drawing mode (same ids, views and shape as `help-map-project-sv.ts`). */
+export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
+  {
+    id: "ritlaget-sa-tanker-du",
+    title: "How to think in the drawing mode",
+    views: ["MAP_EDITOR"],
+    body: [
+      "The screen has three parts. The tools are small icons on the left, the map is in the middle and a panel with tabs is on the right. The line below the map always says what the chosen tool is waiting for.",
+      [
+        "First choose a symbol under ”Symbols”, then draw. The tool ”Draw” is chosen by itself.",
+        "Hold the mouse over a square to see the symbol's number and name. Search by number or name in the field at the top.",
+        "The latest symbols are at the top of the tab. The keys 1–9 choose them.",
+        "”Edit” selects, moves and bends. Esc always takes you back there.",
+        "The buttons for the selected object are in the row below the map: ”Delete”, ”Simplify”, ”Make smooth” and ”Move whole”.",
+        "”Map only” hides the tools and the panel. The key § does the same.",
+        "The dot at the top shows saving: filled when saved, an empty ring when changes are waiting. A text warning appears only when something is wrong."
+      ],
+      "The tabs divide what used to be one long list. ”Layers” is everything that can be turned off and locked: read [Turn off, fade and lock layers](#ritlaget-lager). ”Review” is proposals, sub-areas, notes, field checking and the norm check, and ”Process” is generalising and correcting the whole map.",
+      "The keys and the wheel are in [Points, keys and the wheel](#ritlaget-punkter-tangenter)."
+    ]
+  },
+  {
+    id: "ritlaget-lager",
+    title: "Turn off, fade and lock layers",
+    views: ["MAP_EDITOR"],
+    body: [
+      "The symbol is the layer, as in OCAD and Mapper. There are no free layers to put objects in. Every group in the norm and every symbol can be turned off, locked and faded under the tab ”Layers”.",
+      [
+        "Turn off: press ”Shown” at the group. The button then shows ”Off”, and the objects are hidden until you press again.",
+        "Freeze: press ”Open”. The button then shows ”Locked”. The objects are visible but cannot be selected or changed.",
+        "”Faded” shows a locked layer pale, so that what you work with stands out.",
+        "A single symbol: open the group. Every symbol has the same three buttons.",
+        "Your own groups: ”New work layer” collects symbols you choose, for example all paths. They are turned off and locked as one group.",
+        "Sketches that do not belong to the map: ”New sketch layer”. They are never written to the map file.",
+        "New symbols cannot be created here yet. Objects with a symbol outside the norm are moved with ”Merge symbols”."
+      ],
+      "The base layers (aerial photo, laser, older maps) are further down in the same tab."
+    ]
+  },
+  {
+    id: "ritlaget-punkter-tangenter",
+    title: "Points, keys and the wheel",
+    views: ["MAP_EDITOR"],
+    body: [
+      "Most things can be done in three ways: with the icon on the left, with a key or in the wheel. The key is shown in the corner of the icon.",
+      [
+        "E chooses ”Edit”, P ”Draw” and O ”Circle”.",
+        "New point: double-click a segment. Remove a point: double-click it, or select it and press Delete.",
+        "Draw: click for corners, press and drag for a curve. Enter or a double-click finishes, Esc cancels.",
+        "The wheel: right-click the map, hold a finger on it or press space. It has the tools and the latest symbols.",
+        "Change symbol: select the object and choose the new symbol. Then press the button below the map that begins with Change symbol to.",
+        "Cmd or Ctrl + Z undoes. With Shift you redo."
+      ],
+      "Also read [How to think in the drawing mode](#ritlaget-sa-tanker-du)."
+    ]
+  }
+];

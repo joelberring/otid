@@ -2,7 +2,6 @@
 export const mapProjectQuickSv = {
   wheel: "Verktygshjul",
   wheelHelp: "Högerklicka eller håll fingret på kartan (mellanslag med musen över kartan) för verktygshjulet. 1–9 väljer de senaste symbolerna.",
-  close: "Stäng",
   tools: { select: "Redigera", draw: "Rita", circle: "Cirkel", note: "Notis" },
   toolKeys: { select: "E", draw: "P", circle: "O", note: "" },
   recent: "Senaste symbolerna",
@@ -22,6 +21,9 @@ export const mapProjectQuickSv = {
   grid: "Rutor",
   list: "Lista",
   view: "Visa symbolerna som",
-  strip: "Symbolrad överst",
-  stripLabel: "Symbolerna i kartfilen"
+  tabsLabel: "Panelens flikar",
+  tabs: { symbols: "Symboler", layers: "Lager", review: "Granska", process: "Bearbeta" },
+  hidePanels: "Bara kartan",
+  showPanels: "Visa panelerna",
+  bareHelp: "Göm eller visa verktygsspalten och panelen (§)"
 };

@@ -63,6 +63,7 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   // Statuslagret: allt är ej rekat.
   await phone.getByRole("button", { name: "Panel" }).click();
   const recon = phone.getByTestId("map-project-recon");
+  await phone.getByTestId("map-project-tab-review").click();
   await recon.getByTestId("recon-layer-STATUS").check();
   await expect(recon.getByTestId("recon-counts")).toContainText("0 passerade", { timeout: 20_000 });
   await phone.getByRole("button", { name: "Panel" }).click();

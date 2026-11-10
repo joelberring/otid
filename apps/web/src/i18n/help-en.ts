@@ -3,6 +3,7 @@ import type { HelpArticle, helpSv } from "./help-sv";
 import { accountHelpArticlesEn, routeChoiceHelpArticlesEn } from "./help-more-en";
 import { courseSettingHelpArticlesEn, gettingStartedHelpArticlesEn, levelHelpArticlesEn } from "./help-course-setting-en";
 import { clubHelpArticlesEn } from "./help-club-en";
+import { mapProjectHelpArticlesEn } from "./help-map-project-en";
 import { fieldPrintHelpArticlesEn } from "./help-print-en";
 
 /**
@@ -359,7 +360,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
 /** Engelska artiklar i stället för de svenska med samma id; resten är svenska än så länge. */
 export const helpArticlesEnById: ReadonlyMap<string, HelpArticle> = new Map(
   [...raceDayHelpArticlesEn, ...gettingStartedHelpArticlesEn, ...courseSettingHelpArticlesEn, ...levelHelpArticlesEn,
-    ...fieldPrintHelpArticlesEn, ...accountHelpArticlesEn, ...routeChoiceHelpArticlesEn, ...clubHelpArticlesEn].map(article => [article.id, article]));
+    ...fieldPrintHelpArticlesEn, ...accountHelpArticlesEn, ...routeChoiceHelpArticlesEn, ...clubHelpArticlesEn, ...mapProjectHelpArticlesEn].map(article => [article.id, article]));
 
 export const helpArticlesFor = (articles: readonly HelpArticle[]): readonly HelpArticle[] =>
   articles.map(article => helpArticlesEnById.get(article.id) ?? article);

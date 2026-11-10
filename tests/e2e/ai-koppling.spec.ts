@@ -92,6 +92,7 @@ test("AI-koppling: godkänn i O-Tid, MCP ser kartan och lämnar ett förslag, ko
     { result: { isError?: boolean; content: { text: string }[] } };
   expect(proposed.result.isError, proposed.result.content[0]?.text).toBeFalsy();
   await page.goto(`/organizer/map-projects/${projectId}/map`);
+  await page.getByTestId("map-project-tab-review").click();
   await expect(page.getByTestId("map-project-proposals")).toContainText("AI · 1 ändring");
   await expect(page.getByTestId("map-project-proposals")).toContainText("Stig enligt flygbilden");
 

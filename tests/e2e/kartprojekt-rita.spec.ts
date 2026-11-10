@@ -60,13 +60,14 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
 
   // Rita en stig: välj 505, tre klick och Enter.
   await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
-  // Ägaren 2026-11-10: symbolraden överst, bilder utan nummer; numret och namnet när musen står över.
-  await owner.getByTestId("map-project-symbol-strip-toggle").check();
-  const strip = owner.getByTestId("map-project-symbol-strip");
-  await expect(strip.locator("[data-code='505.0']")).toHaveAttribute("aria-pressed", "true");
-  await strip.locator("[data-code='505.0']").hover();
+  // Ägaren 2026-11-10: symbolerna som ett tätt rutnät i panelens flik Symboler, bilder utan nummer; numret och namnet när musen står över.
+  const grid = owner.getByTestId("map-project-symbols");
+  await expect(grid).toHaveAttribute("data-view", "grid");
+  await expect(grid.locator("[data-code='505.0']")).toHaveAttribute("aria-pressed", "true");
+  await grid.locator("[data-code='505.0']").hover();
   await expect(owner.getByRole("tooltip")).toContainText("505");
-  await expect(strip).not.toContainText("505");
+  await expect(grid).not.toContainText("505");
+  await expect(owner.getByTestId("map-project-symbols-recent").locator("[data-code='505.0']")).toBeVisible();
   await expect(owner.getByRole("button", { name: "Rita", exact: true })).toHaveAttribute("aria-pressed", "true");
   for (const point of [{ x: 10, y: 10 }, { x: 40, y: 30 }, { x: 70, y: 15 }]) {
     const at = await screenOf(owner, point);
@@ -247,6 +248,7 @@ test("kartprojekt: delområde, förslag från Föreslå och godkännande", async
   }
   await owner.keyboard.press("Enter");
   const areas = owner.getByTestId("map-project-areas");
+  await owner.getByTestId("map-project-tab-review").click();
   await areas.getByLabel("Namn").fill("Norr");
   await areas.getByRole("button", { name: "Spara delområdet" }).click();
   await expect(areas.getByRole("button", { name: "Norr" })).toBeVisible();
@@ -259,6 +261,7 @@ test("kartprojekt: delområde, förslag från Föreslå och godkännande", async
   await suggester.goto(`/organizer/map-projects/${projectId}/map`);
   const suggesterMap = suggester.getByTestId("course-setting-map");
   await expect(suggesterMap).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await suggester.getByTestId("map-project-tab-review").click();
   await expect(suggester.getByText("Du har rollen Föreslå")).toBeVisible();
   const stone = parsed.objects.find(object => object.kind === "point")!;
   if (stone.kind !== "point") throw new Error("ingen sten");
@@ -277,6 +280,7 @@ test("kartprojekt: delområde, förslag från Föreslå och godkännande", async
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const proposals = owner.getByTestId("map-project-proposals");
   await expect(proposals).toContainText("Förslag (1 öppet)");
+  await owner.getByTestId("map-project-tab-review").click();
   await proposals.getByRole("button", { name: "Visa", exact: true }).click();
   await expect(proposals.getByRole("button", { name: "Visa", exact: true })).toHaveAttribute("aria-pressed", "true");
   if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-forslag-agare.png` });
@@ -348,6 +352,7 @@ test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({
   await reviewScreenshots(owner, "kartprojekt-ny-karta");
   // ADR-0223: kartans nordlinjer (6,5°) mot dagens missvisning.
   const north = owner.getByTestId("map-project-north");
+  await owner.getByTestId("map-project-tab-layers").click();
   await north.locator("summary").click();
   await expect(north).toContainText("ritade för missvisningen 6,5°");
   await expect(north).toContainText(/Skillnad [01],\d° åt öster/);
@@ -449,6 +454,7 @@ test("kartprojekt: lager efter normen, lås, nedtonat och slå ihop symboler", a
 
   const layers = owner.getByTestId("map-project-symbol-layers");
   await expect(layers).toContainText("Lagren följer ISOM 2017-2");
+  await owner.getByTestId("map-project-tab-layers").click();
   await expect(layers.getByTestId("map-project-layer-row")).toHaveCount(5);
   const rock = layers.locator("[data-layer=ROCK]");
   await expect(rock).toContainText("Berg och stenar (2xx)");
@@ -468,6 +474,7 @@ test("kartprojekt: lager efter normen, lås, nedtonat och slå ihop symboler", a
   // Valen finns kvar efter en omladdning.
   await owner.reload();
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await owner.getByTestId("map-project-tab-layers").click();
   await expect(owner.getByTestId("map-project-symbol-layers").locator("[data-layer=ROCK]").getByTestId("map-project-layer-dim").last()).toHaveAttribute("aria-pressed", "true");
   await owner.getByTestId("map-project-symbol-layers").locator("[data-layer=ROCK]").getByTestId("map-project-layer-lock").last().click();
   await owner.mouse.click(at.x, at.y);
@@ -509,6 +516,7 @@ test("kartprojekt: arbetslager och skisslager", async ({ browser, baseURL }) => 
   const panel = owner.getByTestId("map-project-work-layers");
 
   // Arbetslager: stenarna i en egen grupp, släckt.
+  await owner.getByTestId("map-project-tab-layers").click();
   const fresh = panel.getByTestId("map-project-work-new");
   await fresh.locator("summary").click();
   await fresh.getByTestId("map-project-work-name").fill("Stenar");
@@ -550,6 +558,7 @@ test("kartprojekt: arbetslager och skisslager", async ({ browser, baseURL }) => 
   await reviewScreenshots(owner, "kartprojekt-skisslager");
   await owner.reload();
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await owner.getByTestId("map-project-tab-layers").click();
   await expect(owner.getByTestId("map-project-sketch-layer")).toContainText("2 skisser", { timeout: 15_000 });
 
   // Ägaren 2026-11-10: en mapp med äldre underlag. GeoJSON:en blir ett skisslager; pdf:en och kartfilen laddas inte upp.

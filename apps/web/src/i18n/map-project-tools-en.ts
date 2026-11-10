@@ -158,7 +158,6 @@ export const mapProjectNotesEn: Texts<typeof mapProjectNotesSv> = {
 export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   wheel: "Tool wheel",
   wheelHelp: "Right-click or hold a finger on the map (space with the mouse over the map) for the tool wheel. 1–9 choose the latest symbols.",
-  close: "Close",
   tools: { select: "Edit", draw: "Draw", circle: "Circle", note: "Note" },
   toolKeys: { select: "E", draw: "P", circle: "O", note: "" },
   recent: "Latest symbols",
@@ -178,6 +177,9 @@ export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   grid: "Grid",
   list: "List",
   view: "Show the symbols as",
-  strip: "Symbol row at the top",
-  stripLabel: "The symbols in the map file"
+  tabsLabel: "The panel's tabs",
+  tabs: { symbols: "Symbols", layers: "Layers", review: "Review", process: "Process" },
+  hidePanels: "Map only",
+  showPanels: "Show the panels",
+  bareHelp: "Hide or show the tool column and the panel (§)"
 };

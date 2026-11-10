@@ -1,0 +1,23 @@
+/* Ägaren 2026-11-10: verktygsspalten till vänster om kartan (datorn) och verktygsraden överst (telefonen). */
+.rail { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; overflow-y: auto;
+  border-right: 1px solid var(--line); background: var(--surface); scrollbar-width: none; }
+.tool { position: relative; flex: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent;
+  border-radius: 6px; background: none; color: var(--ink, #222); cursor: pointer; }
+.tool:hover:not(:disabled), .tool:focus-visible { background: var(--surface-2, #f3f3f3); border-color: var(--line, #ccc); }
+.tool[aria-pressed="true"] { background: var(--ink, #111); border-color: var(--ink, #111); color: #fff; }
+.tool:disabled { color: var(--muted, #999); opacity: .5; cursor: default; }
+.tool[data-gap] { margin-top: 9px; }
+.tool[data-gap]::before { content: ""; position: absolute; left: 4px; right: 4px; top: -6px; border-top: 1px solid var(--line, #ccc); }
+.tool[data-phone] { display: none; }
+.key { position: absolute; right: 1px; bottom: 0; font: 700 .58rem/1 system-ui, sans-serif; color: var(--muted, #666); background: none; border: 0; padding: 0; }
+.tool[aria-pressed="true"] .key { color: #fff; }
+
+@media (max-width: 760px) {
+  .rail { grid-row: 1; flex-direction: row; justify-content: flex-start; gap: 4px; padding: 3px 8px; overflow: auto hidden; border-right: 0;
+    border-bottom: 1px solid var(--line); }
+  .tool { width: 44px; height: 44px; }
+  .tool[data-gap] { margin-top: 0; margin-left: 9px; }
+  .tool[data-gap]::before { left: -6px; right: auto; top: 6px; bottom: 6px; border-top: 0; border-left: 1px solid var(--line, #ccc); }
+  .tool[data-phone] { display: grid; }
+  .key { display: none; }
+}

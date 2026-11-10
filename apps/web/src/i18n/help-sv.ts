@@ -4,6 +4,7 @@ import { courseSettingHelpArticles, gettingStartedHelpArticles, levelHelpArticle
 import { fieldPrintHelpArticles } from "./help-print-sv";
 import { clubHelpArticles } from "./help-club-sv";
 import { accountHelpArticles } from "./help-account-sv";
+import { mapProjectHelpArticles } from "./help-map-project-sv";
 import { plural } from "./plural";
 
 /**
@@ -28,7 +29,7 @@ export type ArchiveHelpView = "ARCHIVE_TRAININGS" | "ARCHIVE_MAPS" | "ARCHIVE_ME
  * Vyn man står i: arbetsytans steg (även Fest), Mina tävlingar, avläsningssidan, banläggningens flikar, klubbarkivet,
  * kontrollkartan och dess läge Vägval.
  */
-export type HelpView = SectionId | "EVENTS" | "READOUT_PAGE" | CourseSettingHelpView | ArchiveHelpView | "CONTROL_MAP" | "ROUTE_CHOICE";
+export type HelpView = SectionId | "EVENTS" | "READOUT_PAGE" | CourseSettingHelpView | ArchiveHelpView | "CONTROL_MAP" | "ROUTE_CHOICE" | "MAP_EDITOR";
 
 /** Ett stycke, en punktlista eller en numrerad lista (Kom igång). */
 export type HelpBlock = string | readonly string[] | { readonly steps: readonly string[] };
@@ -394,4 +395,4 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
 ];
 
 export const helpArticles: readonly HelpArticle[] = [...raceDayHelpArticles, ...gettingStartedHelpArticles, ...courseSettingHelpArticles, ...levelHelpArticles,
-  ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles, ...clubHelpArticles, ...accountHelpArticles];
+  ...fieldPrintHelpArticles, ...routeChoiceHelpArticles, ...archiveHelpArticles, ...clubHelpArticles, ...accountHelpArticles, ...mapProjectHelpArticles];

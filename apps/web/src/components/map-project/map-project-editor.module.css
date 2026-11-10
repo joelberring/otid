@@ -2,32 +2,57 @@
 /* Som banläggningens editor: hela fönstret, ovanpå sidans rubrik. */
 .page { position: fixed; inset: 0; z-index: 10; width: 100%; max-width: none; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
   overscroll-behavior: none; background: var(--surface); }
-.header { display: flex; align-items: center; justify-content: space-between; gap: .5rem 1rem; flex-wrap: wrap; padding: 8px 12px;
+/* Ägaren 2026-11-10: en smal rad överst, så att kartan får höjden. */
+.header { display: flex; align-items: center; gap: .25rem .75rem; flex-wrap: nowrap; padding: 2px 10px; min-height: 36px;
   border-bottom: 1px solid var(--line); }
-.title { display: grid; gap: 0; min-width: 0; }
-.title a { font-size: var(--text-xs); color: var(--muted); }
-.title h1 { margin: 0; font-size: var(--text-lg, 1.25rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sync { margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); }
+.title { display: flex; align-items: baseline; gap: .6rem; min-width: 0; flex: 1; }
+.title a { flex: none; font-size: var(--text-xs); color: var(--muted); white-space: nowrap; }
+.title h1 { margin: 0; font-size: var(--text-md, 1rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bareToggle { flex: none; min-height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: none; font: inherit;
+  font-size: var(--text-sm, .9rem); color: inherit; cursor: pointer; white-space: nowrap; }
+.bareToggle[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+/* Ägaren 2026-11-10: sparandet är en liten prick (fylld = sparat, tom ring = ändringar väntar) och text först när något är fel. */
+.sync { flex: none; margin: 0; display: grid; place-items: center; width: 20px; height: 20px; }
+.syncDot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--muted, #888); background: var(--muted, #888); }
+.syncDot[data-waiting] { background: none; }
+.syncLoud { flex: 0 1 auto; min-width: 0; margin: 0; padding: 2px 8px; border-radius: 6px; background: var(--attention-bg, #fff4ce); color: var(--ink, #222);
+  font-size: var(--text-sm, .9rem); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notice { padding: 6px 12px 0; }
 .offline { margin: 0; padding: 4px 12px; background: var(--attention-bg, #fff4ce); font-size: var(--text-sm, .9rem); }
-.workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto auto minmax(0, 1fr); min-height: 0; }
-/* En rad som rullas i sidled: kartan flyttar sig inte när knapparna för det markerade objektet kommer och går. */
-.toolbar { grid-column: 1; display: flex; flex-wrap: nowrap; overflow-x: auto; gap: .4rem; padding: 6px 12px; border-bottom: 1px solid var(--line); }
-.toolbar > * { flex: none; }
-/* En rad (hela texten i title): kartan flyttar sig inte när tipset eller ett besked byts. */
-.hint { grid-column: 1; margin: 0; padding: 4px 12px; color: var(--muted); font-size: var(--text-sm, .9rem); min-height: 1.6em; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; }
-.mapArea { grid-column: 1; grid-row: 4; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+/* Ägaren 2026-11-10: verktygsspalten till vänster, kartan i mitten med statusraden under, panelen med flikar till höger. */
+.workspace { flex: 1; display: grid; grid-template-columns: 44px minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+.workspace[data-bare="true"] { grid-template-columns: 0 minmax(0, 1fr) 0; }
+.workspace[data-bare="true"] > [role="toolbar"], .workspace[data-bare="true"] > .sidebar { display: none; }
+/* Statusraden under kartan: det markerade objektets knappar och tipset på en rad med fast höjd (hela texten i title), så att
+   kartan inte flyttar sig när knapparna eller ett besked kommer och går. */
+.statusRow { grid-column: 2; grid-row: 2; display: flex; align-items: center; gap: .6rem; height: 38px; padding: 0 10px; overflow: hidden;
+  border-top: 1px solid var(--line); }
+.objectBar { flex: none; max-width: 75%; display: flex; flex-wrap: nowrap; gap: .3rem; overflow-x: auto; scrollbar-width: none; }
+.objectBar > * { flex: none; }
+.objectBar button { min-height: 30px; padding-block: 0; }
+.hint { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mapArea { grid-column: 2; grid-row: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 /* Kartvyn fyller rutan på alla bredder (banläggningens telefonregel för kartans ram gäller inte här). */
 .frame, .frame > div { position: absolute; inset: 0; }
 .loading { position: absolute; inset: auto 0 50% 0; text-align: center; color: var(--muted); z-index: 1; }
-.sidebar { grid-column: 2; grid-row: 1 / span 4; overflow: auto; border-left: 1px solid var(--line); padding: 8px 12px 24px; display: grid;
-  align-content: start; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.sidebar { grid-column: 3; grid-row: 1 / span 2; overflow: auto; border-left: 1px solid var(--line); padding: 0 10px 24px; display: grid;
+  align-content: start; gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .sidebar > * { min-width: 0; }
+.tabs { position: sticky; top: 0; z-index: 1; display: flex; margin: 0 -10px; padding: 0 4px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; min-height: 36px; padding: 0 4px; border: 0; border-bottom: 3px solid transparent; background: none; font: inherit;
+  font-size: var(--text-sm, .9rem); font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.tabCount { display: inline-block; min-width: 1.2em; padding: 0 4px; border-radius: 999px; background: #d4570b; color: #fff; font-size: .7rem; }
+.tabPanel { display: grid; gap: 16px; align-content: start; grid-template-columns: minmax(0, 1fr); }
+.tabPanel[hidden] { display: none; }
+.symbolTools { display: flex; gap: 6px; align-items: center; }
+.symbolTools .search { flex: 1; min-width: 0; }
+.chosen { margin: .3rem 0 0; font-size: var(--text-sm, .9rem); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.groupTitle { margin: .5rem 0 2px; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
 .panel h2 { margin: 0 0 .35rem; font-size: var(--text-md, 1rem); }
 .muted { margin: .2rem 0 .5rem; color: var(--muted); font-size: var(--text-sm, .9rem); }
-.search input { width: 100%; min-height: 40px; }
-.palette { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: 2px; max-height: 50dvh; overflow: auto; }
+.search input { width: 100%; min-height: 32px; }
+.palette { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .symbol { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 40px; padding: 2px 6px; border: 1px solid transparent;
   border-radius: 6px; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .symbol:hover { background: var(--surface-2, #f3f3f3); }
@@ -41,7 +66,6 @@
 .check input { width: 20px; height: 20px; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.panelToggle { display: none; }
 
 /* Samarbetet: förslag och delområden i panelen. */
 .proposalRow, .areaRow { padding: 4px 0; border-bottom: 1px solid var(--line); }
@@ -98,17 +122,19 @@
   .header { padding: 4px 8px; flex-wrap: nowrap; }
   .title a { display: none; }
   .title h1 { font-size: var(--text-md, 1rem); }
-  .sync { font-size: var(--text-xs, .8rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
-  .toolbar { flex-wrap: nowrap; overflow-x: auto; padding: 4px 8px; gap: .3rem; scrollbar-width: none; }
-  .toolbar > * { flex: none; }
-  /* Tipset på en rad (hela texten i title). */
-  .hint { padding: 2px 8px; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); position: relative; }
-  .panelToggle { display: inline-flex; }
+  .syncLoud { font-size: var(--text-xs, .8rem); max-width: 50vw; }
+  .bareToggle { display: none; }
+  /* Verktygen på en rad överst som rullar i sidled, kartan, och tipset på en rad under (hela texten i title). */
+  .statusRow { grid-column: 1; grid-row: 3; padding: 0 8px; }
+  .objectBar { max-width: 100%; }
+  .objectBar + .hint { display: none; }
+  .mapArea { grid-column: 1; grid-row: 2; }
+  .workspace, .workspace[data-bare="true"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; position: relative; }
+  .workspace[data-bare="true"] > [role="toolbar"] { display: flex; }
   /* Panelen ligger över kartans nedre del när den är öppen. */
-  .sidebar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; grid-column: 1; grid-row: 1 / span 4; max-height: 60dvh; border-left: 0;
+  .sidebar, .workspace[data-bare="true"] > .sidebar { display: grid; position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; grid-column: 1; grid-row: 1 / span 3; max-height: 60dvh; border-left: 0;
     border-top: 1px solid var(--line-strong); background: var(--surface); box-shadow: 0 -4px 16px rgb(0 0 0 / 12%); }
-  .sidebar[data-open="false"] { display: none; }
+  .sidebar[data-open="false"], .workspace[data-bare="true"] > .sidebar[data-open="false"] { display: none; }
   .hint { font-size: var(--text-xs, .8rem); }
 }
 .importLayers { display: grid; gap: 6px; border: 0; padding: 0; margin: 0; }
@@ -123,12 +149,14 @@
 .viewToggle { display: inline-flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; justify-self: start; }
 .viewToggle button { border: 0; background: none; padding: 4px 10px; font: inherit; color: inherit; cursor: pointer; min-height: 32px; }
 .viewToggle button[aria-pressed="true"] { background: var(--ink); color: #fff; }
-.paletteGrid { list-style: none; margin: .5rem 0 0; padding: 0; max-height: 50dvh; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 4px; }
-.tile { display: grid; justify-items: center; gap: 1px; width: 100%; padding: 3px 2px; border: 1px solid transparent; border-radius: 6px; background: none;
+/* Ägaren 2026-11-10: tätt rutnät utan nummer (numret och namnet visas när musen står över), sju i bredd i panelen. */
+.paletteGrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, 38px); gap: 2px; }
+.tile { position: relative; display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none;
   font: inherit; color: inherit; cursor: pointer; }
+.tile .icon { border-color: transparent; }
+.tileKey { position: absolute; right: 2px; bottom: 0; font-size: .6rem; font-weight: 700; color: var(--muted); }
 .tile:hover { background: var(--surface-2, #f3f3f3); }
-.tile[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-2, #f3f3f3); }
-.tileCode { font-size: .7rem; font-weight: 700; line-height: 1.1; }
+.tile[aria-pressed="true"] { border: 2px solid var(--ink); background: var(--surface-2, #f3f3f3); }
 
 /* Ägaren 2026-11-09: lagren efter normen. */
 .layerList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
@@ -149,15 +177,6 @@
 .inlineField { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .inlineField input { width: 10em; }
 
-/* Ägaren 2026-11-10: symbolerna som en rad bilder under verktygen (numret och namnet när musen står över). Två rader, sedan rullning. */
-.strip { grid-column: 1; grid-row: 2; display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 12px; margin: 0; list-style: none;
-  max-height: 72px; overflow-y: auto; border-bottom: 1px solid var(--line); }
-.strip button { position: relative; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent;
-  border-radius: 6px; background: none; cursor: pointer; }
-.strip button:hover, .strip button:focus-visible { background: var(--surface-2, #f3f3f3); }
-.strip button[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-2, #f3f3f3); }
+/* Symbolens nummer och namn vid rutan när musen står över (eller rutan har fokus). */
 .stripTip { position: fixed; z-index: 20; pointer-events: none; padding: 2px 6px; border-radius: 4px; background: var(--ink, #111); color: #fff;
   font-size: .8rem; white-space: nowrap; }
-.toolbar { grid-row: 1; }
-.hint { grid-row: 3; }
-.stripToggle { display: flex; align-items: center; gap: 6px; margin-top: .4rem; }

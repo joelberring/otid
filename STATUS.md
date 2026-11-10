@@ -13,6 +13,21 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Ritlägets gränssnitt, R1 (steg K8)
+- Ägaren: menyerna överst och högerspalten tog för mycket plats, symbolerna hade mycket vitt och gick inte att visa hela. Ny
+  uppställning: verktygsspalt med ikoner och tangenten i hörnet till vänster (`map-project-tool-rail.tsx`; rad överst i telefonen),
+  en smal rad överst, panelen i fyra flikar (Symboler, Lager, Granska, Bearbeta; innehållet står kvar vid flikbyte), statusrad
+  under kartan med det markerade objektets knappar och tipset, och "Bara kartan" (§) som gömmer spalten och panelen.
+- Symbolerna: tätt rutnät (förval) efter normens grupper, de senaste överst med siffran, numret och namnet när musen står över.
+  Symbolraden överst är borttagen. Symbolbilderna ritas i 64 px över 5 mm (förut 32 px över 8 mm), så de fyller rutan.
+- Hjälp i ritläget (ny vy `MAP_EDITOR`, `help-map-project-sv/en`): Så tänker du i ritläget, Släcka, tona och låsa lager, Punkter,
+  tangenter och hjulet.
+- Hjulet är litet och ihåligt som i Mapper (152 px, hål på 72 px, ikoner i stället för text); kartan syns och nås genom hålet.
+  Sparandet överst är en prick (fylld = sparat, tom ring = väntar) och en varning i text först utan nät, vid fel eller när
+  ändringar väntat i 20 s.
+- Verifierat: `pnpm lint`, `typecheck`, `lint:dead`, `test` (web), E2E `kartprojekt*` och `ai-koppling` (flikarna klickas i testerna).
+- Kvar: R2–R5 i PLAN.md. Tangenterna (E, P, O, 1–9) är oförändrade tills R2.
+
 ### 2026-11-10 – Översynen: E, D och F (Sonnet 5.5)
 - E: importen, fastställda resultat, integritetssidan, godkännandet av AI-koppling, gästraden, sidtitlar och statusnamnen i deltagarpanelerna på
   engelska (nya `import-admin-sv/en`, `ai-en`, `privacy-en`). E1: en språkhjälpare (`languageOfRequest`). E2: språktestet läser `*-en.ts` ur katalogen.

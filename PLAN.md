@@ -1285,6 +1285,22 @@ Senare enligt planen: K5 Karttapullautin och fuktighet, K6
 generalisering och resten av normkontrollen, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre
 kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD. Idé (STATUS): inomhusorientering.
 
+## [ ] Steg K8 – Ritlägets gränssnitt (ägaren 2026-11-10)
+
+Kartan ska få platsen, och det ska gå fort att rita. Hela förslaget står i projektdokumenten `claude/plan-ritlage-granssnitt.md`
+och `claude/plan-ritlage-hjul-och-mobil.md`.
+
+- [x] R1 Uppställningen: verktygsspalt med ikoner till vänster (rad överst i telefonen), en smal rad överst, panelen till höger
+  med flikarna Symboler, Lager, Granska och Bearbeta, statusrad under kartan med det markerade objektets knappar, "Bara kartan"
+  (§). Symbolerna som ett tätt rutnät efter normens grupper med de senaste överst; symbolbilderna fyller rutan. Hjälp i ritläget.
+- [ ] R2 Tangenterna under vänster hand (Q–T, A–G, Z–B) med egna uppsättningar per konto; verktyg för att lägga till och ta bort
+  punkter, Cmd/Ctrl+klick, Delete på flera punkter, Backsteg vid ritning; hjulet med fasta fält och tryck–dra–släpp.
+- [ ] R3 En lagerlogik: öga och lås som ikoner per symbol och grupp, flera rader på en gång, siffrorna för grupperna (i dag
+  väljer 1–9 de senaste symbolerna: ägaren avgör), sparade vyer.
+- [ ] R4 Verktyg i ordning: koppla ihop och klipp isär, byt symbol på alla av samma sort och pipett, rektangel och räta
+  vinklar, fyll, duplicera och parallell kopia, följ kant.
+- [ ] R5 Nya symboler (duplicera, hämta ur en annan kartfil) och resten av verktygen efter vad piloten behöver.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

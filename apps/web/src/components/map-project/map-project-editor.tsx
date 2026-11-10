@@ -57,10 +57,11 @@ import { drawLayers } from "../../lib/map-project-layers";
 import { useMapProjectPosition, type TimedFix } from "./use-map-project-position";
 import { useMapProjectRecon } from "./use-map-project-recon";
 import { saveMapProjectShell } from "../../lib/map-project-offline";
-import { MapProjectSidebar } from "./map-project-sidebar";
+import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
 import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
-import { MapProjectSymbolStrip, SYMBOL_STRIP_KEY } from "./map-project-symbol-strip";
+import { MapProjectToolRail, type RailTool } from "./map-project-tool-rail";
+import { HelpButton } from "../help/help-panel";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
 import { MapProjectToolWheel, type WheelAction, type WheelTool } from "./map-project-tool-wheel";
@@ -200,9 +201,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-09: verktygshjulet (högerklick, långt tryck, mellanslag), de senaste symbolerna och cirkelns mitt.
   const [wheel, setWheel] = useState<{ screen: { x: number; y: number }; bounds: { width: number; height: number } }>();
   const [recent, setRecent] = useState<readonly string[]>([]);
-  const [strip, setStrip] = useState(false);
-  useEffect(() => { try { setStrip(localStorage.getItem(SYMBOL_STRIP_KEY) === "1"); } catch { /* utan lagring: ingen rad */ } }, []);
-  const showStrip = (on: boolean) => { setStrip(on); try { localStorage.setItem(SYMBOL_STRIP_KEY, on ? "1" : "0"); } catch { /* utan lagring */ } };
+  // Ägaren 2026-11-10: panelens flik, och bara kartan (verktygsspalten och panelen gömda) med knappen överst eller §.
+  const [tab, setTab] = useState<SidebarTab>("symbols");
+  const [bare, setBare] = useState(false);
+  const drawingArea = !!newArea;
+  useEffect(() => { if (drawingArea) setTab("review"); }, [drawingArea]);
   const [circleCenter, setCircleCenter] = useState<Point>();
   const [flash, setFlash] = useState<string>();
   const mapArea = useRef<HTMLDivElement>(null);
@@ -280,7 +283,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (command && key === "z") { event.preventDefault(); if (event.shiftKey) editor.redo(); else editor.undo(); return; }
       if (command && key === "y") { event.preventDefault(); editor.redo(); return; }
       if (command) return;
-      if (key === "e") { cancelDraft(); setTool("select"); }
+      if (event.key === "§" || event.key === "`") { event.preventDefault(); setBare(value => !value); }
+      else if (key === "e") { cancelDraft(); setTool("select"); }
       else if (key === "p" && canEdit) { deselect(); cancelDraft(); setTool("draw"); }
       else if (key === "o" && canEdit) { deselect(); cancelDraft(); setTool("circle"); }
       else if (event.key === " " && canEdit && pointerAt.current && mapArea.current) {
@@ -591,10 +595,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, quick) : [];
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); setTool(next); };
   const wheelTools: WheelTool[] = [
-    { id: "select", label: quick.tools.select, key: quick.toolKeys.select, active: tool === "select", onPick: pickTool("select") },
-    { id: "draw", label: quick.tools.draw, key: quick.toolKeys.draw, active: tool === "draw", onPick: pickTool("draw") },
-    { id: "circle", label: quick.tools.circle, key: quick.toolKeys.circle, active: tool === "circle", onPick: pickTool("circle") },
-    ...(notes.canWrite ? [{ id: "note", label: quick.tools.note, key: "", active: tool === "note", onPick: pickTool("note") }] : [])
+    { id: "select", label: quick.tools.select, icon: "select", key: quick.toolKeys.select, active: tool === "select", onPick: pickTool("select") },
+    { id: "draw", label: quick.tools.draw, icon: "draw", key: quick.toolKeys.draw, active: tool === "draw", onPick: pickTool("draw") },
+    { id: "circle", label: quick.tools.circle, icon: "circle", key: quick.toolKeys.circle, active: tool === "circle", onPick: pickTool("circle") },
+    ...(notes.canWrite ? [{ id: "note", label: quick.tools.note, icon: "note" as const, key: "", active: tool === "note", onPick: pickTool("note") }] : [])
   ];
   const wheelActions: WheelAction[] = selected && tool === "select" && canEdit ? [
     ...shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => reshape(action.result, action.message) })),
@@ -604,66 +608,40 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const pending = editor.state?.pending.length ?? 0;
   const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
 
+  const rail: RailTool[] = [
+    { id: "panel", label: text.panel, icon: "panel", active: panelOpen, phoneOnly: true, onPick: () => setPanelOpen(open => !open) },
+    ...(canEdit ? [
+      { id: "select", label: text.tools.select, icon: "select" as const, key: quick.toolKeys.select, help: text.tools.selectHelp, active: tool === "select",
+        onPick: () => { cancelDraft(); setTool("select"); } },
+      { id: "draw", label: text.tools.draw, icon: "draw" as const, key: quick.toolKeys.draw, help: text.tools.drawHelp, active: tool === "draw", onPick: pickTool("draw") },
+      { id: "circle", label: quick.tools.circle, icon: "circle" as const, key: quick.toolKeys.circle, active: tool === "circle", testId: "map-project-circle-tool",
+        onPick: pickTool("circle") },
+      ...(canDecide ? [{ id: "area", label: text.collab.areaTool, icon: "area" as const, active: tool === "area", onPick: pickTool("area") }] : []),
+      ...(notes.canWrite ? [{ id: "note", label: notesText.tool, icon: "note" as const, active: tool === "note", testId: "map-project-note-tool",
+        onPick: () => { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } }] : []),
+      { id: "undo", label: text.tools.undo, icon: "undo" as const, key: "⌘Z", gap: true, disabled: editor.history.undo.length === 0, onPick: editor.undo },
+      { id: "redo", label: text.tools.redo, icon: "redo" as const, key: "⇧⌘Z", disabled: editor.history.redo.length === 0, onPick: editor.redo }
+    ] : [])
+  ];
+
   return <main className={styles.page}>
     <header className={styles.header}>
       <div className={styles.title}>
-        <Link href={`/organizer/map-projects/${encodeURIComponent(view.projectId)}`}>{text.back}</Link>
+        <Link href={`/organizer/map-projects/${encodeURIComponent(view.projectId)}`}>‹ {text.back}</Link>
         <h1>{view.name}</h1>
       </div>
       <SyncBadge sync={editor.sync} pending={pending} />
+      <button type="button" className={styles.bareToggle} aria-pressed={bare} title={quick.bareHelp} data-testid="map-project-bare"
+        onClick={() => setBare(value => !value)}>{bare ? quick.showPanels : quick.hidePanels}</button>
+      <HelpButton view="MAP_EDITOR" compact />
       <AccountMenu />
     </header>
     {offlineSince && <p className={styles.offline} role="status" data-testid="map-project-offline">
       {text.offline(new Date(offlineSince).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</p>}
     {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice, text)}{" "}
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
-    <div className={styles.workspace}>
-      <div className={styles.toolbar} role="toolbar" aria-label={text.tools.label}>
-        <Button variant={panelOpen ? "primary" : "secondary"} className={styles.panelToggle} aria-pressed={panelOpen} aria-controls="map-project-sidebar"
-          onClick={() => setPanelOpen(open => !open)}>{text.panel}</Button>
-        {canEdit && <>
-        <Button variant={tool === "select" ? "primary" : "secondary"} aria-pressed={tool === "select"} title={text.tools.selectHelp}
-          onClick={() => { cancelDraft(); setTool("select"); }}>{text.tools.select}</Button>
-        <Button variant={tool === "draw" ? "primary" : "secondary"} aria-pressed={tool === "draw"} title={text.tools.drawHelp}
-          onClick={() => { deselect(); cancelDraft(); setTool("draw"); }}>{text.tools.draw}</Button>
-        <Button variant={tool === "circle" ? "primary" : "secondary"} aria-pressed={tool === "circle"} title={`${quick.tools.circle} (O)`}
-          data-testid="map-project-circle-tool" onClick={pickTool("circle")}>{quick.tools.circle}</Button>
-        {canDecide && <Button variant={tool === "area" ? "primary" : "secondary"} aria-pressed={tool === "area"}
-          onClick={() => { deselect(); cancelDraft(); setTool("area"); }}>{text.collab.areaTool}</Button>}
-        {notes.canWrite && <Button variant={tool === "note" ? "primary" : "secondary"} aria-pressed={tool === "note"} data-testid="map-project-note-tool"
-          onClick={() => { cancelDraft(); setTool(tool === "note" ? "select" : "note"); }}>{notesText.tool}</Button>}
-        <Button variant="secondary" disabled={editor.history.undo.length === 0} onClick={editor.undo} title="Ctrl/Cmd+Z">{text.tools.undo}</Button>
-        <Button variant="secondary" disabled={editor.history.redo.length === 0} onClick={editor.redo} title="Ctrl/Cmd+Skift+Z">{text.tools.redo}</Button>
-        {work.drawingLayer && <>
-          <label className={styles.inlineField}>{workText.textLabel}<input value={work.label} maxLength={200} onChange={event => work.setLabel(event.target.value)}
-            data-testid="map-project-sketch-text" /></label>
-          <Button variant="secondary" disabled={!work.canUndo} onClick={work.undo}>{workText.undo}</Button>
-          <Button onClick={work.stop} data-testid="map-project-sketch-done">{workText.done}</Button>
-        </>}
-        {draft.length > 0 && <>
-          <Button onClick={finishDraft}>{text.tools.finish}</Button>
-          <Button variant="secondary" onClick={cancelDraft}>{text.tools.cancel}</Button>
-        </>}
-        {selected && tool === "select" && <>
-          <Button variant="secondary" onClick={removeSelected}>{activeVertex ? text.tools.deleteVertex : text.tools.delete}</Button>
-          {selected.object.kind === "line" && !activeVertex && <Button variant={moveWhole ? "primary" : "secondary"} aria-pressed={moveWhole}
-            title={text.tools.moveWholeHelp} onClick={() => setMoveWhole(value => !value)} data-testid="map-project-move-whole">{text.tools.moveWhole}</Button>}
-          {(selected.object.kind === "point") && <Button variant={rotating ? "primary" : "secondary"} aria-pressed={rotating}
-            title={text.tools.rotateHelp} onClick={() => setRotating(value => !value)}>{text.tools.rotate}</Button>}
-          {shapes.filter(action => action.id !== "simplifyMore").map(action => <Button key={action.id} variant="secondary" disabled={!action.result} data-testid={`map-project-shape-${action.id}`}
-            onClick={() => reshape(action.result, action.message)}>{action.label}</Button>)}
-          {canSwitch && <Button variant="secondary" onClick={() => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL")}>
-            {text.tools.switchSymbol(symbol.code)}</Button>}
-          {recon.canRecord && <Button variant={recon.validChecks.has(selected.key) ? "primary" : "secondary"} aria-pressed={recon.validChecks.has(selected.key)}
-            data-testid="recon-check" title={recon.validChecks.has(selected.key) ? reconText.checkedBy(recon.checks.get(selected.key)?.name ?? null,
-              new Date(recon.checks.get(selected.key)?.at ?? Date.now()).toLocaleDateString(locale, { day: "numeric", month: "short" })) : undefined}
-            onClick={() => void recon.setChecked([selected.key], !recon.validChecks.has(selected.key))}>
-            {recon.validChecks.has(selected.key) ? reconText.checked : reconText.unchecked}</Button>}
-        </>}
-        </>}
-      </div>
-      {canEdit && strip && <MapProjectSymbolStrip catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} />}
-      <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
+    <div className={styles.workspace} data-bare={bare}>
+      <MapProjectToolRail label={text.tools.label} tools={rail} />
       <div className={styles.mapArea} ref={mapArea} onPointerMove={event => {
         const rect = event.currentTarget.getBoundingClientRect();
         pointerAt.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -706,21 +684,51 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             onRemove={() => void notes.remove(note.noteId).then(ok => { if (ok) setShownNote(undefined); })} /> : null;
         })()}
       </div>
-      <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} strip={strip} onStrip={showStrip}
-        layers={<MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
+      <div className={styles.statusRow}>
+        {canEdit && (work.drawingLayer || draft.length > 0 || (selected && tool === "select")) && <div className={styles.objectBar} role="group"
+          aria-label={quick.actions} data-testid="map-project-object-bar">
+          {work.drawingLayer && <>
+            <label className={styles.inlineField}>{workText.textLabel}<input value={work.label} maxLength={200} onChange={event => work.setLabel(event.target.value)}
+              data-testid="map-project-sketch-text" /></label>
+            <Button variant="secondary" disabled={!work.canUndo} onClick={work.undo}>{workText.undo}</Button>
+            <Button onClick={work.stop} data-testid="map-project-sketch-done">{workText.done}</Button>
+          </>}
+          {draft.length > 0 && <>
+            <Button onClick={finishDraft}>{text.tools.finish}</Button>
+            <Button variant="secondary" onClick={cancelDraft}>{text.tools.cancel}</Button>
+          </>}
+          {selected && tool === "select" && <>
+            <Button variant="secondary" onClick={removeSelected}>{activeVertex ? text.tools.deleteVertex : text.tools.delete}</Button>
+            {selected.object.kind === "line" && !activeVertex && <Button variant={moveWhole ? "primary" : "secondary"} aria-pressed={moveWhole}
+              title={text.tools.moveWholeHelp} onClick={() => setMoveWhole(value => !value)} data-testid="map-project-move-whole">{text.tools.moveWhole}</Button>}
+            {(selected.object.kind === "point") && <Button variant={rotating ? "primary" : "secondary"} aria-pressed={rotating}
+              title={text.tools.rotateHelp} onClick={() => setRotating(value => !value)}>{text.tools.rotate}</Button>}
+            {shapes.filter(action => action.id !== "simplifyMore").map(action => <Button key={action.id} variant="secondary" disabled={!action.result} data-testid={`map-project-shape-${action.id}`}
+              onClick={() => reshape(action.result, action.message)}>{action.label}</Button>)}
+            {canSwitch && <Button variant="secondary" onClick={() => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL")}>
+              {text.tools.switchSymbol(symbol.code)}</Button>}
+            {recon.canRecord && <Button variant={recon.validChecks.has(selected.key) ? "primary" : "secondary"} aria-pressed={recon.validChecks.has(selected.key)}
+              data-testid="recon-check" title={recon.validChecks.has(selected.key) ? reconText.checkedBy(recon.checks.get(selected.key)?.name ?? null,
+                new Date(recon.checks.get(selected.key)?.at ?? Date.now()).toLocaleDateString(locale, { day: "numeric", month: "short" })) : undefined}
+              onClick={() => void recon.setChecked([selected.key], !recon.validChecks.has(selected.key))}>
+              {recon.validChecks.has(selected.key) ? reconText.checked : reconText.unchecked}</Button>}
+          </>}
+        </div>}
+        <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
+      </div>
+      <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} tab={tab} onTab={setTab}
+        recent={recent.map(id => symbols.get(id)).filter((entry): entry is CatalogSymbol => entry !== undefined)}
+        standardSymbols={symbolLayers.standardSymbols} layerState={symbolLayers.state} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
+        layers={<>
+          <MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
           state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}
           merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups}
-          workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
-        after={<>
-          <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
-          <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
-          <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
-          <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
-          {georeference && <MapProjectRectifyPanel rectify={rectify} areas={collab.areas} scale={georeference.scale} />}
-          {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} />}
+          workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />
           {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
             layers={layers} control={control} importer={importer} symbols={symbols} work={work} />}
-        </>}>
+          {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} />}
+        </>}
+        review={<>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
           onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}
@@ -729,7 +737,14 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } });
           }}
           onCancelArea={() => { setNewArea(undefined); setTool("select"); }} stages={stages} onStages={setStages} />
-      </MapProjectSidebar>
+          <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
+          <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
+          <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
+        </>}
+        process={<>
+          <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
+          {georeference && <MapProjectRectifyPanel rectify={rectify} areas={collab.areas} scale={georeference.scale} />}
+        </>} />
     </div>
   </main>;
 }

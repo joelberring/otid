@@ -1,0 +1,59 @@
+import type { HelpArticle } from "./help-sv";
+
+/** Ägaren 2026-11-10: hjälpen i kartprojektets ritläge – hur man ska tänka, lagren, och punkter, tangenter och hjulet. */
+export const mapProjectHelpArticles: readonly HelpArticle[] = [
+  {
+    id: "ritlaget-sa-tanker-du",
+    title: "Så tänker du i ritläget",
+    views: ["MAP_EDITOR"],
+    body: [
+      "Skärmen har tre delar. Till vänster ligger verktygen som små ikoner, i mitten kartan och till höger en panel med flikar. Raden under kartan säger alltid vad det valda verktyget väntar på.",
+      [
+        "Välj först en symbol under ”Symboler”, sedan ritar du. Verktyget ”Rita” väljs av sig självt.",
+        "Håll musen över en ruta för att se symbolens nummer och namn. Sök på nummer eller namn i fältet överst.",
+        "De senaste symbolerna ligger överst i fliken. Tangenterna 1–9 väljer dem.",
+        "”Redigera” markerar, flyttar och böjer. Esc tar dig alltid tillbaka dit.",
+        "Knapparna för det markerade objektet ligger i raden under kartan: ”Ta bort”, ”Förenkla”, ”Gör mjuk” och ”Flytta hela”.",
+        "”Bara kartan” gömmer verktygen och panelen. Tangenten § gör samma sak.",
+        "Pricken överst visar sparandet: fylld när allt är sparat, en tom ring när ändringar väntar. En varning i text visas bara när något är fel."
+      ],
+      "Flikarna delar upp det som förut var en lång lista. ”Lager” är allt som går att släcka och låsa: läs [Släcka, tona och låsa lager](#ritlaget-lager). ”Granska” är förslag, delområden, notiser, rekning och normkontroll, och ”Bearbeta” är generalisering och rättning av hela kartan.",
+      "Tangenterna och hjulet står i [Punkter, tangenter och hjulet](#ritlaget-punkter-tangenter)."
+    ]
+  },
+  {
+    id: "ritlaget-lager",
+    title: "Släcka, tona och låsa lager",
+    views: ["MAP_EDITOR"],
+    body: [
+      "Symbolen är lagret, som i OCAD och Mapper. Det finns inga fria lager att lägga objekt i. Varje grupp i normen och varje symbol kan släckas, låsas och tonas under fliken ”Lager”.",
+      [
+        "Släcka: tryck på ”Syns” vid gruppen. Knappen visar då ”Släckt”, och objekten döljs tills du trycker igen.",
+        "Frysa: tryck på ”Öppet”. Knappen visar då ”Låst”. Objekten syns men går inte att markera eller ändra.",
+        "”Tonat” visar ett låst lager blekt, så att det du arbetar med syns tydligare.",
+        "En enda symbol: öppna gruppen. Varje symbol har samma tre knappar.",
+        "Egna grupper: ”Nytt arbetslager” samlar symboler du väljer, till exempel alla stigar. De släcks och låses som en grupp.",
+        "Skisser som inte hör till kartan: ”Nytt skisslager”. De skrivs aldrig till kartfilen.",
+        "Nya symboler går inte att skapa här än. Objekt med en symbol utanför normen flyttas med ”Slå ihop symboler”."
+      ],
+      "Flygbilder, laserbilder och äldre kartor som du lagt under kartan ligger längre ned i samma flik."
+    ]
+  },
+  {
+    id: "ritlaget-punkter-tangenter",
+    title: "Punkter, tangenter och hjulet",
+    views: ["MAP_EDITOR"],
+    body: [
+      "Det mesta går att göra på tre sätt: med ikonen till vänster, med en tangent eller i hjulet. Tangenten står i ikonens hörn.",
+      [
+        "E väljer ”Redigera”, P ”Rita” och O ”Cirkel”.",
+        "Ny punkt: dubbelklicka på en sträcka. Ta bort en punkt: dubbelklicka på den, eller markera den och tryck Delete.",
+        "Rita: klicka för hörn, tryck och dra för kurva. Enter eller dubbelklick avslutar, Esc avbryter.",
+        "Hjulet: högerklicka på kartan, håll fingret på den eller tryck mellanslag. Där finns verktygen och de senaste symbolerna.",
+        "Byta symbol: markera objektet och välj den nya symbolen. Tryck sedan på knappen under kartan som börjar med Byt symbol till.",
+        "Cmd eller Ctrl + Z ångrar. Med Skift gör du om."
+      ],
+      "Läs också [Så tänker du i ritläget](#ritlaget-sa-tanker-du)."
+    ]
+  }
+];

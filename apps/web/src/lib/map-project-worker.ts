@@ -99,14 +99,17 @@ function previewStyle(map: ParsedMap, symbol: MapSymbol, depth = 0): Pick<Catalo
   }
 }
 
-const ICON_PX = 32;
+/** Bilden ritas i dubbel upplösning (skarp på täta skärmar) och visas i 32 px. */
+const ICON_PX = 64;
+/** Ägaren 2026-11-10: symbolen fyller rutan. Rutan är 5 mm av kartan (förut 8), så linjer och punktsymboler blir tydliga. */
+const ICON_MM = 5;
 
-/** Ett exempelobjekt för symbolens lilla bild (8 mm i rutan). */
+/** Ett exempelobjekt för symbolens lilla bild: en böjd linje tvärs över rutan, en yta som fyller den, en punkt i mitten. */
 function sample(kind: MapObject["kind"], symbol: string): MapObject | undefined {
   if (kind === "point") return { kind: "point", symbol, at: { x: 0, y: 0 }, angle: 0 };
-  if (kind === "line") return { kind: "line", symbol, path: [{ type: "M", x: -3.4, y: -1.2 }, { type: "C", x1: -1.2, y1: 2.2, x2: 1.2, y2: -2.2, x: 3.4, y: 1.2 }] };
-  if (kind === "area") return { kind: "area", symbol, angle: 0, rings: [[{ type: "M", x: -3.2, y: -3.2 }, { type: "L", x: 3.2, y: -3.2 },
-    { type: "L", x: 3.2, y: 3.2 }, { type: "L", x: -3.2, y: 3.2 }]] };
+  if (kind === "line") return { kind: "line", symbol, path: [{ type: "M", x: -2.3, y: -0.8 }, { type: "C", x1: -0.8, y1: 1.5, x2: 0.8, y2: -1.5, x: 2.3, y: 0.8 }] };
+  if (kind === "area") return { kind: "area", symbol, angle: 0, rings: [[{ type: "M", x: -2.3, y: -2.3 }, { type: "L", x: 2.3, y: -2.3 },
+    { type: "L", x: 2.3, y: 2.3 }, { type: "L", x: -2.3, y: 2.3 }]] };
   return undefined;
 }
 
@@ -124,7 +127,7 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
         const canvas = new OffscreenCanvas(ICON_PX, ICON_PX);
         const context = canvas.getContext("2d");
         if (context) {
-          drawMap(context, { ...map, objects: [object] }, { pxPerMm: ICON_PX / 8, origin: { x: -4, y: 4 }, background: false });
+          drawMap(context, { ...map, objects: [object] }, { pxPerMm: ICON_PX / ICON_MM, origin: { x: -ICON_MM / 2, y: ICON_MM / 2 }, background: false });
           icon = await canvas.convertToBlob({ type: "image/png" });
         }
       } catch { icon = undefined; }

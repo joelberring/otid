@@ -59,6 +59,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
 
   // K5c: markfuktigheten blir ett underlag i SWEREF 99 TM.
   const moisture = owner.getByTestId("map-project-moisture");
+  await owner.getByTestId("map-project-tab-layers").click();
   await moisture.getByText("Markfuktighet (SLU)").click();
   await moisture.getByTestId("map-project-moisture-fetch").click();
   await expect(moisture.getByTestId("map-project-moisture-message")).toHaveText("Markfuktigheten är tillagd som underlag.", { timeout: 60_000 });

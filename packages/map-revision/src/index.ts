@@ -25,3 +25,4 @@ export * from "./generalize";
 export * from "./generalize-topology";
 export * from "./stockholm-layers";
 export * from "./warp";
+export * from "./vector-fit";

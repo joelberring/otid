@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
-import { useTexts } from "../language-provider";
+import { useLocale, useTexts } from "../language-provider";
 import type { Point } from "@o-tid/map-file";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
@@ -58,6 +58,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
       <label>{text.crs}<input inputMode="numeric" value={importer.crs ?? ""} data-testid="map-project-import-crs"
         onChange={event => { const value = Number(event.target.value.replace(/\D/g, "")); importer.setCrs(value > 0 ? value : undefined); }} /></label>
       <p className={styles.muted}>{text.crsHelp}</p>
+      <FitControl importer={importer} />
       <fieldset className={styles.importLayers}>
         <legend>{text.layers}</legend>
         {importer.layers.map(layer => {
@@ -87,6 +88,29 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
       </span>
     </form>}
   </details>;
+}
+
+/**
+ * Ägaren 2026-11-10: "Passa in mot kartan" när underlaget hamnar nästan rätt. Kräver att lager har fått hus, vägar, vatten,
+ * murar eller järnväg; visar förskjutning, vridning, skala och hur väl det passar, och kan tas bort igen.
+ */
+function FitControl({ importer }: { importer: Import }) {
+  const text = useTexts(mapProjectImportSv, mapProjectImportEn);
+  const locale = useLocale();
+  const { fit } = importer;
+  if (!importer.canFit) return null;
+  const number = (value: number, digits: number) => value.toLocaleString(locale, { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  return <div data-testid="map-project-import-fit">
+    <span className={styles.actions}>
+      <Button variant="secondary" disabled={fit === "running" || importer.crs === undefined} onClick={importer.fitToMap}>
+        {fit === "running" ? text.fitting : text.fit}</Button>
+      {fit && fit !== "running" && <Button variant="quiet" onClick={importer.clearFit}>{text.fitClear}</Button>}
+    </span>
+    <p className={styles.muted} role="status">{fit === undefined ? text.fitHelp : fit === "running" ? text.fitting
+      : fit === null ? text.fitFailed
+      : text.fitted(number(Math.hypot(fit.dx, fit.dy) * importer.metersPerMm, 1), number(fit.rotation, 2), number(fit.scale, 4),
+        number(fit.medianMm * importer.metersPerMm, 1), Math.round(fit.share * 100))}</p>
+  </div>;
 }
 
 /** K6b: spara lagrens val som en profil (för kontot eller delad med projektets klubb). */

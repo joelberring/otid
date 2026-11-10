@@ -54,6 +54,13 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   osmName: (area?: string) => `OpenStreetMap${area ? `, ${area}` : ""} (© OpenStreetMap contributors, ODbL)`,
   file: (name: string, n: number, skipped: number) => `${name}: ${count(n, "object", "objects")}${skipped ? `, ${skipped} skipped` : ""}`,
   crs: "Coordinate system (EPSG)",
+  fit: "Fit to the map",
+  fitting: "Fitting … (a few seconds)",
+  fitClear: "Remove the fit",
+  fitHelp: "Does the source land almost right but slightly shifted or rotated? Give the layers with buildings, roads or water their symbols and then fit them to the map's.",
+  fitFailed: "The fit failed: too few buildings, roads or water match the map's. Check the coordinate system and the layers' symbols, or use control points.",
+  fitted: (meters: string, degrees: string, scale: string, median: string, share: number) =>
+    `Fitted: moved ${meters} m, rotated ${degrees}°, scale ${scale}. Afterwards the median difference is ${median} m, and ${share} % of the points lie within 1 mm on the map.`,
   crsHelp: "From the file or the coordinates when possible; otherwise the map's. E.g. 3006, 3011 (SWEREF 99 18 00), 3021 or 4326.",
   layers: "Layers and symbols",
   layerShape: (points: number, lines: number, closed: number, areas: number) =>

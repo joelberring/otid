@@ -4,17 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
 import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
-import { isSupportedEpsg, type MapGeoreference, type MapObject } from "@o-tid/map-file";
+import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  guessCrs, importLayers, importObjects, newKey, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
-  type ImportLayer, type SourceData, type TargetKind
+  applyFit, fitClassOf, guessCrs, importLayers, importObjects, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  type FitPoint, type ImportLayer, type SourceData, type TargetKind, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
-import type { CatalogSymbol } from "../../lib/map-project-protocol";
+import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 
 /** Ett förslag hålls under synkens gränser (antal och storlek). */
@@ -27,7 +27,7 @@ type Problem = string | number;
  * kandidaterna visas på kartan och lämnas som förslag med källan IMPORT (högst 200 ändringar per förslag).
  */
 export function useMapProjectImport(view: MapProjectView, georeference: MapGeoreference | undefined, bounds: Bounds | undefined,
-  symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void) {
+  symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void, session?: MapProjectSession) {
   const text = useTexts(mapProjectImportSv, mapProjectImportEn);
   const base = mapProjectBase(view.projectId);
   const [file, setFile] = useState<{ name: string; data: SourceData }>();
@@ -37,6 +37,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [layers, setLayers] = useState<readonly ImportLayer[]>([]);
   const [mapping, setMapping] = useState<ReadonlyMap<string, string>>(new Map());
   const [crs, setCrs] = useState<number>();
+  /** Ägaren 2026-11-10: inpassningen mot kartan (efter koordinatsystemet), "running" medan den räknas, null om den inte gick. */
+  const [fit, setFit] = useState<VectorFit | "running" | null>();
   const [problem, setProblem] = useState<Problem>();
   const [progress, setProgress] = useState<{ done: number; total: number }>();
   const [sent, setSent] = useState<number>();
@@ -58,6 +60,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     const found = importLayers(data);
     const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
     setFile({ name: fileName, data });
+    setFit(undefined);
     setClip(area);
     setLayers(found);
     const suggested = new Map(found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; }));
@@ -144,10 +147,38 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     try {
       // Trappan (532) byggs av baskartornas steglinjer.
       const stairSymbols = new Set([...symbols.values()].filter(symbol => symbol.code.replace(/\.0+$/, "") === "532").map(symbol => symbol.id));
-      return importObjects(file.data.features, { mapping: targets, toMap: (x, y) => sourcePointToMap(georeference, crs, x, y), bounds: clip ?? bounds,
-        stairSymbols });
+      const fitted = fit && fit !== "running" ? fit : undefined;
+      const toMap = (x: number, y: number) => {
+        const at = sourcePointToMap(georeference, crs, x, y);
+        return fitted ? applyFit(fitted, at) : at;
+      };
+      return importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols });
     } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds, clip]);
+  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit]);
+
+  /**
+   * "Passa in mot kartan": lagren som fått hus, vägar, vatten, murar eller järnväg som punkter i kartans mm, inpassade mot
+   * kartans objekt med samma sorts symbol (i Workern). Förskjutning, vridning och skala läggs sedan på alla objekt.
+   */
+  const fitToMap = useCallback(() => {
+    if (!file || !georeference || !session || crs === undefined || !(crs === WGS84_EPSG || isSupportedEpsg(crs))) return;
+    const source: FitPoint[] = [];
+    try {
+      for (const { layer, geometry } of file.data.features) {
+        const code = symbols.get(mapping.get(layer) ?? "")?.code;
+        const kind = code ? fitClassOf(Number(code.split(".")[0])) : undefined;
+        if (!kind || geometry.kind === "point") continue;
+        for (const ring of geometry.kind === "line" ? [geometry.points] : geometry.rings) {
+          const path: PathCommand[] = ring.map(([x, y], index) => ({ type: index ? "L" : "M", ...sourcePointToMap(georeference, crs, x, y) }));
+          for (const at of samplePath(path, 1)) source.push({ at, kind });
+        }
+        if (source.length > 200_000) break;
+      }
+    } catch { setFit(null); return; }
+    if (source.length < 10) { setFit(null); return; }
+    setFit("running");
+    session.fit(source, result => setFit(result));
+  }, [file, georeference, session, crs, mapping, symbols]);
 
   const propose = useCallback(async () => {
     if (!file || !result || result.objects.length === 0) return;
@@ -184,7 +215,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
 
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData) => { setProblem(undefined); setSent(undefined); show(fileName, data); }, [show]);
-  return { file, layers, mapping, choose, crs, setCrs, result, problem, setProblem, progress, sent, dwgSent, open, openData, fetchOsm, fetching, propose, cancel,
+  return { file, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result,
+    fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
+    /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
+    metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, fetchOsm, fetching, propose, cancel,
     profile, saveProfile, canShareProfile: !!view.club,
     candidates: result?.objects ?? [], canImport: view.viewer.canPropose };
 }

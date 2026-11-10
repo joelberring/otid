@@ -16,6 +16,13 @@ export const mapProjectImportSv = {
   osmName: (area?: string) => `OpenStreetMap${area ? `, ${area}` : ""} (© OpenStreetMap-bidragsgivare, ODbL)`,
   file: (name: string, count: number, skipped: number) => `${name}: ${plural(count, "objekt", "objekt")}${skipped ? `, ${skipped} hoppas över` : ""}`,
   crs: "Koordinatsystem (EPSG)",
+  fit: "Passa in mot kartan",
+  fitting: "Passar in … (några sekunder)",
+  fitClear: "Ta bort inpassningen",
+  fitHelp: "Hamnar underlaget nästan rätt men lite förskjutet eller vridet? Ge lagren med hus, vägar eller vatten deras symboler och passa sedan in dem mot kartans.",
+  fitFailed: "Det gick inte att passa in: för få hus, vägar eller vatten träffar kartans. Kontrollera koordinatsystemet och lagrens symboler, eller använd passpunkter.",
+  fitted: (meters: string, degrees: string, scale: string, median: string, share: number) =>
+    `Inpassat: flyttat ${meters} m, vridet ${degrees}°, skala ${scale}. Efteråt skiljer det i mitten ${median} m, och ${share} % av punkterna ligger inom 1 mm på kartan.`,
   crsHelp: "Ur filen eller koordinaterna när det går; annars kartans. T.ex. 3006, 3011 (SWEREF 99 18 00), 3021 eller 4326.",
   layers: "Lager och symboler",
   layerShape: (points: number, lines: number, closed: number, areas: number) =>

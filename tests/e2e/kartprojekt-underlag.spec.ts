@@ -219,6 +219,11 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await expect(importer.getByRole("combobox", { name: "Symbol för 0153" })).toHaveValue("");
   await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
   await reviewScreenshots(owner, "kartprojekt-import");
+  // Ägaren 2026-11-10: Passa in mot kartan räknar i kartans Worker och ger ett besked (den lilla testkartan har för lite att passa mot).
+  const fit = importer.getByTestId("map-project-import-fit");
+  await fit.getByRole("button", { name: "Passa in mot kartan" }).click();
+  await expect(fit.getByRole("status")).toHaveText(/^(Inpassat|Det gick inte att passa in)/, { timeout: 30_000 });
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
   // K6b: valen sparas som en profil; samma fil igen får profilens symbol för lagret 0153 (som namnet inte ger något förslag för).
   await warmRoute(owner, `${api}/layer-profiles`);
   const zero = importer.getByRole("combobox", { name: "Symbol för 0153" });

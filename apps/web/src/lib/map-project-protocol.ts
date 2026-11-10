@@ -1,6 +1,6 @@
 import type { MapColor, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
 import type {
-  Coverage, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint, WarpChange, WarpOptions
+  Coverage, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
 } from "@o-tid/map-revision";
 import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
 import type { Bounds } from "./course-setting-viewport";
@@ -54,7 +54,9 @@ export type MapProjectRequest =
   /** Lagren (ägaren 2026-11-09): objekten med en symbol, för att slå ihop symbolen med en annan. */
   | { readonly type: "bySymbol"; readonly id: number; readonly symbol: string }
   /** K6b: kartan rättad med passpunkter (likformig, affin eller gummiduk). */
-  | { readonly type: "warp"; readonly id: number; readonly options: WarpOptions };
+  | { readonly type: "warp"; readonly id: number; readonly options: WarpOptions }
+  /** Ägaren 2026-11-10: "Passa in mot kartan" för ett vektorunderlag (punkterna i kartans mm, per sort). */
+  | { readonly type: "fit"; readonly id: number; readonly source: readonly FitPoint[] };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -69,6 +71,7 @@ export type MapProjectResponse =
   | { readonly type: "generalize"; readonly id: number; readonly result: GeneralizeResult; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "bySymbol"; readonly id: number; readonly objects: readonly SymbolObject[] }
   | { readonly type: "warp"; readonly id: number; readonly changes: readonly WarpChange<ObjectKey>[]; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
+  | { readonly type: "fit"; readonly id: number; readonly fit: VectorFit | null }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Ett objekt med sin nyckel och (för grundfilens objekt) sin referens. */
@@ -95,6 +98,8 @@ export class MapProjectSession {
   private latestBySymbol = 0;
   private onBySymbol: ((objects: readonly SymbolObject[]) => void) | undefined;
   private latestWarp = 0;
+  private latestFit = 0;
+  private onFit: ((fit: VectorFit | null) => void) | undefined;
   private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
   constructor(createWorker: () => Worker, onLoaded: (loaded: Extract<MapProjectResponse, { type: "loaded" }>) => void,
@@ -111,6 +116,7 @@ export class MapProjectSession {
       else if (message.type === "generalize") { if (message.id === this.latestGeneralize) this.onGeneralize?.(message.result, new Map(message.refs)); }
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
       else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
+      else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -172,7 +178,14 @@ export class MapProjectSession {
     this.post({ type: "warp", id, options });
   }
 
+  fit(source: readonly FitPoint[], onFit: (fit: VectorFit | null) => void) {
+    const id = ++this.latestFit;
+    this.onFit = onFit;
+    this.post({ type: "fit", id, source });
+  }
+
   close() {
+    this.onFit = undefined;
     this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();

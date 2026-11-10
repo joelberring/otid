@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { drawMap, MapFileError, northLineDegrees, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
-  baseKeys, checkNorm, coverageGrid, editedObjects, generalize, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
+  baseKeys, checkNorm, coverageGrid, editedObjects, fitToMap, generalize, mapFitPoints, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -210,6 +210,12 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       return [{ key, ref: refs.get(key) ?? null, object }];
     }) : [];
     post({ type: "bySymbol", id: request.id, objects });
+    return;
+  }
+  if (request.type === "fit") {
+    // Kartans hus, vägar och vatten (med ändringarna) mot underlagets; tar ett par sekunder, därför här och inte i sidan.
+    const fit = current ? fitToMap(request.source, mapFitPoints(current.map.objects, current.map.symbols)) ?? null : null;
+    post({ type: "fit", id: request.id, fit });
     return;
   }
   if (request.type === "warp") {

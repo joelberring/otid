@@ -217,7 +217,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const symbols = useMemo(() => new Map(catalog.map(symbol => [symbol.id, symbol])), [catalog]);
   // K4b: kandidaterna ur en vektorfil (visas som förslag tills de lämnats).
   const importer = useMapProjectImport(view, georeference ?? undefined, editor.bounds ?? undefined, symbols,
-    useCallback(() => { void loadProposals(); }, [loadProposals]));
+    useCallback(() => { void loadProposals(); }, [loadProposals]), session);
   // K6: generaliseringen som förslag.
   const generalizer = useMapProjectGeneralize(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const rectify = useMapProjectRectify(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));

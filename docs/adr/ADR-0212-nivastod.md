@@ -181,3 +181,18 @@ Djurgården natt-KM (12 banor, 0,9–9,9 km): före 2–2 (Gul) på åtta banor 
 6,8–9,9 km (de tre på Gul är 2,0, 2,3 och 3,4 km). Sträckorna gick från
 10/6/99/18/0/0 till 0/2/55/71/0/5 och kontrollerna från 8/82/31/0/0/0 till 5/36/54/26/0/0.
 
+
+## Tillägg 2026-11-10: terrängen runt kontrollen
+
+Ägaren: svåra kontrollägen i bergig, detaljrik terräng fick för låg nivå, eftersom stödet mest mätte avståndet till närmaste
+ledstång. Nu räknas också terrängen inom 50 m (`terrain` i `ControlLevelFeatures`): föremål, linjedetaljer (jordvallar,
+erosionsrännor, branter 104–107 och 201–203) och höjdkurvornas längd / 50 m, samt hur många föremål av samma slag som
+finns där.
+
+| Krav | Gäller till | Gräns |
+|---|---|---|
+| `C_PLAIN_TERRAIN`: på ledstången själv eller enkel terräng | Vit | högst 10 detaljer |
+| `C_DISTINCT_FEATURE`: inga förväxlingsbara grannar | Gul | högst 2 likadana föremål |
+| `C_READABLE_TERRAIN`: inte mycket detaljrik terräng | Orange | högst 30 detaljer |
+
+Talen är egna tumregler och ska stämmas mot klubbens banor.

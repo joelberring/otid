@@ -84,6 +84,12 @@ export interface ControlLevelFeatures {
   readonly attackMeters: number | undefined;
   /** Närmaste föremål att läsa in sig på (ledstång, stort eller medelstort föremål), utom kontrollens eget. */
   readonly relocationMeters: number | undefined;
+  /**
+   * Terrängen runt kontrollen inom `LEVEL_LIMITS.control.terrainMeters` (ägaren 2026-11-10: svåra lägen i bergig, detaljrik
+   * terräng fick för låg nivå): `detail` = föremål + linjedetaljer + höjdkurvornas längd / `contourMetersPerDetail`;
+   * `similar` = föremål av samma slag som kontrollens (utom det egna), som man kan förväxla det med.
+   */
+  readonly terrain: { readonly detail: number; readonly similar: number };
   /** Förslag på kartan: närmaste stigkorsning, närmaste punkt på en tydlig ledstång, närmaste stora föremål. */
   readonly candidates: { readonly junction?: Point | undefined; readonly handrail?: Point | undefined; readonly bigFeature?: Point | undefined };
 }

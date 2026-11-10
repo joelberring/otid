@@ -32,7 +32,16 @@ export const LEVEL_LIMITS = {
     /** Kontroll utan kolumn D: närmaste kartföremål inom så här långt är föremålet (och räknas inte som angreppspunkt). */
     featureSearchMeters: 10,
     /** Längre bort letas inga ledstänger eller föremål. */
-    searchMeters: 250
+    searchMeters: 250,
+    /**
+     * Terrängen runt kontrollen (ägaren 2026-11-10): inom så här långt räknas detaljerna. Egna tumregler, att stämma mot
+     * klubbens banor: Grön och Vit högst 10 detaljer (utom på ledstången själv), Gul högst 2 liknande föremål, Orange högst 30.
+     */
+    terrainMeters: 50,
+    contourMetersPerDetail: 50,
+    vitDetail: 10,
+    gulSimilar: 2,
+    orangeDetail: 30
   },
   leg: {
     /** Ett vägval inom så här mycket av det bästa är ett verkligt vägval (ägarens önskemål 2026-11-04). */
@@ -81,6 +90,7 @@ export const LEVEL_LIMITS = {
 
 export type LevelRuleId =
   | "C_ON_HANDRAIL" | "C_NEAR_HANDRAIL" | "C_CLEAR_FEATURE" | "C_SOME_DISTANCE" | "C_SMALL_NEAR" | "C_RELOCATION" | "C_SMALL_REACH" | "C_ATTACK"
+  | "C_PLAIN_TERRAIN" | "C_DISTINCT_FEATURE" | "C_READABLE_TERRAIN"
   | "L_FOLLOW_CLEAR" | "L_FEW_DECISIONS" | "L_NO_CHOICE" | "L_NO_SHORTCUT" | "L_FOLLOW" | "L_SOME_DECISIONS" | "L_SHORT_OFF" | "L_EASY_CONTOURS"
   | "L_NETWORK" | "L_ROUTE_CHOICE" | "L_OFF" | "L_CONTOURS" | "L_HARD_CHOICE"
   | "E_CONTROL_EASY" | "E_LEG_NO_SHORTCUT" | "E_LEG_EASY";
@@ -114,11 +124,21 @@ export const CONTROL_RULES: readonly Rule<ControlLevelFeatures>[] = [
   // Vit: "lätt och tydligt" – ett stort föremål; ett medelstort eller litet bara på stigen (ägarens synpunkt 2026-11-04).
   { id: "C_CLEAR_FEATURE", through: 1, test: f => big(f) || f.feature.size === "LINE" || within(f.handrailMeters, C.clearFeatureMeters),
     values: f => ({ meters: shown(f.handrailMeters), limit: C.clearFeatureMeters }), show: ["bigFeature"] },
+  // Ägaren 2026-11-10: en stig nära räcker inte i detaljrik terräng. Grön och Vit bara när kontrollen är på ledstången själv
+  // eller terrängen runt den är enkel; i detaljrik terräng är det föremålet bland alla de andra som är uppgiften.
+  { id: "C_PLAIN_TERRAIN", through: 1, test: f => f.feature.size === "LINE" || f.terrain.detail <= C.vitDetail,
+    values: f => ({ count: f.terrain.detail, limit: C.vitDetail, meters: C.terrainMeters }) },
   { id: "C_SOME_DISTANCE", through: 2, test: f => within(f.handrailMeters, C.gulHandrailMeters) || (big(f) && within(f.handrailMeters, C.gulBigMeters)),
     values: f => ({ meters: shown(f.handrailMeters), limit: big(f) ? C.gulBigMeters : C.gulHandrailMeters }), show: ["handrail", "bigFeature"] },
   // Gul: små föremål (punkthöjd, liten grop) är Orange enligt SOFT:s exempel, utom på stigen.
   { id: "C_SMALL_NEAR", through: 2, test: f => !small(f) || within(f.handrailMeters, C.clearFeatureMeters),
     values: f => ({ meters: shown(f.handrailMeters), limit: C.clearFeatureMeters }), show: ["bigFeature"] },
+  // Gul: föremålet ska inte kunna förväxlas med flera likadana nära (en sten bland många stenar är Orange).
+  { id: "C_DISTINCT_FEATURE", through: 2, test: f => f.terrain.similar <= C.gulSimilar,
+    values: f => ({ count: f.terrain.similar, limit: C.gulSimilar, meters: C.terrainMeters }) },
+  // Orange: detaljrik terräng går, men mycket detaljrik (bergig, stenig, många kurvdetaljer) kräver noggrann kartläsning (Violett).
+  { id: "C_READABLE_TERRAIN", through: 3, test: f => f.terrain.detail <= C.orangeDetail,
+    values: f => ({ count: f.terrain.detail, limit: C.orangeDetail, meters: C.terrainMeters }) },
   { id: "C_SMALL_REACH", through: 3, test: f => !small(f) || within(f.handrailMeters, C.orangeSmallMeters) || within(f.attackMeters, C.orangeSmallMeters),
     values: f => ({ meters: shown(f.handrailMeters), limit: C.orangeSmallMeters }), show: ["bigFeature", "handrail"] },
   { id: "C_RELOCATION", through: 3, test: f => within(f.relocationMeters, C.relocationMeters),

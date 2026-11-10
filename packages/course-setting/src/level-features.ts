@@ -5,7 +5,7 @@
 import type { Point } from "@o-tid/map-file";
 import { BIG_BOULDER_METERS, SIZE_BY_DESCRIPTION, SMALL_BOULDER_METERS } from "./level-symbols";
 import {
-  contourLengthNear, inOpenLand, junctionsNear, nearestHandrail, networkJunctionsNear, objectsNear, type LevelMap, type LevelObject
+  contourLengthNear, detailLinesNear, inOpenLand, junctionsNear, nearestHandrail, networkJunctionsNear, objectsNear, type LevelMap, type LevelObject
 } from "./level-map";
 import type { ControlLevelFeatures, FeatureSize, LegLevelFeatures } from "./level-types";
 import { LEVEL_LIMITS } from "./level-rules";
@@ -75,6 +75,15 @@ export function controlFeatures(prepared: LevelMap, control: LevelControlInput):
   const attack = min(big?.distance, strong?.distance);
   const relocation = min(others.find(hit => hit.object.size === "BIG" || hit.object.size === "MEDIUM")?.distance, open ? 0 : any?.distance);
   const junction = junctionsNear(prepared, control.at, search)[0];
+  // Terrängen runt kontrollen: hur detaljrik den är och hur många föremål av samma slag som finns nära.
+  const terrainRadius = limits.terrainMeters * mmPerMeter;
+  const around = objectsNear(prepared, control.at, terrainRadius);
+  const contourMeters = contourLengthNear(prepared, control.at, terrainRadius) / mmPerMeter;
+  const detail = round(around.length + detailLinesNear(prepared, control.at, terrainRadius) + contourMeters / limits.contourMetersPerDetail);
+  const kind = (object: LevelObject) => object.d ?? object.code;
+  const ownKind = feature.d ?? feature.code;
+  const similar = ownKind === undefined || feature.size === "LINE" ? 0
+    : around.filter(hit => hit.distance > own && kind(hit.object) === ownKind).length;
   return {
     control: control.id,
     strongMeters: meters(strong?.distance),
@@ -82,6 +91,7 @@ export function controlFeatures(prepared: LevelMap, control: LevelControlInput):
     feature,
     attackMeters: meters(attack),
     relocationMeters: meters(relocation),
+    terrain: { detail, similar },
     candidates: {
       ...(junction ? { junction } : {}),
       ...(strong ? { handrail: strong.point } : {}),

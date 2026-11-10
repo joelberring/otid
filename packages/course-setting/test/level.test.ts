@@ -19,7 +19,8 @@ const lineSymbol = (number: string, name: string): MapSymbol => ({ id: number, k
 const areaSymbol = (number: string, name: string): MapSymbol => ({ id: number, kind: "AREA", code: code(number), name, hidden: false, fill: 0, hatches: [] });
 const SYMBOLS = [
   areaSymbol("405", "Skog"), areaSymbol("401", "Öppen mark"), lineSymbol("505", "Stig"), lineSymbol("504", "Traktorväg"), lineSymbol("101", "Höjdkurva"),
-  lineSymbol("306", "Dike"), pointSymbol("205", "Stor sten"), pointSymbol("204", "Sten"), pointSymbol("109", "Punkthöjd"), pointSymbol("111", "Liten grop")
+  lineSymbol("306", "Dike"), pointSymbol("205", "Stor sten"), pointSymbol("204", "Sten"), pointSymbol("109", "Punkthöjd"), pointSymbol("111", "Liten grop"),
+  lineSymbol("202", "Brant")
 ];
 
 const line = (symbol: string, ...points: [number, number][]): MapObject =>
@@ -73,6 +74,30 @@ describe("nivåstödets kontroller", () => {
     expect(control(mapOf([path, at("204", 300, 30)]), 300, 30, "2.4").feature.size).toBe("MEDIUM");
     // Utan beskrivning: kartans föremål vid centrum.
     expect(control(mapOf([path, at("205", 300, 30)]), 300, 30).feature).toMatchObject({ size: "BIG", source: "MAP", code: "205" });
+  });
+
+  it("en sten vid stigen i bergig, detaljrik terräng är inte Grön eller Vit; på stigen själv är den Grön (ägaren 2026-11-10)", () => {
+    // Branter och stenar runt omkring, inom 50 m.
+    const rocky: MapObject[] = [];
+    for (let k = 0; k < 8; k++) rocky.push(line("202", [250 + k * 12, 15], [258 + k * 12, 35]));
+    for (let k = 0; k < 6; k++) rocky.push(at("204", 270 + k * 10, -25));
+    const map = mapOf([path, ...rocky, at("204", 300, 6)]);
+    const boulder = control(map, 300, 6, "2.4");
+    expect(boulder.strongMeters).toBeLessThanOrEqual(10);
+    expect(boulder.terrain.detail).toBeGreaterThan(10);
+    const verdict = judgeControl(boulder);
+    // Sex stenar till inom 50 m: lätt att förväxla, så Orange; mot Grön är skälet den detaljrika terrängen.
+    expect(boulder.terrain.similar).toBeGreaterThan(2);
+    expect(verdict).toMatchObject({ rank: 3, rule: "C_DISTINCT_FEATURE" });
+    expect(levelDeviation("control", boulder, verdict.rank, levelRank("GRON"))).toMatchObject({ rule: "C_PLAIN_TERRAIN" });
+    // Kontrollen på själva stigen är fortfarande Grön.
+    expect(judgeControl(control(map, 300, 0, "5.2")).rank).toBe(0);
+  });
+
+  it("en sten vid stigen i enkel terräng är fortfarande Grön", () => {
+    const features = control(mapOf([path, at("204", 300, 6)]), 300, 6, "2.4");
+    expect(features.terrain).toEqual({ detail: 1, similar: 0 });
+    expect(judgeControl(features).rank).toBe(0);
   });
 
   it("en kontroll i detaljrik kurvbild långt från linjer är Blå eller Svart", () => {
@@ -185,7 +210,7 @@ describe("nivåstödets regler och tips", () => {
 
   it("tipset mot målnivån är det första kravet som inte uppfylls där; tydligt lättare från Gul", () => {
     const far: ControlLevelFeatures = { control: "c", strongMeters: 60, handrailMeters: 60, feature: { size: "BIG", source: "DESCRIPTION", d: "2.4" },
-      attackMeters: 20, relocationMeters: 20, candidates: {} };
+      attackMeters: 20, relocationMeters: 20, terrain: { detail: 2, similar: 0 }, candidates: {} };
     const verdict = judgeControl(far);
     expect(verdict.rank).toBe(2);
     expect(levelDeviation("control", far, verdict.rank, levelRank("GRON"))).toMatchObject({ direction: "HARDER", rule: "C_ON_HANDRAIL" });
@@ -201,7 +226,7 @@ describe("nivåstödets regler och tips", () => {
 
   it("sammanfattar banan och räknar det som är svårare", () => {
     const item = (rank: number): ControlLevelFeatures => ({ control: String(rank), strongMeters: rank === 0 ? 0 : 60, handrailMeters: rank === 0 ? 0 : 60,
-      feature: { size: "BIG", source: "NONE" }, attackMeters: 10, relocationMeters: 10, candidates: {} });
+      feature: { size: "BIG", source: "NONE" }, attackMeters: 10, relocationMeters: 10, terrain: { detail: 2, similar: 0 }, candidates: {} });
     const assessment = assessLevel([item(0), item(0), item(2), item(2), item(2)], []);
     expect(assessment.low).toBe(2);
     expect(harderThan(assessment, 0)).toEqual({ controls: 3, legs: 0 });
@@ -242,7 +267,7 @@ describe("målnivån", () => {
     expect(levelLegPairs(b.document, course)).toEqual([{ from: start, to: one }, { from: one, to: finish }]);
 
     const far: ControlLevelFeatures = { control: one, strongMeters: 80, handrailMeters: 80, feature: { size: "BIG", source: "NONE" }, attackMeters: 10,
-      relocationMeters: 10, candidates: {} };
+      relocationMeters: 10, terrain: { detail: 2, similar: 0 }, candidates: {} };
     const assessment = assessLevel([far], []);
     expect(levelDeviations(assessment, "GRON")).toHaveLength(1);
     expect(levelChecks(b.document, course, assessment)).toEqual([]);

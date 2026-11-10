@@ -40,7 +40,13 @@ export interface LevelMap {
   readonly open: readonly { readonly rings: readonly (readonly Point[])[]; readonly box: Box }[];
   /** Ändarna på väg- och stiglinjerna (502–508), för korsningarna i stignätet. */
   readonly pathEnds: readonly { readonly at: Point; readonly feature: number }[];
+  /** Linjedetaljer i terrängen (branter, jordvallar, rasbranter, erosionsrännor): punkter längs linjen med linjens nummer. */
+  readonly detailPoints: readonly { readonly at: Point; readonly feature: number }[];
+  readonly detailGrid: ReadonlyMap<number, readonly number[]>;
 }
+
+/** ISOM 2017-2: linjer som är detaljer i terrängen (jordvall, erosionsränna, branter); de gör ett kontrolläge detaljrikt. */
+const DETAIL_LINE_SYMBOLS: readonly number[] = [104, 105, 106, 107, 201, 202, 203];
 
 interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
 
@@ -81,6 +87,8 @@ export function prepareLevelMap(map: ParsedMap, sprint = false): LevelMap {
   const scale = map.scale > 0 ? map.scale : 15000;
   const segments: LevelSegment[] = [], objects: LevelObject[] = [], contours: LevelMap["contours"][number][] = [], open: LevelMap["open"][number][] = [];
   const pathEnds: { at: Point; feature: number }[] = [];
+  const detailPoints: { at: Point; feature: number }[] = [];
+  const detailGrid = new Map<number, number[]>();
   const segmentGrid = new Map<number, number[]>(), objectGrid = new Map<number, number[]>(), contourGrid = new Map<number, number[]>();
   const addSegments = (lines: readonly (readonly Point[])[], feature: number, kind: HandrailKind, main: number) => {
     for (const line of lines) for (let i = 1; i < line.length; i++) {
@@ -119,6 +127,12 @@ export function prepareLevelMap(map: ParsedMap, sprint = false): LevelMap {
       }
       return;
     }
+    if (!sprint && DETAIL_LINE_SYMBOLS.includes(main) && object.kind === "line") {
+      for (const line of flattenPath(object.path)) for (const at of line) {
+        insertBox(detailGrid, { minX: at.x, minY: at.y, maxX: at.x, maxY: at.y }, detailPoints.length);
+        detailPoints.push({ at, feature: index });
+      }
+    }
     const lookup = featureRuleFor(symbol.code, symbol.name, geometry, sprint);
     const d = lookup?.rule.d;
     const lines = linesOf(object);
@@ -139,7 +153,7 @@ export function prepareLevelMap(map: ParsedMap, sprint = false): LevelMap {
       if (Math.max(box.maxX - box.minX, box.maxY - box.minY) <= MAX_LOOP_MM && lines[0]) addObject({ at: centroid(lines[0]), ring: lines[0], size, d, code: symbol.code.text, name: symbol.name });
     }
   });
-  const prepared: LevelMap = { scale, segments, segmentGrid, objects, objectGrid, contours, contourGrid, open, pathEnds };
+  const prepared: LevelMap = { scale, segments, segmentGrid, objects, objectGrid, contours, contourGrid, open, pathEnds, detailPoints, detailGrid };
   if (!cache.has(map)) cache.set(map, new Map());
   cache.get(map)!.set(signature, prepared);
   return prepared;
@@ -197,6 +211,16 @@ export function objectsNear(prepared: LevelMap, at: Point, radius: number): { ob
     if (distance <= radius) out.push({ object, distance });
   });
   return out.sort((a, b) => a.distance - b.distance);
+}
+
+/** Antalet linjedetaljer (branter, jordvallar …) som har någon del inom `radius` mm. */
+export function detailLinesNear(prepared: LevelMap, at: Point, radius: number): number {
+  const features = new Set<number>();
+  near(prepared.detailGrid, at, radius, index => {
+    const point = prepared.detailPoints[index]!;
+    if (Math.hypot(point.at.x - at.x, point.at.y - at.y) <= radius) features.add(point.feature);
+  });
+  return features.size;
 }
 
 /** Höjdkurvornas längd (mm, viktad) inom `radius` mm från punkten (delarna räknas med den del som ligger i cirkeln, ungefär). */

@@ -74,8 +74,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       setProfile({ name: best.row.name, matched: best.matched, layers: found.length });
     } else setProfile(undefined);
     setMapping(suggested);
-    setCrs(data.crs ?? guessCrs(data) ?? mapEpsg);
-  }, [symbols, mapEpsg, profiles]);
+    setCrs(data.crs ?? guessCrs(data, georeference) ?? mapEpsg);
+  }, [symbols, mapEpsg, profiles, georeference]);
 
   /** Spara lagrens val som en profil (ersätter samma namn); symbolerna sparas som nummer så att profilen gäller andra kartor. */
   const saveProfile = useCallback(async (name: string, shareWithClub: boolean): Promise<boolean> => {

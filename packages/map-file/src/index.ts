@@ -2,7 +2,7 @@ export * from "./model";
 export * from "./render";
 export { readMapFile } from "./read";
 export { decimalYear, magneticDeclination, type Declination } from "./wmm";
-export { declinationAt, mapNorthFacts, type MapNorthFacts } from "./declination";
+export { declinationAt, mapNorthFacts, northLineDegrees, type MapNorthFacts } from "./declination";
 export { MAP_READER_VERSION } from "./version";
 export {
   crsFromEpsg, geodeticToGrid, gridToGeodetic, isSupportedEpsg, mapPointToProjected, mapPointToWgs84, projectedToMapPoint,

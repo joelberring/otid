@@ -58,4 +58,17 @@ describe("ADR-0223: kartans nord mot dagens", () => {
     const old = mapNorthFacts(georefOf(now.magnetic.degrees - 2), "2026-11-10")!;
     expect(old.difference).toBeCloseTo(2, 1);
   });
+
+  it("nordlinjerna (601) i kartan går före filens vinkel (ägaren 2026-11-10: Högdalen har vinkeln 0 men linjerna 4,4° snett)", async () => {
+    const { mapNorthFacts, northLineDegrees } = await import("../src");
+    const symbols = new Map([["n", { id: "n", code: { text: "601", main: 601 }, name: "Nordlinje", hidden: false, kind: "LINE" }]]);
+    const line = (dx: number) => ({ kind: "line", symbol: "n", path: [{ type: "M", x: 0, y: 0 }, { type: "L", x: dx, y: 100 }] });
+    const map = { symbols, objects: [line(7.7), line(7.69), { ...line(7.7), path: [{ type: "M", x: 7.7, y: 100 }, { type: "L", x: 0, y: 0 }] }, line(0.5)] } as never;
+    expect(northLineDegrees(map)).toBeCloseTo(4.4, 1);
+    expect(northLineDegrees({ symbols, objects: [] } as never)).toBeUndefined();
+    const georef = { scale: 15000, crs: { kind: "EPSG", code: 3006 }, refPoint: { easting: 675000, northing: 6570000 }, mapRefPoint: { x: 0, y: 0 },
+      grivationDegrees: 0, combinedScaleFactor: 1 } as const;
+    const plain = mapNorthFacts(georef, "2026-11-10")!, drawn = mapNorthFacts(georef, "2026-11-10", 4.4)!;
+    expect(drawn.mapDeclination - plain.mapDeclination).toBeCloseTo(4.4, 6);
+  });
 });

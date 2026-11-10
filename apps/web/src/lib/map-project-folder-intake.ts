@@ -95,7 +95,7 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
 export function vectorSketches(data: SourceData, georeference: MapGeoreference, bounds: { minX: number; minY: number; maxX: number; maxY: number },
   fallbackCrs: number | undefined): { sketches: IntakeSketch[] } | { problem: "EMPTY" | "NO_CRS" | "OUTSIDE" } {
   if (data.features.length === 0) return { problem: "EMPTY" };
-  const crs = data.crs ?? guessCrs(data) ?? fallbackCrs;
+  const crs = data.crs ?? guessCrs(data, georeference) ?? fallbackCrs;
   if (crs === undefined) return { problem: "NO_CRS" };
   const margin = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.1;
   const inside = (p: Point) => p.x >= bounds.minX - margin && p.x <= bounds.maxX + margin && p.y >= bounds.minY - margin && p.y <= bounds.maxY + margin;

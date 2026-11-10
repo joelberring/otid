@@ -47,6 +47,20 @@ describe("vektorunderlagen (K4b)", () => {
     expect(() => parseDxf("AutoCAD Binary DXF\r\n")).toThrow(VectorParseError);
   });
 
+  it("känner igen Stockholms lokala zon (SWEREF 99 18 00) med kartans georeferens, och hoppar över punkter i origo (ägaren 2026-11-10)", () => {
+    const data = parseDxf(dxf([
+      ["0", "POINT", "8", "RAM", "10", "0", "20", "0", "30", "0"],
+      ["0", "LINE", "8", "VAG", "10", "151892", "20", "6570944", "11", "151990", "21", "6570990"],
+      ["0", "LINE", "8", "VAG", "10", "153000", "20", "6571000", "11", "153100", "21", "6571050"]
+    ]));
+    const georeference = { scale: 15000, crs: { kind: "EPSG", code: 3006 }, refPoint: { easting: 675000, northing: 6570000 }, mapRefPoint: { x: 0, y: 0 },
+      grivationDegrees: 0, combinedScaleFactor: 1 } as const;
+    expect(guessCrs(data)).toBeUndefined();
+    expect(guessCrs(data, georeference)).toBe(3011);
+    // Göteborg i SWEREF 99 TM: ingen lokal zon i Stockholm passar.
+    expect(guessCrs(data, { ...georeference, refPoint: { easting: 319000, northing: 6400000 } })).toBeUndefined();
+  });
+
   it("föreslår symbol ur namnet och formen", () => {
     const layer = (name: string, shape: Partial<Record<"points" | "lines" | "closedLines" | "areas", number>>) =>
       ({ name, count: 1, points: 0, lines: 0, closedLines: 0, areas: 0, ...shape });

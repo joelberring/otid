@@ -4,6 +4,7 @@ const degrees = (value: number) => `${value.toLocaleString("sv-SE", { minimumFra
 export const mapProjectNorthSv = {
   heading: "Magnetisk nord",
   map: (value: number) => `Kartans nordlinjer är ritade för missvisningen ${degrees(value)}.`,
+  lines: (value: number, lines: number) => `Nordlinjerna i kartan lutar ${degrees(lines)} mot kartans kant och är ritade för missvisningen ${degrees(value)}.`,
   noAngle: (value: number) => `Kartfilen anger ingen vinkel för nordlinjerna (0°), så de antas peka mot koordinatnätets norr (missvisningen ${degrees(value)} här). Är kartan ritad mot magnetisk nord stämmer jämförelsen nedan inte; kontrollera georeferensen i OCAD eller Mapper.`,
   today: (value: number, date: string) => `Missvisningen ${date} enligt World Magnetic Model: ${degrees(value)}.`,
   difference: (value: number) => Math.abs(value) < 0.5 ? "Kartan pekar mot dagens magnetiska nord (skillnad under en halv grad)."

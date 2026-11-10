@@ -58,7 +58,9 @@ export type MapProjectRequest =
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
-      readonly colors: readonly MapColor[]; readonly objects: number }
+      readonly colors: readonly MapColor[]; readonly objects: number;
+      /** Nordlinjernas (601) riktning i kartan, grader medurs; saknas när kartan inte har några. */
+      readonly northLines?: number | undefined }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   | { readonly type: "hit"; readonly id: number; readonly hits: readonly ProjectHit[] }
   | { readonly type: "catalog"; readonly id: number; readonly symbols: readonly CatalogSymbol[] }

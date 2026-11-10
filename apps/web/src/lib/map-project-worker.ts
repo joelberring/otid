@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { drawMap, MapFileError, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
+import { drawMap, MapFileError, northLineDegrees, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
   baseKeys, checkNorm, coverageGrid, editedObjects, generalize, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
@@ -154,7 +154,8 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     });
     rebuild(new Map());
     const bounds = base.bounds ?? { minX: -100, minY: -100, maxX: 100, maxY: 100 };
-    post({ type: "loaded", bounds, scale: base.scale, georeference: base.georeference, colors: base.colors, objects: base.objects.length });
+    post({ type: "loaded", bounds, scale: base.scale, georeference: base.georeference, colors: base.colors, objects: base.objects.length,
+      northLines: northLineDegrees(base) });
     return;
   }
   if (request.type === "states") { rebuild(new Map(request.states)); return; }

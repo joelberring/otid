@@ -38,16 +38,39 @@ export function importLayers(data: SourceData): ImportLayer[] {
   return [...layers].map(([name, row]) => ({ name, count: row.points + row.lines + row.closedLines + row.areas, ...row }));
 }
 
-/** Koordinatsystemet ur koordinaternas storlek (östlig, nordlig): WGS 84, SWEREF 99 TM eller RT 90. Undefined om det inte går att säga. */
-export function guessCrs(data: SourceData): number | undefined {
-  const first = data.features[0]?.geometry;
-  const at = !first ? undefined : first.kind === "point" ? first.at : first.kind === "line" ? first.points[0] : first.rings[0]?.[0];
-  if (!at) return undefined;
-  const [x, y] = at;
+/** SWEREF 99:s lokala zoner (12 00 … 23 15), alla med östligt 150 000 vid medelmeridianen. */
+const SWEREF99_LOCAL_ZONES: readonly number[] = [3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018];
+
+/**
+ * Koordinatsystemet ur koordinaternas storlek (östlig, nordlig): WGS 84, SWEREF 99 TM, RT 90, eller en lokal SWEREF 99-zon
+ * (t.ex. Stockholms 18 00, EPSG:3011, som stadens baskarta använder). Den lokala zonen går inte att se på talen; med kartans
+ * georeferens väljs zonen som lägger punkten närmast kartan (ägaren 2026-11-10: Högdalens DXF hamnade 520 km fel när
+ * den lästes som SWEREF 99 TM). Undefined om det inte går att säga.
+ */
+export function guessCrs(data: SourceData, georeference?: MapGeoreference): number | undefined {
+  // Medianen av de första punkterna (inte bara den första: en DXF har ofta ett objekt i origo, t.ex. en ram eller ett block).
+  const xs: number[] = [], ys: number[] = [];
+  for (const { geometry } of data.features) {
+    const points = geometry.kind === "point" ? [geometry.at] : geometry.kind === "line" ? geometry.points : geometry.rings[0] ?? [];
+    for (const [px, py] of points) if (px !== 0 || py !== 0) { xs.push(px); ys.push(py); }
+    if (xs.length >= 500) break;
+  }
+  if (xs.length === 0) return undefined;
+  const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)]!;
+  const x = median(xs), y = median(ys);
   if (Math.abs(x) <= 180 && Math.abs(y) <= 90) return WGS84_EPSG;
   if (y > 6_100_000 && y < 7_700_000) {
     if (x > 1_100_000 && x < 2_000_000) return 3021;
     if (x > 250_000 && x < 950_000) return 3006;
+    if (x > 0 && x < 300_000 && georeference && georeference.crs.kind === "EPSG") {
+      const map = georeference;
+      const scored = SWEREF99_LOCAL_ZONES.map(zone => {
+        const point = sourcePointToMap(map, zone, x, y);
+        return { zone, mm: Math.hypot(point.x - map.mapRefPoint.x, point.y - map.mapRefPoint.y) };
+      }).sort((a, b) => a.mm - b.mm)[0];
+      // Inom 30 km från kartans referenspunkt, annars är det inte den här kartans område.
+      if (scored && scored.mm * map.scale / 1000 < 30_000) return scored.zone;
+    }
   }
   return undefined;
 }

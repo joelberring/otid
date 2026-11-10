@@ -187,7 +187,9 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
       clubMapId: null, trainingGroupId: null, responsibleAccountId: null } },
     DELETE: { allow: CLUB_LEADERS }
   },
-  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/race": { POST: { allow: CLUB_LEADERS }, PUT: { allow: CLUB_LEADERS } },
+  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/race": { POST: { allow: CLUB_LEADERS },
+    // Kopplingen har en kropp; utan den svarar routen 400 innan behörigheten prövas (CI var röd sedan 2026-11-10).
+    PUT: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, raceId: null }) } },
   "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(),
     title: "Sätta ut kontroller", assignee: { kind: "NONE" } }) } },
   "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks/[taskId]": { DELETE: { allow: CLUB_LEADERS } },

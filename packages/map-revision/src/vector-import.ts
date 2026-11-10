@@ -101,13 +101,16 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /FUKTIG/, area: "310" },
   { words: /DIKE|DITCH|BACK|STREAM/, line: "305" },
   { words: /VATTEN|SJO|LAKE|WATER/, area: "301" },
-  // Karttapullautins lager (K5): stödkurvor, slänt, branter och småknollar före de vanliga kurvorna.
+  // Karttapullautins lager (K5), före de vanliga kurvorna. «_intermed» är varje kurva på halva ekvidistansen, inte
+  // stödkurvorna (de ligger i formline): lagret hoppas över, annars blir hela kartan streckad.
+  { words: /CONTOUR_INTERMED|DEPRESSION_INTERMED/ },
   { words: /CONTOUR_INDEX|INDEXKURVA/, line: "102" },
-  { words: /CONTOUR_INTERMED|DEPRESSION_INTERMED|FORMLINE|STODKURVA/, line: "103" },
+  { words: /FORMLINE|STODKURVA/, line: "103" },
   { words: /SLOPE_LINE/, line: "104" },
-  { words: /CLIFF3/, line: "201" },
+  { words: /CLIFF3|CLIFF4/, line: "201" },
   { words: /CLIFF2|CLIFF/, line: "202" },
   { words: /DOTKNOLL/, point: "109" },
+  { words: /UDEPRESSION|PUNKTGROP/, point: "111" },
   { words: /HOJDKURVA|KURVA|CONTOUR|DEPRESSION/, line: "101" },
   { words: /TRAD|TREE/, point: "417" }
 ];

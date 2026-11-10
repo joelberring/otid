@@ -11,3 +11,4 @@
 !.env.example
 backups
 docs/archive
+**/target

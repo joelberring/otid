@@ -8,7 +8,7 @@ import { z } from "zod";
 export const GEO_JOB_MAX_TILES = 16;
 /** Karttapullautins inställningar som får ändras (pullauta.ini), med rimliga gränser. */
 export const PULLAUTIN_SETTINGS = {
-  contour_interval: [1, 10], formline: [0, 2], formlinesteepness: [0, 2], smoothing: [0, 2], curviness: [0, 3], knolls: [0, 3],
+  contour_interval: [1, 10], formline: [0, 2], formlinesteepness: [0, 2], smoothing: [0.2, 3], curviness: [0, 3], knolls: [0, 3],
   cliff1: [0.5, 5], cliff2: [0.5, 10], cliffsteepfactor: [0, 2], yellowheight: [0, 3], greenground: [0, 3], greenhigh: [0, 10],
   undergrowth: [0, 2]
 } as const satisfies Record<string, readonly [number, number]>;
@@ -28,6 +28,16 @@ const tileSchema = z.object({
   epsg: z.number().int().min(1).max(999999).nullable()
 }).strict();
 
+/**
+ * Grundkartan G1 (ägaren 2026-11-10): laserdatan klipps till kartans område innan Karttapullautin körs. Rutan är i laserns
+ * koordinater (SWEREF 99 TM, meter) och har redan marginalen runt området med; högst 12 km i sida.
+ */
+export const GEO_CLIP_MARGIN_M = 50;
+const clipSchema = z.object({ minX: z.number().finite(), minY: z.number().finite(), maxX: z.number().finite(), maxY: z.number().finite() }).strict()
+  .refine(box => box.maxX - box.minX >= 20 && box.maxY - box.minY >= 20, "Klipprutan är för liten")
+  .refine(box => box.maxX - box.minX <= 12_000 && box.maxY - box.minY <= 12_000, "Klipprutan är för stor");
+export type GeoClip = z.infer<typeof clipSchema>;
+
 export const geoJobCreateRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: z.string().uuid(),
@@ -35,6 +45,7 @@ export const geoJobCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(80),
   tiles: z.array(tileSchema).min(1).max(GEO_JOB_MAX_TILES),
   settings: settingsSchema.default({}),
+  clip: clipSchema.optional(),
   /** K5c del 2: fuktigheten ur laserns markmodell (kanaltröskeln i hektar, höjd över fuktstråket för blött och fuktigt). */
   moisture: z.object({ channelHa: z.number().min(0.25).max(10), wetMeters: z.number().min(0.1).max(3), moistMeters: z.number().min(0.2).max(5) })
     .strict().refine(value => value.moistMeters >= value.wetMeters, "Fuktigt ska vara minst lika högt som blött").optional(),
@@ -46,6 +57,8 @@ export type GeoJobStatusView = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCE
 export interface GeoJobView {
   readonly jobId: string; readonly name: string; readonly kind: "PULLAUTIN" | "DWG"; readonly status: GeoJobStatusView;
   readonly tiles: number; readonly settings: Readonly<Record<string, number>>;
+  /** Laserdatan klipptes till den här rutan (SWEREF 99 TM, med marginal); null = hela rutorna bearbetades. */
+  readonly clip: GeoClip | null;
   readonly progress: { readonly step: string; readonly done: number; readonly total: number } | null;
   readonly error: string | null; readonly layerId: string | null;
   /** K5c del 2: fuktighetens underlag, när jobbet räknade fuktighet. */

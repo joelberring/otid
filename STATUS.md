@@ -13,6 +13,19 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Grundkartan ur laser, G1: klippt till kartan, vattnet, rätt lager
+- Ägaren: resultatet blev «helt knas» (våtmark över sjön, inte klippt, kandidater i fel lager). Laserrutorna klipps nu till
+  kartans område eller etappen med 50 m marginal (`tools/lasclip`, Rust, byggs in i geo-avbildningen; `clip` i jobbets JSON,
+  ingen migrering). Jobbraden visar «Klippt till området, B × H m».
+- Vattnet: Karttapullautin säger inte var sjön är, så den blev blöt mark (439 ha → 37 ha på hela Kungshattsrutan) och öppen
+  mark (103 → 43 ha). `lasclip` skriver ett raster med mark- och vattenpunkter; `geo-water.ts` gör ytor av luckorna i marken
+  som har vattenpunkter (öar som hål) → `vatten.geojson` (301), och fuktigheten och vegetationen undantar vattnet.
+- Lagren: `contour_intermed` är varje kurva på halva ekvidistansen (inte stödkurvor) och hoppas över; `cliff4` → 201,
+  `uglyudepression` → 111. Formlinjernas val heter det de gör; de elva inställningarna har förval och riktning.
+- Verifierat: `geo-real.test.ts` på riktig laserdata och Karttapullautins riktiga resultat (ett test per lagertyp), samma
+  test körde hela kedjan lokalt med byggd Karttapullautin 2.15.4 och lasclip; integrationstestet och E2E `kartprojekt-geo`
+  (falska verktyg). Inte provat: den ombyggda geo-avbildningen på geo-servern.
+
 ### 2026-11-10 – Karttapullautins inställningar i formuläret, och ortofotots besked
 - Ägaren: "kan man göra inställningar i Karttapullautin innan körning?" Formuläret hade bara ekvidistans och formlinjer. Nu finns
   "Fler inställningar i Karttapullautin" med de elva övriga som API:t redan tog emot (kurvornas utjämning och formrikedom,

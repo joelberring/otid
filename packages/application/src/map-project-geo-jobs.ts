@@ -56,11 +56,11 @@ async function rows(tx: DbExecutor, projectId: string, jobId?: string) {
   return list.map(row => ({ ...row, files: files.filter(file => file.jobId === row.job.id) }));
 }
 function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): GeoJobView {
-  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>;
+  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"];
     moisture?: GeoJobView["moisture"]; vegetation?: GeoJobView["vegetation"] };
   const progress = job.progress as GeoJobView["progress"] | null;
   return { jobId: job.id, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status, tiles: request.tiles?.length ?? 0,
-    settings: request.settings ?? {}, progress: job.status === "RUNNING" ? progress : null, error: job.error,
+    settings: request.settings ?? {}, clip: request.clip ?? null, progress: job.status === "RUNNING" ? progress : null, error: job.error,
     layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null,
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
@@ -105,7 +105,8 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
     if (tiles + request.tiles.length > geoTilesPerMonth(runtime.environment)) return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(jobs).values({ id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-      request: { name: request.name, tiles: request.tiles, settings: request.settings, ...(request.moisture ? { moisture: request.moisture } : {}),
+      request: { name: request.name, tiles: request.tiles, settings: request.settings, ...(request.clip ? { clip: request.clip } : {}),
+        ...(request.moisture ? { moisture: request.moisture } : {}),
         ...(request.vegetation ? { vegetation: request.vegetation } : {}) },
       createdAt: now, requestId: request.requestId });
     return { status: "created", replayed: false, job: toView((await rows(tx, access.project.id, id))[0]!, access.accountId) } as const;
@@ -166,6 +167,8 @@ export interface ClaimedGeoJob {
   readonly jobId: string; readonly kind: "PULLAUTIN" | "DWG"; readonly attempt: number;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
+  /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM) före körningen. */
+  readonly clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   readonly vegetation: { readonly minAreaM2: number } | null;
 }
@@ -184,7 +187,7 @@ export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<vo
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
   await releaseStaleGeoJobs(db, now);
   const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
-    moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
+    clip?: ClaimedGeoJob["clip"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
@@ -194,7 +197,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   await noteGeoServerJob(db, worker, now);
   // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök (indata står kvar).
   await db.delete(outputs).where(and(eq(outputs.jobId, row.id), sql`${outputs.name} not like 'indata.%'`));
-  return { jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, moisture: row.request.moisture ?? null,
+  return { jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null, moisture: row.request.moisture ?? null,
     vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
 }
 

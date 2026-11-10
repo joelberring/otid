@@ -332,9 +332,11 @@ export function simplify(points: readonly [number, number][], tolerance: number)
 }
 
 /** Fuktstråken som linjer: från varje stråks början nedströms tills stråket möter ett annat eller lämnar området. */
-export function channelLines(grid: Grid, down: Int32Array, accumulation: Float64Array, channelCells: number, minLengthMeters: number): [number, number][][] {
+export function channelLines(grid: Grid, down: Int32Array, accumulation: Float64Array, channelCells: number, minLengthMeters: number,
+  blocked?: Uint8Array): [number, number][][] {
   const { height, cell, minX, minY } = grid;
-  const isChannel = (i: number) => accumulation[i]! >= channelCells;
+  // Stråken slutar vid vattnet (blocked): en bäck ritas inte ut över sjön.
+  const isChannel = (i: number) => accumulation[i]! >= channelCells && !blocked?.[i];
   const fed = new Uint8Array(down.length);
   for (let i = 0; i < down.length; i += 1) if (isChannel(i) && down[i]! >= 0) fed[down[i]!] = 1;
   const visited = new Uint8Array(down.length);
@@ -373,9 +375,28 @@ export function moistureDxf(layers: readonly { readonly name: string; readonly c
   return out.join("\n");
 }
 
-/** Hela kedjan för höjdrastren: bilden, världsfilen, DXF:en och en sammanfattning. */
-export function moistureFromHeightMaps(grids: readonly Grid[], settings: MoistureSettings = DEFAULT_MOISTURE) {
+/** Ringens yta med tecken: ytterkanter (moturs) är positiva, hål negativa. */
+export const ringArea = (ring: readonly (readonly [number, number])[]) =>
+  ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0) / 2;
+
+/** Maskens celler som ligger i vatten (1), för att undanta dem; `water` får cellens mitt i kartans koordinater. */
+export function blockedCells(grid: Omit<Grid, "z">, water: ((x: number, y: number) => boolean) | undefined): Uint8Array | undefined {
+  if (!water) return undefined;
+  const blocked = new Uint8Array(grid.width * grid.height);
+  for (let x = 0; x < grid.width; x += 1) for (let y = 0; y < grid.height; y += 1) if (water(grid.minX + x * grid.cell, grid.minY + y * grid.cell)) blocked[x * grid.height + y] = 1;
+  return blocked;
+}
+
+/**
+ * Hela kedjan för höjdrastren: bilden, världsfilen, DXF:en och en sammanfattning. Med `water` (geo-water.ts) räknas sjöar
+ * och hav inte som blöt mark, och fuktstråken slutar vid stranden.
+ */
+export function moistureFromHeightMaps(grids: readonly Grid[], settings: MoistureSettings = DEFAULT_MOISTURE, water?: (x: number, y: number) => boolean) {
   const grid = mosaic(grids);
+  const blocked = blockedCells(grid, water);
+  // Ytorna utan vattnet; ett hål som vattnet lämnar mitt i en yta blir inte en egen yta (bara ytterkanterna tas med).
+  const dry = (mask: Uint8Array) => { if (blocked) for (let i = 0; i < mask.length; i += 1) if (blocked[i]) mask[i] = 0; return mask; };
+  const outer = (rings: [number, number][][]) => blocked ? rings.filter(ring => ringArea(ring) > 0) : rings;
   const filled = fillDepressions(grid);
   const down = flowDirections(grid, filled);
   const { accumulation, order } = flowAccumulation(down, filled);
@@ -383,13 +404,15 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   const hand = heightAboveDrainage(grid, down, accumulation, order, channelCells);
   const classes = moistureClasses(hand, settings);
   const minCells = Math.max(4, Math.round(400 / (grid.cell * grid.cell)));
-  const wetMask = cleanMask(classes.map(value => value === 2 ? 1 : 0), grid.width, grid.height, minCells);
-  const moistMask = cleanMask(classes.map(value => value >= 1 ? 1 : 0), grid.width, grid.height, minCells);
+  const clean = (mask: Uint8Array) => blocked ? cleanMask(dry(cleanMask(dry(mask), grid.width, grid.height, minCells)), grid.width, grid.height, minCells)
+    : cleanMask(mask, grid.width, grid.height, minCells);
+  const wetMask = dry(clean(classes.map(value => value === 2 ? 1 : 0)));
+  const moistMask = dry(clean(classes.map(value => value >= 1 ? 1 : 0)));
   const tolerance = grid.cell * 0.75;
-  const wet = maskRings(wetMask, grid).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
-  const moist = maskRings(moistMask, grid).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
-  const channels = channelLines(grid, down, accumulation, channelCells, 50);
-  const isChannel = (i: number) => accumulation[i]! >= channelCells;
+  const wet = outer(maskRings(wetMask, grid)).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
+  const moist = outer(maskRings(moistMask, grid)).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
+  const channels = channelLines(grid, down, accumulation, channelCells, 50, blocked);
+  const isChannel = (i: number) => accumulation[i]! >= channelCells && !blocked?.[i];
   const png = encodePng(grid.width, grid.height, (column, row) => {
     const i = column * grid.height + (grid.height - 1 - row);
     if (isChannel(i)) return [10, 40, 160, 230];

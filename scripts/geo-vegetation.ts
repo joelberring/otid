@@ -10,7 +10,7 @@
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`).
  */
 import { inflateSync } from "node:zlib";
-import { cleanMask, type Grid, maskRings, moistureDxf, simplify } from "./geo-moisture.ts";
+import { blockedCells, cleanMask, type Grid, maskRings, moistureDxf, ringArea, simplify } from "./geo-moisture.ts";
 
 export interface VegetationSettings { readonly minAreaM2: number }
 export const DEFAULT_VEGETATION: VegetationSettings = { minAreaM2: 300 };
@@ -134,8 +134,12 @@ export function vegetationMosaic(tiles: readonly VegetationTile[], smallest = VE
 }
 
 /** Ytorna per ISOM-symbol: kapslade (408 ligger inom 406 osv.), utan små öar och med hålen fyllda. */
-export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: VegetationSettings = DEFAULT_VEGETATION) {
+export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: VegetationSettings = DEFAULT_VEGETATION,
+  water?: (x: number, y: number) => boolean) {
   const { grid, classes } = vegetationMosaic(tiles);
+  // Vattnet (geo-water.ts) har ingen vegetation: utan det här blir sjön «öppen mark» (inga träd över vattnet).
+  const blocked = blockedCells(grid, water);
+  const dry = (mask: Uint8Array) => { if (blocked) for (let i = 0; i < mask.length; i += 1) if (blocked[i]) mask[i] = 0; return mask; };
   const area = grid.cell * grid.cell, minCells = Math.max(2, Math.round(settings.minAreaM2 / area));
   const shade = (value: number) => (value & 15) >= 2 ? (value & 15) - 2 : -1;
   const layers: { name: string; code: string; test: (value: number) => boolean }[] = [
@@ -149,8 +153,8 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   const full: Grid = { ...grid, z: new Float64Array(0) };
   const summary: Record<string, number> = {};
   const parts = layers.map(layer => {
-    const mask = cleanMask(classes.map(value => layer.test(value) ? 1 : 0), grid.width, grid.height, minCells);
-    const rings = maskRings(mask, full).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
+    const mask = dry(cleanMask(dry(classes.map(value => layer.test(value) ? 1 : 0)), grid.width, grid.height, minCells));
+    const rings = maskRings(mask, full).filter(ring => !blocked || ringArea(ring) > 0).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
     summary[`ha${layer.code}`] = Math.round(mask.reduce((sum, value) => sum + value, 0) * area / 100) / 100;
     return { name: layer.name, closed: true, parts: rings };
   });

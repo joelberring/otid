@@ -1,0 +1,13 @@
+[package]
+name = "lasclip"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Klipper en LAS- eller LAZ-fil till en ruta (O-Tids geo-arbetare)"
+publish = false
+
+[dependencies]
+las = { version = "0.11", features = ["laz"] }
+
+[profile.release]
+strip = "symbols"

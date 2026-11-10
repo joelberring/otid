@@ -1,9 +1,10 @@
 "use client";
 
+import { laserClip } from "../../lib/map-project-clip";
 import { useCallback, useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
-import { PULLAUTIN_SETTINGS, type GeoJobList, type GeoJobView, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoJobList, type GeoJobView, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { parseDxf, parseGeoJson, VectorParseError } from "@o-tid/map-revision";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
@@ -101,12 +102,15 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     } finally { setBusy(undefined); }
   }
 
+  const clip = laserClip(bounds, georeference, GEO_CLIP_MARGIN_M, area);
   async function start() {
     const tiles = (items ?? []).filter(item => chosen.has(item.id)).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg }));
     setBusy(text.searching); setMessage(undefined);
     try {
       const result = await clubRequest(`${base}/geo-jobs`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PULLAUTIN",
         name: name.trim() || text.defaultName(area?.name), tiles, settings: { contour_interval: interval, formline, ...moreSettings(more) },
+        // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
+        ...(clip ? { clip } : {}),
         ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: Math.max(1, wetMeters * 2) } } : {}),
         ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
       const body = result.json as { error?: string } | undefined;
@@ -173,7 +177,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           <p className={styles.muted}>{text.moreHelp}</p>
           {MORE_SETTINGS.map(key => <label key={key}>{text.settingField(text.settingLabels[key] ?? key, key, PULLAUTIN_SETTINGS[key][0], PULLAUTIN_SETTINGS[key][1])}
             <input inputMode="decimal" value={more[key] ?? ""} placeholder={text.settingDefault} data-testid={`map-project-laser-setting-${key}`}
-              onChange={event => setMore(current => ({ ...current, [key]: event.target.value }))} /></label>)}
+              onChange={event => setMore(current => ({ ...current, [key]: event.target.value }))} />
+            <small className={styles.muted}>{text.settingHints[key]}</small></label>)}
         </details>
         <label className={styles.check}><input type="checkbox" checked={moisture} onChange={event => setMoisture(event.target.checked)}
           data-testid="map-project-laser-moisture" />{text.moisture}</label>
@@ -205,6 +210,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           <strong>{job.name}</strong> · {job.kind === "DWG" ? text.dwgJob : text.tiles(job.tiles)} · {text.status[job.status]}
           {job.progress && <> · {text.progress(job.progress.step, job.progress.done, job.progress.total)}</>}
           {job.error && <span className={styles.problem}> · {job.error}</span>}
+          {job.kind === "PULLAUTIN" && <span className={styles.muted}> · {job.clip
+            ? text.clipped(Math.round(job.clip.maxX - job.clip.minX), Math.round(job.clip.maxY - job.clip.minY)) : text.unclipped}</span>}
           {Object.keys(job.settings).length > 0 && <span className={styles.muted}> · {text.settingsUsed(Object.entries(job.settings)
             .map(([key, value]) => `${key} ${value}`).join(", "))}</span>}
           {job.layerId && <span className={styles.muted}> · {text.layerAdded}</span>}

@@ -28,7 +28,7 @@ function runGeoWorker(origin: string): Promise<{ code: number | null; output: st
   return new Promise(resolve => {
     const child = spawn(process.execPath, [join(root, "scripts/geo-worker.ts")], { cwd: work, env: { ...process.env, OTID_GEO_ORIGIN: origin,
       OTID_GEO_WORKER_TOKEN: E2E_GEO_WORKER_TOKEN, OTID_GEO_WORKER_NAME: "e2e-geo", OTID_GEO_ONCE: "1", OTID_PULLAUTA: join(root, "tests/e2e/fake-pullauta.mjs"),
-      OTID_DWGREAD: join(root, "tests/e2e/fake-dwgread.mjs"),
+      OTID_DWGREAD: join(root, "tests/e2e/fake-dwgread.mjs"), OTID_LASCLIP: join(root, "tests/e2e/fake-lasclip.mjs"),
       OTID_PULLAUTA_INI: ini, OTID_GEO_WORKDIR: join(work, "jobb"), NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1" } });
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => { output += chunk.toString(); });
@@ -79,6 +79,8 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await laser.getByTestId("map-project-laser-start").click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Jobbet ligger i kön.");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Karttapullautin hela kartan · 1 ruta · Väntar på geo-servern");
+  // Grundkartan G1: laserdatan klipps till kartans område med 50 m marginal.
+  await expect(laser.getByTestId("map-project-laser-job")).toContainText(/Klippt till området, \d+ × \d+ m/);
 
   // Geo-arbetaren tar jobbet; inga uppgifter till Lantmäteriet följer med till den.
   const worker = await runGeoWorker(baseURL!);
@@ -112,6 +114,11 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(4);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
+  // Vattnet ur laserns klasser: sjön blir en yta i lagret vatten.
+  await laser.getByRole("button", { name: "Läs in sjöar och vatten som kandidater" }).click();
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Sjöar och vatten visas som kandidater nedan under Vektorfil.");
+  await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(1);
+  await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("vatten");
 
   // K6b: en DWG-ritning läses på geo-servern (vägen och huset, en skraffyr) och läses in som kandidater.
   await warmRoute(owner, `${api}/geo-jobs/dwg`, "POST");

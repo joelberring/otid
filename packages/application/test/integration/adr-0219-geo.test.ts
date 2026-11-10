@@ -87,6 +87,7 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const { calls, runtime } = fakeLantmateriet();
     const tile = { id: "24A001_65775_6575_25", href: LAZ, bbox: [18, 59.29, 18.04, 59.31] as [number, number, number, number], epsg: 3006 };
     const request = () => ({ formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "Laser norr", tiles: [tile], settings: { contour_interval: 2.5 },
+      clip: { minX: 664730, minY: 6576450, maxX: 665130, maxY: 6576850 },
       moisture: { channelHa: 1, wetMeters: 0.5, moistMeters: 1 }, vegetation: { minAreaM2: 300 } });
     // Utan uppgifter till Lantmäteriet går varken sökning eller jobb.
     expect((await searchMapProjectLaser(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("no-credential");
@@ -104,9 +105,14 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), tiles: [{ ...tile, href: "https://elak.example/x.laz" }] } }, runtime, NOW)).status)
       .toBe("invalid-request");
     expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), settings: { rm_rf: 1 } } }, runtime, NOW)).status).toBe("invalid-request");
+    // Grundkartan G1: en klippruta som är tom eller orimligt stor avvisas.
+    for (const clip of [{ minX: 10, minY: 10, maxX: 10, maxY: 500 }, { minX: 0, minY: 0, maxX: 50_000, maxY: 500 }]) {
+      expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), clip } }, runtime, NOW)).status).toBe("invalid-request");
+    }
     const created = await createGeoJob(db, { ...owner.proof, projectId, request: request() }, runtime, NOW);
     if (created.status !== "created") throw new Error(created.status);
-    expect(created.job).toMatchObject({ name: "Laser norr", status: "QUEUED", tiles: 1, settings: { contour_interval: 2.5 } });
+    expect(created.job).toMatchObject({ name: "Laser norr", status: "QUEUED", tiles: 1, settings: { contour_interval: 2.5 },
+      clip: { minX: 664730, minY: 6576450, maxX: 665130, maxY: 6576850 } });
 
     // Kvoten: en tom variabel (compose) ger förvalet.
     expect([geoTilesPerMonth({ OTID_GEO_TILES_PER_MONTH: "" }), geoTilesPerMonth({}), geoTilesPerMonth({ OTID_GEO_TILES_PER_MONTH: "0" })]).toEqual([200, 200, 0]);
@@ -119,6 +125,7 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
 
     const claimed = await claimGeoJob(db, "geo-1", NOW);
     expect(claimed).toMatchObject({ jobId: created.job.jobId, tiles: [{ index: 0, id: tile.id, epsg: 3006 }], settings: { contour_interval: 2.5 },
+      clip: { minX: 664730, minY: 6576450, maxX: 665130, maxY: 6576850 },
       moisture: { channelHa: 1, wetMeters: 0.5, moistMeters: 1 }, vegetation: { minAreaM2: 300 } });
     // Fuktigt lägre än blött avvisas.
     expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), moisture: { channelHa: 1, wetMeters: 2, moistMeters: 1 } } }, runtime, NOW)).status)

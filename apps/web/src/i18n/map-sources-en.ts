@@ -48,7 +48,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   heading: "Laser data and Karttapullautin",
   help: "Search laser tiles (2.5 × 2.5 km) for the whole map or a stage with your own credentials for Lantmäteriet. The geo server runs "
     + "Karttapullautin: the image is added as a base layer, and contours, form lines, cliffs and knolls can be loaded as candidates. "
-    + "The whole laser tiles are processed, also what lies outside the map's area.",
+    + "The laser data is clipped to the map's area (or the stage) with a 50 m margin before it is processed.",
   attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (processed with Karttapullautin, GPL-3).",
   search: "Search laser tiles",
   searching: "Searching …",
@@ -60,7 +60,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   interval: "Contour interval",
   intervalOption: (meters: number) => `${meters} m`,
   formlines: "Form lines",
-  formlineOptions: { 0: "None", 1: "Some", 2: "More" },
+  formlineOptions: { 0: "No form lines", 1: "Contours at half the interval", 2: "Form lines where needed" },
     more: "More settings in Karttapullautin",
     moreHelp: "The values are written to Karttapullautin's pullauta.ini (the name is in brackets). Leave a field empty for Karttapullautin's default. "
       + "Try a small stage first and compare the images.",
@@ -69,9 +69,19 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
       cliff1: "Cliffs, threshold 1", cliff2: "Cliffs, threshold 2", cliffsteepfactor: "Cliffs, steepness factor",
       yellowheight: "Open land, maximum height", greenground: "Green, height of the ground layer", greenhigh: "Green, maximum height", undergrowth: "Undergrowth"
     },
+    settingHints: {
+      smoothing: "Default 0.7. A higher value gives smoother contours.", curviness: "Default 1.1. A higher value exaggerates the bends.",
+      knolls: "Default 0.6. A higher value gives fewer but more distinct knolls.", formlinesteepness: "Default 0.37. A higher value gives more form lines.",
+      cliff1: "Default 1.15: drop in metres per metre sideways for a passable cliff to be drawn. A lower value gives more cliffs.",
+      cliff2: "Default 2.0: the same measure for an impassable cliff.", cliffsteepfactor: "Default 0.38.",
+      yellowheight: "Default 0.9 m.", greenground: "Default 0.9 m.", greenhigh: "Default 2 m.",
+      undergrowth: "Default 0.35. A lower value gives more undergrowth."
+    },
     settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${low}–${high})`,
     settingDefault: "default",
     settingsUsed: (list: string) => `Settings: ${list}`,
+    clipped: (width: number, height: number) => `Clipped to the area, ${width} × ${height} m`,
+    unclipped: "The whole laser tiles",
   moisture: "Also calculate the moisture (marshes and wet channels from the terrain model)",
   channel: "Wet channels from catchment",
   channelOption: (ha: number) => `${ha} ha`,
@@ -93,7 +103,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   layerAdded: "The image is added as a base layer.",
   outputs: {
     "kurvor.dxf": "Contours", "formlinjer.dxf": "Form lines", "branter.dxf": "Cliffs", "stup.dxf": "Steep cliffs", "knollar.dxf": "Knolls",
-    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "ritning.geojson": "The drawing"
+    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "ritning.geojson": "The drawing"
   },
   load: (label: string) => `Load ${label.toLowerCase()} as candidates`,
   loaded: (label: string) => `${label} are shown as candidates below under Vector file.`,

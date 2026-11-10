@@ -65,7 +65,7 @@ export const mapSourcesSv = {
     heading: "Laserdata och Karttapullautin",
     help: "Sök laserrutor (2,5 × 2,5 km) för hela kartan eller en etapp med dina egna uppgifter till Lantmäteriet. Geo-servern kör "
       + "Karttapullautin: bilden läggs till som underlag, och kurvor, formlinjer, branter och knollar kan läsas in som kandidater. "
-      + "Hela laserrutorna bearbetas, även det som ligger utanför kartans område.",
+      + "Laserdatan klipps till kartans område (eller etappen) med 50 m marginal innan den bearbetas.",
     attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (bearbetad med Karttapullautin, GPL-3).",
     search: "Sök laserrutor",
     searching: "Söker …",
@@ -76,8 +76,8 @@ export const mapSourcesSv = {
     defaultName: (area?: string) => `Karttapullautin ${area ?? "hela kartan"}`.slice(0, 80),
     interval: "Ekvidistans",
     intervalOption: (meters: number) => `${String(meters).replace(".", ",")} m`,
-    formlines: "Formlinjer",
-    formlineOptions: { 0: "Inga", 1: "Några", 2: "Fler" } as Record<number, string>,
+    formlines: "Stödkurvor",
+    formlineOptions: { 0: "Inga stödkurvor", 1: "Kurvor på halva ekvidistansen", 2: "Stödkurvor där de behövs" } as Record<number, string>,
     more: "Fler inställningar i Karttapullautin",
     moreHelp: "Värdena skrivs i Karttapullautins pullauta.ini (namnet står inom parentes). Lämna ett fält tomt för Karttapullautins förval. "
       + "Prova på en liten etapp först och jämför bilderna.",
@@ -86,9 +86,20 @@ export const mapSourcesSv = {
       cliff1: "Branter, tröskel 1", cliff2: "Branter, tröskel 2", cliffsteepfactor: "Branter, lutningsfaktor",
       yellowheight: "Öppen mark, högsta höjd", greenground: "Grönt, markskiktets höjd", greenhigh: "Grönt, högsta höjd", undergrowth: "Undervegetation"
     } as Record<string, string>,
+    // Förvalen och riktningarna ur Karttapullautins pullauta.default.ini (2.15.4).
+    settingHints: {
+      smoothing: "Förval 0,7. Högre värde ger slätare kurvor.", curviness: "Förval 1,1. Högre värde överdriver kurvornas böjar.",
+      knolls: "Förval 0,6. Högre värde ger färre men tydligare knollar.", formlinesteepness: "Förval 0,37. Högre värde ger fler stödkurvor.",
+      cliff1: "Förval 1,15: fallhöjd i meter per meter i sidled för att en passerbar brant ska ritas. Lägre värde ger fler branter.",
+      cliff2: "Förval 2,0: samma mått för opasserbar brant.", cliffsteepfactor: "Förval 0,38.",
+      yellowheight: "Förval 0,9 m.", greenground: "Förval 0,9 m.", greenhigh: "Förval 2 m.",
+      undergrowth: "Förval 0,35. Lägre värde ger mer undervegetation."
+    } as Record<string, string>,
     settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${String(low).replace(".", ",")}–${String(high).replace(".", ",")})`,
     settingDefault: "förval",
     settingsUsed: (list: string) => `Inställningar: ${list}`,
+    clipped: (width: number, height: number) => `Klippt till området, ${width} × ${height} m`,
+    unclipped: "Hela laserrutorna",
     moisture: "Räkna också fuktigheten (våtmarker och fuktstråk ur markmodellen)",
     channel: "Fuktstråk från tillrinning",
     channelOption: (ha: number) => `${String(ha).replace(".", ",")} ha`,
@@ -110,7 +121,7 @@ export const mapSourcesSv = {
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
       "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
-      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "ritning.geojson": "Ritningen"
+      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
     load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,
     loaded: (label: string) => `${label} visas som kandidater nedan under Vektorfil.`,

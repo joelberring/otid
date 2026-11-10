@@ -21,6 +21,9 @@ on:
       - deploy/geo.Dockerfile
       - scripts/geo-worker.ts
       - scripts/geo-moisture.ts
+      - scripts/geo-vegetation.ts
+      - scripts/geo-water.ts
+      - tools/lasclip/**
       - apps/web/next.config.ts
       - package.json
       - pnpm-lock.yaml

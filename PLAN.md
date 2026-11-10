@@ -1304,9 +1304,16 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   dra inne i markeringen flyttar allt, dra strax utanför ett hörn vrider allt (markören visar det), Delete tar bort allt, och
   varje sådan ändring ångras i ett steg. Kartan flyttas med mellanslag+dra eller två fingrar.
 - [ ] R3c För flera markerade: byt symbol och markera kollad; skala; vrid med fasta steg (Skift).
-- [ ] K5-tillägg (ägaren 2026-11-10): klipp laserrutorna till kartans område (med marginal) innan Karttapullautin körs, så
-  att körningen går fortare och bilden inte täcker hela rutorna; provruta och jämförelse av inställningar; svenska förklaringar
-  av vad varje inställning gör, kontrollerade mot pullauta.ini.
+- [ ] Grundkartan ur laser (ägaren 2026-11-10: «körningen ska göras inom kartområdet och resultatet ska bli ungefär som en
+  halvfärdig karta»; planen i projektdokumentet `plan-grundkarta-ur-laser.md`, med Kungshatt som förebild):
+  - [x] G1 Laserrutorna klipps till kartans område eller etappen med 50 m marginal innan Karttapullautin körs (`tools/lasclip`,
+    `clip` i jobbet). Vattnet tas ur laserns klasser (`scripts/geo-water.ts`): sjön blir varken blöt eller öppen mark, och
+    blir en egen yta (301). Karttapullautins lager får rätt symbol (hjälpkurvorna hoppas över, cliff4 och punktgropar
+    känns igen). Riktig laserdata (300 × 300 m av Kungshatt) och Karttapullautins riktiga resultat ligger i `fixtures/laser`
+    med ett test per lagertyp; inställningarna har förval och riktning ur pullauta.default.ini.
+  - [ ] G2 En knapp «Läs in grundkartan»: alla resultat som kandidater på en gång, ritade med sina symboler.
+  - [ ] G3 Kurvor: hopslagna, stödkurvor rätt, punkthöjder. G4 Branter som linjer med taggarna nedför. G5 Vegetationen
+    generaliserad. G6 Provruta och jämförelse av inställningar. G7 Resten ur Kungshatt-kedjan.
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar
   vid högra kanten.
 - [ ] Telefonen: skydd mot att råka dra i en markerad linje med fingret (t.ex. ett kort håll innan en punkt eller sträcka följer med).

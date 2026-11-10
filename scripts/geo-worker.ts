@@ -12,6 +12,7 @@
  *   OTID_GEO_WORKER_NAME       namnet i loggen (förval datorns namn)
  *   OTID_PULLAUTA              Karttapullautin (förval /opt/pullauta/pullauta)
  *   OTID_PULLAUTA_INI          grundinställningarna (förval /opt/pullauta/pullauta.default.ini)
+ *   OTID_LASCLIP               klipper laserfiler till en ruta (tools/lasclip, förval /opt/lasclip/lasclip)
  *   OTID_DWGREAD               LibreDWG:s dwgread för DWG-jobben (förval /opt/libredwg/bin/dwgread)
  *   OTID_GEO_WORKDIR           arbetskatalogen (förval /tmp/otid-geo); rensas efter varje jobb
  *   OTID_GEO_ONCE=1            ett jobb (eller tom kö) och sedan slut (testerna)
@@ -28,11 +29,14 @@ import { createReadStream } from "node:fs";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
+import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
 
 interface Job {
   readonly jobId: string; readonly kind: "PULLAUTIN" | "DWG"; readonly attempt: number;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
+  /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM, med marginal) innan Karttapullautin körs. */
+  readonly clip?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   /** K5c del 3: vegetationen ur returerna som ytor (Karttapullautins klassbilder per ruta). */
@@ -45,6 +49,7 @@ const token = env.OTID_GEO_WORKER_TOKEN ?? "";
 const workerName = (env.OTID_GEO_WORKER_NAME || hostname()).replace(/[^A-Za-z0-9_.:-]/g, "-").slice(0, 80) || "geo";
 const pullauta = env.OTID_PULLAUTA || "/opt/pullauta/pullauta";
 const defaultIni = env.OTID_PULLAUTA_INI || "/opt/pullauta/pullauta.default.ini";
+const lasclip = env.OTID_LASCLIP || "/opt/lasclip/lasclip";
 const dwgread = env.OTID_DWGREAD || "/opt/libredwg/bin/dwgread";
 const workdir = env.OTID_GEO_WORKDIR || "/tmp/otid-geo";
 const once = env.OTID_GEO_ONCE === "1";
@@ -101,7 +106,7 @@ function run(args: readonly string[], cwd: string, signal: AbortSignal, program 
       signal.removeEventListener("abort", abort);
       if (signal.aborted) reject(new Stopped());
       else if (code === 0) resolve();
-      else reject(new Error(`${program === pullauta ? "Karttapullautin" : "dwgread"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
+      else reject(new Error(`${program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : "dwgread"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
     });
   });
 }
@@ -128,9 +133,17 @@ async function runJob(job: Job): Promise<void> {
         const detail = await response.json().catch(() => undefined) as { error?: string; detail?: string } | undefined;
         throw new Error(`Laserrutan ${tile.id} kunde inte hämtas (${detail?.error ?? response.status}${detail?.detail ? `, ${detail.detail}` : ""})`);
       }
-      await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, "in", `ruta${String(tile.index).padStart(2, "0")}.laz`)));
+      const file = `ruta${String(tile.index).padStart(2, "0")}.laz`;
+      // Grundkartan G1: rutan klipps till kartans område direkt efter hämtningen; en ruta helt utanför ger ingen fil.
+      await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, job.clip ? file : join("in", file))));
+      if (job.clip) {
+        await run([file, join("in", file), ...[job.clip.minX, job.clip.minY, job.clip.maxX, job.clip.maxY].map(String), `vatten${tile.index}.bin`], dir,
+          AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), lasclip);
+        await rm(join(dir, file), { force: true });
+      }
       await set("Hämtar laserdata", tile.index + 1, job.tiles.length);
     }
+    if (job.clip && (await readdir(join(dir, "in"))).length === 0) throw new Error("Kartans område ligger utanför laserrutorna");
     await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation));
     await set("Karttapullautin", 0, 1);
     await run([], dir, control.signal);
@@ -144,6 +157,16 @@ async function runJob(job: Job): Promise<void> {
       scale *= 2;
     }
     await run(["dxfmerge"], dir, control.signal);
+    // Grundkartan: vattnet ur lasclips raster (geo-water.ts), så att sjön varken blir blöt mark eller öppen mark.
+    let water: ReturnType<typeof waterFromGrids> | undefined;
+    const waterFiles = (await readdir(dir)).filter(name => /^vatten\d+\.bin$/.test(name)).sort();
+    if (waterFiles.length > 0) {
+      await set("Letar upp vattnet", 0, 1);
+      const grids = [];
+      for (const name of waterFiles) grids.push(readWaterGrid(new Uint8Array(await readFile(join(dir, name)))));
+      water = waterFromGrids(grids);
+      if (water.summary.waterAreas > 0) await writeFile(join(dir, "vatten.geojson"), water.geojson);
+    }
     // K5c del 2: fuktigheten ur rutornas höjdraster (Karttapullautin sparar dem i temp_<ruta>_dir med savetempfolders).
     let moistureSummary: Record<string, number> = {};
     if (job.moisture) {
@@ -155,7 +178,7 @@ async function runJob(job: Job): Promise<void> {
         if (bytes) grids.push(readHeightMap(new Uint8Array(bytes)));
       }
       if (grids.length === 0) throw new Error("Karttapullautin gav inget höjdraster för fuktigheten");
-      const moisture = moistureFromHeightMaps(grids, job.moisture);
+      const moisture = moistureFromHeightMaps(grids, job.moisture, water?.at);
       await writeFile(join(dir, "fukt.png"), moisture.png);
       await writeFile(join(dir, "fukt.pgw"), moisture.world);
       await writeFile(join(dir, "fukt.dxf"), moisture.dxf);
@@ -176,7 +199,7 @@ async function runJob(job: Job): Promise<void> {
           ...(undergrowth ? { undergrowth: decodeGrayPng(new Uint8Array(undergrowth)) } : {}) });
       }
       if (tiles.length === 0) throw new Error("Karttapullautin gav inga klassbilder för vegetationen");
-      const vegetation = vegetationFromTiles(tiles, job.vegetation);
+      const vegetation = vegetationFromTiles(tiles, job.vegetation, water?.at);
       await writeFile(join(dir, "vegetation.dxf"), vegetation.dxf);
       vegetationSummary = vegetation.summary;
     }
@@ -184,7 +207,8 @@ async function runJob(job: Job): Promise<void> {
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
       ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
       ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"]] as const : []),
-      ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"]] as const : [])];
+      ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"]] as const : []),
+      ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
     for (const [name, source, mediaType] of uploads) {
       await set("Skickar resultatet", done, uploads.length);
@@ -196,7 +220,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...moistureSummary, ...vegetationSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...moistureSummary, ...vegetationSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

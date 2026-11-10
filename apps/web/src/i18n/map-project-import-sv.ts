@@ -4,8 +4,8 @@ import { plural } from "./plural";
 export const mapProjectImportSv = {
   heading: "Importera vektorer",
   help: "En baskarta eller annan vektorfil (GeoJSON, DXF eller Shapefile, gärna som .zip) blir kandidater: välj symbol per lager, se dem på kartan och lämna dem som förslag "
-    + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren. Stockholms baskarta och parkkarta "
-    + "känns igen på lagernamnen, och valen kan sparas som en profil till nästa fil.",
+    + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren. Vissa baskartor känns igen "
+    + "på lagernamnen, men inte alla. Valen kan sparas som en profil till nästa fil.",
   choose: "Välj fil",
   osmHeading: "Hämta från OpenStreetMap",
   osmHelp: "Byggnader, vägar, stigar, staket, murar, vatten och markanvändning för hela kartan eller en etapp. Servern hämtar dem; de blir kandidater som en fil. Data © OpenStreetMap-bidragsgivare (ODbL).",

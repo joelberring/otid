@@ -43,8 +43,8 @@ export const mapProjectGeneralizeEn: Texts<typeof mapProjectGeneralizeSv> = {
 export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   heading: "Import vectors",
   help: "A base map or other vector file (GeoJSON, DXF or Shapefile, preferably as .zip) becomes candidates: choose a symbol per layer, see them on the map and leave them as suggestions "
-    + "approved like other suggestions. Save DWG as DXF for now. Everything is read here in the browser. Stockholm's base map and park map "
-    + "are recognised by their layer names, and the choices can be saved as a profile for the next file.",
+    + "approved like other suggestions. Save DWG as DXF for now. Everything is read here in the browser. Some base maps are recognised "
+    + "by their layer names, but not all. The choices can be saved as a profile for the next file.",
   choose: "Choose file",
   osmHeading: "Fetch from OpenStreetMap",
   osmHelp: "Buildings, roads, paths, fences, walls, water and land use for the whole map or a stage. The server fetches them; they become candidates like a file. Data © OpenStreetMap contributors (ODbL).",

@@ -43,6 +43,7 @@ export type MapProjectRequest =
   /** Projektets objekt som inte är som i grundfilen (hela listan varje gång). */
   | { readonly type: "states"; readonly states: readonly (readonly [ObjectKey, KeyedState])[] }
   | { readonly type: "colors"; readonly changes: readonly MapColorChange[] }
+  | { readonly type: "candidates"; readonly objects: readonly MapObject[] }
   | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
   /** Ägaren 2026-11-10: objekten som en dragen ruta rör vid (kartans mm). */
   | { readonly type: "box"; readonly id: number; readonly box: { minX: number; minY: number; maxX: number; maxY: number }; readonly hidden: readonly string[] }
@@ -142,6 +143,8 @@ export class MapProjectSession {
   }
 
   states(states: ReadonlyMap<ObjectKey, KeyedState>) { this.post({ type: "states", states: [...states] }); }
+  /** Kandidaterna från en inläsning: ritas med sina symboler ovanpå kartan från nästa bild (tom lista tar bort dem). */
+  candidates(objects: readonly MapObject[]) { this.post({ type: "candidates", objects }); }
   /** Projektets ändrade färger: kartan ritas med dem från nästa bild. */
   colors(changes: readonly MapColorChange[]) { this.post({ type: "colors", changes }); }
 

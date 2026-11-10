@@ -232,11 +232,13 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const symbols = useMemo(() => new Map(catalog.map(symbol => [symbol.id, symbol])), [catalog]);
   // K4b: kandidaterna ur en vektorfil (visas som förslag tills de lämnats).
   const importer = useMapProjectImport(view, georeference ?? undefined, editor.bounds ?? undefined, symbols,
-    useCallback(() => { void loadProposals(); }, [loadProposals]), session);
+    useCallback(() => { void loadProposals(); }, [loadProposals]), session, editor.commitMany);
   // K6: generaliseringen som förslag.
   const generalizer = useMapProjectGeneralize(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const rectify = useMapProjectRectify(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
-  const candidates = importer.candidates;
+  // Grundkartan G2b: kandidaterna ritas av Workern med sina symboler ovanpå kartan.
+  const candidates = importer.candidates, showCandidates = editor.showCandidates;
+  useEffect(() => { showCandidates(candidates); }, [candidates, showCandidates]);
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   // Ägaren 2026-11-09: lagren efter normen. Släckta och låsta lager går inte att markera; låsta kan visas nedtonade.
   const work = useMapProjectWorkLayers(view);
@@ -560,7 +562,6 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     drawAreas(ctx, current, areaDrawings);
     drawProposed(ctx, current, proposedOpen.objects, proposedOpen.deleted, false);
     drawProposed(ctx, current, proposedShown.objects, proposedShown.deleted, true);
-    if (candidates.length) drawProposed(ctx, current, candidates, [], true);
     if (tool === "area" && draft.length) {
       const ring = cursor ? [...draft.map(point => point.at), cursor] : draft.map(point => point.at);
       if (ring.length >= 2) drawAreas(ctx, current, [{ polygon: [ring], label: "", owner: "MINE" }]);

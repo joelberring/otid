@@ -15,6 +15,7 @@ import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
+import type { ObjectChange } from "./use-map-project-editor";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 
 /** Ett förslag hålls under synkens gränser (antal och storlek). */
@@ -26,8 +27,13 @@ type Problem = string | number;
  * ADR-0219 tillägget om vektorunderlagen (K4b): en vektorfil läses i webbläsaren, lagren får symboler (förslag ur namnen),
  * kandidaterna visas på kartan och lämnas som förslag med källan IMPORT (högst 200 ändringar per förslag).
  */
+/** Samma tomma lista varje gång, så att kartan inte ritas om i onödan när det inte finns några kandidater. */
+const NO_CANDIDATES: readonly MapObject[] = [];
+
 export function useMapProjectImport(view: MapProjectView, georeference: MapGeoreference | undefined, bounds: Bounds | undefined,
-  symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void, session?: MapProjectSession) {
+  symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void, session?: MapProjectSession,
+  /** Lägger många nya objekt direkt i kartan som ett steg (editorns `commitMany`); utan den går det bara att lämna förslag. */
+  commitMany?: (changes: readonly ObjectChange[]) => number) {
   const text = useTexts(mapProjectImportSv, mapProjectImportEn);
   const base = mapProjectBase(view.projectId);
   const [file, setFile] = useState<{ name: string; data: SourceData }>();
@@ -42,6 +48,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [problem, setProblem] = useState<Problem>();
   const [progress, setProgress] = useState<{ done: number; total: number }>();
   const [sent, setSent] = useState<number>();
+  /** Kandidaterna gömda på kartan för en stund, för att jämföra med kartan som den är. */
+  const [hideOnMap, setHideOnMap] = useState(false);
+  /** Grundkartan G2b: så många objekt lades direkt i kartan senast. */
+  const [accepted, setAccepted] = useState<number>();
   /** K6b: DWG-ritningen som skickats till geo-servern. */
   const [dwgSent, setDwgSent] = useState<string>();
   const mapEpsg = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
@@ -60,6 +70,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     const found = importLayers(data);
     const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
     setFile({ name: fileName, data });
+    setHideOnMap(false);
     setFit(undefined);
     setClip(area);
     setLayers(found);
@@ -206,6 +217,18 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     onSent();
   }, [file, result, base, onSent]);
 
+  /**
+   * Ägaren 2026-11-10 («godkännas i ett svep»): alla kandidater läggs i kartan som egna ändringar i ett steg (Ångra tar bort
+   * alla igen). Den som bara får föreslå får dem som förslag, som med allt annat den ritar.
+   */
+  const accept = useCallback(() => {
+    if (!file || !result || result.objects.length === 0 || !commitMany) return;
+    setProblem(undefined); setSent(undefined);
+    const count = commitMany(result.objects.map((object: MapObject) => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD" as const,
+      after: { kind: "OBJECT" as const, object } })));
+    setAccepted(count); setFile(undefined); setLayers([]); setMapping(new Map());
+  }, [file, result, commitMany]);
+
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);
     if (symbolId) next.set(layer, symbolId); else next.delete(layer);
@@ -214,11 +237,13 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); }, []);
 
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
-  const openData = useCallback((fileName: string, data: SourceData) => { setProblem(undefined); setSent(undefined); show(fileName, data); }, [show]);
+  const openData = useCallback((fileName: string, data: SourceData) => { setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data); }, [show]);
   return { file, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result,
     fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
     /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
     metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, fetchOsm, fetching, propose, cancel,
+    accept, accepted, canAccept: !!commitMany && view.viewer.canEdit,
     profile, saveProfile, canShareProfile: !!view.club,
-    candidates: result?.objects ?? [], canImport: view.viewer.canPropose };
+    hideOnMap, setHideOnMap,
+    candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose };
 }

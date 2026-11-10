@@ -13,6 +13,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Grundkartan G2b: kandidaterna med sina symboler, inlagda i ett svep
+- Kandidaterna från en inläsning (grundkartan, en baskarta) ritas av kartans Worker med sina symboler ovanpå kartan, i stället
+  för orange konturer; «Dölj på kartan» gömmer dem en stund för att jämföra.
+- «Lägg in N objekt i kartan» (den som får ändra): alla blir egna ändringar i en grupp (`commitMany`), sparade en gång;
+  Ångra tar bort alla igen. Historiken räknar en grupp som ett steg och kapar den aldrig mitt i (`history.ts`). Kön till
+  servern skickas i delar om högst 200 ändringar och 2,5 MB (`sendBatch`), så att stora kurvor ryms. «Lämna som förslag» är kvar.
+- Rättat under arbetet: en tom kandidatlista var en ny lista vid varje ritning och fick kartan att ritas om i en slinga.
+- Verifierat: enhetstest (historikens grupper, delarna till servern), E2E `kartprojekt-underlag` (lägg in, ångra), `-geo`,
+  `-rita`. Inte prövat: tusentals objekt i en riktig webbläsare.
+
 ### 2026-11-10 – Sax, vänd riktning och pipett; verktygsspalten i två kolumner (steg K8)
 - Klipp isär (X): ett klick på en linje delar den där (vid en brytpunkt eller på sträckan); den andra delen blir ett nytt
   objekt, ett steg att ångra. Vänd riktning (V) för den markerade linjen eller alla markerade linjer (branters taggar byter

@@ -32,6 +32,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
     {problemText && <p role="alert" className={styles.problem}>{problemText}{" "}
       <Button variant="quiet" onClick={() => importer.setProblem(undefined)}>OK</Button></p>}
     {importer.sent !== undefined && <p role="status" data-testid="map-project-import-sent">{text.sent(importer.sent)}</p>}
+    {importer.accepted !== undefined && <p role="status" data-testid="map-project-import-accepted">{text.accepted(importer.accepted)}</p>}
     {importer.dwgSent && <p role="status" data-testid="map-project-import-dwg">{text.dwgSent(importer.dwgSent)}</p>}
     {!file ? <>
       <span className={styles.actions}>
@@ -81,9 +82,14 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
       {result && <p className={styles.muted} data-testid="map-project-import-result" role="status">
         {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped, result.closedAreas, result.stairs, result.steps)}</p>}
       {!result && importer.crs !== undefined && <p role="alert" className={styles.problem}>{text.problems.crs}</p>}
+      {result && result.objects.length > 0 && <p className={styles.muted}>{importer.canAccept ? text.acceptHelp : text.shownHelp}</p>}
       <span className={styles.actions}>
-        <Button type="submit" disabled={!result || result.objects.length === 0 || !!importer.progress} data-testid="map-project-import-propose">
+        {importer.canAccept && <Button disabled={!result || result.objects.length === 0 || !!importer.progress} onClick={importer.accept}
+          data-testid="map-project-import-accept">{text.accept(result?.objects.length ?? 0)}</Button>}
+        <Button type="submit" variant={importer.canAccept ? "secondary" : "primary"} disabled={!result || result.objects.length === 0 || !!importer.progress} data-testid="map-project-import-propose">
           {importer.progress ? text.sending(importer.progress.done, importer.progress.total) : text.propose(result?.objects.length ?? 0)}</Button>
+        {result && result.objects.length > 0 && <Button variant="quiet" aria-pressed={importer.hideOnMap} onClick={() => importer.setHideOnMap(!importer.hideOnMap)}
+          data-testid="map-project-import-hide">{importer.hideOnMap ? text.showOnMap : text.hideOnMap}</Button>}
         <Button variant="quiet" onClick={importer.cancel}>{text.cancel}</Button>
       </span>
     </form>}

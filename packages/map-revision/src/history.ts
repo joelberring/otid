@@ -24,12 +24,32 @@ export interface RevisionHistory {
 
 export const emptyHistory = (): RevisionHistory => ({ undo: [], redo: [] });
 
-/** Högst så många steg sparas. */
+/** Högst så många steg sparas; steg i samma grupp (flera objekt ändrade på en gång) räknas som ett. */
 export const HISTORY_LIMIT = 200;
+/** Taket för antalet enskilda steg, så att en mycket stor grupp (en inläst grundkarta) inte växer utan gräns. */
+export const HISTORY_STEP_CAP = 40_000;
+
+/** De senaste `HISTORY_LIMIT` stegen, med grupper hela: en grupp kapas aldrig mitt i (då kunde den bara ångras till hälften). */
+function trimmed(steps: readonly HistoryStep[]): HistoryStep[] {
+  let units = 0, from = steps.length;
+  while (from > 0) {
+    const group = steps[from - 1]!.group;
+    let start = from - 1;
+    while (group && start > 0 && steps[start - 1]!.group === group) start -= 1;
+    if (units + 1 > HISTORY_LIMIT || steps.length - start > HISTORY_STEP_CAP) break;
+    units += 1; from = start;
+  }
+  return steps.slice(from);
+}
 
 /** Ett nytt eget steg: Gör om töms. */
 export function recordStep(history: RevisionHistory, step: HistoryStep): RevisionHistory {
-  return { undo: [...history.undo, step].slice(-HISTORY_LIMIT), redo: [] };
+  return { undo: trimmed([...history.undo, step]), redo: [] };
+}
+
+/** Flera steg på en gång (samma grupp): Gör om töms. */
+export function recordSteps(history: RevisionHistory, steps: readonly HistoryStep[]): RevisionHistory {
+  return steps.length ? { undo: trimmed([...history.undo, ...steps]), redo: [] } : history;
 }
 
 export type HistoryOutcome =

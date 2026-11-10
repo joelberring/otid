@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapObject } from "@o-tid/map-file";
 import {
-  acknowledge, addEdit, baseKey, decideEdit, effectiveObjects, effectiveState, emptyClientState, emptyHistory, mergePulled, newKey, recordStep, redoStep,
+  acknowledge, addEdit, baseKey, decideEdit, effectiveObjects, effectiveState, emptyClientState, emptyHistory, mergePulled, newKey, recordStep, recordSteps, redoStep,
   resolveConflict, undoStep, type EditResult, type ObjectRef, type ObjectState, type RevisionClientState, type RevisionEdit, type ServerObject
 } from "../src";
 
@@ -196,5 +196,23 @@ describe("Ångra och Gör om", () => {
     const outcome = undoStep(anna, history, id(), AT);
     expect(outcome.kind).toBe("changed");
     expect(outcome.kind === "changed" && outcome.history.undo).toEqual([]);
+  });
+});
+
+describe("historikens gräns", () => {
+  const stepOf = (index: number, group?: string) => ({ key: newKey(`00000000-0000-4000-8000-${String(index).padStart(12, "0")}`), ref: null,
+    before: { kind: "UNCHANGED" as const }, after: { kind: "DELETED" as const }, ...(group ? { group } : {}) });
+
+  it("en grupp räknas som ett steg och kapas aldrig mitt i", () => {
+    // En inläst grundkarta på 1 000 objekt, och sedan 150 egna steg: allt är kvar.
+    let history = recordSteps(emptyHistory(), Array.from({ length: 1000 }, (_, index) => stepOf(index, "import")));
+    expect(history.undo).toHaveLength(1000);
+    for (let index = 0; index < 150; index += 1) history = recordStep(history, stepOf(2000 + index));
+    expect(history.undo).toHaveLength(1150);
+    // Efter 200 egna steg faller hela gruppen bort på en gång, inte en bit av den.
+    for (let index = 0; index < 50; index += 1) history = recordStep(history, stepOf(3000 + index));
+    expect(history.undo).toHaveLength(200);
+    expect(history.undo.every(row => row.group === undefined)).toBe(true);
+    expect(recordSteps(history, [])).toBe(history);
   });
 });

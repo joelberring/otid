@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectSyncResponse, type MapProjectView } from "@o-tid/contracts";
-import type { MapColor, MapColorChange, MapGeoreference, Point } from "@o-tid/map-file";
+import type { MapColor, MapColorChange, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
 import {
-  acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, redoStep, resolveConflict, undoStep,
+  acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, recordSteps, redoStep, resolveConflict, undoStep,
   type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionHistory, type ServerObject
 } from "@o-tid/map-revision";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -40,6 +40,20 @@ export interface ObjectChange {
  * en stund efter den senaste. Andras ändringar hämtas var femte sekund medan sidan syns. Workern får alla ändrade objekt efter
  * varje ny ändring eller hämtning och ritar om (`renderKey`).
  */
+/** Så mycket (tecken) skickas högst i en synkning; servern tar emot 4 MB. */
+const SEND_MAX_CHARS = 2_500_000;
+/** Nästa sändning ur kön: högst 200 ändringar och inte mer än servern tar emot (stora inlästa objekt), minst en. */
+export function sendBatch<T>(pending: readonly T[], maxChars = SEND_MAX_CHARS): T[] {
+  const out: T[] = [];
+  let size = 0;
+  for (const edit of pending) {
+    const length = JSON.stringify(edit).length;
+    if (out.length >= MAP_PROJECT_SYNC_MAX_EDITS || (out.length > 0 && size + length > maxChars)) break;
+    out.push(edit); size += length;
+  }
+  return out;
+}
+
 export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: boolean) => void) {
   const base = mapProjectBase(view.projectId);
   const [session, setSession] = useState<MapProjectSession>();
@@ -134,9 +148,9 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     syncing.current = true;
     setSync(previous => ({ ...previous, kind: "syncing" }));
     try {
-      for (let round = 0; round < 20; round += 1) {
+      for (let round = 0; round < 200; round += 1) {
         const current = clientRef.current;
-        const edits = canEdit ? current.state.pending.slice(0, MAP_PROJECT_SYNC_MAX_EDITS) : [];
+        const edits = canEdit ? sendBatch(current.state.pending) : [];
         let result: { status: number; json: unknown };
         try {
           result = await clubRequest(`${base}/sync`, "POST", { formatVersion: 1, clientId: current.clientId, since: current.state.seq, edits });
@@ -197,6 +211,31 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     return true;
   }, [canEdit, store, scheduleSend]);
 
+  /**
+   * Många egna ändringar på en gång (en inläst grundkarta): allt i kön och i historiken som en grupp, sparat en gång. Ger
+   * antalet som kom med (ett objekt som väntar på ett val efter en krock hoppas över).
+   */
+  const commitMany = useCallback((changes: readonly ObjectChange[]): number => {
+    const current = clientRef.current;
+    if (!current || !canEdit || changes.length === 0) return 0;
+    const group = crypto.randomUUID(), at = new Date().toISOString();
+    let state = current.state;
+    const steps = [];
+    for (const change of changes) {
+      const before = effectiveState(state, change.key);
+      const added = addEdit(state, { editId: crypto.randomUUID(), key: change.key, ref: change.ref, state: change.after, kind: change.kind, at });
+      if (!added) continue;
+      state = added.state;
+      steps.push({ key: change.key, ref: change.ref, before, after: change.after, group });
+    }
+    if (steps.length === 0) return 0;
+    historyRef.current = recordSteps(historyRef.current, steps);
+    setHistory(historyRef.current);
+    store({ ...current, state });
+    scheduleSend();
+    return steps.length;
+  }, [canEdit, store, scheduleSend]);
+
   const step = useCallback((direction: "undo" | "redo") => {
     const current = clientRef.current;
     if (!current || !canEdit) return;
@@ -226,6 +265,14 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     scheduleSend();
   }, [store, scheduleSend]);
 
+  /** Kandidaterna från en inläsning ritas med sina symboler ovanpå kartan (tom lista tar bort dem). */
+  const shownCandidates = useRef<readonly MapObject[]>([]);
+  const showCandidates = useCallback((objects: readonly MapObject[]) => {
+    if (!session || (objects.length === 0 && shownCandidates.current.length === 0)) return;
+    shownCandidates.current = objects;
+    session.candidates(objects);
+    setRenderKey(value => value + 1);
+  }, [session]);
   /** Rita kartan med de här färgändringarna (utan att spara dem). Symbolernas rutor i panelen ritas också om. */
   const showColors = useCallback((changes: readonly MapColorChange[]) => {
     if (!session) return;
@@ -243,9 +290,9 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   }, [base, showColors]);
 
   return {
-    colorChanges, showColors, saveColors,
+    colorChanges, showColors, saveColors, showCandidates,
     session, bounds, colors, georeference, northLines, scale, mapStatus, catalog, renderKey, sync, notice, setNotice,
-    state: client?.state, history, commit, undo: () => step("undo"), redo: () => step("redo"), resolve, syncNow,
+    state: client?.state, history, commit, commitMany, undo: () => step("undo"), redo: () => step("redo"), resolve, syncNow,
     /** Objekten som dras (ritas inte av Workern medan förhandsvisningen syns ovanpå). */
     setPreview
   };

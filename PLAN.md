@@ -1330,7 +1330,9 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     vegetation läses in tillsammans som kandidater med sina föreslagna symboler.
   - [x] G4 Branterna som linjer (`scripts/geo-cliffs.ts`): Karttapullautins korta streck rastreras, tunnas till en mittlinje
     och blir linjer riktade med nedför till höger (taggarnas sida); opasserbara 201 och passerbara 202 (`brantlinjer.dxf`).
-  - [ ] G2b Kandidaterna ritade med sina symboler på kartan (i dag som konturer) och godkända i ett svep.
+  - [x] G2b Kandidaterna ritas på kartan med sina symboler (av kartans Worker, ovanpå kartan; «Dölj på kartan» för att
+    jämföra) och läggs in i ett svep med «Lägg in N objekt i kartan» (`commitMany`: en grupp, Ångra tar bort alla igen;
+    synkas i delar som ryms hos servern). Förslagsvägen finns kvar. Inte prövat med tiotusentals objekt.
   - [ ] G3 Kurvor: hopslagna över rutgränser, punkthöjder. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar

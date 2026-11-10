@@ -29,9 +29,15 @@ let drawing = false;
 let fileColors: ParsedMap["colors"] = [];
 let lastStates: ReadonlyMap<ObjectKey, KeyedState> = new Map();
 
+/** Grundkartan G2b: kandidaterna från en inläsning som en egen karta med samma symboler, ritad ovanpå kartan. */
+let candidateObjects: readonly MapObject[] = [];
+let candidateMap: ParsedMap | undefined;
+const refreshCandidates = () => { candidateMap = base && candidateObjects.length ? { ...base, objects: [...candidateObjects] } : undefined; };
+
 function rebuild(states: ReadonlyMap<ObjectKey, KeyedState>) {
   if (!base) return;
   lastStates = states;
+  refreshCandidates();
   const edited = editedObjects(base, states, keys);
   current = { map: { ...base, objects: edited.objects }, keys: edited.keys, boxes: edited.objects.map(objectBox) };
 }
@@ -56,6 +62,8 @@ function render(request: Extract<MapProjectRequest, { type: "render" }>) {
     drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, hiddenSymbols: others, tint: DIMMED_TINT });
     drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, background: false, hiddenSymbols: new Set([...hidden, ...dimmed]) });
   }
+  // Kandidaterna med sina symboler, utan papper, ovanpå kartan (släckta symboler ritas inte).
+  if (candidateMap) drawMap(context, candidateMap, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, background: false, ...(hidden.size ? { hiddenSymbols: hidden } : {}) });
   const bitmap = canvas.transferToImageBitmap();
   post({ type: "rendered", id: request.id, bitmap }, [bitmap]);
 }
@@ -168,6 +176,7 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     return;
   }
   if (request.type === "states") { rebuild(new Map(request.states)); return; }
+  if (request.type === "candidates") { candidateObjects = request.objects; refreshCandidates(); return; }
   // Projektets ändrade färger (ägaren 2026-11-10): färgtabellen byts och kartan byggs om med samma objekt.
   if (request.type === "colors") { if (base) { base = { ...base, colors: withColorChanges(fileColors, request.changes) }; rebuild(lastStates); } return; }
   if (request.type === "render") { queued = request; drain(); return; }

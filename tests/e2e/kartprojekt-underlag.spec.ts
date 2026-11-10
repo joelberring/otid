@@ -228,6 +228,30 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await fit.getByRole("button", { name: "Passa in mot kartan" }).click();
   await expect(fit.getByRole("status")).toHaveText(/^(Inpassat|Det gick inte att passa in)/, { timeout: 30_000 });
   await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
+  // Grundkartan G2b (ägaren 2026-11-10): kandidaterna läggs i kartan i ett svep, och Ångra tar bort alla igen i ett steg.
+  const added = async () => {
+    const response = await owner.request.post(`${api}/sync`, { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner), "content-type": "application/json" },
+      data: { formatVersion: 1, clientId: "e2e-lasare", since: 0, edits: [] } });
+    return (await response.json() as { objects: { key: string; state: { kind: string } }[] }).objects.filter(row => row.key.startsWith("n:") && row.state.kind === "OBJECT").length;
+  };
+  const idle = async () => {
+    await expect(owner.getByTestId("map-project-sync")).toHaveAttribute("data-pending", "0", { timeout: 20_000 });
+    await expect(owner.getByTestId("map-project-sync")).toHaveAttribute("data-state", "idle", { timeout: 20_000 });
+  };
+  // Kandidaterna ritas på kartan med sina symboler och kan gömmas en stund för att jämföra.
+  await importer.getByTestId("map-project-import-hide").click();
+  await expect(importer.getByTestId("map-project-import-hide")).toHaveText("Visa på kartan");
+  await importer.getByTestId("map-project-import-hide").click();
+  await expect(importer.getByTestId("map-project-import-accept")).toHaveText("Lägg in 2 objekt i kartan");
+  await importer.getByTestId("map-project-import-accept").click();
+  await expect(importer.getByTestId("map-project-import-accepted")).toHaveText("2 objekt ligger nu i kartan. Ångra tar bort alla igen i ett steg.");
+  await idle();
+  expect(await added()).toBe(2);
+  await owner.getByRole("button", { name: "Ångra", exact: true }).click();
+  await idle();
+  expect(await added()).toBe(0);
+  await importer.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
   // K6b: valen sparas som en profil; samma fil igen får profilens symbol för lagret 0153 (som namnet inte ger något förslag för).
   await warmRoute(owner, `${api}/layer-profiles`);
   const zero = importer.getByRole("combobox", { name: "Symbol för 0153" });

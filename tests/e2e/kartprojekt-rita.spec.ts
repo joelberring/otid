@@ -60,6 +60,13 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
 
   // Rita en stig: välj 505, tre klick och Enter.
   await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
+  // Ägaren 2026-11-10: symbolraden överst, bilder utan nummer; numret och namnet när musen står över.
+  await owner.getByTestId("map-project-symbol-strip-toggle").check();
+  const strip = owner.getByTestId("map-project-symbol-strip");
+  await expect(strip.locator("[data-code='505.0']")).toHaveAttribute("aria-pressed", "true");
+  await strip.locator("[data-code='505.0']").hover();
+  await expect(owner.getByRole("tooltip")).toContainText("505");
+  await expect(strip).not.toContainText("505");
   await expect(owner.getByRole("button", { name: "Rita", exact: true })).toHaveAttribute("aria-pressed", "true");
   for (const point of [{ x: 10, y: 10 }, { x: 40, y: 30 }, { x: 70, y: 15 }]) {
     const at = await screenOf(owner, point);
@@ -300,6 +307,14 @@ test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({
   await form.getByLabel("Skala").selectOption("10000");
   const island = { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[[17.776, 59.303], [17.79, 59.301], [17.804, 59.304],
     [17.806, 59.311], [17.792, 59.314], [17.778, 59.31], [17.776, 59.303]]] } };
+  // Ägaren 2026-11-10: området kan ritas på OpenStreetMaps karta (förvalet); rutorna hämtas utifrån men behövs inte här.
+  const picker = form.getByTestId("area-map-picker");
+  await picker.getByRole("button", { name: "Rita själv" }).click();
+  const canvas = picker.getByRole("application", { name: "Karta för att välja området" });
+  for (const [x, y] of [[200, 150], [320, 160], [260, 260]] as const) await canvas.click({ position: { x, y } });
+  await picker.getByRole("button", { name: "Klar" }).click();
+  await expect(form.getByTestId("new-map-area")).toHaveText("3 punkter");
+  await form.getByLabel("Polygon som fil").check();
   await form.getByLabel("GeoJSON-fil").setInputFiles({ name: "kungshatt.geojson", mimeType: "application/geo+json",
     buffer: Buffer.from(JSON.stringify(island)) });
   await expect(form.getByTestId("new-map-area")).toHaveText("6 punkter");

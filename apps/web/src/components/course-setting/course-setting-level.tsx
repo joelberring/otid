@@ -207,7 +207,8 @@ export function LevelPanel({ store, support, document, readOnly, onEdits, onShow
   const harder = stored ? harderThan(stored.assessment, target ? levelRank(target) : stored.assessment.typical) : undefined;
   const compare = target ? text.levelName(target) : stored ? text.rankName(stored.assessment.typical) : "";
   return <section className={base.panel} aria-labelledby="course-setting-level" data-testid="course-setting-level">
-    <h2 id="course-setting-level">{text.panel.heading}</h2>
+    <h2 id="course-setting-level">{text.panel.heading} <span className={base.experimental} data-testid="course-setting-level-experimental">
+      {text.panel.experimental}</span></h2>
     <p className={base.muted}>{text.panel.support} <HelpLink article={levelGuideArticle(target)} label={text.field.guide(target)} /></p>
     <p className={base.muted} data-testid="course-setting-level-target">{target ? text.panel.target(text.levelName(target)) : text.panel.noTarget}</p>
     {!support.hasMap ? <p className={base.muted}>{text.panel.noMap}</p> : sprint ? <p className={base.muted} data-testid="course-setting-level-sprint">{text.panel.sprint}</p> : <>

@@ -46,3 +46,15 @@
 .leaderboard { margin: .5rem 0; padding-left: 1.6rem; display: grid; gap: 2px; max-width: 28rem; }
 .leaderboard li span { display: inline-block; min-width: 12rem; }
 .leaderboard li[data-self] { font-weight: 600; }
+
+/* Områdesväljaren på OpenStreetMaps karta (ägaren 2026-11-10). */
+.picker { display: grid; gap: .5rem; }
+.picker .row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.pickerSearch input { width: 100%; }
+.pickerMap { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #e8e4d8; touch-action: none;
+  cursor: crosshair; user-select: none; }
+.pickerZoom { position: absolute; right: 8px; top: 8px; display: grid; gap: 4px; }
+.pickerZoom button { width: 36px; height: 36px; border: 1px solid var(--line-strong, #999); border-radius: 6px; background: var(--surface, #fff);
+  font-size: 1.2rem; cursor: pointer; }
+.pickerCredit { position: absolute; right: 4px; bottom: 2px; background: rgb(255 255 255 / 80%); padding: 0 4px; font-size: .75rem; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

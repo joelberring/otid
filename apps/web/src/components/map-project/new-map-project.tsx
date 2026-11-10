@@ -11,6 +11,7 @@ import { areaCenterWgs84, areaFromCenter, areaFromGeoJson, parseLatLon, type Are
 import { declinationAt } from "@o-tid/map-file";
 import { mapProjectsBase } from "../../lib/map-project-client";
 import { Button, Field, Notice } from "../ui";
+import { AreaMapPicker } from "./area-map-picker";
 import styles from "./map-project.module.css";
 
 type Norm = keyof typeof MAP_PROJECT_NEW_SCALES;
@@ -27,7 +28,8 @@ export function NewMapProject() {
   const [name, setName] = useState("");
   const [norm, setNorm] = useState<Norm>("ISOM2017-2");
   const [scale, setScale] = useState<number>(MAP_PROJECT_NEW_SCALES["ISOM2017-2"][0]);
-  const [source, setSource] = useState<"file" | "center">("file");
+  const [source, setSource] = useState<"map" | "file" | "center">("map");
+  const [mapArea, setMapArea] = useState<AreaInput>();
   const [fileArea, setFileArea] = useState<AreaInput>();
   const [center, setCenter] = useState("");
   const [width, setWidth] = useState("1500");
@@ -39,6 +41,7 @@ export function NewMapProject() {
   const [message, setMessage] = useState("");
 
   function area(): AreaInput | undefined {
+    if (source === "map") return mapArea;
     if (source === "file") return fileArea;
     const point = parseLatLon(center);
     const w = Number(width), h = Number(height);
@@ -53,7 +56,7 @@ export function NewMapProject() {
   async function create(event: FormEvent) {
     event.preventDefault();
     const chosen = area();
-    if (!chosen) { setMessage(source === "file" ? text.badFile : text.badCenter); return; }
+    if (!chosen) { setMessage(source === "center" ? text.badCenter : text.badFile); return; }
     setBusy(true); setMessage("");
     try {
       const value = declination.trim() ? Number(declination.replace(",", ".")) : undefined;
@@ -70,7 +73,7 @@ export function NewMapProject() {
     } catch { setMessage(failure(0)); } finally { setBusy(false); }
   }
 
-  const ready = !!name.trim() && (source === "file" ? !!fileArea : !!center.trim());
+  const ready = !!name.trim() && (source === "map" ? !!mapArea : source === "file" ? !!fileArea : !!center.trim());
   return <section id="nytt-kartprojekt" aria-labelledby="map-project-new">
     <h2 id="map-project-new">{text.title}</h2>
     <p className={styles.muted}>{text.help}</p>
@@ -85,10 +88,11 @@ export function NewMapProject() {
       </select></Field>
       <fieldset className={styles.choice}>
         <legend>{text.area}</legend>
+        <label><input type="radio" name="area-source" checked={source === "map"} onChange={() => setSource("map")} /> {text.areaMap}</label>
         <label><input type="radio" name="area-source" checked={source === "file"} onChange={() => setSource("file")} /> {text.areaFile}</label>
         <label><input type="radio" name="area-source" checked={source === "center"} onChange={() => setSource("center")} /> {text.areaCenter}</label>
       </fieldset>
-      {source === "file" ? <Field label={text.geojson} help={text.areaFileHelp}>
+      {source === "map" ? <AreaMapPicker value={mapArea} onChange={setMapArea} /> : source === "file" ? <Field label={text.geojson} help={text.areaFileHelp}>
         <input type="file" accept=".geojson,.json,application/geo+json,application/json" onChange={event => {
           const chosen = event.target.files?.[0];
           setFileArea(undefined); setMessage("");
@@ -107,8 +111,9 @@ export function NewMapProject() {
           <Field label={text.height}><input type="number" min={50} max={15000} step={50} value={height} onChange={event => setHeight(event.target.value)} /></Field>
         </div>
       </>}
-      {source === "file" && fileArea && <p className={styles.muted} data-testid="new-map-area">
-        {text.areaSummary(fileArea.rings.length, fileArea.rings.reduce((sum, ring) => sum + ring.length, 0))}</p>}
+      {source !== "center" && (source === "map" ? mapArea : fileArea) && <p className={styles.muted} data-testid="new-map-area">
+        {text.areaSummary((source === "map" ? mapArea : fileArea)!.rings.length,
+          (source === "map" ? mapArea : fileArea)!.rings.reduce((sum, ring) => sum + ring.length, 0))}</p>}
       <Field label={text.declination} help={suggested !== undefined ? text.declinationSuggested(suggested.toLocaleString(language === "en" ? "en-GB" : "sv-SE"))
         : text.declinationHelp}>
         <input value={declination} inputMode="decimal" placeholder={suggested !== undefined ? String(suggested) : undefined}

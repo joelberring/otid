@@ -87,7 +87,8 @@ export const courseSettingLevelSv = {
   },
   panel: {
     heading: "Nivåstöd",
-    support: "Ett stöd – du som banläggare avgör.",
+    experimental: "Experimentellt",
+    support: "Experimentellt och under utveckling: nivåerna är uppskattningar ur kartans symboler och kan bli fel, särskilt i detaljrik eller bergig terräng. Ett stöd – du som banläggare avgör.",
     assess: "Bedöm nivån",
     assessAll: "Bedöm alla banor",
     again: "Bedöm igen",

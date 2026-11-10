@@ -83,7 +83,8 @@ export const courseSettingLevelEn: Texts<typeof courseSettingLevelSv> = {
   },
   panel: {
     heading: "Level support",
-    support: "A support – you as course setter decide.",
+    experimental: "Experimental",
+    support: "Experimental and under development: the levels are estimates from the map's symbols and can be wrong, especially in detailed or rocky terrain. A support – you as course setter decide.",
     assess: "Assess the level",
     assessAll: "Assess all courses",
     again: "Assess again",

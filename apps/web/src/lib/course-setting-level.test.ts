@@ -18,7 +18,7 @@ function documentWith(edits: readonly CourseSettingEdit[]): { document: CourseSe
 }
 
 const far = (control: string): ControlLevelFeatures => ({ control, strongMeters: 60, handrailMeters: 60, feature: { size: "BIG", source: "DESCRIPTION" },
-  attackMeters: 10, relocationMeters: 10, candidates: { handrail: { x: 1, y: 1 } } });
+  attackMeters: 10, relocationMeters: 10, terrain: { detail: 2, similar: 0 }, candidates: { handrail: { x: 1, y: 1 } } });
 
 describe("nivåstödets texter", () => {
   it("varje regel har ett tips, och varje nivåregel ett skäl", () => {

@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -15,8 +15,14 @@ const banned = ["uuid", "hash", "tävlingsversion", "revision", "banversion", "s
 const src = join(dirname(fileURLToPath(import.meta.url)), "..");
 const entry = join(src, "components/race-administrator-workspace.tsx");
 
+/** Engelska texter som bara en publik sida läser (personuppgifterna måste få säga "hash"); de granskas inte som arbetsytans texter. */
+const PUBLIC_ONLY = ["privacy-en.ts"];
+/** Engelska texter (`*-en.ts`) läses ur katalogen, så att ingen ny fil kan glömmas bort (översynen 2026-11-10, E2). */
+const englishFiles = readdirSync(join(src, "i18n")).filter(file => file.endsWith("-en.ts") && !PUBLIC_ONLY.includes(file)).sort();
+
 /** Texter som bara arbetsytan och dess delar använder. Hela filen granskas. */
 const adminFiles = [
+  ...englishFiles,
   "race-administrator-sv.ts", "race-workspace-navigation-sv.ts", "start-draw-sv.ts", "start-list-publication-sv.ts",
   "forest-watch-sv.ts", "participant-card-sv.ts", "class-table-sv.ts", "checkin-history-sv.ts", "checkin-conflict-review-sv.ts",
   "race-workflow-detail-sv.ts", "lists-sv.ts",
@@ -34,8 +40,6 @@ const adminFiles = [
   "readout-reread-sv.ts",
   // Steg 37: hjälpen och sidfoten.
   "help-sv.ts", "about-sv.ts",
-  // Idéerna 2026-11-08: engelska (sidfoten).
-  "public-en.ts", "lists-en.ts", "organizer-en.ts", "account-en.ts", "workspace-en.ts", "workspace-admin-en.ts", "workspace-tools-en.ts", "workspace-more-en.ts", "workspace-relay-en.ts", "workspace-small-en.ts", "forking-en.ts", "workspace-last-en.ts", "route-choice-en.ts", "help-en.ts", "help-more-en.ts", "help-course-setting-en.ts", "help-print-en.ts", "map-project-en.ts", "map-project-tools-en.ts", "map-project-more-en.ts", "map-sources-en.ts", "course-setting-en.ts", "course-setting-ux-en.ts", "course-setting-collab-en.ts", "course-setting-notes-en.ts", "course-setting-course-en.ts", "course-setting-look-en.ts", "course-setting-level-en.ts", "course-setting-edits-en.ts", "course-setting-training-en.ts", "course-setting-layout-en.ts", "course-setting-paper-en.ts", "course-setting-print-en.ts", "course-setting-print-more-en.ts", "course-setting-link-en.ts", "club-archive-en.ts", "club-archive-more-en.ts", "club-space-en.ts", "help-club-en.ts", "training-group-en.ts", "superadmin-en.ts", "club-planning-en.ts", "training-moments-en.ts", "map-project-north-en.ts",
   // Grenen hjalp-banlaggning: hjälpen för banläggningen, utskriften, vägvalen och klubbarkivet.
   "help-course-setting-sv.ts", "help-print-sv.ts", "help-archive-route-sv.ts",
   // Steg 40: festen.

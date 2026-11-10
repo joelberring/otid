@@ -21,9 +21,9 @@ describe("TASK 005G importadmin-UI", () => {
 
   it("visar StartList-delta och säger var resultaten räknas om", () => {
     const component = source("./import-admin.tsx");
-    const translations = source("../i18n/sv.ts");
+    const translations = source("../i18n/import-admin-sv.ts");
     expect(component).toContain('result.report.kind === "EntryList"');
-    expect(component).toContain("sv.importStartListSummary(");
+    expect(component).toContain("text.startListSummary(");
     expect(translations).toContain("resultat behöver räknas om under Resultat");
     // PLAN.md steg 24: inga interna ord på importsidan.
     for (const word of ["atomärt", "request-id", "SHA-256", "application/xml", "byte\" ", "Skyddad"]) expect(translations).not.toContain(word);

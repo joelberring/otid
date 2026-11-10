@@ -11,7 +11,6 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import Link from "next/link";
 import { ClassResultRecalculation } from "../class-result-recalculation";
 import { RecalculateRace } from "../race-corrections";
-import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { Button, Disclosure, Field, Notice, Section } from "../ui";
@@ -122,7 +121,7 @@ export function AfterRacePanel({ ws }: { ws: Workspace }) {
           <p>{finalizationCandidate.latestFinalization ? text.finalizationDone(formatClockTime(finalizationCandidate.latestFinalization.finalizedAt,
             data?.timeZone ?? "UTC")) : text.finalizationNone}</p>
           {finalizationCandidate.blockerCodes.length > 0 && <Notice tone="attention"><ul className={styles.changeList}>
-            {finalizationCandidate.blockerCodes.map(code => <li key={code}>{sv.resultFinalizationBlockers[code]}</li>)}</ul></Notice>}
+            {finalizationCandidate.blockerCodes.map(code => <li key={code}>{officialText.blockers[code]}</li>)}</ul></Notice>}
           <div><Button disabled={disabled || finalizationCandidate.blockerCodes.length > 0} onClick={prepareFinalization}>{text.finalizationReview}</Button></div>
         </>}
       </>}

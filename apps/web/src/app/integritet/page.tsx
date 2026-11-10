@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
 import { accountSv } from "../../i18n/account-sv";
+import { privacyEn } from "../../i18n/privacy-en";
+import { currentLanguage } from "../../lib/language-server";
 import { retentionSettings } from "@o-tid/application";
 import { operatorContactEmail } from "../../lib/operator-contact";
 import styles from "../../components/account-pages.module.css";
 
-export const metadata: Metadata = { title: "Personuppgifter – O-Tid" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: `${await currentLanguage() === "en" ? privacyEn.title : accountSv.privacy.title} – O-Tid` };
+}
 // Kontaktadressen (OTID_CONTACT_EMAIL, standard otid@berring.se) och gallringen (OTID_RETENTION, ADR-0189) läses ur serverns
 // miljö vid varje visning.
 export const dynamic = "force-dynamic";
 
-const text = accountSv.privacy;
-
 /** Kort text om personuppgifter (ADR-0172, PLAN.md steg 17). */
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const text = await currentLanguage() === "en" ? privacyEn : accountSv.privacy;
   const contact = operatorContactEmail();
   const retention = retentionSettings(process.env);
   return <main className={`${styles.page} ${styles.narrow}`}>

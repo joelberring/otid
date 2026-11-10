@@ -1,5 +1,6 @@
 "use client";
 
+import { publicResultEn, publicResultSv } from "../../i18n/public-en";
 import { useState } from "react";
 import { relayEn } from "../../i18n/workspace-relay-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
@@ -12,7 +13,6 @@ import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
-import { sv } from "../../i18n/sv";
 import { relaySv } from "../../i18n/relay-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { formatClockTime } from "../../lib/clock-time";
@@ -71,6 +71,7 @@ export function ParticipantsPanel({ ws }: { ws: Workspace }) {
 
 /** Deltagarlistan: sök och klass alltid, övriga filter under "Fler filter" (bara de som har något att visa). */
 export function ParticipantList({ ws }: { ws: Workspace }) {
+  const resultText = useTexts(publicResultSv, publicResultEn);
   const relayText = useTexts(relaySv, relayEn);
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
@@ -126,7 +127,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
       }}>
         {statusOptions.map(({ value, count }) => <option key={value} value={value}>
           {value === "ALL" ? text.rosterResultStateAll : value === "NO_ACTIVE_RESULT" ? text.rosterNoActiveFilter :
-            value === "NO_PUBLISHED_RESULT" ? text.rosterNoPublishedFilter : sv.publicResultsStatusLabels[value]} ({count})
+            value === "NO_PUBLISHED_RESULT" ? text.rosterNoPublishedFilter : resultText.statusLabels[value]} ({count})
         </option>)}
       </select></label>
       {fixedStarts && <label>{navigationText.rosterOrder}<select value={rosterOrder}
@@ -176,7 +177,7 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
           <td className={styles.rosterResultCell}>
             {entry.effectiveResult.state === "ACTIVE_RESULT"
               ? <><span className={styles.rosterResultLine}>
-                <strong className={entry.effectiveResult.result.status === "MP" || entry.effectiveResult.result.status === "DSQ" ? styles.rosterCritical : undefined}>{sv.publicResultsStatusLabels[entry.effectiveResult.result.status]}</strong>
+                <strong className={entry.effectiveResult.result.status === "MP" || entry.effectiveResult.result.status === "DSQ" ? styles.rosterCritical : undefined}>{resultText.statusLabels[entry.effectiveResult.result.status]}</strong>
                 {"elapsedMs" in entry.effectiveResult.result && entry.effectiveResult.result.elapsedMs !== undefined &&
                   <span className={styles.rosterResultTime}>{resultDuration(entry.effectiveResult.result.elapsedMs)}</span>}
               </span>{entry.notes?.wrongMap && <span className={styles.rosterStale} data-testid="roster-wrong-map">

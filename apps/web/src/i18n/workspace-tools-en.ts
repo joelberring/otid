@@ -382,7 +382,25 @@ export const resultsOfficialEn: Texts<typeof resultsOfficialSv> = {
   downloaded: "The IOF file is downloaded.",
   downloadError: "The IOF file could not be downloaded. Try again.",
   advanced: "Advanced: make one class official at a time",
-  advancedHelp: "Rarely needed. Make a finished class official while other classes are ongoing. The results are ready does it for all classes."
+  advancedHelp: "Rarely needed. Make a finished class official while other classes are ongoing. The results are ready does it for all classes.",
+  blockers: {
+    EMPTY_CLASS: "The class is empty and is not finalised separately.",
+    NO_ENTRIES: "The race has no participants.",
+    MISSING_RESULT_REVISION: "At least one participant has no result.",
+    LATEST_RESULT_UNPUBLISHED: "At least one participant's latest result is not published.",
+    INVALID_RESULT_REVISION: "At least one result or course cannot be checked.",
+    RESULT_CLASS_MISMATCH: "A result belongs to a class other than the participant's current one.",
+    RESULT_COURSE_MISMATCH: "A result does not use the class's current course.",
+    STALE_RESULT_SNAPSHOT: "At least one result is based on older data and needs to be recalculated.",
+    MIXED_COURSE_VERSIONS: "The class's results are based on different versions of the course. Recalculate the class.",
+    TOO_MANY_RESULTS: "There are too many results to finalise at once.",
+    TOO_MANY_CLASSES: "There are too many classes to finalise at once.",
+    UNKNOWN_CARD_UNRESOLVED: "There are unresolved readouts with an unknown card.",
+    WITHDRAWN_DID_NOT_START: "At least one participant's current manual did-not-start decision has been withdrawn and has no replacement result.",
+    MISSING_CLASS_FINALIZATION: "At least one non-empty class has no current finalisation.",
+    CLASS_FINALIZATION_OUTDATED: "At least one class finalisation is out of date.",
+    MULTI_RACE_EVENT: "The event contains several races; this release supports exactly one race."
+  }
 };
 
 /** Engelska, arbetsytan del 6: Ny tävling som den här. */

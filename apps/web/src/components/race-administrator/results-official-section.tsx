@@ -6,7 +6,6 @@ import { useTexts } from "../language-provider";
 import { formatDayMonthTime } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import { resultsOfficialSv } from "../../i18n/results-official-sv";
-import { sv } from "../../i18n/sv";
 import { mispunchedEntries } from "../../lib/section-status";
 import { Button, Notice, Section } from "../ui";
 import type { Workspace } from "./workspace-state";
@@ -45,7 +44,7 @@ export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
       {resultsOfficialBlocked && <Notice tone="attention" role="alert"><p><strong>{text.blockedTitle}</strong></p>
         <ul className={styles.changeList}>
           {resultsOfficialBlocked.raceBlockers.map(code => <li key={code}>{code === "UNKNOWN_CARD_UNRESOLVED" ? text.unknownCards
-            : sv.resultFinalizationBlockers[code]}</li>)}
+            : text.blockers[code]}</li>)}
           {resultsOfficialBlocked.classes.map(row => {
             // Steg 38: hinder som gäller en löpare visas med namn, vad man gör och "Öppna" till deltagarkortet.
             const entries = (row.entries ?? []).filter(issue => text.entryIssues[issue.code]);
@@ -53,7 +52,7 @@ export function ResultsOfficialSection({ ws }: { ws: Workspace }) {
             const rest = row.blockerCodes.filter(code => !covered.has(code));
             return [
               ...(rest.length > 0 ? [<li key={row.classId}>{text.blockedClass(row.className,
-                rest.map(code => code === "MISSING_RESULT_REVISION" ? text.missingResults : sv.resultFinalizationBlockers[code]).join(" "))}</li>] : []),
+                rest.map(code => code === "MISSING_RESULT_REVISION" ? text.missingResults : text.blockers[code]).join(" "))}</li>] : []),
               ...entries.map(issue => <li key={`${issue.entryId}-${issue.code}`} className={styles.issueRow}>
                 <span>{text.entryIssue(row.className, issue.displayName, text.entryIssues[issue.code]!)}</span>
                 {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.openEntryFor(issue.displayName)}

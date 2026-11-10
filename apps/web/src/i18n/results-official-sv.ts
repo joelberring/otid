@@ -41,5 +41,24 @@ export const resultsOfficialSv = {
   downloaded: "IOF-filen är nedladdad.",
   downloadError: "IOF-filen kunde inte laddas ner. Försök igen.",
   advanced: "Avancerat: fastställ en klass i taget",
-  advancedHelp: "Behövs sällan. Fastställ en färdig klass medan andra klasser pågår. Resultaten är klara gör det för alla klasser."
+  advancedHelp: "Behövs sällan. Fastställ en färdig klass medan andra klasser pågår. Resultaten är klara gör det för alla klasser.",
+  /** Varför en klass eller tävlingen inte kan fastställas (koderna kommer från servern). */
+  blockers: {
+    EMPTY_CLASS: "Klassen är tom och finaliseras inte separat.",
+    NO_ENTRIES: "Loppet saknar deltagare.",
+    MISSING_RESULT_REVISION: "Minst en deltagare saknar resultat.",
+    LATEST_RESULT_UNPUBLISHED: "Minst en deltagares senaste resultat är inte publicerat.",
+    INVALID_RESULT_REVISION: "Minst ett resultat eller en bana kan inte kontrolleras.",
+    RESULT_CLASS_MISMATCH: "Ett resultat tillhör inte deltagarens aktuella klass.",
+    RESULT_COURSE_MISMATCH: "Ett resultat använder inte klassens aktuella bana.",
+    STALE_RESULT_SNAPSHOT: "Minst ett resultat bygger på äldre uppgifter och behöver räknas om.",
+    MIXED_COURSE_VERSIONS: "Klassens resultat bygger på olika lydelser av banan. Räkna om klassen.",
+    TOO_MANY_RESULTS: "Det är för många resultat för att fastställa på en gång.",
+    TOO_MANY_CLASSES: "Det är för många klasser för att fastställa på en gång.",
+    UNKNOWN_CARD_UNRESOLVED: "Det finns olösta avläsningar med okänd bricka.",
+    WITHDRAWN_DID_NOT_START: "Minst en deltagares aktuella manuella ej-startbeslut är återtaget och saknar ersättningsresultat.",
+    MISSING_CLASS_FINALIZATION: "Minst en icke-tom klass saknar aktuell finalisering.",
+    CLASS_FINALIZATION_OUTDATED: "Minst en klassfinalisering är inaktuell.",
+    MULTI_RACE_EVENT: "Eventet innehåller flera lopp; detta snitt stödjer exakt ett lopp."
+  }
 } as const;

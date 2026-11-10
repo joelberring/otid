@@ -255,6 +255,17 @@ export const publicResultEn: Texts<typeof publicResultSv> = {
   missing: "Missing", extra: "Extra", showSplits: "Show split times", control: "Control", leg: "Leg", total: "Total"
 };
 
+/** Fastställda slutresultat (publik sida; översynen 2026-11-10, E). */
+export const frozenResultsSv = {
+  heading: sv.publicFrozenResults, back: sv.publicFrozenResultsBack, finalizedAt: sv.publicFrozenResultsFinalizedAt,
+  className: sv.publicResultsClass, participant: sv.publicResultsParticipant
+};
+export const frozenResultsEn: Texts<typeof frozenResultsSv> = {
+  heading: "Official final results", back: "To the live results",
+  finalizedAt: instant => `Finalised ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(new Date(instant))}`,
+  className: "Class", participant: "Participant"
+};
+
 /** Del 3: självregistreringens publika formulär (inte arbetsytans inställning och städning). */
 type SelfRegistrationForm = Omit<typeof selfRegistrationSv, "setting" | "settingTitle" | "selfRegistered" | "cleanup">;
 export const selfRegistrationEn: Texts<SelfRegistrationForm> = {

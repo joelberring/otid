@@ -7,7 +7,7 @@ import type { Database } from "@o-tid/database";
 import { clubPlanningEn } from "../i18n/club-planning-en";
 import { clubPlanningSv } from "../i18n/club-planning-sv";
 import { failure, guarded, mutation, problem, readProof, type ClubEnvironment } from "./club-route-handlers";
-import { requestLanguage, type Language } from "./language";
+import { languageOfRequest, type Language } from "./language";
 import { mailEnabled, mailErrorSummary, sendMessage } from "./mail";
 import { privateJson, securityPolicy } from "./security-policy";
 
@@ -34,7 +34,7 @@ function planTaskMailer(environment: ClubEnvironment, request: Request): PlanTas
   if (!configuration) return undefined;
   let origin: string;
   try { origin = securityPolicy(environment).publicOrigin; } catch { return undefined; }
-  const language = requestLanguage(request);
+  const language = languageOfRequest(request);
   return async mail => {
     try { await sendMessage(configuration, mail.to, planTaskMessage(mail, `${origin}/organizer`, language)); }
     catch (error) {

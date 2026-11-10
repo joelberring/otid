@@ -1,6 +1,7 @@
 "use client";
 
 import type { AdministratorEffectiveResultResponse } from "@o-tid/contracts";
+import { publicResultEn, publicResultSv } from "../../i18n/public-en";
 import { removalEn } from "../../i18n/workspace-tools-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { participantCardEn, startRuleEn } from "../../i18n/workspace-admin-en";
@@ -13,7 +14,6 @@ import { raceWorkspaceNavigationSv } from "../../i18n/race-workspace-navigation-
 import { startRuleSv } from "../../i18n/start-rule-sv";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
-import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { RaceParticipantFacts } from "../race-participant-facts";
 import { RaceResultControls } from "../race-result-controls";
@@ -102,6 +102,7 @@ function WrongMap({ ws, wrongMap }: { ws: Workspace; wrongMap: { assignedCode: s
 
 /** Resultatet i ord: status, löptid, orsak och gällande beslut. */
 function CardResult({ ws, result, error }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined; error: boolean }) {
+  const resultText = useTexts(publicResultSv, publicResultEn);
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const startRule = useTexts(startRuleSv, startRuleEn);
   const text = useTexts(participantCardSv, participantCardEn);
@@ -114,9 +115,9 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
         : <>
           <p><strong className={result.result.status === "MP" || result.result.status === "DSQ" || result.result.status === "OVERTIME"
             ? styles.rosterCritical : undefined}>
-            {sv.publicResultsStatusLabels[result.result.status]}</strong>
+            {resultText.statusLabels[result.result.status]}</strong>
             {"elapsedMs" in result.result && result.result.elapsedMs !== undefined && <> · {text.runningTime} {resultDuration(result.result.elapsedMs)}</>}</p>
-          <p>{sv.publicResultsReasonLabels[result.result.reason]}
+          <p>{resultText.reasonLabels[result.result.reason]}
             {result.governingDecision !== "NONE" && <> · {text.decision}: <strong>{adminText.governingDecisions[result.governingDecision]}</strong></>}</p>
           {/* PLAN.md steg 25: diskens orsak och startstämplingen vid minutstart, bara i arbetsytan. */}
           {result.notes?.disqualificationReason && <p data-testid="dsq-reason">{text.dsqReasonShown(result.notes.disqualificationReason)}</p>}
@@ -140,12 +141,13 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
 
 /** Kort historik över resultatändringar, nyaste först, med klockslag i tävlingens tidszon. */
 function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveResultResponse; timeZone: string }) {
+  const resultText = useTexts(publicResultSv, publicResultEn);
   const text = useTexts(participantCardSv, participantCardEn);
   return <section className={styles.workspace} aria-label={text.history}>
     <h3>{text.history}</h3>
     {result.history.length === 0 ? <p>{text.historyEmpty}</p> : <ul className={styles.changeList}>
       {result.history.map(row => <li key={row.revision}>{text.historyLine(formatClockTime(row.at, timeZone),
-        text.historyCauses[row.cause], sv.publicResultsStatusLabels[row.status])}</li>)}
+        text.historyCauses[row.cause], resultText.statusLabels[row.status])}</li>)}
     </ul>}
   </section>;
 }

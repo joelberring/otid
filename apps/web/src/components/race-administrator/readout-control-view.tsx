@@ -1,12 +1,12 @@
 "use client";
 
+import { publicResultEn, publicResultSv } from "../../i18n/public-en";
 import { useEffect, useRef } from "react";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
 import styles from "./readout-control.module.css";
 import workspaceStyles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
-import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceDayStarted } from "@o-tid/domain";
 import { inForest, mispunchedEntries } from "../../lib/section-status";
@@ -102,6 +102,7 @@ export function MispunchedList({ ws }: { ws: Workspace }) {
 }
 
 function LatestReadouts({ ws }: { ws: Workspace }) {
+  const resultText = useTexts(publicResultSv, publicResultEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { latestReadouts } = ws;
   if (!latestReadouts) return <p>{text.controlNotLoaded}</p>;
@@ -112,7 +113,7 @@ function LatestReadouts({ ws }: { ws: Workspace }) {
       <span><strong>{row.givenName} {row.familyName}</strong><span>{row.className}</span></span>
       <span className={styles.latestResult} data-status={row.state === "ACTIVE_RESULT" ? row.result.status : undefined}>
         {row.state === "ACTIVE_RESULT" && <span aria-hidden="true">{row.result.status === "OK" ? "✓ " : row.result.status === "MP" ? "✗ " : ""}</span>}
-        {row.state === "ACTIVE_RESULT" ? sv.publicResultsStatusLabels[row.result.status] : text.noActiveResult}
+        {row.state === "ACTIVE_RESULT" ? resultText.statusLabels[row.result.status] : text.noActiveResult}
         {row.state === "ACTIVE_RESULT" && "elapsedMs" in row.result && row.result.elapsedMs !== undefined &&
           <> · {resultDuration(row.result.elapsedMs)}</>}
       </span>

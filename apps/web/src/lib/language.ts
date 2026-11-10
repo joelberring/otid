@@ -10,13 +10,6 @@ const NORDIC = /^(sv|nb|nn|no|da|fi)(-|$)/;
 
 export const isLanguage = (value: unknown): value is Language => value === "sv" || value === "en";
 
-/** Språket för ett anrop till en route (kakan, annars webbläsarens språk), t.ex. för mejl som skickas från anropet. */
-export function requestLanguage(request: Request): Language {
-  const cookie = (request.headers.get("cookie") ?? "").split(";").map(part => part.trim().split("="))
-    .find(([key]) => key === LANGUAGE_COOKIE)?.[1];
-  return languageFrom(cookie, request.headers.get("accept-language"));
-}
-
 export function languageFrom(cookie: string | undefined, acceptLanguage: string | null | undefined): Language {
   if (isLanguage(cookie)) return cookie;
   const tags = (acceptLanguage ?? "").split(",").map(part => part.split(";")[0]!.trim().toLowerCase()).filter(tag => tag && tag !== "*");

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { languageFrom, languageHref, pickTexts, requestLanguage } from "./language";
+import { languageFrom, languageHref, pickTexts, languageOfRequest } from "./language";
 
 /** Idéerna 2026-11-08: språket ur kakan, annars engelska bara när webbläsaren inte nämner svenska eller nordiska språk. */
 describe("språket", () => {
   it("språket för ett anrop: kakan bland andra kakor, annars webbläsaren", () => {
     const request = (headers: Record<string, string>) => new Request("https://tid.example/api", { headers });
-    expect(requestLanguage(request({ cookie: "otid-session=x; otid-lang=en", "accept-language": "sv-SE" }))).toBe("en");
-    expect(requestLanguage(request({ "accept-language": "en-GB" }))).toBe("en");
-    expect(requestLanguage(request({}))).toBe("sv");
+    expect(languageOfRequest(request({ cookie: "otid-session=x; otid-lang=en", "accept-language": "sv-SE" }))).toBe("en");
+    expect(languageOfRequest(request({ "accept-language": "en-GB" }))).toBe("en");
+    expect(languageOfRequest(request({}))).toBe("sv");
   });
 
   it("kakan går före webbläsaren; nordiska språk någonstans i listan ger svenska", () => {

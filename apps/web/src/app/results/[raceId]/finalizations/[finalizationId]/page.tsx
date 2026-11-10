@@ -3,7 +3,9 @@ import { maskPublicNames } from "@o-tid/domain";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicFrozenRaceResults } from "../../../../../components/public-frozen-race-results";
-import { sv } from "../../../../../i18n/sv";
+import { frozenResultsEn, frozenResultsSv } from "../../../../../i18n/public-en";
+import { pickTexts } from "../../../../../lib/language";
+import { currentLanguage } from "../../../../../lib/language-server";
 import { db } from "../../../../../lib/db";
 import { requirePublicRace } from "../../../../../lib/public-race-gate";
 import { PreviewBanner } from "../../../../../components/public-race/preview-banner";
@@ -12,12 +14,13 @@ export const dynamic = "force-dynamic";
 
 export default async function PublicFrozenRaceResultsPage({ params }: { params: Promise<{ raceId: string; finalizationId: string }> }) {
   const { raceId, finalizationId } = await params;
+  const language = await currentLanguage();
   const access = await requirePublicRace(raceId);
   const result = await readPublicFrozenRaceResults(db, raceId, finalizationId);
   if (result.status !== "ok") notFound();
   return <main className="stack">
-    <nav className="nav"><Link href={`/results/${raceId}`}>{sv.publicFrozenResultsBack}</Link></nav>
+    <nav className="nav"><Link href={`/results/${raceId}`}>{pickTexts(language, frozenResultsSv, frozenResultsEn).back}</Link></nav>
     <PreviewBanner access={access} />
-    <section className="panel"><PublicFrozenRaceResults result={maskPublicNames(result.response, await raceGroupNameDisplay(db, raceId))} /></section>
+    <section className="panel"><PublicFrozenRaceResults result={maskPublicNames(result.response, await raceGroupNameDisplay(db, raceId))} language={language} /></section>
   </main>;
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { aiAuthorizeEn } from "../i18n/ai-en";
 import { aiSv } from "../i18n/ai-sv";
+import { useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { saveAfterLogin } from "../lib/after-login";
 import { Button, Notice } from "./ui";
 import styles from "./account-pages.module.css";
 
-const text = aiSv.authorize;
 type State =
   | { kind: "checking" } | { kind: "login" } | { kind: "failed" } | { kind: "invalid"; description: string }
   | { kind: "ready"; clientName: string; redirectHost: string; accountEmail: string; scopes: string[] };
@@ -17,6 +18,7 @@ type State =
  * in och kommer tillbaka hit. Tillåt eller neka skickar webbläsaren till AI-tjänstens adress med koden eller felet.
  */
 export function OauthAuthorizePage() {
+  const text = useTexts(aiSv.authorize, aiAuthorizeEn);
   const [state, setState] = useState<State>({ kind: "checking" });
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState<Record<string, string>>({});

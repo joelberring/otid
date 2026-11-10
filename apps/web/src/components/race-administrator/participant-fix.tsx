@@ -1,5 +1,7 @@
 "use client";
 
+import type { Texts } from "../../lib/language";
+import { publicResultEn, publicResultSv } from "../../i18n/public-en";
 import { useState } from "react";
 import { correctionEn } from "../../i18n/workspace-small-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
@@ -12,7 +14,6 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { correctionSv } from "../../i18n/correction-sv";
-import { sv } from "../../i18n/sv";
 import { availableStatusChoices, isStatusChoice } from "../../lib/participant-status-choices";
 import { ManualFinishTimeCorrection, ManualFinishTimeCorrectionWithdrawal, ManualPunchStartTimeCorrection,
   ManualPunchStartTimeCorrectionWithdrawal } from "../manual-time-correction";
@@ -116,12 +117,12 @@ function ParticipantVariant({ ws }: { ws: Workspace }) {
 }
 
 
-function consequence(attempt: StatusAttempt, text: CardTexts): string {
+function consequence(attempt: StatusAttempt, text: CardTexts, statusLabels: Texts<typeof publicResultSv>["statusLabels"]): string {
   if (attempt.kind === "RECALCULATION") return text.consequences.RECALCULATION;
   switch (attempt.choice) {
     case "APPROVAL_WITHDRAWAL": case "DSQ_WITHDRAWAL": case "NT_WITHDRAWAL": case "OOC_WITHDRAWAL": case "DNF_WITHDRAWAL":
     case "MANUAL_TIME_WITHDRAWAL": case "CONTROL_APPROVAL_WITHDRAWAL":
-      return attempt.restores ? text.withdrawalConsequence(sv.publicResultsStatusLabels[attempt.restores.status])
+      return attempt.restores ? text.withdrawalConsequence(statusLabels[attempt.restores.status])
         : text.noDecisionWithdrawalConsequence;
     case "DNS_WITHDRAWAL": return text.dnsWithdrawalConsequence;
     default: return text.consequences[attempt.choice];
@@ -130,7 +131,7 @@ function consequence(attempt: StatusAttempt, text: CardTexts): string {
 
 /** "Ändra status": ett val, ett besked i en mening och en bekräftelse. */
 function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffectiveResultResponse | undefined }) {
-  const text = useTexts(participantCardSv, participantCardEn);
+  const text = useTexts(participantCardSv, participantCardEn), resultText = useTexts(publicResultSv, publicResultEn);
   const { busy, cancelStatusChange, chooseStatusChange, confirmStatusChange, decisionAttempt, disabled, raceId,
     recalculationAttempt, statusBlocked, statusChoice, unknown } = ws;
   const attempt: StatusAttempt | undefined = decisionAttempt ?? recalculationAttempt;
@@ -150,7 +151,7 @@ function StatusChange({ ws, result }: { ws: Workspace; result: AdministratorEffe
     </select>
     {statusBlocked && <p className={styles.warning} role="status">{statusBlocked}</p>}
     {attempt && <div className={styles.review} role="alert">
-      <p><strong>{consequence(attempt, text)}</strong></p>
+      <p><strong>{consequence(attempt, text, resultText.statusLabels)}</strong></p>
       {/* Disk med orsak (PLAN.md steg 25): orsaken visas bara i arbetsytan, aldrig publikt. */}
       {asksReason && <label className={styles.narrowField} htmlFor={`${id}-reason`}>{reasonLabel}
         <input id={`${id}-reason`} value={reason} maxLength={240} disabled={busy || unknown} autoComplete="off"

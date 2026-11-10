@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { accountMenuEn } from "../i18n/account-en";
 import { accountMenuSv } from "../i18n/account-menu-sv";
+import { useTexts } from "./language-provider";
 import styles from "./guest-notice.module.css";
 
 /**
@@ -10,6 +12,7 @@ import styles from "./guest-notice.module.css";
  * för vanliga konton (frågan "vem är inloggad?" ger då inget `guestExpiresAt`).
  */
 export function GuestNotice() {
+  const text = useTexts(accountMenuSv, accountMenuEn);
   const [until, setUntil] = useState<Date>();
   useEffect(() => {
     let active = true;
@@ -22,7 +25,7 @@ export function GuestNotice() {
   }, []);
   if (!until) return null;
   return <p className={styles.notice} data-testid="guest-notice">
-    <strong>{accountMenuSv.guestBadge}</strong> <span>{accountMenuSv.guestNote(until)}</span>{" "}
-    <Link href="/organizer" prefetch={false}>{accountMenuSv.createAccount}</Link>
+    <strong>{text.guestBadge}</strong> <span>{text.guestNote(until)}</span>{" "}
+    <Link href="/organizer" prefetch={false}>{text.createAccount}</Link>
   </p>;
 }

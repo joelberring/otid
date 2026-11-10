@@ -1,13 +1,13 @@
 "use client";
 
 import type { RelayOverview } from "@o-tid/contracts";
+import { publicResultEn, publicResultSv } from "../../i18n/public-en";
 import { relayEn } from "../../i18n/workspace-relay-en";
 import { useTexts } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import relayStyles from "./relay.module.css";
 import type { Texts } from "../../lib/language";
 import { relaySv } from "../../i18n/relay-sv";
-import { sv } from "../../i18n/sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { resultDuration } from "./types";
 import { RelayMessages, useRelayLoad } from "./relay-panels";
@@ -72,6 +72,7 @@ export function RelayTeams({ ws, visible }: { ws: Workspace; visible: boolean })
 
 /** Lagkortet: sträckorna med löpare, bricka, bana, variant, start och resultat; byt löpare, byt variant och ändra laget. */
 function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
+  const resultText = useTexts(publicResultSv, publicResultEn);
   const text = useTexts(relaySv, relayEn);
   const { busy, cancelRunnerChange, cancelVariantChange, chooseVariant, relay, removeTeam, runnerChange, saveRunnerChange,
     saveVariantChange, setRunnerChange, setSelectedTeamId, startRunnerChange, startTeamEdit, teamDidNotStart, teamEdit, variantChange,
@@ -99,7 +100,7 @@ function TeamCard({ ws, team }: { ws: Workspace; team: Team }) {
           <td>{leg.givenName} {leg.familyName}<span className={relayStyles.muted}> {leg.organisationName ?? ""}</span></td>
           <td>{leg.cardNumber ?? text.noCard}</td>
           <td>{leg.startTime ? formatClockTime(leg.startTime, timeZone) : text.waitingStart}{leg.restarted ? ` · ${text.restarted}` : ""}</td>
-          <td>{leg.status ? <span className={relayStyles.status} data-status={leg.status}>{sv.publicResultsStatusLabels[leg.status]}
+          <td>{leg.status ? <span className={relayStyles.status} data-status={leg.status}>{resultText.statusLabels[leg.status]}
             {leg.elapsedMs !== null ? ` · ${resultDuration(leg.elapsedMs)}` : ""}</span> : "–"}
             {leg.changeoverMissing && <strong className={relayStyles.status} data-status="MP"> · {text.changeoverMissing}</strong>}
             {/* Steg 50: utläsningen som sträckan bygger på (teamsprint: en per sträcka) och en utläsning som saknas. */}

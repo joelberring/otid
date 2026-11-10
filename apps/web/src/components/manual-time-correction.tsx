@@ -1,5 +1,6 @@
 "use client";
 
+import { publicResultEn, publicResultSv } from "../i18n/public-en";
 import { useEffect, useState, type FormEvent, type SyntheticEvent } from "react";
 import { raceAdministratorEn } from "../i18n/workspace-admin-en";
 import { useTexts } from "./language-provider";
@@ -7,7 +8,6 @@ import type { EntryStatusRequest, EntryStatusResponse } from "@o-tid/contracts";
 import { raceAdministratorSv } from "../i18n/race-administrator-sv";
 import { formatClockTime, parseRaceClockNear, zonedDate } from "../lib/clock-time";
 import { entryStatusRequest, fetchEntryStatus, postEntryStatus } from "../lib/entry-status-client";
-import { sv } from "../i18n/sv";
 import styles from "./race-administrator-workspace.module.css";
 
 /**
@@ -80,6 +80,7 @@ function useCorrection(props: Props) {
 }
 
 export function ManualFinishTimeCorrection(props: Props) {
+  const resultText = useTexts(publicResultSv, publicResultEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const c = useCorrection(props);
   const [finishLocal, setFinishLocal] = useState("");
@@ -110,7 +111,7 @@ export function ManualFinishTimeCorrection(props: Props) {
       {candidate && source && !attempt && <>
         <div className={styles.summaryBox}>
           <p><strong>{candidate.status.entryName}</strong> · {candidate.status.className}</p>
-          <p><strong>{text.finishTimeCorrectionSource}:</strong> {sv.publicResultsStatusLabels[source.status]}</p>
+          <p><strong>{text.finishTimeCorrectionSource}:</strong> {resultText.statusLabels[source.status]}</p>
           <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatClockTime(source.startTime, timeZone)}</p>
           <p><strong>{text.finishTimeCorrectionFinish}:</strong> {formatClockTime(source.finishTime, timeZone)} · <strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(source.elapsedMs)}</p>
           <p><strong>{text.finishTimeCorrectionLastSplit}:</strong> {source.latestMatchedSplitElapsedMs === null ? text.finishTimeCorrectionNoSplit : duration(source.latestMatchedSplitElapsedMs)}</p>
@@ -139,6 +140,7 @@ export function ManualFinishTimeCorrection(props: Props) {
 }
 
 export function ManualPunchStartTimeCorrection(props: Props) {
+  const resultText = useTexts(publicResultSv, publicResultEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const c = useCorrection(props);
   const [startLocal, setStartLocal] = useState("");
@@ -167,7 +169,7 @@ export function ManualPunchStartTimeCorrection(props: Props) {
         void c.load((status) => status.readiness.START_TIME === "READY" ? status.timing : null, text.punchStartTimeCorrectionLoadError);
       }}>{text.punchStartTimeCorrectionLoad}</button>}
       {candidate && source && !attempt && <><div className={styles.summaryBox}><p><strong>{candidate.status.entryName}</strong> · {candidate.status.className}</p>
-        <p><strong>{text.finishTimeCorrectionSource}:</strong> {sv.publicResultsStatusLabels[source.status]}</p>
+        <p><strong>{text.finishTimeCorrectionSource}:</strong> {resultText.statusLabels[source.status]}</p>
         <p><strong>{text.finishTimeCorrectionStart}:</strong> {formatClockTime(source.startTime, timeZone)} · <strong>{text.finishTimeCorrectionFinish}:</strong> {formatClockTime(source.finishTime, timeZone)}</p>
         <p><strong>{text.finishTimeCorrectionElapsed}:</strong> {duration(source.elapsedMs)} · <strong>{text.punchStartTimeCorrectionFirstControl}:</strong> {firstControl ? `${firstControl.controlCode} · ${duration(firstControl.elapsedMs)}` : text.finishTimeCorrectionNoSplit}</p></div>
         <label>{text.punchStartTimeCorrectionNewStart}<input type="text" inputMode="numeric" autoComplete="off" placeholder="19:42:05" value={startLocal} disabled={c.busy} onChange={(event) => setStartLocal(event.target.value)} required /></label>

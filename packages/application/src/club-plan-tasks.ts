@@ -278,10 +278,11 @@ export async function linkPlannedRace(db: Database, input: ClubProof & { clubId:
   : Promise<LinkPlannedRaceResult> {
   const raw = input.request as { formatVersion?: unknown; raceId?: unknown } | null;
   const raceId = raw?.raceId === null ? null : typeof raw?.raceId === "string" && UUID_PATTERN.test(raw.raceId) ? raw.raceId : undefined;
-  if (raw?.formatVersion !== 1 || raceId === undefined) return { status: "invalid-request" };
   return db.transaction(async tx => {
+    // Behörigheten först: den som inte får ändra planen får 403, inte 400, oavsett vad som skickades.
     const found = await leaderSession(tx, input, now);
     if (found.status !== "ok") return found;
+    if (raw?.formatVersion !== 1 || raceId === undefined) return { status: "invalid-request" } as const;
     const { access, session } = found;
     if (raceId === null) {
       await tx.update(sessions).set({ raceId: null, version: session.version + 1, updatedAt: now }).where(eq(sessions.id, session.id));

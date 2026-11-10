@@ -45,6 +45,7 @@ import { Button, Notice } from "../ui";
 import { BlProposalPanel } from "./course-setting-bl-proposal";
 import { PrintColors } from "./course-setting-print-colors";
 import { printOutputSv } from "../../i18n/course-setting-print-overview-sv";
+import { RacePrintFiles } from "../race-print-files";
 import { PdfPanel } from "./course-setting-pdf-panel";
 import { printPdfSv } from "../../i18n/course-setting-print-pdf-sv";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
@@ -89,6 +90,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const trainingText = useTexts(trainingSv, trainingEn);
   const [loaded, setDocument] = useState<CourseSettingDocument | null>();
   const [canEdit, setCanEdit] = useState(false);
+  /** Ägaren 2026-11-10: läser om de sparade utskrifterna när ett tryckjobb sparats i träningen. */
+  const [savedPrints, setSavedPrints] = useState(0);
   const [mapBounds, setMapBounds] = useState<MapRect>();
   const [hasMap, setHasMap] = useState(false);
   // ADR-0218: kartfilens sha256, så att förhandsvisningen hämtar filen ur webbläsarens lager som banläggningen.
@@ -372,8 +375,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
               savedTemplateIds: (document.event.layoutTemplates ?? []).map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex: mode === "RUNNERS" ? duplex : partsDuplex,
               ...(mode === "RUNNERS" && !mainTemplate ? { ownPage: true } : {}),
               pieces: mode === "COURSES" && pieces,
-              ...(bundles ? { date: bundles.raceDate } : {}) }} />
+              ...(bundles ? { date: bundles.raceDate } : {}) }} onSaved={() => setSavedPrints(key => key + 1)} />
         </div>
+        <RacePrintFiles raceId={raceId} canEdit={canEdit} reloadKey={savedPrints} />
       </section>
       {unsaved && <SaveFailed onRetry={() => void saveShown(unsaved)} />}
       {!hasMap && <p className={styles.muted}>{text.page.noMap}</p>}

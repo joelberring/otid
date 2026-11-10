@@ -3,7 +3,7 @@ import { acceptInvitationsForRace } from "./account-arrival";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { authorizeUserAccountSession } from "./user-account";
-import { groupLeaderGrant } from "./training-group-access";
+import { groupLeaderGrant, planLeaderGrant } from "./training-group-access";
 import { accountEmailVerified } from "./email-verification";
 
 /**
@@ -95,6 +95,9 @@ export async function activeEventAdministrationGrant(
   if (verified && !input.ownerOnly && !input.grantId && !input.explicitOnly && roles.includes("ADMIN")) {
     const leader = await groupLeaderGrant(tx, { accountId: input.accountId, eventId: input.eventId }, lock);
     if (leader) return { id: leader.id, role: "ADMIN" };
+    // Ägaren 2026-11-10: en träning i klubbens terminsplan har klubbens ledare som administratörer.
+    const planLeader = await planLeaderGrant(tx, { accountId: input.accountId, eventId: input.eventId }, lock);
+    if (planLeader) return { id: planLeader.id, role: "ADMIN" };
   }
   return explicit;
 }

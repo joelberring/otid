@@ -14,6 +14,7 @@ import {
   claimPrintJob, cleanupPrintJobs, createPrintJobAsAdmin, deletePrintJobAsAdmin, listPrintJobsAsAdmin, PRINT_JOB_LIMITS, readPrintJobPdfAsAdmin, runPrintJob
 } from "../../src/course-setting-print";
 import { createManualCourseClassAsAdmin } from "../../src/manual-course-class";
+import { listRacePrintFiles, readRacePrintFile, removeRacePrintFile, saveRacePrintFile } from "../../src/race-print-files";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
 import { ingestReadoutsAsAdmin } from "../../src/readout-station";
 import { contentHash } from "../../src/serialization";
@@ -194,6 +195,23 @@ describe("steg 65: PDF för tryck på servern", { timeout: 240_000 }, () => {
     expect((await work()).outcome).toBe("DONE");
     const officePdf = await readPrintJobPdfAsAdmin(db, { ...owner, jobId: office.job.id });
     expect(officePdf.status === "ok" && Buffer.from(officePdf.pdf).toString("latin1")).not.toMatch(/\/Separation/);
+
+    // Ägaren 2026-11-10: den färdiga PDF:en sparas i träningen och ligger kvar när jobben rensas; en egen PDF också.
+    const saved = await saveRacePrintFile(db, { ...owner, fileName: "", label: "", fromJobId: created.job.id });
+    expect(saved).toMatchObject({ status: "ok", file: { source: "PRINT_JOB", fileName: "utskrift.pdf" } });
+    const own = await saveRacePrintFile(db, { ...owner, fileName: "Kontrollkort", label: "Till kontrollerna", pdf: new TextEncoder().encode("%PDF-1.4 x") });
+    expect(own).toMatchObject({ status: "ok", file: { source: "UPLOAD", fileName: "Kontrollkort.pdf", label: "Till kontrollerna" } });
+    expect((await saveRacePrintFile(db, { ...owner, fileName: "x", label: "", pdf: new TextEncoder().encode("inte en pdf") })).status).toBe("invalid-request");
+    const files = await listRacePrintFiles(db, owner);
+    expect(files.status === "ok" && files.files.map(file => file.source)).toEqual(["PRINT_JOB", "UPLOAD"]);
+    const fileId = saved.status === "ok" ? saved.file.fileId : "";
+    const read = await readRacePrintFile(db, { ...owner, fileId });
+    expect(read.status === "ok" && Buffer.from(read.pdf).toString("latin1").startsWith("%PDF-")).toBe(true);
+    // Den som bara får läsa banläggningen får inte spara eller ta bort; en främling ser inget.
+    const stranger = await registerTestAccount(db);
+    expect((await listRacePrintFiles(db, { raceId: owner.raceId, ...stranger.proof })).status).toMatch(/forbidden|unauthorized/);
+    expect(await removeRacePrintFile(db, { ...owner, fileId })).toEqual({ status: "ok" });
+    expect(await readRacePrintFile(db, { ...owner, fileId })).toEqual({ status: "not-found" });
 
     // Borttaget medan det körs: arbetaren sparar inget.
     const gone = await createPrintJobAsAdmin(db, { ...owner, request: request([doc.courses[0]!.id]) });

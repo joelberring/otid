@@ -67,6 +67,9 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/print-jobs": { GET: "ADMIN", POST: "ADMIN" },
   "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]": { DELETE: "ADMIN" },
   "admin/races/[raceId]/administrator/course-setting/print-jobs/[jobId]/pdf": { GET: "ADMIN" },
+  // Ägaren 2026-11-10: sparade utskrifter.
+  "admin/races/[raceId]/administrator/course-setting/print-files": { GET: "COMMENT", POST: "EDIT" },
+  "admin/races/[raceId]/administrator/course-setting/print-files/[fileId]": { GET: "COMMENT", DELETE: "EDIT" },
   // ADR-0197: papperets bilder (den som ändrar laddar upp, den som läser ser dem) och kontots mallbibliotek.
   "admin/races/[raceId]/administrator/course-setting/paper-images": { POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/paper-images/[sha256]": { GET: "COMMENT" },

@@ -112,6 +112,8 @@ export const RACE_BACKUP_TABLES: readonly BackupTable[] = [
   raceTable("party_purchase_void"),
   raceTable("party_presence_void"),
   raceTable("party_logo"),
+  // Ägaren 2026-11-10 (migration 0111): utskrifternas sparade PDF:er.
+  raceTable("race_print_file"),
   // Eventor: vilken tävling och klubb, aldrig den krypterade nyckeln. Arrangören klistrar in nyckeln igen.
   raceTable("race_eventor_link", { omit: ["key_id", "iv", "tag", "ciphertext"] }),
   raceTable("audit_event")

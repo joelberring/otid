@@ -13,6 +13,9 @@ import {
   createPrintJob, deletePrintJob, fetchPrintJobs, pdfAllowed, pdfPreflight, printJobPdfUrl, printJobRequest, type PrintJobSelection
 } from "../../lib/course-setting-print-jobs";
 import { Button, Notice } from "../ui";
+import { racePrintFilesEn } from "../../i18n/race-print-files-en";
+import { racePrintFilesSv } from "../../i18n/race-print-files-sv";
+import { saveRacePrintJob } from "../../lib/race-print-files";
 import styles from "./course-setting-print-page.module.css";
 
 /**
@@ -20,12 +23,15 @@ import styles from "./course-setting-print-page.module.css";
  * (ColorPreflight mot det PDF:en kan) visas först: blockerande fel stoppar och varningar måste bekräftas. Jobben skrivs
  * på servern med låg prioritet; listan frågar varannan sekund medan något väntar eller skrivs.
  */
-export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, blockedText, heading, help }: {
+export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, blockedText, heading, help, onSaved }: {
   raceId: string; selection: PrintJobSelection; profile: PrintProfile; colors: readonly MapColor[]; usage?: ReadonlyMap<number, ColorUsage> | undefined;
   disabled: boolean; blockedText?: string | undefined;
   /** Rubriken och raden under (ADR-0211 beslut 7: "Skapa PDF för tryckeriet" bredvid "Skriv ut på skrivare"). */
   heading?: string | undefined; help?: string | undefined;
+  /** Ägaren 2026-11-10: ett klart jobb sparat i träningen (Sparade utskrifter). */
+  onSaved?: (() => void) | undefined;
 }) {
+  const savedText = useTexts(racePrintFilesSv, racePrintFilesEn);
   const colorsText = useTexts(printColorsSv, printColorsEn);
   const text = useTexts(printPdfSv, printPdfEn);
   const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
@@ -116,6 +122,9 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
         {job.notes.length > 0 && <details><summary>{text.notes}</summary><ul className={styles.problems}>{job.notes.map((note, index) => <li key={index}>{note}</li>)}</ul></details>}
         <div className={styles.row}>
           {job.status === "DONE" && <a href={printJobPdfUrl(raceId, job.id)} download data-testid="print-job-download">{text.download}</a>}
+          {job.status === "DONE" && <Button variant="secondary" data-testid="print-job-save" onClick={() => void saveRacePrintJob(raceId, job.id,
+            `${job.label.replace(/[:/\\]/g, " ").slice(0, 100)}.pdf`).then(() => { setMessage({ tone: "ok", text: savedText.savedJob }); onSaved?.(); },
+            () => setMessage({ tone: "error", text: savedText.failed }))}>{savedText.saveJob}</Button>}
           <Button variant="quiet" onClick={() => void remove(job)}>{text.remove}</Button>
         </div>
       </li>)}

@@ -9,6 +9,7 @@ import { planFailure, planRequest, shortDate } from "../../lib/club-planning-cli
 import { useLanguage, useTexts } from "../language-provider";
 import { Notice } from "../ui";
 import styles from "./club-planning.module.css";
+import { RacePrintFiles } from "../race-print-files";
 
 /**
  * ADR-0221 beslut 3: Mina uppgifter på Mina tävlingar – bara de egna uppgifterna ur klubbarnas terminsplanering, med
@@ -49,8 +50,11 @@ export function MyPlanTasks() {
         <p className={styles.small}>{[task.responsibleName ? text.mine.responsible(task.responsibleName) : "", task.mapName ?? ""].filter(Boolean).join(" · ")}</p>
         {task.otherTasks.length > 0 && <p className={styles.small}>{text.mine.otherTasks}: {task.otherTasks.map(other =>
           `${other.title}${other.done ? " ✓" : ""}`).join(", ")}</p>}
-        {task.raceId ? <Link className={styles.link} href={`/admin/${task.raceId}/course-setting`}>{text.mine.courseSetting}</Link>
-          : <p className={styles.small}>{text.mine.notCreated}</p>}
+        {task.raceId ? <>
+          <Link className={styles.link} href={`/admin/${task.raceId}/course-setting`}>{text.mine.courseSetting}</Link>
+          {/* Ägaren 2026-11-10: de sparade utskrifterna, t.ex. för den som ska skriva ut kartorna. */}
+          <RacePrintFiles raceId={task.raceId} canEdit={false} compact />
+        </> : <p className={styles.small}>{text.mine.notCreated}</p>}
       </li>)}
     </ul>
   </section>;

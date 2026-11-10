@@ -6,6 +6,7 @@ import {
   printJobSchema, printJobsSchema, syncPreviewResponseSchema, PAPER_IMAGE_MAX_BYTES, PAPER_TEMPLATE_MAX_BYTES, paperImageSchema, paperLibrarySchema
 } from "@o-tid/contracts";
 import { createCourseSettingEventStream, publishCourseSettingEvent } from "./course-setting-events";
+import { RACE_PRINT_FILE_LIMITS } from "@o-tid/application";
 import { adminFailure as failure, privateHeaders, privateJson as json, readBoundedBytes, readJsonBody, RequestBodyError, validDeclaredLength } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 
@@ -264,6 +265,42 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       return new Response(new Uint8Array(result.pdf.buffer as ArrayBuffer, result.pdf.byteOffset, result.pdf.byteLength), { headers: { ...privateHeaders,
         "content-type": "application/pdf", "content-length": String(result.pdf.byteLength),
         "content-disposition": `attachment; filename="${result.fileName}"` } });
+    }
+    case "course-setting-print-files": {
+      if (request.method === "GET") {
+        const result = await dependencies.printFiles(db, input);
+        if (result.status !== "ok") return resultFailure(result.status);
+        return json({ formatVersion: 1, raceId, files: result.files, maxBytes: RACE_PRINT_FILE_LIMITS.maxBytes });
+      }
+      const header = (name: string) => { try { return decodeURIComponent(request.headers.get(name) ?? ""); } catch { return ""; } };
+      const fileName = header("x-otid-file-name").slice(0, 200), label = header("x-otid-label").slice(0, 200);
+      let result;
+      if ((request.headers.get("content-type") ?? "") === "application/pdf") {
+        if (!validDeclaredLength(request, RACE_PRINT_FILE_LIMITS.maxBytes)) return resultFailure("too-large");
+        let pdf: Uint8Array;
+        try { pdf = await readBoundedBytes(request, RACE_PRINT_FILE_LIMITS.maxBytes); }
+        catch (error) { if (error instanceof RequestBodyError) return resultFailure("too-large"); throw error; }
+        result = await dependencies.printFileSave(db, { ...input, fileName, label, pdf });
+      } else {
+        const value = await body(request, 1024) as { fromJobId?: unknown } | undefined;
+        if (typeof value?.fromJobId !== "string" || !/^[0-9a-f-]{36}$/.test(value.fromJobId)) return failure(400, "INVALID_REQUEST");
+        result = await dependencies.printFileSave(db, { ...input, fileName, label, fromJobId: value.fromJobId });
+      }
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(result.file, 201);
+    }
+    case "course-setting-print-file": {
+      if (request.method === "DELETE") {
+        const result = await dependencies.printFileRemove(db, { ...input, fileId: action.fileId });
+        if (result.status !== "ok") return resultFailure(result.status);
+        return new Response(null, { status: 204, headers: privateHeaders });
+      }
+      const result = await dependencies.printFile(db, { ...input, fileId: action.fileId });
+      if (result.status !== "ok") return resultFailure(result.status);
+      const ascii = result.fileName.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "");
+      return new Response(new Uint8Array(result.pdf.buffer as ArrayBuffer, result.pdf.byteOffset, result.pdf.byteLength), { headers: { ...privateHeaders,
+        "content-type": "application/pdf", "content-length": String(result.pdf.byteLength),
+        "content-disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(result.fileName)}` } });
     }
     // ADR-0197: papperets bild (PNG eller JPEG, högst 2 MB, typen prövas mot innehållet i tjänsten) och bilden tillbaka.
     case "course-setting-paper-images": {

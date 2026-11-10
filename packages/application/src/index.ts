@@ -238,3 +238,4 @@ export {
 export type { AiConnectionView, OauthError, TokenResponse } from "./oauth";
 export { handleMcpMessage } from "./mcp";
 export type { McpResponse } from "./mcp";
+export { listRacePrintFiles, readRacePrintFile, removeRacePrintFile, saveRacePrintFile, printFileName, RACE_PRINT_FILE_LIMITS, type RacePrintFileView } from "./race-print-files";

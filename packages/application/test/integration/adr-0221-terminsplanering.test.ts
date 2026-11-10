@@ -171,9 +171,8 @@ describe("ADR-0221: terminsplaneringen", () => {
     expect((await updatePlanSession(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, version: row.version,
       sessionDate: row.sessionDate, startTime: row.startTime, title: row.title, place: row.place, note: row.note, clubMapId: null,
       trainingGroupId: groupId, responsibleAccountId: owner.accountId } }, NOW)).status).toBe("ok");
-    const grants = await db.select({ accountId: schema.eventAdministrationGrants.accountId, role: schema.eventAdministrationGrants.role })
-      .from(schema.eventAdministrationGrants).where(eq(schema.eventAdministrationGrants.eventId, facts!.eventId));
-    expect(grants).toContainEqual({ accountId: owner.accountId, role: "ADMIN" });
+    // Den nya ansvarige är administratör (som klubbens ägare redan genom planen, ägaren 2026-11-10).
+    expect(await activeEventAdministrationGrant(db, { accountId: owner.accountId, eventId: facts!.eventId }, "none")).toMatchObject({ role: "ADMIN" });
   });
 
   it("Koppla en träning: bara en där man är ägare eller admin, byt och ta bort (ägaren 2026-11-10)", async () => {
@@ -196,8 +195,12 @@ describe("ADR-0221: terminsplaneringen", () => {
       return plan.status === "ok" ? plan.response.term!.planSessions[0]!.raceId : "fel";
     };
     expect(await read()).toBe(own.race.id);
+    // Ägaren 2026-11-10: i planen är träningen klubbens; klubbens ägare (och ledare) är administratörer utan egen rad.
+    const ownerAdmin = () => activeEventAdministrationGrant(db, { accountId: owner.accountId, eventId: own.event.id }, "none");
+    expect(await ownerAdmin()).toMatchObject({ role: "ADMIN" });
     expect(await link(null)).toEqual({ status: "ok", raceId: null });
     expect(await read()).toBeNull();
+    expect(await ownerAdmin()).toBeUndefined();
     expect((await linkPlannedRace(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, raceId: "inte-ett-id" } }, NOW)).status)
       .toBe("invalid-request");
   });

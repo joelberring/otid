@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { accountEmailVerified } from "./email-verification";
+import { clubMembership, clubRoleAtLeast } from "./club-access";
 
 /**
  * Steg 68 (ADR-0182 beslut 1): behörigheten via gruppen. En ledare i gruppen som evenemanget hör till är ADMIN på
@@ -48,4 +49,22 @@ export async function groupMembership(tx: DbExecutor, input: { accountId: string
     .from(schema.trainingGroupMembers)
     .where(and(eq(schema.trainingGroupMembers.groupId, input.groupId), eq(schema.trainingGroupMembers.accountId, input.accountId)));
   return row && await counts(tx, input.accountId, row) ? { id: row.id, role: row.role } : undefined;
+}
+
+/**
+ * Ägaren 2026-11-10 (ADR-0221 tillägg): terminsplanen är klubbens gemensamma arbetsyta. En träning som är kopplad till en
+ * vecka i en klubbs plan (`club_plan_session.race_id`) har klubbens ledare, administratörer och ägare som administratörer,
+ * utan egen rad på evenemanget, som gruppens ledare ovan. Rätten följer klubbrollen: den som inte längre är ledare nekas
+ * från nästa anrop. Svarar med klubbmedlemskapets id.
+ */
+export async function planLeaderGrant(tx: DbExecutor, input: { accountId: string; eventId: string },
+  lock: "none" | "share" | "update"): Promise<{ id: string; clubId: string } | undefined> {
+  const linked = await tx.selectDistinct({ clubId: schema.clubPlanSessions.clubId }).from(schema.clubPlanSessions)
+    .innerJoin(schema.races, eq(schema.races.id, schema.clubPlanSessions.raceId))
+    .where(eq(schema.races.eventId, input.eventId));
+  for (const { clubId } of linked) {
+    const member = await clubMembership(tx, { accountId: input.accountId, clubId }, lock);
+    if (member && clubRoleAtLeast(member.role, "LEADER")) return { id: member.id, clubId };
+  }
+  return undefined;
 }

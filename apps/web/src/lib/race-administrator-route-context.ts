@@ -38,6 +38,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin,
   listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin,
   listPrintJobsAsAdmin, createPrintJobAsAdmin, readPrintJobPdfAsAdmin, deletePrintJobAsAdmin,
+  listRacePrintFiles, readRacePrintFile, removeRacePrintFile, saveRacePrintFile,
   uploadPaperImageAsAdmin, readPaperImageAsAdmin, listPaperLibraryAsAdmin, savePaperLibraryAsAdmin, deletePaperLibraryAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
@@ -141,6 +142,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingInspections: listCourseSettingInspectionsAsAdmin, courseSettingInspection: setCourseSettingInspectionAsAdmin,
   // Steg 65: PDF för tryck (kön; utskriftsarbetaren skriver PDF:en).
   printJobs: listPrintJobsAsAdmin, printJobCreate: createPrintJobAsAdmin, printJobPdf: readPrintJobPdfAsAdmin, printJobDelete: deletePrintJobAsAdmin,
+  // Ägaren 2026-11-10: utskrifternas PDF:er sparade i träningen.
+  printFiles: listRacePrintFiles, printFile: readRacePrintFile, printFileSave: saveRacePrintFile, printFileRemove: removeRacePrintFile,
   // ADR-0197: papperets bilder och mallbibliotek.
   paperImageUpload: uploadPaperImageAsAdmin, paperImage: readPaperImageAsAdmin, paperLibrary: listPaperLibraryAsAdmin,
   paperLibrarySave: savePaperLibraryAsAdmin, paperLibraryDelete: deletePaperLibraryAsAdmin,
@@ -213,6 +216,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-map-link" } |
   { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } |
   { kind: "course-setting-print-jobs" } | { kind: "course-setting-print-job"; jobId: string } | { kind: "course-setting-print-job-pdf"; jobId: string } |
+  { kind: "course-setting-print-files" } | { kind: "course-setting-print-file"; fileId: string } |
   { kind: "course-setting-paper-images" } | { kind: "course-setting-paper-image"; sha256: string } | { kind: "course-setting-paper-library" } |
   { kind: "course-setting-paper-library-item"; templateId: string } |
   { kind: "people" } | { kind: "people-invitation"; invitationId: string } | { kind: "race-publication" } | { kind: "course-secrecy" } | { kind: "control-map" } | { kind: "entry-control-map"; entryId: string } | { kind: "radio" } | { kind: "radio-fetch" } |
@@ -232,6 +236,7 @@ export function resultFailure(status: string): Response {
     case "conflict": return failure(409, "CONFLICT");
     case "duplicate-name": return failure(409, "DUPLICATE_NAME");
     case "too-large": return resultExportFailure(413, "TOO_LARGE");
+    case "too-many": return failure(409, "CONFLICT");
     default: return failure(500, "INTERNAL_ERROR");
   }
 }

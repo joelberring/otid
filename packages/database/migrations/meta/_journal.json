@@ -86,6 +86,7 @@
     { "idx": 81, "version": "7", "when": 1806595200000, "tag": "0107_kartprojekt_arbetslager", "breakpoints": true },
     { "idx": 82, "version": "7", "when": 1806681600000, "tag": "0108_gastkonto", "breakpoints": true },
     { "idx": 83, "version": "7", "when": 1806768000000, "tag": "0109_terminsplanering", "breakpoints": true },
-    { "idx": 84, "version": "7", "when": 1806854400000, "tag": "0110_moment_och_nivaer", "breakpoints": true }
+    { "idx": 84, "version": "7", "when": 1806854400000, "tag": "0110_moment_och_nivaer", "breakpoints": true },
+    { "idx": 85, "version": "7", "when": 1806940800000, "tag": "0111_utskrifter_i_traningen", "breakpoints": true }
   ]
 }

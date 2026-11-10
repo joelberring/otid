@@ -10,6 +10,9 @@ import { useLanguage, useTexts } from "../language-provider";
 import { Button } from "../ui";
 import { MomentBadges } from "../training-moments/moment-picker";
 import { PlanLinkRace } from "./plan-link-race";
+import { RacePrintFiles } from "../race-print-files";
+import { racePrintFilesEn } from "../../i18n/race-print-files-en";
+import { racePrintFilesSv } from "../../i18n/race-print-files-sv";
 import { PlanSessionForm } from "./plan-session-form";
 import { PlanTasks } from "./plan-tasks";
 import styles from "./club-planning.module.css";
@@ -24,6 +27,7 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
   const language = useLanguage();
   const [editing, setEditing] = useState(false);
   const [linking, setLinking] = useState(false);
+  const printText = useTexts(racePrintFilesSv, racePrintFilesEn);
   const path = `/sessions/${session.sessionId}`;
 
   if (editing) return <div className={styles.session}>
@@ -60,6 +64,10 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
           {text.session.remove}</Button>
       </div>
     </div>
+    {session.raceId && <details className={styles.noPrint} data-testid="plan-print-files">
+      <summary>{printText.heading}</summary>
+      <RacePrintFiles raceId={session.raceId} canEdit compact />
+    </details>}
     {linking && <PlanLinkRace path={path} sessionDate={session.sessionDate} busy={busy} change={change} onClose={() => setLinking(false)} />}
     <PlanTasks plan={plan} session={session} busy={busy} change={change}
       toggle={async (taskId, done) => { await planRequest(`/api/organizer/plan-tasks/${taskId}`, "PUT", { formatVersion: 1, done }); await reload(); }} />

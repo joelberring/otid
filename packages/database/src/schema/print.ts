@@ -69,3 +69,20 @@ export const courseSettingPaperTemplates = pgTable("course_setting_paper_templat
   template: jsonb("template").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 }, (table) => [unique("course_setting_paper_template_name_unique").on(table.accountId, table.name)]);
+
+/**
+ * Ägaren 2026-11-10 (migration 0111): utskrifternas PDF:er sparade i träningen, kvar tills någon tar bort dem. `source`:
+ * en sparad PDF från tryckjobben (PRINT_JOB) eller en egen uppladdad (UPLOAD).
+ */
+export const racePrintFiles = pgTable("race_print_file", {
+  id: uuid("id").primaryKey(),
+  raceId: uuid("race_id").notNull().references(() => races.id),
+  fileName: text("file_name").notNull(),
+  label: text("label").notNull().default(""),
+  source: text("source").$type<"UPLOAD" | "PRINT_JOB">().notNull(),
+  pdf: bytea("pdf").notNull(),
+  byteLength: integer("byte_length").notNull(),
+  sha256: text("sha256").notNull(),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, (table) => [check("race_print_file_source_check", sql`${table.source} IN ('UPLOAD', 'PRINT_JOB')`)]);

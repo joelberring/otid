@@ -34,3 +34,18 @@ andra i klubben, som då bara ska se det de har fått.
 
 **Följder.** Migration 0109 (`club_term`, `club_plan_session`, `club_plan_task`). PDF:erna för tryck (steg 65) är fortfarande bara för administratörer; den med läsrätt ser banorna och kontrollkartan i
 banläggningen. Ska hen ta fram tryckfilerna ger den ansvarige hen administratörsrollen på träningen.
+
+## Tillägg 2026-11-10: planen som gemensam arbetsyta
+
+Ägaren: terminsplanen ska vara både planeringen och klubbens gemensamma arbetsyta.
+
+1. **Koppla en träning.** En banläggning som redan finns knyts till veckan (`PUT .../sessions/[id]/race`, `linkPlannedRace`),
+   eller skapas ur arkivet med Använd igen → Till terminsplanen. Bara den som är ägare eller administratör för träningen
+   kopplar den. `raceId: null` tar bort kopplingen; träningen ändras inte.
+2. **Alla ledare är administratörer.** En träning som är kopplad till en vecka i en klubbs plan har klubbens ledare,
+   administratörer och ägare som administratörer, utan egen rad på evenemanget (`planLeaderGrant`, frågas av
+   `activeEventAdministrationGrant` efter gruppens ledare). Rätten följer klubbrollen och kopplingen.
+3. **Sparade utskrifter** (migration 0111, `race_print_file`). PDF:er som ligger kvar i träningen: ett klart tryckjobb
+   sparat, eller en egen uppladdad PDF (högst 40 MB, 30 per träning). Läses av alla som ser banläggningen (COMMENT, också
+   uppgifternas personer); sparas och tas bort av den som ändrar (EDIT). Syns i banläggningens utskrift, på veckan i planen
+   och under Mina uppgifter. Följer med i säkerhetskopian.

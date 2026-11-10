@@ -95,6 +95,9 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-print-jobs": { GET: "ADMIN", POST: "ADMIN" },
   "course-setting-print-job": { DELETE: "ADMIN" },
   "course-setting-print-job-pdf": { GET: "ADMIN" },
+  // Ägaren 2026-11-10: sparade utskrifter; den som läser banläggningen (också med en uppgift i planen) laddar ner, den som ändrar sparar.
+  "course-setting-print-files": { GET: "COMMENT", POST: "EDIT" },
+  "course-setting-print-file": { GET: "COMMENT", DELETE: "EDIT" },
   // ADR-0197: papperets bilder (den som ändrar laddar upp, den som läser ser dem) och kontots mallbibliotek.
   "course-setting-paper-images": { POST: "EDIT" },
   "course-setting-paper-image": { GET: "COMMENT" },

@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createReadStream } from "node:fs";
+import { cliffsFromTicks, readTicks } from "./geo-cliffs.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
@@ -157,6 +158,14 @@ async function runJob(job: Job): Promise<void> {
       scale *= 2;
     }
     await run(["dxfmerge"], dir, control.signal);
+    // Grundkartan G4: branternas korta streck blir linjer med nedför till höger (geo-cliffs.ts).
+    let cliffSummary: Record<string, number> = {};
+    const ticksOf = async (name: string) => readTicks(await readFile(join(dir, name), "utf8").catch(() => ""));
+    const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"));
+    if (cliffs.summary.cliffs201 + cliffs.summary.cliffs202 > 0) {
+      await writeFile(join(dir, "brantlinjer.dxf"), cliffs.dxf);
+      cliffSummary = cliffs.summary;
+    }
     // Grundkartan: vattnet ur lasclips raster (geo-water.ts), så att sjön varken blir blöt mark eller öppen mark.
     let water: ReturnType<typeof waterFromGrids> | undefined;
     const waterFiles = (await readdir(dir)).filter(name => /^vatten\d+\.bin$/.test(name)).sort();
@@ -208,6 +217,7 @@ async function runJob(job: Job): Promise<void> {
       ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
       ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"]] as const : []),
       ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"]] as const : []),
+      ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
     for (const [name, source, mediaType] of uploads) {
@@ -220,7 +230,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...moistureSummary, ...vegetationSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...moistureSummary, ...vegetationSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

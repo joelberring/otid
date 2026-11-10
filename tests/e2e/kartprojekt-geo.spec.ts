@@ -114,6 +114,12 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(4);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
+  // Grundkartan: allt på en gång, med branten som en linje i stället för Karttapullautins streck.
+  await laser.getByTestId("map-project-laser-base-map").click();
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Grundkartan visas som kandidater nedan under Vektorfil.");
+  for (const name of ["contour", "brant_passerbar", "vatten", "blott", "oppen_mark"]) {
+    await expect(importer.getByTestId("map-project-import-layer").filter({ hasText: name }).first()).toBeAttached();
+  }
   // Vattnet ur laserns klasser: sjön blir en yta i lagret vatten.
   await laser.getByRole("button", { name: "Läs in sjöar och vatten som kandidater" }).click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Sjöar och vatten visas som kandidater nedan under Vektorfil.");

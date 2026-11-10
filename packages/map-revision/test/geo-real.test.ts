@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
+import { cliffLines, cliffsFromTicks, readTicks, thin, type Tick } from "../../../scripts/geo-cliffs";
 import { moistureFromHeightMaps, readHeightMap } from "../../../scripts/geo-moisture";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles } from "../../../scripts/geo-vegetation";
 import { mergeWaterGrids, polygonsOf, readWaterGrid, waterFromGrids, waterMask, type WaterGrid } from "../../../scripts/geo-water";
@@ -111,6 +112,72 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
       expect(command.x).toBeGreaterThanOrEqual(-1e-6); expect(command.x).toBeLessThanOrEqual(20 + 1e-6);
       expect(command.y).toBeGreaterThanOrEqual(-1e-6); expect(command.y).toBeLessThanOrEqual(20 + 1e-6);
     }
+  });
+});
+
+describe("branterna som linjer", () => {
+  const raw = (name: string) => gunzipSync(readFileSync(join(dir, "kungshatt-300m", `${name}.dxf.gz`))).toString("utf8");
+  const grid = readHeightMap(new Uint8Array(gunzipSync(readFileSync(join(dir, "kungshatt-300m/xyz2.hmap.gz")))));
+  const height = (x: number, y: number) => {
+    const column = Math.round((x - grid.minX) / grid.cell), row = Math.round((y - grid.minY) / grid.cell);
+    return column < 0 || row < 0 || column >= grid.width || row >= grid.height ? NaN : grid.z[column * grid.height + row]!;
+  };
+
+  it("Karttapullautins streck: lika långa, och marken är lägre till vänster om strecket", () => {
+    const ticks = readTicks(raw("stup"));
+    expect(ticks).toHaveLength(8129);
+    let lower = 0, measured = 0;
+    for (const [x1, y1, x2, y2] of ticks) {
+      const length = Math.hypot(x2 - x1, y2 - y1);
+      expect(length).toBeCloseTo(2.94, 2);
+      const left = height((x1 + x2) / 2 - (y2 - y1) / length * 3, (y1 + y2) / 2 + (x2 - x1) / length * 3);
+      const right = height((x1 + x2) / 2 + (y2 - y1) / length * 3, (y1 + y2) / 2 - (x2 - x1) / length * 3);
+      if (Number.isFinite(left) && Number.isFinite(right)) { measured += 1; if (left < right) lower += 1; }
+    }
+    expect(lower / measured).toBeGreaterThan(0.98);
+  });
+
+  it("8 129 streck blir ett fåtal linjer med nedför till höger, och föreslås som 201", () => {
+    const cliffs = cliffsFromTicks(readTicks(raw("stup")), readTicks(raw("branter")));
+    expect(cliffs.summary.cliffs201).toBeGreaterThan(5);
+    expect(cliffs.summary.cliffs201).toBeLessThan(40);
+    expect(cliffs.summary.cliffMeters201).toBeGreaterThan(300);
+    // De passerbara strecken ligger här där det redan är opasserbart.
+    expect(cliffs.summary.cliffs202).toBe(0);
+    let lower = 0, measured = 0;
+    for (const line of cliffs.lines.impassable) {
+      for (let i = 1; i < line.length; i += 1) {
+        const [ax, ay] = line[i - 1]!, [bx, by] = line[i]!, length = Math.hypot(bx - ax, by - ay);
+        if (length < 1) continue;
+        const right = height((ax + bx) / 2 + (by - ay) / length * 4, (ay + by) / 2 - (bx - ax) / length * 4);
+        const left = height((ax + bx) / 2 - (by - ay) / length * 4, (ay + by) / 2 + (bx - ax) / length * 4);
+        if (Number.isFinite(left) && Number.isFinite(right)) { measured += 1; if (right < left) lower += 1; }
+      }
+    }
+    expect(measured).toBeGreaterThan(40);
+    expect(lower / measured).toBeGreaterThan(0.9);
+    const data = parseDxf(cliffs.dxf);
+    expect(suggested(data)).toEqual({ brant_opasserbar: "s201" });
+    expect(within(data, 3)).toBe(true);
+  });
+
+  it("en rak brant av streck blir en linje åt rätt håll, en passerbar blir 202, korta stumpar tas bort", () => {
+    // Streck längs y = 100 från väst till öst: nedför är till vänster om strecken, alltså norrut.
+    const row = (y: number, from: number, to: number): Tick[] => Array.from({ length: (to - from) / 2 }, (_, i) => [from + i * 2, y, from + i * 2 + 2.94, y] as const);
+    const [line] = cliffLines(row(100, 0, 40));
+    // Nedför (norr) ska vara till höger: linjen går från öst till väst.
+    expect(line![0]![0]).toBeGreaterThan(line!.at(-1)![0]);
+    expect(Math.abs(line![0]![0] - line!.at(-1)![0])).toBeGreaterThan(35);
+    expect(cliffLines(row(100, 0, 4))).toEqual([]);
+    const both = cliffsFromTicks(row(100, 0, 40), [...row(100.5, 0, 40), ...row(160, 0, 30)]);
+    expect(both.summary).toMatchObject({ cliffs201: 1, cliffs202: 1 });
+    expect(suggested(parseDxf(both.dxf))).toEqual({ brant_opasserbar: "s201", brant_passerbar: "s202" });
+    expect(cliffLines([])).toEqual([]);
+    // Tunningen lämnar en cell bred linje av ett band som är tre celler brett.
+    const mask = new Uint8Array(20 * 9);
+    for (let x = 2; x < 18; x += 1) for (let y = 3; y < 6; y += 1) mask[x * 9 + y] = 1;
+    const thinned = thin(mask, 20, 9);
+    for (let x = 4; x < 16; x += 1) expect([3, 4, 5].reduce((sum, y) => sum + thinned[x * 9 + y]!, 0)).toBe(1);
   });
 });
 

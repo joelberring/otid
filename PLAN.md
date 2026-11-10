@@ -1325,9 +1325,13 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     blir en egen yta (301). Karttapullautins lager får rätt symbol (hjälpkurvorna hoppas över, cliff4 och punktgropar
     känns igen). Riktig laserdata (300 × 300 m av Kungshatt) och Karttapullautins riktiga resultat ligger i `fixtures/laser`
     med ett test per lagertyp; inställningarna har förval och riktning ur pullauta.default.ini.
-  - [ ] G2 En knapp «Läs in grundkartan»: alla resultat som kandidater på en gång, ritade med sina symboler.
-  - [ ] G3 Kurvor: hopslagna, stödkurvor rätt, punkthöjder. G4 Branter som linjer med taggarna nedför. G5 Vegetationen
-    generaliserad. G6 Provruta och jämförelse av inställningar. G7 Resten ur Kungshatt-kedjan.
+  - [x] G2 En knapp «Läs in grundkartan» på ett klart jobb: kurvor, stödkurvor, branter, knollar, vatten, våtmarker och
+    vegetation läses in tillsammans som kandidater med sina föreslagna symboler.
+  - [x] G4 Branterna som linjer (`scripts/geo-cliffs.ts`): Karttapullautins korta streck rastreras, tunnas till en mittlinje
+    och blir linjer riktade med nedför till höger (taggarnas sida); opasserbara 201 och passerbara 202 (`brantlinjer.dxf`).
+  - [ ] G2b Kandidaterna ritade med sina symboler på kartan (i dag som konturer) och godkända i ett svep.
+  - [ ] G3 Kurvor: hopslagna över rutgränser, punkthöjder. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
+    inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar
   vid högra kanten.
 - [ ] Telefonen: skydd mot att råka dra i en markerad linje med fingret (t.ex. ett kort håll innan en punkt eller sträcka följer med).

@@ -6,7 +6,7 @@ import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
 import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoJobList, type GeoJobView, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { parseDxf, parseGeoJson, VectorParseError } from "@o-tid/map-revision";
+import { parseDxf, parseGeoJson, VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -25,6 +25,16 @@ const ACTIVE = new Set(["QUEUED", "RUNNING"]);
 /** Ägaren 2026-11-10: Karttapullautins övriga inställningar (kurvor, branter, grönt), utöver ekvidistansen och formlinjerna. */
 const MORE_SETTINGS = ["smoothing", "curviness", "knolls", "formlinesteepness", "cliff1", "cliff2", "cliffsteepfactor", "yellowheight", "greenground", "greenhigh",
   "undergrowth"] as const satisfies readonly (keyof typeof PULLAUTIN_SETTINGS)[];
+/**
+ * Grundkartan G2 (ägaren 2026-11-10: «ungefär som en halvfärdig karta»): resultatfilerna som tillsammans är grundkartan, i den
+ * ordning de läses in. Branterna som linjer går före Karttapullautins korta streck när de finns.
+ */
+const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "fukt.dxf", "vegetation.dxf"];
+export function baseMapOutputs(names: readonly string[]): string[] {
+  const has = new Set(names);
+  return [...BASE_MAP.filter(name => has.has(name)), ...(has.has("brantlinjer.dxf") ? [] : ["branter.dxf", "stup.dxf"].filter(name => has.has(name)))];
+}
+
 /** Fälten som tal inom gränserna; tomma och ogiltiga fält hoppas över (Karttapullautins förval gäller). */
 export function moreSettings(fields: Readonly<Record<string, string>>): Record<string, number> {
   return Object.fromEntries(MORE_SETTINGS.flatMap(key => {
@@ -126,14 +136,25 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     await load();
   }
 
-  async function candidates(job: GeoJobView, output: string) {
-    const label = text.outputs[output] ?? output;
+  /** En resultatfil läst som vektordata, eller statusen när den inte gick att hämta. */
+  async function read(job: GeoJobView, output: string): Promise<SourceData | number> {
+    const response = await fetch(`${base}/geo-jobs/${job.jobId}/outputs/${output}`, { credentials: "same-origin" }).catch(() => undefined);
+    if (!response?.ok) return response?.status ?? 0;
+    const body = await response.text();
+    return output.endsWith(".geojson") ? parseGeoJson(body) : parseDxf(body);
+  }
+
+  /** En fil, eller hela grundkartan (`outputs` = flera filer i en inläsning), som kandidater i importen. */
+  async function candidates(job: GeoJobView, outputs: readonly string[], label: string) {
     setBusy(label); setMessage(undefined);
     try {
-      const response = await fetch(`${base}/geo-jobs/${job.jobId}/outputs/${output}`, { credentials: "same-origin" }).catch(() => undefined);
-      if (!response?.ok) { say(response?.status); return; }
-      const body = await response.text();
-      const data = output.endsWith(".geojson") ? parseGeoJson(body) : parseDxf(body);
+      const parts: SourceData[] = [];
+      for (const output of outputs) {
+        const data = await read(job, output);
+        if (typeof data === "number") { say(data); return; }
+        parts.push(data);
+      }
+      const data: SourceData = { features: parts.flatMap(part => part.features), skipped: parts.reduce((sum, part) => sum + part.skipped, 0), crs: parts[0]?.crs };
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 });
       setMessage({ tone: "ok", text: text.loaded(label) });
@@ -217,8 +238,10 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           {job.layerId && <span className={styles.muted}> · {text.layerAdded}</span>}
           {job.moistureLayerId && <span className={styles.muted}> · {text.moistureAdded}</span>}
           {job.status === "DONE" && importer.canImport && <span className={styles.actions}>
+            {job.kind === "PULLAUTIN" && baseMapOutputs(job.outputs.map(output => output.name)).length > 1 && <Button disabled={!!busy} data-testid="map-project-laser-base-map"
+              onClick={() => void candidates(job, baseMapOutputs(job.outputs.map(output => output.name)), text.baseMap)}>{text.loadBaseMap}</Button>}
             {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={!!busy}
-              onClick={() => void candidates(job, output.name)}>{text.load(text.outputs[output.name]!)}</Button>)}
+              onClick={() => void candidates(job, [output.name], text.outputs[output.name]!)}>{text.load(text.outputs[output.name]!)}</Button>)}
           </span>}
           {(job.own || view.viewer.canManage) && <span className={styles.actions}>
             <Button variant="secondary" onClick={() => void remove(job)}>{ACTIVE.has(job.status) ? text.cancel : text.remove}</Button>

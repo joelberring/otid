@@ -23,6 +23,7 @@ on:
       - scripts/geo-moisture.ts
       - scripts/geo-vegetation.ts
       - scripts/geo-water.ts
+      - scripts/geo-cliffs.ts
       - tools/lasclip/**
       - apps/web/next.config.ts
       - package.json

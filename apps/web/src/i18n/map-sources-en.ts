@@ -103,9 +103,11 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   layerAdded: "The image is added as a base layer.",
   outputs: {
     "kurvor.dxf": "Contours", "formlinjer.dxf": "Form lines", "branter.dxf": "Cliffs", "stup.dxf": "Steep cliffs", "knollar.dxf": "Knolls",
-    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "ritning.geojson": "The drawing"
+    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "ritning.geojson": "The drawing"
   },
-  load: (label: string) => `Load ${label.toLowerCase()} as candidates`,
+  loadBaseMap: "Load the base map",
+    baseMap: "The base map",
+    load: (label: string) => `Load ${label.toLowerCase()} as candidates`,
   loaded: (label: string) => `${label} are shown as candidates below under Vector file.`,
   cancel: "Cancel",
   remove: "Remove",

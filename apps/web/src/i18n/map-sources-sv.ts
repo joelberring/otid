@@ -121,8 +121,10 @@ export const mapSourcesSv = {
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
       "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
-      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "ritning.geojson": "Ritningen"
+      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
+    loadBaseMap: "Läs in grundkartan",
+    baseMap: "Grundkartan",
     load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,
     loaded: (label: string) => `${label} visas som kandidater nedan under Vektorfil.`,
     cancel: "Avbryt",

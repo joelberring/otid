@@ -13,6 +13,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Grundkartan ur laser, G2 och G4: allt på en gång, branterna som linjer
+- «Läs in grundkartan» på ett klart Karttapullautin-jobb läser in alla delar tillsammans som kandidater (kurvor, stödkurvor,
+  branter, knollar, vatten, våtmarker, vegetation), med brantlinjerna i stället för de korta strecken när de finns.
+- Branterna (`scripts/geo-cliffs.ts`): på testrutan blir 8 129 streck 14 linjer (515 m). Källkoden säger att nedför är till
+  vänster om varje streck; kontrollerat mot höjdrastret (99,8 % av strecken). Linjerna vänds så att nedför är till höger, där
+  brantsymbolens taggar ritas (mallens `tag`), kontrollerat mot höjdrastret (över 90 % av sträckorna).
+- Verifierat: `geo-real.test.ts` (riktiga streck, höjdraster och syntetiska fall), enhetstest för valet av filer, E2E
+  `kartprojekt-geo`. Inte provat: på geo-servern. Linjerna är kantiga (1 m-raster) och kan göras mjuka i ritläget.
+
 ### 2026-11-10 – Kartans färgtabell i ritläget (F1)
 - Ägaren: "ställa in färger i kartan … färgtabell". «Kartans färger» under Lager visar filens färgtabell i ritordning; CMYK
   ändras i procent och kartan (och symbolrutorna) ritas om direkt. Ägarna sparar; ändringarna ligger i projektet

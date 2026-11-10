@@ -122,12 +122,14 @@ export function geoCloudInit(input: { image: string; origin: string; token: stri
 // --- Läget ------------------------------------------------------------------------------------------------------------
 
 type Notice = "UNAVAILABLE" | "FALLBACK" | "BUDGET" | "START_FAILED";
-interface ServerState { readonly view: GeoServerView; readonly mailed: Partial<Record<Notice, string>> }
+interface ServerState { readonly view: GeoServerView; readonly mailed: Partial<Record<Notice, string>>;
+  /** Servrar vars arbetare är för gammal; raderas i nästa omgång. */
+  readonly retired?: readonly string[] }
 
 async function readState(db: DbExecutor): Promise<ServerState> {
   const [row] = await db.select().from(states).where(eq(states.key, "server"));
   const value = row?.value as Partial<ServerState> | undefined;
-  return { view: value?.view ?? { state: "OFF", detail: null }, mailed: value?.mailed ?? {} };
+  return { view: value?.view ?? { state: "OFF", detail: null }, mailed: value?.mailed ?? {}, retired: Array.isArray(value?.retired) ? value.retired : [] };
 }
 async function writeState(db: DbExecutor, state: ServerState, now: Date): Promise<void> {
   await db.insert(states).values({ key: "server", value: state as unknown as Record<string, unknown>, updatedAt: now })
@@ -156,6 +158,21 @@ export async function geoServerForToken(db: Database, token: string, now = new D
   const [row] = await db.update(servers).set({ lastSeenAt: now, status: "READY" })
     .where(and(eq(servers.tokenSha256, hash), ne(servers.status, "DELETED"))).returning({ name: servers.name });
   return row?.name;
+}
+
+/**
+ * Servern har en äldre geo-arbetare (en server som fanns kvar när avbildningen byggdes om): den raderas i nästa omgång av
+ * `manageGeoServer`, och en ny med den nya avbildningen startas för jobben som väntar.
+ */
+export async function retireGeoServer(db: Database, name: string, now = new Date()): Promise<void> {
+  const [row] = await db.select({ id: servers.id }).from(servers).where(and(eq(servers.name, name), ne(servers.status, "DELETED")));
+  if (!row) return;
+  await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('geo-server-state', 0))`);
+    const state = await readState(tx);
+    if (state.retired?.includes(name)) return;
+    await writeState(tx, { ...state, retired: [...(state.retired ?? []), name].slice(-20) }, now);
+  });
 }
 
 /** Ett jobb togs, gick eller blev klart på servern (tomgången räknas från det). */
@@ -201,6 +218,7 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
   const active = await db.select().from(servers).where(ne(servers.status, "DELETED"));
   const state = await readState(db);
   const mailed = { ...state.mailed };
+  const retired = new Set(state.retired ?? []);
   const remove = async (row: typeof active[number], reason: string) => {
     if (row.providerId !== null && !await hetzner.remove(row.providerId)) throw new Error(`Hetzner raderade inte ${row.name}`);
     await db.update(servers).set({ status: "DELETED", deletedAt: now, deleteReason: reason }).where(eq(servers.id, row.id));
@@ -215,7 +233,10 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
   let deleted: string | null = null;
   for (const row of active) {
     const lastActivity = Math.max(row.createdAt.getTime(), row.lastJobAt?.getTime() ?? 0);
-    if (row.status === "STARTING" && now.getTime() - row.createdAt.getTime() > START_TIMEOUT_MS) {
+    if (retired.has(row.name)) {
+      await remove(row, "gammal version");
+      deleted = `${row.name} hade en äldre geo-arbetare`;
+    } else if (row.status === "STARTING" && now.getTime() - row.createdAt.getTime() > START_TIMEOUT_MS) {
       await remove(row, "startade inte");
       deleted = `${row.name} startade inte inom 15 minuter`;
       if (dueMail(state, "START_FAILED", now)) {
@@ -236,7 +257,8 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
     }
   }
   const remaining = await db.select().from(servers).where(ne(servers.status, "DELETED"));
-  const view = (next: GeoServerView) => writeState(db, { view: next, mailed }, now);
+  const stillRetired = (state.retired ?? []).filter(name => remaining.some(row => row.name === name));
+  const view = (next: GeoServerView) => writeState(db, { view: next, mailed, retired: stillRetired }, now);
 
   if (remaining.length > 0) {
     await view({ state: remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null });
@@ -314,6 +336,6 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
       + "Lägg till en typ i OTID_GEO_SERVER_TYPES i .env och starta om web (docker compose -f docker-compose.prod.yml up -d web)." });
     mailed.UNAVAILABLE = now.toISOString();
   }
-  await writeState(db, { view: { state: "UNAVAILABLE", detail: null }, mailed }, now);
+  await writeState(db, { view: { state: "UNAVAILABLE", detail: null }, mailed, retired: (await readState(db)).retired ?? [] }, now);
   return { action: "unavailable", detail: tried.join("; ") };
 }

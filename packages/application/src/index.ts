@@ -213,7 +213,7 @@ export { createPlannedRace, createPlanTask, linkPlannedRace, listMyPlanTasks, re
 export {
   lantmaterietRuntimeFromEnvironment, readMapProjectOrthoAsset, searchMapProjectOrtho, type LantmaterietRuntime, type OrthoItem
 } from "./map-project-lantmateriet";
-export { geoServerSettings, hetznerClient, manageGeoServer, type GeoMailer } from "./geo-server";
+export { geoServerSettings, hetznerClient, manageGeoServer, retireGeoServer, type GeoMailer } from "./geo-server";
 export { fetchMapProjectMoisture, moistureRuntimeFromEnvironment, type MoistureRuntime } from "./map-project-moisture";
 export { deleteMapLayerProfile, listMapLayerProfiles, saveMapLayerProfile } from "./map-layer-profiles";
 export { laserRuntimeFromEnvironment, searchMapProjectLaser, type LaserItem, type LaserRuntime } from "./map-project-laser";

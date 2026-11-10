@@ -69,7 +69,10 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName, ...extra });
+/** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
+export const WORKER_VERSION = 4;
+const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
+  "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
 async function call(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${origin}${path}`, { ...init, headers: { ...headers(), ...(init.headers as Record<string, string> | undefined) },
@@ -277,7 +280,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...vegetationSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...vegetationSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

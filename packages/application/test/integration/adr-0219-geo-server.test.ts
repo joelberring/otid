@@ -7,7 +7,7 @@ import { createMapProjectFromUpload } from "../../src/map-projects";
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
 import { laserRuntimeFromEnvironment } from "../../src/map-project-laser";
 import { authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoServerView } from "../../src/map-project-geo-jobs";
-import { geoCloudInit, geoServerMonthCost, geoServerSettings, manageGeoServer, type Hetzner, type HetznerType } from "../../src/geo-server";
+import { geoCloudInit, geoServerMonthCost, geoServerSettings, manageGeoServer, retireGeoServer, type Hetzner, type HetznerType } from "../../src/geo-server";
 import type { ServerMessage } from "../../src/server-status";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
 import { registerTestAccount } from "./accounts";
@@ -139,6 +139,18 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     await waitingJob();
     expect((await manageGeoServer(db, hetzner, settings, mail, at(40))).action).toBe("created");
     expect(mails).toHaveLength(1);
+
+    // Ägaren 2026-11-11: en server med en äldre geo-arbetare (avbildningen byggdes om medan den gick) raderas i nästa omgång,
+    // och en ny startas för jobbet som väntar.
+    const second = created[1]!;
+    const secondName = await authenticateGeoWorker(db, `Bearer ${/OTID_GEO_WORKER_TOKEN='([0-9a-f]{64})'/.exec(second.userData)![1]!}`, null, {}, at(43));
+    await retireGeoServer(db, secondName!, at(43));
+    await retireGeoServer(db, secondName!, at(43));
+    // Samma omgång raderar den gamla och startar en ny för jobbet som väntar.
+    expect((await manageGeoServer(db, hetzner, settings, mail, at(44))).action).toBe("created");
+    expect(removed).toContain(second.id);
+    expect(created).toHaveLength(3);
+    await retireGeoServer(db, "finns-inte", at(46));
   });
 
   it("ingen typ går att skapa: jobben väntar, ägaren får ett mejl per dygn med andra typer", async () => {

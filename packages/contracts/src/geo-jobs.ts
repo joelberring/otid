@@ -93,6 +93,13 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("DONE"), summary: z.record(z.string(), z.union([z.number(), z.string()])).optional() }).strict(),
   z.object({ status: z.literal("FAILED"), error: z.string().min(1).max(2000) }).strict()
 ]);
+/**
+ * Geo-arbetarens version (ägaren 2026-11-11: ett jobb kördes av en geo-server som fanns kvar med den gamla avbildningen). Arbetaren
+ * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
+ * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
+ */
+export const GEO_WORKER_VERSION = 4;
+
 export const GEO_OUTPUT_NAME = /^[a-z0-9_.-]{1,60}$/;
 /** K6b: DWG-ritningen som geo-arbetaren läser (indata, sparad som jobbets fil; resultatet heter ritning.geojson). */
 export const GEO_DWG_INPUT = "indata.dwg";

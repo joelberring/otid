@@ -1,9 +1,10 @@
 import {
+  retireGeoServer,
   authenticateGeoWorker, fetchMapProjectMoisture, moistureRuntimeFromEnvironment, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
   lantmaterietRuntimeFromEnvironment, listGeoJobs, openGeoJobLaser, readGeoOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
   type LaserRuntime
 } from "@o-tid/application";
-import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, UUID_PATTERN } from "@o-tid/contracts";
+import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, GEO_WORKER_VERSION, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { failure, guarded, mutation, problem, readProof, streamChunks, type ClubEnvironment } from "./club-route-handlers";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
@@ -121,6 +122,14 @@ async function jsonBody(request: Request): Promise<unknown> {
 export async function geoWorkerClaimRoute(db: Database, request: Request, environment: Record<string, string | undefined> = process.env): Promise<Response> {
   const name = await worker(db, request, environment);
   if (typeof name !== "string") return name;
+  // En äldre geo-arbetare (utan versionen, eller lägre) får inga jobb; en server som O-Tid startat raderas strax.
+  const version = Number(request.headers.get("x-otid-geo-version") ?? 0);
+  if (!(version >= GEO_WORKER_VERSION)) {
+    return guarded(async () => {
+      await retireGeoServer(db, name);
+      return new Response(null, { status: 204, headers: privateHeaders });
+    });
+  }
   return guarded(async () => {
     const job = await claimGeoJob(db, name);
     return job ? privateJson({ formatVersion: 1, job }) : new Response(null, { status: 204, headers: privateHeaders });

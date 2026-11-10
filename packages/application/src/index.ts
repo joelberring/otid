@@ -209,7 +209,7 @@ export { DEFAULT_OVERPASS_URL, fetchMapProjectOsm, mapSourceRuntimeFromEnvironme
 export { deleteMapSourceCredential, readMapSourceCredential, saveMapSourceCredential } from "./map-source-credentials";
 export { changeClubDevice, listClubDevices, recordClubDevice } from "./club-devices";
 export { changeClubTerm, createClubTerm, createPlanSessions, readClubPlan, removePlanSession, updatePlanSession } from "./club-planning";
-export { createPlannedRace, createPlanTask, listMyPlanTasks, removePlanTask, setPlanTaskDone, type PlanTaskMail, type PlanTaskMailer } from "./club-plan-tasks";
+export { createPlannedRace, createPlanTask, linkPlannedRace, listMyPlanTasks, removePlanTask, setPlanTaskDone, type PlanTaskMail, type PlanTaskMailer } from "./club-plan-tasks";
 export {
   lantmaterietRuntimeFromEnvironment, readMapProjectOrthoAsset, searchMapProjectOrtho, type LantmaterietRuntime, type OrthoItem
 } from "./map-project-lantmateriet";

@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clubArchiveEn } from "../../i18n/club-archive-en";
-import { useTexts, useLocale } from "../language-provider";
-import type { ClubArchiveEntryView } from "@o-tid/contracts";
+import { useLanguage, useTexts, useLocale } from "../language-provider";
+import type { ClubArchiveEntryView, ClubPlanResponse, ClubPlanSessionView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { alignedDocument, checkAlignment, controlsOutside } from "../../lib/club-archive-align";
 import { fetchCourseFileBytes, reuseTraining, type ReuseStage } from "../../lib/club-archive-client";
+import { planningBase, planRequest, shortDate } from "../../lib/club-planning-client";
 import { Button, DateInput, Dialog, Field, Notice } from "../ui";
 import { usePpen } from "./use-ppen";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
@@ -28,6 +29,23 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
   const [name, setName] = useState(view.entry.title);
   const [date, setDate] = useState(today());
   const [groupId, setGroupId] = useState("");
+  // Ägaren 2026-11-10: kopian kan kopplas till en vecka i terminsplanen (de kommande utan träning, för klubbens ledare).
+  const language = useLanguage();
+  const [planSessions, setPlanSessions] = useState<readonly ClubPlanSessionView[]>([]);
+  const [planSessionId, setPlanSessionId] = useState("");
+  useEffect(() => {
+    void planRequest(planningBase(view.clubId)).then(response => {
+      const plan = response.status === 200 ? response.json as ClubPlanResponse : undefined;
+      setPlanSessions(plan?.term?.planSessions.filter(row => !row.raceId && row.sessionDate >= today()) ?? []);
+    });
+  }, [view.clubId]);
+  const choosePlan = (id: string) => {
+    setPlanSessionId(id);
+    const row = planSessions.find(candidate => candidate.sessionId === id);
+    if (!row) return;
+    setName(row.title); setDate(row.sessionDate);
+    setGroupId(row.trainingGroupId && view.groups.some(group => group.groupId === row.trainingGroupId) ? row.trainingGroupId : "");
+  };
   const [fileId, setFileId] = useState(initialFileId ?? view.courseFiles[0]?.courseFileId ?? "");
   const file = view.courseFiles.find(candidate => candidate.courseFileId === fileId);
   const mapOfFile = file?.mapVersion ? view.maps.find(map => map.mapId === file.mapVersion!.mapId)
@@ -68,6 +86,10 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         map: chosen ? { versionId: chosen.versionId, fileName: chosen.fileName } : null,
         rendered: target?.state === "ready" ? target.rendered : undefined, course }, next => setStage(next), clubArchiveText);
       if (outcome.kind === "failed") { setStage(undefined); setProblem(outcome.problem); return; }
+      if (planSessionId) {
+        const linked = await planRequest(`${planningBase(view.clubId)}/sessions/${planSessionId}/race`, "PUT", { formatVersion: 1, raceId: outcome.raceId });
+        if (linked.status !== 200) { setStage(undefined); setProblem(text.planFailed); window.setTimeout(() => window.location.assign(`/admin/${outcome.raceId}/manage`), 3000); return; }
+      }
       if (outcome.kind === "partial") {
         setStage(undefined);
         setProblem(text.failed[outcome.problem]);
@@ -92,6 +114,11 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         <Field label={text.eventName}><input value={name} maxLength={160} onChange={event => setName(event.target.value)} /></Field>
         <Field label={text.date}><DateInput value={date} onChange={event => setDate(event.target.value)} /></Field>
       </div>
+      {planSessions.length > 0 && <Field label={text.plan} help={text.planHelp}>
+        <select value={planSessionId} onChange={event => choosePlan(event.target.value)} data-testid="reuse-plan-session">
+          <option value="">{text.planNone}</option>
+          {planSessions.map(row => <option key={row.sessionId} value={row.sessionId}>{`${shortDate(row.sessionDate, language)} · ${row.title}`}</option>)}
+        </select></Field>}
       {view.groups.length > 0 && <Field label={text.target}>
         <select value={groupId} onChange={event => setGroupId(event.target.value)}>
           <option value="">{text.own}</option>

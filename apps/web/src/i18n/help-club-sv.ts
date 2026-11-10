@@ -120,7 +120,10 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "Välj ”Lägg till träning” i veckan. Skriv datum, tid, rubrik och plats, och välj karta, ansvarig, grupp, moment och nivå om ni vill.",
         "Kryssa i ”Varje vecka till terminens slut” för en träning som går samma veckodag hela terminen. Varje vecka kan sedan ändras för sig.",
         "Under ”Uppgifter” lägger du till vad som ska göras, till exempel ”Skriva ut kartor” eller ”Sätta ut kontroller”, och vem som gör det.",
-        "När det är dags: ”Skapa träningen”. Den blir en riktig träning med rubriken, datumet och tiden, och den ansvarige blir administratör."
+        "När det är dags: ”Skapa träningen”. Den blir en riktig träning med rubriken, datumet och tiden, och den ansvarige blir administratör.",
+        "Finns banläggningen redan, egen eller i en grupp: ”Koppla en träning” på veckan och välj den.",
+        "Från arkivet: ”Använd igen” och välj veckan under ”Till terminsplanen”.",
+        "Åt andra hållet läggs en färdig träning i arkivet med ”Lägg i klubbarkivet” på träningens sida."
       ] },
       [
         "En uppgift kan gå till en medlem i klubben eller till en e-postadress, till exempel en förälder. Med e-post på servern får personen ett kort mejl.",

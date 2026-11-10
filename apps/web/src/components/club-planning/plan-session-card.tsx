@@ -9,6 +9,7 @@ import { planRequest, shortDate } from "../../lib/club-planning-client";
 import { useLanguage, useTexts } from "../language-provider";
 import { Button } from "../ui";
 import { MomentBadges } from "../training-moments/moment-picker";
+import { PlanLinkRace } from "./plan-link-race";
 import { PlanSessionForm } from "./plan-session-form";
 import { PlanTasks } from "./plan-tasks";
 import styles from "./club-planning.module.css";
@@ -22,6 +23,7 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
   const text = useTexts(clubPlanningSv, clubPlanningEn);
   const language = useLanguage();
   const [editing, setEditing] = useState(false);
+  const [linking, setLinking] = useState(false);
   const path = `/sessions/${session.sessionId}`;
 
   if (editing) return <div className={styles.session}>
@@ -45,13 +47,20 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
         {session.raceId ? <>
           <Link className={styles.link} href={`/admin/${session.raceId}`}>{text.session.openRace}</Link>
           <Link className={styles.link} href={`/admin/${session.raceId}/course-setting`}>{text.session.courseSetting}</Link>
-        </> : <Button variant="secondary" disabled={busy} title={text.session.createRaceHelp}
-          onClick={() => void change(`${path}/race`, "POST", undefined, () => text.session.raceCreated)}>{text.session.createRace}</Button>}
+          <Button variant="quiet" disabled={busy} onClick={() => setLinking(true)}>{text.link.change}</Button>
+          <Button variant="quiet" disabled={busy} onClick={() => { if (window.confirm(text.link.unlinkConfirm))
+            void change(`${path}/race`, "PUT", { formatVersion: 1, raceId: null }, () => text.link.unlinked); }}>{text.link.unlink}</Button>
+        </> : <>
+          <Button variant="secondary" disabled={busy} title={text.session.createRaceHelp}
+            onClick={() => void change(`${path}/race`, "POST", undefined, () => text.session.raceCreated)}>{text.session.createRace}</Button>
+          <Button variant="quiet" disabled={busy} title={text.link.help} onClick={() => setLinking(true)}>{text.link.open}</Button>
+        </>}
         <Button variant="quiet" disabled={busy} onClick={() => setEditing(true)}>{text.session.change}</Button>
         <Button variant="quiet" disabled={busy} onClick={() => { if (window.confirm(text.session.removeConfirm)) void change(path, "DELETE", undefined); }}>
           {text.session.remove}</Button>
       </div>
     </div>
+    {linking && <PlanLinkRace path={path} sessionDate={session.sessionDate} busy={busy} change={change} onClose={() => setLinking(false)} />}
     <PlanTasks plan={plan} session={session} busy={busy} change={change}
       toggle={async (taskId, done) => { await planRequest(`/api/organizer/plan-tasks/${taskId}`, "PUT", { formatVersion: 1, done }); await reload(); }} />
   </article>;

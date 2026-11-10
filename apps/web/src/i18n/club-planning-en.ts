@@ -74,6 +74,21 @@ export const clubPlanningEn: Texts<typeof clubPlanningSv> = {
     tooMany: "The term already has as many trainings as possible.",
     groupForbidden: "Only the group's leaders can create the training in the group."
   },
+  link: {
+    open: "Link a training",
+    help: "Attach a course setting that already exists to the week: your own, one copied from the archive with Use again, or one in a group.",
+    change: "Change training",
+    choose: "Training",
+    link: "Link",
+    cancel: "Cancel",
+    loading: "Fetching your trainings …",
+    none: "You have no trainings where you are owner or administrator. Make one with Create the training or Use again in the archive.",
+    linked: "The training is linked.",
+    unlink: "Remove the link",
+    unlinkConfirm: "Remove the link to the training? The training and its courses remain.",
+    unlinked: "The link is removed.",
+    forbidden: "You can only link trainings where you are owner or administrator."
+  },
   task: {
     title: "Tasks",
     none: "No tasks yet.",

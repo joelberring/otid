@@ -217,6 +217,7 @@ export async function createPlannedRace(db: Database, input: ClubProof & { clubI
     const found = await leaderSession(tx, input, now);
     if (found.status !== "ok") return found;
     const { access, session } = found;
+    const responsible = session.responsibleAccountId;
     if (session.raceId) {
       const [race] = await tx.select({ id: schema.races.id }).from(schema.races).where(eq(schema.races.id, session.raceId));
       if (race) return { status: "ok", raceId: race.id, replayed: true } as const;
@@ -235,24 +236,65 @@ export async function createPlannedRace(db: Database, input: ClubProof & { clubI
       ownerAccountId: groupId ? null : access.accountId, now });
     const sourceRaceId = groupId
       ? await fillPlannedGroupRace(tx, { groupId, raceId: race.id, raceDate: session.sessionDate, accountId: access.accountId, now }) : null;
-    const responsible = session.responsibleAccountId;
-    if (responsible && responsible !== access.accountId
-      && !await activeEventAdministrationGrant(tx, { accountId: responsible, eventId: event.id, roles: ["OWNER", "ADMIN"] }, "none")) {
-      await tx.insert(schema.eventAdministrationGrants).values({ eventId: event.id, accountId: responsible, role: "ADMIN", grantedAt: now });
-    }
     const [setting] = await tx.select({ organisationId: schema.clubSettings.organisationId }).from(schema.clubSettings)
       .where(eq(schema.clubSettings.clubId, access.clubId));
     if (setting?.organisationId) {
       await tx.insert(schema.raceOrganisers).values({ raceId: race.id, organisationId: setting.organisationId, setBy: access.accountId, setAt: now })
         .onConflictDoNothing();
     } else await defaultRaceOrganiser(tx, { raceId: race.id, accountId: access.accountId, now });
-    for (const task of await tx.select({ id: tasks.id, accountId: tasks.assigneeAccountId }).from(tasks).where(eq(tasks.sessionId, session.id))) {
-      if (task.accountId) await grantCourseRead(tx, { raceId: race.id, accountId: task.accountId, taskId: task.id, actorId: access.accountId, now });
-    }
-    await tx.update(sessions).set({ raceId: race.id, version: session.version + 1, updatedAt: now }).where(eq(sessions.id, session.id));
+    await attachRace(tx, { session, raceId: race.id, eventId: event.id, actorId: access.accountId, now });
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "race", entityId: race.id, action: "CLUB_PLAN_RACE_CREATED",
       actorKind: "USER_ACCOUNT", actorId: access.accountId, requestId: null,
       after: { clubId: access.clubId, sessionId: session.id, groupId, sourceRaceId, responsibleAccountId: responsible, raceDate: session.sessionDate }, createdAt: now });
     return { status: "ok", raceId: race.id, replayed: false } as const;
+  });
+}
+
+/**
+ * En träning knuten till planens rad: den ansvarige blir administratör, uppgifternas personer får läsrätt i banläggningen
+ * och raden pekar på träningen. Delas av Skapa träningen och Koppla en träning.
+ */
+async function attachRace(tx: Transaction, input: { session: Session; raceId: string; eventId: string; actorId: string; now: Date }) {
+  const { session, raceId, eventId, actorId, now } = input;
+  const responsible = session.responsibleAccountId;
+  if (responsible && responsible !== actorId
+    && !await activeEventAdministrationGrant(tx, { accountId: responsible, eventId, roles: ["OWNER", "ADMIN"] }, "none")) {
+    await tx.insert(schema.eventAdministrationGrants).values({ eventId, accountId: responsible, role: "ADMIN", grantedAt: now });
+  }
+  for (const task of await tx.select({ id: tasks.id, accountId: tasks.assigneeAccountId }).from(tasks).where(eq(tasks.sessionId, session.id))) {
+    if (task.accountId) await grantCourseRead(tx, { raceId, accountId: task.accountId, taskId: task.id, actorId, now });
+  }
+  await tx.update(sessions).set({ raceId, version: session.version + 1, updatedAt: now }).where(eq(sessions.id, session.id));
+}
+
+export type LinkPlannedRaceResult = ClubFailure | { status: "race-forbidden" } | { status: "ok"; raceId: string | null };
+
+/**
+ * Ägaren 2026-11-10: "Koppla en träning" – en banläggning som redan finns (egen, kopierad ur arkivet med Använd igen eller
+ * gjord i en grupp) knyts till planens rad. Bara den som är ägare eller administratör för träningen får koppla den; null
+ * tar bort kopplingen (träningen ändras inte). En rad som redan har en träning byter till den nya.
+ */
+export async function linkPlannedRace(db: Database, input: ClubProof & { clubId: string; sessionId: string; request: unknown }, now = new Date())
+  : Promise<LinkPlannedRaceResult> {
+  const raw = input.request as { formatVersion?: unknown; raceId?: unknown } | null;
+  const raceId = raw?.raceId === null ? null : typeof raw?.raceId === "string" && UUID_PATTERN.test(raw.raceId) ? raw.raceId : undefined;
+  if (raw?.formatVersion !== 1 || raceId === undefined) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const found = await leaderSession(tx, input, now);
+    if (found.status !== "ok") return found;
+    const { access, session } = found;
+    if (raceId === null) {
+      await tx.update(sessions).set({ raceId: null, version: session.version + 1, updatedAt: now }).where(eq(sessions.id, session.id));
+      return { status: "ok", raceId: null } as const;
+    }
+    const [race] = await tx.select({ id: schema.races.id, eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, raceId));
+    if (!race || !await activeEventAdministrationGrant(tx, { accountId: access.accountId, eventId: race.eventId, roles: ["OWNER", "ADMIN"] }, "none")) {
+      return { status: "race-forbidden" } as const;
+    }
+    await attachRace(tx, { session, raceId: race.id, eventId: race.eventId, actorId: access.accountId, now });
+    await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "race", entityId: race.id, action: "CLUB_PLAN_RACE_LINKED",
+      actorKind: "USER_ACCOUNT", actorId: access.accountId, requestId: null,
+      after: { clubId: access.clubId, sessionId: session.id, previousRaceId: session.raceId }, createdAt: now });
+    return { status: "ok", raceId: race.id } as const;
   });
 }

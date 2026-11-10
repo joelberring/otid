@@ -1,5 +1,5 @@
 import {
-  changeClubTerm, createClubTerm, createPlannedRace, createPlanSessions, createPlanTask, listMyPlanTasks, readClubPlan, removePlanSession,
+  changeClubTerm, createClubTerm, createPlannedRace, createPlanSessions, createPlanTask, linkPlannedRace, listMyPlanTasks, readClubPlan, removePlanSession,
   removePlanTask, setPlanTaskDone, updatePlanSession, type PlanTaskMail, type PlanTaskMailer
 } from "@o-tid/application";
 import { UUID_PATTERN } from "@o-tid/contracts";
@@ -94,6 +94,12 @@ export async function clubPlanningRoute(db: Database, request: Request, clubId: 
       const result = await createPlannedRace(db, { ...proof, sessionId: id });
       if (result.status === "group-leader-only") return problem("GROUP_LEADER_ONLY");
       return result.status === "ok" ? ok({ raceId: result.raceId, replayed: result.replayed }) : failure(result.status);
+    }
+    if (area === "sessions" && id && sub === "race" && subId === undefined && method === "PUT") {
+      // Ägaren 2026-11-10: Koppla en träning som redan finns (eller ta bort kopplingen med raceId null).
+      const result = await linkPlannedRace(db, { ...proof, sessionId: id, request: input.body });
+      if (result.status === "race-forbidden") return problem("RACE_FORBIDDEN");
+      return result.status === "ok" ? ok({ raceId: result.raceId }) : failure(result.status);
     }
     if (area === "sessions" && id && sub === "tasks" && subId === undefined && method === "POST") {
       const result = await createPlanTask(db, { ...proof, sessionId: id, request: input.body }, new Date(), planTaskMailer(environment, request));

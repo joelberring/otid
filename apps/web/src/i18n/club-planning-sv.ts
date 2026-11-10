@@ -72,6 +72,21 @@ export const clubPlanningSv = {
     tooMany: "Terminen har redan så många träningar som går.",
     groupForbidden: "Bara gruppens ledare kan skapa träningen i gruppen."
   },
+  link: {
+    open: "Koppla en träning",
+    help: "Knyt en banläggning som redan finns till veckan: en egen, en kopierad ur arkivet med Använd igen eller en i en grupp.",
+    change: "Byt träning",
+    choose: "Träning",
+    link: "Koppla",
+    cancel: "Avbryt",
+    loading: "Hämtar dina träningar …",
+    none: "Du har inga träningar där du är ägare eller administratör. Gör en med Skapa träningen eller Använd igen i arkivet.",
+    linked: "Träningen är kopplad.",
+    unlink: "Ta bort kopplingen",
+    unlinkConfirm: "Ta bort kopplingen till träningen? Träningen och banorna står kvar.",
+    unlinked: "Kopplingen är borttagen.",
+    forbidden: "Du kan bara koppla träningar där du är ägare eller administratör."
+  },
   task: {
     title: "Uppgifter",
     none: "Inga uppgifter än.",

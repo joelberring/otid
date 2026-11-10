@@ -237,7 +237,10 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "Choose ”Add training” in the week. Write date, time, heading and place, and choose map, responsible, group, elements and level if you like.",
         "Tick ”Every week until the end of the term” for a training on the same weekday all term. Each week can then be changed on its own.",
         "Under ”Tasks” you add what needs doing, for example ”Print maps” or ”Put out controls”, and who does it.",
-        "When it is time: ”Create the training”. It becomes a real training with the heading, date and time, and the responsible person becomes administrator."
+        "When it is time: ”Create the training”. It becomes a real training with the heading, date and time, and the responsible person becomes administrator.",
+        "If the course setting already exists, your own or in a group: ”Link a training” on the week and choose it.",
+        "From the archive: ”Use again” and choose the week under ”To the term plan”.",
+        "The other way, a finished training goes into the archive with ”Put in the club archive” on the training's page."
       ] },
       [
         "A task can go to a member of the club or to an email address, for example a parent. With email on the server the person gets a short email.",

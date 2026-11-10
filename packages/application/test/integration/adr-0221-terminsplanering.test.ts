@@ -13,6 +13,8 @@ import { listUsableClubMaps } from "../../src/club-map-picker";
 import { readFile } from "node:fs/promises";
 import { activeEventAdministrationGrant } from "../../src/race-session";
 import { acceptOnLogin } from "../../src/account-arrival";
+import { insertEventWithRace } from "../../src/organizer-events";
+import { linkPlannedRace } from "../../src/club-plan-tasks";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -172,6 +174,32 @@ describe("ADR-0221: terminsplaneringen", () => {
     const grants = await db.select({ accountId: schema.eventAdministrationGrants.accountId, role: schema.eventAdministrationGrants.role })
       .from(schema.eventAdministrationGrants).where(eq(schema.eventAdministrationGrants.eventId, facts!.eventId));
     expect(grants).toContainEqual({ accountId: owner.accountId, role: "ADMIN" });
+  });
+
+  it("Koppla en träning: bara en där man är ägare eller admin, byt och ta bort (ägaren 2026-11-10)", async () => {
+    const { owner, clubId, leader } = await setup();
+    const term = await createClubTerm(db, { ...leader.proof, clubId,
+      request: { formatVersion: 1, requestId: randomUUID(), name: "VT 2028", startsOn: "2028-01-01", endsOn: "2028-06-30" } }, NOW);
+    if (term.status !== "ok") throw new Error(term.status);
+    const created = await createPlanSessions(db, { ...leader.proof, clubId, request: session(term.termId, { sessionDate: "2028-02-02" }) }, NOW);
+    if (created.status !== "ok") throw new Error(created.status);
+    const sessionId = created.sessionIds[0]!;
+    const own = await insertEventWithRace(db, { eventName: "Egen", raceName: "", raceDate: "2028-02-02", timeZone: "Europe/Stockholm",
+      raceType: "TRAINING", firstStartTime: null, trainingGroupId: null, ownerAccountId: leader.accountId, now: NOW });
+    const others = await insertEventWithRace(db, { eventName: "Annans", raceName: "", raceDate: "2028-02-02", timeZone: "Europe/Stockholm",
+      raceType: "TRAINING", firstStartTime: null, trainingGroupId: null, ownerAccountId: owner.accountId, now: NOW });
+    const link = (raceId: string | null) => linkPlannedRace(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, raceId } }, NOW);
+    expect(await link(others.race.id)).toEqual({ status: "race-forbidden" });
+    expect(await link(own.race.id)).toEqual({ status: "ok", raceId: own.race.id });
+    const read = async () => {
+      const plan = await readClubPlan(db, { ...leader.proof, clubId, termId: term.termId }, NOW);
+      return plan.status === "ok" ? plan.response.term!.planSessions[0]!.raceId : "fel";
+    };
+    expect(await read()).toBe(own.race.id);
+    expect(await link(null)).toEqual({ status: "ok", raceId: null });
+    expect(await read()).toBeNull();
+    expect((await linkPlannedRace(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, raceId: "inte-ett-id" } }, NOW)).status)
+      .toBe("invalid-request");
   });
 
   it("uppgifter: bara de egna syns, adressen blir kontots, och läsrätten i banläggningen följer uppgiften", async () => {

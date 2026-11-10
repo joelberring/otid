@@ -10,3 +10,4 @@ async function handle(request: Request, context: Context): Promise<Response> {
 }
 
 export const POST = handle;
+export const PUT = handle;

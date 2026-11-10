@@ -23,6 +23,9 @@ export const clubPlanningEn: Texts<typeof clubPlanningSv> = {
     remove: "Remove the term",
     removeConfirm: "Remove the term? This only works when it has no trainings.",
     print: "Print the term",
+    printNow: "Print",
+    printBack: "Back to the planning",
+    printTasks: "Tasks",
     sessions: (count: number) => plural(count, "training", "trainings"),
     dates: (from: string, to: string) => `${from} – ${to}`
   },

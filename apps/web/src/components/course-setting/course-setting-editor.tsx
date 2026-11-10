@@ -13,8 +13,8 @@ import { courseSettingLevelEn } from "../../i18n/course-setting-level-en";
 import { useRouter } from "next/navigation";
 import type { CourseSettingMode, CourseSettingState } from "@o-tid/contracts";
 import {
-  acceptChecksEdit, applyEdit, carryCourseLevels, carryExcludedVariants, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
-  keepAcceptedChecks, keepPaperOnImport, withPpenState, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
+  acceptChecksEdit, applyEdit, courseControlOrder, courseSummaries, describeControl, descriptionSymbols,
+  keepPaperOnImport, withPpenState, layoutCoursePage, layoutOverprint, nextFreeCode, paperLayoutOf, printAreaOf, unacceptChecksEdit, type CourseSettingDocument,
   type DescriptionSymbol, type MapRect, type OverprintPrimitive
 } from "@o-tid/course-setting";
 import type { LegAnalysis } from "@o-tid/route-choice";
@@ -29,7 +29,7 @@ import {
   importCourseSetting, restoreCourseSetting, saveCourseSettingEdits, setCourseSettingMode
 } from "../../lib/course-setting-api";
 import {
-  addBend, addPoint, addSplit, applySteps, beginDrag, cancelTool, canRedo, canUndo, createEditor, dragTo, endDrag, endSuggestion, insertExisting,
+  addBend, addPoint, addSplit, applySteps, beginDrag, canRedo, canUndo, createEditor, dragTo, endDrag, endSuggestion, insertExisting,
   redo, removeSelected, removeSplit, replaceDocument, select, setTool, setView, undo, type EditorState, type Tool
 } from "../../lib/course-setting-editor";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
@@ -83,6 +83,8 @@ import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import { useRouteHints } from "./use-route-hints";
 import { useCourseSettingTraining } from "./use-course-setting-training";
 import { useMoveShared } from "./course-setting-move-shared";
+import { carryOnImport } from "../../lib/course-setting-import-carry";
+import { useCourseSettingKeys } from "./use-course-setting-keys";
 import styles from "./course-setting.module.css";
 
 
@@ -98,8 +100,6 @@ type Message = { id: number; tone: "ok" | "error" | "attention"; text: string; l
 const CURSOR: Record<Tool, string> = { SELECT: "grab", ADD_CONTROL: "crosshair", ADD_START: "crosshair", ADD_FINISH: "crosshair",
   ADD_CROSSING: "crosshair", INSERT_EXISTING: "copy", ADD_BEND: "crosshair", NOTE: "cell", SPECIAL: "crosshair", ADD_MAP_EXCHANGE: "crosshair" };
 const EDIT_TOOLS: readonly Tool[] = ["SELECT", "ADD_CONTROL", "ADD_START", "ADD_FINISH", "ADD_CROSSING", "INSERT_EXISTING", "ADD_BEND", "SPECIAL", "NOTE"];
-const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_START", m: "ADD_FINISH", p: "ADD_CROSSING", l: "INSERT_EXISTING",
-  b: "ADD_BEND", n: "NOTE", o: "SPECIAL" };
 const OK_TOAST_MS = 8_000;
 const statusTexts = (text: CourseSettingTexts): Record<SyncStatus, string> => ({ saved: text.status.saved, pending: text.status.pending,
   saving: text.status.saving, failed: text.status.failed, stopped: text.status.stopped });
@@ -458,27 +458,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   // ADR-0180 beslut 14: "Gaffla här" frågar efter antal grenar eller slinga.
   const fork = ux.openForkPicker;
 
-  // Tangenterna (inte när man skriver i ett fält): verktygen med en bokstav, Delete, Escape, ångra och gör om.
-  useEffect(() => {
-    const keydown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && (target.closest("input, textarea, select, [contenteditable='true'], dialog"))) return;
-      const mod = event.ctrlKey || event.metaKey;
-      const key = event.key.toLowerCase();
-      if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); edit(next => removeSelected(next, applyEdit)); }
-      else if (event.key === "Escape") { apply(cancelTool); setNoteDraft(undefined); }
-      else if (event.key === "Enter" && store.state.drawing?.length) { event.preventDefault(); edit(next => finishDrawing(next, applyEdit)); }
-      else if (mod && key === "z") { event.preventDefault(); edit(event.shiftKey ? redo : undo); }
-      else if (mod && key === "y") { event.preventDefault(); edit(redo); }
-      else if (!mod && !event.altKey && key === "g") fork();
-      else if (!mod && !event.altKey && KEYS[key] && (!readOnly || KEYS[key] === "SELECT" || KEYS[key] === "NOTE")) {
-        if (KEYS[key] === "SPECIAL") ux.setPalette(open => !open);
-        else apply(next => setTool(next, KEYS[key]!));
-      }
-    };
-    window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
-  }, [readOnly]);
+  useCourseSettingKeys({ readOnly, drawing: () => !!store.state.drawing?.length, apply, edit, onEscape: () => setNoteDraft(undefined), fork,
+    togglePalette: () => ux.setPalette(open => !open) });
 
   /** Ett dokument från servern (inläsning, återställning): historiken börjar om och sparandet bygger på dess version. */
   function fromServer(next: CourseSettingDocument, version: number) {
@@ -496,20 +477,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     setBusy(true);
     try {
       await sync.flush();
-      // Steg 64 (ADR-0183): tävlingens utskriftsprofiler och layoutmallar står inte i .ppen-filen och följer med.
-      const event = document.event;
-      let carried: CourseSettingDocument = { ...file.document, event: { ...file.document.event,
-        ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
-        ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}),
-        // Ringklippen står inte heller i .ppen-filen (ADR-0180 beslut 10), inte heller de godtagna varningarna (ADR-0199).
-        ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}),
-        // Vägvalens vägar nära kontrollerna (ägaren 2026-11-08) gäller bara där kontrollerna står kvar.
-        ...(event.routeHints ? { routeHints: event.routeHints } : {}),
-        ...((accepted => accepted ? { acceptedChecks: accepted } : {})(keepAcceptedChecks(event.acceptedChecks, file.document))) },
-        // ADR-0192 beslut 10: en fil som sparats i Purple Pen saknar träningen; den nuvarande följer då med.
-        ...(!file.document.training && document.training ? { training: document.training } : {}) };
-      // ADR-0198: bortvalda varianter följer med när filen saknar dem och varianterna finns kvar.
-      carried = carryCourseLevels(document, carryExcludedVariants(document, carried));
+      // Det som bara finns i O-Tid (utskriftsprofiler, ringklipp, godtagna varningar, träningen, varianter, nivåer) följer med.
+      const carried = carryOnImport(document, file.document);
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
       // ADR-0217: layouterna, arken, klassernas val och lägena följer med; läget "Från Purple Pen" sparas automatiskt.

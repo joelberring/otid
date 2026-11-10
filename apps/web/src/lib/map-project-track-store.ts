@@ -36,6 +36,12 @@ export interface LocalTrack {
 /** Punkterna i `open` blir fasta delar: vid 3 000 punkter, eller alla när spåret avslutas. Högst 50 delar. */
 export function closeParts(track: LocalTrack, final: boolean): LocalTrack {
   if (!final && track.open.length < OPEN_PART_POINTS) return track;
+  // Översynen G3: slutet skickas med sista delen; finns inga nya punkter blir sista punkten en egen del, så att servern får
+  // veta att spåret är slut innan telefonens kopia tas bort.
+  if (final && track.open.length === 0) {
+    const last = track.parts[track.parts.length - 1]?.at(-1);
+    return last && track.parts.length < MAP_PROJECT_TRACK_MAX_PARTS ? { ...track, parts: [...track.parts, [last]] } : track;
+  }
   if (track.open.length === 0) return track;
   const simplified = simplifyTrack(track.open);
   const parts = [...track.parts];

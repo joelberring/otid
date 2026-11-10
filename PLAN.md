@@ -1133,7 +1133,7 @@ ADR-0182. Görs efter steg 67. Migration 0035.
 - [x] **Inställningar för synlighet** (ADR-0182 beslut 7) med försiktiga standardvärden; aldrig indexerad.
 - [x] **Tester:** integration (behörighet via gruppen, synlighetsinställningarna, upprepning), Playwright gruppsidan.
 
-## [x] Steg 69 – Terminsplanering i klubbytan
+## [x] Steg 69 – Terminsplanering i klubbytan (gjord före steg 64; stegen står i den ordning de byggdes)
 
 ADR-0221 (ägaren 2026-11-09). Migration 0109.
 
@@ -1259,7 +1259,11 @@ K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
   kartan och lämnas som förslag med källan IMPORT (räknas inte i statistiken). Tester: map-revision `vector-import`, integration
   `adr-0219-rekning` (IMPORT), E2E `kartprojekt-underlag` (DXF).
 - [x] Shapefile (.shp med .dbf, .prj och .cpg, eller en .zip med fflate, MIT) och klippning mot kartans kant.
-- [ ] K4b kvar: DWG (LibreDWG i geo-arbetaren), GeoPackage, sparade lagerprofiler per källa, Stockholms lagergrammatik.
+- [x] K4b del 2 (K6b, 2026-11-09): DWG via LibreDWG i geo-arbetaren (migration 0106), sparade lagermappningsprofiler och
+  Stockholms lagernamn (migration 0105). (Bockad i översynen 2026-11-10 G4.)
+- [x] Mappen med äldre underlag (ägaren 2026-11-10): sorteras i webbläsaren, vektorer blir skisslager och bilder underlag, resten
+  laddas aldrig upp.
+- [ ] K4b kvar: GeoPackage.
 - [x] Etapper (ägaren 2026-11-08, migration 0098): revideringsdatum per delområde (klart utan datum ger dagens; ägarna och den som
   fått området), lagret Etapper färgar efter åldern och syns bara på skärmen. E2E `kartprojekt-underlag` (etapper).
 - [x] K4c del 1: OpenStreetMap via servern (Overpass) för kartan eller en etapp, som kandidater (ingen migration). Tester:

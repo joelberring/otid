@@ -9,7 +9,6 @@ import { mapProjectLayersEn } from "../../i18n/map-project-en";
 import { mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
 import { mapProjectRectifyEn } from "../../i18n/map-project-more-en";
 import { useTexts, useLocale } from "../language-provider";
-import type { Texts } from "../../lib/language";
 import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapObject, Point } from "@o-tid/map-file";
@@ -50,21 +49,17 @@ import { Button, Notice } from "../ui";
 import { MapProjectCollabPanel } from "./map-project-collab-panel";
 import { MapProjectFieldControls, type PositionMode } from "./map-project-field-controls";
 import { MapProjectReconPanel } from "./map-project-recon-panel";
-import { MapProjectLayersPanel } from "./map-project-layers-panel";
-import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
-import { MapProjectLaserPanel } from "./map-project-laser-panel";
-import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { useMapProjectLayers } from "./use-map-project-layers";
 import { useMapProjectControlPoints } from "./use-map-project-control-points";
 import { mapProjectLayersSv } from "../../i18n/map-project-layers-sv";
-import { MapProjectImportPanel } from "./map-project-import-panel";
 import { useMapProjectImport } from "./use-map-project-import";
 import { drawLayers } from "../../lib/map-project-layers";
 import { useMapProjectPosition, type TimedFix } from "./use-map-project-position";
 import { useMapProjectRecon } from "./use-map-project-recon";
 import { saveMapProjectShell } from "../../lib/map-project-offline";
-import { MapProjectFolderIntake } from "./map-project-folder-intake";
 import { MapProjectSidebar } from "./map-project-sidebar";
+import { noticeText, SyncBadge } from "./map-project-sync-badge";
+import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
 import { MapProjectSymbolStrip, SYMBOL_STRIP_KEY } from "./map-project-symbol-strip";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
@@ -723,17 +718,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
           {georeference && <MapProjectRectifyPanel rectify={rectify} areas={collab.areas} scale={georeference.scale} />}
           {georeference && <MapProjectNorthPanel georeference={georeference} />}
-          {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
-            control={control} scale={georeference.scale} area={editor.bounds ?? undefined}
-            after={<>
-              <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />
-              <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas} />
-              <MapProjectLaserPanel view={view} layers={layers} importer={importer} georeference={georeference} bounds={editor.bounds ?? undefined}
-                areas={collab.areas} />
-              {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={collab.areas} />}
-              {importer.canImport && <MapProjectFolderIntake projectId={view.projectId} georeference={georeference} bounds={editor.bounds ?? undefined}
-                layers={layers} work={work} />}
-            </>} />}
+          {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
+            layers={layers} control={control} importer={importer} symbols={symbols} work={work} />}
         </>}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
@@ -746,20 +732,6 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       </MapProjectSidebar>
     </div>
   </main>;
-}
-
-function SyncBadge({ sync, pending }: { sync: ReturnType<typeof useMapProjectEditor>["sync"]; pending: number }) {
-  const text = useTexts(mapProjectEditorSv, mapProjectEditorEn);
-  const copy = text.sync;
-  const label = sync.kind === "offline" ? copy.offline : sync.kind === "error" ? copy.error(sync.status ?? 0)
-    : sync.kind === "syncing" || pending > 0 ? `${copy.syncing}${pending ? ` ${copy.pending(pending)}` : ""}` : copy.synced;
-  return <p className={styles.sync} role="status" data-testid="map-project-sync" data-state={sync.kind} data-pending={pending}>{label}</p>;
-}
-
-const NOTICES = ["noStore", "conflict", "conflictFirst", "rejected", "changedByOther", "proposed"] as const;
-function noticeText(notice: string, text: Texts<typeof mapProjectEditorSv>): string {
-  const key = NOTICES.find(value => value === notice);
-  return key ? text.sync[key] : notice;
 }
 
 export type { CatalogSymbol };

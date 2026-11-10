@@ -3,10 +3,12 @@
 ## Uppdrag
 
 Bygg O-Tid: ett enkelt, webbaserat tidtagningssystem för orientering med
-direkt SPORTident-avläsning som fungerar även när nätet försvinner.
+direkt SPORTident-avläsning som fungerar även när nätet försvinner, och
+runt det banläggning, klubbytor och kartritning.
 
-**Just nu finns ett enda mål: en körbar klubbträning.** Allt arbete följer
-`PLAN.md`.
+Det första målet, en körbar klubbträning, är nått och appen används
+publikt. Allt arbete följer `PLAN.md` (stegen och kartritningens K-steg)
+och ägarens önskemål, som skrivs in där eller i `STATUS.md`.
 
 ## Läs först (och bara detta)
 
@@ -24,8 +26,9 @@ historik. Läs den inte om du inte letar efter något specifikt.
 
 - Arbeta i `PLAN.md`-ordning. Ett steg är en sammanhängande leverans och får
   ta flera arbetspass. Dela inte upp det i mikrouppgifter.
-- **Skapa inga `TASK_*.md`-filer.** Skriv ingen ADR om du inte måste avvika
-  från `PLAN.md` eller ADR-0168. Skriv då en kort ADR och notera det i `STATUS.md`.
+- **Skapa inga `TASK_*.md`-filer.** Skriv en ny ADR bara för ett beslut som
+  ändrar arkitektur, behörighet eller lagring; mindre beslut blir ett daterat
+  tillägg i den ADR de hör till. Notera det i `STATUS.md`.
 - **Föreslå inte "nästa minsta uppgift".** Nästa uppgift står i `PLAN.md`.
   Om du ser något som saknas: skriv en rad under "Idéer" i `STATUS.md` och
   fortsätt med planen.

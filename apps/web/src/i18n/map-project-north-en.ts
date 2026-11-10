@@ -7,6 +7,7 @@ const degrees = (value: number) => `${value.toLocaleString("en-GB", { minimumFra
 export const mapProjectNorthEn: Texts<typeof mapProjectNorthSv> = {
   heading: "Magnetic north",
   map: (value: number) => `The map's north lines are drawn for the declination ${degrees(value)}.`,
+  noAngle: (value: number) => `The map file gives no angle for the north lines (0°), so they are assumed to point to the grid's north (declination ${degrees(value)} here). If the map is drawn to magnetic north, the comparison below is wrong; check the georeference in OCAD or Mapper.`,
   today: (value: number, date: string) => `The declination on ${date} according to the World Magnetic Model: ${degrees(value)}.`,
   difference: (value: number) => Math.abs(value) < 0.5 ? "The map points to today's magnetic north (difference under half a degree)."
     : `Difference ${degrees(Math.abs(value))} ${value > 0 ? "to the east" : "to the west"}: with a compass the map's north lines are that much off.`,

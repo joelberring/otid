@@ -23,7 +23,8 @@ export function MapProjectNorthPanel({ georeference }: { georeference: MapGeoref
   return <details className={styles.settings} data-testid="map-project-north">
     <summary>{text.heading}</summary>
     {!facts ? <p>{text.noGeoreference}</p> : <>
-      <p>{text.map(facts.mapDeclination)}</p>
+      {/* Översynen G2: en karta utan vinkel (0°) är oftast en fil där vinkeln aldrig satts, inte en karta ritad mot nätnorr. */}
+      <p data-testid="map-project-north-map">{georeference.grivationDegrees === 0 ? text.noAngle(facts.mapDeclination) : text.map(facts.mapDeclination)}</p>
       <p>{text.today(facts.magnetic.degrees, date)}</p>
       <p><strong>{text.difference(facts.difference)}</strong></p>
       {!facts.magnetic.valid && <p>{text.invalid}</p>}

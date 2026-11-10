@@ -71,14 +71,16 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   await expect(planning.getByText("Träningen är skapad.")).toBeVisible();
   await expect(first.getByRole("link", { name: "Banläggningen" })).toBeVisible();
   await reviewScreenshots(owner, "terminsplanering");
-  // Skriv ut terminen: bara planen, utan knappar.
-  await expect(planning.getByRole("button", { name: "Skriv ut terminen" })).toBeVisible();
-  await owner.emulateMedia({ media: "print" });
-  await expect(planning.getByRole("button", { name: "Ny termin" })).toBeHidden();
-  await expect(first.getByRole("button", { name: "Lägg till uppgift" })).toBeHidden();
-  await expect(first).toBeVisible();
-  if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/terminsplanering-utskrift.png`, fullPage: true });
-  await owner.emulateMedia({ media: "screen" });
+  // Skriv ut terminen (översynen G6): en egen sida med bara planen, utan knappar vid utskrift.
+  const [printPage] = await Promise.all([owner.context().waitForEvent("page"), planning.getByRole("link", { name: "Skriv ut terminen" }).click()]);
+  const printed = printPage.getByTestId("plan-print");
+  await expect(printed.getByRole("heading", { name: /VT 2027/ })).toBeVisible({ timeout: 30_000 });
+  await expect(printed).toContainText("Kurvbildsträning");
+  await expect(printed).toContainText("Sätta ut kontroller");
+  await printPage.emulateMedia({ media: "print" });
+  await expect(printed.getByRole("button", { name: "Skriv ut" })).toBeHidden();
+  if (process.env.E2E_SCREENSHOT_DIR) await printPage.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/terminsplanering-utskrift.png`, fullPage: true });
+  await printPage.close();
 
   // Översynen B1 och B2: en ny termin visas direkt, "Ändra terminen" visar den valda terminen (inte förslaget för en ny),
   // och en tom termin tas bort utan fel.

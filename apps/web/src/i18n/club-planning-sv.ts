@@ -21,6 +21,9 @@ export const clubPlanningSv = {
     remove: "Ta bort terminen",
     removeConfirm: "Ta bort terminen? Det går bara när den inte har några träningar.",
     print: "Skriv ut terminen",
+    printNow: "Skriv ut",
+    printBack: "Tillbaka till planeringen",
+    printTasks: "Uppgifter",
     sessions: (count: number) => plural(count, "träning", "träningar"),
     dates: (from: string, to: string) => `${from} – ${to}`
   },

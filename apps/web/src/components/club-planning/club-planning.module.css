@@ -40,10 +40,11 @@
 .mineList p { margin: 0; overflow-wrap: anywhere; }
 .tasks > button { justify-self: start; }
 /* Skriv ut terminen: bara planen, utan knappar och formulär. Bara på sidan med planen (modulens CSS kan laddas på andra sidor). */
+/* Översynen G6: terminen skrivs ut från en egen sida (`planering/utskrift`), inte genom att gömma resten av klubbsidan. */
+.printPage { max-width: 900px; margin: 0 auto; padding: 16px; }
 @media print {
-  :global(body):has(.planning) * { visibility: hidden; }
-  :global(body):has(.planning) .planning, :global(body):has(.planning) .planning * { visibility: visible; }
-  .planning { position: absolute; inset: 0 auto auto 0; width: 100%; }
+  :global(.site-header), :global(.site-footer) { display: none !important; }
+  .printPage { max-width: none; padding: 0; }
   .noPrint { display: none !important; }
   .week { break-inside: avoid; }
   .session { break-inside: avoid; border-color: #999; background: none; }

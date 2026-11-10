@@ -75,7 +75,8 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
       <div className={styles.actions}>
         <Button variant="secondary" onClick={() => setTermForm(termForm === "new" ? undefined : "new")} aria-expanded={termForm === "new"}>{text.term.add}</Button>
         {term && <Button variant="quiet" onClick={() => setTermForm(termForm === "edit" ? undefined : "edit")} aria-expanded={termForm === "edit"}>{text.term.edit}</Button>}
-        {term && <Button variant="quiet" onClick={() => window.print()}>{text.term.print}</Button>}
+        {term && <a className={styles.link} href={`/organizer/clubs/${encodeURIComponent(clubId)}/planering/utskrift?term=${encodeURIComponent(term.termId)}`}
+          target="_blank" rel="noopener">{text.term.print}</a>}
       </div>
     </div>
     {termForm && <PlanTermForm key={termForm === "edit" && term ? term.termId : "new"} term={termForm === "edit" ? term ?? undefined : undefined} busy={busy} onCancel={() => setTermForm(undefined)}

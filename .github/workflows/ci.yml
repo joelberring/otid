@@ -56,7 +56,14 @@ jobs:
 
   production:
     # Steg 6: hela driftuppsättningen (Dockerfile, Caddy, PostgreSQL, backup) med webbläsartesterna mot HTTPS.
+    # Översynen 2026-11-10 G5: webbläsartesterna delas på två jobb (var sin driftuppsättning), så att CI tar ungefär hälften
+    # så lång tid. `retries: 1` står kvar (ett ostadigt test syns som "flaky" i loggen) så att en slumpmässig miss inte stoppar
+    # avbildningarna.
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -105,7 +112,7 @@ jobs:
           grep -q otid_app roles-used.txt
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/2
         env:
           E2E_BASE_URL: https://localhost
       # ADR-0186: dumpen före migreringen, timdumpen och dagsbackupen; hälsokontrollen en gång.
@@ -121,7 +128,7 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-results
+          name: playwright-test-results-${{ matrix.shard }}
           path: test-results/
           retention-days: 7
           if-no-files-found: ignore

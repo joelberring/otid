@@ -39,10 +39,10 @@
 .mineList > li { display: grid; gap: .15rem; padding: 8px 0; border-bottom: 1px solid var(--line); min-width: 0; }
 .mineList p { margin: 0; overflow-wrap: anywhere; }
 .tasks > button { justify-self: start; }
-/* Skriv ut terminen: bara planen, utan knappar och formulär. */
+/* Skriv ut terminen: bara planen, utan knappar och formulär. Bara på sidan med planen (modulens CSS kan laddas på andra sidor). */
 @media print {
-  :global(body) * { visibility: hidden; }
-  .planning, .planning * { visibility: visible; }
+  :global(body):has(.planning) * { visibility: hidden; }
+  :global(body):has(.planning) .planning, :global(body):has(.planning) .planning * { visibility: visible; }
   .planning { position: absolute; inset: 0 auto auto 0; width: 100%; }
   .noPrint { display: none !important; }
   .week { break-inside: avoid; }

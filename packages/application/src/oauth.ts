@@ -211,7 +211,9 @@ export async function exchangeOauthToken(db: Database, input: { form: Record<str
           .where(and(eq(schema.oauthGrants.previousRefreshSha256, presented), isNull(schema.oauthGrants.revokedAt)));
         return failure("invalid_grant", "Förnyelsenyckeln är ogiltig");
       }
-      if (grant.revokedAt || grant.refreshExpiresAt <= now || grant.clientId !== form.client_id) {
+      const [owner] = await tx.select({ blockedAt: schema.userAccounts.blockedAt }).from(schema.userAccounts)
+        .where(eq(schema.userAccounts.id, grant.accountId));
+      if (grant.revokedAt || grant.refreshExpiresAt <= now || grant.clientId !== form.client_id || !owner || owner.blockedAt) {
         return failure("invalid_grant", "Förnyelsenyckeln är ogiltig");
       }
       return { status: "ok", response: tokenResponse(await issue(tx, grant, now), grant.scope) } as const;
@@ -231,7 +233,11 @@ export async function revokeOauthToken(db: Database, token: string, now = new Da
 export async function authenticateOauthAccess(db: Database, token: string | null, now = new Date())
   : Promise<{ accountId: string; grantId: string; clientName: string; scopes: OauthScope[] } | undefined> {
   if (!token || !token.startsWith("otid_at_") || token.length > 100) return undefined;
-  const [grant] = await db.select().from(schema.oauthGrants).where(eq(schema.oauthGrants.accessSha256, sha256(token)));
+  const [row] = await db.select({ grant: schema.oauthGrants, blockedAt: schema.userAccounts.blockedAt }).from(schema.oauthGrants)
+    .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, schema.oauthGrants.accountId))
+    .where(eq(schema.oauthGrants.accessSha256, sha256(token)));
+  // Översynen A2: ett spärrat konto har ingen AI-koppling, även om nyckeln inte hunnit återkallas.
+  const grant = row && !row.blockedAt ? row.grant : undefined;
   if (!grant || grant.revokedAt || grant.accessExpiresAt <= now) return undefined;
   if (!grant.lastUsedAt || now.getTime() - grant.lastUsedAt.getTime() > 60_000) {
     await db.update(schema.oauthGrants).set({ lastUsedAt: now }).where(eq(schema.oauthGrants.id, grant.id));

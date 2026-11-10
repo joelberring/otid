@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { createMapProjectFromUpload } from "../../src/map-projects";
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
@@ -123,7 +124,8 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect(await manageGeoServer(db, hetzner, settings, mail, at(5))).toEqual({ action: "none", detail: null });
     expect(await geoServerView(db, environment, at(5))).toEqual({ state: "READY", detail: null });
     await finishGeoJob(db, jobId, name!, { status: "FAILED", error: "prov" }, at(10));
-    // Under tomgångens 20 minuter står den kvar; sedan raderas den.
+    // Under tomgångens 20 minuter står den kvar (arbetaren frågar efter jobb hela tiden); sedan raderas den.
+    for (const minute of [14, 24, 30]) await authenticateGeoWorker(db, `Bearer ${token}`, null, {}, at(minute));
     expect((await manageGeoServer(db, hetzner, settings, mail, at(25))).action).toBe("none");
     expect(await manageGeoServer(db, hetzner, settings, mail, at(31))).toEqual({ action: "deleted", detail: `${name!} utan jobb i 20 minuter` });
     expect(removed).toEqual([created[0]!.id]);
@@ -191,6 +193,26 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect(removed).toContain(long);
     expect((await db.select().from(schema.geoServers)).find(row => row.providerId === long)).toMatchObject({ status: "DELETED",
       deleteReason: "längre än 1 timmar" });
+
+    // Översynen C1: en server som tystnat mitt i ett jobb raderas, jobbet går tillbaka i kön och en ny server startas.
+    await clear();
+    removed.length = 0;
+    const jobId = await waitingJob();
+    expect((await manageGeoServer(db, hetzner, settings, mail, at(300))).action).toBe("created");
+    const silentToken = /OTID_GEO_WORKER_TOKEN='([0-9a-f]{64})'/.exec(created.at(-1)!.userData)![1]!;
+    const silent = created.at(-1)!.id;
+    const worker = await authenticateGeoWorker(db, `Bearer ${silentToken}`, null, {}, at(302));
+    expect((await claimGeoJob(db, worker!, at(302)))?.jobId).toBe(jobId);
+    expect((await manageGeoServer(db, hetzner, settings, mail, at(310))).action).toBe("none");
+    expect(await manageGeoServer(db, hetzner, settings, mail, at(313))).toEqual({ action: "created", detail: "cx23 i fsn1" });
+    expect(removed).toContain(silent);
+    expect((await db.select().from(schema.geoServers)).find(row => row.providerId === silent)).toMatchObject({ deleteReason: "hördes inte av" });
+    expect((await db.select().from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.id, jobId)))[0]).toMatchObject({ status: "QUEUED" });
+
+    // Översynen A3: ett varv i taget; ett pågående lås gör att nästa varv inte gör något.
+    await db.update(schema.geoServerStates).set({ updatedAt: at(320) }).where(eq(schema.geoServerStates.key, "lease"));
+    expect(await manageGeoServer(db, hetzner, settings, mail, at(321))).toEqual({ action: "none", detail: "ett annat varv pågår" });
+    expect((await manageGeoServer(db, hetzner, settings, mail, at(326))).detail).not.toBe("ett annat varv pågår");
 
     // En server med etiketten som tabellen inte känner till raderas.
     extra.push({ id: 999, name: "otid-geo-borta", created: NOW.toISOString() });

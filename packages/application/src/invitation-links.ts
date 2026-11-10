@@ -108,6 +108,30 @@ async function issued(tx: DbExecutor, where: ReturnType<typeof and>, since: Date
   return Number(row?.value ?? 0);
 }
 
+/** Låser avsändaren och mottagaren och ger mejlspärrens fyra gränser (per avsändare och mottagare, timme och dygn). */
+async function lockMailLimits(tx: DbExecutor, input: { issuedBy: string; email: string; now: Date }) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`invitation-issuer:${input.issuedBy}`}, 0))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`invitation-recipient:${invitationRecipientKey(input.email)}`}, 0))`);
+  const recipient = input.email.trim().toLowerCase();
+  const limits: { scope: AccountThrottleScope; key: string; limit: number; windowMs: number }[] = [
+    { scope: "INVITATION_ISSUER_HOUR", key: input.issuedBy, limit: INVITATION_MAILS_PER_INVITER.hour, windowMs: HOUR },
+    { scope: "INVITATION_ISSUER_DAY", key: input.issuedBy, limit: INVITATION_MAILS_PER_INVITER.day, windowMs: DAY },
+    { scope: "INVITATION_RECIPIENT_HOUR", key: recipient, limit: INVITATION_MAILS_PER_RECIPIENT.hour, windowMs: HOUR },
+    { scope: "INVITATION_RECIPIENT_DAY", key: recipient, limit: INVITATION_MAILS_PER_RECIPIENT.day, windowMs: DAY }];
+  return limits;
+}
+
+/**
+ * Översynen 2026-11-10 A1: andra mejl som O-Tid skickar till en adress som någon annan skrivit in (uppgifterna i
+ * terminsplaneringen) räknas i samma spärr som inbjudningarna. Sant och räknat om mejlet ryms; falskt annars.
+ */
+export async function consumeInvitationMailAllowance(tx: DbExecutor, input: { issuedBy: string; email: string; now: Date }): Promise<boolean> {
+  const limits = await lockMailLimits(tx, input);
+  for (const limit of limits) if (await accountRequestAllowanceExhausted(tx, limit, input.now)) return false;
+  for (const limit of limits) if (!await consumeAccountRequestAllowance(tx, limit, input.now)) return false;
+  return true;
+}
+
 /**
  * Ryms ett till mejl (MAIL) eller en kopierad länk (LINK)? Låser avsändaren och mottagaren i transaktionen så att två samtidiga
  * anrop räknas efter varandra.
@@ -120,13 +144,7 @@ async function allowed(tx: DbExecutor, input: { ref: InvitationRef; issuedBy: st
     const byIssuer = and(eq(links.issuedBy, input.issuedBy), eq(links.delivery, "LINK"));
     return await issued(tx, byIssuer, new Date(input.now.getTime() - HOUR)) < INVITATION_LINKS_PER_INVITER_HOUR;
   }
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`invitation-recipient:${input.recipientKey}`}, 0))`);
-  const recipient = input.email.trim().toLowerCase();
-  const limits: { scope: AccountThrottleScope; key: string; limit: number; windowMs: number }[] = [
-    { scope: "INVITATION_ISSUER_HOUR", key: input.issuedBy, limit: INVITATION_MAILS_PER_INVITER.hour, windowMs: HOUR },
-    { scope: "INVITATION_ISSUER_DAY", key: input.issuedBy, limit: INVITATION_MAILS_PER_INVITER.day, windowMs: DAY },
-    { scope: "INVITATION_RECIPIENT_HOUR", key: recipient, limit: INVITATION_MAILS_PER_RECIPIENT.hour, windowMs: HOUR },
-    { scope: "INVITATION_RECIPIENT_DAY", key: recipient, limit: INVITATION_MAILS_PER_RECIPIENT.day, windowMs: DAY }];
+  const limits = await lockMailLimits(tx, input);
   for (const limit of limits) if (await accountRequestAllowanceExhausted(tx, limit, input.now)) return false;
   // Ett mejl som inte gick iväg hindrar inte ett nytt försök direkt.
   const sameInvitation = and(eq(linkColumn(input.ref.kind), input.ref.invitationId), eq(links.delivery, "MAIL"), isNotNull(links.sentAt));

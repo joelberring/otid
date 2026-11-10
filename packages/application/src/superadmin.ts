@@ -1,4 +1,4 @@
-import { desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import {
   normalizeAccountEmail,
   SUPERADMIN_LIST_LIMIT,
@@ -154,6 +154,9 @@ export async function performSuperadminAction(
       case "BLOCK_ACCOUNT":
         await tx.update(schema.userAccounts).set({ blockedAt: account.blockedAt ?? now }).where(eq(schema.userAccounts.id, account.id));
         await revokeAllUserAccountSessions(tx, account.id, now, "ACCOUNT_BLOCKED");
+        // Översynen A2: AI-kopplingarna återkallas också (de gäller inte igen när spärren hävs).
+        await tx.update(schema.oauthGrants).set({ revokedAt: now })
+          .where(and(eq(schema.oauthGrants.accountId, account.id), isNull(schema.oauthGrants.revokedAt)));
         break;
       case "UNBLOCK_ACCOUNT":
         await tx.update(schema.userAccounts).set({ blockedAt: null }).where(eq(schema.userAccounts.id, account.id));

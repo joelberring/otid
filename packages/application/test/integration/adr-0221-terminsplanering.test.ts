@@ -108,6 +108,25 @@ describe("ADR-0221: terminsplaneringen", () => {
     expect(await removePlanSession(db, { ...leader.proof, clubId, sessionId: first.sessionId }, NOW)).toEqual({ status: "ok" });
   });
 
+  it("uppgifternas mejl har samma spärr som inbjudningarna (översynen A1)", async () => {
+    const { clubId, leader } = await setup();
+    const term = await createClubTerm(db, { ...leader.proof, clubId,
+      request: { formatVersion: 1, requestId: randomUUID(), name: "HT 2027", startsOn: "2027-08-01", endsOn: "2027-12-31" } }, NOW);
+    if (term.status !== "ok") throw new Error(term.status);
+    const created = await createPlanSessions(db, { ...leader.proof, clubId, request: session(term.termId, { sessionDate: "2027-09-01" }) }, NOW);
+    if (created.status !== "ok") throw new Error(created.status);
+    const email = `spam.${randomUUID().slice(0, 6)}@test.o-tid.se`;
+    const mails: PlanTaskMail[] = [];
+    const results = [];
+    for (const title of ["Ett", "Två", "Tre", "Fyra"]) {
+      results.push(await createPlanTask(db, { ...leader.proof, clubId, sessionId: created.sessionIds[0]!, request: { formatVersion: 1,
+        requestId: randomUUID(), title, assignee: { kind: "EMAIL", email } } }, NOW, async mail => { mails.push(mail); }));
+    }
+    // Tre per mottagare och timme; den fjärde uppgiften sparas men utan mejl.
+    expect(results.map(result => result.status === "ok" && result.mailed)).toEqual([true, true, true, false]);
+    expect(mails.map(mail => mail.taskTitle)).toEqual(["Ett", "Två", "Tre"]);
+  });
+
   it("uppgifter: bara de egna syns, adressen blir kontots, och läsrätten i banläggningen följer uppgiften", async () => {
     const { owner, clubId, leader, reader } = await setup();
     const term = await createClubTerm(db, { ...leader.proof, clubId,

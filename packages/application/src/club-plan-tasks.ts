@@ -4,6 +4,7 @@ import { clubPlanTaskCreateSchema, clubPlanTaskDoneSchema, type ClubPlanPerson, 
 import { schema, type Database } from "@o-tid/database";
 import { clubMembership, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction as Transaction } from "./club-access";
 import { confirmedMembersOf } from "./club-affiliations";
+import { consumeInvitationMailAllowance } from "./invitation-links";
 import { defaultRaceOrganiser } from "./race-club-archive";
 import { activeEventAdministrationGrant } from "./race-session";
 import { UUID_PATTERN } from "./serialization";
@@ -95,12 +96,15 @@ export async function createPlanTask(db: Database, input: ClubProof & { clubId: 
       return { status: "invalid-request" } as const;
     }
     const id = randomUUID();
-    const email = assignee.kind === "EMAIL" ? assignee.email.trim().toLowerCase() : null;
+    // Adressen är redan normaliserad som kontots (NFC, gemener; `accountEmailSchema`).
+    const email = assignee.kind === "EMAIL" ? assignee.email : null;
     const accountId = assignee.kind === "MEMBER" ? assignee.accountId : null;
     await tx.insert(tasks).values({ id, sessionId: session.id, title, assigneeAccountId: accountId, assigneeEmail: email, createdAt: now,
       createdBy: access.accountId, requestId });
     if (accountId && session.raceId) await grantCourseRead(tx, { raceId: session.raceId, accountId, taskId: id, actorId: access.accountId, now });
     if (!email || !mailer) return { status: "ok", taskId: id, mail: undefined } as const;
+    // A1: samma spärr som inbjudningarna. Över gränsen sparas uppgiften men inget mejl skickas.
+    if (!await consumeInvitationMailAllowance(tx, { issuedBy: access.accountId, email, now })) return { status: "ok", taskId: id, mail: undefined } as const;
     const [facts] = await tx.select({ inviterName: schema.userAccounts.displayName, clubName: schema.clubs.name }).from(schema.userAccounts)
       .innerJoin(schema.clubs, eq(schema.clubs.id, access.clubId)).where(eq(schema.userAccounts.id, access.accountId));
     const mail: PlanTaskMail = { to: email, inviterName: facts?.inviterName ?? "", clubName: facts?.clubName ?? "", taskTitle: title,

@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { GeoServerView } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
+import { releaseStaleGeoJobs } from "./map-project-geo-jobs";
 import type { ServerMessage } from "./server-status";
 import type { DbExecutor } from "./snapshot";
 
@@ -20,6 +21,12 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 /** En server som inte hört av sig så här länge efter starten raderas (och en ny provas). */
 const START_TIMEOUT_MS = 15 * 60_000;
+/** En server som varit igång men inte hört av sig så här länge raderas (arbetaren frågar efter jobb var 15:e sekund). */
+const SILENT_MS = 10 * 60_000;
+/** Varvets lås (en rad i `geo_server_state`) räknas som övergivet efter så här lång tid. */
+const LEASE_MS = 5 * 60_000;
+/** Pris när Hetzner inte uppger något för typen: högsta kända priset, eller det här om inget är känt (räkna högt). */
+const UNKNOWN_HOURLY_EUR = 0.2;
 /** Högst så många nya servrar per timme (om något går fel i starten blir det inte en ström av servrar). */
 const STARTS_PER_HOUR = 3;
 
@@ -166,11 +173,27 @@ function dueMail(state: ServerState, notice: Notice, now: Date): boolean {
 export interface ManageResult { readonly action: "none" | "created" | "deleted" | "unavailable" | "budget"; readonly detail: string | null }
 
 /**
- * Ett varv (varje minut i webben, under ett lås): radera servrar som stått utan jobb, inte startat eller gått för länge, och
- * starta en när jobb väntar och ingen finns. Ägaren mejlas enligt ovan.
+ * Ett varv (varje minut i webben): radera servrar som stått utan jobb, inte startat, tystnat eller gått för länge, och starta
+ * en när jobb väntar och ingen finns. Ägaren mejlas enligt ovan. Översynen A3: varvet tar ett lås i databasen (en rad i
+ * `geo_server_state` med tid), så att två webbprocesser (t.ex. under en omstart) inte startar var sin server.
  */
 export async function manageGeoServer(db: Database, hetzner: Hetzner, settings: GeoServerSettings, mail: GeoMailer, now = new Date())
   : Promise<ManageResult> {
+  const lease = await db.execute<{ key: string }>(sql`
+    insert into geo_server_state (key, value, updated_at) values ('lease', '{}'::jsonb, ${now})
+    on conflict (key) do update set updated_at = excluded.updated_at
+      where geo_server_state.updated_at < ${new Date(now.getTime() - LEASE_MS)}
+    returning key`);
+  if (lease.rows.length === 0) return { action: "none", detail: "ett annat varv pågår" };
+  try {
+    return await manageRound(db, hetzner, settings, mail, now);
+  } finally {
+    await db.update(states).set({ updatedAt: new Date(0) }).where(eq(states.key, "lease"));
+  }
+}
+
+async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSettings, mail: GeoMailer, now: Date): Promise<ManageResult> {
+  await releaseStaleGeoJobs(db, now);
   const [{ waiting, running } = { waiting: 0, running: 0 }] = await db.select({
     waiting: sql<number>`count(*) filter (where ${schema.mapProjectGeoJobs.status} = 'QUEUED')::int`,
     running: sql<number>`count(*) filter (where ${schema.mapProjectGeoJobs.status} = 'RUNNING')::int` })
@@ -203,6 +226,10 @@ export async function manageGeoServer(db: Database, hetzner: Hetzner, settings: 
     } else if (now.getTime() - row.createdAt.getTime() > settings.maxHours * HOUR) {
       await remove(row, `längre än ${settings.maxHours} timmar`);
       deleted = `${row.name} har gått i ${settings.maxHours} timmar`;
+    } else if (row.status === "READY" && row.lastSeenAt && now.getTime() - row.lastSeenAt.getTime() > SILENT_MS) {
+      // Översynen C1: arbetaren har tystnat (servern hängde eller Docker stannade). Dess jobb läggs tillbaka i kön ovan.
+      await remove(row, "hördes inte av");
+      deleted = `${row.name} har inte hört av sig på 10 minuter`;
     } else if (waiting === 0 && running === 0 && now.getTime() - lastActivity > settings.idleMinutes * 60_000) {
       await remove(row, "tomgång");
       deleted = `${row.name} utan jobb i ${settings.idleMinutes} minuter`;
@@ -229,10 +256,13 @@ export async function manageGeoServer(db: Database, hetzner: Hetzner, settings: 
 
   const types = await hetzner.types().catch(() => [] as HetznerType[]);
   const cost = await geoServerMonthCost(db, now);
+  // Översynen C2: ett okänt pris räknas högt, inte lågt, så att budgeten inte överskrids med en dyrare reservtyp.
+  const prices = types.flatMap(type => [...type.hourly.values()]);
+  const highestKnown = prices.length ? Math.max(...prices) : UNKNOWN_HOURLY_EUR;
   const tried: string[] = [];
   for (const [typeIndex, type] of settings.types.entries()) {
     for (const location of settings.locations) {
-      const hourly = types.find(row => row.name === type)?.hourly.get(location) ?? 0.05;
+      const hourly = types.find(row => row.name === type)?.hourly.get(location) ?? highestKnown;
       if (cost + hourly > settings.budgetEur) {
         if (dueMail(state, "BUDGET", now)) {
           await mail({ subject: "O-Tid: geo-serverns budget är slut", text: `Månadens kostnad för geo-servern är ${cost.toFixed(2)} € av `

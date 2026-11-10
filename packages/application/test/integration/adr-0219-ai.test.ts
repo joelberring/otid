@@ -117,6 +117,16 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(denied.status === "redirect" && new URL(denied.redirect).searchParams.get("error")).toBe("access_denied");
   });
 
+  it("ett spärrat konto har ingen AI-koppling (översynen A2)", async () => {
+    const owner = await registerTestAccount(db);
+    const { clientId, token } = await connect(owner.proof);
+    expect(await authenticateOauthAccess(db, token.access_token)).toBeDefined();
+    await db.update(schema.userAccounts).set({ blockedAt: new Date() }).where(eq(schema.userAccounts.id, owner.accountId));
+    expect(await authenticateOauthAccess(db, token.access_token)).toBeUndefined();
+    expect((await exchangeOauthToken(db, { form: { grant_type: "refresh_token", refresh_token: token.refresh_token, client_id: clientId },
+      ip: "198.51.100.7", resource: RESOURCE })).status).toBe("error");
+  });
+
   it("MCP: verktygen ser kartprojektet, ritar bilder och lämnar bara förslag", async () => {
     const owner = await registerTestAccount(db);
     const reader = await registerTestAccount(db);

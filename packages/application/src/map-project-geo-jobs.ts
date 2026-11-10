@@ -170,11 +170,19 @@ export interface ClaimedGeoJob {
   readonly vegetation: { readonly minAreaM2: number } | null;
 }
 
-export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
+/**
+ * Jobb som inte fått livstecken på tio minuter: tillbaka i kön, eller misslyckade efter sista försöket. Körs när en arbetare
+ * frågar efter jobb och i geo-serverns varv (översynen C1: dör arbetaren frågar ingen, och då står jobbet annars kvar).
+ */
+export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<void> {
   const stale = new Date(now.getTime() - STALE_MS);
   await db.update(jobs).set({ status: "FAILED", finishedAt: now, error: "Geo-arbetaren slutade svara" })
     .where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale), sql`${jobs.attempts} >= ${MAX_ATTEMPTS}`));
   await db.update(jobs).set({ status: "QUEUED", worker: null }).where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale)));
+}
+
+export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
+  await releaseStaleGeoJobs(db, now);
   const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
     moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},

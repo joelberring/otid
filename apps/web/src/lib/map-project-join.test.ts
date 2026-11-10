@@ -1,6 +1,6 @@
 import type { MapObject, PathCommand } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { joinLines, reversePath } from "./map-project-join";
+import { cutLineAt, joinLines, reverseLine, reversePath } from "./map-project-join";
 
 const line = (symbol: string, ...points: [number, number][]): MapObject =>
   ({ kind: "line", symbol, path: points.map(([x, y], index) => ({ type: index === 0 ? "M" : "L", x, y })) as PathCommand[] });
@@ -37,5 +37,27 @@ describe("slå ihop linjer", () => {
   it("en kurva vänds med handtagen i omvänd ordning; hörnet följer punkten och luckan sträckan (vänster blir höger)", () => {
     const path: PathCommand[] = [{ type: "M", x: 0, y: 0 }, { type: "C", x1: 1, y1: 2, x2: 3, y2: 4, x: 5, y: 0, corner: true }, { type: "L", x: 9, y: 0, gap: 2 }];
     expect(reversePath(path)).toEqual([{ type: "M", x: 9, y: 0 }, { type: "L", x: 5, y: 0, corner: true, gap: 4 }, { type: "C", x1: 3, y1: 4, x2: 1, y2: 2, x: 0, y: 0 }]);
+  });
+});
+
+describe("klipp isär och vänd", () => {
+  it("klipper vid en brytpunkt eller mitt på en sträcka; ändpunkterna och annat än linjer klipps inte", () => {
+    const path = line("s516", [0, 0], [10, 0], [20, 0]);
+    const [first, second] = cutLineAt(path, { x: 10.1, y: 0.1 }, 0.5)!;
+    expect([xs(first), xs(second)]).toEqual([[0, 10], [10, 20]]);
+    expect(second.symbol).toBe("s516");
+    const [left, right] = cutLineAt(path, { x: 4, y: 0.2 }, 0.5)!;
+    expect([xs(left), xs(right)]).toEqual([[0, 4], [4, 10, 20]]);
+    expect(cutLineAt(path, { x: 0, y: 0 }, 0.5)).toBeUndefined();
+    expect(cutLineAt(path, { x: 20, y: 0 }, 0.5)).toBeUndefined();
+    expect(cutLineAt(path, { x: 5, y: 9 }, 0.5)).toBeUndefined();
+    expect(cutLineAt({ kind: "point", symbol: "s1", at: { x: 0, y: 0 }, angle: 0 }, { x: 0, y: 0 }, 1)).toBeUndefined();
+    // Klippt och hopslagen igen är samma linje.
+    expect(xs(joinLines([first, second], 0.3)!.object)).toEqual([0, 10, 20]);
+  });
+
+  it("vänder en linje; en punkt går inte att vända", () => {
+    expect(xs(reverseLine(line("s201", [0, 0], [10, 0], [30, 0]))!)).toEqual([30, 10, 0]);
+    expect(reverseLine({ kind: "point", symbol: "s1", at: { x: 0, y: 0 }, angle: 0 })).toBeUndefined();
   });
 });

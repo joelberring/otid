@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import styles from "./map-project-tool-rail.module.css";
 
 export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys"
-  | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
+  | "cut" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
 
 export interface RailTool {
   readonly id: string; readonly label: string; readonly icon: RailIcon;
@@ -43,6 +43,10 @@ const PATHS: Record<RailIcon, ReactNode> = {
   switchSymbol: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" fill="currentColor" /><path d="M14 6h5v4M17.5 8.5L19 10l1.5-1.5M10 18H5v-4M3.5 15.5L5 14l1.5 1.5" /></>,
   // Slå ihop: två linjer som möts i en punkt.
   join: <><path d="M3 18l6-6M21 6l-6 6" /><circle cx="12" cy="12" r="2.6" /></>,
+  // Saxen, pipetten och två pilar åt var sitt håll.
+  cut: <><circle cx="6" cy="6" r="2.6" /><circle cx="6" cy="18" r="2.6" /><path d="M8.2 7.6L20 17M8.2 16.4L20 7" /></>,
+  pick: <><path d="M14 6l4 4M15.5 4.5l4 4-2 2-4-4zM13 8l-8 8-1 4 4-1 8-8" /></>,
+  reverse: <><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4" /></>,
   smooth: <path d="M3 16c3-10 6-10 9-2s6 6 9-6" />,
   simplify: <><path d="M3 17l4-9 4 6 4-8 6 9" strokeDasharray="2 2.4" /><path d="M3 17L15 6l6 9" /></>,
   checked: <><circle cx="12" cy="12" r="9" /><path d="M7.5 12.5l3 3 6-7" /></>,

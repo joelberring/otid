@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Sax, vänd riktning och pipett; verktygsspalten i två kolumner (steg K8)
+- Klipp isär (X): ett klick på en linje delar den där (vid en brytpunkt eller på sträckan); den andra delen blir ett nytt
+  objekt, ett steg att ångra. Vänd riktning (V) för den markerade linjen eller alla markerade linjer (branters taggar byter
+  sida). Pipetten (D) gör det markerade objektets symbol till den valda. Alla tre har knapp, tangent och förklaring.
+- Klickverktygen ligger i `map-project-click-tools.ts` (editorfilen hålls under 800 rader); spalten har två kolumner i datorn.
+- Verifierat: enhetstest (klipp, vänd, hopslagning igen), E2E `kartprojekt-rita`. Två tester föll i en hel körning och gick
+  igenom ensamma och upprepade (delområdestestet är känt ostadigt vid första körningen).
+
 ### 2026-11-10 – Grundkartan ur laser, G2 och G4: allt på en gång, branterna som linjer
 - «Läs in grundkartan» på ett klart Karttapullautin-jobb läser in alla delar tillsammans som kandidater (kurvor, stödkurvor,
   branter, knollar, vatten, våtmarker, vegetation), med brantlinjerna i stället för de korta strecken när de finns.

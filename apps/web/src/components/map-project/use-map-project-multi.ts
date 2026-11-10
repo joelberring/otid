@@ -4,7 +4,7 @@ import type { MapObject, Point } from "@o-tid/map-file";
 import { withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { translateObject } from "../../lib/map-project-draw";
-import { joinLines } from "../../lib/map-project-join";
+import { joinLines, reverseLine } from "../../lib/map-project-join";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 import { angleFrom, boundsOf, centerOf, rotateObject } from "../../lib/map-project-transform";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -132,6 +132,18 @@ export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys }: 
         if (item.object.kind !== symbol.kind || item.object.symbol === symbol.id) return item;
         const object = withSymbol(item.object, symbol.id);
         if (!commit({ key: item.key, ref: item.ref, kind: "SYMBOL", after: { kind: "OBJECT", object }, group })) return item;
+        count += 1;
+        return { ...item, object };
+      }));
+      return count;
+    },
+    /** Vänd alla markerade linjer (ett steg att ångra). Antalet som vändes. */
+    reverse: (): number => {
+      const group = crypto.randomUUID();
+      let count = 0;
+      setItems(itemsRef.current.map(item => {
+        const object = reverseLine(item.object);
+        if (!object || !commit({ key: item.key, ref: item.ref, kind: "RESHAPE", after: { kind: "OBJECT", object }, group })) return item;
         count += 1;
         return { ...item, object };
       }));

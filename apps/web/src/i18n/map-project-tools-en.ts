@@ -189,7 +189,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   title: "Keys in the drawing mode",
   help: "The keys are under the left hand, so that the right hand can stay on the mouse. Click a key and then press the new one. The choice is saved in this browser.",
   commands: {
-    select: "Edit", draw: "Draw", circle: "Circle", note: "Note", addPoint: "Add point", removePoint: "Remove point",
+    select: "Edit", draw: "Draw", circle: "Circle", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
     switchSymbol: "Change symbol on the selection", join: "Join lines", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
     undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only"
   },
@@ -217,6 +217,9 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
     note: "Click the map and write a note to yourself or the others.",
     switchSymbol: "The selection gets the symbol chosen in the panel. With several selected, all with the same shape (line, area or point) change.",
     join: "Select the lines with a box or Shift-click. Lines with the same symbol whose ends meet become one line; two selected lines are always joined.",
+    cut: "Click a line to split it in two there. On a vertex it is split at the point.",
+    pick: "The symbol of the selected object becomes the chosen one, so that you can draw more with it.",
+    reverse: "The line changes direction, so that the tags of cliffs and the dashes of fences end up on the other side.",
     smooth: "The corners become smooth curves.",
     simplify: "Removes points the shape does not need.",
     checked: "Marks the object as checked in the terrain.",
@@ -230,6 +233,12 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   needOtherSymbol: "First choose another symbol with the same shape in the panel.",
   needLines: "Select two or more lines with the same symbol: drag a box around them or Shift-click.",
   needShape: "Select a line or an area first.",
+  needLine: "Select one or more lines first.",
+  cutHint: "Cut apart: click the line where it is to be split.",
+  noLineHere: "No line to cut there (the end points cannot be cut).",
+  wasCut: "The line is split in two.",
+  reversed: (n: number) => n === 1 ? "The line is reversed." : `${n} lines are reversed.`,
+  picked: (code: string) => `Chosen symbol: ${code}.`,
   joined: (n: number) => `${n} lines became one.`,
   switched: (n: number, code: string) => n === 1 ? `1 object got the symbol ${code}.` : `${n} objects got the symbol ${code}.`,
   multiSwitch: (n: number, code: string) => `Change ${n} to ${code}`

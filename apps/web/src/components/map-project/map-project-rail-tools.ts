@@ -12,9 +12,9 @@ export interface RailState {
   readonly canEdit: boolean; readonly canDecide: boolean; readonly canNote: boolean; readonly canCheck: boolean; readonly isChecked: boolean;
   readonly canUndo: boolean; readonly canRedo: boolean;
   /** Något är markerat (ett objekt eller flera), och vad som går att göra med det. */
-  readonly hasSelection: boolean; readonly canSwitch: boolean; readonly canJoin: boolean; readonly canSmooth: boolean; readonly canSimplify: boolean;
-  readonly pick: (tool: "select" | "draw" | "circle" | "addPoint" | "removePoint" | "area" | "note") => void;
-  readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked") => void;
+  readonly hasSelection: boolean; readonly canSwitch: boolean; readonly canJoin: boolean; readonly canReverse: boolean; readonly canPick: boolean; readonly canSmooth: boolean; readonly canSimplify: boolean;
+  readonly pick: (tool: "select" | "draw" | "circle" | "addPoint" | "removePoint" | "cut" | "area" | "note") => void;
+  readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "reverse" | "pick") => void;
   readonly remove: () => void; readonly undo: () => void; readonly redo: () => void;
   readonly togglePanel: () => void; readonly toggleBare: () => void; readonly openWheel: () => void; readonly openKeys: () => void;
 }
@@ -38,13 +38,18 @@ export function railTools(state: RailState): RailTool[] {
         testId: "map-project-add-point", onPick: () => state.pick("addPoint") },
       { id: "removePoint", label: text.commands.removePoint, icon: "removePoint", key: key("removePoint"), help: text.removePointHint, active: state.tool === "removePoint",
         testId: "map-project-remove-point", onPick: () => state.pick("removePoint") },
+      { id: "cut", label: text.commands.cut, icon: "cut", key: key("cut"), help: text.tips.cut, active: state.tool === "cut", testId: "map-project-cut", onPick: () => state.pick("cut") },
       ...(state.canDecide ? [{ id: "area", label: labels.area, icon: "area", help: text.tips.area, active: state.tool === "area", onPick: () => state.pick("area") } as const] : []),
       ...(state.canNote ? [{ id: "note", label: labels.note, icon: "note", key: key("note"), help: text.tips.note, active: state.tool === "note", testId: "map-project-note-tool",
         onPick: () => state.pick("note") } as const] : []),
       { id: "switchSymbol", label: labels.switchTo ?? text.commands.switchSymbol, icon: "switchSymbol", key: key("switchSymbol"), help: text.tips.switchSymbol, gap: true,
         disabled: !state.canSwitch, disabledHelp: needs ?? text.needOtherSymbol, testId: "map-project-rail-switch", onPick: () => state.act("switchSymbol") },
+      { id: "pick", label: text.commands.pick, icon: "pick", key: key("pick"), help: text.tips.pick, disabled: !state.canPick, disabledHelp: text.needSelection,
+        testId: "map-project-rail-pick", onPick: () => state.act("pick") },
       { id: "join", label: text.commands.join, icon: "join", key: key("join"), help: text.tips.join, disabled: !state.canJoin, disabledHelp: text.needLines,
         testId: "map-project-rail-join", onPick: () => state.act("join") },
+      { id: "reverse", label: text.commands.reverse, icon: "reverse", key: key("reverse"), help: text.tips.reverse, disabled: !state.canReverse, disabledHelp: text.needLine,
+        testId: "map-project-rail-reverse", onPick: () => state.act("reverse") },
       { id: "smooth", label: text.commands.smooth, icon: "smooth", key: key("smooth"), help: text.tips.smooth, disabled: !state.canSmooth, disabledHelp: text.needShape,
         onPick: () => state.act("smooth") },
       { id: "simplify", label: text.commands.simplify, icon: "simplify", key: key("simplify"), help: text.tips.simplify, disabled: !state.canSimplify, disabledHelp: text.needShape,

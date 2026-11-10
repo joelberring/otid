@@ -1,4 +1,6 @@
 import { GAP, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
+import { insertOnSegment, nearestSegment } from "@o-tid/map-revision";
+import { nearestVertex } from "./map-project-draw";
 
 type Line = Extract<MapObject, { kind: "line" }>;
 const isLine = (object: MapObject): object is Line => object.kind === "line";
@@ -76,4 +78,27 @@ export function joinLines(objects: readonly MapObject[], tolerance: number): Joi
     if (used.length >= 2) return { object: { ...first.object, path }, used };
   }
   return undefined;
+}
+
+/** Ägaren 2026-11-10 (jämförelsen med Mapper: «vänd riktning», för branter och stängsel): linjen åt andra hållet. */
+export function reverseLine(object: MapObject): MapObject | undefined {
+  return isLine(object) && simple(object.path) ? { ...object, path: reversePath(object.path) } : undefined;
+}
+
+/**
+ * Saxen («klipp isär» på hjulet i Mapper): linjen delas i två där man klickar, vid en brytpunkt om klicket står på en, annars
+ * på sträckan under pekaren. Den första delen behåller objektet; den andra blir ett nytt objekt med samma symbol. Inget
+ * när klicket inte träffar linjen eller står på en ändpunkt.
+ */
+export function cutLineAt(object: MapObject, point: Point, tolerance: number): [MapObject, MapObject] | undefined {
+  if (!isLine(object) || !simple(object.path)) return undefined;
+  let line: Line = object, index = nearestVertex(object, point, tolerance)?.index;
+  if (index === undefined) {
+    const hit = nearestSegment(object, point, tolerance), inserted = hit ? insertOnSegment(object, hit, hit.t) : undefined;
+    if (!inserted?.address || !isLine(inserted.object)) return undefined;
+    line = inserted.object; index = inserted.address.index;
+  }
+  if (index <= 0 || index >= line.path.length - 1) return undefined;
+  const at = line.path[index]!;
+  return [{ ...line, path: line.path.slice(0, index + 1) }, { ...line, path: [{ ...marksOf(at), type: "M", x: at.x, y: at.y }, ...line.path.slice(index + 1)] }];
 }

@@ -506,6 +506,29 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   await owner.keyboard.press("z");
   await settled(owner);
   expect((await own()).map(object => object.symbol)).toEqual(before);
+
+  // Saxen (X): den hopslagna stigen delas vid x = 40. Vänd (V): den markerade delen byter riktning. Pipetten (D) tar symbolen.
+  await owner.keyboard.press("Escape");
+  await owner.keyboard.press("x");
+  await expect(owner.getByTestId("map-project-cut")).toHaveAttribute("aria-pressed", "true");
+  const cutAt = await screenOf(owner, { x: 40, y: 88 });
+  await owner.mouse.click(cutAt.x, cutAt.y);
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Linjen är delad i två.");
+  await settled(owner);
+  const ends = async () => (await own()).map(object => object.kind === "line" ? [Math.round(object.path[0]!.x), Math.round(object.path.at(-1)!.x)] : [])
+    .sort((a, b) => a[0]! - b[0]! || a[1]! - b[1]!);
+  expect(await ends()).toEqual([[20, 40], [20, 80], [40, 80]]);
+  await owner.keyboard.press("q");
+  await owner.mouse.click(first.x, first.y);
+  await owner.waitForTimeout(400);
+  await owner.keyboard.press("v");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Linjen är vänd.");
+  await settled(owner);
+  expect(await ends()).toEqual([[20, 80], [40, 20], [40, 80]]);
+  await expect(owner.getByTestId("map-project-rail-pick")).not.toHaveAttribute("aria-disabled", "true");
+  await owner.keyboard.press("d");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText(/^Vald symbol: 505/);
+  await expect(owner.getByTestId("map-project-rail-pick")).toHaveAttribute("aria-disabled", "true");
 });
 
 /**

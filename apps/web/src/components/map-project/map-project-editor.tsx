@@ -60,6 +60,8 @@ import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
 import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
+import { reverseLine } from "../../lib/map-project-join";
+import { clickTool } from "./map-project-click-tools";
 import { MapProjectColors } from "./map-project-colors";
 import { railTools, wheelToolsOf } from "./map-project-rail-tools";
 import { MapProjectToolRail } from "./map-project-tool-rail";
@@ -79,7 +81,7 @@ import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape
 import styles from "./map-project-editor.module.css";
 
 /** `area` = rita ett delområde (bara ägarna); `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09). */
-type Tool = "select" | "draw" | "area" | "note" | "circle" | "addPoint" | "removePoint";
+type Tool = "select" | "draw" | "area" | "note" | "circle" | "addPoint" | "removePoint" | "cut";
 interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
 type Drag =
   | { readonly mode: "vertex"; readonly address: VertexAddress; readonly original: MapObject }
@@ -371,21 +373,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         return;
       }
       multi.clear();
-      // Ägaren 2026-11-10: verktygen Lägg till punkt och Ta bort punkt, och Cmd/Ctrl+klick i Redigera (punkt = ta bort, sträcka = ny).
-      if (canEdit && (tool === "addPoint" || tool === "removePoint" || (tool === "select" && modifiers.command))) {
-        const edit = (target: Selected): boolean => {
-          const result = editPointAt(target.object, point, tolerance, tool === "addPoint" ? "ADD" : tool === "removePoint" ? "REMOVE" : "EITHER");
-          if (!result) return false;
-          save(target.key, target.ref, result.object, "RESHAPE");
-          setSelected({ ...target, object: result.object }); setActiveVertex(result.address); setRotating(false);
-          return true;
-        };
-        if (selected && edit(selected)) return;
-        session?.hit(point, tolerance, unselectable, hits => {
-          if (!hits.some(hit => edit({ key: hit.key, ref: hit.ref, object: hit.object }))) setFlash(tool === "removePoint" ? keysText.noPointHere : keysText.noSegmentHere);
-        });
-        return;
-      }
+      // Saxen, Lägg till punkt, Ta bort punkt och Cmd/Ctrl+klick i Redigera (`map-project-click-tools.ts`).
+      if (canEdit && clickTool({ tool, command: modifiers.command, point, tolerance, selected, session, hidden: unselectable, commit, save, text: keysText, setFlash,
+        onEdited: (target, address) => { setSelected(target); setActiveVertex(address); setRotating(false); } })) return;
       // Redigera: dubbelklick på en punkt tar bort den, på en sträcka (rak eller kurva) ger det en ny punkt; annars markera (klick
       // igen på samma ställe tar nästa objekt under).
       if (double && selected && canEdit && selected.object.kind !== "point" && selected.object.kind !== "text") {
@@ -608,7 +598,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const hint = !canEdit ? (view.status === "CLOSED" ? text.closed : text.readOnly)
     : tool === "area" ? text.collab.areaHint
     : tool === "note" ? notesText.toolHint
-    : tool === "addPoint" ? keysText.addPointHint : tool === "removePoint" ? keysText.removePointHint
+    : tool === "addPoint" ? keysText.addPointHint : tool === "removePoint" ? keysText.removePointHint : tool === "cut" ? keysText.cutHint
     : tool === "select" && multi.items.length ? (multi.zone === "rotate" ? keysText.multiRotate : keysText.multiSelected(multi.items.length))
     : tool === "select" ? text.hints.select
     : !symbol ? text.tools.noSymbol
@@ -632,6 +622,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     : selected && tool === "select" && canEdit ? [
     ...shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => reshape(action.result, action.message) })),
     ...(canSwitch ? [{ id: "switch", label: quick.switchTo(symbol.code), onPick: () => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL") }] : []),
+    ...(selected.object.kind === "line" ? [{ id: "reverse", label: keysText.commands.reverse, onPick: () => keyAction.current("reverse") }] : []),
     { id: "remove", label: quick.remove, onPick: removeSelected }
   ] : [];
   const pending = editor.state?.pending.length ?? 0;
@@ -642,12 +633,15 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (multi.items.length) {
       if (command === "switchSymbol" && symbol && multiSwitch) setFlash(keysText.switched(multi.switchSymbol(symbol), symbol.code));
       else if (command === "join") { const count = multi.join(JOIN_MM); setFlash(count ? keysText.joined(count) : keysText.needLines); }
+      else if (command === "reverse") { const count = multi.reverse(); setFlash(count ? keysText.reversed(count) : keysText.needLine); }
       return;
     }
     if (!selected) return;
     const shape = command === "simplify" || command === "smooth" ? shapes.find(action => action.id === command) : undefined;
     if (shape) reshape(shape.result, shape.message);
     else if (command === "switchSymbol" && canSwitch) save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL");
+    else if (command === "reverse") { const turned = reverseLine(selected.object); if (turned && save(selected.key, selected.ref, turned, "RESHAPE")) setFlash(keysText.reversed(1)); }
+    else if (command === "pick") { chooseSymbol(selected.object.symbol); setFlash(keysText.picked(symbols.get(selected.object.symbol)?.code ?? "")); }
     else if (command === "checked" && recon.canRecord) void recon.setChecked([selected.key], !recon.validChecks.has(selected.key));
   };
   keyAction.current = act;
@@ -657,8 +651,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       switchTo: symbol && (canSwitch || multiSwitch) ? text.tools.switchSymbol(symbol.code) : undefined },
     isChecked: !!selected && recon.validChecks.has(selected.key), canUndo: editor.history.undo.length > 0, canRedo: editor.history.redo.length > 0,
     hasSelection: tool === "select" && (!!selected || multi.items.length > 0), canSwitch: canSwitch || multiSwitch > 0, canJoin: canEdit && multi.joinable(JOIN_MM),
+    canReverse: canEdit && tool === "select" && (selected ? selected.object.kind === "line" : multi.items.some(item => item.object.kind === "line")),
+    canPick: tool === "select" && !!selected && selected.object.symbol !== symbolId,
     canSmooth: shapes.some(action => action.id === "smooth" && action.result), canSimplify: shapes.some(action => action.id === "simplify" && action.result),
-    pick: next => { if (next === "select" || next === "addPoint" || next === "removePoint") { cancelDraft(); setTool(next); }
+    pick: next => { if (next === "select" || next === "addPoint" || next === "removePoint" || next === "cut") { cancelDraft(); setTool(next); }
       else if (next === "note") { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } else pickTool(next)(); },
     act, remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); }, undo: editor.undo, redo: editor.redo,
     togglePanel: () => setPanelOpen(open => !open), toggleBare: () => setBare(value => !value), openWheel, openKeys: () => setKeysOpen(true) });
@@ -693,7 +689,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
         {editor.bounds && <div className={styles.frame}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
-          label={text.mapLabel} cursor={tool === "draw" || tool === "circle" || tool === "addPoint" || tool === "removePoint" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
+          label={text.mapLabel} cursor={tool === "draw" || tool === "circle" || tool === "addPoint" || tool === "removePoint" || tool === "cut" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
           cursorAt={tool === "select" && multi.items.length ? (point, tolerance) => {
             const zone = multi.zoneAt(point, tolerance);
             return zone === "move" ? "move" : zone === "rotate" ? ROTATE_CURSOR : undefined;

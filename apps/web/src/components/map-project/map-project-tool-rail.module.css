@@ -1,6 +1,8 @@
 /* Ägaren 2026-11-10: verktygsspalten till vänster om kartan (datorn) och verktygsraden överst (telefonen). */
-.rail { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; overflow-y: auto;
-  border-right: 1px solid var(--line); background: var(--surface); scrollbar-width: none; }
+/* Två kolumner i datorn (ägaren 2026-11-10: en symbol för varje kommando), så att alla verktyg syns utan att rulla också på en
+   bärbar skärm. En ny grupp börjar på en ny rad. */
+.rail { grid-column: 1; grid-row: 1 / span 2; display: grid; grid-template-columns: repeat(2, 36px); align-content: start; justify-content: center; gap: 2px; padding: 6px 3px;
+  overflow-y: auto; border-right: 1px solid var(--line); background: var(--surface); scrollbar-width: none; }
 .tool { position: relative; flex: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent;
   border-radius: 6px; background: none; color: var(--ink, #222); cursor: pointer; }
 .tool:hover:not(:disabled), .tool:focus-visible { background: var(--surface-2, #f3f3f3); border-color: var(--line, #ccc); }
@@ -13,8 +15,9 @@
 .tip kbd { justify-self: start; padding: 0 5px; border: 1px solid rgb(255 255 255 / 45%); border-radius: 4px; background: none; color: #fff; font: 700 .72rem/1.5 system-ui, sans-serif; }
 .tip span, .tip em { grid-column: 1 / -1; color: rgb(255 255 255 / 85%); }
 .tip em { font-style: normal; color: #ffd27a; }
-.tool[data-gap] { margin-top: 9px; }
-.tool[data-gap]::before { content: ""; position: absolute; left: 4px; right: 4px; top: -6px; border-top: 1px solid var(--line, #ccc); }
+.tool[data-gap] { grid-column: 1; margin-top: 9px; }
+.tool[data-gap] + .tool { margin-top: 9px; }
+.tool[data-gap]::before { content: ""; position: absolute; left: 2px; width: 70px; top: -6px; border-top: 1px solid var(--line, #ccc); }
 .tool[data-phone] { display: none; }
 .key { position: absolute; right: 1px; bottom: 0; font: 700 .58rem/1 system-ui, sans-serif; color: var(--muted, #666); background: none; border: 0; padding: 0; }
 .tool[aria-pressed="true"] .key { color: #fff; }
@@ -22,11 +25,12 @@
 @media (max-width: 760px) {
   /* Ägaren 2026-11-10: tätare och mindre i telefonen, så att raden ryms utan att rulla. Ångra och Gör om ligger kvar vid högra
      kanten även när raden rullas. */
-  .rail { grid-row: 1; flex-direction: row; justify-content: flex-start; gap: 1px; padding: 2px 4px; overflow: auto hidden; border-right: 0;
+  .rail { grid-row: 1; display: flex; flex-direction: row; justify-content: flex-start; gap: 1px; padding: 2px 4px; overflow: auto hidden; border-right: 0;
     border-bottom: 1px solid var(--line); }
   .tool { width: 36px; height: 38px; }
   .tool[data-gap] { margin-top: 0; margin-left: 7px; }
-  .tool[data-gap]::before { left: -4px; right: auto; top: 7px; bottom: 7px; border-top: 0; border-left: 1px solid var(--line, #ccc); }
+  .tool[data-gap] + .tool { margin-top: 0; }
+  .tool[data-gap]::before { left: -4px; right: auto; width: auto; top: 7px; bottom: 7px; border-top: 0; border-left: 1px solid var(--line, #ccc); }
   .tool[data-phone] { display: grid; }
   .tool[data-desktop] { display: none; }
   .tool[data-pin] { position: sticky; z-index: 1; background: var(--surface, #fff); margin-left: 0; }

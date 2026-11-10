@@ -189,7 +189,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   help: "The keys are under the left hand, so that the right hand can stay on the mouse. Click a key and then press the new one. The choice is saved in this browser.",
   commands: {
     select: "Edit", draw: "Draw", circle: "Circle", note: "Note", addPoint: "Add point", removePoint: "Remove point",
-    switchSymbol: "Change symbol on the selection", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
+    switchSymbol: "Change symbol on the selection", join: "Join lines", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
     undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only"
   },
   change: (command: string) => `Change the key for ${command}`,
@@ -208,5 +208,28 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   noSegmentHere: "No line or edge there.",
   multiSelected: (n: number) => `${n} objects selected. Drag them to move all, drag just outside a corner to rotate. Shift-click adds or removes.`,
   multiRotate: "Drag to rotate the selection around its centre.",
-  multiRemove: (n: number) => `Remove ${n} objects`
+  multiRemove: (n: number) => `Remove ${n} objects`,
+  remove: "Remove",
+  tips: {
+    circle: "Click the centre and drag out to the edge. Drawn with the chosen line or area symbol.",
+    area: "Draw a sub-area that a mapper can be made responsible for.",
+    note: "Click the map and write a note to yourself or the others.",
+    switchSymbol: "The selection gets the symbol chosen in the panel. With several selected, all with the same shape (line, area or point) change.",
+    join: "Select the lines with a box or Shift-click. Lines with the same symbol whose ends meet become one line; two selected lines are always joined.",
+    smooth: "The corners become smooth curves.",
+    simplify: "Removes points the shape does not need.",
+    checked: "Marks the object as checked in the terrain.",
+    remove: "Removes the selection. A selected vertex is removed instead of the whole object.",
+    undo: "Undoes the latest step, also with Cmd/Ctrl+Z.",
+    wheel: "The tools and the latest symbols in a ring at the pointer. Also with a right-click on the map.",
+    bare: "Hides or shows the panel, so that the map gets the whole area.",
+    keys: "See and change the keys for the tools."
+  },
+  needSelection: "Select something first: click an object with Edit, or drag a box around several.",
+  needOtherSymbol: "First choose another symbol with the same shape in the panel.",
+  needLines: "Select two or more lines with the same symbol: drag a box around them or Shift-click.",
+  needShape: "Select a line or an area first.",
+  joined: (n: number) => `${n} lines became one.`,
+  switched: (n: number, code: string) => n === 1 ? `1 object got the symbol ${code}.` : `${n} objects got the symbol ${code}.`,
+  multiSwitch: (n: number, code: string) => `Change ${n} to ${code}`
 };

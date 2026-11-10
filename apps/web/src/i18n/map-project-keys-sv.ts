@@ -7,7 +7,7 @@ export const mapProjectKeysSv = {
   help: "Tangenterna ligger under vänster hand, så att höger hand kan stanna på musen. Klicka på en tangent och tryck sedan den nya. Valet sparas i den här webbläsaren.",
   commands: {
     select: "Redigera", draw: "Rita", circle: "Cirkel", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt",
-    switchSymbol: "Byt symbol på det markerade", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
+    switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
     undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan"
   } satisfies Record<KeyCommand, string>,
   change: (command: string) => `Byt tangent för ${command}`,
@@ -26,5 +26,29 @@ export const mapProjectKeysSv = {
   noSegmentHere: "Ingen linje eller kant där.",
   multiSelected: (count: number) => `${count} objekt markerade. Dra i dem för att flytta alla, dra strax utanför ett hörn för att vrida. Skift+klick lägger till eller tar bort.`,
   multiRotate: "Dra för att vrida det markerade runt mitten.",
-  multiRemove: (count: number) => `Ta bort ${count} objekt`
+  multiRemove: (count: number) => `Ta bort ${count} objekt`,
+  remove: "Ta bort",
+  // Förklaringarna i verktygsspalten.
+  tips: {
+    circle: "Klicka i mitten och dra ut till kanten. Ritas med den valda linje- eller ytsymbolen.",
+    area: "Rita ett delområde som en kartritare kan få ansvar för.",
+    note: "Klicka på kartan och skriv en notis till dig själv eller de andra.",
+    switchSymbol: "Det markerade får symbolen som är vald i panelen. Med flera markerade byts alla som har samma form (linje, yta eller punkt).",
+    join: "Markera linjerna med en ruta eller Skift+klick. Linjer med samma symbol vars ändar möts blir en linje; två markerade linjer binds alltid ihop.",
+    smooth: "Hörnen blir mjuka kurvor.",
+    simplify: "Tar bort punkter som inte behövs för formen.",
+    checked: "Märker objektet som kollat i terrängen.",
+    remove: "Tar bort det markerade. En markerad brytpunkt tas bort i stället för hela objektet.",
+    undo: "Ångrar det senaste steget, också med Cmd/Ctrl+Z.",
+    wheel: "Verktygen och de senaste symbolerna i en ring vid pekaren. Också med högerklick på kartan.",
+    bare: "Gömmer eller visar panelen, så att kartan får hela ytan.",
+    keys: "Se och byt tangenterna för verktygen."
+  },
+  needSelection: "Markera något först: klicka på ett objekt med Redigera, eller dra en ruta runt flera.",
+  needOtherSymbol: "Välj först en annan symbol med samma form i panelen.",
+  needLines: "Markera två eller fler linjer med samma symbol: dra en ruta runt dem eller Skift+klicka.",
+  needShape: "Markera en linje eller en yta först.",
+  joined: (count: number) => `${count} linjer blev en.`,
+  switched: (count: number, code: string) => count === 1 ? `1 objekt fick symbolen ${code}.` : `${count} objekt fick symbolen ${code}.`,
+  multiSwitch: (count: number, code: string) => `Byt ${count} till ${code}`
 };

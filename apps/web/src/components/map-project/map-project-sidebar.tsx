@@ -64,7 +64,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   const tabs: readonly SidebarTab[] = canEdit ? ["symbols", "layers", "review", "process"] : ["layers", "review"];
   const current = tabs.includes(tab) ? tab : tabs[0]!;
   const tile = (entry: CatalogSymbol, index?: number) => <button type="button" className={grid || index !== undefined ? styles.tile : styles.symbol}
-    aria-pressed={entry.id === symbolId} onClick={() => onSymbol(entry.id)} data-code={entry.code}
+    aria-pressed={entry.id === symbolId} onClick={() => onSymbol(entry.id)} data-code={entry.code} data-kind={entry.kind}
     aria-label={grid || index !== undefined ? `${entry.code} ${entry.name}` : undefined}
     onMouseEnter={event => showTip(entry, event.currentTarget)} onFocus={event => showTip(entry, event.currentTarget)}
     onMouseLeave={() => setTip(undefined)} onBlur={() => setTip(undefined)}>

@@ -1,9 +1,10 @@
 "use client";
 
 import type { MapObject, Point } from "@o-tid/map-file";
-import type { Box, ObjectKey, ObjectRef } from "@o-tid/map-revision";
+import { withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { translateObject } from "../../lib/map-project-draw";
+import { joinLines } from "../../lib/map-project-join";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 import { angleFrom, boundsOf, centerOf, rotateObject } from "../../lib/map-project-transform";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -120,6 +121,35 @@ export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys }: 
       }));
     },
     cancel: end,
+    /** Hur många av de markerade som kan få symbolen (samma form, en annan symbol än de har). */
+    switchable: (symbol: { id: string; kind: string } | undefined) =>
+      symbol ? itemsRef.current.filter(item => item.object.kind === symbol.kind && item.object.symbol !== symbol.id).length : 0,
+    /** Ägaren 2026-11-10 («byta egenskaper på flera»): alla markerade med rätt form får den valda symbolen (ett steg att ångra). */
+    switchSymbol: (symbol: { id: string; kind: string }): number => {
+      const group = crypto.randomUUID();
+      let count = 0;
+      setItems(itemsRef.current.map(item => {
+        if (item.object.kind !== symbol.kind || item.object.symbol === symbol.id) return item;
+        const object = withSymbol(item.object, symbol.id);
+        if (!commit({ key: item.key, ref: item.ref, kind: "SYMBOL", after: { kind: "OBJECT", object }, group })) return item;
+        count += 1;
+        return { ...item, object };
+      }));
+      return count;
+    },
+    /** Om något av det markerade går att slå ihop (linjer med samma symbol). */
+    joinable: (tolerance: number) => itemsRef.current.length >= 2 && !!joinLines(itemsRef.current.map(item => item.object), tolerance),
+    /** Slå ihop de markerade linjerna: den första behålls med den nya formen, de andra tas bort (ett steg att ångra). */
+    join: (tolerance: number): number => {
+      const current = itemsRef.current, result = joinLines(current.map(item => item.object), tolerance);
+      if (!result) return 0;
+      const group = crypto.randomUUID(), [keep, ...rest] = result.used.map(index => current[index]!);
+      if (!keep || !commit({ key: keep.key, ref: keep.ref, kind: "RESHAPE", after: { kind: "OBJECT", object: result.object }, group })) return 0;
+      for (const item of rest) commit({ key: item.key, ref: item.ref, kind: "DELETE", after: { kind: "DELETED" }, point: anchorOf(item.object), group });
+      const gone = new Set(rest.map(item => item.key));
+      setItems(current.filter(item => !gone.has(item.key)).map(item => item.key === keep.key ? { ...item, object: result.object } : item));
+      return result.used.length;
+    },
     /** Ta bort allt markerat (ett steg att ångra). */
     remove: () => {
       const group = crypto.randomUUID();

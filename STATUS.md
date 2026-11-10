@@ -13,6 +13,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Verktygsspalten: förklaringar, en symbol per kommando, slå ihop linjer, byt symbol på flera (steg K8)
+- Ägaren: "en förklaring till symbolerna när man drog med musen över", "en symbol för alla snabbkommandon", "hur man slår ihop
+  linjer, hur man byter egenskaper på flera". Spalten byggs nu ur en beskrivning (`map-project-rail-tools.ts`); förklaringen
+  visar namn, tangent, vad verktyget gör och, när det är grått, vad som behövs.
+- Slå ihop (`lib/map-project-join.ts`): linjer med samma symbol kedjas där ändarna möts (0,3 mm), vända åt rätt håll med
+  kurvor, hörn och luckor rätt; två markerade binds alltid ihop. Byt symbol på flera: alla markerade med samma form.
+  Båda är ett steg att ångra. Markeringen står kvar när en symbol väljs i panelen.
+- Verifierat: enhetstest för hopslagningen, E2E `kartprojekt-rita` (alla tio, ett nytt). Inte byggt: klipp isär, vänd
+  riktning, rektangel, duplicera, fyll, pipett (inlagt i PLAN.md), och färger/färgprofil (reds ut med ägaren).
+
 ### 2026-11-10 – Grundkartan ur laser, G1: klippt till kartan, vattnet, rätt lager
 - Ägaren: resultatet blev «helt knas» (våtmark över sjön, inte klippt, kandidater i fel lager). Laserrutorna klipps nu till
   kartans område eller etappen med 50 m marginal (`tools/lasclip`, Rust, byggs in i geo-avbildningen; `clip` i jobbets JSON,

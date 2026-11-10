@@ -69,6 +69,8 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
         "Shift-click adds an object to the selection, or removes it from it.",
         "Move: drag inside the selection's box. All objects follow.",
         "Rotate: drag just outside a corner, where the cursor becomes a curved arrow. Everything turns around the centre of the box.",
+        "Join lines: select the lines and press F, or the button ”Join lines”. Lines with the same symbol whose ends meet become one.",
+        "Change symbol on several: select them, choose the symbol in the panel and press C. All with the same shape get the symbol.",
         "Delete removes everything selected. Undo takes back the whole move, rotation or removal in one step.",
         "Move the map: hold space and drag, or drag with two fingers on the trackpad. A short press on space opens the wheel.",
         "A click on a single object selects only that one. Then you change its points as usual."

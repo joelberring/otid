@@ -245,7 +245,7 @@ test("kartprojekt: tangenter under vänster hand, lägg till och ta bort punkter
   await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
   await owner.keyboard.press("q");
   await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("title", /\(Q\)/);
+  await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("aria-keyshortcuts", "Q");
   await owner.keyboard.press("w");
   await expect(owner.getByRole("button", { name: "Rita", exact: true })).toHaveAttribute("aria-pressed", "true");
   await click({ x: 20, y: 85 });
@@ -306,7 +306,7 @@ test("kartprojekt: tangenter under vänster hand, lägg till och ta bort punkter
   await expect(owner.getByRole("button", { name: "Rita", exact: true })).toHaveAttribute("aria-pressed", "true");
   await owner.reload();
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
-  await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("title", /\(E\)/);
+  await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("aria-keyshortcuts", "E");
   await owner.getByTestId("map-project-keys-open").click();
   await dialog.getByTestId("map-project-keys-reset").click();
   await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("W");
@@ -403,6 +403,109 @@ test("kartprojekt: markera flera objekt med en ruta, flytta, vrid och ta bort de
   const after = await screenOf(owner, { x: 50, y: 50 });
   expect(after.x - before.x).toBeGreaterThan(20);
   await expect(owner.getByTestId("map-project-wheel")).toHaveCount(0);
+});
+
+/**
+ * Ägaren 2026-11-10: en förklaring när musen hålls över ett verktyg, en symbol i spalten för varje snabbkommando, slå ihop linjer
+ * och byta symbol på flera. Två stigar som möts markeras med Skift+klick och slås ihop (F eller knappen); sedan ritas en till,
+ * båda markeras och får en annan linjesymbol (C). Varje steg ångras som ett.
+ */
+test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt symbol på flera", async ({ browser, baseURL }) => {
+  test.setTimeout(300_000);
+  const owner = await registerAccount(browser, `foga.${unique()}@exempel.se`, "Folke Foga");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Foga", "x-otid-file-name": "Foga.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const own = async () => (await serverObjects(owner, projectId, baseURL!))
+    .flatMap(object => object.key.startsWith("n:") && object.state.kind === "OBJECT" && object.state.object?.kind === "line" ? [object.state.object] : []);
+  const draw = async (points: { x: number; y: number }[]) => {
+    for (const point of points) { const at = await screenOf(owner, point); await owner.mouse.click(at.x, at.y); await owner.waitForTimeout(400); }
+    await owner.keyboard.press("Enter");
+    await settled(owner);
+  };
+  const shiftClick = async (point: { x: number; y: number }) => {
+    const at = await screenOf(owner, point);
+    await owner.keyboard.down("Shift");
+    await owner.mouse.click(at.x, at.y);
+    await owner.keyboard.up("Shift");
+    await owner.waitForTimeout(300);
+  };
+
+  // Förklaringen: namnet, tangenten och vad verktyget gör; det som inte går just nu säger varför.
+  await owner.getByRole("button", { name: "Lägg till punkt", exact: true }).hover();
+  await expect(owner.getByTestId("map-project-rail-tip")).toContainText("Lägg till punktAKlicka på en linje eller en ytas kant för en ny punkt där.");
+  await owner.getByTestId("map-project-rail-join").hover();
+  await expect(owner.getByTestId("map-project-rail-tip")).toContainText("Slå ihop linjer");
+  await expect(owner.getByTestId("map-project-rail-tip")).toContainText("Markera två eller fler linjer med samma symbol");
+  await expect(owner.getByTestId("map-project-rail-join")).toHaveAttribute("aria-disabled", "true");
+  await owner.mouse.move(600, 400);
+  await expect(owner.getByTestId("map-project-rail-tip")).toHaveCount(0);
+
+  // Två stigar som möts i (50; 88), den andra ritad åt andra hållet.
+  await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
+  await draw([{ x: 20, y: 88 }, { x: 50, y: 88 }]);
+  await draw([{ x: 80, y: 88 }, { x: 50, y: 88 }]);
+  expect(await own()).toHaveLength(2);
+  await owner.keyboard.press("q");
+  await owner.keyboard.press("Escape");
+  const first = await screenOf(owner, { x: 30, y: 88 });
+  await owner.mouse.click(first.x, first.y);
+  await owner.waitForTimeout(400);
+  await shiftClick({ x: 70, y: 88 });
+  await expect(owner.getByTestId("map-project-hint")).toContainText("2 objekt markerade");
+  await expect(owner.getByTestId("map-project-rail-join")).not.toHaveAttribute("aria-disabled", "true");
+  await owner.keyboard.press("f");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("2 linjer blev en.");
+  await settled(owner);
+  const joined = await own();
+  expect(joined).toHaveLength(1);
+  expect(joined[0]!.kind === "line" && joined[0]!.path.map(command => Math.round(command.x))).toEqual([20, 50, 80]);
+  // Ett steg att ångra, och knappen i spalten gör samma sak som tangenten.
+  await owner.keyboard.press("z");
+  await settled(owner);
+  expect(await own()).toHaveLength(2);
+  await owner.keyboard.press("Escape");
+  await owner.mouse.click(first.x, first.y);
+  await owner.waitForTimeout(400);
+  await shiftClick({ x: 70, y: 88 });
+  await owner.getByTestId("map-project-rail-join").click();
+  await settled(owner);
+  expect(await own()).toHaveLength(1);
+
+  // En stig till; båda markeras och får en annan linjesymbol.
+  await owner.keyboard.press("w");
+  await draw([{ x: 20, y: 93 }, { x: 80, y: 93 }]);
+  const before = (await own()).map(object => object.symbol);
+  expect(new Set(before).size).toBe(1);
+  await owner.keyboard.press("q");
+  await owner.keyboard.press("Escape");
+  await owner.mouse.click(first.x, first.y);
+  await owner.waitForTimeout(400);
+  await shiftClick({ x: 50, y: 93 });
+  await expect(owner.getByTestId("map-project-hint")).toContainText("2 objekt markerade");
+  await expect(owner.getByTestId("map-project-rail-switch")).toHaveAttribute("aria-disabled", "true");
+  await owner.getByTestId("map-project-symbols").locator("[data-kind='line']:not([data-code='505.0'])").first().click();
+  await expect(owner.getByTestId("map-project-multi-switch")).toHaveText(/^Byt 2 till /);
+  if (process.env.E2E_SCREENSHOT_DIR) {
+    await owner.getByTestId("map-project-rail-switch").hover();
+    await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-verktygsspalt.png` });
+  }
+  await owner.keyboard.press("c");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText(/^2 objekt fick symbolen /);
+  await settled(owner);
+  const after = (await own()).map(object => object.symbol);
+  expect(new Set(after).size).toBe(1);
+  expect(after[0]).not.toBe(before[0]);
+  await owner.keyboard.press("z");
+  await settled(owner);
+  expect((await own()).map(object => object.symbol)).toEqual(before);
 });
 
 /**

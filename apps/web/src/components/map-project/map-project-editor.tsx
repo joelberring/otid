@@ -60,7 +60,8 @@ import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
 import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
-import { MapProjectToolRail, type RailTool } from "./map-project-tool-rail";
+import { railTools, wheelToolsOf } from "./map-project-rail-tools";
+import { MapProjectToolRail } from "./map-project-tool-rail";
 import { HelpButton } from "../help/help-panel";
 import { MapProjectKeysDialog, useMapProjectKeys } from "./map-project-keys-dialog";
 import { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
@@ -68,10 +69,10 @@ import { mapProjectKeysEn } from "../../i18n/map-project-tools-en";
 import { keyLabel } from "../../lib/map-project-keys";
 import { editPointAt } from "../../lib/map-project-point-edit";
 import { anchorOf, ROTATE_CURSOR, useMapProjectMulti } from "./use-map-project-multi";
-import { useMapProjectShortcuts } from "./use-map-project-shortcuts";
+import { useMapProjectShortcuts, type SelectedCommand } from "./use-map-project-shortcuts";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
-import { MapProjectToolWheel, type WheelAction, type WheelTool } from "./map-project-tool-wheel";
+import { MapProjectToolWheel, type WheelAction } from "./map-project-tool-wheel";
 import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
 import styles from "./map-project-editor.module.css";
@@ -115,6 +116,9 @@ function proposedDrawing(edits: readonly { state: unknown; point?: Point | null 
  * ritar med vald symbol (klick = hörn, tryck och dra = kurva, dubbelklick eller Enter avslutar). Delete tar bort, Ctrl/Cmd+Z
  * ångrar och Ctrl/Cmd+Skift+Z eller Ctrl+Y gör om. Varje ändring blir en ändring av ett objekt i projektets kö.
  */
+/** Linjeändar närmare varandra än så (mm på kartan) räknas som att de möts när linjer slås ihop. */
+const JOIN_MM = 0.3;
+
 export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   /** K3: projektet kommer från telefonen (utan nät), sparat då. */
   offlineSince?: string | undefined }) {
@@ -281,17 +285,18 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     save(selected.key, selected.ref, undefined, "DELETE", anchorOf(selected.object));
   }, [selected, activeVertex, canEdit, save]);
 
+  // Hjulet vid pekaren, eller mitt på kartan när pekaren inte har varit där (knappen i verktygsspalten).
+  const openWheel = () => {
+    const rect = mapArea.current?.getBoundingClientRect();
+    if (canEdit && rect) setWheel({ screen: pointerAt.current ?? { x: rect.width / 2, y: rect.height / 2 }, bounds: { width: rect.width, height: rect.height } });
+  };
   // Tangenterna (`use-map-project-shortcuts.ts`). Det markerade objektets kommandon sätts längre ned, där de är uträknade.
-  const keyAction = useRef<(command: "simplify" | "smooth" | "switchSymbol" | "checked") => void>(() => undefined);
+  const keyAction = useRef<(command: SelectedCommand) => void>(() => undefined);
   useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0, recent,
     multiCount: multi.items.length, panKey, undo: editor.undo, redo: editor.redo, toggleBare: () => setBare(value => !value),
     pickTool: next => { if (next === "draw" || next === "circle") deselect(); cancelDraft(); setTool(next); },
     selectedAction: command => keyAction.current(command), chooseSymbol: id => { if (symbols.has(id)) chooseSymbol(id); },
-    openWheel: () => {
-      if (!canEdit || !pointerAt.current || !mapArea.current) return;
-      const rect = mapArea.current.getBoundingClientRect();
-      setWheel({ screen: pointerAt.current, bounds: { width: rect.width, height: rect.height } });
-    },
+    openWheel,
     escape: () => { if (draft.length) cancelDraft(); else { deselect(); multi.clear(); } }, finishDraft,
     dropDraftPoint: () => setDraft(points => points.slice(0, -1)), remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); } });
 
@@ -303,7 +308,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       try { localStorage.setItem(recentKey(view.projectId), JSON.stringify(next)); } catch { /* utan lagring */ }
       return next;
     });
-    if (canEdit && !selected && tool !== "circle") { setTool("draw"); cancelDraft(); }
+    if (canEdit && !selected && multi.items.length === 0 && tool !== "circle") { setTool("draw"); cancelDraft(); }
   }
 
   /** Formens åtgärd på det markerade objektet (förenkla, mjuk, rak) med beskedet. */
@@ -618,13 +623,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, quick) : [];
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); setTool(next); };
-  const wheelTools: WheelTool[] = [
-    { id: "select", label: quick.tools.select, icon: "select", key: keyLabel(keys.select, keysText.space), active: tool === "select", onPick: pickTool("select") },
-    { id: "draw", label: quick.tools.draw, icon: "draw", key: keyLabel(keys.draw, keysText.space), active: tool === "draw", onPick: pickTool("draw") },
-    { id: "circle", label: quick.tools.circle, icon: "circle", key: keyLabel(keys.circle, keysText.space), active: tool === "circle", onPick: pickTool("circle") },
-    ...(notes.canWrite ? [{ id: "note", label: quick.tools.note, icon: "note" as const, key: keyLabel(keys.note, keysText.space), active: tool === "note", onPick: pickTool("note") }] : [])
-  ];
-  const wheelActions: WheelAction[] = multi.items.length && canEdit ? [{ id: "remove", label: keysText.multiRemove(multi.items.length), onPick: multi.remove }]
+  const wheelTools = wheelToolsOf(keys, keysText.space, quick.tools, tool, notes.canWrite, next => pickTool(next)());
+  const wheelActions: WheelAction[] = multi.items.length && canEdit ? [
+    ...(symbol && multi.switchable(symbol) ? [{ id: "switch", label: keysText.multiSwitch(multi.switchable(symbol), symbol.code), onPick: () => keyAction.current("switchSymbol") }] : []),
+    ...(multi.joinable(JOIN_MM) ? [{ id: "join", label: keysText.commands.join, onPick: () => keyAction.current("join") }] : []),
+    { id: "remove", label: keysText.multiRemove(multi.items.length), onPick: multi.remove }]
     : selected && tool === "select" && canEdit ? [
     ...shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => reshape(action.result, action.message) })),
     ...(canSwitch ? [{ id: "switch", label: quick.switchTo(symbol.code), onPick: () => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL") }] : []),
@@ -633,33 +636,31 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const pending = editor.state?.pending.length ?? 0;
   const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
 
-  keyAction.current = command => {
+  const multiSwitch = symbol && canEdit ? multi.switchable(symbol) : 0;
+  const act = (command: SelectedCommand) => {
+    if (multi.items.length) {
+      if (command === "switchSymbol" && symbol && multiSwitch) setFlash(keysText.switched(multi.switchSymbol(symbol), symbol.code));
+      else if (command === "join") { const count = multi.join(JOIN_MM); setFlash(count ? keysText.joined(count) : keysText.needLines); }
+      return;
+    }
     if (!selected) return;
     const shape = command === "simplify" || command === "smooth" ? shapes.find(action => action.id === command) : undefined;
     if (shape) reshape(shape.result, shape.message);
     else if (command === "switchSymbol" && canSwitch) save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL");
     else if (command === "checked" && recon.canRecord) void recon.setChecked([selected.key], !recon.validChecks.has(selected.key));
   };
-  const rail: RailTool[] = [
-    { id: "panel", label: text.panel, icon: "panel", active: panelOpen, phoneOnly: true, onPick: () => setPanelOpen(open => !open) },
-    ...(canEdit ? [
-      { id: "select", label: text.tools.select, icon: "select" as const, key: keyLabel(keys.select, keysText.space), help: text.tools.selectHelp, active: tool === "select",
-        onPick: () => { cancelDraft(); setTool("select"); } },
-      { id: "draw", label: text.tools.draw, icon: "draw" as const, key: keyLabel(keys.draw, keysText.space), help: text.tools.drawHelp, active: tool === "draw", onPick: pickTool("draw") },
-      { id: "circle", label: quick.tools.circle, icon: "circle" as const, key: keyLabel(keys.circle, keysText.space), active: tool === "circle", testId: "map-project-circle-tool",
-        onPick: pickTool("circle") },
-      { id: "addPoint", label: keysText.commands.addPoint, icon: "addPoint" as const, key: keyLabel(keys.addPoint, keysText.space), help: keysText.addPointHint, gap: true,
-        active: tool === "addPoint", testId: "map-project-add-point", onPick: () => { cancelDraft(); setTool("addPoint"); } },
-      { id: "removePoint", label: keysText.commands.removePoint, icon: "removePoint" as const, key: keyLabel(keys.removePoint, keysText.space), help: keysText.removePointHint,
-        active: tool === "removePoint", testId: "map-project-remove-point", onPick: () => { cancelDraft(); setTool("removePoint"); } },
-      ...(canDecide ? [{ id: "area", label: text.collab.areaTool, icon: "area" as const, active: tool === "area", onPick: pickTool("area") }] : []),
-      ...(notes.canWrite ? [{ id: "note", label: notesText.tool, icon: "note" as const, key: keyLabel(keys.note, keysText.space), active: tool === "note", testId: "map-project-note-tool",
-        onPick: () => { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } }] : []),
-      { id: "undo", label: text.tools.undo, icon: "undo" as const, key: keyLabel(keys.undo, keysText.space), gap: true, pin: "first" as const, disabled: editor.history.undo.length === 0, onPick: editor.undo },
-      { id: "redo", label: text.tools.redo, icon: "redo" as const, key: keyLabel(keys.redo, keysText.space), pin: "second" as const, disabled: editor.history.redo.length === 0, onPick: editor.redo }
-    ] : []),
-    { id: "keys", label: keysText.open, icon: "keys", gap: true, desktopOnly: true, testId: "map-project-keys-open", onPick: () => setKeysOpen(true) }
-  ];
+  keyAction.current = act;
+  const rail = railTools({ keys, text: keysText, tool, panelOpen, bare, canEdit, canDecide, canNote: notes.canWrite, canCheck: recon.canRecord,
+    labels: { panel: text.panel, select: text.tools.select, selectHelp: text.tools.selectHelp, draw: text.tools.draw, drawHelp: text.tools.drawHelp, circle: quick.tools.circle,
+      area: text.collab.areaTool, note: notesText.tool, undo: text.tools.undo, redo: text.tools.redo, checked: keysText.commands.checked,
+      switchTo: symbol && (canSwitch || multiSwitch) ? text.tools.switchSymbol(symbol.code) : undefined },
+    isChecked: !!selected && recon.validChecks.has(selected.key), canUndo: editor.history.undo.length > 0, canRedo: editor.history.redo.length > 0,
+    hasSelection: tool === "select" && (!!selected || multi.items.length > 0), canSwitch: canSwitch || multiSwitch > 0, canJoin: canEdit && multi.joinable(JOIN_MM),
+    canSmooth: shapes.some(action => action.id === "smooth" && action.result), canSimplify: shapes.some(action => action.id === "simplify" && action.result),
+    pick: next => { if (next === "select" || next === "addPoint" || next === "removePoint") { cancelDraft(); setTool(next); }
+      else if (next === "note") { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } else pickTool(next)(); },
+    act, remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); }, undo: editor.undo, redo: editor.redo,
+    togglePanel: () => setPanelOpen(open => !open), toggleBare: () => setBare(value => !value), openWheel, openKeys: () => setKeysOpen(true) });
 
   return <main className={styles.page}>
     <header className={styles.header}>
@@ -679,7 +680,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
     {keysOpen && <MapProjectKeysDialog keys={keys} onKeys={setKeys} onClose={() => setKeysOpen(false)} />}
     <div className={styles.workspace} data-bare={bare}>
-      <MapProjectToolRail label={text.tools.label} tools={rail} />
+      <MapProjectToolRail label={text.tools.label} tools={rail} spaceLabel={keysText.space} />
       <div className={styles.mapArea} ref={mapArea} onPointerMove={event => {
         const rect = event.currentTarget.getBoundingClientRect();
         pointerAt.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -731,6 +732,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           aria-label={quick.actions} data-testid="map-project-object-bar">
           {multi.items.length > 0 && <Button variant="secondary" onClick={multi.remove} data-testid="map-project-multi-remove">
             {keysText.multiRemove(multi.items.length)}</Button>}
+          {multiSwitch > 0 && symbol && <Button variant="secondary" onClick={() => act("switchSymbol")} data-testid="map-project-multi-switch">
+            {keysText.multiSwitch(multiSwitch, symbol.code)}</Button>}
+          {multi.items.length > 1 && multi.joinable(JOIN_MM) && <Button variant="secondary" onClick={() => act("join")} data-testid="map-project-multi-join">
+            {keysText.commands.join}</Button>}
           {work.drawingLayer && <>
             <label className={styles.inlineField}>{workText.textLabel}<input value={work.label} maxLength={200} onChange={event => work.setLabel(event.target.value)}
               data-testid="map-project-sketch-text" /></label>

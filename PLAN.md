@@ -1303,7 +1303,17 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
 - [x] R3b Markera flera objekt med en ruta dragen direkt på tom karta (ägaren 2026-11-10, som i Illustrator) och med Skift+klick;
   dra inne i markeringen flyttar allt, dra strax utanför ett hörn vrider allt (markören visar det), Delete tar bort allt, och
   varje sådan ändring ångras i ett steg. Kartan flyttas med mellanslag+dra eller två fingrar.
-- [ ] R3c För flera markerade: byt symbol och markera kollad; skala; vrid med fasta steg (Skift).
+- [ ] R3c För flera markerade: byt symbol (klart 2026-11-10: C eller knappen, alla med samma form) och markera kollad; skala;
+  vrid med fasta steg (Skift).
+- [x] Verktygsspalten (ägaren 2026-11-10): en förklaring vid pekaren (namn, tangent, vad verktyget gör och varför det är grått),
+  och en symbol för varje snabbkommando (byt symbol, slå ihop, gör mjuk, förenkla, kollad, ta bort, hjulet, bara kartan).
+- [x] Slå ihop linjer (ägaren 2026-11-10; första delen av R4): markerade linjer med samma symbol vars ändar möts blir en, vända
+  åt rätt håll; två markerade binds alltid ihop. F, knappen i spalten, raden under kartan och hjulet.
+- [ ] Verktygsspalten, resten efter jämförelsen med Mapper, OCAD och Illustrator (ägaren 2026-11-10): klipp isär (sax), vänd
+  riktning (branter, stängsel), rektangel, duplicera, fyll yta och gör kant, parallell linje, pipett (ta symbolen från ett
+  objekt), skala och vrid med tal, mät sträcka och yta, text.
+- [ ] Färger och färgprofil i kartan (ägaren 2026-11-10): se och ändra kartans färger (CMYK och ordning), och välja färgprofil
+  för skärm och tryck. Reds ut med ägaren först: gäller det kartfilens färgtabell, visningen på skärmen, PDF:en eller alla tre.
 - [ ] Grundkartan ur laser (ägaren 2026-11-10: «körningen ska göras inom kartområdet och resultatet ska bli ungefär som en
   halvfärdig karta»; planen i projektdokumentet `plan-grundkarta-ur-laser.md`, med Kungshatt som förebild):
   - [x] G1 Laserrutorna klipps till kartans område eller etappen med 50 m marginal innan Karttapullautin körs (`tools/lasclip`,

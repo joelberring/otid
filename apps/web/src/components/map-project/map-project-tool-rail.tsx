@@ -1,9 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import styles from "./map-project-tool-rail.module.css";
 
-export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys";
+export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys"
+  | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
 
 export interface RailTool {
   readonly id: string; readonly label: string; readonly icon: RailIcon;
@@ -12,6 +13,8 @@ export interface RailTool {
   /** Tipset utöver namnet och tangenten. */
   readonly help?: string | undefined;
   readonly active?: boolean | undefined; readonly disabled?: boolean | undefined;
+  /** Varför verktyget inte går att använda just nu (visas i förklaringen). */
+  readonly disabledHelp?: string | undefined;
   /** Strecket före verktyget (en ny grupp). */
   readonly gap?: boolean | undefined;
   /** Bara på telefonen (panelens knapp). */
@@ -35,7 +38,17 @@ const PATHS: Record<RailIcon, ReactNode> = {
   panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M14 4v16" /></>,
   addPoint: <><path d="M3 17L10 9l5 5" /><rect x="8" y="7" width="4" height="4" fill="currentColor" /><path d="M18 3v8M14 7h8" /></>,
   removePoint: <><path d="M3 17L10 9l5 5" /><rect x="8" y="7" width="4" height="4" fill="currentColor" /><path d="M14 7h8" /></>,
-  keys: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" /></>
+  keys: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" /></>,
+  // Byt symbol: två rutor med pilar emellan.
+  switchSymbol: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" fill="currentColor" /><path d="M14 6h5v4M17.5 8.5L19 10l1.5-1.5M10 18H5v-4M3.5 15.5L5 14l1.5 1.5" /></>,
+  // Slå ihop: två linjer som möts i en punkt.
+  join: <><path d="M3 18l6-6M21 6l-6 6" /><circle cx="12" cy="12" r="2.6" /></>,
+  smooth: <path d="M3 16c3-10 6-10 9-2s6 6 9-6" />,
+  simplify: <><path d="M3 17l4-9 4 6 4-8 6 9" strokeDasharray="2 2.4" /><path d="M3 17L15 6l6 9" /></>,
+  checked: <><circle cx="12" cy="12" r="9" /><path d="M7.5 12.5l3 3 6-7" /></>,
+  remove: <><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></>,
+  wheel: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.5" /><path d="M12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21" /></>,
+  bare: <><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></>
 };
 
 /** Verktygets ikon (också i verktygshjulet). */
@@ -49,13 +62,28 @@ export function RailIconImage({ icon, size = 22 }: { icon: RailIcon; size?: numb
  * hörnet. En smal spalt till vänster om kartan i datorn, en rad överst i telefonen. Knapparna heter som verktygen
  * (aria-label), och tipset visar namnet, tangenten och en förklaring.
  */
-export function MapProjectToolRail({ label, tools }: { label: string; tools: readonly RailTool[] }) {
+export function MapProjectToolRail({ label, tools, spaceLabel = "Space" }: { label: string; tools: readonly RailTool[]; spaceLabel?: string }) {
+  // Förklaringen vid pekaren eller fokus (ägaren 2026-11-10): namnet, tangenten och vad verktyget gör. Den ligger utanför
+  // spalten (fast läge), så att den inte klipps av spaltens rullning.
+  const [tip, setTip] = useState<{ id: string; top: number; left: number }>();
+  const show = (id: string) => (event: { currentTarget: HTMLElement }) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTip({ id, top: rect.top + rect.height / 2, left: rect.right + 8 });
+  };
+  const shown = tip && tools.find(tool => tool.id === tip.id);
   return <div className={styles.rail} role="toolbar" aria-label={label} aria-orientation="vertical" data-testid="map-project-rail">
     {tools.map(tool => <button key={tool.id} type="button" className={styles.tool} aria-label={tool.label} aria-pressed={tool.active}
-      disabled={tool.disabled} data-gap={tool.gap || undefined} data-phone={tool.phoneOnly || undefined} data-desktop={tool.desktopOnly || undefined} data-pin={tool.pin} data-testid={tool.testId}
-      title={[tool.key ? `${tool.label} (${tool.key})` : tool.label, tool.help].filter(Boolean).join(" – ")} onClick={tool.onPick}>
+      aria-keyshortcuts={tool.key} aria-description={tool.help} aria-disabled={tool.disabled || undefined}
+      data-gap={tool.gap || undefined} data-phone={tool.phoneOnly || undefined} data-desktop={tool.desktopOnly || undefined} data-pin={tool.pin} data-testid={tool.testId}
+      onPointerEnter={event => { if (event.pointerType === "mouse") show(tool.id)(event); }} onPointerLeave={() => setTip(undefined)}
+      onFocus={show(tool.id)} onBlur={() => setTip(undefined)} onClick={() => { if (!tool.disabled) tool.onPick(); }}>
       <RailIconImage icon={tool.icon} />
       {tool.key && <kbd className={styles.key} aria-hidden="true">{tool.key}</kbd>}
     </button>)}
+    {shown && <div className={styles.tip} role="tooltip" style={{ top: tip.top, left: tip.left }} data-testid="map-project-rail-tip">
+      <strong>{shown.label}</strong>{shown.key && <kbd>{shown.key.replace("␣", spaceLabel)}</kbd>}
+      {shown.help && <span>{shown.help}</span>}
+      {shown.disabled && shown.disabledHelp && <em>{shown.disabledHelp}</em>}
+    </div>}
   </div>;
 }

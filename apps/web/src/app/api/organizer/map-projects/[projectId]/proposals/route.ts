@@ -13,3 +13,9 @@ export async function POST(request: Request, context: Context): Promise<Response
   const { projectId } = await context.params;
   return mapProjectProposalsRoute(db, request, projectId);
 }
+
+/** "Godkänn alla" eller "Avvisa alla" öppna förslag. */
+export async function PUT(request: Request, context: Context): Promise<Response> {
+  const { projectId } = await context.params;
+  return mapProjectProposalsRoute(db, request, projectId);
+}

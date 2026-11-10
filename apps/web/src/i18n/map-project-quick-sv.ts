@@ -21,5 +21,7 @@ export const mapProjectQuickSv = {
   circleNeedsShape: "Välj en linje- eller ytsymbol för cirkeln.",
   grid: "Rutor",
   list: "Lista",
-  view: "Visa symbolerna som"
+  view: "Visa symbolerna som",
+  strip: "Symbolrad överst",
+  stripLabel: "Symbolerna i kartfilen"
 };

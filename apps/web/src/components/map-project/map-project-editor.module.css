@@ -10,18 +10,18 @@
 .sync { margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); }
 .notice { padding: 6px 12px 0; }
 .offline { margin: 0; padding: 4px 12px; background: var(--attention-bg, #fff4ce); font-size: var(--text-sm, .9rem); }
-.workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; }
+.workspace { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto auto minmax(0, 1fr); min-height: 0; }
 /* En rad som rullas i sidled: kartan flyttar sig inte när knapparna för det markerade objektet kommer och går. */
 .toolbar { grid-column: 1; display: flex; flex-wrap: nowrap; overflow-x: auto; gap: .4rem; padding: 6px 12px; border-bottom: 1px solid var(--line); }
 .toolbar > * { flex: none; }
 /* En rad (hela texten i title): kartan flyttar sig inte när tipset eller ett besked byts. */
 .hint { grid-column: 1; margin: 0; padding: 4px 12px; color: var(--muted); font-size: var(--text-sm, .9rem); min-height: 1.6em; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
-.mapArea { grid-column: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.mapArea { grid-column: 1; grid-row: 4; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 /* Kartvyn fyller rutan på alla bredder (banläggningens telefonregel för kartans ram gäller inte här). */
 .frame, .frame > div { position: absolute; inset: 0; }
 .loading { position: absolute; inset: auto 0 50% 0; text-align: center; color: var(--muted); z-index: 1; }
-.sidebar { grid-column: 2; grid-row: 1 / span 3; overflow: auto; border-left: 1px solid var(--line); padding: 8px 12px 24px; display: grid;
+.sidebar { grid-column: 2; grid-row: 1 / span 4; overflow: auto; border-left: 1px solid var(--line); padding: 8px 12px 24px; display: grid;
   align-content: start; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .sidebar > * { min-width: 0; }
 .panel h2 { margin: 0 0 .35rem; font-size: var(--text-md, 1rem); }
@@ -103,10 +103,10 @@
   .toolbar > * { flex: none; }
   /* Tipset på en rad (hela texten i title). */
   .hint { padding: 2px 8px; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); position: relative; }
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); position: relative; }
   .panelToggle { display: inline-flex; }
   /* Panelen ligger över kartans nedre del när den är öppen. */
-  .sidebar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; grid-column: 1; grid-row: 1 / span 3; max-height: 60dvh; border-left: 0;
+  .sidebar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; grid-column: 1; grid-row: 1 / span 4; max-height: 60dvh; border-left: 0;
     border-top: 1px solid var(--line-strong); background: var(--surface); box-shadow: 0 -4px 16px rgb(0 0 0 / 12%); }
   .sidebar[data-open="false"] { display: none; }
   .hint { font-size: var(--text-xs, .8rem); }
@@ -148,3 +148,16 @@
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: middle; border: 1px solid var(--line); }
 .inlineField { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .inlineField input { width: 10em; }
+
+/* Ägaren 2026-11-10: symbolerna som en rad bilder under verktygen (numret och namnet när musen står över). Två rader, sedan rullning. */
+.strip { grid-column: 1; grid-row: 2; display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 12px; margin: 0; list-style: none;
+  max-height: 72px; overflow-y: auto; border-bottom: 1px solid var(--line); }
+.strip button { position: relative; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent;
+  border-radius: 6px; background: none; cursor: pointer; }
+.strip button:hover, .strip button:focus-visible { background: var(--surface-2, #f3f3f3); }
+.strip button[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-2, #f3f3f3); }
+.stripTip { position: fixed; z-index: 20; pointer-events: none; padding: 2px 6px; border-radius: 4px; background: var(--ink, #111); color: #fff;
+  font-size: .8rem; white-space: nowrap; }
+.toolbar { grid-row: 1; }
+.hint { grid-row: 3; }
+.stripToggle { display: flex; align-items: center; gap: 6px; margin-top: .4rem; }

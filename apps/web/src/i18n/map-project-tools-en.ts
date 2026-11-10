@@ -170,5 +170,7 @@ export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   circleNeedsShape: "Choose a line or area symbol for the circle.",
   grid: "Grid",
   list: "List",
-  view: "Show the symbols as"
+  view: "Show the symbols as",
+  strip: "Symbol row at the top",
+  stripLabel: "The symbols in the map file"
 };

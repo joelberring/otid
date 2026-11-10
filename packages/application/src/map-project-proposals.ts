@@ -181,3 +181,37 @@ export async function decideMapProjectProposal(db: Database, input: ClubProof & 
     return { status: "ok", replayed: false, seq, proposal: (await views(tx, [next!]))[0]! } as const;
   });
 }
+
+/** Så länge "Godkänn alla" arbetar i ett anrop; resten tas i nästa (klienten frågar igen tills inget återstår). */
+const DECIDE_ALL_BUDGET_MS = 20_000;
+
+/**
+ * Ägaren 2026-11-10: "Godkänn alla" och "Avvisa alla" för de öppna förslagen (t.ex. en generalisering i 56 delar). Varje
+ * förslag avgörs i sin egen transaktion precis som ett och ett, äldst först; ett förslag som krockar räknas och hoppas över.
+ * Slutar vid ett annat fel (behörighet, projektet stängt) eller när tiden för anropet tagit slut, och säger hur många som är kvar.
+ */
+export async function decideAllMapProjectProposals(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date(),
+  budgetMs = DECIDE_ALL_BUDGET_MS): Promise<ClubFailure | { status: "ok"; decided: number; conflicts: number; remaining: number; seq: number | null }> {
+  const parsed = mapProjectProposalDecisionRequestSchema.safeParse(input.request);
+  const listed = await listMapProjectProposals(db, input, now);
+  if (listed.status !== "ok") return listed;
+  if (!parsed.success || parsed.data.action === "WITHDRAW") return { status: "invalid-request" } as const;
+  const started = Date.now();
+  const open = listed.list.proposals.filter(proposal => proposal.status === "OPEN").map(proposal => proposal.proposalId);
+  let decided = 0, conflicts = 0, seq: number | null = null;
+  for (const proposalId of open) {
+    // Minst ett avgörs per anrop, så att klientens omgångar alltid kommer framåt.
+    if (decided + conflicts > 0 && Date.now() - started > budgetMs) break;
+    const result = await decideMapProjectProposal(db, { ...input, proposalId, request: { formatVersion: 1, action: parsed.data.action } }, now);
+    if (result.status === "conflict") { conflicts += 1; continue; }
+    if (result.status !== "ok") {
+      if (decided === 0 && conflicts === 0) return result;
+      break;
+    }
+    decided += 1;
+    seq = result.seq;
+  }
+  const after = await listMapProjectProposals(db, input, now);
+  const remaining = after.status === "ok" ? after.list.proposals.filter(proposal => proposal.status === "OPEN").length : 0;
+  return { status: "ok", decided, conflicts, remaining, seq } as const;
+}

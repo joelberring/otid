@@ -18,7 +18,7 @@ const GRID_KEY = "otid-map-symbol-grid";
  * ADR-0219 (K1): editorns sidopanel. Symbolerna i kartfilen (bara de som finns i filen, sökbara på nummer och namn), lagren
  * (symbolgrupperna efter ISOM-numret), krockarna att välja i och samarbetet.
  */
-export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, layers, conflicts, symbols, onResolve, canEdit, children, after }: {
+export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, layers, conflicts, symbols, onResolve, canEdit, children, after, strip, onStrip }: {
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid). */
   open: boolean;
   catalog: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
@@ -30,6 +30,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, layers, c
   children?: ReactNode;
   /** Efter symbolerna och lagren (K3: rekningen). */
   after?: ReactNode;
+  /** Symbolraden överst under verktygen (ägaren 2026-11-10). */
+  strip: boolean; onStrip: (on: boolean) => void;
 }) {
   const text = useTexts(mapProjectEditorSv, mapProjectEditorEn);
   const quick = useTexts(mapProjectQuickSv, mapProjectQuickEn);
@@ -73,6 +75,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, layers, c
         <button type="button" aria-pressed={grid} onClick={() => chooseView(true)} data-testid="map-project-symbols-grid">{quick.grid}</button>
         <button type="button" aria-pressed={!grid} onClick={() => chooseView(false)}>{quick.list}</button>
       </div>
+      <label className={styles.stripToggle}><input type="checkbox" checked={strip} onChange={event => onStrip(event.target.checked)}
+        data-testid="map-project-symbol-strip-toggle" /> {quick.strip}</label>
       {chosen && <p className={styles.muted}>{text.symbols.selected(chosen.code, chosen.name)}</p>}
       <ul className={grid ? styles.paletteGrid : styles.palette} data-testid="map-project-symbols" data-view={grid ? "grid" : "list"}>
         {shown.map(entry => <li key={entry.id}>

@@ -66,6 +66,8 @@ export const mapProjectSv = {
     club: "Klubb",
     changes: "Ändringar",
     changed: (count: number) => plural(count, "ändrat objekt", "ändrade objekt"),
+    size: "Storlek",
+    sizes: (mapFile: string, total: string) => `kartfilen ${mapFile} · hela projektet ${total}`,
     closed: "Projektet är avslutat. Ingen kan ändra kartan förrän det öppnas igen.",
     ocadLater: "Grundfilen är en OCAD-fil. Att skriva en ny OCAD-version prövas och fungerar bara där servern har det påslaget; annars exportera ändringarna som GeoJSON.",
     download: "Ladda ner grundfilen",

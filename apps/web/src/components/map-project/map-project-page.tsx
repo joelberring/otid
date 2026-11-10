@@ -5,7 +5,7 @@ import { useMapProjectFailure } from "./use-map-project-failure";
 import { useEffect, useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
 import { mapProjectEditorEn } from "../../i18n/map-project-en";
-import { useTexts } from "../language-provider";
+import { useLocale, useTexts } from "../language-provider";
 import Link from "next/link";
 import { invitationMailOutcomeSchema, type MapProjectOutputResponse, type MapProjectRole, type MapProjectView } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
@@ -32,6 +32,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
   const failure = useMapProjectFailure();
   const text = useTexts(mapProjectSv, mapProjectEn);
   const mapProjectEditorText = useTexts(mapProjectEditorSv, mapProjectEditorEn);
+  const locale = useLocale();
   const [view, setView] = useState<MapProjectView>();
   const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
   const [problem, setProblem] = useState("");
@@ -100,6 +101,8 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
           <dt>{text.page.base}</dt><dd>{project.base.mapName} · {project.base.fileName}{project.base.versionDate ? ` · ${project.base.versionDate}` : ""}
             {project.base.source === "NEW" ? ` · ${text.page.newMap}` : ""}</dd>
           <dt>{text.page.changes}</dt><dd>{text.page.changed(project.changedObjects)}</dd>
+          <dt>{text.page.size}</dt><dd data-testid="map-project-size">{text.page.sizes(byteSize(project.storage.mapFileBytes, locale),
+            byteSize(project.storage.totalBytes, locale))}</dd>
         </dl>
         <div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
           data-testid="map-project-open-map">{mapProjectEditorText.openMap}</Link></div>
@@ -238,4 +241,12 @@ function ProjectSettings({ view, base, busy, run }: { view: MapProjectView; base
       </div>
     </form>
   </section>;
+}
+
+/** Storleken i kB, MB eller GB (1000-steg, som filhanterarna), med en decimal under 10. */
+function byteSize(bytes: number, locale: string): string {
+  const units = ["B", "kB", "MB", "GB"];
+  let value = bytes, unit = 0;
+  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1; }
+  return `${value.toLocaleString(locale, { maximumFractionDigits: value < 10 && unit > 0 ? 1 : 0 })} ${units[unit]}`;
 }

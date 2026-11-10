@@ -173,6 +173,16 @@ export const aiConnectionsEn: Texts<typeof aiSv.connections> = {
   help: "Claude (or another AI service) that you have connected with your own account there. It sees your map projects and, if you approved course setting, the courses where you may set courses. It only leaves suggestions and notes. A connection from before 8 November only sees the map projects; remove it and connect again to allow course setting.",
   none: "No AI connections. Add O-Tid as a connector in Claude with the address below.",
   address: "Address to add in Claude",
+  copy: "Copy the address",
+  copied: "The address is copied.",
+  howTitle: "How to connect Claude",
+  how: [
+    "Copy the address above.",
+    "Open Claude (claude.ai or the app) → Settings → Connectors → Add custom connector. Enter the name O-Tid and paste the address. If you do not see the option, your plan or organisation may not have it.",
+    "Press Connect. O-Tid opens: sign in if needed, read what the connection may do and press Allow. The connection then appears in the list here.",
+    "In a chat: turn on O-Tid among the tools (the button for tools and connectors) and write, for example, “Show my map projects in O-Tid”.",
+    "Claude asks for permission before it uses O-Tid (“Allow once” or “Always allow”). You must approve it for anything to happen, and you can refuse. Changes to the map still only become suggestions that you or the project's owner approve."
+  ],
   created: date => `connected ${date}`,
   used: date => `last used ${date}`,
   neverUsed: "not used yet",

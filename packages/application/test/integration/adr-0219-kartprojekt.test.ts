@@ -108,6 +108,10 @@ describe("ADR-0219 kartprojekt", () => {
     const mapper = await readMapProject(db, { ...s.mapper.proof, projectId: s.projectId }, NOW);
     expect(mapper.status === "ok" && mapper.view.viewer).toMatchObject({ canEdit: true, canManage: false, canWriteVersion: false, canArchive: false });
     expect(mapper.status === "ok" && mapper.view.invitations).toEqual([]);
+    // Storleken (ägaren 2026-11-10): kartfilen och hela projektet, minst kartfilen.
+    const storage = mapper.status === "ok" ? mapper.view.storage : undefined;
+    expect(storage?.mapFileBytes).toBe(mapBytes.byteLength);
+    expect(storage!.totalBytes).toBeGreaterThanOrEqual(storage!.mapFileBytes);
     // Läsaren tar inbjudan när projektet öppnas.
     const reader = await readMapProject(db, { ...s.reader.proof, projectId: s.projectId }, NOW);
     expect(reader.status === "ok" && reader.view).toMatchObject({ role: "READ", viewer: { canEdit: false } });

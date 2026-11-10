@@ -64,6 +64,7 @@ import { useMapProjectPosition, type TimedFix } from "./use-map-project-position
 import { useMapProjectRecon } from "./use-map-project-recon";
 import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar } from "./map-project-sidebar";
+import { MapProjectSymbolStrip, SYMBOL_STRIP_KEY } from "./map-project-symbol-strip";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
 import { MapProjectToolWheel, type WheelAction, type WheelTool } from "./map-project-tool-wheel";
@@ -203,6 +204,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-09: verktygshjulet (högerklick, långt tryck, mellanslag), de senaste symbolerna och cirkelns mitt.
   const [wheel, setWheel] = useState<{ screen: { x: number; y: number }; bounds: { width: number; height: number } }>();
   const [recent, setRecent] = useState<readonly string[]>([]);
+  const [strip, setStrip] = useState(false);
+  useEffect(() => { try { setStrip(localStorage.getItem(SYMBOL_STRIP_KEY) === "1"); } catch { /* utan lagring: ingen rad */ } }, []);
+  const showStrip = (on: boolean) => { setStrip(on); try { localStorage.setItem(SYMBOL_STRIP_KEY, on ? "1" : "0"); } catch { /* utan lagring */ } };
   const [circleCenter, setCircleCenter] = useState<Point>();
   const [flash, setFlash] = useState<string>();
   const mapArea = useRef<HTMLDivElement>(null);
@@ -662,6 +666,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         </>}
         </>}
       </div>
+      {canEdit && strip && <MapProjectSymbolStrip catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} />}
       <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
       <div className={styles.mapArea} ref={mapArea} onPointerMove={event => {
         const rect = event.currentTarget.getBoundingClientRect();
@@ -705,7 +710,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             onRemove={() => void notes.remove(note.noteId).then(ok => { if (ok) setShownNote(undefined); })} /> : null;
         })()}
       </div>
-      <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol}
+      <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} strip={strip} onStrip={showStrip}
         layers={<MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
           state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}
           merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups}

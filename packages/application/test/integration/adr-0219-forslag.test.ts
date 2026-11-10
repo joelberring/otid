@@ -8,7 +8,7 @@ import { baseKey, newKey, objectRefFor, type ObjectState } from "@o-tid/map-revi
 import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject, removeMapProjectMember, updateMapProject } from "../../src/map-projects";
 import { syncMapProject } from "../../src/map-project-sync";
 import { createMapProjectArea, deleteMapProjectArea, listMapProjectAreas, updateMapProjectArea } from "../../src/map-project-areas";
-import { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "../../src/map-project-proposals";
+import { createMapProjectProposal, decideAllMapProjectProposals, decideMapProjectProposal, listMapProjectProposals } from "../../src/map-project-proposals";
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
 import { registerTestAccount } from "./accounts";
 
@@ -195,6 +195,24 @@ describe("ADR-0219 K1: arbetssätt, förslag och delområden", () => {
     expect((await deleteMapProjectArea(db, { ...s.owner.proof, projectId: s.projectId, areaId: created.area.areaId }, NOW)).status).toBe("removed");
     const list = await listMapProjectAreas(db, { ...s.reader.proof, projectId: s.projectId }, NOW);
     expect(list.status === "ok" && list.list.areas).toHaveLength(2);
+  });
+
+  it("Godkänn alla: alla öppna förslag i omgångar, bara ägarna (ägaren 2026-11-10)", async () => {
+    const s = await setup();
+    for (let index = 0; index < 4; index += 1) {
+      const created = await createMapProjectProposal(db, { ...s.suggester.proof, projectId: s.projectId, request: { formatVersion: 1,
+        requestId: randomUUID(), edits: [add(outside())] } }, NOW);
+      expect(created.status).toBe("created");
+    }
+    const all = (proof: Proof, action: string, budget?: number) => decideAllMapProjectProposals(db, { ...proof, projectId: s.projectId,
+      request: { formatVersion: 1, action } }, NOW, budget);
+    expect((await all(s.editor.proof, "ACCEPT")).status).toBe("forbidden");
+    expect((await all(s.owner.proof, "WITHDRAW")).status).toBe("invalid-request");
+    // Ingen tid kvar efter det första: ett i taget, resten i nästa omgång.
+    expect(await all(s.owner.proof, "ACCEPT", -1)).toMatchObject({ status: "ok", decided: 1, remaining: 3 });
+    expect(await all(s.owner.proof, "ACCEPT")).toMatchObject({ status: "ok", decided: 3, conflicts: 0, remaining: 0 });
+    const list = await listMapProjectProposals(db, { ...s.owner.proof, projectId: s.projectId }, NOW);
+    expect(list.status === "ok" && list.list.proposals.map(row => row.status)).toEqual(["ACCEPTED", "ACCEPTED", "ACCEPTED", "ACCEPTED"]);
   });
 
   it("godkänna (gjord och krock), avvisa, dra tillbaka och ett uttryckligt förslag med anteckning", async () => {

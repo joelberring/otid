@@ -38,7 +38,13 @@ export function AccountAi() {
   }
 
   return <Section id="konto-ai" title={text.title} help={text.help}>
-    <p className={styles.muted}>{text.address}: <code data-testid="mcp-address">{address}</code></p>
+    <p className={styles.muted}>{text.address}: <code data-testid="mcp-address">{address}</code>{" "}
+      <Button variant="secondary" onClick={() => void navigator.clipboard?.writeText(address).then(() => setMessage({ tone: "ok", text: text.copied }),
+        () => undefined)}>{text.copy}</Button></p>
+    <details className={styles.howTo} open={connections?.length === 0} data-testid="ai-how-to">
+      <summary>{text.howTitle}</summary>
+      <ol>{text.how.map(step => <li key={step}>{step}</li>)}</ol>
+    </details>
     {connections && connections.length === 0 && <p className={styles.muted}>{text.none}</p>}
     {connections && connections.length > 0 && <ul className={styles.list} data-testid="ai-connections">
       {connections.map(connection => <li key={connection.grantId}>

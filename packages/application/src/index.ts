@@ -226,7 +226,7 @@ export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMa
 export {
   createMapProjectSketch, createMapProjectWorkLayer, deleteMapProjectSketch, deleteMapProjectWorkLayer, listMapProjectWorkLayers, updateMapProjectWorkLayer
 } from "./map-project-work-layers";
-export { createMapProjectProposal, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
+export { createMapProjectProposal, decideAllMapProjectProposals, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";
 export type { MapProjectUploadFailure } from "./map-projects";
 export { createMapProjectNew } from "./map-project-new";

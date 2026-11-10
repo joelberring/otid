@@ -1,5 +1,5 @@
 import {
-  createMapProjectArea, createMapProjectProposal, decideMapProjectProposal, deleteMapProjectArea, listMapProjectAreas, listMapProjectProposals,
+  createMapProjectArea, createMapProjectProposal, decideAllMapProjectProposals, decideMapProjectProposal, deleteMapProjectArea, listMapProjectAreas, listMapProjectProposals,
   updateMapProjectArea
 } from "@o-tid/application";
 import { MAP_PROJECT_AREA_MAX_BYTES, MAP_PROJECT_SYNC_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
@@ -55,7 +55,7 @@ export async function mapProjectAreaRoute(db: Database, request: Request, projec
   });
 }
 
-/** GET förslagen (alla medlemmar), POST ett förslag med anteckning (Föreslå eller mer). */
+/** GET förslagen (alla medlemmar), POST ett förslag med anteckning (Föreslå eller mer), PUT avgör alla öppna (ägarna). */
 export async function mapProjectProposalsRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env)
   : Promise<Response> {
   if (!validId(projectId)) return failure("not-found");
@@ -65,6 +65,16 @@ export async function mapProjectProposalsRoute(db: Database, request: Request, p
     return guarded(async () => {
       const result = await listMapProjectProposals(db, { ...input.proof, projectId });
       return result.status === "ok" ? privateJson(result.list) : failure(result.status);
+    });
+  }
+  if (request.method === "PUT") {
+    // "Godkänn alla" / "Avvisa alla" (ägaren 2026-11-10).
+    const all = await mutation(request, environment);
+    if ("response" in all) return all.response;
+    return guarded(async () => {
+      const result = await decideAllMapProjectProposals(db, { ...all.proof, projectId, request: all.body });
+      return result.status === "ok" ? privateJson({ formatVersion: 1, decided: result.decided, conflicts: result.conflicts, remaining: result.remaining,
+        seq: result.seq }) : failure(result.status);
     });
   }
   const input = await mutation(request, environment, "json", MAP_PROJECT_SYNC_MAX_BYTES);

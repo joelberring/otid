@@ -58,6 +58,7 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
     <section aria-labelledby="map-project-proposals" className={styles.panel} data-testid="map-project-proposals">
       <h2 id="map-project-proposals">{text.proposals(open.length)}</h2>
       {open.length === 0 && <p className={styles.muted}>{text.noProposals}</p>}
+      {viewer.canDecide && open.length > 1 && <DecideAll collab={collab} count={open.length} />}
       <ul className={styles.rows}>
         {[...open, ...decided].map(proposal => <ProposalRow key={proposal.proposalId} proposal={proposal} collab={collab}
           canDecide={viewer.canDecide} mine={proposal.author.accountId === viewer.accountId}
@@ -139,6 +140,24 @@ function ProposalRow({ proposal, collab, canDecide, mine, shown, onShow }: {
         onClick={() => void collab.decide(proposal.proposalId, "WITHDRAW")}>{text.withdraw}</Button>}
     </span>
   </li>;
+}
+
+/** Ägaren 2026-11-10: "Godkänn alla" och "Avvisa alla" när det finns flera öppna förslag (t.ex. en generalisering i många delar). */
+function DecideAll({ collab, count }: { collab: Collaboration; count: number }) {
+  const text = useTexts(mapProjectEditorSv.collab, mapProjectEditorEn.collab);
+  const [status, setStatus] = useState<string>();
+  const run = async (action: "ACCEPT" | "REJECT") => {
+    if (!window.confirm(action === "ACCEPT" ? text.acceptAllConfirm(count) : text.rejectAllConfirm(count))) return;
+    const result = await collab.decideAll(action, (done, left) => setStatus(text.decidingAll(done, left)));
+    setStatus(result ? text.decidedAll(result.done, result.conflicts) : undefined);
+  };
+  return <div data-testid="map-project-decide-all">
+    <span className={styles.actions}>
+      <Button disabled={collab.busy} onClick={() => void run("ACCEPT")}>{text.acceptAll(count)}</Button>
+      <Button variant="secondary" disabled={collab.busy} onClick={() => void run("REJECT")}>{text.rejectAll}</Button>
+    </span>
+    {status && <p className={styles.muted} role="status">{status}</p>}
+  </div>;
 }
 
 function NewAreaForm({ defaultName, editors, busy, onSave, onCancel }: {

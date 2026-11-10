@@ -31,6 +31,16 @@ export const aiSv = {
     help: "Claude (eller en annan AI-tjänst) som du kopplat med ditt eget konto där. Den ser dina kartprojekt och, om du godkände banläggningen, banorna där du får lägga banor. Den lämnar bara förslag och notiser. En koppling från före den 8 november ser bara kartprojekten; ta bort den och koppla igen för att ge banläggningen.",
     none: "Inga AI-kopplingar. Lägg till O-Tid som anslutning i Claude med adressen nedan.",
     address: "Adress att lägga till i Claude",
+    copy: "Kopiera adressen",
+    copied: "Adressen är kopierad.",
+    howTitle: "Så kopplar du Claude",
+    how: [
+      "Kopiera adressen ovan.",
+      "Öppna Claude (claude.ai eller appen) → Inställningar → Anslutningar → Lägg till egen anslutning. Skriv namnet O-Tid och klistra in adressen. Ser du inte valet kan din plan eller organisation sakna det.",
+      "Tryck Anslut. O-Tid öppnas: logga in om det behövs, läs vad kopplingen får göra och tryck Tillåt. Kopplingen syns sedan i listan här.",
+      "I en chatt: slå på O-Tid bland verktygen (knappen för verktyg och anslutningar) och skriv till exempel ”Visa mina kartprojekt i O-Tid”.",
+      "Claude frågar om lov innan den använder O-Tid (”Tillåt en gång” eller ”Tillåt alltid”). Du måste godkänna det för att något ska hända, och du kan neka. Ändringar i kartan blir ändå bara förslag som du eller projektets ägare godkänner."
+    ] as readonly string[],
     created: (date: string) => `kopplad ${date}`,
     used: (date: string) => `senast använd ${date}`,
     neverUsed: "inte använd än",

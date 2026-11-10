@@ -239,6 +239,11 @@ export interface MapProjectView extends MapProjectSummary {
   areas: MapProjectAreaView[];
   /** Antalet öppna förslag. */
   openProposals: number;
+  /**
+   * Ägaren 2026-11-10: storleken i byte. `mapFileBytes` = kartfilen projektet startade från; `totalBytes` = allt projektet
+   * lagrar (kartfilen, underlag, laserresultat, utdata, foton och ändringarna), varje fil räknad en gång.
+   */
+  storage: { mapFileBytes: number; totalBytes: number };
   /** Läsarnas version när projektet startade; en annan version kan ge andra platser för objekten. */
   readerVersion: number;
   seq: number;

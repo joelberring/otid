@@ -189,10 +189,28 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
         canDecide: canManage },
       mode: project.mode ?? "SHARED", area: project.area ?? null,
       recon: (project.recon as MapProjectView["recon"] | null) ?? null, leaderboard: project.leaderboard ?? null, areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
+      storage: await mapProjectStorage(tx, project.id),
       readerVersion: project.readerVersion, seq: project.seq, members: await members(tx, project),
       invitations: open.map(row => ({ invitationId: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString(),
         sentAt: sent.get(row.id)?.toISOString() ?? null })) } } as const;
   });
+}
+
+/** Projektets storlek (ägaren 2026-11-10): filerna i `map_content` en gång var, och raderna med ändringar och foton. */
+async function mapProjectStorage(tx: DbExecutor, projectId: string): Promise<{ mapFileBytes: number; totalBytes: number }> {
+  const [row] = (await tx.execute<{ map_file: string | null; files: string | null; rows: string | null }>(sql`
+    with project as (select base_sha256 from map_project where id = ${projectId}),
+    shas as (
+      select base_sha256 as sha from project
+      union select content_sha256 from map_project_output where project_id = ${projectId} and content_sha256 is not null
+      union select content_sha256 from map_project_layer where project_id = ${projectId}
+      union select output.content_sha256 from map_project_geo_output output join map_project_geo_job job on job.id = output.job_id
+        where job.project_id = ${projectId})
+    select (select byte_length from map_content where sha256 = (select base_sha256 from project))::bigint as map_file,
+      (select coalesce(sum(byte_length), 0) from map_content where sha256 in (select sha from shas))::bigint as files,
+      ((select coalesce(sum(pg_column_size(state)), 0) from map_project_edit where project_id = ${projectId})
+        + (select coalesce(sum(pg_column_size(photo)), 0) from map_project_note where project_id = ${projectId}))::bigint as rows`)).rows;
+  return { mapFileBytes: Number(row?.map_file ?? 0), totalBytes: Number(row?.files ?? 0) + Number(row?.rows ?? 0) };
 }
 
 /** Byt namn, avsluta eller öppna igen, byt arbetssätt eller rekningens inställningar (projektets ägare). */

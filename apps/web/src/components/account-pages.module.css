@@ -44,3 +44,7 @@
 }
 /* ADR-0205 tillägg: kontomenyn bredvid Mina tävlingar. */
 .headerNav { align-items: center; }
+
+/* AI-kopplingen steg för steg (ägaren 2026-11-10). */
+.howTo { margin: .5rem 0 1rem; }
+.howTo ol { margin: .5rem 0 0; padding-left: 1.4rem; display: grid; gap: .35rem; }

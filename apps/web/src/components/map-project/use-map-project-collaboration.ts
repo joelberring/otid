@@ -56,6 +56,23 @@ export function useMapProjectCollaboration(view: MapProjectView) {
   return {
     mode, areas, proposals, problem, busy, setProblem, loadProposals, loadAreas,
     setMode: (next: MapProjectMode) => run(() => clubRequest(base, "PUT", { formatVersion: 1, mode: next }), async () => { setMode(next); }),
+    /** Alla öppna förslag, i omgångar tills inget återstår (servern tar en omgång per anrop). Ger antalen, eller undefined vid fel. */
+    decideAll: async (action: "ACCEPT" | "REJECT", onProgress: (done: number, left: number) => void) => {
+      setBusy(true); setProblem(undefined);
+      let done = 0, conflicts = 0;
+      try {
+        for (let round = 0; round < 50; round += 1) {
+          const result = await clubRequest(`${base}/proposals`, "PUT", { formatVersion: 1, action });
+          if (result.status !== 200) { setProblem(mapProjectFailure(result.status)); return undefined; }
+          const body = result.json as { decided: number; conflicts: number; remaining: number };
+          done += body.decided; conflicts = body.conflicts;
+          onProgress(done, body.remaining);
+          if (body.decided === 0 || body.remaining <= conflicts) break;
+        }
+        return { done, conflicts };
+      } catch { setProblem(mapProjectFailure(0)); return undefined; }
+      finally { setBusy(false); await loadProposals(); }
+    },
     decide: (proposalId: string, action: "ACCEPT" | "REJECT" | "WITHDRAW", note?: string) =>
       run(() => clubRequest(`${base}/proposals/${encodeURIComponent(proposalId)}`, "PUT", { formatVersion: 1, action, ...(note ? { note } : {}) }),
         loadProposals),

@@ -78,6 +78,14 @@ export const mapProjectEditorSv = {
     accept: "Godkänn",
     reject: "Avvisa",
     withdraw: "Dra tillbaka",
+    acceptAll: (count: number) => `Godkänn alla ${count}`,
+    rejectAll: "Avvisa alla",
+    acceptAllConfirm: (count: number) => `Godkänna alla ${count} öppna förslag? Ändringarna görs i kartan; det går att ångra en i taget.`,
+    rejectAllConfirm: (count: number) => `Avvisa alla ${count} öppna förslag?`,
+    decidingAll: (done: number, left: number) => `${plural(done, "förslag avgjort", "förslag avgjorda")}, ${left} kvar …`,
+    decidedAll: (done: number, conflicts: number) => conflicts > 0
+      ? `${plural(done, "förslag avgjort", "förslag avgjorda")}; ${plural(conflicts, "krockade och står kvar", "krockade och står kvar")}.`
+      : `${plural(done, "förslag avgjort", "förslag avgjorda")}.`,
     conflicts: (count: number) => plural(count, "ändring krockade och gjordes inte", "ändringar krockade och gjordes inte"),
     areas: "Delområden",
     noAreas: "Inga delområden. Rita ett och dela ut det till en kartritare.",

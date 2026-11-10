@@ -88,6 +88,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const tile = { id: "24A001_65775_6575_25", href: LAZ, bbox: [18, 59.29, 18.04, 59.31] as [number, number, number, number], epsg: 3006 };
     const request = () => ({ formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "Laser norr", tiles: [tile], settings: { contour_interval: 2.5 },
       clip: { minX: 664730, minY: 6576450, maxX: 665130, maxY: 6576850 },
+      // G8: Lantmäteriets marktäcke läses också (zip-filen hämtas genom servern som laserfilerna).
+      extras: [{ kind: "LAND_COVER", id: "marktacke_kn0125", href: LAZ }],
       moisture: { channelHa: 1, wetMeters: 0.5, moistMeters: 1 }, vegetation: { minAreaM2: 300 } });
     // Utan uppgifter till Lantmäteriet går varken sökning eller jobb.
     expect((await searchMapProjectLaser(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("no-credential");
@@ -111,7 +113,7 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     }
     const created = await createGeoJob(db, { ...owner.proof, projectId, request: request() }, runtime, NOW);
     if (created.status !== "created") throw new Error(created.status);
-    expect(created.job).toMatchObject({ name: "Laser norr", status: "QUEUED", tiles: 1, settings: { contour_interval: 2.5 },
+    expect(created.job).toMatchObject({ name: "Laser norr", status: "QUEUED", tiles: 1, settings: { contour_interval: 2.5 }, extras: ["LAND_COVER"],
       clip: { minX: 664730, minY: 6576450, maxX: 665130, maxY: 6576850 } });
 
     // Kvoten: en tom variabel (compose) ger förvalet.
@@ -125,8 +127,11 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
 
     const claimed = await claimGeoJob(db, "geo-1", NOW);
     expect(claimed).toMatchObject({ jobId: created.job.jobId, tiles: [{ index: 0, id: tile.id, epsg: 3006 }], settings: { contour_interval: 2.5 },
-      clip: { minX: 664730, minY: 6576450, maxX: 665130, maxY: 6576850 },
+      clip: { minX: 664730, minY: 6576450, maxX: 665130, maxY: 6576850 }, extras: [{ index: 0, kind: "LAND_COVER" }],
       moisture: { channelHa: 1, wetMeters: 0.5, moistMeters: 1 }, vegetation: { minAreaM2: 300 } });
+    // En vektorprodukt på en annan adress än Lantmäteriets avvisas.
+    expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), extras: [{ kind: "BUILDINGS", id: "x", href: "https://example.org/byggnad.zip" }] } },
+      runtime, NOW)).status).toBe("invalid-request");
     // Fuktigt lägre än blött avvisas.
     expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), moisture: { channelHa: 1, wetMeters: 2, moistMeters: 1 } } }, runtime, NOW)).status)
       .toBe("invalid-request");
@@ -141,6 +146,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(new Uint8Array(await laser.response.arrayBuffer())).toEqual(new Uint8Array([76, 65, 83, 70, 1, 2, 3]));
     expect((await openGeoJobLaser(db, created.job.jobId, "geo-2", 0, runtime)).status).toBe("not-found");
     expect((await openGeoJobLaser(db, created.job.jobId, "geo-1", 5, runtime)).status).toBe("not-found");
+    expect((await openGeoJobLaser(db, created.job.jobId, "geo-1", 0, runtime, true)).status).toBe("ok");
+    expect((await openGeoJobLaser(db, created.job.jobId, "geo-1", 1, runtime, true)).status).toBe("not-found");
     expect((await listGeoJobs(db, { ...reader.proof, projectId }, server, NOW))).toMatchObject({ status: "ok",
       list: { jobs: [{ status: "RUNNING", progress: { step: "Hämtar laserdata", done: 0, total: 1 }, own: false }] } });
 

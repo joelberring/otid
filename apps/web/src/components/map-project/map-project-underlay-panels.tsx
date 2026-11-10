@@ -8,6 +8,7 @@ import { MapProjectFolderIntake } from "./map-project-folder-intake";
 import { MapProjectImportPanel } from "./map-project-import-panel";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
 import { MapProjectLayersPanel } from "./map-project-layers-panel";
+import { MapProjectPhotoPanel } from "./map-project-photo-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import type { useMapProjectControlPoints } from "./use-map-project-control-points";
@@ -29,6 +30,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
     control={control} scale={georeference.scale} area={bounds}
     after={<>
       <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
+      <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectLaserPanel view={view} layers={layers} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
       {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={areas} />}

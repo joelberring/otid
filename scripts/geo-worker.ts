@@ -26,7 +26,8 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createReadStream } from "node:fs";
-import { cliffsFromTicks, readTicks } from "./geo-cliffs.ts";
+import { cliffsFromTicks, hillshade, mergeGroundGrids, readGroundGrid, readTicks } from "./geo-cliffs.ts";
+import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
@@ -38,6 +39,8 @@ interface Job {
   readonly settings: Readonly<Record<string, number>>;
   /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM, med marginal) innan Karttapullautin körs. */
   readonly clip?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
+  /** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) att läsa till kandidater. */
+  readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
   /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   /** K5c del 3: vegetationen ur returerna som ytor (Karttapullautins klassbilder per ruta). */
@@ -138,7 +141,7 @@ async function runJob(job: Job): Promise<void> {
       // Grundkartan G1: rutan klipps till kartans område direkt efter hämtningen; en ruta helt utanför ger ingen fil.
       await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, job.clip ? file : join("in", file))));
       if (job.clip) {
-        await run([file, join("in", file), ...[job.clip.minX, job.clip.minY, job.clip.maxX, job.clip.maxY].map(String), `vatten${tile.index}.bin`], dir,
+        await run([file, join("in", file), ...[job.clip.minX, job.clip.minY, job.clip.maxX, job.clip.maxY].map(String), `vatten${tile.index}.bin`, `mark${tile.index}.bin`], dir,
           AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), lasclip);
         await rm(join(dir, file), { force: true });
       }
@@ -158,10 +161,22 @@ async function runJob(job: Job): Promise<void> {
       scale *= 2;
     }
     await run(["dxfmerge"], dir, control.signal);
-    // Grundkartan G4: branternas korta streck blir linjer med nedför till höger (geo-cliffs.ts).
+    // Grundkartan G4: branternas korta streck blir linjer med nedför till höger (geo-cliffs.ts). Med lasclips markraster
+    // (1 m) mäts fallet över varje linje, och det avgör om den är opasserbar, passerbar eller ingen brant.
     let cliffSummary: Record<string, number> = {};
     const ticksOf = async (name: string) => readTicks(await readFile(join(dir, name), "utf8").catch(() => ""));
-    const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"));
+    const groundFiles = (await readdir(dir)).filter(name => /^mark\d+\.bin$/.test(name)).sort();
+    const grounds = [];
+    for (const name of groundFiles) grounds.push(readGroundGrid(new Uint8Array(await readFile(join(dir, name)))));
+    const ground = grounds.length ? mergeGroundGrids(grounds) : undefined;
+    const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground);
+    // Terrängskuggningen ur samma markraster, som ett underlag att tona.
+    if (ground) {
+      await set("Ritar terrängskuggningen", 0, 1);
+      const shade = hillshade(ground);
+      await writeFile(join(dir, "skuggning.png"), shade.png);
+      await writeFile(join(dir, "skuggning.pgw"), shade.world);
+    }
     if (cliffs.summary.cliffs201 + cliffs.summary.cliffs202 > 0) {
       await writeFile(join(dir, "brantlinjer.dxf"), cliffs.dxf);
       cliffSummary = cliffs.summary;
@@ -175,6 +190,36 @@ async function runJob(job: Job): Promise<void> {
       for (const name of waterFiles) grids.push(readWaterGrid(new Uint8Array(await readFile(join(dir, name)))));
       water = waterFromGrids(grids);
       if (water.summary.waterAreas > 0) await writeFile(join(dir, "vatten.geojson"), water.geojson);
+    }
+    // G8: Lantmäteriets Marktäcke och Byggnad (zip med GeoPackage per kommun) inom rutan, som GeoJSON med importens lagernamn.
+    // En produkt som kontot inte kommer åt hoppas över (jobbet går vidare) och sägs i sammanfattningen.
+    const extraSummary: Record<string, number | string> = {};
+    for (const extra of job.clip ? job.extras ?? [] : []) {
+      const land = extra.kind === "LAND_COVER", label = land ? "marktacke" : "byggnader";
+      await set(land ? "Läser marktäcket" : "Läser byggnaderna", 0, 1);
+      const response = await call(`/api/geo-worker/jobs/${job.jobId}/laser/x${extra.index}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]) });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => undefined) as { error?: string } | undefined;
+        extraSummary[label] = String(detail?.error ?? response.status).slice(0, 60);
+        continue;
+      }
+      try {
+        const found = unzipFirst(new Uint8Array(await response.arrayBuffer()), /\.gpkg$/i);
+        if (!found) { extraSummary[label] = "ingen GeoPackage"; continue; }
+        const path = join(dir, `${label}.gpkg`);
+        await writeFile(path, found.bytes);
+        const features = await readGpkgFeatures(path, job.clip!);
+        await rm(path, { force: true });
+        // Sjön och havet finns redan ur lasern (skarpare strand); av marktäckets vatten tas bara det lasern inte har (gölar).
+        const inLaserWater = (geometry: Geometry) => {
+          if (!water || geometry.kind !== "area") return false;
+          const ring = geometry.rings[0] ?? [];
+          return ring.length > 0 && ring.filter(([x, y]) => [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]].some(([ax, ay]) => water.at(x + ax!, y + ay!))).length * 2 > ring.length;
+        };
+        const result = featuresGeoJson(features, land ? landCoverLayer : buildingLayer, (layer, geometry) => !(layer === "vatten" && inLaserWater(geometry)));
+        if (result.total > 0) await writeFile(join(dir, `${label}.geojson`), result.geojson);
+        extraSummary[label] = result.total;
+      } catch (error) { extraSummary[label] = (error instanceof Error ? error.message : "fel").slice(0, 60); }
     }
     // K5c del 2: fuktigheten ur rutornas höjdraster (Karttapullautin sparar dem i temp_<ruta>_dir med savetempfolders).
     let moistureSummary: Record<string, number> = {};
@@ -217,7 +262,9 @@ async function runJob(job: Job): Promise<void> {
       ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
       ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"]] as const : []),
       ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"]] as const : []),
+      ...(files.has("skuggning.png") ? [["skuggning.png", "skuggning.png", "image/png"], ["skuggning.pgw", "skuggning.pgw", "text/plain"]] as const : []),
       ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
+      ...["marktacke.geojson", "byggnader.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
     for (const [name, source, mediaType] of uploads) {
@@ -230,7 +277,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...moistureSummary, ...vegetationSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...vegetationSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

@@ -13,7 +13,7 @@
  *
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`).
  */
-import { moistureDxf, simplify } from "./geo-moisture.ts";
+import { encodePng, moistureDxf, simplify } from "./geo-moisture.ts";
 
 export type Tick = readonly [x1: number, y1: number, x2: number, y2: number];
 export interface CliffSettings {
@@ -168,20 +168,151 @@ export function cliffLines(ticks: readonly Tick[], settings: CliffSettings = DEF
   return lines;
 }
 
-/** Hela kedjan: opasserbara och passerbara branter som DXF, och en sammanfattning. */
-export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly Tick[], settings: CliffSettings = DEFAULT_CLIFFS) {
-  // Passerbara streck där det redan är opasserbart (inom 2 m) hör till den opasserbara branten.
-  const taken = new Set<string>();
-  const key = (x: number, y: number) => `${Math.round(x / 2)},${Math.round(y / 2)}`;
-  for (const [x1, y1, x2, y2] of impassable) {
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    for (let ax = -2; ax <= 2; ax += 2) for (let ay = -2; ay <= 2; ay += 2) taken.add(key(mx + ax, my + ay));
+/** Markens höjd i 1 m-celler från `lasclip` (cellen (x, y) täcker minX + x … +1, y uppåt; index x·height + y; NaN = ingen markpunkt). */
+export interface GroundGrid { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number; readonly z: Float32Array }
+
+export function readGroundGrid(bytes: Uint8Array): GroundGrid {
+  if (bytes.length < 40) throw new Error("Markrastret är för kort");
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = Number(view.getBigUint64(24, true)), height = Number(view.getBigUint64(32, true));
+  if (!(width > 0 && height > 0) || bytes.length !== 40 + width * height * 4) throw new Error("Markrastret har fel storlek");
+  const z = new Float32Array(width * height);
+  for (let i = 0; i < z.length; i += 1) z[i] = view.getFloat32(40 + i * 4, true);
+  return { minX: view.getFloat64(0, true), minY: view.getFloat64(8, true), cell: view.getFloat64(16, true), width, height, z };
+}
+
+/** Rutornas raster över samma klippta område: medel där flera rutor har mark, och luckor fyllda från grannarna (högst `rounds` celler bort). */
+export function mergeGroundGrids(grids: readonly GroundGrid[], rounds = 4): GroundGrid {
+  const first = grids[0];
+  if (!first) throw new Error("Inget markraster");
+  const { width, height } = first, sum = new Float64Array(width * height), count = new Uint16Array(width * height);
+  for (const grid of grids) {
+    if (grid.width !== width || grid.height !== height) throw new Error("Markrastren täcker olika områden");
+    for (let i = 0; i < sum.length; i += 1) if (Number.isFinite(grid.z[i]!)) { sum[i] = sum[i]! + grid.z[i]!; count[i] = count[i]! + 1; }
   }
-  const high = cliffLines(impassable, settings);
-  const low = cliffLines(passable.filter(([x1, y1, x2, y2]) => !taken.has(key((x1 + x2) / 2, (y1 + y2) / 2))), settings);
+  let z = Float32Array.from(sum, (value, i) => count[i] ? value / count[i] : NaN);
+  for (let round = 0; round < rounds; round += 1) {
+    const next = new Float32Array(z);
+    let filled = 0;
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      const i = x * height + y;
+      if (Number.isFinite(z[i]!)) continue;
+      let total = 0, n = 0;
+      for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
+        const nx = x + ax, ny = y + ay;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const value = z[nx * height + ny]!;
+        if (Number.isFinite(value)) { total += value; n += 1; }
+      }
+      if (n >= 2) { next[i] = total / n; filled += 1; }
+    }
+    z = next;
+    if (!filled) break;
+  }
+  return { ...first, z };
+}
+
+const heightAt = (grid: GroundGrid, x: number, y: number) => {
+  const column = Math.floor((x - grid.minX) / grid.cell), row = Math.floor((y - grid.minY) / grid.cell);
+  return column < 0 || row < 0 || column >= grid.width || row >= grid.height ? NaN : grid.z[column * grid.height + row]!;
+};
+const median = (values: number[]) => values.length ? [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]! : NaN;
+
+export interface CliffRules {
+  /** Minsta fall (m) över ±3 m för att linjen ska vara en brant alls. */
+  readonly minDrop: number;
+  /** Opasserbar: minst så stort fall över ±3 m och över ±6 m, och minst så lång (m). */
+  readonly impassableDrop3: number; readonly impassableDrop6: number; readonly impassableLength: number;
+}
+/** Trösklarna ur Kungshatt-kedjans brantkontroll (`s3c_brantkontroll.py`). */
+export const DEFAULT_CLIFF_RULES: CliffRules = { minDrop: 1.3, impassableDrop3: 2.4, impassableDrop6: 3, impassableLength: 10 };
+
+/**
+ * Brantens fall mätt i markrastret (ägaren 2026-11-10, som i Kungshatt-kedjan): varje meter längs linjen jämförs marken
+ * 3 m (och 6 m) uppför med marken lika långt nedför (linjen har nedför till höger). Medianen avgör: ingen brant, brant
+ * (202) eller opasserbar brant (201). Utan mätvärden (linjen ligger utanför rastret) behåller linjen sin sort.
+ */
+export function measureCliff(line: readonly (readonly [number, number])[], ground: GroundGrid): { drop3: number; drop6: number; length: number } {
+  const drops3: number[] = [], drops6: number[] = [];
+  let length = 0;
+  for (let i = 1; i < line.length; i += 1) {
+    const [ax, ay] = line[i - 1]!, [bx, by] = line[i]!, segment = Math.hypot(bx - ax, by - ay);
+    if (segment === 0) continue;
+    const rx = (by - ay) / segment, ry = -(bx - ax) / segment;
+    for (let step = 0.5; step < segment; step += 1) {
+      const x = ax + (bx - ax) * step / segment, y = ay + (by - ay) * step / segment;
+      for (const [reach, into] of [[3, drops3], [6, drops6]] as const) {
+        const up = heightAt(ground, x - rx * reach, y - ry * reach), down = heightAt(ground, x + rx * reach, y + ry * reach);
+        if (Number.isFinite(up) && Number.isFinite(down)) into.push(up - down);
+      }
+    }
+    length += segment;
+  }
+  return { drop3: median(drops3), drop6: median(drops6), length };
+}
+
+/**
+ * Hela kedjan: opasserbara och passerbara branter som DXF, och en sammanfattning. Med markrastret (`ground`) görs linjerna av
+ * alla streck tillsammans och sorten avgörs av det uppmätta fallet; utan det avgör Karttapullautins två filer.
+ */
+export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly Tick[], settings: CliffSettings = DEFAULT_CLIFFS, ground?: GroundGrid,
+  rules: CliffRules = DEFAULT_CLIFF_RULES) {
   const meters = (lines: [number, number][][]) => Math.round(lines.reduce((sum, line) => sum + line.reduce((part, point, i) =>
     i === 0 ? 0 : part + Math.hypot(point[0] - line[i - 1]![0], point[1] - line[i - 1]![1]), 0), 0));
+  let high: [number, number][][], low: [number, number][][], dropped = 0;
+  if (ground) {
+    high = []; low = [];
+    for (const line of cliffLines([...impassable, ...passable], settings)) {
+      const { drop3, drop6, length } = measureCliff(line, ground);
+      if (!Number.isFinite(drop3)) { low.push(line); continue; }
+      if (drop3 < rules.minDrop) { dropped += 1; continue; }
+      if (drop3 >= rules.impassableDrop3 && drop6 >= rules.impassableDrop6 && length >= rules.impassableLength) high.push(line); else low.push(line);
+    }
+  } else {
+    // Passerbara streck där det redan är opasserbart (inom 2 m) hör till den opasserbara branten.
+    const taken = new Set<string>();
+    const key = (x: number, y: number) => `${Math.round(x / 2)},${Math.round(y / 2)}`;
+    for (const [x1, y1, x2, y2] of impassable) {
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      for (let ax = -2; ax <= 2; ax += 2) for (let ay = -2; ay <= 2; ay += 2) taken.add(key(mx + ax, my + ay));
+    }
+    high = cliffLines(impassable, settings);
+    low = cliffLines(passable.filter(([x1, y1, x2, y2]) => !taken.has(key((x1 + x2) / 2, (y1 + y2) / 2))), settings);
+  }
   return { dxf: moistureDxf([{ name: "brant_opasserbar", closed: false, parts: high }, { name: "brant_passerbar", closed: false, parts: low }]),
     lines: { impassable: high, passable: low },
-    summary: { cliffs201: high.length, cliffs202: low.length, cliffMeters201: meters(high), cliffMeters202: meters(low) } };
+    summary: { cliffs201: high.length, cliffs202: low.length, cliffMeters201: meters(high), cliffMeters202: meters(low), ...(ground ? { cliffsDropped: dropped } : {}) } };
+}
+
+/**
+ * Terrängskuggning ur markrastret (ägaren 2026-11-10: «terrängskuggning som man kan tona för att få en förståelse för
+ * kurvbilden»): ljus från nordväst blandat med ljus rakt uppifrån (branter mörka åt alla håll), som en gråskalebild med
+ * världsfil. Mycket stora raster glesas ut så att bilden blir högst `maxSide` punkter i sida.
+ */
+/** Skuggningens grå (0–255) för en cell i det utglesade rastret, eller inget där marken saknas. Rad 0 är längst i söder. */
+export function shadeValue(ground: GroundGrid, step: number, column: number, row: number): number | undefined {
+  const size = ground.cell * step;
+  const z = (c: number, r: number) => {
+    const x = Math.min(ground.width - 1, Math.max(0, c * step)), y = Math.min(ground.height - 1, Math.max(0, r * step));
+    return ground.z[x * ground.height + y]!;
+  };
+  const here = z(column, row);
+  if (!Number.isFinite(here)) return undefined;
+  const value = (c: number, r: number) => { const v = z(c, r); return Number.isFinite(v) ? v : here; };
+  const dx = (value(column + 1, row) - value(column - 1, row)) / (2 * size), dy = (value(column, row + 1) - value(column, row - 1)) / (2 * size);
+  // Ljuset kommer från nordväst, 45° över horisonten.
+  const lx = -0.5, ly = 0.5, lz = Math.SQRT1_2, length = Math.hypot(dx, dy, 1);
+  const lit = Math.max(0, (-dx * lx - dy * ly + lz) / length);
+  // Plan mark blir ljusgrå (0,8), sluttningar mot ljuset ljusare och bort från det mörkare; branter mörknar åt alla håll.
+  return Math.round(255 * Math.min(1, Math.max(0, 0.8 * lit / lz * (0.7 + 0.3 / length))));
+}
+
+export function hillshade(ground: GroundGrid, maxSide = 6000): { png: Buffer; world: string; width: number; height: number } {
+  const step = Math.max(1, Math.ceil(Math.max(ground.width, ground.height) / maxSide));
+  const width = Math.floor(ground.width / step), height = Math.floor(ground.height / step), size = ground.cell * step;
+  const png = encodePng(width, height, (column, line) => {
+    const shade = shadeValue(ground, step, column, height - 1 - line);
+    return shade === undefined ? [0, 0, 0, 0] : [shade, shade, shade, 255];
+  });
+  return { png, world: `${size}\n0\n0\n${-size}\n${ground.minX + size / 2}\n${ground.minY + (height - 0.5) * size}\n`, width, height };
 }

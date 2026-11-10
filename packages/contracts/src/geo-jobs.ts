@@ -38,6 +38,15 @@ const clipSchema = z.object({ minX: z.number().finite(), minY: z.number().finite
   .refine(box => box.maxX - box.minX <= 12_000 && box.maxY - box.minY <= 12_000, "Klipprutan är för stor");
 export type GeoClip = z.infer<typeof clipSchema>;
 
+/**
+ * Grundkartan G8 (ägaren 2026-11-10): Lantmäteriets kommunvisa vektorprodukter som geo-arbetaren läser till kandidater:
+ * Marktäcke (vatten, öppen mark, åker, sankmark) och Byggnad. `href` är zip-filen hos Lantmäteriet.
+ */
+export const GEO_EXTRA_KINDS = ["LAND_COVER", "BUILDINGS"] as const;
+export type GeoExtraKind = typeof GEO_EXTRA_KINDS[number];
+const extraSchema = z.object({ kind: z.enum(GEO_EXTRA_KINDS), id: z.string().min(1).max(200), href: z.string().url().max(2000) }).strict();
+export interface GeoExtraItem { readonly kind: GeoExtraKind; readonly id: string; readonly href: string }
+
 export const geoJobCreateRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: z.string().uuid(),
@@ -46,6 +55,7 @@ export const geoJobCreateRequestSchema = z.object({
   tiles: z.array(tileSchema).min(1).max(GEO_JOB_MAX_TILES),
   settings: settingsSchema.default({}),
   clip: clipSchema.optional(),
+  extras: z.array(extraSchema).max(6).optional(),
   /** K5c del 2: fuktigheten ur laserns markmodell (kanaltröskeln i hektar, höjd över fuktstråket för blött och fuktigt). */
   moisture: z.object({ channelHa: z.number().min(0.25).max(10), wetMeters: z.number().min(0.1).max(3), moistMeters: z.number().min(0.2).max(5) })
     .strict().refine(value => value.moistMeters >= value.wetMeters, "Fuktigt ska vara minst lika högt som blött").optional(),
@@ -59,6 +69,8 @@ export interface GeoJobView {
   readonly tiles: number; readonly settings: Readonly<Record<string, number>>;
   /** Laserdatan klipptes till den här rutan (SWEREF 99 TM, med marginal); null = hela rutorna bearbetades. */
   readonly clip: GeoClip | null;
+  /** Vilka av Lantmäteriets vektorprodukter jobbet också läser (G8). */
+  readonly extras: readonly GeoExtraKind[];
   readonly progress: { readonly step: string; readonly done: number; readonly total: number } | null;
   readonly error: string | null; readonly layerId: string | null;
   /** K5c del 2: fuktighetens underlag, när jobbet räknade fuktighet. */

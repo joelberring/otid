@@ -76,6 +76,9 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await laser.getByTestId("map-project-laser-moisture").check();
   // K5c del 3: vegetationen ur returerna som ytor.
   await laser.getByTestId("map-project-laser-vegetation").check();
+  // G8: sökningen hittar också Lantmäteriets marktäcke och byggnader; båda är förvalda (byggnaderna saknar kontot behörighet till).
+  await expect(laser.getByTestId("map-project-laser-extra-LAND_COVER")).toBeChecked();
+  await expect(laser.getByTestId("map-project-laser-extra-BUILDINGS")).toBeChecked();
   await laser.getByTestId("map-project-laser-start").click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Jobbet ligger i kön.");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Karttapullautin hela kartan · 1 ruta · Väntar på geo-servern");
@@ -91,10 +94,12 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Klart", { timeout: 30_000 });
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Bilden är tillagd som underlag.");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Fuktigheten är tillagd som underlag.");
-  await expect(owner.getByTestId("map-project-layer")).toHaveCount(3, { timeout: 20_000 });
+  // Terrängskuggningen ur laserns markraster är också ett underlag (att tona).
+  await expect(owner.getByTestId("map-project-layer")).toHaveCount(4, { timeout: 20_000 });
   const layers = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { name: string; crs: number; width: number }[] }).layers;
   expect(layers).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Karttapullautin hela kartan", crs: 3006, width: 200 }),
-    expect.objectContaining({ name: "Karttapullautin hela kartan – fuktighet", crs: 3006 })]));
+    expect.objectContaining({ name: "Karttapullautin hela kartan – fuktighet", crs: 3006 }),
+    expect.objectContaining({ name: "Karttapullautin hela kartan – terrängskuggning", crs: 3006 })]));
 
   // Kurvorna som kandidater.
   await laser.getByRole("button", { name: "Läs in kurvor som kandidater" }).click();
@@ -117,9 +122,14 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   // Grundkartan: allt på en gång, med branten som en linje i stället för Karttapullautins streck.
   await laser.getByTestId("map-project-laser-base-map").click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Grundkartan visas som kandidater nedan under Vektorfil.");
-  for (const name of ["contour", "brant_passerbar", "vatten", "blott", "oppen_mark"]) {
+  // G8: Lantmäteriets marktäcke (åkern och sankmarken) och OpenStreetMap följer med; marktäckets sankmark går före den
+  // uträknade fuktigheten, och laserns öppna mark byter namn när marktäcket finns.
+  for (const name of ["contour", "brant_passerbar", "vatten", "aker", "sankmark_vat", "oppen_mark_laser"]) {
     await expect(importer.getByTestId("map-project-import-layer").filter({ hasText: name }).first()).toBeAttached();
   }
+  await expect(importer.getByLabel("Symbol för blott")).toHaveCount(0);
+  await laser.getByRole("button", { name: "Läs in lantmäteriets marktäcke som kandidater" }).click();
+  await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
   // Vattnet ur laserns klasser: sjön blir en yta i lagret vatten.
   await laser.getByRole("button", { name: "Läs in sjöar och vatten som kandidater" }).click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Sjöar och vatten visas som kandidater nedan under Vektorfil.");

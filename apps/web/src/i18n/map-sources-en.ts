@@ -103,9 +103,11 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   layerAdded: "The image is added as a base layer.",
   outputs: {
     "kurvor.dxf": "Contours", "formlinjer.dxf": "Form lines", "branter.dxf": "Cliffs", "stup.dxf": "Steep cliffs", "knollar.dxf": "Knolls",
-    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "ritning.geojson": "The drawing"
+    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "marktacke.geojson": "Land cover from Lantmäteriet", "byggnader.geojson": "Buildings from Lantmäteriet", "ritning.geojson": "The drawing"
   },
   loadBaseMap: "Load the base map",
+    osmMissing: "OpenStreetMap could not be fetched now, so paths, roads and houses are missing. Fetch them under Import vectors.",
+    extras: { LAND_COVER: "Also read land cover from Lantmäteriet (water, open land, fields, marsh)", BUILDINGS: "Also read buildings from Lantmäteriet" },
     baseMap: "The base map",
     load: (label: string) => `Load ${label.toLowerCase()} as candidates`,
   loaded: (label: string) => `${label} are shown as candidates below under Vector file.`,
@@ -135,6 +137,18 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
 export const mapSourcesEn: Texts<Sources> = {
   account: mapSourcesAccountEn,
   ortho: mapSourcesOrthoEn,
+  photo: {
+    heading: "Interpret aerial photo (bare rock, open land)",
+    help: "A first attempt: an orthophoto that is a base layer is interpreted here in the browser. Grey and light areas become bare rock (214), light green and even areas open land (401). "
+      + "Only broad areas count. Dry grass, gravel and roofs can become bare rock, so go through the suggestions before you put them in.",
+    none: "No visible base layer. Fetch an orthophoto above and keep it shown.",
+    layer: "Base layer",
+    run: "Interpret the photo",
+    name: (layer: string) => `${layer} – photo interpretation`.slice(0, 120),
+    done: (rock: number, open: number) => `${rock} ha bare rock and ${open} ha open land are shown as candidates below under Vector file.`,
+    nothing: "No broad grey or light green areas were found in the photo.",
+    failed: "The photo could not be interpreted."
+  },
   moisture: mapSourcesMoistureEn,
   laser: mapSourcesLaserEn
 };

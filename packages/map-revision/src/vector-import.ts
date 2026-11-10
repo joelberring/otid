@@ -77,6 +77,8 @@ export function guessCrs(data: SourceData, georeference?: MapGeoreference): numb
 
 /** Ord i lagrets namn (versaler, utan å, ä och ö) → symbolens nummer, som i plandokumentet för baskartorna. Första träffen gäller. */
 const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; readonly area?: string; readonly point?: string }[] = [
+  // G8: marktäckets bebyggelseyta och laserns öppna mark (när marktäckets finns) får inget förslag (före reglerna nedan).
+  { words: /BEBYGGELSE|OPPEN_MARK_LASER/ },
   // Geo-arbetarens vegetation (K5c del 3): öppen mark, tre gröna och undervegetation.
   { words: /OPPEN_MARK|OPEN_LAND/, area: "401" },
   { words: /UNDERVEGETATION_SVARLOPT/, area: "409" },
@@ -95,6 +97,12 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /GANGVAG|STIG|FOOTWAY|PATH/, line: "505" },
   { words: /PARKERING|ASFALT|PAVED|PARKING/, area: "501" },
   { words: /VAG|GATA|ROAD|STREET/, line: "503" },
+  // Flygbildstolkningen (G8c).
+  { words: /BERG_I_DAGEN|BERGHALL|BARE_ROCK/, area: "214" },
+  // Lantmäteriets Marktäcke (G8): fast sankmark är otydlig sankmark, åker och fruktodling.
+  { words: /SANKMARK_FAST/, area: "310" },
+  { words: /FRUKTODLING|ORCHARD/, area: "413" },
+  { words: /^AKER$|ODLINGSMARK|FARMLAND/, area: "412" },
   // Geo-arbetarens fuktighet (K5c): fuktstråk, blött och fuktigt.
   { words: /FUKTSTRAK/, line: "306" },
   { words: /BLOTT|SANKMARK|MYR|MARSH/, area: "308" },

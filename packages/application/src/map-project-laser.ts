@@ -1,4 +1,4 @@
-import { mapProjectOsmRequestSchema as mapProjectLaserSearchRequestSchema } from "@o-tid/contracts";
+import { mapProjectOsmRequestSchema as mapProjectLaserSearchRequestSchema, type GeoExtraItem } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { validOsmBox } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
@@ -18,9 +18,12 @@ const MAX_SEARCH_BYTES = 10 * 1024 * 1024;
 /** Högst så stor laserruta (en ruta på 2,5 × 2,5 km är oftast 50–400 MB). */
 export const MAX_LASER_BYTES = 1536 * 1024 * 1024;
 
-export interface LaserRuntime extends LantmaterietRuntime { readonly hojdUrl: string; readonly laserCollection: string | undefined }
+/** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) i `stac-vektor`. Inte provat mot riktiga Lantmäteriet; `OTID_LM_STAC_VEKTOR_URL` ändrar adressen. */
+export const DEFAULT_LM_STAC_VEKTOR_URL = "https://api.lantmateriet.se/stac-vektor/v1";
+export interface LaserRuntime extends LantmaterietRuntime { readonly hojdUrl: string; readonly laserCollection: string | undefined; readonly vektorUrl?: string | undefined }
 export function laserRuntimeFromEnvironment(base: LantmaterietRuntime): LaserRuntime {
-  return { ...base, hojdUrl: (base.environment.OTID_LM_STAC_HOJD_URL?.trim() || DEFAULT_LM_STAC_HOJD_URL).replace(/\/$/, ""),
+  return { ...base, vektorUrl: (base.environment.OTID_LM_STAC_VEKTOR_URL?.trim() || DEFAULT_LM_STAC_VEKTOR_URL).replace(/\/$/, ""),
+    hojdUrl: (base.environment.OTID_LM_STAC_HOJD_URL?.trim() || DEFAULT_LM_STAC_HOJD_URL).replace(/\/$/, ""),
     laserCollection: base.environment.OTID_LM_LASER_COLLECTION?.trim() || undefined };
 }
 /** Lantmäteriets adresser, eller den inställda höjdtjänstens värd (testerna). */
@@ -81,9 +84,46 @@ async function getJson(url: string, auth: string, runtime: LaserRuntime, body?: 
   try { return { ok: true, json: JSON.parse(text) as unknown }; } catch { return { status: "unavailable", detail: "format" }; }
 }
 
+/** Vilken vektorprodukt en samling är, ur dess id och titel. */
+const EXTRA_WORDS: readonly (readonly [GeoExtraItem["kind"], RegExp])[] = [["LAND_COVER", /markt[aä]cke/i], ["BUILDINGS", /byggnad/i]];
+
+/** Zip-filerna (GeoPackage per kommun) i ett STAC-svar, som jobbets extra hämtningar. */
+export function vectorExtras(json: unknown, kind: GeoExtraItem["kind"], runtime: LaserRuntime): GeoExtraItem[] {
+  const features = (json as { features?: unknown } | null)?.features;
+  if (!Array.isArray(features)) return [];
+  const out: GeoExtraItem[] = [];
+  for (const feature of features as { id?: unknown; assets?: Record<string, { href?: unknown; type?: unknown }> }[]) {
+    const asset = Object.values(feature.assets ?? {}).find(entry => typeof entry.href === "string"
+      && (/\.zip($|\?)/i.test(entry.href) || (typeof entry.type === "string" && /zip|geopackage/i.test(entry.type))));
+    if (asset && typeof feature.id === "string" && allowedLaserUrl(String(asset.href), runtime)) out.push({ kind, id: feature.id.slice(0, 200), href: String(asset.href) });
+  }
+  return out.slice(0, 3);
+}
+
+/**
+ * Marktäcke och Byggnad för rutan, om kontot kommer åt dem (G8). Ett försök i mån av förmåga: fel och saknad behörighet ger
+ * en tom lista, så att lasersökningen aldrig faller på det här.
+ */
+async function searchVectorExtras(auth: string, runtime: LaserRuntime, box: { west: number; south: number; east: number; north: number }): Promise<GeoExtraItem[]> {
+  if (!runtime.vektorUrl) return [];
+  const listed = await getJson(`${runtime.vektorUrl}/collections`, auth, runtime);
+  if (!("ok" in listed)) return [];
+  const collections = (listed.json as { collections?: { id?: unknown; title?: unknown }[] } | null)?.collections;
+  if (!Array.isArray(collections)) return [];
+  const out: GeoExtraItem[] = [];
+  for (const [kind, words] of EXTRA_WORDS) {
+    const collection = collections.find(entry => typeof entry.id === "string" && words.test(`${entry.id} ${typeof entry.title === "string" ? entry.title : ""}`)
+      && !/inspire|visning|direkt/i.test(`${entry.id} ${typeof entry.title === "string" ? entry.title : ""}`));
+    if (typeof collection?.id !== "string") continue;
+    const found = await getJson(`${runtime.vektorUrl}/search`, auth, runtime, { bbox: [box.west, box.south, box.east, box.north], collections: [collection.id], limit: 10 });
+    if ("ok" in found) out.push(...vectorExtras(found.json, kind, runtime));
+  }
+  return out;
+}
+
 /** Söker laserrutor för rutan (den som får föreslå i ett öppet projekt, med sparade uppgifter). */
 export async function searchMapProjectLaser(db: Database, input: ClubProof & { projectId: string; request: unknown }, runtime: LaserRuntime,
-  now = new Date()): Promise<LantmaterietFailure | { status: "ok"; items: LaserItem[]; collection: string }> {
+  now = new Date()): Promise<LantmaterietFailure | { status: "ok"; items: LaserItem[]; collection: string; extras: GeoExtraItem[] }> {
   const parsed = mapProjectLaserSearchRequestSchema.safeParse(input.request);
   const allowed = await db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "propose", true);
@@ -111,7 +151,8 @@ export async function searchMapProjectLaser(db: Database, input: ClubProof & { p
   const box = parsed.data!.box;
   const found = await getJson(`${runtime.hojdUrl}/search`, auth, runtime, { bbox: [box.west, box.south, box.east, box.north], collections: [collection], limit: 200 });
   if (!("ok" in found)) return found;
-  try { return { status: "ok", items: laserItems(found.json, runtime), collection }; }
+  const extras = await searchVectorExtras(auth, runtime, box).catch(() => []);
+  try { return { status: "ok", items: laserItems(found.json, runtime), collection, extras }; }
   catch { return { status: "unavailable", detail: "format" }; }
 }
 

@@ -50,6 +50,18 @@ export const mapSourcesSv = {
     }
   },
   /** K5c: SLU:s markfuktighetskarta som underlag. */
+  photo: {
+    heading: "Tolka flygbild (berg i dagen, öppen mark)",
+    help: "Ett första försök: ett ortofoto som ligger som underlag tolkas här i webbläsaren. Grå och ljusa ytor blir berg i dagen (214), ljusgröna och jämna ytor öppen mark (401). "
+      + "Bara breda ytor räknas. Torrt gräs, grus och tak kan bli berg i dagen, så gå igenom förslagen innan du lägger in dem.",
+    none: "Inget synligt underlag. Hämta ett ortofoto ovan och låt det vara tänt.",
+    layer: "Underlag",
+    run: "Tolka flygbilden",
+    name: (layer: string) => `${layer} – flygbildstolkning`.slice(0, 120),
+    done: (rock: number, open: number) => `${String(rock).replace(".", ",")} ha berg i dagen och ${String(open).replace(".", ",")} ha öppen mark visas som kandidater nedan under Vektorfil.`,
+    nothing: "Inga breda grå eller ljusgröna ytor hittades i bilden.",
+    failed: "Flygbilden kunde inte tolkas."
+  },
   moisture: {
     heading: "Markfuktighet (SLU)",
     help: "SLU:s markfuktighetskarta (2 m, öppen data från Skogsstyrelsen) för hela kartan eller en etapp, som underlag. Blått är blött: "
@@ -121,9 +133,11 @@ export const mapSourcesSv = {
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
       "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
-      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "ritning.geojson": "Ritningen"
+      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
     loadBaseMap: "Läs in grundkartan",
+    osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Importera vektorer.",
+    extras: { LAND_COVER: "Läs också Lantmäteriets marktäcke (vatten, öppen mark, åker, sankmark)", BUILDINGS: "Läs också Lantmäteriets byggnader" } as Record<string, string>,
     baseMap: "Grundkartan",
     load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,
     loaded: (label: string) => `${label} visas som kandidater nedan under Vektorfil.`,

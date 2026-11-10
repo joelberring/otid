@@ -37,6 +37,9 @@ export const GEO_MAP_WORLD = "karta.pgw";
 /** K5c del 2: fuktighetens bild och världsfil (blir ett eget underlag). */
 export const GEO_MOISTURE_IMAGE = "fukt.png";
 export const GEO_MOISTURE_WORLD = "fukt.pgw";
+/** Terrängskuggningen ur laserns markraster (ägaren 2026-11-10); blir ett underlag att tona. */
+export const GEO_SHADE_IMAGE = "skuggning.png";
+export const GEO_SHADE_WORLD = "skuggning.pgw";
 
 export type GeoJobFailure = ClubFailure | { status: "no-credential" } | { status: "busy" } | { status: "quota" };
 
@@ -56,11 +59,11 @@ async function rows(tx: DbExecutor, projectId: string, jobId?: string) {
   return list.map(row => ({ ...row, files: files.filter(file => file.jobId === row.job.id) }));
 }
 function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): GeoJobView {
-  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"];
+  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"]; extras?: { kind: GeoJobView["extras"][number] }[];
     moisture?: GeoJobView["moisture"]; vegetation?: GeoJobView["vegetation"] };
   const progress = job.progress as GeoJobView["progress"] | null;
   return { jobId: job.id, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status, tiles: request.tiles?.length ?? 0,
-    settings: request.settings ?? {}, clip: request.clip ?? null, progress: job.status === "RUNNING" ? progress : null, error: job.error,
+    settings: request.settings ?? {}, clip: request.clip ?? null, extras: (request.extras ?? []).map(extra => extra.kind), progress: job.status === "RUNNING" ? progress : null, error: job.error,
     layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null,
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
@@ -84,7 +87,7 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "propose", true);
     if (access.status !== "ok") return access;
-    if (!parsed.success || parsed.data.tiles.some(tile => !allowedLaserUrl(tile.href, runtime))) return { status: "invalid-request" } as const;
+    if (!parsed.success || [...parsed.data.tiles, ...(parsed.data.extras ?? [])].some(item => !allowedLaserUrl(item.href, runtime))) return { status: "invalid-request" } as const;
     const request = parsed.data;
     const [prior] = await tx.select().from(jobs).where(eq(jobs.requestId, request.requestId));
     if (prior) {
@@ -105,7 +108,7 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
     if (tiles + request.tiles.length > geoTilesPerMonth(runtime.environment)) return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(jobs).values({ id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-      request: { name: request.name, tiles: request.tiles, settings: request.settings, ...(request.clip ? { clip: request.clip } : {}),
+      request: { name: request.name, tiles: request.tiles, settings: request.settings, ...(request.clip ? { clip: request.clip } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
         ...(request.moisture ? { moisture: request.moisture } : {}),
         ...(request.vegetation ? { vegetation: request.vegetation } : {}) },
       createdAt: now, requestId: request.requestId });
@@ -169,6 +172,8 @@ export interface ClaimedGeoJob {
   readonly settings: Readonly<Record<string, number>>;
   /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM) före körningen. */
   readonly clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
+  /** G8: Lantmäteriets vektorprodukter att läsa (hämtas med `/laser/x<index>`). */
+  readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   readonly vegetation: { readonly minAreaM2: number } | null;
 }
@@ -187,7 +192,7 @@ export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<vo
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
   await releaseStaleGeoJobs(db, now);
   const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
-    clip?: ClaimedGeoJob["clip"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
+    clip?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" }[]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
@@ -197,7 +202,8 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   await noteGeoServerJob(db, worker, now);
   // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök (indata står kvar).
   await db.delete(outputs).where(and(eq(outputs.jobId, row.id), sql`${outputs.name} not like 'indata.%'`));
-  return { jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null, moisture: row.request.moisture ?? null,
+  return { jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null,
+    extras: (row.request.extras ?? []).map((extra, index) => ({ index, kind: extra.kind })), moisture: row.request.moisture ?? null,
     vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
 }
 
@@ -217,11 +223,12 @@ export async function heartbeatGeoJob(db: Database, jobId: string, worker: strin
 }
 
 /** Laserfilen för jobbets ruta, hämtad med jobbkontots uppgifter (de lämnar aldrig servern). */
-export async function openGeoJobLaser(db: Database, jobId: string, worker: string, index: number, runtime: LaserRuntime)
+export async function openGeoJobLaser(db: Database, jobId: string, worker: string, index: number, runtime: LaserRuntime, extra = false)
   : Promise<LantmaterietFailure | { status: "ok"; response: Response }> {
   const job = await runningJob(db, jobId, worker);
   if (!job || job.status !== "RUNNING") return { status: "not-found" };
-  const tile = (job.request as { tiles?: { href: string }[] }).tiles?.[index];
+  const request = job.request as { tiles?: { href: string }[]; extras?: { href: string }[] };
+  const tile = (extra ? request.extras : request.tiles)?.[index];
   if (!tile) return { status: "not-found" };
   const secret = await openMapSourceCredential(db, job.accountId, runtime.environment);
   if (!secret) return { status: "no-credential" };
@@ -293,9 +300,10 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     const name = (request.name ?? "Karttapullautin").slice(0, 80);
     const layerId = await layerFrom(tx, job, files, GEO_MAP_IMAGE, GEO_MAP_WORLD, name, 0.6, job.id, now);
     const moistureLayerId = await layerFrom(tx, job, files, GEO_MOISTURE_IMAGE, GEO_MOISTURE_WORLD, `${name.slice(0, 66)} – fuktighet`, 0.7, randomUUID(), now);
+    const shadeLayerId = await layerFrom(tx, job, files, GEO_SHADE_IMAGE, GEO_SHADE_WORLD, `${name.slice(0, 60)} – terrängskuggning`, 0.5, randomUUID(), now);
     await noteGeoServerJob(tx, worker, now);
     await tx.update(jobs).set({ status: "DONE", finishedAt: now, progress: null, error: null,
-      result: { layerId, moistureLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
+      result: { layerId, moistureLayerId, shadeLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
     return { status: "ok", layerId } as const;
   });
 }

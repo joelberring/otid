@@ -4,9 +4,10 @@ import { laserClip } from "../../lib/map-project-clip";
 import { useCallback, useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
-import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoJobList, type GeoJobView, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { parseDxf, parseGeoJson, VectorParseError, type SourceData } from "@o-tid/map-revision";
+import { baseMapOutputs, clipWgs84, mergeBaseMap } from "../../lib/map-project-base-map";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -18,6 +19,7 @@ import type { useMapProjectImport } from "./use-map-project-import";
 import type { useMapProjectLayers } from "./use-map-project-layers";
 import styles from "./map-project-editor.module.css";
 
+interface ExtraItem { kind: GeoExtraKind; id: string; href: string }
 interface LaserItem { id: string; datetime: string | null; href: string; bbox: [number, number, number, number] | null; bytes: number | null; epsg: number | null }
 type Area = BoxArea & { areaId: string };
 const INTERVALS = [2.5, 5] as const;
@@ -25,16 +27,6 @@ const ACTIVE = new Set(["QUEUED", "RUNNING"]);
 /** Ägaren 2026-11-10: Karttapullautins övriga inställningar (kurvor, branter, grönt), utöver ekvidistansen och formlinjerna. */
 const MORE_SETTINGS = ["smoothing", "curviness", "knolls", "formlinesteepness", "cliff1", "cliff2", "cliffsteepfactor", "yellowheight", "greenground", "greenhigh",
   "undergrowth"] as const satisfies readonly (keyof typeof PULLAUTIN_SETTINGS)[];
-/**
- * Grundkartan G2 (ägaren 2026-11-10: «ungefär som en halvfärdig karta»): resultatfilerna som tillsammans är grundkartan, i den
- * ordning de läses in. Branterna som linjer går före Karttapullautins korta streck när de finns.
- */
-const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "fukt.dxf", "vegetation.dxf"];
-export function baseMapOutputs(names: readonly string[]): string[] {
-  const has = new Set(names);
-  return [...BASE_MAP.filter(name => has.has(name)), ...(has.has("brantlinjer.dxf") ? [] : ["branter.dxf", "stup.dxf"].filter(name => has.has(name)))];
-}
-
 /** Fälten som tal inom gränserna; tomma och ogiltiga fält hoppas över (Karttapullautins förval gäller). */
 export function moreSettings(fields: Readonly<Record<string, string>>): Record<string, number> {
   return Object.fromEntries(MORE_SETTINGS.flatMap(key => {
@@ -57,6 +49,9 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [list, setList] = useState<GeoJobList>();
   const [where, setWhere] = useState("");
   const [items, setItems] = useState<LaserItem[]>();
+  // G8: Lantmäteriets Marktäcke och Byggnad för rutan (när kontot kommer åt dem), och vilka som ska läsas.
+  const [extras, setExtras] = useState<readonly ExtraItem[]>([]);
+  const [skippedExtras, setSkippedExtras] = useState<ReadonlySet<GeoExtraKind>>(new Set());
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [name, setName] = useState("");
   const [interval, setInterval_] = useState<number>(5);
@@ -96,7 +91,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const doneCount = list?.jobs.filter(job => job.status === "DONE").length ?? 0;
   const reloadLayers = layers.reload;
   useEffect(() => { if (doneCount > 0) void reloadLayers(); }, [doneCount, reloadLayers]);
-  useEffect(() => { setItems(undefined); setChosen(new Set()); setName(text.defaultName(area?.name)); }, [where, area?.name]);
+  useEffect(() => { setItems(undefined); setExtras([]); setChosen(new Set()); setName(text.defaultName(area?.name)); }, [where, area?.name]);
 
   if (!view.viewer.canPropose || !georeference || !bounds) return null;
 
@@ -105,9 +100,9 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     try {
       const result = await clubRequest(`${base}/sources/lantmateriet/laser`, "POST", { formatVersion: 1, box: areaBox(bounds!, georeference!, area).wgs84 })
         .catch(() => ({ status: 0, json: undefined }));
-      const body = result.json as { items?: LaserItem[]; error?: string } | undefined;
+      const body = result.json as { items?: LaserItem[]; extras?: ExtraItem[]; error?: string } | undefined;
       if (result.status !== 200 || !body?.items) { say(body?.error ?? result.status); return; }
-      setItems(body.items);
+      setItems(body.items); setExtras(body.extras ?? []);
       setChosen(new Set(newestPerTile(body.items).map(item => item.id)));
     } finally { setBusy(undefined); }
   }
@@ -121,6 +116,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         name: name.trim() || text.defaultName(area?.name), tiles, settings: { contour_interval: interval, formline, ...moreSettings(more) },
         // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
         ...(clip ? { clip } : {}),
+        ...(clip && extras.some(extra => !skippedExtras.has(extra.kind)) ? { extras: extras.filter(extra => !skippedExtras.has(extra.kind)) } : {}),
         ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: Math.max(1, wetMeters * 2) } } : {}),
         ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
       const body = result.json as { error?: string } | undefined;
@@ -144,20 +140,28 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     return output.endsWith(".geojson") ? parseGeoJson(body) : parseDxf(body);
   }
 
-  /** En fil, eller hela grundkartan (`outputs` = flera filer i en inläsning), som kandidater i importen. */
-  async function candidates(job: GeoJobView, outputs: readonly string[], label: string) {
+  /** En fil, eller hela grundkartan (jobbets delar och OpenStreetMap för samma ruta), som kandidater i importen. */
+  async function candidates(job: GeoJobView, outputs: readonly string[], label: string, baseMap = false) {
     setBusy(label); setMessage(undefined);
     try {
-      const parts: SourceData[] = [];
+      const parts: { name: string; data: SourceData }[] = [];
       for (const output of outputs) {
         const data = await read(job, output);
         if (typeof data === "number") { say(data); return; }
-        parts.push(data);
+        parts.push({ name: output, data });
       }
-      const data: SourceData = { features: parts.flatMap(part => part.features), skipped: parts.reduce((sum, part) => sum + part.skipped, 0), crs: parts[0]?.crs };
+      // G8: OpenStreetMap (stigar, vägar, hus, ledningar) för jobbets ruta följer med i grundkartan; går det inte sägs det.
+      let osm: SourceData | undefined, osmMissing = false;
+      const box = baseMap && job.clip ? clipWgs84(job.clip) : undefined;
+      if (box) {
+        const response = await clubRequest(`${base}/sources/osm`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
+        osm = response.status === 200 ? (response.json as { data?: SourceData } | undefined)?.data : undefined;
+        osmMissing = !osm;
+      }
+      const data: SourceData = baseMap ? mergeBaseMap(parts, osm) : { ...parts[0]!.data };
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 });
-      setMessage({ tone: "ok", text: text.loaded(label) });
+      setMessage({ tone: "ok", text: osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label) });
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
     } finally { setBusy(undefined); }
@@ -186,6 +190,12 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
             if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
             return next;
           })} />{text.item(item.datetime, item.id, item.bytes)}</label>)}
+        {clip && extras.length > 0 && [...new Set(extras.map(extra => extra.kind))].map(kind => <label key={kind} className={styles.check}>
+          <input type="checkbox" checked={!skippedExtras.has(kind)} data-testid={`map-project-laser-extra-${kind}`} onChange={() => setSkippedExtras(current => {
+            const next = new Set(current);
+            if (next.has(kind)) next.delete(kind); else next.add(kind);
+            return next;
+          })} />{text.extras[kind]}</label>)}
         <label>{text.name}<input value={name} maxLength={80} onChange={event => setName(event.target.value)} data-testid="map-project-laser-name" /></label>
         <label>{text.interval}<select value={interval} onChange={event => setInterval_(Number(event.target.value))}>
           {INTERVALS.map(value => <option key={value} value={value}>{text.intervalOption(value)}</option>)}
@@ -239,7 +249,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           {job.moistureLayerId && <span className={styles.muted}> · {text.moistureAdded}</span>}
           {job.status === "DONE" && importer.canImport && <span className={styles.actions}>
             {job.kind === "PULLAUTIN" && baseMapOutputs(job.outputs.map(output => output.name)).length > 1 && <Button disabled={!!busy} data-testid="map-project-laser-base-map"
-              onClick={() => void candidates(job, baseMapOutputs(job.outputs.map(output => output.name)), text.baseMap)}>{text.loadBaseMap}</Button>}
+              onClick={() => void candidates(job, baseMapOutputs(job.outputs.map(output => output.name)), text.baseMap, true)}>{text.loadBaseMap}</Button>}
             {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={!!busy}
               onClick={() => void candidates(job, [output.name], text.outputs[output.name]!)}>{text.load(text.outputs[output.name]!)}</Button>)}
           </span>}

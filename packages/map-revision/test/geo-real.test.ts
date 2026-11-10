@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { cliffLines, cliffsFromTicks, readTicks, thin, type Tick } from "../../../scripts/geo-cliffs";
+import { cliffLines, cliffsFromTicks, hillshade, measureCliff, shadeValue, mergeGroundGrids, readGroundGrid, readTicks, thin, type GroundGrid, type Tick } from "../../../scripts/geo-cliffs";
 import { moistureFromHeightMaps, readHeightMap } from "../../../scripts/geo-moisture";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles } from "../../../scripts/geo-vegetation";
 import { mergeWaterGrids, polygonsOf, readWaterGrid, waterFromGrids, waterMask, type WaterGrid } from "../../../scripts/geo-water";
@@ -159,6 +159,39 @@ describe("branterna som linjer", () => {
     const data = parseDxf(cliffs.dxf);
     expect(suggested(data)).toEqual({ brant_opasserbar: "s201" });
     expect(within(data, 3)).toBe(true);
+  });
+
+  it("fallet mäts i laserns markraster: höga stup blir opasserbara, korta och låga blir branter", () => {
+    const ground = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(readFileSync(join(dir, "kungshatt-300m/mark.bin.gz")))))]);
+    expect(ground).toMatchObject({ minX: 664_780, minY: 6_576_500, cell: 1, width: 300, height: 300 });
+    const cliffs = cliffsFromTicks(readTicks(raw("stup")), readTicks(raw("branter")), undefined, ground);
+    expect(cliffs.summary).toMatchObject({ cliffs201: 9, cliffs202: 10, cliffsDropped: 0 });
+    // Den långa stranden i söder faller över tio meter; alla opasserbara är minst 10 m långa med minst 2,4 m fall.
+    const measured = cliffs.lines.impassable.map(line => measureCliff(line, ground));
+    expect(Math.max(...measured.map(row => row.drop3))).toBeGreaterThan(10);
+    expect(measured.every(row => row.drop3 >= 2.4 && row.drop6 >= 3 && row.length >= 10)).toBe(true);
+    expect(suggested(parseDxf(cliffs.dxf))).toEqual({ brant_opasserbar: "s201", brant_passerbar: "s202" });
+    // En plan mark ger ingen brant alls, och utan mätvärden behålls linjen som brant.
+    const flat: GroundGrid = { minX: 0, minY: 0, cell: 1, width: 60, height: 200, z: new Float32Array(60 * 200).fill(20) };
+    const row: Tick[] = Array.from({ length: 20 }, (_, i) => [5 + i * 2, 100, 5 + i * 2 + 2.94, 100] as const);
+    expect(cliffsFromTicks(row, [], undefined, flat).summary).toMatchObject({ cliffs201: 0, cliffs202: 0, cliffsDropped: 1 });
+    expect(cliffsFromTicks(row, [], undefined, { ...flat, minX: 5000 }).summary).toMatchObject({ cliffs201: 0, cliffs202: 1 });
+    expect(() => readGroundGrid(new Uint8Array(12))).toThrow();
+  });
+
+  it("terrängskuggningen: en bild i rutans storlek med världsfil, mörkare på sluttningar bort från ljuset", () => {
+    const ground = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(readFileSync(join(dir, "kungshatt-300m/mark.bin.gz")))))], 8);
+    const shade = hillshade(ground);
+    expect([shade.width, shade.height]).toEqual([300, 300]);
+    expect(shade.world).toBe("1\n0\n0\n-1\n664780.5\n6576799.5\n");
+    expect(hillshade(ground, 100)).toMatchObject({ width: 100, height: 100 });
+    // En plan yta är ljusgrå; en sluttning ned mot sydost (bort från ljuset i nordväst) är mörkare, en ned mot nordväst ljusare.
+    const slope = (dx: number, dy: number): GroundGrid => ({ minX: 0, minY: 0, cell: 1, width: 9, height: 9,
+      z: Float32Array.from({ length: 81 }, (_, i) => Math.floor(i / 9) * dx + (i % 9) * dy) });
+    expect(shadeValue(slope(0, 0), 1, 4, 4)).toBe(204);
+    expect(shadeValue(slope(-0.6, 0.6), 1, 4, 4)).toBeLessThan(120);
+    expect(shadeValue(slope(0.6, -0.6), 1, 4, 4)).toBeGreaterThan(204);
+    expect(shadeValue({ ...slope(0, 0), z: new Float32Array(81).fill(NaN) }, 1, 4, 4)).toBeUndefined();
   });
 
   it("en rak brant av streck blir en linje åt rätt håll, en passerbar blir 202, korta stumpar tas bort", () => {

@@ -13,6 +13,19 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Grundkartan G8: källorna utöver lasern, första försöket (marktäcke, OSM, flygbild, fallhöjd, byggnader)
+- Ägaren: ingen grundkartefil finns; underlaget är öppna data, OSM, Karttapullautin och flygbildstolkning. «Prova 1–5.»
+- Marktäcke och Byggnad: lasersökningen söker också `stac-vektor`; jobbet får `extras`, geo-arbetaren hämtar zip-filen genom
+  servern (`/laser/x<n>`), packar upp och läser GeoPackage (`scripts/geo-gpkg.ts`) inom klipprutan → `marktacke.geojson`,
+  `byggnader.geojson`. En produkt kontot inte kommer åt hoppas över. Läsningen är provad för hand på den riktiga filen för
+  Ekerö (327 objekt i rutan på 24 ms); filen ligger inte i repot (testet bygger en likadan).
+- Grundkartan (`lib/map-project-base-map.ts`): jobbets delar och OpenStreetMap för rutan slås ihop utan dubbletter.
+- Branterna: `lasclip` skriver ett markraster (1 m); fallet över varje linje avgör 201, 202 eller ingen brant. På testrutan:
+  9 opasserbara (476 m) och 10 branter (84 m), största fallet 12 m över ±3 m. Terrängskuggning ur samma raster som underlag.
+- Flygbildstolkning (`lib/map-project-photo-interpret.ts`, panelen «Tolka flygbild»): bara prövad på en konstruerad bild.
+- Verifierat: enhetstester, integrationstest, E2E `kartprojekt-geo` (falska Lantmäteriet med zip och GeoPackage).
+  Inte provat: riktiga `stac-vektor`, riktiga flygbilder, geo-avbildningen på servern.
+
 ### 2026-11-10 – Grundkartan G2b: kandidaterna med sina symboler, inlagda i ett svep
 - Kandidaterna från en inläsning (grundkartan, en baskarta) ritas av kartans Worker med sina symboler ovanpå kartan, i stället
   för orange konturer; «Dölj på kartan» gömmer dem en stund för att jämföra.

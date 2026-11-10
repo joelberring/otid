@@ -1,3 +1,4 @@
+import { fakeGpkg, zipOf } from "./fake-gpkg";
 import { createServer, type Server } from "node:http";
 import { crc32, deflateSync } from "node:zlib";
 import { writeArrayBuffer } from "geotiff";
@@ -87,6 +88,39 @@ export function startFakeGeodata(port = FAKE_GEODATA_PORT): Promise<Server> {
       const width = Number(url.searchParams.get("WIDTH")), height = Number(url.searchParams.get("HEIGHT"));
       if (!(width > 0 && width <= 4000 && height > 0 && height <= 4000) || url.searchParams.get("SRS") !== "EPSG:3006") { response.writeHead(400).end(); return; }
       response.writeHead(200, { "content-type": "image/png" }).end(solidPng(width, height, [30, 80, 220, 160]));
+      return;
+    }
+    // G8: Lantmäteriets vektorprodukter (`/stac-vektor/v1`, OTID_LM_STAC_VEKTOR_URL): Marktäcke som en zip med en GeoPackage
+    // (en åker och en sankmark mitt i rutan); Byggnad finns i listan men kontot saknar behörighet (403).
+    if (url.pathname.startsWith("/stac-vektor/") || url.pathname.startsWith("/vektor/")) {
+      if (!authorized) { response.writeHead(401).end(); return; }
+      if (url.pathname === "/stac-vektor/v1/collections") {
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ collections: [{ id: "marktacke", title: "Marktäcke" },
+          { id: "byggnad", title: "Byggnad" }, { id: "marktacke-inspire", title: "Marktäcke Inspire" }] }));
+        return;
+      }
+      const zip = /^\/vektor\/(marktacke|byggnad)\/(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)\.zip$/.exec(url.pathname);
+      if (zip && request.method === "GET") {
+        if (zip[1] === "byggnad") { response.writeHead(403).end(); return; }
+        const box = sweref(...zip.slice(2).map(Number) as [number, number, number, number]);
+        const x = (box.minE + box.maxE) / 2, y = (box.minN + box.maxN) / 2;
+        const body = zipOf("marktacke_kn0000.gpkg", fakeGpkg([{ table: "mark", type: "Åker", x: x - 40, y: y + 20, side: 60 },
+          { table: "sankmark", type: "Sankmark, våt", x: x + 40, y: y - 60, side: 30 }]));
+        response.writeHead(200, { "content-type": "application/zip", "content-length": String(body.length) }).end(body);
+        return;
+      }
+      if (url.pathname !== "/stac-vektor/v1/search" || request.method !== "POST") { response.writeHead(404).end(); return; }
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => { body += chunk; });
+      request.on("end", () => {
+        const search = JSON.parse(body) as { bbox: number[]; collections?: string[] };
+        const kind = search.collections?.[0];
+        if (kind !== "marktacke" && kind !== "byggnad") { response.writeHead(400).end(); return; }
+        response.writeHead(200, { "content-type": "application/geo+json" }).end(JSON.stringify({ type: "FeatureCollection", features: [
+          { type: "Feature", id: `${kind}_kn0000`, collection: kind, bbox: search.bbox, properties: {},
+            assets: { data: { href: `http://${request.headers.host}/vektor/${kind}/${search.bbox.map(value => value.toFixed(6)).join(",")}.zip`, type: "application/zip" } } }] }));
+      });
       return;
     }
     if (url.pathname.startsWith("/stac-hojd/") || url.pathname.startsWith("/laser/")) {

@@ -33,7 +33,7 @@ export async function mapProjectLaserSearchRoute(db: Database, request: Request,
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await searchMapProjectLaser(db, { ...input.proof, projectId, request: input.body }, runtime);
-    return result.status === "ok" ? privateJson({ formatVersion: 1, collection: result.collection, items: result.items }) : geoFailure(result);
+    return result.status === "ok" ? privateJson({ formatVersion: 1, collection: result.collection, items: result.items, extras: result.extras }) : geoFailure(result);
   });
 }
 
@@ -141,9 +141,10 @@ export async function geoWorkerLaserRoute(db: Database, request: Request, jobId:
   environment: Record<string, string | undefined> = process.env, runtime: LaserRuntime = laserRuntime()): Promise<Response> {
   const name = await worker(db, request, environment);
   if (typeof name !== "string") return name;
-  if (!UUID_PATTERN.test(jobId) || !/^\d{1,2}$/.test(index)) return failure("not-found");
+  // «x0», «x1» … är jobbets vektorprodukter från Lantmäteriet (G8), annars laserrutans ordningstal.
+  if (!UUID_PATTERN.test(jobId) || !/^x?\d{1,2}$/.test(index)) return failure("not-found");
   return guarded(async () => {
-    const result = await openGeoJobLaser(db, jobId, name, Number(index), runtime);
+    const result = await openGeoJobLaser(db, jobId, name, Number(index.replace("x", "")), runtime, index.startsWith("x"));
     if (result.status !== "ok") return geoFailure(result);
     const headers = new Headers(privateHeaders);
     headers.set("content-type", "application/octet-stream");

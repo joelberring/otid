@@ -188,9 +188,9 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
   tools: {
     label: "Tools",
     select: "Edit",
-    selectHelp: "E: select and move objects and vertices",
+    selectHelp: "Select and move objects and vertices",
     draw: "Draw",
-    drawHelp: "P: click for corners, press and drag for a curve, double-click or Enter to finish",
+    drawHelp: "Click for corners, press and drag for a curve, double-click or Enter to finish",
     undo: "Undo",
     redo: "Redo",
     delete: "Delete",

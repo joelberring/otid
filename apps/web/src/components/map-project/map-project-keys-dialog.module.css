@@ -1,0 +1,14 @@
+/* Ägaren 2026-11-10: ritlägets tangenter. */
+.dialog { width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--line-strong, #999); border-radius: 10px;
+  background: var(--surface, #fff); color: var(--ink, #222); }
+.dialog::backdrop { background: rgb(0 0 0 / 35%); }
+.body { display: grid; gap: 8px; padding: 16px; }
+.body h2 { margin: 0; font-size: var(--text-lg, 1.2rem); }
+.help, .fixed { margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; border-bottom: 1px solid var(--line, #ddd); }
+.key { min-width: 96px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line-strong, #999); border-radius: 6px; background: var(--surface-2, #f3f3f3);
+  font: 600 .9rem/1 system-ui, sans-serif; color: inherit; cursor: pointer; }
+.key[aria-pressed="true"] { background: var(--ink, #111); border-color: var(--ink, #111); color: #fff; }
+.message { margin: 0; min-height: 1.4em; font-size: var(--text-sm, .9rem); font-weight: 600; }
+.actions { display: flex; justify-content: space-between; gap: 8px; }

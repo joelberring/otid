@@ -46,12 +46,14 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
     body: [
       "Det mesta går att göra på tre sätt: med ikonen till vänster, med en tangent eller i hjulet. Tangenten står i ikonens hörn.",
       [
-        "E väljer ”Redigera”, P ”Rita” och O ”Cirkel”.",
-        "Ny punkt: dubbelklicka på en sträcka. Ta bort en punkt: dubbelklicka på den, eller markera den och tryck Delete.",
-        "Rita: klicka för hörn, tryck och dra för kurva. Enter eller dubbelklick avslutar, Esc avbryter.",
+        "Tangenterna ligger under vänster hand: Q väljer ”Redigera”, W ”Rita”, A ”Lägg till punkt” och S ”Ta bort punkt”.",
+        "Skift ger varianten: Skift+E ”Cirkel”, Skift+A ”Gör mjuk” och Skift+S ”Förenkla”. C byter symbol och R markerar kollad.",
+        "Ny punkt: välj ”Lägg till punkt” och klicka på sträckan. Ta bort: välj ”Ta bort punkt” och klicka på punkten.",
+        "I ”Redigera” gör Cmd- eller Ctrl-klick samma sak: på en punkt tas den bort, på en sträcka blir det en ny.",
+        "Rita: klicka för hörn, tryck och dra för kurva. Backsteg tar bort sista punkten, Enter avslutar och Esc avbryter.",
         "Hjulet: högerklicka på kartan, håll fingret på den eller tryck mellanslag. Där finns verktygen och de senaste symbolerna.",
-        "Byta symbol: markera objektet och välj den nya symbolen. Tryck sedan på knappen under kartan som börjar med Byt symbol till.",
-        "Cmd eller Ctrl + Z ångrar. Med Skift gör du om."
+        "Byt tangenter med ”Tangenter” längst ned i verktygsspalten. Valet sparas i webbläsaren.",
+        "Z ångrar och Skift+Z gör om. Cmd eller Ctrl + Z fungerar också."
       ],
       "Läs också [Så tänker du i ritläget](#ritlaget-sa-tanker-du)."
     ]

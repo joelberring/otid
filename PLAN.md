@@ -1293,10 +1293,13 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
 - [x] R1 Uppställningen: verktygsspalt med ikoner till vänster (rad överst i telefonen), en smal rad överst, panelen till höger
   med flikarna Symboler, Lager, Granska och Bearbeta, statusrad under kartan med det markerade objektets knappar, "Bara kartan"
   (§). Symbolerna som ett tätt rutnät efter normens grupper med de senaste överst; symbolbilderna fyller rutan. Hjälp i ritläget.
-- [ ] R2 Tangenterna under vänster hand (Q–T, A–G, Z–B) med egna uppsättningar per konto; verktyg för att lägga till och ta bort
-  punkter, Cmd/Ctrl+klick, Delete på flera punkter, Backsteg vid ritning; hjulet med fasta fält och tryck–dra–släpp.
-- [ ] R3 En lagerlogik: öga och lås som ikoner per symbol och grupp, flera rader på en gång, siffrorna för grupperna (i dag
-  väljer 1–9 de senaste symbolerna: ägaren avgör), sparade vyer.
+- [x] R2a Tangenterna under vänster hand (Q Redigera, W Rita, A/S lägg till och ta bort punkt, Skift för varianten) med egna val
+  i dialogen Tangenter (sparas i webbläsaren); verktygen Lägg till punkt och Ta bort punkt, Cmd/Ctrl+klick i Redigera, Backsteg
+  vid ritning.
+- [ ] R2b Uppsättningar sparade på kontot och delade i projektet; Delete på flera punkter; hjulet med fasta fält och
+  tryck–dra–släpp.
+- [ ] R3 En lagerlogik: öga och lås som ikoner per symbol och grupp, flera rader på en gång, siffrorna 1–6 för normens grupper
+  (ägaren 2026-11-10: lagren utgår från standarden; de senaste symbolerna nås då i panelen, hjulet och med mellanslag), sparade vyer.
 - [ ] R4 Verktyg i ordning: koppla ihop och klipp isär, byt symbol på alla av samma sort och pipett, rektangel och räta
   vinklar, fyll, duplicera och parallell kopia, följ kant.
 - [ ] R5 Nya symboler (duplicera, hämta ur en annan kartfil) och resten av verktygen efter vad piloten behöver.

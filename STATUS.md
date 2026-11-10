@@ -13,6 +13,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Ritlägets gränssnitt, R2a (steg K8)
+- Tangenterna under vänster hand (`lib/map-project-keys.ts`, läser tangentens plats): Q Redigera, W Rita, Skift+E Cirkel, A Lägg
+  till punkt, S Ta bort punkt, Skift+A Gör mjuk, Skift+S Förenkla, C byt symbol, R kollad, Z/Skift+Z ångra och gör om. De gamla
+  E, P och O gäller inte längre. Dialogen Tangenter (längst ned i verktygsspalten) byter tangent, säger vilket kommando som
+  tappade sin, och sparar i webbläsaren.
+- Nya verktyg Lägg till punkt och Ta bort punkt (ett klick, även på ett omarkerat objekt), Cmd/Ctrl+klick i Redigera gör båda,
+  Backsteg tar bort sista punkten vid ritning (`lib/map-project-point-edit.ts`).
+- Symbolrutorna: ett enda rutnät utan rubriker, 30 px, nio i bredd; hela ISOM syns utan att rulla.
+- Verifierat: enhetstester för tangenterna och punktklicken, E2E `kartprojekt-rita` (nytt flöde för tangenter och punkter).
+
 ### 2026-11-10 – Ritlägets gränssnitt, R1 (steg K8)
 - Ägaren: menyerna överst och högerspalten tog för mycket plats, symbolerna hade mycket vitt och gick inte att visa hela. Ny
   uppställning: verktygsspalt med ikoner och tangenten i hörnet till vänster (`map-project-tool-rail.tsx`; rad överst i telefonen),

@@ -46,12 +46,14 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "Most things can be done in three ways: with the icon on the left, with a key or in the wheel. The key is shown in the corner of the icon.",
       [
-        "E chooses ”Edit”, P ”Draw” and O ”Circle”.",
-        "New point: double-click a segment. Remove a point: double-click it, or select it and press Delete.",
-        "Draw: click for corners, press and drag for a curve. Enter or a double-click finishes, Esc cancels.",
+        "The keys are under the left hand: Q chooses ”Edit”, W ”Draw”, A ”Add point” and S ”Remove point”.",
+        "Shift gives the variant: Shift+E ”Circle”, Shift+A ”Make smooth” and Shift+S ”Simplify”. C changes symbol and R marks checked.",
+        "New point: choose ”Add point” and click the segment. Remove: choose ”Remove point” and click the point.",
+        "In ”Edit”, Cmd-click or Ctrl-click does the same: on a point it is removed, on a segment there is a new one.",
+        "Draw: click for corners, press and drag for a curve. Backspace removes the last point, Enter finishes and Esc cancels.",
         "The wheel: right-click the map, hold a finger on it or press space. It has the tools and the latest symbols.",
-        "Change symbol: select the object and choose the new symbol. Then press the button below the map that begins with Change symbol to.",
-        "Cmd or Ctrl + Z undoes. With Shift you redo."
+        "Change keys with ”Keys” at the bottom of the tool column. The choice is saved in the browser.",
+        "Z undoes and Shift+Z redoes. Cmd or Ctrl + Z also works."
       ],
       "Also read [How to think in the drawing mode](#ritlaget-sa-tanker-du)."
     ]

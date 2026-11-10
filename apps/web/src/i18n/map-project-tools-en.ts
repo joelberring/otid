@@ -1,4 +1,5 @@
 import type { Texts } from "../lib/language";
+import type { mapProjectKeysSv } from "./map-project-keys-sv";
 import type { mapProjectGeneralizeSv } from "./map-project-generalize-sv";
 import type { mapProjectImportSv } from "./map-project-import-sv";
 import type { mapProjectNormSv } from "./map-project-norm-sv";
@@ -157,9 +158,7 @@ export const mapProjectNotesEn: Texts<typeof mapProjectNotesSv> = {
 
 export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   wheel: "Tool wheel",
-  wheelHelp: "Right-click or hold a finger on the map (space with the mouse over the map) for the tool wheel. 1–9 choose the latest symbols.",
   tools: { select: "Edit", draw: "Draw", circle: "Circle", note: "Note" },
-  toolKeys: { select: "E", draw: "P", circle: "O", note: "" },
   recent: "Latest symbols",
   actions: "The object",
   simplify: "Simplify",
@@ -181,5 +180,30 @@ export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   tabs: { symbols: "Symbols", layers: "Layers", review: "Review", process: "Process" },
   hidePanels: "Map only",
   showPanels: "Show the panels",
-  bareHelp: "Hide or show the tool column and the panel (§)"
+  bareHelp: "Hide or show the tool column and the panel"
+};
+
+export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
+  open: "Keys",
+  title: "Keys in the drawing mode",
+  help: "The keys are under the left hand, so that the right hand can stay on the mouse. Click a key and then press the new one. The choice is saved in this browser.",
+  commands: {
+    select: "Edit", draw: "Draw", circle: "Circle", note: "Note", addPoint: "Add point", removePoint: "Remove point",
+    switchSymbol: "Change symbol on the selection", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
+    undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only"
+  },
+  change: (command: string) => `Change the key for ${command}`,
+  press: "Press a key …",
+  none: "None",
+  space: "Space",
+  fixed: "Fixed: Esc cancels, Enter finishes, Delete removes, Backspace removes the last point while you draw, 1–9 choose the latest symbols.",
+  displaced: (command: string, key: string) => `${command} had ${key} and now has no key.`,
+  reserved: (key: string) => `${key} is already used for something fixed.`,
+  reset: "Restore the defaults",
+  wasReset: "The defaults apply again.",
+  done: "Done",
+  addPointHint: "Click a line or the edge of an area for a new point there.",
+  removePointHint: "Click a point to remove it.",
+  noPointHere: "No point to remove there.",
+  noSegmentHere: "No line or edge there."
 };

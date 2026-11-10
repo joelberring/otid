@@ -47,7 +47,7 @@
 .tabPanel[hidden] { display: none; }
 .symbolTools { display: flex; gap: 6px; align-items: center; }
 .symbolTools .search { flex: 1; min-width: 0; }
-.chosen { margin: .3rem 0 0; font-size: var(--text-sm, .9rem); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chosen { margin: .25rem 0 .2rem; font-size: var(--text-sm, .9rem); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .groupTitle { margin: .5rem 0 2px; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
 .panel h2 { margin: 0 0 .35rem; font-size: var(--text-md, 1rem); }
 .muted { margin: .2rem 0 .5rem; color: var(--muted); font-size: var(--text-sm, .9rem); }
@@ -149,14 +149,17 @@
 .viewToggle { display: inline-flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; justify-self: start; }
 .viewToggle button { border: 0; background: none; padding: 4px 10px; font: inherit; color: inherit; cursor: pointer; min-height: 32px; }
 .viewToggle button[aria-pressed="true"] { background: var(--ink); color: #fff; }
-/* Ägaren 2026-11-10: tätt rutnät utan nummer (numret och namnet visas när musen står över), sju i bredd i panelen. */
-.paletteGrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, 38px); gap: 2px; }
-.tile { position: relative; display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: none;
+/* Ägaren 2026-11-10: ett tätt rutnät utan nummer och rubriker (numret och namnet visas när musen står över), nio i bredd i
+   panelen, så att hela normen syns utan att rulla. */
+.paletteGrid, .recentRow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, 30px); gap: 1px; }
+.paletteGrid > li, .recentRow > li { display: grid; height: 30px; }
+.recentRow { padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.tile { position: relative; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: none;
   font: inherit; color: inherit; cursor: pointer; }
-.tile .icon { border-color: transparent; }
-.tileKey { position: absolute; right: 2px; bottom: 0; font-size: .6rem; font-weight: 700; color: var(--muted); }
+.tile .icon { border: 0; border-radius: 2px; }
+.tileKey { position: absolute; right: 1px; bottom: -1px; font-size: .55rem; font-weight: 700; color: var(--ink); background: rgb(255 255 255 / 80%); line-height: 1; }
 .tile:hover { background: var(--surface-2, #f3f3f3); }
-.tile[aria-pressed="true"] { border: 2px solid var(--ink); background: var(--surface-2, #f3f3f3); }
+.tile[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: -1px; background: var(--surface-2, #f3f3f3); }
 
 /* Ägaren 2026-11-09: lagren efter normen. */
 .layerList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

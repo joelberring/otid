@@ -68,7 +68,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
     aria-label={grid || index !== undefined ? `${entry.code} ${entry.name}` : undefined}
     onMouseEnter={event => showTip(entry, event.currentTarget)} onFocus={event => showTip(entry, event.currentTarget)}
     onMouseLeave={() => setTip(undefined)} onBlur={() => setTip(undefined)}>
-    <SymbolIcon icon={entry.icon} size={32} />
+    <SymbolIcon icon={entry.icon} size={grid || index !== undefined ? 28 : 32} />
     {index !== undefined ? <span className={styles.tileKey} aria-hidden="true">{index + 1}</span>
       : grid ? null : <span><strong>{entry.code}</strong> {entry.name}</span>}
   </button>;
@@ -96,18 +96,19 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
           </div>
         </div>
         <p className={styles.chosen} data-testid="map-project-symbol-chosen">{chosen ? text.symbols.selected(chosen.code, chosen.name) : text.tools.noSymbol}</p>
-        {recent.length > 0 && !query.trim() && <>
-          <h3 className={styles.groupTitle}>{quick.recent}</h3>
-          <ul className={styles.paletteGrid} data-testid="map-project-symbols-recent">{recent.map((entry, index) => <li key={entry.id}>{tile(entry, index)}</li>)}</ul>
-        </>}
-        <div data-testid="map-project-symbols" data-view={grid ? "grid" : "list"}>
+        {recent.length > 0 && !query.trim() && <ul className={styles.recentRow} aria-label={quick.recent} data-testid="map-project-symbols-recent">
+          {recent.map((entry, index) => <li key={entry.id}>{tile(entry, index)}</li>)}</ul>}
+        {/* Ägaren 2026-11-10: rutorna i ett enda tätt rutnät i normens ordning (utan rubriker, som i Mapper), så att allt syns utan
+            att rulla. Listan har gruppernas rubriker. */}
+        {grid ? <ul className={styles.paletteGrid} data-testid="map-project-symbols" data-view="grid">
+          {groups.flatMap(group => group.symbols).map(entry => <li key={entry.id}>{tile(entry)}</li>)}
+        </ul> : <div data-testid="map-project-symbols" data-view="list">
           {groups.map(group => <div key={group.id}>
             <h3 className={styles.groupTitle}>{groupText.layers[group.id]}</h3>
-            <ul className={grid ? styles.paletteGrid : styles.palette}>{group.symbols.map(entry => <li key={entry.id}>{tile(entry)}</li>)}</ul>
+            <ul className={styles.palette}>{group.symbols.map(entry => <li key={entry.id}>{tile(entry)}</li>)}</ul>
           </div>)}
-        </div>
+        </div>}
         {groups.length === 0 && <p className={styles.muted}>{text.symbols.none}</p>}
-        <p className={styles.muted}>{quick.wheelHelp}</p>
       </section>
     </div>}
 

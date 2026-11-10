@@ -16,9 +16,9 @@ export const mapProjectEditorSv = {
   tools: {
     label: "Verktyg",
     select: "Redigera",
-    selectHelp: "E: markera och flytta objekt och brytpunkter",
+    selectHelp: "Markera och flytta objekt och brytpunkter",
     draw: "Rita",
-    drawHelp: "P: klicka för hörn, tryck och dra för kurva, dubbelklicka eller Enter för att avsluta",
+    drawHelp: "Klicka för hörn, tryck och dra för kurva, dubbelklicka eller Enter för att avsluta",
     undo: "Ångra",
     redo: "Gör om",
     delete: "Ta bort",

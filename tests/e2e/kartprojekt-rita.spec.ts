@@ -94,7 +94,7 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
   expect(objects.find(object => object.key === path!.key)?.state.kind).toBe("OBJECT");
 
   // Markera stenen och dra den 5 mm åt höger.
-  await owner.keyboard.press("e");
+  await owner.keyboard.press("q");
   const stone = parsed.objects.find(object => object.kind === "point")!;
   if (stone.kind !== "point") throw new Error("ingen sten");
   const from = await screenOf(owner, stone.at);
@@ -169,7 +169,7 @@ test("kartprojekt: böja en sträcka, lägga till och ta bort punkter på en kur
 
   // Stigen är markerad efter ritningen (ett klick till på samma ställe tar objektet under). Dra mitt på sträckan 6 mm nedåt:
   // den blir en kurva genom punkten.
-  await owner.keyboard.press("e");
+  await owner.keyboard.press("q");
   const middle = await screenOf(owner, { x: 50, y: 85 });
   await expect(owner.getByTestId("map-project-hint")).toContainText("505");
   const px = Number(await map.getAttribute("data-px-per-mm"));
@@ -208,6 +208,109 @@ test("kartprojekt: böja en sträcka, lägga till och ta bort punkter på en kur
   const after = (await pathOf())[0]!;
   expect(after.x - before.x).toBeCloseTo(5, 0);
   expect(after.y).toBeCloseTo(before.y, 1);
+});
+
+/**
+ * Ägaren 2026-11-10 (steg K8, R2): tangenterna under vänster hand och verktygen för punkter. W ritar, Backsteg tar bort den sista
+ * punkten, A lägger till en punkt med ett klick på sträckan, S tar bort en punkt med ett klick, Cmd/Ctrl+klick gör båda i
+ * Redigera, och tangenterna går att byta (sparas i webbläsaren).
+ */
+test("kartprojekt: tangenter under vänster hand, lägg till och ta bort punkter med ett klick", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `tangenter.${unique()}@exempel.se`, "Tage Tangent");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Tangenter", "x-otid-file-name": "Tangenter.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const pathOf = async () => {
+    const objects = await serverObjects(owner, projectId, baseURL!);
+    const line = objects.find(object => object.key.startsWith("n:") && object.state.object?.kind === "line")?.state.object;
+    return line?.kind === "line" ? line.path : [];
+  };
+  const click = async (point: { x: number; y: number }, modifier?: "Meta" | "Control") => {
+    const at = await screenOf(owner, point);
+    if (modifier) await owner.keyboard.down(modifier);
+    await owner.mouse.click(at.x, at.y);
+    if (modifier) await owner.keyboard.up(modifier);
+    await owner.waitForTimeout(400);
+  };
+
+  // Verktygsspalten visar tangenterna. W väljer Rita; tre klick, Backsteg tar bort det sista, ett klick till och Enter.
+  await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
+  await owner.keyboard.press("q");
+  await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("title", /\(Q\)/);
+  await owner.keyboard.press("w");
+  await expect(owner.getByRole("button", { name: "Rita", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await click({ x: 20, y: 85 });
+  await click({ x: 50, y: 85 });
+  await click({ x: 60, y: 70 });
+  await owner.keyboard.press("Backspace");
+  await click({ x: 80, y: 85 });
+  await owner.keyboard.press("Enter");
+  await settled(owner);
+  expect((await pathOf()).map(command => Math.round(command.x))).toEqual([20, 50, 80]);
+
+  // A: ett klick på sträckan ger en ny punkt. S: ett klick på en punkt tar bort den, och ett klick bredvid säger att inget fanns.
+  await owner.keyboard.press("a");
+  await expect(owner.getByTestId("map-project-add-point")).toHaveAttribute("aria-pressed", "true");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Klicka på en linje eller en ytas kant för en ny punkt där.");
+  await click({ x: 35, y: 85 });
+  await settled(owner);
+  expect((await pathOf()).map(command => Math.round(command.x))).toEqual([20, 35, 50, 80]);
+  await owner.keyboard.press("s");
+  await expect(owner.getByTestId("map-project-remove-point")).toHaveAttribute("aria-pressed", "true");
+  await click({ x: 50, y: 85 });
+  await settled(owner);
+  expect((await pathOf()).map(command => Math.round(command.x))).toEqual([20, 35, 80]);
+  await click({ x: 65, y: 85 });
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Ingen punkt att ta bort där.");
+  expect(await pathOf()).toHaveLength(3);
+
+  // Redigera med Cmd/Ctrl+klick: på en sträcka en ny punkt, på en punkt bort med den.
+  await owner.keyboard.press("q");
+  await click({ x: 65, y: 85 }, "Control");
+  await settled(owner);
+  expect((await pathOf()).map(command => Math.round(command.x))).toEqual([20, 35, 65, 80]);
+  await click({ x: 35, y: 85 }, "Meta");
+  await settled(owner);
+  expect((await pathOf()).map(command => Math.round(command.x))).toEqual([20, 65, 80]);
+
+  // Byt tangent: Rita får P. W gör då ingenting, och valet finns kvar efter en omladdning. Återställ ger W igen.
+  await owner.getByTestId("map-project-keys-open").click();
+  const dialog = owner.getByTestId("map-project-keys");
+  await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("W");
+  await dialog.getByTestId("map-project-key-draw").click();
+  await owner.keyboard.press("p");
+  await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("P");
+  // Q är Redigeras tangent: ges den till Rita står Redigera utan, och det sägs.
+  await dialog.getByTestId("map-project-key-draw").click();
+  await owner.keyboard.press("q");
+  await expect(dialog.getByTestId("map-project-keys-message")).toHaveText("Redigera hade Q och har nu ingen tangent.");
+  await expect(dialog.getByTestId("map-project-key-select")).toHaveText("Ingen");
+  await dialog.getByTestId("map-project-key-select").click();
+  await owner.keyboard.press("e");
+  await dialog.getByTestId("map-project-key-draw").click();
+  await owner.keyboard.press("p");
+  await dialog.getByRole("button", { name: "Klar" }).click();
+  await expect(dialog).toBeHidden();
+  await owner.keyboard.press("w");
+  await expect(owner.getByRole("button", { name: "Rita", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await owner.keyboard.press("p");
+  await expect(owner.getByRole("button", { name: "Rita", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await owner.reload();
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await expect(owner.getByRole("button", { name: "Redigera", exact: true })).toHaveAttribute("title", /\(E\)/);
+  await owner.getByTestId("map-project-keys-open").click();
+  await dialog.getByTestId("map-project-keys-reset").click();
+  await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("W");
+  await expect(dialog.getByTestId("map-project-key-select")).toHaveText("Q");
 });
 
 /**
@@ -397,7 +500,7 @@ test("kartprojekt: verktygshjul, symbolrutor, förenkla, mjuk och cirkel", async
   expect((await lines())[0]!.path).toHaveLength(8);
 
   // Högerklick på stigen: hjulet med objektets åtgärder. Förenkla ger två punkter, gör mjuk ger kurvor.
-  await owner.keyboard.press("e");
+  await owner.keyboard.press("q");
   const on = await screenOf(owner, { x: 46.5, y: 85 });
   await owner.mouse.click(on.x, on.y, { button: "right" });
   const wheel = owner.getByTestId("map-project-wheel");

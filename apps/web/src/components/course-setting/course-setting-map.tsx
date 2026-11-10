@@ -29,6 +29,8 @@ import styles from "./course-setting.module.css";
 /** ADR-0180 beslut 14: tangenterna och fingrarna vid ett klick eller en dragning. */
 export interface PointerModifiers {
   readonly alt: boolean;
+  /** Cmd eller Ctrl hölls nere (kartprojektets ritläge: ta bort eller lägg till en punkt med ett klick). */
+  readonly command?: boolean | undefined;
   /** Skift eller ett andra finger: fri vinkel när man vrider. */
   readonly free: boolean;
   readonly pointerType: string;
@@ -168,7 +170,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   const longPress = useRef<ReturnType<typeof setTimeout>>(undefined);
   const longPressAt = useRef(0);
   const gesture = useRef<{ kind: "pending" | "pan" | "drag" | "pinch"; startX: number; startY: number; lastX: number; lastY: number;
-    distance?: number; pointerType: string; pointerId?: number; free?: boolean; alt?: boolean; shift?: boolean } | undefined>(undefined);
+    distance?: number; pointerType: string; pointerId?: number; free?: boolean; alt?: boolean; shift?: boolean; command?: boolean } | undefined>(undefined);
   const viewRef = useRef<Viewport | undefined>(undefined);
   viewRef.current = view;
 
@@ -367,7 +369,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       return;
     }
     gesture.current = { kind: "pending", startX: at.x, startY: at.y, lastX: at.x, lastY: at.y, pointerType: event.pointerType, pointerId: event.pointerId,
-      alt: event.altKey, shift: event.shiftKey };
+      alt: event.altKey, shift: event.shiftKey, command: event.metaKey || event.ctrlKey };
     if (event.pointerType !== "mouse" && handlers.onContextMenu) {
       const started = gesture.current, current = view;
       clearTimeout(longPress.current);
@@ -456,7 +458,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       const note = tappable ? (noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)))
         || (sketches && hitSketch(sketches.notes, point, tolerance)) : undefined;
       if (note) onNoteTap!(note.id);
-      else handlers.onTap(point, tolerance, { alt: current.alt ?? false, free: current.shift ?? false, pointerType: current.pointerType, pxPerMm: view.pxPerMm });
+      else handlers.onTap(point, tolerance, { alt: current.alt ?? false, command: current.command ?? false, free: current.shift ?? false, pointerType: current.pointerType, pxPerMm: view.pxPerMm });
     } else if (current.kind === "drag") handlers.onDragEnd();
   }
 

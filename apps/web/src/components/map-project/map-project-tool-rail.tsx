@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import styles from "./map-project-tool-rail.module.css";
 
-export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel";
+export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys";
 
 export interface RailTool {
   readonly id: string; readonly label: string; readonly icon: RailIcon;
@@ -28,7 +28,10 @@ const PATHS: Record<RailIcon, ReactNode> = {
   note: <><path d="M5 4h14v11l-5 5H5z" /><path d="M14 20v-5h5" /></>,
   undo: <><path d="M8 5L4 9l4 4" /><path d="M4 9h10a5 5 0 010 10h-4" /></>,
   redo: <><path d="M16 5l4 4-4 4" /><path d="M20 9H10a5 5 0 000 10h4" /></>,
-  panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M14 4v16" /></>
+  panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M14 4v16" /></>,
+  addPoint: <><path d="M3 17L10 9l5 5" /><rect x="8" y="7" width="4" height="4" fill="currentColor" /><path d="M18 3v8M14 7h8" /></>,
+  removePoint: <><path d="M3 17L10 9l5 5" /><rect x="8" y="7" width="4" height="4" fill="currentColor" /><path d="M14 7h8" /></>,
+  keys: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" /></>
 };
 
 /** Verktygets ikon (också i verktygshjulet). */

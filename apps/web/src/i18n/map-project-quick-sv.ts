@@ -1,9 +1,7 @@
 /** Ägaren 2026-11-09: kartredigerarens snabbval (verktygshjulet, symbolrutorna, formen på ett objekt och cirkeln). */
 export const mapProjectQuickSv = {
   wheel: "Verktygshjul",
-  wheelHelp: "Högerklicka eller håll fingret på kartan (mellanslag med musen över kartan) för verktygshjulet. 1–9 väljer de senaste symbolerna.",
   tools: { select: "Redigera", draw: "Rita", circle: "Cirkel", note: "Notis" },
-  toolKeys: { select: "E", draw: "P", circle: "O", note: "" },
   recent: "Senaste symbolerna",
   actions: "Objektet",
   simplify: "Förenkla",
@@ -25,5 +23,5 @@ export const mapProjectQuickSv = {
   tabs: { symbols: "Symboler", layers: "Lager", review: "Granska", process: "Bearbeta" },
   hidePanels: "Bara kartan",
   showPanels: "Visa panelerna",
-  bareHelp: "Göm eller visa verktygsspalten och panelen (§)"
+  bareHelp: "Göm eller visa verktygsspalten och panelen"
 };

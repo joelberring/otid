@@ -92,6 +92,7 @@ export async function clubPlanningRoute(db: Database, request: Request, clubId: 
     }
     if (area === "sessions" && id && sub === "race" && subId === undefined && method === "POST") {
       const result = await createPlannedRace(db, { ...proof, sessionId: id });
+      if (result.status === "group-leader-only") return problem("GROUP_LEADER_ONLY");
       return result.status === "ok" ? ok({ raceId: result.raceId, replayed: result.replayed }) : failure(result.status);
     }
     if (area === "sessions" && id && sub === "tasks" && subId === undefined && method === "POST") {

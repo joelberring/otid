@@ -15,8 +15,8 @@ andra i klubben, som då bara ska se det de har fått.
    tomma veckorna synliga. En planerad träning har datum, valfri tid, rubrik (övning), plats, valfri karta ur klubbens
    kartbank, valfri träningsgrupp, ansvarig (en ledare, administratör eller ägare i klubben) och en anteckning. "Varje vecka
    till terminens slut" lägger samma träning på samma veckodag resten av terminen. Medlemmar utan ledarroll ser inte planen.
-2. **Planen blir en riktig träning med en knapp.** Först är den bara en rad i planen. "Skapa träningen" (ansvarig, admin
-   eller ägare) skapar en träning med namn, datum och tid, i träningsgruppen om en är vald (gruppens ledare blir då
+2. **Planen blir en riktig träning med en knapp.** Först är den bara en rad i planen. "Skapa träningen" (en ledare, admin
+   eller ägare i klubben; översynen 2026-11-10 B4: alla som får ändra planen) skapar en träning med namn, datum och tid, i träningsgruppen om en är vald (gruppens ledare blir då
    administratörer, ADR-0182) och annars som en egen tävling. Den ansvarige blir administratör på den. Planen länkar sedan
    till träningen, och träningen ändras aldrig av planen efter det. Kartan väljs i banläggningen ("Välj karta från
    klubbarkivet", förvald med planens karta när det går).

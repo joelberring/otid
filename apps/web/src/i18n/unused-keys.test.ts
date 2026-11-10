@@ -16,7 +16,7 @@ const I18N = import.meta.dirname;
 const READ_BY_KEY = new Set(["courseSettingRaceTypeSv"]);
 
 /** Texter som är skrivna före koden som ska använda dem, eller som bara hjälpens citat letar upp. Ta bort raden när det inte längre stämmer. */
-const WAITING_FOR_CODE = new Set(["groupForbidden" /* översynen 2026-11-10, B3: svaret när ledaren inte är gruppens ledare */,
+const WAITING_FOR_CODE = new Set([
   // Hjälpen citerar "Senast öppnad" och hjälptesten kontrollerar att citatet finns som UI-text; knappen visar `lastOpened(datum)`.
   "lastOpenedLabel"]);
 

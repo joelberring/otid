@@ -12,6 +12,7 @@ import { uploadClubMapVersion } from "../../src/club-maps";
 import { listUsableClubMaps } from "../../src/club-map-picker";
 import { readFile } from "node:fs/promises";
 import { activeEventAdministrationGrant } from "../../src/race-session";
+import { acceptOnLogin } from "../../src/account-arrival";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -127,6 +128,52 @@ describe("ADR-0221: terminsplaneringen", () => {
     expect(mails.map(mail => mail.taskTitle)).toEqual(["Ett", "Två", "Tre"]);
   });
 
+  it("i en träningsgrupp: eget besked till den som inte är gruppens ledare, mallens innehåll följer med, ny ansvarig blir admin (översynen B3, B5, B7)", async () => {
+    const { owner, clubId, leader } = await setup();
+    const groupId = randomUUID();
+    await db.insert(schema.trainingGroups).values({ id: groupId, name: "Ungdom", code: `ungdom-${randomUUID().slice(0, 6)}`, createdAt: NOW,
+      createdBy: leader.accountId, requestId: randomUUID() });
+    await db.insert(schema.trainingGroupMembers).values({ id: randomUUID(), groupId, accountId: leader.accountId, role: "LEADER", addedAt: NOW,
+      addedBy: leader.accountId, requestId: randomUUID() });
+    // Gruppens förra tillfälle har en bana och en klass.
+    const eventId = randomUUID(), previousRaceId = randomUUID(), courseId = randomUUID(), courseVersionId = randomUUID();
+    await db.insert(schema.events).values({ id: eventId, name: "Förra", startsOn: "2027-01-05", timeZone: "Europe/Stockholm", trainingGroupId: groupId,
+      createdAt: NOW });
+    await db.insert(schema.races).values({ id: previousRaceId, eventId, name: "", raceDate: "2027-01-05", raceType: "TRAINING", courseMapScale: 7500,
+      createdAt: NOW });
+    await db.insert(schema.courses).values({ id: courseId, raceId: previousRaceId, name: "Grön" });
+    await db.insert(schema.courseVersions).values({ id: courseVersionId, courseId, version: 1 });
+    await db.insert(schema.classes).values({ id: randomUUID(), raceId: previousRaceId, courseVersionId, name: "Grön", startRule: "PUNCH" });
+
+    const term = await createClubTerm(db, { ...leader.proof, clubId,
+      request: { formatVersion: 1, requestId: randomUUID(), name: "VT 2027", startsOn: "2027-01-01", endsOn: "2027-06-30" } }, NOW);
+    if (term.status !== "ok") throw new Error(term.status);
+    const created = await createPlanSessions(db, { ...leader.proof, clubId,
+      request: { ...session(term.termId), trainingGroupId: groupId, responsibleAccountId: leader.accountId } }, NOW);
+    if (created.status !== "ok") throw new Error(created.status);
+    const sessionId = created.sessionIds[0]!;
+    // Ägaren av klubben är inte ledare i gruppen.
+    expect(await createPlannedRace(db, { ...owner.proof, clubId, sessionId }, NOW)).toEqual({ status: "group-leader-only" });
+    const race = await createPlannedRace(db, { ...leader.proof, clubId, sessionId }, NOW);
+    if (race.status !== "ok") throw new Error(race.status);
+    const classes = await db.select({ name: schema.classes.name }).from(schema.classes).where(eq(schema.classes.raceId, race.raceId));
+    expect(classes.map(row => row.name)).toEqual(["Grön"]);
+    const [facts] = await db.select({ scale: schema.races.courseMapScale, start: schema.races.firstStartTime, eventId: schema.races.eventId })
+      .from(schema.races).where(eq(schema.races.id, race.raceId));
+    expect(facts).toMatchObject({ scale: 7500, start: "18:00" });
+
+    // Ny ansvarig efter att träningen skapats: blir administratör.
+    const plan = await readClubPlan(db, { ...leader.proof, clubId, termId: term.termId }, NOW);
+    if (plan.status !== "ok") throw new Error(plan.status);
+    const row = plan.response.term!.planSessions.find(item => item.sessionId === sessionId)!;
+    expect((await updatePlanSession(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, version: row.version,
+      sessionDate: row.sessionDate, startTime: row.startTime, title: row.title, place: row.place, note: row.note, clubMapId: null,
+      trainingGroupId: groupId, responsibleAccountId: owner.accountId } }, NOW)).status).toBe("ok");
+    const grants = await db.select({ accountId: schema.eventAdministrationGrants.accountId, role: schema.eventAdministrationGrants.role })
+      .from(schema.eventAdministrationGrants).where(eq(schema.eventAdministrationGrants.eventId, facts!.eventId));
+    expect(grants).toContainEqual({ accountId: owner.accountId, role: "ADMIN" });
+  });
+
   it("uppgifter: bara de egna syns, adressen blir kontots, och läsrätten i banläggningen följer uppgiften", async () => {
     const { owner, clubId, leader, reader } = await setup();
     const term = await createClubTerm(db, { ...leader.proof, clubId,
@@ -158,6 +205,8 @@ describe("ADR-0221: terminsplaneringen", () => {
 
     // Föräldern skapar konto med adressen och ser sin uppgift.
     const parent = await registerTestAccount(db, parentEmail.split("@")[0], NOW);
+    // Översynen B9: uppgiften blir kontots vid ankomsten (inloggning eller bekräftelse), inte först i Mina uppgifter.
+    await acceptOnLogin(db, parent.accountId, NOW);
     const parentTasks = await listMyPlanTasks(db, parent.proof, NOW);
     if (parentTasks.status !== "ok") throw new Error(parentTasks.status);
     expect(parentTasks.response.tasks.map(task => task.title)).toEqual(["Sätta ut kontroller"]);

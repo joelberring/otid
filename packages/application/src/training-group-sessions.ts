@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import { groupSessionCreateRequestSchema, type GroupSessionCreateRequest, type MapAgreementIssueCode } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { mapAgreementIssues, repetitionDates } from "@o-tid/domain";
@@ -25,7 +25,8 @@ export type GroupSessionsResult = GroupFailure
   | { status: "created"; replayed: boolean; raceIds: string[]; seriesId: string | null };
 
 /** Källan: vald tävling i gruppen, gruppens mall eller förra tillfället (före det nya datumet, annars det senaste). */
-async function sourceRace(tx: Transaction, groupId: string, intent: GroupSessionCreateRequest) {
+async function sourceRace(tx: Transaction, groupId: string, intent: Pick<GroupSessionCreateRequest, "source" | "sourceRaceId" | "raceDate">,
+  exclude?: string) {
   const inGroup = async (raceId: string | null) => {
     if (!raceId) return undefined;
     const [race] = await tx.select({ id: schema.races.id }).from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
@@ -41,7 +42,8 @@ async function sourceRace(tx: Transaction, groupId: string, intent: GroupSession
   }
   const previous = async (before: boolean) => (await tx.select({ id: schema.races.id }).from(schema.races)
     .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
-    .where(and(eq(schema.events.trainingGroupId, groupId), before ? lte(schema.races.raceDate, intent.raceDate) : undefined))
+    .where(and(eq(schema.events.trainingGroupId, groupId), before ? lte(schema.races.raceDate, intent.raceDate) : undefined,
+      exclude ? ne(schema.races.id, exclude) : undefined))
     .orderBy(desc(schema.races.raceDate), desc(schema.races.createdAt)).limit(1))[0]?.id;
   // Den första träningen i en grupp utan tidigare tillfällen blir en tom träning.
   return { found: true, raceId: await previous(true) ?? await previous(false) };
@@ -125,6 +127,32 @@ export async function createGroupSessions(db: Database, input: Proof & { groupId
       kind: "SESSIONS", request: sorted(intent), response: { raceIds, seriesId }, createdAt: now });
     return { status: "created", replayed: false, raceIds, seriesId } as const;
   });
+}
+
+/**
+ * Översynen B7: en träning som skapas ur terminsplanen i en träningsgrupp får klasser, banor, karta och inställningar från
+ * gruppens mall (annars förra tillfället), som gruppens egen "Ny träning". Källans id, eller null när gruppen inte har någon.
+ */
+export async function fillPlannedGroupRace(tx: Transaction, input: { groupId: string; raceId: string; raceDate: string; accountId: string; now: Date })
+  : Promise<string | null> {
+  const source = await sourceRace(tx, input.groupId, { source: "TEMPLATE", sourceRaceId: null, raceDate: input.raceDate }, input.raceId);
+  if (!source.raceId || source.raceId === input.raceId) return null;
+  const [facts] = await tx.select({ raceType: schema.races.raceType, raceDate: schema.races.raceDate, timeZone: schema.events.timeZone,
+    courseMapScale: schema.races.courseMapScale, info: schema.races.info, firstStartTime: schema.races.firstStartTime,
+    selfRegistration: schema.races.selfRegistration, startListLive: schema.races.startListLive, cardNumbers: schema.races.publicStartListCardNumbers,
+    mapReserve: schema.races.mapReserve, startDrawSettings: schema.races.startDrawSettings })
+    .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, source.raceId));
+  if (!facts) return null;
+  await lockRaceForSnapshot(tx, source.raceId);
+  const [target] = await tx.select({ firstStartTime: schema.races.firstStartTime }).from(schema.races).where(eq(schema.races.id, input.raceId));
+  await tx.update(schema.races).set({ raceType: facts.raceType, courseMapScale: facts.courseMapScale, info: facts.info,
+    firstStartTime: target?.firstStartTime ?? facts.firstStartTime, selfRegistration: facts.selfRegistration, startListLive: facts.startListLive,
+    publicStartListCardNumbers: facts.cardNumbers, mapReserve: facts.mapReserve, startDrawSettings: facts.startDrawSettings })
+    .where(eq(schema.races.id, input.raceId));
+  await copyRaceContent(tx, { sourceRaceId: source.raceId, raceId: input.raceId, timeZone: facts.timeZone,
+    dayShift: Math.round((Date.parse(input.raceDate) - Date.parse(facts.raceDate)) / DAY_MS), now: input.now, accountId: input.accountId,
+    includePeople: false });
+  return source.raceId;
 }
 
 /** jsonb ordnar om nycklarna; begäran sparas och jämförs med sorterade nycklar. */

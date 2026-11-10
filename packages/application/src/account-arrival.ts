@@ -6,6 +6,7 @@ import { acceptGroupInvitations } from "./training-group-invitations";
 import { acceptClubInvitations } from "./club-invitations";
 import { applyEventorMemberships } from "./club-affiliation-access";
 import { acceptMapProjectInvitations } from "./map-project-access";
+import { claimPlanTasks } from "./club-plan-tasks";
 
 /**
  * Den enda vägen där inbjudningar av alla slag tas (städrundan C4). Varje `accept*` tar bara sitt eget slag; här bestäms när.
@@ -19,8 +20,11 @@ import { acceptMapProjectInvitations } from "./map-project-access";
  * Alla kräver bekräftad adress och ett konto som inte är spärrat (kontrolleras i varje `accept*`). Ger antalet som togs.
  */
 export async function acceptAllInvitations(tx: DbExecutor, accountId: string, now: Date): Promise<number> {
-  return await acceptRacePersonInvitations(tx, accountId, now) + await acceptGroupInvitations(tx, accountId, now)
+  const accepted = await acceptRacePersonInvitations(tx, accountId, now) + await acceptGroupInvitations(tx, accountId, now)
     + await acceptClubInvitations(tx, accountId, now) + await acceptMapProjectInvitations(tx, accountId, now);
+  // Terminsplanens uppgifter till adressen (ADR-0221, översynen B9); de räknas inte som inbjudningar.
+  await claimPlanTasks(tx, accountId, now);
+  return accepted;
 }
 
 /** Inbjudningarna som gäller tävlingen `raceId` (dess egna och dess träningsgrupps). Ger antalet som togs. */

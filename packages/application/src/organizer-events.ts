@@ -17,6 +17,7 @@ import {
   type UserAccountSessionProof
 } from "./user-account";
 import { activeEventAdministrationGrant, type EventGrantRole } from "./race-session";
+import type { DbExecutor } from "./snapshot";
 
 
 export type OrganizerEventCreateResult =
@@ -45,6 +46,25 @@ function responseFor(row: {
     formatVersion: 1, replayed, requestId: row.requestId,
     eventId: row.eventId, raceId: row.raceId, createdAt: row.createdAt.toISOString()
   });
+}
+
+/**
+ * Evenemanget och loppet (och ägaren, när en anges). Översynen B10: används av "Ny tävling" och av terminsplanens "Skapa
+ * träningen", så att de två vägarna inte glider isär.
+ */
+export async function insertEventWithRace(tx: DbExecutor, input: { eventName: string; raceName: string; raceDate: string; timeZone: string;
+  raceType: typeof schema.races.$inferInsert.raceType; firstStartTime: string | null; trainingGroupId: string | null;
+  ownerAccountId: string | null; now: Date }): Promise<{ event: { id: string }; race: { id: string } }> {
+  const [event] = await tx.insert(schema.events).values({ name: input.eventName, startsOn: input.raceDate, timeZone: input.timeZone,
+    trainingGroupId: input.trainingGroupId, createdAt: input.now }).returning({ id: schema.events.id });
+  if (!event) throw new Error("Eventskapandet kunde inte bekräftas");
+  const [race] = await tx.insert(schema.races).values({ eventId: event.id, name: input.raceName, raceDate: input.raceDate,
+    raceType: input.raceType, firstStartTime: input.firstStartTime, snapshotVersion: 1, createdAt: input.now }).returning({ id: schema.races.id });
+  if (!race) throw new Error("Loppskapandet kunde inte bekräftas");
+  if (input.ownerAccountId) {
+    await tx.insert(schema.eventAdministrationGrants).values({ eventId: event.id, accountId: input.ownerAccountId, role: "OWNER", grantedAt: input.now });
+  }
+  return { event, race };
 }
 
 /** All owner facts and the request receipt commit together or not at all. */
@@ -77,20 +97,11 @@ export async function createOrganizerEvent(
       }
       return { status: "created", response: responseFor(existing, true) } as const;
     }
-    const [event] = await tx.insert(schema.events).values({
-      name: request.data.eventName, startsOn: request.data.raceDate,
-      timeZone: request.data.timeZone, createdAt
-    }).returning({ id: schema.events.id });
-    if (!event) throw new Error("Eventskapandet kunde inte bekräftas");
-    const [race] = await tx.insert(schema.races).values({
-      eventId: event.id, name: request.data.raceName, raceDate: request.data.raceDate,
+    const { event, race } = await insertEventWithRace(tx, { eventName: request.data.eventName, raceName: request.data.raceName,
+      raceDate: request.data.raceDate, timeZone: request.data.timeZone,
       // ADR-0188 beslut 5: FORKED är ett alias för Tävling; begäran sparas som den kom (omsändning jämförs med den).
-      raceType: normalizeRaceType(request.data.raceType), snapshotVersion: 1, createdAt
-    }).returning({ id: schema.races.id });
-    if (!race) throw new Error("Loppskapandet kunde inte bekräftas");
-    await tx.insert(schema.eventAdministrationGrants).values({
-      eventId: event.id, accountId: auth.principal.accountId, role: "OWNER", grantedAt: createdAt
-    });
+      raceType: normalizeRaceType(request.data.raceType), firstStartTime: null, trainingGroupId: null,
+      ownerAccountId: auth.principal.accountId, now: createdAt });
     // ADR-0209 beslut 4: arrangörsklubben förvald från skaparens bekräftade klubb.
     await defaultRaceOrganiser(tx, { raceId: race.id, accountId: auth.principal.accountId, now: createdAt });
     const [journal] = await tx.insert(schema.userAccountEventCreationRequests).values({

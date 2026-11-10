@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClubPlanResponse } from "@o-tid/contracts";
 import { termWeeks } from "@o-tid/domain";
 import { clubPlanningEn } from "../../i18n/club-planning-en";
@@ -24,6 +24,9 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
   const language = useLanguage();
   const [plan, setPlan] = useState<ClubPlanResponse>();
   const [termId, setTermId] = useState<string | null>(null);
+  /** Terminen som nästa läsning ska ta (översynen B1: en ny eller borttagen termin ska inte läsas om med den gamla). */
+  const chosen = useRef<string | null>(null);
+  const selectTerm = useCallback((id: string | null) => { chosen.current = id; setTermId(id); }, []);
   const [failed, setFailed] = useState<string>();
   const [message, setMessage] = useState<Message>();
   const [termForm, setTermForm] = useState<"new" | "edit">();
@@ -32,14 +35,14 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
   const [busy, setBusy] = useState(false);
   const base = planningBase(clubId);
 
-  const load = useCallback(async (term: string | null = termId) => {
+  const load = useCallback(async (term: string | null = chosen.current) => {
     const result = await planRequest(term ? `${base}?term=${encodeURIComponent(term)}` : base);
     if (result.status !== 200) { setFailed(planFailure(result.status, result.json, text)); return; }
     setFailed(undefined);
     const next = result.json as ClubPlanResponse;
     setPlan(next);
-    setTermId(next.term?.termId ?? null);
-  }, [base, termId, text]);
+    selectTerm(next.term?.termId ?? null);
+  }, [base, selectTerm, text]);
   // Första läsningen (terminen som pågår); senare läsningar tar den valda terminen.
   const [first] = useState(() => () => load(null));
   useEffect(() => { void first(); }, [first]);
@@ -66,7 +69,7 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
     {failed && <Notice tone="error" role="alert">{failed}</Notice>}
     <div className={`${styles.termBar} ${styles.noPrint}`}>
       {plan.terms.length > 0 && <label className={styles.termChoice}><span>{text.term.choose}</span>
-        <select value={termId ?? ""} onChange={event => { setTermId(event.target.value); void load(event.target.value); }}>
+        <select value={termId ?? ""} onChange={event => { selectTerm(event.target.value); void load(event.target.value); }}>
           {plan.terms.map(option => <option key={option.termId} value={option.termId}>{option.name} · {text.term.sessions(option.sessions)}</option>)}
         </select></label>}
       <div className={styles.actions}>
@@ -75,15 +78,17 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
         {term && <Button variant="quiet" onClick={() => window.print()}>{text.term.print}</Button>}
       </div>
     </div>
-    {termForm && <PlanTermForm term={termForm === "edit" ? term ?? undefined : undefined} busy={busy} onCancel={() => setTermForm(undefined)}
+    {termForm && <PlanTermForm key={termForm === "edit" && term ? term.termId : "new"} term={termForm === "edit" ? term ?? undefined : undefined} busy={busy} onCancel={() => setTermForm(undefined)}
       onSave={async (body, existing) => {
         const saved = existing
           ? await change(`/terms/${existing}`, "PUT", body)
-          : await change("", "POST", body, json => { const created = (json as { termId?: string }).termId; if (created) setTermId(created); return undefined; });
+          : await change("", "POST", body, json => { const created = (json as { termId?: string }).termId; if (created) selectTerm(created); return undefined; });
         if (saved) setTermForm(undefined);
       }}
       onRemove={term && term.sessions === 0 ? async () => {
-        if (window.confirm(text.term.removeConfirm) && await change(`/terms/${term.termId}`, "DELETE", undefined)) { setTermForm(undefined); setTermId(null); }
+        if (window.confirm(text.term.removeConfirm) && await change(`/terms/${term.termId}`, "DELETE", undefined, () => { selectTerm(null); return undefined; })) {
+          setTermForm(undefined);
+        }
       } : undefined} />}
     {message && <div className={styles.noPrint}><Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice></div>}
     {!term ? <p>{text.term.none}</p> : <>

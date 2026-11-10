@@ -4,6 +4,7 @@ import {
   orderedLevels, orderedMoments, clubPlanSessionCreateSchema, clubPlanSessionUpdateSchema, clubTermRequestSchema, clubTermUpdateSchema,
   type ClubPlanResponse, type ClubPlanSessionView, type ClubTermView
 } from "@o-tid/contracts";
+import { activeEventAdministrationGrant } from "./race-session";
 import { schema, type Database } from "@o-tid/database";
 import { inTerm, isoWeekday, MAX_TERM_DAYS, repetitionDates, swedishToday } from "@o-tid/domain";
 import { requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction as Transaction } from "./club-access";
@@ -196,6 +197,14 @@ export async function updatePlanSession(db: Database, input: Input & { sessionId
     if (!inTerm(fields.sessionDate, row.term)) return { status: "outside" } as const;
     if (!await validReferences(tx, access.clubId, access.accountId, fields, row.session)) return { status: "invalid-request" } as const;
     await tx.update(sessions).set({ ...fields, version: version + 1, updatedAt: now }).where(eq(sessions.id, row.session.id));
+    // Översynen B5: byts den ansvarige efter att träningen skapats blir den nya också administratör (den förra behåller sin roll).
+    const responsible = fields.responsibleAccountId;
+    if (row.session.raceId && responsible && responsible !== row.session.responsibleAccountId) {
+      const [race] = await tx.select({ eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, row.session.raceId));
+      if (race && !await activeEventAdministrationGrant(tx, { accountId: responsible, eventId: race.eventId, roles: ["OWNER", "ADMIN"] }, "none")) {
+        await tx.insert(schema.eventAdministrationGrants).values({ eventId: race.eventId, accountId: responsible, role: "ADMIN", grantedAt: now });
+      }
+    }
     return { status: "ok", version: version + 1 } as const;
   });
 }

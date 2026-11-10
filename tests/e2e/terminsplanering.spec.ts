@@ -80,6 +80,22 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/terminsplanering-utskrift.png`, fullPage: true });
   await owner.emulateMedia({ media: "screen" });
 
+  // Översynen B1 och B2: en ny termin visas direkt, "Ändra terminen" visar den valda terminen (inte förslaget för en ny),
+  // och en tom termin tas bort utan fel.
+  await planning.getByRole("button", { name: "Ny termin" }).click();
+  await planning.getByLabel("Namn").fill("HT 2027");
+  await planning.getByLabel("Första dagen").fill("2027-08-16");
+  await planning.getByLabel("Sista dagen").fill("2027-12-19");
+  await planning.getByRole("button", { name: "Spara terminen" }).click();
+  await expect(planning.getByRole("heading", { name: /HT 2027/ })).toBeVisible();
+  await planning.getByRole("button", { name: "Ny termin" }).click();
+  await planning.getByRole("button", { name: "Ändra terminen" }).click();
+  await expect(planning.getByLabel("Namn")).toHaveValue("HT 2027");
+  owner.once("dialog", dialog => void dialog.accept());
+  await planning.getByRole("button", { name: "Ta bort terminen" }).click();
+  await expect(planning.getByRole("heading", { name: /VT 2027/ })).toBeVisible();
+  await expect(planning.getByRole("alert")).toHaveCount(0);
+
   // Föräldern: kontot med adressen, Mina uppgifter och banläggningen.
   const parent = await registerAccount(browser, parentEmail, "Fia Förälder");
   await parent.goto("/organizer");

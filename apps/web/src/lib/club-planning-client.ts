@@ -17,6 +17,7 @@ export function planFailure(status: number, json: unknown, text: PlanningTexts):
   if (status === 422 && error === "OUTSIDE_TERM") return text.session.outside;
   if (status === 422 && error === "TOO_MANY_SESSIONS") return text.session.tooMany;
   if (status === 422 && error === "TERM_NOT_EMPTY") return text.errors.notEmpty;
+  if (status === 422 && error === "GROUP_LEADER_ONLY") return text.session.groupForbidden;
   if (status === 401) return text.errors.session;
   if (status === 400) return text.errors.invalid;
   if (status === 403) return text.errors.forbidden;

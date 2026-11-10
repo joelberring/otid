@@ -294,7 +294,11 @@ async function dropUnusedCreated(tx: DbExecutor, versionId: string | null, mapId
   if (mapId) {
     const [used] = (await tx.execute<{ used: boolean }>(sql`select exists (select 1 from club_map_version where map_id = ${mapId})
       or exists (select 1 from training_group_map where club_map_id = ${mapId}) as used`)).rows;
-    if (!used?.used) await tx.delete(schema.clubMaps).where(eq(schema.clubMaps.id, mapId));
+    if (!used?.used) {
+      // Översynen B6: planens rader tappar kartan (i stället för att peka på en karta som inte finns).
+      await tx.update(schema.clubPlanSessions).set({ clubMapId: null }).where(eq(schema.clubPlanSessions.clubMapId, mapId));
+      await tx.delete(schema.clubMaps).where(eq(schema.clubMaps.id, mapId));
+    }
   }
 }
 

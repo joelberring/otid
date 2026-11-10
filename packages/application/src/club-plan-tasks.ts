@@ -6,8 +6,11 @@ import { clubMembership, clubRoleAtLeast, requireClubRole, type ClubFailure, typ
 import { confirmedMembersOf } from "./club-affiliations";
 import { consumeInvitationMailAllowance } from "./invitation-links";
 import { defaultRaceOrganiser } from "./race-club-archive";
+import { insertEventWithRace } from "./organizer-events";
+import { fillPlannedGroupRace } from "./training-group-sessions";
 import { activeEventAdministrationGrant } from "./race-session";
 import { UUID_PATTERN } from "./serialization";
+import type { DbExecutor } from "./snapshot";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
 import { swedishToday } from "@o-tid/domain";
 
@@ -45,7 +48,7 @@ export async function planPeople(tx: Transaction, clubId: string): Promise<ClubP
 const RECENT_DAYS = 14;
 
 /** Läsrätt i banläggningen för kontot på träningen, om det inte redan har en behörighet där. */
-async function grantCourseRead(tx: Transaction, input: { raceId: string; accountId: string; taskId: string; actorId: string; now: Date }) {
+async function grantCourseRead(tx: DbExecutor, input: { raceId: string; accountId: string; taskId: string; actorId: string; now: Date }) {
   const [race] = await tx.select({ eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, input.raceId));
   if (!race) return;
   if (await activeEventAdministrationGrant(tx, { accountId: input.accountId, eventId: race.eventId, roles: ["OWNER", "ADMIN"] }, "none")) return;
@@ -158,9 +161,10 @@ export async function setPlanTaskDone(db: Database, input: ClubProof & { taskId:
 
 /**
  * Uppgifterna som skrevs till kontots bekräftade adress blir kontots (som inbjudningarna, ADR-0206), med läsrätten på de
- * träningar som redan finns.
+ * träningar som redan finns. Översynen B9: tas vid ankomsten (`acceptAllInvitations`), inte först i Mina uppgifter, så att
+ * läsrätten i banläggningen finns direkt.
  */
-async function claimTasks(tx: Transaction, accountId: string, now: Date): Promise<void> {
+export async function claimPlanTasks(tx: DbExecutor, accountId: string, now: Date): Promise<void> {
   const [account] = await tx.select({ email: schema.userAccounts.email, verifiedAt: schema.userAccounts.emailVerifiedAt })
     .from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId));
   if (!account?.verifiedAt) return;
@@ -178,7 +182,6 @@ export async function listMyPlanTasks(db: Database, proof: ClubProof, now = new 
     const auth = await authenticateUserAccountSessionForProtectedRead(tx, proof, now);
     if (auth.status !== "authenticated") return auth;
     const accountId = auth.principal.accountId;
-    await claimTasks(tx, accountId, now);
     const from = new Date(Date.parse(`${swedishToday(now)}T00:00:00Z`) - RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
     const rows = await tx.select({ task: tasks, session: sessions, clubName: schema.clubs.name, mapName: schema.clubMaps.name,
       responsibleName: schema.userAccounts.displayName, raceExists: schema.races.id })
@@ -201,7 +204,7 @@ export async function listMyPlanTasks(db: Database, proof: ClubProof, now = new 
   });
 }
 
-export type PlannedRaceResult = ClubFailure | { status: "ok"; raceId: string; replayed: boolean };
+export type PlannedRaceResult = ClubFailure | { status: "group-leader-only" } | { status: "ok"; raceId: string; replayed: boolean };
 
 /**
  * "Skapa träningen" (beslut 2): en träning med planens rubrik, datum och tid, i träningsgruppen om en är vald (bara gruppens
@@ -223,16 +226,15 @@ export async function createPlannedRace(db: Database, input: ClubProof & { clubI
       const [leader] = await tx.select({ id: schema.trainingGroupMembers.id }).from(schema.trainingGroupMembers)
         .where(and(eq(schema.trainingGroupMembers.groupId, session.trainingGroupId), eq(schema.trainingGroupMembers.accountId, access.accountId),
           eq(schema.trainingGroupMembers.role, "LEADER")));
-      if (!leader) return { status: "forbidden" } as const;
+      // Översynen B3: ett eget besked (inte "bara ledare"), eftersom personen är ledare i klubben men inte i gruppen.
+      if (!leader) return { status: "group-leader-only" } as const;
       groupId = session.trainingGroupId;
     }
-    const [event] = await tx.insert(schema.events).values({ name: session.title, startsOn: session.sessionDate, timeZone: "Europe/Stockholm",
-      trainingGroupId: groupId, createdAt: now }).returning({ id: schema.events.id });
-    if (!event) throw new Error("Evenemanget kunde inte skapas");
-    const [race] = await tx.insert(schema.races).values({ eventId: event.id, name: "", raceDate: session.sessionDate, raceType: "TRAINING",
-      firstStartTime: session.startTime, snapshotVersion: 1, createdAt: now }).returning({ id: schema.races.id });
-    if (!race) throw new Error("Träningen kunde inte skapas");
-    if (!groupId) await tx.insert(schema.eventAdministrationGrants).values({ eventId: event.id, accountId: access.accountId, role: "OWNER", grantedAt: now });
+    const { event, race } = await insertEventWithRace(tx, { eventName: session.title, raceName: "", raceDate: session.sessionDate,
+      timeZone: "Europe/Stockholm", raceType: "TRAINING", firstStartTime: session.startTime, trainingGroupId: groupId,
+      ownerAccountId: groupId ? null : access.accountId, now });
+    const sourceRaceId = groupId
+      ? await fillPlannedGroupRace(tx, { groupId, raceId: race.id, raceDate: session.sessionDate, accountId: access.accountId, now }) : null;
     const responsible = session.responsibleAccountId;
     if (responsible && responsible !== access.accountId
       && !await activeEventAdministrationGrant(tx, { accountId: responsible, eventId: event.id, roles: ["OWNER", "ADMIN"] }, "none")) {
@@ -250,7 +252,7 @@ export async function createPlannedRace(db: Database, input: ClubProof & { clubI
     await tx.update(sessions).set({ raceId: race.id, version: session.version + 1, updatedAt: now }).where(eq(sessions.id, session.id));
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "race", entityId: race.id, action: "CLUB_PLAN_RACE_CREATED",
       actorKind: "USER_ACCOUNT", actorId: access.accountId, requestId: null,
-      after: { clubId: access.clubId, sessionId: session.id, groupId, responsibleAccountId: responsible, raceDate: session.sessionDate }, createdAt: now });
+      after: { clubId: access.clubId, sessionId: session.id, groupId, sourceRaceId, responsibleAccountId: responsible, raceDate: session.sessionDate }, createdAt: now });
     return { status: "ok", raceId: race.id, replayed: false } as const;
   });
 }

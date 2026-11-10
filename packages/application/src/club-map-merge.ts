@@ -46,6 +46,8 @@ export async function mergeClubMaps(db: Database, input: ClubProof & { clubId: s
       groupMapIds: groupMaps.filter(group => group.clubMapId === map.id).map(group => group.id) }));
     if (versions.length > 0) await tx.update(schema.clubMapVersions).set({ mapId: keep.id }).where(inArray(schema.clubMapVersions.id, versions.map(version => version.id)));
     if (groupMaps.length > 0) await tx.update(schema.trainingGroupMaps).set({ clubMapId: keep.id }).where(inArray(schema.trainingGroupMaps.id, groupMaps.map(group => group.id)));
+    // Översynen B6: terminsplanens rader pekar på kartan som blir kvar.
+    await tx.update(schema.clubPlanSessions).set({ clubMapId: keep.id }).where(inArray(schema.clubPlanSessions.clubMapId, absorbedIds));
     await tx.delete(schema.clubMaps).where(inArray(schema.clubMaps.id, absorbedIds));
     await tx.update(schema.clubMaps).set({ updatedAt: now }).where(eq(schema.clubMaps.id, keep.id));
     const targetVersionIds = (await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)

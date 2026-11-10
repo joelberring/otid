@@ -66,6 +66,7 @@ async function removeIfEmpty(tx: ClubTransaction, mapId: string, replacement: st
   const [left] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions).where(eq(schema.clubMapVersions.mapId, mapId)).limit(1);
   if (left) return;
   await tx.update(schema.trainingGroupMaps).set({ clubMapId: replacement }).where(eq(schema.trainingGroupMaps.clubMapId, mapId));
+  await tx.update(schema.clubPlanSessions).set({ clubMapId: replacement }).where(eq(schema.clubPlanSessions.clubMapId, mapId));
   await tx.delete(schema.clubMaps).where(eq(schema.clubMaps.id, mapId));
 }
 

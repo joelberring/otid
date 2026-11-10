@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { ClubTermView } from "@o-tid/contracts";
-import { suggestedTerm } from "@o-tid/domain";
+import { suggestedTerm, swedishToday } from "@o-tid/domain";
 import { clubPlanningEn } from "../../i18n/club-planning-en";
 import { clubPlanningSv } from "../../i18n/club-planning-sv";
 import { isIsoDate } from "../../lib/form-validation";
@@ -11,7 +11,7 @@ import { Button, DateInput, Field } from "../ui";
 import styles from "./club-planning.module.css";
 
 type TermBody = { formatVersion: 1; requestId?: string; name: string; startsOn: string; endsOn: string };
-const today = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(new Date());
+const today = () => swedishToday(new Date());
 
 /** ADR-0221: ny termin (med ett förslag på nästa termin) eller ändra namn och datum; ta bort när den är tom. */
 export function PlanTermForm({ term, busy, onSave, onCancel, onRemove }: {

@@ -9,6 +9,7 @@ import type { ClubFailure, ClubProof } from "./club-access";
 import { mapProjectAllows, mapProjectJournal, requireMapProject } from "./map-project-access";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
+import { swedishToday } from "@o-tid/domain";
 
 /**
  * ADR-0219 tillägget om arbetssätt (K1): delområden som delas ut till personer. I det egna området ritar man direkt, i någon
@@ -108,7 +109,7 @@ export async function updateMapProjectArea(db: Database, input: ClubProof & { pr
     const { name, polygon, assigneeAccountId, status, sort } = parsed.data;
     // Etapperna: ett område som blir klart utan datum får dagens (det som redan står ändras inte).
     const revisedOn = parsed.data.revisedOn !== undefined ? parsed.data.revisedOn
-      : status === "DONE" && row.status !== "DONE" && !row.revisedOn ? now.toISOString().slice(0, 10) : undefined;
+      : status === "DONE" && row.status !== "DONE" && !row.revisedOn ? swedishToday(now) : undefined;
     const change = { name, polygon, assigneeAccountId, status, sort, revisedOn };
     const owner = mapProjectAllows(access.role, access.project, "manage");
     // Den som fått området får ändra statusen och revideringsdatumet.

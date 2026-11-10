@@ -6,8 +6,9 @@ import { mapProjectNorthEn } from "../../i18n/map-project-north-en";
 import { mapProjectNorthSv } from "../../i18n/map-project-north-sv";
 import { useTexts } from "../language-provider";
 import styles from "./map-project-editor.module.css";
+import { swedishToday } from "@o-tid/domain";
 
-const today = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(new Date());
+const today = () => swedishToday(new Date());
 
 /**
  * ADR-0223: kartans nordlinjer jämförda med dagens magnetiska nord i referenspunkten (World Magnetic Model 2025). Visar hur

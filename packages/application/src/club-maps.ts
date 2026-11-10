@@ -5,7 +5,7 @@ import {
   RACE_MAP_MAX_BYTES, raceMapSourceMetadataSchema, type MapAgreement, type RaceMapProblem
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { deriveRasterGeoreference, RasterGeoreferenceError } from "@o-tid/domain";
+import { deriveRasterGeoreference, RasterGeoreferenceError, swedishToday } from "@o-tid/domain";
 import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
 import { mayUseClubMap } from "./club-map-use";
 import { clubLinkFacts } from "./club-affiliation-access";
@@ -160,7 +160,7 @@ export async function uploadClubMapVersion(db: Database, input: ClubProof & { cl
       const versionId = randomUUID();
       const fileName = input.fileName.replace(/\p{Cc}/gu, "").trim().slice(0, 200) || (format === "OCD" ? "karta.ocd" : "karta.omap");
       await tx.insert(schema.clubMapVersions).values({ id: versionId, clubId: input.clubId, mapId, contentSha256: stored.sha256, fileName, format,
-        byteLength: staged.byteLength, versionDate: input.versionDate ?? now.toISOString().slice(0, 10), note: input.note?.trim().slice(0, 500) || null,
+        byteLength: staged.byteLength, versionDate: input.versionDate ?? swedishToday(now), note: input.note?.trim().slice(0, 500) || null,
         uploadedBy: member.accountId, uploadedAt: now, sourcePath: null });
       await clubJournal(tx, { clubId: input.clubId, action: "CLUB_MAP_VERSION_UPLOADED", actorAccountId: member.accountId,
         details: { mapId, versionId, byteLength: staged.byteLength }, now });

@@ -1,7 +1,7 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import type { UsableClubMap, UsableClubMapsResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { clubAreaAllowed } from "@o-tid/domain";
+import { clubAreaAllowed, swedishToday } from "@o-tid/domain";
 import { acceptClubInvitations, type ClubFailure, type ClubProof, type ClubRole } from "./club-access";
 import { clubMapViewsByClub } from "./club-archive";
 import { clubMapUseIssues, mayUseClubMap } from "./club-map-use";
@@ -48,7 +48,7 @@ export async function listUsableClubMaps(db: Database, proof: ClubProof, now = n
     await acceptClubInvitations(tx, accountId, now);
     // Som när klubben öppnas: adressen i en kopplad klubbs medlemslista gör kontot till bekräftad medlem.
     await applyEventorMemberships(tx, accountId, now);
-    const today = now.toISOString().slice(0, 10);
+    const today = swedishToday(now);
     const maps: UsableClubMap[] = [];
     // B5: inställningarna och kartorna för alla klubbar i samma frågor, inte några frågor per klubb.
     const clubs = await memberClubs(tx, accountId);

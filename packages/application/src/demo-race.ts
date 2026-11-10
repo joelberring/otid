@@ -7,6 +7,7 @@ import { createManualCourseClassAsAdmin } from "./manual-course-class";
 import { createOrganizerEvent } from "./organizer-events";
 import { registerEntryAsAdmin } from "./entry-registration";
 import { ingestReadoutsAsAdmin } from "./readout-station";
+import { zonedDate } from "@o-tid/domain";
 
 /**
  * Övningstävlingen med påhittade löpare (ADR-0168 steg 5, demoläget del 2): två banor, tio anmälda och sju avläsningar. Tre
@@ -41,7 +42,7 @@ export async function seedDemoRace(db: Database, owner: DemoRaceOwner, options: 
   const now = options.now ?? new Date();
   const texts = options.texts ?? DEMO_RACE_SV;
   const proof = { sessionToken: owner.sessionToken, csrfCookie: owner.csrfToken, csrfHeader: owner.csrfToken };
-  const today = new Intl.DateTimeFormat("sv-SE", { timeZone: DEMO_TIME_ZONE }).format(now);
+  const today = zonedDate(now, DEMO_TIME_ZONE);
   const created = await createOrganizerEvent(db, { ...proof, ...(owner.guest ? { allowGuest: true } : {}),
     idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: `${texts.eventName} ${today}`, raceName: texts.raceName, raceDate: today,

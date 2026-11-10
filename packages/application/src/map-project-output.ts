@@ -12,6 +12,7 @@ import { mapStorageQuota, readMapContent, storeMapContent } from "./map-content"
 import { mapProjectBaseFileName, mapProjectCanArchive, mapProjectJournal, requireMapProject, type MapProjectRow } from "./map-project-access";
 import { mapFileFormatOf } from "./race-map-source";
 import type { DbExecutor } from "./snapshot";
+import { swedishToday } from "@o-tid/domain";
 
 /**
  * ADR-0219 beslut 5–6: "Skapa ny kartversion" och "Exportera ändringarna". Servern bygger ändringarna ur det som är sparat
@@ -148,7 +149,7 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
   const counts = changeCounts(changes);
   const report = written.report;
   const note = revisionNote(names, counts.total);
-  const date = now.toISOString().slice(0, 10);
+  const date = swedishToday(now);
   const fileName = revisedFileName(base.fileName, date, project.baseFormat).slice(0, 200);
   return db.transaction(async (tx): Promise<OutputResult> => {
     const access = await requireMapProject(tx, input, now, "manage", true);

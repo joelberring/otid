@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { partyEn } from "../../i18n/workspace-more-en";
 import { useTexts } from "../language-provider";
 import { partyStateResponseSchema, type PartyChangeRequest, type PartyStateResponse } from "@o-tid/contracts";
-import { formatPartyKronor, formatPartyTime, parseRaceClock, PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName, partyDisplayName, partyMemoryWarning, partyPurchasesCsv, partySummaryCsv,
-  type PartyLedger } from "@o-tid/domain";
+import { formatPartyKronor, formatPartyTime, parseRaceClock, PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName, partyDisplayName, partyMemoryWarning, partyPurchasesCsv, partySummaryCsv, type PartyLedger, zonedDate } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import local from "./party.module.css";
 import { partySv } from "../../i18n/party-sv";
@@ -122,7 +121,7 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
   const ledger: PartyLedger = { purchases: state.purchases, guests: state.guests, totalOre: state.totalOre, purchaseCount: state.purchaseCount };
   const names = new Map(state.guests.map(guest => [guest.cardNumber, guest.name]));
   const at = (value: string) => formatPartyTime(value, state.timeZone).slice(11, 16);
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = zonedDate(new Date(), state.timeZone);
   return <div className={styles.workflowGroup}>
     <Section id={`party-${raceId}`} title={text.title} help={text.help}
       actions={<a className={local.open} href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{text.openDesk}</a>}>

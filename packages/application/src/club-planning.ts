@@ -5,7 +5,7 @@ import {
   type ClubPlanResponse, type ClubPlanSessionView, type ClubTermView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { inTerm, isoWeekday, MAX_TERM_DAYS, repetitionDates } from "@o-tid/domain";
+import { inTerm, isoWeekday, MAX_TERM_DAYS, repetitionDates, swedishToday } from "@o-tid/domain";
 import { requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction as Transaction } from "./club-access";
 import { planPeople, removePlanTasks } from "./club-plan-tasks";
 import { UUID_PATTERN } from "./serialization";
@@ -22,7 +22,6 @@ const DAY_MS = 86_400_000;
 const MAX_TERM_SESSIONS = 400;
 
 type Input = ClubProof & { clubId: string };
-const today = (now: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(now);
 const termDays = (startsOn: string, endsOn: string) => (Date.parse(endsOn) - Date.parse(startsOn)) / DAY_MS;
 
 async function termViews(tx: Transaction, clubId: string): Promise<ClubTermView[]> {
@@ -35,7 +34,7 @@ async function termViews(tx: Transaction, clubId: string): Promise<ClubTermView[
 /** Terminen att visa: den valda, annars den som pågår, annars nästa, annars den senaste. */
 function chosenTerm(all: readonly ClubTermView[], termId: string | null, now: Date): ClubTermView | undefined {
   if (termId) return all.find(term => term.termId === termId);
-  const day = today(now);
+  const day = swedishToday(now);
   return all.find(term => inTerm(day, term)) ?? all.find(term => term.startsOn > day) ?? all[all.length - 1];
 }
 

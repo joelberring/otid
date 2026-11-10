@@ -8,6 +8,7 @@ import { defaultRaceOrganiser } from "./race-club-archive";
 import { activeEventAdministrationGrant } from "./race-session";
 import { UUID_PATTERN } from "./serialization";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
+import { swedishToday } from "@o-tid/domain";
 
 /**
  * ADR-0221 beslut 2–4: uppgifterna i terminsplaneringen, "Mina uppgifter" och "Skapa träningen". Den som har en uppgift
@@ -39,7 +40,6 @@ export async function planPeople(tx: Transaction, clubId: string): Promise<ClubP
   return [...people.values()].sort((a, b) => a.name.localeCompare(b.name, "sv"));
 }
 
-const today = (now: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(now);
 /** "Mina uppgifter" visar också de senaste två veckorna, så att man hinner bocka av. */
 const RECENT_DAYS = 14;
 
@@ -175,7 +175,7 @@ export async function listMyPlanTasks(db: Database, proof: ClubProof, now = new 
     if (auth.status !== "authenticated") return auth;
     const accountId = auth.principal.accountId;
     await claimTasks(tx, accountId, now);
-    const from = new Date(Date.parse(`${today(now)}T00:00:00Z`) - RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const from = new Date(Date.parse(`${swedishToday(now)}T00:00:00Z`) - RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
     const rows = await tx.select({ task: tasks, session: sessions, clubName: schema.clubs.name, mapName: schema.clubMaps.name,
       responsibleName: schema.userAccounts.displayName, raceExists: schema.races.id })
       .from(tasks).innerJoin(sessions, eq(sessions.id, tasks.sessionId)).innerJoin(schema.clubs, eq(schema.clubs.id, sessions.clubId))

@@ -32,6 +32,15 @@ export function zonedDate(instant: string | Date, timeZone: string): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(instant));
 }
 
+/** Svensk tid: tidszonen för appens "i dag" när något inte hör till en tävling med egen tidszon. */
+export const SWEDISH_TIME_ZONE = "Europe/Stockholm";
+
+/**
+ * Dagens datum (ÅÅÅÅ-MM-DD) i Sverige. Använd den här i stället för `now.toISOString().slice(0, 10)`: det är UTC-datumet och blir
+ * gårdagens mellan midnatt och 01:00 (02:00 på sommaren) svensk tid (översynen 2026-11-10, D1).
+ */
+export const swedishToday = (now: Date): string => zonedDate(now, SWEDISH_TIME_ZONE);
+
 /** Ett ögonblick som datum och klockslag, "5 okt. 18:02", i tidszonen; "–" för ett ogiltigt ögonblick. */
 export function formatDayMonthTime(instant: string | Date, timeZone: string): string {
   const date = new Date(instant);

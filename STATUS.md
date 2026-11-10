@@ -13,6 +13,18 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Ritlägets gränssnitt, R3b: markera flera med en ruta (steg K8)
+- Ett drag med musen på tom karta i Redigera ritar en ruta som markerar det den rör vid (`boxTest` i `map-revision/hit.ts`,
+  frågan `box` till Workern); en yta som bara omsluter rutan följer inte med, och inte låsta eller släckta lager. Skift+klick
+  lägger till eller tar bort ett objekt.
+- Markeringen (`use-map-project-multi.ts`): dra inne i rutan flyttar allt, dra strax utanför ett hörn vrider allt runt mitten
+  (markören blir en böjd pil och tipset säger det), Delete tar bort allt. Varje objekt blir en egen ändring med samma grupp,
+  och gruppen ångras och görs om i ett steg (`HistoryStep.group`).
+- Kartan flyttas med mellanslag nedtryckt och drag, två fingrar på styrplattan eller fingret i telefonen. Ett kort tryck på
+  mellanslag öppnar hjulet som förut. Tangenterna är utbrutna till `use-map-project-shortcuts.ts`.
+- Verifierat: enhetstester (rutan, vridningen), E2E `kartprojekt-rita` (nytt flöde: ruta, flytta, ångra, vrid, Skift+klick, ta bort,
+  mellanslag).
+
 ### 2026-11-10 – Ritlägets gränssnitt, R2a (steg K8)
 - Tangenterna under vänster hand (`lib/map-project-keys.ts`, läser tangentens plats): Q Redigera, W Rita, Skift+E Cirkel, A Lägg
   till punkt, S Ta bort punkt, Skift+A Gör mjuk, Skift+S Förenkla, C byt symbol, R kollad, Z/Skift+Z ångra och gör om. De gamla

@@ -57,5 +57,23 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
       ],
       "Also read [How to think in the drawing mode](#ritlaget-sa-tanker-du)."
     ]
+  },
+  {
+    id: "ritlaget-markera-flera",
+    title: "Select, move and rotate several objects",
+    views: ["MAP_EDITOR"],
+    body: [
+      "In ”Edit” you can select several objects at once and change them together, as in a drawing program.",
+      [
+        "Drag a box on empty map. Everything the box touches is selected. An area that only surrounds the box is not included.",
+        "Shift-click adds an object to the selection, or removes it from it.",
+        "Move: drag inside the selection's box. All objects follow.",
+        "Rotate: drag just outside a corner, where the cursor becomes a curved arrow. Everything turns around the centre of the box.",
+        "Delete removes everything selected. Undo takes back the whole move, rotation or removal in one step.",
+        "Move the map: hold space and drag, or drag with two fingers on the trackpad. A short press on space opens the wheel.",
+        "A click on a single object selects only that one. Then you change its points as usual."
+      ],
+      "Locked and hidden layers are not included in a box. Read [Turn off, fade and lock layers](#ritlaget-lager)."
+    ]
   }
 ];

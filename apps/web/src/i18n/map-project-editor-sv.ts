@@ -34,7 +34,7 @@ export const mapProjectEditorSv = {
     textNotSupported: "Texter går inte att rita här ännu."
   },
   hints: {
-    select: "Klicka på ett objekt. Dra en punkt för att flytta den, dra i en sträcka för att böja den. Dubbelklicka på en sträcka för en ny punkt, på en punkt för att ta bort den.",
+    select: "Klicka på ett objekt. Dra en punkt för att flytta den, dra i en sträcka för att böja den. Dubbelklicka på en sträcka för en ny punkt, på en punkt för att ta bort den. Dra en ruta på tom karta för att markera flera.",
     drawPoint: (code: string) => `Klicka där ${code} ska stå. Dra för att vrida.`,
     drawLine: (code: string) => `Ritar ${code}: klicka för hörn, tryck och dra för kurva. Dubbelklicka eller tryck Enter för att avsluta.`,
     drawArea: (code: string) => `Ritar ytan ${code}: klicka runt den. Dubbelklicka eller tryck Enter för att stänga den.`

@@ -205,5 +205,8 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   addPointHint: "Click a line or the edge of an area for a new point there.",
   removePointHint: "Click a point to remove it.",
   noPointHere: "No point to remove there.",
-  noSegmentHere: "No line or edge there."
+  noSegmentHere: "No line or edge there.",
+  multiSelected: (n: number) => `${n} objects selected. Drag them to move all, drag just outside a corner to rotate. Shift-click adds or removes.`,
+  multiRotate: "Drag to rotate the selection around its centre.",
+  multiRemove: (n: number) => `Remove ${n} objects`
 };

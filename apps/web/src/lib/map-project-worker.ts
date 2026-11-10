@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { drawMap, MapFileError, northLineDegrees, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
-  baseKeys, checkNorm, coverageGrid, editedObjects, fitToMap, generalize, mapFitPoints, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
+  baseKeys, checkNorm, coverageGrid, editedObjects, fitToMap, generalize, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -163,14 +163,17 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   }
   if (request.type === "states") { rebuild(new Map(request.states)); return; }
   if (request.type === "render") { queued = request; drain(); return; }
-  if (request.type === "hit") {
+  if (request.type === "hit" || request.type === "box") {
     const hits: ProjectHit[] = [];
     if (current) {
       const hidden = new Set(request.hidden);
       const symbols = hidden.size === 0 ? current.map.symbols
         : new Map([...current.map.symbols].map(([id, symbol]) => [id, hidden.has(id) ? { ...symbol, hidden: true } : symbol]));
       const objects = current.map.objects;
-      for (const candidate of hitTest({ objects, keys: current.keys, boxes: current.boxes, symbols }, request.point, request.tolerance)) {
+      const input = { objects, keys: current.keys, boxes: current.boxes, symbols };
+      const found = request.type === "hit" ? hitTest(input, request.point, request.tolerance)
+        : boxTest(input, request.box).map(key => ({ key, distance: 0 }));
+      for (const candidate of found) {
         const index = current.keys.indexOf(candidate.key);
         const object = objects[index];
         if (!object) continue;
@@ -180,7 +183,7 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
         hits.push({ key: candidate.key, ref: refs.get(candidate.key) ?? null, object: plain, distance: candidate.distance });
       }
     }
-    post({ type: "hit", id: request.id, hits });
+    post({ type: request.type, id: request.id, hits });
     return;
   }
   if (request.type === "recon") {

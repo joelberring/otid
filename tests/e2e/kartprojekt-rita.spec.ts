@@ -314,6 +314,98 @@ test("kartprojekt: tangenter under vänster hand, lägg till och ta bort punkter
 });
 
 /**
+ * Ägaren 2026-11-10 (steg K8, R3b): markera flera objekt med en ruta, som i Illustrator. En ruta dragen på tom karta markerar det
+ * den rör vid; ett drag inne i markeringen flyttar allt, ett drag strax utanför ett hörn vrider allt, och flytten ångras i ett steg.
+ */
+test("kartprojekt: markera flera objekt med en ruta, flytta, vrid och ta bort dem tillsammans", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `ruta.${unique()}@exempel.se`, "Rut Ruta");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Ruta", "x-otid-file-name": "Ruta.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  // De egna linjernas första punkt, den nedre linjen först.
+  const starts = async () => (await serverObjects(owner, projectId, baseURL!))
+    .flatMap(object => object.key.startsWith("n:") && object.state.kind === "OBJECT" && object.state.object?.kind === "line" ? [object.state.object.path[0]!] : [])
+    .sort((a, b) => a.y - b.y);
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    const a = await screenOf(owner, from), b = await screenOf(owner, to);
+    await owner.mouse.move(a.x, a.y);
+    await owner.mouse.down();
+    await owner.mouse.move(b.x, b.y, { steps: 8 });
+    await owner.mouse.up();
+    await owner.waitForTimeout(300);
+  };
+
+  // Två stigar ovanför kartans objekt.
+  await owner.getByTestId("map-project-symbols").locator("[data-code='505.0']").click();
+  for (const y of [85, 90]) {
+    for (const x of [20, 80]) { const at = await screenOf(owner, { x, y }); await owner.mouse.click(at.x, at.y); await owner.waitForTimeout(400); }
+    await owner.keyboard.press("Enter");
+    await settled(owner);
+  }
+  expect((await starts()).map(point => [Math.round(point.x), Math.round(point.y)])).toEqual([[20, 85], [20, 90]]);
+
+  // Redigera: en ruta dragen över båda markerar dem.
+  await owner.keyboard.press("q");
+  await owner.keyboard.press("Escape");
+  await drag({ x: 12, y: 82 }, { x: 88, y: 93 });
+  // Rutan tar också det i kartfilen som går genom den, så antalet läses ur tipset.
+  await expect(owner.getByTestId("map-project-hint")).toContainText(/^[2-9] objekt markerade/);
+  const count = Number((await owner.getByTestId("map-project-hint").textContent())!.split(" ")[0]);
+  if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-markera-flera.png` });
+  await expect(owner.getByTestId("map-project-multi-remove")).toHaveText(`Ta bort ${count} objekt`);
+
+  // Ett drag inne i markeringen flyttar båda 5 mm åt höger, och det är ett steg att ångra.
+  await drag({ x: 50, y: 87.5 }, { x: 55, y: 87.5 });
+  await settled(owner);
+  expect((await starts()).map(point => [Math.round(point.x), Math.round(point.y)])).toEqual([[25, 85], [25, 90]]);
+  await owner.keyboard.press("z");
+  await settled(owner);
+  expect((await starts()).map(point => [Math.round(point.x), Math.round(point.y)])).toEqual([[20, 85], [20, 90]]);
+  await owner.keyboard.press("Shift+z");
+  await settled(owner);
+  expect((await starts()).map(point => Math.round(point.x))).toEqual([25, 25]);
+
+  // Strax utanför ett hörn vrider man: markeringen vrids moturs runt sin mitt.
+  await drag({ x: 87.5, y: 92.5 }, { x: 85, y: 97.5 });
+  await settled(owner);
+  const turned = await starts();
+  // Den nedre linjens början (25; 85) ligger till vänster om mitten och går därför nedåt när allt vrids moturs.
+  expect(turned[0]!.y).toBeLessThan(84);
+
+  // Skift+klick tar ett objekt ur markeringen; Delete tar bort det som är kvar, och Ångra hämtar det.
+  await owner.keyboard.press("z");
+  await settled(owner);
+  const upper = await screenOf(owner, { x: 55, y: 90 });
+  await owner.keyboard.down("Shift");
+  await owner.mouse.click(upper.x, upper.y);
+  await owner.keyboard.up("Shift");
+  await expect(owner.getByTestId("map-project-hint")).toContainText(`${count - 1} objekt markerade`);
+  await owner.keyboard.press("Delete");
+  await settled(owner);
+  expect((await starts()).map(point => Math.round(point.y))).toEqual([90]);
+  await owner.keyboard.press("z");
+  await settled(owner);
+  expect(await starts()).toHaveLength(2);
+
+  // Mellanslag nedtryckt: draget flyttar kartan i stället för att rita en ruta.
+  const before = await screenOf(owner, { x: 50, y: 50 });
+  await owner.keyboard.down("Space");
+  await drag({ x: 50, y: 60 }, { x: 60, y: 60 });
+  await owner.keyboard.up("Space");
+  const after = await screenOf(owner, { x: 50, y: 50 });
+  expect(after.x - before.x).toBeGreaterThan(20);
+  await expect(owner.getByTestId("map-project-wheel")).toHaveCount(0);
+});
+
+/**
  * ADR-0219 (K1): samarbetet i editorn. Ägaren ritar ett delområde med verktyget Delområde; en medlem med rollen Föreslå tar bort
  * stenen, vilket blir ett förslag (kartan på servern är oförändrad); ägaren ser förslaget, visar det och godkänner det, och byter
  * sedan arbetssätt till Huvudkartritare.

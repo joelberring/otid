@@ -30,6 +30,8 @@ export interface ObjectChange {
   readonly kind: EditKind;
   /** Var ändringen gjordes (en borttagning av grundfilens objekt), för delområdena. */
   readonly point?: Point | undefined;
+  /** Flera objekt ändrade på en gång (markerade med en ruta): stegen med samma grupp ångras tillsammans. */
+  readonly group?: string | undefined;
 }
 
 /**
@@ -185,7 +187,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const added = addEdit(current.state, { editId: crypto.randomUUID(), key: change.key, ref: change.ref, state: change.after, kind: change.kind,
       at: new Date().toISOString(), ...(change.point ? { point: change.point } : {}) });
     if (!added) { setNotice("conflictFirst"); return false; }
-    const nextHistory = recordStep(historyRef.current, { key: change.key, ref: change.ref, before, after: change.after });
+    const nextHistory = recordStep(historyRef.current, { key: change.key, ref: change.ref, before, after: change.after, ...(change.group ? { group: change.group } : {}) });
     historyRef.current = nextHistory;
     setHistory(nextHistory);
     store({ ...current, state: added.state });
@@ -197,12 +199,20 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const current = clientRef.current;
     if (!current || !canEdit) return;
     const run = direction === "undo" ? undoStep : redoStep;
-    const outcome = run(current.state, historyRef.current, crypto.randomUUID(), new Date().toISOString());
-    if (outcome.kind === "empty") return;
-    historyRef.current = outcome.history;
-    setHistory(outcome.history);
-    if (outcome.kind === "changed") { setNotice("changedByOther"); return; }
-    store({ ...current, state: outcome.state });
+    const top = (history: RevisionHistory) => (direction === "undo" ? history.undo : history.redo).at(-1);
+    // Steg i samma grupp (flera objekt flyttade på en gång) tas tillsammans.
+    const group = top(historyRef.current)?.group;
+    let state = current.state, changed = false, any = false;
+    do {
+      const outcome = run(state, historyRef.current, crypto.randomUUID(), new Date().toISOString());
+      if (outcome.kind === "empty") break;
+      historyRef.current = outcome.history;
+      if (outcome.kind === "changed") changed = true; else { state = outcome.state; any = true; }
+    } while (group && top(historyRef.current)?.group === group);
+    setHistory(historyRef.current);
+    if (changed) setNotice("changedByOther");
+    if (!any) return;
+    store({ ...current, state });
     scheduleSend();
   }, [canEdit, store, scheduleSend]);
 

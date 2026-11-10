@@ -23,5 +23,8 @@ export const mapProjectKeysSv = {
   addPointHint: "Klicka på en linje eller en ytas kant för en ny punkt där.",
   removePointHint: "Klicka på en punkt för att ta bort den.",
   noPointHere: "Ingen punkt att ta bort där.",
-  noSegmentHere: "Ingen linje eller kant där."
+  noSegmentHere: "Ingen linje eller kant där.",
+  multiSelected: (count: number) => `${count} objekt markerade. Dra i dem för att flytta alla, dra strax utanför ett hörn för att vrida. Skift+klick lägger till eller tar bort.`,
+  multiRotate: "Dra för att vrida det markerade runt mitten.",
+  multiRemove: (count: number) => `Ta bort ${count} objekt`
 };

@@ -206,7 +206,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
     textNotSupported: "Texts cannot be drawn here yet."
   },
   hints: {
-    select: "Click an object. Drag a point to move it, drag a segment to bend it. Double-click a segment for a new point, a point to remove it.",
+    select: "Click an object. Drag a point to move it, drag a segment to bend it. Double-click a segment for a new point, a point to remove it. Drag a box on empty map to select several.",
     drawPoint: (code: string) => `Click where ${code} should be. Drag to rotate.`,
     drawLine: (code: string) => `Drawing ${code}: click for corners, press and drag for a curve. Double-click or press Enter to finish.`,
     drawArea: (code: string) => `Drawing the area ${code}: click around it. Double-click or press Enter to close it.`

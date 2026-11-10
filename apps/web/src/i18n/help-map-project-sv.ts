@@ -57,5 +57,23 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
       ],
       "Läs också [Så tänker du i ritläget](#ritlaget-sa-tanker-du)."
     ]
+  },
+  {
+    id: "ritlaget-markera-flera",
+    title: "Markera, flytta och vrida flera objekt",
+    views: ["MAP_EDITOR"],
+    body: [
+      "I ”Redigera” kan du markera flera objekt på en gång och ändra dem tillsammans, som i ett ritprogram.",
+      [
+        "Dra en ruta på tom karta. Allt som rutan rör vid markeras. En yta som bara omsluter rutan följer inte med.",
+        "Skift+klick lägger till ett objekt i markeringen, eller tar bort det ur den.",
+        "Flytta: dra inne i markeringens ruta. Alla objekt följer med.",
+        "Vrid: dra strax utanför ett hörn, där markören blir en böjd pil. Allt vrids runt rutans mitt.",
+        "Delete tar bort allt markerat. Ångra tar tillbaka hela flytten, vridningen eller borttagningen i ett steg.",
+        "Flytta kartan: håll mellanslag nere och dra, eller dra med två fingrar på styrplattan. Ett kort tryck på mellanslag öppnar hjulet.",
+        "Ett klick på ett enda objekt markerar bara det. Då ändrar du dess punkter som vanligt."
+      ],
+      "Låsta och släckta lager följer inte med i en ruta. Läs [Släcka, tona och låsa lager](#ritlaget-lager)."
+    ]
   }
 ];

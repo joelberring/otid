@@ -43,6 +43,8 @@ export type MapProjectRequest =
   /** Projektets objekt som inte är som i grundfilen (hela listan varje gång). */
   | { readonly type: "states"; readonly states: readonly (readonly [ObjectKey, KeyedState])[] }
   | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
+  /** Ägaren 2026-11-10: objekten som en dragen ruta rör vid (kartans mm). */
+  | { readonly type: "box"; readonly id: number; readonly box: { minX: number; minY: number; maxX: number; maxY: number }; readonly hidden: readonly string[] }
   | { readonly type: "catalog"; readonly id: number }
   /** K3: rekningens status för alla objekt och täckningen ur spåren (kartans mm) och de giltiga bekräftelserna. */
   | { readonly type: "recon"; readonly id: number; readonly tracks: readonly (readonly TrackPoint[])[]; readonly checked: readonly ObjectKey[];
@@ -65,6 +67,7 @@ export type MapProjectResponse =
       readonly northLines?: number | undefined }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
   | { readonly type: "hit"; readonly id: number; readonly hits: readonly ProjectHit[] }
+  | { readonly type: "box"; readonly id: number; readonly hits: readonly ProjectHit[] }
   | { readonly type: "catalog"; readonly id: number; readonly symbols: readonly CatalogSymbol[] }
   | { readonly type: "recon"; readonly id: number; readonly result: ReconResult }
   | { readonly type: "norm"; readonly id: number; readonly result: NormResult }
@@ -87,6 +90,8 @@ export class MapProjectSession {
   private onRendered: ((id: number, bitmap: ImageBitmap) => void) | undefined;
   private latestHit = 0;
   private onHit: ((hits: readonly ProjectHit[]) => void) | undefined;
+  private latestBox = 0;
+  private onBox: ((hits: readonly ProjectHit[]) => void) | undefined;
   private latestCatalog = 0;
   private onCatalog: ((symbols: readonly CatalogSymbol[]) => void) | undefined;
   private latestRecon = 0;
@@ -110,6 +115,7 @@ export class MapProjectSession {
       if (message.type === "loaded") onLoaded(message);
       else if (message.type === "error") onError(message.code);
       else if (message.type === "hit") { if (message.id === this.latestHit) this.onHit?.(message.hits); }
+      else if (message.type === "box") { if (message.id === this.latestBox) this.onBox?.(message.hits); }
       else if (message.type === "catalog") { if (message.id === this.latestCatalog) this.onCatalog?.(message.symbols); }
       else if (message.type === "recon") { if (message.id === this.latestRecon) this.onRecon?.(message.result); }
       else if (message.type === "norm") { if (message.id === this.latestNorm) this.onNorm?.(message.result); }
@@ -140,6 +146,13 @@ export class MapProjectSession {
     const id = ++this.latestHit;
     this.onHit = onHit;
     this.post({ type: "hit", id, point, tolerance, hidden });
+  }
+
+  /** Objekten som rutan rör vid (dolda symboler räknas inte). */
+  box(box: { minX: number; minY: number; maxX: number; maxY: number }, hidden: readonly string[], onBox: (hits: readonly ProjectHit[]) => void) {
+    const id = ++this.latestBox;
+    this.onBox = onBox;
+    this.post({ type: "box", id, box, hidden });
   }
 
   catalog(onCatalog: (symbols: readonly CatalogSymbol[]) => void) {

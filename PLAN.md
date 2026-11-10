@@ -1300,9 +1300,10 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   tryck–dra–släpp.
 - [ ] R3 En lagerlogik: öga och lås som ikoner per symbol och grupp, flera rader på en gång, siffrorna 1–6 för normens grupper
   (ägaren 2026-11-10: lagren utgår från standarden; de senaste symbolerna nås då i panelen, hjulet och med mellanslag), sparade vyer.
-- [ ] R3b Markera flera objekt med en ruta (ägaren 2026-11-10, som i Illustrator) och med Skift+klick; flytta, vrid, ta bort,
-  byt symbol och markera kollad för alla markerade, i hjulet och i raden under kartan. Ägaren avgör om rutan dras direkt på tom
-  karta (kartan flyttas då med mellanslag+dra, mittknappen eller två fingrar) eller med Skift+dra.
+- [x] R3b Markera flera objekt med en ruta dragen direkt på tom karta (ägaren 2026-11-10, som i Illustrator) och med Skift+klick;
+  dra inne i markeringen flyttar allt, dra strax utanför ett hörn vrider allt (markören visar det), Delete tar bort allt, och
+  varje sådan ändring ångras i ett steg. Kartan flyttas med mellanslag+dra eller två fingrar.
+- [ ] R3c För flera markerade: byt symbol och markera kollad; skala; vrid med fasta steg (Skift).
 - [ ] R4 Verktyg i ordning: koppla ihop och klipp isär, byt symbol på alla av samma sort och pipett, rektangel och räta
   vinklar, fyll, duplicera och parallell kopia, följ kant.
 - [ ] R5 Nya symboler (duplicera, hämta ur en annan kartfil) och resten av verktygen efter vad piloten behöver.

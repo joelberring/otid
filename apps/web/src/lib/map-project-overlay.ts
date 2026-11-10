@@ -246,3 +246,38 @@ export function drawControlPoints(ctx: Context, view: Viewport, markers: readonl
   });
   ctx.restore();
 }
+
+/**
+ * Ägaren 2026-11-10: flera markerade objekt. Varje objekt får en tunn kontur, och runt allt ligger markeringens ruta med ett
+ * handtag i varje hörn och en liten båge utanför (där man drar för att vrida).
+ */
+export function drawMultiSelection(ctx: Context, view: Viewport, objects: readonly MapObject[], box: { minX: number; minY: number; maxX: number; maxY: number }) {
+  ctx.save();
+  ctx.strokeStyle = SELECT; ctx.lineWidth = 1.5;
+  for (const object of objects) {
+    if (object.kind === "point" || object.kind === "text") {
+      const at = toScreen(view, object.at);
+      ctx.beginPath(); ctx.arc(at.x, at.y, Math.max(7, 0.9 * view.pxPerMm), 0, Math.PI * 2); ctx.stroke();
+    } else { traceObject(ctx, view, object); ctx.stroke(); }
+  }
+  const a = toScreen(view, { x: box.minX, y: box.maxY }), b = toScreen(view, { x: box.maxX, y: box.minY });
+  const left = a.x - 4, top = a.y - 4, right = b.x + 4, bottom = b.y + 4;
+  ctx.setLineDash([5, 4]); ctx.lineWidth = 1; ctx.strokeRect(left, top, right - left, bottom - top); ctx.setLineDash([]);
+  for (const [x, y, sx, sy] of [[left, top, -1, -1], [right, top, 1, -1], [right, bottom, 1, 1], [left, bottom, -1, 1]] as const) {
+    ctx.fillStyle = "#fff"; ctx.lineWidth = 1.5;
+    ctx.fillRect(x - 4, y - 4, 8, 8); ctx.strokeRect(x - 4, y - 4, 8, 8);
+    // Bågen utanför hörnet: här vrider man.
+    const start = Math.atan2(sy, sx) - 0.6;
+    ctx.beginPath(); ctx.arc(x, y, 13, start, start + 1.2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Rutan som dras för att markera. */
+export function drawMarquee(ctx: Context, view: Viewport, box: { minX: number; minY: number; maxX: number; maxY: number }) {
+  const a = toScreen(view, { x: box.minX, y: box.maxY }), b = toScreen(view, { x: box.maxX, y: box.minY });
+  ctx.save();
+  ctx.fillStyle = "rgb(26 95 208 / 10%)"; ctx.strokeStyle = SELECT; ctx.lineWidth = 1;
+  ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y); ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  ctx.restore();
+}

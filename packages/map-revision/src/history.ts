@@ -13,6 +13,8 @@ export interface HistoryStep {
   readonly ref: ObjectRef | null;
   readonly before: ObjectState;
   readonly after: ObjectState;
+  /** Steg med samma grupp hör ihop (flera markerade objekt flyttade på en gång) och ångras och görs om tillsammans. */
+  readonly group?: string | undefined;
 }
 
 export interface RevisionHistory {

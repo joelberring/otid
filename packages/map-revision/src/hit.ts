@@ -101,3 +101,42 @@ export function hitTest(input: { objects: readonly MapObject[]; keys: readonly O
   return found.map((hit, order) => ({ hit, order })).sort((a, b) => a.hit.tier - b.hit.tier || a.hit.distance - b.hit.distance || b.order - a.order)
     .slice(0, limit).map(row => row.hit);
 }
+
+/** Skär sträckan a–b rutan? (Liang–Barsky: sträckan klipps mot rutans fyra sidor.) */
+function segmentTouchesBox(a: Point, b: Point, box: Box): boolean {
+  let t0 = 0, t1 = 1;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  for (const [p, q] of [[-dx, a.x - box.minX], [dx, box.maxX - a.x], [-dy, a.y - box.minY], [dy, box.maxY - a.y]] as const) {
+    if (p === 0) { if (q < 0) return false; continue; }
+    const t = q / p;
+    if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
+    else { if (t < t0) return false; if (t < t1) t1 = t; }
+  }
+  return true;
+}
+
+/**
+ * Ägaren 2026-11-10 (markera med en ruta, som i Illustrator): objekten som rutan rör vid. En punkt eller text räknas när den står
+ * i rutan, en linje eller en ytas kant när någon del av den går genom rutan. En yta som bara omsluter rutan (skogen runt det
+ * man markerar) räknas inte: annars följde bakgrunden med i varje markering. Dolda symboler räknas inte.
+ */
+export function boxTest(input: { objects: readonly MapObject[]; keys: readonly ObjectKey[]; boxes?: readonly Box[] | undefined;
+  symbols: ReadonlyMap<string, MapSymbol> }, box: Box, limit = 2000): ObjectKey[] {
+  const found: ObjectKey[] = [];
+  for (let index = 0; index < input.objects.length && found.length < limit; index += 1) {
+    const object = input.objects[index]!;
+    const own = input.boxes?.[index] ?? objectBox(object);
+    if (own.maxX < box.minX || own.minX > box.maxX || own.maxY < box.minY || own.minY > box.maxY) continue;
+    const symbol = input.symbols.get(object.symbol);
+    if (!symbol || symbol.hidden) continue;
+    if (object.kind === "point" || object.kind === "text") { found.push(input.keys[index]!); continue; }
+    const closed = object.kind === "area";
+    const lines = (object.kind === "line" ? [object.path] : object.rings).flatMap(path => flattenPath(path));
+    const touches = lines.some(line => line.some((point, at) => {
+      const next = line[at + 1] ?? (closed ? line[0] : undefined);
+      return next ? segmentTouchesBox(point, next, box) : line.length === 1 && segmentTouchesBox(point, point, box);
+    }));
+    if (touches) found.push(input.keys[index]!);
+  }
+  return found;
+}

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectOutputRequestSchema, type MapProjectOutputResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapRevision, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
+import { applyMapColors, applyMapRevision, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
 import {
   changeCounts, changeList, changesGeoJson, mapperChangesFile, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
   type ObjectKey
@@ -98,11 +98,13 @@ async function prepare(tx: DbExecutor, access: { accountId: string; project: Map
   if (prior) return prior.projectId === project.id ? { status: "replayed", response: await outputResponse(tx, prior) } : { status: "conflict" };
   // Inget har ändrats sedan förra versionen: samma version igen i stället för en dubblett (om den inte ska läggas i arkivet nu).
   const [latest] = await tx.select().from(outputs).where(eq(outputs.projectId, project.id)).orderBy(desc(outputs.createdAt)).limit(1);
-  if (latest && latest.seq === project.seq && (!archive || latest.versionId)) {
+  const recolored = !!project.colorsChangedAt && (!latest || project.colorsChangedAt > latest.createdAt);
+  if (latest && latest.seq === project.seq && !recolored && (!archive || latest.versionId)) {
     return { status: "ok", replayed: true, response: await outputResponse(tx, latest) };
   }
   const { changes, authors } = await savedChanges(tx, project);
-  if (changes.length === 0) return { status: "ok", replayed: false, response: { formatVersion: 1, status: "empty" } };
+  // Bara ändrade färger räcker för en ny version.
+  if (changes.length === 0 && !project.colors?.length) return { status: "ok", replayed: false, response: { formatVersion: 1, status: "empty" } };
   const file = await baseFile(tx, project);
   if (!file) return { status: "not-found" };
   const names = authors.length ? (await tx.select({ name: schema.userAccounts.displayName }).from(schema.userAccounts)
@@ -142,8 +144,12 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
     return { status: "ok", replayed: false, response: { formatVersion: 1, status: "refused",
       refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) } };
   }
-  if (written.bytes.byteLength === 0 || written.bytes.byteLength > CLUB_ARCHIVE_MAP_MAX_BYTES ||
-    mapFileFormatOf(written.bytes.subarray(0, 4096)) !== project.baseFormat) {
+  // Färgtabellens ändringar (ägaren 2026-11-10) skrivs som ett eget kontrollerat steg efter objekten.
+  const colored = applyMapColors(written.bytes, project.colors ?? []);
+  if (!colored.ok) return refused("VERIFY_FAILED", colored.message);
+  const outputBytes = colored.bytes;
+  if (outputBytes.byteLength === 0 || outputBytes.byteLength > CLUB_ARCHIVE_MAP_MAX_BYTES ||
+    mapFileFormatOf(outputBytes.subarray(0, 4096)) !== project.baseFormat) {
     return refused("VERIFY_FAILED", "Den skrivna filen är inte en kartfil i samma format som grundfilen.");
   }
   const counts = changeCounts(changes);
@@ -157,12 +163,12 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
     if (archive && !await mapProjectCanArchive(tx, access.accountId, access.project)) return { status: "forbidden" };
     // Någon hann ändra medan filen skrevs: inget sparas (försök igen så kommer ändringen med).
     if (access.project.seq !== project.seq) return { status: "conflict" };
-    const stored = await storeMapContent(tx, written.bytes, access.accountId, now, mapStorageQuota());
+    const stored = await storeMapContent(tx, outputBytes, access.accountId, now, mapStorageQuota());
     if (stored.status === "quota") return refused("QUOTA", "Kvoten för kartfiler är full.");
     const versionId = archive && project.clubId && base.mapId ? randomUUID() : null;
     if (versionId && project.clubId && base.mapId) {
       await tx.insert(schema.clubMapVersions).values({ id: versionId, clubId: project.clubId, mapId: base.mapId, contentSha256: stored.sha256, fileName,
-        format: project.baseFormat, byteLength: written.bytes.byteLength, versionDate: date, note, uploadedBy: access.accountId, uploadedAt: now,
+        format: project.baseFormat, byteLength: outputBytes.byteLength, versionDate: date, note, uploadedBy: access.accountId, uploadedAt: now,
         sourcePath: null });
     }
     const outputId = randomUUID();
@@ -171,7 +177,7 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
       requestId: parsed.success ? parsed.data.requestId : randomUUID() });
     await mapProjectJournal(tx, project, { action: "MAP_PROJECT_VERSION_CREATED", actorAccountId: access.accountId,
       details: { projectId: project.id, baseVersionId: project.baseVersionId, outputId, versionId, changes: counts.total, edits: report.edits.length,
-        identicalBytes: report.verification.identicalBytes }, now });
+        identicalBytes: report.verification.identicalBytes, colors: colored.changed }, now });
     return { status: "ok", replayed: false, response: { formatVersion: 1, status: "created", outputId, versionId, fileName, changes: counts.total,
       added: report.added, modified: report.modified, deleted: report.deleted } };
   });

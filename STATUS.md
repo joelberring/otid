@@ -13,6 +13,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Kartans färgtabell i ritläget (F1)
+- Ägaren: "ställa in färger i kartan … färgtabell". «Kartans färger» under Lager visar filens färgtabell i ritordning; CMYK
+  ändras i procent och kartan (och symbolrutorna) ritas om direkt. Ägarna sparar; ändringarna ligger i projektet
+  (`map_project.colors` och `colors_changed_at`, migrering 0112, bara tillägg) och grundfilen ändras aldrig.
+- Ny kartversion: färgerna skrivs i Mapper-filen som ett eget steg efter objekten (`applyMapColors`: bara `<color>`-raderna
+  byts, filen läses om och allt annat ska vara som förut). Bara ändrade färger räcker för en ny version.
+- Verifierat: enhetstest på en riktig Mapper-fil, integrationstest (rättigheter, vy, ny version, återställning), E2E.
+- Inte byggt: OCAD-filer (vägras med besked), färgerna i serverns egna bilder och jobb, färdiga uppsättningar och ordning.
+
 ### 2026-11-10 – Verktygsspalten: förklaringar, en symbol per kommando, slå ihop linjer, byt symbol på flera (steg K8)
 - Ägaren: "en förklaring till symbolerna när man drog med musen över", "en symbol för alla snabbkommandon", "hur man slår ihop
   linjer, hur man byter egenskaper på flera". Spalten byggs nu ur en beskrivning (`map-project-rail-tools.ts`); förklaringen

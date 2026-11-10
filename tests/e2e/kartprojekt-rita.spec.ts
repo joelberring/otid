@@ -509,6 +509,60 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
 });
 
 /**
+ * Ägaren 2026-11-10 («ställa in färger i kartan … färgtabell»): kartans färgtabell under Lager. En färgs CMYK ändras, kartan
+ * ritas om, ändringen sparas i projektet och finns kvar efter omladdning; Återställ ger filens färger igen.
+ */
+test("kartprojekt: kartans färgtabell, ändra en färg, spara och återställ", async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const owner = await registerAccount(browser, `farg.${unique()}@exempel.se`, "Frida Färg");
+  await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
+  const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
+    "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Färger", "x-otid-file-name": "Farger.omap" },
+    data: Buffer.from(mapBytes) });
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json() as { projectId: string }).projectId;
+  await owner.setViewportSize({ width: 1280, height: 900 });
+  await owner.goto(`/organizer/map-projects/${projectId}/map`);
+  const map = owner.getByTestId("course-setting-map");
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  const saved = async () => (await (await owner.request.get(`/api/organizer/map-projects/${projectId}`)).json() as { colors: { id: number; cmyk: { c: number } }[] }).colors;
+
+  await owner.getByTestId("map-project-tab-layers").click();
+  await expect(owner.getByTestId("map-project-colors-summary")).toHaveText("Filens egna färger");
+  await owner.getByTestId("map-project-colors-open").click();
+  const dialog = owner.getByTestId("map-project-colors");
+  const row = dialog.getByTestId("map-project-color").first();
+  const name = (await row.locator("th").textContent())!.trim();
+  const cyan = row.getByLabel(`${name}, C i procent`);
+  const before = await cyan.inputValue();
+  await expect(dialog.getByTestId("map-project-colors-save")).toBeDisabled();
+  await cyan.fill(before === "12,5" ? "40" : "12,5");
+  await expect(row.getByTestId("map-project-color-new")).toBeVisible();
+  await expect(row).toContainText("Ändrad");
+  if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-farger.png` });
+  await dialog.getByTestId("map-project-colors-save").click();
+  await expect(dialog.getByTestId("map-project-colors-message")).toHaveText("1 färg är ändrad.");
+  expect((await saved()).map(change => change.cmyk.c)).toEqual([before === "12,5" ? 0.4 : 0.125]);
+  await dialog.getByRole("button", { name: "Stäng" }).click();
+  await expect(owner.getByTestId("map-project-colors-summary")).toHaveText("1 ändrad färg");
+
+  // Kvar efter omladdning; ett ogiltigt värde ändrar ingenting; Återställ och Spara ger filens färger.
+  await owner.reload();
+  await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
+  await owner.getByTestId("map-project-tab-layers").click();
+  await expect(owner.getByTestId("map-project-colors-summary")).toHaveText("1 ändrad färg");
+  await owner.getByTestId("map-project-colors-open").click();
+  await expect(row.getByLabel(`${name}, C i procent`)).toHaveValue(before === "12,5" ? "40" : "12,5");
+  await row.getByLabel(`${name}, M i procent`).fill("250");
+  await expect(dialog.getByTestId("map-project-colors-save")).toBeDisabled();
+  await dialog.getByTestId("map-project-colors-reset").click();
+  await expect(row.getByLabel(`${name}, C i procent`)).toHaveValue(before);
+  await dialog.getByTestId("map-project-colors-save").click();
+  await expect(dialog.getByTestId("map-project-colors-message")).toHaveText("Kartan har filens egna färger.");
+  expect(await saved()).toEqual([]);
+});
+
+/**
  * ADR-0219 (K1): samarbetet i editorn. Ägaren ritar ett delområde med verktyget Delområde; en medlem med rollen Föreslå tar bort
  * stenen, vilket blir ett förslag (kartan på servern är oförändrad); ägaren ser förslaget, visar det och godkänner det, och byter
  * sedan arbetssätt till Huvudkartritare.

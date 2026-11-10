@@ -65,6 +65,16 @@ export const mapProjectNewRequestSchema = z.object({
   area: mapProjectAreaInputSchema
 }).strict().refine(value => (MAP_PROJECT_NEW_SCALES[value.symbolSet] as readonly number[]).includes(value.scale), { path: ["scale"] });
 
+/**
+ * Ägaren 2026-11-10: ändrade färger i kartans färgtabell. `id` är färgens id i grundfilen och `cmyk` den nya färgen (0–1).
+ * En färg som inte står med har filens egen färg.
+ */
+const share = z.number().finite().min(0).max(1);
+export const mapProjectColorsSchema = z.array(z.object({ id: z.number().int().min(-1000).max(100_000),
+  cmyk: z.object({ c: share, m: share, y: share, k: share }).strict() }).strict()).max(600)
+  .refine(rows => new Set(rows.map(row => row.id)).size === rows.length);
+export type MapProjectColorChange = z.infer<typeof mapProjectColorsSchema>[number];
+
 /** Byt namn, avsluta (`CLOSED`) eller öppna igen (`OPEN`), eller byt arbetssätt (`mode`, K1). */
 export const mapProjectUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: mapProjectNameSchema.optional(), status: z.enum(["OPEN", "CLOSED"]).optional(),
@@ -72,9 +82,11 @@ export const mapProjectUpdateRequestSchema = z.object({
   /** Rekningens inställningar (K3); null = förvalen. */
   recon: mapProjectReconSettingsSchema.nullable().optional(),
   /** Topplistan (K3b): null = av. */
-  leaderboard: mapProjectLeaderboardSchema.nullable().optional()
+  leaderboard: mapProjectLeaderboardSchema.nullable().optional(),
+  /** Färgtabellens ändringar; tom lista = filens egna färger. */
+  colors: mapProjectColorsSchema.optional()
 }).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined || value.recon !== undefined
-  || value.leaderboard !== undefined);
+  || value.leaderboard !== undefined || value.colors !== undefined);
 
 export const mapProjectInviteRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, email: accountEmailSchema, role: mapProjectRoleSchema
@@ -236,6 +248,8 @@ export interface MapProjectView extends MapProjectSummary {
   recon: MapProjectReconSettings | null;
   /** Topplistan (K3b): null = av, annars hur namnen visas. */
   leaderboard: "FIRST" | "FULL" | "NONE" | null;
+  /** Ändrade färger i kartans färgtabell (tom = filens egna). */
+  colors: MapProjectColorChange[];
   areas: MapProjectAreaView[];
   /** Antalet öppna förslag. */
   openProposals: number;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectSyncResponse, type MapProjectView } from "@o-tid/contracts";
-import type { MapColor, MapGeoreference, Point } from "@o-tid/map-file";
+import type { MapColor, MapColorChange, MapGeoreference, Point } from "@o-tid/map-file";
 import {
   acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, redoStep, resolveConflict, undoStep,
   type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionHistory, type ServerObject
@@ -45,6 +45,8 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   const [session, setSession] = useState<MapProjectSession>();
   const [bounds, setBounds] = useState<Bounds>();
   const [colors, setColors] = useState<readonly MapColor[]>([]);
+  // Projektets ändrade färger (ägaren 2026-11-10): de sparade, och det som visas just nu (en förhandsvisning medan man ändrar).
+  const [colorChanges, setColorChanges] = useState<readonly MapColorChange[]>(view.colors);
   const [georeference, setGeoreference] = useState<MapGeoreference | null>(null);
   const [northLines, setNorthLines] = useState<number>();
   /** Kartans skala (normen för lagren). */
@@ -72,7 +74,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const created = new MapProjectSession(createWorker, loaded => {
       if (closed) return;
       // En ny tom karta: kartvyn täcker området.
-      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
+      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); if (view.colors.length) created.colors(view.colors); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
       created.catalog(symbols => { if (!closed) setCatalog(symbols); });
     }, () => { if (!closed) setMapStatus("failed"); });
     void (async () => {
@@ -224,7 +226,24 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     scheduleSend();
   }, [store, scheduleSend]);
 
+  /** Rita kartan med de här färgändringarna (utan att spara dem). Symbolernas rutor i panelen ritas också om. */
+  const showColors = useCallback((changes: readonly MapColorChange[]) => {
+    if (!session) return;
+    session.colors(changes);
+    session.catalog(setCatalog);
+    setRenderKey(value => value + 1);
+  }, [session]);
+  /** Spara färgändringarna i projektet (ägarna); kartan ritas med dem. Falskt när servern säger nej. */
+  const saveColors = useCallback(async (changes: readonly MapColorChange[]): Promise<boolean> => {
+    const result = await clubRequest(base, "PUT", { formatVersion: 1, colors: changes }).catch(() => ({ status: 0 }));
+    if (result.status !== 200 && result.status !== 204) return false;
+    setColorChanges(changes);
+    showColors(changes);
+    return true;
+  }, [base, showColors]);
+
   return {
+    colorChanges, showColors, saveColors,
     session, bounds, colors, georeference, northLines, scale, mapStatus, catalog, renderKey, sync, notice, setNotice,
     state: client?.state, history, commit, undo: () => step("undo"), redo: () => step("redo"), resolve, syncNow,
     /** Objekten som dras (ritas inte av Workern medan förhandsvisningen syns ovanpå). */

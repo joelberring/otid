@@ -51,7 +51,10 @@ export const mapProjects = pgTable("map_project", {
   /** Rekningens inställningar (0094, `ReconSettings` i map-revision); null = förvalen. */
   recon: jsonb("recon").$type<unknown>(),
   /** Topplistan (0096): null = av, annars hur namnen visas. */
-  leaderboard: text("leaderboard").$type<"FIRST" | "FULL" | "NONE">()
+  leaderboard: text("leaderboard").$type<"FIRST" | "FULL" | "NONE">(),
+  /** Ändrade färger i kartans färgtabell (0112): färgens id i grundfilen och ny CMYK (0–1); null = filens egna. */
+  colors: jsonb("colors").$type<{ id: number; cmyk: { c: number; m: number; y: number; k: number } }[]>(),
+  colorsChangedAt: timestamp("colors_changed_at", { withTimezone: true })
 });
 
 export const mapProjectMembers = pgTable("map_project_member", {

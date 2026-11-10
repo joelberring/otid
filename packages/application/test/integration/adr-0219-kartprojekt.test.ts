@@ -297,6 +297,48 @@ describe("ADR-0219 kartprojekt", () => {
     expect(gone).toBeUndefined();
   });
 
+  it("färgtabellen: ägaren ändrar en färgs CMYK, den syns i projektet och skrivs i en ny kartversion utan andra ändringar", async () => {
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const other = await registerTestAccount(db, undefined, NOW);
+    const created = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Färger",
+      fileName: "Farger.omap" }, file: mapBytes }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    const projectId = created.projectId;
+    const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const color = parsed.colors[0]!;
+    const cmyk = { c: 0.1, m: 0.9, y: 0.2, k: 0.05 };
+    const write = (at: Date) => writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, at);
+    const colorsOf = async (outputId: string) => {
+      const output = await readMapProjectOutput(db, { ...owner.proof, projectId, outputId }, NOW);
+      if (output.status !== "ok") throw new Error(output.status);
+      return readMapFile(new Uint8Array((await readMapContent(db, output.sha256))!), output.fileName);
+    };
+    // Inget ändrat: ingen version.
+    expect(await write(later(1))).toMatchObject({ status: "ok", response: { status: "empty" } });
+    // Bara ägare ändrar färgerna; fel värden vägras.
+    await inviteMapProjectMember(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID(), email: other.email, role: "EDIT" } }, NOW);
+    expect((await updateMapProject(db, { ...other.proof, projectId, request: { formatVersion: 1, colors: [{ id: color.id, cmyk }] } }, later(2))).status).toBe("forbidden");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, colors: [{ id: color.id, cmyk: { ...cmyk, c: 1.5 } }] } }, later(2))).status)
+      .toBe("invalid-request");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, colors: [{ id: color.id, cmyk }] } }, later(2))).status).toBe("ok");
+    const view = await readMapProject(db, { ...other.proof, projectId }, later(2));
+    expect(view.status === "ok" && view.view.colors).toEqual([{ id: color.id, cmyk }]);
+    // En ny version med bara färgen ändrad; samma igen ger samma version.
+    const first = await write(later(3));
+    if (first.status !== "ok" || first.response.status !== "created") throw new Error("ingen version");
+    expect(first.response.changes).toBe(0);
+    const recolored = await colorsOf(first.response.outputId);
+    expect(recolored.colors.find(row => row.id === color.id)!.cmyk).toEqual(cmyk);
+    expect(recolored.colors.filter(row => row.id !== color.id)).toEqual(parsed.colors.filter(row => row.id !== color.id));
+    expect(recolored.objects).toHaveLength(parsed.objects.length);
+    expect(await write(later(4))).toMatchObject({ status: "ok", replayed: true, response: { outputId: first.response.outputId } });
+    // Tillbaka till filens färger: ingenting att skriva längre.
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, colors: [] } }, later(5))).status).toBe("ok");
+    const reset = await readMapProject(db, { ...owner.proof, projectId }, later(5));
+    expect(reset.status === "ok" && reset.view.colors).toEqual([]);
+    expect(await write(later(6))).toMatchObject({ status: "ok", response: { status: "empty" } });
+  });
+
   it("K7: en ny version av en OCAD-karta skrivs bara med flaggan OTID_OCAD_WRITE", async () => {
     const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
     const ocdSha = sha256Hex(ocd);

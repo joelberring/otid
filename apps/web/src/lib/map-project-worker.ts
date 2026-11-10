@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { drawMap, MapFileError, northLineDegrees, readMapFile, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
+import { drawMap, MapFileError, northLineDegrees, readMapFile, withColorChanges, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
   baseKeys, checkNorm, coverageGrid, editedObjects, fitToMap, generalize, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
@@ -25,8 +25,13 @@ let current: { map: ParsedMap; keys: readonly ObjectKey[]; boxes: Box[] } | unde
 let queued: Extract<MapProjectRequest, { type: "render" }> | undefined;
 let drawing = false;
 
+/** Filens egna färger (innan projektets ändrade färger lagts på) och de senaste lägena, för att bygga om när färgerna byts. */
+let fileColors: ParsedMap["colors"] = [];
+let lastStates: ReadonlyMap<ObjectKey, KeyedState> = new Map();
+
 function rebuild(states: ReadonlyMap<ObjectKey, KeyedState>) {
   if (!base) return;
+  lastStates = states;
   const edited = editedObjects(base, states, keys);
   current = { map: { ...base, objects: edited.objects }, keys: edited.keys, boxes: edited.objects.map(objectBox) };
 }
@@ -148,6 +153,7 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       else { console.error("Kartfilen kunde inte läsas", error); post({ type: "error", code: "FAILED" }); }
       return;
     }
+    fileColors = base.colors;
     sha256 = request.sha256;
     keys = baseKeys(base);
     refs.clear();
@@ -162,6 +168,8 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     return;
   }
   if (request.type === "states") { rebuild(new Map(request.states)); return; }
+  // Projektets ändrade färger (ägaren 2026-11-10): färgtabellen byts och kartan byggs om med samma objekt.
+  if (request.type === "colors") { if (base) { base = { ...base, colors: withColorChanges(fileColors, request.changes) }; rebuild(lastStates); } return; }
   if (request.type === "render") { queued = request; drain(); return; }
   if (request.type === "hit" || request.type === "box") {
     const hits: ProjectHit[] = [];

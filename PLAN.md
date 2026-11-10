@@ -1312,8 +1312,12 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
 - [ ] Verktygsspalten, resten efter jämförelsen med Mapper, OCAD och Illustrator (ägaren 2026-11-10): klipp isär (sax), vänd
   riktning (branter, stängsel), rektangel, duplicera, fyll yta och gör kant, parallell linje, pipett (ta symbolen från ett
   objekt), skala och vrid med tal, mät sträcka och yta, text.
-- [ ] Färger och färgprofil i kartan (ägaren 2026-11-10): se och ändra kartans färger (CMYK och ordning), och välja färgprofil
-  för skärm och tryck. Reds ut med ägaren först: gäller det kartfilens färgtabell, visningen på skärmen, PDF:en eller alla tre.
+- [ ] Kartans färgtabell (ägaren 2026-11-10: «ställa in färger/färgprofil i kartan», «japp färgtabell»):
+  - [x] F1 «Kartans färger» under Lager: färgtabellen i ritordning, CMYK i procent, kartan ritas om medan man ändrar; ägarna
+    sparar ändringarna i projektet (`map_project.colors`, 0112) och de skrivs i nästa kartversion (Mapper) som ett eget
+    kontrollerat steg (`applyMapColors`). Grundfilen ändras aldrig. Dekorfärger visas men ändras inte.
+  - [ ] F2 Färgerna också i OCAD-filer, i servern där kartan ritas (MCP-bilderna, jobben) och i banläggningen på en projektkarta.
+  - [ ] F3 Färdiga uppsättningar (normens färger, tryckeriets tabell) att välja, byta ordning och lägga till färger.
 - [ ] Grundkartan ur laser (ägaren 2026-11-10: «körningen ska göras inom kartområdet och resultatet ska bli ungefär som en
   halvfärdig karta»; planen i projektdokumentet `plan-grundkarta-ur-laser.md`, med Kungshatt som förebild):
   - [x] G1 Laserrutorna klipps till kartans område eller etappen med 50 m marginal innan Karttapullautin körs (`tools/lasclip`,

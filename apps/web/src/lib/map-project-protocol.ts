@@ -1,4 +1,4 @@
-import type { MapColor, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
+import type { MapColor, MapColorChange, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
 import type {
   Coverage, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
 } from "@o-tid/map-revision";
@@ -42,6 +42,7 @@ export type MapProjectRequest =
   | Extract<MapRenderRequest, { type: "render" }>
   /** Projektets objekt som inte är som i grundfilen (hela listan varje gång). */
   | { readonly type: "states"; readonly states: readonly (readonly [ObjectKey, KeyedState])[] }
+  | { readonly type: "colors"; readonly changes: readonly MapColorChange[] }
   | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
   /** Ägaren 2026-11-10: objekten som en dragen ruta rör vid (kartans mm). */
   | { readonly type: "box"; readonly id: number; readonly box: { minX: number; minY: number; maxX: number; maxY: number }; readonly hidden: readonly string[] }
@@ -141,6 +142,8 @@ export class MapProjectSession {
   }
 
   states(states: ReadonlyMap<ObjectKey, KeyedState>) { this.post({ type: "states", states: [...states] }); }
+  /** Projektets ändrade färger: kartan ritas med dem från nästa bild. */
+  colors(changes: readonly MapColorChange[]) { this.post({ type: "colors", changes }); }
 
   hit(point: Point, tolerance: number, hidden: readonly string[], onHit: (hits: readonly ProjectHit[]) => void) {
     const id = ++this.latestHit;

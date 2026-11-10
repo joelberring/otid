@@ -1,4 +1,5 @@
 import type { Texts } from "../lib/language";
+import type { mapProjectColorsSv } from "./map-project-colors-sv";
 import type { mapProjectKeysSv } from "./map-project-keys-sv";
 import type { mapProjectGeneralizeSv } from "./map-project-generalize-sv";
 import type { mapProjectImportSv } from "./map-project-import-sv";
@@ -232,4 +233,24 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   joined: (n: number) => `${n} lines became one.`,
   switched: (n: number, code: string) => n === 1 ? `1 object got the symbol ${code}.` : `${n} objects got the symbol ${code}.`,
   multiSwitch: (n: number, code: string) => `Change ${n} to ${code}`
+};
+
+export const mapProjectColorsEn: Texts<typeof mapProjectColorsSv> = {
+  open: "Map colours",
+  title: "Map colours",
+  help: "The colour table from the map file, in drawing order with the top one first. Change a colour's CMYK in per cent: the map is redrawn at once, and the colours are written in the next map version. The map file in the archive is not changed.",
+  readOnly: "Only the owners of the project can change the colours.",
+  color: "Colour", c: "C", m: "M", y: "Y", k: "K",
+  field: (name: string, part: string) => `${name}, ${part} in per cent`,
+  changed: "Changed",
+  spot: "Spot colour (changed in the mapping program)",
+  reset: (name: string) => `Restore ${name}`,
+  resetAll: "Restore the file's colours",
+  save: "Save",
+  cancel: "Cancel",
+  close: "Close",
+  saved: (n: number) => n === 0 ? "The map has the file's own colours." : n === 1 ? "1 colour is changed." : `${n} colours are changed.`,
+  failed: "The colours could not be saved. Try again.",
+  ocad: "The map is an OCAD file: the colours are shown here, but cannot be written in a new map version yet.",
+  summary: (n: number) => n === 0 ? "The file's own colours" : n === 1 ? "1 changed colour" : `${n} changed colours`
 };

@@ -60,6 +60,7 @@ import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
 import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
+import { MapProjectColors } from "./map-project-colors";
 import { railTools, wheelToolsOf } from "./map-project-rail-tools";
 import { MapProjectToolRail } from "./map-project-tool-rail";
 import { HelpButton } from "../help/help-panel";
@@ -776,6 +777,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
             layers={layers} control={control} importer={importer} symbols={symbols} work={work} />}
           {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} />}
+          <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
         </>}
         review={<>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}

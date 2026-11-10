@@ -63,6 +63,7 @@ import { drawLayers } from "../../lib/map-project-layers";
 import { useMapProjectPosition, type TimedFix } from "./use-map-project-position";
 import { useMapProjectRecon } from "./use-map-project-recon";
 import { saveMapProjectShell } from "../../lib/map-project-offline";
+import { MapProjectFolderIntake } from "./map-project-folder-intake";
 import { MapProjectSidebar } from "./map-project-sidebar";
 import { MapProjectSymbolStrip, SYMBOL_STRIP_KEY } from "./map-project-symbol-strip";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
@@ -730,6 +731,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
               <MapProjectLaserPanel view={view} layers={layers} importer={importer} georeference={georeference} bounds={editor.bounds ?? undefined}
                 areas={collab.areas} />
               {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={collab.areas} />}
+              {importer.canImport && <MapProjectFolderIntake projectId={view.projectId} georeference={georeference} bounds={editor.bounds ?? undefined}
+                layers={layers} work={work} />}
             </>} />}
         </>}>
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}

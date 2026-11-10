@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { readMapFile, type MapObject } from "../../packages/map-file/src";
+import { mapPointToWgs84, readMapFile, type MapObject } from "../../packages/map-file/src";
 import { registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
 
 /**
@@ -551,4 +551,19 @@ test("kartprojekt: arbetslager och skisslager", async ({ browser, baseURL }) => 
   await owner.reload();
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   await expect(owner.getByTestId("map-project-sketch-layer")).toContainText("2 skisser", { timeout: 15_000 });
+
+  // Ägaren 2026-11-10: en mapp med äldre underlag. GeoJSON:en blir ett skisslager; pdf:en och kartfilen laddas inte upp.
+  const wgs = (x: number, y: number) => { const p = mapPointToWgs84(parsed.georeference!, { x, y }); return [p.longitude, p.latitude]; };
+  const old = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [wgs(10, 10), wgs(30, 20)] } },
+    { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: wgs(25, 25) } }] };
+  const intake = owner.getByTestId("map-project-intake");
+  await intake.locator("summary").click();
+  await intake.getByTestId("map-project-intake-files").setInputFiles([
+    { name: "gamla-stigar.geojson", mimeType: "application/geo+json", buffer: Buffer.from(JSON.stringify(old)) },
+    { name: "banor.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") },
+    { name: "gammal.omap", mimeType: "application/octet-stream", buffer: Buffer.from(mapBytes) }]);
+  await expect(intake.getByTestId("map-project-intake-summary")).toContainText("1 fil läses in, 2 slängs");
+  await intake.getByTestId("map-project-intake-start").click();
+  await expect(intake.getByTestId("map-project-intake-done")).toHaveText("Klart: 1 skisslager och 0 underlag.", { timeout: 30_000 });
+  await expect(owner.getByTestId("map-project-sketch-layer").filter({ hasText: "gamla-stigar" })).toContainText("2 skisser", { timeout: 15_000 });
 });

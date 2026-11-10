@@ -26,6 +26,16 @@ export const mapProjectSketchCreateRequestSchema = z.object({
 }).strict().refine(value => value.kind === "LINE" ? value.points.length >= 2 : value.points.length === 1, { message: "Fel antal punkter" })
   .refine(value => (value.kind === "TEXT") === (value.text !== undefined), { message: "Bara en text har text" });
 
+/** Ägaren 2026-11-10: många skisser i ett anrop (ett äldre underlag som läses in i ett skisslager). */
+export const MAP_PROJECT_SKETCH_BATCH_MAX = 500;
+export const mapProjectSketchBatchRequestSchema = z.object({
+  formatVersion: z.literal(1), layerId: uuidSchema,
+  sketches: z.array(z.object({ sketchId: uuidSchema, kind: z.enum(["LINE", "POINT", "TEXT"]),
+    points: z.array(z.tuple([coordinate, coordinate])).min(1).max(2000), text: z.string().trim().min(1).max(200).optional() }).strict()
+    .refine(value => value.kind === "LINE" ? value.points.length >= 2 : value.points.length === 1)
+    .refine(value => (value.kind === "TEXT") === (value.text !== undefined))).min(1).max(MAP_PROJECT_SKETCH_BATCH_MAX)
+}).strict();
+
 export interface MapProjectWorkLayerView {
   readonly layerId: string; readonly kind: "SYMBOLS" | "SKETCH"; readonly name: string; readonly codes: readonly string[]; readonly color: string;
   readonly own: boolean; readonly createdBy: { readonly accountId: string; readonly name: string | null }; readonly createdAt: string;

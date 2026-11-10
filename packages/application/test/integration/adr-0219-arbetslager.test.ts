@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject } from "../../src/map-projects";
 import {
-  createMapProjectSketch, createMapProjectWorkLayer, deleteMapProjectSketch, deleteMapProjectWorkLayer, listMapProjectWorkLayers, updateMapProjectWorkLayer
+  createMapProjectSketch, createMapProjectSketches, createMapProjectWorkLayer, deleteMapProjectSketch, deleteMapProjectWorkLayer, listMapProjectWorkLayers, updateMapProjectWorkLayer
 } from "../../src/map-project-work-layers";
 import { registerTestAccount } from "./accounts";
 
@@ -64,6 +64,13 @@ describe("ADR-0219: arbetslager och skisslager", () => {
     expect((await createMapProjectSketch(db, { ...owner.proof, projectId, request: text }, NOW)).status).toBe("created");
     expect((await createMapProjectSketch(db, { ...owner.proof, projectId, request: { ...text, sketchId: randomUUID(), text: undefined } }, NOW)).status)
       .toBe("invalid-request");
+    // Ägaren 2026-11-10: många skisser i ett anrop (en äldre vektorfil); samma id igen räknas inte två gånger.
+    const many = { formatVersion: 1, layerId: sketchLayer.layerId, sketches: [
+      { sketchId: randomUUID(), kind: "POINT", points: [[10, 10]] }, { sketchId: randomUUID(), kind: "LINE", points: [[0, 0], [5, 5]] }] };
+    expect(await createMapProjectSketches(db, { ...editor.proof, projectId, request: many }, NOW)).toEqual({ status: "created", created: 2 });
+    expect(await createMapProjectSketches(db, { ...editor.proof, projectId, request: many }, NOW)).toEqual({ status: "created", created: 0 });
+    expect((await createMapProjectSketches(db, { ...reader.proof, projectId, request: many }, NOW)).status).toBe("forbidden");
+    expect((await createMapProjectSketches(db, { ...editor.proof, projectId, request: { ...many, layerId: work.layerId } }, NOW)).status).toBe("not-found");
     // En skiss i ett arbetslager (inte skisslager) finns inte.
     expect((await createMapProjectSketch(db, { ...owner.proof, projectId, request: { ...line, sketchId: randomUUID(), layerId: work.layerId } }, NOW)).status)
       .toBe("not-found");
@@ -71,7 +78,7 @@ describe("ADR-0219: arbetslager och skisslager", () => {
 
     const listed = await listMapProjectWorkLayers(db, { ...reader.proof, projectId }, NOW);
     expect(listed.status === "ok" && [listed.list.layers.map(layer => layer.name).sort(), listed.list.sketches.map(sketch => sketch.kind).sort()])
-      .toEqual([["Fältskisser", "Stigar att reka"], ["LINE", "TEXT"]]);
+      .toEqual([["Fältskisser", "Stigar att reka"], ["LINE", "LINE", "POINT", "TEXT"]]);
 
     // Ändra: den som skapade eller ägarna; skisslager har inga symboler.
     expect((await updateMapProjectWorkLayer(db, { ...reader.proof, projectId, layerId: work.layerId, request: { formatVersion: 1, name: "X" } }, NOW)).status)

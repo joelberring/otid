@@ -1,6 +1,6 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import {
-  mapProjectSketchCreateRequestSchema, mapProjectWorkLayerCreateRequestSchema, mapProjectWorkLayerUpdateRequestSchema, type MapProjectSketchView,
+  mapProjectSketchBatchRequestSchema, mapProjectSketchCreateRequestSchema, mapProjectWorkLayerCreateRequestSchema, mapProjectWorkLayerUpdateRequestSchema, type MapProjectSketchView,
   type MapProjectWorkLayerList, type MapProjectWorkLayerView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
@@ -129,6 +129,30 @@ export async function createMapProjectSketch(db: Database, input: ClubProof & { 
       text: text ?? null, createdAt: now };
     await tx.insert(sketches).values(row);
     return { status: "created", replayed: false, sketch: sketchView(row, access.accountId) } as const;
+  });
+}
+
+/**
+ * Ägaren 2026-11-10: många skisser i ett skisslager i ett anrop (inläsningen av äldre underlag). Alla eller inga; skisser
+ * vars id redan finns hoppas över. Projektets tak (`MAX_SKETCHES`) gäller som för en och en.
+ */
+export async function createMapProjectSketches(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date())
+  : Promise<ClubFailure | { status: "created"; created: number }> {
+  const parsed = mapProjectSketchBatchRequestSchema.safeParse(input.request);
+  return db.transaction(async tx => {
+    const access = await requireMapProject(tx, input, now, "propose", true);
+    if (access.status !== "ok") return access;
+    if (!parsed.success) return { status: "invalid-request" } as const;
+    const layer = await oneLayer(tx, access.project.id, parsed.data.layerId);
+    if (!layer || layer.kind !== "SKETCH") return { status: "not-found" } as const;
+    const ids = parsed.data.sketches.map(row => row.sketchId);
+    const known = new Set((await tx.select({ id: sketches.id }).from(sketches).where(inArray(sketches.id, ids))).map(row => row.id));
+    const fresh = parsed.data.sketches.filter(row => !known.has(row.sketchId));
+    const [total] = await tx.select({ value: count() }).from(sketches).where(eq(sketches.projectId, access.project.id));
+    if (Number(total?.value ?? 0) + fresh.length > MAX_SKETCHES) return { status: "conflict" } as const;
+    if (fresh.length > 0) await tx.insert(sketches).values(fresh.map(row => ({ id: row.sketchId, projectId: access.project.id, layerId: layer.id,
+      accountId: access.accountId, kind: row.kind, points: row.points.map(([x, y]) => [x, y] as [number, number]), text: row.text ?? null, createdAt: now })));
+    return { status: "created", created: fresh.length } as const;
   });
 }
 

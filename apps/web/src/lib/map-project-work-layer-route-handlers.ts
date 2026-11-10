@@ -1,5 +1,5 @@
 import {
-  createMapProjectSketch, createMapProjectWorkLayer, deleteMapProjectSketch, deleteMapProjectWorkLayer, listMapProjectWorkLayers, updateMapProjectWorkLayer
+  createMapProjectSketch, createMapProjectSketches, createMapProjectWorkLayer, deleteMapProjectSketch, deleteMapProjectWorkLayer, listMapProjectWorkLayers, updateMapProjectWorkLayer
 } from "@o-tid/application";
 import { UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
@@ -14,6 +14,7 @@ type Environment = ClubEnvironment;
 const validId = (id: string) => UUID_PATTERN.test(id);
 /** En skiss har högst 2 000 punkter (omkring 60 kB som JSON). */
 const SKETCH_MAX_BYTES = 128 * 1024;
+const SKETCH_BATCH_MAX_BYTES = 4 * 1024 * 1024;
 
 /** GET lagren och skisserna (alla medlemmar), POST nytt lager (Föreslå eller mer). */
 export async function mapProjectWorkLayersRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env)
@@ -55,11 +56,18 @@ export async function mapProjectWorkLayerRoute(db: Database, request: Request, p
   });
 }
 
-/** POST ny skiss (Föreslå eller mer). */
+/** POST ny skiss (Föreslå eller mer), eller många i ett anrop (`sketches`, ägaren 2026-11-10). */
 export async function mapProjectSketchesRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env): Promise<Response> {
   if (!validId(projectId)) return failure("not-found");
-  const input = await mutation(request, environment, "json", SKETCH_MAX_BYTES);
+  const input = await mutation(request, environment, "json", SKETCH_BATCH_MAX_BYTES);
   if ("response" in input) return input.response;
+  if (input.body && typeof input.body === "object" && "sketches" in input.body) {
+    return guarded(async () => {
+      const result = await createMapProjectSketches(db, { ...input.proof, projectId, request: input.body });
+      return result.status === "created" ? privateJson({ formatVersion: 1, created: result.created }, 201) : failure(result.status);
+    });
+  }
+  if (JSON.stringify(input.body).length > SKETCH_MAX_BYTES) return failure("invalid-request");
   return guarded(async () => {
     const result = await createMapProjectSketch(db, { ...input.proof, projectId, request: input.body });
     return result.status === "created" ? privateJson({ formatVersion: 1, sketch: result.sketch }, result.replayed ? 200 : 201) : failure(result.status);

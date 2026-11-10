@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLocale } from "../language-provider";
 import { useListTexts } from "./use-list-texts";
 import styles from "./lists.module.css";
 
@@ -41,7 +42,7 @@ export function useClubFilter(inUrl: boolean): [string, (club: string) => void] 
   return [club, choose];
 }
 
-const printTime = () => new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short" }).format(new Date());
+const printTime = (locale: string) => new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(new Date());
 
 /** Sparar en textfil i webbläsaren. */
 export function download(filename: string, content: string, type: string) {
@@ -60,12 +61,13 @@ export function download(filename: string, content: string, type: string) {
 export function ListFrame<View extends string>({ toolbar, title, race, children }: {
   toolbar: ListToolbarProps<View>; title: string; race: string; children: ReactNode;
 }) {
+  const locale = useLocale();
   const text = useListTexts();
   const root = useRef<HTMLDivElement>(null), bar = useRef<HTMLDivElement>(null), menu = useRef<HTMLDetailsElement>(null);
   const [printedAt, setPrintedAt] = useState("");
   useEffect(() => {
-    setPrintedAt(printTime());
-    const before = () => setPrintedAt(printTime());
+    setPrintedAt(printTime(locale));
+    const before = () => setPrintedAt(printTime(locale));
     window.addEventListener("beforeprint", before);
     return () => window.removeEventListener("beforeprint", before);
   }, []);
@@ -107,7 +109,7 @@ export function ListFrame<View extends string>({ toolbar, title, race, children 
       </div>
       <p className={styles.count} aria-live="polite">{count}</p>
       <div className={styles.tools}>
-        <button type="button" onClick={() => { setPrintedAt(printTime()); window.print(); }}>{text.print}</button>
+        <button type="button" onClick={() => { setPrintedAt(printTime(locale)); window.print(); }}>{text.print}</button>
         {onCsv && <details className={styles.menu} ref={menu}>
           <summary>{text.export}</summary>
           <div className={styles.menuItems}>

@@ -76,7 +76,6 @@ export const fromClubEn: Texts<Affiliation["fromClub"]> = {
   invited: (n: number, already: number) => `${count(n, "invitation", "invitations")} saved.${already > 0 ? ` ${already} ${already === 1 ? "was" : "were"} already members.` : ""}`,
   failed: "The invitations could not be saved. Try again.",
   open: "From the club",
-  fromClubNote: "from the club"
 };
 
 /** Hela `clubAffiliationSv` på engelska (delarna står där de först översattes). */

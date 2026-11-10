@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { mapProjectNotesEn } from "../../i18n/map-project-tools-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { photoFromFile } from "../course-setting/course-setting-notes";
 import { Button } from "../ui";
 import type { ShownNote } from "./use-map-project-notes";
 import styles from "./map-project-editor.module.css";
 
-const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string, locale: string) => new Date(iso).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 type Photo = { mediaType: "image/jpeg"; base64: string };
 
 /**
@@ -51,12 +51,13 @@ export function NoteForm({ onSave, onCancel }: { onSave: (value: string, photo: 
 
 export function NoteDetail({ note, canManage, onStatus, onRemove, onClose }: { note: ShownNote; canManage: boolean;
   onStatus: (status: "OPEN" | "DONE") => void; onRemove: () => void; onClose: () => void }) {
+  const locale = useLocale();
   const text = useTexts(mapProjectNotesSv, mapProjectNotesEn);
   return <section className={styles.sheet} data-testid="map-project-note" data-status={note.status} aria-label={text.heading}>
     {note.text && <p className={styles.noteText}>{note.text}</p>}
     {note.photoUrl && <img className={styles.notePhoto} src={note.photoUrl} alt={text.photo} />}
     <p className={styles.muted}>{note.pending ? (note.problem ? text.failed(note.problem) : text.waiting)
-      : text.by(note.server?.account.name ?? null, when(note.server?.createdAt ?? new Date().toISOString()))}</p>
+      : text.by(note.server?.account.name ?? null, when(note.server?.createdAt ?? new Date().toISOString(), locale))}</p>
     <div className={styles.actions}>
       {canManage && !note.pending && <Button variant="secondary" data-testid="map-project-note-status"
         onClick={() => onStatus(note.status === "OPEN" ? "DONE" : "OPEN")}>{note.status === "OPEN" ? text.done : text.reopen}</Button>}

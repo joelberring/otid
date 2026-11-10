@@ -61,6 +61,9 @@ async function view(toolbar: Locator, name: string) {
 
 test("start- och resultatlistor: vyer, sök, utskrift och export i arbetsytan och publikt", async ({ browser }) => {
   test.setTimeout(420_000);
+  // Starterna ligger upp till 45 minuter bakåt och ett klockslag hör till tävlingsdagen: före 00:50 svensk tid hamnar de före midnatt
+  // (översynen 2026-11-10, D3). Det är testets antagande, inte ett fel i appen.
+  test.skip(Number(clock(new Date()).slice(0, 2)) * 60 + Number(clock(new Date()).slice(3, 5)) < 50, "starterna hamnar före midnatt svensk tid");
   const suffix = unique();
   // Lottningens första start 25 minuter bakåt. Övningsstationens bricka stämplar första kontrollen ungefär 22 minuter
   // före avläsningen, så de som startar sist stämplar den före sin starttid: sträcktiden är då okänd, inget annat ändras.

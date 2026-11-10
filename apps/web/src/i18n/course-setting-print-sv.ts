@@ -29,7 +29,6 @@ export const coursePrintSv = {
     colors: { purple: "Lila", "lower-purple": "Lila (under kartan)", black: "Svart" } as Record<string, string>,
     bold: "Fet",
     columns: "Spalter",
-    cellSize: "Rutans storlek (mm på papperet)",
     orientation: "Vinkel (grader)",
     lineWidth: "Linjens bredd (mm)",
     remove: "Ta bort objektet",

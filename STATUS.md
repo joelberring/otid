@@ -10,6 +10,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Översynen: E, D och F (Sonnet 5.5)
+- E: importen, fastställda resultat, integritetssidan, godkännandet av AI-koppling, gästraden, sidtitlar och statusnamnen i deltagarpanelerna på
+  engelska (nya `import-admin-sv/en`, `ai-en`, `privacy-en`). E1: en språkhjälpare (`languageOfRequest`). E2: språktestet läser `*-en.ts` ur katalogen.
+  E4: `language-coverage.test.ts`. E3 (en engelsk fil per svensk) är inte gjord.
+- D1: `swedishToday` i domain; fem UTC-datum rättade. D2: datum och tal i ca 25 komponenter följer språket (`useLocale`); datumfältets platshållare.
+  D3: `fest` startar i går, `listor` hoppas över 00:00–00:50.
+- F: nio döda texter och sju till borttagna (resten av listan i översynen var falsklarm), `unused-keys.test.ts` ser nu även nästlade nycklar och
+  nycklar som finns på båda språken. Döda CSS-klasser och knip-undantagen borta.
+- Verifierat: `pnpm lint`, `typecheck`, `lint:dead`, `test`, integration (klubbarkiv, kartprojekt, terminsplanering, demoläget), E2E 29 av 32 (3 beror på
+  docker eller kartrendering i den här miljön).
+
 ### 2026-11-09 – Magnetisk nord, del 1 (ADR-0223)
 - World Magnetic Model 2025 i `@o-tid/map-file` (kontrollerad mot pygeomag). Ny karta: tomt fält ger dagens missvisning i
   områdets mitt, och formuläret visar förslaget. Kartredigeraren visar under "Magnetisk nord" kartans missvisning, dagens och

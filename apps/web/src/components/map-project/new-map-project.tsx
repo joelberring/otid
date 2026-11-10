@@ -3,7 +3,7 @@
 import { useMapProjectFailure } from "./use-map-project-failure";
 import { useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
-import { useLanguage, useTexts } from "../language-provider";
+import { useLanguage, useTexts, useLocale } from "../language-provider";
 import { MAP_PROJECT_NEW_SCALES } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -21,6 +21,7 @@ const NORMS = Object.keys(MAP_PROJECT_NEW_SCALES) as Norm[];
  * GeoJSON-fil (polygonen, t.ex. strandlinjen runt en ö) eller en mittpunkt med bredd och höjd. Kartan skapas på servern.
  */
 export function NewMapProject() {
+  const locale = useLocale();
   const failure = useMapProjectFailure();
   const text = useTexts(mapProjectSv.newMap, mapProjectEn.newMap);
   const [name, setName] = useState("");
@@ -80,7 +81,7 @@ export function NewMapProject() {
         setNorm(next); setScale(MAP_PROJECT_NEW_SCALES[next][0]);
       }}>{NORMS.map(entry => <option key={entry} value={entry}>{text.norms[entry]}</option>)}</select></Field>
       <Field label={text.scale}><select value={scale} onChange={event => setScale(Number(event.target.value))}>
-        {MAP_PROJECT_NEW_SCALES[norm].map(entry => <option key={entry} value={entry}>1:{entry.toLocaleString("sv-SE")}</option>)}
+        {MAP_PROJECT_NEW_SCALES[norm].map(entry => <option key={entry} value={entry}>1:{entry.toLocaleString(locale)}</option>)}
       </select></Field>
       <fieldset className={styles.choice}>
         <legend>{text.area}</legend>

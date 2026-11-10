@@ -77,7 +77,6 @@ export const layoutEn: Texts<typeof layoutSv> = {
     paperSource: (own: boolean, template: boolean) => own ? "The paper (cropping, texts, images) is the sheet's own."
       : template ? "The paper follows the layout's template until you change it here." : "The paper (cropping, texts, images) follows the main layout until you change it here.",
     resetPaper: (template: boolean) => template ? "Reset to the template" : "As the main layout",
-    removeSheet: "Remove the sheet"
   },
   classes: {
     heading: "Classes",

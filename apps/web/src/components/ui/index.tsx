@@ -1,5 +1,6 @@
 import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes,
   type TableHTMLAttributes } from "react";
+import { useLanguage } from "../language-provider";
 import styles from "./ui.module.css";
 
 /**
@@ -42,7 +43,8 @@ export function Field({ label, help, error, children, className }: { label: Reac
  * mm/dd/yyyy), så datum skrivs som text och kontrolleras av formuläret.
  */
 export function DateInput(props: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
-  return <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} placeholder="ÅÅÅÅ-MM-DD" maxLength={10} {...props} />;
+  const placeholder = useLanguage() === "en" ? "YYYY-MM-DD" : "ÅÅÅÅ-MM-DD";
+  return <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false} placeholder={placeholder} maxLength={10} {...props} />;
 }
 
 /** Flyttar fokus till formulärets första fält med fel, efter att felen har ritats ut. */

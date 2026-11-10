@@ -39,7 +39,6 @@ export const paperSpaceSv = {
     stroke: "Linjens bredd (mm)",
     color: "Färg",
     fill: "Fyllning",
-    noFill: "Ingen fyllning",
     radius: "Rundade hörn (mm)",
     rising: "Uppåt åt höger"
   },

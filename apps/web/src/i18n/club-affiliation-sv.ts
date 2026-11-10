@@ -33,7 +33,6 @@ export const clubAffiliationSv = {
   },
   onboarding: {
     member: (club: string) => `Du är med i ${club}`,
-    memberHelp: "Din e-postadress finns i klubbens medlemslista i Eventor, så du är bekräftad direkt.",
     open: "Öppna klubbytan",
     pending: (club: string) => `${club}: väntar på bekräftelse`,
     pendingHelp: "Klubbens administratörer bekräftar dig. Det går fortare om din adress i Eventor är densamma som här.",
@@ -114,7 +113,6 @@ export const clubAffiliationSv = {
     invited: (count: number, already: number) => `${plural(count, "inbjudan", "inbjudningar")} sparade.${already > 0 ? ` ${already} var redan med.` : ""}`,
     failed: "Inbjudningarna kunde inte sparas. Försök igen.",
     open: "Från klubben",
-    fromClubNote: "från klubben"
   },
   race: {
     title: "Klubben och klubbarkivet",
@@ -123,7 +121,6 @@ export const clubAffiliationSv = {
     noOrganiser: "Ingen vald",
     suggestion: (club: string) => `Förslag: ${club} (din klubb)`,
     useSuggestion: "Använd förslaget",
-    saveOrganiser: "Spara arrangörsklubben",
     clearOrganiser: "Ingen arrangörsklubb",
     saved: "Arrangörsklubben är sparad.",
     noSpace: "Arrangörsklubben har ingen klubbyta kopplad till Eventor där du är administratör.",

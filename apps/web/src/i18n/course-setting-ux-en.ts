@@ -53,7 +53,6 @@ export const courseSettingUxEn: Texts<typeof courseSettingUxSv> = {
     insert: (label: string) => `Insert ${label}`,
     forceNew: "Always new",
     forceNewHelp: "Create a new control even close to an existing one (or hold Alt).",
-    ghostsHelp: "Controls that are not in the course are shown faintly; click in a circle to insert it."
   },
   view: {
     button: "Show",
@@ -90,7 +89,6 @@ export const courseSettingUxEn: Texts<typeof courseSettingUxSv> = {
   },
   forks: {
     forkHere: "Fork here",
-    forkHelp: "Select a control on the course and then the number of branches or a loop.",
     branches: (n: number) => `${n} branches`,
     loop: "Loop",
     loops: (n: number) => n === 1 ? "Loop" : `${n} loops`,

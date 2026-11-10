@@ -50,7 +50,6 @@ export const stationsSv = {
     keepMode: "Ändra inte",
     submit: "Ställ in",
     confirm: (serial: string) => `Ställa in enheten ${serial}? Klockan, koden och läget skrivs till enheten.`,
-    writing: "Ställer in …",
     done: "Klart. Enheten läst igen:",
     codeResult: (before: number, after: number, ok: boolean) => `Kod ${before} → ${after}${ok ? "" : " (ändringen gick inte fram)"}`,
     modeResult: (before: string, after: string, ok: boolean) => `Läge ${before} → ${after}${ok ? "" : " (ändringen gick inte fram)"}`,

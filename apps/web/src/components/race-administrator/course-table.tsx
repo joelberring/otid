@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { removalEn } from "../../i18n/workspace-tools-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import styles from "../race-administrator-workspace.module.css";
 import type { CourseEditListResponse } from "@o-tid/contracts";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
@@ -26,6 +26,7 @@ type CourseRow = CourseEditListResponse["courses"][number];
 
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
+  const locale = useLocale();
   const removalText = useTexts(removalSv, removalEn);
   const text = useTexts(raceAdministratorSv, raceAdministratorEn), forking = ws.forkingText;
   const { authenticated, busy, courseEditSaved, courseFormOpen, courseList, courseListError, data, editingCourseId, loadCourses,
@@ -71,7 +72,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
         const measured = course.lengthMeters != null || course.climbMeters != null;
         return [<tr key={course.courseId}>
           <th scope="row">{course.name}</th>
-          <td className={styles.courseLength} data-label={text.courseLengthColumn}>{measured ? courseMeasures(course.lengthMeters ?? null, course.climbMeters ?? null)
+          <td className={styles.courseLength} data-label={text.courseLengthColumn}>{measured ? courseMeasures(course.lengthMeters ?? null, course.climbMeters ?? null, undefined, locale)
             : <span className={styles.muted}>–</span>}</td>
           <td className={styles.controlCodes} data-label={text.courseEditControlsColumn}>{forked && variants ? <span className={styles.muted}>{forking.variantsBelow(course.variants.length)}</span>
             : course.controlCodes.join(" ")}</td>

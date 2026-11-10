@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { superadminEn } from "../../i18n/superadmin-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { SuperadminActionRequest } from "@o-tid/contracts";
 import { superadminSv } from "../../i18n/superadmin-sv";
 import { Button, CopyButton, Field, Notice } from "../ui";
@@ -59,9 +59,10 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
 
 /** Återställningslänken visas en gång, med kopiering. */
 export function ResetLink({ url, expiresAt, onClose }: { url: string; expiresAt: string; onClose: () => void }) {
+  const locale = useLocale();
   const text = useTexts(superadminSv, superadminEn);
   const [copied, setCopied] = useState<string>();
-  const time = new Date(expiresAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+  const time = new Date(expiresAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   return <div className={styles.panel} role="status">
     <h3>{text.resetTitle}</h3>
     <p>{text.resetHelp(time)}</p>

@@ -78,4 +78,3 @@ export const superadminActionResponseSchema = z.object({
 export type SuperadminActionKind = z.infer<typeof superadminActionKindSchema>;
 export type SuperadminOverview = z.infer<typeof superadminOverviewSchema>;
 export type SuperadminActionRequest = z.infer<typeof superadminActionRequestSchema>;
-export type SuperadminActionResponse = z.infer<typeof superadminActionResponseSchema>;

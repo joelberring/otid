@@ -16,9 +16,10 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   for (const path of ["/fest/aaaaaa", "/fest/aaaaaa/qr", `/api/public/races/${raceId}/self-registration`, `/api/public/parties/${raceId}`, `/api/public/parties/${raceId}/logo`, "/robots.txt"]) await warmRoute(owner, path);
   for (const path of ["party-guests", "party-desk-events", "party-logo"]) await warmRoute(owner, `/api/admin/races/${raceId}/administrator/${path}`, "POST");
 
-  // Festens start i dag 00:00, så att övningens stämplingar räknas. Två varor med kod och pris.
+  // Festens start i går 00:00, så att övningens stämplingar räknas även de första minuterna efter midnatt (översynen 2026-11-10, D3).
+  // Två varor med kod och pris.
   const start = owner.getByRole("form", { name: "Festens start" });
-  await start.getByLabel("Datum").fill(today());
+  await start.getByLabel("Datum").fill(today(new Date(Date.now() - 86_400_000)));
   await start.getByLabel("Klockslag").fill("00:00");
   // Steg 46: namn på den publika sidan är av för en ny fest; den här festen slår på dem.
   await expect(start.getByLabel("Visa namn på den publika sidan")).not.toBeChecked();

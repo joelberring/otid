@@ -83,7 +83,6 @@
 /* ADR-0211 beslut 7: "Skriv ut på skrivare" och "Skapa PDF för tryckeriet" bredvid varandra; arket som redigeras. */
 .outputs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); align-items: start; width: 100%; }
 .outputs > section { max-width: none; }
-.sectionTitle { margin: 8px 0 0; font-size: var(--text-lg, 1.15rem); }
 .sheetSlot { scroll-margin-top: 12px; }
 .sheetSlot[data-open] .sheet { outline: 3px solid #1d6fd1; }
 @media print {

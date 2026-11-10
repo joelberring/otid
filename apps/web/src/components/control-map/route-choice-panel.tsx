@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { routeChoiceAnalysisEn } from "../../i18n/route-choice-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { AdminRouteChoice, ControlMapResponse, RouteChoiceSettingsDto } from "@o-tid/contracts";
 import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
 import type { LegAnalysis, RouteChoiceSettings } from "@o-tid/route-choice";
@@ -32,6 +32,7 @@ type Message = { tone: "ok" | "error" | "attention"; text: string } | undefined;
 export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
   raceId: string; data: ControlMapResponse; imageHref: string | undefined; onGoToMapFile: () => void;
 }) {
+  const locale = useLocale();
   const text = useTexts(routeChoiceSv, routeChoiceAnalysisEn);
   const [state, setState] = useState<AdminRouteChoice>();
   const [model, setModel] = useState<RouteChoiceModel>();
@@ -211,7 +212,7 @@ export function RouteChoicePanel({ raceId, data, imageHref, onGoToMapFile }: {
       {published && !oldMap && <Button variant="quiet" onClick={() => void publish(true)}>{text.publish.withdraw}</Button>}
     </div>
     <p className={styles.muted}>{text.publish.help}</p>
-    {published && !oldMap && <p className={styles.muted}>{text.publish.publishedAt(new Date(published.publishedAt).toLocaleString("sv-SE",
+    {published && !oldMap && <p className={styles.muted}>{text.publish.publishedAt(new Date(published.publishedAt).toLocaleString(locale,
       { dateStyle: "short", timeStyle: "short" }))}</p>}
     {oldMap && <Notice tone="attention">{text.publish.oldMap}</Notice>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}

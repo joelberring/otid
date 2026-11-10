@@ -8,7 +8,7 @@ import { mapProjectQuickEn } from "../../i18n/map-project-tools-en";
 import { mapProjectLayersEn } from "../../i18n/map-project-en";
 import { mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
 import { mapProjectRectifyEn } from "../../i18n/map-project-more-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
@@ -119,6 +119,7 @@ function proposedDrawing(edits: readonly { state: unknown; point?: Point | null 
 export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   /** K3: projektet kommer från telefonen (utan nät), sparat då. */
   offlineSince?: string | undefined }) {
+  const locale = useLocale();
   const notesText = useTexts(mapProjectNotesSv, mapProjectNotesEn);
   const reconText = useTexts(mapProjectReconSv, mapProjectReconEn);
   const text = useTexts(mapProjectEditorSv, mapProjectEditorEn);
@@ -613,7 +614,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       <AccountMenu />
     </header>
     {offlineSince && <p className={styles.offline} role="status" data-testid="map-project-offline">
-      {text.offline(new Date(offlineSince).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</p>}
+      {text.offline(new Date(offlineSince).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</p>}
     {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice, text)}{" "}
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
     <div className={styles.workspace}>
@@ -655,7 +656,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             {text.tools.switchSymbol(symbol.code)}</Button>}
           {recon.canRecord && <Button variant={recon.validChecks.has(selected.key) ? "primary" : "secondary"} aria-pressed={recon.validChecks.has(selected.key)}
             data-testid="recon-check" title={recon.validChecks.has(selected.key) ? reconText.checkedBy(recon.checks.get(selected.key)?.name ?? null,
-              new Date(recon.checks.get(selected.key)?.at ?? Date.now()).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })) : undefined}
+              new Date(recon.checks.get(selected.key)?.at ?? Date.now()).toLocaleDateString(locale, { day: "numeric", month: "short" })) : undefined}
             onClick={() => void recon.setChecked([selected.key], !recon.validChecks.has(selected.key))}>
             {recon.validChecks.has(selected.key) ? reconText.checked : reconText.unchecked}</Button>}
         </>}
@@ -681,7 +682,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           canRecord={recon.canRecord} recording={!!recon.recording}
           note={notes.canWrite && position.position ? () => { setShownNote(undefined); setNoteDraft({ at: position.position!.at }); } : undefined}
           onRecord={() => { if (recon.recording) void recon.stopRecording();
-            else void recon.startRecording(reconText.recordDefault(new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }))); }}
+            else void recon.startRecording(reconText.recordDefault(new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))); }}
           point={canEdit && symbol?.kind === "point" && position.position ? { code: symbol.code, onPlace: () => {
             save(newKey(crypto.randomUUID()), null, { kind: "point", symbol: symbol.id, at: position.position!.at, angle: 0 }, "ADD"); } } : undefined}
           walk={canEdit && symbol?.kind === "line" && (position.position || walk) ? { code: symbol.code, walking: walk?.length,

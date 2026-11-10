@@ -579,7 +579,6 @@ export const stationsEn: Texts<typeof stationsSv> = {
     keepMode: "Do not change",
     submit: "Set up",
     confirm: serial => `Set up the unit ${serial}? The clock, the code and the mode are written to the unit.`,
-    writing: "Setting up …",
     done: "Done. The unit read again:",
     codeResult: (before, after, ok) => `Code ${before} → ${after}${ok ? "" : " (the change did not go through)"}`,
     modeResult: (before, after, ok) => `Mode ${before} → ${after}${ok ? "" : " (the change did not go through)"}`,

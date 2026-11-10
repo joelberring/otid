@@ -201,12 +201,10 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     tooLarge: "The map file is larger than 75 MB.",
     invalid: "The file does not look like an OCAD or Mapper map.",
     quota: (used: number, limit: number) => `The storage is full (${used} of ${limit} MB). Remove old maps or ask the server's owner to raise the limit.`,
-    editVersion: "Date and note",
     toGroup: "Put in the group's map library",
     toGroupHelp: "The latest version is drawn and put in the group's map library with the map's rights. If the map is already there it is replaced by the latest version.",
     toGroupButton: (name: string) => `Put in ${name}`,
     toGroupDone: (updated: boolean) => updated ? "The group's map is updated to the latest version." : "The map is now in the group's map library.",
-    uploadedBy: "uploaded"
   },
   members: {
     title: "Members",

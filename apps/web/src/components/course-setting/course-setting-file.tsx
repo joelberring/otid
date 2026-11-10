@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { coursePropertiesEn } from "../../i18n/course-setting-course-en";
 import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-setting-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
 import {
   CourseSettingEditError, layoutCoursePage, paperImageHashes, ppenWithPaperLayout, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning
@@ -69,6 +69,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   /** ADR-0190: kartfilens yta och georeferens för IOF-exporten. */
   mapBounds?: { minX: number; minY: number; maxX: number; maxY: number } | undefined; georeference?: MapGeoreference | null | undefined;
 }) {
+  const locale = useLocale();
   const propsText = useTexts(coursePropertiesSv, coursePropertiesEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [revisions, setRevisions] = useState<CourseSettingRevisions["revisions"]>();
@@ -119,7 +120,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
       <h3 className={styles.muted}>{text.revisions.heading}</h3>
       {revisions.length === 0 ? <p className={styles.muted}>{text.revisions.none}</p> : <ul className={styles.revisions}>
         {revisions.map(revision => <li key={revision.version}>
-          <span>{text.revisions.kind[revision.kind]}: {text.revisions.row(revision.version, new Date(revision.createdAt).toLocaleString("sv-SE",
+          <span>{text.revisions.kind[revision.kind]}: {text.revisions.row(revision.version, new Date(revision.createdAt).toLocaleString(locale,
             { dateStyle: "short", timeStyle: "short" }), revision.createdBy.displayName, revision.courses, revision.controls)}</span>
           <Button variant="quiet" disabled={busy} onClick={() => void (async () => {
             if (!window.confirm(text.revisions.restoreConfirm(revision.version))) return;

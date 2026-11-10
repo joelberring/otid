@@ -51,7 +51,6 @@ export const courseSettingUxSv = {
     insert: (label: string) => `Lägg in ${label}`,
     forceNew: "Alltid ny",
     forceNewHelp: "Skapa en ny kontroll även nära en befintlig (eller håll Alt).",
-    ghostsHelp: "Kontroller som inte är med i banan syns svagt; klicka i en ring för att lägga in den."
   },
   view: {
     button: "Visa",
@@ -89,7 +88,6 @@ export const courseSettingUxSv = {
   },
   forks: {
     forkHere: "Gaffla här",
-    forkHelp: "Välj en kontroll på banan och sedan antal grenar eller slinga.",
     branches: (count: number) => `${count} grenar`,
     loop: "Slinga",
     loops: (count: number) => count === 1 ? "Slinga" : `${count} slingor`,

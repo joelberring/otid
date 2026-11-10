@@ -142,7 +142,6 @@ export const raceRestoreOptionsSchema = z.object({
    */
   people: z.enum(["link", "skip"])
 }).strict();
-export type RaceRestoreOptions = z.infer<typeof raceRestoreOptionsSchema>;
 
 export const raceRestoreResponseSchema = z.object({
   formatVersion: z.literal(1),
@@ -172,4 +171,3 @@ export const raceBackupStatusSchema = z.object({
   formatVersion: z.literal(1),
   lastDownloadedAt: z.iso.datetime({ offset: true }).nullable()
 }).strict();
-export type RaceBackupStatus = z.infer<typeof raceBackupStatusSchema>;

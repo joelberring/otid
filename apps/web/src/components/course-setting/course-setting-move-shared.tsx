@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { moveSharedEn } from "../../i18n/course-setting-notes-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import { applyEdit } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { moveSharedSv } from "../../i18n/course-setting-move-sv";
@@ -55,6 +55,7 @@ export function useMoveShared({ raceId, store, apply, edit, poke, say }: {
   raceId: string; store: EditorStore; apply: Change; edit: Change; poke: () => void;
   say: (message: { tone: "ok" | "attention"; text: string }) => void;
 }) {
+  const locale = useLocale();
   const text = useTexts(moveSharedSv, moveSharedEn);
   const [pending, setPending] = useState<{ question: SharedMove; source: Source }>();
   const [threshold, setThreshold] = useState(() => readMoveThreshold(localStore()));
@@ -120,7 +121,7 @@ export function useMoveShared({ raceId, store, apply, edit, poke, say }: {
 
   const settings = (mapScale: number): ReactNode => {
     const choices = [...new Set([...MOVE_THRESHOLD_CHOICES, threshold])].sort((a, b) => a - b);
-    const mm = (threshold * 1000 / mapScale).toLocaleString("sv-SE", { maximumFractionDigits: 1 });
+    const mm = (threshold * 1000 / mapScale).toLocaleString(locale, { maximumFractionDigits: 1 });
     return <section className={main.panel} aria-labelledby="move-shared-settings" data-testid="course-setting-move-settings">
       <h2 id="move-shared-settings">{text.settings.heading}</h2>
       <label className={main.stack}>{text.settings.threshold}

@@ -201,12 +201,10 @@ export const clubArchiveSv = {
     tooLarge: "Kartfilen är större än 75 MB.",
     invalid: "Filen ser inte ut som en OCAD- eller Mapper-karta.",
     quota: (used: number, limit: number) => `Lagringen är full (${used} av ${limit} MB). Ta bort gamla kartor eller be serverns ägare höja gränsen.`,
-    editVersion: "Datum och anteckning",
     toGroup: "Lägg i gruppens kartbibliotek",
     toGroupHelp: "Senaste versionen ritas och läggs i gruppens kartbibliotek med kartans rättigheter. Finns kartan redan där byts den mot den senaste versionen.",
     toGroupButton: (name: string) => `Lägg i ${name}`,
     toGroupDone: (updated: boolean) => updated ? "Gruppens karta är uppdaterad till den senaste versionen." : "Kartan finns nu i gruppens kartbibliotek.",
-    uploadedBy: "uppladdad"
   },
   members: {
     title: "Medlemmar",

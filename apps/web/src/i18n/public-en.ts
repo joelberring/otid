@@ -352,7 +352,6 @@ export const groupPublicEn: Texts<typeof trainingGroupSv.public> & { readonly at
   open: "Event page",
   results: "Results",
   today: "Today",
-  todayRegister: "Enter today's training",
   sameAgain: name => `Same as last time: ${name}`,
   season: "The season",
   address: "Address",

@@ -4,7 +4,7 @@ import { useClubFailure } from "../club-archive/use-club-failure";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { clubAffiliationEn } from "../../i18n/club-space-en";
 import { clubStartEn } from "../../i18n/club-space-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import type { ClubAccessSettingsResponse, ClubAffiliationPerson, ClubAffiliationView, ClubAreaAccess } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
@@ -20,7 +20,7 @@ const problemText = (json: unknown, status: number, text: Texts<typeof clubAffil
   const code = (json as { error?: string } | undefined)?.error;
   return code && text.problems[code] ? text.problems[code] : failure(status);
 };
-const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
+const when = (iso: string, locale: string) => new Date(iso).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
 
 /** Kom igång kan be panelen rulla fram kopplingen eller Vem ser vad; `seq` gör att samma val fungerar igen. */
 export type ClubSpaceFocus = { target: "eventor" | "access"; seq: number };
@@ -31,6 +31,7 @@ export type ClubSpaceFocus = { target: "eventor" | "access"; seq: number };
  */
 function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: ClubAffiliationView; clubId: string; clubName: string;
   onChanged: () => Promise<void>; onInvite: (() => void) | undefined }) {
+  const locale = useLocale();
   const failure = useClubFailure();
   const text = useTexts(clubAffiliationSv.space, clubAffiliationEn.space);
   const clubStartText = useTexts(clubStartSv, clubStartEn);
@@ -66,7 +67,7 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
     {eventor.linked && view.organisation ? <>
       <p data-testid="club-eventor-linked"><strong>{text.linked(view.organisation.name, eventor.keyHint ?? "")}</strong></p>
       <p data-testid="club-eventor-counts">{text.counts(eventor.members, eventor.confirmedViaEventor)}</p>
-      <p className={styles.muted}>{eventor.syncedAt ? text.syncedAt(when(eventor.syncedAt)) : text.neverSynced}
+      <p className={styles.muted}>{eventor.syncedAt ? text.syncedAt(when(eventor.syncedAt, locale)) : text.neverSynced}
         {eventor.problem && text.problems[eventor.problem] ? ` ${text.problems[eventor.problem]}` : ""}</p>
       <div className={styles.actions}>
         <Button variant="secondary" disabled={busy !== ""} onClick={() => void act("POST")}>{busy === "POST" ? text.syncing : text.sync}</Button>

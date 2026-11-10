@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import { compareLayoutState, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type LayoutStateDifference } from "@o-tid/course-setting";
 import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { Button } from "../ui";
@@ -14,6 +14,7 @@ import styles from "./course-setting-layout.module.css";
  */
 export function LayoutStates({ document, readOnly, save, layoutName, courseName }: { document: CourseSettingDocument; readOnly: boolean;
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; layoutName: (id: string) => string; courseName: (id: string) => string }) {
+  const locale = useLocale();
   const text = useTexts(layoutSv, layoutEn);
   const [name, setName] = useState("");
   const [compared, setCompared] = useState<string>();
@@ -27,7 +28,7 @@ export function LayoutStates({ document, readOnly, save, layoutName, courseName 
       case "PROFILE": return text.states.differences.PROFILE;
     }
   };
-  const when = (iso: string) => new Date(iso).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
+  const when = (iso: string) => new Date(iso).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
   return <section className={styles.panel} aria-labelledby="layout-states" data-testid="layout-states">
     <h2 id="layout-states">{text.states.heading}</h2>
     <p className={styles.muted}>{text.states.help}</p>

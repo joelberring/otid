@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { googleMoveDetailsSchema, googleMoveResponseSchema, type GoogleMoveDetails } from "@o-tid/contracts";
 import { accountSv } from "../i18n/account-sv";
 import { accountPageEn, googleMoveEn, type AccountPage as AccountPageSv } from "../i18n/account-en";
-import { useTexts } from "./language-provider";
+import { useTexts, useLocale } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { readOrganizerCsrf } from "../lib/organizer-client";
 import { AccountMenu } from "./account-menu";
@@ -18,6 +18,7 @@ import styles from "./account-pages.module.css";
  * kopplingen flyttas hit och det tomma kontot tas bort – och flytten bekräftas med lösenordet (eller en inloggning nyss).
  */
 export function GoogleMovePage() {
+  const locale = useLocale();
   const text = useTexts(accountSv.googleMove, googleMoveEn);
   const accountText = useTexts<AccountPageSv>(accountSv, accountPageEn);
   const [details, setDetails] = useState<GoogleMoveDetails>();
@@ -65,7 +66,7 @@ export function GoogleMovePage() {
     window.location.assign("/konto");
   }
 
-  const created = details ? new Date(details.sourceCreatedAt).toLocaleDateString("sv-SE") : "";
+  const created = details ? new Date(details.sourceCreatedAt).toLocaleDateString(locale) : "";
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}>
       <div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div>

@@ -33,7 +33,6 @@ export const coursePrintEn: Texts<typeof coursePrintSv> = {
     colors: { purple: "Purple", "lower-purple": "Purple (below the map)", black: "Black" },
     bold: "Bold",
     columns: "Columns",
-    cellSize: "Box size (mm on paper)",
     orientation: "Angle (degrees)",
     lineWidth: "Line width (mm)",
     remove: "Remove the object",

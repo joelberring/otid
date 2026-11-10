@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clubArchiveEn } from "../../i18n/club-archive-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { ClubArchiveEntryView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { alignedDocument, checkAlignment, controlsOutside } from "../../lib/club-archive-align";
@@ -20,6 +20,7 @@ const today = () => new Date().toLocaleDateString("sv-SE");
  * ("Flytta banorna till senaste kartversionen") med förhandsvisning och, utan säker georeferens, förskjutning för hand.
  */
 export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiveEntryView; initialFileId: string | undefined; onClose: () => void }) {
+  const locale = useLocale();
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const align = useTexts(clubArchiveSv.align, clubArchiveEn.align);
   const text = useTexts(clubArchiveSv.reuse, clubArchiveEn.reuse);
@@ -126,7 +127,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
               <p className={styles.small}>{align.offset(offset.dx, offset.dy)}</p>
               <label className={styles.small}>{align.step}{" "}
                 <select value={step} onChange={event => setStep(Number(event.target.value))}>
-                  {[0.2, 1, 5, 20].map(value => <option key={value} value={value}>{value.toLocaleString("sv-SE")} mm</option>)}
+                  {[0.2, 1, 5, 20].map(value => <option key={value} value={value}>{value.toLocaleString(locale)} mm</option>)}
                 </select></label>
             </div>
           </div>

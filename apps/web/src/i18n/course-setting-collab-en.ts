@@ -197,7 +197,6 @@ export const offlineEn: Texts<typeof offlineSv> = {
     button: "Note here",
     heading: (target: string) => `Note: ${target}`,
     atPosition: "your position",
-    atCenter: "the centre of the map",
     retake: "New photo",
     takePhoto: "Take photo",
     photoReady: "Photo attached",

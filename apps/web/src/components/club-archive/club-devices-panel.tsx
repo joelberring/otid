@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clubDevicesEn } from "../../i18n/club-archive-more-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { ClubDeviceList } from "@o-tid/contracts";
 import { clubDevicesSv } from "../../i18n/club-devices-sv";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -15,6 +15,7 @@ const OLD_BATTERY_YEARS = 5;
 
 /** Ägaren 2026-11-08: klubbens enhetsregister (fliken Enheter): batteriets ålder, klockan, senaste läsningen och anteckningen. */
 export function ClubDevicesPanel({ clubId }: { clubId: string }) {
+  const locale = useLocale();
   const text = useTexts(clubDevicesSv, clubDevicesEn);
   const [list, setList] = useState<ClubDeviceList>();
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -51,7 +52,7 @@ export function ClubDevicesPanel({ clubId }: { clubId: string }) {
             <td>{device.batteryDate ? <>{device.batteryDate} ({years !== undefined ? text.batteryAge(years) : ""}){years !== undefined && years > OLD_BATTERY_YEARS
               && <strong> · {text.batteryOld}</strong>}</> : "–"}</td>
             <td>{text.clock(device.clockOffsetMs)}</td>
-            <td>{text.read(new Date(device.lastReadAt).toLocaleDateString("sv-SE"), device.lastReadBy)}</td>
+            <td>{text.read(new Date(device.lastReadAt).toLocaleDateString(locale), device.lastReadBy)}</td>
             <td>{list.canRecord ? <form className={styles.inline} onSubmit={event => { event.preventDefault(); void change("PUT", { serialNumber: device.serialNumber,
               note: notes[device.serialNumber] ?? device.note }); }}>
               <input aria-label={text.noteLabel(device.serialNumber)} maxLength={500} value={notes[device.serialNumber] ?? device.note}

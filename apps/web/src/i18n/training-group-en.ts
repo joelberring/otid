@@ -16,7 +16,6 @@ const myGroupsEn: Texts<typeof trainingGroupSv.myGroups> = {
   codeHelp: (code: string) => `The group's page: /g/${code ? code.slice(0, 31) : "…"}-xxxxxxxx (3–31 characters: a–z, 0–9 and hyphen; ` +
     "the end is random so nobody can guess the link).",
   open: "Open the group",
-  publicPage: "The group's page",
   role: { LEADER: "Leader", MEMBER: "Member" },
   sessions: (count: number) => plural(count, "session", "sessions"),
   errors: { invalid: "Check the name and the short name.", taken: "The short name is taken. Choose another.", generic: "The group could not be created." }

@@ -92,7 +92,6 @@ export const clubRaceEn: Texts<typeof clubAffiliationSv.race> = {
   noOrganiser: "None chosen",
   suggestion: (club: string) => `Suggestion: ${club} (your club)`,
   useSuggestion: "Use the suggestion",
-  saveOrganiser: "Save the organising club",
   clearOrganiser: "No organising club",
   saved: "The organising club is saved.",
   noSpace: "The organising club has no club space linked to Eventor where you are an administrator.",

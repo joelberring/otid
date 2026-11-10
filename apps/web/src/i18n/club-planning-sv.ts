@@ -84,7 +84,6 @@ export const clubPlanningSv = {
     pending: "väntar på inloggning",
     unassigned: "ingen än",
     done: "Klar",
-    notDone: "Inte klar",
     remove: "Ta bort uppgiften",
     removeConfirm: (title: string) => `Ta bort uppgiften ${title}?`,
     added: "Uppgiften är tillagd.",

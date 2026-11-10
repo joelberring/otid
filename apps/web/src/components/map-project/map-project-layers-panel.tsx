@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { mapProjectLayersEn } from "../../i18n/map-project-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import { mapProjectLayersSv } from "../../i18n/map-project-layers-sv";
 import { Button } from "../ui";
@@ -15,7 +15,7 @@ import styles from "./map-project-editor.module.css";
 type Layers = ReturnType<typeof useMapProjectLayers>;
 type Control = ReturnType<typeof useMapProjectControlPoints>;
 const meters = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: value < 10 ? 1 : 0 });
-const megabytes = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} MB`;
+const megabytes = (bytes: number, locale: string) => `${(bytes / 1024 / 1024).toLocaleString(locale, { maximumFractionDigits: 1 })} MB`;
 
 function problemText(problem: LayerProblem, text: Texts<typeof mapProjectLayersSv>): string {
   if (typeof problem === "number") return text.problems.generic(problem);
@@ -31,6 +31,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, after, control, scale, 
   after?: ReactNode;
   /** K6b: passpunkterna, kartans skala (för avvikelserna i meter) och området där en bild utan georeferens läggs. */
   control: Control; scale: number; area: Bounds | undefined }) {
+  const locale = useLocale();
   const text = useTexts(mapProjectLayersSv, mapProjectLayersEn);
   const input = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -46,7 +47,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, after, control, scale, 
       {layers.layers.map((layer, index) => <li key={layer.layerId} className={styles.layerRow} data-testid="map-project-layer">
         <label className={styles.check}><input type="checkbox" checked={!layers.hidden.has(layer.layerId)} aria-label={text.show(layer.name)}
           onChange={() => layers.toggle(layer.layerId)} />{layer.name}</label>
-        <span className={styles.muted}>{text.by(layer.own ? null : layer.createdBy.name, megabytes(layer.byteLength))}</span>
+        <span className={styles.muted}>{text.by(layer.own ? null : layer.createdBy.name, megabytes(layer.byteLength, locale))}</span>
         <input type="range" min={0.1} max={1} step={0.05} value={layer.opacity} aria-label={text.opacity(layer.name)} data-testid="map-project-layer-opacity"
           disabled={!layers.canManage(layer)}
           onChange={event => void layers.setOpacity(layer.layerId, Number(event.target.value), false)}

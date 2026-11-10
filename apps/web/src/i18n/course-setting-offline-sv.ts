@@ -75,7 +75,6 @@ export const offlineSv = {
     button: "Notis här",
     heading: (target: string) => `Notis: ${target}`,
     atPosition: "din position",
-    atCenter: "kartans mitt",
     retake: "Nytt foto",
     takePhoto: "Ta foto",
     photoReady: "Foto bifogat",

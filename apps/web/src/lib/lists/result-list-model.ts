@@ -219,13 +219,13 @@ type CourseTexts = { readonly name: (name: string) => string; readonly km: (km: 
 
 /** "Bana Lång · 4,2 km · 120 m" för listornas klassrubriker (PLAN.md steg 25). Längd och stigning visas när de finns. */
 export function courseLine(course: { courseName: string; lengthMeters: number | null; climbMeters: number | null },
-  text: CourseTexts = listsSv.course): string {
-  return [text.name(course.courseName), courseMeasures(course.lengthMeters, course.climbMeters, text)].filter(Boolean).join(" · ");
+  text: CourseTexts = listsSv.course, locale = "sv-SE"): string {
+  return [text.name(course.courseName), courseMeasures(course.lengthMeters, course.climbMeters, text, locale)].filter(Boolean).join(" · ");
 }
 
 /** "4,2 km · 120 m", eller tom text när varken längd eller stigning är känd. */
-export function courseMeasures(lengthMeters: number | null, climbMeters: number | null, text: CourseTexts = listsSv.course): string {
+export function courseMeasures(lengthMeters: number | null, climbMeters: number | null, text: CourseTexts = listsSv.course, locale = "sv-SE"): string {
   const km = lengthMeters === null ? null
-    : text.km((lengthMeters / 1000).toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+    : text.km((lengthMeters / 1000).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   return [km, climbMeters === null ? null : text.climb(climbMeters)].filter(Boolean).join(" · ");
 }

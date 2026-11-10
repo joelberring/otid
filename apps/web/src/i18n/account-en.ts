@@ -229,7 +229,6 @@ export const clubAffiliationAccountEn: Texts<ClubAffiliationAccount> = {
   },
   onboarding: {
     member: club => `You are a member of ${club}`,
-    memberHelp: "Your email address is in the club's member list in Eventor, so you are confirmed directly.",
     open: "Open the club space",
     pending: club => `${club}: waiting for confirmation`,
     pendingHelp: "The club's administrators confirm you. It is quicker if your address in Eventor is the same as here.",

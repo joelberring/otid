@@ -25,10 +25,7 @@
     "packages/application": { "project": ["src/**/*.ts"], "ignoreDependencies": ["tsx"] }
   },
   "ignore": [
-    "**/*.test.ts", "**/*.test.tsx", "**/test/**", "**/__tests__/**",
-    // Städrundan 2026-11-07: en annan gren ändrar de här filerna just nu (säkerhetskopian och superadmin). Kvar:
-    // RaceRestoreOptions, RaceBackupStatus och SuperadminActionResponse är oanvända. Ta bort raden och det döda sedan.
-    "packages/contracts/src/race-backup.ts", "packages/contracts/src/superadmin.ts"
+    "**/*.test.ts", "**/*.test.tsx", "**/test/**", "**/__tests__/**"
   ],
   "playwright": false,
   "ignoreExportsUsedInFile": true,

@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { accountProfileSchema, type AccountProfile } from "@o-tid/contracts";
 import { accountSv as accountSvAll } from "../i18n/account-sv";
 import { accountPageEn, type AccountPage as AccountPageTexts } from "../i18n/account-en";
-import { useTexts } from "./language-provider";
+import { useTexts, useLocale } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
@@ -23,6 +23,7 @@ type Message = { tone: "ok" | "error"; text: string } | undefined;
  * Google-konto (med Google på servern), Logga ut från alla enheter och kontomenyn.
  */
 export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean }) {
+  const locale = useLocale();
   const accountSv = useTexts<AccountPageTexts>(accountSvAll, accountPageEn), text = accountSv.me;
   const [profile, setProfile] = useState<AccountProfile>();
   const [loadError, setLoadError] = useState<string>();
@@ -137,7 +138,7 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
       <Section id="konto-uppgifter" title={text.details} help={text.detailsHelp}>
         <dl className={styles.facts}>
           <dt>{text.email}</dt><dd>{profile.email}</dd>
-          <dt>{text.created}</dt><dd>{new Date(profile.createdAt).toLocaleDateString("sv-SE")}</dd>
+          <dt>{text.created}</dt><dd>{new Date(profile.createdAt).toLocaleDateString(locale)}</dd>
           {profile.superadmin && <><dt>{text.role}</dt><dd><Link href="/superadmin">{text.superadmin}</Link></dd></>}
         </dl>
         <form className={styles.form} onSubmit={saveName}>

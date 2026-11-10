@@ -86,7 +86,6 @@ export const clubPlanningEn: Texts<typeof clubPlanningSv> = {
     pending: "waiting for sign-in",
     unassigned: "nobody yet",
     done: "Done",
-    notDone: "Not done",
     remove: "Remove the task",
     removeConfirm: (title: string) => `Remove the task ${title}?`,
     added: "The task has been added.",

@@ -15,7 +15,6 @@ export const trainingGroupSv = {
     codeHelp: (code: string) => `Gruppens sida: /g/${code ? code.slice(0, 31) : "…"}-xxxxxxxx (3–31 tecken: a–z, 0–9 och bindestreck; ` +
       "slutet slumpas så att ingen kan gissa länken).",
     open: "Öppna gruppen",
-    publicPage: "Gruppens sida",
     role: { LEADER: "Ledare", MEMBER: "Medlem" } as Record<"LEADER" | "MEMBER", string>,
     sessions: (count: number) => plural(count, "tillfälle", "tillfällen"),
     errors: { invalid: "Kontrollera namnet och kortnamnet.", taken: "Kortnamnet är upptaget. Välj ett annat.", generic: "Gruppen kunde inte skapas." }
@@ -157,7 +156,6 @@ export const trainingGroupSv = {
     open: "Tävlingens sida",
     results: "Resultat",
     today: "I dag",
-    todayRegister: "Anmäl dig till dagens träning",
     sameAgain: (name: string) => `Samma som förra gången: ${name}`,
     season: "Säsongen",
     address: "Adress",

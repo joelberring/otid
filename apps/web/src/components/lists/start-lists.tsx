@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocale } from "../language-provider";
 import { useListTexts, type ListTexts } from "./use-list-texts";
 import { formatClockTime } from "../../lib/clock-time";
 import { startListCsv, type StartView } from "../../lib/lists/csv";
@@ -48,13 +49,14 @@ function Card({ entry }: { entry: StartEntry }) {
 }
 
 function ClassBlock({ raceClass, context }: { raceClass: StartClass; context: Context }) {
+  const locale = useLocale();
   const { start: t, course } = useListTexts();
   const { model } = context, timeZone = model.timeZone;
   const relay = raceClass.mode.kind === "RELAY", free = raceClass.mode.kind === "FREE";
   const variants = raceClass.entries.some(entry => entry.variant);
   const teams = relay ? [...new Set(raceClass.entries.map(entry => entry.relay?.teamNumber ?? 0))] : [];
   const facts = [raceClass.courseName && courseLine({ courseName: raceClass.courseName, lengthMeters: raceClass.lengthMeters ?? null,
-    climbMeters: raceClass.climbMeters ?? null }, course), modeText(t, raceClass.mode, timeZone),
+    climbMeters: raceClass.climbMeters ?? null }, course, locale), modeText(t, raceClass.mode, timeZone),
     relay ? t.teams(teams.length) : t.runners(raceClass.entries.length),
     raceClass.vacancies.length > 0 && t.vacancies(raceClass.vacancies.length)].filter(Boolean).join(" · ");
   const id = `start-class-${raceClass.name.replace(/\W+/g, "-")}`;

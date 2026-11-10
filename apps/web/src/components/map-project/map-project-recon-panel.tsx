@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { mapProjectReconEn } from "../../i18n/map-project-more-en";
-import { useTexts } from "../language-provider";
+import { useTexts, useLocale } from "../language-provider";
 import type { MapProjectView } from "@o-tid/contracts";
 import { DEFAULT_RECON, pointInPolygon, RECON_GROUPS, type ReconSettings, type ReconStatus } from "@o-tid/map-revision";
 import { mapProjectReconSv } from "../../i18n/map-project-recon-sv";
@@ -14,8 +14,8 @@ import styles from "./map-project-editor.module.css";
 
 const LAYERS: readonly ReconLayer[] = ["STATUS", "COVERAGE", "TRACKS"];
 const STATUSES: readonly ReconStatus[] = ["UNSEEN", "PASSED", "CHECKED"];
-const clock = () => new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-const day = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short" }) : "";
+const clock = (locale: string) => new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+const day = (iso: string | null | undefined, locale: string) => iso ? new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" }) : "";
 
 type Recon = ReturnType<typeof useMapProjectRecon>;
 
@@ -24,6 +24,7 @@ type Recon = ReturnType<typeof useMapProjectRecon>;
  * bort det egna), delområdenas framsteg med "Godkänn passerade" och siktavstånden (ägarna).
  */
 export function MapProjectReconPanel({ view, recon, hasGeoreference }: { view: MapProjectView; recon: Recon; hasGeoreference: boolean }) {
+  const locale = useLocale();
   const text = useTexts(mapProjectReconSv, mapProjectReconEn);
   const file = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
@@ -55,8 +56,8 @@ export function MapProjectReconPanel({ view, recon, hasGeoreference }: { view: M
       </> : <div className={styles.actions}>
         <label className={styles.srOnly} htmlFor="recon-name">{text.recordName}</label>
         <input id="recon-name" value={name} onChange={event => setName(event.target.value)} maxLength={80}
-          placeholder={text.recordDefault(clock())} className={styles.grow} />
-        <Button onClick={() => void recon.startRecording(name.trim() || text.recordDefault(clock()))} data-testid="recon-record">
+          placeholder={text.recordDefault(clock(locale))} className={styles.grow} />
+        <Button onClick={() => void recon.startRecording(name.trim() || text.recordDefault(clock(locale)))} data-testid="recon-record">
           {text.record}</Button>
       </div>}
       <p className={styles.muted}>{text.recordingHelp}</p>
@@ -88,6 +89,7 @@ export function MapProjectReconPanel({ view, recon, hasGeoreference }: { view: M
 }
 
 function TrackList({ recon }: { recon: Recon }) {
+  const locale = useLocale();
   const text = useTexts(mapProjectReconSv, mapProjectReconEn);
   const [renaming, setRenaming] = useState<{ id: string; name: string }>();
   const pending = recon.local.filter(track => !recon.serverTracks.some(row => row.trackId === track.trackId && row.endedAt)
@@ -95,7 +97,7 @@ function TrackList({ recon }: { recon: Recon }) {
   if (recon.serverTracks.length === 0 && pending.length === 0) return <p className={styles.muted}>{text.noTracks}</p>;
   return <ul className={styles.rows} data-testid="recon-tracks">
     {pending.map(track => <li key={track.trackId} data-testid="recon-track" data-pending="">
-      <span>{text.track(track.name, null, day(track.startedAt), trackLengthM(localPoints(track)))} ·{" "}
+      <span>{text.track(track.name, null, day(track.startedAt, locale), trackLengthM(localPoints(track)))} ·{" "}
         <em>{track.problem ? text.failed(track.problem) : text.waiting}</em></span>
       <Button variant="quiet" onClick={() => { if (window.confirm(text.removeConfirm)) void recon.removeTrack(track.trackId); }}>{text.remove}</Button>
     </li>)}
@@ -104,7 +106,7 @@ function TrackList({ recon }: { recon: Recon }) {
         void recon.renameTrack(track.trackId, renaming.name.trim() || track.name).then(() => setRenaming(undefined)); }}>
         <input value={renaming.name} maxLength={80} onChange={event => setRenaming({ id: track.trackId, name: event.target.value })} aria-label={text.rename} />
         <Button type="submit">{text.save}</Button>
-      </form> : <span>{text.track(track.name, track.own ? null : track.account.name, day(track.startedAt ?? track.createdAt), track.lengthM)}</span>}
+      </form> : <span>{text.track(track.name, track.own ? null : track.account.name, day(track.startedAt ?? track.createdAt, locale), track.lengthM)}</span>}
       {track.own && renaming?.id !== track.trackId && <span className={styles.actions}>
         <Button variant="quiet" onClick={() => setRenaming({ id: track.trackId, name: track.name })}>{text.rename}</Button>
         <Button variant="quiet" onClick={() => { if (window.confirm(text.removeConfirm)) void recon.removeTrack(track.trackId); }}>{text.remove}</Button>

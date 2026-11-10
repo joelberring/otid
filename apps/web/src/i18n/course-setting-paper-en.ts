@@ -40,7 +40,6 @@ export const paperSpaceEn: Texts<typeof paperSpaceSv> = {
     stroke: "Line width (mm)",
     color: "Colour",
     fill: "Fill",
-    noFill: "No fill",
     radius: "Rounded corners (mm)",
     rising: "Rising to the right"
   },

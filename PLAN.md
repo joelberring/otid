@@ -1333,6 +1333,14 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   - [x] G2b Kandidaterna ritas på kartan med sina symboler (av kartans Worker, ovanpå kartan; «Dölj på kartan» för att
     jämföra) och läggs in i ett svep med «Lägg in N objekt i kartan» (`commitMany`: en grupp, Ångra tar bort alla igen;
     synkas i delar som ryms hos servern). Förslagsvägen finns kvar. Inte prövat med tiotusentals objekt.
+  - [ ] G8 Källorna utöver lasern (ägaren 2026-11-10: «jag har ingen grundkartefil över Kungshatt … underlaget kommer från
+    öppna data från Lantmäteriet, OpenStreetMap, Karttapullautin och flygbildstolkning för öppna ytor och berg i dagen»;
+    kedjan står i Kungshatt-mappens `LASMIG.md`, källorna i projektdokumentet `kallor-grundkarta.md`). I ordning:
+    (a) Lantmäteriets Marktäcke (kommunvis GeoPackage, kontots egna uppgifter): vatten, öppen mark, sankmark som kandidater;
+    kräver GeoPackage-läsning (K4b). (b) OpenStreetMap med i «Läs in grundkartan» (stigar, vägar, hus, ledningar, bryggor).
+    (c) Berg i dagen (214) och öppen mark ur ortofoto med IR (ljus/grå yta, låg NDVI, bara breda ytor), grönt spärrat på häll
+    och i stup. (d) Markhöjdmodell 1 m för branternas läge och fallhöjd (201 efter fall och lutning). (e) Byggnader när
+    kontot har behörighet, annars OSM och lasern. Inte Min karta-tjänsterna (villkoren är oklara för automatisk hämtning).
   - [ ] G3 Kurvor: hopslagna över rutgränser, punkthöjder. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar

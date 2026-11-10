@@ -655,10 +655,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       ...(canDecide ? [{ id: "area", label: text.collab.areaTool, icon: "area" as const, active: tool === "area", onPick: pickTool("area") }] : []),
       ...(notes.canWrite ? [{ id: "note", label: notesText.tool, icon: "note" as const, key: keyLabel(keys.note, keysText.space), active: tool === "note", testId: "map-project-note-tool",
         onPick: () => { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } }] : []),
-      { id: "undo", label: text.tools.undo, icon: "undo" as const, key: keyLabel(keys.undo, keysText.space), gap: true, disabled: editor.history.undo.length === 0, onPick: editor.undo },
-      { id: "redo", label: text.tools.redo, icon: "redo" as const, key: keyLabel(keys.redo, keysText.space), disabled: editor.history.redo.length === 0, onPick: editor.redo }
+      { id: "undo", label: text.tools.undo, icon: "undo" as const, key: keyLabel(keys.undo, keysText.space), gap: true, pin: "first" as const, disabled: editor.history.undo.length === 0, onPick: editor.undo },
+      { id: "redo", label: text.tools.redo, icon: "redo" as const, key: keyLabel(keys.redo, keysText.space), pin: "second" as const, disabled: editor.history.redo.length === 0, onPick: editor.redo }
     ] : []),
-    { id: "keys", label: keysText.open, icon: "keys", gap: true, testId: "map-project-keys-open", onPick: () => setKeysOpen(true) }
+    { id: "keys", label: keysText.open, icon: "keys", gap: true, desktopOnly: true, testId: "map-project-keys-open", onPick: () => setKeysOpen(true) }
   ];
 
   return <main className={styles.page}>

@@ -71,7 +71,10 @@ export function MapProjectOrthoPanel({ view, layers, georeference, bounds, areas
     }
     setBusy(undefined);
     await layers.reload();
-    if (added > 0) { setMessage({ tone: "ok", text: text.added(added) }); setItems(undefined); }
+    // Ägaren 2026-11-10: en bild som inte gick att lägga till ska synas här, inte bara under Underlag.
+    if (added < selected.length) setMessage({ tone: "error", text: `${added > 0 ? `${text.added(added)} ` : ""}${text.failed(selected.length - added)}` });
+    else if (added > 0) setMessage({ tone: "ok", text: text.added(added) });
+    if (added > 0) setItems(undefined);
   }
 
   const ready = credential?.saved?.readable;

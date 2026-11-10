@@ -13,11 +13,19 @@
 .tool[aria-pressed="true"] .key { color: #fff; }
 
 @media (max-width: 760px) {
-  .rail { grid-row: 1; flex-direction: row; justify-content: flex-start; gap: 4px; padding: 3px 8px; overflow: auto hidden; border-right: 0;
+  /* Ägaren 2026-11-10: tätare och mindre i telefonen, så att raden ryms utan att rulla. Ångra och Gör om ligger kvar vid högra
+     kanten även när raden rullas. */
+  .rail { grid-row: 1; flex-direction: row; justify-content: flex-start; gap: 1px; padding: 2px 4px; overflow: auto hidden; border-right: 0;
     border-bottom: 1px solid var(--line); }
-  .tool { width: 44px; height: 44px; }
-  .tool[data-gap] { margin-top: 0; margin-left: 9px; }
-  .tool[data-gap]::before { left: -6px; right: auto; top: 6px; bottom: 6px; border-top: 0; border-left: 1px solid var(--line, #ccc); }
+  .tool { width: 36px; height: 38px; }
+  .tool[data-gap] { margin-top: 0; margin-left: 7px; }
+  .tool[data-gap]::before { left: -4px; right: auto; top: 7px; bottom: 7px; border-top: 0; border-left: 1px solid var(--line, #ccc); }
   .tool[data-phone] { display: grid; }
+  .tool[data-desktop] { display: none; }
+  .tool[data-pin] { position: sticky; z-index: 1; background: var(--surface, #fff); margin-left: 0; }
+  .tool[data-pin]::before { display: none; }
+  .tool[data-pin="first"] { right: 36px; margin-left: auto; box-shadow: -6px 0 6px -4px rgb(0 0 0 / 25%); }
+  .tool[data-pin="second"] { right: 0; }
+  .tool[data-pin][aria-pressed="true"] { background: var(--ink, #111); }
   .key { display: none; }
 }

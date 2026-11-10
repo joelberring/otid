@@ -18,7 +18,9 @@ export const mapSourcesOrthoEn: Texts<Sources["ortho"]> = {
   item: (when: string | null, collection: string | null, id: string) => [when?.slice(0, 10), collection, id].filter(Boolean).join(" · "),
   add: (n: number) => n === 1 ? "Add 1 image as a base layer" : `Add ${n} images as base layers`,
   adding: (done: number, total: number) => `Fetching image ${done} of ${total} …`,
-  added: (n: number) => n === 1 ? "1 base layer added." : `${n} base layers added.`,
+  added: (n: number) => n === 1 ? "1 base layer added. It is under Base layers above, where it is shown, hidden and made transparent."
+    : `${n} base layers added. They are under Base layers above, where they are shown, hidden and made transparent.`,
+  failed: (n: number) => n === 1 ? "1 image could not be added. The reason is under Base layers above." : `${n} images could not be added. The reason is under Base layers above.`,
   name: (collection: string | null, id: string) => `Orthophoto ${collection ?? ""} ${id}`.replace(/\s+/g, " ").trim().slice(0, 80),
   problems: {
     SOURCE_NO_CREDENTIAL: "Add your credentials for Lantmäteriet under My account first.",
@@ -45,7 +47,8 @@ export const mapSourcesMoistureEn: Texts<Sources["moisture"]> = {
 export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   heading: "Laser data and Karttapullautin",
   help: "Search laser tiles (2.5 × 2.5 km) for the whole map or a stage with your own credentials for Lantmäteriet. The geo server runs "
-    + "Karttapullautin: the image is added as a base layer, and contours, form lines, cliffs and knolls can be loaded as candidates.",
+    + "Karttapullautin: the image is added as a base layer, and contours, form lines, cliffs and knolls can be loaded as candidates. "
+    + "The whole laser tiles are processed, also what lies outside the map's area.",
   attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (processed with Karttapullautin, GPL-3).",
   search: "Search laser tiles",
   searching: "Searching …",
@@ -58,6 +61,17 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   intervalOption: (meters: number) => `${meters} m`,
   formlines: "Form lines",
   formlineOptions: { 0: "None", 1: "Some", 2: "More" },
+    more: "More settings in Karttapullautin",
+    moreHelp: "The values are written to Karttapullautin's pullauta.ini (the name is in brackets). Leave a field empty for Karttapullautin's default. "
+      + "Try a small stage first and compare the images.",
+    settingLabels: {
+      smoothing: "Contour smoothing", curviness: "Contour curviness", knolls: "Knolls", formlinesteepness: "Form lines by steepness",
+      cliff1: "Cliffs, threshold 1", cliff2: "Cliffs, threshold 2", cliffsteepfactor: "Cliffs, steepness factor",
+      yellowheight: "Open land, maximum height", greenground: "Green, height of the ground layer", greenhigh: "Green, maximum height", undergrowth: "Undergrowth"
+    },
+    settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${low}–${high})`,
+    settingDefault: "default",
+    settingsUsed: (list: string) => `Settings: ${list}`,
   moisture: "Also calculate the moisture (marshes and wet channels from the terrain model)",
   channel: "Wet channels from catchment",
   channelOption: (ha: number) => `${ha} ha`,

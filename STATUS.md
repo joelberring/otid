@@ -13,6 +13,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-10 – Karttapullautins inställningar i formuläret, och ortofotots besked
+- Ägaren: "kan man göra inställningar i Karttapullautin innan körning?" Formuläret hade bara ekvidistans och formlinjer. Nu finns
+  "Fler inställningar i Karttapullautin" med de elva övriga som API:t redan tog emot (kurvornas utjämning och formrikedom,
+  knollar, branternas trösklar, öppen mark, grönt, undervegetation). Tomt fält = förvalet. Jobbraden visar vilka som användes.
+- Hjälptexten säger att hela laserrutorna bearbetas (de klipps inte till kartans område än; inlagt i PLAN.md).
+- Ortofoto: en bild som inte gick att lägga till sägs nu i panelen, och beskedet efter en lyckad hämtning säger var underlaget
+  ligger och hur det tänds.
+- Verifierat: enhetstest för fälten, E2E `kartprojekt-geo` och ortofotot i `kartprojekt-underlag`.
+
 ### 2026-11-10 – Ritlägets gränssnitt, R3b: markera flera med en ruta (steg K8)
 - Ett drag med musen på tom karta i Redigera ritar en ruta som markerar det den rör vid (`boxTest` i `map-revision/hit.ts`,
   frågan `box` till Workern); en yta som bara omsluter rutan följer inte med, och inte låsta eller släckta lager. Skift+klick

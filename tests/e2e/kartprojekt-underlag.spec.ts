@@ -410,7 +410,7 @@ test("kartprojekt: ortofoto från Lantmäteriet med egna uppgifter", async ({ br
   const items = ortho.getByTestId("map-project-ortho-items");
   await expect(items).toContainText("2025-06-15 · orto-2025 · 64_6_2025", { timeout: 30_000 });
   await ortho.getByTestId("map-project-ortho-add").click();
-  await expect(ortho.getByTestId("map-project-ortho-message")).toHaveText("1 underlag tillagt.", { timeout: 60_000 });
+  await expect(ortho.getByTestId("map-project-ortho-message")).toContainText("1 underlag tillagt.", { timeout: 60_000 });
   await expect(owner.getByTestId("map-project-layer")).toHaveCount(1);
   await expect(owner.getByTestId("map-project-layer")).toContainText("Ortofoto orto-2025 64_6_2025");
   const listed = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { crs: number; mediaType: string; width: number }[] }).layers;

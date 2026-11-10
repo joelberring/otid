@@ -1304,6 +1304,12 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   dra inne i markeringen flyttar allt, dra strax utanför ett hörn vrider allt (markören visar det), Delete tar bort allt, och
   varje sådan ändring ångras i ett steg. Kartan flyttas med mellanslag+dra eller två fingrar.
 - [ ] R3c För flera markerade: byt symbol och markera kollad; skala; vrid med fasta steg (Skift).
+- [ ] K5-tillägg (ägaren 2026-11-10): klipp laserrutorna till kartans område (med marginal) innan Karttapullautin körs, så
+  att körningen går fortare och bilden inte täcker hela rutorna; provruta och jämförelse av inställningar; svenska förklaringar
+  av vad varje inställning gör, kontrollerade mot pullauta.ini.
+- [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar
+  vid högra kanten.
+- [ ] Telefonen: skydd mot att råka dra i en markerad linje med fingret (t.ex. ett kort håll innan en punkt eller sträcka följer med).
 - [ ] R4 Verktyg i ordning: koppla ihop och klipp isär, byt symbol på alla av samma sort och pipett, rektangel och räta
   vinklar, fyll, duplicera och parallell kopia, följ kant.
 - [ ] R5 Nya symboler (duplicera, hämta ur en annan kartfil) och resten av verktygen efter vad piloten behöver.

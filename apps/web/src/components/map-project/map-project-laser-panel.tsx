@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
-import type { GeoJobList, GeoJobView, MapProjectView, MapSourceCredentialView } from "@o-tid/contracts";
+import { PULLAUTIN_SETTINGS, type GeoJobList, type GeoJobView, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { parseDxf, parseGeoJson, VectorParseError } from "@o-tid/map-revision";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
@@ -21,6 +21,16 @@ interface LaserItem { id: string; datetime: string | null; href: string; bbox: [
 type Area = BoxArea & { areaId: string };
 const INTERVALS = [2.5, 5] as const;
 const ACTIVE = new Set(["QUEUED", "RUNNING"]);
+/** Ägaren 2026-11-10: Karttapullautins övriga inställningar (kurvor, branter, grönt), utöver ekvidistansen och formlinjerna. */
+const MORE_SETTINGS = ["smoothing", "curviness", "knolls", "formlinesteepness", "cliff1", "cliff2", "cliffsteepfactor", "yellowheight", "greenground", "greenhigh",
+  "undergrowth"] as const satisfies readonly (keyof typeof PULLAUTIN_SETTINGS)[];
+/** Fälten som tal inom gränserna; tomma och ogiltiga fält hoppas över (Karttapullautins förval gäller). */
+export function moreSettings(fields: Readonly<Record<string, string>>): Record<string, number> {
+  return Object.fromEntries(MORE_SETTINGS.flatMap(key => {
+    const raw = fields[key]?.trim().replace(",", "."), value = raw ? Number(raw) : NaN, [low, high] = PULLAUTIN_SETTINGS[key];
+    return Number.isFinite(value) && value >= low && value <= high ? [[key, value]] : [];
+  }));
+}
 
 /**
  * ADR-0219 K5: laserdata från Lantmäteriet och Karttapullautin på geo-servern. Rutorna söks för kartan eller en etapp; jobbet
@@ -40,6 +50,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [name, setName] = useState("");
   const [interval, setInterval_] = useState<number>(5);
   const [formline, setFormline] = useState(2);
+  const [more, setMore] = useState<Readonly<Record<string, string>>>({});
   const [moisture, setMoisture] = useState(false);
   const [channelHa, setChannelHa] = useState(1);
   const [wetMeters, setWetMeters] = useState(0.5);
@@ -95,7 +106,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     setBusy(text.searching); setMessage(undefined);
     try {
       const result = await clubRequest(`${base}/geo-jobs`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PULLAUTIN",
-        name: name.trim() || text.defaultName(area?.name), tiles, settings: { contour_interval: interval, formline },
+        name: name.trim() || text.defaultName(area?.name), tiles, settings: { contour_interval: interval, formline, ...moreSettings(more) },
         ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: Math.max(1, wetMeters * 2) } } : {}),
         ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
       const body = result.json as { error?: string } | undefined;
@@ -157,6 +168,13 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         <label>{text.formlines}<select value={formline} onChange={event => setFormline(Number(event.target.value))}>
           {[0, 1, 2].map(value => <option key={value} value={value}>{text.formlineOptions[value]}</option>)}
         </select></label>
+        <details className={styles.settings} data-testid="map-project-laser-more">
+          <summary>{text.more}</summary>
+          <p className={styles.muted}>{text.moreHelp}</p>
+          {MORE_SETTINGS.map(key => <label key={key}>{text.settingField(text.settingLabels[key] ?? key, key, PULLAUTIN_SETTINGS[key][0], PULLAUTIN_SETTINGS[key][1])}
+            <input inputMode="decimal" value={more[key] ?? ""} placeholder={text.settingDefault} data-testid={`map-project-laser-setting-${key}`}
+              onChange={event => setMore(current => ({ ...current, [key]: event.target.value }))} /></label>)}
+        </details>
         <label className={styles.check}><input type="checkbox" checked={moisture} onChange={event => setMoisture(event.target.checked)}
           data-testid="map-project-laser-moisture" />{text.moisture}</label>
         {moisture && <>
@@ -187,6 +205,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           <strong>{job.name}</strong> · {job.kind === "DWG" ? text.dwgJob : text.tiles(job.tiles)} · {text.status[job.status]}
           {job.progress && <> · {text.progress(job.progress.step, job.progress.done, job.progress.total)}</>}
           {job.error && <span className={styles.problem}> · {job.error}</span>}
+          {Object.keys(job.settings).length > 0 && <span className={styles.muted}> · {text.settingsUsed(Object.entries(job.settings)
+            .map(([key, value]) => `${key} ${value}`).join(", "))}</span>}
           {job.layerId && <span className={styles.muted}> · {text.layerAdded}</span>}
           {job.moistureLayerId && <span className={styles.muted}> · {text.moistureAdded}</span>}
           {job.status === "DONE" && importer.canImport && <span className={styles.actions}>

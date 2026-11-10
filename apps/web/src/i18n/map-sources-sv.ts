@@ -34,7 +34,10 @@ export const mapSourcesSv = {
     item: (when: string | null, collection: string | null, id: string) => [when?.slice(0, 10), collection, id].filter(Boolean).join(" · "),
     add: (count: number) => count === 1 ? "Lägg till 1 bild som underlag" : `Lägg till ${count} bilder som underlag`,
     adding: (done: number, total: number) => `Hämtar bild ${done} av ${total} …`,
-    added: (count: number) => count === 1 ? "1 underlag tillagt." : `${count} underlag tillagda.`,
+    added: (count: number) => count === 1 ? "1 underlag tillagt. Det ligger under Underlag här ovanför, där det tänds, släcks och görs genomskinligt."
+      : `${count} underlag tillagda. De ligger under Underlag här ovanför, där de tänds, släcks och görs genomskinliga.`,
+    failed: (count: number) => count === 1 ? "1 bild kunde inte läggas till. Orsaken står under Underlag här ovanför."
+      : `${count} bilder kunde inte läggas till. Orsaken står under Underlag här ovanför.`,
     name: (collection: string | null, id: string) => `Ortofoto ${collection ?? ""} ${id}`.replace(/\s+/g, " ").trim().slice(0, 80),
     problems: {
       SOURCE_NO_CREDENTIAL: "Lägg in dina uppgifter till Lantmäteriet under Mitt konto först.",
@@ -61,7 +64,8 @@ export const mapSourcesSv = {
   laser: {
     heading: "Laserdata och Karttapullautin",
     help: "Sök laserrutor (2,5 × 2,5 km) för hela kartan eller en etapp med dina egna uppgifter till Lantmäteriet. Geo-servern kör "
-      + "Karttapullautin: bilden läggs till som underlag, och kurvor, formlinjer, branter och knollar kan läsas in som kandidater.",
+      + "Karttapullautin: bilden läggs till som underlag, och kurvor, formlinjer, branter och knollar kan läsas in som kandidater. "
+      + "Hela laserrutorna bearbetas, även det som ligger utanför kartans område.",
     attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (bearbetad med Karttapullautin, GPL-3).",
     search: "Sök laserrutor",
     searching: "Söker …",
@@ -74,6 +78,17 @@ export const mapSourcesSv = {
     intervalOption: (meters: number) => `${String(meters).replace(".", ",")} m`,
     formlines: "Formlinjer",
     formlineOptions: { 0: "Inga", 1: "Några", 2: "Fler" } as Record<number, string>,
+    more: "Fler inställningar i Karttapullautin",
+    moreHelp: "Värdena skrivs i Karttapullautins pullauta.ini (namnet står inom parentes). Lämna ett fält tomt för Karttapullautins förval. "
+      + "Prova på en liten etapp först och jämför bilderna.",
+    settingLabels: {
+      smoothing: "Kurvornas utjämning", curviness: "Kurvornas formrikedom", knolls: "Knollar", formlinesteepness: "Formlinjer efter lutning",
+      cliff1: "Branter, tröskel 1", cliff2: "Branter, tröskel 2", cliffsteepfactor: "Branter, lutningsfaktor",
+      yellowheight: "Öppen mark, högsta höjd", greenground: "Grönt, markskiktets höjd", greenhigh: "Grönt, högsta höjd", undergrowth: "Undervegetation"
+    } as Record<string, string>,
+    settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${String(low).replace(".", ",")}–${String(high).replace(".", ",")})`,
+    settingDefault: "förval",
+    settingsUsed: (list: string) => `Inställningar: ${list}`,
     moisture: "Räkna också fuktigheten (våtmarker och fuktstråk ur markmodellen)",
     channel: "Fuktstråk från tillrinning",
     channelOption: (ha: number) => `${String(ha).replace(".", ",")} ha`,

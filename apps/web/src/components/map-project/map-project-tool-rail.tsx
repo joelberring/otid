@@ -16,6 +16,10 @@ export interface RailTool {
   readonly gap?: boolean | undefined;
   /** Bara på telefonen (panelens knapp). */
   readonly phoneOnly?: boolean | undefined;
+  /** Bara i datorn (tangenterna). */
+  readonly desktopOnly?: boolean | undefined;
+  /** Telefonen: knappen ligger kvar vid radens högra kant när raden rullas (Ångra och Gör om ska alltid synas). */
+  readonly pin?: "first" | "second" | undefined;
   readonly testId?: string | undefined;
   readonly onPick: () => void;
 }
@@ -48,7 +52,7 @@ export function RailIconImage({ icon, size = 22 }: { icon: RailIcon; size?: numb
 export function MapProjectToolRail({ label, tools }: { label: string; tools: readonly RailTool[] }) {
   return <div className={styles.rail} role="toolbar" aria-label={label} aria-orientation="vertical" data-testid="map-project-rail">
     {tools.map(tool => <button key={tool.id} type="button" className={styles.tool} aria-label={tool.label} aria-pressed={tool.active}
-      disabled={tool.disabled} data-gap={tool.gap || undefined} data-phone={tool.phoneOnly || undefined} data-testid={tool.testId}
+      disabled={tool.disabled} data-gap={tool.gap || undefined} data-phone={tool.phoneOnly || undefined} data-desktop={tool.desktopOnly || undefined} data-pin={tool.pin} data-testid={tool.testId}
       title={[tool.key ? `${tool.label} (${tool.key})` : tool.label, tool.help].filter(Boolean).join(" – ")} onClick={tool.onPick}>
       <RailIconImage icon={tool.icon} />
       {tool.key && <kbd className={styles.key} aria-hidden="true">{tool.key}</kbd>}

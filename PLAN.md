@@ -1376,6 +1376,12 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     mark som ligger högt eller lutar) i `berg.dxf` (`scripts/geo-rock.ts`); branternas linje flyttad till överkanten
     (`toTopEdge`). Kandidaterna ur lasern generaliseras efter normen före Lägg in (val i kandidatraden). Provruta 250 × 250 m
     («Kör om», mitten eller en etapp, bara rutorna som når den). Grönt med reglage ur vegetationsklasserna. Geo-arbetaren 7.
+  - [x] Hyggen ur Skogsstyrelsen (ägaren 2026-11-11): utförda avverkningar (öppen ArcGIS-tjänst, `sources/avverkningar`,
+    `OTID_SKS_AVVERKNING_URL`) i grundkartan, efter ålder i dag: färskt (< 3 år, 403), sly (3–8 år, 407), ungskog (8–15 år,
+    406), kanten som 416. Laserns skanningsdatum sparas med rutorna (`scannedAt`); laserns vegetation i ett hygge som är
+    nyare än skanningen tas bort.
+  - [ ] Beståndsgränser utöver hyggena: ur Skogliga grunddata (medelhöjd, 12,5 m) eller laserns trädhöjd; åldersgränserna
+    som inställning (tillväxten skiljer mellan norr och söder).
   - [ ] Stigar ur lasern: skjuts upp; markrastret (1 m) och klassbilderna (2 m) visar dem inte tillförlitligt.
   - [ ] Stenar och berg i dagen prövas mot Kungshatt v3 (provrutan gav inga stenar med förvalen).
   - [ ] Diken: prövas mot riktiga diken (Kungshatt-rutan har inga raka); inställningarna (djup 0,2 m, längd 15 m) som reglage.

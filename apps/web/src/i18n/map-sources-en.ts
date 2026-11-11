@@ -126,6 +126,8 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   },
   loadBaseMap: "Load the base map",
     osmMissing: "OpenStreetMap could not be fetched now, so paths, roads and houses are missing. Fetch them under Import vectors.",
+    clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen has no clear-cuts under 15 years in the area."
+      : `Clear-cuts from Skogsstyrelsen: ${fresh} fresh, ${scrub} with scrub and ${young} with young forest${scanned ? ` (laser scanned ${scanned}; laser green is removed in newer clear-cuts)` : ""}.`,
     extras: { LAND_COVER: "Also read land cover from Lantmäteriet (water, open land, fields, marsh)", BUILDINGS: "Also read buildings from Lantmäteriet" },
     baseMap: "The base map",
     load: (label: string) => `Load ${label.toLowerCase()} as candidates`,

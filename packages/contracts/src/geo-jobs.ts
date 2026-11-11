@@ -28,7 +28,9 @@ const tileSchema = z.object({
   id: z.string().min(1).max(200),
   href: z.string().url().max(2000),
   bbox: z.tuple([z.number().finite(), z.number().finite(), z.number().finite(), z.number().finite()]).nullable(),
-  epsg: z.number().int().min(1).max(999999).nullable()
+  epsg: z.number().int().min(1).max(999999).nullable(),
+  /** Skanningens datum ur sökningen (för hur gamla hyggena var när lasern flögs). */
+  datetime: z.string().max(40).nullable().optional()
 }).strict();
 
 /**
@@ -80,6 +82,8 @@ export interface GeoJobView {
   readonly tiles: number; readonly settings: Readonly<Record<string, number>>;
   /** Laserdatan klipptes till den här rutan (SWEREF 99 TM, med marginal); null = hela rutorna bearbetades. */
   readonly clip: GeoClip | null;
+  /** Den senaste laserskanningen bland rutorna (ÅÅÅÅ-MM-DD), när sökningen gav ett datum. */
+  readonly scannedAt: string | null;
   /** Branternas trösklar (null = förvalet), fuktigheten och vegetationen som jobbet räknade, så att det kan köras om likadant. */
   readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number } | null;
   /** Vilka av Lantmäteriets vektorprodukter jobbet också läser (G8). */

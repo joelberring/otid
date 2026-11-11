@@ -206,6 +206,7 @@ export {
 } from "./map-project-layers";
 export { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "./map-project-stats";
 export { DEFAULT_OVERPASS_URL, fetchMapProjectOsm, mapSourceRuntimeFromEnvironment, type MapSourceRuntime } from "./map-project-sources";
+export { clearCutRuntimeFromEnvironment, clearCutsFromGeoJson, fetchMapProjectClearCuts, type ClearCutRuntime } from "./map-project-clear-cuts";
 export { deleteMapSourceCredential, readMapSourceCredential, saveMapSourceCredential } from "./map-source-credentials";
 export { changeClubDevice, listClubDevices, recordClubDevice } from "./club-devices";
 export { changeClubTerm, createClubTerm, createPlanSessions, readClubPlan, removePlanSession, updatePlanSession } from "./club-planning";

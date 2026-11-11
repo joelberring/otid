@@ -1,6 +1,7 @@
 import type { GeoClip } from "@o-tid/contracts";
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import { joinSeams, type SourceData, type SourceFeature } from "@o-tid/map-revision";
+import { withoutCutVegetation, type clearCutFeatures } from "./map-project-clear-cuts";
 import { smallRingsToPoints } from "./map-project-small-rings";
 import { yardsOf } from "./map-project-yards";
 
@@ -16,6 +17,7 @@ import { yardsOf } from "./map-project-yards";
  *   taggar på taggbranter»),
  * - kurvorna och formlinjerna fogas över laserrutornas skarvar (`joinSeams`),
  * - slutna kurvor under ISOM:s minsta mått blir små kullar eller gropar (`smallRingsToPoints`),
+ * - Skogsstyrelsens hyggen efter ålder och deras kanter (`clearCutFeatures`), utan laserns vegetation i nyare hyggen,
  * - tomterna: OpenStreetMaps bostadsområden (`tomtmark_osm`), marktäckets låga bebyggelse (`tomtmark_marktacke`) och
  *   ringar kring hus utanför dem (`tomtmark_hus`, `yardsOf`), i var sitt lager så att kandidatraden kan välja,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
@@ -67,7 +69,8 @@ const lineLength = (points: readonly (readonly [number, number])[]) => points.re
   i === 0 ? 0 : sum + Math.hypot(point[0] - points[i - 1]![0], point[1] - points[i - 1]![1]), 0);
 
 /** Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala. */
-export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], osm?: SourceData, scale?: number): SourceData {
+export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], osm?: SourceData, scale?: number,
+  cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">): SourceData {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const shortest = scale ? twoTagMeters(scale) : 0;
   // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
@@ -77,7 +80,8 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     if (feature.layer === "brant_opasserbar" && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < shortest) return { ...feature, layer: "brant_passerbar" };
     return feature;
   }));
-  const all = [...(scale ? smallRingsToPoints(features, scale) : features), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
+  // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
+  const all = [...withoutCutVegetation(scale ? smallRingsToPoints(features, scale) : features, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   return { features: [...all, ...yardsOf(all)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

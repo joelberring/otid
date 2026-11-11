@@ -4,10 +4,11 @@ import { clipCenter, laserClip, sampleClip } from "../../lib/map-project-clip";
 import { useCallback, useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
-import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { parseDxf, parseGeoJson, VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { baseMapOutputs, clipWgs84, mergeBaseMap } from "../../lib/map-project-base-map";
+import { clearCutFeatures } from "../../lib/map-project-clear-cuts";
 import { choiceSettings, choicesOf, DEFAULT_CHOICES, LASER_CHOICES, typedOf, type ChoiceLevel, type LaserChoices } from "../../lib/map-project-laser-choices";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
@@ -121,7 +122,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     : sampleArea ? (box => box && clipCenter(box))(laserClip(bounds, georeference, 0, sampleArea)) : undefined;
   const sampled = rerun && sampleCenter ? sampleClip(sampleCenter, rerun.clip) : undefined;
   async function start() {
-    const tiles = (items ?? []).filter(item => chosen.has(item.id)).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg }));
+    const tiles = (items ?? []).filter(item => chosen.has(item.id)).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg, datetime: item.datetime }));
     const chosenSettings = choiceSettings(choices, moreSettings(more));
     setBusy(text.searching); setMessage(undefined);
     try {
@@ -188,10 +189,18 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         osm = response.status === 200 ? (response.json as { data?: SourceData } | undefined)?.data : undefined;
         osmMissing = !osm;
       }
-      const data: SourceData = baseMap ? mergeBaseMap(parts, osm, georeference?.scale) : { ...parts[0]!.data };
+      // Skogsstyrelsens hyggen (ägaren 2026-11-11) efter ålder i dag och jämfört med laserskanningen.
+      let cuts: ReturnType<typeof clearCutFeatures> | undefined;
+      if (box) {
+        const response = await clubRequest(`${base}/sources/avverkningar`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
+        const list = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
+        if (list) cuts = clearCutFeatures(list.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
+      }
+      const data: SourceData = baseMap ? mergeBaseMap(parts, osm, georeference?.scale, cuts) : { ...parts[0]!.data };
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG");
-      setMessage({ tone: "ok", text: osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label) });
+      const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
+      setMessage({ tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}` });
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
     } finally { setBusy(undefined); }

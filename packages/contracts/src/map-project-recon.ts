@@ -141,6 +141,18 @@ export interface MapProjectLayerList { formatVersion: 1; layers: MapProjectLayer
  * K4c: hämta OpenStreetMap, eller sök ortofoton hos Lantmäteriet, för en ruta i WGS 84 (kartans område eller en etapp). Servern frågar Overpass och svarar med lager
  * och objekt som en importerad vektorfil; storleken prövas också där (`validOsmBox` i map-revision).
  */
+/**
+ * Ägaren 2026-11-11 («hyggen och beståndsgränser … beräkningar beroende på hur gamla fotona/underlaget är»): Skogsstyrelsens
+ * utförda avverkningar (skillnadsanalys av satellitbilder, med avverkningsdatum) för samma sorts ruta som OpenStreetMap.
+ */
+export interface MapProjectClearCut {
+  readonly rings: readonly (readonly (readonly [number, number])[])[];
+  /** Avverkningsdatum (ÅÅÅÅ-MM-DD) eller null när det saknas. */
+  readonly date: string | null;
+  readonly kind: string | null;
+}
+export interface MapProjectClearCutList { readonly formatVersion: 1; readonly crs: 3006; readonly cuts: readonly MapProjectClearCut[]; readonly attribution: string }
+
 export const mapProjectOsmRequestSchema = z.object({
   formatVersion: z.literal(1),
   box: z.object({ south: z.number().finite(), west: z.number().finite(), north: z.number().finite(), east: z.number().finite() }).strict()

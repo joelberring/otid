@@ -1,5 +1,5 @@
 import {
-  deleteMapSourceCredential, fetchMapProjectOsm, lantmaterietRuntimeFromEnvironment, mapSourceRuntimeFromEnvironment, readMapProjectOrthoAsset,
+  clearCutRuntimeFromEnvironment, deleteMapSourceCredential, fetchMapProjectClearCuts, fetchMapProjectOsm, type ClearCutRuntime, lantmaterietRuntimeFromEnvironment, mapSourceRuntimeFromEnvironment, readMapProjectOrthoAsset,
   readMapSourceCredential, saveMapSourceCredential, searchMapProjectOrtho, type LantmaterietRuntime, type MapSourceRuntime
 } from "@o-tid/application";
 import { UUID_PATTERN } from "@o-tid/contracts";
@@ -19,6 +19,22 @@ export async function mapProjectOsmRoute(db: Database, request: Request, project
   return guarded(async () => {
     const result = await fetchMapProjectOsm(db, { ...input.proof, projectId, request: input.body }, runtime);
     if (result.status === "ok") return privateJson({ formatVersion: 1, source: "OSM", attribution: result.attribution, data: result.data });
+    if (result.status === "too-large") return problem("SOURCE_AREA_TOO_LARGE");
+    if (result.status === "throttled") return problem("SOURCE_THROTTLED");
+    if (result.status === "unavailable") return privateJson({ formatVersion: 1, error: "SOURCE_UNAVAILABLE", detail: result.detail }, 502);
+    return failure(result.status);
+  });
+}
+
+/** Ägaren 2026-11-11: POST …/sources/avverkningar, Skogsstyrelsens utförda avverkningar för en ruta (samma skydd som OSM). */
+export async function mapProjectClearCutsRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env,
+  runtime: ClearCutRuntime = clearCutRuntimeFromEnvironment(process.env)): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId)) return failure("not-found");
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await fetchMapProjectClearCuts(db, { ...input.proof, projectId, request: input.body }, runtime);
+    if (result.status === "ok") return privateJson({ formatVersion: 1, crs: 3006, cuts: result.cuts, attribution: result.attribution });
     if (result.status === "too-large") return problem("SOURCE_AREA_TOO_LARGE");
     if (result.status === "throttled") return problem("SOURCE_THROTTLED");
     if (result.status === "unavailable") return privateJson({ formatVersion: 1, error: "SOURCE_UNAVAILABLE", detail: result.detail }, 502);

@@ -185,6 +185,8 @@ export const mapSourcesSv = {
     } as Record<string, string>,
     loadBaseMap: "Läs in grundkartan",
     osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Importera vektorer.",
+    clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen har inga hyggen under 15 år i rutan."
+      : `Hyggen från Skogsstyrelsen: ${fresh} färska, ${scrub} med sly och ${young} med ungskog${scanned ? ` (lasern skannades ${scanned}; laserns grönt tas bort i hyggen som är nyare)` : ""}.`,
     extras: { LAND_COVER: "Läs också Lantmäteriets marktäcke (vatten, öppen mark, åker, sankmark)", BUILDINGS: "Läs också Lantmäteriets byggnader" } as Record<string, string>,
     baseMap: "Grundkartan",
     load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,

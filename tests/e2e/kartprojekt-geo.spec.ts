@@ -139,11 +139,13 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
   // Grundkartan: allt på en gång, med branten som en linje i stället för Karttapullautins streck.
   await laser.getByTestId("map-project-laser-base-map").click();
-  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Grundkartan visas som kandidater nedan under Vektorfil.");
+  await expect(laser.getByTestId("map-project-laser-message")).toContainText("Grundkartan visas som kandidater nedan under Vektorfil.");
+  // Skogsstyrelsens hyggen efter ålder (ägaren 2026-11-11): förra årets hygge är färskt, det gamla och det odaterade tas inte med.
+  await expect(laser.getByTestId("map-project-laser-message")).toContainText("Hyggen från Skogsstyrelsen: 1 färska, 0 med sly och 0 med ungskog");
   // G8: Lantmäteriets marktäcke (åkern och sankmarken) och OpenStreetMap följer med, laserns öppna mark byter namn när
   // marktäcket finns, den uträknade fuktigheten kommer med (ägaren 2026-11-11: «inga kärr kom med») och tomterna räknas
   // ur husen.
-  for (const name of ["contour", "brant_passerbar", "vatten", "aker", "sankmark_vat", "oppen_mark_laser", "blott", "tomtmark", "dike"]) {
+  for (const name of ["contour", "brant_passerbar", "vatten", "aker", "sankmark_vat", "oppen_mark_laser", "blott", "tomtmark", "dike", "hygge_farskt", "bestandsgrans"]) {
     await expect(importer.getByTestId("map-project-import-layer").filter({ hasText: name }).first()).toBeAttached();
   }
   // Kandidatlisten under kartan: lagren med antal, och de kan väljas bort innan de läggs in.

@@ -82,6 +82,18 @@ export function startFakeGeodata(port = FAKE_GEODATA_PORT): Promise<Server> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fake-geodata");
     const authorized = typeof request.headers.authorization === "string" && /^(Basic|Bearer) /.test(request.headers.authorization);
+    // Skogsstyrelsens utförda avverkningar: ett hygge från förra året i rutans mitt (40 × 40 m), ett gammalt och ett odaterat.
+    if (url.pathname === "/sks-avverkning/query") {
+      const [minX, minY, maxX, maxY] = (url.searchParams.get("geometry") ?? "0,0,0,0").split(",").map(Number) as [number, number, number, number];
+      const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+      const square = (x: number, y: number, side: number) => [[[x, y], [x + side, y], [x + side, y + side], [x, y + side], [x, y]]];
+      const lastYear = Date.UTC(new Date().getUTCFullYear() - 1, 5, 1);
+      response.writeHead(200, { "content-type": "application/geo+json" }).end(JSON.stringify({ type: "FeatureCollection", features: [
+        { type: "Feature", properties: { Avvdatum: lastYear, Avverktyp: "Slutavverkning" }, geometry: { type: "Polygon", coordinates: square(cx - 20, cy - 20, 40) } },
+        { type: "Feature", properties: { Avvdatum: Date.UTC(1990, 5, 1) }, geometry: { type: "Polygon", coordinates: square(minX, minY, 30) } },
+        { type: "Feature", properties: { Avvdatum: null }, geometry: { type: "Polygon", coordinates: square(cx + 30, cy, 20) } }] }));
+      return;
+    }
     if (url.pathname === "/slu-wms") {
       if (url.searchParams.get("REQUEST") === "GetCapabilities") {
         response.writeHead(200, { "content-type": "application/xml" }).end("<WMT_MS_Capabilities><Capability><Layer><Title>SLU</Title>"

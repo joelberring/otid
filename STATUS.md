@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-11 – Hyggen från Skogsstyrelsen efter ålder, fyll, parallell och mätning
+- Skogsstyrelsens utförda avverkningar hämtas för grundkartans ruta och delas in efter ålder (färskt 403, sly 407, ungskog
+  406, kant 416); laserns grönt tas bort i hyggen som är nyare än skanningen (skanningsdatum ur Lantmäteriets sökning).
+- Ritläget: fyll yta eller gör kant (Skift+F), parallell linje (Skift+V), längd och yta för det markerade under kartan.
+- Verifierat: enhetstester, integrationstester för geo, E2E geo och rita (falska Skogsstyrelsen). Inte provat mot riktiga
+  Skogsstyrelsen (tjänsten nåddes inte härifrån).
+
 ### 2026-11-11 – Stenar, berg i dagen, brant i överkanten, generalisering, provruta, grönt med reglage, rektangel
 - Geo-arbetaren 7: stenar (204/205) och berg i dagen (214) ur markrastret (`berg.dxf`), branternas linje i överkanten,
   vegetationsklasserna som underlag. Kandidaterna ur lasern generaliseras efter normen före Lägg in (kan slås av).

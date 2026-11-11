@@ -189,3 +189,22 @@ export function proposalBase(state: RevisionClientState, key: ObjectKey): { base
   if (state.conflicts[key] || state.pending.some(edit => edit.key === key)) return undefined;
   return { base: state.server[key]?.lastEditId ?? null };
 }
+
+/**
+ * Ägaren 2026-11-11 («orienteringskartor ska kunna läsas i fart … en del generalisering»): en inläsnings kandidater
+ * generaliseras efter normen innan de läggs in, med samma steg som generaliseringen av kartan (förenkla 0,1 mm, ta bort det
+ * som är mindre än normen, foga ihop linjer, ta bort ytor inuti en likadan yta). `codeOf` ger symbolens nummer.
+ */
+export function generalizeCandidates(objects: readonly MapObject[], codeOf: (symbol: string) => string | undefined, scale: number,
+  simplifyMm = 0.1): { objects: MapObject[]; removed: number; simplified: number } {
+  const rows: NormObject[] = objects.map((object, index) => ({ key: `c:${index}`, code: codeOf(object.symbol) ?? "", object }));
+  const result = generalize(rows, scale, { simplifyMm, removeSmall: true, joinLines: true, removeInside: true });
+  const replaced = new Map<ObjectKey, MapObject | undefined>(result.changes.map(change => [change.key, change.object]));
+  const out: MapObject[] = [];
+  rows.forEach(row => {
+    if (!replaced.has(row.key)) { out.push(row.object); return; }
+    const next = replaced.get(row.key);
+    if (next) out.push(next);
+  });
+  return { objects: out, removed: objects.length - out.length, simplified: result.simplified };
+}

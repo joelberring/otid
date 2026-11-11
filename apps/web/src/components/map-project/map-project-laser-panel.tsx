@@ -184,7 +184,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       }
       const data: SourceData = baseMap ? mergeBaseMap(parts, osm, georeference?.scale) : { ...parts[0]!.data };
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
-      importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 });
+      importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG");
       setMessage({ tone: "ok", text: osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label) });
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });

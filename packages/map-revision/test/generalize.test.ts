@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MapObject, PathCommand } from "@o-tid/map-file";
-import { generalize, proposalBase, simplifyObject, simplifyPoints, type NormObject, type RevisionClientState } from "../src";
+import { generalize, generalizeCandidates, proposalBase, simplifyObject, simplifyPoints, type NormObject, type RevisionClientState } from "../src";
 
 /** ADR-0219 K6 del 1: generaliseringen som förslag (förenkla, ta bort det normen inte tillåter). */
 const path = (points: [number, number][]): PathCommand[] => points.map(([x, y], index) => ({ type: index === 0 ? "M" : "L", x, y }));
@@ -53,5 +53,18 @@ describe("generaliseringen", () => {
     expect(proposalBase(state, "b:x")).toEqual({ base: null });
     expect(proposalBase(state, "n:b")).toBeUndefined();
     expect(proposalBase(state, "n:c")).toBeUndefined();
+  });
+});
+
+describe("kandidaterna generaliseras före Lägg in", () => {
+  it("tar bort en för liten yta, förenklar en tät linje och behåller resten", () => {
+    const tiny = area("a", "401", [[0, 0], [0.2, 0], [0.2, 0.2], [0, 0.2]]).object;
+    const big = area("b", "401", [[0, 0], [20, 0], [20, 20], [0, 20]]).object;
+    const dense = line("c", "101", wiggly(200, 0.01)).object;
+    const codes: Record<string, string> = { [tiny.symbol]: "401", [dense.symbol]: "101" };
+    const result = generalizeCandidates([tiny, big, dense], symbol => codes[symbol], 10000);
+    expect(result.removed).toBe(1);
+    expect(result.objects).toHaveLength(2);
+    expect(result.simplified).toBeGreaterThanOrEqual(1);
   });
 });

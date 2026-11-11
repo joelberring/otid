@@ -12,7 +12,7 @@ import styles from "./map-project-candidate-bar.module.css";
  * Ägaren 2026-11-11 («jag förstår inte hur jag ska få in materialet i redigerbara lager», «itereringar … innan de genererade
  * lagren flyttar till de riktiga lagren»): när en inläsning visas som kandidater ligger en rad under kartan med lagren
  * (symbol och antal, var och en går att välja bort) och knapparna för att lägga in dem i kartan, lämna dem som förslag,
- * dölja dem en stund eller avbryta. Samma val finns under Importera vektorer, där symbolerna också går att byta.
+ * dölja dem en stund eller avbryta. Kandidaterna ur lasern generaliseras efter normen (förval, går att slå av). Samma val finns under Importera vektorer, där symbolerna också går att byta.
  */
 export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { importer: ReturnType<typeof useMapProjectImport>;
   symbols: ReadonlyMap<string, CatalogSymbol>; onShowLayers: () => void }) {
@@ -33,6 +33,10 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
       })}
       {importer.layers.length > rows.length && <small className={styles.muted}>{text.barUnmapped(importer.layers.length - rows.length)}</small>}
     </span>
+    <label className={styles.layer} data-on={importer.normed || undefined}>
+      <input type="checkbox" checked={importer.normed} onChange={() => importer.setNormed(!importer.normed)} data-testid="map-project-candidate-normed" />
+      {text.barNormed}{importer.result?.generalized && <small> ({text.barNormedDone(importer.result.generalized.removed, importer.result.generalized.simplified)})</small>}
+    </label>
     <span className={styles.actions}>
       {importer.canAccept && <Button disabled={count === 0 || !!importer.progress} onClick={importer.accept} data-testid="map-project-candidate-accept">
         {text.accept(count)}</Button>}

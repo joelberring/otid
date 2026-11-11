@@ -6,7 +6,7 @@ import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  applyFit, fitClassOf, guessCrs, importLayers, importObjects, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  applyFit, fitClassOf, generalizeCandidates, guessCrs, importLayers, importObjects, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type TargetKind, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
@@ -68,7 +68,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   }, [base, view.viewer.canPropose]);
   useEffect(() => { void loadProfiles(); }, [loadProfiles]);
 
-  const show = useCallback((fileName: string, data: SourceData, area?: Bounds) => {
+  /** Ägaren 2026-11-11: kandidaterna ur lasern och tolkningarna generaliseras efter normen (förval); andra filer inte. */
+  const [normed, setNormed] = useState(false);
+  const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false) => {
+    setNormed(general);
     const found = importLayers(data);
     const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
     setFile({ name: fileName, data });
@@ -167,9 +170,13 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
         const at = sourcePointToMap(georeference, crs, x, y);
         return fitted ? applyFit(fitted, at) : at;
       };
-      return importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols });
+      const imported = importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols });
+      if (!normed) return { ...imported, generalized: undefined };
+      // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).
+      const general = generalizeCandidates(imported.objects, symbol => symbols.get(symbol)?.code, georeference.scale);
+      return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified } };
     } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped]);
+  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped, normed]);
 
   /**
    * "Passa in mot kartan": lagren som fått hus, vägar, vatten, murar eller järnväg som punkter i kartans mm, inpassade mot
@@ -241,7 +248,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); }, []);
 
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
-  const openData = useCallback((fileName: string, data: SourceData) => { setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data); }, [show]);
+  const openData = useCallback((fileName: string, data: SourceData, general = false) => {
+    setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general);
+  }, [show]);
   return { file, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result,
     fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
     /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
@@ -250,5 +259,5 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     profile, saveProfile, canShareProfile: !!view.club,
     hideOnMap, setHideOnMap, skipped,
     toggleLayer: (layer: string) => setSkipped(current => { const next = new Set(current); if (next.has(layer)) next.delete(layer); else next.add(layer); return next; }),
-    candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose };
+    normed, setNormed, candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose };
 }

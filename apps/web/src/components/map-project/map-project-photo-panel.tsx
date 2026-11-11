@@ -52,7 +52,7 @@ export function MapProjectPhotoPanel({ layers, georeference, importer }: { layer
           return [at.easting, at.northing];
         }, crs);
       if (result.data.features.length === 0) { setMessage({ tone: "error", text: text.nothing }); return; }
-      importer.openData(text.name(current.name), result.data);
+      importer.openData(text.name(current.name), result.data, true);
       const hectares = (cells: number) => Math.round(cells * cellArea / 1000) / 10;
       setMessage({ tone: "ok", text: text.done(hectares(result.rockCells), hectares(result.openCells)) });
     } catch (error) {

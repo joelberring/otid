@@ -49,7 +49,7 @@ export function MapProjectDepthPanel({ layers, georeference, importer }: { layer
         return [at.easting, at.northing];
       }, crs, cellMeters);
       if (result.data.features.length === 0) { setMessage({ tone: "error", text: text.nothing }); return; }
-      importer.openData(text.name(current.name), result.data);
+      importer.openData(text.name(current.name), result.data, true);
       setMessage({ tone: "ok", text: text.done(decimal(result.wetHa), decimal(result.moistHa)) });
     } catch (error) {
       console.error("Fuktdjupet kunde inte läsas", error);

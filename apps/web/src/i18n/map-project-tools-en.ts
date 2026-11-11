@@ -84,6 +84,8 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   barLabel: "Candidates on the map",
   barTitle: (file: string) => `Candidates: ${file}`,
   barUnmapped: (n: number) => n === 1 ? "1 layer without a symbol" : `${n} layers without a symbol`,
+  barNormed: "Generalise to the standard",
+  barNormedDone: (removed: number, simplified: number) => `${removed} too small removed, ${simplified} simplified`,
   barSymbols: "Change symbols",
   hideOnMap: "Hide on the map",
   showOnMap: "Show on the map",

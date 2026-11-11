@@ -44,6 +44,8 @@ export const mapProjectImportSv = {
   barLabel: "Kandidater på kartan",
   barTitle: (file: string) => `Kandidater: ${file}`,
   barUnmapped: (count: number) => count === 1 ? "1 lager utan symbol" : `${count} lager utan symbol`,
+  barNormed: "Generalisera efter normen",
+  barNormedDone: (removed: number, simplified: number) => `${removed} för små borta, ${simplified} förenklade`,
   barSymbols: "Byt symboler",
   hideOnMap: "Dölj på kartan",
   showOnMap: "Visa på kartan",

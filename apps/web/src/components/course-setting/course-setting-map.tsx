@@ -44,7 +44,8 @@ export interface MapPointerHandlers {
   readonly onTap: (point: Point, toleranceMm: number, modifiers: PointerModifiers) => void;
   /** En dragning börjar på `point`. Sant = editorn drar något (kontroll, nummer, brytpunkt); falskt = kartan panoreras. */
   /** `pointerType` "touch": editorn kan kräva att kontrollen redan är vald (skydd mot att flytta av misstag med fingret). */
-  readonly onDragStart: (point: Point, toleranceMm: number, pointerType: string, pxPerMm: number) => boolean;
+  /** `heldMs`: hur länge pekaren varit nere innan den började röra sig (fingret: ett kort håll innan något markerat följer med). */
+  readonly onDragStart: (point: Point, toleranceMm: number, pointerType: string, pxPerMm: number, heldMs: number) => boolean;
   readonly onDragMove: (point: Point, modifiers: PointerModifiers) => void;
   readonly onDragEnd: () => void;
   /** Pekaren över kartan utan att något dras (musen, eller fingret som just tryckts ned); undefined = utanför. */
@@ -170,7 +171,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   const longPress = useRef<ReturnType<typeof setTimeout>>(undefined);
   const longPressAt = useRef(0);
   const gesture = useRef<{ kind: "pending" | "pan" | "drag" | "pinch"; startX: number; startY: number; lastX: number; lastY: number;
-    distance?: number; pointerType: string; pointerId?: number; free?: boolean; alt?: boolean; shift?: boolean; command?: boolean } | undefined>(undefined);
+    distance?: number; pointerType: string; pointerId?: number; free?: boolean; alt?: boolean; shift?: boolean; command?: boolean; downAt?: number } | undefined>(undefined);
   const viewRef = useRef<Viewport | undefined>(undefined);
   viewRef.current = view;
 
@@ -369,7 +370,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       return;
     }
     gesture.current = { kind: "pending", startX: at.x, startY: at.y, lastX: at.x, lastY: at.y, pointerType: event.pointerType, pointerId: event.pointerId,
-      alt: event.altKey, shift: event.shiftKey, command: event.metaKey || event.ctrlKey };
+      alt: event.altKey, shift: event.shiftKey, command: event.metaKey || event.ctrlKey, downAt: performance.now() };
     if (event.pointerType !== "mouse" && handlers.onContextMenu) {
       const started = gesture.current, current = view;
       clearTimeout(longPress.current);
@@ -423,7 +424,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       if (Math.hypot(at.x - current.startX, at.y - current.startY) < TAP_SLOP_PX) return;
       clearTimeout(longPress.current);
       const start = toMap(view, { x: current.startX, y: current.startY });
-      current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm, current.pointerType, view.pxPerMm) ? "drag" : "pan";
+      current.kind = handlers.onDragStart(start, tolerancePx(current.pointerType) / view.pxPerMm, current.pointerType, view.pxPerMm,
+        performance.now() - (current.downAt ?? 0)) ? "drag" : "pan";
       if (current.kind === "pan") handlers.onHover?.(undefined, modifiersOf(event, view));
       if (current.kind === "pan") { setGrabbing(true); onPan?.(); }
     }

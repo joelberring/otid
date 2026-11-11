@@ -100,6 +100,8 @@ type Drag =
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
 const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
 const DOUBLE_TAP_MS = 350;
+/** Fingret: så länge (ms) innan något markerat följer med i ett drag. */
+const TOUCH_HOLD_MS = 250;
 const recentKey = (projectId: string) => `otid-map-recent:${projectId}`;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
 /** Förslagens ändringar att rita: nya lägen och platserna för borttagningar (ändringens punkt). */
@@ -402,8 +404,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setRotating(false);
       });
     },
-    onDragStart(point, tolerance, pointerType) {
+    onDragStart(point, tolerance, pointerType, _pxPerMm, heldMs) {
       if (control.active || rectify.picking) return false;
+      // Ägaren 2026-11-10: med fingret följer något markerat med först efter ett kort håll; ett snabbt drag flyttar kartan.
+      const quickTouch = pointerType === "touch" && heldMs < TOUCH_HOLD_MS;
       if (work.drawing) return work.dragStart(point);
       if (!canEdit || tool === "area") return false;
       if (tool === "circle") {
@@ -418,7 +422,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setDraft(points => [...points, { at: point, handle: { x: 0, y: 0 } }]);
         return true;
       }
-      if (tool === "select" && multi.items.length && multi.grab(point, tolerance)) return true;
+      if (tool === "select" && multi.items.length && !quickTouch && multi.grab(point, tolerance)) return true;
       // Ett drag på tom karta med musen ritar en ruta som markerar; med mellanslag nedtryckt (och med fingret) flyttas kartan.
       const marquee = () => {
         if (tool !== "select" || pointerType === "touch" || panKey.current.down) { panKey.current.used = true; return false; }
@@ -426,6 +430,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         return true;
       };
       if (!selected) return marquee();
+      if (quickTouch && tool === "select") return marquee();
       const object = selected.object;
       if (rotating && (object.kind === "point" || object.kind === "text")) { drag.current = { mode: "rotate", original: object }; setPreview(new Set([selected.key])); return true; }
       if (object.kind !== "point" && object.kind !== "text") {

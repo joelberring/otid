@@ -1376,7 +1376,8 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar
   vid högra kanten.
-- [ ] Telefonen: skydd mot att råka dra i en markerad linje med fingret (t.ex. ett kort håll innan en punkt eller sträcka följer med).
+- [x] Telefonen: skydd mot att råka dra i en markerad linje med fingret: med fingret följer något markerat med först efter ett
+  håll på 250 ms; ett snabbt drag flyttar kartan (2026-11-11).
 - [ ] R4 Verktyg i ordning: koppla ihop och klipp isär, byt symbol på alla av samma sort och pipett, rektangel och räta
   vinklar, fyll, duplicera och parallell kopia, följ kant.
 - [ ] R5 Nya symboler (duplicera, hämta ur en annan kartfil) och resten av verktygen efter vad piloten behöver.

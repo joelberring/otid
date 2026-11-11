@@ -92,7 +92,7 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect(settings).toMatchObject({ types: ["cx23", "cax11"], locations: ["fsn1", "hel1"], idleMinutes: 20, budgetEur: 10, label: "otid.example.se",
       image: "ghcr.io/joelberring/otid-geo:abc1234", origin: "https://otid.example.se" });
     expect(geoServerSettings({ O_TID_PUBLIC_ORIGIN: "https://x.se" })).toBeUndefined();
-    expect(geoServerSettings({ OTID_HETZNER_TOKEN: "x", O_TID_PUBLIC_ORIGIN: "https://x.se", OTID_GEO_SERVER_TYPES: " ;rm -rf" })?.types).toEqual(["cx23", "cax11"]);
+    expect(geoServerSettings({ OTID_HETZNER_TOKEN: "x", O_TID_PUBLIC_ORIGIN: "https://x.se", OTID_GEO_SERVER_TYPES: " ;rm -rf" })?.types).toEqual(["cx33", "cx23", "cax11", "cpx32", "cpx22"]);
     const init = geoCloudInit({ image: "ghcr.io/joelberring/otid-geo:main", origin: "https://otid.example.se", token: "t'x", name: "otid-geo-1" });
     expect(init.startsWith("#cloud-config\n")).toBe(true);
     expect(init).toContain("-e OTID_GEO_WORKER_TOKEN='t'\\''x'");

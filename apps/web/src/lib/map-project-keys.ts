@@ -9,7 +9,7 @@ export type KeyCommand = typeof KEY_COMMANDS[number];
 export type KeyMap = Readonly<Record<KeyCommand, string>>;
 
 export const DEFAULT_KEYS: KeyMap = {
-  select: "Q", draw: "W", circle: "Shift+E", rectangle: "Shift+W", note: "Shift+T", duplicate: "Shift+D", fill: "G", parallel: "P",
+  select: "Q", draw: "W", circle: "Shift+E", rectangle: "Shift+W", note: "Shift+T", duplicate: "Shift+D", fill: "Shift+F", parallel: "Shift+V",
   addPoint: "A", removePoint: "S", cut: "X", pick: "D", reverse: "V", smooth: "Shift+A", simplify: "Shift+S",
   undo: "Z", redo: "Shift+Z", switchSymbol: "C", join: "F", checked: "R",
   wheel: "Space", bare: "§"

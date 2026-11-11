@@ -546,18 +546,18 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   await settled(owner);
   const box = (await own()).find(object => object.kind === "line" && object.path.length === 5 && Math.round(object.path[0]!.x) === 100);
   expect(box?.kind === "line" ? box.path.map(point => [Math.round(point.x), Math.round(point.y)]) : []).toEqual([[100, 40], [120, 40], [120, 55], [100, 55], [100, 40]]);
-  // Det markerade mäts under kartan; P ger en parallell linje och G fyller den slutna linjen när en ytsymbol är vald (här
+  // Det markerade mäts under kartan; Skift+V ger en parallell linje och Skift+F fyller den slutna linjen när en ytsymbol är vald (här
   // finns ingen, så beskedet säger vad som behövs).
   await owner.keyboard.press("q");
   const edge = await screenOf(owner, { x: 110, y: 40 });
   await owner.mouse.click(edge.x, edge.y);
   await expect(owner.getByTestId("map-project-hint")).toContainText(" m · ");
   const lines = (await own()).length;
-  await owner.keyboard.press("p");
+  await owner.keyboard.press("Shift+V");
   await expect(owner.getByTestId("map-project-hint")).toHaveText("Den parallella linjen ligger en millimeter till höger.");
   await settled(owner);
   expect((await own()).length).toBe(lines + 1);
-  await owner.keyboard.press("g");
+  await owner.keyboard.press("Shift+F");
   await expect(owner.getByTestId("map-project-hint")).toHaveText("Markera en sluten linje och välj en ytsymbol, eller markera en yta och välj en linjesymbol.");
 });
 

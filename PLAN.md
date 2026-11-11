@@ -1312,7 +1312,7 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
 - [x] Klipp isär (sax, X), vänd riktning (V, också för flera) och pipett (D, ta symbolen från det markerade), 2026-11-10.
   Verktygsspalten har två kolumner i datorn, så att alla verktyg syns utan att rulla.
 - [ ] Verktygsspalten, resten efter jämförelsen med Mapper, OCAD och Illustrator (ägaren 2026-11-10): ~~rektangel~~ (klart
-  2026-11-11: Skift+W, tre klick, räta vinklar i valfri riktning), ~~duplicera~~ (klart: Skift+D), ~~fyll yta och gör kant~~ (G), ~~parallell linje~~ (P, 1 mm till höger), ~~mät~~ (längd
+  2026-11-11: Skift+W, tre klick, räta vinklar i valfri riktning), ~~duplicera~~ (klart: Skift+D), ~~fyll yta och gör kant~~ (Skift+F), ~~parallell linje~~ (Skift+V, 1 mm till höger), ~~mät~~ (längd
   och yta för det markerade under kartan), parallell linje, skala och vrid med tal, mät sträcka och yta, text; saxen också på ytors kanter.
 - [ ] Kartans färgtabell (ägaren 2026-11-10: «ställa in färger/färgprofil i kartan», «japp färgtabell»):
   - [x] F1 «Kartans färger» under Lager: färgtabellen i ritordning, CMYK i procent, kartan ritas om medan man ändrar; ägarna

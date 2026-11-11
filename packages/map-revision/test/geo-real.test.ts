@@ -166,10 +166,19 @@ describe("branterna som linjer", () => {
     expect(ground).toMatchObject({ minX: 664_780, minY: 6_576_500, cell: 1, width: 300, height: 300 });
     const cliffs = cliffsFromTicks(readTicks(raw("stup")), readTicks(raw("branter")), undefined, ground);
     expect(cliffs.summary).toMatchObject({ cliffs201: 9, cliffs202: 10, cliffsDropped: 0 });
-    // Den långa stranden i söder faller över tio meter; alla opasserbara är minst 10 m långa med minst 2,4 m fall.
+    // Den långa stranden i söder faller över tio meter; alla opasserbara är minst 10 m långa med minst 2,4 m fall. Linjerna
+    // ligger i överkanten, så fallet mäts nu från den: mer av det ligger nedför än uppför.
     const measured = cliffs.lines.impassable.map(line => measureCliff(line, ground));
-    expect(Math.max(...measured.map(row => row.drop3))).toBeGreaterThan(10);
-    expect(measured.every(row => row.drop3 >= 2.4 && row.drop6 >= 3 && row.length >= 10)).toBe(true);
+    expect(Math.max(...measured.map(row => row.drop6))).toBeGreaterThan(10);
+    // Flyttningen till överkanten kan korta en linje något.
+    expect(measured.every(row => row.drop6 >= 2.4 && row.length >= 9)).toBe(true);
+    // Överkanten: marken strax uppför linjen är plattare än strax nedför (medianen över alla opasserbara).
+    const edge = cliffs.lines.impassable.flatMap(line => line.slice(1).map((point, i) => {
+      const [ax, ay] = line[i]!, [bx, by] = point, length = Math.hypot(bx - ax, by - ay) || 1, rx = (by - ay) / length, ry = -(bx - ax) / length;
+      const mx = (ax + bx) / 2, my = (ay + by) / 2, z = (t: number) => ground.z[Math.floor(mx + rx * t - ground.minX) * ground.height + Math.floor(my + ry * t - ground.minY)]!;
+      return (z(-2) - z(0)) - (z(0) - z(2));
+    })).filter(Number.isFinite).sort((a, b) => a - b);
+    expect(edge[Math.floor(edge.length / 2)]).toBeLessThan(0);
     expect(suggested(parseDxf(cliffs.dxf))).toEqual({ brant_opasserbar: "s201", brant_passerbar: "s202" });
     // En plan mark ger ingen brant alls, och utan mätvärden behålls linjen som brant.
     const flat: GroundGrid = { minX: 0, minY: 0, cell: 1, width: 60, height: 200, z: new Float32Array(60 * 200).fill(20) };

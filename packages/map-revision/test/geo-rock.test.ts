@@ -45,3 +45,18 @@ describe("stenar och berg i dagen ur markrastret", () => {
     expect(data.features).toEqual([{ layer: "sten", geometry: { kind: "point", at: [1, 2] } }]);
   });
 });
+
+describe("branten i överkanten", () => {
+  it("flyttar linjen från mitten av fallet till överkanten", async () => {
+    const { toTopEdge } = await import("../../../scripts/geo-cliffs");
+    const width = 40, height = 60, z = new Float32Array(width * height);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) z[x * height + y] = y >= 30 ? 15 : y <= 26 ? 11 : 11 + (y - 26);
+    const grid: GroundGrid = { minX: 0, minY: 0, cell: 1, width, height, z };
+    // Österut med nedför till höger (söderut), mitt i fallet.
+    const top = toTopEdge([[5, 28.5], [20, 28.5], [35, 28.5]], grid);
+    for (const [, y] of top) { expect(y).toBeGreaterThan(29.4); expect(y).toBeLessThan(31.1); }
+    // Plan mark: linjen ligger kvar.
+    const flat: GroundGrid = { ...grid, z: new Float32Array(width * height).fill(10) };
+    expect(toTopEdge([[5, 28.5], [20, 28.5]], flat)).toEqual([[5, 28.5], [20, 28.5]]);
+  });
+});

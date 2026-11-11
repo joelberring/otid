@@ -252,6 +252,37 @@ export function measureCliff(line: readonly (readonly [number, number])[], groun
 }
 
 /**
+ * Brantlinjen flyttas till överkanten (ISOM: linjen ritas i brantens överkant, taggarna nedför). För varje punkt läses
+ * markens profil tvärs linjen, 4 m uppför till 2 m nedför i halvmetersteg, och överkanten är där profilen bryter nedåt mest
+ * (minsta andraderivatan). Förflyttningen jämnas ut längs linjen (median av tre) och är högst 3 m; utan mark lämnas punkten.
+ */
+export function toTopEdge(line: readonly (readonly [number, number])[], ground: GroundGrid): [number, number][] {
+  const normals = line.map((_, i) => {
+    const [ax, ay] = line[Math.max(0, i - 1)]!, [bx, by] = line[Math.min(line.length - 1, i + 1)]!, length = Math.hypot(bx - ax, by - ay) || 1;
+    // Nedför till höger om färdriktningen.
+    return [(by - ay) / length, -(bx - ax) / length] as const;
+  });
+  const shifts = line.map(([x, y], i) => {
+    const [rx, ry] = normals[i]!;
+    const profile: number[] = [];
+    for (let t = -4.5; t <= 2.5; t += 0.5) profile.push(heightAt(ground, x + rx * t, y + ry * t));
+    let best = 0, bestCurve = Infinity;
+    for (let k = 1; k < profile.length - 1; k += 1) {
+      const t = -4.5 + k * 0.5;
+      if (t > 2) break;
+      const curve = profile[k - 1]! - 2 * profile[k]! + profile[k + 1]!;
+      if (Number.isFinite(curve) && curve < bestCurve) { bestCurve = curve; best = t; }
+    }
+    return Number.isFinite(bestCurve) && bestCurve < -0.1 ? Math.max(-3, Math.min(3, best)) : 0;
+  });
+  return line.map(([x, y], i) => {
+    const near = [shifts[Math.max(0, i - 1)]!, shifts[i]!, shifts[Math.min(line.length - 1, i + 1)]!].sort((a, b) => a - b);
+    const [rx, ry] = normals[i]!;
+    return [x + rx * near[1]!, y + ry * near[1]!];
+  });
+}
+
+/**
  * Hela kedjan: opasserbara och passerbara branter som DXF, och en sammanfattning. Med markrastret (`ground`) görs linjerna av
  * alla streck tillsammans och sorten avgörs av det uppmätta fallet; utan det avgör Karttapullautins två filer.
  */
@@ -266,7 +297,9 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
       const { drop3, drop6, length } = measureCliff(line, ground);
       if (!Number.isFinite(drop3)) { low.push(line); continue; }
       if (drop3 < rules.minDrop) { dropped += 1; continue; }
-      if (drop3 >= rules.impassableDrop3 && drop6 >= rules.impassableDrop6 && length >= rules.impassableLength) high.push(line); else low.push(line);
+      // Fallet mäts kring Karttapullautins läge (mitt i branten); linjen ritas sedan i överkanten.
+      const top = toTopEdge(line, ground);
+      if (drop3 >= rules.impassableDrop3 && drop6 >= rules.impassableDrop6 && length >= rules.impassableLength) high.push(top); else low.push(top);
     }
   } else {
     // Passerbara streck där det redan är opasserbart (inom 2 m) hör till den opasserbara branten.

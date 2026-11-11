@@ -201,7 +201,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   title: "Keys in the drawing mode",
   help: "The keys are under the left hand, so that the right hand can stay on the mouse. Click a key and then press the new one. The choice is saved in this browser.",
   commands: {
-    select: "Edit", draw: "Draw", circle: "Circle", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
+    select: "Edit", draw: "Draw", circle: "Circle", rectangle: "Rectangle", duplicate: "Duplicate", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
     switchSymbol: "Change symbol on the selection", join: "Join lines", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
     undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only"
   },
@@ -216,6 +216,9 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   wasReset: "The defaults apply again.",
   done: "Done",
   addPointHint: "Click a line or the edge of an area for a new point there.",
+  rectangleHint: (corners: number) => corners === 0 ? "Click the first corner." : corners === 1 ? "Click the second corner (one side of the rectangle)." : "Click for the width.",
+  rectangleNeedsShape: "Choose a line or area symbol for the rectangle.",
+  duplicated: (count: number) => count === 1 ? "The copy lies slightly below." : `${count} copies lie slightly below.`,
   removePointHint: "Click a point to remove it.",
   noPointHere: "No point to remove there.",
   noSegmentHere: "No line or edge there.",
@@ -230,6 +233,8 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
     switchSymbol: "The selection gets the symbol chosen in the panel. With several selected, all with the same shape (line, area or point) change.",
     join: "Select the lines with a box or Shift-click. Lines with the same symbol whose ends meet become one line; two selected lines are always joined.",
     cut: "Click a line to split it in two there. On a vertex it is split at the point.",
+    rectangle: "Click two corners for one side and a third for the width: a rectangle with right angles in any direction (houses, platforms). Drawn with the chosen line or area symbol.",
+    duplicate: "Makes a copy of the selection, half a millimetre down to the right.",
     pick: "The symbol of the selected object becomes the chosen one, so that you can draw more with it.",
     reverse: "The line changes direction, so that the tags of cliffs and the dashes of fences end up on the other side.",
     smooth: "The corners become smooth curves.",

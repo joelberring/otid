@@ -529,6 +529,23 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   await owner.keyboard.press("d");
   await expect(owner.getByTestId("map-project-hint")).toHaveText(/^Vald symbol: 505/);
   await expect(owner.getByTestId("map-project-rail-pick")).toHaveAttribute("aria-disabled", "true");
+
+  // Duplicera (Skift+D): en kopia av den markerade linjen. Rektangeln (Skift+W): tre klick ger en sluten linje med räta vinklar.
+  const count = (await own()).length;
+  await owner.keyboard.press("Shift+D");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Kopian ligger snett nedanför.");
+  await settled(owner);
+  expect((await own()).length).toBe(count + 1);
+  await owner.keyboard.press("Escape");
+  await owner.keyboard.press("Shift+W");
+  await expect(owner.getByTestId("map-project-rectangle-tool")).toHaveAttribute("aria-pressed", "true");
+  for (const corner of [{ x: 100, y: 40 }, { x: 120, y: 40 }, { x: 115, y: 55 }]) {
+    const at = await screenOf(owner, corner);
+    await owner.mouse.click(at.x, at.y);
+  }
+  await settled(owner);
+  const box = (await own()).find(object => object.kind === "line" && object.path.length === 5 && Math.round(object.path[0]!.x) === 100);
+  expect(box?.kind === "line" ? box.path.map(point => [Math.round(point.x), Math.round(point.y)]) : []).toEqual([[100, 40], [120, 40], [120, 55], [100, 55], [100, 40]]);
 });
 
 /**

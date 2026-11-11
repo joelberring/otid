@@ -1311,8 +1311,8 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   åt rätt håll; två markerade binds alltid ihop. F, knappen i spalten, raden under kartan och hjulet.
 - [x] Klipp isär (sax, X), vänd riktning (V, också för flera) och pipett (D, ta symbolen från det markerade), 2026-11-10.
   Verktygsspalten har två kolumner i datorn, så att alla verktyg syns utan att rulla.
-- [ ] Verktygsspalten, resten efter jämförelsen med Mapper, OCAD och Illustrator (ägaren 2026-11-10): rektangel, duplicera,
-  fyll yta och gör kant, parallell linje, skala och vrid med tal, mät sträcka och yta, text; saxen också på ytors kanter.
+- [ ] Verktygsspalten, resten efter jämförelsen med Mapper, OCAD och Illustrator (ägaren 2026-11-10): ~~rektangel~~ (klart
+  2026-11-11: Skift+W, tre klick, räta vinklar i valfri riktning), ~~duplicera~~ (klart: Skift+D), fyll yta och gör kant, parallell linje, skala och vrid med tal, mät sträcka och yta, text; saxen också på ytors kanter.
 - [ ] Kartans färgtabell (ägaren 2026-11-10: «ställa in färger/färgprofil i kartan», «japp färgtabell»):
   - [x] F1 «Kartans färger» under Lager: färgtabellen i ritordning, CMYK i procent, kartan ritas om medan man ändrar; ägarna
     sparar ändringarna i projektet (`map_project.colors`, 0112) och de skrivs i nästa kartversion (Mapper) som ett eget

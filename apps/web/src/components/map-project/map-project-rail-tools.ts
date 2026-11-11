@@ -1,5 +1,8 @@
 import { keyLabel, type KeyMap } from "../../lib/map-project-keys";
+import type { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
+import type { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
+import type { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import type { Texts } from "../../lib/language";
 import type { RailTool } from "./map-project-tool-rail";
 import type { WheelAction, WheelTool } from "./map-project-tool-wheel";
@@ -13,8 +16,8 @@ export interface RailState {
   readonly canUndo: boolean; readonly canRedo: boolean;
   /** Något är markerat (ett objekt eller flera), och vad som går att göra med det. */
   readonly hasSelection: boolean; readonly canSwitch: boolean; readonly canJoin: boolean; readonly canReverse: boolean; readonly canPick: boolean; readonly canSmooth: boolean; readonly canSimplify: boolean;
-  readonly pick: (tool: "select" | "draw" | "circle" | "addPoint" | "removePoint" | "cut" | "area" | "note") => void;
-  readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "reverse" | "pick") => void;
+  readonly pick: (tool: "select" | "draw" | "circle" | "rectangle" | "addPoint" | "removePoint" | "cut" | "area" | "note") => void;
+  readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "reverse" | "pick" | "duplicate") => void;
   readonly remove: () => void; readonly undo: () => void; readonly redo: () => void;
   readonly togglePanel: () => void; readonly toggleBare: () => void; readonly openWheel: () => void; readonly openKeys: () => void;
 }
@@ -34,6 +37,8 @@ export function railTools(state: RailState): RailTool[] {
       { id: "draw", label: labels.draw, icon: "draw", key: key("draw"), help: labels.drawHelp, active: state.tool === "draw", onPick: () => state.pick("draw") },
       { id: "circle", label: labels.circle, icon: "circle", key: key("circle"), help: text.tips.circle, active: state.tool === "circle", testId: "map-project-circle-tool",
         onPick: () => state.pick("circle") },
+      { id: "rectangle", label: text.commands.rectangle, icon: "rectangle", key: key("rectangle"), help: text.tips.rectangle, active: state.tool === "rectangle",
+        testId: "map-project-rectangle-tool", onPick: () => state.pick("rectangle") },
       { id: "addPoint", label: text.commands.addPoint, icon: "addPoint", key: key("addPoint"), help: text.addPointHint, gap: true, active: state.tool === "addPoint",
         testId: "map-project-add-point", onPick: () => state.pick("addPoint") },
       { id: "removePoint", label: text.commands.removePoint, icon: "removePoint", key: key("removePoint"), help: text.removePointHint, active: state.tool === "removePoint",
@@ -46,6 +51,8 @@ export function railTools(state: RailState): RailTool[] {
         disabled: !state.canSwitch, disabledHelp: needs ?? text.needOtherSymbol, testId: "map-project-rail-switch", onPick: () => state.act("switchSymbol") },
       { id: "pick", label: text.commands.pick, icon: "pick", key: key("pick"), help: text.tips.pick, disabled: !state.canPick, disabledHelp: text.needSelection,
         testId: "map-project-rail-pick", onPick: () => state.act("pick") },
+      { id: "duplicate", label: text.commands.duplicate, icon: "duplicate", key: key("duplicate"), help: text.tips.duplicate, disabled: !state.hasSelection,
+        disabledHelp: text.needSelection, testId: "map-project-duplicate", onPick: () => state.act("duplicate") },
       { id: "join", label: text.commands.join, icon: "join", key: key("join"), help: text.tips.join, disabled: !state.canJoin, disabledHelp: text.needLines,
         testId: "map-project-rail-join", onPick: () => state.act("join") },
       { id: "reverse", label: text.commands.reverse, icon: "reverse", key: key("reverse"), help: text.tips.reverse, disabled: !state.canReverse, disabledHelp: text.needLine,
@@ -93,4 +100,23 @@ export function wheelActionsOf(input: {
     ...(single.switchTo ? [{ id: "switch", label: input.quick.switchTo(single.switchTo), onPick: () => input.act("switchSymbol") }] : []),
     ...(single.line ? [{ id: "reverse", label: text.commands.reverse, onPick: () => input.act("reverse") }] : []),
     { id: "remove", label: input.quick.remove, onPick: single.remove }];
+}
+
+/** Raden under kartan: vad det valda verktyget gör (utbrutet ur `map-project-editor.tsx`). */
+export function toolHint(input: { canEdit: boolean; closed: boolean; tool: string; multiCount: number; rotating: boolean;
+  symbol: { readonly code: string; readonly kind: string } | undefined; text: Texts<typeof mapProjectEditorSv>; notes: Texts<typeof mapProjectNotesSv>;
+  keys: Texts<typeof mapProjectKeysSv>; quick: Texts<typeof mapProjectQuickSv> }): string {
+  const { tool, symbol, text, keys, quick } = input;
+  return !input.canEdit ? (input.closed ? text.closed : text.readOnly)
+    : tool === "area" ? text.collab.areaHint
+    : tool === "note" ? input.notes.toolHint
+    : tool === "rectangle" ? keys.rectangleHint(0)
+    : tool === "addPoint" ? keys.addPointHint : tool === "removePoint" ? keys.removePointHint : tool === "cut" ? keys.cutHint
+    : tool === "select" && input.multiCount ? (input.rotating ? keys.multiRotate : keys.multiSelected(input.multiCount))
+    : tool === "select" ? text.hints.select
+    : !symbol ? text.tools.noSymbol
+    : tool === "circle" ? (symbol.kind === "line" || symbol.kind === "area" ? quick.circleHint(symbol.code) : quick.circleNeedsShape)
+    : symbol.kind === "point" ? text.hints.drawPoint(symbol.code)
+    : symbol.kind === "line" ? text.hints.drawLine(symbol.code)
+    : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
 }

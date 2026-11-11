@@ -26,7 +26,12 @@ if (ground) {
   bytes.writeDoubleLE(Number(minX), 0); bytes.writeDoubleLE(Number(minY), 8); bytes.writeDoubleLE(1, 16);
   bytes.writeBigUInt64LE(BigInt(width), 24); bytes.writeBigUInt64LE(BigInt(height), 32);
   // Södra halvan saknar markpunkter (NaN): där ligger den falska branten, som då behålls utan uppmätt fall.
-  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) bytes.writeFloatLE(y < height / 2 ? NaN : 20 + x * 0.1, 40 + (x * height + y) * 4);
+  // Ett rakt dike (1 m brett, 0,5 m djupt) tvärs över norra halvan, för dikena ur terrängformen.
+  const ditch = Math.round(height * 3 / 4);
+  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+    const dug = y === ditch && x > width / 10 && x < width * 9 / 10 ? 0.5 : 0;
+    bytes.writeFloatLE(y < height / 2 ? NaN : 20 + x * 0.1 - dug, 40 + (x * height + y) * 4);
+  }
   writeFileSync(ground, bytes);
 }
 process.stdout.write("1\n");

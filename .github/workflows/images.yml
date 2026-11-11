@@ -24,6 +24,7 @@ on:
       - scripts/geo-vegetation.ts
       - scripts/geo-water.ts
       - scripts/geo-cliffs.ts
+      - scripts/geo-ditches.ts
       - scripts/geo-gpkg.ts
       - tools/lasclip/**
       - apps/web/next.config.ts

@@ -37,6 +37,12 @@ export const GEO_MAP_WORLD = "karta.pgw";
 /** K5c del 2: fuktighetens bild och världsfil (blir ett eget underlag). */
 export const GEO_MOISTURE_IMAGE = "fukt.png";
 export const GEO_MOISTURE_WORLD = "fukt.pgw";
+/** Fuktdjupet (höjden över närmaste fuktstråk, ägaren 2026-11-11), som reglagen för blött och fuktigt läser i webbläsaren. */
+export const GEO_DEPTH_IMAGE = "fuktdjup.png";
+export const GEO_DEPTH_WORLD = "fuktdjup.pgw";
+/** Den lokala reliefen ur markrastret (ägaren 2026-11-11, diken ur terrängformen); ett underlag att tona. */
+export const GEO_RELIEF_IMAGE = "relief.png";
+export const GEO_RELIEF_WORLD = "relief.pgw";
 /** Terrängskuggningen ur laserns markraster (ägaren 2026-11-10); blir ett underlag att tona. */
 export const GEO_SHADE_IMAGE = "skuggning.png";
 export const GEO_SHADE_WORLD = "skuggning.pgw";
@@ -312,9 +318,11 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     const layerId = await layerFrom(tx, job, files, GEO_MAP_IMAGE, GEO_MAP_WORLD, name, 0.6, job.id, now);
     const moistureLayerId = await layerFrom(tx, job, files, GEO_MOISTURE_IMAGE, GEO_MOISTURE_WORLD, `${name.slice(0, 66)} – fuktighet`, 0.7, randomUUID(), now);
     const shadeLayerId = await layerFrom(tx, job, files, GEO_SHADE_IMAGE, GEO_SHADE_WORLD, `${name.slice(0, 60)} – terrängskuggning`, 0.5, randomUUID(), now);
+    const depthLayerId = await layerFrom(tx, job, files, GEO_DEPTH_IMAGE, GEO_DEPTH_WORLD, `${name.slice(0, 66)} – fuktdjup`, 0.5, randomUUID(), now);
+    const reliefLayerId = await layerFrom(tx, job, files, GEO_RELIEF_IMAGE, GEO_RELIEF_WORLD, `${name.slice(0, 66)} – relief`, 0.5, randomUUID(), now);
     await noteGeoServerJob(tx, worker, now);
     await tx.update(jobs).set({ status: "DONE", finishedAt: now, progress: null, error: null,
-      result: { layerId, moistureLayerId, shadeLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
+      result: { layerId, moistureLayerId, shadeLayerId, depthLayerId, reliefLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
     return { status: "ok", layerId } as const;
   });
 }

@@ -105,7 +105,7 @@ export function thin(mask: Uint8Array, width: number, height: number): Uint8Arra
 }
 
 /** Mittlinjens vägar: i varje sammanhängande del den längsta vägen först, sedan det som blir kvar, så länge delarna är långa nog. */
-function paths(skeleton: Uint8Array, width: number, height: number, minCells: number): number[][] {
+export function paths(skeleton: Uint8Array, width: number, height: number, minCells: number): number[][] {
   const left = new Uint8Array(skeleton), out: number[][] = [];
   const neighbours = (i: number) => {
     const x = Math.floor(i / height), y = i - x * height, list: number[] = [];

@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-11 – Tomter ur OSM och marktäcket, fukt med reglage, diken ur terrängformen
+- Tomtmark (520) ur OpenStreetMaps bostadsområden, marktäckets låga bebyggelse och ringar kring hus utanför dem, i tre lager.
+- Geo-arbetaren (version 5) skriver fuktdjupet (`fuktdjup.png`, höjd över fuktstråk i 2 cm-steg) och reliefen (`relief.png`)
+  som underlag, och diken ur markrastret (`diken.dxf`): raka smala sänkor → 305, krokiga där det är fuktigt → 306.
+- Panelen «Fukt med reglage»: gränserna för blött och fuktigt och minsta yta dras i webbläsaren; kandidaterna räknas om direkt.
+- Verifierat: enhetstester (diken, fuktdjup, tomter, grundkartan), typecheck, lint, knip, E2E `kartprojekt-geo` (det falska
+  markrastret har ett dike). Inte provat: riktiga diken; på Kungshatt-provrutan hittas inga raka diken med förvalen.
+
 ### 2026-11-11 – Grundkartan G3: kurvorna fogade och små slutna kurvor som punkthöjder
 - DXF:ens höjd läses; kurvor och formlinjer fogas över laserrutornas skarvar per lager och höjd (`joinSeams`).
 - Små slutna kurvor under ISOM 2017-2:s minsta mått (kulle 0,9 × 0,6 mm, grop 1,1 × 0,7 mm, formlinje 1,1 mm), med 20 %

@@ -117,7 +117,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   layerAdded: "The image is added as a base layer.",
   outputs: {
     "kurvor.dxf": "Contours", "formlinjer.dxf": "Form lines", "branter.dxf": "Cliffs", "stup.dxf": "Steep cliffs", "knollar.dxf": "Knolls",
-    "fukt.dxf": "Marshes and wet channels", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "marktacke.geojson": "Land cover from Lantmäteriet", "byggnader.geojson": "Buildings from Lantmäteriet", "ritning.geojson": "The drawing"
+    "fukt.dxf": "Marshes and wet channels", "diken.dxf": "Ditches from the terrain shape", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "marktacke.geojson": "Land cover from Lantmäteriet", "byggnader.geojson": "Buildings from Lantmäteriet", "ritning.geojson": "The drawing"
   },
   loadBaseMap: "Load the base map",
     osmMissing: "OpenStreetMap could not be fetched now, so paths, roads and houses are missing. Fetch them under Import vectors.",
@@ -162,6 +162,21 @@ export const mapSourcesEn: Texts<Sources> = {
     done: (rock: number, open: number) => `${rock} ha bare rock and ${open} ha open land are shown as candidates below under Vector file.`,
     nothing: "No broad grey or light green areas were found in the photo.",
     failed: "The photo could not be interpreted."
+  },
+  depth: {
+    heading: "Moisture with sliders (wet and moist)",
+    help: "The laser run's moisture depth (height above the nearest moisture channel) is read here. Drag the limits: the areas show at once as candidates on the map, "
+      + "without a new run. Wet becomes marsh (308) and moist indistinct marsh (310).",
+    none: "No moisture depth shown. Run Karttapullautin with moisture and keep the base layer ending in “fuktdjup” shown.",
+    layer: "Base layer",
+    wet: (meters: string) => `Wet: up to ${meters} m above the channel`,
+    moist: (meters: string) => `Moist: up to ${meters} m`,
+    minArea: (square: number) => `Smallest area: ${square} m²`,
+    run: "Show as candidates",
+    name: (layer: string) => `${layer} – wet and moist`.slice(0, 120),
+    done: (wet: string, moist: string) => `${wet} ha wet and ${moist} ha moist. Change the limits and it is recalculated.`,
+    nothing: "No areas with these limits.",
+    failed: "The moisture depth could not be read."
   },
   moisture: mapSourcesMoistureEn,
   laser: mapSourcesLaserEn

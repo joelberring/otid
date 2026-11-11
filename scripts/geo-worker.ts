@@ -29,7 +29,8 @@ import { createReadStream } from "node:fs";
 import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt } from "./geo-cliffs.ts";
 import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
-import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
+import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
+import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
 
@@ -72,7 +73,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 4;
+export const WORKER_VERSION = 5;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
@@ -234,6 +235,7 @@ async function runJob(job: Job): Promise<void> {
     }
     // K5c del 2: fuktigheten ur rutornas höjdraster (Karttapullautin sparar dem i temp_<ruta>_dir med savetempfolders).
     let moistureSummary: Record<string, number> = {};
+    let wetAt: ((x: number, y: number) => boolean) | undefined;
     if (job.moisture) {
       await set("Räknar fuktigheten", 0, 1);
       const folders = (await readdir(dir)).filter(name => /^temp_.+_dir$/.test(name)).sort();
@@ -247,7 +249,24 @@ async function runJob(job: Job): Promise<void> {
       await writeFile(join(dir, "fukt.png"), moisture.png);
       await writeFile(join(dir, "fukt.pgw"), moisture.world);
       await writeFile(join(dir, "fukt.dxf"), moisture.dxf);
+      await writeFile(join(dir, "fuktdjup.png"), moisture.depthPng);
       moistureSummary = { wetHa: moisture.summary.wetHa, moistHa: moisture.summary.moistHa, channels: moisture.summary.channels };
+      wetAt = moisture.wetAt;
+    }
+    // Ägaren 2026-11-11: diken ur terrängformen (geo-ditches.ts) och reliefen som underlag; de krokiga sänkorna behålls bara
+    // där fuktigheten säger fuktigt.
+    let ditchSummary: Record<string, number> = {};
+    if (ground) {
+      await set("Letar diken i terrängformen", 0, 1);
+      const relief = localRelief(ground, DEFAULT_DITCHES.radius);
+      const image = reliefImage(ground, relief);
+      await writeFile(join(dir, "relief.png"), image.png);
+      await writeFile(join(dir, "relief.pgw"), image.world);
+      const lines = ditchLines(ground, relief, DEFAULT_DITCHES, wetAt, water?.at);
+      const of = (name: string) => lines.filter(line => line.name === name).map(line => line.points);
+      if (lines.length) await writeFile(join(dir, "diken.dxf"), moistureDxf([{ name: "dike", closed: false, parts: of("dike") },
+        { name: "fuktstrak_terrang", closed: false, parts: of("fuktstrak_terrang") }]));
+      ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length };
     }
     // K5c del 3: vegetationen ur klassbilderna i ./out (<ruta>_vege_bit.png, _undergrowth_bit.png och världsfilen).
     let vegetationSummary: Record<string, number> = {};
@@ -274,10 +293,13 @@ async function runJob(job: Job): Promise<void> {
     const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
       ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
-      ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"]] as const : []),
+      ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"],
+        ["fuktdjup.png", "fuktdjup.png", "image/png"], ["fuktdjup.pgw", "fukt.pgw", "text/plain"]] as const : []),
       ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"]] as const : []),
       ...(files.has("skuggning.png") ? [["skuggning.png", "skuggning.png", "image/png"], ["skuggning.pgw", "skuggning.pgw", "text/plain"]] as const : []),
       ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
+      ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
+      ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),
       ...["marktacke.geojson", "byggnader.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
@@ -291,7 +313,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...vegetationSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

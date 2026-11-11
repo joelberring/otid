@@ -1365,6 +1365,13 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     kulle 0,9 × 0,6 mm och grop 1,1 × 0,7 mm, annars liten kulle (109) eller liten grop (111) efter omgivningens höjd, utan
     dubblett där Karttapullautins knoll ligger; formlinjering under 1,1 mm tas bort; liten stödkurvering blir vanlig kurva.
     Kungshatt-provet 1:10 000: 6 nya små kullar, 108 linjer blev 102.
+  - [x] Tomter, fukt och diken (ägaren 2026-11-11: «använd de grå lagren för bebyggd yta från OSM», «dra i
+    markfuktighetslagren», «terrängformstolkning … för diken»): tomtmark ur OpenStreetMaps bostadsområden (`tomtmark_osm`),
+    marktäckets låga bebyggelse (`tomtmark_marktacke`) och ringar kring hus utanför dem (`tomtmark_hus`), alla 520 i var sitt
+    lager. Fuktdjupet (höjd över fuktstråk) blir ett underlag och panelen «Fukt med reglage» drar gränserna för blött och
+    fuktigt i webbläsaren. Diken ur markrastret (`scripts/geo-ditches.ts`): smala sänkor med högre mark på båda sidor, raka →
+    `dike` (305), krokiga och fuktiga → `fuktstrak_terrang` (306); reliefen blir ett underlag. Geo-arbetaren version 5.
+  - [ ] Diken: prövas mot riktiga diken (Kungshatt-rutan har inga raka); inställningarna (djup 0,2 m, längd 15 m) som reglage.
   - Lager efter källa: ägaren 2026-11-11 valde att valet före Lägg in (kandidatraden) räcker; inget mer byggs. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar

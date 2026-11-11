@@ -14,6 +14,8 @@ import { crc32, deflateSync } from "node:zlib";
 /** Ett rutnät med cellernas mitt i (minX + cell·x, minY + cell·y), y uppåt (norr); NaN = ingen data. Index x·height + y. */
 export interface Grid { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number; readonly z: Float64Array }
 export interface MoistureSettings { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number }
+/** Steget i fuktdjupets bild (meter per värde). */
+export const DEPTH_STEP_METERS = 0.02;
 export const DEFAULT_MOISTURE: MoistureSettings = { channelHa: 1, wetMeters: 0.5, moistMeters: 1 };
 
 /** Karttapullautins höjdraster: xoffset, yoffset, scale (f64), bredd, höjd (u64) och värdena (f64), little endian. */
@@ -420,9 +422,24 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
     if (moistMask[i]) return [120, 180, 240, 110];
     return [0, 0, 0, 0];
   });
+  // Ägaren 2026-11-11 («dra i markfuktighetslagren»): höjden över närmaste fuktstråk som bild, så att gränserna för blött och
+  // fuktigt kan dras i webbläsaren utan en ny körning. Rött och grönt = höjden i steg om 2 cm (0–5,08 m), blått 255; utan
+  // data eller i vatten genomskinligt. Lågt blir blått, högt vitt.
+  const depthPng = encodePng(grid.width, grid.height, (column, row) => {
+    const i = column * grid.height + (grid.height - 1 - row);
+    const value = hand[i]!;
+    if (!Number.isFinite(value) || blocked?.[i]) return [0, 0, 0, 0];
+    const step = Math.min(254, Math.max(0, Math.round(value / DEPTH_STEP_METERS)));
+    return [step, step, 255, 255];
+  });
   const dxf = moistureDxf([{ name: "blott", closed: true, parts: wet }, { name: "fuktigt", closed: true, parts: moist },
     { name: "fuktstrak", closed: false, parts: channels }]);
   const count = (mask: Uint8Array) => mask.reduce((sum, value) => sum + value, 0);
-  return { png, world: worldFile(grid), dxf, summary: { wetHa: Math.round(count(wetMask) * grid.cell * grid.cell / 100) / 100,
+  // Om en punkt är fuktig (höjden över fuktstråket högst gränsen för fuktigt), för dikena ur terrängformen.
+  const wetAt = (x: number, y: number) => {
+    const column = Math.round((x - grid.minX) / grid.cell), row = Math.round((y - grid.minY) / grid.cell);
+    return column >= 0 && row >= 0 && column < grid.width && row < grid.height && hand[column * grid.height + row]! <= settings.moistMeters;
+  };
+  return { png, depthPng, wetAt, world: worldFile(grid), dxf, summary: { wetHa: Math.round(count(wetMask) * grid.cell * grid.cell / 100) / 100,
     moistHa: Math.round(count(moistMask) * grid.cell * grid.cell / 100) / 100, wetAreas: wet.length, moistAreas: moist.length, channels: channels.length } };
 }

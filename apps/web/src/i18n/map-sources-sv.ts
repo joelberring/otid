@@ -62,6 +62,21 @@ export const mapSourcesSv = {
     nothing: "Inga breda grå eller ljusgröna ytor hittades i bilden.",
     failed: "Flygbilden kunde inte tolkas."
   },
+  depth: {
+    heading: "Fukt med reglage (blött och fuktigt)",
+    help: "Laserkörningens fuktdjup (höjden över närmaste fuktstråk) läses här. Dra i gränserna: ytorna visas direkt som kandidater på kartan, "
+      + "utan en ny körning. Blött blir sankmark (308) och fuktigt otydlig sankmark (310).",
+    none: "Inget fuktdjup tänt. Kör Karttapullautin med fuktigheten och låt underlaget som slutar på ”fuktdjup” vara tänt.",
+    layer: "Underlag",
+    wet: (meters: string) => `Blött: upp till ${meters} m över fuktstråket`,
+    moist: (meters: string) => `Fuktigt: upp till ${meters} m`,
+    minArea: (square: number) => `Minsta yta: ${square} m²`,
+    run: "Visa som kandidater",
+    name: (layer: string) => `${layer} – blött och fuktigt`.slice(0, 120),
+    done: (wet: string, moist: string) => `${wet} ha blött och ${moist} ha fuktigt. Ändra gränserna så räknas det om.`,
+    nothing: "Inga ytor med de här gränserna.",
+    failed: "Fuktdjupet kunde inte läsas."
+  },
   moisture: {
     heading: "Markfuktighet (SLU)",
     help: "SLU:s markfuktighetskarta (2 m, öppen data från Skogsstyrelsen) för hela kartan eller en etapp, som underlag. Blått är blött: "
@@ -147,7 +162,7 @@ export const mapSourcesSv = {
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
       "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
-      "fukt.dxf": "Våtmarker och fuktstråk", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
+      "fukt.dxf": "Våtmarker och fuktstråk", "diken.dxf": "Diken ur terrängformen", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
     loadBaseMap: "Läs in grundkartan",
     osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Importera vektorer.",

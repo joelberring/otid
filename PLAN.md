@@ -1358,7 +1358,9 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     tona ner?»): i dag blir det inlästa vanliga kartobjekt som släcks och tonas per symbol, normgrupp eller arbetslager, och
     bilderna (Karttapullautin, fuktighet, skuggning, ortofoto) är underlag. Bygg: det inlästa märkt med sin källa
     (laser, marktäcke, OpenStreetMap, flygbild) så att varje källa går att släcka, tona och ta bort för sig.
-  - [ ] G3 Kurvor: hopslagna över rutgränser, punkthöjder. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
+  - [x] G3 första delen (2026-11-11): DXF:ens höjd läses (`elevation`) och kurvorna och formlinjerna fogas över laserrutornas
+    skarvar per lager och höjd (inom 0,5 m), en kedja som möter sig själv blir sluten (`joinSeams`).
+  - [ ] G3 Kurvor: punkthöjder. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar
   vid högra kanten.

@@ -6,7 +6,8 @@ export type SourceGeometry =
   | { readonly kind: "point"; readonly at: readonly [number, number] }
   | { readonly kind: "line"; readonly points: readonly (readonly [number, number])[]; readonly closed: boolean }
   | { readonly kind: "area"; readonly rings: readonly (readonly (readonly [number, number])[])[] };
-export interface SourceFeature { readonly layer: string; readonly geometry: SourceGeometry }
+/** `elevation`: höjden i meter när filen anger den (DXF:s kod 38 eller z i första punkten), t.ex. för höjdkurvor. */
+export interface SourceFeature { readonly layer: string; readonly geometry: SourceGeometry; readonly elevation?: number | undefined }
 export interface SourceData {
   readonly features: readonly SourceFeature[];
   /** EPSG-koden om filen anger den. */
@@ -121,6 +122,13 @@ export function parseDxf(text: string): SourceData {
     return result;
   };
   const flags = (body: [number, string][]) => Number(body.find(([code]) => code === 70)?.[1] ?? 0);
+  const elevationOf = (...bodies: ([number, string][] | undefined)[]) => {
+    for (const body of bodies) {
+      const value = Number(body?.find(([code]) => code === 38)?.[1] ?? body?.find(([code]) => code === 30)?.[1]);
+      if (body?.some(([code]) => code === 38 || code === 30) && Number.isFinite(value)) return { elevation: value };
+    }
+    return {};
+  };
   while (index < pairs.length) {
     const [code, value] = pairs[index]!;
     if (code === 0 && value === "ENDSEC") break;
@@ -135,7 +143,7 @@ export function parseDxf(text: string): SourceData {
       if (a && b) features.push({ layer, geometry: { kind: "line", points: [a, b], closed: false } }); else skipped += 1;
     } else if (type === "LWPOLYLINE") {
       const points = coordinates(body, 10, 20);
-      if (points.length >= 2) features.push({ layer, geometry: lineOf(points, (flags(body) & 1) === 1) }); else skipped += 1;
+      if (points.length >= 2) features.push({ layer, geometry: lineOf(points, (flags(body) & 1) === 1), ...elevationOf(body) }); else skipped += 1;
     } else if (type === "SPLINE") {
       const fit = coordinates(body, 11, 21);
       const points = fit.length >= 2 ? fit : coordinates(body, 10, 20);
@@ -143,13 +151,15 @@ export function parseDxf(text: string): SourceData {
     } else if (type === "POLYLINE") {
       const closed = (flags(body) & 1) === 1;
       const points: Position[] = [];
+      let first: [number, string][] | undefined;
       while (index < pairs.length && pairs[index]![1] === "VERTEX") {
         const vertex = entity();
+        first ??= vertex.body;
         const at = coordinates(vertex.body, 10, 20)[0];
         if (at) points.push(at);
       }
       if (pairs[index]?.[1] === "SEQEND") entity();
-      if (points.length >= 2) features.push({ layer, geometry: lineOf(points, closed) }); else skipped += 1;
+      if (points.length >= 2) features.push({ layer, geometry: lineOf(points, closed), ...elevationOf(body, first) }); else skipped += 1;
     } else skipped += 1;
   }
   return { features, skipped };

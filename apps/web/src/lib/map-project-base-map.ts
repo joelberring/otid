@@ -1,6 +1,6 @@
 import type { GeoClip } from "@o-tid/contracts";
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
-import type { SourceData, SourceFeature } from "@o-tid/map-revision";
+import { joinSeams, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import { yardsOf } from "./map-project-yards";
 
 /**
@@ -13,6 +13,7 @@ import { yardsOf } from "./map-project-yards";
  *   `oppen_mark_laser` och får inget förslag; marktäckets sankmark och den uträknade fuktigheten kommer båda med,
  * - en opasserbar brant som är för kort för två taggar blir en brant (ägaren 2026-11-11: «det ska alltid vara minst två
  *   taggar på taggbranter»),
+ * - kurvorna och formlinjerna fogas över laserrutornas skarvar (`joinSeams`),
  * - tomterna räknas ur husen (`yardsOf`), eftersom ingen av källorna har dem,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.
@@ -63,7 +64,8 @@ const lineLength = (points: readonly (readonly [number, number])[]) => points.re
 export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], osm?: SourceData, scale?: number): SourceData {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const shortest = scale ? twoTagMeters(scale) : 0;
-  const features = parts.flatMap(part => part.data.features.map(feature => {
+  // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
+  const features = parts.flatMap(part => (/^(kurvor|formlinjer)\.dxf$/.test(part.name) ? joinSeams(part.data.features) : part.data.features).map(feature => {
     if (part.name === "vegetation.dxf" && landCover && feature.layer === "oppen_mark") return { ...feature, layer: "oppen_mark_laser" };
     if (feature.layer === "brant_opasserbar" && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < shortest) return { ...feature, layer: "brant_passerbar" };
     return feature;

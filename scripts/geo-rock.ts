@@ -96,12 +96,18 @@ export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => b
 }
 
 /**
+ * Andelen av ringen som måste ligga lägre än kullen. Högdalenkartan 2026-11-11: med hela ringen (1) hittas 14–16 % av kartans
+ * punkthöjder, med 0,8 hittas 36–48 % med ungefär samma träffsäkerhet; en lägre tröskel för höjden gav inget.
+ */
+export const KNOLL_LOWER_SHARE = 0.8;
+
+/**
  * Små kullar (109) ur markrastret (ägaren 2026-11-11: «punkthöjder i likvärdig terräng» som Högdalenkartan): den högsta
  * punkten inom 3 m som står minst `minRise` m över medianen i en ring 6–8 m bort, med en fot (celler över halva höjden inom
  * 6 m) som är för liten för en egen höjdkurva (högst `maxFootM2`), och inte en sten. Lagret `dotknoll_laser` föreslås som 109.
  */
 export function knolls(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], minRise = 1, maxFootM2 = 80,
-  blockedAt?: (x: number, y: number) => boolean): [number, number][] {
+  blockedAt?: (x: number, y: number) => boolean, lowerShare = KNOLL_LOWER_SHARE): [number, number][] {
   const { width, height, cell, z } = ground;
   const at = (x: number, y: number) => x < 0 || y < 0 || x >= width || y >= height ? Number.NaN : z[x * height + y]!;
   const top = Math.max(1, Math.round(3 / cell)), inner = Math.max(top + 1, Math.round(6 / cell)), outer = Math.max(inner + 1, Math.round(8 / cell));
@@ -124,8 +130,10 @@ export function knolls(ground: GroundGrid, stones: readonly { at: readonly [numb
     if (ring.length < 24) continue;
     const base = median(ring), rise = here - base;
     if (rise < minRise) continue;
-    // Hela ringen ska ligga lägre: en udde på en sluttning har en sida som fortsätter uppåt.
-    if (Math.max(...ring) > here - rise / 3) continue;
+    // Det mesta av ringen ska ligga lägre: en udde på en sluttning har en sida som fortsätter uppåt, men kartritarens
+    // punkthöjder ligger ofta på en näsa eller i en sluttning med lite högre mark åt ett håll.
+    const limit = here - rise / 3;
+    if (ring.filter(value => value <= limit).length < lowerShare * ring.length) continue;
     let foot = 0;
     for (let dx = -inner; dx <= inner; dx += 1) for (let dy = -inner; dy <= inner; dy += 1) if (at(x + dx, y + dy) > base + rise / 2) foot += 1;
     if (foot > maxFoot) continue;

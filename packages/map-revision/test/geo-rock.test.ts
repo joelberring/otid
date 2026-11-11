@@ -33,6 +33,17 @@ describe("stenar och berg i dagen ur markrastret", () => {
     expect(Math.hypot(found[0]![0] - 20.5, found[0]![1] - 45.5)).toBeLessThan(1.5);
     expect(knolls(grid, stones, 2)).toEqual([]);
   });
+  it("små kullar: en kulle i en sluttning hittas fast marken är högre åt ett håll (lärt av Högdalenkartan)", () => {
+    const width = 60, height = 60, z = new Float32Array(width * height);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      z[x * height + y] = 10 + x * 0.16 + Math.max(0, 1.8 - Math.hypot(x - 30, y - 30) / 4 * 1.8);
+    }
+    const grid: GroundGrid = { minX: 0, minY: 0, cell: 1, width, height, z };
+    const found = knolls(grid, []);
+    expect(found).toHaveLength(1);
+    expect(Math.hypot(found[0]![0] - 30.5, found[0]![1] - 30.5)).toBeLessThan(2.5);
+    expect(knolls(grid, [], undefined, undefined, undefined, 1)).toEqual([]);
+  });
   it("berg i dagen: ojämn, öppen och upphöjd mark, inte det släta eller det skogsklädda", () => {
     const knobGrid = (amplitude: number): GroundGrid => {
       const width = 60, height = 60, z = new Float32Array(width * height);

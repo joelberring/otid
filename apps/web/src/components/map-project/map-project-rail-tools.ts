@@ -2,7 +2,7 @@ import { keyLabel, type KeyMap } from "../../lib/map-project-keys";
 import type { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import type { Texts } from "../../lib/language";
 import type { RailTool } from "./map-project-tool-rail";
-import type { WheelTool } from "./map-project-tool-wheel";
+import type { WheelAction, WheelTool } from "./map-project-tool-wheel";
 
 export interface RailState {
   readonly keys: KeyMap; readonly text: Texts<typeof mapProjectKeysSv>;
@@ -72,4 +72,25 @@ export function wheelToolsOf(keys: KeyMap, space: string, labels: { readonly sel
   tool: string, canNote: boolean, pick: (tool: "select" | "draw" | "circle" | "note") => void): WheelTool[] {
   return (["select", "draw", "circle", ...(canNote ? ["note" as const] : [])] as const).map(id =>
     ({ id, label: labels[id], icon: id, key: keyLabel(keys[id], space), active: tool === id, onPick: () => pick(id) }));
+}
+
+/** Hjulets åtgärder för det markerade: flera objekt (byt symbol, slå ihop, ta bort) eller ett (formen, byt symbol, vänd, ta bort). */
+export function wheelActionsOf(input: {
+  multi: { count: number; switchable: number; joinable: boolean; remove: () => void } | undefined;
+  single: { shapes: readonly { id: string; label: string; result: unknown; message: string }[]; line: boolean; switchTo: string | undefined; remove: () => void;
+    reshape: (result: never, message: string) => void } | undefined;
+  symbolCode: string | undefined; text: Texts<typeof mapProjectKeysSv>; quick: { switchTo: (code: string) => string; remove: string };
+  act: (command: "switchSymbol" | "join" | "reverse") => void;
+}): WheelAction[] {
+  const { multi, single, text } = input;
+  if (multi) return [
+    ...(input.symbolCode && multi.switchable ? [{ id: "switch", label: text.multiSwitch(multi.switchable, input.symbolCode), onPick: () => input.act("switchSymbol") }] : []),
+    ...(multi.joinable ? [{ id: "join", label: text.commands.join, onPick: () => input.act("join") }] : []),
+    { id: "remove", label: text.multiRemove(multi.count), onPick: multi.remove }];
+  if (!single) return [];
+  return [
+    ...single.shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => single.reshape(action.result as never, action.message) })),
+    ...(single.switchTo ? [{ id: "switch", label: input.quick.switchTo(single.switchTo), onPick: () => input.act("switchSymbol") }] : []),
+    ...(single.line ? [{ id: "reverse", label: text.commands.reverse, onPick: () => input.act("reverse") }] : []),
+    { id: "remove", label: input.quick.remove, onPick: single.remove }];
 }

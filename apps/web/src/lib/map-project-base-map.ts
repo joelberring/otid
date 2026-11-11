@@ -1,6 +1,7 @@
 import type { GeoClip } from "@o-tid/contracts";
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
+import { yardsOf } from "./map-project-yards";
 
 /**
  * Grundkartan G2 och G8 (ägaren 2026-11-10: «ungefär som en halvfärdig karta», utan grundkartefil: lasern, Lantmäteriets
@@ -8,8 +9,11 @@ import type { SourceData, SourceFeature } from "@o-tid/map-revision";
  * med OpenStreetMap, så att samma sak inte kommer två gånger:
  *
  * - branterna som linjer går före Karttapullautins korta streck,
- * - med Lantmäteriets marktäcke tas dess sankmark i stället för den uträknade fuktigheten, och laserns «öppen mark» (allt
- *   utan växtlighet, också hällmark) byter namn till `oppen_mark_laser` och får inget förslag,
+ * - med Lantmäteriets marktäcke byter laserns «öppen mark» (allt utan växtlighet, också hällmark) namn till
+ *   `oppen_mark_laser` och får inget förslag; marktäckets sankmark och den uträknade fuktigheten kommer båda med,
+ * - en opasserbar brant som är för kort för två taggar blir en brant (ägaren 2026-11-11: «det ska alltid vara minst två
+ *   taggar på taggbranter»),
+ * - tomterna räknas ur husen (`yardsOf`), eftersom ingen av källorna har dem,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.
  */
@@ -17,7 +21,9 @@ const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dx
 
 export function baseMapOutputs(names: readonly string[]): string[] {
   const has = new Set(names);
-  return [...BASE_MAP.filter(name => has.has(name) && !(name === "fukt.dxf" && has.has("marktacke.geojson"))),
+  // Ägaren 2026-11-11 («inga kärr kom med»): den uträknade fuktigheten följer med också när marktäcket finns; marktäckets
+  // sankmark är grov och missar de små kärren i dalbottnarna.
+  return [...BASE_MAP.filter(name => has.has(name)),
     ...(has.has("brantlinjer.dxf") ? [] : ["branter.dxf", "stup.dxf"].filter(name => has.has(name)))];
 }
 
@@ -45,11 +51,24 @@ export function osmForBaseMap(osm: SourceData, hasBuildings: boolean): SourceFea
       : geometry.kind === "line" ? { kind: "line" as const, points: geometry.points.map(at), closed: geometry.closed } : { kind: "area" as const, rings: geometry.rings.map(ring => ring.map(at)) } }));
 }
 
-/** Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM. */
-export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], osm?: SourceData): SourceData {
+/**
+ * Kortaste opasserbara brant (meter i terrängen) som får två taggar: med taggarna 1 mm isär och en halv i varje ände
+ * (normens 201 och `spacedDistances` i ritningen) behövs 1,5 mm på kartan.
+ */
+export const twoTagMeters = (scale: number) => 1.5 * scale / 1000;
+const lineLength = (points: readonly (readonly [number, number])[]) => points.reduce((sum, point, i) =>
+  i === 0 ? 0 : sum + Math.hypot(point[0] - points[i - 1]![0], point[1] - points[i - 1]![1]), 0);
+
+/** Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala. */
+export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], osm?: SourceData, scale?: number): SourceData {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
-  const features = parts.flatMap(part => part.name === "vegetation.dxf" && landCover
-    ? part.data.features.map(feature => feature.layer === "oppen_mark" ? { ...feature, layer: "oppen_mark_laser" } : feature) : part.data.features);
-  return { features: [...features, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
+  const shortest = scale ? twoTagMeters(scale) : 0;
+  const features = parts.flatMap(part => part.data.features.map(feature => {
+    if (part.name === "vegetation.dxf" && landCover && feature.layer === "oppen_mark") return { ...feature, layer: "oppen_mark_laser" };
+    if (feature.layer === "brant_opasserbar" && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < shortest) return { ...feature, layer: "brant_passerbar" };
+    return feature;
+  }));
+  const all = [...features, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
+  return { features: [...all, ...yardsOf(all)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

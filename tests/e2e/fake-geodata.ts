@@ -29,7 +29,10 @@ export function fakeOverpass(south: number, west: number, north: number, east: n
   return { version: 0.6, elements: [
     { type: "way", id: 1, tags: { building: "yes" }, geometry: [at(0, 0), at(1, 0), at(1, 1), at(0, 1), at(0, 0)] },
     { type: "way", id: 2, tags: { barrier: "fence" }, geometry: [at(-2, -2), at(2, -2)] },
-    { type: "way", id: 3, tags: { highway: "footway" }, geometry: [at(-3, 2), at(0, 3), at(3, 2)] }
+    { type: "way", id: 3, tags: { highway: "footway" }, geometry: [at(-3, 2), at(0, 3), at(3, 2)] },
+    // Ett villastort hus (ungefär 11 × 11 m) oavsett rutans storlek, för tomterna i grundkartan.
+    { type: "way", id: 4, tags: { building: "house" }, geometry: [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]].map(([x, y]) =>
+      ({ lat: lat - 3 * dLat + y! * 0.0001, lon: lon - 3 * dLon + x! * 0.0002 })) }
   ] };
 }
 

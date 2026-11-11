@@ -316,3 +316,18 @@ export function hillshade(ground: GroundGrid, maxSide = 6000): { png: Buffer; wo
   });
   return { png, world: `${size}\n0\n0\n${-size}\n${ground.minX + size / 2}\n${ground.minY + (height - 0.5) * size}\n`, width, height };
 }
+
+/**
+ * Om marken lutar mer än `degrees` i punkten (kartans koordinater), räknat över ±2 m i markrastret. Används för att spärra
+ * grönt i stup och branta sluttningar, där lövlös laser ger falskt grönt.
+ */
+export function steepAt(ground: GroundGrid, degrees: number): (x: number, y: number) => boolean {
+  const limit = Math.tan(degrees * Math.PI / 180), reach = Math.max(1, Math.round(2 / ground.cell));
+  return (x, y) => {
+    const column = Math.floor((x - ground.minX) / ground.cell), row = Math.floor((y - ground.minY) / ground.cell);
+    const at = (c: number, r: number) => c < 0 || r < 0 || c >= ground.width || r >= ground.height ? NaN : ground.z[c * ground.height + r]!;
+    const dx = (at(column + reach, row) - at(column - reach, row)) / (2 * reach * ground.cell);
+    const dy = (at(column, row + reach) - at(column, row - reach)) / (2 * reach * ground.cell);
+    return Number.isFinite(dx) && Number.isFinite(dy) && Math.hypot(dx, dy) > limit;
+  };
+}

@@ -90,13 +90,26 @@ export const mapSourcesSv = {
     intervalOption: (meters: number) => `${String(meters).replace(".", ",")} m`,
     formlines: "Stödkurvor",
     formlineOptions: { 0: "Inga stödkurvor", 1: "Kurvor på halva ekvidistansen", 2: "Stödkurvor där de behövs" } as Record<number, string>,
-    more: "Fler inställningar i Karttapullautin",
+    choicesHeading: "Inställningar",
+    choiceLabels: { cliffs: "Branter", contours: "Kurvor", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation" } as Record<string, string>,
+    choiceLevels: {
+      cliffs: { less: "Färre", default: "Som förval", more: "Fler" }, contours: { less: "Slätare", default: "Som förval", more: "Detaljrikare" },
+      knolls: { less: "Färre", default: "Som förval", more: "Fler" }, green: { less: "Mindre", default: "Som förval", more: "Mer" },
+      undergrowth: { less: "Mindre", default: "Som förval", more: "Mer" }
+    } as Record<string, Record<"less" | "default" | "more", string>>,
+    choicesHelp: "Grönt mäts av Karttapullautin som andelen laserträffar 1–2,65 m över marken (buskskiktet) mot träffarna på marken, och väger in trädkronorna. Prova på en etapp först, eller kör om ett klart jobb och jämför.",
+    rerun: "Kör om med andra inställningar",
+    rerunHeading: (name: string) => `Kör om ${name} med samma rutor och område:`,
+    rerunName: (name: string) => `${name} (ny)`.slice(0, 80),
+    rerunStart: "Kör om",
+    more: "Avancerat: värden i Karttapullautin",
     moreHelp: "Värdena skrivs i Karttapullautins pullauta.ini (namnet står inom parentes). Lämna ett fält tomt för Karttapullautins förval. "
       + "Prova på en liten etapp först och jämför bilderna.",
     settingLabels: {
       smoothing: "Kurvornas utjämning", curviness: "Kurvornas formrikedom", knolls: "Knollar", formlinesteepness: "Formlinjer efter lutning",
       cliff1: "Branter, tröskel 1", cliff2: "Branter, tröskel 2", cliffsteepfactor: "Branter, lutningsfaktor",
-      yellowheight: "Öppen mark, högsta höjd", greenground: "Grönt, markskiktets höjd", greenhigh: "Grönt, högsta höjd", undergrowth: "Undervegetation"
+      yellowheight: "Öppen mark, högsta höjd", greenground: "Grönt, markskiktets höjd", greenhigh: "Grönt, högsta höjd", undergrowth: "Undervegetation",
+      topweight: "Grönt, hur mycket kronorna väger", greenscale: "Grönt, faktor på gränserna"
     } as Record<string, string>,
     // Förvalen och riktningarna ur Karttapullautins pullauta.default.ini (2.15.4).
     settingHints: {
@@ -105,7 +118,8 @@ export const mapSourcesSv = {
       cliff1: "Förval 1,15: fallhöjd i meter per meter i sidled för att en passerbar brant ska ritas. Lägre värde ger fler branter.",
       cliff2: "Förval 2,0: samma mått för opasserbar brant.", cliffsteepfactor: "Förval 0,38.",
       yellowheight: "Förval 0,9 m.", greenground: "Förval 0,9 m.", greenhigh: "Förval 2 m.",
-      undergrowth: "Förval 0,35. Lägre värde ger mer undervegetation."
+      undergrowth: "Förval 0,35. Lägre värde ger mer undervegetation.",
+      topweight: "Förval 0,8. Lägre värde gör att grönt under täta kronor inte räknas upp.", greenscale: "Förval 1. Större värde ger mindre grönt."
     } as Record<string, string>,
     settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${String(low).replace(".", ",")}–${String(high).replace(".", ",")})`,
     settingDefault: "förval",

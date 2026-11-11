@@ -71,7 +71,7 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
   it("knollarna och punktgroparna blir punkter (109 och 111)", () => {
     const data = dxf("knollar");
     expect(counts(data)).toEqual({ uglydotknoll: 4, dotknoll: 1, uglyudepression: 1 });
-    expect(suggested(data)).toEqual({ uglydotknoll: "s109", dotknoll: "s109", uglyudepression: "s111" });
+    expect(suggested(data)).toEqual({ uglydotknoll: undefined, dotknoll: "s109", uglyudepression: undefined });
     expect(data.features.every(feature => feature.geometry.kind === "point")).toBe(true);
     expect(within(data)).toBe(true);
   });

@@ -76,8 +76,11 @@ describe("vektorunderlagen (K4b)", () => {
     expect(Object.fromEntries(["contour", "contour_index", "contour_intermed", "depression_intermed", "formline", "slope_line", "cliff2", "cliff3"]
       .map(name => [name, suggestSymbol(layer(name, { lines: 2 }), isom)]))).toEqual({ contour: "s101", contour_index: "s102",
       contour_intermed: undefined, depression_intermed: undefined, formline: "s103", slope_line: "s104", cliff2: "s202", cliff3: "s201" });
-    expect(suggestSymbol(layer("uglydotknoll", { points: 2 }), isom)).toBe("s109");
-    expect(suggestSymbol(layer("uglyudepression", { points: 2 }), isom)).toBe("s111");
+    expect(suggestSymbol(layer("dotknoll", { points: 2 }), isom)).toBe("s109");
+    // De osäkra knollarna och groparna föreslås inte (ägaren 2026-11-11).
+    expect(suggestSymbol(layer("uglydotknoll", { points: 2 }), isom)).toBeUndefined();
+    expect(suggestSymbol(layer("uglyudepression", { points: 2 }), isom)).toBeUndefined();
+    expect(suggestSymbol(layer("udepression", { points: 2 }), isom)).toBe("s111");
     // Lantmäteriets Marktäcke och Byggnad (G8).
     const land = ["301", "308", "310", "401", "412", "413", "521"].map(code => ({ id: `s${code}`, code, kind: "area" }));
     expect(Object.fromEntries(["vatten", "oppen_mark", "aker", "fruktodling", "sankmark_vat", "sankmark_fast", "byggnad", "bebyggelse", "oppen_mark_laser"]

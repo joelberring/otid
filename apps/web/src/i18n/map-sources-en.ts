@@ -61,13 +61,26 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   intervalOption: (meters: number) => `${meters} m`,
   formlines: "Form lines",
   formlineOptions: { 0: "No form lines", 1: "Contours at half the interval", 2: "Form lines where needed" },
-    more: "More settings in Karttapullautin",
+    choicesHeading: "Settings",
+    choiceLabels: { cliffs: "Cliffs", contours: "Contours", knolls: "Knolls", green: "Green", undergrowth: "Undergrowth" },
+    choiceLevels: {
+      cliffs: { less: "Fewer", default: "Default", more: "More" }, contours: { less: "Smoother", default: "Default", more: "More detailed" },
+      knolls: { less: "Fewer", default: "Default", more: "More" }, green: { less: "Less", default: "Default", more: "More" },
+      undergrowth: { less: "Less", default: "Default", more: "More" }
+    },
+    choicesHelp: "Karttapullautin measures green as the share of laser hits 1–2.65 m above ground (the shrub layer) against the hits on the ground, and weighs in the tree crowns. Try a stage first, or run a finished job again and compare.",
+    rerun: "Run again with other settings",
+    rerunHeading: (name: string) => `Run ${name} again with the same tiles and area:`,
+    rerunName: (name: string) => `${name} (new)`.slice(0, 80),
+    rerunStart: "Run again",
+    more: "Advanced: values in Karttapullautin",
     moreHelp: "The values are written to Karttapullautin's pullauta.ini (the name is in brackets). Leave a field empty for Karttapullautin's default. "
       + "Try a small stage first and compare the images.",
     settingLabels: {
       smoothing: "Contour smoothing", curviness: "Contour curviness", knolls: "Knolls", formlinesteepness: "Form lines by steepness",
       cliff1: "Cliffs, threshold 1", cliff2: "Cliffs, threshold 2", cliffsteepfactor: "Cliffs, steepness factor",
-      yellowheight: "Open land, maximum height", greenground: "Green, height of the ground layer", greenhigh: "Green, maximum height", undergrowth: "Undergrowth"
+      yellowheight: "Open land, maximum height", greenground: "Green, height of the ground layer", greenhigh: "Green, maximum height", undergrowth: "Undergrowth",
+      topweight: "Green, weight of the crowns", greenscale: "Green, factor on the limits"
     },
     settingHints: {
       smoothing: "Default 0.7. A higher value gives smoother contours.", curviness: "Default 1.1. A higher value exaggerates the bends.",
@@ -75,7 +88,8 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
       cliff1: "Default 1.15: drop in metres per metre sideways for a passable cliff to be drawn. A lower value gives more cliffs.",
       cliff2: "Default 2.0: the same measure for an impassable cliff.", cliffsteepfactor: "Default 0.38.",
       yellowheight: "Default 0.9 m.", greenground: "Default 0.9 m.", greenhigh: "Default 2 m.",
-      undergrowth: "Default 0.35. A lower value gives more undergrowth."
+      undergrowth: "Default 0.35. A lower value gives more undergrowth.",
+      topweight: "Default 0.8. A lower value means that green under dense crowns is not counted up.", greenscale: "Default 1. A larger value gives less green."
     },
     settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${low}–${high})`,
     settingDefault: "default",

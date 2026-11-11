@@ -48,6 +48,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [problem, setProblem] = useState<Problem>();
   const [progress, setProgress] = useState<{ done: number; total: number }>();
   const [sent, setSent] = useState<number>();
+  /** Lager som inte ska läggas in (ägaren 2026-11-11: gå igenom lagren ett och ett innan de flyttar till kartan). */
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
   /** Kandidaterna gömda på kartan för en stund, för att jämföra med kartan som den är. */
   const [hideOnMap, setHideOnMap] = useState(false);
   /** Grundkartan G2b: så många objekt lades direkt i kartan senast. */
@@ -71,6 +73,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
     setFile({ name: fileName, data });
     setHideOnMap(false);
+    setSkipped(new Set());
     setFit(undefined);
     setClip(area);
     setLayers(found);
@@ -152,6 +155,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     if (!file || !georeference || crs === undefined || !(crs === WGS84_EPSG || isSupportedEpsg(crs))) return undefined;
     const targets = new Map<string, { symbol: string; kind: TargetKind }>();
     for (const [layer, id] of mapping) {
+      if (skipped.has(layer)) continue;
       const kind = symbols.get(id)?.kind;
       if (kind === "point" || kind === "line" || kind === "area") targets.set(layer, { symbol: id, kind });
     }
@@ -165,7 +169,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       };
       return importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols });
     } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit]);
+  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped]);
 
   /**
    * "Passa in mot kartan": lagren som fått hus, vägar, vatten, murar eller järnväg som punkter i kartans mm, inpassade mot
@@ -244,6 +248,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, fetchOsm, fetching, propose, cancel,
     accept, accepted, canAccept: !!commitMany && view.viewer.canEdit,
     profile, saveProfile, canShareProfile: !!view.club,
-    hideOnMap, setHideOnMap,
+    hideOnMap, setHideOnMap, skipped,
+    toggleLayer: (layer: string) => setSkipped(current => { const next = new Set(current); if (next.has(layer)) next.delete(layer); else next.add(layer); return next; }),
     candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose };
 }

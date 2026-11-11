@@ -13,7 +13,7 @@ export interface PreparedLayer {
   /** Ett förslag på namn (filens namn utan ändelse). */
   readonly name: string;
 }
-export type LayerFileProblem = "NO_IMAGE" | "NO_GEOREFERENCE" | "UNSUPPORTED_CRS" | "UNREADABLE" | "TOO_LARGE" | "OUTSIDE";
+export type LayerFileProblem = "NO_IMAGE" | "NO_GEOREFERENCE" | "UNSUPPORTED_CRS" | "UNREADABLE" | "TOO_LARGE" | "OUTSIDE" | "REJECTED" | "UNAVAILABLE";
 export class LayerFileError extends Error {
   constructor(readonly problem: LayerFileProblem) { super(problem); }
 }
@@ -142,8 +142,21 @@ const REMOTE_SIDE = 4096;
  * K4c: en del av en bild på nätet (COG, t.ex. Lantmäteriets ortofoto via serverns `asset`-anrop) blir ett underlag. Bara rutan
  * kring `area` (kartans mm) läses, i den översikt som räcker för upplösningen, så att bara några delar av filen hämtas.
  */
+/**
+ * Ägaren 2026-11-10 (historiska ortofoton): en bild som Lantmäteriet nekar ska säga det, inte "gick inte att läsa". Första
+ * biten läses först; nekad (SOURCE_REJECTED, ofta en produkt som inte är beställd) eller otillgänglig ger ett eget skäl.
+ */
+async function probeRemote(url: string): Promise<void> {
+  const response = await fetch(url, { credentials: "same-origin", cache: "no-store", headers: { range: "bytes=0-1023" } }).catch(() => undefined);
+  if (!response) throw new LayerFileError("UNAVAILABLE");
+  if (response.status === 200 || response.status === 206) { await response.body?.cancel(); return; }
+  const body = await response.json().catch(() => undefined) as { error?: string } | undefined;
+  throw new LayerFileError(body?.error === "SOURCE_REJECTED" || response.status === 401 || response.status === 403 ? "REJECTED" : "UNAVAILABLE");
+}
+
 export async function prepareRemoteLayer(url: string, area: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number },
   georeference: MapGeoreference, name: string): Promise<PreparedLayer> {
+  await probeRemote(url);
   const { fromUrl } = await import("geotiff");
   let tiff: Awaited<ReturnType<typeof fromUrl>>;
   try { tiff = await fromUrl(url, { allowFullFile: false }); } catch { throw new LayerFileError("UNREADABLE"); }

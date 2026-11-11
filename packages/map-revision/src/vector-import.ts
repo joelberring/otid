@@ -79,6 +79,8 @@ export function guessCrs(data: SourceData, georeference?: MapGeoreference): numb
 const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; readonly area?: string; readonly point?: string }[] = [
   // G8: marktäckets bebyggelseyta och laserns öppna mark (när marktäckets finns) får inget förslag (före reglerna nedan).
   { words: /BEBYGGELSE|OPPEN_MARK_LASER/ },
+  // G8: tomterna som räknats ur husen (ägaren 2026-11-11: «tomter kommer inte med»).
+  { words: /^TOMTMARK$/, area: "520" },
   // Geo-arbetarens vegetation (K5c del 3): öppen mark, tre gröna och undervegetation.
   { words: /OPPEN_MARK|OPEN_LAND/, area: "401" },
   { words: /UNDERVEGETATION_SVARLOPT/, area: "409" },
@@ -120,6 +122,8 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /BRANT/, line: "202" },
   { words: /CLIFF3|CLIFF4/, line: "201" },
   { words: /CLIFF2|CLIFF/, line: "202" },
+  // Karttapullautins osäkra knollar och gropar («ugly», ägaren 2026-11-11: «punkthöjder känns random») får inget förslag.
+  { words: /^UGLY/ },
   { words: /DOTKNOLL/, point: "109" },
   { words: /UDEPRESSION|PUNKTGROP/, point: "111" },
   { words: /HOJDKURVA|KURVA|CONTOUR|DEPRESSION/, line: "101" },

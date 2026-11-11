@@ -1347,6 +1347,13 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   - [ ] G8 kvar: prövas mot riktiga Lantmäteriet (`stac-vektor` är byggd efter samma mönster som de andra, oprövad) och mot
     riktiga flygbilder (bara konstruerade bilder hittills; IR saknas); hus ur lasern; brantlinjens läge flyttat till
     brantaste punkten; hällar under glesa tallar (laserklassificeraren i Kungshatt-kedjan).
+  - [x] Efter ägarens prov 2026-11-11 (gammal geo-avbildning på servern, «underlaget skars inte», «inga kärr», «tomter kommer
+    inte med», «det ska alltid vara minst två taggar på taggbranter», «itereringar … innan de genererade lagren flyttar till de
+    riktiga lagren»): geo-arbetaren har en version och en gammal arbetare får inga jobb utan dess server byts automatiskt;
+    enkla val (branter, kurvor, knollar, grönt, undervegetation: färre/normal/fler) och «Kör om med andra inställningar» med
+    samma rutor och område; grönt blockeras i branta sluttningar och får en skala; osäkra knollar och gropar (UGLY) föreslås
+    inte; fuktigheten följer med också med marktäcket; för korta opasserbara branter blir branter; tomter (`tomtmark`, 520) ur
+    husen; en kandidatrad under kartan med lagren att välja bort och Lägg in; ortofoton som Lantmäteriet nekar säger det.
   - [ ] Lager efter källa (ägaren 2026-11-10: «all information som skapas, hamnar det i skisslager som går att släcka/tända/
     tona ner?»): i dag blir det inlästa vanliga kartobjekt som släcks och tonas per symbol, normgrupp eller arbetslager, och
     bilderna (Karttapullautin, fuktighet, skuggning, ortofoto) är underlag. Bygg: det inlästa märkt med sin källa

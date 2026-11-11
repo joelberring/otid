@@ -61,9 +61,10 @@ import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
 import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
 import { reverseLine } from "../../lib/map-project-join";
+import { MapProjectCandidateBar } from "./map-project-candidate-bar";
 import { clickTool } from "./map-project-click-tools";
 import { MapProjectColors } from "./map-project-colors";
-import { railTools, wheelToolsOf } from "./map-project-rail-tools";
+import { railTools, wheelActionsOf, wheelToolsOf } from "./map-project-rail-tools";
 import { MapProjectToolRail } from "./map-project-tool-rail";
 import { HelpButton } from "../help/help-panel";
 import { MapProjectKeysDialog, useMapProjectKeys } from "./map-project-keys-dialog";
@@ -75,7 +76,7 @@ import { anchorOf, ROTATE_CURSOR, useMapProjectMulti } from "./use-map-project-m
 import { useMapProjectShortcuts, type SelectedCommand } from "./use-map-project-shortcuts";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
-import { MapProjectToolWheel, type WheelAction } from "./map-project-tool-wheel";
+import { MapProjectToolWheel } from "./map-project-tool-wheel";
 import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
 import styles from "./map-project-editor.module.css";
@@ -616,16 +617,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, quick) : [];
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); setTool(next); };
   const wheelTools = wheelToolsOf(keys, keysText.space, quick.tools, tool, notes.canWrite, next => pickTool(next)());
-  const wheelActions: WheelAction[] = multi.items.length && canEdit ? [
-    ...(symbol && multi.switchable(symbol) ? [{ id: "switch", label: keysText.multiSwitch(multi.switchable(symbol), symbol.code), onPick: () => keyAction.current("switchSymbol") }] : []),
-    ...(multi.joinable(JOIN_MM) ? [{ id: "join", label: keysText.commands.join, onPick: () => keyAction.current("join") }] : []),
-    { id: "remove", label: keysText.multiRemove(multi.items.length), onPick: multi.remove }]
-    : selected && tool === "select" && canEdit ? [
-    ...shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => reshape(action.result, action.message) })),
-    ...(canSwitch ? [{ id: "switch", label: quick.switchTo(symbol.code), onPick: () => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL") }] : []),
-    ...(selected.object.kind === "line" ? [{ id: "reverse", label: keysText.commands.reverse, onPick: () => keyAction.current("reverse") }] : []),
-    { id: "remove", label: quick.remove, onPick: removeSelected }
-  ] : [];
+  const wheelActions = wheelActionsOf({ multi: multi.items.length && canEdit ? { count: multi.items.length, switchable: symbol ? multi.switchable(symbol) : 0,
+    joinable: multi.joinable(JOIN_MM), remove: multi.remove } : undefined, single: selected && tool === "select" && canEdit ? { shapes, line: selected.object.kind === "line",
+    switchTo: canSwitch ? symbol.code : undefined, remove: removeSelected, reshape } : undefined, symbolCode: symbol?.code, text: keysText, quick, act: keyAction.current });
   const pending = editor.state?.pending.length ?? 0;
   const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
 
@@ -726,6 +720,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         })()}
       </div>
       <div className={styles.statusRow}>
+        <MapProjectCandidateBar importer={importer} symbols={symbols} onShowLayers={() => { setTab("layers"); setPanelOpen(true); }} />
         {canEdit && (work.drawingLayer || draft.length > 0 || (selected && tool === "select") || multi.items.length > 0) && <div className={styles.objectBar} role="group"
           aria-label={quick.actions} data-testid="map-project-object-bar">
           {multi.items.length > 0 && <Button variant="secondary" onClick={multi.remove} data-testid="map-project-multi-remove">

@@ -333,6 +333,8 @@ export const mapProjectLayersEn: Texts<typeof mapProjectLayersSv> = {
     UNREADABLE: "The image could not be read.",
     OUTSIDE: "The image does not cover the area.",
     TOO_LARGE: "The image is too large (at most 40 MB after downscaling).",
+    REJECTED: "Lantmäteriet refused the image. Each product is ordered separately on Geotorget; historical orthophotos are a product of their own (Ortofoto historiska Nedladdning).",
+    UNAVAILABLE: "The image could not be fetched from Lantmäteriet right now. Try again later.",
     quota: "The club's storage is full.",
     generic: (status: number) => `That did not work (${status}).`
   }

@@ -13,6 +13,18 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-11 – Grundkartan efter ägarens första prov på servern
+- Orsaken till «underlaget skars inte» och klumpiga branter: servern körde en gammal geo-avbildning. Nu har arbetaren en version
+  (`GEO_WORKER_VERSION` 4); en äldre får inga jobb och dess server tas bort och skapas ny i nästa varv, utan Hetzner för hand.
+- Karttapullautin: enkla val (färre/normal/fler) för branter, kurvor, knollar, grönt och undervegetation, `topweight` och
+  `greenscale` under Avancerat; «Kör om med andra inställningar» (`rerunOf`) med samma rutor, område och extra källor.
+- Grundkartan: fuktigheten följer med också med marktäcket; opasserbar brant kortare än två taggar blir brant; UGLY-knollar
+  får inget förslag; grönt blockeras i sluttningar över 35°; tomter (`tomtmark` → 520) inom 20 m från hus upp till 400 m².
+- Kandidatraden under kartan: lagren med symbol och antal går att välja bort, Lägg in, Lämna som förslag, Dölj, Byt symboler.
+- Ortofoto: en bild som Lantmäteriet nekar (troligen historiska ortofoton, en egen produkt på Geotorget) säger det.
+- Verifierat: typecheck, lint, knip, enhetstester (web, map-revision), integrationstester för geo, E2E geo, underlag, rita.
+  Inte provat: riktiga historiska ortofoton, tomterna mot riktiga hus.
+
 ### 2026-11-10 – Grundkartan G8: källorna utöver lasern, första försöket (marktäcke, OSM, flygbild, fallhöjd, byggnader)
 - Ägaren: ingen grundkartefil finns; underlaget är öppna data, OSM, Karttapullautin och flygbildstolkning. «Prova 1–5.»
 - Marktäcke och Byggnad: lasersökningen söker också `stac-vektor`; jobbet får `extras`, geo-arbetaren hämtar zip-filen genom

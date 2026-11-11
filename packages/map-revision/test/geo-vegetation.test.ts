@@ -78,5 +78,7 @@ describe("vegetationen ur klassbilderna", () => {
     const suggested = (name: string) => suggestSymbol({ name, count: 1, points: 0, lines: 0, closedLines: 4, areas: 0 }, symbols);
     expect(["oppen_mark", "gron_lattlopt", "undervegetation_lattlopt", "gron_svarlopt", "undervegetation_svarlopt", "gron_mycket_svarlopt"].map(suggested))
       .toEqual(["area401", "area406", "area407", "area408", "area409", "area410"]);
+    // G8: tomterna ur husen blir område som inte får beträdas.
+    expect(suggestSymbol({ name: "tomtmark", count: 1, points: 0, lines: 0, closedLines: 1, areas: 0 }, [{ id: "area520", code: "520", kind: "area" }])).toBe("area520");
   });
 });

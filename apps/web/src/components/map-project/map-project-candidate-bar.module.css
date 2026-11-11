@@ -1,0 +1,11 @@
+/* Ägaren 2026-11-11: kandidaterna från en inläsning, under kartan. */
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; border-top: 2px solid #e8590c; background: #fff4e6;
+  font-size: var(--text-sm, .9rem); max-height: 34vh; overflow-y: auto; }
+.title { flex: none; }
+.layers { display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 320px; min-width: 0; }
+.layer { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line, #ccc); border-radius: 999px;
+  background: var(--surface, #fff); color: var(--muted, #666); cursor: pointer; white-space: nowrap; }
+.layer[data-on] { color: var(--ink, #222); border-color: #e8590c; }
+.layer input { margin: 0; }
+.muted { color: var(--muted, #666); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }

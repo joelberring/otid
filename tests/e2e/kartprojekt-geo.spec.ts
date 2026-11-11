@@ -79,11 +79,14 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   // G8: sökningen hittar också Lantmäteriets marktäcke och byggnader; båda är förvalda (byggnaderna saknar kontot behörighet till).
   await expect(laser.getByTestId("map-project-laser-extra-LAND_COVER")).toBeChecked();
   await expect(laser.getByTestId("map-project-laser-extra-BUILDINGS")).toBeChecked();
+  // Ägaren 2026-11-11: enkla val i stället för värden; fler branter sänker Karttapullautins trösklar.
+  await laser.getByTestId("map-project-laser-choice-cliffs").selectOption("more");
   await laser.getByTestId("map-project-laser-start").click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Jobbet ligger i kön.");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Karttapullautin hela kartan · 1 ruta · Väntar på geo-servern");
   // Grundkartan G1: laserdatan klipps till kartans område med 50 m marginal.
   await expect(laser.getByTestId("map-project-laser-job")).toContainText(/Klippt till området, \d+ × \d+ m/);
+  await expect(laser.getByTestId("map-project-laser-job")).toContainText("cliff1 0.95, cliff2 1.7");
 
   // Geo-arbetaren tar jobbet; inga uppgifter till Lantmäteriet följer med till den.
   const worker = await runGeoWorker(baseURL!);
@@ -122,12 +125,18 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   // Grundkartan: allt på en gång, med branten som en linje i stället för Karttapullautins streck.
   await laser.getByTestId("map-project-laser-base-map").click();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Grundkartan visas som kandidater nedan under Vektorfil.");
-  // G8: Lantmäteriets marktäcke (åkern och sankmarken) och OpenStreetMap följer med; marktäckets sankmark går före den
-  // uträknade fuktigheten, och laserns öppna mark byter namn när marktäcket finns.
-  for (const name of ["contour", "brant_passerbar", "vatten", "aker", "sankmark_vat", "oppen_mark_laser"]) {
+  // G8: Lantmäteriets marktäcke (åkern och sankmarken) och OpenStreetMap följer med, laserns öppna mark byter namn när
+  // marktäcket finns, den uträknade fuktigheten kommer med (ägaren 2026-11-11: «inga kärr kom med») och tomterna räknas
+  // ur husen.
+  for (const name of ["contour", "brant_passerbar", "vatten", "aker", "sankmark_vat", "oppen_mark_laser", "blott", "tomtmark"]) {
     await expect(importer.getByTestId("map-project-import-layer").filter({ hasText: name }).first()).toBeAttached();
   }
-  await expect(importer.getByLabel("Symbol för blott")).toHaveCount(0);
+  // Kandidatlisten under kartan: lagren med antal, och de kan väljas bort innan de läggs in.
+  const bar = owner.getByTestId("map-project-candidate-bar");
+  await expect(bar).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Lägg in 6 objekt i kartan" })).toBeVisible();
+  await bar.getByRole("checkbox", { name: "308.0 Sankmark (1)" }).last().uncheck();
+  await expect(bar.getByRole("button", { name: "Lägg in 5 objekt i kartan" })).toBeVisible();
   await laser.getByRole("button", { name: "Läs in lantmäteriets marktäcke som kandidater" }).click();
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
   // Vattnet ur laserns klasser: sjön blir en yta i lagret vatten.
@@ -135,6 +144,21 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Sjöar och vatten visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(1);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("vatten");
+
+  // G6 (ägaren 2026-11-11: «itereringar … efter första körning»): kör om med samma rutor och område men mindre grönt.
+  await laser.getByTestId("map-project-laser-rerun-start").click();
+  await expect(laser.getByTestId("map-project-laser-rerun")).toContainText("Kör om Karttapullautin hela kartan med samma rutor och område");
+  await expect(laser.getByTestId("map-project-laser-choice-cliffs")).toHaveValue("more");
+  await expect(laser.getByTestId("map-project-laser-name")).toHaveValue("Karttapullautin hela kartan (ny)");
+  await laser.getByTestId("map-project-laser-choice-green").selectOption("less");
+  await laser.getByTestId("map-project-laser-start").click();
+  const second = laser.getByTestId("map-project-laser-job").filter({ hasText: "(ny)" });
+  await expect(second).toContainText(/Väntar på geo-servern.*Klippt till området/);
+  await expect(second).toContainText("greenscale 1.5");
+  const again = await runGeoWorker(baseURL!);
+  expect(again.code, again.output).toBe(0);
+  await expect(second).toContainText("Klart", { timeout: 30_000 });
+  await expect(second.getByTestId("map-project-laser-base-map")).toBeVisible();
 
   // K6b: en DWG-ritning läses på geo-servern (vägen och huset, en skraffyr) och läses in som kandidater.
   await warmRoute(owner, `${api}/geo-jobs/dwg`, "POST");

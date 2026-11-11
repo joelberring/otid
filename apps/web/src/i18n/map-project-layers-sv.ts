@@ -44,6 +44,8 @@ export const mapProjectLayersSv = {
     UNREADABLE: "Bilden gick inte att läsa.",
     OUTSIDE: "Bilden täcker inte området.",
     TOO_LARGE: "Bilden är för stor (högst 40 MB efter nedskalning).",
+    REJECTED: "Lantmäteriet nekade bilden. Varje produkt beställs för sig på Geotorget; historiska ortofoton är en egen produkt (Ortofoto historiska Nedladdning).",
+    UNAVAILABLE: "Bilden gick inte att hämta från Lantmäteriet just nu. Försök igen senare.",
     quota: "Klubbens lagring är full.",
     generic: (status: number) => `Det gick inte (${status}).`
   }

@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createReadStream } from "node:fs";
-import { cliffsFromTicks, hillshade, mergeGroundGrids, readGroundGrid, readTicks } from "./geo-cliffs.ts";
+import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt } from "./geo-cliffs.ts";
 import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
@@ -41,6 +41,8 @@ interface Job {
   readonly clip?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   /** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) att läsa till kandidater. */
   readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
+  /** G4: branternas trösklar (null = Kungshatt-kedjans förval). */
+  readonly cliffs?: { readonly minDrop: number; readonly impassableDrop: number } | null;
   /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   /** K5c del 3: vegetationen ur returerna som ytor (Karttapullautins klassbilder per ruta). */
@@ -81,7 +83,11 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
 
 /** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (en ruta i taget, filerna sparas). */
 export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false, vegetationClasses = false): string {
-  const fixed: Record<string, string | number> = { ...settings, batch: 1, processes: 1, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
+  // `greenscale` är O-Tids egen: en faktor på Karttapullautins gränser för grönt (`greenshades`), inte en rad i filen.
+  const { greenscale, ...pullautin } = settings;
+  const shades = greenscale && greenscale !== 1 ? /^\s*greenshades\s*=\s*([^\r\n#]+)/m.exec(base)?.[1]?.split("|").map(Number) : undefined;
+  const fixed: Record<string, string | number> = { ...pullautin, ...(shades?.every(Number.isFinite)
+    ? { greenshades: shades.map(value => value >= 99 ? value : Math.round(value * greenscale! * 1000) / 1000).join("|") } : {}), batch: 1, processes: 1, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
     savetempfolders: keepTemp ? 1 : 0, output_dxf: 1, ...(vegetationClasses ? { vege_bitmode: 1 } : {}) };
   const seen = new Set<string>();
   const lines = base.split(/\r?\n/).map(line => {
@@ -172,7 +178,9 @@ async function runJob(job: Job): Promise<void> {
     const grounds = [];
     for (const name of groundFiles) grounds.push(readGroundGrid(new Uint8Array(await readFile(join(dir, name)))));
     const ground = grounds.length ? mergeGroundGrids(grounds) : undefined;
-    const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground);
+    const rules = job.cliffs ? { ...DEFAULT_CLIFF_RULES, minDrop: job.cliffs.minDrop, impassableDrop3: job.cliffs.impassableDrop,
+      impassableDrop6: job.cliffs.impassableDrop * DEFAULT_CLIFF_RULES.impassableDrop6 / DEFAULT_CLIFF_RULES.impassableDrop3 } : DEFAULT_CLIFF_RULES;
+    const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground, rules);
     // Terrängskuggningen ur samma markraster, som ett underlag att tona.
     if (ground) {
       await set("Ritar terrängskuggningen", 0, 1);
@@ -256,7 +264,10 @@ async function runJob(job: Job): Promise<void> {
           ...(undergrowth ? { undergrowth: decodeGrayPng(new Uint8Array(undergrowth)) } : {}) });
       }
       if (tiles.length === 0) throw new Error("Karttapullautin gav inga klassbilder för vegetationen");
-      const vegetation = vegetationFromTiles(tiles, job.vegetation, water?.at);
+      // Grönt spärras i stup och branta sluttningar (> 35°): lövlös laser ger falskt grönt där (Kungshatt-kedjan).
+      const steep = ground ? steepAt(ground, 35) : undefined;
+      const blocked = water || steep ? (x: number, y: number) => !!water?.at(x, y) || !!steep?.(x, y) : undefined;
+      const vegetation = vegetationFromTiles(tiles, job.vegetation, blocked);
       await writeFile(join(dir, "vegetation.dxf"), vegetation.dxf);
       vegetationSummary = vegetation.summary;
     }

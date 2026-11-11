@@ -8,6 +8,7 @@ import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobLi
 import type { MapGeoreference } from "@o-tid/map-file";
 import { parseDxf, parseGeoJson, VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { baseMapOutputs, clipWgs84, mergeBaseMap } from "../../lib/map-project-base-map";
+import { choiceSettings, choicesOf, DEFAULT_CHOICES, LASER_CHOICES, typedOf, type ChoiceLevel, type LaserChoices } from "../../lib/map-project-laser-choices";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -26,7 +27,7 @@ const INTERVALS = [2.5, 5] as const;
 const ACTIVE = new Set(["QUEUED", "RUNNING"]);
 /** Ägaren 2026-11-10: Karttapullautins övriga inställningar (kurvor, branter, grönt), utöver ekvidistansen och formlinjerna. */
 const MORE_SETTINGS = ["smoothing", "curviness", "knolls", "formlinesteepness", "cliff1", "cliff2", "cliffsteepfactor", "yellowheight", "greenground", "greenhigh",
-  "undergrowth"] as const satisfies readonly (keyof typeof PULLAUTIN_SETTINGS)[];
+  "topweight", "greenscale", "undergrowth"] as const satisfies readonly (keyof typeof PULLAUTIN_SETTINGS)[];
 /** Fälten som tal inom gränserna; tomma och ogiltiga fält hoppas över (Karttapullautins förval gäller). */
 export function moreSettings(fields: Readonly<Record<string, string>>): Record<string, number> {
   return Object.fromEntries(MORE_SETTINGS.flatMap(key => {
@@ -57,10 +58,15 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [interval, setInterval_] = useState<number>(5);
   const [formline, setFormline] = useState(2);
   const [more, setMore] = useState<Readonly<Record<string, string>>>({});
-  const [moisture, setMoisture] = useState(false);
+  const [choices, setChoices] = useState<LaserChoices>(DEFAULT_CHOICES);
+  // G6 (ägaren 2026-11-11: «itereringar av olika lager, t.ex. grönt, efter första körning»): ett klart jobb körs om med samma
+  // rutor och område men nya inställningar, och resultaten jämförs innan något läggs in i kartan.
+  const [rerun, setRerun] = useState<GeoJobView>();
+  // Ägaren 2026-11-11: fuktigheten och vegetationen är förvalda, så att kärr och grönt alltid kommer med i grundkartan.
+  const [moisture, setMoisture] = useState(true);
   const [channelHa, setChannelHa] = useState(1);
   const [wetMeters, setWetMeters] = useState(0.5);
-  const [vegetation, setVegetation] = useState(false);
+  const [vegetation, setVegetation] = useState(true);
   const [minAreaM2, setMinAreaM2] = useState(300);
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
@@ -110,20 +116,38 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const clip = laserClip(bounds, georeference, GEO_CLIP_MARGIN_M, area);
   async function start() {
     const tiles = (items ?? []).filter(item => chosen.has(item.id)).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg }));
+    const chosenSettings = choiceSettings(choices, moreSettings(more));
     setBusy(text.searching); setMessage(undefined);
     try {
       const result = await clubRequest(`${base}/geo-jobs`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PULLAUTIN",
-        name: name.trim() || text.defaultName(area?.name), tiles, settings: { contour_interval: interval, formline, ...moreSettings(more) },
-        // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
-        ...(clip ? { clip } : {}),
-        ...(clip && extras.some(extra => !skippedExtras.has(extra.kind)) ? { extras: extras.filter(extra => !skippedExtras.has(extra.kind)) } : {}),
+        name: name.trim() || text.defaultName(area?.name), settings: { contour_interval: interval, formline, ...chosenSettings.settings },
+        ...(chosenSettings.cliffs ? { cliffs: chosenSettings.cliffs } : {}),
+        // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
+        ...(rerun ? { rerunOf: rerun.jobId } : { tiles,
+          // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
+          ...(clip ? { clip } : {}),
+          ...(clip && extras.some(extra => !skippedExtras.has(extra.kind)) ? { extras: extras.filter(extra => !skippedExtras.has(extra.kind)) } : {}) }),
         ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: Math.max(1, wetMeters * 2) } } : {}),
         ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
       const body = result.json as { error?: string } | undefined;
       if (result.status !== 201 && result.status !== 200) { say(body?.error ?? result.status); return; }
-      setItems(undefined); setMessage({ tone: "ok", text: text.started });
+      setItems(undefined); setRerun(undefined); setMessage({ tone: "ok", text: text.started });
       await load();
     } finally { setBusy(undefined); }
+  }
+
+  /** Formuläret med jobbets inställningar, för att köra om det med andra. */
+  function startRerun(job: GeoJobView) {
+    const settings = job.settings;
+    const picked = choicesOf(settings);
+    setRerun(job); setItems(undefined); setMessage(undefined);
+    setName(text.rerunName(job.name));
+    setInterval_(settings.contour_interval ?? 5); setFormline(settings.formline ?? 2);
+    setChoices(job.cliffs ? { ...picked, cliffs: job.cliffs.minDrop > 1.3 ? "less" : "more" } : picked);
+    setMore(typedOf(settings, picked, MORE_SETTINGS));
+    setMoisture(!!job.moisture); setVegetation(!!job.vegetation);
+    if (job.moisture) { setChannelHa(job.moisture.channelHa); setWetMeters(job.moisture.wetMeters); }
+    if (job.vegetation) setMinAreaM2(job.vegetation.minAreaM2);
   }
 
   async function remove(job: GeoJobView) {
@@ -158,7 +182,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         osm = response.status === 200 ? (response.json as { data?: SourceData } | undefined)?.data : undefined;
         osmMissing = !osm;
       }
-      const data: SourceData = baseMap ? mergeBaseMap(parts, osm) : { ...parts[0]!.data };
+      const data: SourceData = baseMap ? mergeBaseMap(parts, osm, georeference?.scale) : { ...parts[0]!.data };
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 });
       setMessage({ tone: "ok", text: osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label) });
@@ -183,14 +207,16 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         <Button variant="secondary" disabled={!!busy} onClick={() => void search()} data-testid="map-project-laser-search">{text.search}</Button>
       </span>
       {items && items.length === 0 && <p className={styles.muted}>{text.none}</p>}
-      {items && items.length > 0 && <fieldset className={styles.importLayers} data-testid="map-project-laser-items">
-        {items.map(item => <label key={item.id} className={styles.check}>
+      {((items && items.length > 0) || rerun) && <fieldset className={styles.importLayers} data-testid="map-project-laser-items">
+        {rerun && <p data-testid="map-project-laser-rerun">{text.rerunHeading(rerun.name)}{" "}
+          <Button variant="quiet" onClick={() => setRerun(undefined)}>{text.cancel}</Button></p>}
+        {!rerun && items?.map(item => <label key={item.id} className={styles.check}>
           <input type="checkbox" checked={chosen.has(item.id)} onChange={() => setChosen(current => {
             const next = new Set(current);
             if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
             return next;
           })} />{text.item(item.datetime, item.id, item.bytes)}</label>)}
-        {clip && extras.length > 0 && [...new Set(extras.map(extra => extra.kind))].map(kind => <label key={kind} className={styles.check}>
+        {!rerun && clip && extras.length > 0 && [...new Set(extras.map(extra => extra.kind))].map(kind => <label key={kind} className={styles.check}>
           <input type="checkbox" checked={!skippedExtras.has(kind)} data-testid={`map-project-laser-extra-${kind}`} onChange={() => setSkippedExtras(current => {
             const next = new Set(current);
             if (next.has(kind)) next.delete(kind); else next.add(kind);
@@ -203,6 +229,15 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         <label>{text.formlines}<select value={formline} onChange={event => setFormline(Number(event.target.value))}>
           {[0, 1, 2].map(value => <option key={value} value={value}>{text.formlineOptions[value]}</option>)}
         </select></label>
+        <fieldset className={styles.importLayers} data-testid="map-project-laser-choices">
+          <legend>{text.choicesHeading}</legend>
+          {LASER_CHOICES.map(choice => <label key={choice}>{text.choiceLabels[choice]}
+            <select value={choices[choice]} data-testid={`map-project-laser-choice-${choice}`}
+              onChange={event => setChoices(current => ({ ...current, [choice]: event.target.value as ChoiceLevel }))}>
+              {(["less", "default", "more"] as const).map(level => <option key={level} value={level}>{text.choiceLevels[choice]?.[level] ?? level}</option>)}
+            </select></label>)}
+          <small className={styles.muted}>{text.choicesHelp}</small>
+        </fieldset>
         <details className={styles.settings} data-testid="map-project-laser-more">
           <summary>{text.more}</summary>
           <p className={styles.muted}>{text.moreHelp}</p>
@@ -227,7 +262,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           {[100, 300, 600, 1000].map(value => <option key={value} value={value}>{text.minAreaOption(value)}</option>)}
         </select></label>}
         <span className={styles.actions}>
-          <Button disabled={!!busy || selected === 0 || selected > 16} onClick={() => void start()} data-testid="map-project-laser-start">{text.start(selected)}</Button>
+          <Button disabled={!!busy || (!rerun && (selected === 0 || selected > 16))} onClick={() => void start()} data-testid="map-project-laser-start">
+            {rerun ? text.rerunStart : text.start(selected)}</Button>
         </span>
       </fieldset>}
     </>}
@@ -252,6 +288,9 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
               onClick={() => void candidates(job, baseMapOutputs(job.outputs.map(output => output.name)), text.baseMap, true)}>{text.loadBaseMap}</Button>}
             {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={!!busy}
               onClick={() => void candidates(job, [output.name], text.outputs[output.name]!)}>{text.load(text.outputs[output.name]!)}</Button>)}
+          </span>}
+          {job.kind === "PULLAUTIN" && !ACTIVE.has(job.status) && importer.canImport && ready && <span className={styles.actions}>
+            <Button variant="secondary" disabled={!!busy} onClick={() => startRerun(job)} data-testid="map-project-laser-rerun-start">{text.rerun}</Button>
           </span>}
           {(job.own || view.viewer.canManage) && <span className={styles.actions}>
             <Button variant="secondary" onClick={() => void remove(job)}>{ACTIVE.has(job.status) ? text.cancel : text.remove}</Button>

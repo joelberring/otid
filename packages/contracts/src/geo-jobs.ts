@@ -10,7 +10,10 @@ export const GEO_JOB_MAX_TILES = 16;
 export const PULLAUTIN_SETTINGS = {
   contour_interval: [1, 10], formline: [0, 2], formlinesteepness: [0, 2], smoothing: [0.2, 3], curviness: [0, 3], knolls: [0, 3],
   cliff1: [0.5, 5], cliff2: [0.5, 10], cliffsteepfactor: [0, 2], yellowheight: [0, 3], greenground: [0, 3], greenhigh: [0, 10],
-  undergrowth: [0, 2]
+  undergrowth: [0, 2],
+  // Ägaren 2026-11-11 («tror inställningarna för gröna ytor blir fel»): hur mycket kronorna väger in i grönt, och en faktor
+  // på Karttapullautins gränser för grönt (`greenshades`, skrivs av geo-arbetaren; större faktor ger mindre grönt).
+  topweight: [0, 1], greenscale: [0.3, 3]
 } as const satisfies Record<string, readonly [number, number]>;
 
 const settingsSchema = z.record(z.string(), z.number().finite()).superRefine((value, context) => {
@@ -52,16 +55,24 @@ export const geoJobCreateRequestSchema = z.object({
   requestId: z.string().uuid(),
   kind: z.literal("PULLAUTIN"),
   name: z.string().trim().min(1).max(80),
-  tiles: z.array(tileSchema).min(1).max(GEO_JOB_MAX_TILES),
+  tiles: z.array(tileSchema).min(1).max(GEO_JOB_MAX_TILES).optional(),
   settings: settingsSchema.default({}),
   clip: clipSchema.optional(),
   extras: z.array(extraSchema).max(6).optional(),
+  /**
+   * Branternas trösklar när fallet mäts i markrastret (G4, ägaren 2026-11-11: «mer/mindre branter»): minsta fall för en brant
+   * och för en opasserbar brant, i meter över ±3 m. Förvalet är Kungshatt-kedjans (1,3 och 2,4).
+   */
+  cliffs: z.object({ minDrop: z.number().min(0.5).max(5), impassableDrop: z.number().min(1).max(10) }).strict()
+    .refine(value => value.impassableDrop > value.minDrop, "En opasserbar brant ska vara högre än en brant").optional(),
+  /** «Kör om med andra inställningar»: rutorna, klipprutan och Lantmäteriets produkter tas från det jobbet (G6). */
+  rerunOf: z.string().uuid().optional(),
   /** K5c del 2: fuktigheten ur laserns markmodell (kanaltröskeln i hektar, höjd över fuktstråket för blött och fuktigt). */
   moisture: z.object({ channelHa: z.number().min(0.25).max(10), wetMeters: z.number().min(0.1).max(3), moistMeters: z.number().min(0.2).max(5) })
     .strict().refine(value => value.moistMeters >= value.wetMeters, "Fuktigt ska vara minst lika högt som blött").optional(),
   /** K5c del 3: vegetationen ur laserns returer (Karttapullautins grönt, gult och undervegetation) som ytor; minsta yta i m². */
   vegetation: z.object({ minAreaM2: z.number().int().min(50).max(5000) }).strict().optional()
-}).strict();
+}).strict().refine(value => !!value.tiles !== !!value.rerunOf, "Rutorna eller jobbet att köra om, inte båda");
 
 export type GeoJobStatusView = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
 export interface GeoJobView {
@@ -69,6 +80,8 @@ export interface GeoJobView {
   readonly tiles: number; readonly settings: Readonly<Record<string, number>>;
   /** Laserdatan klipptes till den här rutan (SWEREF 99 TM, med marginal); null = hela rutorna bearbetades. */
   readonly clip: GeoClip | null;
+  /** Branternas trösklar (null = förvalet), fuktigheten och vegetationen som jobbet räknade, så att det kan köras om likadant. */
+  readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number } | null;
   /** Vilka av Lantmäteriets vektorprodukter jobbet också läser (G8). */
   readonly extras: readonly GeoExtraKind[];
   readonly progress: { readonly step: string; readonly done: number; readonly total: number } | null;

@@ -7,9 +7,15 @@ import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map
  * grönskans steg (steg = klass − 2), höga bitar undervegetationen (1 lätt, 2 svår). Stegen för grönt dras här i webbläsaren och
  * ytorna blir kandidater med samma lagernamn som geo-arbetarens vegetation (401, 406, 408, 410, 407, 409).
  */
-export interface GreenSettings { readonly slow: number; readonly difficult: number; readonly fight: number; readonly undergrowth: boolean; readonly minAreaM2: number }
+export type BorderLevel = "none" | "few" | "some" | "many";
+export interface GreenSettings { readonly slow: number; readonly difficult: number; readonly fight: number; readonly undergrowth: boolean; readonly minAreaM2: number;
+  /** Beståndsgränser (416) ur lasern (ägaren 2026-11-11: «få/några/många beståndsgränser»). */
+  readonly borders?: BorderLevel | undefined }
+/** Minsta bestånd (m²) och förenkling (celler) per nivå: färre gränser = större bestånd och rakare kanter. */
+const BORDER_LEVELS: Readonly<Record<Exclude<BorderLevel, "none">, { minAreaM2: number; simplify: number }>> = {
+  few: { minAreaM2: 5000, simplify: 2 }, some: { minAreaM2: 2000, simplify: 1.25 }, many: { minAreaM2: 600, simplify: 0.75 } };
 /** Samma steg som geo-arbetarens förval (`GREEN_STEPS` i scripts/geo-vegetation.ts). */
-export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 4, fight: 5, undergrowth: true, minAreaM2: 300 };
+export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 4, fight: 5, undergrowth: true, minAreaM2: 300, borders: "none" };
 
 export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, toSource: (column: number, row: number) => [number, number], crs: number,
   cellMeters = 2): { data: SourceData; hectares: Readonly<Record<string, number>> } {
@@ -38,6 +44,18 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
     for (const ring of maskOutlines(mask, columns, rows)) {
       const simple = simplifyRing(ring, 0.75);
       if (simple.length >= 4) features.push({ layer: layer.name, geometry: { kind: "line", closed: true, points: simple.map(([column, row]) => toSource(column, row)) } });
+    }
+  }
+  // Beståndsgränserna: kanterna mellan öppet, vanlig skog och grönt, med större minsta bestånd för färre gränser.
+  const level = settings.borders && settings.borders !== "none" ? BORDER_LEVELS[settings.borders] : undefined;
+  if (level) {
+    const stand = Math.max(2, Math.round(level.minAreaM2 / (cellMeters * cellMeters)));
+    for (const test of [(value: number) => (value & 15) === 1, (value: number) => shade(value) >= settings.slow]) {
+      const mask = compactMask(values.map((value, i) => known[i] && test(value) ? 1 : 0), columns, rows, stand);
+      for (const ring of maskOutlines(mask, columns, rows)) {
+        const simple = simplifyRing(ring, level.simplify);
+        if (simple.length >= 4) features.push({ layer: "bestandsgrans_laser", geometry: { kind: "line", closed: true, points: simple.map(([column, row]) => toSource(column, row)) } });
+      }
     }
   }
   return { data: { features, skipped: 0, crs }, hectares };

@@ -83,7 +83,7 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /^HYGGE_FARSKT$/, area: "403" },
   { words: /^HYGGE_SLY$/, area: "407" },
   { words: /^HYGGE_UNGSKOG$/, area: "406" },
-  { words: /^BESTANDSGRANS$/, line: "416" },
+  { words: /^BESTANDSGRANS/, line: "416" },
   // G8: tomterna som räknats ur husen (ägaren 2026-11-11: «tomter kommer inte med»).
   { words: /^TOMTMARK/, area: "520" },
   // Geo-arbetarens vegetation (K5c del 3): öppen mark, tre gröna och undervegetation.

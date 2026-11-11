@@ -4,7 +4,9 @@ import type { MapGeoreference } from "@o-tid/map-file";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { DEFAULT_DEPTH, depthCandidates } from "../../lib/map-project-moisture-depth";
-import { DEFAULT_GREEN, greenCandidates } from "../../lib/map-project-green-classes";
+import { DEFAULT_GREEN, greenCandidates, type BorderLevel } from "../../lib/map-project-green-classes";
+import { mapForestEn } from "../../i18n/map-forest-en";
+import { mapForestSv } from "../../i18n/map-forest-sv";
 import { useTexts } from "../language-provider";
 import { MapProjectRasterPanel } from "./map-project-raster-panel";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -35,6 +37,7 @@ export function MapProjectDepthPanel(props: Props) {
 /** Grönt med reglage: stegen för 406, 408 och 410 i vegetationens klasser (underlaget som slutar på «vegetationsklasser»). */
 export function MapProjectGreenPanel(props: Props) {
   const text = useTexts(mapSourcesSv.green, mapSourcesEn.green);
+  const forest = useTexts(mapForestSv, mapForestEn);
   return <MapProjectRasterPanel {...props} match={/vegetationsklasser$/} text={text} testId="map-project-green" initial={DEFAULT_GREEN}
     controls={(settings, change) => <>
       {(["slow", "difficult", "fight"] as const).map(key => <label key={key}>{text.step(key, settings[key])}
@@ -47,6 +50,10 @@ export function MapProjectGreenPanel(props: Props) {
         }} /></label>)}
       <label>{text.minArea(settings.minAreaM2)}<input type="range" min={100} max={2000} step={50} value={settings.minAreaM2}
         onChange={event => change({ minAreaM2: Number(event.target.value) })} /></label>
+      <label>{forest.borders.label}<select value={settings.borders ?? "none"} onChange={event => change({ borders: event.target.value as BorderLevel })}
+        data-testid="map-project-green-borders">
+        {(["none", "few", "some", "many"] as const).map(level => <option key={level} value={level}>{forest.borders.levels[level]}</option>)}
+      </select></label>
       <label><input type="checkbox" checked={settings.undergrowth} onChange={() => change({ undergrowth: !settings.undergrowth })} /> {text.undergrowth}</label>
     </>}
     compute={(pixels, settings, toSource, crs, cell) => {

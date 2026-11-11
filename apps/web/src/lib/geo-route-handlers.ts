@@ -1,6 +1,7 @@
 import {
   retireGeoServer,
-  authenticateGeoWorker, fetchMapProjectMoisture, moistureRuntimeFromEnvironment, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
+  authenticateGeoWorker, fetchMapProjectForestImage, fetchMapProjectMoisture, forestImageRuntimeFromEnvironment, moistureRuntimeFromEnvironment,
+  type ForestImageRuntime, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
   lantmaterietRuntimeFromEnvironment, listGeoJobs, openGeoJobLaser, readGeoOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
   type LaserRuntime
 } from "@o-tid/application";
@@ -44,11 +45,22 @@ export async function mapProjectLaserSearchRoute(db: Database, request: Request,
  */
 export async function mapProjectMoistureRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env,
   runtime: MoistureRuntime = moistureRuntimeFromEnvironment(process.env)): Promise<Response> {
+  return imageRoute(request, projectId, environment, proof => fetchMapProjectMoisture(db, { ...proof, projectId, request: proof.body }, runtime));
+}
+
+/** Ägaren 2026-11-11: Skogsstyrelsens kartbilder (hyggen, anmälningar, nyckelbiotoper, trädhöjd) för en ruta, som underlag. */
+export async function mapProjectForestImageRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env,
+  runtime: ForestImageRuntime = forestImageRuntimeFromEnvironment(process.env)): Promise<Response> {
+  return imageRoute(request, projectId, environment, proof => fetchMapProjectForestImage(db, { ...proof, projectId, request: proof.body }, runtime));
+}
+
+async function imageRoute(request: Request, projectId: string, environment: ClubEnvironment,
+  fetchImage: (proof: Parameters<typeof fetchMapProjectMoisture>[1] & { body: unknown }) => ReturnType<typeof fetchMapProjectMoisture>): Promise<Response> {
   if (!UUID_PATTERN.test(projectId)) return failure("not-found");
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await fetchMapProjectMoisture(db, { ...input.proof, projectId, request: input.body }, runtime);
+    const result = await fetchImage({ ...input.proof, projectId, request: input.body, body: input.body });
     if (result.status !== "ok") return geoFailure(result);
     const headers = new Headers(privateHeaders);
     headers.set("content-type", "image/png");

@@ -216,6 +216,7 @@ export {
 } from "./map-project-lantmateriet";
 export { geoServerSettings, hetznerClient, manageGeoServer, retireGeoServer, type GeoMailer } from "./geo-server";
 export { fetchMapProjectMoisture, moistureRuntimeFromEnvironment, type MoistureRuntime } from "./map-project-moisture";
+export { fetchMapProjectForestImage, forestImageRuntimeFromEnvironment, type ForestImageRuntime } from "./map-project-forest-images";
 export { deleteMapLayerProfile, listMapLayerProfiles, saveMapLayerProfile } from "./map-layer-profiles";
 export { laserRuntimeFromEnvironment, searchMapProjectLaser, type LaserItem, type LaserRuntime } from "./map-project-laser";
 export {

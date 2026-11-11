@@ -20,7 +20,7 @@ type Ring = readonly (readonly [number, number])[];
 
 const years = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / (365.25 * 86_400_000);
 
-export function clearCutFeatures(cuts: readonly MapProjectClearCut[], today: string, scannedAt: string | null, ages: ClearCutAges = DEFAULT_CLEAR_CUT_AGES)
+export function clearCutFeatures(cuts: readonly MapProjectClearCut[], today: string, scannedAt: string | null, ages: ClearCutAges = DEFAULT_CLEAR_CUT_AGES, borders = true)
   : { features: SourceFeature[]; afterScan: Ring[]; counts: Readonly<Record<"fresh" | "scrub" | "young", number>> } {
   const features: SourceFeature[] = [], afterScan: Ring[] = [];
   const counts = { fresh: 0, scrub: 0, young: 0 };
@@ -32,7 +32,7 @@ export function clearCutFeatures(cuts: readonly MapProjectClearCut[], today: str
     counts[kind] += 1;
     const layer = kind === "fresh" ? "hygge_farskt" : kind === "scrub" ? "hygge_sly" : "hygge_ungskog";
     features.push({ layer, geometry: { kind: "area", rings: cut.rings } });
-    features.push({ layer: "bestandsgrans", geometry: { kind: "line", closed: true, points: cut.rings[0].slice(0, -1) } });
+    if (borders) features.push({ layer: "bestandsgrans", geometry: { kind: "line", closed: true, points: cut.rings[0].slice(0, -1) } });
     if (scannedAt && cut.date > scannedAt) afterScan.push(cut.rings[0]);
   }
   return { features, afterScan, counts };

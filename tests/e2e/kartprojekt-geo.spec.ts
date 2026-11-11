@@ -154,6 +154,18 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(bar.getByRole("button", { name: "Lägg in 6 objekt i kartan" })).toBeVisible();
   await bar.getByRole("checkbox", { name: "308.0 Sankmark (1)" }).last().uncheck();
   await expect(bar.getByRole("button", { name: "Lägg in 5 objekt i kartan" })).toBeVisible();
+  // Skogsstyrelsen (ägaren 2026-11-11): kartbilderna som underlag att tända och släcka, och hyggena med reglage för åldern.
+  const forest = owner.getByTestId("map-project-forest-images");
+  await forest.getByText("Skogsstyrelsen (underlag)").click();
+  await forest.getByTestId("map-project-forest-images-fetch").click();
+  await expect(forest.getByTestId("map-project-forest-images-message")).toHaveText("2 underlag är tillagda.", { timeout: 30_000 });
+  await expect(owner.getByTestId("map-project-layer").filter({ hasText: "Skogsstyrelsen" })).toHaveCount(2, { timeout: 20_000 });
+  const cuts = owner.getByTestId("map-project-cuts");
+  await cuts.getByText("Hyggen med reglage").click();
+  await cuts.getByTestId("map-project-cuts-fetch").click();
+  await expect(cuts.getByTestId("map-project-cuts-message")).toHaveText("1 färska, 0 med sly och 0 med ungskog av 3 hyggen i rutan.", { timeout: 20_000 });
+  await cuts.getByTestId("map-project-cuts-fresh").fill("1");
+  await expect(cuts.getByTestId("map-project-cuts-message")).toHaveText("0 färska, 1 med sly och 0 med ungskog av 3 hyggen i rutan.", { timeout: 20_000 });
   await laser.getByRole("button", { name: "Läs in lantmäteriets marktäcke som kandidater" }).click();
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
   // Vattnet ur laserns klasser: sjön blir en yta i lagret vatten.

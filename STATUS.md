@@ -16,6 +16,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 ### 2026-11-11 – Hyggen från Skogsstyrelsen efter ålder, fyll, parallell och mätning
 - Skogsstyrelsens utförda avverkningar hämtas för grundkartans ruta och delas in efter ålder (färskt 403, sly 407, ungskog
   406, kant 416); laserns grönt tas bort i hyggen som är nyare än skanningen (skanningsdatum ur Lantmäteriets sökning).
+- Skogsstyrelsens kartbilder som underlag (hyggen, anmälningar, nyckelbiotoper, trädhöjd); hyggen med reglage för åldern;
+  beståndsgränser ur lasern i fyra nivåer i «Grönt med reglage».
 - Ritläget: fyll yta eller gör kant (Skift+F), parallell linje (Skift+V), längd och yta för det markerade under kartan.
 - Verifierat: enhetstester, integrationstester för geo, E2E geo och rita (falska Skogsstyrelsen). Inte provat mot riktiga
   Skogsstyrelsen (tjänsten nåddes inte härifrån).

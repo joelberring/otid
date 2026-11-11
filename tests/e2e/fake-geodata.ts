@@ -83,6 +83,12 @@ export function startFakeGeodata(port = FAKE_GEODATA_PORT): Promise<Server> {
     const url = new URL(request.url ?? "/", "http://fake-geodata");
     const authorized = typeof request.headers.authorization === "string" && /^(Basic|Bearer) /.test(request.headers.authorization);
     // Skogsstyrelsens utförda avverkningar: ett hygge från förra året i rutans mitt (40 × 40 m), ett gammalt och ett odaterat.
+    // Skogsstyrelsens kartbilder (export och exportImage): en halvgenomskinlig grön bild i den begärda storleken.
+    if (url.pathname.startsWith("/sks-rest/") && /\/export(Image)?$/.test(url.pathname)) {
+      const [width, height] = (url.searchParams.get("size") ?? "10,10").split(",").map(Number) as [number, number];
+      response.writeHead(200, { "content-type": "image/png" }).end(solidPng(Math.min(width, 400), Math.min(height, 400), [40, 160, 60, 120]));
+      return;
+    }
     if (url.pathname === "/sks-avverkning/query") {
       const [minX, minY, maxX, maxY] = (url.searchParams.get("geometry") ?? "0,0,0,0").split(",").map(Number) as [number, number, number, number];
       const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;

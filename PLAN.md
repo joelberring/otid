@@ -1380,6 +1380,10 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     `OTID_SKS_AVVERKNING_URL`) i grundkartan, efter ålder i dag: färskt (< 3 år, 403), sly (3–8 år, 407), ungskog (8–15 år,
     406), kanten som 416. Laserns skanningsdatum sparas med rutorna (`scannedAt`); laserns vegetation i ett hygge som är
     nyare än skanningen tas bort.
+  - [x] Reglage (ägaren 2026-11-11: «tända/släcka bakgrundsinfo från Skogsstyrelsen», «få/några/många beståndsgränser»):
+    panelen «Skogsstyrelsen (underlag)» hämtar utförda avverkningar, anmälningar, nyckelbiotoper och trädhöjd som underlag
+    (`sources/skogsstyrelsen`, ArcGIS export); «Hyggen med reglage» drar åldrarna för färskt, sly och ungskog; «Grönt med
+    reglage» ger beståndsgränser ur lasern (inga, få, några, många).
   - [ ] Beståndsgränser utöver hyggena: ur Skogliga grunddata (medelhöjd, 12,5 m) eller laserns trädhöjd; åldersgränserna
     som inställning (tillväxten skiljer mellan norr och söder).
   - [ ] Stigar ur lasern: skjuts upp; markrastret (1 m) och klassbilderna (2 m) visar dem inte tillförlitligt.

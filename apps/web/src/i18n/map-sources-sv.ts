@@ -117,6 +117,11 @@ export const mapSourcesSv = {
     rerunHeading: (name: string) => `Kör om ${name} med samma rutor och område:`,
     rerunName: (name: string) => `${name} (ny)`.slice(0, 80),
     rerunStart: "Kör om",
+    sample: "Område",
+    sampleWhole: "Hela jobbets område",
+    sampleMiddle: "Provruta 250 × 250 m i mitten",
+    sampleArea: (name: string) => `Provruta 250 × 250 m i ${name}`,
+    sampleSuffix: " (provruta)",
     more: "Avancerat: värden i Karttapullautin",
     moreHelp: "Värdena skrivs i Karttapullautins pullauta.ini (namnet står inom parentes). Lämna ett fält tomt för Karttapullautins förval. "
       + "Prova på en liten etapp först och jämför bilderna.",

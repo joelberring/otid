@@ -73,6 +73,11 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     rerunHeading: (name: string) => `Run ${name} again with the same tiles and area:`,
     rerunName: (name: string) => `${name} (new)`.slice(0, 80),
     rerunStart: "Run again",
+    sample: "Area",
+    sampleWhole: "The job's whole area",
+    sampleMiddle: "Sample square 250 × 250 m in the middle",
+    sampleArea: (name: string) => `Sample square 250 × 250 m in ${name}`,
+    sampleSuffix: " (sample)",
     more: "Advanced: values in Karttapullautin",
     moreHelp: "The values are written to Karttapullautin's pullauta.ini (the name is in brackets). Leave a field empty for Karttapullautin's default. "
       + "Try a small stage first and compare the images.",

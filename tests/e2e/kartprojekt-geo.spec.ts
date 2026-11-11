@@ -169,6 +169,15 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   expect(again.code, again.output).toBe(0);
   await expect(second).toContainText("Klart", { timeout: 30_000 });
   await expect(second.getByTestId("map-project-laser-base-map")).toBeVisible();
+  // G6 provrutan: samma jobb igen, bara 250 × 250 m i mitten av området (snabbt att jämföra inställningar).
+  await second.getByTestId("map-project-laser-rerun-start").click();
+  await laser.getByTestId("map-project-laser-sample").selectOption("middle");
+  await laser.getByTestId("map-project-laser-start").click();
+  const sample = laser.getByTestId("map-project-laser-job").filter({ hasText: "(provruta)" });
+  await expect(sample).toContainText(/Klippt till området, (2[0-4]\d|250) × (2[0-4]\d|250) m/);
+  const third = await runGeoWorker(baseURL!);
+  expect(third.code, third.output).toBe(0);
+  await expect(sample).toContainText("Klart", { timeout: 30_000 });
 
   // K6b: en DWG-ritning läses på geo-servern (vägen och huset, en skraffyr) och läses in som kandidater.
   await warmRoute(owner, `${api}/geo-jobs/dwg`, "POST");

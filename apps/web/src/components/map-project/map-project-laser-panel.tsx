@@ -1,6 +1,6 @@
 "use client";
 
-import { laserClip } from "../../lib/map-project-clip";
+import { clipCenter, laserClip, sampleClip } from "../../lib/map-project-clip";
 import { useCallback, useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
@@ -62,6 +62,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   // G6 (ägaren 2026-11-11: «itereringar av olika lager, t.ex. grönt, efter första körning»): ett klart jobb körs om med samma
   // rutor och område men nya inställningar, och resultaten jämförs innan något läggs in i kartan.
   const [rerun, setRerun] = useState<GeoJobView>();
+  // Provrutan: «» hela området, «middle» mitten av jobbets område, annars en etapps mitt.
+  const [sample, setSample] = useState("");
   // Ägaren 2026-11-11: fuktigheten och vegetationen är förvalda, så att kärr och grönt alltid kommer med i grundkartan.
   const [moisture, setMoisture] = useState(true);
   const [channelHa, setChannelHa] = useState(1);
@@ -114,16 +116,20 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   }
 
   const clip = laserClip(bounds, georeference, GEO_CLIP_MARGIN_M, area);
+  const sampleArea = areas.find(row => row.areaId === sample);
+  const sampleCenter = !rerun?.clip || !sample ? undefined : sample === "middle" ? clipCenter(rerun.clip)
+    : sampleArea ? (box => box && clipCenter(box))(laserClip(bounds, georeference, 0, sampleArea)) : undefined;
+  const sampled = rerun && sampleCenter ? sampleClip(sampleCenter, rerun.clip) : undefined;
   async function start() {
     const tiles = (items ?? []).filter(item => chosen.has(item.id)).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg }));
     const chosenSettings = choiceSettings(choices, moreSettings(more));
     setBusy(text.searching); setMessage(undefined);
     try {
       const result = await clubRequest(`${base}/geo-jobs`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PULLAUTIN",
-        name: name.trim() || text.defaultName(area?.name), settings: { contour_interval: interval, formline, ...chosenSettings.settings },
+        name: (name.trim() || text.defaultName(area?.name)).slice(0, sampled ? 68 : 80) + (sampled ? text.sampleSuffix : ""), settings: { contour_interval: interval, formline, ...chosenSettings.settings },
         ...(chosenSettings.cliffs ? { cliffs: chosenSettings.cliffs } : {}),
         // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
-        ...(rerun ? { rerunOf: rerun.jobId } : { tiles,
+        ...(rerun ? { rerunOf: rerun.jobId, ...(sampled ? { clip: sampled } : {}) } : { tiles,
           // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
           ...(clip ? { clip } : {}),
           ...(clip && extras.some(extra => !skippedExtras.has(extra.kind)) ? { extras: extras.filter(extra => !skippedExtras.has(extra.kind)) } : {}) }),
@@ -131,7 +137,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
       const body = result.json as { error?: string } | undefined;
       if (result.status !== 201 && result.status !== 200) { say(body?.error ?? result.status); return; }
-      setItems(undefined); setRerun(undefined); setMessage({ tone: "ok", text: text.started });
+      setItems(undefined); setRerun(undefined); setSample(""); setMessage({ tone: "ok", text: text.started });
       await load();
     } finally { setBusy(undefined); }
   }
@@ -210,6 +216,11 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       {((items && items.length > 0) || rerun) && <fieldset className={styles.importLayers} data-testid="map-project-laser-items">
         {rerun && <p data-testid="map-project-laser-rerun">{text.rerunHeading(rerun.name)}{" "}
           <Button variant="quiet" onClick={() => setRerun(undefined)}>{text.cancel}</Button></p>}
+        {rerun?.clip && <label>{text.sample}<select value={sample} onChange={event => setSample(event.target.value)} data-testid="map-project-laser-sample">
+          <option value="">{text.sampleWhole}</option>
+          <option value="middle">{text.sampleMiddle}</option>
+          {areas.map(row => <option key={row.areaId} value={row.areaId}>{text.sampleArea(row.name)}</option>)}
+        </select></label>}
         {!rerun && items?.map(item => <label key={item.id} className={styles.check}>
           <input type="checkbox" checked={chosen.has(item.id)} onChange={() => setChosen(current => {
             const next = new Set(current);

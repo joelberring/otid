@@ -5,6 +5,7 @@ import {
   type GeoJobList, type GeoJobView, type GeoServerView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
+import { gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import type { ClubFailure, ClubProof } from "./club-access";
 import { imageDimensions } from "./image-dimensions";
 import { contentHead, contentLength, mapStorageQuota, readMapContent, storeMapContent, type MapContentInput } from "./map-content";
@@ -46,6 +47,16 @@ export const GEO_RELIEF_WORLD = "relief.pgw";
 /** Terrängskuggningen ur laserns markraster (ägaren 2026-11-10); blir ett underlag att tona. */
 export const GEO_SHADE_IMAGE = "skuggning.png";
 export const GEO_SHADE_WORLD = "skuggning.pgw";
+
+/** Om rutans utbredning (WGS 84, från sökningen) når klipprutan (SWEREF 99 TM); utan utbredning tas rutan med. */
+function reaches(bbox: readonly [number, number, number, number] | null | undefined, clip: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+  const projection = transverseMercatorFor(3006);
+  if (!bbox || !projection) return true;
+  const corners = [[clip.minX, clip.minY], [clip.maxX, clip.minY], [clip.minX, clip.maxY], [clip.maxX, clip.maxY]].map(([x, y]) => gridToGeodetic(projection, x!, y!));
+  const west = Math.min(...corners.map(c => c.longitude)), east = Math.max(...corners.map(c => c.longitude));
+  const south = Math.min(...corners.map(c => c.latitude)), north = Math.max(...corners.map(c => c.latitude));
+  return bbox[0] <= east && bbox[2] >= west && bbox[1] <= north && bbox[3] >= south;
+}
 
 export type GeoJobFailure = ClubFailure | { status: "no-credential" } | { status: "busy" } | { status: "quota" };
 
@@ -101,7 +112,9 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
         .where(and(eq(jobs.id, request.rerunOf), eq(jobs.projectId, access.project.id)));
       const prior = source?.kind === "PULLAUTIN" ? source.request as { tiles?: typeof request.tiles; clip?: typeof request.clip; extras?: typeof request.extras } : undefined;
       if (!prior?.tiles?.length) return { status: "not-found" } as const;
-      request = { ...request, tiles: prior.tiles, clip: request.clip ?? prior.clip, extras: request.extras ?? prior.extras };
+      // En provruta (en egen, mindre klippruta) tar bara rutorna som når den, så att den går fort och tar lite av kvoten.
+      const tiles = request.clip ? prior.tiles.filter(tile => reaches(tile.bbox, request.clip!)) : prior.tiles;
+      request = { ...request, tiles: tiles.length ? tiles : prior.tiles, clip: request.clip ?? prior.clip, extras: request.extras ?? prior.extras };
     }
     const tileList = request.tiles ?? [];
     if (tileList.length === 0 || [...tileList, ...(request.extras ?? [])].some(item => !allowedLaserUrl(item.href, runtime))) return { status: "invalid-request" } as const;

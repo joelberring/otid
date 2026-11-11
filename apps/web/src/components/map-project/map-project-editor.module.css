@@ -186,3 +186,8 @@
 /* Symbolens nummer och namn vid rutan när musen står över (eller rutan har fokus). */
 .stripTip { position: fixed; z-index: 20; pointer-events: none; padding: 2px 6px; border-radius: 4px; background: var(--ink, #111); color: #fff;
   font-size: .8rem; white-space: nowrap; }
+
+/* R3: normens grupp har en siffertangent (1–6). */
+.layerKey { display: inline-block; min-width: 1.4em; margin-right: 0.35em; padding: 0 0.3em; border: 1px solid var(--border, #ccc); border-radius: 4px;
+  font: inherit; font-size: 0.8em; text-align: center; color: var(--muted, #666); }
+.layerToggles button svg { display: block; }

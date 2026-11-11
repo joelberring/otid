@@ -29,7 +29,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid, om den inte är gömd). */
   open: boolean;
   catalog: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
-  /** De senast använda symbolerna (1–9 väljer dem). */
+  /** De senast använda symbolerna (också i verktygshjulet). */
   recent: readonly CatalogSymbol[];
   standardSymbols: ReadonlyMap<string, string>; layerState: LayerState;
   /** Fliken Lager: symbollagren, arbetslagren och underlagen. */

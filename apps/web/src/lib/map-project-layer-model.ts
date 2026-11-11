@@ -99,6 +99,32 @@ export function withSymbolFlag(state: LayerState, id: string, flag: keyof LayerF
   return { ...state, symbols: { ...state.symbols, [id]: { ...state.symbols[id], [flag]: value } } };
 }
 
+/**
+ * R3 (ägaren 2026-11-10: «siffrorna 1–6 för normens grupper»): tangenten 1–6 tänder eller släcker normens grupp (landformer,
+ * berg, vatten, vegetation, anläggningar, tekniska), Skift+siffran visar bara den gruppen och 0 tänder allt.
+ */
+export const GROUP_KEYS: readonly LayerId[] = LAYER_ORDER.slice(0, 6);
+export function withGroupKey(state: LayerState, catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>, digit: number, solo: boolean): LayerState {
+  if (digit === 0) return LAYER_ORDER.reduce((next, id) => withLayerFlag(next, catalog, standard, id, "hidden", false), state);
+  const target = GROUP_KEYS[digit - 1];
+  if (!target) return state;
+  if (solo) return LAYER_ORDER.reduce((next, id) => withLayerFlag(next, catalog, standard, id, "hidden", id !== target), state);
+  return withLayerFlag(state, catalog, standard, target, "hidden", !state.layers[target]?.hidden);
+}
+
+/** R3: sparade vyer, lagrens val under ett namn (i webbläsaren, per projekt). */
+export interface LayerView { readonly name: string; readonly state: LayerState }
+const viewsKey = (projectId: string) => `otid-map-layer-views:${projectId}`;
+export function readLayerViews(projectId: string): LayerView[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(viewsKey(projectId)) ?? "[]") as LayerView[];
+    return Array.isArray(value) ? value.filter(view => typeof view?.name === "string" && view.state?.layers && view.state.symbols) : [];
+  } catch { return []; }
+}
+export function saveLayerViews(projectId: string, views: readonly LayerView[]): void {
+  try { localStorage.setItem(viewsKey(projectId), JSON.stringify(views)); } catch { /* utan lagring: bara den här sidan */ }
+}
+
 export interface MergeSuggestion {
   readonly from: CatalogSymbol; readonly to: CatalogSymbol;
   readonly reason: "SAME_CODE" | "SAME_NAME";

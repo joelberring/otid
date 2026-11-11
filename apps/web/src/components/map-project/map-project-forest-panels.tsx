@@ -38,7 +38,7 @@ export function MapProjectForestImagePanel({ view, layers, georeference, bounds,
   const text = useTexts(mapForestSv.images, mapForestEn.images);
   const sources = useTexts(mapSourcesSv, mapSourcesEn);
   const [where, setWhere] = useState("");
-  const [chosen, setChosen] = useState<ReadonlySet<ForestImageProduct>>(new Set(["CLEAR_CUTS", "TREE_HEIGHT"]));
+  const [chosen, setChosen] = useState<ReadonlySet<ForestImageProduct>>(new Set(["CLEAR_CUTS"]));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   if (!layers.canAdd || !georeference || !bounds) return null;
@@ -47,7 +47,7 @@ export function MapProjectForestImagePanel({ view, layers, georeference, bounds,
 
   async function fetchImages() {
     setBusy(true); setMessage(undefined);
-    let added = 0;
+    let added = 0, failed: string | undefined;
     try {
       for (const product of FOREST_IMAGE_PRODUCTS.filter(item => chosen.has(item))) {
         const token = csrf();
@@ -56,14 +56,15 @@ export function MapProjectForestImagePanel({ view, layers, georeference, bounds,
           body: JSON.stringify({ formatVersion: 1, box: areaBox(bounds!, georeference!, area).wgs84, product }) }).catch(() => undefined);
         if (!response?.ok) {
           const body = await response?.json().catch(() => undefined) as { error?: string } | undefined;
-          setMessage({ tone: "error", text: body?.error && body.error in problems ? problems[body.error]! : sources.laser.problems.generic(response?.status ?? 0) });
-          return;
+          // Ett lager som inte går att hämta hindrar inte de andra.
+          failed = `${text.products[product]}: ${body?.error && body.error in problems ? problems[body.error]! : sources.laser.problems.generic(response?.status ?? 0)}`;
+          continue;
         }
         const world = decodeURIComponent(response.headers.get("x-otid-world") ?? "");
         const files = [new File([await response.blob()], "skogsstyrelsen.png", { type: "image/png" }), new File([world], "skogsstyrelsen.pgw", { type: "text/plain" })];
         if (await layers.upload(files, text.name(text.products[product].toLowerCase(), area?.name), 3006)) added += 1;
       }
-      setMessage({ tone: "ok", text: text.added(added) });
+      setMessage(failed ? { tone: "error", text: `${added ? `${text.added(added)} ` : ""}${failed}` } : { tone: "ok", text: text.added(added) });
     } finally { setBusy(false); }
   }
 
@@ -103,7 +104,8 @@ export function MapProjectClearCutPanel({ view, georeference, bounds, areas, imp
     if (!cuts) return;
     const result = clearCutFeatures(cuts, new Date().toISOString().slice(0, 10), null, ages, borders);
     if (!result.features.length) { setMessage({ tone: "error", text: text.none }); return; }
-    importer.openData(text.name, { features: result.features, skipped: 0, crs: 3006 }, true);
+    // Bara hygges- och kantlagren byts; grundkartan eller annat som visas står kvar.
+    importer.refine(text.name, { features: result.features, skipped: 0, crs: 3006 }, /^(hygge_|bestandsgrans$)/);
     setMessage({ tone: "ok", text: text.done(result.counts.fresh, result.counts.scrub, result.counts.young, cuts.length) });
   };
   useEffect(() => {

@@ -13,6 +13,7 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
+import { mergeCandidates } from "../../lib/map-project-candidate-merge";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -170,13 +171,15 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
         const at = sourcePointToMap(georeference, crs, x, y);
         return fitted ? applyFit(fitted, at) : at;
       };
-      const imported = importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols });
+      const imported = importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols,
+        // Kartans område (polygonen) klipper också, utom när en etapp valts (den har sin ruta).
+        polygon: clip ? undefined : view.area ?? undefined });
       if (!normed) return { ...imported, generalized: undefined };
       // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).
       const general = generalizeCandidates(imported.objects, symbol => symbols.get(symbol)?.code, georeference.scale);
       return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified } };
     } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped, normed]);
+  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped, normed, view.area]);
 
   /**
    * "Passa in mot kartan": lagren som fått hus, vägar, vatten, murar eller järnväg som punkter i kartans mm, inpassade mot
@@ -251,10 +254,22 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const openData = useCallback((fileName: string, data: SourceData, general = false) => {
     setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general);
   }, [show]);
+  /** En panel med reglage byter sina egna lager (`own`) i det som visas; utan något som visas öppnas datan som vanligt. */
+  const refine = useCallback((fileName: string, data: SourceData, own: RegExp) => {
+    if (!file) { openData(fileName, data, true); return; }
+    const merged = mergeCandidates(file.data, data, own);
+    const found = importLayers(merged);
+    const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
+    setFile({ name: file.name, data: merged });
+    setLayers(found);
+    // Nya lager får förslag ur namnen; de som redan hade en symbol behåller den.
+    setMapping(current => new Map([...found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; }),
+      ...[...current].filter(([layer]) => found.some(row => row.name === layer))]));
+  }, [file, openData, symbols]);
   return { file, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result,
     fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
     /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
-    metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, fetchOsm, fetching, propose, cancel,
+    metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, refine, fetchOsm, fetching, propose, cancel,
     accept, accepted, canAccept: !!commitMany && view.viewer.canEdit,
     profile, saveProfile, canShareProfile: !!view.club,
     hideOnMap, setHideOnMap, skipped,

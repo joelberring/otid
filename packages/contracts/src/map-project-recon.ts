@@ -154,7 +154,7 @@ export interface MapProjectClearCut {
 export interface MapProjectClearCutList { readonly formatVersion: 1; readonly crs: 3006; readonly cuts: readonly MapProjectClearCut[]; readonly attribution: string }
 
 /** Ägaren 2026-11-11 («tända/släcka bakgrundsinfo från Skogsstyrelsen»): Skogsstyrelsens kartbilder som underlag. */
-export const FOREST_IMAGE_PRODUCTS = ["CLEAR_CUTS", "NOTIFIED", "KEY_BIOTOPES", "TREE_HEIGHT"] as const;
+export const FOREST_IMAGE_PRODUCTS = ["CLEAR_CUTS", "NOTIFIED", "KEY_BIOTOPES"] as const;
 export type ForestImageProduct = typeof FOREST_IMAGE_PRODUCTS[number];
 export const mapProjectForestImageRequestSchema = z.object({
   formatVersion: z.literal(1),

@@ -3,7 +3,7 @@ export const mapForestSv = {
   images: {
     heading: "Skogsstyrelsen (underlag)",
     help: "Skogsstyrelsens öppna kartor för hela kartan eller en etapp, som underlag att tända, släcka och tona under Lager.",
-    products: { CLEAR_CUTS: "Utförda avverkningar (hyggen)", NOTIFIED: "Avverkningsanmälningar", KEY_BIOTOPES: "Nyckelbiotoper", TREE_HEIGHT: "Trädhöjd ur laserdata" },
+    products: { CLEAR_CUTS: "Utförda avverkningar (hyggen)", NOTIFIED: "Avverkningsanmälningar", KEY_BIOTOPES: "Nyckelbiotoper" },
     fetch: "Hämta som underlag",
     fetching: "Hämtar från Skogsstyrelsen …",
     name: (product: string, area?: string) => `Skogsstyrelsen ${product} ${area ?? "hela kartan"}`.slice(0, 80),

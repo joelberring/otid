@@ -11,6 +11,7 @@ import { normalCode, withWorkFlag, type LayerFlags, type LayerState } from "../.
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
 import { SymbolIcon } from "./map-project-symbol-icon";
+import { LayerIcon } from "./map-project-symbol-layers";
 import type { useMapProjectWorkLayers } from "./use-map-project-work-layers";
 import styles from "./map-project-editor.module.css";
 
@@ -125,10 +126,10 @@ function Toggles({ flags, onFlag, name, sketch = false }: { flags: Required<Laye
   const layerText = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
   return <span className={styles.layerToggles}>
     <button type="button" aria-pressed={!flags.hidden} aria-label={flags.hidden ? layerText.show(name) : layerText.hide(name)}
-      onClick={() => onFlag("hidden", !flags.hidden)} data-testid="map-project-layer-visible">{flags.hidden ? layerText.hiddenMark : layerText.visibleMark}</button>
+      onClick={() => onFlag("hidden", !flags.hidden)} data-testid="map-project-layer-visible"><LayerIcon name={flags.hidden ? "eyeOff" : "eye"} /></button>
     {!sketch && <button type="button" aria-pressed={flags.locked} aria-label={flags.locked ? layerText.unlock(name) : layerText.lock(name)}
-      onClick={() => onFlag("locked", !flags.locked)} data-testid="map-project-layer-lock">{flags.locked ? layerText.lockedMark : layerText.openMark}</button>}
+      onClick={() => onFlag("locked", !flags.locked)} data-testid="map-project-layer-lock"><LayerIcon name={flags.locked ? "lock" : "open"} /></button>}
     <button type="button" aria-pressed={flags.dimmed} disabled={(!sketch && !flags.locked) || flags.hidden} aria-label={layerText.dim(name)}
-      onClick={() => onFlag("dimmed", !flags.dimmed)} data-testid="map-project-layer-dim">{layerText.dimMark}</button>
+      onClick={() => onFlag("dimmed", !flags.dimmed)} data-testid="map-project-layer-dim"><LayerIcon name="dim" /></button>
   </span>;
 }

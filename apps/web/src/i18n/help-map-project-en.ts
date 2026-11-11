@@ -11,7 +11,7 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
       [
         "First choose a symbol under ”Symbols”, then draw. The tool ”Draw” is chosen by itself.",
         "Hold the mouse over a square to see the symbol's number and name. Search by number or name in the field at the top.",
-        "The latest symbols are at the top of the tab. The keys 1–9 choose them.",
+        "The latest symbols are at the top of the tab and in the tool wheel. The keys 1–6 show and hide the standard's groups under Layers.",
         "”Edit” selects, moves and bends. Esc always takes you back there.",
         "The buttons for the selected object are in the row below the map: ”Delete”, ”Simplify”, ”Make smooth” and ”Move whole”.",
         "”Map only” hides the tools and the panel. The key § does the same.",
@@ -28,9 +28,9 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "The symbol is the layer, as in OCAD and Mapper. There are no free layers to put objects in. Every group in the norm and every symbol can be turned off, locked and faded under the tab ”Layers”.",
       [
-        "Turn off: press ”Shown” at the group. The button then shows ”Off”, and the objects are hidden until you press again.",
-        "Freeze: press ”Open”. The button then shows ”Locked”. The objects are visible but cannot be selected or changed.",
-        "”Faded” shows a locked layer pale, so that what you work with stands out.",
+        "Turn off: press the eye at the group. The eye is crossed out, and the objects are hidden until you press again.",
+        "Freeze: press the padlock. The objects are visible but cannot be selected or changed.",
+        "Fade: the button next to the lock shows a locked layer pale, so that what you work with stands out.",
         "A single symbol: open the group. Every symbol has the same three buttons.",
         "Your own groups: ”New work layer” collects symbols you choose, for example all paths. They are turned off and locked as one group.",
         "Sketches that do not belong to the map: ”New sketch layer”. They are never written to the map file.",

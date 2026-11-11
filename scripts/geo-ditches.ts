@@ -2,8 +2,8 @@
  * Diken ur terrängformen (ägaren 2026-11-11: «terrängformstolkning, dvs markfuktighet kopplat till terrängform för diken»).
  * Markrastret från `lasclip` (1 m) jämförs med sin omgivning: den lokala reliefen är höjden minus medelhöjden inom `radius`
  * meter. Celler som ligger under omgivningen, har minst `depth` m högre mark på båda sidor och hör till en smal sänka (högst `maxWidth` m bred; breda sänkor
- * är gropar och dalar) tunnas till mittlinjer. En rak linje blir ett dike (`dike`, 305); en krokig blir ett fuktstråk
- * (`fuktstrak_terrang`, 306) om minst hälften av den är fuktig enligt fuktigheten, annars tas den bort (hjulspår, stigar).
+ * är gropar och dalar) tunnas till mittlinjer. Bara linjer som till minst hälften är fuktiga enligt fuktigheten tas med (annars
+ * hällsprickor, hjulspår och stigar): en rak blir ett dike (`dike`, 305), en krokig ett fuktstråk (`fuktstrak_terrang`, 306).
  * Reliefen blir också en bild att tona som underlag (`relief.png`): mörkt under omgivningen, ljust över.
  *
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`).
@@ -79,11 +79,10 @@ export function ditchLines(ground: GroundGrid, relief: Float32Array, settings: D
     for (let k = 1; k < points.length; k += 1) length += Math.hypot(points[k]![0] - points[k - 1]![0], points[k]![1] - points[k - 1]![1]);
     if (length < settings.minLength) continue;
     const chord = Math.hypot(points.at(-1)![0] - points[0]![0], points.at(-1)![1] - points[0]![1]);
-    const line = simplify(points, cell * 0.75);
-    if (chord / length >= settings.straight) { lines.push({ name: "dike", points: line }); continue; }
-    if (!wetAt) continue;
-    const wet = points.filter(point => wetAt(...point)).length;
-    if (wet * 2 >= points.length) lines.push({ name: "fuktstrak_terrang", points: line });
+    // Ägaren 2026-11-11 («vattendrag på konstiga ställen, som högst uppe på berg»): sprickor i hällar är också smala raka sänkor,
+    // så både diken och fuktstråk måste vara fuktiga till minst hälften enligt fuktigheten; utan fuktigheten blir det inga.
+    if (!wetAt || points.filter(point => wetAt(...point)).length * 2 < points.length) continue;
+    lines.push({ name: chord / length >= settings.straight ? "dike" : "fuktstrak_terrang", points: simplify(points, cell * 0.75) });
   }
   return lines;
 }

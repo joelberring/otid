@@ -10,15 +10,15 @@ import { moistureRequestBox, type MoistureFailure } from "./map-project-moisture
 /**
  * Ägaren 2026-11-11 («reglage så att man kan tända/släcka bakgrundsinfo från Skogsstyrelsen»): Skogsstyrelsens öppna
  * kartbilder (ArcGIS REST, `export` och `exportImage`) för rutan i SWEREF 99 TM, som underlag i projektet: utförda
- * avverkningar, avverkningsanmälningar, nyckelbiotoper och trädhöjd ur laserdata. Bilden och världsfilen som svar, som för
+ * avverkningar, avverkningsanmälningar och nyckelbiotoper. Bilden och världsfilen som svar, som för
  * markfuktigheten; inget sparas här.
  */
 const PRODUCTS: Readonly<Record<ForestImageProduct, { readonly service: string; readonly image: boolean }>> = {
   CLEAR_CUTS: { service: "Geodataportal/GeodataportalVisaUtfordavverkning/MapServer", image: false },
   NOTIFIED: { service: "Geodataportal/GeodataportalVisaAvverkningsanmalan/MapServer", image: false },
-  KEY_BIOTOPES: { service: "Geodataportal/GeodataportalVisaNyckelbiotop/MapServer", image: false },
-  TREE_HEIGHT: { service: "Publikt/Tradhojd_3_0/ImageServer", image: true }
+  KEY_BIOTOPES: { service: "Geodataportal/GeodataportalVisaNyckelbiotop/MapServer", image: false }
 };
+// Trädhöjden (geodata.skogsstyrelsen.se/…/Publikt/Tradhojd_3_0) kräver inloggning (401, provat 2026-11-11) och är inte med.
 export const FOREST_IMAGE_ATTRIBUTION = "© Skogsstyrelsen";
 const FETCHES_PER_HOUR = 30;
 const MAX_BYTES = 40 * 1024 * 1024;

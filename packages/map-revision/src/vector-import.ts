@@ -1,6 +1,7 @@
 import {
   projectedToMapPoint, projectedToWgs84, wgs84ToMapPoint, type MapGeoreference, type MapObject, type PathCommand, type Point
 } from "@o-tid/map-file";
+import { clipObjectsToPolygon } from "./polygon-clip";
 import { LIMITS } from "./state";
 import { stockholmLayer } from "./stockholm-layers";
 import type { SourceData, SourceFeature, SourceGeometry } from "./vector-parse";
@@ -172,6 +173,8 @@ export interface ImportOptions {
   readonly minLengthMm?: number;
   /** Trappsymbolerna (id): korta parallella steglinjer i en trappsymbol blir en trapplinja längs trappan. */
   readonly stairSymbols?: ReadonlySet<string> | undefined;
+  /** Kartans område (polygonens ringar i mm): kandidaterna klipps mot det också (ägaren 2026-11-11). */
+  readonly polygon?: readonly (readonly Point[])[] | undefined;
 }
 export interface ImportResult {
   readonly objects: MapObject[];
@@ -355,7 +358,9 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     seen.add(key);
     return true;
   });
-  return { objects: unique, outside, clipped, duplicates: objects.length - unique.length, short, joined, mismatched, closedAreas, stairs, steps };
+  const inArea = options.polygon?.length ? clipObjectsToPolygon(unique, options.polygon) : undefined;
+  return { objects: inArea?.objects ?? unique, outside: outside + (inArea?.outside ?? 0), clipped: clipped + (inArea?.clipped ?? 0),
+    duplicates: objects.length - unique.length, short, joined, mismatched, closedAreas, stairs, steps };
 }
 
 type Converted = { kind: "point"; at: Point } | { kind: "line"; points: Point[]; closed: boolean } | { kind: "area"; rings: Point[][] };

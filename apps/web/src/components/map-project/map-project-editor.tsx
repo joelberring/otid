@@ -301,10 +301,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Tangenterna (`use-map-project-shortcuts.ts`). Det markerade objektets kommandon sätts längre ned, där de är uträknade.
   const keyAction = useRef<(command: SelectedCommand) => void>(() => undefined);
   const rectCorners = useRef<Point[]>([]);
-  useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0, recent,
+  useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0,
     multiCount: multi.items.length, panKey, undo: editor.undo, redo: editor.redo, toggleBare: () => setBare(value => !value),
     pickTool: next => { if (next === "draw" || next === "circle") deselect(); cancelDraft(); setTool(next); },
-    selectedAction: command => keyAction.current(command), chooseSymbol: id => { if (symbols.has(id)) chooseSymbol(id); },
+    selectedAction: command => keyAction.current(command), layerKey: symbolLayers.groupKey,
     openWheel,
     escape: () => { if (draft.length) cancelDraft(); else { deselect(); multi.clear(); } }, finishDraft,
     dropDraftPoint: () => setDraft(points => points.slice(0, -1)), remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); } });
@@ -766,7 +766,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         layers={<>
           <MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
           state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}
-          merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups}
+          merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups} views={symbolLayers}
           workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />
           {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
             layers={layers} control={control} importer={importer} symbols={symbols} work={work} />}

@@ -209,7 +209,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   press: "Press a key …",
   none: "None",
   space: "Space",
-  fixed: "Fixed: Esc cancels, Enter finishes, Delete removes, Backspace removes the last point while you draw, 1–9 choose the latest symbols.",
+  fixed: "Fixed: Esc cancels, Enter finishes, Delete removes, Backspace removes the last point while you draw, 1–6 show and hide the standard's groups (Shift: only that group), 0 shows everything.",
   displaced: (command: string, key: string) => `${command} had ${key} and now has no key.`,
   reserved: (key: string) => `${key} is already used for something fixed.`,
   reset: "Restore the defaults",

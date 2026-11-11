@@ -19,7 +19,9 @@ function ground(): GroundGrid {
 describe("diken ur terrängformen", () => {
   it("det raka diket blir dike, den krokiga rännilen bara där det är fuktigt, och gropen inget", () => {
     const grid = ground(), relief = localRelief(grid, 4);
-    const dry = ditchLines(grid, relief);
+    // Utan fuktigheten blir det inga (hällsprickor); med fukt bara vid diket blir det bara diket.
+    expect(ditchLines(grid, relief)).toEqual([]);
+    const dry = ditchLines(grid, relief, undefined, (_x, y) => y < 2030);
     expect(dry.map(line => line.name)).toEqual(["dike"]);
     const ys = dry[0]!.points.map(point => point[1]);
     expect(Math.min(...ys)).toBeGreaterThan(2019); expect(Math.max(...ys)).toBeLessThan(2022);

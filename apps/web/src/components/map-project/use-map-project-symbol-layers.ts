@@ -7,7 +7,8 @@ import { withSymbol, type EditKind, type ObjectKey, type ObjectRef } from "@o-ti
 import type { MapObject } from "@o-tid/map-file";
 import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
 import {
-  EMPTY_LAYERS, layerSymbols, readLayerState, saveLayerState, standardFor, standardSymbols, type LayerState, type WorkLayer
+  EMPTY_LAYERS, layerSymbols, readLayerState, readLayerViews, saveLayerState, saveLayerViews, standardFor, standardSymbols, withGroupKey,
+  type LayerState, type LayerView, type WorkLayer
 } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 
@@ -44,5 +45,24 @@ export function useMapProjectSymbolLayers({ projectId, catalog, scale, session, 
     });
   }, [session, commit]);
 
-  return { state, update, standard, standardSymbols: symbols, hidden: sets.hidden, locked: lockedSet, dimmed: sets.dimmed, merge, merging, message };
+  const groupKey = useCallback((digit: number, solo: boolean) => setState(current => {
+    const next = withGroupKey(current, catalog, symbols, digit, solo);
+    saveLayerState(projectId, next);
+    return next;
+  }), [catalog, symbols, projectId]);
+  // R3: sparade vyer.
+  const [views, setViews] = useState<readonly LayerView[]>([]);
+  useEffect(() => { setViews(readLayerViews(projectId)); }, [projectId]);
+  const saveView = useCallback((name: string) => setViews(current => {
+    const next = [...current.filter(view => view.name !== name), { name, state }];
+    saveLayerViews(projectId, next);
+    return next;
+  }), [projectId, state]);
+  const removeView = useCallback((name: string) => setViews(current => {
+    const next = current.filter(view => view.name !== name);
+    saveLayerViews(projectId, next);
+    return next;
+  }), [projectId]);
+
+  return { state, update, groupKey, views, saveView, removeView, standard, standardSymbols: symbols, hidden: sets.hidden, locked: lockedSet, dimmed: sets.dimmed, merge, merging, message };
 }

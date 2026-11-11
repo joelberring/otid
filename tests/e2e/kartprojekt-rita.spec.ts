@@ -885,6 +885,22 @@ test("kartprojekt: lager efter normen, lås, nedtonat och slå ihop symboler", a
   await owner.mouse.click(at.x, at.y);
   await expect(owner.getByTestId("map-project-hint")).toContainText("206");
 
+  // R3: tangenten 2 släcker berg och stenar, 0 tänder allt; en sparad vy tar tillbaka valen.
+  const rockEye = owner.getByTestId("map-project-symbol-layers").locator("[data-layer=ROCK]").getByTestId("map-project-layer-visible").last();
+  await owner.mouse.click(10, 10);
+  await owner.keyboard.press("Escape");
+  await owner.keyboard.press("2");
+  await expect(rockEye).toHaveAttribute("aria-pressed", "false");
+  const views = owner.getByTestId("map-project-layer-views");
+  await views.locator("summary").click();
+  await views.getByTestId("map-project-layer-view-name").fill("Utan berg");
+  await views.getByTestId("map-project-layer-view-save").click();
+  await owner.keyboard.press("0");
+  await expect(rockEye).toHaveAttribute("aria-pressed", "true");
+  await views.getByTestId("map-project-layer-view").filter({ hasText: "Utan berg" }).getByRole("button", { name: "Använd" }).click();
+  await expect(rockEye).toHaveAttribute("aria-pressed", "false");
+  await rockEye.click();
+
   // Slå ihop: stigen får höjdkurvans symbol (båda finns i normen: varningen syns).
   const merge = owner.getByTestId("map-project-merge");
   await merge.locator("summary").click();

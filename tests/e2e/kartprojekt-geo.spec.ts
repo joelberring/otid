@@ -145,7 +145,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   // G8: Lantmäteriets marktäcke (åkern och sankmarken) och OpenStreetMap följer med, laserns öppna mark byter namn när
   // marktäcket finns, den uträknade fuktigheten kommer med (ägaren 2026-11-11: «inga kärr kom med») och tomterna räknas
   // ur husen.
-  for (const name of ["contour", "brant_passerbar", "vatten", "aker", "sankmark_vat", "oppen_mark_laser", "blott", "tomtmark", "dike", "hygge_farskt", "bestandsgrans"]) {
+  for (const name of ["contour", "brant_passerbar", "vatten", "aker", "sankmark_vat", "oppen_mark_laser", "blott", "tomtmark", "hygge_farskt", "bestandsgrans"]) {
     await expect(importer.getByTestId("map-project-import-layer").filter({ hasText: name }).first()).toBeAttached();
   }
   // Kandidatlisten under kartan: lagren med antal, och de kan väljas bort innan de läggs in.
@@ -158,8 +158,8 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   const forest = owner.getByTestId("map-project-forest-images");
   await forest.getByText("Skogsstyrelsen (underlag)").click();
   await forest.getByTestId("map-project-forest-images-fetch").click();
-  await expect(forest.getByTestId("map-project-forest-images-message")).toHaveText("2 underlag är tillagda.", { timeout: 30_000 });
-  await expect(owner.getByTestId("map-project-layer").filter({ hasText: "Skogsstyrelsen" })).toHaveCount(2, { timeout: 20_000 });
+  await expect(forest.getByTestId("map-project-forest-images-message")).toHaveText("1 underlag är tillagt.", { timeout: 30_000 });
+  await expect(owner.getByTestId("map-project-layer").filter({ hasText: "Skogsstyrelsen" })).toHaveCount(1, { timeout: 20_000 });
   const cuts = owner.getByTestId("map-project-cuts");
   await cuts.getByText("Hyggen med reglage").click();
   await cuts.getByTestId("map-project-cuts-fetch").click();

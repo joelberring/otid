@@ -19,9 +19,10 @@ export interface RasterPanelTexts {
  * fuktdjupet eller vegetationens klasser) läses i webbläsaren och gränserna dras med reglage. Efter första «Visa som
  * kandidater» räknas kandidaterna om en kort stund efter att ett reglage flyttats. `compute` ger kandidaterna och ett besked.
  */
-export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, text, testId, initial, controls, compute }: {
+export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, controls, compute }: {
   layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference; importer: ReturnType<typeof useMapProjectImport>;
-  match: RegExp; text: RasterPanelTexts; testId: string; initial: S;
+  /** Lagren som panelen ger: de byts i det som visas, resten står kvar. */
+  match: RegExp; own: RegExp; text: RasterPanelTexts; testId: string; initial: S;
   controls: (settings: S, change: (patch: Partial<S>) => void) => ReactNode;
   compute: (pixels: PhotoPixels, settings: S, toSource: (column: number, row: number) => [number, number], crs: number, cellMeters: number)
     => { data: SourceData; message: string };
@@ -58,7 +59,7 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
         return [at.easting, at.northing];
       }, crs, cellMeters);
       if (result.data.features.length === 0) { setMessage({ tone: "error", text: text.nothing }); return; }
-      importer.openData(text.name(current.name), result.data, true);
+      importer.refine(text.name(current.name), result.data, own);
       setMessage({ tone: "ok", text: result.message });
     } catch (error) {
       console.error("Underlaget kunde inte läsas", error);

@@ -14,7 +14,7 @@ export const mapProjectKeysSv = {
   press: "Tryck en tangent …",
   none: "Ingen",
   space: "Mellanslag",
-  fixed: "Fasta: Esc avbryter, Enter avslutar, Delete tar bort, Backsteg tar bort sista punkten medan du ritar, 1–9 väljer de senaste symbolerna.",
+  fixed: "Fasta: Esc avbryter, Enter avslutar, Delete tar bort, Backsteg tar bort sista punkten medan du ritar, 1–6 tänder och släcker normens grupper (Skift: bara den gruppen), 0 tänder allt.",
   displaced: (command: string, key: string) => `${command} hade ${key} och har nu ingen tangent.`,
   reserved: (key: string) => `${key} används redan till något fast.`,
   reset: "Återställ förvalet",

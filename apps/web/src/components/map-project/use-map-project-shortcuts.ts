@@ -12,20 +12,20 @@ export interface ShortcutApi {
   readonly blocked: boolean;
   readonly canEdit: boolean; readonly canNote: boolean;
   readonly tool: string; readonly hasSelection: boolean; readonly drafting: boolean; readonly multiCount: number;
-  readonly recent: readonly string[];
   /** Mellanslag hålls nere för att dra kartan (`down`); `used` sätts när ett drag gjordes under tiden. */
   readonly panKey: RefObject<{ down: boolean; used: boolean }>;
   readonly undo: () => void; readonly redo: () => void; readonly toggleBare: () => void;
   readonly pickTool: (tool: ToolCommand) => void;
   readonly selectedAction: (command: SelectedCommand) => void;
-  readonly chooseSymbol: (id: string) => void;
+  /** R3: 1–6 tänder eller släcker normens grupp, Skift visar bara den, 0 tänder allt. */
+  readonly layerKey: (digit: number, solo: boolean) => void;
   readonly openWheel: () => void;
   readonly escape: () => void; readonly finishDraft: () => void; readonly dropDraftPoint: () => void; readonly remove: () => void;
 }
 
 /**
  * Ritlägets tangenter (utbrutet ur `map-project-editor.tsx`, ägaren 2026-11-10). Kommandona slås upp i kontots tangenter
- * (`lib/map-project-keys.ts`); fasta är Cmd/Ctrl+Z, Esc, Enter, Delete, Backsteg och 1–9 för de senaste symbolerna. Mellanslag
+ * (`lib/map-project-keys.ts`); fasta är Cmd/Ctrl+Z, Esc, Enter, Delete, Backsteg och 0–6 för normens grupper (Skift: bara den gruppen). Mellanslag
  * hålls nere för att dra kartan; ett kort tryck utan drag öppnar hjulet när mellanslag är hjulets tangent. Inget gäller när
  * man skriver i ett fält.
  */
@@ -53,7 +53,7 @@ export function useMapProjectShortcuts(api: ShortcutApi) {
       else if (bound && (now.hasSelection || now.multiCount > 0) && now.canEdit && now.tool === "select"
         && (bound === "simplify" || bound === "smooth" || bound === "switchSymbol" || bound === "checked" || bound === "join" || bound === "reverse" || bound === "pick" || bound === "duplicate" || bound === "fill" || bound === "parallel")) { event.preventDefault(); now.selectedAction(bound); }
       else if (bound === "wheel") { event.preventDefault(); now.openWheel(); }
-      else if (/^[1-9]$/.test(event.key) && now.canEdit && now.recent[Number(event.key) - 1]) now.chooseSymbol(now.recent[Number(event.key) - 1]!);
+      else if (/^Digit[0-6]$/.test(event.code) && !event.altKey) { event.preventDefault(); now.layerKey(Number(event.code.slice(5)), event.shiftKey); }
       else if (event.key === "Escape") now.escape();
       else if (event.key === "Enter" && now.drafting) { event.preventDefault(); now.finishDraft(); }
       else if (event.key === "Backspace" && now.drafting) { event.preventDefault(); now.dropDraftPoint(); }

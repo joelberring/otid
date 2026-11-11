@@ -6,7 +6,7 @@ export const mapForestEn: Texts<typeof mapForestSv> = {
   images: {
     heading: "Swedish Forest Agency (base layers)",
     help: "The Swedish Forest Agency's open maps for the whole map or a stage, as base layers to show, hide and fade under Layers.",
-    products: { CLEAR_CUTS: "Completed fellings (clear-cuts)", NOTIFIED: "Felling notifications", KEY_BIOTOPES: "Woodland key habitats", TREE_HEIGHT: "Tree height from laser data" },
+    products: { CLEAR_CUTS: "Completed fellings (clear-cuts)", NOTIFIED: "Felling notifications", KEY_BIOTOPES: "Woodland key habitats" },
     fetch: "Fetch as base layers",
     fetching: "Fetching from the Swedish Forest Agency …",
     name: (product: string, area?: string) => `Skogsstyrelsen ${product} ${area ?? "whole map"}`.slice(0, 80),

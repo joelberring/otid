@@ -11,7 +11,7 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
       [
         "Välj först en symbol under ”Symboler”, sedan ritar du. Verktyget ”Rita” väljs av sig självt.",
         "Håll musen över en ruta för att se symbolens nummer och namn. Sök på nummer eller namn i fältet överst.",
-        "De senaste symbolerna ligger överst i fliken. Tangenterna 1–9 väljer dem.",
+        "De senaste symbolerna ligger överst i fliken och i verktygshjulet. Tangenterna 1–6 tänder och släcker normens grupper under Lager.",
         "”Redigera” markerar, flyttar och böjer. Esc tar dig alltid tillbaka dit.",
         "Knapparna för det markerade objektet ligger i raden under kartan: ”Ta bort”, ”Förenkla”, ”Gör mjuk” och ”Flytta hela”.",
         "”Bara kartan” gömmer verktygen och panelen. Tangenten § gör samma sak.",
@@ -28,9 +28,9 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
     body: [
       "Symbolen är lagret, som i OCAD och Mapper. Det finns inga fria lager att lägga objekt i. Varje grupp i normen och varje symbol kan släckas, låsas och tonas under fliken ”Lager”.",
       [
-        "Släcka: tryck på ”Syns” vid gruppen. Knappen visar då ”Släckt”, och objekten döljs tills du trycker igen.",
-        "Frysa: tryck på ”Öppet”. Knappen visar då ”Låst”. Objekten syns men går inte att markera eller ändra.",
-        "”Tonat” visar ett låst lager blekt, så att det du arbetar med syns tydligare.",
+        "Släcka: tryck på ögat vid gruppen. Ögat blir överstruket, och objekten döljs tills du trycker igen.",
+        "Frysa: tryck på hänglåset. Objekten syns men går inte att markera eller ändra.",
+        "Tona: knappen bredvid låset visar ett låst lager blekt, så att det du arbetar med syns tydligare.",
         "En enda symbol: öppna gruppen. Varje symbol har samma tre knappar.",
         "Egna grupper: ”Nytt arbetslager” samlar symboler du väljer, till exempel alla stigar. De släcks och låses som en grupp.",
         "Skisser som inte hör till kartan: ”Nytt skisslager”. De skrivs aldrig till kartfilen.",

@@ -92,6 +92,7 @@ jobs:
           printf 'OTID_LM_STAC_HOJD_URL=http://host.docker.internal:4343/stac-hojd/v1\n' >> .env
           printf 'OTID_LM_STAC_VEKTOR_URL=http://host.docker.internal:4343/stac-vektor/v1\n' >> .env
           printf 'OTID_SLU_MOISTURE_WMS_URL=http://host.docker.internal:4343/slu-wms\n' >> .env
+          printf 'OTID_SKS_AVVERKNING_URL=http://host.docker.internal:4343/sks-avverkning\nOTID_SKS_REST_URL=http://host.docker.internal:4343/sks-rest\n' >> .env
           printf 'OTID_GEO_WORKER_TOKEN=e2e-geo-arbetare-0123456789abcdefghijklmnopqrstuv\n' >> .env
           # Google (ADR-0205 tillägg): den falska OpenID-leverantören från global-setup (port 4337); webbläsaren når den på värden.
           printf 'OTID_GOOGLE_CLIENT_ID=otid-e2e.apps.googleusercontent.com\nOTID_GOOGLE_CLIENT_SECRET=endast-for-test\n' >> .env

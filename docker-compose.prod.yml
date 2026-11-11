@@ -155,6 +155,9 @@ services:
       OTID_LM_LASER_COLLECTION: ${OTID_LM_LASER_COLLECTION:-}
       # K5c: SLU:s markfuktighetskarta (WMS). Tom = Skogsstyrelsens öppna tjänst; CI pekar på en falsk.
       OTID_SLU_MOISTURE_WMS_URL: ${OTID_SLU_MOISTURE_WMS_URL:-}
+      # Skogsstyrelsens utförda avverkningar och kartbilder (ägaren 2026-11-11). Tomma = Skogsstyrelsens öppna tjänster; CI pekar på en falsk.
+      OTID_SKS_AVVERKNING_URL: ${OTID_SKS_AVVERKNING_URL:-}
+      OTID_SKS_REST_URL: ${OTID_SKS_REST_URL:-}
       OTID_OCAD_WRITE: ${OTID_OCAD_WRITE:-}
       OTID_DEMO_RACE: ${OTID_DEMO_RACE:-}
       OTID_GUEST_DEMO: ${OTID_GUEST_DEMO:-}

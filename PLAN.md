@@ -1371,6 +1371,12 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     lager. Fuktdjupet (höjd över fuktstråk) blir ett underlag och panelen «Fukt med reglage» drar gränserna för blött och
     fuktigt i webbläsaren. Diken ur markrastret (`scripts/geo-ditches.ts`): smala sänkor med högre mark på båda sidor, raka →
     `dike` (305), krokiga och fuktiga → `fuktstrak_terrang` (306); reliefen blir ett underlag. Geo-arbetaren version 5.
+  - [x] Ur markrastret (2026-11-11): stenar (204/205, toppar med branta sidor och liten fot) och berg i dagen (214, ojämn öppen
+    mark som ligger högt eller lutar) i `berg.dxf` (`scripts/geo-rock.ts`); branternas linje flyttad till överkanten
+    (`toTopEdge`). Kandidaterna ur lasern generaliseras efter normen före Lägg in (val i kandidatraden). Provruta 250 × 250 m
+    («Kör om», mitten eller en etapp, bara rutorna som når den). Grönt med reglage ur vegetationsklasserna. Geo-arbetaren 7.
+  - [ ] Stigar ur lasern: skjuts upp; markrastret (1 m) och klassbilderna (2 m) visar dem inte tillförlitligt.
+  - [ ] Stenar och berg i dagen prövas mot Kungshatt v3 (provrutan gav inga stenar med förvalen).
   - [ ] Diken: prövas mot riktiga diken (Kungshatt-rutan har inga raka); inställningarna (djup 0,2 m, längd 15 m) som reglage.
   - Lager efter källa: ägaren 2026-11-11 valde att valet före Lägg in (kandidatraden) räcker; inget mer byggs. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).

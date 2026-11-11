@@ -13,6 +13,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-11 – Stenar, berg i dagen, brant i överkanten, generalisering, provruta, grönt med reglage, rektangel
+- Geo-arbetaren 7: stenar (204/205) och berg i dagen (214) ur markrastret (`berg.dxf`), branternas linje i överkanten,
+  vegetationsklasserna som underlag. Kandidaterna ur lasern generaliseras efter normen före Lägg in (kan slås av).
+- Provruta 250 × 250 m vid «Kör om» (mitten eller en etapp), med bara rutorna som når den. «Grönt med reglage» och «Fukt
+  med reglage» delar en panel för underlag med reglage (`map-project-raster-panel.tsx`).
+- Ritläget: rektangel med räta vinklar (Skift+W), duplicera (Skift+D); fingret flyttar något markerat först efter 250 ms.
+- Verifierat: enhetstester (web, map-revision), typecheck, lint, knip, E2E geo, underlag, rita, rekning, banläggning mobil.
+  Inte provat: stenar och berg i dagen mot riktig karta; stigar ur lasern skjuts upp.
+
 ### 2026-11-11 – Tomter ur OSM och marktäcket, fukt med reglage, diken ur terrängformen
 - Tomtmark (520) ur OpenStreetMaps bostadsområden, marktäckets låga bebyggelse och ringar kring hus utanför dem, i tre lager.
 - Geo-arbetaren (version 5) skriver fuktdjupet (`fuktdjup.png`, höjd över fuktstråk i 2 cm-steg) och reliefen (`relief.png`)

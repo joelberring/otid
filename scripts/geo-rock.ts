@@ -23,6 +23,28 @@ export interface RockSettings { readonly boulder: number; readonly largeBoulder:
 // Högdalen som facit (33 stenar mot kartritarens 65): lite mildare igen, 0,7 av höjden borta 2 m bort och en fot på 16 celler.
 export const DEFAULT_ROCK: RockSettings = { boulder: 0.8, largeBoulder: 1.8, maxFootCells: 16, roughness: 0.07, minAreaM2: 100 };
 
+/**
+ * Punkter i ett rutnät med `reach` m rutor, så att «finns någon närmare än reach» bara ser på de nio rutorna runt punkten.
+ * Utan det växer arbetet med kvadraten på antalet (Djurgården 2026-11-11: stensteget blev aldrig klart i bebyggelse).
+ */
+function nearIndex(reach: number): { has: (x: number, y: number) => boolean; add: (x: number, y: number) => void } {
+  const cells = new Map<string, [number, number][]>();
+  const key = (cx: number, cy: number) => `${cx},${cy}`;
+  return {
+    has: (x, y) => {
+      const cx = Math.floor(x / reach), cy = Math.floor(y / reach);
+      for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
+        for (const [px, py] of cells.get(key(cx + ax, cy + ay)) ?? []) if (Math.hypot(px - x, py - y) < reach) return true;
+      }
+      return false;
+    },
+    add: (x, y) => {
+      const k = key(Math.floor(x / reach), Math.floor(y / reach)), list = cells.get(k);
+      if (list) list.push([x, y]); else cells.set(k, [[x, y]]);
+    },
+  };
+}
+
 const median = (values: number[]) => { values.sort((a, b) => a - b); return values[Math.floor(values.length / 2)]!; };
 
 /** Stenarna som punkter (meter), med höjden över omgivningen. */
@@ -63,8 +85,8 @@ export function boulders(ground: GroundGrid, settings: RockSettings = DEFAULT_RO
   }
   // Den högsta av stenar närmare än 3 m.
   found.sort((a, b) => b.height - a.height);
-  const kept: typeof found = [];
-  for (const stone of found) if (!kept.some(other => Math.hypot(other.at[0] - stone.at[0], other.at[1] - stone.at[1]) < 3)) kept.push(stone);
+  const kept: typeof found = [], near = nearIndex(3);
+  for (const stone of found) if (!near.has(...stone.at)) { kept.push(stone); near.add(...stone.at); }
   return kept;
 }
 
@@ -113,6 +135,8 @@ export function knolls(ground: GroundGrid, stones: readonly { at: readonly [numb
   const top = Math.max(1, Math.round(3 / cell)), inner = Math.max(top + 1, Math.round(6 / cell)), outer = Math.max(inner + 1, Math.round(8 / cell));
   const maxFoot = maxFootM2 / (cell * cell);
   const found: { at: [number, number]; rise: number }[] = [];
+  const stoneNear = nearIndex(4);
+  for (const stone of stones) stoneNear.add(stone.at[0], stone.at[1]);
   for (let x = outer; x < width - outer; x += 1) for (let y = outer; y < height - outer; y += 1) {
     const here = at(x, y);
     if (!Number.isFinite(here)) continue;
@@ -138,11 +162,11 @@ export function knolls(ground: GroundGrid, stones: readonly { at: readonly [numb
     for (let dx = -inner; dx <= inner; dx += 1) for (let dy = -inner; dy <= inner; dy += 1) if (at(x + dx, y + dy) > base + rise / 2) foot += 1;
     if (foot > maxFoot) continue;
     const point: [number, number] = [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell];
-    if (blockedAt?.(...point) || stones.some(stone => Math.hypot(stone.at[0] - point[0], stone.at[1] - point[1]) < 4)) continue;
+    if (blockedAt?.(...point) || stoneNear.has(...point)) continue;
     found.push({ at: point, rise });
   }
   found.sort((a, b) => b.rise - a.rise);
-  const kept: [number, number][] = [];
-  for (const knoll of found) if (!kept.some(other => Math.hypot(other[0] - knoll.at[0], other[1] - knoll.at[1]) < 10)) kept.push(knoll.at);
+  const kept: [number, number][] = [], near = nearIndex(10);
+  for (const knoll of found) if (!near.has(...knoll.at)) { kept.push(knoll.at); near.add(...knoll.at); }
   return kept;
 }

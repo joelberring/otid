@@ -115,11 +115,13 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 11;
+export const GEO_WORKER_VERSION = 12;
 
 export const GEO_OUTPUT_NAME = /^[a-z0-9_.-]{1,60}$/;
 /** K6b: DWG-ritningen som geo-arbetaren läser (indata, sparad som jobbets fil; resultatet heter ritning.geojson). */
 export const GEO_DWG_INPUT = "indata.dwg";
 export const GEO_DWG_MAX_BYTES = 75 * 1024 * 1024;
 /** Största resultatfil (bilden kan bli stor när flera rutor slås ihop). */
-export const GEO_OUTPUT_MAX_BYTES = 200 * 1024 * 1024;
+// Ägaren 2026-11-11 («stup.dxf kunde inte skickas (500)» för sex laserrutor): kartinnehåll lagras i högst 101 delar om 1 MiB
+// (map_content_part), så gränsen här är 100 MiB; den var 200 MiB och större filer gav ett serverfel i stället för ett besked.
+export const GEO_OUTPUT_MAX_BYTES = 100 * 1024 * 1024;

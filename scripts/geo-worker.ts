@@ -75,7 +75,9 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 11;
+export const WORKER_VERSION = 12;
+/** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
+const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
@@ -342,9 +344,14 @@ async function runJob(job: Job): Promise<void> {
       ...["marktacke.geojson", "byggnader.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
+    // En fil över serverns gräns (Karttapullautins råa brantstreck för många rutor blir över 100 MB) hoppas över i stället för
+    // att hela jobbet faller; bara kartbilden måste med. Namnen står i jobbets sammanfattning.
+    const skippedOutputs: string[] = [];
     for (const [name, source, mediaType] of uploads) {
       await set("Skickar resultatet", done, uploads.length);
       if (!files.has(source)) throw new Error(`Karttapullautin gav ingen ${source}`);
+      const size = (await stat(join(dir, source))).size;
+      if (size > OUTPUT_MAX_BYTES && !name.startsWith("karta.")) { skippedOutputs.push(name); done += 1; continue; }
       const bytes = await readFile(join(dir, source));
       const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
         headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
@@ -352,7 +359,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

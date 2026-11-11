@@ -116,7 +116,10 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     } finally { setBusy(undefined); }
   }
 
-  const clip = laserClip(bounds, georeference, GEO_CLIP_MARGIN_M, area);
+  // Ägaren 2026-11-11: utan etapp klipps laserdatan till kartans eget område (polygonen), inte till kartbladets ruta som är
+  // ungefär 1,5 gånger så stor per sida (drygt dubbla ytan att bearbeta).
+  const mapArea = !area && view.area?.[0] && view.area[0].length >= 3 ? { name: "", polygon: view.area } : undefined;
+  const clip = laserClip(bounds, georeference, GEO_CLIP_MARGIN_M, area ?? mapArea);
   const sampleArea = areas.find(row => row.areaId === sample);
   const sampleCenter = !rerun?.clip || !sample ? undefined : sample === "middle" ? clipCenter(rerun.clip)
     : sampleArea ? (box => box && clipCenter(box))(laserClip(bounds, georeference, 0, sampleArea)) : undefined;

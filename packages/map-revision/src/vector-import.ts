@@ -124,6 +124,9 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /CLIFF2|CLIFF/, line: "202" },
   // Karttapullautins osäkra knollar och gropar («ugly», ägaren 2026-11-11: «punkthöjder känns random») får inget förslag.
   { words: /^UGLY/ },
+  // Stenar ur laserns markraster (scripts/geo-rock.ts).
+  { words: /^STORT_BLOCK$|LARGE_BOULDER/, point: "205" },
+  { words: /^STEN$|^BOULDER$/, point: "204" },
   { words: /DOTKNOLL/, point: "109" },
   { words: /UDEPRESSION|PUNKTGROP/, point: "111" },
   { words: /HOJDKURVA|KURVA|CONTOUR|DEPRESSION/, line: "101" },

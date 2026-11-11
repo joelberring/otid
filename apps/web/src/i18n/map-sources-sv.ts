@@ -162,7 +162,7 @@ export const mapSourcesSv = {
     layerAdded: "Bilden är tillagd som underlag.",
     outputs: {
       "kurvor.dxf": "Kurvor", "formlinjer.dxf": "Formlinjer", "branter.dxf": "Branter", "stup.dxf": "Stup", "knollar.dxf": "Knollar",
-      "fukt.dxf": "Våtmarker och fuktstråk", "diken.dxf": "Diken ur terrängformen", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
+      "fukt.dxf": "Våtmarker och fuktstråk", "diken.dxf": "Diken ur terrängformen", "berg.dxf": "Stenar och berg i dagen", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
     loadBaseMap: "Läs in grundkartan",
     osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Importera vektorer.",

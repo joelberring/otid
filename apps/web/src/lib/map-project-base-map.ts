@@ -21,7 +21,7 @@ import { yardsOf } from "./map-project-yards";
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.
  */
-const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fukt.dxf", "diken.dxf", "vegetation.dxf"];
+const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fukt.dxf", "diken.dxf", "berg.dxf", "vegetation.dxf"];
 
 export function baseMapOutputs(names: readonly string[]): string[] {
   const has = new Set(names);

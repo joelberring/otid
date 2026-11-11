@@ -31,6 +31,7 @@ import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzip
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
+import { bareRock, boulders } from "./geo-rock.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
 
@@ -73,7 +74,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 5;
+export const WORKER_VERSION = 6;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
@@ -270,6 +271,7 @@ async function runJob(job: Job): Promise<void> {
     }
     // K5c del 3: vegetationen ur klassbilderna i ./out (<ruta>_vege_bit.png, _undergrowth_bit.png och världsfilen).
     let vegetationSummary: Record<string, number> = {};
+    let openAt: ((x: number, y: number) => boolean) | undefined;
     if (job.vegetation) {
       await set("Räknar vegetationen", 0, 1);
       const out = join(dir, "out"), names = (await readdir(out)).filter(name => name.endsWith("_vege_bit.png")).sort();
@@ -289,6 +291,19 @@ async function runJob(job: Job): Promise<void> {
       const vegetation = vegetationFromTiles(tiles, job.vegetation, blocked);
       await writeFile(join(dir, "vegetation.dxf"), vegetation.dxf);
       vegetationSummary = vegetation.summary;
+      openAt = vegetation.openAt;
+    }
+    // Stenar ur markrastret, och berg i dagen där vegetationen är öppen (geo-rock.ts).
+    let rockSummary: Record<string, number> = {};
+    if (ground) {
+      await set("Letar stenar och berg i dagen", 0, 1);
+      const stones = boulders(ground, undefined, water?.at);
+      const rock = openAt ? bareRock(ground, openAt, undefined, water?.at) : [];
+      if (stones.length || rock.length) {
+        await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: "berg_i_dagen_laser", closed: true, parts: rock },
+          ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] }))]));
+      }
+      rockSummary = { boulders: stones.length, bareRockAreas: rock.length };
     }
     const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
@@ -300,6 +315,7 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),
+      ...(files.has("berg.dxf") ? [["berg.dxf", "berg.dxf", "application/dxf"]] as const : []),
       ...["marktacke.geojson", "byggnader.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
@@ -313,7 +329,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

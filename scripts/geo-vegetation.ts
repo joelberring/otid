@@ -158,5 +158,10 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     summary[`ha${layer.code}`] = Math.round(mask.reduce((sum, value) => sum + value, 0) * area / 100) / 100;
     return { name: layer.name, closed: true, parts: rings };
   });
-  return { dxf: moistureDxf(parts), summary };
+  // Om vegetationen är öppen i punkten (för berg i dagen ur lasern, geo-rock.ts).
+  const openAt = (x: number, y: number) => {
+    const column = Math.round((x - grid.minX) / grid.cell), row = Math.round((y - grid.minY) / grid.cell);
+    return column >= 0 && row >= 0 && column < grid.width && row < grid.height && (classes[column * grid.height + row]! & 15) === 1;
+  };
+  return { dxf: moistureDxf(parts), summary, openAt };
 }

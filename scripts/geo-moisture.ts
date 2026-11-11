@@ -362,9 +362,12 @@ export function channelLines(grid: Grid, down: Int32Array, accumulation: Float64
 }
 
 /** DXF (R12) med slutna ytor och linjer per lager. */
-export function moistureDxf(layers: readonly { readonly name: string; readonly closed: boolean; readonly parts: readonly [number, number][][] }[]): string {
+export function moistureDxf(layers: readonly { readonly name: string; readonly closed: boolean; readonly parts: readonly [number, number][][];
+  /** Punkter (POINT), t.ex. stenar. */
+  readonly points?: readonly (readonly [number, number])[] }[]): string {
   const out: string[] = ["0", "SECTION", "2", "ENTITIES"];
   for (const layer of layers) {
+    for (const [x, y] of layer.points ?? []) out.push("0", "POINT", "8", layer.name, "10", x.toFixed(2), "20", y.toFixed(2));
     for (const part of layer.parts) {
       const points = layer.closed && part.length > 1 && part[0]![0] === part.at(-1)![0] && part[0]![1] === part.at(-1)![1] ? part.slice(0, -1) : part;
       if (points.length < (layer.closed ? 3 : 2)) continue;

@@ -113,7 +113,16 @@ jobs:
             "select usename from pg_stat_activity where datname = 'otid' and backend_type = 'client backend' group by 1 order by 1" | tee roles-used.txt
           grep -q otid_app roles-used.txt
       - run: curl -sfk --retry 30 --retry-delay 2 --retry-all-errors -o /dev/null https://localhost/organizer
-      - run: pnpm exec playwright install --with-deps chromium
+      # Ägaren 2026-11-11: GitHubs maskiner når ibland inte Ubuntus paketserver en stund; fem försök med växande paus
+      # i stället för att hela bygget faller på ett kort avbrott.
+      - name: Installera testwebbläsaren (med omförsök)
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if pnpm exec playwright install --with-deps chromium; then exit 0; fi
+            echo "Försök $attempt misslyckades; väntar $((attempt * 60)) s"
+            sleep $((attempt * 60))
+          done
+          exit 1
       - run: pnpm test:e2e --shard=${{ matrix.shard }}/2
         env:
           E2E_BASE_URL: https://localhost

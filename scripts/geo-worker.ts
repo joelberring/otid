@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createReadStream } from "node:fs";
-import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt } from "./geo-cliffs.ts";
+import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt, heightPng } from "./geo-cliffs.ts";
 import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
@@ -74,7 +74,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 10;
+export const WORKER_VERSION = 11;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
@@ -189,6 +189,10 @@ async function runJob(job: Job): Promise<void> {
       const shade = hillshade(ground);
       await writeFile(join(dir, "skuggning.png"), shade.png);
       await writeFile(join(dir, "skuggning.pgw"), shade.world);
+      // Ägaren 2026-11-11 (lära av en väl ritad karta): markens höjd som bild, träningsdata via AI-kopplingen.
+      const heights = heightPng(ground);
+      await writeFile(join(dir, "hojd.png"), heights.png);
+      await writeFile(join(dir, "hojd.pgw"), heights.world);
     }
     if (cliffs.summary.cliffs201 + cliffs.summary.cliffs202 > 0) {
       await writeFile(join(dir, "brantlinjer.dxf"), cliffs.dxf);
@@ -317,6 +321,7 @@ async function runJob(job: Job): Promise<void> {
       ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"], ["vegetationsklasser.png", "vegetationsklasser.png", "image/png"],
         ["vegetationsklasser.pgw", "vegetationsklasser.pgw", "text/plain"]] as const : []),
       ...(files.has("skuggning.png") ? [["skuggning.png", "skuggning.png", "image/png"], ["skuggning.pgw", "skuggning.pgw", "text/plain"]] as const : []),
+      ...(files.has("hojd.png") ? [["hojd.png", "hojd.png", "image/png"], ["hojd.pgw", "hojd.pgw", "text/plain"]] as const : []),
       ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),

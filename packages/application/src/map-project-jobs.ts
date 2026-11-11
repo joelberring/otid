@@ -1,4 +1,5 @@
 import { runGeneralizeJob, runNormCheck, type GeneralizeJobRequest } from "./map-project-job-generalize";
+import { runLabels, type LabelsRequest } from "./map-project-job-labels";
 import type { Box } from "./map-project-job-run";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
@@ -152,7 +153,11 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
   let output: { result: unknown; image?: Uint8Array | null } | { error: string };
   switch (job.kind as MapJobKind) {
     case "OVERVIEW": output = { result: runOverview(loaded, area) }; break;
-    case "RENDER": { const rendered = runRender(loaded, request, area, deps.createCanvas); output = { result: rendered.meta, image: rendered.png }; break; }
+    case "RENDER": {
+      // Klassrastret för att lära av en karta (map-project-job-labels.ts) är en bild utan canvas.
+      if (request.labels) { const labels = runLabels(loaded, request.labels as LabelsRequest); output = "error" in labels ? labels : { result: labels.meta, image: labels.png }; break; }
+      const rendered = runRender(loaded, request, area, deps.createCanvas); output = { result: rendered.meta, image: rendered.png }; break;
+    }
     case "COMPARE": { const rendered = runCompare(loaded, request, area, deps.createCanvas); output = { result: rendered.meta, image: rendered.png }; break; }
     case "OBJECTS": output = { result: runObjects(loaded, request) }; break;
     // K6 del 2: den grundläggande kontrollen och normkontrollen (samma regler som editorn).

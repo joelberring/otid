@@ -182,6 +182,25 @@ export async function readGeoOutput(db: Database, input: ClubProof & { projectId
   });
 }
 
+/**
+ * Ett raster ur projektets senaste klara laserkörning (eller ett utpekat jobb) med sin världsfil, för AI-kopplingens
+ * träningsdata (ägaren 2026-11-11). Behörigheten prövas av anroparen.
+ */
+export async function readGeoRaster(db: Database, projectId: string, name: string, jobId?: string)
+  : Promise<{ jobId: string; png: Buffer; world: string | null } | undefined> {
+  return db.transaction(async tx => {
+    const rows = await tx.select({ jobId: jobs.id, sha: outputs.contentSha256 }).from(outputs).innerJoin(jobs, eq(jobs.id, outputs.jobId))
+      .where(and(eq(jobs.projectId, projectId), eq(jobs.status, "DONE"), eq(outputs.name, `${name}.png`), ...(jobId ? [eq(jobs.id, jobId)] : [])))
+      .orderBy(desc(jobs.createdAt)).limit(1);
+    const row = rows[0];
+    const png = row ? await readMapContent(tx, row.sha) : undefined;
+    if (!row || !png) return undefined;
+    const [world] = await tx.select({ sha: outputs.contentSha256 }).from(outputs).where(and(eq(outputs.jobId, row.jobId), eq(outputs.name, `${name}.pgw`)));
+    const text = world ? await readMapContent(tx, world.sha) : undefined;
+    return { jobId: row.jobId, png, world: text ? text.toString("utf8") : null };
+  });
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Geo-arbetarens sida (nyckeln prövas av anropet; jobbet måste vara arbetarens och pågå).
 

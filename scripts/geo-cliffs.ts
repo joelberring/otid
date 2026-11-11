@@ -351,6 +351,21 @@ export function hillshade(ground: GroundGrid, maxSide = 6000): { png: Buffer; wo
 }
 
 /**
+ * Markens höjd som bild (träningsdata, ägaren 2026-11-11): cm + 10 000 som 24 bitar (R·65536 + G·256 + B), en bildpunkt per
+ * cell, genomskinligt utan data. Världsfilen som för terrängskuggningen.
+ */
+export function heightPng(ground: GroundGrid): { png: Buffer; world: string } {
+  const { width, height, cell } = ground;
+  const png = encodePng(width, height, (column, line) => {
+    const z = ground.z[column * height + (height - 1 - line)]!;
+    if (!Number.isFinite(z)) return [0, 0, 0, 0];
+    const value = Math.max(0, Math.min(0xffffff, Math.round(z * 100) + 10_000));
+    return [value >> 16, (value >> 8) & 255, value & 255, 255];
+  });
+  return { png, world: `${cell}\n0\n0\n${-cell}\n${ground.minX + cell / 2}\n${ground.minY + (height - 0.5) * cell}\n` };
+}
+
+/**
  * Om marken lutar mer än `degrees` i punkten (kartans koordinater), räknat över ±2 m i markrastret. Används för att spärra
  * grönt i stup och branta sluttningar, där lövlös laser ger falskt grönt.
  */

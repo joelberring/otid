@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { createMapJobCanvas } from "../../../../scripts/map-job-canvas";
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
+import { geodeticToGrid, transverseMercatorFor } from "@o-tid/map-file";
 import { claimMapJob, runMapJob } from "../../src/map-project-jobs";
 import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject } from "../../src/map-projects";
 import { listMapProjectProposals } from "../../src/map-project-proposals";
@@ -143,7 +144,7 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
     const tools = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(["list_map_projects", "map_overview", "render_view",
-      "render_compare", "list_objects", "norm_check", "generalize", "propose_changes"]);
+      "render_compare", "training_labels", "training_raster", "list_objects", "norm_check", "generalize", "propose_changes"]);
 
     const projects = textOf(await mcp(owner.accountId, call(3, "list_map_projects")));
     expect(projects.projects).toMatchObject([{ projectId, name: "Skogen", role: "OWNER" }]);
@@ -157,6 +158,21 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(Buffer.from(content[0]!.data!, "base64").subarray(1, 4).toString()).toBe("PNG");
     const compare = await mcp(owner.accountId, call(6, "render_compare", { project_id: projectId, area: { min_x: 0, min_y: 0, max_x: 120, max_y: 100 } }));
     expect((compare?.result as { content: { type: string }[] }).content[0]!.type).toBe("image");
+
+    // Träningsdata (ägaren 2026-11-11): kartan som klassraster i SWEREF 99 TM kring kartans mitt, och laserns raster (saknas här).
+    const centre = (overview.georeference as { centerWgs84: { latitude: number; longitude: number } }).centerWgs84;
+    const grid = geodeticToGrid(transverseMercatorFor(3006)!, centre.latitude, centre.longitude);
+    const labels = await mcp(owner.accountId, call(61, "training_labels", { project_id: projectId, min_e: grid.easting - 600, min_n: grid.northing - 600,
+      max_e: grid.easting + 600, max_n: grid.northing + 600, cell: 2 }));
+    const labelContent = (labels?.result as { content: { type: string; data?: string; text?: string }[] }).content;
+    expect(Buffer.from(labelContent[0]!.data!, "base64").subarray(1, 4).toString()).toBe("PNG");
+    const labelMeta = JSON.parse(labelContent[1]!.text!) as { width: number; height: number; counts: Record<string, number> };
+    expect(labelMeta).toMatchObject({ width: 600, height: 600, cell: 2, crs: "EPSG:3006" });
+    expect(Object.keys(labelMeta.counts).length).toBeGreaterThan(0);
+    const tooLarge = await mcp(owner.accountId, call(62, "training_labels", { project_id: projectId, min_e: 0, min_n: 0, max_e: 100_000, max_n: 100_000 }));
+    expect((tooLarge?.result as { isError?: boolean }).isError).toBe(true);
+    const noRaster = await mcp(owner.accountId, call(63, "training_raster", { project_id: projectId, name: "hojd" }));
+    expect((noRaster?.result as { isError?: boolean }).isError).toBe(true);
 
     const objects = textOf(await mcp(owner.accountId, call(7, "list_objects", { project_id: projectId, symbols: ["206"] })));
     expect(objects.total).toBe(3);

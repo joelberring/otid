@@ -880,7 +880,7 @@ O-Tid är inloggningsserver (OAuth 2.1) och MCP-server för Claude med personens
 - **Koppla:** i Claude, lägg till en anslutning (custom connector) med adressen `https://<O_TID_PUBLIC_ORIGIN>/api/mcp`.
   Claude registrerar sig själv, personen loggar in i O-Tid och godkänner på `/oauth/authorize`. Kopplingen syns under Mitt
   konto → AI-kopplingar och kan tas bort där.
-- **Verktyg:** `list_map_projects`, `map_overview`, `render_view`, `render_compare`, `list_objects`, `norm_check` och
+- **Verktyg:** `list_map_projects`, `map_overview`, `render_view`, `render_compare`, `list_objects`, `norm_check`, `training_labels` och `training_raster` (träningsdata: kartan som klassraster och laserkörningens raster) och
   `propose_changes` (bara förslag som en ägare godkänner).
 - **Var det körs:** webben (`web`) tar emot anropen och använder publikens databaspool; bilder, objektlistor och kontroller
   görs som kartjobb av `print-worker` (lägsta prioritet, barnprocess per jobb, `OTID_MAP_JOB_TIMEOUT_MS` förval 60000,

@@ -7,6 +7,8 @@ import { z } from "zod";
 export const MCP_MAX_IMAGE_SIDE_PX = 1600;
 export const MCP_PROPOSAL_MAX_OPERATIONS = 200;
 export const MCP_PROPOSAL_MAX_SIDE_M = 500;
+/** Laserkörningens raster som kan hämtas som träningsdata (jobbets filer `<namn>.png` och `<namn>.pgw`). */
+export const MCP_TRAINING_RASTERS = ["hojd", "fuktdjup", "vegetationsklasser", "relief", "skuggning"] as const;
 
 const boxSchema = z.object({ min_x: z.number().finite(), min_y: z.number().finite(), max_x: z.number().finite(), max_y: z.number().finite() })
   .refine(box => box.max_x > box.min_x && box.max_y > box.min_y, "max ska vara större än min")
@@ -29,6 +31,10 @@ export const mcpToolInputSchemas = {
   render_view: z.object({ project_id: idSchema, area: boxSchema.optional(), width_px: z.number().int().min(200).max(MCP_MAX_IMAGE_SIDE_PX).optional(),
     grid: z.boolean().optional(), highlight: z.array(keySchema).max(200).optional(), hide_symbols: z.array(codeSchema).max(100).optional() }),
   render_compare: z.object({ project_id: idSchema, area: boxSchema.optional(), width_px: z.number().int().min(200).max(MCP_MAX_IMAGE_SIDE_PX / 2).optional() }),
+  // Ägaren 2026-11-11: träningsdata för att lära geo-arbetarens regler av en väl ritad karta.
+  training_labels: z.object({ project_id: idSchema, min_e: z.number().finite(), min_n: z.number().finite(), max_e: z.number().finite(), max_n: z.number().finite(),
+    cell: z.number().min(0.5).max(10).optional() }).refine(box => box.max_e > box.min_e && box.max_n > box.min_n, "max ska vara större än min"),
+  training_raster: z.object({ project_id: idSchema, name: z.enum(MCP_TRAINING_RASTERS), job_id: idSchema.optional() }),
   list_objects: z.object({ project_id: idSchema, area: boxSchema.optional(), symbols: z.array(codeSchema).max(50).optional(),
     limit: z.number().int().min(1).max(500).optional(), offset: z.number().int().min(0).optional() }),
   norm_check: z.object({ project_id: idSchema, area: boxSchema.optional() }),

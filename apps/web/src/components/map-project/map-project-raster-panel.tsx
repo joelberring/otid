@@ -36,7 +36,11 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
   const current = shown.find(row => row.drawn.layerId === chosen) ?? shown[0];
   const crs = georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined;
 
+  // De inställningar som senast räknats: att slå på omräkningen ska inte räkna samma sak en gång till (och då ersätta en
+  // annan inläsning som gjorts under tiden).
+  const ran = useRef<S | undefined>(undefined);
   function run(next: S) {
+    ran.current = next;
     if (!current || crs === undefined) return;
     try {
       const { image, toMap } = current.drawn;
@@ -65,7 +69,7 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
   const latest = useRef(run);
   latest.current = run;
   useEffect(() => {
-    if (!live) return;
+    if (!live || ran.current === settings) return;
     const timer = setTimeout(() => latest.current(settings), 250);
     return () => clearTimeout(timer);
   }, [live, settings]);

@@ -10,8 +10,10 @@ import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map
 export const DEPTH_STEP_METERS = 0.02;
 export interface DepthSettings { readonly wetMeters: number; readonly moistMeters: number; readonly minAreaM2: number;
   /** Brantast för blött (grader); fuktigt får vara dubbelt så brant. */
-  readonly wetSlopeDegrees?: number | undefined }
-export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.3, moistMeters: 0.6, minAreaM2: 400, wetSlopeDegrees: 3 };
+  readonly wetSlopeDegrees?: number | undefined;
+  /** Inga kärr där minst så stor andel (0–1) av laserträffarna når marken (öppen, ofta utdikad mark); 1 = ingen gräns. */
+  readonly openGroundShare?: number | undefined }
+export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.3, moistMeters: 0.6, minAreaM2: 400, wetSlopeDegrees: 3, openGroundShare: 0.8 };
 /**
  * Ägaren 2026-11-11 (Högdalen som facit): bara flack mark blir blöt (högst 3°) eller fuktig (högst 6°), som i geo-arbetaren.
  * Lutningen står i blå kanal i steg om 0,1°; 255 (äldre bilder) betyder okänd och ingen gräns.
@@ -25,9 +27,15 @@ export function depthCandidates(pixels: PhotoPixels, settings: DepthSettings, to
   const wetStep = settings.wetMeters / DEPTH_STEP_METERS, moistStep = settings.moistMeters / DEPTH_STEP_METERS;
   const steepest = settings.wetSlopeDegrees ?? 3, WET_SLOPE_STEPS = steepest / SLOPE_STEP_DEGREES, MOIST_SLOPE_STEPS = 2 * steepest / SLOPE_STEP_DEGREES;
   const wet = new Uint8Array(columns * rows), moist = new Uint8Array(columns * rows);
+  // Grön kanal är markträffarnas andel i bilder från geo-arbetaren v12 (lärt av Högdalenkartan 2026-11-11); i äldre bilder
+  // är den lika med röd överallt.
+  let shares = false;
+  for (let i = 0; i < data.length && !shares; i += 4) if (data[i + 3]! >= 128 && data[i + 1] !== data[i]) shares = true;
+  const openLimit = shares ? (settings.openGroundShare ?? 0.8) * 254 : Infinity;
   for (let column = 0; column < columns; column += 1) for (let row = 0; row < rows; row += 1) {
     const i = (row * columns + column) * 4;
     if (data[i + 3]! < 128) continue;
+    if (data[i + 1]! < 255 && data[i + 1]! >= openLimit) continue;
     const step = data[i]!, slope = data[i + 2]!, known = slope < 255;
     if (step <= wetStep && !(known && slope > WET_SLOPE_STEPS)) wet[column * rows + row] = 1;
     if (step <= moistStep && !(known && slope > MOIST_SLOPE_STEPS)) moist[column * rows + row] = 1;

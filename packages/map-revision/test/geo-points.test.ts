@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergePointStats, pointImages, POINT_BANDS, readPointStats } from "../../../scripts/geo-points";
+import { groundShareAt, mergePointStats, pointImages, POINT_BANDS, readPointStats } from "../../../scripts/geo-points";
 
 /** 2 × 2 celler à 2 m med åtta värden per cell, som lasclip skriver. */
 function file(cells: number[][]): Uint8Array {
@@ -26,5 +26,13 @@ describe("punktmolnets statistik (ägaren 2026-11-11)", () => {
     const images = pointImages(readPointStats(file([[12, 10, 4, 1, 2, 3, 3200, 0.05], empty, empty, empty])));
     expect(images.world).toBe("2\n0\n0\n-2\n1001\n2003\n");
     for (const png of [images.veg, images.ground, images.canopy]) expect([...png.subarray(1, 4)].map(code => String.fromCharCode(code)).join("")).toBe("PNG");
+  });
+  it("markträffarnas andel kring en punkt (öppen mark har hög andel)", () => {
+    const share = groundShareAt(readPointStats(file([[0, 10, 9, 0, 0, 0, 3000, 0.02], [20, 10, 1, 0, 0, 8, 3000, 0.02], empty, empty])), 0);
+    expect(share(1001, 2001)).toBeCloseTo(0.9, 5);
+    expect(share(1001, 2003)).toBeCloseTo(0.1, 5);
+    expect(share(1003, 2001)).toBeUndefined();
+    expect(share(900, 2001)).toBeUndefined();
+    expect(groundShareAt(readPointStats(file([[0, 10, 9, 0, 0, 0, 3000, 0.02], [20, 10, 1, 0, 0, 8, 3000, 0.02], empty, empty])), 1)(1001, 2001)).toBeCloseTo(0.5, 5);
   });
 });

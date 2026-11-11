@@ -24,6 +24,12 @@ export const DEFAULT_MOISTURE: MoistureSettings = { channelHa: 1, wetMeters: 0.3
 export const WET_SLOPE_DEGREES = 3;
 export const MOIST_SLOPE_DEGREES = 6;
 export const CHANNEL_LINE_HA = 5;
+/**
+ * Lärt av Högdalenkartan 2026-11-11 (tre rutor, träff mot kartritarens kärr): där minst så stor andel av laserträffarna når
+ * marken är marken öppen och sällan ett kärr (ofta utdikad, skött mark). Regeln höjde träffen (F) från 0,58 till 0,65 och
+ * halverade den för stora ytan. Andelen skrivs i fuktdjupets gröna kanal, så att webbläsarens reglage kan dra i gränsen.
+ */
+export const OPEN_GROUND_SHARE = 0.8;
 /** Steget för lutningen i fuktdjupets bild (blå kanal, grader per värde; 255 = okänt). */
 export const SLOPE_STEP_DEGREES = 0.1;
 
@@ -419,7 +425,8 @@ export function blockedCells(grid: Omit<Grid, "z">, water: ((x: number, y: numbe
  * Hela kedjan för höjdrastren: bilden, världsfilen, DXF:en och en sammanfattning. Med `water` (geo-water.ts) räknas sjöar
  * och hav inte som blöt mark, och fuktstråken slutar vid stranden.
  */
-export function moistureFromHeightMaps(grids: readonly Grid[], settings: MoistureSettings = DEFAULT_MOISTURE, water?: (x: number, y: number) => boolean) {
+export function moistureFromHeightMaps(grids: readonly Grid[], settings: MoistureSettings = DEFAULT_MOISTURE, water?: (x: number, y: number) => boolean,
+  groundShare?: (x: number, y: number) => number | undefined) {
   const grid = mosaic(grids);
   const blocked = blockedCells(grid, water);
   // Ytorna utan vattnet; ett hål som vattnet lämnar mitt i en yta blir inte en egen yta (bara ytterkanterna tas med).
@@ -432,6 +439,14 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   const hand = heightAboveDrainage(grid, down, accumulation, order, channelCells);
   const slope = slopeDegrees(grid);
   const classes = moistureClasses(hand, settings, slope);
+  // Markträffarnas andel per cell (255 = okänd); öppen mark blir varken blöt eller fuktig.
+  const share = new Uint8Array(grid.width * grid.height).fill(255);
+  if (groundShare) for (let column = 0; column < grid.width; column += 1) for (let row = 0; row < grid.height; row += 1) {
+    const value = groundShare(grid.minX + column * grid.cell, grid.minY + row * grid.cell), i = column * grid.height + row;
+    if (value === undefined) continue;
+    share[i] = Math.min(254, Math.round(value * 254));
+    if (value >= OPEN_GROUND_SHARE) classes[i] = 0;
+  }
   const minCells = Math.max(4, Math.round(400 / (grid.cell * grid.cell)));
   const clean = (mask: Uint8Array) => blocked ? cleanMask(dry(cleanMask(dry(mask), grid.width, grid.height, minCells)), grid.width, grid.height, minCells)
     : cleanMask(mask, grid.width, grid.height, minCells);
@@ -460,7 +475,8 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
     if (!Number.isFinite(value) || blocked?.[i]) return [0, 0, 0, 0];
     const step = Math.min(254, Math.max(0, Math.round(value / DEPTH_STEP_METERS)));
     const steep = slope[i]!;
-    return [step, step, Number.isFinite(steep) ? Math.min(254, Math.round(steep / SLOPE_STEP_DEGREES)) : 255, 255];
+    // Grön kanal: markträffarnas andel (0–254 = 0–100 %, 255 okänd) när punktstatistiken finns; annars som röd (äldre format).
+    return [step, groundShare ? share[i]! : step, Number.isFinite(steep) ? Math.min(254, Math.round(steep / SLOPE_STEP_DEGREES)) : 255, 255];
   });
   const dxf = moistureDxf([{ name: "blott", closed: true, parts: wet }, { name: "fuktigt", closed: true, parts: moist },
     { name: "fuktstrak", closed: false, parts: channels }]);

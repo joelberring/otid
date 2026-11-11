@@ -27,6 +27,8 @@ export function MapProjectDepthPanel(props: Props) {
         onChange={event => change({ moistMeters: Math.max(Number(event.target.value), settings.wetMeters + 0.1) })} data-testid="map-project-depth-moist" /></label>
       <label>{text.slope(decimal(settings.wetSlopeDegrees ?? 3))}<input type="range" min={1} max={15} step={0.5} value={settings.wetSlopeDegrees ?? 3}
         onChange={event => change({ wetSlopeDegrees: Number(event.target.value) })} data-testid="map-project-depth-slope" /></label>
+      <label>{text.openGround(Math.round((settings.openGroundShare ?? 0.8) * 100))}<input type="range" min={0.4} max={1} step={0.05}
+        value={settings.openGroundShare ?? 0.8} onChange={event => change({ openGroundShare: Number(event.target.value) })} data-testid="map-project-depth-open" /></label>
       <label>{text.minArea(settings.minAreaM2)}<input type="range" min={100} max={2000} step={50} value={settings.minAreaM2}
         onChange={event => change({ minAreaM2: Number(event.target.value) })} /></label>
     </>}

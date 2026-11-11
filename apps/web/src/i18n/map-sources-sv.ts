@@ -70,6 +70,7 @@ export const mapSourcesSv = {
     layer: "Underlag",
     wet: (meters: string) => `Blött: upp till ${meters} m över fuktstråket`,
     moist: (meters: string) => `Fuktigt: upp till ${meters} m`,
+    openGround: (percent: number) => percent >= 100 ? "Öppen mark: ingen gräns" : `Inte på öppen mark: där minst ${percent} % av lasern når marken`,
     slope: (degrees: string) => `Flack mark: blött högst ${degrees}° lutning, fuktigt dubbelt så brant`,
     minArea: (square: number) => `Minsta yta: ${square} m²`,
     run: "Visa som kandidater",

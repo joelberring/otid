@@ -71,6 +71,11 @@ describe("fuktigheten ur höjdrastret", () => {
 
   it("hela kedjan ger bild, världsfil och DXF med blöta ytor och fuktstråk", () => {
     const result = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1, channelLineHa: 1 });
+    // Lärt av Högdalenkartan (2026-11-11): på öppen mark (de flesta laserträffar når marken) blir det inget kärr.
+    const open = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1, channelLineHa: 1 }, undefined, () => 0.95);
+    expect(open.summary).toMatchObject({ wetAreas: 0, moistAreas: 0 });
+    const wooded = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1, channelLineHa: 1 }, undefined, () => 0.4);
+    expect(wooded.summary.wetHa).toBe(result.summary.wetHa);
     // Den branta dalen har stråket men ingen blöt mark.
     expect(moistureFromHeightMaps([grid(101, 101, valley)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1 }).summary.wetAreas).toBe(0);
     expect([...result.png.subarray(1, 4)].map(code => String.fromCharCode(code)).join("")).toBe("PNG");

@@ -33,4 +33,11 @@ describe("fukt med reglage", () => {
     expect(depthCandidates(image(50), settings, toSource, 3006).moistHa).toBeGreaterThan(0.1);
     expect(depthCandidates(image(50), { ...settings, wetSlopeDegrees: 6 }, toSource, 3006).wetHa).toBeGreaterThan(0.025);
   });
+  it("inte på öppen mark: grön kanal är markträffarnas andel i nya bilder (lärt av Högdalenkartan)", () => {
+    const settings = { wetMeters: 0.5, moistMeters: 1, minAreaM2: 100 };
+    const withShare = (share: number) => { const pixels = image(20); for (let i = 0; i < pixels.data.length; i += 4) pixels.data[i + 1] = Math.round(share * 254); return pixels; };
+    expect(depthCandidates(withShare(0.4), settings, toSource, 3006).wetHa).toBeGreaterThan(0.025);
+    expect(depthCandidates(withShare(0.9), settings, toSource, 3006).wetHa).toBe(0);
+    expect(depthCandidates(withShare(0.9), { ...settings, openGroundShare: 1 }, toSource, 3006).wetHa).toBeGreaterThan(0.025);
+  });
 });

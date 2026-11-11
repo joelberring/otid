@@ -53,6 +53,30 @@ export function mergePointStats(tiles: readonly PointStats[]): PointStats {
   return { ...first, values };
 }
 
+/**
+ * Markträffarnas andel av alla träffar inom ±`reach` celler kring punkten (0–1), eller inget utan punkter. Hög andel = öppen
+ * mark. Används för kärren (geo-moisture.ts): lärt av Högdalenkartan 2026-11-11, där flacka sänkor på öppen, skött mark sällan
+ * är kärr (de är utdikade) medan samma form under träd är det.
+ */
+export function groundShareAt(stats: PointStats, reach = 2): (x: number, y: number) => number | undefined {
+  const { width, height, cell, values } = stats, stride = height + 1;
+  const all = new Float64Array((width + 1) * stride), ground = new Float64Array(all.length);
+  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+    const o = (x * height + y) * POINT_BANDS, i = (x + 1) * stride + y + 1;
+    all[i] = values[o + 1]! + all[x * stride + y + 1]! + all[(x + 1) * stride + y]! - all[x * stride + y]!;
+    ground[i] = values[o + 2]! + ground[x * stride + y + 1]! + ground[(x + 1) * stride + y]! - ground[x * stride + y]!;
+  }
+  const sum = (table: Float64Array, x0: number, y0: number, x1: number, y1: number) =>
+    table[x1 * stride + y1]! - table[x0 * stride + y1]! - table[x1 * stride + y0]! + table[x0 * stride + y0]!;
+  return (px, py) => {
+    const x = Math.floor((px - stats.minX) / cell), y = Math.floor((py - stats.minY) / cell);
+    if (x < 0 || y < 0 || x >= width || y >= height) return undefined;
+    const x0 = Math.max(0, x - reach), x1 = Math.min(width, x + reach + 1), y0 = Math.max(0, y - reach), y1 = Math.min(height, y + reach + 1);
+    const n = sum(all, x0, y0, x1, y1);
+    return n > 0 ? sum(ground, x0, y0, x1, y1) / n : undefined;
+  };
+}
+
 const byte = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 
 export function pointImages(stats: PointStats): { veg: Buffer; ground: Buffer; canopy: Buffer; world: string } {

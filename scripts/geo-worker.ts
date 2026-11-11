@@ -31,7 +31,7 @@ import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzip
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
-import { mergePointStats, pointImages, readPointStats } from "./geo-points.ts";
+import { groundShareAt, mergePointStats, pointImages, readPointStats } from "./geo-points.ts";
 import { bareRock, boulders, knolls } from "./geo-rock.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
@@ -178,6 +178,7 @@ async function runJob(job: Job): Promise<void> {
     // Grundkartan G4: branternas korta streck blir linjer med nedför till höger (geo-cliffs.ts). Med lasclips markraster
     // (1 m) mäts fallet över varje linje, och det avgör om den är opasserbar, passerbar eller ingen brant.
     let cliffSummary: Record<string, number> = {};
+    let groundShare: ((x: number, y: number) => number | undefined) | undefined;
     const ticksOf = async (name: string) => readTicks(await readFile(join(dir, name), "utf8").catch(() => ""));
     const groundFiles = (await readdir(dir)).filter(name => /^mark\d+\.bin$/.test(name)).sort();
     const grounds = [];
@@ -198,7 +199,9 @@ async function runJob(job: Job): Promise<void> {
       if (pointFiles.length) {
         const tiles = [];
         for (const name of pointFiles) tiles.push(readPointStats(new Uint8Array(await readFile(join(dir, name)))));
-        const images = pointImages(mergePointStats(tiles));
+        const stats = mergePointStats(tiles);
+        groundShare = groundShareAt(stats);
+        const images = pointImages(stats);
         for (const [name, bytes] of [["lasveg", images.veg], ["lasmark", images.ground], ["laskron", images.canopy]] as const) {
           await writeFile(join(dir, `${name}.png`), bytes);
           await writeFile(join(dir, `${name}.pgw`), images.world);
@@ -264,7 +267,7 @@ async function runJob(job: Job): Promise<void> {
         if (bytes) grids.push(readHeightMap(new Uint8Array(bytes)));
       }
       if (grids.length === 0) throw new Error("Karttapullautin gav inget höjdraster för fuktigheten");
-      const moisture = moistureFromHeightMaps(grids, job.moisture, water?.at);
+      const moisture = moistureFromHeightMaps(grids, job.moisture, water?.at, groundShare);
       await writeFile(join(dir, "fukt.png"), moisture.png);
       await writeFile(join(dir, "fukt.pgw"), moisture.world);
       await writeFile(join(dir, "fukt.dxf"), moisture.dxf);

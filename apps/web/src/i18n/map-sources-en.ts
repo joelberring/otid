@@ -178,6 +178,7 @@ export const mapSourcesEn: Texts<Sources> = {
     layer: "Base layer",
     wet: (meters: string) => `Wet: up to ${meters} m above the channel`,
     moist: (meters: string) => `Moist: up to ${meters} m`,
+    openGround: (percent: number) => percent >= 100 ? "Open ground: no limit" : `Not on open ground: where at least ${percent} % of the laser reaches the ground`,
     slope: (degrees: string) => `Flat ground: wet at most ${degrees}° slope, moist twice as steep`,
     minArea: (square: number) => `Smallest area: ${square} m²`,
     run: "Show as candidates",

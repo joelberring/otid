@@ -1354,13 +1354,16 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     samma rutor och område; grönt blockeras i branta sluttningar och får en skala; osäkra knollar och gropar (UGLY) föreslås
     inte; fuktigheten följer med också med marktäcket; för korta opasserbara branter blir branter; tomter (`tomtmark`, 520) ur
     husen; en kandidatrad under kartan med lagren att välja bort och Lägg in; ortofoton som Lantmäteriet nekar säger det.
-  - [ ] Lager efter källa (ägaren 2026-11-10: «all information som skapas, hamnar det i skisslager som går att släcka/tända/
+  - [x] Lager efter källa (ägaren 2026-11-10: «all information som skapas, hamnar det i skisslager som går att släcka/tända/
     tona ner?»): i dag blir det inlästa vanliga kartobjekt som släcks och tonas per symbol, normgrupp eller arbetslager, och
     bilderna (Karttapullautin, fuktighet, skuggning, ortofoto) är underlag. Bygg: det inlästa märkt med sin källa
     (laser, marktäcke, OpenStreetMap, flygbild) så att varje källa går att släcka, tona och ta bort för sig.
   - [x] G3 första delen (2026-11-11): DXF:ens höjd läses (`elevation`) och kurvorna och formlinjerna fogas över laserrutornas
     skarvar per lager och höjd (inom 0,5 m), en kedja som möter sig själv blir sluten (`joinSeams`).
-  - [ ] G3 Kurvor: punkthöjder. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
+  - [x] G3 små slutna kurvor (ägaren 2026-11-11: «många små höjder borde ritats som punkthöjder i stället för att minska på
+    antal täta kurvor»): en sluten kurva smalare än 1,1 mm på kartan blir liten kulle (112) eller liten grop (111) efter
+    omgivningens höjd, utan dubblett där Karttapullautins knoll redan ligger. Kungshatt-provet 1:10 000: 16 av 26 slutna kurvor.
+  - Lager efter källa: ägaren 2026-11-11 valde att valet före Lägg in (kandidatraden) räcker; inget mer byggs. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar
   vid högra kanten.

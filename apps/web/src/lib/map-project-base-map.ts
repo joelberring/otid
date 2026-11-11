@@ -1,6 +1,7 @@
 import type { GeoClip } from "@o-tid/contracts";
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import { joinSeams, type SourceData, type SourceFeature } from "@o-tid/map-revision";
+import { smallRingsToPoints } from "./map-project-small-rings";
 import { yardsOf } from "./map-project-yards";
 
 /**
@@ -14,6 +15,7 @@ import { yardsOf } from "./map-project-yards";
  * - en opasserbar brant som är för kort för två taggar blir en brant (ägaren 2026-11-11: «det ska alltid vara minst två
  *   taggar på taggbranter»),
  * - kurvorna och formlinjerna fogas över laserrutornas skarvar (`joinSeams`),
+ * - små slutna kurvor (smalare än 1,1 mm på kartan) blir små kullar eller gropar (`smallRingsToPoints`),
  * - tomterna räknas ur husen (`yardsOf`), eftersom ingen av källorna har dem,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.
@@ -70,7 +72,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     if (feature.layer === "brant_opasserbar" && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < shortest) return { ...feature, layer: "brant_passerbar" };
     return feature;
   }));
-  const all = [...features, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
+  const all = [...(scale ? smallRingsToPoints(features, scale) : features), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   return { features: [...all, ...yardsOf(all)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

@@ -27,6 +27,19 @@ const LINES: readonly (readonly [number, readonly number[]])[] = [[1, [101]], [2
 const OVERLAY: readonly (readonly [number, readonly number[]])[] = [[16, [307, 308]], [32, [310]], [64, [407]], [128, [409]]];
 const POINTS: readonly (readonly [number, readonly number[]])[] = [[1, [109]], [2, [110]], [3, [111, 112]], [4, [204]], [5, [205, 206]], [6, [207]],
   [7, [208, 209, 210, 211, 212]], [8, [308]], [9, [417, 418]], [10, [310]]];
+/**
+ * Äldre kartor (ägarens testkartor 2026-11-11, t.ex. Lida) har ISOM 2000-nummer: 112 är punkthöjd, 310 sankmark, 526 byggnad.
+ * De räknas om till ISOM 2017-2 innan klasserna slås upp. Nummer som saknas här behålls.
+ */
+const ISOM_2000: Readonly<Record<number, number>> = { 104: 0, 106: 104, 107: 105, 108: 106, 109: 107, 110: 108, 112: 109, 113: 110, 114: 111, 115: 111,
+  116: 112, 117: 113, 118: 115, 202: 206, 203: 202, 204: 203, 205: 203, 206: 204, 207: 205, 208: 208, 209: 207, 211: 213, 212: 214,
+  302: 301, 304: 301, 305: 304, 306: 305, 307: 306, 308: 309, 309: 307, 310: 308, 311: 310, 312: 311, 313: 312,
+  411: 406, 412: 413, 413: 414, 414: 415, 415: 412, 418: 417, 419: 418, 420: 419,
+  501: 502, 503: 502, 504: 503, 505: 504, 506: 505, 507: 506, 508: 507, 509: 508, 515: 509, 516: 510, 517: 511,
+  526: 521, 527: 520, 528: 520, 529: 501 };
+export const isom2000To2017 = (main: number): number => ISOM_2000[main] ?? main;
+/** ISOM 2000 känns igen på ytor med 526 (byggnad), 527 (tomtmark) eller 529 (hårdgjort): i ISOM 2017-2 är de punkter och linjer. */
+export const usesIsom2000 = (areaCodes: Iterable<number>): boolean => { for (const main of areaCodes) if (main === 526 || main === 527 || main === 529) return true; return false; };
 const classOf = (table: readonly (readonly [number, readonly number[]])[], main: number) => table.find(([, codes]) => codes.includes(main))?.[0];
 
 const CRC = (() => { const table = new Uint32Array(256); for (let n = 0; n < 256; n += 1) { let c = n; for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; table[n] = c >>> 0; } return table; })();
@@ -62,7 +75,9 @@ export function runLabels(loaded: LoadedProjectMap, request: LabelsRequest): { p
     return [(at.easting - request.minE) / cell, (request.maxN - at.northing) / cell];
   };
   const pointsOf = (path: readonly PathCommand[]) => samplePath(path, mmPerCell / 2).map(toPixel);
-  const codeOf = (object: MapObject) => loaded.base.symbols.get(object.symbol)?.code.main ?? 0;
+  const mainOf = (object: MapObject) => loaded.base.symbols.get(object.symbol)?.code.main ?? 0;
+  const old = usesIsom2000(loaded.objects.filter(object => object.kind === "area").map(mainOf));
+  const codeOf = (object: MapObject) => old ? isom2000To2017(mainOf(object)) : mainOf(object);
   const set = (column: number, row: number, channel: 0 | 1 | 2, write: (old: number) => number) => {
     if (column < 0 || row < 0 || column >= width || row >= height) return;
     const i = (row * width + column) * 4 + channel;
@@ -108,6 +123,6 @@ export function runLabels(loaded: LoadedProjectMap, request: LabelsRequest): { p
       set(Math.floor(x), Math.floor(y), 2, () => value); count(`point${value}`);
     }
   }
-  return { png: rgbaPng(width, height, rgba), meta: { cell, width, height, minE: request.minE, maxN: request.maxN, counts,
+  return { png: rgbaPng(width, height, rgba), meta: { cell, width, height, minE: request.minE, maxN: request.maxN, counts, symbolSet: old ? "ISOM 2000" : "ISOM 2017-2",
     crs: georef.crs.kind === "EPSG" ? `EPSG:${georef.crs.code}` : georef.crs.description } };
 }

@@ -31,6 +31,7 @@ import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzip
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
+import { mergePointStats, pointImages, readPointStats } from "./geo-points.ts";
 import { bareRock, boulders, knolls } from "./geo-rock.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
@@ -152,7 +153,7 @@ async function runJob(job: Job): Promise<void> {
       // Grundkartan G1: rutan klipps till kartans område direkt efter hämtningen; en ruta helt utanför ger ingen fil.
       await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, job.clip ? file : join("in", file))));
       if (job.clip) {
-        await run([file, join("in", file), ...[job.clip.minX, job.clip.minY, job.clip.maxX, job.clip.maxY].map(String), `vatten${tile.index}.bin`, `mark${tile.index}.bin`], dir,
+        await run([file, join("in", file), ...[job.clip.minX, job.clip.minY, job.clip.maxX, job.clip.maxY].map(String), `vatten${tile.index}.bin`, `mark${tile.index}.bin`, `punkter${tile.index}.bin`], dir,
           AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), lasclip);
         await rm(join(dir, file), { force: true });
       }
@@ -190,6 +191,17 @@ async function runJob(job: Job): Promise<void> {
       await writeFile(join(dir, "skuggning.png"), shade.png);
       await writeFile(join(dir, "skuggning.pgw"), shade.world);
       // Ägaren 2026-11-11 (lära av en väl ritad karta): markens höjd som bild, träningsdata via AI-kopplingen.
+      // Egna beräkningar ur punktmolnet (geo-points.ts): vegetationens höjd, skikten, markträffarnas andel och intensitet.
+      const pointFiles = (await readdir(dir)).filter(name => /^punkter\d+\.bin$/.test(name)).sort();
+      if (pointFiles.length) {
+        const tiles = [];
+        for (const name of pointFiles) tiles.push(readPointStats(new Uint8Array(await readFile(join(dir, name)))));
+        const images = pointImages(mergePointStats(tiles));
+        for (const [name, bytes] of [["lasveg", images.veg], ["lasmark", images.ground], ["laskron", images.canopy]] as const) {
+          await writeFile(join(dir, `${name}.png`), bytes);
+          await writeFile(join(dir, `${name}.pgw`), images.world);
+        }
+      }
       const heights = heightPng(ground);
       await writeFile(join(dir, "hojd.png"), heights.png);
       await writeFile(join(dir, "hojd.pgw"), heights.world);
@@ -322,6 +334,7 @@ async function runJob(job: Job): Promise<void> {
         ["vegetationsklasser.pgw", "vegetationsklasser.pgw", "text/plain"]] as const : []),
       ...(files.has("skuggning.png") ? [["skuggning.png", "skuggning.png", "image/png"], ["skuggning.pgw", "skuggning.pgw", "text/plain"]] as const : []),
       ...(files.has("hojd.png") ? [["hojd.png", "hojd.png", "image/png"], ["hojd.pgw", "hojd.pgw", "text/plain"]] as const : []),
+      ...["lasveg", "lasmark", "laskron"].filter(name => files.has(`${name}.png`)).flatMap(name => [[`${name}.png`, `${name}.png`, "image/png"], [`${name}.pgw`, `${name}.pgw`, "text/plain"]] as const),
       ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),

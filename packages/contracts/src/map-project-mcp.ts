@@ -8,7 +8,7 @@ export const MCP_MAX_IMAGE_SIDE_PX = 1600;
 export const MCP_PROPOSAL_MAX_OPERATIONS = 200;
 export const MCP_PROPOSAL_MAX_SIDE_M = 500;
 /** Laserkörningens raster som kan hämtas som träningsdata (jobbets filer `<namn>.png` och `<namn>.pgw`). */
-export const MCP_TRAINING_RASTERS = ["hojd", "fuktdjup", "vegetationsklasser", "relief", "skuggning"] as const;
+export const MCP_TRAINING_RASTERS = ["hojd", "fuktdjup", "vegetationsklasser", "relief", "skuggning", "lasveg", "lasmark", "laskron"] as const;
 
 const boxSchema = z.object({ min_x: z.number().finite(), min_y: z.number().finite(), max_x: z.number().finite(), max_y: z.number().finite() })
   .refine(box => box.max_x > box.min_x && box.max_y > box.min_y, "max ska vara större än min")

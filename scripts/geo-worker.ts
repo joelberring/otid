@@ -74,7 +74,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 6;
+export const WORKER_VERSION = 7;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
@@ -290,6 +290,8 @@ async function runJob(job: Job): Promise<void> {
       const blocked = water || steep ? (x: number, y: number) => !!water?.at(x, y) || !!steep?.(x, y) : undefined;
       const vegetation = vegetationFromTiles(tiles, job.vegetation, blocked);
       await writeFile(join(dir, "vegetation.dxf"), vegetation.dxf);
+      await writeFile(join(dir, "vegetationsklasser.png"), vegetation.classPng);
+      await writeFile(join(dir, "vegetationsklasser.pgw"), vegetation.world);
       vegetationSummary = vegetation.summary;
       openAt = vegetation.openAt;
     }
@@ -310,7 +312,8 @@ async function runJob(job: Job): Promise<void> {
       ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
       ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"],
         ["fuktdjup.png", "fuktdjup.png", "image/png"], ["fuktdjup.pgw", "fukt.pgw", "text/plain"]] as const : []),
-      ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"]] as const : []),
+      ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"], ["vegetationsklasser.png", "vegetationsklasser.png", "image/png"],
+        ["vegetationsklasser.pgw", "vegetationsklasser.pgw", "text/plain"]] as const : []),
       ...(files.has("skuggning.png") ? [["skuggning.png", "skuggning.png", "image/png"], ["skuggning.pgw", "skuggning.pgw", "text/plain"]] as const : []),
       ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),

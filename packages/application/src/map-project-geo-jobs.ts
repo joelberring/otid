@@ -44,6 +44,9 @@ export const GEO_DEPTH_WORLD = "fuktdjup.pgw";
 /** Den lokala reliefen ur markrastret (ägaren 2026-11-11, diken ur terrängformen); ett underlag att tona. */
 export const GEO_RELIEF_IMAGE = "relief.png";
 export const GEO_RELIEF_WORLD = "relief.pgw";
+/** Vegetationens klasser (ägaren 2026-11-11), som reglagen för grönt läser i webbläsaren. */
+export const GEO_GREEN_IMAGE = "vegetationsklasser.png";
+export const GEO_GREEN_WORLD = "vegetationsklasser.pgw";
 /** Terrängskuggningen ur laserns markraster (ägaren 2026-11-10); blir ett underlag att tona. */
 export const GEO_SHADE_IMAGE = "skuggning.png";
 export const GEO_SHADE_WORLD = "skuggning.pgw";
@@ -332,10 +335,11 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     const moistureLayerId = await layerFrom(tx, job, files, GEO_MOISTURE_IMAGE, GEO_MOISTURE_WORLD, `${name.slice(0, 66)} – fuktighet`, 0.7, randomUUID(), now);
     const shadeLayerId = await layerFrom(tx, job, files, GEO_SHADE_IMAGE, GEO_SHADE_WORLD, `${name.slice(0, 60)} – terrängskuggning`, 0.5, randomUUID(), now);
     const depthLayerId = await layerFrom(tx, job, files, GEO_DEPTH_IMAGE, GEO_DEPTH_WORLD, `${name.slice(0, 66)} – fuktdjup`, 0.5, randomUUID(), now);
+    const greenLayerId = await layerFrom(tx, job, files, GEO_GREEN_IMAGE, GEO_GREEN_WORLD, `${name.slice(0, 60)} – vegetationsklasser`, 0.4, randomUUID(), now);
     const reliefLayerId = await layerFrom(tx, job, files, GEO_RELIEF_IMAGE, GEO_RELIEF_WORLD, `${name.slice(0, 66)} – relief`, 0.5, randomUUID(), now);
     await noteGeoServerJob(tx, worker, now);
     await tx.update(jobs).set({ status: "DONE", finishedAt: now, progress: null, error: null,
-      result: { layerId, moistureLayerId, shadeLayerId, depthLayerId, reliefLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
+      result: { layerId, moistureLayerId, shadeLayerId, depthLayerId, reliefLayerId, greenLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
     return { status: "ok", layerId } as const;
   });
 }

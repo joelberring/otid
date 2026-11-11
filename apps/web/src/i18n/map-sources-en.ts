@@ -183,6 +183,20 @@ export const mapSourcesEn: Texts<Sources> = {
     nothing: "No areas with these limits.",
     failed: "The moisture depth could not be read."
   },
+  green: {
+    heading: "Green with sliders (406, 408, 410)",
+    help: "The laser run's vegetation classes are read here. A higher step gives less green; the areas show at once as candidates on the map, without a new run.",
+    none: "No vegetation classes shown. Run Karttapullautin with vegetation and keep the base layer ending in “vegetationsklasser” shown.",
+    layer: "Base layer",
+    step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Slow running (406)", difficult: "Difficult to run (408)", fight: "Very difficult (410)" }[key]} from step ${value}`,
+    minArea: (square: number) => `Smallest area: ${square} m²`,
+    undergrowth: "Undergrowth (407, 409)",
+    run: "Show as candidates",
+    name: (layer: string) => `${layer} – green`.slice(0, 120),
+    done: (slow: string, difficult: string, fight: string) => `${slow} ha slow, ${difficult} ha difficult, ${fight} ha very difficult. Change the steps and it is recalculated.`,
+    nothing: "No areas with these steps.",
+    failed: "The vegetation classes could not be read."
+  },
   moisture: mapSourcesMoistureEn,
   laser: mapSourcesLaserEn
 };

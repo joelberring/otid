@@ -4,7 +4,7 @@ import type { MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference, Point } from "@o-tid/map-file";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
-import { MapProjectDepthPanel } from "./map-project-depth-panel";
+import { MapProjectDepthPanel, MapProjectGreenPanel } from "./map-project-slider-panels";
 import { MapProjectFolderIntake } from "./map-project-folder-intake";
 import { MapProjectImportPanel } from "./map-project-import-panel";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
@@ -34,6 +34,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectDepthPanel layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectGreenPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectLaserPanel view={view} layers={layers} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
       {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={areas} />}
       {importer.canImport && <MapProjectFolderIntake projectId={view.projectId} georeference={georeference} bounds={bounds} layers={layers} work={work} />}

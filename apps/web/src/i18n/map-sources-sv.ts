@@ -77,6 +77,20 @@ export const mapSourcesSv = {
     nothing: "Inga ytor med de här gränserna.",
     failed: "Fuktdjupet kunde inte läsas."
   },
+  green: {
+    heading: "Grönt med reglage (406, 408, 410)",
+    help: "Laserkörningens vegetationsklasser läses här. Ett högre steg ger mindre grönt; ytorna visas direkt som kandidater på kartan, utan en ny körning.",
+    none: "Inga vegetationsklasser tända. Kör Karttapullautin med vegetationen och låt underlaget som slutar på ”vegetationsklasser” vara tänt.",
+    layer: "Underlag",
+    step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Löphindrande (406)", difficult: "Svårlöpt (408)", fight: "Mycket svårlöpt (410)" }[key]} från steg ${value}`,
+    minArea: (square: number) => `Minsta yta: ${square} m²`,
+    undergrowth: "Undervegetation (407, 409)",
+    run: "Visa som kandidater",
+    name: (layer: string) => `${layer} – grönt`.slice(0, 120),
+    done: (slow: string, difficult: string, fight: string) => `${slow} ha löphindrande, ${difficult} ha svårlöpt, ${fight} ha mycket svårlöpt. Ändra stegen så räknas det om.`,
+    nothing: "Inga ytor med de här stegen.",
+    failed: "Vegetationsklasserna kunde inte läsas."
+  },
   moisture: {
     heading: "Markfuktighet (SLU)",
     help: "SLU:s markfuktighetskarta (2 m, öppen data från Skogsstyrelsen) för hela kartan eller en etapp, som underlag. Blått är blött: "

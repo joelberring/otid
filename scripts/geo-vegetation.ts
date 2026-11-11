@@ -10,7 +10,7 @@
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`).
  */
 import { inflateSync } from "node:zlib";
-import { blockedCells, cleanMask, type Grid, maskRings, moistureDxf, ringArea, simplify } from "./geo-moisture.ts";
+import { blockedCells, cleanMask, encodePng, type Grid, maskRings, moistureDxf, ringArea, simplify, worldFile } from "./geo-moisture.ts";
 
 export interface VegetationSettings { readonly minAreaM2: number }
 export const DEFAULT_VEGETATION: VegetationSettings = { minAreaM2: 300 };
@@ -163,5 +163,11 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     const column = Math.round((x - grid.minX) / grid.cell), row = Math.round((y - grid.minY) / grid.cell);
     return column >= 0 && row >= 0 && column < grid.width && row < grid.height && (classes[column * grid.height + row]! & 15) === 1;
   };
-  return { dxf: moistureDxf(parts), summary, openAt };
+  // Ägaren 2026-11-11 («dra i» lagren): klasserna som bild, så att grönsstegen kan dras i webbläsaren utan en ny körning.
+  // Röd kanal = klassen (låga fyra bitar Karttapullautins klass, höga undervegetationen); utan data eller i vatten genomskinligt.
+  const classPng = encodePng(grid.width, grid.height, (column, line) => {
+    const i = column * grid.height + (grid.height - 1 - line), value = classes[i]!;
+    return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : [value, 160, value, 255];
+  });
+  return { dxf: moistureDxf(parts), summary, openAt, classPng, world: worldFile(full) };
 }

@@ -97,8 +97,8 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Klart", { timeout: 30_000 });
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Bilden är tillagd som underlag.");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Fuktigheten är tillagd som underlag.");
-  // Terrängskuggningen, reliefen och fuktdjupet (för reglagen) ur laserns raster är också underlag.
-  await expect(owner.getByTestId("map-project-layer")).toHaveCount(6, { timeout: 20_000 });
+  // Terrängskuggningen, reliefen, fuktdjupet och vegetationsklasserna (för reglagen) ur laserns raster är också underlag.
+  await expect(owner.getByTestId("map-project-layer")).toHaveCount(7, { timeout: 20_000 });
   const layers = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { name: string; crs: number; width: number }[] }).layers;
   expect(layers).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Karttapullautin hela kartan", crs: 3006, width: 200 }),
     expect.objectContaining({ name: "Karttapullautin hela kartan – fuktighet", crs: 3006 }),
@@ -113,6 +113,11 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   const first = await depth.getByTestId("map-project-depth-message").textContent();
   await depth.getByTestId("map-project-depth-wet").fill("1.5");
   await expect(depth.getByTestId("map-project-depth-message")).not.toHaveText(first!, { timeout: 20_000 });
+  // Grönt med reglage: stegen ur vegetationsklasserna.
+  const green = owner.getByTestId("map-project-green");
+  await green.getByText("Grönt med reglage (406, 408, 410)").click();
+  await green.getByTestId("map-project-green-run").click();
+  await expect(green.getByTestId("map-project-green-message")).toContainText("ha mycket svårlöpt", { timeout: 20_000 });
 
   // Kurvorna som kandidater.
   await laser.getByRole("button", { name: "Läs in kurvor som kandidater" }).click();

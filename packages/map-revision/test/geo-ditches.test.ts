@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GroundGrid } from "../../../scripts/geo-cliffs";
+import { paths, type GroundGrid } from "../../../scripts/geo-cliffs";
 import { ditchLines, localRelief, reliefImage } from "../../../scripts/geo-ditches";
 
 /** 120 × 80 m lutande mark (1 m celler): ett rakt dike (1 m brett, 0,5 m djupt), en krokig rännil och en bred grop (16 m). */
@@ -36,5 +36,18 @@ describe("diken ur terrängformen", () => {
     const grid = ground(), image = reliefImage(grid, localRelief(grid, 4));
     expect(image.png.subarray(1, 4).toString()).toBe("PNG");
     expect(image.world.split("\n")[0]).toBe("1");
+  });
+});
+
+describe("mittlinjens vägar i stora nät", () => {
+  it("hoppar över ett nät över taket men behåller en egen linje bredvid", () => {
+    const width = 300, height = 300, mask = new Uint8Array(width * height);
+    // Ett rutnät av gator (25 m mellan) i ena halvan, en ensam 60 m lång linje i den andra.
+    for (let x = 0; x < 200; x += 1) for (let y = 0; y < height; y += 1) if (x % 25 === 0 || y % 25 === 0) mask[x * height + y] = 1;
+    for (let y = 100; y < 160; y += 1) mask[250 * height + y] = 1;
+    const all = paths(mask, width, height, 20), capped = paths(mask, width, height, 20, 2000);
+    expect(all.length).toBeGreaterThan(10);
+    expect(capped).toHaveLength(1);
+    expect(capped[0]).toHaveLength(60);
   });
 });

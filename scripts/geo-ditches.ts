@@ -14,6 +14,8 @@ import { encodePng, simplify } from "./geo-moisture.ts";
 export interface DitchSettings { readonly depth: number; readonly radius: number; readonly maxWidth: number; readonly minLength: number; readonly straight: number }
 export const DEFAULT_DITCHES: DitchSettings = { depth: 0.3, radius: 4, maxWidth: 4, minLength: 15, straight: 0.85 };
 const MAX_CELLS = 60_000_000;
+/** Ett sammanhängande nät av smala sänkor med fler celler än så (20 km vid 1 m) är inte ett dike utan gator och tomter i bebyggelse. */
+const MAX_NETWORK_CELLS = 20_000;
 
 /** Summerad tabell (bredd+1 × höjd+1, kolumnvis) och summan i en ruta [x0, x1) × [y0, y1). */
 function integral(values: ArrayLike<number>, width: number, height: number): Float64Array {
@@ -73,7 +75,7 @@ export function ditchLines(ground: GroundGrid, relief: Float32Array, settings: D
   const wide = integral(eroded, width, height);
   for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) if (boxSum(wide, height, x, y, half, width) > 0) mask[x * height + y] = 0;
   const lines: { name: "dike" | "fuktstrak_terrang"; points: [number, number][] }[] = [];
-  for (const path of paths(thin(mask, width, height), width, height, Math.max(3, Math.round(settings.minLength / cell / Math.SQRT2)))) {
+  for (const path of paths(thin(mask, width, height), width, height, Math.max(3, Math.round(settings.minLength / cell / Math.SQRT2)), MAX_NETWORK_CELLS)) {
     const points = path.map(centre);
     let length = 0;
     for (let k = 1; k < points.length; k += 1) length += Math.hypot(points[k]![0] - points[k - 1]![0], points[k]![1] - points[k - 1]![1]);

@@ -104,9 +104,15 @@ export function thin(mask: Uint8Array, width: number, height: number): Uint8Arra
   return out;
 }
 
-/** Mittlinjens vägar: i varje sammanhängande del den längsta vägen först, sedan det som blir kvar, så länge delarna är långa nog. */
-export function paths(skeleton: Uint8Array, width: number, height: number, minCells: number): number[][] {
+/**
+ * Mittlinjens vägar: i varje sammanhängande del den längsta vägen först, sedan det som blir kvar, så länge delarna är långa nog.
+ * En del med fler än `maxCells` celler hoppas över: i bebyggelse hänger smala sänkor ihop i nät över hela området, och där
+ * växer arbetet med kvadraten på nätets storlek (Djurgården 2026-11-11: steget blev aldrig klart).
+ */
+export function paths(skeleton: Uint8Array, width: number, height: number, minCells: number, maxCells = Number.POSITIVE_INFINITY): number[][] {
   const left = new Uint8Array(skeleton), out: number[][] = [];
+  // Föregångaren per cell (−2 = inte besökt) och kön som fält i stället för Map och listor: sökningen görs många gånger.
+  const from = new Int32Array(left.length).fill(-2), queue = new Int32Array(left.length);
   const neighbours = (i: number) => {
     const x = Math.floor(i / height), y = i - x * height, list: number[] = [];
     for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
@@ -114,23 +120,25 @@ export function paths(skeleton: Uint8Array, width: number, height: number, minCe
     }
     return list;
   };
-  /** Bredden först från `start`: den avlägsnaste cellen och vägen dit. */
+  /** Bredden först från `start`: den avlägsnaste cellen, vägen dit och antalet besökta celler (de ligger först i `queue`). */
   const farthest = (start: number) => {
-    const from = new Map<number, number>([[start, -1]]);
-    let queue = [start], last = start;
-    while (queue.length) {
-      const next: number[] = [];
-      for (const i of queue) { last = i; for (const n of neighbours(i)) if (!from.has(n)) { from.set(n, i); next.push(n); } }
-      queue = next;
+    from[start] = -1; queue[0] = start;
+    let head = 0, tail = 1;
+    while (head < tail) {
+      const i = queue[head]!; head += 1;
+      for (const n of neighbours(i)) if (from[n] === -2) { from[n] = i; queue[tail] = n; tail += 1; }
     }
-    const path: number[] = [];
-    for (let i = last; i >= 0; i = from.get(i)!) path.push(i);
-    return { end: last, path, seen: from };
+    const end = queue[tail - 1]!, path: number[] = [];
+    for (let i = end; i >= 0; i = from[i]!) path.push(i);
+    for (let k = 0; k < tail; k += 1) from[queue[k]!] = -2;
+    return { end, path, seen: tail };
   };
   for (let start = 0; start < left.length; start += 1) {
     while (left[start]) {
-      const first = farthest(start), longest = farthest(first.end);
-      if (longest.path.length < minCells) { for (const i of longest.seen.keys()) left[i] = 0; break; }
+      const first = farthest(start);
+      if (first.seen > maxCells) { for (let k = 0; k < first.seen; k += 1) left[queue[k]!] = 0; break; }
+      const longest = farthest(first.end);
+      if (longest.path.length < minCells) { for (let k = 0; k < longest.seen; k += 1) left[queue[k]!] = 0; break; }
       out.push(longest.path);
       // Vägen och cellerna intill den tas bort, så att grenarna blir egna delar utan att följa vägen en gång till.
       for (const i of longest.path) { left[i] = 0; }

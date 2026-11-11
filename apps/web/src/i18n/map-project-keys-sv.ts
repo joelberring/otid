@@ -6,7 +6,7 @@ export const mapProjectKeysSv = {
   title: "Tangenter i ritläget",
   help: "Tangenterna ligger under vänster hand, så att höger hand kan stanna på musen. Klicka på en tangent och tryck sedan den nya. Valet sparas i den här webbläsaren.",
   commands: {
-    select: "Redigera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", duplicate: "Duplicera", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
+    select: "Redigera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
     switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
     undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan"
   } satisfies Record<KeyCommand, string>,
@@ -23,6 +23,11 @@ export const mapProjectKeysSv = {
   addPointHint: "Klicka på en linje eller en ytas kant för en ny punkt där.",
   rectangleHint: (corners: number) => corners === 0 ? "Klicka första hörnet." : corners === 1 ? "Klicka andra hörnet (rektangelns ena sida)." : "Klicka för bredden.",
   rectangleNeedsShape: "Välj en linje- eller ytsymbol för rektangeln.",
+  filled: (count: number) => count === 1 ? "Klart: ett nytt objekt med den valda symbolen." : `Klart: ${count} nya objekt med den valda symbolen.`,
+  notFillable: "Markera en sluten linje och välj en ytsymbol, eller markera en yta och välj en linjesymbol.",
+  paralleled: "Den parallella linjen ligger en millimeter till höger.",
+  measured: (value: { meters: number } | { squareMeters: number }) => "meters" in value ? `${Math.round(value.meters)} m`
+    : value.squareMeters >= 10_000 ? `${String(Math.round(value.squareMeters / 1000) / 10).replace(".", ",")} ha` : `${Math.round(value.squareMeters)} m²`,
   duplicated: (count: number) => count === 1 ? "Kopian ligger snett nedanför." : `${count} kopior ligger snett nedanför.`,
   removePointHint: "Klicka på en punkt för att ta bort den.",
   noPointHere: "Ingen punkt att ta bort där.",
@@ -41,6 +46,8 @@ export const mapProjectKeysSv = {
     cut: "Klicka på en linje för att dela den i två där. På en brytpunkt delas den i punkten.",
     rectangle: "Klicka två hörn för en sida och ett tredje för bredden: en rektangel med räta vinklar i valfri riktning (hus, plattformar). Ritas med den valda linje- eller ytsymbolen.",
     duplicate: "Gör en kopia av det markerade, en halv millimeter snett nedanför.",
+    fill: "En markerad sluten linje fylls med den valda ytsymbolen; en markerad yta får en kant med den valda linjesymbolen.",
+    parallel: "En linje parallellt med den markerade, en millimeter till höger (taggarnas sida). Byt riktning först för vänster sida.",
     pick: "Symbolen på det markerade objektet blir den valda, så att du kan rita mer med den.",
     reverse: "Linjen byter riktning, så att branters taggar och stängsels streck hamnar på andra sidan.",
     smooth: "Hörnen blir mjuka kurvor.",

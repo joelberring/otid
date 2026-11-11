@@ -201,7 +201,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   title: "Keys in the drawing mode",
   help: "The keys are under the left hand, so that the right hand can stay on the mouse. Click a key and then press the new one. The choice is saved in this browser.",
   commands: {
-    select: "Edit", draw: "Draw", circle: "Circle", rectangle: "Rectangle", duplicate: "Duplicate", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
+    select: "Edit", draw: "Draw", circle: "Circle", rectangle: "Rectangle", duplicate: "Duplicate", fill: "Fill area or make border", parallel: "Parallel line", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
     switchSymbol: "Change symbol on the selection", join: "Join lines", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
     undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only"
   },
@@ -218,6 +218,11 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   addPointHint: "Click a line or the edge of an area for a new point there.",
   rectangleHint: (corners: number) => corners === 0 ? "Click the first corner." : corners === 1 ? "Click the second corner (one side of the rectangle)." : "Click for the width.",
   rectangleNeedsShape: "Choose a line or area symbol for the rectangle.",
+  filled: (count: number) => count === 1 ? "Done: a new object with the chosen symbol." : `Done: ${count} new objects with the chosen symbol.`,
+  notFillable: "Select a closed line and choose an area symbol, or select an area and choose a line symbol.",
+  paralleled: "The parallel line lies one millimetre to the right.",
+  measured: (value: { meters: number } | { squareMeters: number }) => "meters" in value ? `${Math.round(value.meters)} m`
+    : value.squareMeters >= 10_000 ? `${Math.round(value.squareMeters / 1000) / 10} ha` : `${Math.round(value.squareMeters)} m²`,
   duplicated: (count: number) => count === 1 ? "The copy lies slightly below." : `${count} copies lie slightly below.`,
   removePointHint: "Click a point to remove it.",
   noPointHere: "No point to remove there.",
@@ -235,6 +240,8 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
     cut: "Click a line to split it in two there. On a vertex it is split at the point.",
     rectangle: "Click two corners for one side and a third for the width: a rectangle with right angles in any direction (houses, platforms). Drawn with the chosen line or area symbol.",
     duplicate: "Makes a copy of the selection, half a millimetre down to the right.",
+    fill: "A selected closed line is filled with the chosen area symbol; a selected area gets a border with the chosen line symbol.",
+    parallel: "A line parallel to the selected one, one millimetre to the right (the tag side). Reverse it first for the left side.",
     pick: "The symbol of the selected object becomes the chosen one, so that you can draw more with it.",
     reverse: "The line changes direction, so that the tags of cliffs and the dashes of fences end up on the other side.",
     smooth: "The corners become smooth curves.",

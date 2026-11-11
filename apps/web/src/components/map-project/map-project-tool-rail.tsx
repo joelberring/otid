@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import styles from "./map-project-tool-rail.module.css";
 
 export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys"
-  | "cut" | "rectangle" | "duplicate" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
+  | "cut" | "rectangle" | "duplicate" | "fill" | "parallel" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
 
 export interface RailTool {
   readonly id: string; readonly label: string; readonly icon: RailIcon;
@@ -46,6 +46,8 @@ const PATHS: Record<RailIcon, ReactNode> = {
   // Saxen, pipetten och två pilar åt var sitt håll.
   rectangle: <path d="M4 7l13-3 3 13-13 3z" />,
   duplicate: <><rect x="4" y="4" width="11" height="11" rx="1.5" /><path d="M9 20h9.5a1.5 1.5 0 001.5-1.5V9" /></>,
+  fill: <><path d="M5 6h14v12H5z" /><path d="M5 12l7-6M5 18l14-12M11 18l8-7" /></>,
+  parallel: <path d="M4 15c4-6 8-6 16-2M4 20c4-6 8-6 16-2" />,
   cut: <><circle cx="6" cy="6" r="2.6" /><circle cx="6" cy="18" r="2.6" /><path d="M8.2 7.6L20 17M8.2 16.4L20 7" /></>,
   pick: <><path d="M14 6l4 4M15.5 4.5l4 4-2 2-4-4zM13 8l-8 8-1 4 4-1 8-8" /></>,
   reverse: <><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4" /></>,

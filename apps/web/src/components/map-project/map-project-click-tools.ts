@@ -3,6 +3,7 @@ import { newKey, type EditKind, type ObjectKey, type ObjectRef, type VertexAddre
 import type { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import type { Texts } from "../../lib/language";
 import { translateObject } from "../../lib/map-project-draw";
+import { fillOrBorder, parallelLine } from "../../lib/map-project-shape-tools";
 import { cutLineAt } from "../../lib/map-project-join";
 import { editPointAt } from "../../lib/map-project-point-edit";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
@@ -81,4 +82,14 @@ export function duplicateObjects(items: readonly { readonly object: MapObject }[
   const group = crypto.randomUUID();
   return items.filter(item => commit({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD",
     after: { kind: "OBJECT", object: translateObject(item.object, { x: 0.5, y: -0.5 }) }, group })).length;
+}
+
+/** Fyll yta eller gör kant (G) och parallell linje (P) för det markerade, ett steg att ångra. Ger beskedet. */
+export function shapeCommand(command: "fill" | "parallel", object: MapObject, symbol: { readonly id: string; readonly kind: string } | undefined,
+  commit: (change: ObjectChange) => boolean, text: Texts<typeof mapProjectKeysSv>): string {
+  const made = command === "parallel" ? [parallelLine(object, 1)].filter((item): item is MapObject => !!item) : symbol ? fillOrBorder(object, symbol) ?? [] : [];
+  if (!made.length) return command === "parallel" ? text.needLine : text.notFillable;
+  const group = crypto.randomUUID();
+  const count = made.filter(item => commit({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object: item }, group })).length;
+  return command === "parallel" ? text.paralleled : text.filled(count);
 }

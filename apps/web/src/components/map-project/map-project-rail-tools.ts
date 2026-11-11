@@ -1,4 +1,6 @@
+import type { MapObject } from "@o-tid/map-file";
 import { keyLabel, type KeyMap } from "../../lib/map-project-keys";
+import { measureObject } from "../../lib/map-project-shape-tools";
 import type { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import type { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import type { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
@@ -17,7 +19,7 @@ export interface RailState {
   /** Något är markerat (ett objekt eller flera), och vad som går att göra med det. */
   readonly hasSelection: boolean; readonly canSwitch: boolean; readonly canJoin: boolean; readonly canReverse: boolean; readonly canPick: boolean; readonly canSmooth: boolean; readonly canSimplify: boolean;
   readonly pick: (tool: "select" | "draw" | "circle" | "rectangle" | "addPoint" | "removePoint" | "cut" | "area" | "note") => void;
-  readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "reverse" | "pick" | "duplicate") => void;
+  readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "reverse" | "pick" | "duplicate" | "fill" | "parallel") => void;
   readonly remove: () => void; readonly undo: () => void; readonly redo: () => void;
   readonly togglePanel: () => void; readonly toggleBare: () => void; readonly openWheel: () => void; readonly openKeys: () => void;
 }
@@ -53,6 +55,10 @@ export function railTools(state: RailState): RailTool[] {
         testId: "map-project-rail-pick", onPick: () => state.act("pick") },
       { id: "duplicate", label: text.commands.duplicate, icon: "duplicate", key: key("duplicate"), help: text.tips.duplicate, disabled: !state.hasSelection,
         disabledHelp: text.needSelection, testId: "map-project-duplicate", onPick: () => state.act("duplicate") },
+      { id: "fill", label: text.commands.fill, icon: "fill", key: key("fill"), help: text.tips.fill, disabled: !state.hasSelection,
+        disabledHelp: text.needSelection, testId: "map-project-fill", onPick: () => state.act("fill") },
+      { id: "parallel", label: text.commands.parallel, icon: "parallel", key: key("parallel"), help: text.tips.parallel, disabled: !state.canReverse,
+        disabledHelp: text.needLine, testId: "map-project-parallel", onPick: () => state.act("parallel") },
       { id: "join", label: text.commands.join, icon: "join", key: key("join"), help: text.tips.join, disabled: !state.canJoin, disabledHelp: text.needLines,
         testId: "map-project-rail-join", onPick: () => state.act("join") },
       { id: "reverse", label: text.commands.reverse, icon: "reverse", key: key("reverse"), help: text.tips.reverse, disabled: !state.canReverse, disabledHelp: text.needLine,
@@ -119,4 +125,11 @@ export function toolHint(input: { canEdit: boolean; closed: boolean; tool: strin
     : symbol.kind === "point" ? text.hints.drawPoint(symbol.code)
     : symbol.kind === "line" ? text.hints.drawLine(symbol.code)
     : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
+}
+
+/** Det markerade under kartan: symbolen och, för en linje eller yta, längden eller ytan i terrängen. */
+export function selectionLabel(symbol: { readonly code: string; readonly name: string }, object: MapObject | undefined, scale: number | undefined,
+  text: Texts<typeof mapProjectKeysSv>): string {
+  const measured = object && scale ? measureObject(object, scale) : undefined;
+  return `${symbol.code} ${symbol.name} · ${measured ? `${text.measured(measured)} · ` : ""}`;
 }

@@ -62,9 +62,9 @@ import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
 import { reverseLine } from "../../lib/map-project-join";
 import { MapProjectCandidateBar } from "./map-project-candidate-bar";
-import { clickTool, duplicateObjects } from "./map-project-click-tools";
+import { clickTool, duplicateObjects, shapeCommand } from "./map-project-click-tools";
 import { MapProjectColors } from "./map-project-colors";
-import { railTools, toolHint, wheelActionsOf, wheelToolsOf } from "./map-project-rail-tools";
+import { railTools, selectionLabel, toolHint, wheelActionsOf, wheelToolsOf } from "./map-project-rail-tools";
 import { MapProjectToolRail } from "./map-project-tool-rail";
 import { HelpButton } from "../help/help-panel";
 import { MapProjectKeysDialog, useMapProjectKeys } from "./map-project-keys-dialog";
@@ -609,7 +609,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
   const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage)
     : rectify.picking ? (rectify.pending ? rectifyText.hintTo : rectifyText.hintFrom)
-    : work.drawingLayer ? workText.hint(work.drawingLayer.name) : flash ?? `${selectedSymbol && tool === "select" ? `${selectedSymbol.code} ${selectedSymbol.name} · ` : ""}${hint}`;
+    : work.drawingLayer ? workText.hint(work.drawingLayer.name) : flash ?? `${selectedSymbol && tool === "select" ? selectionLabel(selectedSymbol, selected?.object, editor.scale ?? georeference?.scale, keysText) : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, quick) : [];
@@ -636,6 +636,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     else if (command === "switchSymbol" && canSwitch) save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL");
     else if (command === "reverse") { const turned = reverseLine(selected.object); if (turned && save(selected.key, selected.ref, turned, "RESHAPE")) setFlash(keysText.reversed(1)); }
     else if (command === "duplicate") duplicate([selected]);
+    else if (command === "fill" || command === "parallel") setFlash(shapeCommand(command, selected.object, symbol, commit, keysText));
     else if (command === "pick") { chooseSymbol(selected.object.symbol); setFlash(keysText.picked(symbols.get(selected.object.symbol)?.code ?? "")); }
     else if (command === "checked" && recon.canRecord) void recon.setChecked([selected.key], !recon.validChecks.has(selected.key));
   };

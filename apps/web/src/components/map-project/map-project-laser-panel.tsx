@@ -68,7 +68,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   // Ägaren 2026-11-11: fuktigheten och vegetationen är förvalda, så att kärr och grönt alltid kommer med i grundkartan.
   const [moisture, setMoisture] = useState(true);
   const [channelHa, setChannelHa] = useState(1);
-  const [wetMeters, setWetMeters] = useState(0.5);
+  const [wetMeters, setWetMeters] = useState(0.3);
   const [vegetation, setVegetation] = useState(true);
   const [minAreaM2, setMinAreaM2] = useState(300);
   const [busy, setBusy] = useState<string>();
@@ -134,7 +134,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
           ...(clip ? { clip } : {}),
           ...(clip && extras.some(extra => !skippedExtras.has(extra.kind)) ? { extras: extras.filter(extra => !skippedExtras.has(extra.kind)) } : {}) }),
-        ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: Math.max(1, wetMeters * 2) } } : {}),
+        ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: wetMeters * 2 } } : {}),
         ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
       const body = result.json as { error?: string } | undefined;
       if (result.status !== 201 && result.status !== 200) { say(body?.error ?? result.status); return; }

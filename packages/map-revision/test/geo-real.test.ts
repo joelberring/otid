@@ -80,9 +80,10 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
     const grid = readHeightMap(new Uint8Array(gunzipSync(readFileSync(join(dir, "kungshatt-300m/xyz2.hmap.gz")))));
     expect(grid).toMatchObject({ minX: 664_780, minY: 6_576_500, cell: 2, width: 151, height: 151 });
     const moisture = moistureFromHeightMaps([grid]);
-    expect(moisture.summary).toEqual({ wetHa: 0.76, moistHa: 1.01, wetAreas: 2, moistAreas: 3, channels: 1 });
+    // Ägaren 2026-11-11 (Högdalen som facit): bara flack mark nära stråket, och stråket som linje först från 5 ha.
+    expect(moisture.summary).toEqual({ wetHa: 0.48, moistHa: 0.73, wetAreas: 1, moistAreas: 2, channels: 0 });
     const data = parseDxf(moisture.dxf);
-    expect(suggested(data)).toEqual({ blott: "s308", fuktigt: "s310", fuktstrak: "s306" });
+    expect(suggested(data)).toEqual({ blott: "s308", fuktigt: "s310" });
     expect(within(data)).toBe(true);
   });
 

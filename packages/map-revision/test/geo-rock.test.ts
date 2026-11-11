@@ -34,18 +34,24 @@ describe("stenar och berg i dagen ur markrastret", () => {
     expect(knolls(grid, stones, 2)).toEqual([]);
   });
   it("berg i dagen: ojämn, öppen och upphöjd mark, inte det släta eller det skogsklädda", () => {
-    const width = 60, height = 60, z = new Float32Array(width * height);
-    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
-      const knob = Math.max(0, 3 - Math.hypot(x - 20, y - 30) / 6);
-      const rough = knob > 0 ? 0.35 * Math.sin(x * 1.7) * Math.cos(y * 2.3) : 0;
-      z[x * height + y] = 10 + knob + rough;
-    }
-    const grid: GroundGrid = { minX: 0, minY: 0, cell: 1, width, height, z };
+    const knobGrid = (amplitude: number): GroundGrid => {
+      const width = 60, height = 60, z = new Float32Array(width * height);
+      for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+        const knob = Math.max(0, 3 - Math.hypot(x - 20, y - 30) / 6);
+        const rough = knob > 0 ? amplitude * Math.sin(x * 1.7) * Math.cos(y * 2.3) : 0;
+        z[x * height + y] = 10 + knob + rough;
+      }
+      return { minX: 0, minY: 0, cell: 1, width, height, z };
+    };
+    const grid = knobGrid(0.35);
     const rock = bareRock(grid, () => true);
     expect(rock.length).toBeGreaterThan(0);
     const xs = rock.flat().map(point => point[0]);
     expect(Math.min(...xs)).toBeGreaterThan(1); expect(Math.max(...xs)).toBeLessThan(39);
     expect(bareRock(grid, () => false)).toEqual([]);
+    // Under vanlig skog (inte grönt) med strängare krav: den ojämna hällen men inte en slät kulle (ägaren 2026-11-11, Högdalen).
+    expect(bareRock(grid, () => false, undefined, undefined, () => true).length).toBeGreaterThan(0);
+    expect(bareRock(knobGrid(0.1), () => false, undefined, undefined, () => true)).toEqual([]);
   });
   it("skrivs som DXF med punkterna", () => {
     const data = parseDxf(moistureDxf([{ name: "sten", closed: false, parts: [], points: [[1, 2]] }]));

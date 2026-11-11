@@ -178,6 +178,7 @@ export const mapSourcesEn: Texts<Sources> = {
     layer: "Base layer",
     wet: (meters: string) => `Wet: up to ${meters} m above the channel`,
     moist: (meters: string) => `Moist: up to ${meters} m`,
+    slope: (degrees: string) => `Flat ground: wet at most ${degrees}° slope, moist twice as steep`,
     minArea: (square: number) => `Smallest area: ${square} m²`,
     run: "Show as candidates",
     name: (layer: string) => `${layer} – wet and moist`.slice(0, 120),

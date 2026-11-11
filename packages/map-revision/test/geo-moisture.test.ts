@@ -19,6 +19,8 @@ function hmap(g: Grid): Uint8Array {
 }
 /** En dal som lutar söderut med en bäck i mitten och en sänka (blöt) i nordväst. */
 const valley = (x: number, y: number) => 20 + Math.abs(x - 50) * 0.3 + y * 0.05 - (Math.hypot(x - 20, y - 80) < 6 ? 5 : 0);
+/** En flack dal (under 3°): bara där blir det blött (ägaren 2026-11-11). */
+const gentle = (x: number, y: number) => 20 + Math.abs(x - 50) * 0.05 + y * 0.02;
 
 describe("fuktigheten ur höjdrastret", () => {
   it("läser Karttapullautins höjdraster och slår ihop rutor", () => {
@@ -68,7 +70,9 @@ describe("fuktigheten ur höjdrastret", () => {
   });
 
   it("hela kedjan ger bild, världsfil och DXF med blöta ytor och fuktstråk", () => {
-    const result = moistureFromHeightMaps([grid(101, 101, valley)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1 });
+    const result = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1, channelLineHa: 1 });
+    // Den branta dalen har stråket men ingen blöt mark.
+    expect(moistureFromHeightMaps([grid(101, 101, valley)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1 }).summary.wetAreas).toBe(0);
     expect([...result.png.subarray(1, 4)].map(code => String.fromCharCode(code)).join("")).toBe("PNG");
     expect(result.dxf).toContain("\nblott\n");
     expect(result.dxf).toContain("\nfuktstrak\n");

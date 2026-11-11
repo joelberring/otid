@@ -165,13 +165,20 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     const column = Math.round((x - grid.minX) / grid.cell), row = Math.round((y - grid.minY) / grid.cell);
     return column >= 0 && row >= 0 && column < grid.width && row < grid.height && (classes[column * grid.height + row]! & 15) === 1;
   };
+  // Vanlig skog utan grönt (ägaren 2026-11-11, Högdalen: hällarna ligger under tallarna), för berg i dagen under kronorna.
+  const forestAt = (x: number, y: number) => {
+    const column = Math.round((x - grid.minX) / grid.cell), row = Math.round((y - grid.minY) / grid.cell);
+    if (column < 0 || row < 0 || column >= grid.width || row >= grid.height) return false;
+    const value = classes[column * grid.height + row]!;
+    return (value & 15) !== 1 && shade(value) < GREEN_STEPS.slow;
+  };
   // Ägaren 2026-11-11 («dra i» lagren): klasserna som bild, så att grönsstegen kan dras i webbläsaren utan en ny körning.
   // Röd kanal = klassen (låga fyra bitar Karttapullautins klass, höga undervegetationen); utan data eller i vatten genomskinligt.
   const classPng = encodePng(grid.width, grid.height, (column, line) => {
     const i = column * grid.height + (grid.height - 1 - line), value = classes[i]!;
     return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : [value, 160, value, 255];
   });
-  return { dxf: moistureDxf(parts), summary, openAt, classPng, world: worldFile(full) };
+  return { dxf: moistureDxf(parts), summary, openAt, forestAt, classPng, world: worldFile(full) };
 }
 
 /**

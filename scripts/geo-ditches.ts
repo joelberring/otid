@@ -12,7 +12,7 @@ import { paths, thin, type GroundGrid } from "./geo-cliffs.ts";
 import { encodePng, simplify } from "./geo-moisture.ts";
 
 export interface DitchSettings { readonly depth: number; readonly radius: number; readonly maxWidth: number; readonly minLength: number; readonly straight: number }
-export const DEFAULT_DITCHES: DitchSettings = { depth: 0.2, radius: 4, maxWidth: 4, minLength: 15, straight: 0.85 };
+export const DEFAULT_DITCHES: DitchSettings = { depth: 0.3, radius: 4, maxWidth: 4, minLength: 15, straight: 0.85 };
 const MAX_CELLS = 60_000_000;
 
 /** Summerad tabell (bredd+1 × höjd+1, kolumnvis) och summan i en ruta [x0, x1) × [y0, y1). */

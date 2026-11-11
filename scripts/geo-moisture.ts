@@ -13,10 +13,32 @@ import { crc32, deflateSync } from "node:zlib";
 
 /** Ett rutnät med cellernas mitt i (minX + cell·x, minY + cell·y), y uppåt (norr); NaN = ingen data. Index x·height + y. */
 export interface Grid { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number; readonly z: Float64Array }
-export interface MoistureSettings { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number }
+export interface MoistureSettings { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number;
+  /** Tillrinningen (ha) där ett fuktstråk ritas som linje; förval `CHANNEL_LINE_HA`. */
+  readonly channelLineHa?: number | undefined }
 /** Steget i fuktdjupets bild (meter per värde). */
 export const DEPTH_STEP_METERS = 0.02;
-export const DEFAULT_MOISTURE: MoistureSettings = { channelHa: 1, wetMeters: 0.5, moistMeters: 1 };
+// Ägaren 2026-11-11 (Högdalen som facit: «sankmark i hela dalar»): blött under 0,3 m och fuktigt under 0,6 m över stråket,
+// och bara på flack mark (`WET_SLOPE_DEGREES`, `MOIST_SLOPE_DEGREES`). Fuktstråken ritas som linjer först från 5 ha tillrinning.
+export const DEFAULT_MOISTURE: MoistureSettings = { channelHa: 1, wetMeters: 0.3, moistMeters: 0.6 };
+export const WET_SLOPE_DEGREES = 3;
+export const MOIST_SLOPE_DEGREES = 6;
+export const CHANNEL_LINE_HA = 5;
+/** Steget för lutningen i fuktdjupets bild (blå kanal, grader per värde; 255 = okänt). */
+export const SLOPE_STEP_DEGREES = 0.1;
+
+/** Lutningen i grader per cell, över två celler åt varje håll (jämnar ut laserbruset). */
+export function slopeDegrees(grid: Grid): Float32Array {
+  const { width, height, cell, z } = grid;
+  const out = new Float32Array(width * height).fill(Number.NaN);
+  const at = (x: number, y: number) => z[Math.max(0, Math.min(width - 1, x)) * height + Math.max(0, Math.min(height - 1, y))]!;
+  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+    const dx = (at(x + 2, y) - at(x - 2, y)) / (4 * cell), dy = (at(x, y + 2) - at(x, y - 2)) / (4 * cell);
+    const value = Math.atan(Math.hypot(dx, dy)) * 180 / Math.PI;
+    if (Number.isFinite(value)) out[x * height + y] = value;
+  }
+  return out;
+}
 
 /** Karttapullautins höjdraster: xoffset, yoffset, scale (f64), bredd, höjd (u64) och värdena (f64), little endian. */
 export function readHeightMap(bytes: Uint8Array): Grid {
@@ -180,12 +202,13 @@ export function heightAboveDrainage(grid: Grid, down: Int32Array, accumulation: 
 }
 
 /** 0 = torrt eller okänt, 1 = fuktigt, 2 = blött. */
-export function moistureClasses(hand: Float32Array, settings: MoistureSettings): Uint8Array {
+export function moistureClasses(hand: Float32Array, settings: MoistureSettings, slope?: Float32Array): Uint8Array {
   const classes = new Uint8Array(hand.length);
   for (let i = 0; i < hand.length; i += 1) {
     const value = hand[i]!;
     if (Number.isNaN(value)) continue;
-    classes[i] = value <= settings.wetMeters ? 2 : value <= settings.moistMeters ? 1 : 0;
+    const steep = slope?.[i] ?? 0;
+    classes[i] = value <= settings.wetMeters && !(steep > WET_SLOPE_DEGREES) ? 2 : value <= settings.moistMeters && !(steep > MOIST_SLOPE_DEGREES) ? 1 : 0;
   }
   return classes;
 }
@@ -407,7 +430,8 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   const { accumulation, order } = flowAccumulation(down, filled);
   const channelCells = Math.max(2, Math.round(settings.channelHa * 10_000 / (grid.cell * grid.cell)));
   const hand = heightAboveDrainage(grid, down, accumulation, order, channelCells);
-  const classes = moistureClasses(hand, settings);
+  const slope = slopeDegrees(grid);
+  const classes = moistureClasses(hand, settings, slope);
   const minCells = Math.max(4, Math.round(400 / (grid.cell * grid.cell)));
   const clean = (mask: Uint8Array) => blocked ? cleanMask(dry(cleanMask(dry(mask), grid.width, grid.height, minCells)), grid.width, grid.height, minCells)
     : cleanMask(mask, grid.width, grid.height, minCells);
@@ -416,7 +440,8 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   const tolerance = grid.cell * 0.75;
   const wet = outer(maskRings(wetMask, grid)).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
   const moist = outer(maskRings(moistMask, grid)).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
-  const channels = channelLines(grid, down, accumulation, channelCells, 50, blocked);
+  const lineCells = Math.max(channelCells, Math.round((settings.channelLineHa ?? CHANNEL_LINE_HA) * 10_000 / (grid.cell * grid.cell)));
+  const channels = channelLines(grid, down, accumulation, lineCells, 50, blocked);
   const isChannel = (i: number) => accumulation[i]! >= channelCells && !blocked?.[i];
   const png = encodePng(grid.width, grid.height, (column, row) => {
     const i = column * grid.height + (grid.height - 1 - row);
@@ -427,13 +452,15 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   });
   // Ägaren 2026-11-11 («dra i markfuktighetslagren»): höjden över närmaste fuktstråk som bild, så att gränserna för blött och
   // fuktigt kan dras i webbläsaren utan en ny körning. Rött och grönt = höjden i steg om 2 cm (0–5,08 m), blått 255; utan
-  // data eller i vatten genomskinligt. Lågt blir blått, högt vitt.
+  // data eller i vatten genomskinligt. Lågt blir blått, högt vitt. Blå kanal: lutningen i steg om 0,1° (0–25,4°), för att
+  // webbläsaren ska kunna kräva flack mark som här.
   const depthPng = encodePng(grid.width, grid.height, (column, row) => {
     const i = column * grid.height + (grid.height - 1 - row);
     const value = hand[i]!;
     if (!Number.isFinite(value) || blocked?.[i]) return [0, 0, 0, 0];
     const step = Math.min(254, Math.max(0, Math.round(value / DEPTH_STEP_METERS)));
-    return [step, step, 255, 255];
+    const steep = slope[i]!;
+    return [step, step, Number.isFinite(steep) ? Math.min(254, Math.round(steep / SLOPE_STEP_DEGREES)) : 255, 255];
   });
   const dxf = moistureDxf([{ name: "blott", closed: true, parts: wet }, { name: "fuktigt", closed: true, parts: moist },
     { name: "fuktstrak", closed: false, parts: channels }]);

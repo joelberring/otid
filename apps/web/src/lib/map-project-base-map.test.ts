@@ -13,6 +13,12 @@ describe("grundkartan", () => {
     expect(mergeBaseMap([{ name: "brantlinjer.dxf", data: { skipped: 0, features: [cliff(20)] } }], undefined, 15_000).features[0]!.layer).toBe("brant_passerbar");
   });
 
+  it("laserns små kullar ersätter Karttapullautins knollar, groparna finns kvar (ägaren 2026-11-11)", () => {
+    const knolls = { name: "knollar.dxf", data: data("dotknoll", "udepression") };
+    expect(mergeBaseMap([knolls]).features.map(feature => feature.layer)).toEqual(["dotknoll", "udepression"]);
+    expect(mergeBaseMap([knolls, { name: "berg.dxf", data: data("dotknoll_laser") }]).features.map(feature => feature.layer)).toEqual(["udepression", "dotknoll_laser"]);
+  });
+
   it("väljer delarna i ordning: brantlinjer före strecken, marktäckets sankmark före den uträknade fuktigheten", () => {
     const all = ["karta.png", "karta.pgw", "kurvor.dxf", "formlinjer.dxf", "branter.dxf", "stup.dxf", "knollar.dxf", "fukt.png", "fukt.dxf", "vegetation.dxf",
       "brantlinjer.dxf", "vatten.geojson"];

@@ -119,7 +119,9 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /FUKTSTRAK/, line: "306" },
   { words: /BLOTT|SANKMARK|MYR|MARSH/, area: "308" },
   { words: /FUKTIG/, area: "310" },
-  { words: /DIKE|DITCH|BACK|STREAM/, line: "305" },
+  // Diken ur terrängformen (scripts/geo-ditches.ts) är diken (306), inte bäckar (ägaren 2026-11-11, Högdalen som facit).
+  { words: /^DIKE$|DITCH/, line: "306" },
+  { words: /DIKE|BACK|STREAM/, line: "305" },
   { words: /VATTEN|SJO|LAKE|WATER/, area: "301" },
   // Karttapullautins lager (K5), före de vanliga kurvorna. «_intermed» är varje kurva på halva ekvidistansen, inte
   // stödkurvorna (de ligger i formline): lagret hoppas över, annars blir hela kartan streckad.

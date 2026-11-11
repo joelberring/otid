@@ -70,6 +70,7 @@ export const mapSourcesSv = {
     layer: "Underlag",
     wet: (meters: string) => `Blött: upp till ${meters} m över fuktstråket`,
     moist: (meters: string) => `Fuktigt: upp till ${meters} m`,
+    slope: (degrees: string) => `Flack mark: blött högst ${degrees}° lutning, fuktigt dubbelt så brant`,
     minArea: (square: number) => `Minsta yta: ${square} m²`,
     run: "Visa som kandidater",
     name: (layer: string) => `${layer} – blött och fuktigt`.slice(0, 120),

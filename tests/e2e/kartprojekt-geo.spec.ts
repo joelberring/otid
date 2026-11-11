@@ -109,9 +109,12 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   const depth = owner.getByTestId("map-project-depth");
   await depth.getByText("Fukt med reglage (blött och fuktigt)").click();
   await depth.getByTestId("map-project-depth-run").click();
+  // Förvalet (0,3 m och flack mark, Högdalen som facit) ger lite i testrutan; en högre gräns och brantare mark ger blött.
+  await depth.getByTestId("map-project-depth-slope").fill("15");
+  await depth.getByTestId("map-project-depth-wet").fill("1.5");
   await expect(depth.getByTestId("map-project-depth-message")).toContainText("ha blött", { timeout: 20_000 });
   const first = await depth.getByTestId("map-project-depth-message").textContent();
-  await depth.getByTestId("map-project-depth-wet").fill("1.5");
+  await depth.getByTestId("map-project-depth-wet").fill("0.3");
   await expect(depth.getByTestId("map-project-depth-message")).not.toHaveText(first!, { timeout: 20_000 });
   // Grönt med reglage: stegen ur vegetationsklasserna.
   const green = owner.getByTestId("map-project-green");

@@ -6,7 +6,7 @@
  *   fot (högst `maxFootCells` celler över halva höjden inom 3 m; en brantkant eller en kulle har en stor fot), blir en sten
  *   (`sten`, 204), från `largeBoulder` m ett stort block (`stort_block`, 205). Två stenar närmare än 3 m blir den högsta.
  * - **Små kullar:** se `knolls`.
- * - **Berg i dagen:** ojämn mark (medelavvikelsen från en 3 × 3-utjämning över 5 × 5 celler minst `roughness` m) där
+ * - **Berg i dagen** (också under vanlig skog, med strängare krav, se `bareRock`): ojämn mark (medelavvikelsen från en 3 × 3-utjämning över 5 × 5 celler minst `roughness` m) där
  *   vegetationen säger öppet, och som antingen ligger högre än omgivningen (8 m) eller lutar mer än 10°. Ett hygge är också
  *   ojämnt och öppet men ligger plant; det släpps oftast. (Gränserna sänktes 2026-11-11: 0,15 m över omgivningen eller 8°.) Lagret `berg_i_dagen_laser` (214) är kandidater att gå igenom.
  *
@@ -20,7 +20,8 @@ export interface RockSettings { readonly boulder: number; readonly largeBoulder:
 // Markrastret är medelvärden i 1 m-celler, så stenen blir lägre och bredare än i verkligheten: 0,8 m räcker för en sten på 1 m.
 // Ägaren 2026-11-11 («väldigt många stenar men inga punkthöjder», «finns mycket mer berg i dagen»): stenarna med brantare
 // sidor och mindre fot (det som släpps blir oftare en liten kulle, se `knolls`), berg i dagen med lägre krav på ojämnhet.
-export const DEFAULT_ROCK: RockSettings = { boulder: 0.8, largeBoulder: 1.8, maxFootCells: 12, roughness: 0.07, minAreaM2: 100 };
+// Högdalen som facit (33 stenar mot kartritarens 65): lite mildare igen, 0,7 av höjden borta 2 m bort och en fot på 16 celler.
+export const DEFAULT_ROCK: RockSettings = { boulder: 0.8, largeBoulder: 1.8, maxFootCells: 16, roughness: 0.07, minAreaM2: 100 };
 
 const median = (values: number[]) => { values.sort((a, b) => a - b); return values[Math.floor(values.length / 2)]!; };
 
@@ -52,7 +53,7 @@ export function boulders(ground: GroundGrid, settings: RockSettings = DEFAULT_RO
       const value = at(x + dx, y + dy);
       if (Math.max(Math.abs(dx), Math.abs(dy)) === two && Number.isFinite(value)) near.push(value);
     }
-    if (near.length < 8 || here - median(near) < 0.75 * rise) continue;
+    if (near.length < 8 || here - median(near) < 0.7 * rise) continue;
     let foot = 0;
     for (let dx = -inner; dx <= inner; dx += 1) for (let dy = -inner; dy <= inner; dy += 1) if (at(x + dx, y + dy) > base + rise / 2) foot += 1;
     if (foot > settings.maxFootCells) continue;
@@ -69,7 +70,7 @@ export function boulders(ground: GroundGrid, settings: RockSettings = DEFAULT_RO
 
 /** Berg i dagen som ringar (meter). `openAt` säger om vegetationen är öppen i punkten. */
 export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => boolean, settings: RockSettings = DEFAULT_ROCK,
-  blockedAt?: (x: number, y: number) => boolean): [number, number][][] {
+  blockedAt?: (x: number, y: number) => boolean, forestAt?: (x: number, y: number) => boolean): [number, number][][] {
   const { width, height, cell } = ground;
   const fine = localRelief(ground, cell), broad = localRelief(ground, 8);
   const at = (values: Float32Array | Float64Array, x: number, y: number) => x < 0 || y < 0 || x >= width || y >= height ? Number.NaN : values[x * height + y]!;
@@ -82,7 +83,11 @@ export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => b
     const slope = Math.hypot(at(ground.z, x + 1, y) - at(ground.z, x - 1, y), at(ground.z, x, y + 1) - at(ground.z, x, y - 1)) / (2 * cell);
     if (!(at(broad, x, y) > 0.15 || slope > slopeLimit)) continue;
     const point: [number, number] = [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell];
-    if (!openAt(...point) || blockedAt?.(...point)) continue;
+    if (blockedAt?.(...point)) continue;
+    // Öppet räcker med ojämnheten ovan; under vanlig skog krävs mer: ojämnare (×1,5) och tydligt upphöjt (0,3 m över omgivningen 8 m bort) (en häll på en kulle),
+    // så att stenig skogsmark inte blir grå (ägaren 2026-11-11, Högdalen: hällarna ligger under tallarna).
+    const open = openAt(...point);
+    if (!open && !(forestAt?.(...point) && sum / count >= settings.roughness * 1.5 && at(broad, x, y) > 0.3)) continue;
     mask[x * height + y] = 1;
   }
   const minCells = Math.max(4, Math.round(settings.minAreaM2 / (cell * cell)));

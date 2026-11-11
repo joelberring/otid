@@ -74,7 +74,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 9;
+export const WORKER_VERSION = 10;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
@@ -271,7 +271,7 @@ async function runJob(job: Job): Promise<void> {
     }
     // K5c del 3: vegetationen ur klassbilderna i ./out (<ruta>_vege_bit.png, _undergrowth_bit.png och världsfilen).
     let vegetationSummary: Record<string, number> = {};
-    let openAt: ((x: number, y: number) => boolean) | undefined;
+    let openAt: ((x: number, y: number) => boolean) | undefined, forestAt: ((x: number, y: number) => boolean) | undefined;
     if (job.vegetation) {
       await set("Räknar vegetationen", 0, 1);
       const out = join(dir, "out"), names = (await readdir(out)).filter(name => name.endsWith("_vege_bit.png")).sort();
@@ -293,14 +293,14 @@ async function runJob(job: Job): Promise<void> {
       await writeFile(join(dir, "vegetationsklasser.png"), vegetation.classPng);
       await writeFile(join(dir, "vegetationsklasser.pgw"), vegetation.world);
       vegetationSummary = vegetation.summary;
-      openAt = vegetation.openAt;
+      openAt = vegetation.openAt; forestAt = vegetation.forestAt;
     }
     // Stenar ur markrastret, och berg i dagen där vegetationen är öppen (geo-rock.ts).
     let rockSummary: Record<string, number> = {};
     if (ground) {
       await set("Letar stenar och berg i dagen", 0, 1);
       const stones = boulders(ground, undefined, water?.at);
-      const rock = openAt ? bareRock(ground, openAt, undefined, water?.at) : [];
+      const rock = openAt ? bareRock(ground, openAt, undefined, water?.at, forestAt) : [];
       const hills = knolls(ground, stones, undefined, undefined, water?.at);
       if (stones.length || rock.length) {
         await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: "berg_i_dagen_laser", closed: true, parts: rock },

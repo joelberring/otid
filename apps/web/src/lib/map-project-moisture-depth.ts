@@ -8,21 +8,29 @@ import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map
  * Kanaltröskeln (hur stor tillrinning ett fuktstråk har) ändrar själva höjderna och kräver en ny körning.
  */
 export const DEPTH_STEP_METERS = 0.02;
-export interface DepthSettings { readonly wetMeters: number; readonly moistMeters: number; readonly minAreaM2: number }
-export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.5, moistMeters: 1, minAreaM2: 400 };
+export interface DepthSettings { readonly wetMeters: number; readonly moistMeters: number; readonly minAreaM2: number;
+  /** Brantast för blött (grader); fuktigt får vara dubbelt så brant. */
+  readonly wetSlopeDegrees?: number | undefined }
+export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.3, moistMeters: 0.6, minAreaM2: 400, wetSlopeDegrees: 3 };
+/**
+ * Ägaren 2026-11-11 (Högdalen som facit): bara flack mark blir blöt (högst 3°) eller fuktig (högst 6°), som i geo-arbetaren.
+ * Lutningen står i blå kanal i steg om 0,1°; 255 (äldre bilder) betyder okänd och ingen gräns.
+ */
+const SLOPE_STEP_DEGREES = 0.1;
 
 /** Ytorna ur bilden; `toSource` räknar en bildpunkt (kolumn, rad, hörn) till källans koordinater och `cellMeters` är cellens sida. */
 export function depthCandidates(pixels: PhotoPixels, settings: DepthSettings, toSource: (column: number, row: number) => [number, number], crs: number,
   cellMeters = 2): { data: SourceData; wetHa: number; moistHa: number } {
   const { width: columns, height: rows, data } = pixels;
   const wetStep = settings.wetMeters / DEPTH_STEP_METERS, moistStep = settings.moistMeters / DEPTH_STEP_METERS;
+  const steepest = settings.wetSlopeDegrees ?? 3, WET_SLOPE_STEPS = steepest / SLOPE_STEP_DEGREES, MOIST_SLOPE_STEPS = 2 * steepest / SLOPE_STEP_DEGREES;
   const wet = new Uint8Array(columns * rows), moist = new Uint8Array(columns * rows);
   for (let column = 0; column < columns; column += 1) for (let row = 0; row < rows; row += 1) {
     const i = (row * columns + column) * 4;
     if (data[i + 3]! < 128) continue;
-    const step = data[i]!;
-    if (step <= wetStep) wet[column * rows + row] = 1;
-    if (step <= moistStep) moist[column * rows + row] = 1;
+    const step = data[i]!, slope = data[i + 2]!, known = slope < 255;
+    if (step <= wetStep && !(known && slope > WET_SLOPE_STEPS)) wet[column * rows + row] = 1;
+    if (step <= moistStep && !(known && slope > MOIST_SLOPE_STEPS)) moist[column * rows + row] = 1;
   }
   const minCells = Math.max(2, Math.round(settings.minAreaM2 / (cellMeters * cellMeters)));
   const features: SourceFeature[] = [];

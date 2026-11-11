@@ -27,6 +27,6 @@ def features(d):
     ext=ndi.binary_erosion(ndi.binary_fill_holes(ndi.binary_dilation(drawn,iterations=40)),iterations=40)
     built=np.isin(R,[11,12,13,14,9])|((G&15)==8)
     dom=ext&r['ok']&~ndi.binary_dilation(np.isin(R,[11,12,13,14]),iterations=3)
-    Y=dict(marsh=(G&16)>0, diffuse=(G&32)>0, rock=R==8, green=np.isin(R,[5,6,7]), g1=R==5,g2=R==6,g3=R==7, rough_open=np.isin(R,[1,2]), open=np.isin(R,[3,4]),
+    Y=dict(marsh=(G&16)>0, diffuse=(G&32)>0, rock=R==8, green=np.isin(R,[5,6,7]), g1=R==5,g2=R==6,g3=R==7, rough_open=np.isin(R,[1,2]), open=np.isin(R,[3,4]), allopen=np.isin(R,[1,2,3,4]),
            knoll=np.isin(B,[1,2]), boulder=np.isin(B,[4,5,6]), stony=B==7, smallmarsh=B==8, und=(G&192)>0)
     return F,Y,dom

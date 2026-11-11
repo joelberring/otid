@@ -135,8 +135,22 @@ export function vegetationMosaic(tiles: readonly VegetationTile[], smallest = VE
 
 /** Ytorna per ISOM-symbol: kapslade (408 ligger inom 406 osv.), utan små öar och med hålen fyllda. */
 export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: VegetationSettings = DEFAULT_VEGETATION,
-  water?: (x: number, y: number) => boolean) {
+  water?: (x: number, y: number) => boolean,
+  signals?: { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined }) {
   const { grid, classes } = vegetationMosaic(tiles);
+  // Egna beräkningar ur punktmolnet (geo-points.ts, lärt av Högdalenkartan 2026-11-11) går före Karttapullautins klass för
+  // öppet, och lägger till grönt där buskskiktet är tätt. Klassbilden får samma värden, så att reglagen ser dem.
+  if (signals) for (let column = 0; column < grid.width; column += 1) for (let row = 0; row < grid.height; row += 1) {
+    const x = grid.minX + column * grid.cell, y = grid.minY + row * grid.cell, i = column * grid.height + row;
+    const open = signals.openAt(x, y);
+    if (open === undefined) continue;
+    const value = classes[i]!, low = value & 15;
+    if (open) classes[i] = (value & 0xf0) | 1;
+    else {
+      const forest = low === 1 ? 2 : low;
+      classes[i] = (value & 0xf0) | (signals.denseAt(x, y) && forest - 2 < GREEN_STEPS.slow ? GREEN_STEPS.slow + 2 : forest);
+    }
+  }
   // Vattnet (geo-water.ts) har ingen vegetation: utan det här blir sjön «öppen mark» (inga träd över vattnet).
   const blocked = blockedCells(grid, water);
   const dry = (mask: Uint8Array) => { if (blocked) for (let i = 0; i < mask.length; i += 1) if (blocked[i]) mask[i] = 0; return mask; };

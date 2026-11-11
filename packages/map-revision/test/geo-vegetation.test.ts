@@ -73,6 +73,16 @@ describe("vegetationen ur klassbilderna", () => {
     expect(data.features.filter(feature => feature.layer === "gron_mycket_svarlopt")).toHaveLength(1);
   });
 
+  it("punktmolnets öppet och tätt går före Karttapullautins klass (lärt av Högdalenkartan 2026-11-11)", () => {
+    // Karttapullautin säger skog överallt; punktmolnet säger öppet i väster och tätt buskskikt i öster.
+    const vege = image(100, 100, () => 2);
+    const signals = { openAt: (x: number) => x < 675_040, denseAt: (x: number) => x >= 675_060 };
+    const result = vegetationFromTiles([{ vege, world: world(675_000, 6_581_000) }], { minAreaM2: 100 }, undefined, signals);
+    expect(result.summary.ha401).toBeCloseTo(0.4, 1);
+    expect(result.summary.ha406).toBeCloseTo(0.4, 1);
+    expect(vegetationFromTiles([{ vege, world: world(675_000, 6_581_000) }], { minAreaM2: 100 }).summary).toMatchObject({ ha401: 0, ha406: 0 });
+  });
+
   it("föreslår ISOM-symbolerna för vegetationens lager", () => {
     const symbols = ["401", "406", "407", "408", "409", "410"].map(code => ({ id: `area${code}`, code, kind: "area" }));
     const suggested = (name: string) => suggestSymbol({ name, count: 1, points: 0, lines: 0, closedLines: 4, areas: 0 }, symbols);

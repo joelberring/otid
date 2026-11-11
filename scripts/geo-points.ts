@@ -77,6 +77,46 @@ export function groundShareAt(stats: PointStats, reach = 2): (x: number, y: numb
   };
 }
 
+export interface VegetationSignals { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined }
+/** Gränserna lärda av Högdalenkartan 2026-11-11 (tre rutor, mot kartritarens gula och gröna ytor). */
+export const OPEN_SHARE = 0.5, OPEN_HEIGHT_M = 1.5, DENSE_MID_SHARE = 0.08, DENSE_MIN_HEIGHT_M = 2;
+
+/**
+ * Öppet och tätt ur punktmolnet (lärt av Högdalenkartan 2026-11-11):
+ * - **öppet** (gult): minst hälften av cellerna inom 6 m har ingen vegetation över 1,5 m. Träffade kartritarens gula ytor
+ *   (401–404) med rätt mängd yta på alla tre rutorna (F 0,72), mot F 0,5 för Karttapullautins klass.
+ * - **tätt** (grönt): i medel minst 8 % av träffarna 1–3 m över marken inom 4 m, och vegetationen i medel minst 2 m hög. Hittar två
+ *   till tre gånger så mycket av kartritarens gröna som Karttapullautin, med rätt mängd yta.
+ * Utan punkter i närheten: inget svar (Karttapullautins klass gäller).
+ */
+export function vegetationSignals(stats: PointStats): VegetationSignals {
+  const { width, height, cell, values } = stats, stride = height + 1;
+  const table = () => new Float64Array((width + 1) * stride);
+  const known = table(), low = table(), mid = table(), tall = table();
+  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+    const o = (x * height + y) * POINT_BANDS, n = values[o + 1]!, top = Number.isFinite(values[o]!) ? values[o]! : 0;
+    const i = (x + 1) * stride + y + 1, left = x * stride + y + 1, below = (x + 1) * stride + y, corner = x * stride + y;
+    const add = (t: Float64Array, value: number) => { t[i] = value + t[left]! + t[below]! - t[corner]!; };
+    add(known, n > 0 ? 1 : 0); add(low, n > 0 && top < OPEN_HEIGHT_M ? 1 : 0); add(mid, n > 0 ? values[o + 4]! / n : 0); add(tall, n > 0 ? top : 0);
+  }
+  const sum = (t: Float64Array, x: number, y: number, reach: number) => {
+    const x0 = Math.max(0, x - reach), x1 = Math.min(width, x + reach + 1), y0 = Math.max(0, y - reach), y1 = Math.min(height, y + reach + 1);
+    return t[x1 * stride + y1]! - t[x0 * stride + y1]! - t[x1 * stride + y0]! + t[x0 * stride + y0]!;
+  };
+  const cellOf = (px: number, py: number): [number, number] | undefined => {
+    const x = Math.floor((px - stats.minX) / cell), y = Math.floor((py - stats.minY) / cell);
+    return x < 0 || y < 0 || x >= width || y >= height ? undefined : [x, y];
+  };
+  return {
+    openAt: (px, py) => { const at = cellOf(px, py); if (!at) return undefined; const n = sum(known, ...at, 3); return n > 0 ? sum(low, ...at, 3) / n >= OPEN_SHARE : undefined; },
+    denseAt: (px, py) => {
+      const at = cellOf(px, py); if (!at) return undefined;
+      const n = sum(known, ...at, 2);
+      return n > 0 ? sum(mid, ...at, 2) / n >= DENSE_MID_SHARE && sum(tall, ...at, 2) / n >= DENSE_MIN_HEIGHT_M : undefined;
+    }
+  };
+}
+
 const byte = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 
 export function pointImages(stats: PointStats): { veg: Buffer; ground: Buffer; canopy: Buffer; world: string } {

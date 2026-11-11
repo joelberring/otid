@@ -110,6 +110,10 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /PARKERING|ASFALT|PAVED|PARKING/, area: "501" },
   { words: /VAG|GATA|ROAD|STREET/, line: "503" },
   // Flygbildstolkningen (G8c).
+  // Ägaren 2026-11-11 (Högdalen som facit): lasern ser öppna krön men inte om det är häll eller mossa och ris; i Stockholm ritas
+  // de ofta som ljust gult. Laserns «berg i dagen» får därför inget förslag (ytan finns redan som öppen mark, 403); kartritaren
+  // väljer 214 där det verkligen är berg.
+  { words: /BERG_I_DAGEN_LASER/ },
   { words: /BERG_I_DAGEN|BERGHALL|BARE_ROCK/, area: "214" },
   // Lantmäteriets Marktäcke (G8): fast sankmark är otydlig sankmark, åker och fruktodling.
   { words: /SANKMARK_FAST/, area: "310" },

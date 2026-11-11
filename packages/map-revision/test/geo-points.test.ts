@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groundShareAt, mergePointStats, pointImages, POINT_BANDS, readPointStats } from "../../../scripts/geo-points";
+import { vegetationSignals, groundShareAt, mergePointStats, pointImages, POINT_BANDS, readPointStats } from "../../../scripts/geo-points";
 
 /** 2 × 2 celler à 2 m med åtta värden per cell, som lasclip skriver. */
 function file(cells: number[][]): Uint8Array {
@@ -34,5 +34,16 @@ describe("punktmolnets statistik (ägaren 2026-11-11)", () => {
     expect(share(1003, 2001)).toBeUndefined();
     expect(share(900, 2001)).toBeUndefined();
     expect(groundShareAt(readPointStats(file([[0, 10, 9, 0, 0, 0, 3000, 0.02], [20, 10, 1, 0, 0, 8, 3000, 0.02], empty, empty])), 1)(1001, 2001)).toBeCloseTo(0.5, 5);
+  });
+  it("öppet och tätt ur punktmolnet (lärt av Högdalenkartan)", () => {
+    // Cell 0: låg vegetation (öppet); cell 1: 12 m skog med tätt buskskikt; övriga utan punkter.
+    const stats = readPointStats(file([[0.4, 10, 9, 0, 0, 0, 3000, 0.02], [12, 10, 2, 0, 3, 5, 3000, 0.02], empty, empty]));
+    const near = vegetationSignals(stats);
+    expect(near.openAt(1001, 2001)).toBe(true);          // hälften av cellerna med punkter inom räckhåll är låga
+    expect(near.denseAt(1001, 2003)).toBe(true);         // medel 15 % på 1–3 m och 6,2 m högt
+    expect(near.openAt(900, 2001)).toBeUndefined();
+    const forest = vegetationSignals(readPointStats(file([[14, 10, 2, 0, 0, 8, 3000, 0.02], [12, 10, 2, 0, 0, 8, 3000, 0.02], empty, empty])));
+    expect(forest.openAt(1001, 2001)).toBe(false);
+    expect(forest.denseAt(1001, 2001)).toBe(false);
   });
 });

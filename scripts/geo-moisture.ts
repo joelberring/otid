@@ -249,25 +249,26 @@ type Ring = [number, number][];
 
 /** Masken utan små öar och med hålen fyllda (4-grannar), så att ytorna blir hela ringar utan hål. */
 export function cleanMask(mask: Uint8Array, width: number, height: number, minCells: number): Uint8Array {
-  const out = new Uint8Array(mask.length), seen = new Uint8Array(mask.length), stack: number[] = [];
-  const component = (start: number, inside: (i: number) => boolean) => {
-    const cells: number[] = [];
-    stack.push(start); seen[start] = 1;
-    while (stack.length) {
-      const i = stack.pop()!; cells.push(i);
+  // Kön är ett fält i stället för listor av tal: över stora områden (Djurgården, Nåttarö 2026-11-11) tog listorna allt minne.
+  const out = new Uint8Array(mask.length), seen = new Uint8Array(mask.length), queue = new Int32Array(mask.length);
+  /** Fyller den sammanhängande delen från `start`; cellerna ligger sedan först i `queue`. Ger antalet. */
+  const component = (start: number, inside: (i: number) => boolean): number => {
+    let head = 0, tail = 1;
+    queue[0] = start; seen[start] = 1;
+    while (head < tail) {
+      const i = queue[head]!; head += 1;
       const x = Math.floor(i / height), y = i - x * height;
-      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]] as const) {
-        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-        const n = nx * height + ny;
-        if (!seen[n] && inside(n)) { seen[n] = 1; stack.push(n); }
-      }
+      if (x + 1 < width) { const n = i + height; if (!seen[n] && inside(n)) { seen[n] = 1; queue[tail] = n; tail += 1; } }
+      if (x > 0) { const n = i - height; if (!seen[n] && inside(n)) { seen[n] = 1; queue[tail] = n; tail += 1; } }
+      if (y + 1 < height) { const n = i + 1; if (!seen[n] && inside(n)) { seen[n] = 1; queue[tail] = n; tail += 1; } }
+      if (y > 0) { const n = i - 1; if (!seen[n] && inside(n)) { seen[n] = 1; queue[tail] = n; tail += 1; } }
     }
-    return cells;
+    return tail;
   };
   for (let i = 0; i < mask.length; i += 1) {
     if (!mask[i] || seen[i]) continue;
-    const cells = component(i, n => mask[n] === 1);
-    if (cells.length >= minCells) for (const cell of cells) out[cell] = 1;
+    const count = component(i, n => mask[n] === 1);
+    if (count >= minCells) for (let k = 0; k < count; k += 1) out[queue[k]!] = 1;
   }
   // Hålen: det som inte är mask och inte når kanten.
   seen.fill(0);
@@ -290,10 +291,19 @@ export function maskRings(mask: Uint8Array, grid: Grid): Ring[] {
   const at = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height && mask[x * height + y] === 1;
   // Hörnpunkternas index: (x, y) för hörnet nere till vänster om cellen (x, y); kanterna går moturs runt masken.
   const key = (x: number, y: number) => x * (height + 1) + y;
-  const next = new Map<number, number[]>();
+  // Från varje hörn går högst två kanter (två vid ett diagonalt möte). De ligger i två fält i stället för en Map med listor,
+  // som över stora områden tog allt minne; `order` håller hörnen i den ordning de först fick en kant.
+  const corners = (width + 1) * (height + 1);
+  const first = new Int32Array(corners).fill(-1), second = new Int32Array(corners).fill(-1), known = new Uint8Array(corners);
+  let order = new Int32Array(1024), ordered = 0;
   const add = (x1: number, y1: number, x2: number, y2: number) => {
-    const from = key(x1, y1), list = next.get(from);
-    if (list) list.push(key(x2, y2)); else next.set(from, [key(x2, y2)]);
+    const from = key(x1, y1), to = key(x2, y2);
+    if (!known[from]) {
+      known[from] = 1;
+      if (ordered === order.length) { const grown = new Int32Array(order.length * 2); grown.set(order); order = grown; }
+      order[ordered] = from; ordered += 1;
+    }
+    if (first[from]! < 0) first[from] = to; else if (second[from]! < 0) second[from] = to; else throw new Error("Tre kanter från ett hörn");
   };
   for (let x = 0; x < width; x += 1) {
     for (let y = 0; y < height; y += 1) {
@@ -309,21 +319,26 @@ export function maskRings(mask: Uint8Array, grid: Grid): Ring[] {
     const x = Math.floor(k / (height + 1)), y = k - x * (height + 1);
     return [minX + (x - 0.5) * cell, minY + (y - 0.5) * cell];
   };
-  for (const [start, targets] of next) {
-    while (targets.length) {
+  /** Tar den sista kanten från hörnet (som listans pop). */
+  const takeLast = (from: number): number => {
+    if (second[from]! >= 0) { const to = second[from]!; second[from] = -1; return to; }
+    const to = first[from]!; first[from] = -1; return to;
+  };
+  for (let n = 0; n < ordered; n += 1) {
+    const start = order[n]!;
+    while (first[start]! >= 0) {
       const ring: number[] = [start];
-      let current = targets.pop()!, previous = start;
+      let current = takeLast(start), previous = start;
       while (current !== start) {
         ring.push(current);
-        const options = next.get(current);
-        if (!options?.length) break;
+        if (first[current]! < 0) break;
         // Vid ett diagonalt hörn: sväng vänster (behåll ytan till vänster), så att ringarna inte korsar sig själva.
         let choice = 0;
-        if (options.length > 1) {
+        if (second[current]! >= 0) {
           const [px, py] = point(previous), [cx, cy] = point(current);
           const heading = Math.atan2(cy - py, cx - px);
           let best = Infinity;
-          options.forEach((option, index) => {
+          [first[current]!, second[current]!].forEach((option, index) => {
             const [ox, oy] = point(option);
             let turn = Math.atan2(oy - cy, ox - cx) - heading;
             while (turn <= -Math.PI) turn += 2 * Math.PI;
@@ -333,7 +348,10 @@ export function maskRings(mask: Uint8Array, grid: Grid): Ring[] {
           });
         }
         previous = current;
-        current = options.splice(choice, 1)[0]!;
+        let following: number;
+        if (choice === 0) { following = first[current]!; first[current] = second[current]!; second[current] = -1; }
+        else { following = second[current]!; second[current] = -1; }
+        current = following;
       }
       if (current === start && ring.length >= 4) rings.push(ring.map(point));
     }

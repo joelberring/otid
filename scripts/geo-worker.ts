@@ -21,7 +21,7 @@
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { hostname } from "node:os";
+import { cpus, hostname, totalmem } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -75,7 +75,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 15;
+export const WORKER_VERSION = 16;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -319,9 +319,12 @@ async function runJob(job: Job): Promise<void> {
     // Stenar ur markrastret, och berg i dagen där vegetationen är öppen (geo-rock.ts).
     let rockSummary: Record<string, number> = {};
     if (ground) {
-      await set("Letar stenar och berg i dagen", 0, 1);
+      await set("Letar stenar", 0, 1);
+      // Egna steg i förloppet, så att det syns var ett stort område fastnar (Djurgården och Nåttarö 2026-11-11).
       const stones = boulders(ground, undefined, water?.at);
+      await set("Letar berg i dagen", 0, 1);
       const rock = openAt ? bareRock(ground, openAt, undefined, water?.at, forestAt) : [];
+      await set("Letar små kullar", 0, 1);
       const hills = knolls(ground, stones, undefined, undefined, water?.at);
       if (stones.length || rock.length) {
         await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: "berg_i_dagen_laser", closed: true, parts: rock },
@@ -362,7 +365,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

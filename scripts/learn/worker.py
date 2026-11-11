@@ -27,6 +27,8 @@ for d in sys.argv[2:]:
     if os.path.exists(f'{d}/lasveg.png'): F,Y,dom=features(d)
     else: Y,dom=truth(d)
     shape=dom.shape
+    # Odlad mark (412) är också gult på kartan och öppet i lasern.
+    Y['allopen']=Y['allopen']|(np.array(Image.open(f'{d}/labels.png'))[...,0]==9)
     f=fit(np.array(Image.open(f'{d}/v12/fuktdjup.png')).astype(int),shape,dx=1)
     dom=dom&(f[...,3]>0)
     c=fit(np.array(Image.open(f'{d}/v12/vegetationsklasser.png')).astype(int),shape)

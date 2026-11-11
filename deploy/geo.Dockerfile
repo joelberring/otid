@@ -82,4 +82,5 @@ COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo
 RUN echo '{ "type": "module", "private": true }' > /app/package.json
 USER node
 WORKDIR /app
-CMD ["node", "/app/geo-worker.ts"]
+# Nodes eget tak för minnet är en fjärdedel av serverns (2 GB på 8 GB); stora områden behöver mer, så taket sätts till 70 %.
+CMD ["sh", "-c", "exec node --max-old-space-size=$(awk '/MemTotal/ { print int($2 / 1024 * 0.7) }' /proc/meminfo) /app/geo-worker.ts"]

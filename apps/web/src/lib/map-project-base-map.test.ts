@@ -29,20 +29,23 @@ describe("grundkartan", () => {
       { layer: "OSM stig", geometry: { kind: "line", closed: false, points: [[17.87, 59.29], [17.88, 59.29]] } },
       { layer: "OSM byggnad", geometry: { kind: "area", rings: [[[17.87, 59.29], [17.871, 59.29], [17.871, 59.291]]] } },
       { layer: "OSM vatten", geometry: { kind: "area", rings: [[[17.87, 59.29], [17.871, 59.29], [17.871, 59.291]]] } },
-      { layer: "OSM brant (cliff)", geometry: { kind: "line", closed: false, points: [[17.87, 59.29], [17.88, 59.29]] } }] };
+      { layer: "OSM brant (cliff)", geometry: { kind: "line", closed: false, points: [[17.87, 59.29], [17.88, 59.29]] } },
+      { layer: "OSM markanvändning (residential)", geometry: { kind: "area", rings: [[[17.87, 59.29], [17.872, 59.29], [17.872, 59.292]]] } },
+      { layer: "OSM markanvändning (forest)", geometry: { kind: "area", rings: [[[17.87, 59.29], [17.872, 59.29], [17.872, 59.292]]] } }] };
     const laser = [{ name: "kurvor.dxf", data: data("contour") }, { name: "vegetation.dxf", data: data("oppen_mark", "gron_lattlopt") }];
     const merged = mergeBaseMap(laser, osm);
     expect(merged.crs).toBe(3006);
     expect(merged.skipped).toBe(1);
-    expect(merged.features.map(feature => feature.layer)).toEqual(["contour", "oppen_mark", "gron_lattlopt", "OSM stig", "OSM byggnad"]);
+    expect(merged.features.map(feature => feature.layer)).toEqual(["contour", "oppen_mark", "gron_lattlopt", "OSM stig", "OSM byggnad", "tomtmark_osm"]);
     const path = merged.features[3]!.geometry;
     // Kungshatt ligger kring 664 000 öst, 6 576 000 nord.
     const [east, north] = path.kind === "line" ? path.points[0]! : [0, 0];
     expect(east).toBeGreaterThan(660_000); expect(east).toBeLessThan(668_000);
     expect(north).toBeGreaterThan(6_572_000); expect(north).toBeLessThan(6_580_000);
     // Med Lantmäteriets marktäcke och byggnader: laserns öppna mark byter namn, och husen tas därifrån.
-    const withLand = mergeBaseMap([...laser, { name: "marktacke.geojson", data: data("oppen_mark", "aker") }, { name: "byggnader.geojson", data: data("byggnad") }], osm);
-    expect(withLand.features.map(feature => feature.layer)).toEqual(["contour", "oppen_mark_laser", "gron_lattlopt", "oppen_mark", "aker", "byggnad", "OSM stig"]);
+    // Marktäckets låga bebyggelse och OpenStreetMaps bostadsområden blir tomtmark.
+    const withLand = mergeBaseMap([...laser, { name: "marktacke.geojson", data: data("oppen_mark", "aker", "bebyggelse_lag") }, { name: "byggnader.geojson", data: data("byggnad") }], osm);
+    expect(withLand.features.map(feature => feature.layer)).toEqual(["contour", "oppen_mark_laser", "gron_lattlopt", "oppen_mark", "aker", "tomtmark_marktacke", "byggnad", "OSM stig", "tomtmark_osm"]);
   });
 
   it("räknar klipprutan till latitud och longitud", () => {

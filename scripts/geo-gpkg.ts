@@ -5,7 +5,7 @@
  *
  * Marktäcke (tabellerna `mark` och `sankmark`, kolumnen `objekttyp`): sjö och anlagt vatten → `vatten` (301), öppen mark →
  * `oppen_mark` (401), åker → `aker` (412), fruktodling → `fruktodling` (413), sankmark våt → `sankmark_vat` (308), sankmark fast →
- * `sankmark_fast` (310); bebyggelseytorna → `bebyggelse` (utan förslag: tomtmark ritas hellre efter husen). Skog tas inte med.
+ * `sankmark_fast` (310); bebyggelseytorna → `bebyggelse`, utom låg bebyggelse → `bebyggelse_lag` (villor; blir tomtmark i grundkartan). Skog tas inte med.
  * Byggnad: alla ytor → `byggnad` (521).
  *
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`; `node:sqlite` finns från Node 22.5).
@@ -118,6 +118,7 @@ export function landCoverLayer(feature: GpkgFeature): string | undefined {
   if (type.includes("oppen mark")) return "oppen_mark";
   if (type.includes("fruktodling")) return "fruktodling";
   if (type === "aker" || type.startsWith("aker")) return "aker";
+  if (type.includes("lag bebyggelse")) return "bebyggelse_lag";
   if (type.includes("bebyggelse")) return "bebyggelse";
   return undefined;
 }

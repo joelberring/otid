@@ -16,7 +16,8 @@ import { yardsOf } from "./map-project-yards";
  *   taggar på taggbranter»),
  * - kurvorna och formlinjerna fogas över laserrutornas skarvar (`joinSeams`),
  * - slutna kurvor under ISOM:s minsta mått blir små kullar eller gropar (`smallRingsToPoints`),
- * - tomterna räknas ur husen (`yardsOf`), eftersom ingen av källorna har dem,
+ * - tomterna: OpenStreetMaps bostadsområden (`tomtmark_osm`), marktäckets låga bebyggelse (`tomtmark_marktacke`) och
+ *   ringar kring hus utanför dem (`tomtmark_hus`, `yardsOf`), i var sitt lager så att kandidatraden kan välja,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.
  */
@@ -33,6 +34,8 @@ export function baseMapOutputs(names: readonly string[]): string[] {
 const SWEREF99TM = 3006;
 /** OpenStreetMaps lager som grundkartan redan har ur lasern och marktäcket. */
 const OSM_SKIPPED = /^OSM (vatten|vattendrag|sankmark|brant|natur|markanvändning|fritid)/;
+/** Ägaren 2026-11-11: OpenStreetMaps grå bostadsområden är en första tomtmark (flerbostadshusens rättas efteråt). */
+const OSM_RESIDENTIAL = "OSM markanvändning (residential)";
 const OSM_BUILDING = /^OSM (byggnad|skärmtak)/;
 
 /** Rutan (SWEREF 99 TM) som latitud och longitud, för hämtningen från OpenStreetMap. */
@@ -49,7 +52,8 @@ export function osmForBaseMap(osm: SourceData, hasBuildings: boolean): SourceFea
   const projection = transverseMercatorFor(SWEREF99TM);
   if (!projection) return [];
   const at = ([lon, lat]: readonly [number, number]): [number, number] => { const point = geodeticToGrid(projection, lat, lon); return [point.easting, point.northing]; };
-  return osm.features.filter(feature => !OSM_SKIPPED.test(feature.layer) && !(hasBuildings && OSM_BUILDING.test(feature.layer))).map(({ layer, geometry }) => ({ layer,
+  return osm.features.filter(feature => feature.layer === OSM_RESIDENTIAL || (!OSM_SKIPPED.test(feature.layer) && !(hasBuildings && OSM_BUILDING.test(feature.layer))))
+    .map(({ layer, geometry }) => ({ layer: layer === OSM_RESIDENTIAL ? "tomtmark_osm" : layer,
     geometry: geometry.kind === "point" ? { kind: "point" as const, at: at(geometry.at) }
       : geometry.kind === "line" ? { kind: "line" as const, points: geometry.points.map(at), closed: geometry.closed } : { kind: "area" as const, rings: geometry.rings.map(ring => ring.map(at)) } }));
 }
@@ -69,6 +73,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
   const features = parts.flatMap(part => (/^(kurvor|formlinjer)\.dxf$/.test(part.name) ? joinSeams(part.data.features) : part.data.features).map(feature => {
     if (part.name === "vegetation.dxf" && landCover && feature.layer === "oppen_mark") return { ...feature, layer: "oppen_mark_laser" };
+    if (feature.layer === "bebyggelse_lag") return { ...feature, layer: "tomtmark_marktacke" };
     if (feature.layer === "brant_opasserbar" && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < shortest) return { ...feature, layer: "brant_passerbar" };
     return feature;
   }));

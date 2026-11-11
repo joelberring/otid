@@ -13,7 +13,7 @@ describe("tomter ur husen", () => {
   it("ger en tomt på ungefär 20 m kring ett hus", () => {
     const yards = yardsOf([house(1000, 2000, 10)]);
     expect(yards).toHaveLength(1);
-    expect(yards[0]!.layer).toBe("tomtmark");
+    expect(yards[0]!.layer).toBe("tomtmark_hus");
     const box = bounds(yards[0]!);
     expect(box.minX).toBeGreaterThan(975); expect(box.minX).toBeLessThan(984);
     expect(box.maxY).toBeGreaterThan(2026); expect(box.maxY).toBeLessThan(2035);
@@ -22,5 +22,7 @@ describe("tomter ur husen", () => {
     expect(yardsOf([house(0, 0, 10), house(30, 0, 10, "OSM byggnad")])).toHaveLength(1);
     expect(yardsOf([house(0, 0, 40)])).toHaveLength(0);
     expect(yardsOf([house(0, 0, 10, "vatten")])).toHaveLength(0);
+    // Ett hus i ett bostadsområde ur OpenStreetMap har redan sin tomt.
+    expect(yardsOf([house(0, 0, 10), { ...house(-50, -50, 120), layer: "tomtmark_osm" }])).toHaveLength(0);
   });
 });

@@ -43,11 +43,11 @@ describe("Lantmäteriets marktäcke ur GeoPackage", () => {
       // Åkern långt bort är inte med.
       expect(features).toHaveLength(8);
       const result = featuresGeoJson(features, landCoverLayer);
-      expect(result.counts).toEqual({ vatten: 1, oppen_mark: 1, aker: 1, fruktodling: 1, bebyggelse: 1, sankmark_vat: 1, sankmark_fast: 1 });
+      expect(result.counts).toEqual({ vatten: 1, oppen_mark: 1, aker: 1, fruktodling: 1, bebyggelse_lag: 1, sankmark_vat: 1, sankmark_fast: 1 });
       const data = parseGeoJson(result.geojson);
       const symbols = ["301", "308", "310", "401", "412", "413", "521"].map(code => ({ id: `s${code}`, code, kind: "area" }));
       expect(Object.fromEntries(importLayers(data).map(layer => [layer.name, suggestSymbol(layer, symbols)]))).toEqual({ vatten: "s301", oppen_mark: "s401",
-        aker: "s412", fruktodling: "s413", bebyggelse: undefined, sankmark_vat: "s308", sankmark_fast: "s310" });
+        aker: "s412", fruktodling: "s413", bebyggelse_lag: undefined, sankmark_vat: "s308", sankmark_fast: "s310" });
       // Vatten som lasern redan har kan väljas bort, och byggnader blir lagret byggnad.
       expect(featuresGeoJson(features, landCoverLayer, layer => layer !== "vatten").counts.vatten).toBeUndefined();
       expect(featuresGeoJson(features.slice(0, 2), buildingLayer).counts).toEqual({ byggnad: 2 });

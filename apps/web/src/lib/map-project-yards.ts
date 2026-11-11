@@ -4,7 +4,7 @@ import { compactMask, maskOutlines, simplifyRing } from "./map-project-photo-int
 /**
  * Grundkartan G8, tomter (ägaren 2026-11-11: «tomter kommer inte med»). Varken lasern, marktäcket eller OpenStreetMap har
  * tomtgränser, så en första tomt räknas ur husen: allt inom `radius` meter från ett bostadsstort hus (högst `maxBuilding` m²)
- * blir lagret `tomtmark` (förslag 520, område som inte får beträdas). Det är ett grovt förslag att rätta i terrängen: husen
+ * blir lagret `tomtmark_hus` (förslag 520, område som inte får beträdas). Det är ett grovt förslag att rätta i terrängen: husen
  * räknas på ett rutnät, närliggande tomter flyter ihop och små öar tas bort. Fastighetsgränser används inte (personuppgifter).
  */
 export interface YardSettings { readonly radius: number; readonly cell: number; readonly maxBuilding: number; readonly minArea: number }
@@ -25,10 +25,13 @@ function inside(ring: Ring, x: number, y: number): boolean {
 const outerRing = (feature: SourceFeature): Ring | undefined => feature.geometry.kind === "area" ? feature.geometry.rings[0]
   : feature.geometry.kind === "line" && feature.geometry.closed ? feature.geometry.points : undefined;
 
-/** Tomterna kring husen i `features` (meter, SWEREF 99 TM eller annat metriskt system) som slutna linjer i lagret `tomtmark`. */
+/** Tomterna kring husen i `features` (meter, SWEREF 99 TM eller annat metriskt system) som slutna linjer i lagret `tomtmark_hus`. */
 export function yardsOf(features: readonly SourceFeature[], settings: YardSettings = DEFAULT_YARDS): SourceFeature[] {
+  // Hus som redan ligger i en tomt (OpenStreetMaps bostadsområde, marktäckets låga bebyggelse) får ingen egen ring.
+  const yards = features.filter(feature => /^tomtmark_/.test(feature.layer)).map(outerRing).filter((ring): ring is Ring => !!ring && ring.length >= 3);
   const houses = features.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
-    .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) <= settings.maxBuilding);
+    .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) <= settings.maxBuilding)
+    .filter(ring => { const [x, y] = [ring.reduce((s, p) => s + p[0], 0) / ring.length, ring.reduce((s, p) => s + p[1], 0) / ring.length]; return !yards.some(yard => inside(yard, x, y)); });
   if (!houses.length) return [];
   const xs = houses.flatMap(ring => ring.map(point => point[0])), ys = houses.flatMap(ring => ring.map(point => point[1]));
   const pad = settings.radius + settings.cell * 2;
@@ -64,5 +67,5 @@ export function yardsOf(features: readonly SourceFeature[], settings: YardSettin
   const mask = compactMask(near, columns, rows, Math.ceil(settings.minArea / (cell * cell)));
   // Rutnätets rad 0 är söder; ytterkanterna räknas från rutornas hörn.
   return maskOutlines(mask, columns, rows).map(ring => simplifyRing(ring, 0.75)).filter(ring => ring.length >= 4)
-    .map(ring => ({ layer: "tomtmark", geometry: { kind: "line" as const, closed: true, points: ring.map(([column, row]) => [minX + column * cell, minY + row * cell] as [number, number]) } }));
+    .map(ring => ({ layer: "tomtmark_hus", geometry: { kind: "line" as const, closed: true, points: ring.map(([column, row]) => [minX + column * cell, minY + row * cell] as [number, number]) } }));
 }

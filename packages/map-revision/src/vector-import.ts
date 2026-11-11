@@ -80,7 +80,7 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   // G8: marktäckets bebyggelseyta och laserns öppna mark (när marktäckets finns) får inget förslag (före reglerna nedan).
   { words: /BEBYGGELSE|OPPEN_MARK_LASER/ },
   // G8: tomterna som räknats ur husen (ägaren 2026-11-11: «tomter kommer inte med»).
-  { words: /^TOMTMARK$/, area: "520" },
+  { words: /^TOMTMARK/, area: "520" },
   // Geo-arbetarens vegetation (K5c del 3): öppen mark, tre gröna och undervegetation.
   { words: /OPPEN_MARK|OPEN_LAND/, area: "401" },
   { words: /UNDERVEGETATION_SVARLOPT/, area: "409" },

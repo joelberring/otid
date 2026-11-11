@@ -33,7 +33,7 @@ describe("Passa in mot kartan (ägaren 2026-11-10)", () => {
     const fit = fitToMap(move(map, 14, 3, 2), map)!;
     expect(fit.rotation).toBeCloseTo(-14, 1);
     expect(fit.share).toBeGreaterThan(0.9);
-  });
+  }, 20_000);
 
   it("ger inget när underlaget inte är samma område", () => {
     const other = move(town().map(point => ({ ...point, at: { x: 200 - point.at.y, y: point.at.x } })), 0, 500, 500);

@@ -15,7 +15,7 @@ import { yardsOf } from "./map-project-yards";
  * - en opasserbar brant som är för kort för två taggar blir en brant (ägaren 2026-11-11: «det ska alltid vara minst två
  *   taggar på taggbranter»),
  * - kurvorna och formlinjerna fogas över laserrutornas skarvar (`joinSeams`),
- * - små slutna kurvor (smalare än 1,1 mm på kartan) blir små kullar eller gropar (`smallRingsToPoints`),
+ * - slutna kurvor under ISOM:s minsta mått blir små kullar eller gropar (`smallRingsToPoints`),
  * - tomterna räknas ur husen (`yardsOf`), eftersom ingen av källorna har dem,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.

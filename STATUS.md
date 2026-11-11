@@ -15,9 +15,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ### 2026-11-11 – Grundkartan G3: kurvorna fogade och små slutna kurvor som punkthöjder
 - DXF:ens höjd läses; kurvor och formlinjer fogas över laserrutornas skarvar per lager och höjd (`joinSeams`).
-- Små slutna kurvor (< 1,1 mm på kartan) blir små kullar eller gropar efter omgivningen (`smallRingsToPoints`).
+- Små slutna kurvor under ISOM 2017-2:s minsta mått (kulle 0,9 × 0,6 mm, grop 1,1 × 0,7 mm, formlinje 1,1 mm), med 20 %
+  marginal för generalisering, blir små kullar (109) eller gropar (111) efter omgivningen (`smallRingsToPoints`).
 - Lager efter källa: ägaren valde att kandidatraden före Lägg in räcker.
-- Verifierat: enhetstester (map-revision, web lib), typecheck, lint. Kungshatt-provet: 16 av 26 slutna kurvor blev punkter.
+- Verifierat: enhetstester (map-revision, web lib), typecheck, lint. Kungshatt-provet 1:10 000: 6 nya små kullar.
 
 ### 2026-11-11 – Grundkartan efter ägarens första prov på servern
 - Orsaken till «underlaget skars inte» och klumpiga branter: servern körde en gammal geo-avbildning. Nu har arbetaren en version

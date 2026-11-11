@@ -1361,8 +1361,10 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   - [x] G3 första delen (2026-11-11): DXF:ens höjd läses (`elevation`) och kurvorna och formlinjerna fogas över laserrutornas
     skarvar per lager och höjd (inom 0,5 m), en kedja som möter sig själv blir sluten (`joinSeams`).
   - [x] G3 små slutna kurvor (ägaren 2026-11-11: «många små höjder borde ritats som punkthöjder i stället för att minska på
-    antal täta kurvor»): en sluten kurva smalare än 1,1 mm på kartan blir liten kulle (112) eller liten grop (111) efter
-    omgivningens höjd, utan dubblett där Karttapullautins knoll redan ligger. Kungshatt-provet 1:10 000: 16 av 26 slutna kurvor.
+    antal täta kurvor», «kolla på standarden»): ISOM 2017-2:s minsta mått med 20 % marginal för generalisering. Höjdkurvans
+    kulle 0,9 × 0,6 mm och grop 1,1 × 0,7 mm, annars liten kulle (109) eller liten grop (111) efter omgivningens höjd, utan
+    dubblett där Karttapullautins knoll ligger; formlinjering under 1,1 mm tas bort; liten stödkurvering blir vanlig kurva.
+    Kungshatt-provet 1:10 000: 6 nya små kullar, 108 linjer blev 102.
   - Lager efter källa: ägaren 2026-11-11 valde att valet före Lägg in (kandidatraden) räcker; inget mer byggs. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av
     inställningar. G7 Resten ur Kungshatt-kedjan. Brantlinjerna mjukare (i dag kantiga efter rastret).
 - [x] Telefonen (ägaren 2026-11-10): verktygsraden tätare och mindre så att allt ryms utan att rulla; Ångra och Gör om ligger kvar

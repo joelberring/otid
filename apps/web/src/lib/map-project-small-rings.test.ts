@@ -31,4 +31,10 @@ describe("små slutna kurvor blir punkthöjder (ISOM 2017-2)", () => {
     expect(out.filter(f => f.geometry.kind === "point")).toEqual([knoll]);
     expect(out.filter(f => f.geometry.kind === "line")).toHaveLength(2);
   });
+  it("tar bort laserns kulle nära Karttapullautins eller inuti en kvarvarande liten toppkurva", () => {
+    const laser = (x: number, y: number): SourceFeature => ({ layer: "dotknoll_laser", geometry: { kind: "point", at: [x, y] } });
+    const knoll: SourceFeature = { layer: "dotknoll", geometry: { kind: "point", at: [200, 0] } };
+    const out = smallRingsToPoints([ring(0, 0, 300, 10), ring(100, 0, 20, 15), knoll, laser(203, 0), laser(100, 0), laser(-150, 0)], 15000, 1);
+    expect(out.filter(f => f.layer === "dotknoll_laser").map(f => (f.geometry as { at: readonly [number, number] }).at)).toEqual([[-150, 0]]);
+  });
 });

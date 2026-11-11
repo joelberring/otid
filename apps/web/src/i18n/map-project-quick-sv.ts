@@ -1,6 +1,7 @@
 /** Ägaren 2026-11-09: kartredigerarens snabbval (verktygshjulet, symbolrutorna, formen på ett objekt och cirkeln). */
 export const mapProjectQuickSv = {
   wheel: "Verktygshjul",
+  sidebarWidth: "Spaltens bredd: dra eller använd piltangenterna, dubbelklicka för förvalet",
   tools: { select: "Redigera", draw: "Rita", circle: "Cirkel", note: "Notis" },
   recent: "Senaste symbolerna",
   actions: "Objektet",

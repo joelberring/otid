@@ -142,8 +142,10 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   const dry = (mask: Uint8Array) => { if (blocked) for (let i = 0; i < mask.length; i += 1) if (blocked[i]) mask[i] = 0; return mask; };
   const area = grid.cell * grid.cell, minCells = Math.max(2, Math.round(settings.minAreaM2 / area));
   const shade = (value: number) => (value & 15) >= 2 ? (value & 15) - 2 : -1;
-  const layers: { name: string; code: string; test: (value: number) => boolean }[] = [
-    { name: "oppen_mark", code: "401", test: value => (value & 15) === 1 },
+  const scattered = scatteredTrees(classes, grid.width, grid.height, shade, GREEN_STEPS.slow);
+  const layers: { name: string; code: string; test: (value: number, i: number) => boolean }[] = [
+    { name: "oppen_mark", code: "401", test: (value, i) => (value & 15) === 1 && scattered[i] !== 1 },
+    { name: "oppen_mark_spridda_trad", code: "404", test: (_, i) => scattered[i] === 1 },
     { name: "gron_lattlopt", code: "406", test: value => shade(value) >= GREEN_STEPS.slow },
     { name: "gron_svarlopt", code: "408", test: value => shade(value) >= GREEN_STEPS.difficult },
     { name: "gron_mycket_svarlopt", code: "410", test: value => shade(value) >= GREEN_STEPS.fight },
@@ -153,7 +155,7 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   const full: Grid = { ...grid, z: new Float64Array(0) };
   const summary: Record<string, number> = {};
   const parts = layers.map(layer => {
-    const mask = dry(cleanMask(dry(classes.map(value => layer.test(value) ? 1 : 0)), grid.width, grid.height, minCells));
+    const mask = dry(cleanMask(dry(classes.map((value, i) => layer.test(value, i) ? 1 : 0)), grid.width, grid.height, minCells));
     const rings = maskRings(mask, full).filter(ring => !blocked || ringArea(ring) > 0).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
     summary[`ha${layer.code}`] = Math.round(mask.reduce((sum, value) => sum + value, 0) * area / 100) / 100;
     return { name: layer.name, closed: true, parts: rings };
@@ -170,4 +172,35 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : [value, 160, value, 255];
   });
   return { dxf: moistureDxf(parts), summary, openAt, classPng, world: worldFile(full) };
+}
+
+/**
+ * Ägaren 2026-11-11 («gula ytor som inte består av träd men inte är rent berg saknas»): en cell utan grönt där 20–75 %
+ * av cellerna inom 8 m är öppna, blandat med träd (många gränser
+ * mellan öppet och träd, nästan inget grönt; en rak skogskant räknas inte), är öppen mark med spridda träd (404). Öppna celler
+ * i en sådan blandning räknas inte som öppen mark. Samma regel i webbläsaren (map-project-green-classes.ts).
+ */
+export function scatteredTrees(classes: Uint8Array, width: number, height: number, shade: (value: number) => number, slow: number): Uint8Array {
+  // Summerade tabeller: öppna celler, gröna celler och gränser mellan öppet och inte öppet (åt höger och uppåt).
+  const stride = height + 1, open = new Int32Array((width + 1) * stride), green = new Int32Array(open.length), edges = new Int32Array(open.length);
+  const isOpen = (x: number, y: number) => x < width && y < height && (classes[x * height + y]! & 15) === 1;
+  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+    const value = classes[x * height + y]!, here = isOpen(x, y);
+    const edge = (x + 1 < width && isOpen(x + 1, y) !== here ? 1 : 0) + (y + 1 < height && isOpen(x, y + 1) !== here ? 1 : 0);
+    const i = (x + 1) * stride + y + 1, left = x * stride + y + 1, below = (x + 1) * stride + y, corner = x * stride + y;
+    open[i] = (here ? 1 : 0) + open[left]! + open[below]! - open[corner]!;
+    green[i] = (shade(value) >= slow ? 1 : 0) + green[left]! + green[below]! - green[corner]!;
+    edges[i] = edge + edges[left]! + edges[below]! - edges[corner]!;
+  }
+  const sum = (table: Int32Array, x0: number, y0: number, x1: number, y1: number) =>
+    table[x1 * stride + y1]! - table[x0 * stride + y1]! - table[x1 * stride + y0]! + table[x0 * stride + y0]!;
+  const r = 4, out = new Uint8Array(width * height);
+  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+    if (shade(classes[x * height + y]!) >= slow) continue;
+    const x0 = Math.max(0, x - r), x1 = Math.min(width, x + r + 1), y0 = Math.max(0, y - r), y1 = Math.min(height, y + r + 1);
+    const cells = (x1 - x0) * (y1 - y0), share = sum(open, x0, y0, x1, y1) / cells;
+    // Blandat (inte en rak kant mot skogen): många gränser mellan öppet och träd, och nästan inget grönt.
+    if (share >= 0.2 && share < 0.75 && sum(edges, x0, y0, x1, y1) >= 0.3 * cells && sum(green, x0, y0, x1, y1) < 0.2 * cells) out[x * height + y] = 1;
+  }
+  return out;
 }

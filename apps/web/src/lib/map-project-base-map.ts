@@ -12,7 +12,7 @@ import { yardsOf } from "./map-project-yards";
  *
  * - branterna som linjer går före Karttapullautins korta streck,
  * - med Lantmäteriets marktäcke byter laserns «öppen mark» (allt utan växtlighet, också hällmark) namn till
- *   `oppen_mark_laser` och får inget förslag; marktäckets sankmark och den uträknade fuktigheten kommer båda med,
+ *   `oppen_mark_laser` och föreslås som ödemark (403); marktäckets sankmark och den uträknade fuktigheten kommer båda med,
  * - en opasserbar brant som är för kort för två taggar blir en brant (ägaren 2026-11-11: «det ska alltid vara minst två
  *   taggar på taggbranter»),
  * - kurvorna och formlinjerna fogas över laserrutornas skarvar (`joinSeams`),

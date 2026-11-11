@@ -7,7 +7,7 @@ export const mapProjectKeysSv = {
   help: "Tangenterna ligger under vänster hand, så att höger hand kan stanna på musen. Klicka på en tangent och tryck sedan den nya. Valet sparas i den här webbläsaren.",
   commands: {
     select: "Redigera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
-    switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
+    switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer eller ytor", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
     undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan"
   } satisfies Record<KeyCommand, string>,
   change: (command: string) => `Byt tangent för ${command}`,
@@ -42,7 +42,7 @@ export const mapProjectKeysSv = {
     area: "Rita ett delområde som en kartritare kan få ansvar för.",
     note: "Klicka på kartan och skriv en notis till dig själv eller de andra.",
     switchSymbol: "Det markerade får symbolen som är vald i panelen. Med flera markerade byts alla som har samma form (linje, yta eller punkt).",
-    join: "Markera linjerna med en ruta eller Skift+klick. Linjer med samma symbol vars ändar möts blir en linje; två markerade linjer binds alltid ihop.",
+    join: "Markera med en ruta eller Skift+klick. Linjer med samma symbol vars ändar möts blir en linje; två markerade linjer binds alltid ihop. Ytor med samma symbol som överlappar blir en yta.",
     cut: "Klicka på en linje för att dela den i två där. På en brytpunkt delas den i punkten.",
     rectangle: "Klicka två hörn för en sida och ett tredje för bredden: en rektangel med räta vinklar i valfri riktning (hus, plattformar). Ritas med den valda linje- eller ytsymbolen.",
     duplicate: "Gör en kopia av det markerade, en halv millimeter snett nedanför.",
@@ -61,7 +61,7 @@ export const mapProjectKeysSv = {
   },
   needSelection: "Markera något först: klicka på ett objekt med Redigera, eller dra en ruta runt flera.",
   needOtherSymbol: "Välj först en annan symbol med samma form i panelen.",
-  needLines: "Markera två eller fler linjer med samma symbol: dra en ruta runt dem eller Skift+klicka.",
+  needLines: "Markera två eller fler linjer eller ytor med samma symbol: dra en ruta runt dem eller Skift+klicka.",
   needShape: "Markera en linje eller en yta först.",
   needLine: "Markera en eller flera linjer först.",
   cutHint: "Klipp isär: klicka på linjen där den ska delas.",
@@ -69,7 +69,7 @@ export const mapProjectKeysSv = {
   wasCut: "Linjen är delad i två.",
   reversed: (count: number) => count === 1 ? "Linjen är vänd." : `${count} linjer är vända.`,
   picked: (code: string) => `Vald symbol: ${code}.`,
-  joined: (count: number) => `${count} linjer blev en.`,
+  joined: (count: number) => `${count} objekt blev ett.`,
   switched: (count: number, code: string) => count === 1 ? `1 objekt fick symbolen ${code}.` : `${count} objekt fick symbolen ${code}.`,
   multiSwitch: (count: number, code: string) => `Byt ${count} till ${code}`
 };

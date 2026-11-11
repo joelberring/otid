@@ -78,8 +78,8 @@ export function guessCrs(data: SourceData, georeference?: MapGeoreference): numb
 
 /** Ord i lagrets namn (versaler, utan å, ä och ö) → symbolens nummer, som i plandokumentet för baskartorna. Första träffen gäller. */
 const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; readonly area?: string; readonly point?: string }[] = [
-  // G8: marktäckets bebyggelseyta och laserns öppna mark (när marktäckets finns) får inget förslag (före reglerna nedan).
-  { words: /BEBYGGELSE|OPPEN_MARK_LASER/ },
+  // G8: marktäckets bebyggelseyta får inget förslag (före reglerna nedan).
+  { words: /BEBYGGELSE/ },
   // Skogsstyrelsens hyggen efter ålder och deras kant (ägaren 2026-11-11), före reglerna för öppen mark och grönt.
   { words: /^HYGGE_FARSKT$/, area: "403" },
   { words: /^HYGGE_SLY$/, area: "407" },
@@ -88,6 +88,10 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   // G8: tomterna som räknats ur husen (ägaren 2026-11-11: «tomter kommer inte med»).
   { words: /^TOMTMARK/, area: "520" },
   // Geo-arbetarens vegetation (K5c del 3): öppen mark, tre gröna och undervegetation.
+  // Ägaren 2026-11-11 («gula ytor som inte består av träd men inte är rent berg saknas»): laserns öppna mark där marktäcket
+  // redan har åkrar och gräsytor är oftast ödemark (403), och skog med många gläntor öppen mark med spridda träd (404).
+  { words: /OPPEN_MARK_SPRIDDA/, area: "404" },
+  { words: /OPPEN_MARK_LASER/, area: "403" },
   { words: /OPPEN_MARK|OPEN_LAND/, area: "401" },
   { words: /UNDERVEGETATION_SVARLOPT/, area: "409" },
   { words: /UNDERVEGETATION/, area: "407" },

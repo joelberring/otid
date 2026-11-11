@@ -98,5 +98,15 @@ export function smallRingsToPoints(features: readonly SourceFeature[], scale: nu
     marks.push(centre);
     added.push({ layer: knoll ? "dotknoll" : "udepression", geometry: { kind: "point", at: centre } });
   }
-  return [...features.flatMap(feature => !replaced.has(feature) ? [feature] : replaced.get(feature) ? [replaced.get(feature)!] : []), ...added];
+  // Laserns egna små kullar (scripts/geo-rock.ts, `dotknoll_laser`) tas bort där Karttapullautin redan har en inom 6 m eller
+  // där en kvarvarande liten höjdkurva (under 3 000 m²) redan visar toppen.
+  const kept = features.flatMap(feature => !replaced.has(feature) ? [feature] : replaced.get(feature) ? [replaced.get(feature)!] : []);
+  const summits = kept.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && CONTOUR.test(feature.layer) && areaOf(ringOf(feature)) < 3000).map(ringOf);
+  const others = [...kept, ...added].filter(feature => feature.geometry.kind === "point" && /DOTKNOLL/i.test(feature.layer) && feature.layer !== "dotknoll_laser")
+    .map(feature => (feature.geometry as { at: readonly [number, number] }).at);
+  return [...kept.filter(feature => {
+    if (feature.layer !== "dotknoll_laser" || feature.geometry.kind !== "point") return true;
+    const [x, y] = feature.geometry.at;
+    return !others.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 6) && !summits.some(ring => inside(ring, x, y));
+  }), ...added];
 }

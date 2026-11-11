@@ -91,7 +91,7 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
     const tiles = [{ vege: read("ruta00_vege_bit.png"), undergrowth: read("ruta00_undergrowth_bit.png"),
       world: readWorldFile(readFileSync(join(dir, "kungshatt-300m/ruta00_vege_bit.pgw"), "utf8")) }];
     const vegetation = vegetationFromTiles(tiles);
-    expect(vegetation.summary).toEqual({ ha401: 0.44, ha406: 1.64, ha408: 0.03, ha410: 0, ha407: 0.04, ha409: 0.04 });
+    expect(vegetation.summary).toEqual({ ha401: 0.32, ha404: 0.26, ha406: 1.64, ha408: 0.03, ha410: 0, ha407: 0.04, ha409: 0.04 });
     const data = parseDxf(vegetation.dxf);
     expect(suggested(data)).toEqual({ oppen_mark: "s401", gron_lattlopt: "s406", gron_svarlopt: "s408", undervegetation_lattlopt: "s407",
       undervegetation_svarlopt: "s409" });

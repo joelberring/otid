@@ -22,6 +22,8 @@ export const mapProjectGeneralizeEn: Texts<typeof mapProjectGeneralizeSv> = {
   removeSmall: "Remove small areas, short lines and small knolls",
   joinLines: "Join lines with the same symbol whose ends meet (e.g. contours split at the laser tiles' edges)",
   removeInside: "Remove areas lying entirely inside an identical area",
+  smooth: "Make contours, cliffs and green areas smooth (simplified first with at least 0.15 mm)",
+  smoothed: (n: number) => n === 0 ? "Nothing to make smooth." : `${count(n, "object is", "objects are")} made smooth.`,
   joined: (lines: number, absorbed: number) => lines === 0 ? "No lines to join."
     : `${count(lines, "line is", "lines are")} joined from ${lines + absorbed} parts.`,
   inside: (n: number) => n === 0 ? "No areas inside an identical area." : `${count(n, "area", "areas")} inside an identical area ${n === 1 ? "is" : "are"} removed.`,
@@ -171,6 +173,7 @@ export const mapProjectNotesEn: Texts<typeof mapProjectNotesSv> = {
 
 export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   wheel: "Tool wheel",
+  sidebarWidth: "Column width: drag or use the arrow keys, double-click for the default",
   tools: { select: "Edit", draw: "Draw", circle: "Circle", note: "Note" },
   recent: "Latest symbols",
   actions: "The object",
@@ -202,7 +205,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   help: "The keys are under the left hand, so that the right hand can stay on the mouse. Click a key and then press the new one. The choice is saved in this browser.",
   commands: {
     select: "Edit", draw: "Draw", circle: "Circle", rectangle: "Rectangle", duplicate: "Duplicate", fill: "Fill area or make border", parallel: "Parallel line", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
-    switchSymbol: "Change symbol on the selection", join: "Join lines", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
+    switchSymbol: "Change symbol on the selection", join: "Join lines or areas", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
     undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only"
   },
   change: (command: string) => `Change the key for ${command}`,
@@ -236,7 +239,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
     area: "Draw a sub-area that a mapper can be made responsible for.",
     note: "Click the map and write a note to yourself or the others.",
     switchSymbol: "The selection gets the symbol chosen in the panel. With several selected, all with the same shape (line, area or point) change.",
-    join: "Select the lines with a box or Shift-click. Lines with the same symbol whose ends meet become one line; two selected lines are always joined.",
+    join: "Select with a box or Shift-click. Lines with the same symbol whose ends meet become one line; two selected lines are always joined. Overlapping areas with the same symbol become one area.",
     cut: "Click a line to split it in two there. On a vertex it is split at the point.",
     rectangle: "Click two corners for one side and a third for the width: a rectangle with right angles in any direction (houses, platforms). Drawn with the chosen line or area symbol.",
     duplicate: "Makes a copy of the selection, half a millimetre down to the right.",
@@ -255,7 +258,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   },
   needSelection: "Select something first: click an object with Edit, or drag a box around several.",
   needOtherSymbol: "First choose another symbol with the same shape in the panel.",
-  needLines: "Select two or more lines with the same symbol: drag a box around them or Shift-click.",
+  needLines: "Select two or more lines or areas with the same symbol: drag a box around them or Shift-click.",
   needShape: "Select a line or an area first.",
   needLine: "Select one or more lines first.",
   cutHint: "Cut apart: click the line where it is to be split.",
@@ -263,7 +266,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   wasCut: "The line is split in two.",
   reversed: (n: number) => n === 1 ? "The line is reversed." : `${n} lines are reversed.`,
   picked: (code: string) => `Chosen symbol: ${code}.`,
-  joined: (n: number) => `${n} lines became one.`,
+  joined: (n: number) => `${n} objects became one.`,
   switched: (n: number, code: string) => n === 1 ? `1 object got the symbol ${code}.` : `${n} objects got the symbol ${code}.`,
   multiSwitch: (n: number, code: string) => `Change ${n} to ${code}`
 };

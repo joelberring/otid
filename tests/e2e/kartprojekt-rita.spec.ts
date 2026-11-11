@@ -443,7 +443,7 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   await expect(owner.getByTestId("map-project-rail-tip")).toContainText("Lägg till punktAKlicka på en linje eller en ytas kant för en ny punkt där.");
   await owner.getByTestId("map-project-rail-join").hover();
   await expect(owner.getByTestId("map-project-rail-tip")).toContainText("Slå ihop linjer");
-  await expect(owner.getByTestId("map-project-rail-tip")).toContainText("Markera två eller fler linjer med samma symbol");
+  await expect(owner.getByTestId("map-project-rail-tip")).toContainText("Markera två eller fler linjer eller ytor med samma symbol");
   await expect(owner.getByTestId("map-project-rail-join")).toHaveAttribute("aria-disabled", "true");
   await owner.mouse.move(600, 400);
   await expect(owner.getByTestId("map-project-rail-tip")).toHaveCount(0);
@@ -462,7 +462,7 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   await expect(owner.getByTestId("map-project-hint")).toContainText("2 objekt markerade");
   await expect(owner.getByTestId("map-project-rail-join")).not.toHaveAttribute("aria-disabled", "true");
   await owner.keyboard.press("f");
-  await expect(owner.getByTestId("map-project-hint")).toHaveText("2 linjer blev en.");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("2 objekt blev ett.");
   await settled(owner);
   const joined = await own();
   expect(joined).toHaveLength(1);

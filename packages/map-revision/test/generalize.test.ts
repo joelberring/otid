@@ -67,4 +67,17 @@ describe("kandidaterna generaliseras före Lägg in", () => {
     expect(result.objects).toHaveLength(2);
     expect(result.simplified).toBeGreaterThanOrEqual(1);
   });
+  it("gör kurvor, branter och gröna ytor mjuka, men inte andra symboler (ägaren 2026-11-11)", () => {
+    const contour = line("k", "101", [[0, 0], [5, 2], [10, 0], [15, 3]]);
+    const path505 = line("s", "505", [[0, 0], [5, 2], [10, 0], [15, 3]]);
+    const green = area("g", "406", [[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]]);
+    const result = generalize([contour, path505, green], 10000, { simplifyMm: 0, removeSmall: false, smooth: ["101", "406"] });
+    expect(result.smoothed).toBe(2);
+    expect(result.changes.map(change => [change.key, change.reason]).sort()).toEqual([["n:g", "SMOOTH"], ["n:k", "SMOOTH"]]);
+    const soft = result.changes.find(change => change.key === "n:k")!.object;
+    expect(soft?.kind === "line" && soft.path.slice(1).every(command => command.type === "C")).toBe(true);
+    // Kandidaterna: kurvorna görs mjuka som förval.
+    const candidates = generalizeCandidates([contour.object], () => "101", 10000);
+    expect(candidates.objects[0]!.kind === "line" && candidates.objects[0]!.path.some(command => command.type === "C")).toBe(true);
+  });
 });

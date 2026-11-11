@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GroundGrid } from "../../../scripts/geo-cliffs";
 import { moistureDxf } from "../../../scripts/geo-moisture";
-import { bareRock, boulders } from "../../../scripts/geo-rock";
+import { bareRock, boulders, knolls } from "../../../scripts/geo-rock";
 import { parseDxf } from "../src";
 
 /** 80 × 60 m lutande mark: en sten (1,4 m, 2 × 2 m), ett block (2,5 m), en kulle (1,5 m men 14 m bred) och en brantkant. */
@@ -25,6 +25,13 @@ describe("stenar och berg i dagen ur markrastret", () => {
     const block = found.find(stone => stone.name === "stort_block")!;
     expect(block.at).toEqual([40.5, 20.5]);
     expect(boulders(ground(), undefined, () => true)).toEqual([]);
+  });
+  it("små kullar: kullen blir en punkthöjd, men inte stenarna eller brantkanten (ägaren 2026-11-11)", () => {
+    const grid = ground(), stones = boulders(grid);
+    const found = knolls(grid, stones);
+    expect(found).toHaveLength(1);
+    expect(Math.hypot(found[0]![0] - 20.5, found[0]![1] - 45.5)).toBeLessThan(1.5);
+    expect(knolls(grid, stones, 2)).toEqual([]);
   });
   it("berg i dagen: ojämn, öppen och upphöjd mark, inte det släta eller det skogsklädda", () => {
     const width = 60, height = 60, z = new Float32Array(width * height);

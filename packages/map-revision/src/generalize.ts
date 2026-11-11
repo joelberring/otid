@@ -2,6 +2,7 @@ import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
 import type { RevisionClientState } from "./client-log";
 import { areasInsideSameSymbol, joinTouchingLines } from "./generalize-topology";
 import { checkNorm, type NormObject, type NormRule } from "./norm-check";
+import { smoothShape } from "./shape-edit";
 import type { ObjectKey } from "./state";
 
 /**
@@ -19,7 +20,7 @@ import type { ObjectKey } from "./state";
  *
  * Kurvavstånd, tunna ytor, passager och öppningar kräver en kartritares val och föreslås inte här (normkontrollen visar dem).
  */
-export type GeneralizeReason = "SIMPLIFY" | "JOIN" | "JOINED" | "INSIDE" | Extract<NormRule, "SMALL_AREA" | "SHORT_LINE" | "SMALL_CLOSED">;
+export type GeneralizeReason = "SIMPLIFY" | "SMOOTH" | "JOIN" | "JOINED" | "INSIDE" | Extract<NormRule, "SMALL_AREA" | "SHORT_LINE" | "SMALL_CLOSED">;
 export const REMOVABLE_RULES: ReadonlySet<NormRule> = new Set(["SMALL_AREA", "SHORT_LINE", "SMALL_CLOSED"]);
 export interface GeneralizeOptions {
   /** Toleransen för förenklingen i kartans mm; 0 = ingen förenkling. */
@@ -28,6 +29,12 @@ export interface GeneralizeOptions {
   /** Del 2: foga ihop linjer vars ändar möts och ta bort ytor inuti en likadan yta (saknas = av). */
   readonly joinLines?: boolean | undefined;
   readonly removeInside?: boolean | undefined;
+  /**
+   * Ägaren 2026-11-11 («göra alla höjdkurvor mjuka», «mjukare brantmarkeringar», gröna «mer som blobbor»): symbolernas
+   * huvudnummer (t.ex. 101) vars linjer och ytor görs mjuka efter förenklingen; `smoothSimplifyMm` förenklar dem mer först.
+   */
+  readonly smooth?: readonly string[] | undefined;
+  readonly smoothSimplifyMm?: number | undefined;
   /** Bara objekt inom rutan (kartans mm), t.ex. en etapp. */
   readonly within?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
 }
@@ -47,6 +54,7 @@ export interface GeneralizeResult {
   /** Del 2: ihopfogade linjer (nya linjer och linjer som gick upp i dem) och ytor inuti en likadan yta. */
   readonly joined?: { readonly lines: number; readonly absorbed: number } | undefined;
   readonly inside?: number | undefined;
+  readonly smoothed?: number | undefined;
 }
 
 const perpendicular = (p: Point, a: Point, b: Point) => {
@@ -166,19 +174,26 @@ export function generalize(objects: readonly NormObject[], scale: number, option
     }
     joined = { lines: found.length, absorbed: found.reduce((sum, change) => sum + change.absorbed.length, 0) };
   }
-  let simplified = 0, pointsBefore = 0, pointsAfter = 0;
-  if (options.simplifyMm > 0) {
+  let simplified = 0, pointsBefore = 0, pointsAfter = 0, smoothed = 0;
+  const smooth = new Set(options.smooth ?? []);
+  if (options.simplifyMm > 0 || smooth.size > 0) {
     for (const row of objects) {
       if (taken.has(row.key)) continue;
-      const result = simplifyObject(row.object, options.simplifyMm);
-      if (!result) continue;
+      const soft = smooth.has(row.code.split(".")[0]!) && (row.object.kind === "line" || row.object.kind === "area");
+      const tolerance = soft ? Math.max(options.simplifyMm, options.smoothSimplifyMm ?? 0) : options.simplifyMm;
+      const result = simplifyObject(row.object, tolerance);
+      const curved = soft ? smoothShape(result?.object ?? row.object) : undefined;
+      if (!result && !curved) continue;
       const at = centerOf(row.object);
       if (!inside(at, options.within)) continue;
-      simplified += 1; pointsBefore += result.before; pointsAfter += result.after;
-      changes.push({ key: row.key, code: row.code, reason: "SIMPLIFY", object: result.object, at, before: result.before, after: result.after });
+      if (result) { simplified += 1; pointsBefore += result.before; pointsAfter += result.after; }
+      if (curved) smoothed += 1;
+      changes.push({ key: row.key, code: row.code, reason: curved ? "SMOOTH" : "SIMPLIFY", object: curved ?? result!.object, at,
+        before: result?.before ?? 0, after: result?.after ?? 0 });
     }
   }
-  return { changes, simplified, pointsBefore, pointsAfter, removed, ...(joined ? { joined } : {}), ...(insideCount !== undefined ? { inside: insideCount } : {}) };
+  return { changes, simplified, pointsBefore, pointsAfter, removed, ...(joined ? { joined } : {}), ...(insideCount !== undefined ? { inside: insideCount } : {}),
+    ...(smooth.size > 0 ? { smoothed } : {}) };
 }
 
 /**
@@ -191,14 +206,20 @@ export function proposalBase(state: RevisionClientState, key: ObjectKey): { base
 }
 
 /**
+ * Symbolerna som görs mjuka (jämför Högdalenkartan, ägaren 2026-11-11): kurvorna (101–103), branterna (201, 202) och de
+ * gröna ytorna (406–410).
+ */
+export const SOFT_CODES: readonly string[] = ["101", "102", "103", "201", "202", "406", "407", "408", "409", "410"];
+
+/**
  * Ägaren 2026-11-11 («orienteringskartor ska kunna läsas i fart … en del generalisering»): en inläsnings kandidater
  * generaliseras efter normen innan de läggs in, med samma steg som generaliseringen av kartan (förenkla 0,1 mm, ta bort det
  * som är mindre än normen, foga ihop linjer, ta bort ytor inuti en likadan yta). `codeOf` ger symbolens nummer.
  */
 export function generalizeCandidates(objects: readonly MapObject[], codeOf: (symbol: string) => string | undefined, scale: number,
-  simplifyMm = 0.1): { objects: MapObject[]; removed: number; simplified: number } {
+  simplifyMm = 0.1, smooth: readonly string[] = SOFT_CODES): { objects: MapObject[]; removed: number; simplified: number } {
   const rows: NormObject[] = objects.map((object, index) => ({ key: `c:${index}`, code: codeOf(object.symbol) ?? "", object }));
-  const result = generalize(rows, scale, { simplifyMm, removeSmall: true, joinLines: true, removeInside: true });
+  const result = generalize(rows, scale, { simplifyMm, removeSmall: true, joinLines: true, removeInside: true, smooth, smoothSimplifyMm: 0.15 });
   const replaced = new Map<ObjectKey, MapObject | undefined>(result.changes.map(change => [change.key, change.object]));
   const out: MapObject[] = [];
   rows.forEach(row => {

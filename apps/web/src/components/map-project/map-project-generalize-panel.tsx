@@ -5,6 +5,7 @@ import { mapProjectGeneralizeEn } from "../../i18n/map-project-tools-en";
 import { useTexts } from "../language-provider";
 import type { BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectGeneralizeSv } from "../../i18n/map-project-generalize-sv";
+import { SOFT_CODES } from "@o-tid/map-revision";
 import { Button } from "../ui";
 import type { useMapProjectGeneralize } from "./use-map-project-generalize";
 import styles from "./map-project-editor.module.css";
@@ -20,6 +21,7 @@ export function MapProjectGeneralizePanel({ generalize, areas }: { generalize: R
   const [removeSmall, setRemoveSmall] = useState(true);
   const [joinLines, setJoinLines] = useState(true);
   const [removeInside, setRemoveInside] = useState(true);
+  const [smooth, setSmooth] = useState(false);
   if (!generalize.canPropose) return null;
   const area = areas.find(row => row.areaId === where);
   const outline = area?.polygon[0];
@@ -41,15 +43,19 @@ export function MapProjectGeneralizePanel({ generalize, areas }: { generalize: R
     <label className={styles.check}><input type="checkbox" checked={joinLines} onChange={event => setJoinLines(event.target.checked)}
       data-testid="map-project-generalize-join" />{text.joinLines}</label>
     <label className={styles.check}><input type="checkbox" checked={removeInside} onChange={event => setRemoveInside(event.target.checked)} />{text.removeInside}</label>
+    <label className={styles.check}><input type="checkbox" checked={smooth} onChange={event => setSmooth(event.target.checked)}
+      data-testid="map-project-generalize-smooth" />{text.smooth}</label>
     <span className={styles.actions}>
-      <Button variant="secondary" disabled={!!generalize.busy || (tolerance === 0 && !removeSmall && !joinLines && !removeInside)} data-testid="map-project-generalize-preview"
-        onClick={() => generalize.preview({ simplifyMm: tolerance, removeSmall, joinLines, removeInside, within })}>{text.preview}</Button>
+      <Button variant="secondary" disabled={!!generalize.busy || (tolerance === 0 && !removeSmall && !joinLines && !removeInside && !smooth)} data-testid="map-project-generalize-preview"
+        onClick={() => generalize.preview({ simplifyMm: tolerance, removeSmall, joinLines, removeInside, within,
+          ...(smooth ? { smooth: SOFT_CODES, smoothSimplifyMm: 0.15 } : {}) })}>{text.preview}</Button>
     </span>
     {result && planned && <div role="status" data-testid="map-project-generalize-result">
       <p>{text.summary(result.simplified, result.pointsBefore, result.pointsAfter)}</p>
       <p>{text.removed(result.removed.SMALL_AREA, result.removed.SHORT_LINE, result.removed.SMALL_CLOSED)}</p>
       {result.joined && <p>{text.joined(result.joined.lines, result.joined.absorbed)}</p>}
       {result.inside !== undefined && <p>{text.inside(result.inside)}</p>}
+      {result.smoothed !== undefined && <p>{text.smoothed(result.smoothed)}</p>}
       {planned.skipped > 0 && <p className={styles.muted}>{text.skipped(planned.skipped)}</p>}
       {planned.edits.length > 0 && <span className={styles.actions}>
         <Button disabled={!!generalize.busy} onClick={() => void generalize.propose()} data-testid="map-project-generalize-propose">

@@ -1,4 +1,5 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
+import { scatteredTrees } from "./map-project-scattered-trees";
 import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map-project-photo-interpret";
 
 /**
@@ -21,8 +22,9 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
   cellMeters = 2): { data: SourceData; hectares: Readonly<Record<string, number>> } {
   const { width: columns, height: rows, data } = pixels;
   const shade = (value: number) => (value & 15) >= 2 ? (value & 15) - 2 : -1;
-  const layers: { name: string; test: (value: number) => boolean }[] = [
-    { name: "oppen_mark", test: value => (value & 15) === 1 },
+  const layers: { name: string; test: (value: number, i: number) => boolean }[] = [
+    { name: "oppen_mark", test: (value, i) => (value & 15) === 1 && scattered[i] !== 1 },
+    { name: "oppen_mark_spridda_trad", test: (_, i) => scattered[i] === 1 },
     { name: "gron_lattlopt", test: value => shade(value) >= settings.slow },
     { name: "gron_svarlopt", test: value => shade(value) >= settings.difficult },
     { name: "gron_mycket_svarlopt", test: value => shade(value) >= settings.fight },
@@ -35,11 +37,12 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
     if (data[i + 3]! < 128) continue;
     values[column * rows + row] = data[i]!; known[column * rows + row] = 1;
   }
+  const scattered = scatteredTrees(values, columns, rows, shade, settings.slow);
   const minCells = Math.max(2, Math.round(settings.minAreaM2 / (cellMeters * cellMeters)));
   const features: SourceFeature[] = [];
   const hectares: Record<string, number> = {};
   for (const layer of layers) {
-    const mask = compactMask(values.map((value, i) => known[i] && layer.test(value) ? 1 : 0), columns, rows, minCells);
+    const mask = compactMask(values.map((value, i) => (known[i] || layer.name === "oppen_mark_spridda_trad") && layer.test(value, i) ? 1 : 0), columns, rows, minCells);
     hectares[layer.name] = Math.round(mask.reduce((sum, cell) => sum + cell, 0) * cellMeters * cellMeters / 100) / 100;
     for (const ring of maskOutlines(mask, columns, rows)) {
       const simple = simplifyRing(ring, 0.75);

@@ -4,6 +4,7 @@ import type { MapObject, Point } from "@o-tid/map-file";
 import { withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { translateObject } from "../../lib/map-project-draw";
+import { unionAreas } from "../../lib/map-project-area-union";
 import { joinLines, reverseLine } from "../../lib/map-project-join";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 import { angleFrom, boundsOf, centerOf, rotateObject } from "../../lib/map-project-transform";
@@ -149,11 +150,13 @@ export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys }: 
       }));
       return count;
     },
-    /** Om något av det markerade går att slå ihop (linjer med samma symbol). */
-    joinable: (tolerance: number) => itemsRef.current.length >= 2 && !!joinLines(itemsRef.current.map(item => item.object), tolerance),
-    /** Slå ihop de markerade linjerna: den första behålls med den nya formen, de andra tas bort (ett steg att ångra). */
+    /** Om något av det markerade går att slå ihop (linjer eller ytor med samma symbol). */
+    joinable: (tolerance: number) => itemsRef.current.length >= 2 && !!(joinLines(itemsRef.current.map(item => item.object), tolerance)
+      ?? unionAreas(itemsRef.current.map(item => item.object))),
+    /** Slå ihop de markerade linjerna eller ytorna: den första behålls med den nya formen, de andra tas bort (ett steg att ångra). */
     join: (tolerance: number): number => {
-      const current = itemsRef.current, result = joinLines(current.map(item => item.object), tolerance);
+      const current = itemsRef.current, objects = current.map(item => item.object);
+      const result = joinLines(objects, tolerance) ?? unionAreas(objects);
       if (!result) return 0;
       const group = crypto.randomUUID(), [keep, ...rest] = result.used.map(index => current[index]!);
       if (!keep || !commit({ key: keep.key, ref: keep.ref, kind: "RESHAPE", after: { kind: "OBJECT", object: result.object }, group })) return 0;

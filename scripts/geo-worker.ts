@@ -31,7 +31,7 @@ import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzip
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
-import { bareRock, boulders } from "./geo-rock.ts";
+import { bareRock, boulders, knolls } from "./geo-rock.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
 
@@ -74,7 +74,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 8;
+export const WORKER_VERSION = 9;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
 
@@ -301,11 +301,13 @@ async function runJob(job: Job): Promise<void> {
       await set("Letar stenar och berg i dagen", 0, 1);
       const stones = boulders(ground, undefined, water?.at);
       const rock = openAt ? bareRock(ground, openAt, undefined, water?.at) : [];
+      const hills = knolls(ground, stones, undefined, undefined, water?.at);
       if (stones.length || rock.length) {
         await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: "berg_i_dagen_laser", closed: true, parts: rock },
-          ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] }))]));
+          ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] })),
+          { name: "dotknoll_laser", closed: false, points: hills, parts: [] }]));
       }
-      rockSummary = { boulders: stones.length, bareRockAreas: rock.length };
+      rockSummary = { boulders: stones.length, knolls: hills.length, bareRockAreas: rock.length };
     }
     const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],

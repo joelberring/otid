@@ -8,6 +8,7 @@ import { useTexts } from "../language-provider";
 import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
 import { SymbolIcon } from "./map-project-symbol-icon";
+import { MapProjectSidebarGrip } from "./map-project-sidebar-grip";
 import type { Conflict, ObjectKey } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { layerRows, type LayerState } from "../../lib/map-project-layer-model";
@@ -73,7 +74,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
       : grid ? null : <span><strong>{entry.code}</strong> {entry.name}</span>}
   </button>;
 
-  return <aside id="map-project-sidebar" className={styles.sidebar} data-open={open}>
+  return <><MapProjectSidebarGrip label={quick.sidebarWidth} /><aside id="map-project-sidebar" className={styles.sidebar} data-open={open}>
     <div className={styles.tabs} role="tablist" aria-label={quick.tabsLabel}>
       {tabs.map(id => <button key={id} type="button" role="tab" id={`map-project-tab-${id}`} aria-selected={id === current}
         aria-controls={`map-project-tabpanel-${id}`} data-testid={`map-project-tab-${id}`} onClick={() => onTab(id)}>
@@ -138,5 +139,5 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
       {process}
     </div>}
     {tip && <span className={styles.stripTip} role="tooltip" style={{ left: tip.x, top: tip.y }}>{tip.text}</span>}
-  </aside>;
+  </aside></>;
 }

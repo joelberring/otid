@@ -12,6 +12,16 @@ export interface Affine { readonly a: number; readonly b: number; readonly c: nu
 export const WGS84 = WGS84_EPSG;
 /** Största sidan på en bild som läggs upp (webbläsarna klarar större, men minnet i telefonen gör det inte). */
 export const MAX_LAYER_SIDE = 8192;
+/**
+ * Ägaren 2026-11-12 («terrängskuggningen syns inte fast den är på»): en del webbläsare (Safari, mobiler) kan inte avkoda bilder
+ * över ungefär 16,7 miljoner pixlar; ett helt områdes skuggning är 20–30. Går en bild inte att avkoda prövas den nedskalad
+ * till högst så här många pixlar, och ritas uppskalad till sin egen storlek.
+ */
+export const SAFE_LAYER_PIXELS = 12_000_000;
+export function safeLayerSize(width: number, height: number): { width: number; height: number } {
+  const factor = Math.min(1, Math.sqrt(SAFE_LAYER_PIXELS / Math.max(1, width * height)));
+  return { width: Math.max(1, Math.round(width * factor)), height: Math.max(1, Math.round(height * factor)) };
+}
 
 /** Världsfilen (.pgw, .jgw, .tfw, .wld): sex tal på var sin rad i ordningen A, D, B, E, C, F. Undefined om den inte går att läsa. */
 export function parseWorldFile(text: string): Affine | undefined {
@@ -67,13 +77,15 @@ export function screenTransform(toMapAffine: Affine, view: { centerX: number; ce
 
 /** Underlagen på kartan, i ordning, var och en med sin genomskinlighet (ADR-0219 K4a). */
 export function drawLayers(ctx: CanvasRenderingContext2D, view: { centerX: number; centerY: number; pxPerMm: number; width: number; height: number },
-  layers: readonly { readonly image: CanvasImageSource; readonly toMap: Affine; readonly opacity: number }[]) {
+  layers: readonly { readonly image: CanvasImageSource; readonly toMap: Affine; readonly opacity: number;
+    /** Underlagets storlek i sina egna pixlar, när bilden i minnet är nedskalad (stora bilder i en webbläsare som inte klarar dem). */
+    readonly size?: { readonly width: number; readonly height: number } | undefined }[]) {
   for (const layer of layers) {
     ctx.save();
     ctx.globalAlpha = layer.opacity;
     ctx.imageSmoothingQuality = "medium";
     ctx.transform(...screenTransform(layer.toMap, view));
-    ctx.drawImage(layer.image, -0.5, -0.5);
+    if (layer.size) ctx.drawImage(layer.image, -0.5, -0.5, layer.size.width, layer.size.height); else ctx.drawImage(layer.image, -0.5, -0.5);
     ctx.restore();
   }
 }

@@ -8,12 +8,12 @@ import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { savedMapProjectLayers, saveMapProjectLayers } from "../../lib/map-project-offline";
 import { LayerFileError, prepareLayer, prepareRemoteLayer, type LayerFileProblem, type Placement, type PreparedLayer } from "../../lib/map-project-layer-file";
-import { layerToMap, type Affine } from "../../lib/map-project-layers";
+import { layerToMap, safeLayerSize, type Affine } from "../../lib/map-project-layers";
 import { placeInBounds, worldFromMap } from "../../lib/map-project-control-points";
 import type { Bounds } from "../../lib/course-setting-viewport";
 
 /** Ett underlag att rita: bilden och transformen från bildens pixlar till kartans mm. */
-export interface DrawnLayer { readonly layerId: string; readonly image: ImageBitmap; readonly toMap: Affine; readonly opacity: number }
+export interface DrawnLayer { readonly layerId: string; readonly image: ImageBitmap; readonly toMap: Affine; readonly opacity: number; readonly size?: { readonly width: number; readonly height: number } | undefined }
 export type LayerProblem = LayerFileProblem | "quota" | number;
 
 /**
@@ -56,7 +56,12 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
             if (!response.ok) throw new Error(`Underlaget kunde inte hämtas (${response.status})`);
             return { bytes: await response.arrayBuffer(), fileName: `${layer.layerId}.${layer.mediaType === "image/png" ? "png" : "jpg"}` };
           });
-          const bitmap = await createImageBitmap(new Blob([file.bytes], { type: layer.mediaType }));
+          const blob = new Blob([file.bytes], { type: layer.mediaType });
+          // En bild som webbläsaren inte klarar i full storlek prövas nedskalad (ritas sedan i sin egen storlek).
+          const bitmap = await createImageBitmap(blob).catch(() => {
+            const size = safeLayerSize(layer.width, layer.height);
+            return createImageBitmap(blob, { resizeWidth: size.width, resizeHeight: size.height, resizeQuality: "medium" });
+          });
           if (closed) { bitmap.close(); return; }
           setImages(current => current.has(layer.layerId) ? current : new Map(current).set(layer.layerId, bitmap));
         } catch { /* Visas inte; listan säger att det finns. */ }
@@ -71,7 +76,8 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     for (const layer of [...layers].sort((a, b) => a.sort - b.sort || a.createdAt.localeCompare(b.createdAt))) {
       const image = images.get(layer.layerId);
       if (!image || hidden.has(layer.layerId)) continue;
-      try { result.push({ layerId: layer.layerId, image, toMap: layerToMap(layer, georeference), opacity: layer.opacity }); } catch { /* Okänt system. */ }
+      try { result.push({ layerId: layer.layerId, image, toMap: layerToMap(layer, georeference), opacity: layer.opacity,
+        ...(image.width !== layer.width ? { size: { width: layer.width, height: layer.height } } : {}) }); } catch { /* Okänt system. */ }
     }
     return result;
   }, [layers, images, hidden, georeference]);

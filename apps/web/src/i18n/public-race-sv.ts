@@ -19,7 +19,8 @@ export const publicRaceSv = {
     myRaces: "Mina tävlingar",
     organizerLogin: "För arrangörer: logga in",
     accountNavigation: "Konto",
-    introFilm: "Se vad O-Tid kan (film, 1 min)"
+    introFilm: "Se vad O-Tid kan (film, 1 min)",
+    paintingAlt: (title: string) => `Veckans målning: ${title} av Emm Berring`
   },
   links: { startList: "Startlista", results: "Resultat", splits: "Sträcktider" },
   hub: {

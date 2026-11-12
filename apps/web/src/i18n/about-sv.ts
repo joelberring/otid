@@ -53,6 +53,10 @@ export const aboutSv = {
     beta: "beta",
     questions: "Frågor:",
     about: "Om O-Tid",
-    privacy: "Personuppgifter"
+    privacy: "Personuppgifter",
+    // Bara på startsidan: "Veckans målning: <titel> av Emm Berring, <teknik>, <mått>, <år>."
+    painting: "Veckans målning:",
+    paintingBy: "av",
+    portfolio: "Emm Berrings portfolio"
   }
 } as const;

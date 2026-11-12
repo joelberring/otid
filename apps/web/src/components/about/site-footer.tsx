@@ -2,6 +2,7 @@ import { aboutSv } from "../../i18n/about-sv";
 import { aboutEn } from "../../i18n/public-en";
 import type { Language } from "../../lib/language";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
+import { ARTIST_PORTFOLIO_URL, paintingTechnique, type WeeklyPainting } from "../../lib/weekly-painting";
 import styles from "./site-footer.module.css";
 
 
@@ -10,11 +11,16 @@ import styles from "./site-footer.module.css";
  * den från layouten, arbetsytan längst ned i innehållet (`newTab`: länkarna öppnas i en ny flik så att inget osparat
  * lämnas; där är den ingen landmärkesroll eftersom den ligger i `main`). Döljs vid utskrift. Avläsningssidan har ingen
  * sidfot, bara Hjälp.
+ *
+ * Startsidan ritar en egen sidfot med veckans målning (`painting`, `lib/weekly-painting.ts`); layoutens döljs då med CSS, på
+ * samma sätt som startsidans eget sidhuvud (globals.css). Andra sidor får sidfoten utan målningen.
  */
-export function SiteFooter({ newTab = false, className, language = "sv" }: { newTab?: boolean; className?: string | undefined; language?: Language }) {
+export function SiteFooter({ newTab = false, className, language = "sv", painting }: { newTab?: boolean; className?: string | undefined;
+  language?: Language; painting?: WeeklyPainting }) {
   const text = language === "en" ? aboutEn.footer : aboutSv.footer;
   const target = newTab ? { target: "_blank", rel: "noopener" } : {};
-  return <footer className={`site-footer ${styles.footer}${className ? ` ${className}` : ""}`} aria-label={text.label}>
+  return <footer className={`site-footer ${styles.footer}${className ? ` ${className}` : ""}`} aria-label={text.label}
+    data-home-footer={painting ? "" : undefined}>
     <span>{text.name}</span>{" "}
     <span aria-hidden="true">·</span>{" "}
     <span>{text.beta}</span>{" "}
@@ -24,5 +30,9 @@ export function SiteFooter({ newTab = false, className, language = "sv" }: { new
     <a href="/om" {...target}>{text.about}</a>{" "}
     <span aria-hidden="true">·</span>{" "}
     <a href="/integritet" {...target}>{text.privacy}</a>
+    {painting && <>{" "}<span aria-hidden="true">·</span>{" "}
+      <span data-testid="home-painting-credit">{text.painting} <i>{painting.title}</i> {text.paintingBy} Emm Berring,{" "}
+        {paintingTechnique(painting, language)}, {painting.size}, {painting.year}.</span>{" "}
+      <a href={ARTIST_PORTFOLIO_URL}>{text.portfolio}</a></>}
   </footer>;
 }

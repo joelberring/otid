@@ -41,7 +41,8 @@ export const publicHomeEn: Texts<typeof publicRaceSv.home> = {
   myRaces: "My events",
   organizerLogin: "Organisers: sign in",
   accountNavigation: "Account",
-  introFilm: "See what O-Tid can do (film, 1 min)"
+  introFilm: "See what O-Tid can do (film, 1 min)",
+  paintingAlt: title => `Painting of the week: ${title} by Emm Berring`
 };
 
 export const publicLinksEn: Texts<typeof publicRaceSv.links> = { startList: "Start list", results: "Results", splits: "Split times" };
@@ -104,7 +105,8 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
     "Most of the app is still in Swedish; the public pages come first in English."
   ],
   internationalSuggest: "Suggestions for your country are welcome: email",
-  footer: { label: "About O-Tid and contact", name: "O-Tid", beta: "beta", questions: "Questions:", about: "About O-Tid", privacy: "Personal data" }
+  footer: { label: "About O-Tid and contact", name: "O-Tid", beta: "beta", questions: "Questions:", about: "About O-Tid", privacy: "Personal data",
+    painting: "Painting of the week:", paintingBy: "by", portfolio: "Emm Berring's portfolio" }
 };
 
 /** Del 2: tävlingssidan, start- och resultatlistornas sidor. */

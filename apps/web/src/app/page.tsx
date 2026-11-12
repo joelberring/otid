@@ -13,6 +13,8 @@ import { sv } from "../i18n/sv";
 import { publicRaceSv } from "../i18n/public-race-sv";
 import { Logo } from "../components/brand/logo";
 import { LanguageSwitch } from "../components/language-switch";
+import { SiteFooter } from "../components/about/site-footer";
+import { paintingOfTheWeek } from "../lib/weekly-painting";
 import { HomeAbout, HomePersonal, type Personal } from "../components/home/home-sections";
 import { RaceList, type RaceListTiming } from "../components/public-race/race-list";
 import styles from "../components/public-race/public-race.module.css";
@@ -30,6 +32,8 @@ type Query = { q?: string | string[]; fler?: string | string[]; demo?: string | 
  * Startsidan för besökare (ADR-0172 beslut 4): sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
  * Senaste med "Visa fler". Bara publicerade tävlingar och inga adminlänkar; den inloggade får en länk till Mina tävlingar.
  * Längst ned en länk till introduktionsfilmen, bara när `NEXT_PUBLIC_INTRO_FILM_URL` är satt (docs/drift.md).
+ * Veckans målning (ägarens önskemål 2026-11-12) står bredvid rubriken och sökrutan, och texten om den i startsidans egen sidfot.
+ * Sidan renderas vid varje förfrågan (`force-dynamic`), så målningen byts när veckan byts.
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Query> }) {
   const query = await searchParams;
@@ -45,6 +49,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const personal = signedIn && token ? await personalFor(token) : undefined;
   const film = introFilmUrl();
   const today = todayIn("Europe/Stockholm");
+  const painting = paintingOfTheWeek(new Date());
   const total = listing.ongoing.length + listing.upcoming.length + listing.recent.length;
   const moreHref = `/?${new URLSearchParams({ ...(search ? { q: search } : {}), fler: String(recentLimit + PUBLIC_RECENT_STEP) })}#senaste`;
   const section = (id: string, title: string, races: typeof listing.ongoing, timing: RaceListTiming, empty: string, more?: boolean) =>
@@ -67,15 +72,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       </div>
     </header>
     <main className={styles.home}>
-      <div className={styles.homeIntro}>
-        <h1>{text.title}</h1>
-        <p>{text.intro}</p>
+      <div className={styles.homeTop}>
+        <div className={styles.homeLead}>
+          <div className={styles.homeIntro}>
+            <h1>{text.title}</h1>
+            <p>{text.intro}</p>
+          </div>
+          <form className={styles.search} role="search" action="/" method="get">
+            <label>{text.searchLabel}<input type="search" name="q" defaultValue={search} placeholder={text.searchPlaceholder} maxLength={100}
+              autoComplete="off" /></label>
+            <button type="submit">{text.search}</button>
+          </form>
+        </div>
+        <img className={styles.homePainting} src={painting.src} width={painting.width} height={painting.height}
+          alt={text.paintingAlt(painting.title)} loading="eager" decoding="async" data-testid="home-painting" />
       </div>
-      <form className={styles.search} role="search" action="/" method="get">
-        <label>{text.searchLabel}<input type="search" name="q" defaultValue={search} placeholder={text.searchPlaceholder} maxLength={100}
-          autoComplete="off" /></label>
-        <button type="submit">{text.search}</button>
-      </form>
       {search && <div className={styles.searchMeta}>
         <p role="status">{total === 0 ? text.noMatch(search) : text.searchHeading(search)}</p>
         <Link href="/">{text.showAll}</Link>
@@ -89,6 +100,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
         guest={guestDemoEnabled() && !signedIn ? { message: query.demo === "upptaget" ? "busy" : query.demo === "fel" ? "failed" : undefined }
           : undefined} />}
     </main>
+    <SiteFooter language={language} painting={painting} />
   </>;
 }
 

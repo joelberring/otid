@@ -30,6 +30,10 @@
 .siteHeadInner nav { display: flex; gap: 16px; align-items: center; }
 
 .home { display: grid; gap: 28px; max-width: 880px; padding-top: 24px; padding-bottom: 32px; }
+/* Rubrik, ingress och sökruta till vänster, veckans målning till höger: hel, aldrig beskuren eller utdragen (båda måtten auto). */
+.homeTop { display: grid; gap: 28px 32px; grid-template-columns: minmax(0, 1fr) minmax(0, min(400px, 48%)); align-items: start; }
+.homeLead { display: grid; gap: 28px; align-content: start; }
+.homePainting { justify-self: end; display: block; width: auto; height: auto; max-width: 100%; max-height: 300px; }
 .homeIntro { display: grid; gap: 4px; }
 .homeIntro p { color: var(--muted); max-width: 60ch; }
 .search { display: flex; gap: 8px; align-items: end; max-width: 36rem; }
@@ -108,6 +112,10 @@ a.hubLink:hover strong { text-decoration: underline; }
 
 @media (max-width: 640px) {
   .home { gap: 22px; padding-top: 16px; }
+  /* Smal skärm: målningen mellan sökrutan och listorna, kant i kant (main har 16 px sidmarginal). */
+  .homeTop, .homeLead { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .homePainting { justify-self: stretch; width: calc(100% + 32px); max-width: none; max-height: none;
+    margin-inline: -16px; }
   .raceRow { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 12px 0; }
   .raceDate { order: -1; font-size: var(--text-xs); }
   .raceLinks { justify-content: flex-start; }

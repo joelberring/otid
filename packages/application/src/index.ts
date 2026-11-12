@@ -210,6 +210,7 @@ export { clearCutRuntimeFromEnvironment, clearCutsFromGeoJson, fetchMapProjectCl
 export { deleteMapSourceCredential, readMapSourceCredential, saveMapSourceCredential } from "./map-source-credentials";
 export { changeClubDevice, listClubDevices, recordClubDevice } from "./club-devices";
 export { changeClubTerm, createClubTerm, createPlanSessions, readClubPlan, removePlanSession, updatePlanSession } from "./club-planning";
+export { autoArchiveFinishedRaces } from "./race-club-archive-auto";
 export { createPlannedRace, createPlanTask, linkPlannedRace, listMyPlanTasks, removePlanTask, setPlanTaskDone, updatePlanTask, type PlanTaskMail,
   type PlanTaskMailer } from "./club-plan-tasks";
 export {

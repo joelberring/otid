@@ -130,6 +130,8 @@ export const RACE_BACKUP_TABLES: readonly BackupTable[] = [
  *   tävlingen som den var och ges på nytt i den återställda.
  * - `race_organiser` (ADR-0209): arrangörsklubben pekar på klubblistan, som inte följer med; den väljs igen,
  * - `race_club_archive` (ADR-0209): att tävlingen ligger i ett klubbarkiv hör till klubben, inte till tävlingen.
+ * - `race_club_archive_auto` (migration 0113): rutan "Lägg i klubbarkivet när träningen är klar" och spärren hör till
+ *   klubbarkivet; en återställd tävling får förvalet igen.
  * - `course_setting_map_link` (ADR-0214): länken till kartritaren gäller tävlingen som den var; kartritarens svar följer med.
  * - `map_project_job` (migration 0101): AI-kopplingens tillfälliga kartjobb (rensas efter en timme).
  * - `club_plan_session` (ADR-0221): klubbens terminsplan pekar på tävlingen som skapades ur planen; planen hör till klubben.
@@ -138,7 +140,7 @@ export const RACE_BACKUP_TABLES: readonly BackupTable[] = [
  */
 export const RACE_BACKUP_EXCLUDED_TABLES: readonly string[] = [
   "race_copy_request", "public_result_update_event", "course_setting_print_job", "user_account_event_creation_request",
-  "race_restore_request", "race_person_invitation", "race_organiser", "race_club_archive", "course_setting_map_link",
+  "race_restore_request", "race_person_invitation", "race_organiser", "race_club_archive", "race_club_archive_auto", "course_setting_map_link",
   "map_project_job", "club_plan_session"
 ];
 

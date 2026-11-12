@@ -22,6 +22,7 @@ import { lockRelayClassOfEntry, synchronizeRelayTeams } from "./relay-sync";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
 import { previousCardOf, registeredAtReadout, useFittingVariant } from "./readout-link-variant";
 import { recordLinkDetails } from "./unknown-readout-link";
+import { autoArchiveAfterResult } from "./race-club-archive-auto";
 
 async function findPersistedServerResult(
   tx: DbExecutor,
@@ -284,6 +285,8 @@ export async function ingestDeviceBatch(
         // Steg 44: övningsstationens avläsningar räknas inte som festens köp.
         simulated: event.transport === "sportident" && event.payload.simulated
       }, new Date(event.stationReceivedAt));
+      // Ägaren 2026-11-12: den sista avläsningen kan göra träningen klar för klubbarkivet (gör ingenting annars).
+      await autoArchiveAfterResult(tx, raceId, new Date());
 
       return {
         localSequence: event.localSequence,

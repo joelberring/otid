@@ -138,6 +138,13 @@ export interface RaceClubArchiveView {
      * kartan). De följer inte med i arkivets banfiler.
      */
     coursesWithoutMap: string[] };
+  /**
+   * Ägaren 2026-11-12: "Lägg i klubbarkivet när träningen är klar" (förval på för en Träning med arrangörsklubbens klubbyta).
+   * `explicit` = någon har valt eller tävlingen har lagts i arkivet; `archivedAt` = när den lades i arkivet (då görs ingen
+   * automatisk arkivering igen, också efter Ta ur); `problem` = varför den automatiska inte gick. Null utan klubbyta där du är
+   * administratör (samma villkor som Lägg i klubbarkivet).
+   */
+  auto: { enabled: boolean; explicit: boolean; archivedAt: string | null; problem: "NO_ADMIN" | "FAILED" | null } | null;
 }
 
 export const raceOrganiserRequestSchema = z.object({ formatVersion: z.literal(1), organisationId: uuidSchema.nullable() }).strict();
@@ -147,3 +154,5 @@ export const raceClubArchiveLiftRequestSchema = z.object({
   confirmSecrecy: z.boolean()
 }).strict();
 
+/** Ägaren 2026-11-12: rutan "Lägg i klubbarkivet när träningen är klar" (PATCH). */
+export const raceClubArchiveAutoRequestSchema = z.object({ formatVersion: z.literal(1), enabled: z.boolean() }).strict();

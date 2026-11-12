@@ -18,6 +18,7 @@ import { loadStoredStartCheckinDnsStates } from "./start-checkin-dns-state";
 import { parseStrictStoredResultRevision, StoredResultRevisionConflict } from "./stored-result-revision";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { UUID_PATTERN } from "./serialization";
+import { autoArchiveAfterResult } from "./race-club-archive-auto";
 
 /**
  * Ett statusflöde (ADR-0173 beslut 1): ett beslut om en löpare lägger till en resultatrevision med orsak, aktör och
@@ -252,6 +253,8 @@ export async function setEntryStatus(db: Database, input: Auth & { entryId: stri
         before: before ? { resultRevisionId: before.id, revision: before.revision, status: before.status, reason: before.reason } : null,
         after: { entryId: revision.entryId, decision, resultRevisionId: revision.id, revision: revision.revision,
           cause: revision.cause, status: revision.status, reason: revision.reason, courseVersionId: revision.courseVersionId } });
+      // Ägaren 2026-11-12: det sista beslutet (DNS, DNF, borttagen) kan göra träningen klar för klubbarkivet.
+      await autoArchiveAfterResult(tx, race.id, decidedAt);
       return { status: "decided", response: receipt(revision, requestId, false) } as const;
     });
   } catch (error) {

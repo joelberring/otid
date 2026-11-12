@@ -5,6 +5,7 @@ import {
   orderedLevels, orderedMoments
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
+import { forgetArchivePeople } from "./club-plan-people";
 import { versionYearSpan } from "@o-tid/domain";
 import { clubAreaAccess, clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
 import { entryThumbnails, forgetEntryThumbnail, mapChecks } from "./club-archive-checks";
@@ -253,6 +254,7 @@ export async function deleteClubArchiveEntry(db: Database, input: ClubProof & { 
       .where(and(eq(schema.clubArchiveEntries.id, input.entryId), eq(schema.clubArchiveEntries.clubId, input.clubId))).for("update");
     if (!entry) return { status: "not-found" } as const;
     await forgetEntryThumbnail(tx, entry.id);
+    await forgetArchivePeople(tx, entry.id);
     // ADR-0209: en tävling som lagts i arkivet är inte längre där.
     await tx.delete(schema.raceClubArchives).where(eq(schema.raceClubArchives.entryId, entry.id));
     await tx.delete(schema.clubArchiveCourseFiles).where(eq(schema.clubArchiveCourseFiles.entryId, entry.id));

@@ -95,8 +95,9 @@ test("inbjudan med e-post: klubbarkivet och tävlingen, länken, nytt konto och 
   await fillNewPassword(guest, password);
   await guest.getByRole("button", { name: "Skapa konto" }).click();
   await expect(guest.getByText("Vi har skickat ett mejl till")).toBeVisible();
+  // ADR-0205 tillägg 2026-11-12: länken i samma webbläsare som registreringen; lösenordet skrivs inte en tredje gång.
   await guest.goto(await verificationLink(invited));
-  await fillNewPassword(guest, password);
+  await expect(guest.getByLabel("Upprepa lösenordet", { exact: true })).toHaveCount(0);
   await guest.getByRole("button", { name: "Bekräfta och logga in" }).click();
   await guest.waitForURL(`**/organizer/clubs/${clubId}`);
   await expect(guest.getByRole("heading", { name: clubName, level: 1 })).toBeVisible();

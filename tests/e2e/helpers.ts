@@ -127,7 +127,8 @@ export async function newContext(browser: Browser) {
 
 /**
  * Registrerar ett konto med e-post (ADR-0172) i en egen webbläsarkontext och landar i Mina tävlingar. ADR-0186: servern i
- * testerna har e-post, så kontot bekräftas med länken i mejlet (den falska SMTP-servern) och lösenordet.
+ * testerna har e-post, så kontot bekräftas med länken i mejlet (den falska SMTP-servern). ADR-0205 tillägg 2026-11-12: länken
+ * öppnas i samma kontext, så lösenordet från registreringen gäller utan att skrivas igen.
  */
 export async function registerAccount(browser: Browser, email: string, displayName: string): Promise<Page> {
   const page = await (await newContext(browser)).newPage();
@@ -172,12 +173,13 @@ export async function fillNewPassword(page: Page, secret: string, label = "Löse
 }
 
 /**
- * ADR-0186, ändrat av ADR-0205: öppnar bekräftelselänken och väljer lösenordet (två gånger); kontot är sedan bekräftat och
- * inloggat.
+ * ADR-0205 tillägg 2026-11-12: öppnar bekräftelselänken i webbläsaren (kontexten) som registrerade. Lösenordet från
+ * registreringen gäller, så inga lösenordsfält visas; knappen bekräftar och loggar in.
  */
-export async function verifyEmail(page: Page, email: string, secret = password): Promise<void> {
+export async function verifyEmail(page: Page, email: string): Promise<void> {
   await page.goto(await verificationLink(email));
-  await fillNewPassword(page, secret);
+  await expect(page.getByText("Du skapade kontot i den här webbläsaren.", { exact: false })).toBeVisible();
+  await expect(page.getByLabel("Upprepa lösenordet", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Bekräfta och logga in" }).click();
   await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
 }

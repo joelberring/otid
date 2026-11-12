@@ -47,6 +47,17 @@ async function registerWithTypo(page: Page, email: string) {
   await expect(page.getByText("Vi har skickat ett mejl till")).toBeVisible();
 }
 
+/** Registrering med ett lösenord (två gånger, lika) och "Kolla e-posten". */
+async function registerWith(page: Page, email: string, secret: string) {
+  await page.goto("/organizer");
+  await page.getByRole("button", { name: "Har du inget konto? Skapa ett" }).click();
+  await page.getByLabel("Ditt namn").fill("Klubbmedlem");
+  await page.getByLabel("E-postadress").fill(email);
+  await fillNewPassword(page, secret);
+  await page.getByRole("button", { name: "Skapa konto" }).click();
+  await expect(page.getByText("Vi har skickat ett mejl till")).toBeVisible();
+}
+
 /** Utvecklingsservern kompilerar en väg vid första anropet; flödets sidor och API:er kompileras före testerna. */
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(600_000);
@@ -124,6 +135,8 @@ test("fel lösenord vid registreringen: bekräftelselänken i en annan webbläsa
   await phone.goto(link);
   await expect(phone.getByRole("heading", { name: "Bekräfta e-postadressen" })).toBeVisible();
   await expect(phone).not.toHaveURL(/token=/);
+  // ADR-0205 tillägg 2026-11-12: telefonen registrerade inte, så registreringens lösenord gäller inte här.
+  await expect(phone.getByText("Du skapade kontot i den här webbläsaren.", { exact: false })).toHaveCount(0);
   await fillNewPassword(phone, INTENDED);
   await screenshots(phone, "bekrafta");
   await phone.getByRole("button", { name: "Bekräfta och logga in" }).click();
@@ -149,4 +162,43 @@ test("fel lösenord vid registreringen: bekräftelselänken i en annan webbläsa
   await again.getByRole("button", { name: "Spara och logga in" }).click();
   await expect(again.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
   for (const page of [laptop, phone, again]) await page.context().close();
+});
+
+test("två gånger räcker: länken i webbläsaren som registrerade bekräftar med lösenordet därifrån, men aldrig med någon annans", async ({ browser }) => {
+  test.setTimeout(180_000);
+  const email = `sammawebblasare.${unique()}@exempel.se`;
+  const OTHER = "någon-annans-2";
+  // Någon annan registrerar adressen först, i sin webbläsare och med ett lösenord som ägaren inte känner till.
+  const intruder = await otherBrowser(browser);
+  await registerWith(intruder, email, OTHER);
+  const intruderLink = await verificationLink(email);
+  // Ägaren registrerar i sin webbläsare (lösenordet två gånger) och öppnar länken från sitt eget mejl.
+  const laptop = await otherBrowser(browser);
+  await registerWith(laptop, email, INTENDED);
+  await expect.poll(() => verificationLink(email), { timeout: 30_000 }).not.toBe(intruderLink);
+  const ownLink = await verificationLink(email);
+
+  // Den andras webbläsare har en kaka, men den hör till den andras registrering: ägarens länk ber om lösenord där.
+  await intruder.goto(ownLink);
+  await expect(intruder.getByLabel("Upprepa lösenordet", { exact: true })).toBeVisible();
+  await expect(intruder.getByText("Du skapade kontot i den här webbläsaren.", { exact: false })).toHaveCount(0);
+
+  // Ägarens webbläsare: inga lösenordsfält, bara knappen. Lösenordet skrevs alltså två gånger totalt.
+  await laptop.goto(ownLink);
+  await expect(laptop.getByText("Du skapade kontot i den här webbläsaren.", { exact: false })).toBeVisible();
+  await expect(laptop.getByLabel("Lösenord", { exact: true })).toHaveCount(0);
+  await expect(laptop.getByRole("button", { name: "Välj ett annat lösenord" })).toBeVisible();
+  await screenshots(laptop, "bekrafta-samma-webblasare");
+  await laptop.getByRole("button", { name: "Bekräfta och logga in" }).click();
+  await expect(laptop.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
+
+  // Ägarens lösenord gäller, den andras inte; den andras länk säger bara att adressen redan är bekräftad.
+  const third = await otherBrowser(browser);
+  await logIn(third, email, OTHER);
+  await expect(third.getByText(WRONG)).toBeVisible();
+  await logIn(third, email, INTENDED);
+  await expect(third.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
+  await intruder.goto(intruderLink);
+  await expect(intruder.getByText("E-postadressen är redan bekräftad.")).toBeVisible();
+  for (const page of [intruder, laptop, third]) await page.context().close();
 });

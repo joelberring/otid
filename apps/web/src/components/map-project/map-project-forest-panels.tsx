@@ -4,6 +4,9 @@ import { FOREST_IMAGE_PRODUCTS, type ForestImageProduct, type MapProjectClearCut
 import type { MapGeoreference } from "@o-tid/map-file";
 import { useEffect, useRef, useState } from "react";
 import { mapForestEn } from "../../i18n/map-forest-en";
+import { mapSavedChoiceEn } from "../../i18n/map-knolls-en";
+import { mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
+import { clearCutAgesAt } from "../../lib/map-project-amount";
 import { mapForestSv } from "../../i18n/map-forest-sv";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
@@ -96,6 +99,8 @@ export function MapProjectClearCutPanel({ view, georeference, bounds, areas, imp
   const [where, setWhere] = useState("");
   const [cuts, setCuts] = useState<readonly MapProjectClearCut[]>();
   const [ages, setAges] = useState<ClearCutAges>(DEFAULT_CLEAR_CUT_AGES);
+  const [level, setLevel] = useState(5);
+  const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   const [borders, setBorders] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
@@ -141,9 +146,16 @@ export function MapProjectClearCutPanel({ view, georeference, bounds, areas, imp
     <AreaSelect areas={areas} where={where} setWhere={setWhere} label={sources.ortho.where} whole={sources.ortho.whole} />
     <span className={styles.actions}><Button variant="secondary" disabled={busy} onClick={() => void fetchCuts()} data-testid="map-project-cuts-fetch">{text.fetch}</Button></span>
     {cuts && <>
-      {slider("fresh", text.fresh(ages.fresh), 1, 8)}
-      {slider("scrub", text.scrub(ages.scrub), 2, 15)}
-      {slider("young", text.young(ages.young), 3, 30)}
+      {/* Ägaren 2026-11-12: samma skala 1–10 som de andra reglagen; åldrarna finns under Finjustera. */}
+      <label>{shared.amount(level)}
+        <input type="range" min={1} max={10} step={1} value={level} data-testid="map-project-cuts-amount"
+          onChange={event => { const next = Number(event.target.value); setLevel(next); setAges(clearCutAgesAt(next)); }} /></label>
+      <p className={styles.muted}>{shared.amountHelp}</p>
+      <details><summary>{shared.fine}</summary>
+        {slider("fresh", text.fresh(ages.fresh), 1, 8)}
+        {slider("scrub", text.scrub(ages.scrub), 2, 16)}
+        {slider("young", text.young(ages.young), 3, 30)}
+      </details>
       <label className={styles.check}><input type="checkbox" checked={borders} onChange={() => setBorders(value => !value)} /> {text.borders}</label>
     </>}
     {busy && <p role="status" className={styles.muted}>{text.fetching}</p>}

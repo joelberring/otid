@@ -3,7 +3,10 @@
 import { mapPointToProjected, type MapGeoreference } from "@o-tid/map-file";
 import type { SourceData } from "@o-tid/map-revision";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { mapSavedChoiceEn } from "../../i18n/map-knolls-en";
+import { mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import type { PhotoPixels } from "../../lib/map-project-photo-interpret";
+import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
 import type { useMapProjectLayers } from "./use-map-project-layers";
@@ -19,7 +22,9 @@ export interface RasterPanelTexts {
  * fuktdjupet eller vegetationens klasser) läses i webbläsaren och gränserna dras med reglage. Efter första «Visa som
  * kandidater» räknas kandidaterna om en kort stund efter att ett reglage flyttats. `compute` ger kandidaterna och ett besked.
  */
-export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, controls, compute }: {
+export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, controls, compute, atLevel }: {
+  /** Inställningarna för en mängd på skalan 1–10 (5 = förvalen, ägaren 2026-11-12); `current` är det som är finjusterat. */
+  atLevel: (level: number, current: S) => S;
   layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference; importer: ReturnType<typeof useMapProjectImport>;
   /** Lagren som panelen ger: de byts i det som visas, resten står kvar. */
   match: RegExp; own: RegExp; text: RasterPanelTexts; testId: string; initial: S;
@@ -29,6 +34,8 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
 }) {
   const [chosen, setChosen] = useState("");
   const [settings, setSettings] = useState<S>(initial);
+  const [level, setLevel] = useState(5);
+  const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   const [live, setLive] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const pixels = useRef<{ layerId: string; data: ImageData } | undefined>(undefined);
@@ -84,7 +91,11 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
       <label>{text.layer}<select value={current.drawn.layerId} onChange={event => { setChosen(event.target.value); setLive(false); }}>
         {shown.map(row => <option key={row.drawn.layerId} value={row.drawn.layerId}>{row.name}</option>)}
       </select></label>
-      {controls(settings, change)}
+      <label>{shared.amount(level)}
+        <input type="range" min={1} max={10} step={1} value={level} data-testid={`${testId}-amount`}
+          onChange={event => { const next = Number(event.target.value); setLevel(next); setSettings(previous => atLevel(next, previous)); }} /></label>
+      <p className={styles.muted}>{shared.amountHelp}</p>
+      <details><summary>{shared.fine}</summary>{controls(settings, change)}</details>
       <span className={styles.actions}><Button variant="secondary" onClick={() => { setLive(true); run(settings); }} data-testid={`${testId}-run`}>{text.run}</Button></span>
     </>}
     {message && <p role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? styles.problem : undefined}

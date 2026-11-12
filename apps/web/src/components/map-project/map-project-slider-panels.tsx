@@ -3,6 +3,7 @@
 import type { MapGeoreference } from "@o-tid/map-file";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
+import { depthAt, greenAt } from "../../lib/map-project-amount";
 import { DEFAULT_DEPTH, depthCandidates } from "../../lib/map-project-moisture-depth";
 import { DEFAULT_GREEN, greenCandidates, type BorderLevel } from "../../lib/map-project-green-classes";
 import { mapForestEn } from "../../i18n/map-forest-en";
@@ -18,7 +19,7 @@ type Props = { layers: ReturnType<typeof useMapProjectLayers>; georeference: Map
 /** Fukt med reglage: gränserna för blött och fuktigt i laserkörningens fuktdjup (underlaget som slutar på «fuktdjup»). */
 export function MapProjectDepthPanel(props: Props) {
   const text = useTexts(mapSourcesSv.depth, mapSourcesEn.depth);
-  return <MapProjectRasterPanel {...props} match={/fuktdjup$/} own={/^(blott|fuktigt)$/} text={text} testId="map-project-depth" initial={DEFAULT_DEPTH}
+  return <MapProjectRasterPanel {...props} match={/fuktdjup$/} own={/^(blott|fuktigt)$/} text={text} testId="map-project-depth" initial={DEFAULT_DEPTH} atLevel={depthAt}
     controls={(settings, change) => <>
       <label>{text.wet(decimal(settings.wetMeters))}<input type="range" min={0.1} max={2} step={0.05} value={settings.wetMeters}
         onChange={event => { const wet = Number(event.target.value); change({ wetMeters: wet, moistMeters: Math.max(settings.moistMeters, wet + 0.1) }); }}
@@ -42,7 +43,7 @@ export function MapProjectDepthPanel(props: Props) {
 export function MapProjectGreenPanel(props: Props) {
   const text = useTexts(mapSourcesSv.green, mapSourcesEn.green);
   const forest = useTexts(mapForestSv, mapForestEn);
-  return <MapProjectRasterPanel {...props} match={/vegetationsklasser$/} own={/^(oppen_mark|oppen_mark_laser|gron_|undervegetation_|bestandsgrans_laser$)/} text={text} testId="map-project-green" initial={DEFAULT_GREEN}
+  return <MapProjectRasterPanel {...props} match={/vegetationsklasser$/} own={/^(oppen_mark|oppen_mark_laser|gron_|undervegetation_|bestandsgrans_laser$)/} text={text} testId="map-project-green" initial={DEFAULT_GREEN} atLevel={greenAt}
     controls={(settings, change) => <>
       {(["slow", "difficult", "fight"] as const).map(key => <label key={key}>{text.step(key, settings[key])}
         <input type="range" min={0} max={12} step={1} value={settings[key]} data-testid={`map-project-green-${key}`} onChange={event => {

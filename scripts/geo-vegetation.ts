@@ -10,14 +10,18 @@
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`).
  */
 import { inflateSync } from "node:zlib";
+import { fillSmallForest, smoothMask, SMOOTH_RADIUS_CELLS } from "./geo-generalize.ts";
 import { blockedCells, cleanMask, encodePng, type Grid, maskRings, moistureDxf, ringArea, simplify, worldFile } from "./geo-moisture.ts";
 
-export interface VegetationSettings { readonly minAreaM2: number }
+/** `smoothCells`: ytornas utjämning i celler (förval 3 = 6 m, 0 = ingen). */
+export interface VegetationSettings { readonly minAreaM2: number; readonly smoothCells?: number | undefined }
 export const DEFAULT_VEGETATION: VegetationSettings = { minAreaM2: 300 };
 /** Grönt: lägsta nyans (Karttapullautins index, 0 ljusast) för 406, 408 och 410 med grundinställningens `greenshades`. */
 export const GREEN_STEPS = { slow: 2, difficult: 4, fight: 5 } as const;
 /** Cellen som ytorna räknas i (meter); klassbilderna är 1 m och slås ihop med flest röster. */
 export const VEGETATION_CELL = 2;
+/** Gult öppnas bara så här många celler (smala gläntor ska finnas kvar); grönt öppnas med hela utjämningen. */
+const OPEN_OPENING_CELLS = 1;
 
 export interface ClassImage { readonly width: number; readonly height: number; readonly data: Uint8Array }
 
@@ -156,7 +160,28 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   const dry = (mask: Uint8Array) => { if (blocked) for (let i = 0; i < mask.length; i += 1) if (blocked[i]) mask[i] = 0; return mask; };
   const area = grid.cell * grid.cell, minCells = Math.max(2, Math.round(settings.minAreaM2 / area));
   const shade = (value: number) => (value & 15) >= 2 ? (value & 15) - 2 : -1;
-  const scattered = scatteredTrees(classes, grid.width, grid.height, shade, GREEN_STEPS.slow);
+  // Ägaren 2026-11-12: gult och grönt jämnas ut och små vita ytor mellan dem ges till grannen (scripts/geo-generalize.ts).
+  // Klasserna skrivs om, så att allt som följer (spridda träd, ytorna, reglagens bild) ser de generaliserade ytorna.
+  const radius = settings.smoothCells ?? SMOOTH_RADIUS_CELLS;
+  // Blandningen av gläntor och träd (404) letas i de råa klasserna, före utjämningen som annars suddar ut den, och jämnas
+  // sedan ut till hela ytor: ett halvöppet område blir en yta, inte en mosaik av små gula och vita fläckar.
+  const mixed = scatteredTrees(classes, grid.width, grid.height, shade, GREEN_STEPS.slow);
+  const scattered = radius > 0 ? smoothMask(mixed, grid.width, grid.height, radius) : mixed;
+  if (radius > 0) {
+    const known = classes.map(value => value === 0 ? 0 : 1);
+    // Gult öppnas bara ett steg: smala gläntor, ledningsgator och strandhällar ska finnas kvar (Nåttarö tappade annars träffar).
+    const open = smoothMask(classes.map(value => (value & 15) === 1 ? 1 : 0), grid.width, grid.height, radius, undefined, OPEN_OPENING_CELLS);
+    const green = smoothMask(classes.map(value => shade(value) >= GREEN_STEPS.slow ? 1 : 0), grid.width, grid.height, radius, open, radius);
+    for (let i = 0; i < classes.length; i += 1) if (!known[i] || blocked?.[i]) { open[i] = 0; green[i] = 0; }
+    const outside = classes.map((value, i) => value === 0 || blocked?.[i] || scattered[i] ? 1 : 0);
+    fillSmallForest(open, green, outside, grid.width, grid.height, minCells);
+    for (let i = 0; i < classes.length; i += 1) {
+      const value = classes[i]!;
+      if (value === 0) continue;
+      const step = shade(value), low = open[i] ? 1 : green[i] ? Math.max(step, GREEN_STEPS.slow) + 2 : Math.min(Math.max(step, 0), GREEN_STEPS.slow - 1) + 2;
+      classes[i] = (value & 0xf0) | low;
+    }
+  }
   const layers: { name: string; code: string; test: (value: number, i: number) => boolean }[] = [
     { name: "oppen_mark", code: "401", test: (value, i) => (value & 15) === 1 && scattered[i] !== 1 },
     { name: "oppen_mark_spridda_trad", code: "404", test: (_, i) => scattered[i] === 1 },
@@ -169,7 +194,10 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   const full: Grid = { ...grid, z: new Float64Array(0) };
   const summary: Record<string, number> = {};
   const parts = layers.map(layer => {
-    const mask = dry(cleanMask(dry(classes.map((value, i) => layer.test(value, i) ? 1 : 0)), grid.width, grid.height, minCells));
+    // De tätare gröna stegen och undervegetationen jämnas ut var för sig (gult och ljusgrönt är redan utjämnade ovan).
+    const raw = dry(classes.map((value, i) => layer.test(value, i) ? 1 : 0));
+    const even = radius > 0 && !/^(oppen_mark|gron_lattlopt)/.test(layer.name) ? dry(smoothMask(raw, grid.width, grid.height, radius)) : raw;
+    const mask = dry(cleanMask(even, grid.width, grid.height, minCells));
     const rings = maskRings(mask, full).filter(ring => !blocked || ringArea(ring) > 0).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
     summary[`ha${layer.code}`] = Math.round(mask.reduce((sum, value) => sum + value, 0) * area / 100) / 100;
     return { name: layer.name, closed: true, parts: rings };

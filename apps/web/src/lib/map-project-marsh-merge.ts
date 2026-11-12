@@ -12,7 +12,7 @@ const MARSH = ["blott", "sankmark_vat", "fuktigt", "sankmark_fast"] as const;
  * Undervegetationens raster (407, 409) läggs ovanpå vit skog och gult, men får enligt normen inte kombineras med grönt
  * (406, 408): de klipps mot det gröna, och 407 mot 409 så att rastren inte ligger dubbelt. Det gröna självt rörs inte.
  */
-const UNDERGROWTH = ["gron_lattlopt", "hygge_ungskog", "undervegetation_svarlopt", "undervegetation_lattlopt"] as const;
+const UNDERGROWTH = ["gron_lattlopt", "hygge_ungskog", "undervegetation_svarlopt", "undervegetation_lattlopt", "hygge_sly"] as const;
 const MIN_PIECE_M2 = 40;
 
 type Ring = [number, number][];

@@ -1,4 +1,5 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
+import { smoothMask, SMOOTH_RADIUS_CELLS } from "./map-project-mask-smooth";
 import { scatteredTrees } from "./map-project-scattered-trees";
 import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map-project-photo-interpret";
 
@@ -42,7 +43,9 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
   const features: SourceFeature[] = [];
   const hectares: Record<string, number> = {};
   for (const layer of layers) {
-    const mask = compactMask(values.map((value, i) => (known[i] || layer.name === "oppen_mark_spridda_trad") && layer.test(value, i) ? 1 : 0), columns, rows, minCells);
+    // Ägaren 2026-11-12: ytorna jämnas ut som i geo-arbetaren (gult öppnas bara ett steg, så att smala gläntor finns kvar).
+    const raw = values.map((value, i) => (known[i] || layer.name === "oppen_mark_spridda_trad") && layer.test(value, i) ? 1 : 0);
+    const mask = compactMask(smoothMask(raw, columns, rows, SMOOTH_RADIUS_CELLS, layer.name.startsWith("oppen_mark") ? 1 : SMOOTH_RADIUS_CELLS), columns, rows, minCells);
     hectares[layer.name] = Math.round(mask.reduce((sum, cell) => sum + cell, 0) * cellMeters * cellMeters / 100) / 100;
     for (const ring of maskOutlines(mask, columns, rows)) {
       const simple = simplifyRing(ring, 0.75);

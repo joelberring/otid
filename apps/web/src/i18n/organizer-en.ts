@@ -34,7 +34,7 @@ export const organizerEn: Texts<typeof organizerSv> = {
   privacyLink: "How O-Tid handles personal data",
   displayName: "Your name",
   registering: "Creating account …",
-  checkEmail: email => `We have sent an email to ${email}. Open the link in the email and choose a password; then the address is confirmed and you are signed in. The link works in any browser. Also check the spam folder.`,
+  checkEmail: email => `We have sent an email to ${email}. Open the link in the email; then the address is confirmed and you are signed in. In this browser (within an hour) the password you just chose applies; in another one, for example your phone, you choose a password there. Also check the spam folder.`,
   invalidCredentialsOrUnverified: "The email address or password is wrong. Did you just create the account? Open the link in the email and choose a password there. If you still cannot get in: choose a new password with Forgot password, which also confirms the address.",
   unverifiedNotice: "Your email address is not confirmed. Events you create yourself work as usual, but permissions others give you apply only when the address is confirmed. Choose a new password with Forgot password (it confirms the address), or ask whoever runs O-Tid to confirm it.",
   googleLogin: "Sign in with Google",

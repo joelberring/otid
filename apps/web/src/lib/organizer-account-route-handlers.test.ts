@@ -14,7 +14,9 @@ import {
   organizerLoginRoute,
   organizerLogoutRoute,
   organizerRegisterRoute,
-  organizerSessionStatusRoute
+  organizerSessionStatusRoute,
+  organizerVerifyEmailCheckRoute,
+  organizerVerifyEmailRoute
 } from "./organizer-account-route-handlers";
 
 const db = {} as Database;
@@ -232,7 +234,7 @@ describe("ADR-0186 registrering med bekräftad e-post", () => {
       run: async () => { for (const task of tasks.splice(0)) await task(); } };
   }
 
-  it("svarar likadant för en ny och en upptagen adress, utan kakor, och gör arbetet efter svaret", async () => {
+  it("svarar likadant för en ny och en upptagen adress, med en ny registreringskaka var, och gör arbetet efter svaret", async () => {
     const legacy = vi.fn() as unknown as typeof registerUserAccount;
     const withVerification = vi.fn(async (_db: unknown, value: unknown) => (value as { email: string }).email === "finns@klubb.se"
       ? { status: "accepted" as const, delivery: { kind: "ALREADY_REGISTERED" as const, email: "finns@klubb.se", displayName: "Finns" } }
@@ -244,11 +246,18 @@ describe("ADR-0186 registrering med bekräftad e-post", () => {
     const taken = await organizerRegisterRoute(db, registerRequest("finns@klubb.se"), legacy, mail, withVerification as never, send, queue.background);
     expect([fresh.status, taken.status]).toEqual([202, 202]);
     expect(await fresh.text()).toBe(await taken.text());
-    expect([...fresh.headers.getSetCookie(), ...taken.headers.getSetCookie()]).toEqual([]);
+    // ADR-0205 tillägg 2026-11-12: båda svaren sätter en kaka av samma form (ingen inloggning), med en egen slumpad hemlighet.
+    const cookies = [...fresh.headers.getSetCookie(), ...taken.headers.getSetCookie()];
+    expect(cookies).toHaveLength(2);
+    const shape = /^__Host-otid-registration=([A-Za-z0-9_-]{43}); Path=\/; Max-Age=3600; SameSite=Strict; HttpOnly; Secure$/;
+    const secrets = cookies.map(cookie => shape.exec(cookie)?.[1]);
+    expect(secrets.every(Boolean)).toBe(true);
+    expect(secrets[0]).not.toBe(secrets[1]);
     expect(withVerification).not.toHaveBeenCalled();
     expect(legacy).not.toHaveBeenCalled();
     await queue.run();
     expect(withVerification).toHaveBeenCalledTimes(2);
+    expect(withVerification.mock.calls.map(call => (call as unknown as [unknown, unknown, { browserSecret?: string }])[2].browserSecret)).toEqual(secrets);
     const messages = (send.mock.calls as unknown as [unknown, string, { subject: string; text: string }][]).map(([, to, message]) => ({ to, ...message }));
     expect(messages).toEqual([
       expect.objectContaining({ to: "ny@klubb.se", subject: "Bekräfta din e-postadress i O-Tid",
@@ -285,5 +294,51 @@ describe("ADR-0186 registrering med bekräftad e-post", () => {
     const withoutMail = vi.fn(async () => ({ status: "unauthorized" as const })) as unknown as typeof loginUserAccount;
     await organizerLoginRoute(db, loginRequest(), withoutMail, prod);
     expect(withoutMail).toHaveBeenCalledWith(db, expect.anything(), expect.not.objectContaining({ requireVerifiedEmail: true }));
+  });
+});
+
+describe("ADR-0205 tillägg 2026-11-12: bekräftelselänken i webbläsaren som registrerade", () => {
+  const token = "T".repeat(43);
+  const secret = "R".repeat(43);
+  const verifyRequest = (body: unknown, cookie?: string, path = "/api/organizer/verify-email") => req("POST", JSON.stringify(body),
+    { origin: prod.O_TID_PUBLIC_ORIGIN, "content-type": "application/json", ...(cookie ? { cookie } : {}) }, `https://otid.example${path}`);
+  const authenticated = { status: "authenticated" as const, sessionToken, csrfToken: csrf,
+    response: { formatVersion: 1 as const, accountId, email: principal.email, displayName: principal.displayName, superadmin: false,
+      expiresAt: principal.expiresAt, emailVerified: true } };
+
+  it("skickar kakans hemlighet till bekräftelsen, tar bort kakan efteråt och svarar 403 när lösenordet behövs", async () => {
+    const verify = vi.fn(async () => authenticated);
+    const response = await organizerVerifyEmailRoute(db, verifyRequest({ formatVersion: 1, token }, `__Host-otid-registration=${secret}`),
+      verify as never, prod);
+    expect(response.status).toBe(200);
+    expect(verify).toHaveBeenCalledWith(db, { formatVersion: 1, token }, expect.objectContaining({ browserSecret: secret }));
+    expect(response.headers.getSetCookie()).toContain("__Host-otid-registration=deleted; Path=/; Max-Age=0; SameSite=Strict; HttpOnly; Secure");
+
+    const required = vi.fn(async () => ({ status: "password-required" as const }));
+    const refused = await organizerVerifyEmailRoute(db, verifyRequest({ formatVersion: 1, token }), required as never, prod);
+    expect(refused.status).toBe(403);
+    expect(required).toHaveBeenCalledWith(db, expect.anything(), expect.not.objectContaining({ browserSecret: expect.anything() as unknown }));
+    expect(refused.headers.getSetCookie()).toEqual([]);
+    // Fel Origin: inget prövas.
+    const other = vi.fn();
+    const foreign = req("POST", JSON.stringify({ formatVersion: 1, token }), { origin: "https://evil.example", "content-type": "application/json",
+      cookie: `__Host-otid-registration=${secret}` }, "https://otid.example/api/organizer/verify-email");
+    expect((await organizerVerifyEmailRoute(db, foreign, other as never, prod)).status).toBe(403);
+    expect(other).not.toHaveBeenCalled();
+  });
+
+  it("säger sameBrowser bara när kontrollen godtar kakan", async () => {
+    const check = vi.fn(async (_db: unknown, _body: unknown, options: { browserSecret?: string }) => ({ status: "checked" as const,
+      state: "valid" as const, ...(options.browserSecret === secret ? { sameBrowser: true as const } : {}) }));
+    const path = "/api/organizer/verify-email/check";
+    const same = await organizerVerifyEmailCheckRoute(db, verifyRequest({ formatVersion: 1, token }, `__Host-otid-registration=${secret}`, path),
+      check as never, prod);
+    expect(await same.json()).toEqual({ formatVersion: 1, state: "valid", sameBrowser: true });
+    const elsewhere = await organizerVerifyEmailCheckRoute(db, verifyRequest({ formatVersion: 1, token }, undefined, path), check as never, prod);
+    expect(await elsewhere.json()).toEqual({ formatVersion: 1, state: "valid" });
+    // Två kakor med samma namn räknas som ingen.
+    const twice = await organizerVerifyEmailCheckRoute(db, verifyRequest({ formatVersion: 1, token },
+      `__Host-otid-registration=${secret}; __Host-otid-registration=${"S".repeat(43)}`, path), check as never, prod);
+    expect(await twice.json()).toEqual({ formatVersion: 1, state: "valid" });
   });
 });

@@ -77,8 +77,9 @@ export function emailVerificationMessage(mail: PasswordResetMail): { subject: st
   if (mail.language === "en") {
     const until = new Intl.DateTimeFormat("en-GB", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Stockholm" }).format(mail.expiresAt);
     return { subject: "Confirm your email address in O-Tid", text: [`Hi ${mail.displayName}!`, "",
-      "Someone (hopefully you) created an O-Tid account with this address. Open the link (in any browser)",
-      "and choose a password; then the address is confirmed and you are signed in:", "", mail.link, "",
+      "Someone (hopefully you) created an O-Tid account with this address. Open the link; then the address is confirmed and you",
+      "are signed in. In the browser where you created the account (within an hour) your password applies; elsewhere you choose one:",
+      "", mail.link, "",
       `The link works once and is valid until ${until} (Swedish time). Permissions others give you in O-Tid apply only when the address is confirmed.`,
       "If you did not create an account you can ignore the message; without confirmation nobody can sign in with the address.", "", "O-Tid"].join("\n") };
   }
@@ -88,8 +89,8 @@ export function emailVerificationMessage(mail: PasswordResetMail): { subject: st
     text: [
       `Hej ${mail.displayName}!`,
       "",
-      "Någon (förhoppningsvis du) skapade ett konto i O-Tid med den här adressen. Öppna länken (i vilken webbläsare som helst)",
-      "och välj lösenord, så är adressen bekräftad och du loggas in:",
+      "Någon (förhoppningsvis du) skapade ett konto i O-Tid med den här adressen. Öppna länken, så är adressen bekräftad och du",
+      "loggas in. I webbläsaren där du skapade kontot (inom en timme) gäller ditt lösenord; i en annan väljer du lösenord där:",
       "",
       mail.link,
       "",

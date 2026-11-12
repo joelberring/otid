@@ -53,6 +53,8 @@ som går att räkna fram vid registreringen.
    Ändrat 2026-11-07 (städrundan C5, migration 0087): bekräftelselänken sparar inte längre registreringens lösenordsverifierare
    (`email_verification_token.salt_hex`/`verifier_hex`, nullbara); den lästes inte sedan ADR-0205. Kolumnerna tas bort i en senare
    driftsättning (steg 2).
+   Ändrat 2026-11-12 (ADR-0205 tillägg, migration 0115): kolumnerna används igen för registreringens verifierare när länken är
+   bunden till webbläsaren som registrerade, och tas inte bort.
 
 ## Följder
 

@@ -111,3 +111,54 @@ med en ny inloggning hos Google i stället för lösenordet. `POST /api/account/
 återkomsten (`steg=2` från O-Tids egen sida) prövas att det är samma session, att `sub` är kontots koppling och att `auth_time` är
 högst fem minuter gammal (`deleteAccountConfirmedWithGoogle`); sedan samma regler som med lösenordet, också att den som ensam
 äger en klubb eller leder en grupp lämnar över först. Ett konto med eget lösenord bekräftar som förut med lösenordet.
+
+## Tillägg 2026-11-12: lösenordet två gånger räcker (grenen `claude/r3-b`, migration 0115)
+
+Ägarens beslut "två gånger räcker": i dag skrevs lösenordet två gånger i "Skapa konto" och två gånger till bakom
+bekräftelselänken (beslut 1). Varför länken frågar: den som registrerar en adress väljer ett lösenord utan att visa att adressen
+är hens. Om länken bara bekräftade adressen skulle det lösenordet gälla, och den som registrerat någon annans adress (och känner
+lösenordet) skulle få ett bekräftat konto med ägarens inbjudningar och behörigheter. Beslut 1 löste det genom att lösenordet
+alltid väljs av den som har länken.
+
+11. **Samma webbläsare: registreringens lösenord gäller.** Registreringens svar (med e-post på servern) sätter alltid, oavsett om
+    adressen finns, en kaka med en ny slumpad hemlighet: `__Host-otid-registration` (lokalt `otid_registration`), 32 byte,
+    HttpOnly, SameSite=Strict, Secure i drift, en timme. Arbetet efter svaret sparar med den nya bekräftelselänken hemlighetens
+    sha256 och verifieraren för lösenordet som skrevs i formuläret (`browser_secret_hash`, `salt_hex`, `verifier_hex`; migration
+    0115). Bekräftelsesidan frågar servern som förut; när kakans hemlighet hör till just den länken och länken är högst en timme
+    gammal svarar servern `sameBrowser`, och sidan visar "Du skapade kontot i den här webbläsaren …" med knappen "Bekräfta och
+    logga in" (och "Välj ett annat lösenord", som visar fälten). `POST /api/organizer/verify-email` utan `password` ger kontot
+    registreringens verifierare (en ny lösenordsversion om den skiljer sig från kontots), bekräftar, spärrar andra sessioner, tar
+    inbjudningarna och loggar in som beslut 1; kakan tas bort. Stämmer inte kakan svarar servern 403 och sidan ber om lösenord.
+12. **Varför det är lika säkert.** Bekräftelsen kräver både länken (bara adressens ägare har mejlet) och kakan (bara webbläsaren
+    som skrev lösenordet har den; HttpOnly och `__Host-`). Bindningen gäller registreringen som skapade länken, aldrig kontots
+    lösenord: har någon annan registrerat adressen tidigare har kontot den personens verifierare, men ägarens länk bär ägarens.
+    - *Annan webbläsare* (telefonen, en annan dator): ingen kaka, lösenordet väljs som förut (beslut 1).
+    - *Någon annan registrerade adressen*: den personen har en kaka men inte mejlet; ägaren har mejlet men en annan (eller ingen)
+      kaka. Den andras länk i ägarens webbläsare ber om lösenord, och ägarens egen registrering ger ägarens lösenord.
+    - *Inbjuden utan konto*: "Skapa konto" från inbjudningslänken är en vanlig registrering; i samma webbläsare tas inbjudan när
+      länken öppnas, utan nytt lösenord. ADR-0206 beslut 4 står kvar: bekräftelsen hoppas inte över, och den som kopierade
+      inbjudningslänken (`delivery = LINK`) har inte bekräftelsemejlet.
+    - *Google*: oförändrat (beslut 5). Inloggning med Google, återställningen och superadmins bekräftelse förbrukar länkarna och
+      tömmer kopiorna, så kakan ger inget efteråt.
+    - *Lånad dator*: om någon annan registrerat ägarens adress på samma webbläsare och ägaren sedan öppnar bekräftelsemejlet där,
+      gällde den andras lösenord. Därför gäller kakan bara en timme, sidan säger att lösenordet från registreringen i den här
+      webbläsaren gäller och erbjuder "Välj ett annat lösenord", och den som ändå hamnat där kan välja nytt med Glömt lösenordet
+      (som spärrar alla sessioner). Den som delar webbläsare med någon som vill illa kan redan i dag få sin session läst.
+    - *Fel lösenord två gånger vid registreringen* (mötet 2026-11-03) i samma webbläsare: lösenordet gäller som det skrevs;
+      dubbelinmatningen och "Visa lösenordet" (beslut 4) gör det ovanligt, och Glömt lösenordet fungerar som förut.
+13. **Lösenordet skrivs alltså två gånger** i det vanliga fallet (registrering och länken i samma webbläsare inom en timme) och
+    fyra gånger när länken öppnas någon annanstans eller senare. Registreringens besked, mejlet och hjälpen säger det.
+
+Valt bort: (a) att länken alltid bekräftar och registreringens lösenord gäller (skyddet i beslut 1 försvinner); (b) att länken
+frågar efter registreringens lösenord en gång (ADR-0186 före ADR-0205; den som skrev fel kom inte in); (c) att binda till "inloggad"
+i stället för till registreringen (ett obekräftat konto loggas inte in med e-post på servern, och en session säger inget om vem
+som skrev lösenordet för just den länken); (d) att binda en inloggning med rätt lösenord på ett obekräftat konto (det mejlet får en
+länk utan bindning, som förut).
+
+Följder: migration 0115 (bara tillägg: kolumnen `browser_secret_hash` med formvillkor; `salt_hex`/`verifier_hex` från 0040, nullbara
+sedan 0087, används igen och tas inte bort – ändrar ADR-0186 beslut 9, ändringen 2026-11-07, och idén om steg 2 i STATUS.md). Kolumnerna
+töms när länkarna förbrukas. Tester: `adr-0205-samma-webblasare.test.ts` (samma webbläsare, annan och fel kaka, efter en timme,
+någon annan registrerade först, inbjuden, Google och återställningen), `organizer-account-route-handlers.test.ts` (kakan vid
+registreringen, bekräftelsen och kontrollen), `tests/e2e/konto-inloggning.spec.ts` (ny: samma webbläsare och någon annans
+registrering) och hjälparna i `tests/e2e/helpers.ts` (`registerAccount` bekräftar i samma kontext utan lösenord).
+

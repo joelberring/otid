@@ -1,7 +1,7 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { acceptOnLogin } from "./account-arrival";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { emailVerificationCheckRequestSchema, emailVerificationRequestSchema, organizerAccountRegistrationRequestSchema } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { consumeAccountRequestAllowance, DEFAULT_REGISTRATIONS_PER_HOUR } from "./account-throttle";
@@ -24,10 +24,27 @@ import {
  * lösenordet (samma som vid registreringen eller ett nytt), och först då är adressen bekräftad och kontot inloggat. Den som
  * registrerar någon annans adress kan alltså inte få kontot: lösenordet från registreringen gäller inte efter bekräftelsen.
  *
+ * ADR-0205 tillägg 2026-11-12 ("två gånger räcker"): registreringen sätter en HttpOnly-kaka med en slumpad hemlighet
+ * (`browserSecret`), och länken minns hemlighetens sha256 och registreringens verifierare. Öppnas länken inom en timme i samma
+ * webbläsare (kakan) bekräftas adressen med lösenordet från registreringsformuläret, utan att det skrivs igen. Både länken
+ * (adressen) och kakan (webbläsaren som skrev lösenordet) krävs, och bindningen gäller bara registreringen som skapade just den
+ * länken. Utan kakan väljer personen lösenord som förut, så den som registrerat någon annans adress får fortfarande inte kontot.
+ *
  * Utan e-post loggar registreringen in direkt som förut (ADR-0172), men kontot är obekräftat tills superadmin bekräftar det
  * (`node superadmin.mjs verify <e-post>`) eller lösenordet byts med en återställningslänk.
  */
 export const EMAIL_VERIFICATION_LIFETIME_MS = 24 * 60 * 60 * 1000;
+/**
+ * Hur länge registreringens kaka bekräftar länken utan nytt lösenord (tillägg 2026-11-12). Kort, så att en lånad dator där
+ * någon annan registrerat adressen inte står öppen länge; efter en timme väljer man lösenord som förut.
+ */
+export const REGISTRATION_BROWSER_LIFETIME_MS = 60 * 60 * 1000;
+const BROWSER_SECRET = /^[A-Za-z0-9_-]{43}$/;
+/** Hemligheten i registreringens kaka: 32 slumpade byte (base64url). Bara dess sha256 sparas. */
+export function newRegistrationBrowserSecret(): string {
+  return randomBytes(32).toString("base64url");
+}
+
 /** Bekräftelsemejl (och "kontot finns redan") per e-postadress och timme. */
 export const VERIFY_EMAILS_PER_ADDRESS_AND_HOUR = 3;
 
@@ -41,15 +58,18 @@ export async function accountEmailVerified(tx: DbExecutor, accountId: string): P
   return account?.verifiedAt != null;
 }
 
+interface RegistrationBinding { browserSecretHash: string; saltHex: string; verifierHex: string }
+
 /**
- * Ny bekräftelselänk. Bara hashen av nyckeln sparas. Lösenordets verifierare sparas inte längre med länken (migration 0087,
- * kolumnerna är nullbara): den användes inte vid bekräftelsen sedan ADR-0205.
+ * Ny bekräftelselänk. Bara hashen av nyckeln sparas. Registreringens verifierare sparas bara med en bindning till webbläsaren
+ * (tillägg 2026-11-12, migration 0115); utan den är kolumnerna tomma som sedan 0087.
  */
 async function createVerificationToken(tx: DbExecutor, accountId: string, now: Date,
-  displayName: string | null = null): Promise<{ token: string; expiresAt: Date }> {
+  displayName: string | null = null, binding?: RegistrationBinding): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_LIFETIME_MS);
-  await tx.insert(schema.emailVerificationTokens).values({ accountId, tokenHash: sha256(token), createdAt: now, expiresAt, displayName });
+  await tx.insert(schema.emailVerificationTokens).values({ accountId, tokenHash: sha256(token), createdAt: now, expiresAt, displayName,
+    ...(binding ?? {}) });
   return { token, expiresAt };
 }
 
@@ -64,6 +84,8 @@ export interface RegistrationWithVerificationOptions {
   registrationsPerHour?: number;
   accountId?: string;
   saltBytes?: Uint8Array;
+  /** Hemligheten i kakan som registreringens svar satte (tillägg 2026-11-12); utan den väljs lösenordet vid länken. */
+  browserSecret?: string;
 }
 
 /**
@@ -83,6 +105,8 @@ export async function registerUserAccountWithVerification(db: Database, request:
   // Lösenordet hashas alltid, också när adressen redan finns, så att tiden är densamma.
   const salt = options.saltBytes ? Buffer.from(options.saltBytes) : randomBytes(16);
   const verifier = { saltHex: salt.toString("hex"), verifierHex: (await scryptVerifier(parsed.data.password, salt)).toString("hex") };
+  const binding = options.browserSecret && BROWSER_SECRET.test(options.browserSecret)
+    ? { browserSecretHash: sha256(options.browserSecret), ...verifier } : undefined;
   return db.transaction(async tx => {
     const { email, displayName } = parsed.data;
     const [existing] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.email, email)).for("update");
@@ -102,7 +126,8 @@ export async function registerUserAccountWithVerification(db: Database, request:
       // `created_at` skyddas av databasen (kontots identitet) och står kvar.
       await tx.update(schema.userAccounts).set({ displayName }).where(eq(schema.userAccounts.id, accountId));
     }
-    const { token, expiresAt } = await createVerificationToken(tx, accountId, now, displayName);
+    // Länken minns den här registreringens lösenord bara med webbläsarens hemlighet, inte kontots (som kan vara någon annans).
+    const { token, expiresAt } = await createVerificationToken(tx, accountId, now, displayName, binding);
     return { status: "accepted", delivery: { kind: "VERIFY", email, displayName, token, expiresAt } } as const;
   });
 }
@@ -140,11 +165,41 @@ function stateOf(found: Awaited<ReturnType<typeof tokenAndAccount>>, now: Date):
   return found.row.usedAt || found.row.expiresAt.getTime() <= now.getTime() ? "invalid" : "valid";
 }
 
-export async function checkEmailVerificationToken(db: Database, request: unknown, now = new Date())
-  : Promise<{ status: "invalid-request" } | { status: "checked"; state: EmailVerificationState }> {
+/**
+ * Tillägg 2026-11-12: registreringens verifierare om länken öppnas i webbläsaren som registrerade (kakans hemlighet stämmer med
+ * just den här länken) inom en timme från registreringen, annars undefined.
+ */
+function registrationVerifier(row: typeof schema.emailVerificationTokens.$inferSelect, browserSecret: string | undefined, now: Date)
+  : { saltHex: string; verifierHex: string } | undefined {
+  if (!browserSecret || !BROWSER_SECRET.test(browserSecret) || !row.browserSecretHash || !row.saltHex || !row.verifierHex) return undefined;
+  if (now.getTime() >= row.createdAt.getTime() + REGISTRATION_BROWSER_LIFETIME_MS) return undefined;
+  const same = timingSafeEqual(Buffer.from(sha256(browserSecret), "hex"), Buffer.from(row.browserSecretHash, "hex"));
+  return same ? { saltHex: row.saltHex, verifierHex: row.verifierHex } : undefined;
+}
+
+export interface EmailVerificationOptions { now?: Date; browserSecret?: string }
+
+export async function checkEmailVerificationToken(db: Database, request: unknown, options: EmailVerificationOptions = {})
+  : Promise<{ status: "invalid-request" } | { status: "checked"; state: EmailVerificationState; sameBrowser?: true }> {
   const parsed = emailVerificationCheckRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "invalid-request" };
-  return db.transaction(async tx => ({ status: "checked", state: stateOf(await tokenAndAccount(tx, parsed.data.token), now) }) as const);
+  const now = options.now ?? new Date();
+  return db.transaction(async tx => {
+    const found = await tokenAndAccount(tx, parsed.data.token);
+    const state = stateOf(found, now);
+    const sameBrowser = state === "valid" && found && registrationVerifier(found.row, options.browserSecret, now) !== undefined;
+    return { status: "checked", state, ...(sameBrowser ? { sameBrowser: true } : {}) } as const;
+  });
+}
+
+/** Registreringens verifierare blir kontots lösenord (en ny version, om den inte redan är den senaste). */
+async function useRegistrationVerifier(tx: DbExecutor, accountId: string, current: { version: number; saltHex: string; verifierHex: string },
+  verifier: { saltHex: string; verifierHex: string }, now: Date): Promise<number> {
+  if (current.saltHex === verifier.saltHex && current.verifierHex === verifier.verifierHex) return current.version;
+  if (current.version >= 2_147_483_647) throw new Error("Verifierarversionen är full");
+  const version = current.version + 1;
+  await tx.insert(schema.userAccountPasswordVerifiers).values({ accountId, version, algorithm: "scrypt-v1", ...verifier, createdAt: now });
+  return version;
 }
 
 /**
@@ -152,9 +207,14 @@ export async function checkEmailVerificationToken(db: Database, request: unknown
  * lösenordet som personen skriver nu (samma som vid registreringen eller ett nytt). Så gäller aldrig ett lösenord som någon
  * annan valde vid registreringen. Adressen blir bekräftad, alla kontots bekräftelselänkar förbrukas, andra sessioner spärras,
  * inloggningsspärren nollställs, öppna inbjudningar tas och kontot loggas in.
+ *
+ * Tillägg 2026-11-12: utan lösenord i begäran gäller registreringens lösenord, men bara om kakans hemlighet hör till just den
+ * här länken (`registrationVerifier`); annars `password-required` och sidan ber om lösenordet som förut.
  */
-export async function verifyEmailAndLogIn(db: Database, request: unknown, options: UserAccountRuntimeOptions = {})
-  : Promise<{ status: "invalid-request" | "invalid-token" | "already-verified" } | Extract<UserAccountLoginResult, { status: "authenticated" }>> {
+export async function verifyEmailAndLogIn(db: Database, request: unknown,
+  options: UserAccountRuntimeOptions & Pick<EmailVerificationOptions, "browserSecret"> = {})
+  : Promise<{ status: "invalid-request" | "invalid-token" | "already-verified" | "password-required" }
+    | Extract<UserAccountLoginResult, { status: "authenticated" }>> {
   const parsed = emailVerificationRequestSchema.safeParse(request);
   if (!parsed.success) return { status: "invalid-request" };
   const now = options.now ?? new Date();
@@ -165,8 +225,15 @@ export async function verifyEmailAndLogIn(db: Database, request: unknown, option
     const { account } = found;
     const current = await currentUserAccountVerifier(tx, account.id);
     if (!current) return { status: "invalid-token" } as const;
-    const version = await appendUserAccountPasswordVerifier(tx, { accountId: account.id, password: parsed.data.password,
-      previousVersion: current.version }, now, options.saltBytes);
+    let version: number;
+    if (parsed.data.password !== undefined) {
+      version = await appendUserAccountPasswordVerifier(tx, { accountId: account.id, password: parsed.data.password,
+        previousVersion: current.version }, now, options.saltBytes);
+    } else {
+      const registered = registrationVerifier(found.row, options.browserSecret, now);
+      if (!registered) return { status: "password-required" } as const;
+      version = await useRegistrationVerifier(tx, account.id, current, registered, now);
+    }
     await revokeAllUserAccountSessions(tx, account.id, now, "EMAIL_VERIFIED");
     // Namnet från registreringen som skapade just den här länken (inte från någon annans registrering av adressen).
     const [verified] = await tx.update(schema.userAccounts).set({ emailVerifiedAt: now, lastLoginAt: now,
@@ -180,10 +247,15 @@ export async function verifyEmailAndLogIn(db: Database, request: unknown, option
   });
 }
 
-/** Förbrukar kontots öppna bekräftelselänkar (bekräftelse, återställning, Google). */
+/**
+ * Förbrukar kontots öppna bekräftelselänkar (bekräftelse, återställning, Google, superadmin) och tömmer registreringarnas kopior
+ * av verifieraren och webbläsarens hemlighet (tillägg 2026-11-12), som inte behövs efter bekräftelsen.
+ */
 export async function consumeEmailVerificationTokens(tx: DbExecutor, accountId: string, now: Date): Promise<void> {
   await tx.update(schema.emailVerificationTokens).set({ usedAt: now })
     .where(and(eq(schema.emailVerificationTokens.accountId, accountId), isNull(schema.emailVerificationTokens.usedAt)));
+  await tx.update(schema.emailVerificationTokens).set({ browserSecretHash: null, saltHex: null, verifierHex: null })
+    .where(and(eq(schema.emailVerificationTokens.accountId, accountId), isNotNull(schema.emailVerificationTokens.verifierHex)));
 }
 
 /**

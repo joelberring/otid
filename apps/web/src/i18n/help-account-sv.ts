@@ -16,7 +16,8 @@ export const accountHelpArticles: readonly HelpArticle[] = [
         "Skriv lösenordet i både ”Lösenord” och ”Upprepa lösenordet”. Är de olika säger sidan det direkt.",
         "Ögat vid fältet (”Visa lösenordet”) visar vad du har skrivit.",
         "Tryck på ”Skapa konto”. Länken i mejlet fungerar i vilken webbläsare som helst, till exempel i telefonen.",
-        "Bakom länken väljer du lösenordet (samma eller ett nytt) och trycker på ”Bekräfta och logga in”."
+        "Öppnar du länken i samma webbläsare inom en timme gäller lösenordet du just valde: tryck på ”Bekräfta och logga in”.",
+        "Öppnar du den någon annanstans (eller senare) väljer du lösenordet där (samma eller ett nytt) och trycker på ”Bekräfta och logga in”."
       ],
       "Har länken gått ut, eller kommer du inte in: se [Glömt lösenordet](#glomt-losenord). Det bekräftar också adressen."
     ]

@@ -25,12 +25,15 @@ function takeTokenFromLocation(): string | undefined {
  * ADR-0186, ändrat av ADR-0205: bekräfta e-postadressen. Länken i mejlet (#token=…) bevisar adressen; personen väljer lösenordet
  * (två gånger, samma som vid registreringen eller ett nytt), och sedan är adressen bekräftad och kontot inloggat. Sidan frågar
  * först servern vad länken leder till, så att en gammal länk eller en redan bekräftad adress ger ett tydligt nästa steg.
+ * Tillägg 2026-11-12: öppnas länken i webbläsaren som registrerade (inom en timme) gäller lösenordet från registreringen; en
+ * knapp bekräftar, och "Välj ett annat lösenord" visar fälten som förut.
  */
 export function EmailVerification() {
   const accountSv = useTexts<AccountEntry>(accountSvAll, accountEntryEn), text = accountSv.verify;
   const [token, setToken] = useState<string>();
   const [checked, setChecked] = useState(false);
   const [state, setState] = useState<State>();
+  const [sameBrowser, setSameBrowser] = useState(false);
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,7 +44,10 @@ export function EmailVerification() {
     const found = takeTokenFromLocation();
     if (found) setToken(found);
     else setChecked(true);
-    const onHash = () => { const found = takeTokenFromLocation(); if (found) { setToken(found); setMessage(undefined); setState(undefined); } };
+    const onHash = () => {
+      const found = takeTokenFromLocation();
+      if (found) { setToken(found); setMessage(undefined); setState(undefined); setSameBrowser(false); }
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -54,7 +60,7 @@ export function EmailVerification() {
         const response = await accountRequest("/api/organizer/verify-email/check", { method: "POST", body: { formatVersion: 1, token } });
         const parsed = emailVerificationCheckResponseSchema.safeParse(response.json);
         if (!current) return;
-        if (response.status === 200 && parsed.success) setState(parsed.data.state);
+        if (response.status === 200 && parsed.success) { setState(parsed.data.state); setSameBrowser(parsed.data.sameBrowser === true); }
         else setMessage({ tone: "error", text: accountSv.genericError(response.status) });
       } catch { if (current) setMessage({ tone: "error", text: accountSv.networkError }); }
       finally { if (current) setChecked(true); }
@@ -64,11 +70,14 @@ export function EmailVerification() {
 
   async function verify(event: FormEvent) {
     event.preventDefault();
-    if (!passwordsReady(password, repeat)) return;
+    // I webbläsaren som registrerade skickas inget lösenord: servern använder registreringens (kakan visar att det är samma).
+    const withPassword = !sameBrowser;
+    if (withPassword && !passwordsReady(password, repeat)) return;
     setBusy(true);
     setMessage({ tone: "info", text: text.verifying });
     try {
-      const response = await accountRequest("/api/organizer/verify-email", { method: "POST", body: { formatVersion: 1, token, password } });
+      const response = await accountRequest("/api/organizer/verify-email", { method: "POST",
+        body: { formatVersion: 1, token, ...(withPassword ? { password } : {}) } });
       if (response.status === 200) {
         // ADR-0206: kontot kom från en inbjudan – till klubben eller tävlingen.
         const email = (response.json as { email?: unknown } | undefined)?.email;
@@ -76,6 +85,8 @@ export function EmailVerification() {
         return;
       }
       if (response.status === 409) { setState("already-verified"); setMessage(undefined); }
+      // Kakan har gått ut sedan sidan öppnades (eller kom från en annan registrering): välj lösenordet som förut.
+      else if (response.status === 403 && !withPassword) { setSameBrowser(false); setMessage({ tone: "info", text: text.choosePassword }); }
       else if (response.status === 404) { setState("invalid"); setMessage(undefined); }
       else setMessage({ tone: "error", text: accountSv.genericError(response.status) });
     } catch { setMessage({ tone: "error", text: accountSv.networkError }); }
@@ -87,11 +98,17 @@ export function EmailVerification() {
     {!checked && <p role="status">{accountSv.reset.checking}</p>}
     {checked && !token && <Notice tone="error" role="alert">{text.noToken}</Notice>}
     {checked && token && state === "valid" && <Section label={text.title}>
-      <form className={styles.form} onSubmit={event => void verify(event)}>
+      {sameBrowser ? <form className={styles.form} onSubmit={event => void verify(event)}>
+        <p>{text.sameBrowserIntro}</p>
+        <div className={styles.actions}>
+          <Button type="submit" disabled={busy}>{text.submit}</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => { setSameBrowser(false); setMessage(undefined); }}>{text.otherPassword}</Button>
+        </div>
+      </form> : <form className={styles.form} onSubmit={event => void verify(event)}>
         <p>{text.intro}</p>
         <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} disabled={busy} />
         <Button type="submit" disabled={busy || !passwordsReady(password, repeat)}>{text.submit}</Button>
-      </form>
+      </form>}
       {message && <Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice>}
     </Section>}
     {checked && token && state === "already-verified" && <Section label={text.title}>

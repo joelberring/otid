@@ -34,7 +34,7 @@ export const organizerSv = {
   displayName: "Ditt namn",
   registering: "Skapar konto …",
   /** ADR-0186: registrering med e-post. Samma besked oavsett om adressen redan har ett konto. */
-  checkEmail: (email: string) => `Vi har skickat ett mejl till ${email}. Öppna länken i mejlet och välj lösenord, så är adressen bekräftad och du inloggad. Länken fungerar i vilken webbläsare som helst. Titta också i skräpposten.`,
+  checkEmail: (email: string) => `Vi har skickat ett mejl till ${email}. Öppna länken i mejlet, så är adressen bekräftad och du inloggad. I den här webbläsaren (inom en timme) gäller lösenordet du just valde; i en annan, till exempel telefonen, väljer du lösenord där. Titta också i skräpposten.`,
   invalidCredentialsOrUnverified: "E-postadressen eller lösenordet stämmer inte. Har du nyss skapat kontot? Öppna länken i mejlet och välj lösenord där. Kommer du ändå inte in: välj ett nytt lösenord med Glömt lösenordet, det bekräftar också adressen.",
   unverifiedNotice: "Din e-postadress är inte bekräftad. Tävlingar du själv skapar fungerar som vanligt, men behörigheter som andra ger dig gäller först när adressen är bekräftad. Välj ett nytt lösenord med Glömt lösenordet (det bekräftar adressen), eller be den som driver O-Tid att bekräfta den.",
   /** ADR-0205: inloggning med Google (visas bara när servern har en Google-klient). */

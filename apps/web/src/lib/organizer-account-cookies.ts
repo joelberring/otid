@@ -46,3 +46,11 @@ export function googleLoginCookieName(secure: boolean): string {
 export function googleMoveCookieName(secure: boolean): string {
   return secure ? "__Host-otid-google-move" : "otid_google_move";
 }
+
+/**
+ * ADR-0205 tillägg 2026-11-12: registreringens hemlighet (HttpOnly, en timme). Bekräftelselänken som öppnas i samma webbläsare
+ * bekräftar adressen med lösenordet från registreringen. SameSite=Strict: den läses bara av bekräftelsesidans egna anrop.
+ */
+export function registrationCookieName(secure: boolean): string {
+  return secure ? "__Host-otid-registration" : "otid_registration";
+}

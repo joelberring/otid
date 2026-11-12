@@ -32,7 +32,8 @@ behörighet när ett konto med adressen och bekräftad e-post loggar in. Men ing
    och en bekräftad adress skulle ge administratören alla inbjudningar som andra sparat för adressen; (b) en direkt inloggning för
    ett nytt konto men inte för ett befintligt skulle visa den som har länken (t.ex. ett vidarebefordrat mejl) om adressen har ett
    konto; (c) en enda väg för bekräftelse (ADR-0186) är lättare att granska. Kostnaden är ett mejl till och ett lösenord till vid
-   bekräftelsen.
+   bekräftelsen. Ändrat 2026-11-12 (ADR-0205 tillägg): i webbläsaren som registrerade behövs inget lösenord till;
+   bekräftelsen hoppas fortfarande inte över.
 5. **Spärrar mot skräppost.** Per avsändare högst 100 mejl i timmen och 300 per dygn; per mottagare (alla avsändare) högst 3 i
    timmen och 10 per dygn; "Skicka igen" tidigast 10 minuter efter förra skickade mejlet till samma inbjudan; kopierade länkar
    högst 100 i timmen per avsändare. Raderna i `invitation_link` är räknarna; mottagaren lagras bara som HMAC (samma hemlighet som

@@ -61,19 +61,22 @@ const verificationToken = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 
 /**
  * ADR-0186, ändrat av ADR-0205: länken i bekräftelsemejlet och lösenordet som personen väljer på sidan (samma som vid
- * registreringen eller ett nytt).
+ * registreringen eller ett nytt). Tillägg 2026-11-12: utan `password` gäller registreringens lösenord, men bara i webbläsaren
+ * som registrerade (kakan från registreringen); annars svarar servern 403 och sidan ber om lösenordet.
  */
 export const emailVerificationRequestSchema = z.object({
   formatVersion: z.literal(1),
   token: verificationToken,
-  password: z.string().min(ACCOUNT_PASSWORD_MIN_LENGTH).max(1024)
+  password: z.string().min(ACCOUNT_PASSWORD_MIN_LENGTH).max(1024).optional()
 }).strict();
 
 /** ADR-0205: vad länken leder till innan personen skriver något. */
 export const emailVerificationCheckRequestSchema = z.object({ formatVersion: z.literal(1), token: verificationToken }).strict();
 export const emailVerificationCheckResponseSchema = z.object({
   formatVersion: z.literal(1),
-  state: z.enum(["valid", "already-verified", "invalid"])
+  state: z.enum(["valid", "already-verified", "invalid"]),
+  /** Tillägg 2026-11-12: länken öppnad i webbläsaren som registrerade, inom en timme; lösenordet behöver inte skrivas igen. */
+  sameBrowser: z.literal(true).optional()
 }).strict();
 export type EmailVerificationCheckResponse = z.infer<typeof emailVerificationCheckResponseSchema>;
 

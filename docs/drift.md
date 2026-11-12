@@ -328,7 +328,9 @@ på `/superadmin`: "Bekräfta adressen" på ett konto med obekräftad adress, me
 ADR-0205 (ändrar ADR-0186): bekräftelselänken kräver inte lösenordet från registreringen. Den bevisar att personen har
 adressen, och på sidan väljer personen lösenordet (två gånger). Återställningslänken fungerar alltid, också för ett konto
 som aldrig bekräftades: den bekräftar adressen och loggar in där den öppnades. Ett nytt lösenord häver inloggningsspärren
-för adressen. Den som har skrivit fel lösenord vid registreringen kommer alltså in med vilken av länkarna som helst.
+för adressen. Den som har skrivit fel lösenord vid registreringen kommer alltså in med vilken av länkarna som helst. Tillägg
+2026-11-12: öppnas bekräftelselänken inom en timme i webbläsaren som registrerade (kakan `__Host-otid-registration`) gäller
+lösenordet från registreringen och inget skrivs igen; någon annanstans väljs lösenordet som förut.
 
 Lägg till e-post i `.env` och starta om:
 

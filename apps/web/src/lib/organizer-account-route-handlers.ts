@@ -5,6 +5,8 @@ import {
   listMyEvents,
   loginUserAccount,
   logoutUserAccountSession,
+  newRegistrationBrowserSecret,
+  REGISTRATION_BROWSER_LIFETIME_MS,
   registerUserAccount,
   registerUserAccountWithVerification,
   verifyEmailAndLogIn,
@@ -34,10 +36,13 @@ import {
   privateHeaders,
   privateJson,
   readJsonBody,
+  readUniqueCookie,
   securityPolicy,
   sessionProof,
-  setSessionCookies
+  setSessionCookies,
+  type SecurityPolicy
 } from "./security-policy";
+import { registrationCookieName } from "./organizer-account-cookies";
 import {
   alreadyRegisteredMessage, emailVerificationMessage, mailEnabled, runInBackground, sendMessage, type Background, type MailConfiguration
 } from "./mail";
@@ -79,6 +84,16 @@ function requestFailure(status: string): Response {
     case "not-found": return organizerFailure(404, "UNAUTHORIZED");
     default: return organizerFailure(500, "INTERNAL_ERROR");
   }
+}
+
+/** ADR-0205 tillägg 2026-11-12: kakan med registreringens hemlighet (eller en som tar bort den, med `maxAgeSeconds` 0). */
+function registrationCookie(policy: SecurityPolicy, value: string, maxAgeSeconds: number): string {
+  return [`${registrationCookieName(policy.secureCookies)}=${value}`, "Path=/", `Max-Age=${maxAgeSeconds}`, "SameSite=Strict", "HttpOnly",
+    ...(policy.secureCookies ? ["Secure"] : [])].join("; ");
+}
+
+function registrationSecret(request: Request, policy: SecurityPolicy): string | undefined {
+  return readUniqueCookie(request, registrationCookieName(policy.secureCookies)) ?? undefined;
 }
 
 /** ADR-0186: mejlet med bekräftelselänken, eller att adressen redan har ett konto. */
@@ -132,6 +147,8 @@ export function registrationsPerHour(environment: Environment): number | undefin
  * Öppen registrering (ADR-0172), med spärr per IP. ADR-0186: med e-post inställd blir svaret detsamma oavsett om adressen
  * redan har ett konto (202, "kolla e-posten"), och allt arbete görs efter svaret; kontot loggas in när länken öppnas. Utan
  * e-post skapas kontot och loggas in direkt som förut (adressen är då obekräftad tills superadmin bekräftar den).
+ * ADR-0205 tillägg 2026-11-12: svaret sätter alltid (oavsett adress) en kaka med en ny slumpad hemlighet, som länken från just
+ * den här registreringen minns; öppnas länken i samma webbläsare behöver lösenordet inte skrivas igen.
  */
 export async function organizerRegisterRoute(
   db: Database, request: Request, register: Register = registerUserAccount, environment: Environment = process.env,
@@ -148,11 +165,14 @@ export async function organizerRegisterRoute(
     if (!organizerAccountRegistrationRequestSchema.safeParse(body).success) return organizerFailure(400, "INVALID_REQUEST");
     const limit = registrationsPerHour(environment);
     const clientKey = clientAddress(request);
+    const browserSecret = newRegistrationBrowserSecret();
     background("Registreringen", async () => {
-      const result = await registerWithVerification(db, body, { clientKey, ...(limit ? { registrationsPerHour: limit } : {}) });
+      const result = await registerWithVerification(db, body, { clientKey, browserSecret, ...(limit ? { registrationsPerHour: limit } : {}) });
       if (result.delivery) await sendVerification(mail, configured.value.publicOrigin, result.delivery, send, languageOfRequest(request));
     });
-    return privateJson(organizerAccountRegistrationPendingSchema.parse({ formatVersion: 1, status: "check-email" }), 202);
+    const response = privateJson(organizerAccountRegistrationPendingSchema.parse({ formatVersion: 1, status: "check-email" }), 202);
+    response.headers.append("set-cookie", registrationCookie(configured.value, browserSecret, REGISTRATION_BROWSER_LIFETIME_MS / 1000));
+    return response;
   }
   try {
     const limit = registrationsPerHour(environment);
@@ -168,7 +188,8 @@ export async function organizerRegisterRoute(
 
 /**
  * ADR-0186, ändrat av ADR-0205: länken i bekräftelsemejlet och lösenordet som personen väljer på sidan. Bekräftar adressen och
- * loggar in. En länk till ett konto som redan är bekräftat ger 409 (sidan visar inloggningen), en ogiltig 404.
+ * loggar in. En länk till ett konto som redan är bekräftat ger 409 (sidan visar inloggningen), en ogiltig 404. Tillägg
+ * 2026-11-12: utan lösenord gäller registreringens, om kakan från registreringen hör till länken; annars 403 (välj lösenord).
  */
 export async function organizerVerifyEmailRoute(
   db: Database, request: Request, verify: Verify = verifyEmailAndLogIn, environment: Environment = process.env
@@ -179,18 +200,26 @@ export async function organizerVerifyEmailRoute(
   let body: unknown;
   try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
   try {
-    const result = await verify(db, body, { clientKey: clientAddress(request) });
+    const browserSecret = registrationSecret(request, configured.value);
+    const result = await verify(db, body, { clientKey: clientAddress(request), ...(browserSecret ? { browserSecret } : {}) });
     if (result.status === "invalid-request") return organizerFailure(400, "INVALID_REQUEST");
     if (result.status === "already-verified") return accountFailure(409, "CONFLICT");
+    if (result.status === "password-required") return accountFailure(403, "FORBIDDEN");
     if (result.status !== "authenticated") return accountFailure(404, "NOT_FOUND");
     const response = organizerAccountLoginResponseSchema.parse(result.response);
-    return setSessionCookies(privateJson(response), configured.value, {
+    const verified = setSessionCookies(privateJson(response), configured.value, {
       sessionToken: result.sessionToken, csrfToken: result.csrfToken, expiresAt: response.expiresAt
     });
+    // Registreringens kaka behövs inte längre (länkarna är förbrukade).
+    if (browserSecret) verified.headers.append("set-cookie", registrationCookie(configured.value, "deleted", 0));
+    return verified;
   } catch (error) { logServerError("organizer-account", "organizerVerifyEmailRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 
-/** ADR-0205: vad bekräftelselänken leder till (välj lösenord, redan bekräftad eller ogiltig) innan personen skriver något. */
+/**
+ * ADR-0205: vad bekräftelselänken leder till (välj lösenord, redan bekräftad eller ogiltig) innan personen skriver något.
+ * Tillägg 2026-11-12: `sameBrowser` när kakan från registreringen hör till länken.
+ */
 export async function organizerVerifyEmailCheckRoute(
   db: Database, request: Request, check: Check = checkEmailVerificationToken, environment: Environment = process.env
 ): Promise<Response> {
@@ -200,9 +229,11 @@ export async function organizerVerifyEmailCheckRoute(
   let body: unknown;
   try { body = await readJsonBody(request); } catch { return organizerFailure(400, "INVALID_REQUEST"); }
   try {
-    const result = await check(db, body);
+    const browserSecret = registrationSecret(request, configured.value);
+    const result = await check(db, body, browserSecret ? { browserSecret } : {});
     if (result.status !== "checked") return organizerFailure(400, "INVALID_REQUEST");
-    return privateJson(emailVerificationCheckResponseSchema.parse({ formatVersion: 1, state: result.state }));
+    return privateJson(emailVerificationCheckResponseSchema.parse({ formatVersion: 1, state: result.state,
+      ...(result.sameBrowser ? { sameBrowser: true } : {}) }));
   } catch (error) { logServerError("organizer-account", "organizerVerifyEmailCheckRoute", error); return organizerFailure(500, "INTERNAL_ERROR"); }
 }
 

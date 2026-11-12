@@ -133,3 +133,21 @@ export function sectionForPanel(profile: RaceTypeProfile, panel: Panel): Section
 export function activeSection(profile: RaceTypeProfile, id: SectionId, fallback?: SectionId): Section {
   return sectionById(profile, id) ?? (fallback ? sectionById(profile, fallback) : undefined) ?? profile.course[0]!;
 }
+
+/**
+ * Användartest 2026-11-12: varje del har ett värde för djuplänken `/admin/{id}/manage?del=…`, och undersidornas
+ * "Tillbaka"-länkar använder dem. En del som typen inte har (Klasser i Träning) visar delen där innehållet ligger.
+ */
+export const SECTION_SLUGS: Record<SectionId, string> = { COURSES: "banor", CLASSES: "klasser", ENTRIES: "anmalda", START: "start",
+  PUBLISH: "publicera", READOUT: "avlasning", RESULTS: "resultat", PARTY: "fest", SETTINGS: "installningar" };
+
+/** Delen för ett `del`-värde (också med å, ä, ö och versaler), eller undefined. */
+export function sectionFromSlug(value: string | null | undefined): SectionId | undefined {
+  const slug = (value ?? "").trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  return (Object.keys(SECTION_SLUGS) as SectionId[]).find(id => SECTION_SLUGS[id] === slug);
+}
+
+/** Arbetsytans adress, med delen som ska öppnas. */
+export function workspacePath(raceId: string, section?: SectionId): string {
+  return `/admin/${raceId}/manage${section ? `?del=${SECTION_SLUGS[section]}` : ""}`;
+}

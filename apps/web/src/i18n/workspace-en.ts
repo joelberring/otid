@@ -169,4 +169,4 @@ export const sectionStatusEn: Texts<typeof sectionStatusSv> = {
 };
 
 /** Toppbalkens knappar (ur `raceAdministratorSv`). */
-export const shellEn: { readonly refreshOverview: string; readonly logout: string } = { refreshOverview: "Refresh", logout: "Sign out" };
+export const shellEn: { readonly refreshOverview: string } = { refreshOverview: "Refresh" };

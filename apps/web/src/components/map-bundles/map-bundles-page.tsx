@@ -1,5 +1,6 @@
 "use client";
 
+import { workspacePath } from "../../lib/race-sections";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { mapBundlesEn } from "../../i18n/workspace-small-en";
 import { useTexts } from "../language-provider";
@@ -95,7 +96,7 @@ export function MapBundlesPage({ raceId }: { raceId: string }) {
   const race = joinRaceParts([raceTitle(data.eventName, data.raceName), data.raceDate]);
   return <main className={styles.page} data-printing={printing}>
     <header className={`${styles.head} ${styles.noPrint}`}>
-      <Link className={styles.back} href={`/admin/${raceId}/manage`}>{text.back}</Link>
+      <Link className={styles.back} href={workspacePath(raceId, "START")}>{text.back}</Link>
       <h1>{text.title}</h1>
       <p>{race}</p>
       <p>{text.pageHelp}</p>

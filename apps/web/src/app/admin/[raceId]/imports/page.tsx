@@ -1,3 +1,4 @@
+import { workspacePath } from "../../../../lib/race-sections";
 import Link from "next/link";
 import { ImportAdmin } from "../../../../components/import-admin";
 import { importEn } from "../../../../i18n/import-admin-en";
@@ -12,7 +13,7 @@ export default async function ImportAdminPage({ params }: { params: Promise<{ ra
   const { raceId } = await params;
   const language = await currentLanguage(), text = pickTexts(language, importSv, importEn);
   return <main className={`${styles.page} stack`}>
-    <nav className="nav"><Link href={`/admin/${raceId}/manage?del=anmalda`}>{text.backToRace}</Link><Link href="/organizer">{language === "en" ? "My races" : "Mina tävlingar"}</Link></nav>
+    <nav className="nav"><Link href={workspacePath(raceId, "ENTRIES")}>{text.backToRace}</Link><Link href="/organizer">{language === "en" ? "My races" : "Mina tävlingar"}</Link></nav>
     <section><h1>{text.pageHeading}</h1>
       <p>{text.pageLead}</p></section>
     <ImportAdmin raceId={raceId} />

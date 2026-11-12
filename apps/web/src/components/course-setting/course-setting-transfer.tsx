@@ -1,5 +1,6 @@
 "use client";
 
+import { workspacePath } from "../../lib/race-sections";
 import { useState } from "react";
 import { courseSettingEn } from "../../i18n/course-setting-en";
 import { sourcesEn } from "../../i18n/workspace-tools-en";
@@ -114,7 +115,7 @@ export function TransferPanel({ raceId, ready, flush, version }: { raceId: strin
       <Button onClick={() => void start()} disabled={!ready || loading || state.busy}>{text.transfer.button}</Button></div>}
     {problem && <Notice tone="error" role="alert">{problem}</Notice>}
     {state.message && <Notice tone={state.message.tone} role={state.message.tone === "ok" ? "status" : "alert"}>{state.message.text}
-      {applied && <> <Link href={`/admin/${raceId}/manage`}>{text.back}</Link></>}</Notice>}
+      {applied && <> <Link href={workspacePath(raceId, "COURSES")}>{text.back}</Link></>}</Notice>}
     <SourceReviewPanel review={state} busy={state.busy} sourceName={state.preview?.sourceName ?? text.transfer.heading} />
   </section>;
 }

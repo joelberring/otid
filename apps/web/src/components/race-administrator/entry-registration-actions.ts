@@ -5,6 +5,7 @@ import {
   entryRegistrationCandidatesResponseSchema, entryRegistrationRequestSchema, type RunnerClub, type RunnerSuggestion
 } from "@o-tid/contracts";
 import { registrationEventorIds } from "./runner-suggestions";
+import { existingClubSpelling } from "@o-tid/domain";
 import { formatClockTime, parseRaceClockNear, startReference } from "../../lib/clock-time";
 import { hasErrors, validateRegistration, type FieldErrors } from "../../lib/form-validation";
 import { focusFirstError, focusWhenEnabled } from "../ui";
@@ -52,7 +53,9 @@ export function createEntryRegistrationActions(ws: Base & RaceDataActions) {
     const clock = startClock.trim();
     const parsed = entryRegistrationRequestSchema.safeParse({ formatVersion: 1, classId: target.id,
       expectedCourseVersionId: target.courseVersionId, expectedStartRule: target.startRule, givenName, familyName,
-      organisationName: organisationName.trim() || null, cardNumber: newCard.trim() || null,
+      // Användartest 2026-11-12: samma klubb med annat skiftläge eller blanksteg får tävlingens befintliga stavning.
+      organisationName: existingClubSpelling(organisationName, data.entries.map(entry => entry.organisationName)) || null,
+      cardNumber: newCard.trim() || null,
       // Lottad klass: appen ger första lediga vakanta tid. Inte lottad än och tomt fält: tiden ges vid lottningen.
       fixedStartTime: target.startRule === "FIXED" && !target.startDrawn && clock
         ? parseRaceClockNear(data.raceDate, clock, data.timeZone, startReference(data.entries, target.id)) : null,

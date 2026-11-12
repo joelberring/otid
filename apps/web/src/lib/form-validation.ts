@@ -1,3 +1,4 @@
+import { normalizeClock } from "@o-tid/domain";
 import { formErrorsSv } from "../i18n/form-errors-sv";
 import type { Texts } from "./language";
 
@@ -21,10 +22,9 @@ export function hasErrors(errors: FieldErrors<string>): boolean {
   return Object.values(errors).some(Boolean);
 }
 
-/** Klockslag som `parseRaceClock` godtar: 18:30, 18.30 eller 18:30:15. */
+/** Klockslag som `parseRaceClock` godtar: 18:30, 18.30, 18:30:15, 0725, 725 eller 18 (domänens `normalizeClock`). */
 export function isClock(value: string): boolean {
-  const match = /^(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?$/.exec(value.trim());
-  return !!match && Number(match[1]) <= 23 && Number(match[2]) <= 59 && Number(match[3] ?? 0) <= 59;
+  return normalizeClock(value) !== null;
 }
 
 /** Ett riktigt datum skrivet ÅÅÅÅ-MM-DD. */

@@ -7,17 +7,31 @@ function wallClock(ms: number, timeZone: string): number {
 }
 
 /**
- * Ett klockslag ("HH:MM" eller "HH:MM:SS") på ett visst datum i tävlingens tidszon som ISO-ögonblick (UTC).
+ * Ett skrivet klockslag som "HH:MM" eller "HH:MM:SS", eller null. Godtar kolon eller punkt (18:30, 7.25, 18:30:15) och,
+ * sedan användartestet 2026-11-12, bara siffror när de är entydiga: "0725" och "725" = 07:25, "18" och "7" = hela timmen.
+ */
+export function normalizeClock(clock: string): string | null {
+  const text = clock.trim();
+  const separated = /^(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?$/.exec(text);
+  const digits = /^\d{1,4}$/.test(text) ? text : undefined;
+  const [hour, minute, second] = separated ? [separated[1]!, separated[2]!, separated[3]]
+    : digits === undefined ? [] : digits.length <= 2 ? [digits, "00", undefined] : [digits.slice(0, -2), digits.slice(-2), undefined];
+  if (hour === undefined || minute === undefined) return null;
+  if (Number(hour) > 23 || Number(minute) > 59 || Number(second ?? 0) > 59) return null;
+  return `${hour.padStart(2, "0")}:${minute}${second === undefined ? "" : `:${second}`}`;
+}
+
+/**
+ * Ett klockslag (se `normalizeClock`) på ett visst datum i tävlingens tidszon som ISO-ögonblick (UTC).
  * Användaren skriver bara klockslaget; appen räknar ut tidszonens förskjutning. Ett klockslag som inte finns
  * (vid övergång till sommartid) ger null. Ett dubbeltydigt klockslag (vid övergång till vintertid) ger det första.
  */
 export function parseRaceClock(date: string, clock: string, timeZone: string): string | null {
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
-  const time = /^(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?$/.exec(clock.trim());
-  if (!day || !time) return null;
-  const [hour, minute, second] = [Number(time[1]), Number(time[2]), Number(time[3] ?? 0)];
-  if (hour > 23 || minute > 59 || second > 59) return null;
-  const wanted = Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]), hour, minute, second);
+  const normalized = normalizeClock(clock);
+  if (!day || !normalized) return null;
+  const [hour, minute, second] = normalized.split(":").map(Number) as [number, number, number?];
+  const wanted = Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]), hour, minute, second ?? 0);
   if (!Number.isFinite(wanted)) return null;
   // Från gissningar på båda sidor om klockslaget konvergerar förskjutningen till varje möjlig tolkning.
   const candidates = [wanted - 14 * 3_600_000, wanted, wanted + 14 * 3_600_000].map(guess => {

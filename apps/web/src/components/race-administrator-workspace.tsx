@@ -1,5 +1,6 @@
 "use client";
 
+import { sectionFromSlug } from "../lib/race-sections";
 import { useEffect } from "react";
 import { raceAdministratorEn } from "../i18n/workspace-admin-en";
 import { useTexts } from "./language-provider";
@@ -59,8 +60,9 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     return () => clearTimeout(timer);
   }, [expiresAt, lock]);
   useEffect(() => {
-    // ADR-0191 beslut 3: importsidans "Tillbaka till Anmälda" (`?del=anmalda`) öppnar Anmälda.
-    if (new URLSearchParams(window.location.search).get("del") === "anmalda") ws.setStep("ENTRIES");
+    // ADR-0191 beslut 3 och användartestet 2026-11-12: `?del=…` öppnar delen (t.ex. importsidans "Tillbaka till Anmälda").
+    const linked = sectionFromSlug(new URLSearchParams(window.location.search).get("del"));
+    if (linked) ws.setStep(linked);
   }, [raceId]);
   useEffect(() => {
     const clearPrintTarget = () => setPrintTarget(undefined);

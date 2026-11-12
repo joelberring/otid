@@ -1,5 +1,6 @@
 "use client";
 
+import { workspacePath } from "../../lib/race-sections";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
@@ -57,7 +58,7 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
   const variants = summaries.find(row => row.course === view)?.variants ?? [];
   return <header className={styles.topbar}>
     {/* Tillbaka tydligt (ägaren 2026-11-03): pilen och vart den går, kort på telefonen. */}
-    <Link className={styles.back} href={admin ? `/admin/${raceId}/manage` : "/organizer"} title={admin ? text.back : text.backToEvents}
+    <Link className={styles.back} href={admin ? workspacePath(raceId, "COURSES") : "/organizer"} title={admin ? text.back : text.backToEvents}
       data-testid="course-setting-back">← {admin ? text.backShort : text.backShortEvents}</Link>
     {tabs}
     <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.course}</span>

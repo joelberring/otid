@@ -13,6 +13,7 @@ import type { Section } from "../../lib/race-sections";
 import { courseSettingPath } from "./race-data";
 import type { Workspace } from "./workspace-state";
 import { HelpButton } from "../help/help-panel";
+import { AccountMenu } from "../account-menu";
 import { shownRaceName } from "@o-tid/domain";
 
 /**
@@ -40,13 +41,13 @@ function facts(ws: Workspace): SectionFacts | undefined {
 /**
  * Fast toppbalk (ADR-0170 beslut 2): tillbaka till Mina tävlingar, tävlingen, läget just nu (avlästa, kvar i skogen,
  * okända brickor) och genvägar till avläsningen och speakern i egna flikar. På smal skärm (PLAN.md steg 24) ligger
- * genvägarna och Logga ut i en meny, så att tillbakalänken och räknarna alltid syns.
+ * genvägarna i en meny, så att tillbakalänken och räknarna alltid syns. Kontomenyn (namn, Mitt konto, Logga ut) som på övriga sidor.
  */
 export function TopBar({ ws }: { ws: Workspace }) {
   const typeText = useTexts(raceTypeSv, raceTypeEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
-  const text = useTexts({ refreshOverview: raceAdministratorSv.refreshOverview, logout: raceAdministratorSv.logout }, shellEn);
-  const { data, functionary, mayLeave, profile, raceId, refresh, logout, saving, section } = ws;
+  const text = useTexts({ refreshOverview: raceAdministratorSv.refreshOverview }, shellEn);
+  const { data, functionary, mayLeave, profile, raceId, refresh, saving, section } = ws;
   const current = facts(ws);
   const courseSetting = courseSettingLink(ws, navigationText);
   const shortcuts = (menu: boolean) => <>
@@ -59,7 +60,6 @@ export function TopBar({ ws }: { ws: Workspace }) {
       <span className={styles.hidden}> ({typeText.newTab})</span></a>}
     <button type="button" className={menu ? styles.menuButton : styles.quiet} disabled={saving} onClick={() => void refresh()}>
       {text.refreshOverview}</button>
-    <button type="button" className={menu ? styles.menuButton : styles.quiet} onClick={() => void logout()}>{text.logout}</button>
   </>;
   return <header className={styles.topBar}>
     <Link className={styles.back} href="/organizer" prefetch={false}
@@ -80,6 +80,8 @@ export function TopBar({ ws }: { ws: Workspace }) {
       <summary>{typeText.menu}</summary>
       <nav className={styles.menuItems} aria-label={typeText.shortcuts}>{shortcuts(true)}</nav>
     </details>
+    {/* Användartest 2026-11-12: samma kontomeny som på övriga sidor (namn, Mitt konto, Logga ut) i stället för en lös Logga ut. */}
+    <div className={styles.account}><AccountMenu mayLeave={mayLeave} /></div>
     {/* PLAN.md steg 37: hjälpen för steget man står i, alltid synlig (även på mobil). */}
     <div className={styles.help}><HelpButton view={section.id} /></div>
   </header>;

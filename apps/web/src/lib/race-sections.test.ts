@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { raceTypes, type RaceType } from "@o-tid/contracts";
 import { raceTypeSv } from "../i18n/race-type-sv";
-import { activeSection, raceTypeProfile, sectionForPanel, visibleSections } from "./race-sections";
+import { activeSection, raceTypeProfile, SECTION_SLUGS, sectionForPanel, sectionFromSlug, visibleSections, workspacePath,
+  type SectionId } from "./race-sections";
 
 const names = (type: RaceType) => visibleSections(raceTypeProfile(type)).map(section => raceTypeSv.sections[section.label]);
 
@@ -50,5 +51,28 @@ describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
     expect(activeSection(raceTypeProfile("TRAINING"), "START").id).toBe("COURSES");
     expect(activeSection(raceTypeProfile("TRAINING"), "SETTINGS").id).toBe("SETTINGS");
     expect(activeSection(raceTypeProfile("RELAY"), "ENTRIES").label).toBe("TEAMS");
+  });
+});
+
+describe("djuplänken ?del= (användartest 2026-11-12)", () => {
+  it("varje del har ett värde som leder tillbaka till delen", () => {
+    for (const id of Object.keys(SECTION_SLUGS) as SectionId[]) expect(sectionFromSlug(SECTION_SLUGS[id])).toBe(id);
+    expect(sectionFromSlug("installningar")).toBe("SETTINGS");
+    expect(sectionFromSlug("Inställningar")).toBe("SETTINGS");
+    expect(sectionFromSlug("avläsning")).toBe("READOUT");
+    expect(sectionFromSlug("okänd")).toBeUndefined();
+    expect(sectionFromSlug(null)).toBeUndefined();
+  });
+
+  it("varje del i varje typ nås med sitt värde", () => {
+    for (const type of raceTypes) {
+      const profile = raceTypeProfile(type);
+      for (const section of visibleSections(profile)) expect(activeSection(profile, sectionFromSlug(SECTION_SLUGS[section.id])!).id).toBe(section.id);
+    }
+  });
+
+  it("adressen till arbetsytan", () => {
+    expect(workspacePath("r1")).toBe("/admin/r1/manage");
+    expect(workspacePath("r1", "ENTRIES")).toBe("/admin/r1/manage?del=anmalda");
   });
 });

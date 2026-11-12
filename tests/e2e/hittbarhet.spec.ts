@@ -82,7 +82,8 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await owner.getByTestId("nav-course-setting").click();
   await owner.waitForURL(new RegExp(`/admin/${raceId}/course-setting$`));
   await owner.getByTestId("course-setting-back").click();
-  await owner.waitForURL(new RegExp(`/admin/${raceId}/manage$`));
+  // Användartest 2026-11-12: tillbaka till Banor (`?del=banor`).
+  await owner.waitForURL(new RegExp(`/admin/${raceId}/manage\\?del=banor$`));
 
   // Banläggaren med bara "föreslå": Banläggning i Mina tävlingar, och arbetsytans adress leder till banläggningen.
   const setterEmail = `banlaggare.${suffix}@exempel.se`;

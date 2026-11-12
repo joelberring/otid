@@ -6,7 +6,9 @@ import { hasErrors, isClock, isIsoDate, isRaceName, validateCourseClass, validat
 describe("fältfel (PLAN.md steg 24)", () => {
   it("klockslag som parseRaceClock godtar", () => {
     for (const value of ["18:30", "8.05", "23:59:59", " 10:00 "]) expect(isClock(value)).toBe(true);
-    for (const value of ["", "24:00", "18:60", "1830", "18:3", "kl 18"]) expect(isClock(value)).toBe(false);
+    // Användartest 2026-11-12: bara siffror godtas när de är entydiga.
+    for (const value of ["0725", "725", "7.25", "18", "1830"]) expect(isClock(value)).toBe(true);
+    for (const value of ["", "24:00", "18:60", "2400", "760", "18:3", "kl 18", "12345"]) expect(isClock(value)).toBe(false);
   });
 
   it("datum skrivs ÅÅÅÅ-MM-DD och måste finnas", () => {

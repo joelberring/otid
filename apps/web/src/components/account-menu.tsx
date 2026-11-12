@@ -23,7 +23,9 @@ export function initialsOf(name: string): string {
  * Logga ut. Väntar ändringar på nät frågar menyn först. Utan inloggning visas ingenting. `who` sparar en hämtning när sidan
  * redan vet vem som är inloggad.
  */
-export function AccountMenu({ who: known }: { who?: Who | undefined }) {
+export function AccountMenu({ who: known, mayLeave }: { who?: Who | undefined;
+  /** Arbetsytan (användartest 2026-11-12): false = något är inte sparat; menyn stängs och sidan stannar kvar. */
+  mayLeave?: (() => boolean) | undefined }) {
   const text = useTexts(accountMenuSv, accountMenuEn);
   const [who, setWho] = useState<Who | undefined>(known);
   const [open, setOpen] = useState(false);
@@ -75,7 +77,11 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
     } catch { setStage("idle"); setProblem(text.network); }
   }
 
+  /** Länkarna i menyn: arbetsytan med något osparat stannar kvar (samma regel som "Mina tävlingar"). */
+  const guard = (event: { preventDefault: () => void }) => { if (mayLeave && !mayLeave()) { event.preventDefault(); close(); } };
+
   async function start() {
+    if (mayLeave && !mayLeave()) { close(); return; }
     setStage("checking"); setProblem("");
     const counted = await pendingOfflineChanges();
     setPending(counted);
@@ -97,13 +103,13 @@ export function AccountMenu({ who: known }: { who?: Who | undefined }) {
       {guest ? <p className={styles.who}><strong>{who.displayName}</strong><span>{text.guestNote(guest)}</span></p>
         : <p className={styles.who}><strong>{who.displayName}</strong><span>{who.email}</span></p>}
       {guest ? <nav aria-label={text.open(who.displayName)} style={{ display: "grid", gap: 2 }}>
-        <Link className={styles.item} href="/organizer">{text.createAccount}</Link>
+        <Link className={styles.item} onClick={guard} href="/organizer">{text.createAccount}</Link>
       </nav> : <nav aria-label={text.open(who.displayName)} style={{ display: "grid", gap: 2 }}>
-        <Link className={styles.item} href="/organizer">{text.myEvents}</Link>
-        <Link className={styles.item} href="/organizer#mina-klubbar">{text.myClubs}</Link>
-        <Link className={styles.item} href="/organizer#mina-grupper">{text.myGroups}</Link>
-        <Link className={styles.item} href="/organizer/map-projects">{text.myMapProjects}</Link>
-        <Link className={styles.item} href="/konto">{text.myAccount}</Link>
+        <Link className={styles.item} onClick={guard} href="/organizer">{text.myEvents}</Link>
+        <Link className={styles.item} onClick={guard} href="/organizer#mina-klubbar">{text.myClubs}</Link>
+        <Link className={styles.item} onClick={guard} href="/organizer#mina-grupper">{text.myGroups}</Link>
+        <Link className={styles.item} onClick={guard} href="/organizer/map-projects">{text.myMapProjects}</Link>
+        <Link className={styles.item} onClick={guard} href="/konto">{text.myAccount}</Link>
       </nav>}
       <div className={styles.separator} />
       {stage !== "confirm" && <button type="button" className={styles.item} disabled={stage !== "idle"} aria-busy={stage !== "idle"}

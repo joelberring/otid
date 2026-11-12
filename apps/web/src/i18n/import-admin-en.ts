@@ -4,7 +4,7 @@ import type { importSv } from "./import-admin-sv";
 /** Importen av anmälda, startlista och banor på engelska (översynen 2026-11-10, E). */
 export const importEn: Texts<typeof importSv> = {
   pageHeading: "Import entries or a start list",
-  pageLead: "Read in entries or a start list from a file (IOF XML 3.0), for example from Eventor or another timing program. Course files are read in under Courses.",
+  pageLead: "Read in entries or a start list from a file (IOF XML 3.0), for example from Eventor or another timing program. A course file (CourseData) can also be read in here as long as it does not change any results; otherwise read it in under Courses, which shows the differences first.",
   backToRace: "Back to Entries",
   securityHeading: "Who can import?",
   securityBoundary: "The race administrators. Entry lists (EntryList), start lists (StartList) and courses (CourseData) in IOF XML 3.0 can be read in.",

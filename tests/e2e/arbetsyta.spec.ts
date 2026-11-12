@@ -195,7 +195,8 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await expect(owner.getByRole("link", { name: /Öppna avläsningen/ })).toBeHidden();
   await owner.getByText("Meny").click();
   await expect(owner.getByRole("link", { name: /Öppna avläsningen/ })).toBeVisible();
-  await expect(owner.getByRole("button", { name: "Logga ut" })).toBeVisible();
+  // Användartest 2026-11-12: Logga ut ligger i kontomenyn, som på övriga sidor.
+  await expect(owner.getByRole("button", { name: /^Konto: / })).toBeVisible();
   expect(await owner.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   if (process.env.E2E_SCREENSHOT_DIR) {
     await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/step24-mobil-toppbalk-390.png` });

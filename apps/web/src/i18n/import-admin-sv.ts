@@ -4,7 +4,7 @@
  */
 export const importSv = {
   pageHeading: "Importera anmälda eller startlista",
-  pageLead: "Läs in anmälda eller en startlista från en fil (IOF XML 3.0), till exempel från Eventor eller ett annat tävlingsprogram. Banfiler läses in under Banor.",
+  pageLead: "Läs in anmälda eller en startlista från en fil (IOF XML 3.0), till exempel från Eventor eller ett annat tävlingsprogram. En banfil (CourseData) går också att läsa in här så länge den inte ändrar några resultat; annars läser du in den under Banor, som visar skillnaderna först.",
   backToRace: "Tillbaka till Anmälda",
   securityHeading: "Vem kan importera?",
   securityBoundary: "Tävlingens administratörer. Anmälningar (EntryList), startlistor (StartList) och banor (CourseData) i IOF XML 3.0 kan läsas in.",

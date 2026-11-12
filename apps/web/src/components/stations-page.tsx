@@ -1,5 +1,6 @@
 "use client";
 
+import { workspacePath } from "../lib/race-sections";
 import Link from "next/link";
 import { stationsEn } from "../i18n/workspace-small-en";
 import { useTexts } from "./language-provider";
@@ -129,7 +130,7 @@ export function StationsPage({ raceId }: { raceId: string }) {
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}>
       <div><h1>{text.title}</h1></div>
-      <nav className={styles.headerNav} aria-label={text.title}><Link href={`/admin/${raceId}/manage`}>{text.back}</Link></nav>
+      <nav className={styles.headerNav} aria-label={text.title}><Link href={workspacePath(raceId, "READOUT")}>{text.back}</Link></nav>
     </header>
     <Notice tone="info">{text.trial}</Notice>
     <Section id="enheter-anslut" title={text.connect} help={text.howTo}>

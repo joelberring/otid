@@ -3,13 +3,11 @@ import { useState } from "react";
 
 import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceSessionStatusSchema,
   type AdministratorEffectiveResultResponse, type CourseSettingLevel, type EntryTransferCandidates } from "@o-tid/contracts";
-import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 
 import type { WorkspaceRole } from "../../lib/race-sections";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
 import type { MobileNavigation } from "./navigation";
-import { clearPersonalBrowserData } from "../../lib/account-logout";
 
 /** Banläggningens sida för nivån: kartritaren (MAP) har bara kartfelen. */
 export const courseSettingPath = (level: CourseSettingLevel) => level === "MAP" ? "course-setting/map-errors" : "course-setting";
@@ -29,9 +27,9 @@ export function useRaceDataState() {
 /** Session och dataladdning: inloggning med kontot, utloggning och ny läsning av ögonblicksbilden. */
 export function createRaceDataActions(ws: Base & MobileNavigation) {
   const text = ws.adminText;
-  const { raceId, entryId, pending, sent, writingRef, deadline, base, setEffectiveResult, setEffectiveResultError, setData,
+  const { raceId, entryId, pending, writingRef, deadline, setEffectiveResult, setEffectiveResultError, setData,
     setEntryChanges, setIdentityCandidates, setSelectedClassId, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
-    setEntryId, setClassId, setPage, setNewCard, setRole, setCourseSetting, request, json, assertCurrent, current, begin, finish, lock,
+    setEntryId, setClassId, setPage, setNewCard, setRole, setCourseSetting, request, json, assertCurrent, current, begin, finish,
     requireSession, showMobilePanel } = ws;
   async function loadEffectiveResult(id: string, roster: EntryTransferCandidates, op: Operation) {
     setEffectiveResult(undefined); setEffectiveResultError(false);
@@ -77,23 +75,6 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     setRole(value.role); setCourseSetting(value.courseSetting);
     await load(op); assertCurrent(op); setAuthenticated(true); if (pending.current) setMobilePanel("WORK"); setMessage("");
   }
-  async function logout() {
-    const hadPending = sent.current;
-    const token = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-    lock(true); if (hadPending) setMessage(text.discarded);
-    if (!token) { setMessage(`${text.logoutError}${hadPending ? ` ${text.discarded}` : ""}`); return; }
-    const op = begin();
-    try {
-      // Logout must not route an unauthorized response through lock(), which would erase the pending-warning message.
-      const response = await fetch(`${base}/session`, { method: "DELETE", credentials: "same-origin", cache: "no-store",
-        signal: op.controller.signal, headers: { "x-otid-csrf": token } });
-      assertCurrent(op);
-      if (!response.ok && response.status !== 401) throw new Error("Logout failed");
-      // ADR-0205 tillägg: samma rensning som kontomenyn (banläggningens kopia, inbjudan, följda löpare och flikarnas val).
-      await clearPersonalBrowserData();
-    } catch { if (current(op)) setMessage(`${text.logoutError}${hadPending ? ` ${text.discarded}` : ""}`); }
-    finally { finish(op); }
-  }
   async function refresh() {
     if (writingRef.current || pending.current || !requireSession()) return;
     showMobilePanel("LIST");
@@ -106,6 +87,6 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     const op = begin(false);
     try { await load(op); } catch { if (current(op)) setMessage(text.error); } finally { finish(op); }
   }
-  return { loadEffectiveResult, load, session, logout, refresh, reloadQuietly };
+  return { loadEffectiveResult, load, session, refresh, reloadQuietly };
 }
 export type RaceDataActions = ReturnType<typeof createRaceDataActions>;

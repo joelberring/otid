@@ -2,6 +2,7 @@ import { useState } from "react";
 import { normalizeRaceType, raceDateMovePreviewResponseSchema, raceSettingsResponseSchema, type RaceDateMovePreviewResponse, type RaceSettingsRequest,
   type RaceType } from "@o-tid/contracts";
 import { isIsoDate, isRaceName, type FieldErrors } from "../../lib/form-validation";
+import { normalizeClock } from "../../lib/clock-time";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
@@ -24,12 +25,11 @@ export function normalizeRaceInfo(value: string): string | null {
   return text.length === 0 ? null : text;
 }
 
-/** Klockslag som TT:MM. Godtar 1830, 18.30 och 8:30. Tomt = null, ogiltigt = undefined. */
+/** Klockslag som TT:MM (domänens `normalizeClock`, utan sekunder). Godtar 1830, 18.30, 8:30 och 18. Tomt = null, ogiltigt = undefined. */
 export function normalizeFirstStart(value: string): string | null | undefined {
-  const text = value.trim();
-  if (text.length === 0) return null;
-  const match = /^([01]?[0-9]|2[0-3])[:.]?([0-5][0-9])$/.exec(text);
-  return match ? `${match[1]!.padStart(2, "0")}:${match[2]}` : undefined;
+  if (value.trim().length === 0) return null;
+  const clock = normalizeClock(value);
+  return clock && clock.length === 5 ? clock : undefined;
 }
 
 /** Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp, och (steg 33) bricka i publik startlista, info och första start. Formuläret fylls från tävlingen när delen öppnas. */

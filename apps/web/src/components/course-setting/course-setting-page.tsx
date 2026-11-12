@@ -1,5 +1,6 @@
 "use client";
 
+import { workspacePath } from "../../lib/race-sections";
 import { useCallback, useEffect, useState } from "react";
 import { raceMapEn } from "../../i18n/workspace-small-en";
 import { courseDataEn } from "../../i18n/course-setting-link-en";
@@ -141,7 +142,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   }
 
   // Admin tillbaka till arbetsytan; den som bara har banläggningen till Mina tävlingar (arbetsytan är inte deras).
-  const back = <Link className={styles.back} href={state && !state.access.admin ? "/organizer" : `/admin/${raceId}/manage`}>
+  const back = <Link className={styles.back} href={state && !state.access.admin ? "/organizer" : workspacePath(raceId, "COURSES")}>
     ← {state && !state.access.admin ? text.backToEvents : text.back}</Link>;
   if (failed) return <main className={styles.page}>{back}<Notice tone="error" role="alert"><p>{text.loadFailed}</p>
     {failed === "other" && <div><Button variant="secondary" onClick={() => void load()}>{text.retry}</Button></div>}</Notice></main>;

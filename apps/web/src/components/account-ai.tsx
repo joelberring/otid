@@ -44,6 +44,7 @@ export function AccountAi() {
     <details className={styles.howTo} open={connections?.length === 0} data-testid="ai-how-to">
       <summary>{text.howTitle}</summary>
       <ol>{text.how.map(step => <li key={step}>{step}</li>)}</ol>
+      <p className={styles.muted}>{text.accounts}</p>
     </details>
     {connections && connections.length === 0 && <p className={styles.muted}>{text.none}</p>}
     {connections && connections.length > 0 && <ul className={styles.list} data-testid="ai-connections">

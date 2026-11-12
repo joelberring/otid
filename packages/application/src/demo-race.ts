@@ -46,7 +46,8 @@ export async function seedDemoRace(db: Database, owner: DemoRaceOwner, options: 
   const created = await createOrganizerEvent(db, { ...proof, ...(owner.guest ? { allowGuest: true } : {}),
     idempotencyKey: `organizer-event-create:${randomUUID()}`,
     readBody: async () => ({ formatVersion: 1, eventName: `${texts.eventName} ${today}`, raceName: texts.raceName, raceDate: today,
-      timeZone: DEMO_TIME_ZONE }) }, now);
+      // Användartest 2026-11-12: demon är en kvällsträning med fri start, så typen är Träning (inte förvalet Tävling).
+      timeZone: DEMO_TIME_ZONE, raceType: "TRAINING" }) }, now);
   if (created.status !== "created") return { status: "failed", step: `tävlingen (${created.status})` };
   const raceId = created.response.raceId;
   const admin = { ...proof, raceId };

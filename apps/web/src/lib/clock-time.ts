@@ -1,5 +1,5 @@
 /** Löptider, klockslag och datum i tävlingens tidszon, och klockslag som ISO-ögonblick; reglerna finns i domänen. */
-export { formatClockTime, formatDuration, parseRaceClock, parseRaceClockNear, zonedDate } from "@o-tid/domain";
+export { formatClockTime, formatDuration, normalizeClock, parseRaceClock, parseRaceClockNear, zonedDate } from "@o-tid/domain";
 
 /**
  * Steg 58: referensen för ett klockslag som skrivs för en löpare: den tidigaste kända starten i klassen, annars i hela

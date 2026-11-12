@@ -1,5 +1,6 @@
 "use client";
 
+import { workspacePath } from "../lib/race-sections";
 import { rememberCurrentPageForLogin } from "../lib/after-login";
 import Link from "next/link";
 import { radioControlNameEn, radioEn, speakerEn } from "../i18n/workspace-more-en";
@@ -107,7 +108,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
       <p className={styles.state} role="status" data-problem={!online || problem ? "true" : undefined}>
         {!online ? text.offline : problem === "stale" ? text.stale : text.updatedAt(formatClockTime(data.at, timeZone))}
       </p>
-      <Link className={styles.back} href={`/admin/${encodeURIComponent(raceId)}/manage`}>{text.back}</Link>
+      <Link className={styles.back} href={workspacePath(encodeURIComponent(raceId), "READOUT")}>{text.back}</Link>
     </header>
     <div className={styles.grid}>
       <section className={`${styles.block} ${styles.latest}`} aria-labelledby="speaker-latest">

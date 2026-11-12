@@ -171,7 +171,7 @@ export const accountMenuEn: Texts<typeof accountMenuSv> = {
 export const aiConnectionsEn: Texts<typeof aiSv.connections> = {
   title: "AI connections",
   help: "Claude (or another AI service) that you have connected with your own account there. It sees your map projects and, if you approved course setting, the courses where you may set courses. It only leaves suggestions and notes. A connection from before 8 November only sees the map projects; remove it and connect again to allow course setting.",
-  none: "No AI connections. Add O-Tid as a connector in Claude with the address below.",
+  none: "No AI connections. Add O-Tid as a connector in Claude with the address above.",
   address: "Address to add in Claude",
   copy: "Copy the address",
   copied: "The address is copied.",
@@ -183,6 +183,7 @@ export const aiConnectionsEn: Texts<typeof aiSv.connections> = {
     "In a chat: turn on O-Tid among the tools (the button for tools and connectors) and write, for example, “Show my map projects in O-Tid”.",
     "Claude asks for permission before it uses O-Tid (“Allow once” or “Always allow”). You must approve it for anything to happen, and you can refuse. Changes to the map still only become suggestions that you or the project's owner approve."
   ],
+  accounts: "Your Claude account and your O-Tid account may have different email addresses. If Claude shows “Accounts don't match”, the browser is signed in to claude.ai with a different account than the Claude app: sign in to claude.ai with the same account as in the app and connect again, then sign in to O-Tid with your usual O-Tid account (check the name in the top right before you press Allow).",
   created: date => `connected ${date}`,
   used: date => `last used ${date}`,
   neverUsed: "not used yet",

@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import type { StartDrawLaterStart, StartDrawRules, StartDrawSetupResponse } from "@o-tid/contracts";
 
-import { formatClockTime, parseRaceClockNear } from "../../lib/clock-time";
+import { formatClockTime, normalizeClock, parseRaceClockNear } from "../../lib/clock-time";
 import { matchSeedRanking } from "../../lib/seed-ranking-csv";
 import type { DrawRow } from "./start-draw";
 
@@ -28,7 +28,6 @@ export type DrawImportResult = { matched: number; unmatched: { line: number; tex
 
 const EMPTY: DrawAdvanced = { groupControls: "1", maxPerMinute: "", maxPerMinutePerPen: "", lastStart: "", seeding: "LAST",
   classOrder: null, laterStarts: {}, seeds: {} };
-const CLOCK = /^([01]?\d|2[0-3])[:.]?([0-5]\d)$/;
 const clockOf = (instant: string, timeZone: string) => formatClockTime(instant, timeZone).slice(0, 5);
 
 /** Avancerat som det sparades med senaste lottningen, och löparnas seedning. */
@@ -71,11 +70,10 @@ export function drawClassOrder(setup: StartDrawSetupResponse, rows: Record<strin
 
 const limit = (value: string) => value.trim() === "" ? null : /^\d+$/.test(value.trim()) && Number(value) >= 1 && Number(value) <= 1_000
   ? Number(value) : undefined;
-const clock = (value: string) => CLOCK.exec(value.trim());
-/** Steg 58: sista start och senare starter hör till natten efter första start när den är på kvällen (ADR-0178). */
+/** Steg 58: sista start och senare starter hör till natten efter första start när den är på kvällen (ADR-0178). Hela minuter. */
 const clockInstant = (setup: StartDrawSetupResponse, value: string, firstStartTime: string) => {
-  const match = clock(value);
-  return match ? parseRaceClockNear(setup.raceDate, `${match[1]!.padStart(2, "0")}:${match[2]}`, setup.timeZone, firstStartTime) : null;
+  const clock = normalizeClock(value);
+  return clock && clock.length === 5 ? parseRaceClockNear(setup.raceDate, clock, setup.timeZone, firstStartTime) : null;
 };
 
 export type AdvancedRequest = { rules: StartDrawRules; seeds: { entryId: string; rank: number }[]; laterStarts: Map<string, StartDrawLaterStart> };

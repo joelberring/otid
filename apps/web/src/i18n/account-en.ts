@@ -224,6 +224,8 @@ export const clubAffiliationAccountEn: Texts<ClubAffiliationAccount> = {
     placeholder: "e.g. Älvsjö or OKÄÖ",
     none: "No club matches. Write the name under Other club.",
     emptyDirectory: "The club list has not been fetched on this server yet. Write the club's name under Other club.",
+    noneOnly: "No club matches. The organising club is a club in Eventor's club list; search for the name or the abbreviation.",
+    emptyDirectoryOnly: "The club list has not been fetched on this server yet, so the organising club cannot be chosen. Ask whoever runs O-Tid to fetch the list; the event works without an organising club.",
     remove: name => `Remove ${name}`,
     other: "Other club",
     otherHelp: "If the club is not in the list (for example a club outside Sweden)."

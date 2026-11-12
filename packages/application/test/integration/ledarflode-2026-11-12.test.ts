@@ -5,7 +5,8 @@ import { createDatabase, migrate, schema } from "@o-tid/database";
 import { createClub } from "../../src/clubs";
 import { createClubTerm, createPlanSessions, readClubPlan, updatePlanSession } from "../../src/club-planning";
 import { createPlannedRace, createPlanTask, updatePlanTask, type PlanTaskMail } from "../../src/club-plan-tasks";
-import { createTrainingGroup, setRaceGroup } from "../../src/training-groups";
+import { createTrainingGroup, readRaceGroup, setRaceGroup } from "../../src/training-groups";
+import { renameClubToEventor } from "../../src/club-eventor";
 import { createGroupSessions } from "../../src/training-group-sessions";
 import { insertEventWithRace } from "../../src/organizer-events";
 import { liftRaceToClubArchive, readRaceClubArchiveAsAdmin } from "../../src/race-club-archive";
@@ -190,5 +191,29 @@ describe("D: uppgift och ansvar till en medlem ger ett mejl", () => {
     // En medlem utan ledarroll får inte ändra.
     expect((await updatePlanTask(db, { ...reader.proof, clubId, sessionId, taskId: mine.taskId, request: { formatVersion: 1, title: "X",
       assignee: { kind: "NONE" } } }, NOW, mailer)).status).toBe("forbidden");
+  });
+});
+
+describe("F: namn och länkar", () => {
+  it("klubbytan får klubbens namn i Eventor, och arbetsytan för gruppens tillfälle hittar gruppen", async () => {
+    const { owner, clubId } = await linkedClub("OK Test");
+    const leader = await member(clubId, "LEADER", owner.accountId);
+    expect((await renameClubToEventor(db, { ...leader.proof, clubId }, NOW)).status).toBe("forbidden");
+    expect(await renameClubToEventor(db, { ...owner.proof, clubId }, NOW)).toEqual({ status: "renamed", name: "OK Test (Eventor)" });
+    const [club] = await db.select({ name: schema.clubs.name }).from(schema.clubs).where(eq(schema.clubs.id, clubId));
+    expect(club?.name).toBe("OK Test (Eventor)");
+    const journal = await db.select({ action: schema.clubJournal.action }).from(schema.clubJournal).where(eq(schema.clubJournal.clubId, clubId));
+    expect(journal.map(row => row.action)).toContain("CLUB_RENAMED");
+
+    const group = await createTrainingGroup(db, { ...leader.proof, request: { formatVersion: 1, requestId: randomUUID(), name: "Knattar",
+      code: `knattar-${randomUUID().slice(0, 8)}` } }, NOW);
+    if (group.status !== "created") throw new Error(group.status);
+    const created = await createGroupSessions(db, { ...leader.proof, groupId: group.group.groupId, request: { formatVersion: 1, requestId: randomUUID(),
+      source: "PREVIOUS", sourceRaceId: null, eventName: "Knattar", raceDate: "2026-11-18", startTime: null, mapId: null, includeCourseSetting: false,
+      publish: false, repeat: null, acknowledgeAgreement: false } }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    expect(await readRaceGroup(db, { ...leader.proof, raceId: created.raceIds[0]! }, NOW))
+      .toEqual({ status: "ok", group: { groupId: group.group.groupId, name: "Knattar" } });
+    expect((await readRaceGroup(db, { ...owner.proof, raceId: created.raceIds[0]! }, NOW)).status).toBe("not-found");
   });
 });

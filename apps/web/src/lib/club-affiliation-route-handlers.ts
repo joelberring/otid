@@ -1,7 +1,7 @@
 import {
   addAccountClub, answerAccountClubStep, inviteFromClub, readClubPicker, decideClubAffiliation, eventorConfigurationFromEnvironment, linkClubToEventor, liftRaceToClubArchive,
   readAccountClubs, readClubAffiliation, readRaceClubArchiveAsAdmin, removeAccountClub, removeRaceFromClubArchive, searchOrganisationsForAccount,
-  setRaceOrganiserAsAdmin, syncClubEventorMembersAsAdmin, unlinkClubFromEventor
+  renameClubToEventor, setRaceOrganiserAsAdmin, syncClubEventorMembersAsAdmin, unlinkClubFromEventor
 } from "@o-tid/application";
 import { clubEventorLinkRequestSchema, clubInviteContextSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
@@ -87,19 +87,28 @@ export async function clubAffiliationDecisionRoute(db: Database, request: Reques
   });
 }
 
-/** PUT "Koppla till Eventor" / "Byt nyckel" (nyckeln i kroppen), DELETE "Ta bort kopplingen", POST "Hämta medlemmar nu". */
+/**
+ * PUT "Koppla till Eventor" / "Byt nyckel" (nyckeln i kroppen, och om klubbytan ska få klubbens namn), DELETE "Ta bort kopplingen",
+ * POST "Hämta medlemmar nu", PATCH "Byt namn till klubbens namn i Eventor".
+ */
 export async function clubEventorRoute(db: Database, request: Request, clubId: string, environment: Environment = process.env): Promise<Response> {
   if (!validId(clubId)) return failure("not-found");
   const configuration = eventorConfigurationFromEnvironment(environment);
   const input = await mutation(request, environment, request.method === "PUT" ? "json" : "none");
   if ("response" in input) return input.response;
   return guarded(async () => {
+    if (request.method === "PATCH") {
+      const result = await renameClubToEventor(db, { ...input.proof, clubId });
+      if (result.status === "problem") return problem(result.problem, 422);
+      return result.status === "renamed" ? privateJson({ formatVersion: 1, name: result.name }) : failure(result.status);
+    }
     if (request.method === "PUT") {
       // En ogiltig kropp prövas som en ogiltig nyckel i tjänsten, efter behörigheten.
       const parsed = clubEventorLinkRequestSchema.safeParse(input.body);
-      const result = await linkClubToEventor(db, { ...input.proof, clubId, apiKey: parsed.success ? parsed.data.apiKey : "", configuration });
+      const result = await linkClubToEventor(db, { ...input.proof, clubId, apiKey: parsed.success ? parsed.data.apiKey : "",
+        rename: parsed.success ? parsed.data.rename : undefined, configuration });
       if (result.status === "problem") return problem(result.problem, result.problem === "ALREADY_LINKED" ? 409 : 422);
-      return result.status === "linked" ? privateJson({ formatVersion: 1, organisationName: result.organisationName }) : failure(result.status);
+      return result.status === "linked" ? privateJson({ formatVersion: 1, organisationName: result.organisationName, renamed: result.renamed }) : failure(result.status);
     }
     if (request.method === "DELETE") {
       const result = await unlinkClubFromEventor(db, { ...input.proof, clubId });

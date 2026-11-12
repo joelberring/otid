@@ -12,8 +12,10 @@ import styles from "./club-affiliation.module.css";
  * ADR-0209: sökning i klubblistan (Eventors organisationer) som kombinationsruta. Accenter, stora bokstäver och skiljetecken
  * spelar ingen roll, och kortnamn och initialer matchar ("älvsjö" och "okäö" hittar OK Älvsjö-Örby). Servern söker.
  */
-export function OrganisationPicker({ onPick, exclude = [], label: chosenLabel, disabled }: { onPick: (organisation: OrganisationSummary) => void;
-  exclude?: readonly string[]; label?: string; disabled?: boolean }) {
+export function OrganisationPicker({ onPick, exclude = [], label: chosenLabel, disabled, withoutOther = false }: {
+  onPick: (organisation: OrganisationSummary) => void; exclude?: readonly string[]; label?: string; disabled?: boolean;
+  /** Användartestet 2026-11-12 (F): där det inte finns något fält "Annan klubb" (tävlingens arrangörsklubb). */
+  withoutOther?: boolean }) {
   const text = useTexts(clubAffiliationSv.picker, clubAffiliationAccountEn.picker);
   const label = chosenLabel ?? text.search;
   const id = useId();
@@ -68,7 +70,7 @@ export function OrganisationPicker({ onPick, exclude = [], label: chosenLabel, d
         onMouseDown={event => { event.preventDefault(); pick(organisation); }}>
         <span>{organisation.name}</span>{organisation.shortName && organisation.shortName !== organisation.name && <small>{organisation.shortName}</small>}
       </li>)}
-      {options.length === 0 && <li role="option" aria-selected={false} aria-disabled="true">{empty ? text.emptyDirectory : text.none}</li>}
+      {options.length === 0 && <li role="option" aria-selected={false} aria-disabled="true">{withoutOther ? (empty ? text.emptyDirectoryOnly : text.noneOnly) : empty ? text.emptyDirectory : text.none}</li>}
     </ul>}
   </div>;
 }

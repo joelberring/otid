@@ -28,6 +28,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         `Get the club's API key. It is in Eventor under ${EVENTOR_KEY_PLACE_EN}. If you do not have it: see [Get started with the club space](#klubbytan-kom-igang).`,
         "Open the club space and the tab ”The club”.",
         "Paste the key under ”The club's API key” and choose ”Link to Eventor”.",
+        "Leave the box about the club's name ticked, so that the club space is named like the club in Eventor.",
         "O-Tid asks Eventor which club the key belongs to and fetches the member list. Members with the same address in O-Tid are confirmed.",
         "The list is fetched again once a day. To fetch it at once: ”Fetch members now”. See also [Confirm members](#bekrafta-medlemmar)."
       ] },
@@ -75,9 +76,10 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "”Confirm”: the person becomes a member of the club space. Only confirm someone you know is in the club.",
         "”Decline”: the person gets nothing, and sees that the club has not confirmed them.",
         "”Remove” next to a confirmed member removes what the person sees in the club space.",
-        "If someone leaves the club in Eventor, what Eventor gave disappears at the next fetch. Confirmations made by hand remain."
+        "If someone leaves the club in Eventor, what Eventor gave disappears at the next fetch. Confirmations made by hand remain.",
+        "The list Members of the club is the membership (Eventor or by hand). The roles are under ”Members”."
       ],
-      "The roles are ”Member”, ”Leader”, ”Administrator” and ”Owner”. An administrator sets leaders in the list under ”Members” or when inviting.",
+      "The roles are ”Member”, ”Leader”, ”Administrator” and ”Owner”. An administrator sets leaders in the list under ”Members” (Access in the club space) or when inviting.",
       "Under ”Who sees what” the club chooses who sees the training archive and who may use the map bank (map files, Use again, download). The default for both is ”All members”; choose ”Leaders and admins” if the maps should not be shared with all members. Owners and administrators always see and use everything. For members and leaders the map's own rights also apply; the strictest wins."
     ]
   },
@@ -90,7 +92,8 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       [
         "Search for the name and tick one or more.",
         "Choose a role and invite. The invitation goes to the person's address, which you never see.",
-        "The person accepts the invitation as usual, through the email or when they sign in. In the club space the role applies at once for someone you choose in the list, so that you can, for example, choose a new leader as responsible in the planning right away."
+        "The person accepts the invitation as usual, through the email or when they sign in.",
+        "In the club space the role applies at once for someone you choose in the list."
       ],
       "You can still write an email address as before. Anyone who is not a confirmed member of one of your clubs is not shown in the list."
     ]
@@ -106,7 +109,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "You need to be an administrator both in the event and in the club space.",
         "Before the day of the event, or while the courses are secret, O-Tid first asks about course secrecy.",
         "”Take out of the club archive” removes the training from the archive. The event is not changed.",
-        "Courses that only exist in timing (written as control codes, not drawn in course setting) have no positions on the map and are not included in the course files. O-Tid says which before ”Put in the club archive”, and the archive entry says so too."
+        "Courses only in timing (not drawn in course setting) are not included in the course files. O-Tid and the archive entry say which."
       ]
     ]
   },
@@ -135,10 +138,12 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       [
         "”Name” and ”Date” for the new training.",
         "”Where”: ”New training (My events)” or in a training group.",
-        "”Course file” if the training has several course files with different courses, and ”Map version” (the latest version is preselected). If the files have the same courses, like .ppen and IOF XML from a competition, the .ppen is used without asking.",
-        "Press ”Create the training”. Course setting opens with a copy to change."
+        "”Course file” if the files have different courses. The same courses in .ppen and IOF XML (from an event) give the .ppen without asking.",
+        "”Map version” (the latest version is preselected).",
+        "Press ”Create the training”. Course setting opens with a copy to change.",
+        "The club becomes the training's organising club when the club space is linked to Eventor.",
+        "The courses are transferred to timing at once. Without classes in the course file, each course gets a class with the course's name."
       ],
-      "The new training belongs to the club: the club becomes the organising club (when the club space is linked to Eventor), and the courses are transferred to timing at once, as with File → ”Transfer to the event”. If the course file names no classes, each course gets a class with the course's name. Course setting says what was done.",
       "If the map is newer than the one the courses were set on, O-Tid moves the courses by the maps' georeference. If it is missing: move the course with the arrows and press ”The courses are in the right place”.",
       "A map file over 75 MB cannot be the training's map yet, but the courses are included."
     ]
@@ -245,7 +250,10 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "The other way, a finished training goes into the archive with ”Put in the club archive” on the training's page."
       ] },
       [
-        "A task can go to a member of the club or to an email address, for example a parent. With email on the server the person gets a short email, and so does the person made responsible for a training (one email for all the weeks), but not someone who gives the task to themselves. If the address has no account, the email says that an account must be created with exactly that address.",
+        "A task can go to a member of the club or to an email address, for example a parent.",
+        "With email on the server the person gets a short email, as does the responsible person (one for all weeks). Not if you give it to yourself.",
+        "If the address has no account, the email says that an account must be created with exactly that address.",
+        "In the current week today's date is suggested. Link a training first shows the trainings within two weeks of the week.",
         "”Change” on a task changes the title or the person. The new person gets an email and the read access moves along.",
         "The person only sees their own tasks under ”My tasks” on My events, with time, place and the responsible person, and can tick them off.",
         "When the training exists the person gets read access to the course setting of that training: the courses, control map, descriptions and printing.",

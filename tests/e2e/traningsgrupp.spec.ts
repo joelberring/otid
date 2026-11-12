@@ -49,6 +49,10 @@ test("träningsgrupp: ledare, upprepning, gruppsidan med förnamn och kartans av
 
   // Upprepning: i dag och två veckor framåt, 18:00 (den första träningen i gruppen blir en tom träning).
   const form = await leaderSection(leader, "Ny träning");
+  // Användartestet 2026-11-12 (F): gruppen har inget tillfälle; O-Tid säger det och publicerar inte som förval.
+  await expect(form.getByText("Gruppen har inget tidigare tillfälle.", { exact: false })).toBeVisible();
+  await expect(form.getByRole("checkbox", { name: "Publicera direkt (syns på gruppens sida)" })).not.toBeChecked();
+  await form.getByRole("checkbox", { name: "Publicera direkt (syns på gruppens sida)" }).check();
   await form.getByLabel("Starttid").fill("18:00");
   await form.getByRole("checkbox", { name: "Upprepa varje vecka" }).check();
   await form.getByLabel("Till och med").fill(daysFromToday(14));
@@ -63,6 +67,8 @@ test("träningsgrupp: ledare, upprepning, gruppsidan med förnamn och kartans av
   await upcoming.getByRole("link", { name: `Öppna: ${today()}` }).click();
   await leader.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   const raceId = leader.url().split("/").at(-2)!;
+  // Arbetsytan för gruppens tillfälle länkar tillbaka till gruppen.
+  await expect(leader.getByTestId("workspace-group-link")).toContainText(`Till gruppen Ungdom OK ÄÖ ${suffix}`, { timeout: 30_000 });
   await addCourseAndClass(leader, "Lång", "H12", "31 32 33");
   await addEntry(leader, { className: "H12", givenName: "Anna", familyName: "Andersson", club: "OK ÄÖ", card: "7410001" });
   const at = (time: string) => `${today()}T${time}.000Z`;

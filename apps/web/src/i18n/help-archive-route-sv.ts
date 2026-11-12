@@ -125,10 +125,12 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
       [
         "”Namn” och ”Datum” för den nya träningen.",
         "”Var”: ”Ny träning (Mina tävlingar)” eller i en träningsgrupp.",
-        "”Banfil” om träningen har flera banfiler med olika banor, och ”Kartversion” (senaste versionen är förvald). Har filerna samma banor, som .ppen och IOF XML från en tävling, används .ppen utan att O-Tid frågar.",
-        "Tryck på ”Skapa träningen”. Banläggningen öppnas med en kopia att ändra."
+        "”Banfil” om filerna har olika banor. Samma banor i .ppen och IOF XML (från en tävling) ger .ppen utan fråga.",
+        "”Kartversion” (senaste versionen är förvald).",
+        "Tryck på ”Skapa träningen”. Banläggningen öppnas med en kopia att ändra.",
+        "Klubben blir träningens arrangörsklubb när klubbytan är kopplad till Eventor.",
+        "Banorna förs över till tidtagningen direkt. Utan klasser i banfilen får varje bana en klass med banans namn."
       ],
-      "Den nya träningen hör till klubben: klubben blir arrangörsklubb (när klubbytan är kopplad till Eventor), och banorna förs över till tidtagningen direkt, som med Fil → ”Överför till tävlingen”. Säger banfilen inga klasser får varje bana en klass med banans namn. Banläggningen säger vad som gjordes.",
       "Är kartan nyare än den banorna gjordes på flyttar O-Tid banorna efter kartornas georeferens. Saknas den: flytta banan med pilarna och tryck på ”Banorna ligger rätt”.",
       "En kartfil över 75 MB kan inte bli träningens karta än, men banorna kommer med."
     ]

@@ -38,10 +38,36 @@ function problemOf(error: unknown): ClubEventorProblem {
 
 // --- Kopplingen ----------------------------------------------------------------------------------------------------------------
 
-export type ClubEventorLinkResult = ClubFailure | { status: "problem"; problem: ClubEventorProblem } | { status: "linked"; organisationName: string };
+export type ClubEventorLinkResult = ClubFailure | { status: "problem"; problem: ClubEventorProblem }
+  | { status: "linked"; organisationName: string; renamed: boolean };
+
+/** Användartestet 2026-11-12 (F): klubbytan får klubbens namn i Eventor (journalfört). Sant om namnet ändrades. */
+async function renameToOrganisation(tx: DbExecutor, input: { clubId: string; name: string; actorId: string; now: Date }): Promise<boolean> {
+  const name = input.name.trim().slice(0, 120);
+  const [club] = await tx.select({ name: schema.clubs.name }).from(schema.clubs).where(eq(schema.clubs.id, input.clubId)).for("update");
+  if (!club || !name || club.name === name) return false;
+  await tx.update(schema.clubs).set({ name }).where(eq(schema.clubs.id, input.clubId));
+  await clubJournal(tx, { clubId: input.clubId, action: "CLUB_RENAMED", actorAccountId: input.actorId, details: { from: club.name, to: name }, now: input.now });
+  return true;
+}
+
+/** "Byt namn till … (Eventor)": en kopplad klubbyta får den kopplade klubbens namn. Ägare och administratörer. */
+export async function renameClubToEventor(db: Database, input: ClubProof & { clubId: string }, now = new Date())
+  : Promise<ClubFailure | { status: "problem"; problem: "NOT_LINKED" } | { status: "renamed"; name: string }> {
+  return db.transaction(async tx => {
+    const actor = await requireClubRole(tx, input, "ADMIN", now, true);
+    if (actor.status !== "ok") return actor;
+    const [linked] = await tx.select({ name: schema.organisations.name }).from(schema.clubSettings)
+      .innerJoin(schema.organisations, eq(schema.organisations.id, schema.clubSettings.organisationId))
+      .where(and(eq(schema.clubSettings.clubId, input.clubId), isNotNull(schema.clubSettings.eventorKeyCiphertext)));
+    if (!linked) return { status: "problem", problem: "NOT_LINKED" } as const;
+    await renameToOrganisation(tx, { clubId: input.clubId, name: linked.name, actorId: actor.accountId, now });
+    return { status: "renamed", name: linked.name.trim().slice(0, 120) } as const;
+  });
+}
 
 /** "Koppla till Eventor" eller "Byt nyckel". Svaret säger bara klubben; nyckeln skickas aldrig tillbaka. */
-export async function linkClubToEventor(db: Database, input: ClubProof & { clubId: string; apiKey: string;
+export async function linkClubToEventor(db: Database, input: ClubProof & { clubId: string; apiKey: string; rename?: boolean | undefined;
   configuration?: EventorServerConfiguration; fetch?: typeof fetch }, now = new Date()): Promise<ClubEventorLinkResult> {
   // Behörigheten först (städrundan 2026-11-07): utloggad får 401 och den som inte är administratör 403/404, inte 422.
   const before = await db.transaction(tx => requireClubRole(tx, input, "ADMIN", now, true));
@@ -74,7 +100,8 @@ export async function linkClubToEventor(db: Database, input: ClubProof & { clubI
     if (prior?.organisationId && prior.organisationId !== organisationId) await forgetEventorMembers(tx, input.clubId, now);
     await clubJournal(tx, { clubId: input.clubId, action: prior?.organisationId === organisationId ? "CLUB_EVENTOR_KEY_REPLACED" : "CLUB_EVENTOR_LINKED",
       actorAccountId: actor.accountId, details: { eventorOrganisationId: organisation.id }, now });
-    return { status: "linked", organisationName: organisation.name } as const;
+    const renamed = input.rename ? await renameToOrganisation(tx, { clubId: input.clubId, name: organisation.name, actorId: actor.accountId, now }) : false;
+    return { status: "linked", organisationName: organisation.name, renamed } as const;
   });
   if (linked.status === "linked") {
     // Medlemslistan direkt; ett fel här ändrar inte kopplingen (det syns i "Senast hämtad").

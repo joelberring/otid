@@ -28,6 +28,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         `Hämta klubbens API-nyckel. Den finns i Eventor under ${EVENTOR_KEY_PLACE}. Har du den inte: se [Kom igång med klubbytan](#klubbytan-kom-igang).`,
         "Öppna klubbytan och fliken ”Klubben”.",
         "Klistra in nyckeln under ”Klubbens API-nyckel” och välj ”Koppla till Eventor”.",
+        "Låt rutan om klubbens namn vara ikryssad, så heter klubbytan som klubben i Eventor.",
         "O-Tid frågar Eventor vilken klubb nyckeln hör till och hämtar medlemslistan. Medlemmar med samma adress i O-Tid blir bekräftade.",
         "Listan hämtas igen en gång per dygn. Vill du hämta den direkt: ”Hämta medlemmar nu”. Se också [Bekräfta medlemmar](#bekrafta-medlemmar)."
       ] },
@@ -75,9 +76,10 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "”Bekräfta”: personen blir medlem i klubbytan. Bekräfta bara den du vet är med i klubben.",
         "”Avböj”: personen får inget, och ser att klubben inte har bekräftat.",
         "”Ta bort” vid en bekräftad medlem tar bort det personen ser i klubbytan.",
-        "Slutar någon i klubben i Eventor försvinner det som Eventor gav vid nästa hämtning. Bekräftelser för hand står kvar."
+        "Slutar någon i klubben i Eventor försvinner det som Eventor gav vid nästa hämtning. Bekräftelser för hand står kvar.",
+        "Listan Medlemmar i klubben är tillhörigheten (Eventor eller för hand). Rollerna står under ”Medlemmar”."
       ],
-      "Rollerna är ”Medlem”, ”Ledare”, ”Administratör” och ”Ägare”. Ledare sätts av en administratör i listan under ”Medlemmar” eller när man bjuder in.",
+      "Rollerna är ”Medlem”, ”Ledare”, ”Administratör” och ”Ägare”. Ledare sätts av en administratör i listan under ”Medlemmar” (Behörigheter i klubbytan) eller när man bjuder in.",
       "Under ”Vem ser vad” väljer klubben vem som ser träningsarkivet och vem som får använda kartbanken (kartfiler, Använd igen, nedladdning). Förvalet för båda är ”Alla medlemmar”; välj ”Ledare och admin” om kartorna inte ska delas med alla medlemmar. Ägare och administratörer ser och använder alltid allt. För medlemmar och ledare gäller kartans egna rättigheter också; den strängaste vinner."
     ]
   },
@@ -90,7 +92,8 @@ export const clubHelpArticles: readonly HelpArticle[] = [
       [
         "Sök på namnet och kryssa i en eller flera.",
         "Välj roll och bjud in. Inbjudan går till personens adress, som du aldrig ser.",
-        "Personen tar inbjudan som vanligt, genom mejlet eller när hen loggar in. I klubbytan gäller rollen direkt för den du väljer i listan, så att du till exempel kan välja en ny ledare som ansvarig i planeringen med en gång."
+        "Personen tar inbjudan som vanligt, genom mejlet eller när hen loggar in.",
+        "I klubbytan gäller rollen direkt för den du väljer i listan."
       ],
       "Du kan fortfarande skriva en e-postadress som förut. Den som inte är bekräftad medlem i någon av dina klubbar syns inte i listan."
     ]
@@ -106,7 +109,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "Du behöver vara administratör både i tävlingen och i klubbytan.",
         "Före tävlingsdagen, eller medan banorna är hemliga, frågar O-Tid först om banhemligheten.",
         "”Ta ur klubbarkivet” tar bort träningen ur arkivet. Tävlingen ändras inte.",
-        "Banor som bara finns i tidtagningen (skrivna som kontrollkoder, inte ritade i banläggningen) har inga lägen på kartan och kommer inte med i banfilerna. O-Tid säger vilka före ”Lägg i klubbarkivet”, och arkivposten säger det också."
+        "Banor som bara finns i tidtagningen (inte ritade i banläggningen) kommer inte med i banfilerna. O-Tid och arkivposten säger vilka."
       ]
     ]
   },
@@ -127,7 +130,10 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "Åt andra hållet läggs en färdig träning i arkivet med ”Lägg i klubbarkivet” på träningens sida."
       ] },
       [
-        "En uppgift kan gå till en medlem i klubben eller till en e-postadress, till exempel en förälder. Med e-post på servern får personen ett kort mejl, och den som blir ansvarig för en träning likaså (ett mejl för alla veckorna), men inte den som ger sig själv uppgiften. Har adressen inget konto säger mejlet att ett konto ska skapas med just den adressen.",
+        "En uppgift kan gå till en medlem i klubben eller till en e-postadress, till exempel en förälder.",
+        "Med e-post på servern får personen ett kort mejl, liksom den som blir ansvarig (ett för alla veckorna). Inte den som ger sig själv uppgiften.",
+        "Har adressen inget konto säger mejlet att ett konto ska skapas med just den adressen.",
+        "I innevarande vecka föreslås dagens datum. Koppla en träning visar först träningarna inom två veckor från veckan.",
         "”Ändra” vid en uppgift byter rubriken eller personen. Den nya personen får ett mejl och läsrätten flyttar med.",
         "Personen ser bara sina egna uppgifter under ”Mina uppgifter” på Mina tävlingar, med tid, plats och den ansvarige, och kan bocka av dem.",
         "När träningen finns får personen läsrätt i banläggningen för just den träningen: banorna, kontrollkartan, beskrivningarna och utskriften.",

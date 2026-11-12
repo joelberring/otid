@@ -38,6 +38,8 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
   const [key, setKey] = useState("");
   const [asking, setAsking] = useState(false);
   const [replacing, setReplacing] = useState(false);
+  /** Användartestet 2026-11-12 (F): klubbytan får klubbens namn i Eventor vid kopplingen (ikryssat som förval). */
+  const [rename, setRename] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState<Message>();
   const eventor = view.eventor;
@@ -45,12 +47,22 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
   async function link(event: FormEvent) {
     event.preventDefault();
     setBusy("link"); setMessage(undefined);
-    const result = await clubRequest(`${clubBase(clubId)}/eventor`, "PUT", { formatVersion: 1, apiKey: key.trim() });
+    const result = await clubRequest(`${clubBase(clubId)}/eventor`, "PUT", { formatVersion: 1, apiKey: key.trim(), rename });
     // Nyckeln stannar inte i sidan efter försöket.
     setKey("");
     setBusy("");
     if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status, text, failure) }); return; }
     setReplacing(false);
+    const linked = result.json as { organisationName?: string; renamed?: boolean } | undefined;
+    if (linked?.renamed && linked.organisationName) setMessage({ tone: "ok", text: text.renamed(linked.organisationName) });
+    await onChanged();
+  }
+  async function renameNow() {
+    setBusy("rename"); setMessage(undefined);
+    const result = await clubRequest(`${clubBase(clubId)}/eventor`, "PATCH");
+    setBusy("");
+    if (result.status !== 200) { setMessage({ tone: "error", text: problemText(result.json, result.status, text, failure) }); return; }
+    setMessage({ tone: "ok", text: text.renamed((result.json as { name: string }).name) });
     await onChanged();
   }
   async function act(method: "POST" | "DELETE") {
@@ -66,6 +78,10 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
     <h2 id="club-eventor">{text.eventorTitle}</h2>
     {eventor.linked && view.organisation ? <>
       <p data-testid="club-eventor-linked"><strong>{text.linked(view.organisation.name, eventor.keyHint ?? "")}</strong></p>
+      {view.organisation.name !== clubName && <div className={styles.actions} data-testid="club-eventor-name">
+        <span className={styles.muted}>{text.nameDiffers(clubName, view.organisation.name)}</span>
+        <Button variant="secondary" disabled={busy !== ""} onClick={() => void renameNow()}>{text.renameTo(view.organisation.name)}</Button>
+      </div>}
       <p data-testid="club-eventor-counts">{text.counts(eventor.members, eventor.confirmedViaEventor)}</p>
       <p className={styles.muted}>{eventor.syncedAt ? text.syncedAt(when(eventor.syncedAt, locale)) : text.neverSynced}
         {eventor.problem && text.problems[eventor.problem] ? ` ${text.problems[eventor.problem]}` : ""}</p>
@@ -81,6 +97,7 @@ function EventorCard({ view, clubId, clubName, onChanged, onInvite }: { view: Cl
         <input type="password" autoComplete="off" spellCheck={false} value={key} maxLength={128} disabled={busy !== ""}
           onChange={event => setKey(event.target.value)} />
       </Field>
+      <label><input type="checkbox" checked={rename} disabled={busy !== ""} onChange={event => setRename(event.target.checked)} /> {text.renameOnLink}</label>
       <div className={styles.actions}><Button type="submit" disabled={busy !== "" || key.trim().length < 16}>{busy === "link" ? text.linking : text.link}</Button></div>
     </form>}
     {!eventor.linked && <div className={styles.actions}>
@@ -198,6 +215,7 @@ export function ClubSpacePanel({ clubId, clubName, focus, onInvite, onChanged }:
     </section>
     <section className={styles.panel} aria-labelledby="club-confirmed">
       <h2 id="club-confirmed">{text.confirmed(view.confirmed.length)}</h2>
+      <p className={styles.muted}>{text.confirmedHelp}</p>
       {view.confirmed.length === 0 ? <p className={styles.muted}>{text.confirmedNone}</p>
         : <ul className={styles.list} data-testid="club-confirmed">{view.confirmed.map(row => <li key={row.membershipId}>
           {person(row)}

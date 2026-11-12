@@ -326,3 +326,24 @@ export async function setRaceGroup(db: Database, input: Proof & { raceId: string
     return { status: "ok", groupId } as const;
   });
 }
+
+/**
+ * Användartestet 2026-11-12 (F): arbetsytan för ett tillfälle i en grupp länkar tillbaka till gruppen. Gruppen (id och namn)
+ * visas bara för den som är administratör på tävlingen och ledare i gruppen (länken leder till ledarens sida).
+ */
+export async function readRaceGroup(db: Database, input: Proof & { raceId: string }, now = new Date())
+  : Promise<GroupFailure | { status: "ok"; group: { groupId: string; name: string } | null }> {
+  if (!UUID_PATTERN.test(input.raceId)) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const auth = await authenticateUserAccountSessionForProtectedRead(tx, input, now);
+    if (auth.status !== "authenticated") return auth;
+    const [race] = await tx.select({ eventId: schema.races.eventId, groupId: schema.events.trainingGroupId, name: schema.trainingGroups.name })
+      .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
+      .leftJoin(schema.trainingGroups, eq(schema.trainingGroups.id, schema.events.trainingGroupId)).where(eq(schema.races.id, input.raceId));
+    if (!race || !await activeEventAdministrationGrant(tx, { accountId: auth.principal.accountId, eventId: race.eventId }, "none")) {
+      return { status: "not-found" } as const;
+    }
+    const leads = race.groupId && race.name ? await leaderMembership(tx, { accountId: auth.principal.accountId, groupId: race.groupId }, "none") : undefined;
+    return { status: "ok", group: leads && race.groupId && race.name ? { groupId: race.groupId, name: race.name } : null } as const;
+  });
+}

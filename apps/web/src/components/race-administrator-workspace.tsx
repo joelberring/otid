@@ -1,6 +1,7 @@
 "use client";
 
 import { sectionFromSlug } from "../lib/race-sections";
+import { GroupBackLink } from "./race-administrator/group-back-link";
 import { useEffect } from "react";
 import { raceAdministratorEn } from "../i18n/workspace-admin-en";
 import { useTexts } from "./language-provider";
@@ -86,6 +87,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       <Sidebar ws={ws} />
       <div className={`${shell.content} ${styles.content}`}>
         {status}
+        {!ws.functionary && <GroupBackLink raceId={raceId} />}
         {/* Bara när användaren försökte lämna steget med något som inte är sparat (PLAN.md steg 24). */}
         {navigationBlocked && navigationLocked && <Notice tone="attention" role="alert">{text.workflowHelp}</Notice>}
         {/* Funktionären (ADR-0172 beslut 3): bara Start och Avläsning. Servern nekar allt annat ändå. */}

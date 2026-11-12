@@ -63,7 +63,7 @@ export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disab
         <span>{text.suggestion(view.suggestion.name)}</span>
         <Button variant="secondary" disabled={locked} onClick={() => setOrganiser(view.suggestion)}>{text.useSuggestion}</Button>
       </div>}
-      <OrganisationPicker label={text.organiser} disabled={locked} onPick={organisation => setOrganiser(organisation)}
+      <OrganisationPicker label={text.organiser} disabled={locked} withoutOther onPick={organisation => setOrganiser(organisation)}
         exclude={view.organiser ? [view.organiser.organisationId] : []} />
       {view.organiser && <div className={styles.actions}><Button variant="quiet" disabled={locked} onClick={() => setOrganiser(null)}>{text.clearOrganiser}</Button></div>}
       {view.organiser && view.space === "NONE" && <p className={styles.muted}>{text.noSpace}</p>}

@@ -86,7 +86,9 @@ export const clubAccessSettingsRequestSchema = z.object({
 }).strict();
 /** Svaret när "Vem ser vad" sparats (PUT …/clubs/[clubId]/access). */
 export interface ClubAccessSettingsResponse { formatVersion: 1; access: ClubAffiliationView["access"] }
-export const clubEventorLinkRequestSchema = z.object({ formatVersion: z.literal(1), apiKey: z.string().trim().min(16).max(128) }).strict();
+export const clubEventorLinkRequestSchema = z.object({ formatVersion: z.literal(1), apiKey: z.string().trim().min(16).max(128),
+  /** Användartestet 2026-11-12 (F): byt klubbytans namn till klubbens namn i Eventor (rutan är ikryssad som förval). */
+  rename: z.boolean().optional() }).strict();
 
 export const clubAffiliationDecisionRequestSchema = z.object({
   formatVersion: z.literal(1),

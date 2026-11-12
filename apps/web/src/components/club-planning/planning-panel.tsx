@@ -98,11 +98,14 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
         {weeks.map(week => {
           const planned = term.planSessions.filter(row => row.sessionDate >= week.monday && row.sessionDate <= week.sunday);
           const first = week.monday < term.startsOn ? term.startsOn : week.monday;
+          // Användartestet 2026-11-12 (F): i innevarande vecka föreslås dagens datum, inte en måndag som redan varit.
+          const today = new Date().toLocaleDateString("sv-SE");
+          const suggested = today > first && today <= week.sunday && today <= term.endsOn ? today : first;
           return <li key={week.monday} className={styles.week} data-testid="plan-week" aria-label={text.week.title(week.week)}>
             <div className={styles.weekHead}>
               <h3>{text.week.title(week.week)} <span>{shortDate(first, language)} – {shortDate(week.sunday < term.endsOn ? week.sunday : term.endsOn, language)}</span></h3>
               <span className={styles.noPrint}><Button variant="quiet" aria-label={text.week.addInWeek(week.week)} disabled={busy}
-                onClick={() => setAdding(first)}>{text.week.add}</Button></span>
+                onClick={() => setAdding(suggested)}>{text.week.add}</Button></span>
             </div>
             {adding !== undefined && adding >= week.monday && adding <= week.sunday && <PlanSessionForm key={adding} plan={plan} termId={term.termId}
               initialDate={adding} busy={busy} onCancel={() => setAdding(undefined)} onSave={async body => {

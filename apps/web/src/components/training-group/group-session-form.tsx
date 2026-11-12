@@ -22,6 +22,9 @@ type Source = "TEMPLATE" | "PREVIOUS" | "RACE";
 export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; onCreated: (message: string) => void }) {
   const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
   const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
+  // Användartestet 2026-11-12 (F): utan mall och tidigare tillfälle finns inget att utgå från; träningen blir tom och
+  // publiceras inte som förval (ledaren lägger banor och klasser först).
+  const first = !view.settings.templateRaceId && view.sessions.length === 0;
   const [source, setSource] = useState<Source>(view.settings.templateRaceId ? "TEMPLATE" : "PREVIOUS");
   const [sourceRaceId, setSourceRaceId] = useState(view.sessions.at(-1)?.raceId ?? "");
   const [eventName, setEventName] = useState(view.settings.name);
@@ -29,7 +32,7 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
   const [startTime, setStartTime] = useState("18:00");
   const [mapId, setMapId] = useState("");
   const [includeCourseSetting, setIncludeCourseSetting] = useState(false);
-  const [publish, setPublish] = useState(true);
+  const [publish, setPublish] = useState(!first);
   const [repeat, setRepeat] = useState(false);
   const [lastDate, setLastDate] = useState("");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -65,13 +68,13 @@ export function GroupSessionForm({ view, onCreated }: { view: GroupLeaderView; o
   }
 
   return <form className={styles.form} noValidate onSubmit={event => void submit(event)} aria-label={text.sections.new}>
-    <p className={styles.muted}>{text.newHint}</p>
-    <fieldset className={styles.choice}>
+    {first ? <Notice role="status">{text.firstSession}</Notice> : <p className={styles.muted}>{text.newHint}</p>}
+    {!first && <fieldset className={styles.choice}>
       <legend>{text.source}</legend>
       {(["TEMPLATE", "PREVIOUS", "RACE"] as const).filter(option => option !== "TEMPLATE" || view.settings.templateRaceId).map(option =>
         <label key={option} className={styles.check}><input type="radio" name="session-source" checked={source === option} disabled={busy}
           onChange={() => changed(setSource)(option)} />{text.sources[option]}</label>)}
-    </fieldset>
+    </fieldset>}
     {source === "RACE" && <Field label={text.sourceRace}><select value={sourceRaceId} disabled={busy}
       onChange={event => changed(setSourceRaceId)(event.target.value)}>
       {view.sessions.map(session => <option key={session.raceId} value={session.raceId}>{session.raceDate} · {session.eventName}</option>)}

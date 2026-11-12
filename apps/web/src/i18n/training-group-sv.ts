@@ -21,6 +21,10 @@ export const trainingGroupSv = {
   },
   leader: {
     kicker: "O-Tid · Träningsgrupp",
+    /** Användartestet 2026-11-12 (F): länken från arbetsytan för ett tillfälle i gruppen. */
+    backToGroup: (name: string) => `Till gruppen ${name}`,
+    /** Första träningen i en ny grupp: inget att utgå från. */
+    firstSession: "Gruppen har inget tidigare tillfälle. Träningen skapas tom; lägg banor och klasser i arbetsytan.",
     back: "Mina tävlingar",
     loading: "Läser gruppen …",
     notFound: "Gruppen finns inte, eller så är du inte ledare i den.",

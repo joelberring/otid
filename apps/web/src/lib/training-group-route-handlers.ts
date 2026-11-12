@@ -1,4 +1,5 @@
 import {
+  readRaceGroup,
   acknowledgeRaceMapPublicUse, addGroupMember, createGroupSessions, createTrainingGroup, deleteLibraryMap, listMyGroups, readGroupAsLeader,
   readRaceMapAgreementAsAdmin, removeGroupMember, removeGroupSession, saveRaceMapToLibrary, setRaceGroup, undoGroupSeries, updateGroupSettings,
   updateLibraryMap
@@ -200,6 +201,15 @@ export async function groupMapDeleteRoute(db: Database, request: Request, groupI
 /** Tävlingen (hela evenemanget) läggs till i eller tas ur en grupp. */
 export async function raceGroupRoute(db: Database, request: Request, raceId: string, environment: Environment = process.env): Promise<Response> {
   if (!validId(raceId)) return failure("invalid-request");
+  if (request.method === "GET") {
+    // Användartestet 2026-11-12 (F): gruppen som tillfället hör till, för länken tillbaka från arbetsytan.
+    const read = await readProof(request, environment);
+    if ("response" in read) return read.response;
+    return guarded(async () => {
+      const result = await readRaceGroup(db, { ...read.proof, raceId });
+      return result.status === "ok" ? privateJson({ formatVersion: 1, group: result.group }) : failure(result.status);
+    });
+  }
   const input = await mutation(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {

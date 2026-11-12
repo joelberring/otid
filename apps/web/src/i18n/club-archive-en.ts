@@ -225,8 +225,8 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     toGroupDone: (updated: boolean) => updated ? "The group's map is updated to the latest version." : "The map is now in the group's map library.",
   },
   members: {
-    title: "Members",
-    help: "Invite with one or more email addresses. With email on the server, each person gets an email with a link. The person becomes a member when they sign in with the address and have confirmed it.",
+    title: "Access in the club space",
+    help: "Who is a member, leader, administrator or owner here in the club space. The club's members according to Eventor and those confirmed by hand are under The club. Invite with one or more email addresses. With email on the server, each person gets an email with a link. The person becomes a member when they sign in with the address and have confirmed it.",
     readerHelp: "The member list is shown to the club's owners and administrators. Your own role is shown here.",
     invite: "Invite",
     email: "Email address",

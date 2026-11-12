@@ -226,8 +226,9 @@ export const clubArchiveSv = {
     toGroupDone: (updated: boolean) => updated ? "Gruppens karta är uppdaterad till den senaste versionen." : "Kartan finns nu i gruppens kartbibliotek.",
   },
   members: {
-    title: "Medlemmar",
-    help: "Bjud in med en eller flera e-postadresser. Med e-post på servern får varje person ett mejl med en länk. Personen blir medlem när hen loggar in med adressen och har bekräftat den.",
+    /** Användartestet 2026-11-12 (F): rollerna i klubbytan, skilda från klubbens bekräftade medlemmar under Klubben. */
+    title: "Behörigheter i klubbytan",
+    help: "Vem som är medlem, ledare, administratör eller ägare här i klubbytan. Klubbens medlemmar enligt Eventor och de som bekräftats för hand står under Klubben. Bjud in med en eller flera e-postadresser. Med e-post på servern får varje person ett mejl med en länk. Personen blir medlem när hen loggar in med adressen och har bekräftat den.",
     readerHelp: "Medlemslistan visas för klubbens ägare och administratörer. Här står din egen roll.",
     invite: "Bjud in",
     email: "E-postadress",

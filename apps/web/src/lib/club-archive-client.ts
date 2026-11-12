@@ -19,7 +19,7 @@ export function csrf(): string | undefined {
   try { return readOrganizerCsrf(document.cookie, new URL(window.location.href)); } catch { return undefined; }
 }
 
-export async function clubRequest(path: string, method: "GET" | "POST" | "PUT" | "DELETE" = "GET", body?: unknown)
+export async function clubRequest(path: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET", body?: unknown)
   : Promise<{ status: number; json: unknown }> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["content-type"] = "application/json";

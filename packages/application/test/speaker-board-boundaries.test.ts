@@ -16,21 +16,26 @@ function fixture(counts: number[], duplicate = false) {
   const tx = {
     // Steg 44: urvalet går via deltagaren (strukna räknas inte).
     selectDistinctOn: () => ({ from: () => ({ innerJoin: () => ({ where: () => ({ orderBy: () => ({ as: () => ({
-      id: schema.resultRevisions.id, createdAt: schema.resultRevisions.createdAt
+      id: schema.resultRevisions.id, entryId: schema.resultRevisions.entryId, createdAt: schema.resultRevisions.createdAt
     }) }) }) }) }) }),
     select: () => {
       const index = selects++;
       if (index === 0) return { from: () => ({ where: () => ({ for: async () => [{ id: raceId, eventId: raceId }] }) }) };
       if (index === 1) return { from: () => ({ where: async () => [{ name: "Synthetic", timeZone: "UTC" }] }) };
-      if (index === 2) return { from: () => ({ orderBy: () => ({ limit: async (limit: number) => {
+      // Ankomsttiden per deltagare (samma källa som Live), sedan huvudena ordnade på den.
+      if (index === 2) return { from: () => ({ where: () => ({ groupBy: () => ({ as: () => ({
+        entryId: schema.resultRevisions.entryId, arrivedAtMs: schema.resultRevisions.createdAt
+      }) }) }) }) };
+      if (index === 3) return { from: () => ({ innerJoin: () => ({ orderBy: () => ({ limit: async (limit: number) => {
         expect(limit).toBe(25);
-        return Array.from({ length: duplicate ? 2 : 1 }, () => ({ entryId }));
-      } }) }) };
+        return Array.from({ length: duplicate ? 2 : 1 }, () => ({ speaker_latest_published: { entryId },
+          speaker_arrival: { entryId, arrivedAtMs: "0" } }));
+      } }) }) }) };
       return { from: (table: unknown) => {
         tables.push(table);
         return { where: () => ({ limit: async (limit: number) => {
           limits.push(limit);
-          return Array.from({ length: counts[index - 3] ?? 0 }, (_, id) => ({ id: String(id) }));
+          return Array.from({ length: counts[index - 4] ?? 0 }, (_, id) => ({ id: String(id) }));
         } }) };
       } };
     }

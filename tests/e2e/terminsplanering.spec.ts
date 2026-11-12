@@ -120,7 +120,7 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   await expect(copied.getByTestId("plan-task")).toContainText("Sätta ut kontroller");
   await expect(copied.getByTestId("plan-task")).not.toContainText(parentEmail);
   await expect(copied.getByRole("button", { name: "Skapa träningen" })).toBeVisible();
-  await expect(planning.getByRole("button", { name: "Hämta ur arkivet vecka 2" })).toBeVisible();
+  await expect(planning.getByRole("button", { name: "Hämta ur arkivet vecka 33" })).toBeVisible();
 
   // Föräldern: kontot med adressen, Mina uppgifter och banläggningen.
   const parent = await registerAccount(browser, parentEmail, "Fia Förälder");

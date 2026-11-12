@@ -13,6 +13,19 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-12 – Användartestet 2026-11-12, tredje omgången: bokstäver, lösenord, arkivering (migration 0113–0115)
+- Gafflingar: bokstaven hör till alternativet (ADR-0175 tillägg b och c). Tas ett alternativ bort står de andra kvar (lucka
+  tillåts), nytt alternativ får en oanvänd bokstav; bara den vars bokstav försvinner byter variant och står med namn, före
+  och efter i besked och historik. Gäller tävlingen, stafetten och banläggningen (bokstäverna sparas i dokumentet och i
+  O-Tids .ppen); Överför till tävlingen visar berörda löpare och kräver bekräftelse. Gamla dokument ändras inte.
+- Konto: lösenordet skrivs två gånger. Bekräftelselänken i webbläsaren som registrerade (kaka bunden till registreringen,
+  en timme) bekräftar utan nytt lösenord; annars som förut (ADR-0205 beslut 11–13). Migration 0115.
+- Superadmin: Bekräfta adressen i appen (VERIFY_EMAIL, skäl krävs, loggas; serverkommandot loggas också).
+- Ledarflödet: en Träning med arrangörsklubb läggs i klubbarkivet automatiskt när den är klar (förval, rutan kan kryssas
+  ur, aldrig två gånger, inte igen efter Ta ur; 0113), arkivposten sparar planens personer (0114), Hämta ur arkivet i
+  veckan och Kopiera upplägg från termin (ledare följer med, övriga uppgifter utan person, inga mejl).
+- Verifierat: lint, typecheck, knip, enhetstester, hela integrationssviten, ett nittiotal Playwright-tester lokalt.
+
 ### 2026-11-12 – Användartestet 2026-11-12: första intrycket, resten av block 1 och ledarflödet
 - Första intrycket: Träning är förval, en bana utan klass får en klass i Träning, klockslag som 0725/7.25/18 tolkas
   (`normalizeClock`), kontomenyn finns i arbetsytan, Till startlistan visas bara när den är publicerad, superadminlistan
@@ -1569,6 +1582,7 @@ Loggen till och med 2026-10-19 ligger i `docs/archive/STATUS-logg-till-2026-10-1
 
 - Tvåstegsregelns steg 2 för migration 0087 (städrundan C5), i en driftsättning efter den med 0087: `ALTER TABLE email_verification_token
   DROP COLUMN salt_hex, DROP COLUMN verifier_hex` (och kolumnerna ur schema/accounts.ts). Ingen kod läser eller skriver dem sedan 0087.
+  INAKTUELLT 2026-11-12: kolumnerna används igen (bekräftelse i samma webbläsare, ADR-0205 beslut 11–13). Ta inte bort dem.
 
 - Steg 54: en utläsning i 25-manna gör 84 databasfrågor i följd (individuell 38); under last väntar varje fråga på
   processorn. Färre frågor (lagets sträckor, starter och resultat i en fråga) skulle ge snabbare kvitto vid täta växlingar.

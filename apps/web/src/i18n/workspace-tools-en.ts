@@ -480,6 +480,7 @@ export const courseVariantsEn: Texts<typeof courseVariantsSv> = {
   variantResultChange: (name, before, after) => `${name}: ${before} → ${after}`,
   variantError: "The variant could not be changed. Try again.",
   variantConflict: "The event has changed in the meantime. The participant is loaded again; choose variant once more.",
+  readinessNoRunners: (variants: number) => `No entries yet. The course has ${variants} variants.`,
   readinessOk: variants => `Ready for the start: all ${variants} variants have runners and the distribution is even.`,
   readinessOkUnused: unused => `Ready for the start. Fewer runners than variants, so ${unused.join(", ")} are not used.`,
   readinessLabel: "Before the start",

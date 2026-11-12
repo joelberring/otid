@@ -44,7 +44,7 @@ export const courseEditListResponseSchema = z.object({
       shortestMeters: z.number().int().min(1).max(1_000_000).nullable(), longestMeters: z.number().int().min(1).max(1_000_000).nullable()
     }).strict().optional(),
     /** Steg 61: kontrollen före tävlingen (domänens `forkingReadiness`). Saknas för ogafflade banor och stafettbanor. */
-    readiness: z.object({ ok: z.boolean(), variantCount: count, excludedCount: count.optional(), tooManyVariants: z.boolean(), tooManyLetters: z.boolean(),
+    readiness: z.object({ ok: z.boolean(), variantCount: count, excludedCount: count.optional(), runnerCount: count.optional(), tooManyVariants: z.boolean(), tooManyLetters: z.boolean(),
       unusedVariants: z.array(courseVariantCodeSchema).max(1000), unusedExpected: z.boolean(),
       missingVariant: z.array(z.object({ className: name, count }).strict()).max(1000),
       uneven: z.array(z.object({ className: name, point: z.number().int().min(1).max(1000),
@@ -117,8 +117,12 @@ export const courseEditPreviewResponseSchema = z.object({
 
 export const courseEditRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuid, courseId: uuid, controlCodes: controlCodes.optional(),
-  variantCode: courseVariantCodeSchema.optional(), forking: courseForkingSchema.optional(), confirmResultChanges: z.boolean()
-}).strict().superRefine(forkingOrControls);
+  variantCode: courseVariantCodeSchema.optional(), forking: courseForkingSchema.optional(),
+  /** Användartestet 2026-11-12: gafflingssättet väljs i redigeringen och sparas med strukturen (bara med `forking`). */
+  forkingMode: forkingModeSchema.optional(), confirmResultChanges: z.boolean()
+}).strict().superRefine(forkingOrControls).superRefine((value, context) => {
+  if (value.forkingMode !== undefined && value.forking === undefined) context.addIssue({ code: "custom", message: "Gafflingssättet hör till en struktur" });
+});
 
 export const courseEditIdempotencyKeySchema = z.string().regex(
   prefixedUuidPattern("course-edit"));

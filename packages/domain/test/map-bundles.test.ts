@@ -129,6 +129,13 @@ describe("kontroll före tävlingen (steg 61)", () => {
     expect(result).toMatchObject({ ok: true, unusedExpected: true, unusedVariants: ["AD", "BC"] });
   });
 
+  it("inga anmälda än: antalet löpare är noll (arbetsytan skriver inte \"klar för start\"), strukna räknas av den som anropar", () => {
+    expect(forkingReadiness({ variantCodes: codes, forking, choices, classes: [{ name: "H21", runnerVariants: [] }] }))
+      .toMatchObject({ ok: true, runnerCount: 0, unusedVariants: codes });
+    expect(forkingReadiness({ variantCodes: codes, forking, choices, classes: [{ name: "H21", runnerVariants: ["AC", null] }, { name: "D21", runnerVariants: ["BD"] }] })
+      .runnerCount).toBe(3);
+  });
+
   it("för många varianter och bokstäver", () => {
     const many = Array.from({ length: 101 }, (_value, index) => `V${index}`);
     expect(forkingReadiness({ variantCodes: many, classes: [] })).toMatchObject({ tooManyVariants: true, ok: false });

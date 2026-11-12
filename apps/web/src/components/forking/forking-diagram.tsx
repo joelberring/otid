@@ -64,10 +64,10 @@ export function ForkingDiagram({ items, letters, choices, compact = false, count
         antalen ("E · 3/1") sitter intill grenens första kontroll. */}
     {layout.labels.map(item => <g key={item.key} data-label={item.kind} data-active={item.active ?? undefined}
       data-branch={item.target?.kind === "BRANCH" ? `${item.target.item}.${item.target.branch}` : undefined}>
-      {item.description && <title>{text.branchCount(item.description)}</title>}
+      {item.description && <title>{item.description}</title>}
       {item.detail && <rect className={styles.labelBox} x={item.x - item.width / 2} y={item.y - item.height / 2}
         width={item.width} height={item.height} rx={3} />}
-      <text x={item.x} y={item.y} data-active={item.active ?? undefined} aria-label={item.description ? text.branchCount(item.description) : undefined}
+      <text x={item.x} y={item.y} data-active={item.active ?? undefined} aria-label={item.description}
         className={item.kind === "LETTER" ? styles.letter : styles.order}>{item.text}
         {item.detail && <tspan className={styles.count}>{` · ${item.detail}`}</tspan>}</text>
     </g>)}

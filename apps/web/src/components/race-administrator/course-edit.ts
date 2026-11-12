@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { courseEditListResponseSchema, courseEditPreviewResponseSchema, courseEditResponseSchema,
   type CourseEditListResponse, type CourseEditPreviewResponse, type CourseEditRequest, type CourseForkingItem } from "@o-tid/contracts";
+import type { ForkingMode } from "@o-tid/domain";
 import { validateCourseForking } from "@o-tid/domain";
 
 import { parseControlCodes, type CourseEditAttempt, type Operation } from "./types";
@@ -24,8 +25,10 @@ export function useCourseEditState() {
   // Steg 49: gafflingsstrukturen som redigeras (undefined = kontrollföljden redigeras) och den som öppnades.
   const [courseEditForking, setCourseEditForking] = useState<CourseForkingItem[]>();
   const [courseEditForkingOriginal, setCourseEditForkingOriginal] = useState("");
+  // Användartestet 2026-11-12: gafflingssättet väljs i redigeringen, före första sparandet.
+  const [courseEditForkingMode, setCourseEditForkingMode] = useState<ForkingMode>("BALANCED");
   return { courseList, setCourseList, courseListError, setCourseListError, editingCourseId, setEditingCourseId,
-    courseEditForking, setCourseEditForking, courseEditForkingOriginal, setCourseEditForkingOriginal,
+    courseEditForking, setCourseEditForking, courseEditForkingOriginal, setCourseEditForkingOriginal, courseEditForkingMode, setCourseEditForkingMode,
     editingVariantCode, setEditingVariantCode,
     courseEditControls, setCourseEditControls, courseEditPreview, setCourseEditPreview, courseEditError, setCourseEditError,
     courseEditSaved, setCourseEditSaved, courseEditAttempt, setCourseEditAttempt };
@@ -39,7 +42,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
   const { raceId, courseList, editingCourseId, editingVariantCode, setEditingVariantCode, courseEditControls, courseEditPreview, writingRef, pending, sent, requireSession,
     begin, finish, current, request, json, csrf, load, setCourseList, setCourseListError, setEditingCourseId,
     setCourseEditControls, setCourseEditPreview, setCourseEditError, setCourseEditSaved, setCourseEditAttempt,
-    courseEditForking, setCourseEditForking, setCourseEditForkingOriginal } = ws;
+    courseEditForking, setCourseEditForking, setCourseEditForkingOriginal, courseEditForkingMode, setCourseEditForkingMode } = ws;
 
   async function readCourses(op: Operation) {
     const response = await request("/courses", op);
@@ -78,10 +81,14 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
       : course.controlCodes.map(code => ({ kind: "CONTROL" as const, code }));
     setEditingCourseId(courseId); setEditingVariantCode(""); setCourseEditControls("");
     setCourseEditForking(items); setCourseEditForkingOriginal(course.forking?.stored ? JSON.stringify(items) : "");
+    setCourseEditForkingMode(course.forkingMode ?? "BALANCED");
     setCourseEditPreview(undefined); setCourseEditError(""); setCourseEditSaved("");
   }
   function changeCourseEditForking(items: CourseForkingItem[]) {
     setCourseEditForking(items); setCourseEditPreview(undefined); setCourseEditError("");
+  }
+  function changeCourseEditForkingMode(mode: ForkingMode) {
+    setCourseEditForkingMode(mode); setCourseEditError("");
   }
   function cancelCourseEdit() {
     if (pending.current) return;
@@ -194,8 +201,10 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
           if (read.requiresConfirmation) return;
           preview = read;
         }
+        const savedMode = courseList.courses.find(row => row.courseId === editingCourseId)?.forkingMode ?? "BALANCED";
         const request: CourseEditRequest = { formatVersion: 1, requestId: crypto.randomUUID(),
           courseId: editingCourseId, ...(proposed.forking ? { forking: proposed.forking } : { controlCodes: proposed.codes }),
+          ...(proposed.forking && courseEditForkingMode !== savedMode ? { forkingMode: courseEditForkingMode } : {}),
           ...(editingVariantCode ? { variantCode: editingVariantCode } : {}), confirmResultChanges: preview.requiresConfirmation };
         attempt = { kind: "COURSE_EDIT", request };
         pending.current = attempt; sent.current = false; setCourseEditAttempt(attempt);
@@ -204,7 +213,7 @@ export function createCourseEditActions(ws: Base & RaceDataActions) {
     } catch { if (current(op)) setCourseEditError(pending.current ? text.unreachable : text.courseEditPreviewError); }
     finally { finish(op); }
   }
-  return { readCourses, loadCourses, startCourseEdit, startForkingEdit, changeCourseEditForking, cancelCourseEdit, changeCourseEditControls,
+  return { readCourses, loadCourses, startCourseEdit, startForkingEdit, changeCourseEditForking, changeCourseEditForkingMode, cancelCourseEdit, changeCourseEditControls,
     previewCourseEdit, saveCourseEdit };
 }
 export type CourseEditActions = ReturnType<typeof createCourseEditActions>;

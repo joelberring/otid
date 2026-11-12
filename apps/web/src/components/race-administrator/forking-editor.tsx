@@ -26,8 +26,8 @@ const nameOf = (item: CourseForkingItem | undefined, fallback: string) =>
  */
 export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow }) {
   const text = useTexts(raceAdministratorSv, raceAdministratorEn), forking = ws.forkingText;
-  const { busy, cancelCourseEdit, changeCourseEditForking, courseEditAttempt, courseEditError, courseEditForking, courseEditPreview,
-    previewCourseEdit, saveCourseEdit } = ws;
+  const { busy, cancelCourseEdit, changeCourseEditForking, changeCourseEditForkingMode, courseEditAttempt, courseEditError, courseEditForking,
+    courseEditForkingMode: mode, courseEditForkingOriginal, courseEditPreview, previewCourseEdit, saveCourseEdit, saveForkingMode } = ws;
   const items = useMemo(() => courseEditForking ?? [], [courseEditForking]);
   const [selected, setSelected] = useState<DiagramTarget>();
   const [newCode, setNewCode] = useState("");
@@ -37,8 +37,16 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
   const letters = useMemo(() => forkingLetters({ items }), [items]);
   const problems = useMemo(() => validateCourseForking({ items }), [items]);
   const generated = useMemo(() => problems.length === 0 ? generateForkingVariants({ items }) : [], [items, problems]);
-  const fairness = useMemo(() => generated.length > 1 ? courseForkingFairness({ mode: course.forkingMode ?? "BALANCED",
-    variants: generated, forking: { items } }) : undefined, [generated, items, course.forkingMode]);
+  // Användartestet 2026-11-12: varningen följer gafflingssättet som valts här, också före första sparandet.
+  const fairness = useMemo(() => generated.length > 1 ? courseForkingFairness({ mode,
+    variants: generated, forking: { items } }) : undefined, [generated, items, mode]);
+  const modeId = `forking-edit-mode-${course.courseId}`;
+  /** Bara gafflingssättet är ändrat (samma sparade struktur): sparas direkt och redigeringen stängs. */
+  const onlyMode = courseEditForkingOriginal !== "" && JSON.stringify(items) === courseEditForkingOriginal && mode !== (course.forkingMode ?? "BALANCED");
+  const submit = async () => {
+    if (onlyMode) { if (await saveForkingMode(course.courseId, mode)) cancelCourseEdit(); return; }
+    await saveCourseEdit();
+  };
   const locked = busy || !!courseEditAttempt;
   const change = (next: CourseForkingItem[]) => {
     setDrafts({});
@@ -71,9 +79,17 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
   const selectedItem = selected && selected.kind !== "LEG" ? items[selected.item] : undefined;
   const preview = courseEditPreview;
   return <form className={styles.editor} aria-label={forking.editorTitle(course.name)} noValidate
-    onSubmit={event => { event.preventDefault(); void saveCourseEdit(); }}>
+    onSubmit={event => { event.preventDefault(); void submit(); }}>
     <h3>{forking.editorTitle(course.name)}</h3>
     <p className={styles.workflowHelp}>{forking.editorHelp}</p>
+    <div className={styles.forkingTools}>
+      <label htmlFor={modeId}>{forking.mode}
+        <select id={modeId} value={mode} disabled={locked} data-testid="forking-edit-mode"
+          onChange={event => changeCourseEditForkingMode(event.target.value as "BALANCED" | "UNEQUAL")}>
+          <option value="BALANCED">{forking.modes.BALANCED}</option><option value="UNEQUAL">{forking.modes.UNEQUAL}</option>
+        </select></label>
+      <span className={styles.workflowHelp}>{forking.modeHelp[mode]}</span>
+    </div>
     <ForkingDiagram items={items} letters={letters} label={forking.courseDiagram(course.name)} selected={selected}
       onSelect={target => { setSelected(target); setCodeError(""); }} />
     <section className={styles.forkingSelection} aria-label={forking.title} aria-live="polite">
@@ -167,7 +183,7 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
     </section>}
     {courseEditError && <Notice tone="error" role="alert">{courseEditError}</Notice>}
     <div className={styles.actions}>
-      <Button variant="secondary" disabled={locked} onClick={() => void previewCourseEdit()}>{text.courseEditPreview}</Button>
+      <Button variant="secondary" disabled={locked || onlyMode} onClick={() => void previewCourseEdit()}>{text.courseEditPreview}</Button>
       <Button type="submit" disabled={busy}>{text.courseEditSave}</Button>
       {!courseEditAttempt && <Button variant="quiet" disabled={busy} onClick={cancelCourseEdit}>{text.courseEditCancel}</Button>}
     </div>

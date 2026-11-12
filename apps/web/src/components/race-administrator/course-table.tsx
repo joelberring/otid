@@ -117,6 +117,9 @@ function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   // ADR-0198: varianter som banläggningen valt bort.
   const excluded = readiness.excludedCount ? ` · ${variantText.readinessExcluded(readiness.excludedCount)}` : "";
+  // Användartestet 2026-11-12: utan anmälda är ingenting "klart för start" och inga varianter "används inte" än.
+  if (readiness.ok && readiness.runnerCount === 0) return <p className={styles.workflowHelp} role="status" data-testid="forking-readiness">
+    {variantText.readinessNoRunners(readiness.variantCount)}{excluded}</p>;
   if (readiness.ok) return <p className={styles.workflowHelp} role="status" data-testid="forking-readiness">
     {readiness.unusedVariants.length > 0 ? variantText.readinessOkUnused(readiness.unusedVariants) : variantText.readinessOk(readiness.variantCount)}{excluded}</p>;
   const problems = [
@@ -135,6 +138,7 @@ function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"
  * bokstav. Inga antal när banan saknar anmälda, så att bilden är lugn medan banan byggs.
  */
 function branchCount(course: CourseRow, forking: Texts<typeof forkingSv>) {
+  const letters = course.forking ? forkingLetters({ items: course.forking.items }) : [];
   return (item: number, branch: number) => {
     const view = course.forking;
     if (!view || course.entryCount === 0) return undefined;
@@ -142,7 +146,9 @@ function branchCount(course: CourseRow, forking: Texts<typeof forkingSv>) {
     if (kind === "LOOP" && branch > 0) return undefined;
     const on = course.variants.filter(variant => kind === "LOOP" || view.variants.find(row => row.code === variant.code)?.choices[item] === branch);
     const entries = on.reduce((sum, row) => sum + row.entryCount, 0), readOut = on.reduce((sum, row) => sum + row.readOutCount, 0);
-    return { text: forking.branchCountShort(entries, readOut), description: forking.branchCountLong(entries, readOut) };
+    const own = letters[item] ?? [];
+    const letter = kind === "LOOP" ? own.join(", ") : own[branch] ?? String(branch + 1);
+    return { text: forking.branchCountShort(entries, readOut), description: forking.branchCount(letter, kind === "LOOP", forking.branchCountLong(entries, readOut)) };
   };
 }
 
@@ -165,7 +171,9 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
     <strong>{variantText.forked(course.variants.length)}</strong>
     {course.readiness && <Readiness readiness={course.readiness} />}
     {view && <ForkingDiagram items={view.items} letters={forkingLetters({ items: view.items })} count={branchCount(course, forking)}
-      label={forking.courseDiagram(course.name)} caption={lengths ? <span>{forking.lengths(lengths.shortest, lengths.longest)}</span> : undefined} />}
+      label={forking.courseDiagram(course.name)} caption={lengths || course.entryCount > 0 ? <>
+        {lengths && <span>{forking.lengths(lengths.shortest, lengths.longest)}</span>}
+        {course.entryCount > 0 && <span data-testid="forking-counts-caption">{lengths ? " · " : ""}{forking.countsCaption}</span>}</> : undefined} />}
     <div className={styles.forkingTools}>
       <label htmlFor={id}>{forking.mode}
         <select id={id} value={mode} disabled={saving || !!editingCourseId}

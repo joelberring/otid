@@ -80,10 +80,11 @@ export function createCourseDetailsActions(ws: Base & RaceDataActions & CourseEd
     finally { finish(op); }
   }
   /** Steg 49: gafflingssätt (utjämnad eller fulgaffling). Påverkar bara rättvisekontrollen och sparas direkt. */
-  async function saveForkingMode(courseId: string, forkingMode: "BALANCED" | "UNEQUAL") {
-    if (writingRef.current || pending.current || !requireSession()) return;
+  async function saveForkingMode(courseId: string, forkingMode: "BALANCED" | "UNEQUAL"): Promise<boolean> {
+    if (writingRef.current || pending.current || !requireSession()) return false;
     const course = courseList?.courses.find(row => row.courseId === courseId);
-    if (!course || course.forkingMode === forkingMode) return;
+    if (!course) return false;
+    if ((course.forkingMode ?? "BALANCED") === forkingMode) return true;
     const body: CourseDetailsRequest = { formatVersion: 1, requestId: crypto.randomUUID(), courseId,
       lengthMeters: course.lengthMeters ?? null, climbMeters: course.climbMeters ?? null, forkingMode };
     setDetailsMessage("");
@@ -97,7 +98,8 @@ export function createCourseDetailsActions(ws: Base & RaceDataActions & CourseEd
       if (receipt.raceId !== raceId || receipt.requestId !== body.requestId) throw new Error("Forking mode receipt mismatch");
       setDetailsMessage(ws.forkingText.modeSaved(forkingMode));
       await readCourses(op);
-    } catch { if (current(op)) setDetailsMessage(text.courseDetailsError); }
+      return true;
+    } catch { if (current(op)) setDetailsMessage(text.courseDetailsError); return false; }
     finally { finish(op); }
   }
   return { startCourseDetails, cancelCourseDetails, changeCourseDetails, saveCourseDetails, saveForkingMode };

@@ -32,6 +32,7 @@ export const courseVariantsSv = {
   variantError: "Varianten kunde inte ändras. Försök igen.",
   variantConflict: "Tävlingen har ändrats under tiden. Deltagaren är inläst igen; välj variant en gång till.",
   // Steg 61: kontroll före tävlingen, en rad per bana.
+  readinessNoRunners: (variants: number) => `Inga anmälda än. Banan har ${variants} varianter.`,
   readinessOk: (variants: number) => `Klar för start: alla ${variants} varianter har löpare och fördelningen är jämn.`,
   readinessOkUnused: (unused: readonly string[]) =>
     `Klar för start. Färre löpare än varianter, så ${unused.join(", ")} används inte.`,

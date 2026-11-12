@@ -11,6 +11,12 @@ it("Redigera bana: begäran är strikt och nyckeln binder begärans id", () => {
   expect(courseEditRequestSchema.safeParse(request).success).toBe(true);
   expect(courseEditRequestSchema.safeParse({ ...request, controlCodes: [] }).success).toBe(false);
   expect(courseEditRequestSchema.safeParse({ ...request, extra: 1 }).success).toBe(false);
+  // Användartestet 2026-11-12: gafflingssättet sparas bara med en struktur.
+  expect(courseEditRequestSchema.safeParse({ ...request, forkingMode: "UNEQUAL" }).success).toBe(false);
+  const forked = { formatVersion: 1, requestId: id, courseId: id, confirmResultChanges: false,
+    forking: { items: [{ kind: "CONTROL", code: 31 }, { kind: "FORK", branches: [[41], [42]] }] } };
+  expect(courseEditRequestSchema.safeParse({ ...forked, forkingMode: "UNEQUAL" }).success).toBe(true);
+  expect(courseEditRequestSchema.safeParse({ ...forked, forkingMode: "ANNAT" }).success).toBe(false);
   expect(courseEditIdempotencyKeySchema.safeParse(`course-edit:${id}`).success).toBe(true);
   expect(courseEditIdempotencyKeySchema.safeParse(`course:${id}`).success).toBe(false);
 });

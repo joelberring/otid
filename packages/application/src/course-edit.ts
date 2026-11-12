@@ -371,6 +371,9 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
     // Gafflad bana: banans egen kontrollföljd är tom och alla varianter följer med till nya versionen.
     await insertCourseVersionControls(tx, raceId, courseVersion.id, plan.variants.length > 0 ? [] : plan.controlCodes, plan.variants);
     const classIds = course.classes.map(row => row.id);
+    // Användartestet 2026-11-12: gafflingssättet som valts i redigeringen sparas med strukturen (bara rättvisekontrollen).
+    const forkingMode = intent.forkingMode && intent.forkingMode !== course.forkingMode ? intent.forkingMode : undefined;
+    if (forkingMode) await tx.update(schema.courses).set({ forkingMode }).where(and(eq(schema.courses.id, course.id), eq(schema.courses.raceId, raceId)));
     if (course.classCourseIds.length > 0) {
       await tx.update(schema.classes).set({ courseVersionId: courseVersion.id })
         .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, course.classCourseIds)));
@@ -415,7 +418,8 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
         snapshotVersion: snapshotVersionAfter, recalculatedCount: recalculated.length,
         ...(plan.forking ? { forking: true, variantCodes: plan.variants.map(variant => variant.code), removedCodes: plan.forking.removedCodes,
           changedCodes: plan.forking.changedCodes,
-          renamedEntryCount: [...entryCodes.values()].filter(code => code !== null).length, reassignedEntryCount: reassigned } : {}) }, createdAt: now });
+          renamedEntryCount: [...entryCodes.values()].filter(code => code !== null).length, reassignedEntryCount: reassigned } : {}),
+        ...(forkingMode ? { forkingMode, forkingModeBefore: course.forkingMode } : {}) }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
         entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_COURSE_EDIT", actorKind: "USER_ACCOUNT" as const,

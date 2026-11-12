@@ -104,6 +104,7 @@ export function deriveWorkspace(s: WorkspaceState) {
   const course = s.courseList?.courses.find(row => row.courseId === s.editingCourseId);
   const original = (s.editingVariantCode ? course?.variants.find(row => row.code === s.editingVariantCode)?.controlCodes : course?.controlCodes) ?? [];
   const courseEdited = !!course && (s.courseEditForking ? JSON.stringify(s.courseEditForking) !== s.courseEditForkingOriginal
+    || s.courseEditForkingMode !== (course.forkingMode ?? "BALANCED")
     : s.courseEditControls.trim().split(/[\s,]+/).filter(Boolean).join(" ") !== original.join(" "));
   const classRow = s.courseList?.classes.find(row => row.classId === s.editingClassId);
   const classEdited = !!classRow && (s.classEditName.trim() !== classRow.name || s.classEditCourseId !== classRow.courseId ||

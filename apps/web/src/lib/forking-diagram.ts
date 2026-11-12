@@ -214,7 +214,7 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
         const count_ = compact ? undefined : options.count?.(index, branchIndex);
         const vertical = y < 0 ? -1 : y > 0 ? 1 : -1;
         if (letter && branch.length > 0) labels.push({ key: `l${index}.${branchIndex}`, kind: "LETTER", text: letter, anchor: { x: cursor + lead, y },
-          ...(count_ ? { detail: count_.text, description: `${letter}: ${count_.description}` } : {}),
+          ...(count_ ? { detail: count_.text, description: count_.description } : {}),
           prefer: [[0, vertical], [0.7, vertical * 0.7], [-0.7, vertical * 0.7], [0, -vertical], [1, 0]], active: chosen, target: branchTarget });
       });
       pending = ends;
@@ -261,7 +261,7 @@ export function layoutForkingDiagram(items: readonly ForkingItem[], options: For
       const count_ = compact ? undefined : options.count?.(index, loopIndex);
       const away: readonly [number, number] = firstPoint ? [Math.sign(firstPoint.x - center.x) * 0.7, side[1] * 0.7] : out;
       if (letter && firstPoint) labels.push({ key: `l${index}.${loopIndex}`, kind: "LETTER", text: letter, anchor: firstPoint,
-        ...(count_ ? { detail: count_.text, description: `${letter}: ${count_.description}` } : {}),
+        ...(count_ ? { detail: count_.text, description: count_.description } : {}),
         prefer: [side, away, [-0.7, side[1] * 0.7], [1, 0], [-1, 0]], active: on(true), target: branchTarget });
       const position = order?.indexOf(loopIndex) ?? -1;
       if (position >= 0) labels.push({ key: `o${index}.${loopIndex}`, kind: "ORDER", text: String(position + 1), anchor: tip,

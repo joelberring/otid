@@ -26,6 +26,8 @@ export interface ForkingReadiness {
   readonly variantCount: number;
   /** Bortvalda varianter (ADR-0198). */
   readonly excludedCount: number;
+  /** Löpare (ej strukna) i banans klasser. Noll = inga anmälda än: inget är "klart för start" (användartestet 2026-11-12). */
+  readonly runnerCount: number;
   readonly tooManyVariants: boolean;
   readonly tooManyLetters: boolean;
   readonly unusedVariants: readonly string[];
@@ -116,6 +118,6 @@ export function forkingReadiness(input: {
   }
   const tooManyVariants = variantCodes.length > MAX_FORKING_VARIANTS;
   const tooManyLetters = letterCount > 26;
-  return { variantCount: variantCodes.length, excludedCount: input.variantCodes.length - variantCodes.length, tooManyVariants, tooManyLetters, unusedVariants, unusedExpected, missingVariant, uneven,
+  return { variantCount: variantCodes.length, excludedCount: input.variantCodes.length - variantCodes.length, runnerCount: runners.length, tooManyVariants, tooManyLetters, unusedVariants, unusedExpected, missingVariant, uneven,
     ok: !tooManyVariants && !tooManyLetters && missingVariant.length === 0 && uneven.length === 0 && (unusedVariants.length === 0 || unusedExpected) };
 }

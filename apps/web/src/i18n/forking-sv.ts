@@ -17,7 +17,9 @@ export const forkingSv = {
   branchCountShort: (entries: number, readOut: number) => `${entries}/${readOut}`,
   branchCountLong: (entries: number, readOut: number) =>
     `${plural(entries, "anmäld", "anmälda")}, ${plural(readOut, "avläst", "avlästa")}`,
-  branchCount: (description: string) => `Gren ${description}`,
+  // Användartestet 2026-11-12: siffrorna i bilden ("A · 8/3") förklarade per alternativ och under bilden.
+  branchCount: (letter: string, loop: boolean, counts: string) => loop ? `Fjärilen ${letter}: ${counts}` : `Alternativ ${letter}: ${counts}`,
+  countsCaption: "Siffrorna efter bokstaven: anmälda/avlästa på alternativet.",
   // Banlistan
   variantsBelow: (count: number) => count === 1 ? "1 variant (se nedan)" : `${count} varianter (se nedan)`,
   title: "Gafflingar",

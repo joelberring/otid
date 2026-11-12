@@ -193,6 +193,18 @@ describe("steg 49: gafflingsstruktur", () => {
     if (!cia || !("publicResultId" in cia)) throw new Error("Cia saknas publikt");
     const detail = await publicResultDetail(db, proof.raceId, cia.publicResultId, { staff: true });
     expect(detail).toMatchObject({ status: "ok", response: { classCourse: { className: "H21", forking: { items: forked.items } } } });
+
+    // Användartestet 2026-11-12: gafflingssättet som valts i redigeringen sparas med strukturen, i samma ändring.
+    const balancedId = randomUUID();
+    const backToFork = { items: [...forked.items.slice(0, -1), control(34), control(33)] };
+    expect((await editCourseAsAdmin(db, { ...proof, idempotencyKey: `course-edit:${balancedId}`, request: { formatVersion: 1,
+      requestId: balancedId, courseId, forking: backToFork, forkingMode: "BALANCED", confirmResultChanges: true } })).status).toBe("edited");
+    const balanced = await listCoursesForEditAsAdmin(db, proof);
+    if (balanced.status !== "ok") throw new Error("Banlistan saknas");
+    expect(balanced.response.courses.find(course => course.courseId === courseId)).toMatchObject({ forkingMode: "BALANCED", fairness: { level: "WARNING" } });
+    const modeAudit = (await pool.query<{ after: Record<string, unknown> }>(
+      "select after from audit_event where entity_id = $1 and action = 'COURSE_EDITED_BY_ADMIN' order by created_at desc limit 1", [courseId])).rows[0]!;
+    expect(modeAudit.after).toMatchObject({ forkingMode: "BALANCED", forkingModeBefore: "UNEQUAL" });
   });
 
   it("läser kontrollernas lägen ur banfilen och ger varianterna längd ur lägena när Length saknas", async () => {

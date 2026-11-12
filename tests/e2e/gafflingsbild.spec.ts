@@ -112,9 +112,10 @@ test("bygg en gafflad bana i bilden, fördela, läs av och se gafflingarna i res
   await expect(owner.getByText("Gafflingarna är sparade.")).toBeVisible();
   await expect(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).getByRole("row", { name: /^AD 31 50 41 42 50 43 50 32 63 33/ })).toBeVisible();
   const texts = await expectLabelsClear(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).getByRole("img", { name: /Banbild för Fjäril/ }));
-  // Banan har anmälda: bokstaven och anmälda/avlästa i samma etikett, med förklaringen som verktygstips.
+  // Banan har anmälda: bokstaven och anmälda/avlästa i samma etikett, med förklaringen som verktygstips och under bilden.
   expect(texts).toEqual(expect.arrayContaining(["C · 0/0", "D · 0/0"]));
-  await expect(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).locator("title", { hasText: "Gren C: 0 anmälda, 0 avlästa" })).toHaveCount(1);
+  await expect(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).locator("title", { hasText: "Alternativ C: 0 anmälda, 0 avlästa" })).toHaveCount(1);
+  await expect(owner.getByRole("row", { name: /^Fjäril .*Gafflad/ }).getByTestId("forking-counts-caption")).toContainText("anmälda/avlästa");
   // Banraden ser ut som för en vanlig bana: rubriker och klassnamn bryts inte.
   // En text på en rad har en radruta (Range.getClientRects); en bruten text har flera.
   const lines = (locator: Locator) => locator.evaluate(element => { const range = document.createRange(); range.selectNodeContents(element);

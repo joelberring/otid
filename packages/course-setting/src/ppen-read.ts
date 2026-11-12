@@ -16,6 +16,7 @@ import { rawPartPrintAreas, rawPrintArea, readSpecialFields } from "./ppen-speci
 import { enumerateCourseControls } from "./walk";
 import { readTrainingElement, TRAINING_ELEMENT } from "./training-ppen";
 import { readVariantsElement, VARIANTS_ELEMENT } from "./variants-ppen";
+import { LETTERS_ELEMENT, readLettersElement } from "./letters-ppen";
 import { attr, childElements, parseXml, textOf, type XmlElement } from "./xml";
 
 class Warnings {
@@ -61,6 +62,7 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
   const specialObjects: SpecialObject[] = [];
   let trainingXml: XmlElement | undefined;
   let variantsXml: XmlElement | undefined;
+  let lettersXml: XmlElement | undefined;
   const seen = new Map<string, Set<string>>();
   const unique = (kind: string, id: string) => {
     const ids = seen.get(kind) ?? new Set<string>();
@@ -117,6 +119,10 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
         // Bortvalda varianter (ADR-0198) läses när banorna finns; ett andra element sparas orört.
         if (variantsXml) raw.push(toRaw(child)); else variantsXml = child;
         break;
+      case LETTERS_ELEMENT:
+        // Grenarnas bokstäver (ADR-0175, tillägg 2026-11-12 c) läses när banorna finns; ett andra element sparas orört.
+        if (lettersXml) raw.push(toRaw(child)); else lettersXml = child;
+        break;
       default:
         raw.push(toRaw(child));
         warnings.add("UNKNOWN_ELEMENT", "Element som O-Tid inte känner till sparas orörda");
@@ -165,6 +171,13 @@ export function readPpenDocument(xml: string): { readonly document: CourseSettin
     catch {
       document = { ...document, raw: [...document.raw, toRaw(variantsXml)] };
       warnings.add("VARIANTS_UNREADABLE", "De bortvalda varianterna i filen gick inte att läsa och sparas orörda");
+    }
+  }
+  if (lettersXml) {
+    try { document = readLettersElement(lettersXml, document); }
+    catch {
+      document = { ...document, raw: [...document.raw, toRaw(lettersXml)] };
+      warnings.add("LETTERS_UNREADABLE", "Grenarnas bokstäver i filen gick inte att läsa och sparas orörda; bokstäverna blir i Purple Pens ordning");
     }
   }
   const used = new Set<string>();

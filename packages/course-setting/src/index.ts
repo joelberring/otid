@@ -36,6 +36,7 @@ export { controlLabelText } from "./overprint";
 export { courseLength, excludedVariantCodes, INVERTIBLE_CODES, isExcludedVariant, type CourseLength } from "./summary";
 // ADR-0198: bortvalda varianter i .ppen och när en ny .ppen läses in.
 export { carryExcludedVariants, VARIANTS_ELEMENT } from "./variants-ppen";
+export { carryForkLetters, purplePenLetterDifferences, type ForkLetterNotice } from "./fork-letters";
 // Steg 66: flera som arbetar samtidigt (åtgärder som spelas upp på en nyare version, ångra med PUT_OBJECTS).
 export {
   createdIdsBetween, diffTouches, documentChanges, editTouches, NO_CREATED_IDS, objectPatch, remapEdit, replayEdits, touchedConflict,

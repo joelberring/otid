@@ -3,6 +3,7 @@
  * och borttagningar följer Purple Pens ChangeEvent.cs (RemoveCourseControl, RemoveControl, AddCourseControl,
  * AddVariation, AddStartOrMapIssueToCourse, AddFinishToCourse, DeleteCourse, CreateCourse; BSD, Peter Golde).
  */
+import { keepForkLetters } from "./fork-letters";
 import type { Point } from "@o-tid/map-file";
 import { setAppearance } from "./appearance-edit";
 import { LEG_CIRCLE_GAP_LIMITS } from "./appearance";
@@ -431,8 +432,23 @@ export function normalizeDegrees(degrees: number): number {
   return value === 360 ? 0 : value;
 }
 
-/** Gör en ändring. */
+/** Ändringar som aldrig ändrar en banas grenar (tas bort ur bokstavskontrollen, så att dragningar går fort). */
+const NO_BRANCH_EDITS: ReadonlySet<CourseSettingEdit["type"]> = new Set<CourseSettingEdit["type"]>(["ADD_CONTROL", "MOVE_CONTROL",
+  "SET_CONTROL_CODE", "SET_CONTROL_ORIENTATION", "ADD_COURSE", "MOVE_NUMBER", "SET_LEG_BENDS", "SET_LEG_GAPS", "SET_CIRCLE_GAPS", "SET_EVENT",
+  "SET_DESCRIPTION", "SET_DESCRIPTION_TEXT_LINE", "SET_POINTS", "SET_ACCEPTED_CHECKS", "SET_ROUTE_HINTS", "SET_APPEARANCE"]);
+
+/**
+ * Gör en ändring. ADR-0175, tillägg 2026-11-12 (c): ändras en banas grenar står de gamla bokstäverna kvar (`keepForkLetters`).
+ */
 export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
+  const result = applyDocumentEditOnly(document, edit);
+  // Bara när banornas kontroller ändrats kan grenarna ha ändrats (dragningar och utseende rör dem inte).
+  if (isLayoutEdit(edit) || NO_BRANCH_EDITS.has(edit.type) || result.document.courseControls === document.courseControls) return result;
+  const kept = keepForkLetters(document, result.document);
+  return kept === result.document ? result : { ...result, document: kept };
+}
+
+function applyDocumentEditOnly(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
   if (isLayoutEdit(edit)) return applyLayoutEdit(document, edit);
   // ADR-0217: ett ark i en annan layout än huvudlayouten (huvudlayoutens ark är banans fält som förut).
   if ((edit.type === "SET_PRINT_AREA" || edit.type === "SET_PAPER_LAYOUT" || edit.type === "MOVE_NUMBER") && edit.printLayout !== undefined && edit.printLayout !== MAIN_LAYOUT) {

@@ -12,6 +12,7 @@ import type { CircleGap, ControlPoint, Course, CourseControl, CourseSettingDocum
 import { attr, childElements, el, serializeXml, textOf, type XmlElement, type XmlNode } from "./xml";
 import { trainingElement } from "./training-ppen";
 import { variantsElement } from "./variants-ppen";
+import { lettersElement } from "./letters-ppen";
 
 const CONTROL_KIND_TEXT = invertRecord(CONTROL_KINDS);
 const LABEL_KIND_TEXT = invertRecord(LABEL_KINDS);
@@ -287,5 +288,8 @@ export function writePpenDocument(document: CourseSettingDocument): string {
   // Bortvalda varianter (ADR-0198), också i O-Tid:s namnrymd.
   const variants = variantsElement(document);
   if (variants) kids.push(variants);
+  // Grenarnas bokstäver (ADR-0175, tillägg 2026-11-12 c), också i O-Tid:s namnrymd.
+  const letters = lettersElement(document);
+  if (letters) kids.push(letters);
   return `${serializeXml(el(ROOT, rootStub?.attrs ?? [], kids), "")}\n`;
 }

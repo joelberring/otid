@@ -83,20 +83,49 @@ export function enumerateLegs(document: CourseSettingDocument, courseId: string,
   return legs;
 }
 
-/** Bokstaven för varje grens första banans kontroll; slingans utgång får ingen bokstav (GetVariantCodeMapping). */
-export function variantLetters(document: CourseSettingDocument, courseId: string): Map<string, string> {
-  const letters = new Map<string, string>();
-  let next = "A".charCodeAt(0);
+/** Purple Pens bokstäver i ordning: A–Z, sedan a, b … (GetVariantCodeMapping). */
+export const branchLetterCandidate = (index: number) => String.fromCharCode(index < 26 ? 65 + index : 97 + index - 26);
+
+/**
+ * Bokstaven för varje grens första banans kontroll; slingans utgång får ingen bokstav (GetVariantCodeMapping). En gren med
+ * sparad bokstav (`letter`, ADR-0175 tillägg 2026-11-12 c) behåller den; övriga får i banans ordning den första bokstaven
+ * som varken används eller har använts (`retiredLetters`). Utan sparade bokstäver blir det exakt Purple Pens ordning.
+ */
+export function variantLetters(document: CourseSettingDocument, courseId: string, options: { readonly ignoreStored?: boolean } = {}): Map<string, string> {
+  const course = findCourse(document, courseId);
+  const branches: string[] = [];
   for (const id of enumerateCourseControls(document, courseId)) {
     const split = document.courseControls[id]?.split;
     if (!split) continue;
     split.branches.forEach((branch, index) => {
       if (split.kind === "LOOP" && index === 0) return;
-      if (letters.has(branch)) return;
-      letters.set(branch, String.fromCharCode(next));
-      next = next === "Z".charCodeAt(0) ? "a".charCodeAt(0) : next + 1;
+      if (!branches.includes(branch)) branches.push(branch);
     });
   }
+  const stored = new Map<string, string>();
+  if (!options.ignoreStored) {
+    for (const branch of branches) {
+      const letter = document.courseControls[branch]?.letter;
+      if (typeof letter === "string" && letter.length === 1 && ![...stored.values()].includes(letter)) stored.set(branch, letter);
+    }
+  }
+  const taken = new Set(stored.values());
+  const retired = new Set(options.ignoreStored ? [] : course.retiredLetters ?? []);
+  let free = 0;
+  const next = () => {
+    let index = free;
+    while (taken.has(branchLetterCandidate(index)) || retired.has(branchLetterCandidate(index))) index++;
+    // Alla bokstäver förbrukade: en tidigare använd hellre än ett tecken efter z.
+    if (index >= 52 && retired.size > 0) {
+      const reused = [...retired].sort().find(letter => !taken.has(letter));
+      if (reused) { taken.add(reused); return reused; }
+    }
+    free = index + 1;
+    taken.add(branchLetterCandidate(index));
+    return branchLetterCandidate(index);
+  };
+  const letters = new Map<string, string>();
+  for (const branch of branches) letters.set(branch, stored.get(branch) ?? next());
   return letters;
 }
 

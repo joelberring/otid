@@ -90,6 +90,11 @@ export interface CourseControl {
   readonly numberAt?: Point | undefined;
   /** Poäng för poängorientering. */
   readonly points?: number | undefined;
+  /**
+   * ADR-0175, tillägg 2026-11-12 (c): grenens bokstav när kontrollen börjar en gren (A, B …). Bara O-Tid; skrivs i .ppen i
+   * O-Tid:s namnrymd (`<otid:letters>`). Saknas = bokstäver i Purple Pens ordning (`variantLetters`).
+   */
+  readonly letter?: string | undefined;
   /** Textrad före och efter raden, bara på den här banan (description-text-line på banans kontroll). */
   readonly descriptionTextBefore?: string | undefined;
   readonly descriptionTextAfter?: string | undefined;
@@ -137,6 +142,11 @@ export interface Course {
    * och skrivs inte ut. Bara O-Tid; i .ppen i O-Tid:s namnrymd (`<otid:variants>`).
    */
   readonly excludedVariants?: readonly ExcludedVariant[] | undefined;
+  /**
+   * ADR-0175, tillägg 2026-11-12 (c): bokstäver som har använts på banans grenar men tagits bort; en ny gren får dem inte så
+   * länge andra finns. Bara O-Tid (i .ppen i `<otid:letters>`).
+   */
+  readonly retiredLetters?: readonly string[] | undefined;
   /**
    * ADR-0212: banans målnivå (Grön … Svart) för nivåstödet. Bara O-Tid; skrivs inte till .ppen och följer med när en ny .ppen
    * läses in (`carryCourseLevels`). Saknas = ingen.

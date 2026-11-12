@@ -5,6 +5,7 @@
  */
 export const mapUnderlayStepsSv = {
   sources: "1. Hämta underlag",
+  sourcesHelp: "OpenStreetMap (vägar, stigar, hus) behöver du inte hämta själv: det följer med när du läser in grundkartan i steg 2. Vill du ha det ensamt finns det längst ner under Importera vektorer → Hämta från OpenStreetMap.",
   laser: "2. Laserdata",
   laserHelp: "Sök laserrutor och kör en gång. Läs sedan in grundkartan från det klara jobbet: den visas som kandidater och sparas inte i kartan förrän du lägger in dem.",
   adjust: "3. Justera utan ny körning",

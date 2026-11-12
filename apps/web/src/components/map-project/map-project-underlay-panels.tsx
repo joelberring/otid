@@ -39,6 +39,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
     after={<>
       {/* Ägaren 2026-11-12: i den ordning man arbetar – hämta underlag, kör lasern, justera med reglage, egna filer. */}
       <h3 className={styles.groupTitle}>{steps.sources}</h3>
+      <p className={styles.muted}>{steps.sourcesHelp}</p>
       <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectForestImagePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />

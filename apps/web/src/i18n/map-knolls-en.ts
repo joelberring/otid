@@ -4,6 +4,7 @@ import type { mapKnollsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-kn
 /** English: the headings for the order of the base layers in the side panel. */
 export const mapUnderlayStepsEn: Texts<typeof mapUnderlayStepsSv> = {
   sources: "1. Fetch base layers",
+  sourcesHelp: "You do not need to fetch OpenStreetMap (roads, paths, buildings) yourself: it comes along when you load the base map in step 2. To get it on its own, see Import vectors → Fetch from OpenStreetMap at the bottom.",
   laser: "2. Laser data",
   laserHelp: "Search for laser tiles and run once. Then load the base map from the finished job: it is shown as candidates and is not saved in the map until you add them.",
   adjust: "3. Adjust without a new run",

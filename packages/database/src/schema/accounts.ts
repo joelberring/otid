@@ -130,13 +130,19 @@ export const emailVerificationTokens = pgTable("email_verification_token", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
   /** Visningsnamnet från registreringen som skapade länken (migration 0084); null = kontots namn. */
-  displayName: text("display_name")
+  displayName: text("display_name"),
+  /**
+   * ADR-0205 tillägg 2026-11-12 (migration 0115): sha256 av hemligheten i registreringens kaka. Satt = länken öppnad i samma
+   * webbläsare som registreringen bekräftar adressen med registreringens verifierare (`saltHex`/`verifierHex`).
+   */
+  browserSecretHash: text("browser_secret_hash")
 }, (table) => [
   uniqueIndex("email_verification_token_hash_uidx").on(table.tokenHash),
   index("email_verification_token_account_idx").on(table.accountId, table.createdAt),
   check("email_verification_token_hash_check", sql`${table.tokenHash} ~ '^[a-f0-9]{64}$'`),
   check("email_verification_token_salt_check", sql`${table.saltHex} ~ '^[a-f0-9]{32}$'`),
   check("email_verification_token_verifier_check", sql`${table.verifierHex} ~ '^[a-f0-9]{64}$'`),
+  check("email_verification_token_browser_secret_check", sql`${table.browserSecretHash} IS NULL OR (${table.browserSecretHash} ~ '^[a-f0-9]{64}$' AND ${table.saltHex} IS NOT NULL AND ${table.verifierHex} IS NOT NULL)`),
   check("email_verification_token_lifetime_check",
     sql`${table.expiresAt} > ${table.createdAt} AND ${table.expiresAt} <= ${table.createdAt} + interval '1 day'`)
 ]);
@@ -155,8 +161,12 @@ export const userAccountGoogleIdentities = pgTable("user_account_google_identity
   check("user_account_google_identity_email_check", sql`${table.googleEmail} IS NULL OR (${table.googleEmail} = lower(btrim(${table.googleEmail})) AND length(${table.googleEmail}) BETWEEN 3 AND 254 AND ${table.googleEmail} ~ '^[^@[:space:]]+@[^@[:space:]]+$')`)
 ]);
 
+/**
+ * Superadmins åtgärder. Migration 0115: databasen kräver bara formen (som spärrens scope); listan står i contracts
+ * (`superadminActionKindSchema`), och `logAction` i application vägrar andra värden.
+ */
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |
-  "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK";
+  "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL";
 
 /** Superadmins åtgärder (append-only, utan främmande nycklar så att loggen överlever borttagningar). */
 export const superadminActions = pgTable("superadmin_action", {
@@ -171,6 +181,7 @@ export const superadminActions = pgTable("superadmin_action", {
   reason: text("reason").notNull()
 }, (table) => [
   index("superadmin_action_created_idx").on(table.createdAt.desc()),
+  check("superadmin_action_action_format_check", sql`${table.action} ~ '^[A-Z][A-Z0-9_]{0,62}[A-Z0-9]$'`),
   check("superadmin_action_target_type_check", sql`${table.targetType} IN ('ACCOUNT', 'EVENT', 'RACE')`),
   check("superadmin_action_actor_label_check", sql`length(btrim(${table.actorLabel})) BETWEEN 1 AND 254`),
   check("superadmin_action_target_label_check", sql`length(btrim(${table.targetLabel})) BETWEEN 1 AND 320`),

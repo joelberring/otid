@@ -7,7 +7,11 @@ export function isSafeReturnPath(path: unknown): path is string {
   if (typeof path !== "string" || path.length === 0 || path.length > 2000) return false;
   if (!/^\/(?![/\\])/.test(path)) return false;
   // Inga styrtecken, blanksteg eller omvända snedstreck (webbläsare gör "\" till "/").
-  return !/[\u0000- \u007f\\]/.test(path);
+  for (const char of path) {
+    const code = char.charCodeAt(0);
+    if (code <= 0x20 || code === 0x7f || code === 0x5c) return false;
+  }
+  return true;
 }
 
 /** Sidor som inloggningen skickar tillbaka till: tävlingens sidor och undersidorna under Mina tävlingar. */

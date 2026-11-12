@@ -103,7 +103,7 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "413", name: "Fruktodling", kind: "area", fill: "yellow", dots: { elements: [dot("green", 0.5)], dx: 1.5, dy: 1.5 } },
   { code: "414", name: "Vinodling", kind: "area", fill: "yellow", hatches: [{ color: "green", width: 0.3, spacing: 1.2, angle: 90 }] },
   { code: "415", name: "Tydlig odlingsgräns", kind: "line", color: "black", width: 0.14 },
-  { code: "416", name: "Tydlig vegetationsgräns", kind: "line", color: "black", width: 0.14, dash: [0.2, 0.3], cap: "round" },
+  { code: "416", name: "Tydlig vegetationsgräns", kind: "line", mid: { elements: [dot("black", 0.2)], spacing: 0.45 } },
   { code: "417", name: "Speciellt stort träd", kind: "point", elements: [ring("green", 1.2, 0.3)] },
   { code: "418", name: "Speciell buske eller träd", kind: "point", elements: [dot("green", 0.6)] },
   { code: "419", name: "Speciellt vegetationsföremål", kind: "point", elements: cross("green", 0.8, 0.25) },

@@ -108,6 +108,22 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await expect(sheet.locator("path[data-role='CONTROL']").first()).toBeAttached();
   await reviewScreenshots(owner, "banlaggning-utskrift-forhandsvisning", [1280]);
 
+  // Användartestet 2026-11-12: rubriken på kartorna är tävlingens namn, inte .ppen-filens titel; filens titel kan väljas.
+  const raceTitle = `Utskrift ${suffix} · Torsdag`;
+  const titleNotice = owner.getByTestId("print-title");
+  await expect(titleNotice).toContainText(`Rubriken på kartorna: ${raceTitle}. Filen heter Kvällsträning på kartfilen.`);
+  await owner.getByLabel("Rubrik överst (tävling, bana, längd, skala)").check();
+  await expect(sheet.first()).toContainText(raceTitle);
+  await expect(sheet.first()).not.toContainText("Kvällsträning på kartfilen");
+  await titleNotice.getByLabel("Använd filens titel på kartorna").check();
+  await expect(titleNotice).toContainText(`Rubriken på kartorna: Kvällsträning på kartfilen. Tävlingen heter ${raceTitle}.`);
+  await expect(sheet.first()).toContainText("Kvällsträning på kartfilen");
+  await expect.poll(async () => ((await (await owner.request.get(`${admin}/course-setting`)).json()) as { setting: { document: { event: { printFileTitle?: boolean } } } })
+    .setting.document.event.printFileTitle, { timeout: 15_000 }).toBe(true);
+  await titleNotice.getByLabel("Använd filens titel på kartorna").uncheck();
+  await expect(sheet.first()).toContainText(raceTitle);
+  await owner.getByLabel("Rubrik överst (tävling, bana, längd, skala)").uncheck();
+
   // Alla banor: en sida per bana och Alla kontroller.
   await owner.getByLabel("Alla", { exact: true }).check();
   await expect(sheet).toHaveCount(document.courses.length + 1);

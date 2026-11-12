@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { fileTitleDiffers, printedTitle, type CourseSettingDocument } from "@o-tid/course-setting";
 import { coursePrintEn } from "../../i18n/course-setting-print-en";
 import { coursePrintSv } from "../../i18n/course-setting-print-sv";
@@ -13,16 +14,20 @@ import styles from "./course-setting-print-page.module.css";
  * (sparas i banläggningen, `event.printFileTitle`). Samma rubrik i förhandsvisningen, webbläsarens utskrift och PDF:en.
  */
 export function PrintTitleNotice({ document, raceTitle, canEdit, onChange }: { document: CourseSettingDocument; raceTitle: string | undefined;
-  canEdit: boolean; onChange: (useFileTitle: boolean) => void }) {
+  canEdit: boolean; onChange: (useFileTitle: boolean) => Promise<unknown> }) {
   const text = useTexts(coursePrintSv, coursePrintEn).page;
+  // Valet syns direkt medan det sparas; sedan gäller det sparade dokumentet (som också ritar arken).
+  const [choice, setChoice] = useState<boolean>();
   if (!raceTitle || !fileTitleDiffers(document, raceTitle)) return null;
   const file = document.event.title.replace(/\|/g, " ").trim();
-  const shown = printedTitle(document, raceTitle).replace(/\|/g, " ").trim();
+  const chosen = choice === undefined ? document : { ...document, event: { ...document.event, printFileTitle: choice } };
+  const shown = printedTitle(chosen, raceTitle).replace(/\|/g, " ").trim();
   const useFile = shown === file;
+  const change = (value: boolean) => { setChoice(value); void onChange(value).finally(() => setChoice(undefined)); };
   return <div data-testid="print-title">
     <Notice tone="attention">
       <p><strong>{text.titleHeading(shown)}</strong> {useFile ? text.titleRace(raceTitle) : text.titleFile(file)}</p>
-      <label className={styles.check}><input type="checkbox" checked={useFile} disabled={!canEdit} onChange={event => onChange(event.target.checked)} />
+      <label className={styles.check}><input type="checkbox" checked={useFile} disabled={!canEdit} onChange={event => change(event.target.checked)} />
         {text.titleUseFile}</label>
     </Notice>
   </div>;

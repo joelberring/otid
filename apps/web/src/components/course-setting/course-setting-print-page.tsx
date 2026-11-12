@@ -369,7 +369,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           : text.page.pages(sheets.length)}{waiting ? ` – ${text.page.readingMap}` : ""}</span>
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
         <PrintTitleNotice document={document} raceTitle={raceTitle} canEdit={canEdit}
-          onChange={useFile => void saveShown([{ type: "SET_EVENT", changes: { printFileTitle: useFile } }])} />
+          onChange={useFile => saveShown([{ type: "SET_EVENT", changes: { printFileTitle: useFile } }])} />
         <div className={styles.outputs}>
           <div className={styles.stack} data-testid="print-output-printer">
             <Button onClick={() => window.print()} disabled={sheets.length === 0}>{outputText.printer}</Button>

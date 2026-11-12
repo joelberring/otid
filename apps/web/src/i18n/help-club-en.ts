@@ -90,7 +90,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       [
         "Search for the name and tick one or more.",
         "Choose a role and invite. The invitation goes to the person's address, which you never see.",
-        "The person accepts the invitation as usual, through the email or when they sign in."
+        "The person accepts the invitation as usual, through the email or when they sign in. In the club space the role applies at once for someone you choose in the list, so that you can, for example, choose a new leader as responsible in the planning right away."
       ],
       "You can still write an email address as before. Anyone who is not a confirmed member of one of your clubs is not shown in the list."
     ]

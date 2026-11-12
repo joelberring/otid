@@ -547,11 +547,15 @@ describe("ADR-0209: Från klubben", { timeout: 60_000 }, () => {
     expect(JSON.stringify(fromClub)).not.toContain(clubInvitation!.email);
     const clubView = await readClub(db, { ...owner.proof, clubId }, NOW);
     if (clubView.status !== "ok") throw new Error(clubView.status);
-    expect(clubView.view.invitations).toEqual([expect.objectContaining({ email: "", role: "LEADER" })]);
-    expect(JSON.stringify(clubView.view.invitations)).not.toContain(clubInvitation!.email);
-    // "Kopiera länken" finns inte för den: länksidan visar adressen.
-    expect(await resendClubInvitation(db, { ...owner.proof, clubId, invitationId: clubInvitation!.id,
-      request: { formatVersion: 1, delivery: "LINK" } }, undefined, NOW)).toEqual({ status: "forbidden" });
+    // Användartestet 2026-11-12 (E): den valda är en bekräftad medlem som den som bjöd in ser vid namn, så rollen gäller direkt
+    // (ingen "väntar på inloggning"); adressen syns fortfarande inte.
+    expect(clubInvitation!.acceptedAt).not.toBeNull();
+    expect(clubView.view.invitations).toEqual([]);
+    expect(clubView.view.members.filter(row => row.role === "LEADER")).toHaveLength(1);
+    expect(JSON.stringify(clubView.view)).not.toContain(clubInvitation!.email);
+    // "Kopiera länken" finns inte för den (länksidan visar adressen), och den är redan tagen.
+    expect((await resendClubInvitation(db, { ...owner.proof, clubId, invitationId: clubInvitation!.id,
+      request: { formatVersion: 1, delivery: "LINK" } }, undefined, NOW)).status).not.toBe("ok");
     await unlink();
   });
 });

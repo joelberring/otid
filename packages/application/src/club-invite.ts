@@ -4,7 +4,7 @@ import {
   clubInviteFromClubRequestSchema, type ClubInviteContext, type ClubInviteFromClubResponse, type ClubPickerMember, type ClubPickerResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { requireClubRole, type ClubProof } from "./club-access";
+import { acceptClubInvitations, requireClubRole, type ClubProof } from "./club-access";
 import { clubsOfMember } from "./club-affiliation-access";
 import { confirmedMembersOf } from "./club-affiliations";
 import { inviteClubMember } from "./clubs";
@@ -134,6 +134,10 @@ export async function inviteFromClub(db: Database, input: ClubProof & { request:
     if (!created) { failed += 1; continue; }
     await db.insert(schema.invitationClubSources).values({ id: randomUUID(), kind: KIND[context.kind], invitationId: created.id, contextId: context.id,
       accountId: person.accountId, createdBy: chosen.accountId, createdAt: now }).onConflictDoNothing();
+    // Användartestet 2026-11-12 (E): i klubbytan gäller rollen direkt för en person som valts i listan. Hen är en bekräftad medlem
+    // med bekräftad adress som den som bjuder in redan ser vid namn, så inget konto röjs (ADR-0188 beslut 6, ADR-0206 tillägg
+    // 2026-11-12). En inskriven adress väntar som förut på inloggningen.
+    if (context.kind === "CLUB") await db.transaction(tx => acceptClubInvitations(tx, person.accountId, now, context.id));
     invited += 1;
   }
   return { status: "ok", response: { formatVersion: 1, invited, already, failed } };

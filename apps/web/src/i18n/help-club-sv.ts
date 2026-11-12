@@ -90,7 +90,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
       [
         "Sök på namnet och kryssa i en eller flera.",
         "Välj roll och bjud in. Inbjudan går till personens adress, som du aldrig ser.",
-        "Personen tar inbjudan som vanligt, genom mejlet eller när hen loggar in."
+        "Personen tar inbjudan som vanligt, genom mejlet eller när hen loggar in. I klubbytan gäller rollen direkt för den du väljer i listan, så att du till exempel kan välja en ny ledare som ansvarig i planeringen med en gång."
       ],
       "Du kan fortfarande skriva en e-postadress som förut. Den som inte är bekräftad medlem i någon av dina klubbar syns inte i listan."
     ]

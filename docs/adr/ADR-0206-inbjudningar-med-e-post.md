@@ -85,3 +85,11 @@ kontot. En bekräftelse genom länken i en befintlig session skulle hoppa över 
 bekräftas och erbjuder "Skicka bekräftelsemejl" (återställningslänken, som bekräftar adressen och tar inbjudningarna), och tävlingens
 sida skiljer på inte inloggad, inloggad utan behörighet och inloggad med obekräftad adress. Om en inbjudan väntar sägs inte på
 tävlingens sida, så att ett obekräftat konto inte får veta vem som bjudits in. Ingen migration.
+
+Tillägg 2026-11-12 (användartestet av ledarflödet, punkt E): en inbjudan till klubbytan som görs "Från klubben" (beslut 8) gäller
+direkt: rollen sätts i samma anrop (`acceptClubInvitations` för det valda kontot och klubben), så att en ny ledare kan väljas som
+ansvarig i terminsplanen utan att först öppna O-Tid. Det röjer inget: den valda är en bekräftad medlem med bekräftad adress som den
+som bjuder in redan ser vid namn i listan, och adressen visas fortfarande aldrig. En inskriven adress väntar som förut på inloggningen
+(ADR-0188 beslut 6): att låta den gälla direkt när adressen har ett konto skulle visa den som bjuder in att kontot finns och vad det
+heter. Att välja en väntande inbjuden (inskriven adress) som ansvarig kräver en kolumn för adressen och byggs inte än
+(`docs/plan-ledarflode-2026-11-12.md`). Tävlingens och gruppens inbjudningar "Från klubben" är oförändrade. Ingen migration.

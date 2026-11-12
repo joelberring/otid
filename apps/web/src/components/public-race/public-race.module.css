@@ -112,10 +112,10 @@ a.hubLink:hover strong { text-decoration: underline; }
 
 @media (max-width: 640px) {
   .home { gap: 22px; padding-top: 16px; }
-  /* Smal skärm: målningen mellan sökrutan och listorna, kant i kant (main har 16 px sidmarginal). */
+  /* Smal skärm: målningen mellan sökrutan och listorna, kant i kant (main har 0.75rem sidmarginal upp till 640 px, globals.css). */
   .homeTop, .homeLead { grid-template-columns: minmax(0, 1fr); gap: 22px; }
-  .homePainting { justify-self: stretch; width: calc(100% + 32px); max-width: none; max-height: none;
-    margin-inline: -16px; }
+  .homePainting { justify-self: stretch; width: calc(100% + 1.5rem); max-width: none; max-height: none;
+    margin-inline: -0.75rem; }
   .raceRow { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 12px 0; }
   .raceDate { order: -1; font-size: var(--text-xs); }
   .raceLinks { justify-content: flex-start; }

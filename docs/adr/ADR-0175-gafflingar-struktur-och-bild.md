@@ -99,10 +99,38 @@ B bort → C blev B), så en löpare med karta "C" stod som "B". Beslut 2 och 3 
    byts med namn, klass, sträcka, kod före och efter och om kontrollerna ändras. Historiken får en post per löpare
    (`ENTRY_COURSE_VARIANT_CHANGED_BY_COURSE_EDIT`, kod före och efter). Bara admin på tävlingen når redigeringen.
 
-Banläggningen (`packages/course-setting`) följer fortfarande Purple Pen: bokstäverna räknas fram ur dokumentets ordning
-(.ppen sparar inga bokstäver), så en gren som tas bort mitt i flyttar bokstäverna där, och "Överför till tävlingen" ger
-de koderna (löparna behåller sin kodtext). Hjälpen säger att ett alternativ efter tryck tas bort i tävlingens "Redigera
-gafflingar". IOF XML-export och -import tar koderna som text, så en lucka ("AE" utan "AD") går igenom oförändrad.
+IOF XML-export och -import tar koderna som text, så en lucka ("AE" utan "AD") går igenom oförändrad. Banläggningen
+följer samma regel från tillägg (c).
+
+## Tillägg 2026-11-12 (c): bokstäverna står kvar också i banläggningen
+
+Kartorna trycks ur banläggningen. Med Purple Pens ordning döptes grenarna om när en gren togs bort (E blev D), och
+"Överför till tävlingen" förde över de nya koderna: en löpare med tryckt karta E fick fel följd i tidtagningen.
+
+1. **Banläggningens dokument** (O-Tids eget, `packages/course-setting`) sparar bokstaven på grenen (`CourseControl.letter`
+   på grenens första banans kontroll) och använda bokstäver på banan (`Course.retiredLetters`), i dokumentets jsonb; ingen
+   migration. `variantLetters` använder sparade bokstäver och ger övriga grenar den första bokstaven som varken används
+   eller har använts; utan sparade bokstäver blir det exakt Purple Pens ordning (A–Z, a–z). Alla som visar bokstäver går
+   genom den: editorn, gafflingsbilden, påtrycket och PDF:en, kartbuntar, kontrollbeskrivningen, IOF XML och "Överför".
+2. **När en banas grenar ändras** (andra grenar eller annan ordning; `keepForkLetters` efter varje ändring) skrivs
+   bokstäverna ut: kvarvarande grenar behåller sin, en borttagen grens bokstav blir använd och nya grenar får nästa
+   lediga. Ett dokument utan sparade bokstäver (alla befintliga på servern) behåller Purple Pens ordning tills någon ändrar
+   en gaffling eller slinga; flyttade kontroller, nya kontroller i grundföljden, koder och utseende skriver inga bokstäver
+   (test mot fixturernas .ppen). En gaffling som tas bort och görs om får nya bokstäver, och en ny gaffling före en
+   befintlig får nästa lediga (den befintliga behåller sina), så ordningen kan skilja från Purple Pens.
+3. **.ppen:** bokstäverna skrivs i O-Tids namnrymd (`<otid:letters>`, som bortvalen) och läses tillbaka. Purple Pen
+   skriver inte tillbaka elementet; läses en sådan fil in över en banläggning med sparade bokstäver paras grenarna efter
+   innehåll (gaffelkontrollens kod och grenens kontroller, `carryForkLetters`). En gren som inte går att para får en ny
+   bokstav och en bokstav utan gren blir använd; inläsningens besked säger det per bana. Utan sparade bokstäver gäller
+   filens ordning som förut. Vid nedladdning varnar O-Tid när bokstäverna i Purple Pen blir andra (en lucka).
+4. **Överför till tävlingen** ger tävlingen banläggningens (nu stabila) koder. Får en tilldelad löpare eller stafettsträcka
+   andra kontroller för sin kod, eller försvinner koden, står den med namn, klass, sträcka, kod och kontroller före och
+   efter i beskedet (`variantChanges`) och överföringen kräver bekräftelse. Löparen behåller koden; en kod som försvunnit
+   ges en ny variant (Fördela gafflingar, Byt variant, lagvyn). Samma besked för en IOF-banfil.
+5. **Minnet över använda bokstäver:** i banläggningen ligger det på banan och finns kvar också när alla gafflingar tas
+   bort. I tävlingen sparas strukturen inte för en vanlig bana; gafflas den igen räknas bokstäverna i banans senaste
+   struktur som använda så länge banans klasser har anmälda (`usedLettersFromHistory`). En helt ombyggd struktur får
+   alltid nya bokstäver (de gamla kan stå på kartor).
 
 ## Konsekvenser
 

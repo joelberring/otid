@@ -143,6 +143,10 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   (`letters`) och banan använda bokstäver (`retiredLetters`). Utan sparade bokstäver delas de ut i följd som förut. Tas ett
   alternativ bort står de andra kvar med lucka (C, E); ett nytt alternativ får en bokstav som aldrig använts på banan. Tas en
   hel gafflingspunkt bort behåller de andra sina bokstäver och den borttagnas faller bort ur koden ("AC" blir "C").
+- Banläggningen (tillägg 2026-11-12 c): grenens bokstav sparas när en banas grenar ändras och står kvar när en annan gren
+  tas bort; utan sparade bokstäver gäller Purple Pens ordning. .ppen bär bokstäverna i O-Tids namnrymd; en fil från Purple
+  Pen paras efter innehåll vid inläsning. "Överför till tävlingen" ger samma koder och kräver bekräftelse med namn när en
+  tilldelad löpares kod får andra kontroller eller försvinner.
 - När en struktur sparas (`forkingVariantCodeMap`) behåller löparen sina bokstäver i de punkter som finns kvar; en rättad
   kontrollkod ger samma kod med nya kontroller (avlästa räknas om). Försvinner löparens bokstav, eller tillkommer en
   gafflingspunkt, får löparen en ny variant genom fördelningen (avläst: den som stämplingarna passar). Samma regel för

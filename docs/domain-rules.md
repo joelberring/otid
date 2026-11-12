@@ -139,12 +139,16 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - En gafflad bana kan ha en struktur (`course_version.forking`): grundföljd med enkla gafflingar (2–4 alternativ) och
   fjärilar (2–4 slingor från en central kontroll, alla ordningar), i följd. Varianterna genereras ur strukturen, högst 100;
   koderna följer OCAD/Purple Pen (bokstäver i följd över gafflingspunkterna, fjärilens slingor i springordning utom sista).
-- När en struktur sparas (`forkingVariantCodeMap`, tillägg 2026-11-12 i ADR-0175): finns löparens kontrollföljd kvar
-  följer löparen den under den nya koden (bara bokstäverna flyttades). Annars behåller löparen sin kod när koden finns
-  kvar, ingen annan kontrollföljd flyttat dit och gafflingspunkterna är av samma slag i samma ordning (rättad
-  kontrollkod; kartan är tryckt med koden, avlästa räknas om mot kodens nya följd). Försvinner koden får löparen en ny
-  variant genom fördelningen (avläst: den som stämplingarna passar). Stafettsträckor följer bara sin kontrollföljd.
-  Omräkning i samma transaktion som sparandet.
+- Bokstaven är alternativets identitet (tillägg 2026-11-12 b i ADR-0175): ett alternativ kan ha en sparad bokstav
+  (`letters`) och banan använda bokstäver (`retiredLetters`). Utan sparade bokstäver delas de ut i följd som förut. Tas ett
+  alternativ bort står de andra kvar med lucka (C, E); ett nytt alternativ får en bokstav som aldrig använts på banan. Tas en
+  hel gafflingspunkt bort behåller de andra sina bokstäver och den borttagnas faller bort ur koden ("AC" blir "C").
+- När en struktur sparas (`forkingVariantCodeMap`) behåller löparen sina bokstäver i de punkter som finns kvar; en rättad
+  kontrollkod ger samma kod med nya kontroller (avlästa räknas om). Försvinner löparens bokstav, eller tillkommer en
+  gafflingspunkt, får löparen en ny variant genom fördelningen (avläst: den som stämplingarna passar). Samma regel för
+  stafettsträckor, men en sträcka fördelas inte här utan blir utan variant och väljs i lagvyn. Beskedet och kvittot visar
+  varje löpare som byter kod (namn, före, efter, ny karta), historiken får en post per löpare. Omräkning i samma
+  transaktion som sparandet.
 - Varianter utan struktur (banfil) får en härledd struktur för bilden; den kan sparas ("Gör om till struktur") när den
   klarar reglerna.
 - Rättvisekontroll per gafflingssätt (`course.forking_mode`): Utjämnad varnar för varje sträcka som inte finns lika många

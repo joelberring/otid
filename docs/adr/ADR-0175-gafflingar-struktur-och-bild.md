@@ -60,7 +60,49 @@ kartorna var tryckta med dem. Beslut 3 ändras så (`forkingVariantCodeMap` i `p
    fördelningen).
 
 Beskedet säger vilka varianter som får ändrade kontroller (`changedCodes`) och räknar bara koder som verkligen försvinner.
-Stafettsträckor följer som förut bara sin kontrollföljd (en sträcka vars följd försvinner blir utan variant).
+Stafettsträckor följer som förut bara sin kontrollföljd (en sträcka vars följd försvinner blir utan variant). (Punkt 1 och
+stafettmeningen ersätts av tillägget nedan.)
+
+## Tillägg 2026-11-12 (b): bokstaven är alternativets identitet
+
+Ägaren inför nattävlingen 9 december: "löparen måste såklart ha en gaffel på kartan som är samma som i programmet även om
+gafflingar tas bort/inte används". Med punkt 1 ovan flyttade bokstäverna när ett alternativ i mitten togs bort (A, B, C →
+B bort → C blev B), så en löpare med karta "C" stod som "B". Beslut 2 och 3 ändras så:
+
+1. **Sparad bokstav per alternativ.** En enkel gaffling och en fjäril kan ha `letters` (en bokstav A–Z per alternativ eller
+   slinga, unika på banan) och strukturen `retiredLetters` (bokstäver som använts men tagits bort). Det ryms i
+   `course_version.forking` (jsonb); ingen migration. Saknas `letters` (alla strukturer sparade före tillägget) delas
+   bokstäverna ut i följd precis som förut, så befintliga tävlingar får samma bokstäver och varianter. Ett sparande
+   skriver alltid ut bokstäverna (`withAssignedForkingLetters`).
+2. **Bokstäverna står kvar.** Tas ett alternativ bort behåller de andra sina bokstäver, med lucka (C, D, E → D bort → C, E;
+   koderna AC, AE, BC, BE). Ett nytt alternativ får den första bokstaven som varken används eller har använts på banan
+   (`retiredLetters`; först när alla 26 är förbrukade en tidigare använd). Editorn bär bokstaven med alternativet; en
+   begäran utan bokstäver (äldre klient, API) paras med den gamla strukturen efter innehåll: samma kontroller ger samma
+   bokstav, lika många oparade alternativ på båda sidor paras i ordning (rättade koder), annars blir de oparade nya
+   alternativ.
+3. **En hel gafflingspunkt tas bort:** de andra punkterna behåller sina bokstäver och den borttagnas bokstav faller bort ur
+   koden ("AC" blir "C"). Regeln valdes för att varje bokstav i den tryckta koden fortfarande betyder samma alternativ; den
+   borttagna punktens bokstav betyder inget längre. Löpare vars kontroller ändras (t.ex. B-löparna när gafflingen ersätts
+   av 41) står i beskedet med "ny karta behövs".
+4. **Löparens nya kod** (`forkingVariantCodeMap`) är löparens bokstäver i de punkter som finns kvar; punkterna paras efter
+   gemensamma bokstäver och samma slag (enkel gaffling/fjäril). En fjäril där en slinga tas bort behåller ordningen på
+   resten. Null (ny variant genom fördelningen, avläst: den som stämplingarna passar) bara när löparens bokstav i en
+   kvarvarande punkt försvinner, när en ny gafflingspunkt eller slinga tillkommer, när punktens slag ändras eller när
+   koden är bortvald (ADR-0198). En rättad kontrollkod ger samma kod med nya kontroller (tillägget ovan, punkt 2), också
+   när alternativen byter innehåll i editorn: bokstaven följer fältet, inte kontrollerna.
+5. **Banfil utan struktur:** den härledda strukturen läser bokstäverna ur varianternas koder (en lucka A, C blir A, C).
+   Går koderna inte att läsa som en bokstav per alternativ gäller bokstäver i följd och löparna följer då bara sin
+   kontrollföljd, som förut.
+6. **Stafett:** samma regel för stafettsträckor. En sträcka vars bokstav försvinner blir utan variant (fördelas inte här,
+   för lagens rättvisa) och väljs i lagvyn; den står med namn och sträcka i beskedet.
+7. **Besked och historik:** förhandsvisningen (`entryChanges`) och kvittot (`variantChanges`) har varje löpare vars kod
+   byts med namn, klass, sträcka, kod före och efter och om kontrollerna ändras. Historiken får en post per löpare
+   (`ENTRY_COURSE_VARIANT_CHANGED_BY_COURSE_EDIT`, kod före och efter). Bara admin på tävlingen når redigeringen.
+
+Banläggningen (`packages/course-setting`) följer fortfarande Purple Pen: bokstäverna räknas fram ur dokumentets ordning
+(.ppen sparar inga bokstäver), så en gren som tas bort mitt i flyttar bokstäverna där, och "Överför till tävlingen" ger
+de koderna (löparna behåller sin kodtext). Hjälpen säger att ett alternativ efter tryck tas bort i tävlingens "Redigera
+gafflingar". IOF XML-export och -import tar koderna som text, så en lucka ("AE" utan "AD") går igenom oförändrad.
 
 ## Konsekvenser
 

@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
-import { placeLateEntry } from "@o-tid/domain";
+import { massStartForNewEntry, placeLateEntry } from "@o-tid/domain";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -140,6 +140,31 @@ export async function assignLateStartTime(tx: Transaction, raceId: string, class
       ...others.flatMap(id => plans.get(id)?.slots.map(slot => slot.startTime.getTime()) ?? [])],
     nowMs: now.getTime() });
   return new Date(time);
+}
+
+/**
+ * Starttid för en ny löpare som direktanmäls när hen redan sprungit (avläsningsvyn med eller utan nät, kontrollvyns Ny
+ * direktanmälan): i en lottad klass med masstart masstartens tid, annars null (vid minutstart gäller startstämplingen).
+ * Samma regel som efteranmälan i arbetsytan (`massStartForNewEntry`, användartestet 2026-11-12).
+ */
+export async function directEntryStartTime(tx: DbExecutor, raceId: string, classId: string): Promise<Date | null> {
+  const [target] = await tx.select({ id: schema.classes.id, startRule: schema.classes.startRule, startDrawId: schema.classes.startDrawId })
+    .from(schema.classes).where(and(eq(schema.classes.id, classId), eq(schema.classes.raceId, raceId)));
+  if (!target || target.startRule !== "FIXED" || target.startDrawId === null) return null;
+  const plan = (await loadDrawPlans(tx, [target])).get(target.id);
+  const mass = massStartForNewEntry(plan && { method: plan.method, firstStartMs: plan.firstStartTime.getTime() });
+  return mass === null ? null : new Date(mass);
+}
+
+/** Masstartstiderna per lottad klass, för avläsningspaketet: en direktanmäld utan nät bedöms mot masstarten. */
+export async function loadMassStarts(tx: DbExecutor, raceId: string): Promise<{ classId: string; startTime: string }[]> {
+  const drawn = (await loadDrawClasses(tx, raceId)).filter(row => row.startRule === "FIXED" && row.startDrawId !== null);
+  const plans = await loadDrawPlans(tx, drawn);
+  return drawn.flatMap(row => {
+    const plan = plans.get(row.id);
+    const mass = massStartForNewEntry(plan && { method: plan.method, firstStartMs: plan.firstStartTime.getTime() });
+    return mass === null ? [] : [{ classId: row.id, startTime: new Date(mass).toISOString() }];
+  });
 }
 
 export type StartListFacts = { firstControlCode: number | null; drawMethod: "MINUTE" | "MASS" | null; vacancies: string[] };

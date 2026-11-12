@@ -96,9 +96,12 @@ export function withLocalRegistrations(pkg: ReadoutPackage, registrations: reado
   if (added.size === 0) return pkg;
   const rows = [...added.values()];
   const linkedEntries = new Set(rows.flatMap((row) => "target" in row.request ? [row.request.entryId] : []));
+  // Användartestet 2026-11-12: en direktanmäld i en klass med masstart får masstartens tid, som på servern.
+  const massStarts = new Map((pkg.massStarts ?? []).map((row) => [row.classId, row.startTime]));
   const newEntries = rows.flatMap((row) => "target" in row.request ? [] : [{ id: row.requestId, raceId: snapshot.race.id,
     classId: row.request.classId, givenName: row.request.givenName, familyName: row.request.familyName,
-    ...(row.request.organisationName ? { organisationName: row.request.organisationName } : {}) }]);
+    ...(row.request.organisationName ? { organisationName: row.request.organisationName } : {}),
+    ...(massStarts.has(row.request.classId) ? { fixedStartTime: massStarts.get(row.request.classId)! } : {}) }]);
   return { ...pkg, raceSnapshot: { ...snapshot,
     entries: [...snapshot.entries, ...newEntries],
     cardAssignments: [...snapshot.cardAssignments.map((assignment) => assignment.active && (linkedEntries.has(assignment.entryId) ||

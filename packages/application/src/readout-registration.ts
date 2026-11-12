@@ -12,6 +12,7 @@ import { normalizedReadout } from "./result-revisions";
 import { cardAlreadyReadOutBy } from "./card-reuse";
 import { assignCard, linkUnresolvedReadout } from "./card-assignment";
 import { latestResultReadAt, latestUnresolvedReadout } from "./readout-lookup";
+import { directEntryStartTime } from "./start-draw-basis";
 
 export { latestResultReadAt, latestUnresolvedReadout, readoutsWithResults } from "./readout-lookup";
 
@@ -93,9 +94,11 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
       if (!await canAddClassEntry(tx, raceId, intent.classId)) return { status: "conflict" };
       const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
       if (!total || total.value >= 10_000) return { status: "conflict" };
-      // Ur löpardatabasen: Eventors id för personen och klubben följer med till IOF-exporten.
+      // Ur löpardatabasen: Eventors id för personen och klubben följer med till IOF-exporten. En klass med masstart ger
+      // masstartens tid (användartestet 2026-11-12); vid minutstart gäller startstämplingen.
+      const fixedStartTime = await directEntryStartTime(tx, raceId, intent.classId);
       const [created] = await tx.insert(schema.entries).values({ raceId, classId: intent.classId, givenName: intent.givenName,
-        familyName: intent.familyName, organisationName: intent.organisationName, version: 1,
+        familyName: intent.familyName, organisationName: intent.organisationName, version: 1, fixedStartTime,
         eventorPersonId: intent.eventorPersonId ?? null, eventorOrganisationId: intent.eventorOrganisationId ?? null })
         .returning(entryColumns);
       if (!created) throw new Error("Deltagaren kunde inte sparas");

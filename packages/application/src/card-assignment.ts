@@ -1,9 +1,9 @@
 import { and, desc, eq } from "drizzle-orm";
 import { schema } from "@o-tid/database";
-import { courseVariantForReadout, withProposedEntryVariants } from "@o-tid/domain";
 import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { latestResultReadAt, latestUnresolvedReadout } from "./readout-lookup";
+import { useFittingVariant } from "./readout-link-variant";
 
 /**
  * Regler för brickkopplingar (översynen 2026-11-02). Samlade här så att Byt bricka, Ny deltagare, direktanmälan vid
@@ -94,16 +94,11 @@ export async function linkUnresolvedReadout(tx: DbExecutor, input: { raceId: str
   if (holder?.entryId !== input.entryId) return null;
   const latestReadAt = await latestResultReadAt(tx, input.entryId);
   if (!input.force && latestReadAt !== null && latestReadAt >= readout.readAt) return null;
-  let snapshot = await loadRaceSnapshot(tx, input.raceId);
+  const loaded = await loadRaceSnapshot(tx, input.raceId);
   const normalized = normalizedReadout(readout);
   // Ny deltagare i en gafflad klass som redan har sprungit: den får varianten som stämplingarna passar, även om anmälan
   // redan gav den minst använda varianten.
-  const detected = input.detectVariant
-    ? courseVariantForReadout(normalized, withProposedEntryVariants(snapshot, new Map([[input.entryId, null]]))) : undefined;
-  if (detected && !detected.assigned) {
-    await tx.update(schema.entries).set({ courseVariantCode: detected.code }).where(eq(schema.entries.id, input.entryId));
-    snapshot = withProposedEntryVariants(snapshot, new Map([[input.entryId, detected.code]]));
-  }
+  const snapshot = input.detectVariant ? await useFittingVariant(tx, loaded, normalized, input.entryId) : loaded;
   const stored = await evaluateAndStore(tx, snapshot, normalized, "UNKNOWN_READOUT_RESOLUTION",
     { entryId: input.entryId, actorAccountId: input.actorAccountId });
   if (!stored.stored || stored.evaluation.status === "UNKNOWN_CARD") return null;

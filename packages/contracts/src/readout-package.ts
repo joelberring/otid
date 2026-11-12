@@ -268,6 +268,12 @@ export const readoutPackageSchema = z.object({
   runnerLookup: runnerLookupSchema.optional(),
   /** Deltagare som redan har ett resultat från en avläsning (förslagen "Koppla brickan till …" hoppar över dem). */
   readOutEntryIds: z.array(uuidSchema).max(STATION_PACKAGE_LIMITS.entries).optional(),
+  /**
+   * Lottade klasser med masstart och masstartens tid (användartestet 2026-11-12): en direktanmäld i klassen bedöms mot
+   * masstarten även utan nät, som på servern. Saknas i paket från före ändringen.
+   */
+  massStarts: z.array(z.object({ classId: uuidSchema, startTime: z.iso.datetime({ offset: true }) }).strict())
+    .max(STATION_PACKAGE_LIMITS.classes).optional(),
   /** Fest (PLAN.md steg 40): festens start och varorna, så att bardisken räknar köpen utan nät. Bara för en fest. */
   party: partyPackageSchema.optional(),
   fetchedAt: z.iso.datetime({ offset: true })

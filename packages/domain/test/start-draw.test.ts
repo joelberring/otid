@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  drawStartTimes, placeLateEntry, separateClubs, StartDrawError, vacancyCount, vacancyPositions, withProposedStartTimes,
+  drawStartTimes, massStartForNewEntry, placeLateEntry, separateClubs, StartDrawError, vacancyCount, vacancyPositions, withProposedStartTimes,
   type RaceSnapshot, type StartDrawClass, type StartDrawInput, type StartDrawRunner
 } from "../src";
 
@@ -178,6 +178,14 @@ describe("efteranmäld i lottad klass", () => {
 
   it("i en tom lottad klass får första start", () => {
     expect(placeLateEntry({ ...base, slotTimesMs: [], classTimesMs: [] })).toBe(first);
+  });
+});
+
+describe("ny löpare i en klass med masstart (användartestet 2026-11-12)", () => {
+  it("får masstartens tid; minutstart och olottad klass ger ingen tid", () => {
+    expect(massStartForNewEntry({ method: "MASS", firstStartMs: first })).toBe(first);
+    expect(massStartForNewEntry({ method: "MINUTE", firstStartMs: first })).toBeNull();
+    expect(massStartForNewEntry(undefined)).toBeNull();
   });
 });
 

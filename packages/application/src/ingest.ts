@@ -20,6 +20,7 @@ import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./res
 import { relayTeamOfEntry } from "./relay-model";
 import { lockRelayClassOfEntry, synchronizeRelayTeams } from "./relay-sync";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
+import { registeredAtReadout, useFittingVariant } from "./readout-link-variant";
 
 async function findPersistedServerResult(
   tx: DbExecutor,
@@ -124,10 +125,14 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
   const sprint = sprintRunner ? await storeTeamSprintReadoutAndRecalculate(tx, { runner: sprintRunner, snapshot, readout: normalized,
     cause: "CARD_READOUT", snapshotVersion: snapshot.race.snapshotVersion }) : undefined;
   const alreadyReadOutBy = sprintRunner ? undefined : await cardAlreadyReadOutBy(tx, owner?.entryId, normalized);
+  // Användartestet 2026-11-12: direktanmäld utan nät (anmälan kom före avläsningen) får varianten som stämplingarna
+  // passar sparad, som när avläsningen kommer först.
+  const fitted = owner && !sprint && !alreadyReadOutBy && await registeredAtReadout(tx, raceId, owner.entryId, normalized.cardNumber)
+    ? await useFittingVariant(tx, snapshot, normalized, owner.entryId) : snapshot;
   const stored = sprint ? (sprint.kind === "stored" ? { stored: true as const, evaluation: sprint.evaluation, revision: sprint.revisions.at(-1)! }
     : { stored: false as const, evaluation: unknown })
     : alreadyReadOutBy ? { stored: false as const, evaluation: unknown }
-    : await evaluateAndStore(tx, snapshot, normalized, "CARD_READOUT");
+    : await evaluateAndStore(tx, fitted, normalized, "CARD_READOUT");
   const evaluation = stored.evaluation;
   const resultEvaluationHash = hashEvaluation(evaluation);
   let serverResult: ServerResultSummary;

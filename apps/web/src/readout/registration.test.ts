@@ -47,6 +47,19 @@ describe("direktanmälan på avläsningssidan", () => {
     expect(verdict).toMatchObject({ status: "OK", name: "Bo Ek", className: "Lång", elapsedMs: 30 * 60_000 });
   });
 
+  it("en direktanmäld i en klass med masstart bedöms mot masstarten, inte startstämplingen (användartestet 2026-11-12)", () => {
+    const base = testPackage();
+    const pkg = readoutPackageSchema.parse({ ...base, massStarts: [{ classId: ids.class, startTime: "2026-10-01T16:55:00.000Z" }],
+      raceSnapshot: { ...base.raceSnapshot, classes: base.raceSnapshot.classes.map((row) => ({ ...row, startRule: "FIXED" })) } });
+    const verdict = evaluateLocally(payload(UNKNOWN), withLocalRegistrations(pkg, [registration()]));
+    expect(verdict).toMatchObject({ status: "OK", name: "Bo Ek", elapsedMs: 35 * 60_000 });
+    expect(verdict.startNote?.kind).not.toBe("FROM_PUNCH");
+    // Minutstart (ingen masstart i paketet): startstämplingen gäller som förut.
+    const minute = readoutPackageSchema.parse({ ...pkg, massStarts: [] });
+    expect(evaluateLocally(payload(UNKNOWN), withLocalRegistrations(minute, [registration()])))
+      .toMatchObject({ elapsedMs: 30 * 60_000, startNote: { kind: "FROM_PUNCH" } });
+  });
+
   it("paketet gäller när det redan känner brickan, och en avvisad anmälan räknas inte", () => {
     const pkg = testPackage();
     const known = registration({}, { cardNumber: String(TEST_CARD) });

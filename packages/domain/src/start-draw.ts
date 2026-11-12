@@ -401,12 +401,23 @@ export interface LateEntryPlacementInput {
 }
 
 /**
- * Efteranmäld i en lottad klass: masstart får klassens tid. Minutstart får första
+ * Ny löpare i en lottad klass med masstart: klassens masstartstid, var löparen än läggs till (efteranmälan i
+ * arbetsytan, direktanmälan vid avläsningen med eller utan nät, i kontrollvyn eller av en funktionär). Tiden räknas
+ * då som för de andra i klassen. Ger null för minutstart: där har en direktanmäld som redan sprungit ingen lottad tid
+ * och startstämplingen gäller (användartestet 2026-11-12).
+ */
+export function massStartForNewEntry(draw: { readonly method: StartDrawMethod; readonly firstStartMs: number } | undefined): number | null {
+  return draw?.method === "MASS" ? draw.firstStartMs : null;
+}
+
+/**
+ * Efteranmäld i en lottad klass: masstart får klassens tid (`massStartForNewEntry`). Minutstart får första
  * lediga vakanta tid efter nu, annars första lediga minut efter klassens sista
  * start (med klassens intervall) som ingen annan klass i startfållan använder.
  */
 export function placeLateEntry(input: LateEntryPlacementInput): number {
-  if (input.method === "MASS") return input.firstStartMs;
+  const mass = massStartForNewEntry(input);
+  if (mass !== null) return mass;
   const taken = new Set(input.classTimesMs);
   const vacant = [...input.slotTimesMs].sort((a, b) => a - b).find(time => time > input.nowMs && !taken.has(time));
   if (vacant !== undefined) return vacant;

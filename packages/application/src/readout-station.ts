@@ -9,6 +9,7 @@ import { loadRaceSnapshot, sortRaceSnapshotForPackage } from "./snapshot";
 import { loadRelayReadout } from "./relay-results";
 import { loadReadOutEntryIds, loadRunnerLookup } from "./runner-database";
 import { loadPartyPackage } from "./party";
+import { loadMassStarts } from "./start-draw-basis";
 
 /**
  * Webbläsarens avläsningsstation (steg 4, ADR-0168). Administratörens eller
@@ -37,10 +38,12 @@ export async function readReadoutPackageAsAdmin(
     const readOutEntryIds = await loadReadOutEntryIds(tx, input.raceId);
     // Fest (PLAN.md steg 40): festens start och varorna, så att bardisken räknar köpen även utan nät.
     const party = await loadPartyPackage(tx, input.raceId);
+    // Användartestet 2026-11-12: en direktanmäld i en klass med masstart får masstartens tid även utan nät.
+    const massStarts = await loadMassStarts(tx, input.raceId);
     return readoutPackageSchema.parse({
       formatVersion: 1, raceId: raceSnapshot.race.id, packageVersion: raceSnapshot.race.snapshotVersion,
       resultEngineVersion: RESULT_ENGINE_VERSION, event, raceSnapshot, ...(relay ? { relay } : {}), publicLinks,
-      ...(runnerLookup ? { runnerLookup } : {}), readOutEntryIds, ...(party ? { party } : {}), fetchedAt: now.toISOString()
+      ...(runnerLookup ? { runnerLookup } : {}), readOutEntryIds, massStarts, ...(party ? { party } : {}), fetchedAt: now.toISOString()
     });
   });
   return { status: "ok", response };

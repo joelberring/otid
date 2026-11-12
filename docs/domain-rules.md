@@ -315,6 +315,9 @@ samma frö ger alltid samma tider.
   (`race.start_draw_settings`).
 - Efteranmäld i lottad klass: första lediga vakanta tid, annars första minut efter klassens sista start som ingen annan
   klass med samma första kontroll använder.
+- Ny löpare i en lottad klass med masstart (`massStartForNewEntry`, användartestet 2026-11-12): masstartens tid, var
+  löparen än läggs till (arbetsytan, avläsningsvyn med eller utan nät, kontrollvyn). Direktanmäld vid minutstart får ingen
+  tid; startstämplingen gäller. Avläsningspaketet bär masstarterna (`massStarts`).
 
 ## Revisionsregler
 

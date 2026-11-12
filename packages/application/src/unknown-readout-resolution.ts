@@ -21,6 +21,7 @@ import { loadDecisionReviews } from "./decision-review";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { appendResultRevision } from "./result-revisions";
 import { readoutsWithResults } from "./readout-lookup";
+import { directEntryStartTime } from "./start-draw-basis";
 import { cardAlreadyReadOutBy } from "./card-reuse";
 import { normalizedReadout } from "./result-revisions";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
@@ -236,9 +237,10 @@ export async function resolveUnknownReadoutAsAdmin(
         !await canAddClassEntry(tx, input.raceId, intent.classId)) return { status: "conflict" };
       const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, input.raceId));
       if (!total || total.value >= 10_000) return { status: "conflict" };
+      // Användartestet 2026-11-12: en klass med masstart ger masstartens tid, som vid direktanmälan i avläsningsvyn.
       const [created] = await tx.insert(schema.entries).values({ raceId: input.raceId, classId: intent.classId,
         givenName: intent.givenName, familyName: intent.familyName, organisationName: intent.organisationName,
-        version: 1 }).returning();
+        fixedStartTime: await directEntryStartTime(tx, input.raceId, intent.classId), version: 1 }).returning();
       if (!created) throw new Error("Deltagaren kunde inte sparas");
       entry = created; targetClassId = intent.classId;
     }

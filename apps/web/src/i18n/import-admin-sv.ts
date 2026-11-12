@@ -42,6 +42,7 @@ export const importSv = {
   attemptReady: "Importen är inte klar",
   unknownCommit: "Vi vet inte om importen gick igenom",
   inFlightHelp: "Importförsöket pågår. Lämna sidan öppen tills ett bekräftat besked visas.",
+  serverRefusedHelp: "Servern kunde inte genomföra importen och inget sparades. Försök igen med samma fil.",
   retrySameHelp: "Importen kan redan vara sparad. Försök igen med samma fil; den läses inte in två gånger.",
   retryKnownHelp: "Inget importerades. Rätta felet och försök igen med samma fil.",
   retrySame: "Försök igen",

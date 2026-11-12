@@ -7,6 +7,7 @@ import { applyCourseFile, assessCourseFile } from "./source-sync-apply";
 import type { CourseFileAction, CourseFileProjection, PlannedRow } from "./source-sync-model";
 import { loadCurrentState, readOutByClass } from "./source-sync-state";
 import type { DbExecutor } from "./snapshot";
+import { matchImportClasses } from "./import-class-match";
 
 /**
  * Direkt import av IOF XML när tävlingen redan har körts (översynen 2026-11-02).
@@ -69,8 +70,9 @@ export async function entryListChanges(tx: DbExecutor, raceId: string, parsed: E
   const state = await loadCurrentState(tx as Transaction, raceId);
   const byExternal = new Map(state.entries.filter((entry) => entry.externalSource === "iof" && entry.externalId)
     .map((entry) => [entry.externalId!, entry]));
-  const classByExternal = new Map(state.classes.filter((row) => row.externalSource === "iof" && row.externalId)
-    .map((row) => [row.externalId!, row]));
+  // Samma klassmatchning som importen (IOF-id, annars namn), användartestet 2026-11-12.
+  const classIds = (await matchImportClasses(tx, raceId, parsed.entries)).byExternalId;
+  const classById = new Map(state.classes.map((row) => [row.id, row]));
   const className = new Map(state.classes.map((row) => [row.id, row.name]));
   const holderOf = new Map(state.entries.filter((entry) => entry.cardNumber).map((entry) => [entry.cardNumber!, entry]));
   // Brickor som släpps av löpare som byter bricka i samma fil (två som bytt med varandra).
@@ -83,7 +85,8 @@ export async function entryListChanges(tx: DbExecutor, raceId: string, parsed: E
   for (const imported of parsed.entries) {
     const entry = byExternal.get(imported.externalId);
     const name = `${imported.givenName} ${imported.familyName}`;
-    const targetClass = classByExternal.get(imported.classExternalId);
+    const targetId = classIds.get(imported.classExternalId);
+    const targetClass = targetId ? classById.get(targetId) : undefined;
     const ran = entry ? entry.readOut || entry.hasResult : false;
     const base = { name, className: targetClass?.name ?? imported.className, readOut: ran };
     if (entry && targetClass && entry.classId !== targetClass.id) {

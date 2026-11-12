@@ -389,8 +389,11 @@ describe("TASK 005G autentiserad IOF-import PostgreSQL", () => {
       .where(eq(schema.importFiles.raceId, raceId));
     const [requestsBefore] = await db.select({ value: count() }).from(schema.iofImportRequests)
       .where(eq(schema.iofImportRequests.raceId, raceId));
+    // Användartestet 2026-11-12: en klass som inte finns ger ett läsbart besked om vilken klass det gäller.
+    await expect(importIofXmlAsAdmin(db, authenticatedInput(raceId, admin.login, crypto.randomUUID(),
+      startList("class-unknown", ["entry-ada", "entry-bo"])), usedAt)).resolves.toEqual({ status: "classes-missing",
+      issues: ["Klassen class-unknown finns inte i tävlingen. Skapa klasserna under Klasser eller läs in banfilen först."] });
     for (const xml of [
-      startList("class-unknown", ["entry-ada", "entry-bo"]),
       startList("class-h21", ["entry-ada"]),
       startList("class-d21", ["entry-ada", "entry-bo"])
     ]) {

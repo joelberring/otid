@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { StartListImport } from "@o-tid/iof-xml";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
+import { requireImportClasses } from "./import-class-match";
 
 export interface StartListImportEffect {
   readonly imported: {
@@ -37,19 +38,21 @@ export async function applyStartListImport(
   raceId: string,
   parsed: StartListImport
 ): Promise<StartListImportEffect> {
-  const classExternalIds = parsed.classes.map((item) => item.classExternalId);
+  // Användartestet 2026-11-12: klassen matchas på IOF-id, annars på namn (klasser skapade för hand). Saknas en klass
+  // avvisas listan med klassernas namn.
+  const classIdByExternalId = await requireImportClasses(tx, raceId, parsed.classes);
   const classRows = await tx.select({
     id: schema.classes.id,
-    externalId: schema.classes.externalId,
     startRule: schema.classes.startRule
   }).from(schema.classes).where(and(
     eq(schema.classes.raceId, raceId),
-    eq(schema.classes.externalSource, "iof"),
-    inArray(schema.classes.externalId, classExternalIds)
+    inArray(schema.classes.id, [...new Set(classIdByExternalId.values())])
   )).orderBy(asc(schema.classes.id)).for("update");
 
-  const classByExternalId = new Map(classRows.map((row) => [row.externalId, row]));
-  if (classRows.length !== parsed.classes.length || classExternalIds.some((id) => !classByExternalId.has(id))) {
+  const classRowById = new Map(classRows.map((row) => [row.id, row]));
+  const classByExternalId = new Map(parsed.classes.map((item) =>
+    [item.classExternalId, classRowById.get(classIdByExternalId.get(item.classExternalId)!)] as const));
+  if (new Set(classIdByExternalId.values()).size !== parsed.classes.length || [...classByExternalId.values()].some((row) => !row)) {
     throw new StartListImportConflictError("StartList refererar en okänd eller tvetydig klass");
   }
 

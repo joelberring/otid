@@ -172,6 +172,17 @@ describe("TASK 005G importadmin-routes", () => {
     expect(await refused.json()).toEqual({ formatVersion: 1, error: "COURSE_FILE_SYNC_REQUIRED", issues: ["Använd Läs in ny banfil"] });
   });
 
+  it("avvisar en lista vars klasser saknas med ett läsbart 422 (användartestet 2026-11-12)", async () => {
+    const authenticate = vi.fn(async () => authenticated()) as unknown as typeof requireRaceRole;
+    const issue = "Klassen H21 finns inte i tävlingen. Skapa klasserna under Klasser eller läs in banfilen först.";
+    const runImport = vi.fn(async () => ({ status: "classes-missing" as const, issues: [issue] }));
+    const response = await authenticatedIofImportRoute(db, request("POST", "<EntryList/>", unsafeHeaders({
+      "content-type": "application/xml", "idempotency-key": `iof-import:${requestId}` })), raceId, authenticate,
+    runImport as unknown as typeof importIofXmlAsAdmin, environment);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ formatVersion: 1, error: "CLASSES_MISSING", issues: [issue] });
+  });
+
   it("maskerar oväntade fel och rå Error.message", async () => {
     const authenticate = vi.fn(async () => { throw new Error("hemlig databasdetalj"); }) as unknown as typeof requireRaceRole;
     const response = await authenticatedIofImportRoute(db, request("POST", "<CourseData/>", unsafeHeaders({

@@ -156,9 +156,11 @@ export function ImportAdmin({ raceId }: { raceId: string }) {
           }
           throw new Error(`${text.failed} (409). ${refusal.success && refusal.data.issues?.length ? refusal.data.issues.join(" · ") : text.conflictHelp}`);
         }
+        // Användartestet 2026-11-12: servern har svarat, så utgången är känd. "Kan redan vara sparad" gäller bara
+        // när inget svar kom (nätfel), se `commitMayBeUnknown`.
         const suffix = response.status === 401 || response.status === 403
           ? text.loginAgain
-          : text.retrySameHelp;
+          : text.serverRefusedHelp;
         throw new Error(`${text.failed} (${response.status}). ${suffix}`);
       }
       const result = parseIofImportResponse(await responseJson(response, text), current, raceId, text);

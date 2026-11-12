@@ -47,6 +47,7 @@ describe("parseIofXml", () => {
       classes: [
         {
           classExternalId: "class-h21",
+          className: "H21",
           starts: [
             { entryExternalId: "entry-ada", startTime: "2026-08-31T08:00:00.000Z" },
             { entryExternalId: "entry-bo", startTime: "2026-08-31T08:03:00.000Z" }

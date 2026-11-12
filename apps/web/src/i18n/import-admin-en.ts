@@ -41,6 +41,7 @@ export const importEn: Texts<typeof importSv> = {
   attemptReady: "The import is not finished",
   unknownCommit: "We do not know whether the import went through",
   inFlightHelp: "The import is in progress. Keep the page open until a confirmed message is shown.",
+  serverRefusedHelp: "The server could not complete the import and nothing was saved. Try again with the same file.",
   retrySameHelp: "The import may already be saved. Try again with the same file; it is not read in twice.",
   retryKnownHelp: "Nothing was imported. Correct the error and try again with the same file.",
   retrySame: "Try again",

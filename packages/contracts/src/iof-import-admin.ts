@@ -84,7 +84,9 @@ export const iofImportErrorCodeSchema = z.enum([
   /** Översynen 2026-11-02: anmälningslistan byter brickor; listan visas och importen görs om med bekräftelse. */
   "CHANGES_REQUIRE_CONFIRMATION",
   /** Översynen 2026-11-02: banfilen ändrar resultat för löpare som läst ut; använd banfilsjämförelsen. */
-  "COURSE_FILE_SYNC_REQUIRED"
+  "COURSE_FILE_SYNC_REQUIRED",
+  /** Användartestet 2026-11-12: filens klasser finns inte i tävlingen; `issues` säger vilka och vad man gör. */
+  "CLASSES_MISSING"
 ]);
 
 /** En skillnad mellan anmälningslistan och de anmälda: vem, vad och om den hindrar importen. */

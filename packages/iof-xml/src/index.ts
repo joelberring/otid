@@ -102,6 +102,8 @@ export interface StartImport {
 
 export interface ClassStartImport {
   readonly classExternalId: string;
+  /** `Class.Name`: en klass som skapats för hand i O-Tid matchas på namnet (användartestet 2026-11-12). */
+  readonly className?: string;
   readonly starts: readonly StartImport[];
 }
 
@@ -317,7 +319,8 @@ function readStartList(root: XmlRecord): StartListImport {
       starts.push({ entryExternalId, ...(!entryExternalId && personExternalId ? { personExternalId } : {}), startTime });
     }
     totalStarts += personValues.length;
-    if (classExternalId) classStarts.push({ classExternalId, starts });
+    const className = text(classValue.Name);
+    if (classExternalId) classStarts.push({ classExternalId, ...(className ? { className } : {}), starts });
   }
   if (totalStarts === 0) issues.push("StartList saknar individuella starter");
   if (totalStarts > 10_000) issues.push("StartList får innehålla högst 10 000 PersonStart");

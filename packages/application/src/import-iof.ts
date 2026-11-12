@@ -28,6 +28,7 @@ import { assertRaceClassCapacities, ClassCapacityConflictError } from "./class-c
 import { insertCourseVersionControls, loadCourseVersionVariants } from "./course-variants";
 import { storeControlMapPositions, storeControlPositions, storeCourseEnds } from "./course-positions";
 import { DuplicateNameError } from "./duplicate-names";
+import { ImportClassesMissingError, requireImportClasses } from "./import-class-match";
 export class EntryCardImportConflictError extends Error {}
 export class EntryIdentityImportConflictError extends Error {}
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -293,13 +294,10 @@ async function importEntries(tx: DbExecutor, raceId: string, parsed: EntryListIm
       .where(inArray(schema.cardAssignments.id, changing.map(row => row.id)));
   }
   const links: { entryId: string; cardNumber: string }[] = [];
+  // Användartestet 2026-11-12: klasser som skapats för hand matchas på namn; saknas en klass avvisas importen.
+  const classIds = await requireImportClasses(tx, raceId, parsed.entries);
   for (const imported of parsed.entries) {
-    const [raceClass] = await tx.select().from(schema.classes).where(and(
-      eq(schema.classes.raceId, raceId),
-      eq(schema.classes.externalSource, "iof"),
-      eq(schema.classes.externalId, imported.classExternalId)
-    ));
-    if (!raceClass) throw new Error(`Klassen ${imported.className} (${imported.classExternalId}) saknar importerad bana`);
+    const classId = classIds.get(imported.classExternalId)!;
     const [corrected] = await tx.select({ givenName: schema.entries.givenName,
       familyName: schema.entries.familyName, organisationName: schema.entries.organisationName
     }).from(schema.entries).innerJoin(schema.entryIdentityChangeRequests, and(
@@ -313,7 +311,7 @@ async function importEntries(tx: DbExecutor, raceId: string, parsed: EntryListIm
     }
     const values = {
       raceId,
-      classId: raceClass.id,
+      classId,
       givenName: imported.givenName,
       familyName: imported.familyName,
       organisationName: imported.organisationName ?? null,
@@ -430,6 +428,8 @@ export type AuthenticatedIofImportResult =
   | { status: "entry-list-changes"; changes: readonly IofEntryListChange[] }
   | { status: "course-file-sync-required"; issues: readonly string[] }
   | { status: "invalid-iof-xml"; issues: readonly string[] }
+  /** Användartestet 2026-11-12: filens klasser finns inte i tävlingen (vilka och vad man gör). */
+  | { status: "classes-missing"; issues: readonly string[] }
   | { status: "stored" | "duplicate"; response: IofImportResponse };
 
 export type AuthenticatedIofImportInput = RaceSessionProof & {
@@ -636,6 +636,7 @@ export async function importIofXmlAsAdmin(
     if (error instanceof StartListImportConflictError || error instanceof EntryCardImportConflictError ||
       error instanceof EntryIdentityImportConflictError || error instanceof ClassCapacityConflictError) return { status: "conflict" };
     if (error instanceof DuplicateNameError) return { status: "invalid-iof-xml", issues: [error.message] };
+    if (error instanceof ImportClassesMissingError) return { status: "classes-missing", issues: [error.message] };
     throw error;
   }
 }

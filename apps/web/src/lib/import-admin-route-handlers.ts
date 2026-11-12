@@ -83,6 +83,7 @@ export async function authenticatedIofImportRoute(
     if (result.status === "forbidden") return importFailure(403, "FORBIDDEN");
     if (result.status === "invalid-request") return importFailure(400, "INVALID_REQUEST");
     if (result.status === "invalid-iof-xml") return importFailure(422, "INVALID_IOF_XML", result.issues);
+    if (result.status === "classes-missing") return importFailure(422, "CLASSES_MISSING", result.issues);
     if (result.status === "conflict") return importFailure(409, "CONFLICT", undefined, result.changes);
     if (!("response" in result)) return importFailure(500, "INTERNAL_ERROR");
     return privateJson(iofImportResponseSchema.parse(result.response), result.status === "stored" ? 201 : 200);

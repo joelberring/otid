@@ -12,16 +12,26 @@
  * En enkel gaffling bidrar med det valda alternativets bokstav, en fjäril med slingornas bokstäver i den ordning de
  * springs utom den sista (den är given): fjäril A/B och fjäril C/D ger "AC", "AD", "BC" och "BD".
  *
+ * Tillägg 2026-11-12 (b) i ADR-0175: ett alternativ kan ha en sparad bokstav (`letters`). Bokstaven är alternativets
+ * identitet och står kvar när ett annat alternativ tas bort (A, C med lucka), så att en tryckt karta betyder samma sak.
+ * Saknas bokstäverna (strukturer sparade före tillägget) delas de ut i följd som förut. Ett alternativ utan bokstav (null)
+ * får nästa lediga bokstav som inte är använd och inte har använts förut (`retiredLetters`).
+ *
  * Allt här är rent och generellt, så att stafetten kan använda samma struktur och bild.
  */
 
+/** Bokstav per alternativ eller slinga; null = nytt alternativ som får nästa lediga bokstav. */
+export type ForkingLetters = readonly (string | null)[];
+
 export type ForkingItem =
   | { readonly kind: "CONTROL"; readonly code: number }
-  | { readonly kind: "FORK"; readonly branches: readonly (readonly number[])[] }
-  | { readonly kind: "LOOP"; readonly center: number; readonly loops: readonly (readonly number[])[] };
+  | { readonly kind: "FORK"; readonly branches: readonly (readonly number[])[]; readonly letters?: ForkingLetters | undefined }
+  | { readonly kind: "LOOP"; readonly center: number; readonly loops: readonly (readonly number[])[]; readonly letters?: ForkingLetters | undefined };
 
 export interface CourseForking {
   readonly items: readonly ForkingItem[];
+  /** Bokstäver som har använts på banan men tagits bort; de delas inte ut igen så länge andra bokstäver finns. */
+  readonly retiredLetters?: readonly string[] | undefined;
 }
 
 /** Löparens val vid en gafflingspunkt: alternativets index (FORK), slingornas ordning (LOOP), null för en kontroll. */
@@ -36,6 +46,8 @@ export interface GeneratedForkingVariant {
 export const MAX_FORKING_BRANCHES = 4;
 export const MAX_FORKING_VARIANTS = 100;
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const LETTER = /^[A-Z]$/;
+const isLetter = (value: string | null | undefined): value is string => typeof value === "string" && LETTER.test(value);
 
 export type ForkingProblem =
   | { readonly kind: "EMPTY_COURSE" }
@@ -45,6 +57,7 @@ export type ForkingProblem =
   | { readonly kind: "SAME_BRANCHES"; readonly item: number }
   | { readonly kind: "LOOP_CONTAINS_CENTER"; readonly item: number; readonly branch: number }
   | { readonly kind: "TOO_MANY_LETTERS" }
+  | { readonly kind: "INVALID_LETTERS"; readonly item: number }
   | { readonly kind: "TOO_MANY_VARIANTS"; readonly count: number };
 
 const branchesOf = (item: ForkingItem): readonly (readonly number[])[] =>
@@ -71,15 +84,29 @@ export function forkingVariantCount(forking: CourseForking): number {
   return count;
 }
 
-/** Bokstäverna per gafflingspunkt (null för en kontroll). Saknas bokstäver blir resten null. */
+/**
+ * Bokstäverna per gafflingspunkt (null för en kontroll). Ett alternativ med sparad bokstav behåller den; övriga får i
+ * strukturens ordning den första bokstaven som inte används och inte har använts förut (`retiredLetters`; när alla 26 är
+ * förbrukade en tidigare använd). Utan sparade bokstäver blir det bokstäver i följd (A, B; C, D …) som före tillägget.
+ * Räcker bokstäverna inte blir resten "?".
+ */
 export function forkingLetters(forking: CourseForking): (readonly string[] | null)[] {
-  let next = 0;
+  const taken = new Set(forking.items.flatMap((item) => item.kind === "CONTROL" ? [] : (item.letters ?? []).filter(isLetter)));
+  const retired = new Set(forking.retiredLetters ?? []);
+  const free = () => {
+    const letter = [...LETTERS].find((candidate) => !taken.has(candidate) && !retired.has(candidate)) ??
+      [...LETTERS].find((candidate) => !taken.has(candidate));
+    if (letter) taken.add(letter);
+    return letter ?? "?";
+  };
+  const seen = new Set<string>();
   return forking.items.map((item) => {
     if (item.kind === "CONTROL") return null;
-    const count = branchesOf(item).length;
-    const letters = Array.from({ length: count }, (_value, index) => LETTERS[next + index] ?? "?");
-    next += count;
-    return letters;
+    return branchesOf(item).map((_branch, index) => {
+      const own = item.letters?.[index];
+      if (isLetter(own) && !seen.has(own)) { seen.add(own); return own; }
+      return free();
+    });
   });
 }
 
@@ -88,10 +115,17 @@ export function validateCourseForking(forking: CourseForking): ForkingProblem[] 
   const problems: ForkingProblem[] = [];
   if (forking.items.length === 0) problems.push({ kind: "EMPTY_COURSE" });
   let letters = 0;
+  const explicit = new Set<string>();
   forking.items.forEach((item, index) => {
     if (item.kind === "CONTROL") return;
     const branches = branchesOf(item);
     letters += branches.length;
+    if (item.letters !== undefined) {
+      const own = item.letters.filter(isLetter);
+      if (item.letters.length !== branches.length || item.letters.some((letter) => letter !== null && !isLetter(letter)) ||
+          own.some((letter) => explicit.has(letter)) || new Set(own).size !== own.length) problems.push({ kind: "INVALID_LETTERS", item: index });
+      for (const letter of own) explicit.add(letter);
+    }
     if (branches.length < 2) problems.push({ kind: "TOO_FEW_BRANCHES", item: index });
     if (branches.length > MAX_FORKING_BRANCHES) problems.push({ kind: "TOO_MANY_BRANCHES", item: index });
     branches.forEach((branch, branchIndex) => {
@@ -215,6 +249,41 @@ function readLoop(rows: readonly DerivationRow[], center: number) {
 }
 
 /**
+ * Tillägg 2026-11-12 (b): bokstäverna som varianternas koder ger för den härledda strukturen, så att bilden och en
+ * ändring utgår från de koder som står på kartorna (t.ex. en lucka efter ett borttaget alternativ). Undefined när
+ * koderna inte går att läsa som en bokstav per alternativ (då gäller bokstäver i följd).
+ */
+function lettersFromCodes(items: readonly ForkingItem[], rows: readonly DerivationRow[]): ForkingItem[] | undefined {
+  const width = items.map((item) => item.kind === "FORK" ? 1 : item.kind === "LOOP" ? item.loops.length - 1 : 0);
+  const total = width.reduce((sum, value) => sum + value, 0);
+  if (total === 0 || rows.length === 0) return undefined;
+  const found = items.map((item) => branchesOf(item).map((): string | undefined => undefined));
+  const put = (item: number, branch: number, letter: string | undefined) => {
+    const own = found[item];
+    if (!own || branch < 0 || branch >= own.length || !isLetter(letter)) return false;
+    if (own[branch] !== undefined && own[branch] !== letter) return false;
+    own[branch] = letter;
+    return true;
+  };
+  for (const row of rows) {
+    if (row.code.length !== total) return undefined;
+    let offset = 0;
+    for (const [index, item] of items.entries()) {
+      const choice = row.choices[index];
+      if (item.kind === "FORK" && !put(index, typeof choice === "number" ? choice : -1, row.code[offset])) return undefined;
+      if (item.kind === "LOOP") {
+        const order: readonly number[] = Array.isArray(choice) ? choice as readonly number[] : [];
+        for (let step = 0; step < width[index]!; step += 1) if (!put(index, order[step] ?? -1, row.code[offset + step])) return undefined;
+      }
+      offset += width[index]!;
+    }
+  }
+  const letters = found.flat();
+  if (letters.some((letter) => letter === undefined) || new Set(letters).size !== letters.length) return undefined;
+  return items.map((item, index) => item.kind === "CONTROL" ? item : { ...item, letters: found[index] as string[] });
+}
+
+/**
  * Härleder en struktur ur importerade varianter (banfil utan struktur). Lika början blir kontroller; där varianterna
  * skiljer sig blir det en fjäril om den föregående kontrollen återkommer som central kontroll med samma slingor i
  * alla varianter, annars en enkel gaffling fram till första kontroll som alla varianter har. Varje befintlig variant
@@ -254,7 +323,7 @@ export function deriveCourseForking(variants: readonly { readonly code: string; 
     items.push({ kind: "FORK", branches });
     rows = rows.map((row, index) => ({ ...row, rest: row.rest.slice(cut[index]), choices: [...row.choices, picks[index]!] }));
   }
-  const forking: CourseForking = { items };
+  const forking: CourseForking = { items: lettersFromCodes(items, rows) ?? items };
   const choices = new Map(rows.map((row) => [row.code, row.choices] as const));
   const valid = validateCourseForking(forking).length === 0 && forkingPointCount(forking) > 0;
   const generated = valid ? new Set(generateForkingVariants(forking).map((variant) => sequenceKey(variant.controlCodes))) : new Set<string>();
@@ -267,41 +336,6 @@ export function deriveCourseForking(variants: readonly { readonly code: string; 
 export function forkingChoicesFor(forking: CourseForking, controlCodes: readonly number[]): readonly ForkingChoice[] | undefined {
   const key = sequenceKey(controlCodes);
   return generateForkingVariants(forking).find((variant) => sequenceKey(variant.controlCodes) === key)?.choices;
-}
-
-export interface ForkingCodedVariant { readonly code: string; readonly controlCodes: readonly number[] }
-
-const forkingShape = (forking: CourseForking) => forking.items.flatMap((item) => item.kind === "CONTROL" ? [] : [item.kind]).join(" ");
-
-/**
- * Löparnas variantkoder när en gafflad banas struktur sparas om (ADR-0175 beslut 3, tillägg 2026-11-12). Kartorna är
- * ofta redan tryckta med koden, så koden är löparens identitet så långt det går:
- *
- * 1. Finns löparens kontrollföljd kvar exakt i den nya strukturen följer löparen den, under den kod den nu har (bara
- *    bokstäverna flyttades, t.ex. ett alternativ lades till i mitten eller två slingor bytte plats).
- * 2. Annars behåller löparen sin kod när koden finns kvar, ingen annan gammal kontrollföljd har flyttat dit (steg 1)
- *    och gafflingspunkterna är av samma slag i samma ordning (enkel gaffling/fjäril, så att bokstaven betyder samma
- *    sak). Det är en rättad kontrollkod i ett alternativ eller i grundföljden: varianten får nya kontroller.
- * 3. Annars försvinner koden (null): ett alternativ eller en gaffling togs bort eller strukturen ändrades så att koden
- *    försvann eller betyder något annat. Anroparen ger då en ny variant (fördelningen, eller stämplingarna för en avläst).
- *
- * `previous.forking` saknas för varianter från en banfil utan sparad struktur; då jämförs med den härledda strukturen.
- * `next.forking` null = banan blir en vanlig bana utan varianter.
- */
-export function forkingVariantCodeMap(previous: { readonly forking?: CourseForking | null | undefined; readonly variants: readonly ForkingCodedVariant[] },
-  next: { readonly forking: CourseForking | null; readonly variants: readonly ForkingCodedVariant[] }): Map<string, string | null> {
-  const result = new Map<string, string | null>();
-  const nextBySequence = new Map(next.variants.map((variant) => [sequenceKey(variant.controlCodes), variant.code]));
-  for (const variant of previous.variants) result.set(variant.code, nextBySequence.get(sequenceKey(variant.controlCodes)) ?? null);
-  if (!next.forking || previous.variants.length === 0) return result;
-  const before = previous.forking ?? deriveCourseForking(previous.variants).forking;
-  if (forkingShape(before) !== forkingShape(next.forking)) return result;
-  const claimed = new Set([...result.values()].filter((code): code is string => code !== null));
-  const nextCodes = new Set(next.variants.map((variant) => variant.code));
-  for (const [code, mapped] of result) {
-    if (mapped === null && nextCodes.has(code) && !claimed.has(code)) result.set(code, code);
-  }
-  return result;
 }
 
 /** Strukturens kontrollkoder i ordning (grundföljd, alternativ och slingor), utan dubbletter. */

@@ -57,8 +57,9 @@ describe("härledning ur importerade varianter", () => {
 
   it("hittar fjärilarna och ger samma varianter och koder", () => {
     const derived = deriveCourseForking(imported);
-    expect(derived.forking.items).toEqual([control(31), { kind: "LOOP", center: 50, loops: [[41, 42], [43, 44]] }, control(32),
-      { kind: "LOOP", center: 60, loops: [[61, 62], [63, 64]] }, control(33)]);
+    // Tillägg 2026-11-12 (b): bokstäverna läses ur varianternas koder (här desamma som i följd).
+    expect(derived.forking.items).toEqual([control(31), { kind: "LOOP", center: 50, loops: [[41, 42], [43, 44]], letters: ["A", "B"] }, control(32),
+      { kind: "LOOP", center: 60, loops: [[61, 62], [63, 64]], letters: ["C", "D"] }, control(33)]);
     expect(derived.convertible).toBe(true);
     expect(derived.addedCount).toBe(0);
     expect(generateForkingVariants(derived.forking).map(variant => variant.code)).toEqual(["AC", "AD", "BC", "BD"]);
@@ -78,7 +79,7 @@ describe("härledning ur importerade varianter", () => {
       { code: "W", controlCodes: [31, 35] }, { code: "V", controlCodes: [31, 36] }];
     const derived = deriveCourseForking(variants);
     expect(derived.convertible).toBe(false);
-    expect(derived.forking.items[1]).toEqual({ kind: "FORK", branches: [[32], [33], [34], [35], [36]] });
+    expect(derived.forking.items[1]).toEqual({ kind: "FORK", branches: [[32], [33], [34], [35], [36]], letters: ["X", "Y", "Z", "W", "V"] });
     expect(derived.choices.get("V")).toEqual([null, 4]);
   });
 

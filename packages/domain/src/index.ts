@@ -26,6 +26,7 @@ export * from "./class-edit";
 export * from "./course-variants";
 export * from "./link-variant";
 export * from "./course-forking";
+export * from "./course-forking-letters";
 export * from "./relay";
 export * from "./relay-starts";
 export * from "./relay-forking";

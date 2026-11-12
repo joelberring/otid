@@ -1,6 +1,6 @@
 import {
   changeClubTerm, createClubTerm, createPlannedRace, createPlanSessions, createPlanTask, linkPlannedRace, listMyPlanTasks, readClubPlan, removePlanSession,
-  removePlanTask, setPlanTaskDone, updatePlanSession, type PlanTaskMail, type PlanTaskMailer
+  removePlanTask, setPlanTaskDone, updatePlanSession, updatePlanTask, type PlanTaskMail, type PlanTaskMailer
 } from "@o-tid/application";
 import { UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
@@ -17,15 +17,26 @@ import { privateJson, securityPolicy } from "./security-policy";
  */
 const oneLine = (value: string) => value.replace(/[\p{Cc}\u2028\u2029]+/gu, " ").replace(/\s+/g, " ").trim();
 
-/** Mejlet om en uppgift, på språket hos den som gav uppgiften. Inga adresser i texten utom länken. */
-export function planTaskMessage(mail: PlanTaskMail, link: string, language: Language = "sv"): { subject: string; text: string } {
+/**
+ * Mejlet om en uppgift eller om att vara ansvarig, på språket hos den som gav den. Inga adresser i texten utom länken.
+ * Användartestet 2026-11-12 (D): en adress utan konto får veta att ett konto behöver skapas med adressen, och länken öppnar
+ * "Skapa konto"; en medlem hittar det under Mina uppgifter.
+ */
+export function planTaskMessage(mail: PlanTaskMail, origin: string, language: Language = "sv"): { subject: string; text: string } {
   const text = language === "en" ? clubPlanningEn.mail : clubPlanningSv.mail;
-  const date = new Intl.DateTimeFormat(language === "en" ? "en-GB" : "sv-SE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
-    .format(new Date(`${mail.sessionDate}T12:00:00Z`));
+  const day = (value: string) => new Intl.DateTimeFormat(language === "en" ? "en-GB" : "sv-SE", { weekday: "long", day: "numeric", month: "long",
+    timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
+  const date = day(mail.sessionDate);
+  const task = oneLine(mail.taskTitle);
+  const link = mail.account === "NONE" ? `${origin}/organizer?konto=skapa` : `${origin}/organizer`;
+  const subject = mail.kind === "RESPONSIBLE" ? text.subjectResponsible(oneLine(mail.sessionTitle), date) : text.subject(task, date);
+  const body = mail.kind === "RESPONSIBLE" ? text.bodyResponsible(oneLine(mail.inviterName), oneLine(mail.clubName))
+    : text.body(oneLine(mail.inviterName), oneLine(mail.clubName), task);
   return {
-    subject: oneLine(text.subject(oneLine(mail.taskTitle), date)).slice(0, 200),
-    text: [text.greeting, "", text.body(oneLine(mail.inviterName), oneLine(mail.clubName), oneLine(mail.taskTitle)),
-      text.when(oneLine(mail.sessionTitle), date, mail.startTime, oneLine(mail.place)), "", text.open, "", link, "", text.ignore, "", text.signature].join("\n")
+    subject: oneLine(subject).slice(0, 200),
+    text: [text.greeting, "", body, text.when(oneLine(mail.sessionTitle), date, mail.startTime, oneLine(mail.place)),
+      ...(mail.repeats ? [text.repeats(mail.repeats.count, day(mail.repeats.lastDate))] : []), "", text.open[mail.account], "", link, "",
+      text.ignore, "", text.signature].join("\n")
   };
 }
 
@@ -36,7 +47,7 @@ function planTaskMailer(environment: ClubEnvironment, request: Request): PlanTas
   try { origin = securityPolicy(environment).publicOrigin; } catch { return undefined; }
   const language = languageOfRequest(request);
   return async mail => {
-    try { await sendMessage(configuration, mail.to, planTaskMessage(mail, `${origin}/organizer`, language)); }
+    try { await sendMessage(configuration, mail.to, planTaskMessage(mail, origin, language)); }
     catch (error) {
       console.error(`Uppgiften kunde inte mejlas (${mailErrorSummary(error)}).`);
       throw error;
@@ -79,12 +90,12 @@ export async function clubPlanningRoute(db: Database, request: Request, clubId: 
       return result.status === "ok" ? ok() : specific(result.status);
     }
     if (area === "sessions" && id === undefined && method === "POST") {
-      const result = await createPlanSessions(db, { ...proof, request: input.body });
-      return result.status === "ok" ? ok({ sessionIds: result.sessionIds }) : specific(result.status);
+      const result = await createPlanSessions(db, { ...proof, request: input.body }, new Date(), planTaskMailer(environment, request));
+      return result.status === "ok" ? ok({ sessionIds: result.sessionIds, mailed: result.mailed }) : specific(result.status);
     }
     if (area === "sessions" && id && sub === undefined && method === "PUT") {
-      const result = await updatePlanSession(db, { ...proof, sessionId: id, request: input.body });
-      return result.status === "ok" ? ok({ version: result.version }) : specific(result.status);
+      const result = await updatePlanSession(db, { ...proof, sessionId: id, request: input.body }, new Date(), planTaskMailer(environment, request));
+      return result.status === "ok" ? ok({ version: result.version, mailed: result.mailed }) : specific(result.status);
     }
     if (area === "sessions" && id && sub === undefined && method === "DELETE") {
       const result = await removePlanSession(db, { ...proof, sessionId: id });
@@ -104,6 +115,11 @@ export async function clubPlanningRoute(db: Database, request: Request, clubId: 
     if (area === "sessions" && id && sub === "tasks" && subId === undefined && method === "POST") {
       const result = await createPlanTask(db, { ...proof, sessionId: id, request: input.body }, new Date(), planTaskMailer(environment, request));
       return result.status === "ok" ? ok({ taskId: result.taskId, mailed: result.mailed }) : failure(result.status);
+    }
+    if (area === "sessions" && id && sub === "tasks" && subId && method === "PUT") {
+      const result = await updatePlanTask(db, { ...proof, sessionId: id, taskId: subId, request: input.body }, new Date(),
+        planTaskMailer(environment, request));
+      return result.status === "ok" ? ok({ mailed: result.mailed }) : failure(result.status);
     }
     if (area === "sessions" && id && sub === "tasks" && subId && method === "DELETE") {
       const result = await removePlanTask(db, { ...proof, sessionId: id, taskId: subId });

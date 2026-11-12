@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { createClub } from "../../src/clubs";
-import { createClubTerm, createPlanSessions } from "../../src/club-planning";
+import { createClubTerm, createPlanSessions, readClubPlan, updatePlanSession } from "../../src/club-planning";
+import { createPlannedRace, createPlanTask, updatePlanTask, type PlanTaskMail } from "../../src/club-plan-tasks";
 import { createTrainingGroup, setRaceGroup } from "../../src/training-groups";
 import { createGroupSessions } from "../../src/training-group-sessions";
 import { insertEventWithRace } from "../../src/organizer-events";
@@ -116,5 +117,78 @@ describe("C: banor utan lägen på kartan", () => {
     if (entry.status !== "ok") throw new Error(entry.status);
     expect(entry.view.entry.notes).toContain("Kort och Kvart har bara kontrollkoder och kan inte visas på kartan.");
     expect(entry.view.entry.courseNames).not.toContain("Kort");
+  });
+});
+
+describe("D: uppgift och ansvar till en medlem ger ett mejl", () => {
+  it("medlemmen och den ansvarige får mejl (inte den som ger sig själv), veckorna blir ett mejl, och uppgifter går att ändra", async () => {
+    const { owner, clubId } = await linkedClub("OK Mejl");
+    const leader = await member(clubId, "LEADER", owner.accountId);
+    const other = await member(clubId, "LEADER", owner.accountId);
+    const reader = await member(clubId, "READER", owner.accountId);
+    const mails: PlanTaskMail[] = [];
+    const mailer = async (mail: PlanTaskMail) => { mails.push(mail); };
+    const term = await createClubTerm(db, { ...leader.proof, clubId, request: { formatVersion: 1, requestId: randomUUID(), name: "VT 2027",
+      startsOn: "2027-01-01", endsOn: "2027-02-28" } }, NOW);
+    if (term.status !== "ok") throw new Error(term.status);
+    const fields = { termId: term.termId, startTime: "18:00", title: "Nattträning", place: "Skogen", note: "", clubMapId: null, trainingGroupId: null };
+
+    // Varje vecka med en annan ledare som ansvarig: ett mejl för alla veckorna.
+    const weekly = await createPlanSessions(db, { ...leader.proof, clubId, request: { formatVersion: 1, requestId: randomUUID(), ...fields,
+      sessionDate: "2027-01-05", responsibleAccountId: other.accountId, weekly: true } }, NOW, mailer);
+    if (weekly.status !== "ok") throw new Error(weekly.status);
+    expect(weekly.sessionIds).toHaveLength(8);
+    expect(weekly.mailed).toBe(true);
+    expect(mails).toEqual([expect.objectContaining({ to: other.email, kind: "RESPONSIBLE", account: "MEMBER", sessionDate: "2027-01-05",
+      repeats: { count: 8, lastDate: "2027-02-23" } })]);
+    // Ansvarig själv: inget mejl.
+    const own = await createPlanSessions(db, { ...leader.proof, clubId, request: { formatVersion: 1, requestId: randomUUID(), ...fields,
+      sessionDate: "2027-01-07", responsibleAccountId: leader.accountId, weekly: false } }, NOW, mailer);
+    if (own.status !== "ok") throw new Error(own.status);
+    expect(own.mailed).toBe(false);
+    expect(mails).toHaveLength(1);
+
+    // En ny ansvarig vid ändringen får mejlet; en ändring som behåller den ansvarige ger inget.
+    const plan = await readClubPlan(db, { ...leader.proof, clubId, termId: term.termId }, NOW);
+    if (plan.status !== "ok") throw new Error(plan.status);
+    const first = plan.response.term!.planSessions.find(row => row.sessionId === own.sessionIds[0])!;
+    const update = (version: number, responsibleAccountId: string) => updatePlanSession(db, { ...leader.proof, clubId, sessionId: first.sessionId,
+      request: { formatVersion: 1, version, sessionDate: "2027-01-07", startTime: "18:00", title: "Nattträning", place: "Skogen", note: "",
+        clubMapId: null, trainingGroupId: null, responsibleAccountId } }, NOW, mailer);
+    expect(await update(first.version, owner.accountId)).toEqual({ status: "ok", version: first.version + 1, mailed: true });
+    expect(await update(first.version + 1, owner.accountId)).toEqual({ status: "ok", version: first.version + 2, mailed: false });
+    expect(mails.at(-1)).toMatchObject({ to: owner.email, kind: "RESPONSIBLE", repeats: null });
+
+    // Uppgifter: till sig själv inget mejl; till en adress med konto säger mejlet logga in.
+    const sessionId = first.sessionId;
+    const mine = await createPlanTask(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, requestId: randomUUID(), title: "Fika",
+      assignee: { kind: "MEMBER", accountId: leader.accountId } } }, NOW, mailer);
+    expect(mine).toMatchObject({ status: "ok", mailed: false });
+    const byAddress = await createPlanTask(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, requestId: randomUUID(),
+      title: "Start", assignee: { kind: "EMAIL", email: reader.email } } }, NOW, mailer);
+    expect(byAddress).toMatchObject({ status: "ok", mailed: true });
+    expect(mails.at(-1)).toMatchObject({ to: reader.email, kind: "TASK", account: "ACCOUNT" });
+    if (mine.status !== "ok") throw new Error(mine.status);
+
+    // Träningen finns: att flytta uppgiften till en annan medlem flyttar läsrätten och ger den nya ett mejl.
+    const race = await createPlannedRace(db, { ...leader.proof, clubId, sessionId }, NOW);
+    if (race.status !== "ok") throw new Error(race.status);
+    const grantOf = async (accountId: string) => (await db.select({ requestId: schema.courseSettingGrants.requestId }).from(schema.courseSettingGrants)
+      .where(eq(schema.courseSettingGrants.accountId, accountId))).filter(row => row.requestId === mine.taskId);
+    const count = mails.length;
+    expect(await updatePlanTask(db, { ...leader.proof, clubId, sessionId, taskId: mine.taskId, request: { formatVersion: 1, title: "Fika och saft",
+      assignee: { kind: "MEMBER", accountId: leader.accountId } } }, NOW, mailer)).toEqual({ status: "ok", mailed: false });
+    expect(mails).toHaveLength(count);
+    expect(await updatePlanTask(db, { ...leader.proof, clubId, sessionId, taskId: mine.taskId, request: { formatVersion: 1, title: "Fika och saft",
+      assignee: { kind: "MEMBER", accountId: reader.accountId } } }, NOW, mailer)).toEqual({ status: "ok", mailed: true });
+    expect(mails.at(-1)).toMatchObject({ to: reader.email, kind: "TASK", taskTitle: "Fika och saft", account: "MEMBER" });
+    expect(await grantOf(reader.accountId)).toHaveLength(1);
+    const after = await readClubPlan(db, { ...leader.proof, clubId, termId: term.termId }, NOW);
+    if (after.status !== "ok") throw new Error(after.status);
+    expect(after.response.term!.planSessions.find(row => row.sessionId === sessionId)!.tasks.find(task => task.taskId === mine.taskId))
+      .toMatchObject({ title: "Fika och saft", assigneeAccountId: reader.accountId });
+    // En medlem utan ledarroll får inte ändra.
+    expect((await updatePlanTask(db, { ...reader.proof, clubId, sessionId, taskId: mine.taskId, request: { formatVersion: 1, title: "X",
+      assignee: { kind: "NONE" } } }, NOW, mailer)).status).toBe("forbidden");
   });
 });

@@ -65,6 +65,8 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   await expect(planning.getByText("Uppgiften är tillagd och ett mejl är skickat.")).toBeVisible();
   await expect(first.getByTestId("plan-task")).toContainText(`Sätta ut kontroller · ${parentEmail} (väntar på inloggning)`);
   await expect.poll(() => latestMailTo(parentEmail, /Sätta ut kontroller/)?.text ?? "", { timeout: 20_000 }).toContain("Kurvbildsträning");
+  // Användartestet 2026-11-12 (D): adressen har inget konto, så mejlet säger att det ska skapas och länkar till Skapa konto.
+  expect(latestMailTo(parentEmail, /Sätta ut kontroller/)?.text ?? "").toContain("/organizer?konto=skapa");
 
   // Skapa träningen: länkarna till träningen och banläggningen.
   await first.getByRole("button", { name: "Skapa träningen" }).click();

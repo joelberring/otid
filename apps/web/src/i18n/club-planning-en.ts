@@ -69,6 +69,8 @@ export const clubPlanningEn: Texts<typeof clubPlanningSv> = {
     groupIs: (name: string) => `Group: ${name}`,
     created: (count: number) => count === 1 ? "The training has been added." : `${count} trainings have been added.`,
     saved: "Saved.",
+    savedMailed: "Saved. The responsible person has been emailed.",
+    responsibleMailed: "The responsible person has been emailed.",
     raceCreated: "The training has been created.",
     outside: "The date is outside the term.",
     tooMany: "The term already has as many trainings as possible.",
@@ -100,14 +102,19 @@ export const clubPlanningEn: Texts<typeof clubPlanningSv> = {
     email: "Email address",
     nobody: "Nobody yet",
     chooseMember: "Choose member",
-    emailHelp: "The person sees the task when they sign in to O-Tid with the address. With email on the server they get a short email.",
+    emailHelp: "The person sees the task when they sign in to O-Tid with the address. With email on the server they get a short email; if the address has no account the email says how to create one.",
     pending: "waiting for sign-in",
     unassigned: "nobody yet",
     done: "Done",
     remove: "Remove the task",
     removeConfirm: (title: string) => `Remove the task ${title}?`,
     added: "The task has been added.",
-    mailed: "The task has been added and an email has been sent."
+    mailed: "The task has been added and an email has been sent.",
+    edit: "Change",
+    editTitle: (title: string) => `Change the task ${title}`,
+    save: "Save the task",
+    changed: "The task has been changed.",
+    changedMailed: "The task has been changed and an email has been sent."
   },
   mine: {
     title: "My tasks",
@@ -127,11 +134,18 @@ export const clubPlanningEn: Texts<typeof clubPlanningSv> = {
     generic: (status: number) => `It did not work (error ${status}).` },
   mail: {
     subject: (task: string, date: string) => `Task in O-Tid: ${task} ${date}`,
+    subjectResponsible: (title: string, date: string) => `Responsible in O-Tid: ${title} ${date}`,
     greeting: "Hello!",
     body: (inviter: string, club: string, task: string) => `${inviter} in ${club} has given you the task ”${task}”.`,
+    bodyResponsible: (inviter: string, club: string) => `${inviter} in ${club} has made you responsible for a training.`,
     when: (title: string, date: string, time: string | null, place: string) =>
       `Training: ${title}, ${date}${time ? ` at ${time}` : ""}${place ? `, ${place}` : ""}.`,
-    open: "Sign in to O-Tid with this address to see the task. When the training exists you see the courses there:",
+    repeats: (count: number, last: string) => `The same training every week, ${count} times up to and including ${last}.`,
+    open: {
+      MEMBER: "You see it under My tasks when you sign in to O-Tid. When the training exists you see the courses there:",
+      ACCOUNT: "Sign in to O-Tid with this address to see it under My tasks. When the training exists you see the courses there:",
+      NONE: "You need an O-Tid account with exactly this address. Create the account with the link below and confirm the address, and you will see it under My tasks:"
+    },
     ignore: "If you do not recognise the club you can ignore this message.",
     signature: "O-Tid"
   }

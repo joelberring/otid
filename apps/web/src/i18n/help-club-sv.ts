@@ -127,10 +127,11 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "Åt andra hållet läggs en färdig träning i arkivet med ”Lägg i klubbarkivet” på träningens sida."
       ] },
       [
-        "En uppgift kan gå till en medlem i klubben eller till en e-postadress, till exempel en förälder. Med e-post på servern får personen ett kort mejl.",
+        "En uppgift kan gå till en medlem i klubben eller till en e-postadress, till exempel en förälder. Med e-post på servern får personen ett kort mejl, och den som blir ansvarig för en träning likaså (ett mejl för alla veckorna), men inte den som ger sig själv uppgiften. Har adressen inget konto säger mejlet att ett konto ska skapas med just den adressen.",
+        "”Ändra” vid en uppgift byter rubriken eller personen. Den nya personen får ett mejl och läsrätten flyttar med.",
         "Personen ser bara sina egna uppgifter under ”Mina uppgifter” på Mina tävlingar, med tid, plats och den ansvarige, och kan bocka av dem.",
         "När träningen finns får personen läsrätt i banläggningen för just den träningen: banorna, kontrollkartan, beskrivningarna och utskriften.",
-        "Tas uppgiften bort försvinner läsrätten också."
+        "Tas uppgiften bort försvinner läsrätten också. Många mejl till samma person på kort tid spärras; uppgiften sparas då utan mejl."
       ],
       "Moment, nivåer och egna ord följer med när träningen läggs i klubbarkivet, där du kan söka på dem. I arkivet föreslås nivån ur banornas namn. Planen är aldrig publik; medlemmar utan ledarroll ser bara sina egna uppgifter."
     ]

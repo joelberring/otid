@@ -106,7 +106,10 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
             </div>
             {adding !== undefined && adding >= week.monday && adding <= week.sunday && <PlanSessionForm key={adding} plan={plan} termId={term.termId}
               initialDate={adding} busy={busy} onCancel={() => setAdding(undefined)} onSave={async body => {
-                if (await change("/sessions", "POST", body, json => text.session.created((json as { sessionIds?: string[] }).sessionIds?.length ?? 1))) {
+                if (await change("/sessions", "POST", body, json => {
+                  const created = json as { sessionIds?: string[]; mailed?: boolean };
+                  return `${text.session.created(created.sessionIds?.length ?? 1)}${created.mailed ? ` ${text.session.responsibleMailed}` : ""}`;
+                })) {
                   setAdding(undefined);
                 }
               }} />}

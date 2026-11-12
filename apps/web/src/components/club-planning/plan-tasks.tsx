@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
-import type { ClubPlanResponse, ClubPlanSessionView } from "@o-tid/contracts";
+import type { ClubPlanResponse, ClubPlanSessionView, ClubPlanTaskView } from "@o-tid/contracts";
 import { clubPlanningEn } from "../../i18n/club-planning-en";
 import { clubPlanningSv } from "../../i18n/club-planning-sv";
 import { useTexts } from "../language-provider";
@@ -14,7 +14,8 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**
  * ADR-0221 beslut 3–4: uppgifterna på en planerad träning. Personen är en bekräftad medlem i klubben eller en e-postadress
- * (som blir kontots när hen loggar in); adressen syns bara här, för ledarna.
+ * (som blir kontots när hen loggar in); adressen syns bara här, för ledarna. Användartestet 2026-11-12 (D): en uppgift kan
+ * ändras (rubrik och person) med samma formulär.
  */
 export function PlanTasks({ plan, session, busy, change, toggle }: {
   plan: ClubPlanResponse; session: ClubPlanSessionView; busy: boolean; change: PlanChange;
@@ -23,6 +24,8 @@ export function PlanTasks({ plan, session, busy, change, toggle }: {
   const text = useTexts(clubPlanningSv, clubPlanningEn);
   const list = useId();
   const [open, setOpen] = useState(false);
+  /** Uppgiften som ändras (formuläret är då ifyllt med den), annars läggs en ny till. */
+  const [editing, setEditing] = useState<ClubPlanTaskView>();
   const [title, setTitle] = useState("");
   const [who, setWho] = useState<Who>("MEMBER");
   const [accountId, setAccountId] = useState("");
@@ -40,9 +43,22 @@ export function PlanTasks({ plan, session, busy, change, toggle }: {
     setTried(true);
     if (Object.values(errors).some(Boolean)) return;
     const assignee = who === "MEMBER" ? { kind: "MEMBER", accountId } : who === "EMAIL" ? { kind: "EMAIL", email: email.trim() } : { kind: "NONE" };
-    const saved = await change(path, "POST", { formatVersion: 1, requestId, title: title.trim(), assignee },
-      json => (json as { mailed?: boolean }).mailed ? text.task.mailed : text.task.added);
-    if (saved) { setTitle(""); setAccountId(""); setEmail(""); setTried(false); setRequestId(crypto.randomUUID()); setOpen(false); }
+    const saved = editing
+      ? await change(`${path}/${editing.taskId}`, "PUT", { formatVersion: 1, title: title.trim(), assignee },
+        json => (json as { mailed?: boolean }).mailed ? text.task.changedMailed : text.task.changed)
+      : await change(path, "POST", { formatVersion: 1, requestId, title: title.trim(), assignee },
+        json => (json as { mailed?: boolean }).mailed ? text.task.mailed : text.task.added);
+    if (saved) close();
+  }
+
+  function close() {
+    setTitle(""); setWho("MEMBER"); setAccountId(""); setEmail(""); setTried(false); setRequestId(crypto.randomUUID()); setOpen(false); setEditing(undefined);
+  }
+
+  function edit(task: ClubPlanTaskView) {
+    setEditing(task); setTitle(task.title); setTried(false); setOpen(true);
+    setWho(task.assigneeAccountId ? "MEMBER" : task.assigneeEmail ? "EMAIL" : "NONE");
+    setAccountId(task.assigneeAccountId ?? ""); setEmail(task.assigneeEmail ?? "");
   }
 
   return <div className={styles.tasks}>
@@ -57,12 +73,14 @@ export function PlanTasks({ plan, session, busy, change, toggle }: {
           }} />
           <span><strong>{task.title}</strong> · {task.assigneeName ?? (task.assigneeEmail ? `${task.assigneeEmail} (${text.task.pending})` : text.task.unassigned)}</span>
         </label>
+        <Button variant="quiet" className={styles.noPrint} disabled={busy} aria-label={text.task.editTitle(task.title)}
+          onClick={() => edit(task)}>{text.task.edit}</Button>
         <Button variant="quiet" className={styles.noPrint} disabled={busy} aria-label={`${text.task.remove}: ${task.title}`}
           onClick={() => { if (window.confirm(text.task.removeConfirm(task.title))) void change(`${path}/${task.taskId}`, "DELETE", undefined); }}>×</Button>
       </li>)}
     </ul>}
     {!open ? <Button variant="quiet" className={styles.noPrint} disabled={busy} onClick={() => setOpen(true)}>{text.task.add}</Button>
-      : <form className={styles.form} noValidate onSubmit={event => void submit(event)} aria-label={text.task.add}>
+      : <form className={styles.form} noValidate onSubmit={event => void submit(event)} aria-label={editing ? text.task.editTitle(editing.title) : text.task.add}>
         <Field label={text.task.what} error={tried ? errors.title : undefined}>
           <input value={title} maxLength={120} list={list} onChange={event => setTitle(event.target.value)} /></Field>
         <datalist id={list}>{text.task.suggestions.map(option => <option key={option} value={option} />)}</datalist>
@@ -79,8 +97,8 @@ export function PlanTasks({ plan, session, busy, change, toggle }: {
         {who === "EMAIL" && <Field label={text.task.email} help={text.task.emailHelp} error={tried ? errors.email : undefined}>
           <input type="email" value={email} maxLength={254} autoComplete="off" onChange={event => setEmail(event.target.value)} /></Field>}
         <div className={styles.actions}>
-          <Button type="submit" disabled={busy}>{text.task.add}</Button>
-          <Button variant="quiet" onClick={() => setOpen(false)}>{text.session.cancel}</Button>
+          <Button type="submit" disabled={busy}>{editing ? text.task.save : text.task.add}</Button>
+          <Button variant="quiet" onClick={close}>{text.session.cancel}</Button>
         </div>
       </form>}
   </div>;

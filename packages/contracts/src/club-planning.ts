@@ -41,13 +41,19 @@ export const clubPlanSessionCreateSchema = z.object({
 
 export const clubPlanSessionUpdateSchema = z.object({ formatVersion: z.literal(1), version: z.number().int().min(1), ...sessionFields }).strict();
 
+const taskAssigneeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("MEMBER"), accountId: uuidSchema }).strict(),
+  z.object({ kind: z.literal("EMAIL"), email: accountEmailSchema }).strict(),
+  z.object({ kind: z.literal("NONE") }).strict()
+]);
+
 export const clubPlanTaskCreateSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuidSchema, title: z.string().trim().min(1).max(120),
-  assignee: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("MEMBER"), accountId: uuidSchema }).strict(),
-    z.object({ kind: z.literal("EMAIL"), email: accountEmailSchema }).strict(),
-    z.object({ kind: z.literal("NONE") }).strict()
-  ])
+  formatVersion: z.literal(1), requestId: uuidSchema, title: z.string().trim().min(1).max(120), assignee: taskAssigneeSchema
+}).strict();
+
+/** Användartestet 2026-11-12 (D): en uppgift ändras (rubrik och person) i stället för att tas bort och läggas till igen. */
+export const clubPlanTaskUpdateSchema = z.object({
+  formatVersion: z.literal(1), title: z.string().trim().min(1).max(120), assignee: taskAssigneeSchema
 }).strict();
 
 export const clubPlanTaskDoneSchema = z.object({ formatVersion: z.literal(1), done: z.boolean() }).strict();
@@ -58,6 +64,8 @@ export interface ClubPlanTaskView {
   readonly taskId: string; readonly title: string;
   /** Kontots namn, adressen (bara för ledarna) eller null utan person. */
   readonly assigneeName: string | null; readonly assigneeEmail: string | null; readonly pending: boolean;
+  /** Kontot som har uppgiften (för att ändra den), eller null. */
+  readonly assigneeAccountId: string | null;
   readonly done: boolean;
 }
 

@@ -100,7 +100,7 @@ describe("ADR-0221: terminsplaneringen", () => {
     const changed = await updatePlanSession(db, { ...leader.proof, clubId, sessionId: first.sessionId, request: { formatVersion: 1, version: first.version,
       sessionDate: "2027-01-13", startTime: null, title: "Stråkorientering", place: "Solberga", note: "Ta med skärmar", clubMapId: null,
       trainingGroupId: null, responsibleAccountId: leader.accountId } }, NOW);
-    expect(changed).toEqual({ status: "ok", version: 2 });
+    expect(changed).toEqual({ status: "ok", version: 2, mailed: false });
     expect((await updatePlanSession(db, { ...leader.proof, clubId, sessionId: first.sessionId, request: { formatVersion: 1, version: 1,
       sessionDate: "2027-01-13", startTime: null, title: "X", place: "", note: "", clubMapId: null, trainingGroupId: null,
       responsibleAccountId: null } }, NOW)).status).toBe("conflict");
@@ -220,10 +220,12 @@ describe("ADR-0221: terminsplaneringen", () => {
     const place = await createPlanTask(db, { ...leader.proof, clubId, sessionId, request: { formatVersion: 1, requestId: randomUUID(),
       title: "Sätta ut kontroller", assignee: { kind: "EMAIL", email: parentEmail.toUpperCase() } } }, NOW, async mail => { mails.push(mail); });
     if (print.status !== "ok" || place.status !== "ok") throw new Error("uppgifterna");
-    expect(print.mailed).toBe(false);
+    // Användartestet 2026-11-12 (D): medlemmen får också ett mejl (till kontots adress).
+    expect(print.mailed).toBe(true);
     expect(place.mailed).toBe(true);
-    expect(mails).toEqual([expect.objectContaining({ to: parentEmail, taskTitle: "Sätta ut kontroller", sessionTitle: "Kurvbildsträning",
-      sessionDate: "2027-01-12", clubName: "OK Planering" })]);
+    expect(mails).toEqual([expect.objectContaining({ to: reader.email, kind: "TASK", taskTitle: "Skriva ut kartor", account: "MEMBER" }),
+      expect.objectContaining({ to: parentEmail, taskTitle: "Sätta ut kontroller", sessionTitle: "Kurvbildsträning",
+        sessionDate: "2027-01-12", clubName: "OK Planering", account: "NONE" })]);
     // En medlem får inte lägga uppgifter.
     expect((await createPlanTask(db, { ...reader.proof, clubId, sessionId, request: { formatVersion: 1, requestId: randomUUID(), title: "X",
       assignee: { kind: "NONE" } } }, NOW)).status).toBe("forbidden");

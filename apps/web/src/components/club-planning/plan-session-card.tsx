@@ -32,7 +32,7 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
 
   if (editing) return <div className={styles.session}>
     <PlanSessionForm plan={plan} termId={termId} session={session} busy={busy} onCancel={() => setEditing(false)}
-      onSave={async body => { if (await change(path, "PUT", body, () => text.session.saved)) setEditing(false); }} />
+      onSave={async body => { if (await change(path, "PUT", body, json => (json as { mailed?: boolean }).mailed ? text.session.savedMailed : text.session.saved)) setEditing(false); }} />
   </div>;
 
   const facts = [session.place, session.mapName ? text.session.mapIs(session.mapName) : "", session.groupName ? text.session.groupIs(session.groupName) : ""]

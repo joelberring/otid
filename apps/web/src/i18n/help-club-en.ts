@@ -245,10 +245,11 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "The other way, a finished training goes into the archive with ”Put in the club archive” on the training's page."
       ] },
       [
-        "A task can go to a member of the club or to an email address, for example a parent. With email on the server the person gets a short email.",
+        "A task can go to a member of the club or to an email address, for example a parent. With email on the server the person gets a short email, and so does the person made responsible for a training (one email for all the weeks), but not someone who gives the task to themselves. If the address has no account, the email says that an account must be created with exactly that address.",
+        "”Change” on a task changes the title or the person. The new person gets an email and the read access moves along.",
         "The person only sees their own tasks under ”My tasks” on My events, with time, place and the responsible person, and can tick them off.",
         "When the training exists the person gets read access to the course setting of that training: the courses, control map, descriptions and printing.",
-        "If the task is removed, the read access goes too."
+        "If the task is removed, the read access goes too. Many emails to the same person in a short time are blocked; the task is then saved without an email."
       ],
       "Elements, levels and own words follow the training when it is put in the club archive, where you can search for them. In the archive the level is suggested from the courses' names. The plan is never public; members without a leader role only see their own tasks."
     ]

@@ -198,6 +198,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     setAttempt(restoreOrganizerAttempt());
     const invitation = readInvitationHandoff();
     if (invitation) { setMode(invitation.mode); setEmail(invitation.email); setLockedEmail(invitation.mode === "register"); }
+    // Användartestet 2026-11-12 (D): mejlet om en uppgift till en adress utan konto länkar hit med ?konto=skapa.
+    else if (new URL(window.location.href).searchParams.get("konto") === "skapa") setMode("register");
     const googleProblem = takeGoogleProblem(copy);
     if (googleProblem) setMessage(googleProblem);
     const loggedOut = takeLoggedOut(copy);

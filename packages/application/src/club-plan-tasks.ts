@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
-import { clubPlanTaskCreateSchema, clubPlanTaskDoneSchema, type ClubPlanPerson, type MyPlanTasksResponse } from "@o-tid/contracts";
+import { clubPlanTaskCreateSchema, clubPlanTaskDoneSchema, clubPlanTaskUpdateSchema, type ClubPlanPerson, type MyPlanTasksResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { clubMembership, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction as Transaction } from "./club-access";
 import { confirmedMembersOf } from "./club-affiliations";
-import { consumeInvitationMailAllowance } from "./invitation-links";
+import { deliverPlanMail, preparePlanMail, type PlanTaskMailer } from "./club-plan-mail";
 import { defaultRaceOrganiser } from "./race-club-archive";
 import { insertEventWithRace } from "./organizer-events";
 import { fillPlannedGroupRace } from "./training-group-sessions";
@@ -24,12 +24,7 @@ const tasks = schema.clubPlanTasks;
 const grants = schema.courseSettingGrants;
 type Session = typeof sessions.$inferSelect;
 
-/** Mejlet till den som får en uppgift med e-postadress (skickas efter att uppgiften har sparats). */
-export interface PlanTaskMail {
-  readonly to: string; readonly inviterName: string; readonly clubName: string; readonly taskTitle: string;
-  readonly sessionTitle: string; readonly sessionDate: string; readonly startTime: string | null; readonly place: string;
-}
-export type PlanTaskMailer = (mail: PlanTaskMail) => Promise<void>;
+export type { PlanTaskMail, PlanTaskMailer } from "./club-plan-mail";
 
 /** Klubbens bekräftade medlemmar: raderna i klubben (med rollen) och de bekräftade tillhörigheterna (ADR-0209). */
 export async function planPeople(tx: Transaction, clubId: string): Promise<ClubPlanPerson[]> {
@@ -64,16 +59,19 @@ export async function removePlanTasks(tx: Transaction, session: Session, taskIds
   if (taskIds.length === 0) return;
   if (session.raceId) {
     const leaving = await tx.select({ id: tasks.id, accountId: tasks.assigneeAccountId }).from(tasks).where(inArray(tasks.id, [...taskIds]));
-    for (const task of leaving) {
-      if (!task.accountId) continue;
-      const [other] = await tx.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.sessionId, session.id),
-        eq(tasks.assigneeAccountId, task.accountId), sql`${tasks.id} not in (${sql.join(taskIds.map(id => sql`${id}::uuid`), sql`, `)})`)).limit(1);
-      const mine = and(eq(grants.raceId, session.raceId), eq(grants.accountId, task.accountId), eq(grants.requestId, task.id));
-      if (other) await tx.update(grants).set({ requestId: other.id }).where(mine);
-      else await tx.delete(grants).where(mine);
-    }
+    for (const task of leaving) await releaseTaskGrant(tx, session, task, taskIds);
   }
   await tx.delete(tasks).where(inArray(tasks.id, [...taskIds]));
+}
+
+/** Läsrätten som uppgiften gav: flyttas till personens andra uppgift på träningen (utom `leaving`), annars tas den bort. */
+async function releaseTaskGrant(tx: Transaction, session: Session, task: { id: string; accountId: string | null }, leaving: readonly string[]) {
+  if (!session.raceId || !task.accountId) return;
+  const [other] = await tx.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.sessionId, session.id),
+    eq(tasks.assigneeAccountId, task.accountId), sql`${tasks.id} not in (${sql.join(leaving.map(id => sql`${id}::uuid`), sql`, `)})`)).limit(1);
+  const mine = and(eq(grants.raceId, session.raceId), eq(grants.accountId, task.accountId), eq(grants.requestId, task.id));
+  if (other) await tx.update(grants).set({ requestId: other.id }).where(mine);
+  else await tx.delete(grants).where(mine);
 }
 
 async function leaderSession(tx: Transaction, input: ClubProof & { clubId: string; sessionId: string }, now: Date) {
@@ -105,22 +103,49 @@ export async function createPlanTask(db: Database, input: ClubProof & { clubId: 
     await tx.insert(tasks).values({ id, sessionId: session.id, title, assigneeAccountId: accountId, assigneeEmail: email, createdAt: now,
       createdBy: access.accountId, requestId });
     if (accountId && session.raceId) await grantCourseRead(tx, { raceId: session.raceId, accountId, taskId: id, actorId: access.accountId, now });
-    if (!email || !mailer) return { status: "ok", taskId: id, mail: undefined } as const;
-    // A1: samma spärr som inbjudningarna. Över gränsen sparas uppgiften men inget mejl skickas.
-    if (!await consumeInvitationMailAllowance(tx, { issuedBy: access.accountId, email, now })) return { status: "ok", taskId: id, mail: undefined } as const;
-    const [facts] = await tx.select({ inviterName: schema.userAccounts.displayName, clubName: schema.clubs.name }).from(schema.userAccounts)
-      .innerJoin(schema.clubs, eq(schema.clubs.id, access.clubId)).where(eq(schema.userAccounts.id, access.accountId));
-    const mail: PlanTaskMail = { to: email, inviterName: facts?.inviterName ?? "", clubName: facts?.clubName ?? "", taskTitle: title,
-      sessionTitle: session.title, sessionDate: session.sessionDate, startTime: session.startTime, place: session.place };
+    const recipient = accountId ? { accountId } : email ? { email } : undefined;
+    const mail = recipient ? await preparePlanMail(tx, { actorId: access.accountId, clubId: access.clubId, recipient, mailer, kind: "TASK",
+      taskTitle: title, session, now }) : undefined;
     return { status: "ok", taskId: id, mail } as const;
   });
   if (result.status !== "ok") return result;
-  let mailed = false;
-  if (result.mail && mailer) {
-    // Mejlet är en avisering: uppgiften gäller ändå när personen loggar in med adressen. Felet loggas av mejlaren.
-    try { await mailer(result.mail); mailed = true; } catch { mailed = false; }
-  }
-  return { status: "ok", taskId: result.taskId, mailed };
+  return { status: "ok", taskId: result.taskId, mailed: await deliverPlanMail(mailer, result.mail) };
+}
+
+/**
+ * Användartestet 2026-11-12 (D): rubriken och personen ändras. Byts personen flyttas läsrätten i banläggningen (som när en
+ * uppgift tas bort och läggs till), och den nya personen får mejlet. "Klar" står kvar när bara rubriken ändras.
+ */
+export async function updatePlanTask(db: Database, input: ClubProof & { clubId: string; sessionId: string; taskId: string; request: unknown },
+  now = new Date(), mailer?: PlanTaskMailer): Promise<ClubFailure | { status: "ok"; mailed: boolean }> {
+  const parsed = clubPlanTaskUpdateSchema.safeParse(input.request);
+  const result = await db.transaction(async tx => {
+    const found = await leaderSession(tx, input, now);
+    if (found.status !== "ok") return found;
+    const { access, session } = found;
+    if (!parsed.success || !UUID_PATTERN.test(input.taskId)) return { status: "invalid-request" } as const;
+    const [task] = await tx.select().from(tasks).where(and(eq(tasks.id, input.taskId), eq(tasks.sessionId, session.id))).for("update");
+    if (!task) return { status: "not-found" } as const;
+    const { title, assignee } = parsed.data;
+    const accountId = assignee.kind === "MEMBER" ? assignee.accountId : null;
+    const email = assignee.kind === "EMAIL" ? assignee.email : null;
+    const samePerson = accountId ? task.assigneeAccountId === accountId
+      : email ? !task.assigneeAccountId && task.assigneeEmail === email : !task.assigneeAccountId && !task.assigneeEmail;
+    if (accountId && !samePerson && !(await planPeople(tx, access.clubId)).some(person => person.accountId === accountId)) {
+      return { status: "invalid-request" } as const;
+    }
+    if (!samePerson) await releaseTaskGrant(tx, session, { id: task.id, accountId: task.assigneeAccountId }, [task.id]);
+    await tx.update(tasks).set({ title, ...(samePerson ? {} : { assigneeAccountId: accountId, assigneeEmail: email, doneAt: null }) })
+      .where(eq(tasks.id, task.id));
+    if (samePerson) return { status: "ok", mail: undefined } as const;
+    if (accountId && session.raceId) await grantCourseRead(tx, { raceId: session.raceId, accountId, taskId: task.id, actorId: access.accountId, now });
+    const recipient = accountId ? { accountId } : email ? { email } : undefined;
+    const mail = recipient ? await preparePlanMail(tx, { actorId: access.accountId, clubId: access.clubId, recipient, mailer, kind: "TASK",
+      taskTitle: title, session, now }) : undefined;
+    return { status: "ok", mail } as const;
+  });
+  if (result.status !== "ok") return result;
+  return { status: "ok", mailed: await deliverPlanMail(mailer, result.mail) };
 }
 
 export async function removePlanTask(db: Database, input: ClubProof & { clubId: string; sessionId: string; taskId: string }, now = new Date())

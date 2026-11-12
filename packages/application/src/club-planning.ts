@@ -9,6 +9,7 @@ import { schema, type Database } from "@o-tid/database";
 import { inTerm, isoWeekday, MAX_TERM_DAYS, repetitionDates, swedishToday } from "@o-tid/domain";
 import { requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction as Transaction } from "./club-access";
 import { planPeople, removePlanTasks } from "./club-plan-tasks";
+import { deliverPlanMail, preparePlanMail, type PlanTaskMailer } from "./club-plan-mail";
 import { UUID_PATTERN } from "./serialization";
 
 /**
@@ -61,6 +62,7 @@ async function sessionViews(tx: Transaction, termId: string): Promise<ClubPlanSe
     moments: orderedMoments(session.moments), levels: orderedLevels(session.levels), tags: session.tags,
     tasks: taskRows.filter(row => row.task.sessionId === session.id).map(({ task, name }) => ({ taskId: task.id, title: task.title,
       assigneeName: name ?? null, assigneeEmail: name ? null : task.assigneeEmail, pending: !name && task.assigneeEmail !== null,
+      assigneeAccountId: name ? task.assigneeAccountId : null,
       done: task.doneAt !== null }))
   }));
 }
@@ -148,10 +150,10 @@ async function validReferences(tx: Transaction, clubId: string, accountId: strin
 }
 
 /** En träning, eller samma träning varje vecka till terminens slut (`weekly`). */
-export async function createPlanSessions(db: Database, input: Input & { request: unknown }, now = new Date())
-  : Promise<ClubFailure | { status: "ok"; sessionIds: string[] } | { status: "outside" | "too-many" }> {
+export async function createPlanSessions(db: Database, input: Input & { request: unknown }, now = new Date(), mailer?: PlanTaskMailer)
+  : Promise<ClubFailure | { status: "ok"; sessionIds: string[]; mailed: boolean } | { status: "outside" | "too-many" }> {
   const parsed = clubPlanSessionCreateSchema.safeParse(input.request);
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     const access = await requireClubRole(tx, input, "LEADER", now, true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
@@ -178,14 +180,21 @@ export async function createPlanSessions(db: Database, input: Input & { request:
     const rows = dates.map((sessionDate, index) => ({ id: randomUUID(), clubId: access.clubId, termId: term.id, ...fields, sessionDate,
       createdAt: now, createdBy: access.accountId, updatedAt: now, requestId: index === 0 ? requestId : randomUUID() }));
     await tx.insert(sessions).values(rows);
-    return { status: "ok", sessionIds: rows.map(row => row.id) } as const;
+    // Användartestet 2026-11-12 (D): den ansvarige får ett mejl, ett för alla veckor.
+    const mail = fields.responsibleAccountId ? await preparePlanMail(tx, { actorId: access.accountId, clubId: access.clubId,
+      recipient: { accountId: fields.responsibleAccountId }, mailer, kind: "RESPONSIBLE", taskTitle: "", session: { ...fields, sessionDate: dates[0]! },
+      repeats: dates.length > 1 ? { count: dates.length, lastDate: dates[dates.length - 1]! } : null, now }) : undefined;
+    return { status: "ok", sessionIds: rows.map(row => row.id), mail } as const;
   });
+  if (result.status !== "ok") return result;
+  // Samma begäran igen skickar inget nytt mejl.
+  return { status: "ok", sessionIds: result.sessionIds, mailed: "mail" in result ? await deliverPlanMail(mailer, result.mail) : false };
 }
 
-export async function updatePlanSession(db: Database, input: Input & { sessionId: string; request: unknown }, now = new Date())
-  : Promise<ClubFailure | { status: "ok"; version: number } | { status: "outside" }> {
+export async function updatePlanSession(db: Database, input: Input & { sessionId: string; request: unknown }, now = new Date(), mailer?: PlanTaskMailer)
+  : Promise<ClubFailure | { status: "ok"; version: number; mailed: boolean } | { status: "outside" }> {
   const parsed = clubPlanSessionUpdateSchema.safeParse(input.request);
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     const access = await requireClubRole(tx, input, "LEADER", now, true);
     if (access.status !== "ok") return access;
     if (!parsed.success || !UUID_PATTERN.test(input.sessionId)) return { status: "invalid-request" } as const;
@@ -205,8 +214,12 @@ export async function updatePlanSession(db: Database, input: Input & { sessionId
         await tx.insert(schema.eventAdministrationGrants).values({ eventId: race.eventId, accountId: responsible, role: "ADMIN", grantedAt: now });
       }
     }
-    return { status: "ok", version: version + 1 } as const;
+    const mail = responsible && responsible !== row.session.responsibleAccountId ? await preparePlanMail(tx, { actorId: access.accountId,
+      clubId: access.clubId, recipient: { accountId: responsible }, mailer, kind: "RESPONSIBLE", taskTitle: "", session: fields, now }) : undefined;
+    return { status: "ok", version: version + 1, mail } as const;
   });
+  if (result.status !== "ok") return result;
+  return { status: "ok", version: result.version, mailed: await deliverPlanMail(mailer, result.mail) };
 }
 
 /** Tar bort raden ur planen med uppgifterna (och deras läsrätt). En träning som redan har skapats står kvar. */

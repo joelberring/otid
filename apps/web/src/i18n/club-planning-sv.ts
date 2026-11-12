@@ -67,6 +67,8 @@ export const clubPlanningSv = {
     groupIs: (name: string) => `Grupp: ${name}`,
     created: (count: number) => count === 1 ? "Träningen är tillagd." : `${count} träningar är tillagda.`,
     saved: "Sparat.",
+    savedMailed: "Sparat. Den ansvarige har fått ett mejl.",
+    responsibleMailed: "Den ansvarige har fått ett mejl.",
     raceCreated: "Träningen är skapad.",
     outside: "Datumet ligger utanför terminen.",
     tooMany: "Terminen har redan så många träningar som går.",
@@ -98,14 +100,20 @@ export const clubPlanningSv = {
     email: "E-postadress",
     nobody: "Ingen än",
     chooseMember: "Välj medlem",
-    emailHelp: "Personen ser uppgiften när hen loggar in i O-Tid med adressen. Med e-post på servern får hen ett kort mejl.",
+    emailHelp: "Personen ser uppgiften när hen loggar in i O-Tid med adressen. Med e-post på servern får hen ett kort mejl; har adressen inget konto säger mejlet hur kontot skapas.",
     pending: "väntar på inloggning",
     unassigned: "ingen än",
     done: "Klar",
     remove: "Ta bort uppgiften",
     removeConfirm: (title: string) => `Ta bort uppgiften ${title}?`,
     added: "Uppgiften är tillagd.",
-    mailed: "Uppgiften är tillagd och ett mejl är skickat."
+    mailed: "Uppgiften är tillagd och ett mejl är skickat.",
+    /** Användartestet 2026-11-12 (D): ändra en uppgift. */
+    edit: "Ändra",
+    editTitle: (title: string) => `Ändra uppgiften ${title}`,
+    save: "Spara uppgiften",
+    changed: "Uppgiften är ändrad.",
+    changedMailed: "Uppgiften är ändrad och ett mejl är skickat."
   },
   mine: {
     title: "Mina uppgifter",
@@ -125,11 +133,19 @@ export const clubPlanningSv = {
     generic: (status: number) => `Det gick inte (fel ${status}).` },
   mail: {
     subject: (task: string, date: string) => `Uppgift i O-Tid: ${task} ${date}`,
+    subjectResponsible: (title: string, date: string) => `Ansvarig i O-Tid: ${title} ${date}`,
     greeting: "Hej!",
     body: (inviter: string, club: string, task: string) => `${inviter} i ${club} har gett dig uppgiften ”${task}”.`,
+    bodyResponsible: (inviter: string, club: string) => `${inviter} i ${club} har gjort dig ansvarig för en träning.`,
     when: (title: string, date: string, time: string | null, place: string) =>
       `Träning: ${title}, ${date}${time ? ` kl. ${time}` : ""}${place ? `, ${place}` : ""}.`,
-    open: "Logga in i O-Tid med den här adressen för att se uppgiften. När träningen finns ser du banorna där:",
+    repeats: (count: number, last: string) => `Samma träning varje vecka, ${count} gånger till och med ${last}.`,
+    /** Användartestet 2026-11-12 (D): efter vem mottagaren är (medlem, adress med konto, adress utan konto). */
+    open: {
+      MEMBER: "Du ser det under Mina uppgifter när du loggar in i O-Tid. När träningen finns ser du banorna där:",
+      ACCOUNT: "Logga in i O-Tid med den här adressen för att se det under Mina uppgifter. När träningen finns ser du banorna där:",
+      NONE: "Du behöver ett konto i O-Tid med just den här adressen. Skapa kontot med länken nedan och bekräfta adressen, så ser du det under Mina uppgifter:"
+    },
     ignore: "Känner du inte igen klubben kan du strunta i meddelandet.",
     signature: "O-Tid"
   }

@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   applyEdit, carryForkLetters, courseVariants, purplePenLetterDifferences, readPpen, variantLetters, variations, writePpen,
@@ -58,6 +60,27 @@ describe("bakåtkompatibilitet: dokument utan sparade bokstäver", () => {
     expect(Object.values(moved.courseControls).some(item => item.letter !== undefined)).toBe(false);
     expect(moved.courses.some(row => row.retiredLetters !== undefined)).toBe(false);
     expect(codes(moved, course)).toEqual(["AC", "AD", "AE", "BC", "BD", "BE"]);
+  });
+
+  it("alla .ppen-filer i fixtures: samma bokstäver som Purple Pen, och en flyttad kontroll skriver inga bokstäver", () => {
+    const folder = join(import.meta.dirname, "../../../fixtures/course-setting");
+    const files = readdirSync(folder).filter(name => name.endsWith(".ppen"));
+    expect(files.length).toBeGreaterThan(0);
+    let forked = 0;
+    for (const name of files) {
+      const document = readPpen(readFileSync(join(folder, name), "utf8")).document;
+      for (const course of document.courses) {
+        const own = [...variantLetters(document, course.id).entries()];
+        expect(own, `${name} ${course.name}`).toEqual([...variantLetters(document, course.id, { ignoreStored: true }).entries()]);
+        if (own.length > 0) forked++;
+      }
+      const control = Object.values(document.controls)[0];
+      if (!control) continue;
+      const moved = applyEdit(document, { type: "MOVE_CONTROL", control: control.id, at: { x: control.at.x + 1, y: control.at.y } }).document;
+      expect(Object.values(moved.courseControls).some(item => item.letter !== undefined), name).toBe(false);
+      for (const course of document.courses) expect(codes(moved, course.id), `${name} ${course.name}`).toEqual(codes(document, course.id));
+    }
+    expect(forked).toBeGreaterThan(0);
   });
 
   it("en .ppen utan O-Tid:s bokstäver läses in i Purple Pens ordning", () => {

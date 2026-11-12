@@ -83,16 +83,17 @@ export async function maybeAutoArchive(tx: DbExecutor, raceId: string, now: Date
 }
 
 /**
- * Efter en sparad avläsning eller ett beslut, sist i samma transaktion. Det billiga villkoret prövas först; resten körs i en
- * sparpunkt, och ett fel där loggas (utan namn), sparas som `FAILED` och görs om av underhållsvarvet. Avläsningen sparas ändå.
+ * Efter en sparad avläsning eller ett beslut, sist i samma transaktion. Allt (också det billiga villkoret) körs i en sparpunkt:
+ * ett fel där får aldrig stoppa avläsningen. Det loggas (utan namn), sparas som `FAILED` när det går och görs om av
+ * underhållsvarvet.
  */
 export async function autoArchiveAfterResult(tx: Transaction, raceId: string, now: Date): Promise<void> {
-  if (!await candidate(tx, raceId)) return;
   try {
     await tx.transaction(savepoint => maybeAutoArchive(savepoint, raceId, now));
   } catch (error) {
     console.error(`Automatisk arkivering av tävlingen ${raceId} misslyckades: ${error instanceof Error ? error.message : String(error)}`);
-    await recordAutoArchiveProblem(tx, { raceId, problem: "FAILED", now });
+    // Också problemet i en sparpunkt (tabellen kan saknas i en databas som inte är migrerad än).
+    await tx.transaction(savepoint => recordAutoArchiveProblem(savepoint, { raceId, problem: "FAILED", now })).catch(() => undefined);
   }
 }
 

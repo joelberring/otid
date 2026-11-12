@@ -70,17 +70,19 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     return () => { closed = true; };
   }, [layers, images, base]);
 
-  const drawn = useMemo((): DrawnLayer[] => {
+  /** Alla inlästa underlag, också de släckta (ägaren 2026-11-12: reglagen ska inte kräva att underlaget är tänt). */
+  const loaded = useMemo((): DrawnLayer[] => {
     if (!georeference) return [];
     const result: DrawnLayer[] = [];
     for (const layer of [...layers].sort((a, b) => a.sort - b.sort || a.createdAt.localeCompare(b.createdAt))) {
       const image = images.get(layer.layerId);
-      if (!image || hidden.has(layer.layerId)) continue;
+      if (!image) continue;
       try { result.push({ layerId: layer.layerId, image, toMap: layerToMap(layer, georeference), opacity: layer.opacity,
         ...(image.width !== layer.width ? { size: { width: layer.width, height: layer.height } } : {}) }); } catch { /* Okänt system. */ }
     }
     return result;
-  }, [layers, images, hidden, georeference]);
+  }, [layers, images, georeference]);
+  const drawn = useMemo(() => loaded.filter(layer => !hidden.has(layer.layerId)), [loaded, hidden]);
 
   /** Gör bilden klar (`prepare`) och lägger upp den som underlag. */
   const add = useCallback(async (prepare: () => Promise<PreparedLayer>, name: string, reload = true): Promise<boolean> => {
@@ -166,6 +168,6 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
 
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
-  return { layers: listed, hidden, toggle, drawn, upload, addRemote, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
+  return { layers: listed, hidden, toggle, drawn, loaded, upload, addRemote, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
     canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

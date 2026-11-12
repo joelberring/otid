@@ -186,7 +186,7 @@ export const mapSourcesEn: Texts<Sources> = {
     heading: "Moisture with sliders (wet and moist)",
     help: "The laser run's moisture depth (height above the nearest moisture channel) is read here. Drag the limits: the areas show at once as candidates on the map, "
       + "without a new run. Wet becomes marsh (308) and moist indistinct marsh (310).",
-    none: "No moisture depth shown. Run Karttapullautin with moisture and keep the base layer ending in “fuktdjup” shown.",
+    none: "No moisture depth among the base layers. Run the laser job with moisture first.",
     layer: "Base layer",
     wet: (meters: string) => `Wet: up to ${meters} m above the channel`,
     moist: (meters: string) => `Moist: up to ${meters} m`,
@@ -202,7 +202,7 @@ export const mapSourcesEn: Texts<Sources> = {
   green: {
     heading: "Green with sliders (406, 408, 410)",
     help: "The laser run's vegetation classes are read here. A higher step gives less green; the areas show at once as candidates on the map, without a new run.",
-    none: "No vegetation classes shown. Run Karttapullautin with vegetation and keep the base layer ending in “vegetationsklasser” shown.",
+    none: "No vegetation classes among the base layers. Run the laser job with vegetation first.",
     layer: "Base layer",
     step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Slow running (406)", difficult: "Difficult to run (408)", fight: "Very difficult (410)" }[key]} from step ${value}`,
     minArea: (square: number) => `Smallest area: ${square} m²`,

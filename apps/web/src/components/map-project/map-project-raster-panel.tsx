@@ -39,7 +39,7 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
   const [live, setLive] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const pixels = useRef<{ layerId: string; data: ImageData } | undefined>(undefined);
-  const shown = layers.drawn.map(drawn => ({ drawn, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }))
+  const shown = layers.loaded.map(drawn => ({ drawn, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }))
     .filter(row => match.test(row.name));
   const current = shown.find(row => row.drawn.layerId === chosen) ?? shown[0];
   const crs = georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined;

@@ -66,7 +66,7 @@ export const mapSourcesSv = {
     heading: "Fukt med reglage (blött och fuktigt)",
     help: "Laserkörningens fuktdjup (höjden över närmaste fuktstråk) läses här. Dra i gränserna: ytorna visas direkt som kandidater på kartan, "
       + "utan en ny körning. Blött blir sankmark (308) och fuktigt otydlig sankmark (310).",
-    none: "Inget fuktdjup tänt. Kör Karttapullautin med fuktigheten och låt underlaget som slutar på ”fuktdjup” vara tänt.",
+    none: "Inget fuktdjup bland underlagen. Kör laserjobbet med fuktigheten först.",
     layer: "Underlag",
     wet: (meters: string) => `Blött: upp till ${meters} m över fuktstråket`,
     moist: (meters: string) => `Fuktigt: upp till ${meters} m`,
@@ -82,7 +82,7 @@ export const mapSourcesSv = {
   green: {
     heading: "Grönt med reglage (406, 408, 410)",
     help: "Laserkörningens vegetationsklasser läses här. Ett högre steg ger mindre grönt; ytorna visas direkt som kandidater på kartan, utan en ny körning.",
-    none: "Inga vegetationsklasser tända. Kör Karttapullautin med vegetationen och låt underlaget som slutar på ”vegetationsklasser” vara tänt.",
+    none: "Inga vegetationsklasser bland underlagen. Kör laserjobbet med vegetationen först.",
     layer: "Underlag",
     step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Löphindrande (406)", difficult: "Svårlöpt (408)", fight: "Mycket svårlöpt (410)" }[key]} från steg ${value}`,
     minArea: (square: number) => `Minsta yta: ${square} m²`,

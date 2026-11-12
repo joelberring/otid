@@ -36,6 +36,38 @@ export function validLaserBox(box: Wgs84Box): boolean {
     && box.east - box.west <= LASER_SEARCH_LIMITS.maxSpanDegrees * 2 && boxAreaKm2(box) <= LASER_SEARCH_LIMITS.maxAreaKm2;
 }
 
+/**
+ * Ägaren 2026-11-12 («varför kan man inte hämta openstreetmap och hyggen i omgångar så att gränsen blir samma?»): en ruta
+ * upp till laserns gräns delas i rutor som var för sig ryms i en Overpass-fråga. Samma objekt kan komma i flera rutor och
+ * räknas en gång (`mergeOverpass`).
+ */
+export function osmTiles(box: Wgs84Box): Wgs84Box[] {
+  if (!validLaserBox(box)) return [];
+  let rows = Math.ceil((box.north - box.south) / OSM_LIMITS.maxSpanDegrees), cols = Math.ceil((box.east - box.west) / (OSM_LIMITS.maxSpanDegrees * 2));
+  while (boxAreaKm2(box) / (rows * cols) > OSM_LIMITS.maxAreaKm2) { if (rows <= cols) rows += 1; else cols += 1; }
+  const tiles: Wgs84Box[] = [];
+  for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
+    tiles.push({ south: box.south + (box.north - box.south) * row / rows, north: box.south + (box.north - box.south) * (row + 1) / rows,
+      west: box.west + (box.east - box.west) * col / cols, east: box.west + (box.east - box.west) * (col + 1) / cols });
+  }
+  return tiles;
+}
+
+/** Flera Overpass-svar som ett; ett objekt (typ och id) tas med en gång. */
+export function mergeOverpass(answers: readonly unknown[]): { elements: unknown[] } {
+  const seen = new Set<string>(), elements: unknown[] = [];
+  for (const answer of answers) {
+    const list = (answer as { elements?: unknown } | null)?.elements;
+    if (!Array.isArray(list)) throw new Error("Svaret från OpenStreetMap gick inte att läsa");
+    for (const element of list as { type?: unknown; id?: unknown }[]) {
+      const key = `${String(element?.type)}/${String(element?.id)}`;
+      if (element?.id !== undefined && seen.has(key)) continue;
+      seen.add(key); elements.push(element);
+    }
+  }
+  return { elements };
+}
+
 /** Overpass-frågan: det som orienteringskartan har nytta av, med geometrin direkt (`out geom`). */
 export function overpassQuery(box: Wgs84Box): string {
   const b = `(${[box.south, box.west, box.north, box.east].map(value => value.toFixed(7)).join(",")})`;

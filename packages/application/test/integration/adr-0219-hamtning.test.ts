@@ -65,6 +65,13 @@ describe("ADR-0219 K4c: hämtning", () => {
       .toBe("too-large");
     expect((await fetchMapProjectOsm(db, { ...reader.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("forbidden");
     expect(calls).toHaveLength(1);
+    // Ett område över en frågas gräns hämtas i rutor; samma objekt i två rutor räknas en gång.
+    let tiles = 0;
+    const tiled = { ...runtime, fetch: (async () => { tiles += 1; return Response.json({ elements: [{ type: "way", id: 7, tags: { building: "yes" },
+      geometry: [{ lat: 59.3, lon: 18.01 }, { lat: 59.3, lon: 18.011 }, { lat: 59.301, lon: 18.011 }, { lat: 59.3, lon: 18.01 }] }] }); }) as typeof fetch };
+    const wide = await fetchMapProjectOsm(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: { south: 59.2, west: 18.0, north: 59.28, east: 18.18 } } }, tiled, NOW);
+    expect(wide.status === "ok" && wide.data.features).toHaveLength(1);
+    expect(tiles).toBeGreaterThan(1);
   });
 
   it("uppgifterna: sparas krypterade, visas aldrig, ersätts och tas bort med kontot", async () => {

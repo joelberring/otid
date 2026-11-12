@@ -1,6 +1,6 @@
 import { mapProjectOsmRequestSchema } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { OSM_ATTRIBUTION, osmToSourceData, overpassQuery, validOsmBox, type SourceData } from "@o-tid/map-revision";
+import { OSM_ATTRIBUTION, mergeOverpass, osmTiles, osmToSourceData, overpassQuery, validLaserBox, type SourceData } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubFailure, ClubProof } from "./club-access";
 import { requireMapProject } from "./map-project-access";
@@ -51,30 +51,36 @@ export async function fetchMapProjectOsm(db: Database, input: ClubProof & { proj
     const access = await requireMapProject(tx, input, now, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    if (!validOsmBox(parsed.data.box)) return { status: "too-large" } as const;
+    if (!validLaserBox(parsed.data.box)) return { status: "too-large" } as const;
     if (!await consumeAccountRequestAllowance(tx, { scope: "MAP_SOURCE_ACCOUNT", key: access.accountId, limit: FETCHES_PER_HOUR, windowMs: 3_600_000 }, now)) {
       return { status: "throttled" } as const;
     }
     return { status: "ok" } as const;
   });
   if (allowed.status !== "ok") return allowed;
-  const box = parsed.data!.box;
   const fetcher = runtime.fetch ?? fetch;
-  let response: Response;
-  try {
-    response = await fetcher(runtime.overpassUrl, {
-      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json", "user-agent": "O-Tid kartprojekt" },
-      body: new URLSearchParams({ data: overpassQuery(box) }).toString(), signal: AbortSignal.timeout(runtime.timeoutMs ?? 120_000), redirect: "error"
-    });
-  } catch (error) {
-    return { status: "unavailable", detail: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network" };
+  // Ett stort område hämtas ruta för ruta, en i taget (Overpass är en delad tjänst).
+  const answers: unknown[] = [];
+  let bytes = 0;
+  for (const box of osmTiles(parsed.data!.box)) {
+    let response: Response;
+    try {
+      response = await fetcher(runtime.overpassUrl, {
+        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json", "user-agent": "O-Tid kartprojekt" },
+        body: new URLSearchParams({ data: overpassQuery(box) }).toString(), signal: AbortSignal.timeout(runtime.timeoutMs ?? 120_000), redirect: "error"
+      });
+    } catch (error) {
+      return { status: "unavailable", detail: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network" };
+    }
+    if (response.status === 429 || response.status === 504) return { status: "unavailable", detail: "busy" };
+    if (!response.ok) return { status: "unavailable", detail: `http-${response.status}` };
+    const text = await readLimited(response, MAX_RESPONSE_BYTES - bytes);
+    if (text === undefined) return { status: "too-large" };
+    bytes += text.length;
+    try { answers.push(JSON.parse(text) as unknown); } catch { return { status: "unavailable", detail: "format" }; }
   }
-  if (response.status === 429 || response.status === 504) return { status: "unavailable", detail: "busy" };
-  if (!response.ok) return { status: "unavailable", detail: `http-${response.status}` };
-  const text = await readLimited(response, MAX_RESPONSE_BYTES);
-  if (text === undefined) return { status: "too-large" };
   try {
-    return { status: "ok", data: osmToSourceData(JSON.parse(text) as unknown), attribution: OSM_ATTRIBUTION };
+    return { status: "ok", data: osmToSourceData(mergeOverpass(answers)), attribution: OSM_ATTRIBUTION };
   } catch {
     return { status: "unavailable", detail: "format" };
   }

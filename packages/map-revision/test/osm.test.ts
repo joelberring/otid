@@ -1,6 +1,6 @@
 /** K4c: OpenStreetMap via Overpass blir samma lager och objekt som en vektorfil, med svenska lagernamn som ger symbolförslag. */
 import { describe, expect, it } from "vitest";
-import { importLayers, joinRings, osmLayer, osmToSourceData, overpassQuery, suggestSymbol, validOsmBox } from "../src";
+import { importLayers, joinRings, osmLayer, osmToSourceData, mergeOverpass, osmTiles, overpassQuery, suggestSymbol, validOsmBox } from "../src";
 
 const geometry = (...points: [number, number][]) => points.map(([lon, lat]) => ({ lat, lon }));
 const SYMBOLS = [
@@ -49,5 +49,17 @@ describe("OpenStreetMap", () => {
     expect(joinRings([[[0, 0], [1, 0]]])).toEqual([]);
     expect(osmLayer({ building: "roof" }, true)?.layer).toBe("OSM skärmtak (building=roof)");
     expect(() => osmToSourceData({ nope: 1 })).toThrow();
+  });
+
+  it("ett stort område delas i rutor som var för sig ryms i en fråga, och dubbletter räknas en gång", () => {
+    const box = { south: 59.0, west: 18.0, north: 59.08, east: 18.18 };
+    const tiles = osmTiles(box);
+    expect(tiles.length).toBeGreaterThan(1);
+    expect(tiles.every(validOsmBox)).toBe(true);
+    expect(Math.min(...tiles.map(t => t.south))).toBe(box.south);
+    expect(Math.max(...tiles.map(t => t.east))).toBeCloseTo(box.east, 9);
+    expect(osmTiles({ south: 59.29, west: 18.0, north: 59.31, east: 18.04 })).toHaveLength(1);
+    expect(osmTiles({ south: 59.0, west: 18.0, north: 59.5, east: 18.5 })).toHaveLength(0);
+    expect(mergeOverpass([{ elements: [{ type: "way", id: 1 }, { type: "node", id: 1 }] }, { elements: [{ type: "way", id: 1 }] }]).elements).toHaveLength(2);
   });
 });

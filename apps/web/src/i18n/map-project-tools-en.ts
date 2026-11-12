@@ -114,7 +114,7 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
     STORAGE_QUOTA_EXCEEDED: "The storage is not enough for the drawing.",
     crs: "The coordinate system is not supported (SWEREF 99, RT 90, UTM or WGS 84).",
     generic: (status: number) => `That did not work (${status}).`,
-    SOURCE_AREA_TOO_LARGE: "The area is too large for one fetch (at most about 40 km²). Choose a stage.",
+    SOURCE_AREA_TOO_LARGE: "The area is too large for one fetch (at most about 100 km²). Choose a stage.",
     SOURCE_THROTTLED: "Too many fetches in the last hour. Try again later.",
     SOURCE_UNAVAILABLE: "OpenStreetMap did not answer right now. Try again in a while."
   }

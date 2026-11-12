@@ -1,7 +1,7 @@
 import { mapProjectOsmRequestSchema, type MapProjectClearCut } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { geodeticToGrid, transverseMercatorFor } from "@o-tid/map-file";
-import { validOsmBox } from "@o-tid/map-revision";
+import { validLaserBox } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubProof } from "./club-access";
 import { requireMapProject } from "./map-project-access";
@@ -16,7 +16,9 @@ import type { MapSourceFailure } from "./map-project-sources";
 export const DEFAULT_CLEAR_CUT_URL = "https://geodpags.skogsstyrelsen.se/arcgis/rest/services/Geodataportal/GeodataportalVisaUtfordavverkning/MapServer/1";
 export const CLEAR_CUT_ATTRIBUTION = "Utförda avverkningar © Skogsstyrelsen";
 const FETCHES_PER_HOUR = 20;
-const MAX_FEATURES = 2000;
+/** Tjänsten svarar med högst så många per fråga; ett stort område hämtas i omgångar (`resultOffset`). */
+const PAGE = 2000;
+const MAX_PAGES = 5;
 
 export interface ClearCutRuntime { readonly url: string; readonly fetch?: typeof fetch; readonly timeoutMs?: number }
 export function clearCutRuntimeFromEnvironment(environment: Record<string, string | undefined>): ClearCutRuntime {
@@ -52,7 +54,7 @@ export async function fetchMapProjectClearCuts(db: Database, input: ClubProof & 
     const access = await requireMapProject(tx, input, now, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    if (!validOsmBox(parsed.data.box)) return { status: "too-large" } as const;
+    if (!validLaserBox(parsed.data.box)) return { status: "too-large" } as const;
     if (!await consumeAccountRequestAllowance(tx, { scope: "MAP_SOURCE_ACCOUNT", key: access.accountId, limit: FETCHES_PER_HOUR, windowMs: 3_600_000 }, now)) {
       return { status: "throttled" } as const;
     }
@@ -64,19 +66,28 @@ export async function fetchMapProjectClearCuts(db: Database, input: ClubProof & 
   const corners = [[south, west], [south, east], [north, west], [north, east]].map(([lat, lon]) => geodeticToGrid(projection, lat!, lon!));
   const envelope = [Math.min(...corners.map(c => c.easting)), Math.min(...corners.map(c => c.northing)), Math.max(...corners.map(c => c.easting)),
     Math.max(...corners.map(c => c.northing))].map(value => Math.round(value)).join(",");
-  const query = new URLSearchParams({ where: "1=1", geometry: envelope, geometryType: "esriGeometryEnvelope", inSR: "3006", outSR: "3006",
-    spatialRel: "esriSpatialRelIntersects", outFields: "Avvdatum,Avverktyp", returnGeometry: "true", resultRecordCount: String(MAX_FEATURES), f: "geojson" });
-  let response: Response;
-  try {
-    response = await (runtime.fetch ?? fetch)(`${runtime.url}/query?${query}`, { headers: { accept: "application/geo+json, application/json", "user-agent": "O-Tid kartprojekt" },
-      signal: AbortSignal.timeout(runtime.timeoutMs ?? 60_000), redirect: "error" });
-  } catch (error) {
-    return { status: "unavailable", detail: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network" };
+  const cuts: MapProjectClearCut[] = [];
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const query = new URLSearchParams({ where: "1=1", geometry: envelope, geometryType: "esriGeometryEnvelope", inSR: "3006", outSR: "3006",
+      spatialRel: "esriSpatialRelIntersects", outFields: "Avvdatum,Avverktyp", returnGeometry: "true",
+      resultRecordCount: String(PAGE), f: "geojson" });
+    if (page > 0) query.set("resultOffset", String(page * PAGE));
+    let response: Response;
+    try {
+      response = await (runtime.fetch ?? fetch)(`${runtime.url}/query?${query}`, { headers: { accept: "application/geo+json, application/json", "user-agent": "O-Tid kartprojekt" },
+        signal: AbortSignal.timeout(runtime.timeoutMs ?? 60_000), redirect: "error" });
+    } catch (error) {
+      return { status: "unavailable", detail: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network" };
+    }
+    if (!response.ok) return { status: "unavailable", detail: `http-${response.status}` };
+    let json: { features?: unknown[]; properties?: { exceededTransferLimit?: boolean }; exceededTransferLimit?: boolean };
+    try {
+      json = await response.json() as typeof json;
+      cuts.push(...clearCutsFromGeoJson(json));
+    } catch {
+      return { status: "unavailable", detail: "format" };
+    }
+    if ((json.features?.length ?? 0) < PAGE && !json.exceededTransferLimit && !json.properties?.exceededTransferLimit) break;
   }
-  if (!response.ok) return { status: "unavailable", detail: `http-${response.status}` };
-  try {
-    return { status: "ok", cuts: clearCutsFromGeoJson(await response.json()), attribution: CLEAR_CUT_ATTRIBUTION };
-  } catch {
-    return { status: "unavailable", detail: "format" };
-  }
+  return { status: "ok", cuts, attribution: CLEAR_CUT_ATTRIBUTION };
 }

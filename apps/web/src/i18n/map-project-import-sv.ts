@@ -72,7 +72,7 @@ export const mapProjectImportSv = {
     STORAGE_QUOTA_EXCEEDED: "Lagringsutrymmet räcker inte för ritningen.",
     crs: "Koordinatsystemet stöds inte (SWEREF 99, RT 90, UTM eller WGS 84).",
     generic: (status: number) => `Det gick inte (${status}).`,
-    SOURCE_AREA_TOO_LARGE: "Området är för stort för en hämtning (högst omkring 40 km²). Välj en etapp.",
+    SOURCE_AREA_TOO_LARGE: "Området är för stort för en hämtning (högst omkring 100 km²). Välj en etapp.",
     SOURCE_THROTTLED: "För många hämtningar den senaste timmen. Försök igen senare.",
     SOURCE_UNAVAILABLE: "OpenStreetMap svarade inte just nu. Försök igen om en stund."
   }

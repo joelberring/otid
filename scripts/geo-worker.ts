@@ -80,7 +80,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 22;
+export const WORKER_VERSION = 23;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -91,15 +91,26 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
     signal: init.signal ?? AbortSignal.timeout(60_000) });
 }
 
-/** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (en ruta i taget, filerna sparas). */
-export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false, vegetationClasses = false): string {
+/**
+ * Hur många laserrutor som körs samtidigt (ägaren 2026-11-11–12: «flera rutor per kärna, så har jag gjort förut när jag kört
+ * karttap själv»): en per kärna, men inte fler än minnet räcker till. Varje ruta räknas till 1,5 GB och 2 GB hålls undan för
+ * resten av arbetaren; måtten är satta med marginal, inte uppmätta. Andra försöket kör en i taget: dog det första kan det
+ * ha varit minnet.
+ */
+export function parallelTiles(tiles: number, cores: number, memoryGb: number, attempt = 1): number {
+  if (attempt > 1) return 1;
+  return Math.max(1, Math.min(tiles, cores, Math.floor((memoryGb * 0.85 - 2) / 1.5)));
+}
+
+/** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (rutorna i `processes` samtidiga, filerna sparas). */
+export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false, vegetationClasses = false, processes = 1): string {
   // `greenscale` är O-Tids egen: en faktor på Karttapullautins gränser för grönt (`greenshades`), inte en rad i filen.
   // Geo-arbetarens egna (gult, grönt, kullar, berg i dagen) skrivs inte heller i filen.
   const OWN = new Set(["greenscale", "openshare", "denseshare", "knollshare", "rock"]);
   const greenscale = settings.greenscale, pullautin = Object.fromEntries(Object.entries(settings).filter(([key]) => !OWN.has(key)));
   const shades = greenscale && greenscale !== 1 ? /^\s*greenshades\s*=\s*([^\r\n#]+)/m.exec(base)?.[1]?.split("|").map(Number) : undefined;
   const fixed: Record<string, string | number> = { ...pullautin, ...(shades?.every(Number.isFinite)
-    ? { greenshades: shades.map(value => value >= 99 ? value : Math.round(value * greenscale! * 1000) / 1000).join("|") } : {}), batch: 1, processes: 1, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
+    ? { greenshades: shades.map(value => value >= 99 ? value : Math.round(value * greenscale! * 1000) / 1000).join("|") } : {}), batch: 1, processes, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
     savetempfolders: keepTemp ? 1 : 0, output_dxf: 1, ...(vegetationClasses ? { vege_bitmode: 1 } : {}) };
   const seen = new Set<string>();
   const lines = base.split(/\r?\n/).map(line => {
@@ -161,7 +172,10 @@ async function runJob(job: Job): Promise<void> {
         + "Kör om jobbet om en halvtimme, när servern har stängts av, eller dela området i etapper.");
     }
     await set("Hämtar laserdata", 0, job.tiles.length);
-    for (const tile of job.tiles) {
+    // Rutorna hämtas och klipps flera samtidigt (en per kärna, så långt minnet räcker); Karttapullautin kör dem likadant.
+    const together = parallelTiles(job.tiles.length, cpus().length, totalmem() / 2 ** 30, job.attempt);
+    let fetched = 0;
+    const fetchTile = async (tile: Job["tiles"][number]) => {
       const response = await call(`/api/geo-worker/jobs/${job.jobId}/laser/${tile.index}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]) });
       if (!response.ok || !response.body) {
         const detail = await response.json().catch(() => undefined) as { error?: string; detail?: string } | undefined;
@@ -175,10 +189,15 @@ async function runJob(job: Job): Promise<void> {
           AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), lasclip);
         await rm(join(dir, file), { force: true });
       }
-      await set("Hämtar laserdata", tile.index + 1, job.tiles.length);
-    }
+      fetched += 1;
+      await set("Hämtar laserdata", fetched, job.tiles.length);
+        };
+    const waiting = [...job.tiles];
+    await Promise.all(Array.from({ length: together }, async () => {
+      for (let tile = waiting.shift(); tile; tile = waiting.shift()) await fetchTile(tile);
+    }));
     if (job.clip && (await readdir(join(dir, "in"))).length === 0) throw new Error("Kartans område ligger utanför laserrutorna");
-    await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation));
+    await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation, together));
     await set("Karttapullautin", 0, 1);
     await run([], dir, control.signal);
     await set("Slår ihop rutorna", 0, 1);
@@ -395,7 +414,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, parallelTiles: together, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

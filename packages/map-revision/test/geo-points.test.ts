@@ -56,3 +56,18 @@ describe("reglagen för gult och grönt", () => {
     for (const key of ["openshare", "denseshare", "knollshare", "rock"]) expect(ini).not.toContain(key);
   });
 });
+
+describe("flera laserrutor samtidigt", () => {
+  it("en per kärna, så långt minnet räcker, och en i taget i andra försöket", async () => {
+    const { parallelTiles, iniWith } = await import("../../../scripts/geo-worker");
+    // 8 GB och 4 kärnor: tre rutor ryms (6,8 GB − 2 GB för resten, 1,5 GB per ruta).
+    expect(parallelTiles(8, 4, 8)).toBe(3);
+    expect(parallelTiles(2, 4, 8)).toBe(2);
+    expect(parallelTiles(8, 2, 4)).toBe(1);
+    expect(parallelTiles(8, 8, 16)).toBe(7);
+    expect(parallelTiles(8, 16, 32)).toBe(8);
+    expect(parallelTiles(8, 4, 8, 2)).toBe(1);
+    expect(iniWith("processes=1\nbatch=0\n", {}, false, false, 3)).toContain("processes=3");
+    expect(iniWith("processes=4\n", {})).toContain("processes=1");
+  });
+});

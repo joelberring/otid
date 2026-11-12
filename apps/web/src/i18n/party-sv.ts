@@ -16,6 +16,7 @@ export const partySv = {
   settingsHelp: "Bara stämplingar efter starten räknas som köp, incheckning (startenhet) och utcheckning (målenhet).",
   date: "Datum",
   time: "Klockslag",
+  timePlaceholder: "tt:mm",
   doublePunch: "Dubbelstämpling inom (sekunder)",
   doublePunchHelp: "Samma vara flera gånger är flera köp. Stämplingar på samma enhet tätare än så räknas som ett köp.",
   invalidDouble: "Skriv antal sekunder, 0–600.",

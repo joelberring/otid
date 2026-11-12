@@ -199,6 +199,7 @@ export const partyEn: Texts<typeof partySv> = {
   settingsHelp: "Only punches after the start count as purchases, check-in (start unit) and check-out (finish unit).",
   date: "Date",
   time: "Clock time",
+  timePlaceholder: "hh:mm",
   doublePunch: "Double punch within (seconds)",
   doublePunchHelp: "The same item several times is several purchases. Punches on the same unit closer than this count as one purchase.",
   invalidDouble: "Write a number of seconds, 0–600.",

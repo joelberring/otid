@@ -14,6 +14,7 @@ import type { Workspace } from "./workspace-state";
 import { PartyThemeForm } from "./party-theme-form";
 import { CENTRUM_PRESET } from "../../lib/party-theme-style";
 import { SelfRegistrationSetting } from "./self-registration-setting";
+import { partyStartFields } from "../../lib/party-start-fields";
 
 /**
  * Fest (PLAN.md steg 40): festens start, varorna (kod, namn, pris), köpen i kväll med summa per person, in- och
@@ -132,7 +133,8 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
       </div>
       {problem && <Notice tone="error" role="alert">{problem}</Notice>}
       {saved && <Notice tone="ok" role="status">{saved}</Notice>}
-      {!state.startsAt && <Notice tone="attention">{text.noStart}</Notice>}
+      {/* Administratören ser varningen bredvid Spara start; funktionären, som inte har formuläret, här. */}
+      {!state.startsAt && !admin && <Notice tone="attention">{text.noStart}</Notice>}
       {admin && <StartForm key={`${state.startsAt}-${state.showPublicNames}`} state={state} busy={busy}
         onSave={(startsAt, showPublicNames, doublePunchSeconds) => change({ kind: "settings", startsAt, showPublicNames, doublePunchSeconds },
           text.settingsSaved)} />}
@@ -227,10 +229,10 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
 function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: boolean;
   onSave: (startsAt: string, names: boolean, doublePunchSeconds: number) => Promise<boolean> }) {
   const text = useTexts(partySv, partyEn);
-  const current = state.startsAt ? formatPartyTime(state.startsAt, state.timeZone) : undefined;
-  const today = formatPartyTime(new Date().toISOString(), state.timeZone).slice(0, 10);
-  const [date, setDate] = useState(current?.slice(0, 10) ?? today);
-  const [clock, setClock] = useState(current?.slice(11, 16) ?? "17:00");
+  // Användartestet 2026-11-12: tomma fält tills starten är sparad (inget förval som ser sparat ut).
+  const initial = partyStartFields(state.startsAt, state.timeZone);
+  const [date, setDate] = useState(initial.date);
+  const [clock, setClock] = useState(initial.clock);
   const [names, setNames] = useState(state.showPublicNames);
   const [double, setDouble] = useState(String(state.doublePunchSeconds ?? 5));
   const [error, setError] = useState<string>();
@@ -246,7 +248,7 @@ function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: b
     <p className={styles.workflowHelp}>{text.settingsHelp}</p>
     <div className={local.fields}>
       <label>{text.date}<DateInput value={date} onChange={event => setDate(event.target.value)} /></label>
-      <label>{text.time}<input type="text" inputMode="numeric" value={clock} aria-invalid={error ? true : undefined}
+      <label>{text.time}<input type="text" inputMode="numeric" value={clock} placeholder={text.timePlaceholder} aria-invalid={error ? true : undefined}
         onChange={event => setClock(event.target.value)} /></label>
       <label>{text.doublePunch}<input type="text" inputMode="numeric" value={double} onChange={event => setDouble(event.target.value)} /></label>
     </div>
@@ -255,7 +257,8 @@ function StartForm({ state, busy, onSave }: { state: PartyStateResponse; busy: b
       {text.publicNames}</label>
     <p className={styles.workflowHelp}>{text.publicNamesHelp}</p>
     {error && <p role="alert" className={local.error}>{error}</p>}
-    <div><Button type="submit" disabled={busy}>{text.saveSettings}</Button></div>
+    <div className={local.startActions}><Button type="submit" disabled={busy}>{text.saveSettings}</Button>
+      {!initial.saved && <Notice tone="attention" role="status">{text.noStart}</Notice>}</div>
   </form>;
 }
 

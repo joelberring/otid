@@ -4,6 +4,7 @@
 .form { display: grid; gap: 10px; margin-top: 12px; }
 .form h3 { margin: 0; font-size: var(--text-md); }
 .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 12rem)); gap: 8px 12px; }
+.startActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .fields label { display: grid; gap: 4px; font-size: var(--text-sm); font-weight: 500; }
 .fields input, .input, .number { min-height: 44px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius);
   background: var(--surface); color: var(--ink); font: inherit; }

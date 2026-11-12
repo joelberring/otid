@@ -220,6 +220,13 @@ export const courseSettingSv = {
     imported: (courses: number, controls: number) => `Inläst: ${plural(courses, "bana", "banor")} och ${controls} kontroller.`,
     warnings: "Att veta om filen",
     download: "Ladda ned .ppen",
+    // ADR-0175, tillägg 2026-11-12 (c): grenarnas bokstäver i Purple Pen och vid inläsning.
+    purplePenLetters: (rows: readonly { course: string; letters: string; purplePen: string }[]) =>
+      `Bokstäverna blir andra i Purple Pen än på O-Tids kartor (en gren har tagits bort): ${rows.map(row => `${row.course} ${row.letters} blir ${row.purplePen}`).join("; ")}. ` +
+      "Läs in filen här igen så paras grenarna med O-Tids bokstäver.",
+    lettersNotPaired: (notice: { course: string; lost: readonly string[]; added: readonly string[] }) =>
+      `${notice.course}: ` + [notice.lost.length > 0 ? `grenarna ${notice.lost.join(", ")} på tryckta kartor finns inte kvar i filen (ändrade eller borttagna)` : "",
+        notice.added.length > 0 ? `nya grenar fick ${notice.added.join(", ")}` : ""].filter(Boolean).join("; ") + ". Kontrollera kartorna före start.",
     downloadOriginal: (name: string) => `Ladda ned den inlästa filen (${name})`,
     failed: "Filen kunde inte sparas. Försök igen."
   },

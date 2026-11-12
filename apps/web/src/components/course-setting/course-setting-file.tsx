@@ -6,7 +6,8 @@ import { courseSettingEn, type CourseSettingTexts } from "../../i18n/course-sett
 import { useTexts, useLocale } from "../language-provider";
 import { COURSE_SETTING_PPEN_MAX_BYTES, type CourseSettingRevisions } from "@o-tid/contracts";
 import {
-  CourseSettingEditError, layoutCoursePage, paperImageHashes, ppenWithPaperLayout, readPpen, writePpen, type CourseSettingDocument, type PpenReadWarning
+  CourseSettingEditError, layoutCoursePage, paperImageHashes, ppenWithPaperLayout, purplePenLetterDifferences, readPpen, writePpen,
+  type CourseSettingDocument, type PpenReadWarning
 } from "@o-tid/course-setting";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
@@ -73,7 +74,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   const propsText = useTexts(coursePropertiesSv, coursePropertiesEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [revisions, setRevisions] = useState<CourseSettingRevisions["revisions"]>();
-  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  const [message, setMessage] = useState<{ tone: "ok" | "error" | "attention"; text: string }>();
   async function showRevisions() {
     try { setRevisions((await fetchCourseSettingRevisions(raceId)).revisions); } catch { setMessage({ tone: "error", text: text.loadFailed }); }
   }
@@ -92,6 +93,9 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
       } catch (error) { console.error("Banans sida kunde inte läggas ut", error); return undefined; }
     }, { images });
     downloadText(`${title}.ppen`, writePpen(withPaper));
+    // ADR-0175, tillägg 2026-11-12 (c): en lucka i bokstäverna (borttagen gren) blir i följd i Purple Pen.
+    const differences = purplePenLetterDifferences(document);
+    if (differences.length > 0) setMessage({ tone: "attention", text: text.file.purplePenLetters(differences) });
   }
   function downloadIof() {
     try {
@@ -131,6 +135,6 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
         </li>)}
       </ul>}
     </>}
-    {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+    {message && <Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice>}
   </section>;
 }

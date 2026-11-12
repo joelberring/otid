@@ -152,7 +152,7 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
         "”Variants” in the list and the chooser at the top show each variant with the number of controls and the length."
       ],
       "The variants follow along when the courses are transferred to the event. A score course cannot be forked.",
-      "Letters are given in order as in Purple Pen and move when a branch in the middle is removed, so after printing remove the branch in the event's ”Edit forks” instead, where they stay (a new transfer gives the course setting letters again).",
+      "Letters stay on their branches when a branch is removed (A, C), so printed maps match the event, and a new branch gets a letter that has not been used; in Purple Pen they are in order again, but a file imported here is paired with O-Tid's letters.",
       "Too many variants, or some too long? See [Fewer variants](#varianter)."
     ]
   },

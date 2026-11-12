@@ -214,6 +214,12 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
     imported: (courses: number, controls: number) => `Imported: ${count(courses, "course", "courses")} and ${count(controls, "control", "controls")}.`,
     warnings: "Things to know about the file",
     download: "Download .ppen",
+    purplePenLetters: (rows: readonly { course: string; letters: string; purplePen: string }[]) =>
+      `The letters will be different in Purple Pen than on O-Tid's maps (a branch has been removed): ${rows.map(row => `${row.course} ${row.letters} becomes ${row.purplePen}`).join("; ")}. ` +
+      "Import the file here again and the branches are paired with O-Tid's letters.",
+    lettersNotPaired: (notice: { course: string; lost: readonly string[]; added: readonly string[] }) =>
+      `${notice.course}: ` + [notice.lost.length > 0 ? `branches ${notice.lost.join(", ")} on printed maps are no longer in the file (changed or removed)` : "",
+        notice.added.length > 0 ? `new branches got ${notice.added.join(", ")}` : ""].filter(Boolean).join("; ") + ". Check the maps before the start.",
     downloadOriginal: (name: string) => `Download the imported file (${name})`,
     failed: "The file could not be saved. Try again."
   },

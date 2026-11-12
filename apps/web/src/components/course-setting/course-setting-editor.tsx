@@ -478,7 +478,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     try {
       await sync.flush();
       // Det som bara finns i O-Tid (utskriftsprofiler, ringklipp, godtagna varningar, träningen, varianter, nivåer) följer med.
-      const carried = carryOnImport(document, file.document);
+      const { document: carried, letterNotices } = carryOnImport(document, file.document);
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
       // ADR-0217: layouterna, arken, klassernas val och lägena följer med; läget "Från Purple Pen" sparas automatiskt.
@@ -489,8 +489,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       if (outcome.kind === "conflict") { say({ tone: "error", text: text.status.conflict }); sync.remote(outcome.conflict.current?.version ?? sync.version + 1); return; }
       if (outcome.kind === "too-large") { say({ tone: "error", text: text.file.tooLarge }); return; }
       fromServer(file.document, outcome.version);
-      say({ tone: "ok", text: text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
-        list: file.warnings.map(warning => warning.text) });
+      // ADR-0175, tillägg 2026-11-12 (c): grenar som inte gick att para med bokstäverna på tryckta kartor sägs först.
+      say({ tone: letterNotices.length > 0 ? "attention" : "ok", text: text.file.imported(file.document.courses.length, Object.keys(file.document.controls).length),
+        list: [...letterNotices.map(text.file.lettersNotPaired), ...file.warnings.map(warning => warning.text)] });
     } catch { say({ tone: "error", text: text.file.failed }); } finally { setBusy(false); }
   }
 

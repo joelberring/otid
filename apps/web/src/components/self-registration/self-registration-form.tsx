@@ -7,6 +7,7 @@ import {
   type SelfRegistrationInfoResponse, type SelfRegistrationResponse
 } from "@o-tid/contracts";
 import { PARTY_DISPLAY_NAME_MAX, partyDefaultDisplayName } from "@o-tid/domain";
+import type { GroupNameDisplay } from "@o-tid/contracts";
 import { Button, Field, Notice, focusFirstError } from "../ui";
 import type { FieldErrors } from "../../lib/form-validation";
 import { selfRegistrationSv } from "../../i18n/self-registration-sv";
@@ -14,6 +15,7 @@ import { groupPublicEn, selfRegistrationEn } from "../../i18n/public-en";
 import { useLanguage } from "../language-provider";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import styles from "./self-registration.module.css";
+import { readReceipts, rememberReceipt, type StoredReceipt } from "./self-registration-receipts";
 
 /**
  * "Registrera din pinne" (PLAN.md steg 41) på fest-sidan och tävlingssidan, utan inloggning. Formuläret visas bara när
@@ -60,14 +62,18 @@ export function validateSelfRegistration(form: Form, needsClass: boolean, text: 
  * `collapsible` (steg 42, fest-sidan): en knapp "Registrera din pinne" med aria-expanded, stängd från början, som fäller
  * ut formuläret. Knappen och formuläret är egna rader i förälderns flexrad (`display: contents`).
  */
-export function SelfRegistrationForm({ raceId, collapsible = false, publicNames = false, rememberKey }: { raceId: string; collapsible?: boolean;
+export function SelfRegistrationForm({ raceId, collapsible = false, publicNames = false, rememberKey, startList, names = "FULL" }: { raceId: string; collapsible?: boolean;
   /** Fest: festen visar visningsnamn publikt (steg 46), så formuläret säger det. */
   publicNames?: boolean;
   /**
    * Steg 68 (ADR-0182 beslut 5): träningsgruppens kod. Telefonen minns den senaste anmälan till gruppen (bara i den här
    * webbläsaren) och erbjuder "Samma som förra gången" vid nästa träning; servern lämnar aldrig ut namn för en bricka.
    */
-  rememberKey?: string | undefined }) {
+  rememberKey?: string | undefined;
+  /** Om sidan visar en publicerad startlista; undefined när sidan inte vet (gruppens sida). */
+  startList?: boolean | undefined;
+  /** Gruppens namnregel för tävlingens publika sidor. */
+  names?: GroupNameDisplay }) {
   const en = useLanguage() === "en";
   const text = en ? selfRegistrationEn : selfRegistrationSv;
   const [expanded, setExpanded] = useState(false);
@@ -79,6 +85,9 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
   const [receipt, setReceipt] = useState<SelfRegistrationResponse>();
   const [saving, setSaving] = useState(false);
   const [remembered, setRemembered] = useState<Remembered>();
+  const [stored, setStored] = useState<StoredReceipt[]>([]);
+  /** Med ett minnet kvitto visas formuläret först när man väljer "Registrera en bricka till". */
+  const [another, setAnother] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const clubsId = useId();
 
@@ -95,8 +104,10 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
     return () => { stopped = true; };
   }, [raceId]);
   useEffect(() => { if (rememberKey) setRemembered(readRemembered(rememberKey)); }, [rememberKey]);
+  useEffect(() => { setStored(readReceipts(raceId)); }, [raceId]);
 
-  if (!info?.open) return null;
+  // En stängd registrering visar bara kvittot som webbläsaren minns (inte för en fest).
+  if (!info || (!info.open && (info.kind === "PARTY" || stored.length === 0))) return null;
   const needsClass = info.kind === "RACE";
   const change = (field: keyof Form) => (event: { target: { value: string } }) => {
     setForm(current => ({ ...current, [field]: event.target.value }));
@@ -118,7 +129,9 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
           ...(!needsClass ? { displayName: form.displayName.trim() || null } : {}),
           ...(form.website ? { website: form.website } : {}) }) });
       if (response.ok) {
-        setReceipt(selfRegistrationResponseSchema.parse(await response.json()));
+        const done = selfRegistrationResponseSchema.parse(await response.json());
+        setReceipt(done);
+        if (needsClass) { setStored(rememberReceipt(raceId, { name: done.name, className: done.className ?? "", cardNumber: done.cardNumber })); setAnother(false); }
         if (rememberKey) {
           const className = info?.classes.find(row => row.id === form.classId)?.name ?? "";
           const value = { cardNumber: form.cardNumber.replace(/\s/g, ""), givenName: form.givenName.trim(), familyName: form.familyName.trim(),
@@ -159,8 +172,11 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
           {receipt.className ? <> {text.receiptClass(receipt.className)}</> : null}
           {receipt.displayName ? <> {text.receiptDisplayName(receipt.displayName)}</> : null}
         </Notice>
-        <Button variant="secondary" onClick={() => setReceipt(undefined)}>{text.again}</Button>
-      </div> : <form ref={formRef} noValidate onSubmit={submit} className={styles.form}>
+        <Button variant="secondary" onClick={() => { setReceipt(undefined); setAnother(true); }}>{text.again}</Button>
+      </div> : stored.length > 0 && !another ? <div className={styles.receipt} data-testid="self-registration-stored">
+        <Notice tone="ok" role="status">{stored.map(row => <p key={row.cardNumber}>{text.stored(row.name, row.className, row.cardNumber)}</p>)}</Notice>
+        {info.open && <Button variant="secondary" onClick={() => setAnother(true)}>{text.again}</Button>}
+      </div> : !info.open ? null : <form ref={formRef} noValidate onSubmit={submit} className={styles.form}>
         <p className={styles.intro}>{needsClass ? text.intro.race : text.intro.party}</p>
         {remembered && <Button variant="secondary" onClick={() => {
           const classId = info.classes.find(row => row.name === remembered.className)?.id ?? "";
@@ -198,7 +214,7 @@ export function SelfRegistrationForm({ raceId, collapsible = false, publicNames 
           <label>{text.trap}<input name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={change("website")} /></label>
         </div>
         <p className={styles.privacy} data-testid="self-registration-privacy">
-          {needsClass ? text.privacy.race : publicNames ? text.privacy.partyNames : text.privacy.party} <Link href="/integritet">{text.privacyLink}</Link></p>
+          {needsClass ? text.privacy.race(startList, names) : publicNames ? text.privacy.partyNames : text.privacy.party} <Link href="/integritet">{text.privacyLink}</Link></p>
         {message ? <Notice tone="error" role="alert">{message}</Notice> : null}
         <div><Button type="submit" disabled={saving}>{saving ? text.saving : text.submit}</Button></div>
       </form>}

@@ -80,7 +80,7 @@ export default async function GroupPage({ params }: Params) {
 
     {view.today && <section aria-labelledby="group-today">
       <h2 id="group-today">{text.today}: {sessionLine(view.today, language)}</h2>
-      <SelfRegistrationForm raceId={view.today.raceId} rememberKey={view.code} />
+      <SelfRegistrationForm raceId={view.today.raceId} rememberKey={view.code} names={view.nameDisplay} />
     </section>}
 
     <section aria-labelledby="group-upcoming">

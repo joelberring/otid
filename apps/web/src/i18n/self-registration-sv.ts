@@ -19,7 +19,14 @@ export const selfRegistrationSv = {
   saving: "Registrerar …",
   /** Steg 46: vad som visas publikt, per slag. */
   privacy: {
-    race: "Namn, klubb och klass syns i den publika startlistan och resultatlistan, märkt ”självreg.”.",
+    /**
+     * Användartest 2026-11-12: bara listorna som tävlingssidan faktiskt visar (startlistan när en är publicerad; okänt =
+     * tävlingens publika listor) och gruppens namnregel (ADR-0189 beslut 7).
+     */
+    race: (startList: boolean | undefined, names: "FULL" | "FIRST" | "NONE") =>
+      `${names === "FULL" ? "Namn, klubb och klass" : names === "FIRST" ? "Förnamn, klubb och klass" : "Klubb och klass"} syns ${
+        startList === undefined ? "i tävlingens publika listor" : startList ? "i den publika startlistan och resultatlistan" : "i den publika resultatlistan"
+      }, märkt ”självreg.”.${names === "NONE" ? " Ditt namn visas inte publikt." : ""}`,
     party: "Namnet kopplas till brickan och syns för arrangören och i baren. Fest-sidan visar inga namn.",
     partyNames: "Dina köp visas med ditt visningsnamn på den här sidan. Fullt namn syns bara för arrangören och i baren."
   },
@@ -27,6 +34,8 @@ export const selfRegistrationSv = {
   receipt: (card: string, name: string) => `Klart! Bricka ${card} är kopplad till ${name}.`,
   receiptClass: (className: string) => `Du är anmäld i ${className}.`,
   again: "Registrera en bricka till",
+  /** Kvittot som webbläsaren minns (användartest 2026-11-12). */
+  stored: (name: string, className: string, card: string) => `Du är anmäld: ${[name, className, `bricka ${card}`].filter(Boolean).join(", ")}`,
   trap: "Lämna tomt",
   errors: {
     cardNumber: "Skriv bricknumret med siffror (1–9 999 999).",

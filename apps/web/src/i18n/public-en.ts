@@ -289,7 +289,10 @@ export const selfRegistrationEn: Texts<SelfRegistrationForm> = {
   submit: "Register",
   saving: "Registering …",
   privacy: {
-    race: "Name, club and class are shown in the public start list and results, marked “self-reg.”.",
+    race: (startList, names) =>
+      `${names === "FULL" ? "Name, club and class are" : names === "FIRST" ? "First name, club and class are" : "Club and class are"} shown ${
+        startList === undefined ? "in the race's public lists" : startList ? "in the public start list and results" : "in the public results"
+      }, marked “self-reg.”.${names === "NONE" ? " Your name is not shown publicly." : ""}`,
     party: "The name is linked to the card and seen by the organiser and at the bar. The party page shows no names.",
     partyNames: "Your purchases are shown with your display name on this page. The full name is seen only by the organiser and at the bar."
   },
@@ -297,6 +300,7 @@ export const selfRegistrationEn: Texts<SelfRegistrationForm> = {
   receipt: (card, name) => `Done! Card ${card} is linked to ${name}.`,
   receiptClass: className => `You are entered in ${className}.`,
   again: "Register another card",
+  stored: (name, className, card) => `You are entered: ${[name, className, `card ${card}`].filter(Boolean).join(", ")}`,
   trap: "Leave empty",
   errors: {
     cardNumber: "Write the card number in digits (1–9,999,999).",

@@ -9,7 +9,7 @@ import workspaceStyles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceDayStarted } from "@o-tid/domain";
-import { inForest, mispunchedEntries } from "../../lib/section-status";
+import { awaitingStart, inForest, mispunchedEntries } from "../../lib/section-status";
 import { resultDuration, unknownReadoutTargetLabel } from "./types";
 import type { Workspace } from "./workspace-state";
 import { RelayControl } from "./relay-panels";
@@ -33,6 +33,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
   }, [visible, authenticated, data, busy, forestData]);
   const notLoaded = busy || !attempted.current ? text.controlNotLoaded : text.controlLoadFailed;
   const remaining = forestData ? inForest(forestData.entries, forestData) : undefined;
+  const awaiting = forestData ? awaitingStart(forestData.entries, forestData).length : 0;
   const notStarted = forestData !== undefined && !raceDayStarted(forestData.raceDate, forestData.timeZone, new Date());
   const conflicts = forestData?.entries.filter(row => row.forestState === "CONFLICT").length ?? 0;
   return <section className={styles.control} aria-labelledby={`control-${raceId}`}>
@@ -57,7 +58,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
           {forestStale && <Notice tone="attention" role="status">{text.controlStale}</Notice>}
           {conflicts > 0 && <Notice tone="attention">{text.controlConflicts(conflicts)}</Notice>}
           {notStarted ? <p data-testid="in-forest-not-started">{text.controlForestNotStarted}</p>
-            : remaining.length === 0 ? <p>{text.controlForestEmpty}</p> : <ul className={styles.controlList}>
+            : remaining.length === 0 ? awaiting === 0 && <p>{text.controlForestEmpty}</p> : <ul className={styles.controlList}>
             {remaining.map(row => <li key={row.entryId} className={functionary ? undefined : styles.controlRowAction}>
               <span><strong>{row.displayName}</strong>
                 <span>{[row.organisationName ?? text.none, row.className,
@@ -67,6 +68,7 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
                 onClick={() => openCorrection(row.entryId)}>{text.controlOpen}</Button>}
             </li>)}
           </ul>}
+          {!notStarted && awaiting > 0 && <p data-testid="awaiting-start-count">{text.controlAwaitingStart(awaiting)}</p>}
         </>}
       </section>
       {profile.features.relay && <RelayControl ws={ws} />}

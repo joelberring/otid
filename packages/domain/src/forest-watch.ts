@@ -55,3 +55,36 @@ export function buildForestWatchList(raceId: string, entries: readonly ForestWat
   }
   return result.sort((a, b) => a.entryId < b.entryId ? -1 : a.entryId > b.entryId ? 1 : 0);
 }
+
+/**
+ * Det en lista "kvar i skogen" vet om en löpare: skogstillståndet ovan, avprickningen, den lottade starttiden och om
+ * brickan har stämplat vid en radiokontroll. `fixedStartTime` är null (eller saknas) vid fri start.
+ */
+export interface RemainingInForestFacts {
+  /** `ForestWatchState`; en sträng så att webbens rader kan lämnas som de är. */
+  readonly forestState: string;
+  /** `StartCheckinState`; saknas uppgiften gäller dagens regel. */
+  readonly startState?: string | undefined;
+  readonly fixedStartTime?: string | null | undefined;
+  readonly radioPunched: boolean;
+}
+
+/**
+ * Användartestet 2026-11-12: en löpare med lottad starttid (minutstart eller masstart) som ligger framåt i tiden har inte
+ * startat och är inte kvar i skogen. Regeln är försiktig, eftersom listan är den arrangören använder för att veta vilka
+ * som inte kommit tillbaka: bara en löpare utan några andra uppgifter (skogstillståndet UNCONFIRMED: ingen avläsning, inget
+ * beslut, ingen återkomst, ingen konflikt och ingen avprickning) och utan radiostämpling väntar på sin start. Fri start
+ * (ingen starttid), en ogiltig tid och en starttid som passerat ger dagens regel.
+ */
+export function awaitingScheduledStart(facts: RemainingInForestFacts, now: Date): boolean {
+  if (facts.forestState !== "UNCONFIRMED" || facts.startState !== "UNMARKED" || facts.radioPunched) return false;
+  if (!facts.fixedStartTime) return false;
+  const startsAt = Date.parse(facts.fixedStartTime), at = now.getTime();
+  return Number.isFinite(startsAt) && Number.isFinite(at) && startsAt > at;
+}
+
+/** Kvar i skogen (ADR-0168): varken återkommen eller ej startande, och inte en löpare som väntar på sin lottade start. */
+export function remainsInForest(facts: RemainingInForestFacts, now: Date): boolean {
+  if (facts.forestState === "RETURNED" || facts.forestState === "NOT_STARTED") return false;
+  return !awaitingScheduledStart(facts, now);
+}

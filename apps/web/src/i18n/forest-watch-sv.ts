@@ -24,7 +24,7 @@ export const forestWatchSv = {
   filteredWarning: "Filter är aktivt. Deltagare utanför urvalet visas inte; gruppens totalantal gäller alltid hela loppet.",
   noMatchesWarning: "Inga deltagare i urvalet. Det betyder inte att skogen är tom. Kontrollera hela loppets grupper och enhetsuppgifter nedan.",
   groups: { CONFLICT: "Motstridiga uppgifter – kontrollera", STARTED_NO_RETURN: "Startat – ingen registrerad återkomst",
-    UNCONFIRMED: "Okänd startstatus – följ upp", NOT_STARTED: "Ej startande enligt registrerade uppgifter", RETURNED: "Registrerad återkomst" },
+    UNCONFIRMED: "Okänd startstatus – följ upp", AWAITING_START: "Inte startat – lottad starttid har inte passerat", NOT_STARTED: "Ej startande enligt registrerade uppgifter", RETURNED: "Registrerad återkomst" },
   name: "Namn / klubb", status: "Uppgifter och källa", start: "Planerad start", card: "Bricka", noCard: "Ingen aktiv bricka",
   multipleCards: "Flera aktiva brickor – kontrollera", noOrganisation: "Klubb saknas", punch: rule.rules.PUNCH, missingTime: "Starttid saknas",
   reports: { UNMARKED: "Start: omarkerad / okänd", STARTED: "Start: manuellt rapporterad", REPORTED_NOT_STARTED: "Start: uttryckligt rapporterad ej start" },

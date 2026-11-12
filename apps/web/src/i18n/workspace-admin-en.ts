@@ -70,6 +70,7 @@ export const raceAdministratorEn: AdminTexts = {
   controlStale: "The list is older than half a minute. Press Refresh.",
   controlConflicts: count => `${count} with conflicting information – see the full list below.`,
   controlForestEmpty: "All entries have read out or did not start. Still check with the finish.",
+  controlAwaitingStart: count => `Not started: ${count} (drawn start time not reached)`,
   controlForestNotStarted: "The event has not started. Entries count as still out from the race day.",
   controlUnknown: "Unknown cards",
   controlMispunched: "Mispunches to look at",

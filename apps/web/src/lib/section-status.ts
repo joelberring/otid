@@ -1,5 +1,5 @@
 import type { EntryTransferCandidates, RaceType } from "@o-tid/contracts";
-import { raceDayStarted } from "@o-tid/domain";
+import { awaitingScheduledStart, raceDayStarted, remainsInForest } from "@o-tid/domain";
 import { raceTypeSv } from "../i18n/race-type-sv";
 import { sectionStatusSv } from "../i18n/race-workspace-navigation-sv";
 import { raceTypeEn, sectionStatusEn } from "../i18n/workspace-en";
@@ -29,15 +29,34 @@ function activeStatus(entry: Entry) {
   return entry.effectiveResult.state === "ACTIVE_RESULT" ? entry.effectiveResult.result.status : undefined;
 }
 
+type ForestRow = { forestState: string; entryId?: string; startState?: string; fixedStartTime?: string | null };
+type ForestRace = { readonly raceDate?: string; readonly timeZone?: string; readonly radioPunched?: readonly string[] };
+
+/**
+ * Domänens fakta för en rad i skogsrapporten. Utan uppgift om radiostämplingar (`radioPunched` saknas) räknas varje
+ * löpare som radiostämplad, så att ingen tas bort ur listan på för svagt underlag.
+ */
+function forestFacts(row: ForestRow, radioPunched: ReadonlySet<string> | undefined) {
+  return { forestState: row.forestState, startState: row.startState, fixedStartTime: row.fixedStartTime,
+    radioPunched: radioPunched === undefined || row.entryId === undefined || radioPunched.has(row.entryId) };
+}
+
 /**
  * ADR-0168: kvar i skogen = anmälda som varken är avlästa/återkomna eller ej startande (ur skogsrapporten).
  * Före tävlingsdagen (i tävlingens tidszon) är ingen kvar i skogen (PLAN.md steg 22): rapporten tas med
- * `raceDate` och `timeZone` så att listan är tom tills tävlingen kan ha börjat.
+ * `raceDate` och `timeZone` så att listan är tom tills tävlingen kan ha börjat. Användartestet 2026-11-12: inte heller en
+ * löpare vars lottade starttid ligger framåt i tiden och som inte har några andra uppgifter (domänens `remainsInForest`).
  */
-export function inForest<T extends { forestState: string }>(entries: readonly T[],
-  race?: { readonly raceDate?: string; readonly timeZone?: string }, now = new Date()): T[] {
+export function inForest<T extends ForestRow>(entries: readonly T[], race?: ForestRace, now = new Date()): T[] {
   if (race?.raceDate !== undefined && race.timeZone !== undefined && !raceDayStarted(race.raceDate, race.timeZone, now)) return [];
-  return entries.filter(row => row.forestState !== "RETURNED" && row.forestState !== "NOT_STARTED");
+  const radio = race?.radioPunched ? new Set(race.radioPunched) : undefined;
+  return entries.filter(row => remainsInForest(forestFacts(row, radio), now));
+}
+
+/** Löpare som väntar på sin lottade start ("Inte startat"): det `inForest` lämnar utanför av det skälet. */
+export function awaitingStart<T extends ForestRow>(entries: readonly T[], race?: ForestRace, now = new Date()): T[] {
+  const radio = race?.radioPunched ? new Set(race.radioPunched) : undefined;
+  return entries.filter(row => awaitingScheduledStart(forestFacts(row, radio), now));
 }
 
 /**

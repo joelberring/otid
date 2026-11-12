@@ -13,7 +13,7 @@ import { radioControlName, radioSv } from "../i18n/radio-sv";
 import { passageTime } from "./radio/radio-live";
 import { formatClockTime, formatDuration } from "../lib/clock-time";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
-import { classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders, relayLegs, type Finisher } from "../lib/speaker";
+import { awaitingStartCount, classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders, relayLegs, type Finisher } from "../lib/speaker";
 import styles from "./speaker-page.module.css";
 
 const REFRESH_MS = 10_000;
@@ -94,6 +94,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
   const leaders = data.results ? classLeaders(data.results) : [];
   const shownLeaders = classFilter ? leaders.filter(row => row.className === classFilter) : leaders;
   const forest = data.forest ? forestByClass(data.forest) : [];
+  const awaiting = data.forest ? awaitingStartCount(data.forest) : 0;
   const forestNotStarted = data.forest !== undefined && !raceDayStarted(data.forest.raceDate, data.forest.timeZone, new Date());
   const relay = data.relay && data.relay.classes.length > 0 ? relayLegs(data.relay) : [];
   const radio = data.radio?.enabled ? data.radio : undefined;
@@ -140,6 +141,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
               {runner.displayName}{isOnTheWay(onTheWay, row.className, runner.displayName) &&
                 <strong className={styles.onTheWay}> ({radioText.speaker.onTheWay})</strong>}</span>)}</p>
           </div>)}
+        {!forestNotStarted && awaiting > 0 && <p className={styles.empty} data-testid="speaker-awaiting-start">{text.forestAwaitingStart(awaiting)}</p>}
       </section>
       {radio && <section className={`${styles.block} ${styles.radioLatest}`} aria-labelledby="speaker-radio">
         <h2 id="speaker-radio">{radioText.speaker.latestTitle}</h2>

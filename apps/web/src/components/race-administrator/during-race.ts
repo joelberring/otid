@@ -14,7 +14,7 @@ import { administratorForestWatchResponseSchema, administratorReturnRequestSchem
   type AdministratorStartCorrectionRequest, type CheckinHistoryResponse, type SpeakerBoardResponse, type StartCheckinConflictReviewCandidate,
   type UnknownReadoutResolutionCandidateResponse, type UnknownReadoutResolutionRequest } from "@o-tid/contracts";
 import { canRefreshForest } from "../../lib/forest-auto-refresh";
-import { inForest } from "../../lib/section-status";
+import { awaitingStart, inForest } from "../../lib/section-status";
 import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 
@@ -85,8 +85,10 @@ export function deriveDuringRace(s: WorkspaceState) {
   const forestAttentionCounts = forestAttentionFresh ? {
     conflict: forestData.entries.filter(row => row.forestState === "CONFLICT").length,
     startedNoReturn: forestData.entries.filter(row => row.forestState === "STARTED_NO_RETURN").length,
-    unconfirmed: forestData.entries.filter(row => row.forestState === "UNCONFIRMED").length,
-    inForest: inForest(forestData.entries).length
+    // Användartestet 2026-11-12: den som väntar på sin lottade start är varken okänd eller kvar i skogen.
+    unconfirmed: forestData.entries.filter(row => row.forestState === "UNCONFIRMED").length -
+      awaitingStart(forestData.entries, { radioPunched: forestData.radioPunched }).length,
+    inForest: inForest(forestData.entries, { radioPunched: forestData.radioPunched }).length
   } : undefined;
   return { correctionPending, forestAttentionFresh, unknownReadoutAttentionFresh, forestAttentionCounts };
 }

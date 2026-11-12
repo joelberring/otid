@@ -86,7 +86,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
           </div>
         </details>
         {/* Journal och konfliktgranskning är administratörens; funktionären väljer bara löparen (ADR-0172 beslut 3). */}
-        <ForestWatchReport data={forestData} reportedStarts={forestData.reportedStarts} sortByAge={forestSortByAge} classId={forestClass}
+        <ForestWatchReport data={forestData} reportedStarts={forestData.reportedStarts} radioPunched={forestData.radioPunched} sortByAge={forestSortByAge} classId={forestClass}
           query={forestQuery} stale={forestStale} disabled={disabled}
           {...functionary ? { onChoose: (id: string) => setEntryId(id) }
             : { onOpenHistory: (id: string) => select(id, true), onReviewConflict: (id: string) => select(id, true, true) }} />
@@ -95,7 +95,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
     </details>
     </section>
     {forestData && <div className={styles.forestPrint} data-forest-print>
-      <ForestWatchReport data={forestData} reportedStarts={forestData.reportedStarts} sortByAge={forestSortByAge} classId={forestClass} query={forestQuery} stale={forestStale} />
+      <ForestWatchReport data={forestData} reportedStarts={forestData.reportedStarts} radioPunched={forestData.radioPunched} sortByAge={forestSortByAge} classId={forestClass} query={forestQuery} stale={forestStale} />
     </div>}
   </>;
 }

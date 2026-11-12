@@ -38,6 +38,7 @@ export const raceAdministratorSv = {
   controlStale: "Listan är äldre än en halv minut. Tryck på Uppdatera.",
   controlConflicts: (count: number) => `${count} med motstridiga uppgifter – se hela listan nedan.`,
   controlForestEmpty: "Alla anmälda har läst ut eller har ej start. Stäm ändå av med målet.",
+  controlAwaitingStart: (count: number) => `Inte startat: ${count} (lottad starttid har inte passerat)`,
   controlForestNotStarted: "Tävlingen har inte börjat. Anmälda räknas som kvar i skogen från tävlingsdagen.",
   controlUnknown: "Okända brickor",
   controlMispunched: "Felstämplade att titta på",

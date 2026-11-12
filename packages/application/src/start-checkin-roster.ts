@@ -34,13 +34,30 @@ export async function listAdministratorForestWatch(
       const result = await readAuthorizedStartCheckinRoster(tx, raceId, now, false, true);
       if (result.status !== "ok") return result;
       return { status: "ok" as const, response: administratorForestWatchResponseSchema.parse({ ...result.response, raceDate: result.raceDate,
-        reportedStarts: result.reportedStarts }) };
+        reportedStarts: result.reportedStarts, radioPunched: await radioPunchedEntries(tx, raceId) }) };
     });
   }, { isolationLevel: "repeatable read" });
 }
 
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * Löpare (ej strukna) vars bricka har stämplat vid en radiokontroll i tävlingen, i id-ordning. Även en bricka som inte
+ * längre är aktiv räknas: hellre en löpare för mycket som ute än en för lite. Kvar i skogen räknar dem som ute även före
+ * den lottade starttiden.
+ */
+async function radioPunchedEntries(tx: Tx, raceId: string): Promise<string[]> {
+  const rows = await tx.selectDistinct({ entryId: schema.cardAssignments.entryId }).from(schema.radioPunches)
+    .innerJoin(schema.cardAssignments, and(eq(schema.cardAssignments.raceId, schema.radioPunches.raceId),
+      eq(schema.cardAssignments.cardNumber, schema.radioPunches.cardNumber)))
+    .innerJoin(schema.entries, and(eq(schema.entries.id, schema.cardAssignments.entryId), isNull(schema.entries.struckAt)))
+    .where(eq(schema.radioPunches.raceId, raceId)).orderBy(asc(schema.cardAssignments.entryId)).limit(10_001);
+  if (rows.length > 10_000) throw new Error("För många radiostämplade löpare");
+  return rows.map(row => row.entryId);
+}
+
 /** Internal projection; caller must already hold protected-read or mutation authority. */
-export async function readAuthorizedStartCheckinRoster(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], raceId: string, now: Date, reviewDetails = false, includeReportedStarts = false) {
+export async function readAuthorizedStartCheckinRoster(tx: Tx, raceId: string, now: Date, reviewDetails = false, includeReportedStarts = false) {
     const [race] = await tx.select().from(schema.races).where(eq(schema.races.id, raceId)).for("share");
     if (!race) return { status: "not-found" as const };
     const [event] = await tx.select({ timeZone: schema.events.timeZone }).from(schema.events).where(eq(schema.events.id, race.eventId));

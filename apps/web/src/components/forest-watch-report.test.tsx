@@ -50,6 +50,21 @@ describe("kvar i skogen-rapporten", () => {
     expect(html).toContain("garanterar inte att skogen är tom"); expect(html).not.toContain("Tävlingsversion");
     expect(html).toContain("12:00:00"); expect(html).not.toContain("Europe/Stockholm");
   });
+  it("flyttar den som väntar på sin lottade start till \"Inte startat\", men aldrig en radiostämplad (användartest 2026-11-12)", () => {
+    const fixed = (index: number, displayName: string) => ({ ...data.entries[0]!, displayName, entryId: `10000000-0000-4000-8000-00000000001${index}`,
+      startRule: "FIXED" as const, fixedStartTime: "2026-09-05T10:25:00.000Z" });
+    const roster = { ...data, entries: [fixed(1, "Väntar"), fixed(2, "Radio"), { ...data.entries[0]!, displayName: "Fri" }] };
+    const now = new Date("2026-09-05T10:20:00.000Z");
+    const html = renderToStaticMarkup(<ForestWatchReport data={roster} classId="" stale={false} radioPunched={[roster.entries[1]!.entryId]} now={now} />);
+    expect(html.match(/data-forest-group=/g)).toHaveLength(6);
+    expect(html).toContain('data-forest-group="AWAITING_START" data-forest-visible="1" data-forest-total="1"');
+    expect(html).toContain('data-forest-group="UNCONFIRMED" data-forest-visible="2" data-forest-total="2"');
+    expect(html).toContain("Inte startat – lottad starttid har inte passerat (1)");
+    expect(html.indexOf("Inte startat")).toBeLessThan(html.indexOf("Väntar"));
+    // Efter starttiden gäller dagens regel.
+    const later = renderToStaticMarkup(<ForestWatchReport data={roster} classId="" stale={false} radioPunched={[]} now={new Date("2026-09-05T10:25:00.000Z")} />);
+    expect(later).toContain('data-forest-group="UNCONFIRMED" data-forest-visible="3" data-forest-total="3"');
+  });
   it("behåller filter, täckning och stale-varning i själva rapporten", () => {
     const html = renderToStaticMarkup(<ForestWatchReport data={data} classId="missing" stale />);
     expect(html).not.toContain("Syntetisk Löpare"); expect(html).toContain("0 / 1");

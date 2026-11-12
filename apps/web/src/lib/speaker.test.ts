@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdministratorForestWatchResponse, PublicRadioResponse, PublicResultListResponseV7, SpeakerBoardResponse } from "@o-tid/contracts";
-import { classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders } from "./speaker";
+import { awaitingStartCount, classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders } from "./speaker";
 
 let ids = 0;
 const id = () => `00000000-0000-4000-8000-${String(++ids).padStart(12, "0")}`;
@@ -47,6 +47,26 @@ describe("speakersidan", () => {
     expect(forestByClass(forest, new Date("2026-10-09T21:59:00.000Z"))).toEqual([]);
     expect(forestByClass(forest, new Date("2026-10-09T22:00:00.000Z")).map(row => row.className)).toEqual(["H21"]);
     expect(forestByClass(forest, new Date("2026-10-12T10:00:00.000Z")).map(row => row.className)).toEqual(["H21"]);
+  });
+
+  it("räknar inte den som väntar på sin lottade start som kvar i skogen (användartest 2026-11-12)", () => {
+    // Minutstart 07:25 och masstart 07:35, klockan 07:20 på tävlingsdagen.
+    const entry = (entryId: string, displayName: string, fixedStartTime: string | null, forestState = "UNCONFIRMED", startState = "UNMARKED") =>
+      ({ entryId, displayName, className: "H21", forestState, startState, fixedStartTime });
+    const forest = { raceDate: "2026-11-12", timeZone: "Europe/Stockholm", radioPunched: ["radio"], entries: [
+      entry("minut", "Minut", "2026-11-12T06:25:00.000Z"), entry("mass", "Mass", "2026-11-12T06:35:00.000Z"),
+      entry("fri", "Fri", null), entry("radio", "Radio", "2026-11-12T06:25:00.000Z"),
+      entry("start", "Startad", "2026-11-12T06:25:00.000Z", "STARTED_NO_RETURN", "STARTED"),
+      entry("klar", "Klar", "2026-11-12T06:25:00.000Z", "RETURNED")] } as unknown as AdministratorForestWatchResponse;
+    const now = new Date("2026-11-12T06:20:00.000Z");
+    expect(forestByClass(forest, now)[0]!.runners.map(runner => runner.displayName)).toEqual(["Fri", "Radio", "Startad"]);
+    expect(awaitingStartCount(forest, now)).toBe(2);
+    const later = new Date("2026-11-12T06:40:00.000Z");
+    expect(forestByClass(forest, later)[0]!.runners.map(runner => runner.displayName)).toEqual(["Fri", "Mass", "Minut", "Radio", "Startad"]);
+    expect(awaitingStartCount(forest, later)).toBe(0);
+    // Utan uppgift om radiostämplingar tas ingen bort ur listan.
+    const unknownRadio = { ...forest, radioPunched: undefined } as unknown as AdministratorForestWatchResponse;
+    expect(forestByClass(unknownRadio, now)[0]!.runners).toHaveLength(5);
   });
 
   it("grupperar kvar i skogen per klass", () => {

@@ -77,6 +77,7 @@ export const speakerEn: Texts<typeof speakerSv> = {
   forestEmpty: "Nobody is still out.",
   forestNotStarted: "The event has not started.",
   forestCount: count => `${count} out`,
+  forestAwaitingStart: count => `Not started: ${count}`,
   relayTitle: "Teams per leg",
   relayOut: (leg, count) => `Out on leg ${leg}: ${count}`,
   relayFinished: count => `Finished: ${count}`,

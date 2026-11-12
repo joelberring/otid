@@ -5,13 +5,22 @@ import type { StartCheckinRosterResponse } from "@o-tid/contracts";
 import { forestWatchSv } from "../i18n/forest-watch-sv";
 import { formatClockTime } from "../lib/clock-time";
 import { filterForestWatchEntries } from "../lib/forest-watch-filter";
+import { awaitingStart } from "../lib/section-status";
 import { reportedStartMinutes } from "../lib/reported-start-age";
 import styles from "./forest-watch.module.css";
 
-const groups = ["CONFLICT", "STARTED_NO_RETURN", "UNCONFIRMED", "NOT_STARTED", "RETURNED"] as const;
+const groups = ["CONFLICT", "STARTED_NO_RETURN", "UNCONFIRMED", "AWAITING_START", "NOT_STARTED", "RETURNED"] as const;
+type Group = typeof groups[number];
 
-export function ForestWatchReport({ data, classId, query = "", stale, onOpenHistory, onChoose, onReviewConflict, disabled = false, reportedStarts, sortByAge = false }: {
+export function ForestWatchReport({ data, classId, query = "", stale, onOpenHistory, onChoose, onReviewConflict, disabled = false, reportedStarts, sortByAge = false,
+  radioPunched, now }: {
   data: StartCheckinRosterResponse; classId: string; query?: string; stale: boolean;
+  /**
+   * Användartestet 2026-11-12: radiostämplade löpare (administratörens rapport). Med den flyttas den som väntar på sin
+   * lottade start från "Okänd startstatus" till "Inte startat"; utan den visas alla som förut.
+   */
+  radioPunched?: readonly string[];
+  now?: Date;
   onOpenHistory?: (entryId: string) => void; disabled?: boolean;
   /** Funktionären väljer löparen för återkomst eller startläge utan journalen (ADR-0172 beslut 3). */
   onChoose?: (entryId: string) => void;
@@ -22,6 +31,9 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
   const text = useTexts(forestWatchSv, forestWatchEn);
   const ages = new Map(reportedStarts?.map(row => [row.entryId, reportedStartMinutes(row.observedAt, data.generatedAt)]));
   const entries = filterForestWatchEntries(data.entries, classId, query);
+  const waiting = new Set(radioPunched ? awaitingStart(data.entries, { radioPunched }, now ?? new Date()).map(entry => entry.entryId) : []);
+  const groupOf = (entry: StartCheckinRosterResponse["entries"][number]): Group =>
+    waiting.has(entry.entryId) ? "AWAITING_START" : entry.forestState;
   const className = classId ? data.entries.find((entry) => entry.classId === classId)?.className ?? classId : text.allClasses;
   return <section className={styles.report} aria-label={text.title}>
     <h2>{text.title}</h2>
@@ -34,14 +46,14 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
     {sortByAge && <p>{text.ageSortHelp}</p>}
     {(classId || query.trim()) && <p className={styles.warning}>{text.filteredWarning}</p>}
     {entries.length === 0 && <p className={styles.warning}>{text.noMatchesWarning}</p>}
-    {groups.map((state) => {
-      const rows = entries.filter((entry) => entry.forestState === state);
+    {groups.filter((state) => state !== "AWAITING_START" || radioPunched !== undefined).map((state) => {
+      const rows = entries.filter((entry) => groupOf(entry) === state);
       if (sortByAge && state === "STARTED_NO_RETURN") rows.sort((a, b) => {
         const left = ages.get(a.entryId) ?? null, right = ages.get(b.entryId) ?? null;
         if (left === null) return right === null ? 0 : -1;
         return right === null ? 1 : right - left;
       });
-      const totalForState = data.entries.filter((entry) => entry.forestState === state).length;
+      const totalForState = data.entries.filter((entry) => groupOf(entry) === state).length;
       return <section key={state} data-forest-group={state} data-forest-visible={rows.length}
         data-forest-total={totalForState} className={styles.group}>
         <h3>{text.groups[state]} ({rows.length})</h3>

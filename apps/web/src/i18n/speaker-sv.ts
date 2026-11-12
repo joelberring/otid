@@ -19,6 +19,8 @@ export const speakerSv = {
   forestEmpty: "Ingen är kvar i skogen.",
   forestNotStarted: "Tävlingen har inte börjat.",
   forestCount: (count: number) => `${count} kvar`,
+  /** Lottad starttid som inte har passerat: räknas inte som kvar i skogen. */
+  forestAwaitingStart: (count: number) => `Inte startat: ${count}`,
   relayTitle: "Lag per sträcka",
   relayOut: (leg: number, count: number) => `Ute på sträcka ${leg}: ${count}`,
   relayFinished: (count: number) => `I mål: ${count}`,

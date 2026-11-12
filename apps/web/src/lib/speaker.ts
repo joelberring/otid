@@ -1,6 +1,6 @@
 import type { AdministratorForestWatchResponse, PublicRadioPassage, PublicRadioResponse, PublicResultListResponseV7, RelayOverview,
   SpeakerBoardResponse } from "@o-tid/contracts";
-import { inForest } from "./section-status";
+import { awaitingStart, inForest } from "./section-status";
 
 /**
  * Speakersidan (ADR-0170 beslut 2): senast i mål, ledare per klass, kvar i skogen per klass och stafettlag
@@ -57,6 +57,11 @@ export function forestByClass(forest: AdministratorForestWatchResponse, now = ne
   for (const row of inForest(forest.entries, forest, now)) byClass.set(row.className, [...(byClass.get(row.className) ?? []), row]);
   return [...byClass.entries()].sort(([a], [b]) => a.localeCompare(b, "sv"))
     .map(([className, runners]) => ({ className, runners: [...runners].sort((a, b) => a.displayName.localeCompare(b.displayName, "sv")) }));
+}
+
+/** Hur många som väntar på sin lottade start ("Inte startat"); de räknas inte som kvar i skogen. */
+export function awaitingStartCount(forest: AdministratorForestWatchResponse, now = new Date()): number {
+  return awaitingStart(forest.entries, forest, now).length;
 }
 
 /** Stafett: lagen per klass och sträcka – ute på sträckan, i mål och underkända. */

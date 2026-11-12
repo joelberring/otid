@@ -244,3 +244,18 @@ it("TASK054 return withdraws checkin DNS without rewriting its result or fabrica
   expect(restoredRoster.status === "ok" && restoredRoster.response.entries[0]).toMatchObject({
     startState: "REPORTED_NOT_STARTED", manualReturnRegistered: false, activeDns: true });
 });
+
+it("användartest 2026-11-12: rapporten pekar ut radiostämplade löpare, så att de räknas som ute även före lottad start", async () => {
+  const f = await fixture();
+  const empty = await listAdministratorForestWatch(db, f.auth);
+  expect(empty.status === "ok" && empty.response.radioPunched).toEqual([]);
+  // En bricka som inte längre är aktiv räknas också: hellre en löpare för mycket som ute.
+  await db.insert(schema.cardAssignments).values({ raceId: f.raceId, entryId: f.entryId, cardNumber: "7654321", active: false });
+  await pool.query(`INSERT INTO radio_punch(race_id,source,unit_id,punch_id,control_code,card_number,punched_at,local_time,raw_line,received_at)
+    VALUES($1,'ROC','u1',1,50,'7654321',now(),'2026-09-12 10:10:00','syntetisk',now())`, [f.raceId]);
+  const admin = await listAdministratorForestWatch(db, f.auth);
+  if (admin.status !== "ok") throw new Error("Missing admin roster");
+  expect(admin.response.radioPunched).toEqual([f.entryId]);
+  expect(administratorForestWatchResponseSchema.safeParse({ ...admin.response, radioPunched: [randomUUID()] }).success).toBe(false);
+  expect(administratorForestWatchResponseSchema.safeParse({ ...admin.response, radioPunched: [f.entryId, f.entryId] }).success).toBe(false);
+});

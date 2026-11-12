@@ -137,7 +137,7 @@ export const forestWatchEn: Texts<typeof forestWatchSv> = {
   filteredWarning: "A filter is active. Participants outside the selection are not shown; the group totals always apply to the whole race.",
   noMatchesWarning: "No participants in the selection. That does not mean the forest is empty. Check the whole race's groups and unit details below.",
   groups: { CONFLICT: "Conflicting information – check", STARTED_NO_RETURN: "Started – no registered return",
-    UNCONFIRMED: "Unknown start status – follow up", NOT_STARTED: "Did not start according to registered information", RETURNED: "Registered return" },
+    UNCONFIRMED: "Unknown start status – follow up", AWAITING_START: "Not started – drawn start time not reached", NOT_STARTED: "Did not start according to registered information", RETURNED: "Registered return" },
   name: "Name / club", status: "Information and source", start: "Planned start", card: "Card", noCard: "No active card",
   multipleCards: "Several active cards – check", noOrganisation: "Club missing", punch: rule.rules.PUNCH, missingTime: "Start time missing",
   reports: { UNMARKED: "Start: unmarked / unknown", STARTED: "Start: manually reported", REPORTED_NOT_STARTED: "Start: explicitly reported did not start" },

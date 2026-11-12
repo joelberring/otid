@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildForestWatchList, ForestWatchInputError, type ForestWatchEntryFacts } from "../src";
+import { awaitingScheduledStart, buildForestWatchList, ForestWatchInputError, remainsInForest, type ForestWatchEntryFacts,
+  type RemainingInForestFacts } from "../src";
 
 const raceId = "00000000-0000-4000-8000-000000000001";
 const entryId = "00000000-0000-4000-8000-000000000002";
@@ -46,5 +47,41 @@ describe("forest watch list", () => {
     expect(() => buildForestWatchList("bad", [])).toThrowError(ForestWatchInputError);
     expect(() => buildForestWatchList(raceId, null as unknown as ForestWatchEntryFacts[])).toThrowError(ForestWatchInputError);
     expect(() => buildForestWatchList(raceId, Array.from({ length: 10_001 }, () => facts()))).toThrowError(ForestWatchInputError);
+  });
+});
+
+describe("kvar i skogen före lottad start (användartest 2026-11-12)", () => {
+  const now = new Date("2026-11-12T06:20:00.000Z"); // 07:20 svensk tid
+  const runner = (overrides: Partial<RemainingInForestFacts> = {}): RemainingInForestFacts => ({ forestState: "UNCONFIRMED",
+    startState: "UNMARKED", fixedStartTime: "2026-11-12T06:25:00.000Z", radioPunched: false, ...overrides });
+
+  it("räknar inte en löpare med lottad starttid framåt i tiden (minutstart eller masstart)", () => {
+    expect(awaitingScheduledStart(runner(), now)).toBe(true);
+    expect(remainsInForest(runner(), now)).toBe(false);
+    // Masstart en kvart senare: samma starttid för alla, samma regel.
+    expect(remainsInForest(runner({ fixedStartTime: "2026-11-12T06:35:00.000Z" }), now)).toBe(false);
+  });
+
+  it("räknar löparen som i dag när starttiden har passerat eller saknas (fri start)", () => {
+    expect(remainsInForest(runner({ fixedStartTime: "2026-11-12T06:20:00.000Z" }), now)).toBe(true);
+    expect(remainsInForest(runner(), new Date("2026-11-12T06:25:00.001Z"))).toBe(true);
+    expect(remainsInForest(runner(), new Date("2026-11-13T10:00:00.000Z"))).toBe(true);
+    expect(remainsInForest(runner({ fixedStartTime: null }), now)).toBe(true);
+    expect(remainsInForest(runner({ fixedStartTime: undefined }), now)).toBe(true);
+    expect(remainsInForest(runner({ fixedStartTime: "inte en tid" }), now)).toBe(true);
+    expect(remainsInForest(runner(), new Date(Number.NaN))).toBe(true);
+  });
+
+  it("låter radiostämpling, registrerad start, konflikt och okänd avprickning gälla oavsett starttid", () => {
+    expect(remainsInForest(runner({ radioPunched: true }), now)).toBe(true);
+    expect(remainsInForest(runner({ forestState: "STARTED_NO_RETURN", startState: "STARTED" }), now)).toBe(true);
+    expect(remainsInForest(runner({ forestState: "CONFLICT" }), now)).toBe(true);
+    expect(remainsInForest(runner({ startState: undefined }), now)).toBe(true);
+  });
+
+  it("räknar aldrig återkomna eller ej startande, oavsett starttid", () => {
+    expect(remainsInForest(runner({ forestState: "RETURNED" }), now)).toBe(false);
+    expect(remainsInForest(runner({ forestState: "NOT_STARTED", startState: "REPORTED_NOT_STARTED" }), now)).toBe(false);
+    expect(remainsInForest(runner({ forestState: "RETURNED", fixedStartTime: null }), now)).toBe(false);
   });
 });

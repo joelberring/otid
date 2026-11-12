@@ -13,6 +13,19 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-12 – Användartestet 2026-11-12: första intrycket, resten av block 1 och ledarflödet
+- Första intrycket: Träning är förval, en bana utan klass får en klass i Träning, klockslag som 0725/7.25/18 tolkas
+  (`normalizeClock`), kontomenyn finns i arbetsytan, Till startlistan visas bara när den är publicerad, superadminlistan
+  säger Obekräftad adress, klubbnamn föreslås i befintlig stavning, demotävlingen är en Träning.
+- Block 1: utskriftens rubrik är tävlingens namn, gafflingssättet syns i banläggningen, LÅNAD BRICKA? vid bricka som en
+  annan löpare haft, och `natt-gaffling-masstart.spec.ts` (fulgaffling, masstart, direktanmälan, okänd bricka).
+- Ledarflödet: träning i en klubbs grupp får klubben som arrangör direkt; ansvarig och uppgift mejlas (konto eller inte),
+  uppgifter kan ändras (PUT, klubbens ledare); en ledare vald ur klubbens bekräftade lista gäller direkt, en skriven adress
+  väntar som förut; klubbytan kan ta namnet från Eventor (PATCH, klubbens administratör); länk tillbaka till gruppen.
+- Behörigheter: nya vägar står i rolltabellens test; okänd bricka mot befintlig anmälan kräver fortfarande ADMIN.
+- Inte byggt (kräver migration, se `docs/plan-ledarflode-2026-11-12.md`): automatisk arkivering, personer vid kopiering.
+- Verifierat: lint, typecheck, knip, enhetstester, hela integrationssviten, 60-tal Playwright-tester lokalt mot bygget.
+
 ### 2026-11-12 – Användartestet 2026-11-12, block 1: rättad kontrollkod i ett gafflingsalternativ
 - Fel: en rättad kod i ett alternativ (E 64 → 65) gav alla med AE/BE nya varianter, trots tryckta kartor med koden.
 - Regel (`forkingVariantCodeMap` i domänen, tillägg 2026-11-12 i ADR-0175, domain-rules): kontrollföljden som finns kvar

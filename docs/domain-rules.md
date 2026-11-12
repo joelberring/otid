@@ -133,8 +133,12 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
 - En gafflad bana kan ha en struktur (`course_version.forking`): grundföljd med enkla gafflingar (2–4 alternativ) och
   fjärilar (2–4 slingor från en central kontroll, alla ordningar), i följd. Varianterna genereras ur strukturen, högst 100;
   koderna följer OCAD/Purple Pen (bokstäver i följd över gafflingspunkterna, fjärilens slingor i springordning utom sista).
-- När en struktur sparas behåller en löpare sin kontrollföljd under den nya koden; försvinner kontrollföljden får löparen
-  en ny variant genom fördelningen (avläst: den som stämplingarna passar). Omräkning i samma transaktion som sparandet.
+- När en struktur sparas (`forkingVariantCodeMap`, tillägg 2026-11-12 i ADR-0175): finns löparens kontrollföljd kvar
+  följer löparen den under den nya koden (bara bokstäverna flyttades). Annars behåller löparen sin kod när koden finns
+  kvar, ingen annan kontrollföljd flyttat dit och gafflingspunkterna är av samma slag i samma ordning (rättad
+  kontrollkod; kartan är tryckt med koden, avlästa räknas om mot kodens nya följd). Försvinner koden får löparen en ny
+  variant genom fördelningen (avläst: den som stämplingarna passar). Stafettsträckor följer bara sin kontrollföljd.
+  Omräkning i samma transaktion som sparandet.
 - Varianter utan struktur (banfil) får en härledd struktur för bilden; den kan sparas ("Gör om till struktur") när den
   klarar reglerna.
 - Rättvisekontroll per gafflingssätt (`course.forking_mode`): Utjämnad varnar för varje sträcka som inte finns lika många

@@ -82,7 +82,7 @@ async function proposedVariants(tx: Transaction, course: LoadedCourse, request: 
   forking?: CourseForking | undefined }): Promise<EditPlan | undefined> {
   // Steg 49: en ny struktur ersätter banans kontroller och varianter. Samma struktur igen är ingen ändring.
   if (request.forking) {
-    const plan = planForkingSave(course.variants, request.forking, course.version.excludedVariants ?? []);
+    const plan = planForkingSave(course.variants, request.forking, course.version.excludedVariants ?? [], course.forking);
     if (!plan || (course.forking && JSON.stringify(course.forking) === JSON.stringify(plan.forking))) return undefined;
     if (!plan.forking && sameControlCodes(course.controlCodes, plan.controlCodes) && course.variants.length === 0) return undefined;
     const positions = await loadCoursePositions(tx, course.raceId, course.id, forkingControlSet(request.forking));
@@ -102,8 +102,21 @@ async function proposedVariants(tx: Transaction, course: LoadedCourse, request: 
       ? { code: variant.code, controlCodes: [...controlCodes], lengthMeters: null } : variant), course.positions) };
 }
 
-/** Löparnas koder när strukturen sparas: samma kontrollföljd under ny kod, null när kontrollföljden försvinner. */
-function entryCodeChanges(snapshot: RaceSnapshot, course: LoadedCourse, plan: EditPlan): Map<string, string | null> {
+/** Stafettklasserna bland banans klasser (klasser med sträckor). */
+async function relayClassIdsOf(tx: Transaction, raceId: string, course: LoadedCourse): Promise<Set<string>> {
+  if (course.classes.length === 0) return new Set();
+  return new Set((await tx.selectDistinct({ classId: schema.relayLegs.classId }).from(schema.relayLegs)
+    .where(and(eq(schema.relayLegs.raceId, raceId), inArray(schema.relayLegs.classId, course.classes.map(row => row.id)))))
+    .map(row => row.classId));
+}
+
+/**
+ * Löparnas koder när strukturen sparas (ADR-0175 beslut 3, tillägg 2026-11-12): samma kontrollföljd under ny kod,
+ * annars samma kod när den finns kvar (rättad kontrollkod; avlästa räknas om mot kodens nya följd), null när koden
+ * försvinner. Stafettsträckor följer som förut bara sin kontrollföljd (null när den försvinner).
+ */
+function entryCodeChanges(snapshot: RaceSnapshot, course: LoadedCourse, plan: EditPlan, relayClassIds: ReadonlySet<string>)
+  : Map<string, string | null> {
   const changes = new Map<string, string | null>();
   if (!plan.forking) return changes;
   const classes = new Map(snapshot.classes.map(row => [row.id, row]));
@@ -113,7 +126,8 @@ function entryCodeChanges(snapshot: RaceSnapshot, course: LoadedCourse, plan: Ed
     // Steg 47: en stafettsträcka med en annan bana berörs inte.
     const raceClass = classes.get(entry.classId);
     if (!raceClass || entryCourseVersionId(entry, raceClass) !== course.version.id) continue;
-    const next = plan.forking.codeMap.has(entry.courseVariantCode) ? plan.forking.codeMap.get(entry.courseVariantCode)! : null;
+    const codeMap = relayClassIds.has(entry.classId) ? plan.forking.sequenceCodeMap : plan.forking.codeMap;
+    const next = codeMap.has(entry.courseVariantCode) ? codeMap.get(entry.courseVariantCode)! : null;
     if (next !== entry.courseVariantCode) changes.set(entry.id, next);
   }
   return changes;
@@ -153,6 +167,7 @@ function previewResponse(raceId: string, course: LoadedCourse, snapshotVersion: 
   variantCode: string | undefined, assessed: AssessedEntry[], entryCodes: ReadonlyMap<string, string | null>): CourseEditPreviewResponse {
   const forking = plan.forking && { variants: plan.forking.variants.map(variant => ({ code: variant.code, controlCodes: [...variant.controlCodes],
     previousCode: variant.previousCode })), removedCodes: [...plan.forking.removedCodes],
+    ...(plan.forking.changedCodes.length > 0 ? { changedCodes: [...plan.forking.changedCodes] } : {}),
     renamedEntryCount: [...entryCodes.values()].filter(code => code !== null).length,
     reassignedEntryCount: plan.forking.variants.length === 0 ? 0 : [...entryCodes.values()].filter(code => code === null).length,
     ...(plan.forking.excludedCodes.length > 0 ? { excludedCodes: [...plan.forking.excludedCodes].slice(0, 1000) } : {}),
@@ -285,7 +300,7 @@ export async function previewCourseEditAsAdmin(db: Database, input: Authenticati
     const plan = await proposedVariants(tx, course, parsed.data);
     if (!plan) return { status: "invalid-request" };
     const snapshot = await loadRaceSnapshot(tx, raceId);
-    const entryCodes = entryCodeChanges(snapshot, course, plan);
+    const entryCodes = entryCodeChanges(snapshot, course, plan, await relayClassIdsOf(tx, raceId, course));
     const assessed = await assess(tx, raceId, course, snapshot, plan.controlCodes, plan.variants, entryCodes);
     if (assessed === "too-large") return { status: "too-large" };
     return { status: "ok", response: previewResponse(raceId, course, race.snapshotVersion, plan,
@@ -336,7 +351,7 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
         inArray(schema.entries.classId, course.classes.map(row => row.id)))).orderBy(asc(schema.entries.id)).for("update");
     }
     const before = await loadRaceSnapshot(tx, raceId);
-    const entryCodes = entryCodeChanges(before, course, plan);
+    const entryCodes = entryCodeChanges(before, course, plan, await relayClassIdsOf(tx, raceId, course));
     const assessed = await assess(tx, raceId, course, before, plan.controlCodes, plan.variants, entryCodes);
     if (assessed === "too-large") return { status: "too-large" };
     const preview = previewResponse(raceId, course, race.snapshotVersion, plan, intent.variantCode,
@@ -363,9 +378,11 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
     // Steg 47: sträckor med banan som egen bana följer med till den nya versionen.
     await tx.update(schema.relayLegs).set({ courseVersionId: courseVersion.id })
       .where(and(eq(schema.relayLegs.raceId, raceId), eq(schema.relayLegs.courseVersionId, course.version.id)));
-    // Löparna behåller sin kontrollföljd under den nya koden; den vars kontrollföljd försvann får en ny variant
-    // genom fördelningen (en avläst löpare den som stämplingarna passar). Stafettsträckor fördelas inte här:
-    // en sträcka utan variant bedöms mot den variant som stämplingarna passar.
+    // ADR-0175 beslut 3, tillägg 2026-11-12 (`forkingVariantCodeMap`): löparen följer sin kontrollföljd när den finns
+    // kvar under en annan kod (bara bokstäverna flyttades), annars behåller hen sin kod när koden finns kvar (rättad
+    // kontrollkod; kartan är tryckt med koden). Bara den vars kod försvann får en ny variant genom fördelningen (en
+    // avläst löpare den som stämplingarna passar). Stafettsträckor fördelas inte här och följer som förut bara sin
+    // kontrollföljd: en sträcka utan variant bedöms mot den variant som stämplingarna passar.
     let reassigned = 0;
     if (entryCodes.size > 0) {
       await writeEntryVariants(tx, raceId, entryCodes);
@@ -397,6 +414,7 @@ export async function editCourseAsAdmin(db: Database, input: Authentication & { 
       after: { courseVersionId: courseVersion.id, controlCodes: plan.controlCodes, variantCode: intent.variantCode ?? null, classIds,
         snapshotVersion: snapshotVersionAfter, recalculatedCount: recalculated.length,
         ...(plan.forking ? { forking: true, variantCodes: plan.variants.map(variant => variant.code), removedCodes: plan.forking.removedCodes,
+          changedCodes: plan.forking.changedCodes,
           renamedEntryCount: [...entryCodes.values()].filter(code => code !== null).length, reassignedEntryCount: reassigned } : {}) }, createdAt: now });
     if (recalculated.length > 0) {
       await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",

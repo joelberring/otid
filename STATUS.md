@@ -13,6 +13,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-12 – Användartestet 2026-11-12, block 1: rättad kontrollkod i ett gafflingsalternativ
+- Fel: en rättad kod i ett alternativ (E 64 → 65) gav alla med AE/BE nya varianter, trots tryckta kartor med koden.
+- Regel (`forkingVariantCodeMap` i domänen, tillägg 2026-11-12 i ADR-0175, domain-rules): kontrollföljden som finns kvar
+  följs under ny kod; annars behålls koden när den finns kvar, ingen annan följd flyttat dit och gafflingspunkterna är av
+  samma slag. Bara den vars kod försvinner får ny variant. Avlästa räknas om mot kodens nya följd.
+- Beskedet räknar bara koder som försvinner och säger vilka varianter som får ändrade kontroller (`changedCodes`, sv/en).
+- Stafettsträckor oförändrade (följer bara kontrollföljden; samma fel finns där, inte rättat).
+- Verifierat: lint, typecheck, enhetstester, integrationstester för gafflingar och banredigering (se slutrapporten).
+
 ### 2026-11-11 – Hyggen från Skogsstyrelsen efter ålder, fyll, parallell och mätning
 - Skogsstyrelsens utförda avverkningar hämtas för grundkartans ruta och delas in efter ålder (färskt 403, sly 407, ungskog
   406, kant 416); laserns grönt tas bort i hyggen som är nyare än skanningen (skanningsdatum ur Lantmäteriets sökning).

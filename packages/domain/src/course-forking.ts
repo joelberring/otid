@@ -269,6 +269,41 @@ export function forkingChoicesFor(forking: CourseForking, controlCodes: readonly
   return generateForkingVariants(forking).find((variant) => sequenceKey(variant.controlCodes) === key)?.choices;
 }
 
+export interface ForkingCodedVariant { readonly code: string; readonly controlCodes: readonly number[] }
+
+const forkingShape = (forking: CourseForking) => forking.items.flatMap((item) => item.kind === "CONTROL" ? [] : [item.kind]).join(" ");
+
+/**
+ * Löparnas variantkoder när en gafflad banas struktur sparas om (ADR-0175 beslut 3, tillägg 2026-11-12). Kartorna är
+ * ofta redan tryckta med koden, så koden är löparens identitet så långt det går:
+ *
+ * 1. Finns löparens kontrollföljd kvar exakt i den nya strukturen följer löparen den, under den kod den nu har (bara
+ *    bokstäverna flyttades, t.ex. ett alternativ lades till i mitten eller två slingor bytte plats).
+ * 2. Annars behåller löparen sin kod när koden finns kvar, ingen annan gammal kontrollföljd har flyttat dit (steg 1)
+ *    och gafflingspunkterna är av samma slag i samma ordning (enkel gaffling/fjäril, så att bokstaven betyder samma
+ *    sak). Det är en rättad kontrollkod i ett alternativ eller i grundföljden: varianten får nya kontroller.
+ * 3. Annars försvinner koden (null): ett alternativ eller en gaffling togs bort eller strukturen ändrades så att koden
+ *    försvann eller betyder något annat. Anroparen ger då en ny variant (fördelningen, eller stämplingarna för en avläst).
+ *
+ * `previous.forking` saknas för varianter från en banfil utan sparad struktur; då jämförs med den härledda strukturen.
+ * `next.forking` null = banan blir en vanlig bana utan varianter.
+ */
+export function forkingVariantCodeMap(previous: { readonly forking?: CourseForking | null | undefined; readonly variants: readonly ForkingCodedVariant[] },
+  next: { readonly forking: CourseForking | null; readonly variants: readonly ForkingCodedVariant[] }): Map<string, string | null> {
+  const result = new Map<string, string | null>();
+  const nextBySequence = new Map(next.variants.map((variant) => [sequenceKey(variant.controlCodes), variant.code]));
+  for (const variant of previous.variants) result.set(variant.code, nextBySequence.get(sequenceKey(variant.controlCodes)) ?? null);
+  if (!next.forking || previous.variants.length === 0) return result;
+  const before = previous.forking ?? deriveCourseForking(previous.variants).forking;
+  if (forkingShape(before) !== forkingShape(next.forking)) return result;
+  const claimed = new Set([...result.values()].filter((code): code is string => code !== null));
+  const nextCodes = new Set(next.variants.map((variant) => variant.code));
+  for (const [code, mapped] of result) {
+    if (mapped === null && nextCodes.has(code) && !claimed.has(code)) result.set(code, code);
+  }
+  return result;
+}
+
 /** Strukturens kontrollkoder i ordning (grundföljd, alternativ och slingor), utan dubbletter. */
 export function forkingControlSet(forking: CourseForking): number[] {
   const codes: number[] = [];

@@ -45,6 +45,23 @@ fulgaffling ("alla sträckor var inte likvärdiga men nästan").
 9. **Generellt för stafetten.** Struktur, generering, härledning, graf, rättvisa och bild tar varianter och val, inte
    klasser eller löpare, så att stafetten (ADR-0174) kan använda dem.
 
+## Tillägg 2026-11-12: koden följer löparen vid en rättad kontrollkod
+
+Användartestet 2026-11-12: när en kontrollkod i ett alternativ rättades (E 64 → 65 i 31 40 [A:41 | B:42] 50 60
+[C:61 62 | D:63 | E:64] 70 100) fick alla med AE och BE nya varianter genom fördelningen, trots att koderna fanns kvar och
+kartorna var tryckta med dem. Beslut 3 ändras så (`forkingVariantCodeMap` i `packages/domain/src/course-forking.ts`):
+
+1. Finns löparens kontrollföljd kvar exakt följer löparen den under den kod den nu har (bara bokstäverna flyttades, t.ex.
+   ett alternativ lades till eller togs bort i mitten eller två alternativ bytte innehåll). Oförändrat.
+2. Annars behåller löparen sin kod när koden finns kvar, ingen gammal kontrollföljd har flyttat till koden (punkt 1) och
+   gafflingspunkterna är av samma slag i samma ordning (enkel gaffling och fjäril; annars betyder bokstaven något
+   annat). Det är en rättad kontrollkod i ett alternativ eller i grundföljden. Avlästa räknas om mot kodens nya följd.
+3. Annars försvinner koden och löparen får en ny variant som förut (avläst: den som stämplingarna passar, övriga genom
+   fördelningen).
+
+Beskedet säger vilka varianter som får ändrade kontroller (`changedCodes`) och räknar bara koder som verkligen försvinner.
+Stafettsträckor följer som förut bara sin kontrollföljd (en sträcka vars följd försvinner blir utan variant).
+
 ## Konsekvenser
 
 - Kartlägen (`MapPosition`) sparas inte; de används bara för längden vid inläsningen. Banan ritas bara på vägvalskartan,

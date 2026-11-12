@@ -74,6 +74,9 @@ export const forkingEn: Texts<typeof forkingSv> = {
     renamed > 0 ? `${renamed} ${renamed === 1 ? "runner keeps" : "runners keep"} their control order under a new code.` : "",
     reassigned > 0 ? `${reassigned} ${reassigned === 1 ? "runner gets" : "runners get"} a new variant through the allocation.` : ""
   ].filter(Boolean).join(" "),
+  previewChanged: (codes: readonly string[]) =>
+    `${codes.length === 1 ? "Variant" : "Variants"} ${codes.join(", ")} ${codes.length === 1 ? "gets" : "get"} changed controls. ` +
+    "Runners keep their code; read-out runners are recalculated against the new controls.",
   previewExcluded: (codes: readonly string[]) =>
     `${codes.length === 1 ? "The variant" : "The variants"} ${codes.join(", ")} ${codes.length === 1 ? "is" : "are"} left out in course setting and will not be included.`,
   previewStaleExcluded: (codes: readonly string[]) =>

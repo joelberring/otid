@@ -89,11 +89,14 @@ export const courseEditPreviewResponseSchema = z.object({
   controlCodes: z.array(controlCode).max(1000),
   /**
    * Steg 49: varianterna som strukturen ger, med koden som samma kontrollföljd hade förut (`previousCode`), koderna som
-   * försvinner, löpare som behåller sin kontrollföljd under en ny kod och löpare som får en ny variant.
+   * försvinner (löparna på dem får ny variant), löpare som behåller sin kontrollföljd under en ny kod och löpare som får
+   * en ny variant.
    */
   forking: z.object({
     variants: z.array(z.object({ code: courseVariantCodeSchema, controlCodes, previousCode: courseVariantCodeSchema.nullable() }).strict()).max(100),
     removedCodes: z.array(courseVariantCodeSchema).max(100), renamedEntryCount: count, reassignedEntryCount: count,
+    /** Tillägg 2026-11-12 (ADR-0175): koder som finns kvar med ändrade kontroller (rättad kontrollkod); löparna behåller koden. */
+    changedCodes: z.array(courseVariantCodeSchema).max(100).optional(),
     /** ADR-0198: varianter som strukturen ger men som är bortvalda i banläggningen (sparas inte). */
     excludedCodes: z.array(courseVariantCodeSchema).max(1000).optional(),
     /** ADR-0198: bortval som inte längre stämmer med någon variant; de följer med banversionen men gäller inte. */

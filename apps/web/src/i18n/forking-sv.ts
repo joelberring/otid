@@ -75,6 +75,10 @@ export const forkingSv = {
     renamed > 0 ? `${renamed} löpare behåller sin kontrollföljd under en ny kod.` : "",
     reassigned > 0 ? `${reassigned} löpare får en ny variant genom fördelningen.` : ""
   ].filter(Boolean).join(" "),
+  // ADR-0175, tillägg 2026-11-12: en rättad kontrollkod ändrar varianten men inte koden (kartorna är tryckta med koden).
+  previewChanged: (codes: readonly string[]) =>
+    `${codes.length === 1 ? "Varianten" : "Varianterna"} ${codes.join(", ")} får ändrade kontroller. Löparna behåller sin kod; ` +
+    "avlästa räknas om mot de nya kontrollerna.",
   // ADR-0198: bortvalda varianter ur banläggningen.
   previewExcluded: (codes: readonly string[]) =>
     `${codes.length === 1 ? "Varianten" : "Varianterna"} ${codes.join(", ")} är bortvald${codes.length === 1 ? "" : "a"} i banläggningen och kommer inte med.`,

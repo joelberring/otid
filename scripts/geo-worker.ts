@@ -230,6 +230,12 @@ async function runJob(job: Job): Promise<void> {
       impassableDrop6: job.cliffs.impassableDrop * DEFAULT_CLIFF_RULES.impassableDrop6 / DEFAULT_CLIFF_RULES.impassableDrop3,
       impassableLength: job.cliffs.impassableLength ?? DEFAULT_CLIFF_RULES.impassableLength } : DEFAULT_CLIFF_RULES;
     const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground, rules, job.cliffs?.tags === true);
+    if (cliffs.candidates.length) {
+      const round = (value: number) => Math.round(value * 100) / 100;
+      await writeFile(join(dir, "brantlinjer.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
+        features: cliffs.candidates.map(cliff => ({ type: "Feature", geometry: { type: "LineString", coordinates: cliff.line.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) },
+          properties: { drop3: round(cliff.drop3), drop6: round(cliff.drop6), length: round(cliff.length) } })) }));
+    }
     // Terrängskuggningen ur samma markraster, som ett underlag att tona.
     if (ground) {
       await set("Ritar terrängskuggningen", 0, 1);
@@ -409,7 +415,7 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),
       ...(files.has("berg.dxf") ? [["berg.dxf", "berg.dxf", "application/dxf"]] as const : []),
-      ...["marktacke.geojson", "byggnader.geojson", "kullar.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
+      ...["marktacke.geojson", "byggnader.geojson", "kullar.geojson", "brantlinjer.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
     // En fil över serverns gräns (Karttapullautins råa brantstreck för många rutor blir över 100 MB) hoppas över i stället för

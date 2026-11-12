@@ -365,11 +365,22 @@ export function evenLine(line: readonly (readonly [number, number])[]): [number,
   return simplify(points, 1.5);
 }
 
+/** En brant med sina mått: fallet inom 3 och 6 m (m) och längden (m). Linjen ligger i överkanten med nedför till höger. */
+export interface CliffCandidate { readonly line: [number, number][]; readonly drop3: number; readonly drop6: number; readonly length: number }
+/** Den lösa gränsen för `branter.geojson` (ägaren 2026-11-12: ändra utan ny körning): allt från 0,8 m fall sparas. */
+export const CLIFF_LOOSE_DROP = 0.8;
+/** Vad en brant blir med reglerna: opasserbar, passerbar eller ingen alls. Samma regel i webbläsaren. */
+export function classifyCliff(cliff: { drop3: number; drop6: number; length: number }, rules: CliffRules): "impassable" | "passable" | undefined {
+  if (cliff.drop3 < rules.minDrop) return undefined;
+  return cliff.drop3 >= rules.impassableDrop3 && cliff.drop6 >= rules.impassableDrop6 && cliff.length >= rules.impassableLength ? "impassable" : "passable";
+}
+
 export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly Tick[], settings: CliffSettings = DEFAULT_CLIFFS, ground?: GroundGrid,
   rules: CliffRules = DEFAULT_CLIFF_RULES, tags = false) {
   const meters = (lines: [number, number][][]) => Math.round(lines.reduce((sum, line) => sum + line.reduce((part, point, i) =>
     i === 0 ? 0 : part + Math.hypot(point[0] - line[i - 1]![0], point[1] - line[i - 1]![1]), 0), 0));
   let high: [number, number][][], low: [number, number][][], dropped = 0;
+  const candidates: CliffCandidate[] = [];
   if (ground) {
     high = []; low = [];
     // Branterna ur markrastret först; Karttapullautins streck fyller bara på där rastret inte gav någon linje inom 6 m.
@@ -383,10 +394,14 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
     for (const line of [...own, ...extra]) {
       const { drop3, drop6, length } = measureCliff(line, ground);
       if (!Number.isFinite(drop3)) { low.push(line); continue; }
-      if (drop3 < rules.minDrop) { dropped += 1; continue; }
+      if (drop3 < Math.min(rules.minDrop, CLIFF_LOOSE_DROP)) { dropped += 1; continue; }
       // Fallet mäts kring Karttapullautins läge (mitt i branten); linjen ritas sedan i överkanten.
       const top = evenLine(toTopEdge(line, ground, fromGround.has(line) ? 8.5 : 4.5));
-      if (drop3 >= rules.impassableDrop3 && drop6 >= rules.impassableDrop6 && length >= rules.impassableLength) high.push(top); else low.push(top);
+      // Alla branter från den lösa gränsen sparas med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
+      candidates.push({ line: top, drop3, drop6, length });
+      const kind = classifyCliff({ drop3, drop6, length }, rules);
+      if (!kind) { dropped += 1; continue; }
+      if (kind === "impassable") high.push(top); else low.push(top);
     }
   } else {
     // Passerbara streck där det redan är opasserbart (inom 2 m) hör till den opasserbara branten.
@@ -400,7 +415,7 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
     low = cliffLines(passable.filter(([x1, y1, x2, y2]) => !taken.has(key((x1 + x2) / 2, (y1 + y2) / 2))), settings);
   }
   return { dxf: moistureDxf([{ name: "brant_opasserbar", closed: false, parts: high }, { name: tags ? "brant_passerbar_taggar" : "brant_passerbar", closed: false, parts: low }]),
-    lines: { impassable: high, passable: low },
+    lines: { impassable: high, passable: low }, candidates,
     summary: { cliffs201: high.length, cliffs202: low.length, cliffMeters201: meters(high), cliffMeters202: meters(low), ...(ground ? { cliffsDropped: dropped } : {}) } };
 }
 

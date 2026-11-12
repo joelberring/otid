@@ -19,6 +19,9 @@ export const mapSavedChoiceEn: Texts<typeof mapSavedChoiceSv> = {
   loading: "Fetching …",
   failed: "It could not be fetched.",
   reset: "Defaults",
+  amount: (level: number) => `Amount: ${level} of 10${level === 5 ? " (default)" : ""}`,
+  amountHelp: "1 gives few, 10 gives many.",
+  fine: "Fine-tune",
   nothing: "Nothing is left within those limits."
 };
 

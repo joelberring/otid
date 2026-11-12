@@ -7,8 +7,8 @@ import { mapKnollsEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapKnollsSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase } from "../../lib/map-project-client";
-import { cliffFeatures, DEFAULT_CLIFF_LIMITS, readCliffCandidates, type CliffLimits } from "../../lib/map-project-cliff-choice";
-import { chooseKnolls, DEFAULT_KNOLL_LIMITS, knollFeatures, readKnollCandidates, type KnollLimits } from "../../lib/map-project-knoll-choice";
+import { cliffFeatures, cliffLimitsAt, DEFAULT_CLIFF_LIMITS, readCliffCandidates, type CliffLimits } from "../../lib/map-project-cliff-choice";
+import { chooseKnolls, DEFAULT_KNOLL_LIMITS, knollFeatures, knollLimitsAt, readKnollCandidates, type KnollLimits } from "../../lib/map-project-knoll-choice";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -22,7 +22,9 @@ type Slider<L> = (key: keyof L & string, label: string, min: number, max: number
  * sparat med sina mått (`file`), med reglage. Kandidaterna räknas om en kort stund efter att ett reglage flyttats, utan att
  * laserdatan hämtas eller körs igen. Bara panelens egna lager (`own`) byts i det som visas; grundkartan i övrigt står kvar.
  */
-function SavedChoicePanel<C, L extends object>({ view, importer, file, own, initial, read, choose, heading, help, name, controls, testId }: {
+function SavedChoicePanel<C, L extends object>({ view, importer, file, own, initial, read, choose, heading, help, name, controls, testId, atLevel }: {
+  /** Gränserna för en mängd på skalan 1–10 (5 = förvalen); `current` är det som är finjusterat. */
+  atLevel: (level: number, current: L) => L;
   view: MapProjectView; importer: Importer; file: string; own: RegExp; initial: L; read: (json: unknown) => C[];
   choose: (candidates: readonly C[], limits: L) => { features: SourceFeature[]; message: string };
   heading: string; help: string; name: (job: string) => string; testId: string;
@@ -34,6 +36,7 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
   const [chosen, setChosen] = useState("");
   const [loaded, setLoaded] = useState<{ jobId: string; name: string; candidates: readonly C[] }>();
   const [limits, setLimits] = useState<L>(initial);
+  const [level, setLevel] = useState(5);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
 
@@ -86,8 +89,13 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
       {loaded?.jobId !== job.jobId ? <span className={styles.actions}>
         <Button variant="secondary" disabled={busy} onClick={() => void load()} data-testid={`${testId}-load`}>{busy ? text.loading : text.load}</Button>
       </span> : <>
-        {controls(limits, slider, change)}
-        <span className={styles.actions}><Button variant="quiet" onClick={() => setLimits(initial)}>{text.reset}</Button></span>
+        {/* Ägaren 2026-11-12: en skala 1–10 med förvalet i mitten; de enskilda gränserna finns under Finjustera. */}
+        <label>{text.amount(level)}
+          <input type="range" min={1} max={10} step={1} value={level} data-testid={`${testId}-amount`}
+            onChange={event => { const next = Number(event.target.value); setLevel(next); setLimits(current => atLevel(next, current)); }} /></label>
+        <p className={styles.muted}>{text.amountHelp}</p>
+        <details><summary>{text.fine}</summary>{controls(limits, slider, change)}</details>
+        <span className={styles.actions}><Button variant="quiet" onClick={() => { setLevel(5); setLimits(initial); }}>{text.reset}</Button></span>
       </>}
     </>}
     {message && <p role={message.tone === "ok" ? "status" : "alert"} className={message.tone === "ok" ? styles.muted : styles.problem}
@@ -99,7 +107,7 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
 export function MapProjectKnollPanel({ view, importer }: { view: MapProjectView; importer: Importer }) {
   const text = useTexts(mapKnollsSv, mapKnollsEn).knolls;
   return <SavedChoicePanel<Parameters<typeof chooseKnolls>[0][number], KnollLimits> view={view} importer={importer} file="kullar.geojson" own={/^dotknoll_laser$/}
-    initial={DEFAULT_KNOLL_LIMITS} read={readKnollCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-knolls"
+    initial={DEFAULT_KNOLL_LIMITS} atLevel={knollLimitsAt} read={readKnollCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-knolls"
     choose={(candidates, limits) => { const points = chooseKnolls(candidates, limits); return { features: knollFeatures(points), message: text.done(points.length, candidates.length) }; }}
     controls={(limits, slider) => <>
       {slider("minRise", text.minRise(limits.minRise.toLocaleString("sv-SE", { minimumFractionDigits: 1 })), 0.5, 3, 0.1)}
@@ -114,7 +122,7 @@ export function MapProjectCliffPanel({ view, importer, scale }: { view: MapProje
   const text = useTexts(mapKnollsSv, mapKnollsEn).cliffs;
   const meters = (value: number) => value.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
   return <SavedChoicePanel<Parameters<typeof cliffFeatures>[0][number], CliffLimits> view={view} importer={importer} file="brantlinjer.geojson" own={/^brant_/}
-    initial={DEFAULT_CLIFF_LIMITS} read={readCliffCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-cliffs"
+    initial={DEFAULT_CLIFF_LIMITS} atLevel={cliffLimitsAt} read={readCliffCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-cliffs"
     choose={(candidates, limits) => { const result = cliffFeatures(candidates, limits, 0.6 * scale / 1000); return { features: result.features, message: text.done(result.impassable, result.passable, candidates.length) }; }}
     controls={(limits, slider, change) => <>
       {slider("minDrop", text.minDrop(meters(limits.minDrop)), 0.8, 3, 0.1)}

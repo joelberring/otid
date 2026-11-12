@@ -11,6 +11,23 @@ export interface KnollLimits { readonly minRise: number; readonly lowerShare: nu
 /** Geo-arbetarens förval (det som `knollar`-lagret i grundkartan är räknat med). */
 export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 1, lowerShare: 0.8, maxFootM2: 80, spacing: 10 };
 
+/**
+ * Ägaren 2026-11-12 («en skala 1–10 med 5 i mitten som är förinställt»): ett enda reglage för mängden. 5 är förvalen, 1 ger
+ * bara de högsta och tydligaste med gott om plats emellan, 10 släpper in allt laserjobbet har sparat. Däremellan rätlinjigt.
+ */
+const FEWEST_KNOLLS: KnollLimits = { minRise: 2, lowerShare: 0.95, maxFootM2: 80, spacing: 40 };
+const MOST_KNOLLS: KnollLimits = { minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 };
+export const knollLimitsAt = (level: number): KnollLimits => blend(DEFAULT_KNOLL_LIMITS, level < 5 ? FEWEST_KNOLLS : MOST_KNOLLS, level < 5 ? (5 - level) / 4 : (level - 5) / 5);
+
+/** Gränserna en andel `share` (0–1) av vägen från `from` till `to`, avrundade till två decimaler. Annat än tal tas från `from`. */
+export function blend<L extends object>(from: L, to: L, share: number): L {
+  const t = Math.min(1, Math.max(0, share));
+  return Object.fromEntries(Object.entries(from).map(([key, value]) => {
+    const other = (to as Record<string, unknown>)[key];
+    return [key, typeof value === "number" && typeof other === "number" ? Math.round((value + (other - value) * t) * 100) / 100 : value];
+  })) as L;
+}
+
 /** Kandidaterna ur `kullar.geojson` (punkter i SWEREF 99 TM med egenskaperna rise, share och foot). Annat hoppas över. */
 export function readKnollCandidates(json: unknown): KnollCandidate[] {
   const features = (json as { features?: unknown } | null)?.features;

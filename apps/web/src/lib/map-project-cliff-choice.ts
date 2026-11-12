@@ -1,4 +1,5 @@
 import type { SourceFeature } from "@o-tid/map-revision";
+import { blend } from "./map-project-knoll-choice";
 
 /**
  * Ägaren 2026-11-12 (ändra utan ny körning): laserjobbet sparar alla branter från 0,8 m fall med sina mått
@@ -10,6 +11,10 @@ export interface CliffCandidate { readonly line: readonly (readonly [number, num
 export interface CliffLimits { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength: number; readonly tags: boolean }
 /** Geo-arbetarens förval («Bara höga stup», lärt av Högdalen). */
 export const DEFAULT_CLIFF_LIMITS: CliffLimits = { minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20, tags: false };
+
+/** Mängden på skalan 1–10 (5 = förvalen): 1 bara branter från 3 m fall, 10 allt från 0,8 m. Gränsen för opasserbar ändras inte. */
+export const cliffLimitsAt = (level: number, current: CliffLimits = DEFAULT_CLIFF_LIMITS): CliffLimits => ({ ...current,
+  minDrop: blend({ minDrop: DEFAULT_CLIFF_LIMITS.minDrop }, { minDrop: level < 5 ? 3 : 0.8 }, level < 5 ? (5 - level) / 4 : (level - 5) / 5).minDrop });
 
 export function readCliffCandidates(json: unknown): CliffCandidate[] {
   const features = (json as { features?: unknown } | null)?.features;

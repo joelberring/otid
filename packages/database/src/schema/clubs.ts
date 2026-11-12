@@ -124,6 +124,18 @@ export const clubArchiveEntries = pgTable("club_archive_entry", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 });
 
+/** Ägaren 2026-11-12 (migration 0114): planens ansvarige och uppgifter när träningen lades i arkivet (inga adresser). */
+export type ClubArchiveEntryPersonKind = "RESPONSIBLE" | "TASK";
+
+export const clubArchiveEntryPersons = pgTable("club_archive_entry_person", {
+  id: uuid("id").primaryKey(),
+  entryId: uuid("entry_id").notNull().references(() => clubArchiveEntries.id),
+  kind: text("kind").$type<ClubArchiveEntryPersonKind>().notNull(),
+  title: text("title"),
+  accountId: uuid("account_id").references(() => userAccounts.id, { onDelete: "set null" }),
+  position: integer("position").notNull()
+});
+
 export const clubArchiveEntryMaps = pgTable("club_archive_entry_map", {
   entryId: uuid("entry_id").notNull().references(() => clubArchiveEntries.id),
   versionId: uuid("version_id").notNull().references(() => clubMapVersions.id)

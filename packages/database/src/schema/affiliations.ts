@@ -1,4 +1,4 @@
-import { date, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { clubs } from "./clubs";
 import { races } from "./core";
@@ -108,6 +108,22 @@ export const raceClubArchives = pgTable("race_club_archive", {
   raceDate: date("race_date").notNull(),
   liftedBy: uuid("lifted_by").notNull(),
   liftedAt: timestamp("lifted_at", { withTimezone: true }).notNull()
+});
+
+/**
+ * Ägaren 2026-11-12 (migration 0113): "Lägg i klubbarkivet när träningen är klar". `enabled` null = förvalet; `archivedAt`
+ * spärrar en ny automatisk arkivering (också efter Ta ur); `problem` = varför den automatiska inte gick.
+ */
+export type RaceClubArchiveAutoProblem = "NO_ADMIN" | "FAILED";
+
+export const raceClubArchiveAutos = pgTable("race_club_archive_auto", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  enabled: boolean("enabled"),
+  setBy: uuid("set_by"),
+  setAt: timestamp("set_at", { withTimezone: true }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  problem: text("problem").$type<RaceClubArchiveAutoProblem>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 });
 
 export const invitationClubSources = pgTable("invitation_club_source", {

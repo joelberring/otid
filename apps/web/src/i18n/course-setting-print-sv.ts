@@ -117,6 +117,11 @@ export const coursePrintSv = {
       COUNT: (course: string, expected: number, actual: number) => `${course}: Kartor till starten har ${expected} kartor, utskriften ${actual}.`
     },
     bundlesLink: "Kartor till starten",
-    noVariant: "utan variant"
+    noVariant: "utan variant",
+    /** Användartestet 2026-11-12: rubriken på kartorna är tävlingens namn, inte .ppen-filens titel. */
+    titleHeading: (title: string) => `Rubriken på kartorna: ${title}.`,
+    titleFile: (title: string) => `Filen heter ${title}.`,
+    titleUseFile: "Använd filens titel på kartorna",
+    titleRace: (title: string) => `Tävlingen heter ${title}.`
   }
 } as const;

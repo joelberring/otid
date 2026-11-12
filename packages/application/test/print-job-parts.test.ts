@@ -69,3 +69,19 @@ describe("PDF-jobbet: bortvalda varianter (ADR-0198)", () => {
     await expect(renderPrintJob({ ...input, request: request([{ course: natt, variant: "BDF" }]) })).rejects.toThrow(PrintJobError);
   });
 });
+
+/** Användartestet 2026-11-12: PDF:ens kartor får tävlingens namn, inte .ppen-filens titel (samma regel som förhandsvisningen). */
+describe("PDF-jobbet: rubriken på kartorna", () => {
+  const document = readPpen(read("fixtures/course-setting/gaffling-urval.ppen")).document;
+  const course = document.courses[0]!.id;
+  const headed = (): PrintJobRequest => ({ ...request([{ course }]), layout: { kind: "PAGES", header: true } });
+
+  it("tävlingens namn som förval, filens titel när den valts", () => {
+    expect(document.event.title).toBe("Gafflingsurval på kartfilen");
+    const sheets = JSON.stringify(printJobSheets(document, headed(), undefined, undefined, undefined, "Natt 2"));
+    expect(sheets).toContain("Natt 2");
+    expect(sheets).not.toContain("Gafflingsurval på kartfilen");
+    const chosen = applyEdit(document, { type: "SET_EVENT", changes: { printFileTitle: true } }).document;
+    expect(JSON.stringify(printJobSheets(chosen, headed(), undefined, undefined, undefined, "Natt 2"))).toContain("Gafflingsurval på kartfilen");
+  });
+});

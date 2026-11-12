@@ -90,7 +90,9 @@ export const courseSettingStateSchema = z.object({
   mapFile: z.object({ sha256: sha256HexSchema, fileName, scale: z.number().int().min(100).max(1_000_000),
     bounds: raceMapSourceBoundsSchema, georeferenced: z.boolean() }).strict().nullable(),
   /** Tävlingens typ: rogaining (poängbanor) och fest (inga banor i tävlingen) förklaras i editorn. Saknas i äldre svar. */
-  raceType: raceTypeSchema.optional()
+  raceType: raceTypeSchema.optional(),
+  /** Tävlingens namn i O-Tid (`raceTitle`): rubriken på kartorna i utskriften (användartestet 2026-11-12). Saknas i äldre svar. */
+  raceTitle: z.string().max(500).optional()
 }).strict();
 export type CourseSettingState = z.infer<typeof courseSettingStateSchema>;
 

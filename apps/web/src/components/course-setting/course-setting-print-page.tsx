@@ -53,6 +53,7 @@ import { HelpButton, HelpLink } from "../help/help-panel";
 import { useDetailGaps } from "./course-setting-circle-cutting";
 import { readOnlyPaper } from "./course-setting-paper-items";
 import { paperImageUrl } from "../../lib/course-setting-paper-api";
+import { PrintTitleNotice } from "./course-setting-print-title";
 import styles from "./course-setting-print-page.module.css";
 
 /** PDF-jobbet får löparens uppgifter för kartan men inte deltagarens id (det behövs bara för urvalet på sidan, ADR-0213). */
@@ -90,6 +91,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const trainingText = useTexts(trainingSv, trainingEn);
   const [loaded, setDocument] = useState<CourseSettingDocument | null>();
   const [canEdit, setCanEdit] = useState(false);
+  // Tävlingens namn: rubriken på kartorna (användartestet 2026-11-12), inte .ppen-filens titel.
+  const [raceTitle, setRaceTitle] = useState<string>();
   /** Ägaren 2026-11-10: läser om de sparade utskrifterna när ett tryckjobb sparats i träningen. */
   const [savedPrints, setSavedPrints] = useState(0);
   const [mapBounds, setMapBounds] = useState<MapRect>();
@@ -126,6 +129,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       setDocument(next);
       versionRef.current = state.setting?.version;
       setCanEdit(state.access.level === "EDIT");
+      setRaceTitle(state.raceTitle);
       setHasMap(state.mapFile !== null); setMapSha256(state.mapFile?.sha256);
       if (state.mapFile?.bounds) setMapBounds(state.mapFile.bounds);
       if (next && first) {
@@ -260,7 +264,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       : template ? { kind: "TEMPLATE" as const, template, perRunner: runnerMode, duplex, fill, ...(runnerMode && !mainTemplate ? { ownPage: true } : {}) }
         : { kind: "COURSE" as const, header, duplex: partsDuplex };
     // ADR-0213: banornas förhandsvisning visar löparens variabler som platshållare ({namn} …).
-    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids, runnerPlaceholders: !runnerMode,
+    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids, runnerPlaceholders: !runnerMode, raceTitle,
       onError: ({ item, error }) => {
         console.error("Utskriftslayouten misslyckades", error);
         const row = item === undefined ? undefined : items[item];
@@ -282,7 +286,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       });
     }
     return { sheets: out, errors: bad, perItem };
-  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, chosenRunners, duplex, bundles, pieces, partsDuplex, mapAids]);
+  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, chosenRunners, duplex, bundles, pieces, partsDuplex, mapAids, raceTitle]);
 
   const images = useSheetImages(map, sheets, printColors);
   // Löparens ark ur kontrolltabellen (ADR-0213): markerat bland arken.
@@ -364,6 +368,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
         <span role="status" data-testid="print-count">{sheets.length === 0 ? text.page.none : frameCount > sheets.length ? `${text.page.sheets(sheets.length)}, ${sheetLayoutText.frames(frameCount)}`
           : text.page.pages(sheets.length)}{waiting ? ` – ${text.page.readingMap}` : ""}</span>
         {blocked && <span className={styles.muted}>{text.page.runnerProblems}</span>}
+        <PrintTitleNotice document={document} raceTitle={raceTitle} canEdit={canEdit}
+          onChange={useFile => void saveShown([{ type: "SET_EVENT", changes: { printFileTitle: useFile } }])} />
         <div className={styles.outputs}>
           <div className={styles.stack} data-testid="print-output-printer">
             <Button onClick={() => window.print()} disabled={sheets.length === 0}>{outputText.printer}</Button>

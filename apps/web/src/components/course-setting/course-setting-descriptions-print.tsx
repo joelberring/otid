@@ -6,7 +6,7 @@ import { useTexts } from "../language-provider";
 import Link from "next/link";
 import {
   courseVariants, descriptionSymbols, layoutDescription, type CourseSettingDocument, type DescriptionKind, type DescriptionLayout,
-  type DescriptionSymbol
+  type DescriptionSymbol, withPrintedTitle
 } from "@o-tid/course-setting";
 import { courseSettingDescriptionSv } from "../../i18n/course-setting-description-sv";
 import { downloadText, fetchCourseSetting } from "../../lib/course-setting-api";
@@ -49,7 +49,9 @@ export function DescriptionPrintPage({ raceId }: { raceId: string }) {
     setFailed(false);
     try {
       const state = await fetchCourseSetting(raceId);
-      const next = (state.setting?.document ?? null) as unknown as CourseSettingDocument | null;
+      const stored = (state.setting?.document ?? null) as unknown as CourseSettingDocument | null;
+      // Beskrivningens titelrad är tävlingens namn som på kartorna (användartestet 2026-11-12); sidan sparar inget dokument.
+      const next = stored && withPrintedTitle(stored, state.raceTitle);
       setDocument(next);
       if (next) {
         setSettings(readDescriptionSettings(browserStorage(), raceId, next));

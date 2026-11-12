@@ -94,6 +94,7 @@ export * from "./paper-shapes";
 export * from "./paper-white";
 export { expandPartItems, printSheetGroups, type SheetGroup, type SheetGroupOptions, type PrintSheetsLayout } from "./print-sheets";
 export * from "./print-layouts";
+export { fileTitleDiffers, printedTitle, withPrintedTitle } from "./print-title";
 export * from "./print-layout-edit";
 export * from "./print-layout-states";
 export { isLayoutEdit } from "./edit";

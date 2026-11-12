@@ -534,6 +534,7 @@ export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseS
       }
       if (changes.levelNotices !== undefined && typeof changes.levelNotices !== "boolean") throw invalidEdit("Avvikelserna mot nivån är på eller av");
       if (changes.numbersPerVariant !== undefined && typeof changes.numbersPerVariant !== "boolean") throw invalidEdit("Numren per variant är på eller av");
+      if (changes.printFileTitle !== undefined && typeof changes.printFileTitle !== "boolean") throw invalidEdit("Filens titel på kartorna är på eller av");
       if (changes.paperValues !== undefined) {
         const values = changes.paperValues;
         const ok = (value: unknown, max: number) => value === undefined || (typeof value === "string" && value.length <= max);

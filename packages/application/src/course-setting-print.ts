@@ -3,9 +3,9 @@ import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import {
   printJobRequestSchema, printJobSchema, printJobsSchema, type PrintJob, type PrintJobProblem, type PrintJobRequest, type PrintJobs
 } from "@o-tid/contracts";
-import { paperImageHashes, type CourseSettingDocument } from "@o-tid/course-setting";
+import { paperImageHashes, printedTitle, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
-import { courseSettingRead, courseSettingWrite, loadRow, type Failure, type ReadProof } from "./course-setting";
+import { courseSettingRead, courseSettingWrite, loadRaceTitle, loadRow, type Failure, type ReadProof } from "./course-setting";
 import { sheetLayoutFor, PrintJobError, printProfileFor, renderPrintJob } from "./course-setting-print-render";
 import type { RaceSessionProof } from "./race-session";
 import { sha256Hex } from "./serialization";
@@ -211,7 +211,7 @@ export async function runPrintJob(db: Database, job: ClaimedPrintJob, options: P
   // ADR-0189: filen ur innehållslagret (eller den gamla kolumnen); utskriftsrollen läser båda.
   const sourceFile = source ? await rowContent(db, source) : undefined;
   const map = source && sourceFile ? { file: sourceFile, fileName: source.fileName, bounds: source.bounds } : undefined;
-  const [race] = await db.select({ name: schema.races.name }).from(schema.races).where(eq(schema.races.id, job.raceId));
+  const race = await loadRaceTitle(db, job.raceId);
   const started = performance.now();
   const finish = async (values: Partial<typeof schema.courseSettingPrintJobs.$inferInsert>) => {
     const updated = await db.update(schema.courseSettingPrintJobs).set({ ...values, finishedAt: clock() })
@@ -223,8 +223,9 @@ export async function runPrintJob(db: Database, job: ClaimedPrintJob, options: P
     const request = printJobRequestSchema.parse(row.request);
     const document = row.document as unknown as CourseSettingDocument;
     const paperImages = await paperImagesFor(db, paperImageHashes(document));
-    const result = await renderPrintJob({ paperImages, document, request, fonts: options.fonts, maxPages: PRINT_JOB_LIMITS.maxPages,
-      title: [race?.name, document.event.title.replace(/\|/g, " ")].filter(Boolean).join(" – ") || "O-Tid banor", now: clock(),
+    // Kartornas rubrik är tävlingens namn om inte filens titel valts (`printedTitle`, användartestet 2026-11-12).
+    const result = await renderPrintJob({ paperImages, document, request, fonts: options.fonts, maxPages: PRINT_JOB_LIMITS.maxPages, raceTitle: race,
+      title: printedTitle(document, race).replace(/\|/g, " ").trim() || "O-Tid banor", now: clock(),
       map: map ? { bytes: new Uint8Array(map.file), fileName: map.fileName, bounds: map.bounds } : null });
     const maxBytes = options.maxBytes ?? PRINT_JOB_LIMITS.maxBytes;
     if (result.bytes.byteLength > maxBytes) {

@@ -47,10 +47,12 @@ interface Shown { readonly key: string; readonly sheet: Sheet; readonly label: s
  * på dokumentet som utskriften ser det för layouten (`layoutDocument`) och sparas på arket (`sheetEdits`); huvudlayouten är
  * banornas egna fält som förut.
  */
-export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, map, mapBounds, symbols, onClose, layoutName }: {
+export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, map, mapBounds, symbols, onClose, layoutName, raceTitle }: {
   raceId: string; document: CourseSettingDocument; layout: string; focus: string; canEdit: boolean;
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; map: PrintMap; mapBounds: MapRect | undefined; symbols: SymbolLookup; onClose: () => void;
   layoutName: string;
+  /** Tävlingens namn: rubriken på kartorna som i Utskrift (`printedTitle`). */
+  raceTitle?: string | undefined;
 }) {
   const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
   const outputText = useTexts(printOutputSv, printOutputEn);
@@ -75,7 +77,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
       .filter(id => chosen.includes(id)).map(course => ({ course }))), () => []);
     const out: Shown[] = [];
     const groups = printSheetGroups(view, template ? { kind: "TEMPLATE", template, fill: "FILL" } : { kind: "COURSE" }, items,
-      { mapBounds, ...aids, runnerPlaceholders: true, onError: ({ error }) => console.error("Arket kunde inte läggas ut", error) });
+      { mapBounds, ...aids, runnerPlaceholders: true, raceTitle, onError: ({ error }) => console.error("Arket kunde inte läggas ut", error) });
     for (const group of groups) {
       const row = group.item === undefined ? undefined : items[group.item];
       group.sheets.forEach((sheet, index) => {
@@ -88,7 +90,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
     if (back && first?.frames[0]) out.push({ key: "back", sheet: { ...runnerBackSheet(view, first.paper, first.frames[0], { runnerPlaceholders: true }), back: true },
       label: runnerText.backCourse });
     return out;
-  }, [view, courses, chosen, template, mapBounds, aids, back]);
+  }, [view, courses, chosen, template, mapBounds, aids, back, raceTitle]);
   const images = useSheetImages(map, sheets, colors);
 
   const [openKey, setOpenKey] = useState<string>();

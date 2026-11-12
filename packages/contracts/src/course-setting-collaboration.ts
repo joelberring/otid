@@ -99,6 +99,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
     levelNotices: z.boolean().optional(),
     // Kontrollnumren placeras för varje variant för sig (ägaren 2026-11-09).
     numbersPerVariant: z.boolean().optional(),
+    // Kartornas rubrik är filens titel i stället för tävlingens namn (användartestet 2026-11-12).
+    printFileTitle: z.boolean().optional(),
     // Mellanrummet mellan sträckan och ringen (ADR-0211 beslut 2); gränserna kontrolleras av paketets applyEdit.
     legCircleGapMm: z.number().finite().optional() }).strict() }).strict(),
   // Banans utseende (ADR-0180 beslut 12); gränserna kontrolleras av paketets applyEdit.

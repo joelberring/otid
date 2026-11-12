@@ -7,6 +7,7 @@ import {
   type CourseSettingTransferProblem, type SyncPreviewResponse
 } from "@o-tid/contracts";
 import { writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
+import { raceTitle } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
 import { courseSettingProjection } from "./course-setting-transfer";
 import { requireCourseSettingAccess, type CourseSettingPrincipal, type CourseSettingRequirement } from "./course-setting-access";
@@ -136,6 +137,13 @@ export async function loadMapFile(tx: Transaction, raceId: string) {
   return row;
 }
 
+/** Tävlingens namn i O-Tid ("Natt-KM · Etapp 1"): rubriken på kartorna i utskriften (användartestet 2026-11-12). */
+export async function loadRaceTitle(tx: Pick<Database, "select">, raceId: string): Promise<string | undefined> {
+  const [row] = await tx.select({ raceName: schema.races.name, eventName: schema.events.name }).from(schema.races)
+    .innerJoin(schema.events, eq(schema.events.id, schema.races.eventId)).where(eq(schema.races.id, raceId));
+  return row ? raceTitle(row.eventName, row.raceName) || undefined : undefined;
+}
+
 /** Editorns läge: dokumentet (null = inget än), den inlästa .ppen-filen, kartfilen som editorn ritar och behörigheten. */
 export async function readCourseSettingAsAdmin(db: Database, input: ReadProof, now = new Date())
   : Promise<Failure | { status: "ok"; response: CourseSettingState }> {
@@ -144,13 +152,14 @@ export async function readCourseSettingAsAdmin(db: Database, input: ReadProof, n
     const map = await loadMapFile(tx, raceId);
     const [race] = await tx.select({ raceType: schema.races.raceType }).from(schema.races).where(eq(schema.races.id, raceId));
     const names = await actors(tx, row ? [row.updatedBy] : []);
+    const title = await loadRaceTitle(tx, raceId);
     return { status: "ok" as const, response: courseSettingStateSchema.parse({ formatVersion: 1, raceId,
       access: { accountId: principal.accountId, displayName: principal.displayName || null, level: principal.level, admin: principal.admin },
       setting: row ? { version: row.version, updatedAt: row.updatedAt.toISOString(), updatedBy: actor(names, row.updatedBy), mode: row.mode,
         document: row.document } : null,
       original: row?.originalFileName && row.originalImportedAt ? { fileName: row.originalFileName, importedAt: row.originalImportedAt.toISOString() } : null,
       mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null } : null,
-      ...(race ? { raceType: race.raceType } : {}) }) };
+      ...(race ? { raceType: race.raceType } : {}), ...(title ? { raceTitle: title.slice(0, 500) } : {}) }) };
   });
 }
 

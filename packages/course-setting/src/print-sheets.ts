@@ -15,6 +15,7 @@ import { effectivePaper } from "./paper-items";
 import { clipMapPasses, clipMarkings, paperClipRing } from "./paper-sheet";
 import { whiteAreasOnFrame } from "./paper-white";
 import { trainingPieceSheets } from "./training-print";
+import { withPrintedTitle } from "./print-title";
 import { findPrintLayout, layoutDocument, sheetLayoutOfLayout, MAIN_LAYOUT, singleMapTemplate } from "./print-layouts";
 
 export type PrintSheetsLayout =
@@ -52,10 +53,16 @@ export interface SheetGroupOptions {
   readonly onError?: ((failed: { readonly item?: number | undefined; readonly error: unknown }) => void) | undefined;
   /** ADR-0213: löparens variabler som platshållare i ramar utan löpare (förhandsvisningen av banor). */
   readonly runnerPlaceholders?: boolean | undefined;
+  /**
+   * Tävlingens namn i O-Tid: rubriken på kartorna ({tävling}, sidhuvudet, beskrivningens titel) i stället för filens titel,
+   * om inte banläggaren valt filens (`printedTitle`, användartestet 2026-11-12). Saknas = filens titel.
+   */
+  readonly raceTitle?: string | undefined;
 }
 
-export function printSheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: PrintSheetsLayout, items: readonly SheetItem[],
+export function printSheetGroups(source: Parameters<typeof layoutCoursePage>[0], layout: PrintSheetsLayout, items: readonly SheetItem[],
   options: SheetGroupOptions = {}): SheetGroup[] {
+  const document = withPrintedTitle(source, options.raceTitle);
   if (!items.some(item => item.layout !== undefined && item.layout !== MAIN_LAYOUT)) return withMapPasses(document, sheetGroups(document, layout, items, options));
   // ADR-0217: arken per layout. Varje följd av kartor i samma layout läggs ut på dokumentet som utskriften ser det för
   // layouten (`layoutDocument`: layoutens skala och papper, arkets utsnitt, papper och justeringar) med layoutens "Kartor per ark".

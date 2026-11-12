@@ -47,6 +47,8 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
   const serial = useMemo(() => serialSaves(), []);
   const undo = useRef<CourseSettingEdit[][]>([]);
   const [undoCount, setUndoCount] = useState(0);
+  // Tävlingens namn: rubriken på kartorna som i Utskrift (användartestet 2026-11-12).
+  const [raceTitle, setRaceTitle] = useState<string>();
   const load = useCallback(async () => {
     setFailed(false);
     try {
@@ -55,6 +57,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
       setDocument(next); documentRef.current = next;
       versionRef.current = state.setting?.version;
       setCanEdit(state.access.level === "EDIT");
+      setRaceTitle(state.raceTitle);
       setHasMap(state.mapFile !== null); setMapSha256(state.mapFile?.sha256);
       if (state.mapFile?.bounds) setMapBounds(state.mapFile.bounds);
     } catch { setFailed(true); }
@@ -139,7 +142,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
     {map.mapState === "reading" && <p className={styles.muted} role="status">{text.readingMap}</p>}
     <LayoutMatrix columns={matrix.columns} rows={matrix.rows} open={shown} readOnly={!canEdit}
       onOpen={(course, layout) => setOpen({ course, layout })} onAdd={(course, layout) => void addSheet(course, layout)} />
-    {shown && <LayoutSheets key={shown.layout} raceId={raceId} document={document} layout={shown.layout} focus={shown.course} layoutName={layoutName(shown.layout)}
+    {shown && <LayoutSheets key={shown.layout} raceId={raceId} document={document} layout={shown.layout} focus={shown.course} layoutName={layoutName(shown.layout)} raceTitle={raceTitle}
       canEdit={canEdit} save={save} map={map} mapBounds={mapBounds} symbols={symbols} onClose={() => setOpen(undefined)} />}
     <div className={styles.columns}>
       <LayoutList document={document} entries={entries} readOnly={!canEdit} save={save}

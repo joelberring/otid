@@ -44,7 +44,8 @@ export function keepEventSettings(next: CourseSettingDocument, current: CourseSe
   const papered = keepPaperOnImport(current, next);
   return { ...papered, event: { ...papered.event,
     ...(event.printProfiles ? { printProfiles: event.printProfiles } : {}), ...(event.printProfileId ? { printProfileId: event.printProfileId } : {}),
-    ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}), ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}) },
+    ...(event.layoutTemplates ? { layoutTemplates: event.layoutTemplates } : {}), ...(event.circleCutting ? { circleCutting: event.circleCutting } : {}),
+    ...(event.printFileTitle ? { printFileTitle: event.printFileTitle } : {}) },
   ...(current.training ? { training: current.training } : {}) };
 }
 

@@ -304,6 +304,11 @@ export interface CourseSettingDocument {
      * för där hela banan har dem. Bara O-Tid; saknas = samma läge i alla varianter.
      */
     readonly numbersPerVariant?: boolean | undefined;
+    /**
+     * Användartestet 2026-11-12: kartornas rubrik är filens titel (`title`) i stället för tävlingens namn i O-Tid
+     * (`printedTitle`). Bara O-Tid; skrivs inte till .ppen och följer med när en ny .ppen läses in. Saknas = tävlingens namn.
+     */
+    readonly printFileTitle?: boolean | undefined;
     /** Papperets mallar (ADR-0197) som banorna ärver av, och värdena för {datum} och {ekvidistans}. Bara O-Tid. */
     readonly paperTemplates?: readonly PaperTemplate[] | undefined;
     readonly paperValues?: PaperValues | undefined;

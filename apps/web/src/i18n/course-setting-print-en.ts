@@ -119,7 +119,11 @@ export const coursePrintEn: Texts<typeof coursePrintSv> = {
       COUNT: (course: string, expected: number, actual: number) => `${course}: Maps for the start has ${expected} maps, the print ${actual}.`
     },
     bundlesLink: "Maps for the start",
-    noVariant: "without variant"
+    noVariant: "without variant",
+    titleHeading: (title: string) => `Title on the maps: ${title}.`,
+    titleFile: (title: string) => `The file is called ${title}.`,
+    titleUseFile: "Use the file's title on the maps",
+    titleRace: (title: string) => `The competition is called ${title}.`
   }
 };
 

@@ -171,6 +171,9 @@ describe("steg 65: PDF för tryck på servern", { timeout: 240_000 }, () => {
   it("arbetaren: tar jobbet, skriver PDF:en med lilan som dekorfärg och övertryck; ett borttaget jobb slängs", async () => {
     const owner = await race();
     const doc = await document(owner);
+    // Användartestet 2026-11-12: läget har tävlingens namn, rubriken på kartorna i förhandsvisningen och PDF:en.
+    const state = await readCourseSettingAsAdmin(db, owner);
+    expect(state.status === "ok" && state.response.raceTitle).toBe("Tryck · Torsdag");
     const created = await createPrintJobAsAdmin(db, { ...owner, request: request(doc.courses.map(course => course.id)) });
     if (created.status !== "ok") throw new Error("inget jobb");
     // Två arbetare tar aldrig samma jobb.

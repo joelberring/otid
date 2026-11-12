@@ -4,6 +4,7 @@ import {
   clubCreateRoute, clubImportBatchRoute, clubImportCheckRoute, clubImportContentRoute, clubMapVersionTargetRoute, clubWebImportBatchRoute, clubWebImportCheckRoute,
   clubWebImportContentRoute
 } from "./club-route-handlers";
+import { raceClubArchiveRoute } from "./club-affiliation-route-handlers";
 
 /**
  * ADR-0194: anropen avvisas innan databasen används – fel Origin på arrangörens skrivningar, importen utan nyckel eller med
@@ -19,6 +20,13 @@ describe("klubbarkivets anrop", () => {
       headers: { origin: "https://annan.se", "content-type": "application/json" }, body: "{}" }), env);
     expect(response.status).toBe(403);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("rutan Lägg i klubbarkivet när träningen är klar (PATCH): fel Origin 403 och utloggad 401 innan databasen används", async () => {
+    const patch = (headers: Record<string, string>) => new Request(`https://tid.klubb.se/api/organizer/races/${club}/club-archive`, { method: "PATCH",
+      headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ formatVersion: 1, enabled: false }) });
+    expect((await raceClubArchiveRoute(db, patch({ origin: "https://annan.se" }), club, env)).status).toBe(403);
+    expect((await raceClubArchiveRoute(db, patch({ origin: env.O_TID_PUBLIC_ORIGIN }), club, env)).status).toBe(401);
   });
 
   it("Använd igen kräver tävlingens id i rubriken", async () => {

@@ -100,6 +100,28 @@ test("terminsplanering: termin, varje vecka, uppgift med e-post, Skapa träninge
   await expect(planning.getByRole("heading", { name: /VT 2027/ })).toBeVisible();
   await expect(planning.getByRole("alert")).toHaveCount(0);
 
+  // Ägaren 2026-11-12: Kopiera upplägg från termin – vårens tisdagar till en tom höst (samma veckodag i motsvarande vecka).
+  // Den ansvarige (ledare) följer med; uppgiften på förälderns adress kopieras utan person. Ingen träning skapas.
+  await planning.getByRole("button", { name: "Ny termin" }).click();
+  await planning.getByLabel("Namn").fill("HT 2027");
+  await planning.getByLabel("Första dagen").fill("2027-08-16");
+  await planning.getByLabel("Sista dagen").fill("2027-11-07");
+  await planning.getByRole("button", { name: "Spara terminen" }).click();
+  await expect(planning.getByRole("heading", { name: /HT 2027/ })).toBeVisible();
+  const copyTerm = planning.getByTestId("plan-term-copy");
+  await expect(copyTerm.getByLabel("Från terminen").locator("option:checked")).toHaveText("VT 2027");
+  await copyTerm.getByRole("button", { name: "Kopiera" }).click();
+  await expect(planning.getByText("11 träningar kopierade.")).toBeVisible();
+  await expect(planning.getByTestId("plan-term-copy")).toHaveCount(0);
+  await expect(planning.getByTestId("plan-week").first()).toContainText("Ingen träning planerad.");
+  const copied = planning.getByTestId("plan-session").first();
+  await expect(copied).toContainText("Kurvbildsträning");
+  await expect(copied).toContainText("Ansvarig: Petra Planerare");
+  await expect(copied.getByTestId("plan-task")).toContainText("Sätta ut kontroller");
+  await expect(copied.getByTestId("plan-task")).not.toContainText(parentEmail);
+  await expect(copied.getByRole("button", { name: "Skapa träningen" })).toBeVisible();
+  await expect(planning.getByRole("button", { name: "Hämta ur arkivet vecka 2" })).toBeVisible();
+
   // Föräldern: kontot med adressen, Mina uppgifter och banläggningen.
   const parent = await registerAccount(browser, parentEmail, "Fia Förälder");
   await parent.goto("/organizer");

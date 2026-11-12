@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { cliffLines, cliffsFromTicks, hillshade, measureCliff, slopeLines, type GroundGrid, shadeValue, mergeGroundGrids, readGroundGrid, readTicks, thin, type GroundGrid, type Tick } from "../../../scripts/geo-cliffs";
+import { cliffLines, cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, measureCliff, slopeLines, shadeValue, mergeGroundGrids, readGroundGrid, readTicks, thin, type GroundGrid, type Tick } from "../../../scripts/geo-cliffs";
 import { moistureFromHeightMaps, readHeightMap } from "../../../scripts/geo-moisture";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles } from "../../../scripts/geo-vegetation";
 import { mergeWaterGrids, polygonsOf, readWaterGrid, waterFromGrids, waterMask, type WaterGrid } from "../../../scripts/geo-water";
@@ -349,5 +349,26 @@ describe("brantlinjer ur markrastret", () => {
   it("gör den till opasserbar eller passerbar efter fallet, utan Karttapullautins streck", () => {
     expect(cliffsFromTicks([], [], undefined, scarp(6)).summary).toMatchObject({ cliffs201: 1, cliffs202: 0 });
     expect(cliffsFromTicks([], [], undefined, scarp(4)).summary).toMatchObject({ cliffs201: 0, cliffs202: 1 });
+  });
+});
+
+describe("kartritarens val för branterna", () => {
+  const scarp = (drop: number, length: number): GroundGrid => {
+    const width = 80, height = 80, z = new Float32Array(width * height);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      const along = y < 40 - length / 2 || y >= 40 + length / 2 ? Math.max(0, 1 - Math.min(Math.abs(y - (40 - length / 2)), Math.abs(y - (40 + length / 2))) / 6) : 1;
+      z[x * height + y] = 50 - Math.max(0, Math.min(1, (x - 38) / 4)) * drop * along;
+    }
+    return { minX: 1000, minY: 2000, cell: 1, width, height, z };
+  };
+  it("en kort brant på 4 m är passerbar med förvalet och opasserbar med «de flesta branter»", () => {
+    const ground = scarp(4, 14), most = { ...DEFAULT_CLIFF_RULES, impassableDrop3: 3.5, impassableDrop6: 3.5, impassableLength: 10 };
+    expect(cliffsFromTicks([], [], undefined, ground).summary).toMatchObject({ cliffs201: 0, cliffs202: 1 });
+    expect(cliffsFromTicks([], [], undefined, ground, most).summary).toMatchObject({ cliffs201: 1, cliffs202: 0 });
+  });
+  it("med taggar heter de passerbaras lager så att de föreslås som brant med streck", () => {
+    const ground = scarp(3.8, 30);
+    expect(cliffsFromTicks([], [], undefined, ground).dxf).not.toContain("brant_passerbar_taggar");
+    expect(cliffsFromTicks([], [], undefined, ground, DEFAULT_CLIFF_RULES, true).dxf).toContain("brant_passerbar_taggar");
   });
 });

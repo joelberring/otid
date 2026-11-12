@@ -9,7 +9,7 @@ import type { MapGeoreference } from "@o-tid/map-file";
 import { parseDxf, parseGeoJson, VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { baseMapOutputs, clipWgs84, mergeBaseMap } from "../../lib/map-project-base-map";
 import { clearCutFeatures } from "../../lib/map-project-clear-cuts";
-import { choiceSettings, choicesOf, DEFAULT_CHOICES, LASER_CHOICES, typedOf, type ChoiceLevel, type LaserChoices } from "../../lib/map-project-laser-choices";
+import { choiceSettings, choicesOf, cliffChoicesOf, CLIFF_STYLES, DEFAULT_CHOICES, LASER_CHOICES, typedOf, type ChoiceLevel, type CliffStyle, type LaserChoices } from "../../lib/map-project-laser-choices";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -60,6 +60,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [formline, setFormline] = useState(2);
   const [more, setMore] = useState<Readonly<Record<string, string>>>({});
   const [choices, setChoices] = useState<LaserChoices>(DEFAULT_CHOICES);
+  const [cliffStyle, setCliffStyle] = useState<CliffStyle>("few");
+  const [cliffTags, setCliffTags] = useState(false);
   // G6 (ägaren 2026-11-11: «itereringar av olika lager, t.ex. grönt, efter första körning»): ett klart jobb körs om med samma
   // rutor och område men nya inställningar, och resultaten jämförs innan något läggs in i kartan.
   const [rerun, setRerun] = useState<GeoJobView>();
@@ -126,7 +128,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const sampled = rerun && sampleCenter ? sampleClip(sampleCenter, rerun.clip) : undefined;
   async function start() {
     const tiles = (items ?? []).filter(item => chosen.has(item.id)).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg, datetime: item.datetime }));
-    const chosenSettings = choiceSettings(choices, moreSettings(more));
+    const chosenSettings = choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags);
     setBusy(text.searching); setMessage(undefined);
     try {
       const result = await clubRequest(`${base}/geo-jobs`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PULLAUTIN",
@@ -153,7 +155,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     setRerun(job); setItems(undefined); setMessage(undefined);
     setName(text.rerunName(job.name));
     setInterval_(settings.contour_interval ?? 5); setFormline(settings.formline ?? 2);
-    setChoices(job.cliffs ? { ...picked, cliffs: job.cliffs.minDrop > 1.3 ? "less" : "more" } : picked);
+    const cliffs = cliffChoicesOf(job.cliffs);
+    setChoices({ ...picked, cliffs: cliffs.level }); setCliffStyle(cliffs.style); setCliffTags(cliffs.tags);
     setMore(typedOf(settings, picked, MORE_SETTINGS));
     setMoisture(!!job.moisture); setVegetation(!!job.vegetation);
     if (job.moisture) { setChannelHa(job.moisture.channelHa); setWetMeters(job.moisture.wetMeters); }
@@ -259,6 +262,11 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
               onChange={event => setChoices(current => ({ ...current, [choice]: event.target.value as ChoiceLevel }))}>
               {(["less", "default", "more"] as const).map(level => <option key={level} value={level}>{text.choiceLevels[choice]?.[level] ?? level}</option>)}
             </select></label>)}
+          <label>{text.cliffStyle}
+            <select value={cliffStyle} data-testid="map-project-laser-cliff-style" onChange={event => setCliffStyle(event.target.value as CliffStyle)}>
+              {CLIFF_STYLES.map(style => <option key={style} value={style}>{text.cliffStyles[style]}</option>)}
+            </select></label>
+          <label><input type="checkbox" checked={cliffTags} data-testid="map-project-laser-cliff-tags" onChange={event => setCliffTags(event.target.checked)} /> {text.cliffTags}</label>
           <small className={styles.muted}>{text.choicesHelp}</small>
         </fieldset>
         <details className={styles.settings} data-testid="map-project-laser-more">

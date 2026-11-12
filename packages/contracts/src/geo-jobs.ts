@@ -63,9 +63,12 @@ export const geoJobCreateRequestSchema = z.object({
   extras: z.array(extraSchema).max(6).optional(),
   /**
    * Branternas trösklar när fallet mäts i markrastret (G4, ägaren 2026-11-11: «mer/mindre branter»): minsta fall för en brant
-   * och för en opasserbar brant, i meter över ±3 m. Förvalet är Kungshatt-kedjans (1,3 och 2,4).
+   * och för en opasserbar brant, i meter över ±3 m (förval 1,3 och 4,5). Ägaren 2026-11-12 («lägg in som val för kartritaren
+   * hur det ska redovisas»): minsta längden för en opasserbar (förval 20 m; kartritare som ritar de flesta branter som
+   * opasserbara har 10) och om passerbara branter ska föreslås med taggar.
    */
-  cliffs: z.object({ minDrop: z.number().min(0.5).max(5), impassableDrop: z.number().min(1).max(10) }).strict()
+  cliffs: z.object({ minDrop: z.number().min(0.5).max(5), impassableDrop: z.number().min(1).max(10),
+    impassableLength: z.number().min(5).max(60).optional(), tags: z.boolean().optional() }).strict()
     .refine(value => value.impassableDrop > value.minDrop, "En opasserbar brant ska vara högre än en brant").optional(),
   /** «Kör om med andra inställningar»: rutorna, klipprutan och Lantmäteriets produkter tas från det jobbet (G6). */
   rerunOf: z.string().uuid().optional(),
@@ -85,7 +88,7 @@ export interface GeoJobView {
   /** Den senaste laserskanningen bland rutorna (ÅÅÅÅ-MM-DD), när sökningen gav ett datum. */
   readonly scannedAt: string | null;
   /** Branternas trösklar (null = förvalet), fuktigheten och vegetationen som jobbet räknade, så att det kan köras om likadant. */
-  readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number } | null;
+  readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined } | null;
   /** Vilka av Lantmäteriets vektorprodukter jobbet också läser (G8). */
   readonly extras: readonly GeoExtraKind[];
   readonly progress: { readonly step: string; readonly done: number; readonly total: number } | null;
@@ -117,7 +120,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 20;
+export const GEO_WORKER_VERSION = 21;
 
 /**
  * Minnet (GB) som geo-servern behöver för ett jobb, efter områdets yta (ägaren 2026-11-12: «vill inte att det ska dö för

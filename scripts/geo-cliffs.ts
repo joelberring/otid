@@ -347,10 +347,11 @@ export function slopeLines(ground: GroundGrid, settings: { readonly minDegrees: 
 
 /**
  * Hela kedjan: opasserbara och passerbara branter som DXF, och en sammanfattning. Med markrastret (`ground`) görs linjerna av
- * alla streck tillsammans och sorten avgörs av det uppmätta fallet; utan det avgör Karttapullautins två filer.
+ * alla streck tillsammans och sorten avgörs av det uppmätta fallet; utan det avgör Karttapullautins två filer. Med `tags`
+ * heter de passerbara branternas lager «brant_passerbar_taggar», som föreslås som brant med streck (202.1).
  */
 export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly Tick[], settings: CliffSettings = DEFAULT_CLIFFS, ground?: GroundGrid,
-  rules: CliffRules = DEFAULT_CLIFF_RULES) {
+  rules: CliffRules = DEFAULT_CLIFF_RULES, tags = false) {
   const meters = (lines: [number, number][][]) => Math.round(lines.reduce((sum, line) => sum + line.reduce((part, point, i) =>
     i === 0 ? 0 : part + Math.hypot(point[0] - line[i - 1]![0], point[1] - line[i - 1]![1]), 0), 0));
   let high: [number, number][][], low: [number, number][][], dropped = 0;
@@ -383,7 +384,7 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
     high = cliffLines(impassable, settings);
     low = cliffLines(passable.filter(([x1, y1, x2, y2]) => !taken.has(key((x1 + x2) / 2, (y1 + y2) / 2))), settings);
   }
-  return { dxf: moistureDxf([{ name: "brant_opasserbar", closed: false, parts: high }, { name: "brant_passerbar", closed: false, parts: low }]),
+  return { dxf: moistureDxf([{ name: "brant_opasserbar", closed: false, parts: high }, { name: tags ? "brant_passerbar_taggar" : "brant_passerbar", closed: false, parts: low }]),
     lines: { impassable: high, passable: low },
     summary: { cliffs201: high.length, cliffs202: low.length, cliffMeters201: meters(high), cliffMeters202: meters(low), ...(ground ? { cliffsDropped: dropped } : {}) } };
 }

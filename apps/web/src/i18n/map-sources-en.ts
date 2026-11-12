@@ -62,6 +62,9 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   formlines: "Form lines",
   formlineOptions: { 0: "No form lines", 1: "Contours at half the interval", 2: "Form lines where needed" },
     choicesHeading: "Settings",
+    cliffStyle: "Impassable cliffs",
+    cliffStyles: { few: "Only high cliffs (from 4.5 m, at least 20 m)", most: "Most cliffs (from 3.5 m, at least 10 m)" },
+    cliffTags: "Suggest passable cliffs with tags",
     choiceLabels: { cliffs: "Cliffs", contours: "Contours", knolls: "Knolls", green: "Green", undergrowth: "Undergrowth" },
     choiceLevels: {
       cliffs: { less: "Fewer", default: "Default", more: "More" }, contours: { less: "Smoother", default: "Default", more: "More detailed" },

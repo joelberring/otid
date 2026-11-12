@@ -122,6 +122,9 @@ export const mapSourcesSv = {
     formlines: "Stödkurvor",
     formlineOptions: { 0: "Inga stödkurvor", 1: "Kurvor på halva ekvidistansen", 2: "Stödkurvor där de behövs" } as Record<number, string>,
     choicesHeading: "Inställningar",
+    cliffStyle: "Opasserbara branter",
+    cliffStyles: { few: "Bara höga stup (från 4,5 m, minst 20 m)", most: "De flesta branter (från 3,5 m, minst 10 m)" } as Record<string, string>,
+    cliffTags: "Föreslå passerbara branter med taggar",
     choiceLabels: { cliffs: "Branter", contours: "Kurvor", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation" } as Record<string, string>,
     choiceLevels: {
       cliffs: { less: "Färre", default: "Som förval", more: "Fler" }, contours: { less: "Slätare", default: "Som förval", more: "Detaljrikare" },

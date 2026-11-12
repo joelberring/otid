@@ -230,7 +230,7 @@ export interface ClaimedGeoJob {
   readonly settings: Readonly<Record<string, number>>;
   /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM) före körningen. */
   readonly clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
-  readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number } | null;
+  readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined } | null;
   /** G8: Lantmäteriets vektorprodukter att läsa (hämtas med `/laser/x<index>`). */
   readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;

@@ -44,7 +44,7 @@ interface Job {
   /** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) att läsa till kandidater. */
   readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
   /** G4: branternas trösklar (null = Kungshatt-kedjans förval). */
-  readonly cliffs?: { readonly minDrop: number; readonly impassableDrop: number } | null;
+  readonly cliffs?: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number; readonly tags?: boolean } | null;
   /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   /** K5c del 3: vegetationen ur returerna som ytor (Karttapullautins klassbilder per ruta). */
@@ -80,7 +80,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 20;
+export const WORKER_VERSION = 21;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -199,8 +199,9 @@ async function runJob(job: Job): Promise<void> {
     for (const name of groundFiles) grounds.push(readGroundGrid(new Uint8Array(await readFile(join(dir, name)))));
     const ground = grounds.length ? mergeGroundGrids(grounds) : undefined;
     const rules = job.cliffs ? { ...DEFAULT_CLIFF_RULES, minDrop: job.cliffs.minDrop, impassableDrop3: job.cliffs.impassableDrop,
-      impassableDrop6: job.cliffs.impassableDrop * DEFAULT_CLIFF_RULES.impassableDrop6 / DEFAULT_CLIFF_RULES.impassableDrop3 } : DEFAULT_CLIFF_RULES;
-    const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground, rules);
+      impassableDrop6: job.cliffs.impassableDrop * DEFAULT_CLIFF_RULES.impassableDrop6 / DEFAULT_CLIFF_RULES.impassableDrop3,
+      impassableLength: job.cliffs.impassableLength ?? DEFAULT_CLIFF_RULES.impassableLength } : DEFAULT_CLIFF_RULES;
+    const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground, rules, job.cliffs?.tags === true);
     // Terrängskuggningen ur samma markraster, som ett underlag att tona.
     if (ground) {
       await set("Ritar terrängskuggningen", 0, 1);

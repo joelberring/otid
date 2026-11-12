@@ -135,6 +135,7 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /SLOPE_LINE/, line: "104" },
   // Geo-arbetarens brantlinjer (G4), före Karttapullautins streck.
   { words: /BRANT_OPASSERBAR|STUP/, line: "201" },
+  { words: /BRANT_PASSERBAR_TAGGAR/, line: "202.1" },
   { words: /BRANT/, line: "202" },
   { words: /CLIFF3|CLIFF4/, line: "201" },
   { words: /CLIFF2|CLIFF/, line: "202" },

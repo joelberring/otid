@@ -10,9 +10,10 @@ import {
 import type { Database } from "@o-tid/database";
 import { raceTitle } from "@o-tid/domain";
 import { schema } from "@o-tid/database";
-import type { DbExecutor } from "./snapshot";
 import { deleteAccountWithOwnedEvents } from "./account-self-service";
 import { createPasswordResetToken } from "./password-reset";
+import { markAccountEmailVerified } from "./email-verification";
+import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { purgeRows } from "./purge";
 import {
   authenticateUserAccountSessionForMutation,
@@ -25,11 +26,10 @@ import {
 /**
  * Superadmin (ADR-0172 beslut 2): en systemroll som bara sätts med kommando på servern
  * (`pnpm account:superadmin grant <e-post>`). Superadmin ser alla konton och tävlingar och kan dölja eller
- * ta bort en tävling, spärra eller ta bort ett konto och skapa en återställningslänk. Varje åtgärd loggas i
- * `superadmin_action` med vem, vad, mot vad, varför och när.
+ * ta bort en tävling, spärra eller ta bort ett konto, skapa en återställningslänk och bekräfta en e-postadress (tillägg
+ * 2026-11-12). Varje åtgärd loggas i `superadmin_action` med vem, vad, mot vad, varför och när.
  */
 type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-export const SERVER_COMMAND_ACTOR = "Serverkommando";
 
 /** Den enda kontrollen av superadmin, bredvid tävlingens admin-kontroll. */
 export async function requireSuperadmin(
@@ -43,13 +43,6 @@ export async function requireSuperadmin(
     : await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, now);
   if (auth.status !== "authenticated") return auth;
   return auth.principal.superadmin ? auth : { status: "forbidden" };
-}
-
-export async function logAction(tx: DbExecutor, entry: {
-  actorAccountId: string | null; actorLabel: string; action: SuperadminActionKind;
-  targetType: "ACCOUNT" | "EVENT" | "RACE"; targetId: string; targetLabel: string; reason: string;
-}, now: Date): Promise<void> {
-  await tx.insert(schema.superadminActions).values({ ...entry, targetLabel: entry.targetLabel.slice(0, 320), createdAt: now });
 }
 
 const pattern = (query: string) => `%${query.trim().replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
@@ -109,7 +102,7 @@ export async function readSuperadminOverview(
 }
 
 export type SuperadminActionResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "confirmation-mismatch" }
+  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "confirmation-mismatch" | "already-verified" }
   | { status: "done"; action: SuperadminActionKind; reset?: { token: string; expiresAt: Date } };
 
 export async function performSuperadminAction(
@@ -149,7 +142,9 @@ export async function performSuperadminAction(
     const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, action.accountId)).for("update");
     if (!account) return { status: "not-found" };
     // Det egna kontot spärras eller tas bort under Mitt konto, inte här.
-    if (account.id === auth.principal.accountId && action.action !== "CREATE_RESET_LINK") return { status: "invalid-request" };
+    if (account.id === auth.principal.accountId && action.action !== "CREATE_RESET_LINK" && action.action !== "VERIFY_EMAIL") {
+      return { status: "invalid-request" };
+    }
     const target = { targetType: "ACCOUNT" as const, targetId: account.id, targetLabel: account.email };
     switch (action.action) {
       case "BLOCK_ACCOUNT":
@@ -172,6 +167,11 @@ export async function performSuperadminAction(
         await logAction(tx, { ...actor, ...target, action: action.action }, now);
         return { status: "done", action: action.action, reset };
       }
+      case "VERIFY_EMAIL":
+        // Som serverkommandot (ADR-0186 beslut 9): superadmin intygar att personen har adressen. Lösenordet ändras inte.
+        if (account.emailVerifiedAt) return { status: "already-verified" };
+        await markAccountEmailVerified(tx, account.id, now);
+        break;
     }
     await logAction(tx, { ...actor, ...target, action: action.action }, now);
     return { status: "done", action: action.action };

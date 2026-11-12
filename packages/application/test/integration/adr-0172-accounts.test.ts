@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
-import { authenticateUserAccountSession, loginUserAccount, registerUserAccount } from "../../src/user-account";
+import { authenticateUserAccountSession, loginUserAccount, logoutUserAccountSession, registerUserAccount } from "../../src/user-account";
 import { completePasswordReset, requestPasswordReset } from "../../src/password-reset";
 import { deleteOwnAccount, readAccountProfile } from "../../src/account-self-service";
 import { createOrganizerEvent, listMyEvents } from "../../src/organizer-events";
@@ -11,6 +11,7 @@ import { isRacePubliclyVisible } from "../../src/public-race-visibility";
 import { listPublicRaces } from "../../src/public-races";
 import { createClub } from "../../src/clubs";
 import { createTrainingGroup } from "../../src/training-groups";
+import { markEmailVerifiedByCommand, registerUserAccountWithVerification, checkEmailVerificationToken } from "../../src/email-verification";
 import { grantRacePerson, registerTestAccount, setRacePublished, TEST_PASSWORD, accountOnRace } from "./accounts";
 
 /**
@@ -292,5 +293,61 @@ describe("ADR-0172 konton", () => {
     ]);
     await expect(pool.query("update superadmin_action set reason = 'ändrad'")).rejects.toThrow(/append-only/);
     await expect(pool.query("delete from superadmin_action")).rejects.toThrow(/append-only/);
+  });
+
+  it("tillägg 2026-11-12: superadmin bekräftar en adress i appen; vanlig administratör och utloggad nekas, och allt loggas", async () => {
+    const boss = await superadmin();
+    // Ett konto med obekräftad adress och en väntande bekräftelselänk (registrering med e-post på servern).
+    const email = `obekraftad.${suffix()}@test.o-tid.se`;
+    const registered = await registerUserAccountWithVerification(db, { formatVersion: 1, email, displayName: "Obekräftad", password: TEST_PASSWORD });
+    if (registered.delivery?.kind !== "VERIFY") throw new Error("Länken saknas");
+    const [target] = await db.select().from(schema.userAccounts).where(eq(schema.userAccounts.email, email));
+    if (!target) throw new Error("Kontot saknas");
+    const request = { formatVersion: 1, action: "VERIFY_EMAIL", accountId: target.id, reason: "Mejlet kom aldrig fram" };
+
+    // En vanlig administratör (äger en tävling) och en utloggad session nekas; inget ändras och inget loggas.
+    const organizer = await registerTestAccount(db, `admin.${suffix()}`);
+    await createEvent(organizer.proof, "Klubbträning");
+    expect(await performSuperadminAction(db, organizer.proof, request)).toEqual({ status: "forbidden" });
+    expect(await performSuperadminAction(db, { sessionToken: null, csrfCookie: null, csrfHeader: null }, request)).toEqual({ status: "unauthorized" });
+    const leaving = await superadmin();
+    expect((await logoutUserAccountSession(db, leaving.proof)).status).toBe("logged-out");
+    expect(await performSuperadminAction(db, leaving.proof, request)).toEqual({ status: "unauthorized" });
+    // Superadmin utan CSRF-rubriken: som alla andra skrivningar.
+    expect(await performSuperadminAction(db, { ...boss.proof, csrfHeader: null }, request)).toEqual({ status: "forbidden" });
+    const [still] = await db.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, target.id));
+    expect(still?.emailVerifiedAt).toBeNull();
+
+    // Superadmin: adressen blir bekräftad, lösenordet är detsamma och länken säger "redan bekräftad".
+    expect(await performSuperadminAction(db, boss.proof, request)).toEqual({ status: "done", action: "VERIFY_EMAIL" });
+    const [verified] = await db.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, target.id));
+    expect(verified?.emailVerifiedAt).toBeInstanceOf(Date);
+    expect((await loginUserAccount(db, { formatVersion: 1, email, password: TEST_PASSWORD }, { requireVerifiedEmail: true })).status)
+      .toBe("authenticated");
+    expect(await checkEmailVerificationToken(db, { formatVersion: 1, token: registered.delivery.token }))
+      .toEqual({ status: "checked", state: "already-verified" });
+    const overview = await readSuperadminOverview(db, boss.proof, { accounts: email });
+    if (overview.status !== "ok") throw new Error("Översikten saknas");
+    expect(overview.response.accounts[0]?.emailVerified).toBe(true);
+    expect(overview.response.log.filter(entry => entry.targetLabel === email).map(entry => [entry.action, entry.actorLabel, entry.reason]))
+      .toEqual([["VERIFY_EMAIL", boss.email, "Mejlet kom aldrig fram"]]);
+
+    // En redan bekräftad adress: eget svar, ingen ny loggrad.
+    expect(await performSuperadminAction(db, boss.proof, request)).toEqual({ status: "already-verified" });
+    expect(await performSuperadminAction(db, boss.proof, { ...request, accountId: randomUUID() })).toEqual({ status: "not-found" });
+    const after = await readSuperadminOverview(db, boss.proof, { accounts: email });
+    if (after.status !== "ok") throw new Error("Översikten saknas");
+    expect(after.response.log.filter(entry => entry.targetLabel === email)).toHaveLength(1);
+
+    // Serverkommandot loggar också (som grant/revoke), med "Serverkommando" som utförare.
+    const other = await registerTestAccount(db, `kommando.${suffix()}`, undefined, { verified: false });
+    expect(await markEmailVerifiedByCommand(db, other.email)).toEqual({ status: "verified" });
+    const logged = await readSuperadminOverview(db, boss.proof, {});
+    if (logged.status !== "ok") throw new Error("Översikten saknas");
+    expect(logged.response.log.find(entry => entry.targetLabel === other.email))
+      .toMatchObject({ action: "VERIFY_EMAIL", actorLabel: "Serverkommando", targetType: "ACCOUNT" });
+    // Databasen kräver formen på åtgärden (migration 0115); listan prövas i koden.
+    await expect(pool.query(`insert into superadmin_action (created_at, actor_label, action, target_type, target_id, target_label, reason)
+      values (now(), 'x', 'inte giltig', 'ACCOUNT', $1, 'x', 'x')`, [randomUUID()])).rejects.toMatchObject({ code: "23514" });
   });
 });

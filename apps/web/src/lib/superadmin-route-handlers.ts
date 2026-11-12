@@ -31,6 +31,8 @@ function failure(status: string): Response {
     case "invalid-request": return accountFailure(400, "INVALID_REQUEST");
     case "not-found": return accountFailure(404, "NOT_FOUND");
     case "confirmation-mismatch": return accountFailure(409, "CONFIRMATION_MISMATCH");
+    // Tillägg 2026-11-12: "Bekräfta adressen" på en adress som redan är bekräftad.
+    case "already-verified": return accountFailure(409, "CONFLICT");
     default: return accountFailure(500, "INTERNAL_ERROR");
   }
 }

@@ -12,7 +12,7 @@ import styles from "../account-pages.module.css";
 export type PendingAction =
   | { kind: "HIDE_RACE" | "UNHIDE_RACE"; raceId: string; label: string }
   | { kind: "DELETE_EVENT"; eventId: string; label: string; confirm: string }
-  | { kind: "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "CREATE_RESET_LINK"; accountId: string; label: string }
+  | { kind: "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL"; accountId: string; label: string }
   | { kind: "DELETE_ACCOUNT"; accountId: string; label: string; confirm: string; ownedEvents: number };
 
 export function actionRequest(action: PendingAction, reason: string, confirmation: string): SuperadminActionRequest {

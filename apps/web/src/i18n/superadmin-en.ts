@@ -31,17 +31,18 @@ export const superadminEn: Texts<typeof superadminSv> = {
     unverified: "Unconfirmed address" },
   action: {
     HIDE_RACE: "Hide", UNHIDE_RACE: "Show", DELETE_EVENT: "Delete", BLOCK_ACCOUNT: "Block", UNBLOCK_ACCOUNT: "Unblock",
-    DELETE_ACCOUNT: "Delete", CREATE_RESET_LINK: "Reset link", GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"
+    DELETE_ACCOUNT: "Delete", CREATE_RESET_LINK: "Reset link", VERIFY_EMAIL: "Confirm the address",
+    GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"
   },
   logAction: {
     HIDE_RACE: "Hid event", UNHIDE_RACE: "Showed event", DELETE_EVENT: "Deleted event", BLOCK_ACCOUNT: "Blocked account",
     UNBLOCK_ACCOUNT: "Unblocked account", DELETE_ACCOUNT: "Deleted account", CREATE_RESET_LINK: "Created reset link",
-    GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"
+    VERIFY_EMAIL: "Confirmed address", GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"
   },
   confirmTitle: {
     HIDE_RACE: "Hide the event from the public pages", UNHIDE_RACE: "Show the event on the public pages again",
     DELETE_EVENT: "Delete the event with all data", BLOCK_ACCOUNT: "Block the account", UNBLOCK_ACCOUNT: "Unblock the account",
-    DELETE_ACCOUNT: "Delete the account", CREATE_RESET_LINK: "Create reset link"
+    DELETE_ACCOUNT: "Delete the account", CREATE_RESET_LINK: "Create reset link", VERIFY_EMAIL: "Confirm the account's email address"
   },
   confirmHelp: {
     HIDE_RACE: "Start lists, results and split times stop being shown to visitors. The organiser sees the event as usual.",
@@ -50,7 +51,8 @@ export const superadminEn: Texts<typeof superadminSv> = {
     BLOCK_ACCOUNT: "The account is signed out everywhere and cannot sign in until it is unblocked.",
     UNBLOCK_ACCOUNT: "The account can sign in again. Old sign-ins no longer apply.",
     DELETE_ACCOUNT: "The account and the events it owns are deleted. It cannot be undone.",
-    CREATE_RESET_LINK: "The link is shown once. Give it to the account's owner; it is valid for one hour and can be used once."
+    CREATE_RESET_LINK: "The link is shown once. Give it to the account's owner; it is valid for one hour and can be used once.",
+    VERIFY_EMAIL: "Only do this if you know the address belongs to the person and that they chose the account's password themselves (for example if the email never arrives). Permissions others have given the address then apply at once. The password is not changed; if you are unsure, create a reset link instead."
   },
   ownedEvents: (count: number) => count === 1 ? "The account owns 1 event, which is also deleted." : `The account owns ${count} events, which are also deleted.`,
   target: "Applies to",
@@ -64,6 +66,7 @@ export const superadminEn: Texts<typeof superadminSv> = {
   mismatch: "The confirmation does not match. Type the name or the address exactly.",
   notFound: "No longer exists. The list has been updated.",
   ownAccount: "You change your own account under My account.",
+  alreadyVerified: "The address is already confirmed. The list has been updated.",
   resetTitle: "Reset link",
   resetHelp: (time: string) => `Valid until ${time}, once. It is only shown now.`,
   copy: "Copy the link",

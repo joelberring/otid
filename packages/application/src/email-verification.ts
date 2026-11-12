@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { acceptOnLogin } from "./account-arrival";
+import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { and, eq, isNull } from "drizzle-orm";
 import { emailVerificationCheckRequestSchema, emailVerificationRequestSchema, organizerAccountRegistrationRequestSchema } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
@@ -185,7 +186,19 @@ export async function consumeEmailVerificationTokens(tx: DbExecutor, accountId: 
     .where(and(eq(schema.emailVerificationTokens.accountId, accountId), isNull(schema.emailVerificationTokens.usedAt)));
 }
 
-/** Superadmin bekräftar adressen med kommando på servern (`node superadmin.mjs verify <e-post>`), t.ex. utan e-post. */
+/**
+ * Superadmin bekräftar adressen: i appen (`VERIFY_EMAIL` i superadmin.ts) eller med kommandot på servern. Lösenordet ändras
+ * inte; kontots bekräftelselänkar förbrukas (de visar sedan "redan bekräftad"). Anroparen har låst kontot.
+ */
+export async function markAccountEmailVerified(tx: DbExecutor, accountId: string, now: Date): Promise<void> {
+  await tx.update(schema.userAccounts).set({ emailVerifiedAt: now }).where(eq(schema.userAccounts.id, accountId));
+  await consumeEmailVerificationTokens(tx, accountId, now);
+}
+
+/**
+ * `node superadmin.mjs verify <e-post>`, t.ex. utan e-post på servern. Loggas i superadmins logg som "Serverkommando"
+ * (tillägg 2026-11-12), som `grant` och `revoke`.
+ */
 export async function markEmailVerifiedByCommand(db: Database, email: string, now = new Date())
   : Promise<{ status: "not-found" | "unchanged" | "verified" }> {
   const normalized = normalizeAccountEmail(email);
@@ -194,7 +207,9 @@ export async function markEmailVerifiedByCommand(db: Database, email: string, no
     const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.email, normalized)).for("update");
     if (!account) return { status: "not-found" } as const;
     if (account.emailVerifiedAt) return { status: "unchanged" } as const;
-    await tx.update(schema.userAccounts).set({ emailVerifiedAt: now }).where(eq(schema.userAccounts.id, account.id));
+    await markAccountEmailVerified(tx, account.id, now);
+    await logAction(tx, { actorAccountId: null, actorLabel: SERVER_COMMAND_ACTOR, action: "VERIFY_EMAIL", targetType: "ACCOUNT",
+      targetId: account.id, targetLabel: account.email, reason: "Bekräftad med serverkommando" }, now);
     return { status: "verified" } as const;
   });
 }

@@ -70,3 +70,25 @@ mellantider från skogen. Klubbar i Sverige får radiostämplingar via ROC.
   funktionärskoder, stationsparning och stationscredentials, separata
   inloggningar för kvar i skogen och incheckning, `/me` och dess API.
 - `PLAN.md` får steg 17–21.
+
+## Tillägg 2026-11-12: superadmin bekräftar en e-postadress i appen (grenen `claude/r3-b`, migration 0115)
+
+Ägaren: superadmin ska kunna bekräfta ett kontos adress på `/superadmin`, inte bara med `node superadmin.mjs verify` (ADR-0186
+beslut 9). Listan visade redan "Obekräftad adress".
+
+- **Åtgärden `VERIFY_EMAIL`** går genom samma väg som Spärra, Återställningslänk och Ta bort (`POST /api/superadmin/actions`,
+  `performSuperadminAction`): exakt Origin, sessionskakan, CSRF och `requireSuperadmin` i samma transaktion som ändringen.
+  Vanlig administratör får 403, utloggad 401. Knappen "Bekräfta adressen" visas bara för obekräftade adresser och öppnar samma
+  bekräftelse som de andra åtgärderna (skäl som loggas). En redan bekräftad adress ger 409 `CONFLICT` ("Adressen är redan
+  bekräftad") och ingen loggrad.
+- **Vad den gör:** samma som kommandot (`markAccountEmailVerified`): adressen blir bekräftad och kontots bekräftelselänkar
+  förbrukas (de visar sedan "redan bekräftad"). Lösenordet ändras inte. Bekräftelsetexten säger därför att superadmin bara ska
+  göra det när adressen är personens och personen själv valt lösenordet (ADR-0205 beslut 1: annars kan någon som registrerat
+  någon annans adress få behörigheterna); vid tvekan är återställningslänken rätt väg. Det egna kontot får också bekräftas.
+- **Loggen:** varje bekräftelse loggas med vem, mot vilket konto och varför; kommandot loggas nu också, med utföraren
+  "Serverkommando" som `grant` och `revoke`.
+- **Migration 0115:** listan över åtgärder i `superadmin_action_action_check` (från 0000) ersätts av ett formvillkor, som spärrens
+  scope i 0087 (migrations/README.md). Listan står i `superadminActionKindSchema` i contracts, och `logAction` vägrar andra värden.
+- Tester: `adr-0172-accounts.test.ts` (superadmin kan, vanlig administratör, utloggad och saknad CSRF nekas, redan bekräftad,
+  okänt konto, loggen och kommandots loggrad, formvillkoret).
+

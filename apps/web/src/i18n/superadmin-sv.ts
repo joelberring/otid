@@ -29,17 +29,18 @@ export const superadminSv = {
     unverified: "Obekräftad adress" },
   action: {
     HIDE_RACE: "Dölj", UNHIDE_RACE: "Visa", DELETE_EVENT: "Ta bort", BLOCK_ACCOUNT: "Spärra", UNBLOCK_ACCOUNT: "Släpp spärr",
-    DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
+    DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", VERIFY_EMAIL: "Bekräfta adressen",
+    GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   logAction: {
     HIDE_RACE: "Dolde tävling", UNHIDE_RACE: "Visade tävling", DELETE_EVENT: "Tog bort tävling", BLOCK_ACCOUNT: "Spärrade konto",
     UNBLOCK_ACCOUNT: "Släppte spärr", DELETE_ACCOUNT: "Tog bort konto", CREATE_RESET_LINK: "Skapade återställningslänk",
-    GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
+    VERIFY_EMAIL: "Bekräftade adress", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   confirmTitle: {
     HIDE_RACE: "Dölj tävlingen från de publika sidorna", UNHIDE_RACE: "Visa tävlingen på de publika sidorna igen",
     DELETE_EVENT: "Ta bort tävlingen med all data", BLOCK_ACCOUNT: "Spärra kontot", UNBLOCK_ACCOUNT: "Släpp spärren",
-    DELETE_ACCOUNT: "Ta bort kontot", CREATE_RESET_LINK: "Skapa återställningslänk"
+    DELETE_ACCOUNT: "Ta bort kontot", CREATE_RESET_LINK: "Skapa återställningslänk", VERIFY_EMAIL: "Bekräfta kontots e-postadress"
   },
   confirmHelp: {
     HIDE_RACE: "Startlistor, resultat och sträcktider slutar synas för besökare. Arrangören ser tävlingen som vanligt.",
@@ -48,7 +49,8 @@ export const superadminSv = {
     BLOCK_ACCOUNT: "Kontot loggas ut överallt och kan inte logga in förrän spärren släpps.",
     UNBLOCK_ACCOUNT: "Kontot kan logga in igen. Gamla inloggningar gäller inte.",
     DELETE_ACCOUNT: "Kontot och tävlingarna det äger tas bort. Det går inte att ångra.",
-    CREATE_RESET_LINK: "Länken visas en gång. Ge den till kontots ägare; den gäller i en timme och kan användas en gång."
+    CREATE_RESET_LINK: "Länken visas en gång. Ge den till kontots ägare; den gäller i en timme och kan användas en gång.",
+    VERIFY_EMAIL: "Gör det bara om du vet att adressen är personens egen och att personen själv har valt kontots lösenord (till exempel om mejlet aldrig kommer fram). Behörigheter som andra gett adressen gäller sedan direkt. Lösenordet ändras inte; är du osäker, skapa en återställningslänk i stället."
   },
   ownedEvents: (count: number) => count === 1 ? "Kontot äger 1 tävling, som också tas bort." : `Kontot äger ${count} tävlingar, som också tas bort.`,
   target: "Gäller",
@@ -62,6 +64,7 @@ export const superadminSv = {
   mismatch: "Bekräftelsen stämmer inte. Skriv namnet eller adressen exakt.",
   notFound: "Finns inte längre. Listan har uppdaterats.",
   ownAccount: "Ditt eget konto ändrar du under Mitt konto.",
+  alreadyVerified: "Adressen är redan bekräftad. Listan har uppdaterats.",
   resetTitle: "Återställningslänk",
   resetHelp: (time: string) => `Gäller till ${time}, en gång. Den visas bara nu.`,
   copy: "Kopiera länken",

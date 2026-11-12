@@ -12,7 +12,9 @@ export const SUPERADMIN_LIST_LIMIT = 50;
 
 export const superadminActionKindSchema = z.enum([
   "GRANT_SUPERADMIN", "REVOKE_SUPERADMIN", "HIDE_RACE", "UNHIDE_RACE", "DELETE_EVENT",
-  "BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "DELETE_ACCOUNT", "CREATE_RESET_LINK"
+  "BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "DELETE_ACCOUNT", "CREATE_RESET_LINK",
+  /** ADR-0172 tillägg 2026-11-12: bekräftade kontots e-postadress (i appen eller med serverkommandot). */
+  "VERIFY_EMAIL"
 ]);
 
 export const superadminAccountSchema = z.object({
@@ -63,7 +65,7 @@ export const superadminActionRequestSchema = z.discriminatedUnion("action", [
   z.object({ formatVersion: z.literal(1), action: z.enum(["HIDE_RACE", "UNHIDE_RACE"]), raceId: uuid, reason }).strict(),
   z.object({ formatVersion: z.literal(1), action: z.literal("DELETE_EVENT"), eventId: uuid, reason,
     confirmation: z.string().max(200) }).strict(),
-  z.object({ formatVersion: z.literal(1), action: z.enum(["BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "CREATE_RESET_LINK"]),
+  z.object({ formatVersion: z.literal(1), action: z.enum(["BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "CREATE_RESET_LINK", "VERIFY_EMAIL"]),
     accountId: uuid, reason }).strict(),
   z.object({ formatVersion: z.literal(1), action: z.literal("DELETE_ACCOUNT"), accountId: uuid, reason,
     confirmation: z.string().max(320) }).strict()

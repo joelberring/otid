@@ -7,7 +7,7 @@ import type { GoogleIdentity } from "./google-oidc";
 import { accountHasKnownPassword, attachGoogleIdentity } from "./google-login";
 import { deleteAccountWithOwnedEvents, soleOwnerships } from "./account-self-service";
 import { throttleSecret } from "./account-throttle";
-import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin";
+import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import {
   authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead, currentUserAccountVerifier, sessionIssuedAt,
   userAccountPasswordMatches, type UserAccountSessionProof

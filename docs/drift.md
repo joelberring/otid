@@ -321,7 +321,9 @@ direkt som förut, men då måste superadmin bekräfta adressen för hand innan 
 docker compose -f docker-compose.prod.yml exec web node superadmin.mjs verify anna@exempelklubb.se
 ```
 
-(ett lösenordsbyte med en återställningslänk från superadmin bekräftar också adressen).
+(ett lösenordsbyte med en återställningslänk från superadmin bekräftar också adressen). Sedan 2026-11-12 finns samma åtgärd
+på `/superadmin`: "Bekräfta adressen" på ett konto med obekräftad adress, med skäl som loggas. Kommandot loggas också
+(utförare "Serverkommando").
 
 ADR-0205 (ändrar ADR-0186): bekräftelselänken kräver inte lösenordet från registreringen. Den bevisar att personen har
 adressen, och på sidan väljer personen lösenordet (två gånger). Återställningslänken fungerar alltid, också för ett konto

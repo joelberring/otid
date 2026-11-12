@@ -75,9 +75,14 @@ export function SuperadminPage() {
     setActionError(undefined);
     try {
       const response = await accountRequest("/api/superadmin/actions", { method: "POST", csrf: true, body: actionRequest(pending, reason, confirmation) });
-      if (response.status === 409) { setActionError(text.mismatch); return; }
+      if (response.status === 409) {
+        // Tillägg 2026-11-12: "Bekräfta adressen" på en adress som redan är bekräftad (CONFLICT); annars fel bekräftelse.
+        if ((response.json as { error?: unknown } | undefined)?.error === "CONFLICT") { setActionError(text.alreadyVerified); await load(); }
+        else setActionError(text.mismatch);
+        return;
+      }
       if (response.status === 404) { setActionError(text.notFound); await load(); return; }
-      if (response.status === 400 && pending.kind !== "CREATE_RESET_LINK") { setActionError(text.ownAccount); return; }
+      if (response.status === 400 && pending.kind !== "CREATE_RESET_LINK" && pending.kind !== "VERIFY_EMAIL") { setActionError(text.ownAccount); return; }
       const parsed = superadminActionResponseSchema.safeParse(response.json);
       if (response.status !== 200 || !parsed.success) { setActionError(accountSv.genericError(response.status)); return; }
       setDone({ section: "raceId" in pending || "eventId" in pending ? "races" : "accounts",
@@ -129,7 +134,7 @@ export function SuperadminPage() {
 
       <Section id="superadmin-konton" title={text.accounts} help={text.accountsHelp(overview.accounts.length, overview.accountTotal)}>
         <SearchForm label={text.searchAccounts} value={query.accounts} onSearch={value => search("accounts", value)} />
-        {panel(["BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "DELETE_ACCOUNT", "CREATE_RESET_LINK"])}
+        {panel(["BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "DELETE_ACCOUNT", "CREATE_RESET_LINK", "VERIFY_EMAIL"])}
         {done?.section === "accounts" && <Notice tone="ok" role="status">{done.text}</Notice>}
         {done?.reset && <ResetLink url={done.reset.url} expiresAt={done.reset.expiresAt} onClose={() => setDone(undefined)} />}
         {overview.accounts.length === 0 ? <EmptyState title={text.noAccounts} /> : <Table aria-label={text.accounts}>
@@ -148,6 +153,8 @@ export function SuperadminPage() {
                 {account.blocked ? text.action.UNBLOCK_ACCOUNT : text.action.BLOCK_ACCOUNT}</Button>
               {!account.blocked && <Button variant="secondary" disabled={busy} aria-label={`${text.action.CREATE_RESET_LINK} ${account.email}`}
                 onClick={() => start({ kind: "CREATE_RESET_LINK", accountId: account.accountId, label: account.email })}>{text.action.CREATE_RESET_LINK}</Button>}
+              {!account.emailVerified && <Button variant="secondary" disabled={busy} aria-label={`${text.action.VERIFY_EMAIL} ${account.email}`}
+                onClick={() => start({ kind: "VERIFY_EMAIL", accountId: account.accountId, label: account.email })}>{text.action.VERIFY_EMAIL}</Button>}
               <Button variant="secondary" disabled={busy} aria-label={`${text.action.DELETE_ACCOUNT} ${account.email}`}
                 onClick={() => start({ kind: "DELETE_ACCOUNT", accountId: account.accountId, label: account.email, confirm: account.email,
                   ownedEvents: account.eventCount })}>{text.action.DELETE_ACCOUNT}</Button>

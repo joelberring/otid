@@ -53,7 +53,7 @@ export function geoServerSettings(environment: Record<string, string | undefined
   let host = "otid";
   try { host = new URL(origin).hostname; } catch { /* ogiltig adress: etiketten blir "otid" */ }
   return { token, types: list(environment.OTID_GEO_SERVER_TYPES, ["cx33", "cx23", "cax11", "cpx32", "cpx22"]), locations: list(environment.OTID_GEO_SERVER_LOCATIONS, ["fsn1", "nbg1", "hel1"]),
-    idleMinutes: number(environment.OTID_GEO_IDLE_MINUTES, 20, 5, 240), budgetEur: number(environment.OTID_GEO_BUDGET_EUR_PER_MONTH, 10, 0, 1000),
+    idleMinutes: number(environment.OTID_GEO_IDLE_MINUTES, 60, 5, 240), budgetEur: number(environment.OTID_GEO_BUDGET_EUR_PER_MONTH, 10, 0, 1000),
     maxHours: number(environment.OTID_GEO_MAX_HOURS, 8, 1, 48),
     image: environment.OTID_GEO_IMAGE?.trim() || `ghcr.io/joelberring/otid-geo:${/^[A-Za-z0-9_.-]{1,128}$/.test(tag) ? tag : "main"}`,
     origin, label: host.replace(/[^a-z0-9.-]/gi, "-").slice(0, 63) || "otid" };

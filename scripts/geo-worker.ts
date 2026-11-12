@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createReadStream } from "node:fs";
+import { fromCache, toCache } from "./geo-cache.ts";
 import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt, heightPng } from "./geo-cliffs.ts";
 import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
@@ -52,6 +53,8 @@ interface Job {
 }
 
 const env = process.env;
+/** Laserrutornas förråd på serverns disk (lever så länge behållaren lever). */
+const CACHE_DIR = env.OTID_GEO_CACHE_DIR ?? "/tmp/otid-laserrutor";
 const origin = (env.OTID_GEO_ORIGIN ?? "").replace(/\/$/, "");
 const token = env.OTID_GEO_WORKER_TOKEN ?? "";
 const workerName = (env.OTID_GEO_WORKER_NAME || hostname()).replace(/[^A-Za-z0-9_.:-]/g, "-").slice(0, 80) || "geo";
@@ -176,14 +179,18 @@ async function runJob(job: Job): Promise<void> {
     const together = parallelTiles(job.tiles.length, cpus().length, totalmem() / 2 ** 30, job.attempt);
     let fetched = 0;
     const fetchTile = async (tile: Job["tiles"][number]) => {
+      const file = `ruta${String(tile.index).padStart(2, "0")}.laz`, target = join(dir, job.clip ? file : join("in", file));
+      // Rutan finns kanske kvar på serverns disk från en tidigare körning (scripts/geo-cache.ts).
+      if (!await fromCache(CACHE_DIR, tile.id, target)) {
       const response = await call(`/api/geo-worker/jobs/${job.jobId}/laser/${tile.index}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]) });
       if (!response.ok || !response.body) {
         const detail = await response.json().catch(() => undefined) as { error?: string; detail?: string } | undefined;
         throw new Error(`Laserrutan ${tile.id} kunde inte hämtas (${detail?.error ?? response.status}${detail?.detail ? `, ${detail.detail}` : ""})`);
       }
-      const file = `ruta${String(tile.index).padStart(2, "0")}.laz`;
+      await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(target));
+      await toCache(CACHE_DIR, tile.id, target);
+      }
       // Grundkartan G1: rutan klipps till kartans område direkt efter hämtningen; en ruta helt utanför ger ingen fil.
-      await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, job.clip ? file : join("in", file))));
       if (job.clip) {
         await run([file, join("in", file), ...[job.clip.minX, job.clip.minY, job.clip.maxX, job.clip.maxY].map(String), `vatten${tile.index}.bin`, `mark${tile.index}.bin`, `punkter${tile.index}.bin`], dir,
           AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), lasclip);

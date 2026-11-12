@@ -858,7 +858,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_SLU_MOISTURE_WMS_URL`, `OTID_SLU_MOISTURE_LAYER` | tomma = Skogsstyrelsens öppna WMS för SLU:s markfuktighetskarta, första lagret | Markfuktigheten som underlag (K5c, provas). |
 | `OTID_SKS_AVVERKNING_URL`, `OTID_SKS_REST_URL` | tomma = Skogsstyrelsens öppna ArcGIS-tjänster | Hyggen efter ålder och Skogsstyrelsens kartbilder som underlag (provas). |
 | `OTID_HETZNER_TOKEN`, `OTID_GEO_SERVER_TYPES`, `OTID_GEO_SERVER_LOCATIONS` | tom, `cx33,cx23,cax11,cpx32,cpx22`, `fsn1,nbg1,hel1` | Geo-servern hos Hetzner: nyckeln och typerna och platserna som provas i tur och ordning ([Geo-arbetaren](#geo-arbetaren-adr-0219-k5)). |
-| `OTID_GEO_IDLE_MINUTES`, `OTID_GEO_BUDGET_EUR_PER_MONTH`, `OTID_GEO_MAX_HOURS`, `OTID_GEO_IMAGE` | 20, 10, 8, `ghcr.io/joelberring/otid-geo:<OTID_TAG>` | Tomgång innan geo-servern raderas, månadens budget, längsta tid per server och avbildningen. |
+| `OTID_GEO_IDLE_MINUTES`, `OTID_GEO_BUDGET_EUR_PER_MONTH`, `OTID_GEO_MAX_HOURS`, `OTID_GEO_IMAGE` | 60, 10, 8, `ghcr.io/joelberring/otid-geo:<OTID_TAG>` | Tomgång innan geo-servern raderas, månadens budget, längsta tid per server och avbildningen. |
 | `OTID_LM_STAC_BILD_URL`, `OTID_LM_TOKEN_URL` | tomma = `https://api.lantmateriet.se/stac-bild/v1` och `https://apimanager.lantmateriet.se/oauth2/token` | Ortofoton från Lantmäteriet med användarens egna uppgifter (K4c, provas). Uppgifterna krypteras med `OTID_EVENTOR_MASTER_KEY`; utan den kan de inte sparas. CI pekar på en falsk STAC. |
 
 ## Prova driftuppsättningen lokalt

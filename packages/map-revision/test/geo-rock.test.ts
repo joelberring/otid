@@ -84,3 +84,15 @@ describe("branten i överkanten", () => {
     expect(toTopEdge([[5, 28.5], [20, 28.5]], flat)).toEqual([[5, 28.5], [20, 28.5]]);
   });
 });
+
+describe("valet bland de möjliga kullarna är lika i geo-arbetaren och i webbläsaren", () => {
+  it("ger samma punkter för samma gränser", async () => {
+    const { chooseKnolls } = await import("../../../scripts/geo-rock.ts");
+    const browser = await import("../../../apps/web/src/lib/map-project-knoll-choice");
+    const candidates = Array.from({ length: 400 }, (_, i) => ({ at: [(i * 37) % 500, (i * 91) % 500] as [number, number],
+      rise: 0.5 + ((i * 13) % 30) / 10, share: 0.5 + ((i * 7) % 50) / 100, footM2: 20 + (i * 11) % 140 }));
+    for (const limits of [{ minRise: 1, lowerShare: 0.8, maxFootM2: 80, spacing: 10 }, { minRise: 0.6, lowerShare: 0.6, maxFootM2: 150, spacing: 25 }]) {
+      expect(browser.chooseKnolls(candidates, limits)).toEqual(chooseKnolls(candidates, limits));
+    }
+  });
+});

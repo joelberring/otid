@@ -11,6 +11,11 @@ import { MapProjectImportPanel } from "./map-project-import-panel";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
 import { MapProjectLayersPanel } from "./map-project-layers-panel";
 import { MapProjectPhotoPanel } from "./map-project-photo-panel";
+import { mapUnderlayStepsEn } from "../../i18n/map-knolls-en";
+import { mapUnderlayStepsSv } from "../../i18n/map-knolls-sv";
+import { useTexts } from "../language-provider";
+import styles from "./map-project-editor.module.css";
+import { MapProjectKnollPanel } from "./map-project-knoll-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import type { useMapProjectControlPoints } from "./use-map-project-control-points";
@@ -28,17 +33,26 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
   layers: ReturnType<typeof useMapProjectLayers>; control: ReturnType<typeof useMapProjectControlPoints>;
   importer: ReturnType<typeof useMapProjectImport>; symbols: ReadonlyMap<string, CatalogSymbol>; work: ReturnType<typeof useMapProjectWorkLayers>;
 }) {
+  const steps = useTexts(mapUnderlayStepsSv, mapUnderlayStepsEn);
   return <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
     control={control} scale={georeference.scale} area={bounds}
     after={<>
+      {/* Ägaren 2026-11-12: i den ordning man arbetar – hämta underlag, kör lasern, justera med reglage, egna filer. */}
+      <h3 className={styles.groupTitle}>{steps.sources}</h3>
       <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
-      <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectForestImagePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
-      <MapProjectClearCutPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
-      <MapProjectDepthPanel layers={layers} georeference={georeference} importer={importer} />
-      <MapProjectGreenPanel layers={layers} georeference={georeference} importer={importer} />
+      <h3 className={styles.groupTitle}>{steps.laser}</h3>
+      <p className={styles.muted}>{steps.laserHelp}</p>
       <MapProjectLaserPanel view={view} layers={layers} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
+      <h3 className={styles.groupTitle}>{steps.adjust}</h3>
+      <p className={styles.muted}>{steps.adjustHelp}</p>
+      <MapProjectKnollPanel view={view} importer={importer} />
+      <MapProjectGreenPanel layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectDepthPanel layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectClearCutPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
+      <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />
+      <h3 className={styles.groupTitle}>{steps.other}</h3>
       {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={areas} />}
       {importer.canImport && <MapProjectFolderIntake projectId={view.projectId} georeference={georeference} bounds={bounds} layers={layers} work={work} />}
     </>} />;

@@ -53,9 +53,9 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "115", name: "Speciell terrängform", kind: "point", elements: cross("brown", 0.8, 0.18) },
 
   // Berg och sten (svart).
-  { code: "201", name: "Oöverstiglig brant", kind: "line", color: "black", width: 0.35, mid: { elements: tag("black", 0.35, 0.6), spacing: 1.0 } },
+  { code: "201", name: "Oöverstiglig brant", kind: "line", color: "black", width: 0.35, mid: { elements: tag("black", 0.12, 0.5), spacing: 0.5 } },
   { code: "202", name: "Brant", kind: "line", color: "black", width: 0.25 },
-  { code: "202.1", name: "Brant med streck", kind: "line", color: "black", width: 0.25, mid: { elements: tag("black", 0.18, 0.4), spacing: 1.0 } },
+  { code: "202.1", name: "Brant med streck", kind: "line", color: "black", width: 0.25, mid: { elements: tag("black", 0.12, 0.4), spacing: 0.5 } },
   { code: "203", name: "Bergsgrop eller grotta", kind: "point", rotatable: true, elements: [stroke("black", 0.18, [-0.4, 0.4], [0, -0.3], [0.4, 0.4])] },
   { code: "204", name: "Sten", kind: "point", elements: [dot("black", 0.4)] },
   { code: "205", name: "Stor sten", kind: "point", elements: [dot("black", 0.6)] },

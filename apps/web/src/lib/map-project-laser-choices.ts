@@ -8,20 +8,27 @@
  * mer undervegetation. `greenscale` är O-Tids faktor på gränserna för grönt (större ger mindre grönt). Branternas trösklar
  * (minsta fall för en brant och för en opasserbar, över ±3 m) gäller när fallet mäts i laserns markraster.
  */
-export const LASER_CHOICES = ["cliffs", "contours", "knolls", "green", "undergrowth"] as const;
+export const LASER_CHOICES = ["cliffs", "contours", "knolls", "open", "green", "undergrowth", "rock"] as const;
 export type LaserChoice = typeof LASER_CHOICES[number];
 export type ChoiceLevel = "less" | "default" | "more";
 export type LaserChoices = Readonly<Record<LaserChoice, ChoiceLevel>>;
-export const DEFAULT_CHOICES: LaserChoices = { cliffs: "default", contours: "default", knolls: "default", green: "default", undergrowth: "default" };
+export const DEFAULT_CHOICES: LaserChoices = { cliffs: "default", contours: "default", knolls: "default", open: "default", green: "default", undergrowth: "default", rock: "default" };
 
 /** «less» och «more» för varje val: värdena i pullauta.ini (och branternas trösklar). */
 const PRESETS: Readonly<Record<LaserChoice, Readonly<Record<"less" | "more", Readonly<Record<string, number>>>>>> = {
   cliffs: { less: { cliff1: 1.4, cliff2: 2.4 }, more: { cliff1: 0.95, cliff2: 1.7 } },
   // «Mindre» är slätare kurvor, «mer» detaljrikare.
   contours: { less: { smoothing: 1.2, curviness: 0.9 }, more: { smoothing: 0.5, curviness: 1.3 } },
-  knolls: { less: { knolls: 0.85 }, more: { knolls: 0.35 } },
-  green: { less: { greenscale: 1.5 }, more: { greenscale: 0.65 } },
-  undergrowth: { less: { undergrowth: 0.5 }, more: { undergrowth: 0.25 } }
+  // Ägaren 2026-11-12 (reglage för värdena som lärts av kartorna): valen styr också geo-arbetarens egna trösklar. Förvalen
+  // är uppmätta mot Högdalenkartan (ringandel 0,8, gult 0,5, grönt 0,08); stegen åt sidorna är satta med omdöme, inte uppmätta.
+  knolls: { less: { knolls: 0.85, knollshare: 0.9 }, more: { knolls: 0.35, knollshare: 0.7 } },
+  // Gult: andelen låg vegetation som krävs (högre ger mindre gult).
+  open: { less: { openshare: 0.65 }, more: { openshare: 0.35 } },
+  green: { less: { greenscale: 1.5, denseshare: 0.12 }, more: { greenscale: 0.65, denseshare: 0.05 } },
+  undergrowth: { less: { undergrowth: 0.5 }, more: { undergrowth: 0.25 } },
+  // Berg i dagen ur lasern: tas inte med, utan förslag (förval; träffen var bara 0,3 i Högdalen), eller föreslås som 214
+  // (träffen 0,54 i Nåttarös skärgårdsterräng).
+  rock: { less: { rock: 0 }, more: { rock: 2 } }
 };
 /**
  * Hur branterna redovisas (ägaren 2026-11-12: «om det är stor skillnad i metod lägg in som val för kartritaren»). Kartritarna

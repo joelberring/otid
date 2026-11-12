@@ -13,7 +13,11 @@ export const PULLAUTIN_SETTINGS = {
   undergrowth: [0, 2],
   // Ägaren 2026-11-11 («tror inställningarna för gröna ytor blir fel»): hur mycket kronorna väger in i grönt, och en faktor
   // på Karttapullautins gränser för grönt (`greenshades`, skrivs av geo-arbetaren; större faktor ger mindre grönt).
-  topweight: [0, 1], greenscale: [0.3, 3]
+  topweight: [0, 1], greenscale: [0.3, 3],
+  // Ägaren 2026-11-11–12 (reglage för värdena som lärts av kartorna; inte Karttapullautins, läses av geo-arbetaren):
+  // andelen låg vegetation för gult (förval 0,5), andelen träffar 1–3 m för grönt (0,08), andelen av ringen som ska ligga
+  // lägre än en liten kulle (0,8), och berg i dagen ur lasern: 0 tas inte med, 1 utan förslag (förval), 2 föreslås som 214.
+  openshare: [0.2, 0.9], denseshare: [0.02, 0.3], knollshare: [0.5, 1], rock: [0, 2]
 } as const satisfies Record<string, readonly [number, number]>;
 
 const settingsSchema = z.record(z.string(), z.number().finite()).superRefine((value, context) => {
@@ -120,7 +124,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 21;
+export const GEO_WORKER_VERSION = 22;
 
 /**
  * Minnet (GB) som geo-servern behöver för ett jobb, efter områdets yta (ägaren 2026-11-12: «vill inte att det ska dö för

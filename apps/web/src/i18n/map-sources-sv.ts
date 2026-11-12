@@ -125,11 +125,12 @@ export const mapSourcesSv = {
     cliffStyle: "Opasserbara branter",
     cliffStyles: { few: "Bara höga stup (från 4,5 m, minst 20 m)", most: "De flesta branter (från 3,5 m, minst 10 m)" } as Record<string, string>,
     cliffTags: "Föreslå passerbara branter med taggar",
-    choiceLabels: { cliffs: "Branter", contours: "Kurvor", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation" } as Record<string, string>,
+    choiceLabels: { cliffs: "Branter", contours: "Kurvor", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation", open: "Gult", rock: "Berg i dagen" } as Record<string, string>,
     choiceLevels: {
       cliffs: { less: "Färre", default: "Som förval", more: "Fler" }, contours: { less: "Slätare", default: "Som förval", more: "Detaljrikare" },
       knolls: { less: "Färre", default: "Som förval", more: "Fler" }, green: { less: "Mindre", default: "Som förval", more: "Mer" },
-      undergrowth: { less: "Mindre", default: "Som förval", more: "Mer" }
+      undergrowth: { less: "Mindre", default: "Som förval", more: "Mer" },
+      open: { less: "Mindre", default: "Som förval", more: "Mer" }, rock: { less: "Ta inte med", default: "Utan förslag", more: "Föreslå som berg i dagen" }
     } as Record<string, Record<"less" | "default" | "more", string>>,
     choicesHelp: "Grönt mäts av Karttapullautin som andelen laserträffar 1–2,65 m över marken (buskskiktet) mot träffarna på marken, och väger in trädkronorna. Prova på en etapp först, eller kör om ett klart jobb och jämför.",
     rerun: "Kör om med andra inställningar",

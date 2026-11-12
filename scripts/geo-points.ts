@@ -89,7 +89,7 @@ export const OPEN_SHARE = 0.5, OPEN_HEIGHT_M = 1.5, DENSE_MID_SHARE = 0.08, DENS
  *   till tre gånger så mycket av kartritarens gröna som Karttapullautin, med rätt mängd yta.
  * Utan punkter i närheten: inget svar (Karttapullautins klass gäller).
  */
-export function vegetationSignals(stats: PointStats): VegetationSignals {
+export function vegetationSignals(stats: PointStats, openShare = OPEN_SHARE, denseShare = DENSE_MID_SHARE): VegetationSignals {
   const { width, height, cell, values } = stats, stride = height + 1;
   const table = () => new Float64Array((width + 1) * stride);
   const known = table(), low = table(), mid = table(), tall = table();
@@ -108,11 +108,11 @@ export function vegetationSignals(stats: PointStats): VegetationSignals {
     return x < 0 || y < 0 || x >= width || y >= height ? undefined : [x, y];
   };
   return {
-    openAt: (px, py) => { const at = cellOf(px, py); if (!at) return undefined; const n = sum(known, ...at, 3); return n > 0 ? sum(low, ...at, 3) / n >= OPEN_SHARE : undefined; },
+    openAt: (px, py) => { const at = cellOf(px, py); if (!at) return undefined; const n = sum(known, ...at, 3); return n > 0 ? sum(low, ...at, 3) / n >= openShare : undefined; },
     denseAt: (px, py) => {
       const at = cellOf(px, py); if (!at) return undefined;
       const n = sum(known, ...at, 2);
-      return n > 0 ? sum(mid, ...at, 2) / n >= DENSE_MID_SHARE && sum(tall, ...at, 2) / n >= DENSE_MIN_HEIGHT_M : undefined;
+      return n > 0 ? sum(mid, ...at, 2) / n >= denseShare && sum(tall, ...at, 2) / n >= DENSE_MIN_HEIGHT_M : undefined;
     }
   };
 }

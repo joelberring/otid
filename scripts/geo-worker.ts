@@ -80,7 +80,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 21;
+export const WORKER_VERSION = 22;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -94,7 +94,9 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
 /** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (en ruta i taget, filerna sparas). */
 export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false, vegetationClasses = false): string {
   // `greenscale` är O-Tids egen: en faktor på Karttapullautins gränser för grönt (`greenshades`), inte en rad i filen.
-  const { greenscale, ...pullautin } = settings;
+  // Geo-arbetarens egna (gult, grönt, kullar, berg i dagen) skrivs inte heller i filen.
+  const OWN = new Set(["greenscale", "openshare", "denseshare", "knollshare", "rock"]);
+  const greenscale = settings.greenscale, pullautin = Object.fromEntries(Object.entries(settings).filter(([key]) => !OWN.has(key)));
   const shades = greenscale && greenscale !== 1 ? /^\s*greenshades\s*=\s*([^\r\n#]+)/m.exec(base)?.[1]?.split("|").map(Number) : undefined;
   const fixed: Record<string, string | number> = { ...pullautin, ...(shades?.every(Number.isFinite)
     ? { greenshades: shades.map(value => value >= 99 ? value : Math.round(value * greenscale! * 1000) / 1000).join("|") } : {}), batch: 1, processes: 1, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
@@ -215,7 +217,7 @@ async function runJob(job: Job): Promise<void> {
         const tiles = [];
         for (const name of pointFiles) tiles.push(readPointStats(new Uint8Array(await readFile(join(dir, name)))));
         const stats = mergePointStats(tiles);
-        groundShare = groundShareAt(stats); signals = vegetationSignals(stats);
+        groundShare = groundShareAt(stats); signals = vegetationSignals(stats, job.settings.openshare, job.settings.denseshare);
         const images = pointImages(stats);
         for (const [name, bytes] of [["lasveg", images.veg], ["lasmark", images.ground], ["laskron", images.canopy]] as const) {
           await writeFile(join(dir, `${name}.png`), bytes);
@@ -348,11 +350,13 @@ async function runJob(job: Job): Promise<void> {
     let rockSummary: Record<string, number> = {};
     if (ground) {
       const stones = (await step("stones", "Letar stenar", { ground, water: waterData })) ?? { stones: [], capped: 0 };
-      const rock = openAt ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
+      // Berg i dagen: 0 tas inte med, 2 heter «berg_i_dagen» och föreslås som 214, annars utan förslag (förvalet, lärt av Högdalen).
+      const rockMode = job.settings.rock ?? 1;
+      const rock = openAt && rockMode > 0 ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
         forest: forestAt ? maskOf(ground, forestAt) : undefined }))?.rock ?? [] : [];
-      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones })) ?? { knolls: [], capped: 0 };
+      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare })) ?? { knolls: [], capped: 0 };
       if (stones.stones.length || rock.length || hills.knolls.length) {
-        await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: "berg_i_dagen_laser", closed: true, parts: rock },
+        await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: rockMode >= 2 ? "berg_i_dagen" : "berg_i_dagen_laser", closed: true, parts: rock },
           ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] })),
           { name: "dotknoll_laser", closed: false, points: hills.knolls, parts: [] }]));
       }

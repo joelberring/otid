@@ -25,6 +25,8 @@ export interface StepInput {
   readonly forest?: Uint8Array | undefined;
   readonly wet?: Uint8Array | undefined;
   readonly stones?: readonly { readonly at: readonly [number, number] }[] | undefined;
+  /** Andelen av ringen som ska ligga lägre än en liten kulle (förval i geo-rock.ts). */
+  readonly knollShare?: number | undefined;
 }
 
 /** En funktion (x, y) → sant/falskt som mask på markrastret, provad i cellernas mitt. */
@@ -66,7 +68,7 @@ export const STEPS = {
   },
   knolls(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
-    const all = knolls(input.ground, input.stones ?? [], undefined, undefined, water), cap = pointCap(input.ground);
+    const all = knolls(input.ground, input.stones ?? [], undefined, undefined, water, input.knollShare), cap = pointCap(input.ground);
     return { knolls: all.slice(0, cap), capped: Math.max(0, all.length - cap) };
   },
 } as const;

@@ -65,11 +65,12 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     cliffStyle: "Impassable cliffs",
     cliffStyles: { few: "Only high cliffs (from 4.5 m, at least 20 m)", most: "Most cliffs (from 3.5 m, at least 10 m)" },
     cliffTags: "Suggest passable cliffs with tags",
-    choiceLabels: { cliffs: "Cliffs", contours: "Contours", knolls: "Knolls", green: "Green", undergrowth: "Undergrowth" },
+    choiceLabels: { cliffs: "Cliffs", contours: "Contours", knolls: "Knolls", green: "Green", undergrowth: "Undergrowth", open: "Yellow", rock: "Bare rock" },
     choiceLevels: {
       cliffs: { less: "Fewer", default: "Default", more: "More" }, contours: { less: "Smoother", default: "Default", more: "More detailed" },
       knolls: { less: "Fewer", default: "Default", more: "More" }, green: { less: "Less", default: "Default", more: "More" },
-      undergrowth: { less: "Less", default: "Default", more: "More" }
+      undergrowth: { less: "Less", default: "Default", more: "More" },
+      open: { less: "Less", default: "Default", more: "More" }, rock: { less: "Leave out", default: "Without suggestion", more: "Suggest as bare rock" }
     },
     choicesHelp: "Karttapullautin measures green as the share of laser hits 1–2.65 m above ground (the shrub layer) against the hits on the ground, and weighs in the tree crowns. Try a stage first, or run a finished job again and compare.",
     rerun: "Run again with other settings",

@@ -78,10 +78,39 @@ const lineLength = (points: readonly (readonly [number, number])[]) => points.re
  * Varje ring i en vattenyta (stranden och öarna) blir en sluten linje i lagret `strandlinje` (301.1).
  */
 export function shoreLines(features: readonly SourceFeature[]): SourceFeature[] {
+  // Körningens kant är inte en strand: där vattnet är avskuret längs rutans kant (allt underlags yttersta ruta) ritas ingen
+  // linje, och ringen delas i öppna linjer.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const see = ([x, y]: readonly [number, number]) => { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; };
+  for (const { geometry } of features) {
+    if (geometry.kind === "point") see(geometry.at);
+    else if (geometry.kind === "line") geometry.points.forEach(see);
+    else if (geometry.kind === "area") geometry.rings.forEach(ring => ring.forEach(see));
+  }
+  const EDGE_M = 1.5;
+  const edges = ([x, y]: readonly number[]) => (Math.abs(x! - minX) <= EDGE_M ? 1 : 0) | (Math.abs(x! - maxX) <= EDGE_M ? 2 : 0)
+    | (Math.abs(y! - minY) <= EDGE_M ? 4 : 0) | (Math.abs(y! - maxY) <= EDGE_M ? 8 : 0);
+  // Minst 5 m längs samma kant: en naturlig strand nuddar kanten bara i en punkt.
+  const onEdge = (a: readonly number[], b: readonly number[]) => (edges(a) & edges(b)) !== 0 && Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!) >= 5;
   return features.flatMap(feature => {
     if (feature.layer !== "vatten") return [];
     const rings = feature.geometry.kind === "area" ? feature.geometry.rings : feature.geometry.kind === "line" && feature.geometry.closed ? [feature.geometry.points] : [];
-    return rings.filter(ring => ring.length >= 3).map((ring): SourceFeature => ({ layer: "strandlinje", geometry: { kind: "line", closed: true, points: ring.map(([x, y]) => [x, y]) } }));
+    return rings.filter(ring => ring.length >= 3).flatMap((ring): SourceFeature[] => {
+      const points = ring.map(([x, y]) => [x, y] as [number, number]);
+      const closedTwice = points.length > 3 && points[0]![0] === points[points.length - 1]![0] && points[0]![1] === points[points.length - 1]![1];
+      const open = closedTwice ? points.slice(0, -1) : points, n = open.length;
+      const cut = open.map((point, i) => onEdge(point, open[(i + 1) % n]!));
+      if (!cut.some(Boolean)) return [{ layer: "strandlinje", geometry: { kind: "line", closed: true, points } }];
+      // Börja efter ett avskuret segment och samla sträckorna mellan de avskurna.
+      const start = cut.findIndex(Boolean) + 1, lines: SourceFeature[] = [];
+      let run: [number, number][] = [];
+      for (let k = 0; k < n; k += 1) {
+        const i = (start + k) % n;
+        run.push(open[i]!);
+        if (cut[i]) { if (run.length >= 2) lines.push({ layer: "strandlinje", geometry: { kind: "line", closed: false, points: run } }); run = []; }
+      }
+      return lines;
+    });
   });
 }
 

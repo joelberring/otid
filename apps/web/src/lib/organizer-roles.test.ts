@@ -136,7 +136,7 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
       courseName: null, image: null }) } },
   "organizer/clubs/[clubId]/course-files/[courseFileId]": { GET: { allow: CLUB_MEMBERS, real: true },
     PUT: { allow: CLUB_ADMINS, real: true, body: { formatVersion: 1, mapVersionId: null } } },
-  "organizer/clubs/[clubId]/eventor": { POST: { allow: CLUB_ADMINS }, DELETE: { allow: CLUB_ADMINS },
+  "organizer/clubs/[clubId]/eventor": { POST: { allow: CLUB_ADMINS }, DELETE: { allow: CLUB_ADMINS }, PATCH: { allow: CLUB_ADMINS },
     PUT: { allow: CLUB_ADMINS, body: { formatVersion: 1, apiKey: "k".repeat(32) } } },
   "organizer/clubs/[clubId]/import-tokens": { POST: { allow: CLUB_ADMINS } },
   "organizer/clubs/[clubId]/import-tokens/[tokenId]": { DELETE: { allow: CLUB_ADMINS } },
@@ -192,7 +192,8 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
     PUT: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, raceId: null }) } },
   "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(),
     title: "Sätta ut kontroller", assignee: { kind: "NONE" } }) } },
-  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks/[taskId]": { DELETE: { allow: CLUB_LEADERS } },
+  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks/[taskId]": { DELETE: { allow: CLUB_LEADERS },
+    PUT: { allow: CLUB_LEADERS, body: { formatVersion: 1, title: "Sätta ut kontroller", assignee: { kind: "NONE" } } } },
   "organizer/plan-tasks": { GET: { allow: LOGGED_IN } },
   "organizer/plan-tasks/[taskId]": { PUT: { allow: LOGGED_IN, body: { formatVersion: 1, done: true } } },
   "organizer/clubs/[clubId]/members": {

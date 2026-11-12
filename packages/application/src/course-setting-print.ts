@@ -115,8 +115,10 @@ export async function createPrintJobAsAdmin(db: Database, input: RaceSessionProo
       return problem("TOO_MANY_JOBS", `Högst ${PRINT_JOB_LIMITS.activePerRace} PDF:er åt gången per tävling; vänta tills ett jobb är klart.`);
     }
     const id = randomUUID();
+    // Tävlingens namn sparas med jobbet: utskriftsarbetarens roll läser inte evenemanget (deploy/db-roles.sh).
+    const raceTitle = await loadRaceTitle(tx, raceId);
     const [created] = await tx.insert(schema.courseSettingPrintJobs).values({ id, raceId, requestId: request.requestId, kind: request.kind, status: "QUEUED",
-      label: labelFor(document, request), request: request as unknown as Record<string, unknown>, document: row.document as unknown as Record<string, unknown>,
+      label: labelFor(document, request), request: { ...request, ...(raceTitle ? { raceTitle } : {}) } as unknown as Record<string, unknown>, document: row.document as unknown as Record<string, unknown>,
       documentVersion: row.version, createdAt: now, createdBy: actorId }).returning(listColumns);
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "course_setting", entityId: raceId, action: "COURSE_SETTING_PRINT_JOB_CREATED",
       actorKind: "USER_ACCOUNT", actorId, after: { job: id, kind: request.kind, items: request.items.length, version: row.version } });
@@ -211,7 +213,10 @@ export async function runPrintJob(db: Database, job: ClaimedPrintJob, options: P
   // ADR-0189: filen ur innehållslagret (eller den gamla kolumnen); utskriftsrollen läser båda.
   const sourceFile = source ? await rowContent(db, source) : undefined;
   const map = source && sourceFile ? { file: sourceFile, fileName: source.fileName, bounds: source.bounds } : undefined;
-  const race = await loadRaceTitle(db, job.raceId);
+  // Namnet som sparades med jobbet; ett äldre jobb i kön har bara loppets namn (rollen läser `race`, inte `event`).
+  const storedTitle = (row.request as { raceTitle?: unknown }).raceTitle;
+  const race = typeof storedTitle === "string" && storedTitle ? storedTitle
+    : (await db.select({ name: schema.races.name }).from(schema.races).where(eq(schema.races.id, job.raceId)))[0]?.name;
   const started = performance.now();
   const finish = async (values: Partial<typeof schema.courseSettingPrintJobs.$inferInsert>) => {
     const updated = await db.update(schema.courseSettingPrintJobs).set({ ...values, finishedAt: clock() })
@@ -220,7 +225,7 @@ export async function runPrintJob(db: Database, job: ClaimedPrintJob, options: P
     return updated.length > 0;
   };
   try {
-    const request = printJobRequestSchema.parse(row.request);
+    const request = printJobRequestSchema.parse(Object.fromEntries(Object.entries(row.request).filter(([key]) => key !== "raceTitle")));
     const document = row.document as unknown as CourseSettingDocument;
     const paperImages = await paperImagesFor(db, paperImageHashes(document));
     // Kartornas rubrik är tävlingens namn om inte filens titel valts (`printedTitle`, användartestet 2026-11-12).

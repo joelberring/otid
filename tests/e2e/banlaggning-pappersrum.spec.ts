@@ -88,7 +88,9 @@ test("banläggning-pappersrum: texter, bilder, skalstock, nordpil, klippning och
   await inspector.getByTestId("paper-text").fill("{tävling}\nBana {bana}  {längd}  {skala}");
   await inspector.getByTestId("paper-text").press("Tab");
   await expect(text).toContainText("Bana Lång", { timeout: 15_000 });
-  await expect(text).toContainText("Kvällsträning på kartfilen");
+  // {tävling} är tävlingens namn i O-Tid, inte filens titel (användartestet 2026-11-12).
+  await expect(text).toContainText("· Torsdag");
+  await expect(text).not.toContainText("Kvällsträning på kartfilen");
   await inspector.getByTestId("paper-align").selectOption("center");
   await inspector.getByTestId("paper-size").fill("5");
   await inspector.getByTestId("paper-size").press("Enter");

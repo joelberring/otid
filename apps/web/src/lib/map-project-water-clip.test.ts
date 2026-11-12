@@ -23,3 +23,24 @@ describe("kurvor klipps mot vattnet", () => {
     expect(result.features.filter(feature => feature.layer === "contour")).toHaveLength(1);
   });
 });
+
+describe("kurvor mot vattnet på ett helt kartblad", () => {
+  it("klarar en havsyta med 20 000 brytpunkter och 300 km kurvor på under tre sekunder", () => {
+    const shore: [number, number][] = Array.from({ length: 20_000 }, (_, i) => {
+      const angle = i / 20_000 * 2 * Math.PI, radius = 2000 + 60 * Math.sin(i / 7);
+      return [3000 + radius * Math.cos(angle), 3000 + radius * Math.sin(angle)];
+    });
+    const sea: SourceFeature = { layer: "vatten", geometry: { kind: "area", rings: [[...shore, shore[0]!]] } };
+    const contours = Array.from({ length: 300 }, (_, i) => line("contour", Array.from({ length: 201 }, (_, k) => [k * 30, i * 20] as [number, number])));
+    const started = performance.now();
+    const result = linesOutsideWater([sea, ...contours], feature => feature.layer === "contour");
+    expect(performance.now() - started).toBeLessThan(3000);
+    expect(result.cut).toBeGreaterThan(150);
+  });
+  it("låter en ö i sjön vara land", () => {
+    const island: SourceFeature = { layer: "vatten", geometry: { kind: "area", rings: [[[100, 0], [200, 0], [200, 100], [100, 100], [100, 0]], [[140, 40], [160, 40], [160, 60], [140, 60], [140, 40]]] } };
+    const result = linesOutsideWater([island, line("contour", [[142, 50], [158, 50]])], feature => feature.layer === "contour");
+    expect(result.features).toHaveLength(2);
+    expect(result.cut).toBe(0);
+  });
+});

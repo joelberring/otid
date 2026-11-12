@@ -265,8 +265,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
 
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
+    // Ägaren 2026-11-12 («försvinner kartan … om den inte är nersparad»): andra kandidater som inte är införda byts inte ut utan fråga.
+    if (file && file.name !== fileName && file.data.features.length > 0 && !window.confirm(text.replaceConfirm(file.name))) return;
     setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within);
-  }, [show]);
+  }, [show, file, text]);
   /** En panel med reglage byter sina egna lager (`own`) i det som visas; utan något som visas öppnas datan som vanligt. */
   const refine = useCallback((fileName: string, data: SourceData, own: RegExp) => {
     if (!file) { openData(fileName, data, true); return; }

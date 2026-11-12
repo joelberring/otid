@@ -26,6 +26,12 @@ describe("grundkartans sankmark utan överlapp", () => {
     expect(result.features.map(feature => feature.layer)).toEqual(["blott"]);
     expect(result.removed).toBe(1);
   });
+  it("ett blött kärr mitt i ett fuktigt blir ett hål i det fuktiga", () => {
+    const result = singleMarsh([square("fuktigt", 0, 0, 100), square("blott", 40, 40, 20)]);
+    const moist = result.features.find(feature => feature.layer === "fuktigt")!;
+    expect(moist.geometry.kind === "area" && moist.geometry.rings).toHaveLength(2);
+    expect(result.clipped).toBe(1);
+  });
   it("lämnar allt orört när bara ett slag finns", () => {
     const features = [square("fuktigt", 0, 0, 100), square("fuktigt", 50, 50, 100)];
     expect(singleMarsh(features).features).toEqual(features);

@@ -3,6 +3,7 @@ import { plural } from "./plural";
 /** ADR-0219 tillägget om vektorunderlagen (K4b): importera en vektorfil som kandidater. */
 export const mapProjectImportSv = {
   heading: "Importera vektorer",
+  replaceConfirm: (name: string) => `Kandidaterna från ”${name}” är inte införda i kartan och försvinner om du läser in något annat. Fortsätta?`,
   help: "En baskarta eller annan vektorfil (GeoJSON, DXF eller Shapefile, gärna som .zip) blir kandidater: välj symbol per lager, se dem på kartan och lämna dem som förslag "
     + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren. Vissa baskartor känns igen "
     + "på lagernamnen, men inte alla. Valen kan sparas som en profil till nästa fil.",

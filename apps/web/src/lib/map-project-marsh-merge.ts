@@ -63,7 +63,9 @@ function withoutOverlap(features: readonly SourceFeature[], order: readonly stri
       let pieces: Polygon[];
       try { pieces = polygonClipping.difference(polygon, ...over).filter(piece => ringArea(piece[0] as Ring) >= MIN_PIECE_M2); }
       catch { out.push(row.feature); added.push({ polygon, box }); continue; }
-      const same = pieces.length === 1 && Math.abs(ringArea(pieces[0]![0] as Ring) - ringArea(polygon[0]!)) < 1;
+      // Oförändrad bara om hela ytan (ytterkant minus hål) är kvar: ett blött kärr mitt i ett fuktigt ger ett hål, inte en ny kant.
+      const net = (rings: readonly (readonly (readonly number[])[])[]) => rings.reduce((sum, ring, i) => sum + (i === 0 ? 1 : -1) * ringArea(ring as Ring), 0);
+      const same = pieces.length === 1 && Math.abs(net(pieces[0]!) - net(polygon)) < 1;
       if (same) { out.push(row.feature); added.push({ polygon, box }); continue; }
       if (pieces.length === 0) { removed += 1; continue; }
       clipped += 1;

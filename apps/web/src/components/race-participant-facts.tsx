@@ -8,6 +8,7 @@ import { raceWorkflowDetailSv } from "../i18n/race-workflow-detail-sv";
 import styles from "./race-workflow-detail.module.css";
 import { formatClockTime } from "../lib/clock-time";
 import { startRuleSv } from "../i18n/start-rule-sv";
+import { classStartMethod } from "../lib/lists/start-list-model";
 
 type Entry = EntryTransferCandidates["entries"][number];
 type RaceClass = EntryTransferCandidates["classes"][number];
@@ -26,8 +27,9 @@ export function RaceParticipantFacts({ entry, raceClass, timeZone, disabled, act
   const assignment = entry.activeAssignment;
   const cardValue = entry.multipleActiveAssignments ? text.multipleCards : assignment === null ? text.noCard :
     `${assignment.cardNumber}${assignment.isRental ? ` · ${text.cardRental} · ${assignment.rentalReturned ? text.returned : text.notReturned}` : ""}`;
-  // Ett ordval för startsätt (PLAN.md steg 24): Fri start, eller Minutstart med tiden.
-  const startValue = raceClass.startRule === "PUNCH" ? text.free : `${startRule.rules.FIXED} · ${entry.fixedStartTime === null
+  // Ett ordval för startsätt (PLAN.md steg 24): Fri start, eller Minutstart/Masstart med tiden, som startlistan.
+  const method = classStartMethod(raceClass);
+  const startValue = method === "FREE" ? text.free : `${startRule.methods[method]} · ${entry.fixedStartTime === null
     ? text.noFixedTime : formatClockTime(entry.fixedStartTime, timeZone)}`;
 
   return <section className={`${styles.panel} ${styles.participantFacts}`} aria-labelledby="race-participant-facts-title">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PublicRelayResults, PublicResultListResponse } from "@o-tid/contracts";
-import { classStartRows, filterStartList, groupByStartTime, startListByClub, startListClubs, startListFromPublication, type StartClass } from "./start-list-model";
+import { classStartMethod, classStartRows, filterStartList, groupByStartTime, startListByClub, startListClubs, startListFromPublication, type StartClass } from "./start-list-model";
 import { clubSummary, clubSummaryTotal, filterResults, resultClubs, resultListFromPublic, resultsByClub, splitGroups } from "./result-list-model";
 import { CSV_BOM, csvCell, resultListCsv, startListCsv, toCsv } from "./csv";
 
@@ -74,6 +74,16 @@ describe("startlistan per klubb och sökning", () => {
     expect(model.cards).toBe(false);
     expect(model.classes[0]!.mode).toEqual({ kind: "MASS", time: at("10:00") });
     expect(model.classes[0]!.entries[0]!.card).toBeUndefined();
+  });
+
+  it("ger deltagarkortet och startlistan samma startsätt: fri start, minutstart eller masstart (användartest 2026-11-12)", () => {
+    expect(classStartMethod({ startRule: "PUNCH", drawMethod: null })).toBe("FREE");
+    // En fri start som en gång lottats med masstart är fortfarande fri start.
+    expect(classStartMethod({ startRule: "PUNCH", drawMethod: "MASS" })).toBe("FREE");
+    expect(classStartMethod({ startRule: "FIXED", drawMethod: "MASS" })).toBe("MASS");
+    expect(classStartMethod({ startRule: "FIXED", drawMethod: "MINUTE" })).toBe("MINUTE");
+    expect(classStartMethod({ startRule: "FIXED", drawMethod: null })).toBe("MINUTE");
+    expect(classStartMethod({ startRule: "FIXED" })).toBe("MINUTE");
   });
 
   it("steg 33: den publicerade listan visar bricka bara när tävlingen visar bricknummer", () => {

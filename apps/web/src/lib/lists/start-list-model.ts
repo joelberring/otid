@@ -36,11 +36,22 @@ export type StartListModel = {
   workspace?: boolean;
 };
 
-function mode(raceClass: { startRule: "FIXED" | "PUNCH"; drawMethod?: "MINUTE" | "MASS" | null | undefined; relayLegCount?: number | undefined },
-  times: readonly (string | null)[]): StartMode {
+type StartMethodClass = { startRule: "FIXED" | "PUNCH"; drawMethod?: "MINUTE" | "MASS" | null | undefined };
+
+/**
+ * En individuell klass startsätt som startlistan och deltagarkortet visar det: Fri start (startstämpling), Masstart
+ * (klassen lottad med masstart) eller annars Minutstart.
+ */
+export function classStartMethod(raceClass: StartMethodClass): "FREE" | "MINUTE" | "MASS" {
+  if (raceClass.startRule === "PUNCH") return "FREE";
+  return raceClass.drawMethod === "MASS" ? "MASS" : "MINUTE";
+}
+
+function mode(raceClass: StartMethodClass & { relayLegCount?: number | undefined }, times: readonly (string | null)[]): StartMode {
   if (raceClass.relayLegCount !== undefined) return { kind: "RELAY", legCount: raceClass.relayLegCount };
-  if (raceClass.startRule === "PUNCH") return { kind: "FREE" };
-  if (raceClass.drawMethod === "MASS") {
+  const method = classStartMethod(raceClass);
+  if (method === "FREE") return { kind: "FREE" };
+  if (method === "MASS") {
     const first = times.flatMap(time => time ? [time] : []).sort((a, b) => Date.parse(a) - Date.parse(b))[0];
     return { kind: "MASS", time: first ?? null };
   }

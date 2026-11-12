@@ -3,7 +3,7 @@ import type { accessSv } from "./access-sv";
 
 export const accessEn: Texts<typeof accessSv> = {
   checking: "Checking your sign-in …",
-  signedOut: "You are not signed in. Sign in with your account.",
+  signedOut: "You are not signed in. Sign in with your account; you will come back here afterwards.",
   signIn: "Sign in",
   noAccess: (email: string) => `You are signed in as ${email} but do not have access to this event.`,
   noAccessHelp: "Ask the event's administrator to invite you with that address, or sign out and sign in with another account.",

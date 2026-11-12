@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 import { accessSv } from "../../i18n/access-sv";
 import { accessEn } from "../../i18n/access-en";
 import { accessSituation, type AccessSituation } from "../../lib/access-situation";
+import { rememberCurrentPageForLogin } from "../../lib/after-login";
 import { parseOrganizerSessionStatus } from "../../lib/organizer-client";
 import { useTexts } from "../language-provider";
 import { VerifyEmailOffer } from "../verify-email-offer";
 
 /**
- * Användartestet 2026-11-12: när tävlingens sida nekas sägs varför. Inte inloggad ger "Logga in";
+ * Användartestet 2026-11-12: när tävlingens sida nekas sägs varför. Inte inloggad ger "Logga in" (och tillbaka hit efteråt);
  * inloggad utan behörighet säger vem man är inloggad som; obekräftad adress erbjuder bekräftelsemejlet.
  */
 export function AccessNotice() {
@@ -27,7 +28,7 @@ export function AccessNotice() {
   if (!situation) return <p role="status">{text.checking}</p>;
   if (situation.kind === "signed-out") return <div role="status" data-testid="access-signed-out">
     <p>{text.signedOut}</p>
-    <p><Link href="/organizer" prefetch={false}>{text.signIn}</Link></p>
+    <p><Link href="/organizer" prefetch={false} onClick={rememberCurrentPageForLogin}>{text.signIn}</Link></p>
   </div>;
   if (situation.kind === "unverified") return <div role="status" data-testid="access-unverified">
     <p>{text.unverified(situation.email)}</p>

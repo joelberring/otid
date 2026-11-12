@@ -4,7 +4,7 @@
  */
 export const accessSv = {
   checking: "Kontrollerar inloggningen …",
-  signedOut: "Du är inte inloggad. Logga in med ditt konto.",
+  signedOut: "Du är inte inloggad. Logga in med ditt konto; du kommer tillbaka hit efteråt.",
   signIn: "Logga in",
   noAccess: (email: string) => `Du är inloggad som ${email} men har inte behörighet till den här tävlingen.`,
   noAccessHelp: "Be tävlingens administratör att bjuda in dig med den adressen, eller logga ut och logga in med ett annat konto.",

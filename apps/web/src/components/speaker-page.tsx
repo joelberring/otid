@@ -1,5 +1,6 @@
 "use client";
 
+import { rememberCurrentPageForLogin } from "../lib/after-login";
 import Link from "next/link";
 import { radioControlNameEn, radioEn, speakerEn } from "../i18n/workspace-more-en";
 import { useLanguage, useTexts } from "./language-provider";
@@ -88,7 +89,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
   }, [raceId]);
 
   if (problem === "login") return <div className={styles.board}><p className={styles.notice} role="alert">{text.loginNeeded}{" "}
-    <Link href="/organizer">{text.login}</Link></p></div>;
+    <Link href="/organizer" onClick={rememberCurrentPageForLogin}>{text.login}</Link></p></div>;
   if (!data) return <div className={styles.board}><p className={styles.waiting} role="status">{problem === "error" ? text.loadError : text.loading}</p></div>;
   const timeZone = data.board.timeZone;
   const leaders = data.results ? classLeaders(data.results) : [];

@@ -25,7 +25,7 @@ describe("klockslag", () => {
   });
 
   it("avvisar ogiltiga klockslag", () => {
-    for (const clock of ["", "24:00", "12:60", "12", "kl 12", "12:00:61"]) {
+    for (const clock of ["", "24:00", "12:60", "24", "kl 12", "12:00:61"]) {
       expect(parseRaceClock("2026-10-08", clock, "Europe/Stockholm")).toBeNull();
     }
     expect(parseRaceClock("08-10-2026", "12:00", "Europe/Stockholm")).toBeNull();

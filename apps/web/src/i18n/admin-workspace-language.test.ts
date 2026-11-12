@@ -52,6 +52,8 @@ const adminFiles = [
   "relay-form-sv.ts",
   // Steg 61: kartor till starten.
   "map-bundles-sv.ts",
+  // Användartest 2026-11-12: kontomenyn i arbetsytans toppbalk.
+  "account-menu-sv.ts",
   // Steg 60: vägvalsanalysen.
   "route-choice-sv.ts",
   // Steg 62: banläggningen.

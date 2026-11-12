@@ -19,7 +19,6 @@ export const organizerEn: Texts<typeof organizerSv> = {
   uncertainResponse: status => `The server did not answer reliably (${status}). Press Try again.`,
   attemptAbandoned: "The attempt was cancelled. No new request was sent.",
   loggingOut: "Signing out …",
-  logoutError: status => `Signing out could not be confirmed (${status}).`,
   loggedOut: "You are signed out.",
   loggedOutEverywhere: "You are signed out on all devices.",
   remember: "Remember me on this computer",

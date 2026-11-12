@@ -15,7 +15,6 @@ export const organizerSv = {
   uncertainResponse: (status: number) => `Servern svarade inte säkert (${status}). Tryck på Försök igen.`,
   attemptAbandoned: "Skapandeförsöket avbröts. Ingen ny begäran skickades.",
   loggingOut: "Loggar ut …",
-  logoutError: (status: number) => `Utloggningen kunde inte bekräftas (${status}).`,
   loggedOut: "Du är utloggad.",
   /** ADR-0205 tillägg: efter "Logga ut från alla enheter" under Mitt konto. */
   loggedOutEverywhere: "Du är utloggad på alla enheter.",

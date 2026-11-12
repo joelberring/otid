@@ -7,7 +7,7 @@ import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectVi
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
   applyFit, fitClassOf, generalizeCandidates, guessCrs, importLayers, importObjects, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
-  type FitPoint, type ImportLayer, type SourceData, type TargetKind, type VectorFit
+  clipObjectsToPolygon, type FitPoint, type ImportLayer, type SourceData, type TargetKind, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
@@ -41,6 +41,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [file, setFile] = useState<{ name: string; data: SourceData }>();
   /** K4c: hämtat för en etapp klipps mot etappens ruta i stället för kartans. */
   const [clip, setClip] = useState<Bounds>();
+  /** Etappens gräns (kartans mm) när ett laserjobb för en etapp läses in: kandidaterna klipps mot den också. */
+  const [stage, setStage] = useState<readonly (readonly { x: number; y: number }[])[]>();
   const [fetching, setFetching] = useState(false);
   const [layers, setLayers] = useState<readonly ImportLayer[]>([]);
   const [mapping, setMapping] = useState<ReadonlyMap<string, string>>(new Map());
@@ -75,8 +77,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
 
   /** Ägaren 2026-11-11: kandidaterna ur lasern och tolkningarna generaliseras efter normen (förval); andra filer inte. */
   const [normed, setNormed] = useState(false);
-  const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false) => {
-    setNormed(general);
+  const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
+    setNormed(general); setStage(within);
     const found = importLayers(data);
     const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
     setFile({ name: fileName, data });
@@ -175,9 +177,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
         const at = sourcePointToMap(georeference, crs, x, y);
         return fitted ? applyFit(fitted, at) : at;
       };
-      const imported = importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols,
+      const whole = importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols,
         // Kartans område (polygonen) klipper också, utom när en etapp valts (den har sin ruta).
         polygon: clip ? undefined : view.area ?? undefined });
+      const imported = stage?.[0] && stage[0].length >= 3 ? { ...whole, objects: clipObjectsToPolygon(whole.objects, stage).objects } : whole;
       // Ägaren 2026-11-12: inget av markens detaljer eller vegetationen i det som redan är ritat som tomtmark, asfalt eller hus.
       const masked = maskBuiltOn && built.length ? maskBuilt(imported.objects, built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }) : undefined;
       const kept = masked?.objects ?? imported.objects, builtMask = masked && masked.removed + masked.clipped > 0 ? { removed: masked.removed, clipped: masked.clipped } : undefined;
@@ -186,7 +189,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       const general = generalizeCandidates(kept, symbol => symbols.get(symbol)?.code, georeference.scale);
       return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask };
     } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped, normed, view.area, built, maskBuiltOn]);
+  }, [file, georeference, crs, mapping, symbols, bounds, clip, stage, fit, skipped, normed, view.area, built, maskBuiltOn]);
 
   // Ytorna hämtas på nytt för varje fil, så att det som ritats sedan sist är med.
   useEffect(() => { if (file && session) session.built(setBuilt); }, [file, session]);
@@ -261,8 +264,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); }, []);
 
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
-  const openData = useCallback((fileName: string, data: SourceData, general = false) => {
-    setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general);
+  const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
+    setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within);
   }, [show]);
   /** En panel med reglage byter sina egna lager (`own`) i det som visas; utan något som visas öppnas datan som vanligt. */
   const refine = useCallback((fileName: string, data: SourceData, own: RegExp) => {

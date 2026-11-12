@@ -5,6 +5,7 @@ import { withoutCutVegetation, type clearCutFeatures } from "./map-project-clear
 import { smallRingsToPoints } from "./map-project-small-rings";
 import { yardsOf } from "./map-project-yards";
 import { singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
+import { linesOutsideWater } from "./map-project-water-clip";
 
 /**
  * Grundkartan G2 och G8 (ägaren 2026-11-10: «ungefär som en halvfärdig karta», utan grundkartefil: lasern, Lantmäteriets
@@ -76,12 +77,23 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const shortest = scale ? twoTagMeters(scale) : 0;
   // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
-  const features = parts.flatMap(part => (/^(kurvor|formlinjer)\.dxf$/.test(part.name) ? joinSeams(part.data.features) : part.data.features).map(feature => {
+  // Ägaren 2026-11-12: kurvorna och formlinjerna klipps mot vattnet (lasern har ingen mark där och drar dem rakt över).
+  const contours = new Set<SourceFeature>();
+  const joined = parts.map(part => {
+    if (!/^(kurvor|formlinjer)\.dxf$/.test(part.name)) return part;
+    const list = joinSeams(part.data.features);
+    for (const feature of list) contours.add(feature);
+    return { ...part, data: { ...part.data, features: list } };
+  });
+  const dry = linesOutsideWater(joined.flatMap(part => part.data.features), feature => contours.has(feature)).features;
+  const partOf = new Map(joined.flatMap(part => part.data.features.map(feature => [feature, part.name] as const)));
+  const features = dry.map(feature => {
+    const part = { name: partOf.get(feature) ?? "kurvor.dxf" };
     if (part.name === "vegetation.dxf" && landCover && feature.layer === "oppen_mark") return { ...feature, layer: "oppen_mark_laser" };
     if (feature.layer === "bebyggelse_lag") return { ...feature, layer: "tomtmark_marktacke" };
     if (feature.layer === "brant_opasserbar" && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < shortest) return { ...feature, layer: "brant_passerbar" };
     return feature;
-  }));
+  });
   // Ägaren 2026-11-11 (Högdalen som facit: 282 punkthöjder mot kartritarens 153, många i sluttningar): finns laserns egna
   // små kullar (berg.dxf, prövade mot markmodellen) ersätter de Karttapullautins knollar; groparna behålls.
   const laserKnolls = features.some(feature => feature.layer === "dotknoll_laser");

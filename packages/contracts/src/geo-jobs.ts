@@ -64,6 +64,8 @@ export const geoJobCreateRequestSchema = z.object({
   tiles: z.array(tileSchema).min(1).max(GEO_JOB_MAX_TILES).optional(),
   settings: settingsSchema.default({}),
   clip: clipSchema.optional(),
+  /** Etappen (delområdet) som jobbet gäller: resultatet klipps mot dess gräns när det läses in (ägaren 2026-11-12). */
+  areaId: z.string().uuid().optional(),
   extras: z.array(extraSchema).max(6).optional(),
   /**
    * Branternas trösklar när fallet mäts i markrastret (G4, ägaren 2026-11-11: «mer/mindre branter»): minsta fall för en brant
@@ -89,6 +91,8 @@ export interface GeoJobView {
   readonly tiles: number; readonly settings: Readonly<Record<string, number>>;
   /** Laserdatan klipptes till den här rutan (SWEREF 99 TM, med marginal); null = hela rutorna bearbetades. */
   readonly clip: GeoClip | null;
+  /** Etappen jobbet gäller, eller null för hela kartan. */
+  readonly areaId: string | null;
   /** Den senaste laserskanningen bland rutorna (ÅÅÅÅ-MM-DD), när sökningen gav ett datum. */
   readonly scannedAt: string | null;
   /** Branternas trösklar (null = förvalet), fuktigheten och vegetationen som jobbet räknade, så att det kan köras om likadant. */

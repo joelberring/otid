@@ -79,12 +79,12 @@ async function rows(tx: DbExecutor, projectId: string, jobId?: string) {
   return list.map(row => ({ ...row, files: files.filter(file => file.jobId === row.job.id) }));
 }
 function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): GeoJobView {
-  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"]; extras?: { kind: GeoJobView["extras"][number] }[]; cliffs?: GeoJobView["cliffs"];
+  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"]; areaId?: string; extras?: { kind: GeoJobView["extras"][number] }[]; cliffs?: GeoJobView["cliffs"];
     moisture?: GeoJobView["moisture"]; vegetation?: GeoJobView["vegetation"] };
   const progress = job.progress as GeoJobView["progress"] | null;
   const dates = (request.tiles ?? []).map(tile => (tile as { datetime?: unknown }).datetime).filter((date): date is string => typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date));
   return { jobId: job.id, scannedAt: dates.length ? dates.map(date => date.slice(0, 10)).sort().at(-1)! : null, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status, tiles: request.tiles?.length ?? 0,
-    settings: request.settings ?? {}, clip: request.clip ?? null, extras: (request.extras ?? []).map(extra => extra.kind), cliffs: request.cliffs ?? null, progress: job.status === "RUNNING" ? progress : null, error: job.error,
+    settings: request.settings ?? {}, clip: request.clip ?? null, areaId: request.areaId ?? null, extras: (request.extras ?? []).map(extra => extra.kind), cliffs: request.cliffs ?? null, progress: job.status === "RUNNING" ? progress : null, error: job.error,
     layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null, skippedSteps: skippedSteps(job.result?.summary),
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
@@ -114,11 +114,12 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
     if (request.rerunOf) {
       const [source] = await tx.select({ request: jobs.request, kind: jobs.kind }).from(jobs)
         .where(and(eq(jobs.id, request.rerunOf), eq(jobs.projectId, access.project.id)));
-      const prior = source?.kind === "PULLAUTIN" ? source.request as { tiles?: typeof request.tiles; clip?: typeof request.clip; extras?: typeof request.extras } : undefined;
+      const prior = source?.kind === "PULLAUTIN" ? source.request as { tiles?: typeof request.tiles; clip?: typeof request.clip; areaId?: string; extras?: typeof request.extras } : undefined;
       if (!prior?.tiles?.length) return { status: "not-found" } as const;
       // En provruta (en egen, mindre klippruta) tar bara rutorna som når den, så att den går fort och tar lite av kvoten.
       const tiles = request.clip ? prior.tiles.filter(tile => reaches(tile.bbox, request.clip!)) : prior.tiles;
-      request = { ...request, tiles: tiles.length ? tiles : prior.tiles, clip: request.clip ?? prior.clip, extras: request.extras ?? prior.extras };
+      request = { ...request, tiles: tiles.length ? tiles : prior.tiles, clip: request.clip ?? prior.clip, extras: request.extras ?? prior.extras,
+        ...(prior.areaId && !request.clip ? { areaId: prior.areaId } : {}) };
     }
     const tileList = request.tiles ?? [];
     if (tileList.length === 0 || [...tileList, ...(request.extras ?? [])].some(item => !allowedLaserUrl(item.href, runtime))) return { status: "invalid-request" } as const;
@@ -141,7 +142,7 @@ export async function createGeoJob(db: Database, input: ClubProof & { projectId:
     if (tiles + tileList.length > geoTilesPerMonth(runtime.environment)) return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(jobs).values({ id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-      request: { name: request.name, tiles: tileList, settings: request.settings, ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(request.clip ? { clip: request.clip } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
+      request: { name: request.name, tiles: tileList, settings: request.settings, ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(request.clip ? { clip: request.clip } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
         ...(request.moisture ? { moisture: request.moisture } : {}),
         ...(request.vegetation ? { vegetation: request.vegetation } : {}) },
       createdAt: now, requestId: request.requestId });

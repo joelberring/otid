@@ -137,7 +137,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
         ...(rerun ? { rerunOf: rerun.jobId, ...(sampled ? { clip: sampled } : {}) } : { tiles,
           // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
-          ...(clip ? { clip } : {}),
+          ...(clip ? { clip } : {}), ...(area ? { areaId: area.areaId } : {}),
           ...(clip && extras.some(extra => !skippedExtras.has(extra.kind)) ? { extras: extras.filter(extra => !skippedExtras.has(extra.kind)) } : {}) }),
         ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: wetMeters * 2 } } : {}),
         ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
@@ -204,7 +204,9 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       }
       const data: SourceData = baseMap ? mergeBaseMap(parts, osm, georeference?.scale, cuts) : { ...parts[0]!.data };
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
-      importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG");
+      importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
+        // Ägaren 2026-11-12: en etapps resultat klipps mot etappens gräns, så att grannetapperna inte får dubbla linjer.
+        areas.find(row => row.areaId === job.areaId)?.polygon);
       const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
       setMessage({ tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}` });
     } catch (error) {

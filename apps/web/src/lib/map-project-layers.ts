@@ -51,7 +51,15 @@ const apply = (t: Affine, column: number, row: number) => ({ x: t.a * column + t
  * Bildens pixlar (mitten) → kartans mm, ur tre punkter (övre vänstra, övre högra och nedre vänstra pixeln), så att små
  * skillnader mellan koordinatsystemen fördelas över bilden. Kastar om koordinatsystemet inte kan räknas.
  */
-export function layerToMap(layer: { width: number; height: number; crs: number; transform: Affine }, georeference: MapGeoreference): Affine {
+/**
+ * Lantmäteriets laserrutor anges i EPSG 5845 (SWEREF 99 TM med höjdsystemet RH 2000). I planet är det samma som 3006.
+ * Ägaren 2026-11-12 («jag ser inte alls de där olika lagren med terrängskuggning»): laserjobbens underlag sparades med 5845,
+ * som kartan inte kände, så de ritades aldrig.
+ */
+export const planarCrs = (crs: number) => crs === 5845 ? 3006 : crs;
+
+export function layerToMap(input: { width: number; height: number; crs: number; transform: Affine }, georeference: MapGeoreference): Affine {
+  const layer = { ...input, crs: planarCrs(input.crs) };
   const corners = [[0, 0], [layer.width - 1, 0], [0, layer.height - 1]] as const;
   const [p0, p1, p2] = corners.map(([column, row]) => { const at = apply(layer.transform, column, row); return sourcePointToMap(georeference, layer.crs, at.x, at.y); }) as [Point, Point, Point];
   const w = Math.max(1, layer.width - 1), h = Math.max(1, layer.height - 1);

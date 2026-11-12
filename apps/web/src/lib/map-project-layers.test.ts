@@ -45,3 +45,12 @@ describe("underlagen (K4a)", () => {
     expect([a, b, c, d, e, f]).toEqual([0.2, -0, 0, 0.2, 400, 300]);
   });
 });
+
+describe("laserjobbens underlag", () => {
+  it("räknar EPSG 5845 (SWEREF 99 TM + RH 2000) som 3006 i planet", async () => {
+    const { planarCrs } = await import("./map-project-layers");
+    expect(planarCrs(5845)).toBe(3006);
+    expect(planarCrs(3006)).toBe(3006);
+    expect(planarCrs(4326)).toBe(4326);
+  });
+});

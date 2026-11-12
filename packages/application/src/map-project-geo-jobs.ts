@@ -334,7 +334,8 @@ async function layerFrom(tx: DbExecutor, job: typeof jobs.$inferSelect, files: (
     .where(eq(schema.mapProjectLayers.projectId, job.projectId));
   const id = randomUUID();
   await tx.insert(schema.mapProjectLayers).values({ id, projectId: job.projectId, name, contentSha256: image.contentSha256, mediaType: dimensions.mediaType,
-    width: dimensions.width, height: dimensions.height, crs: request.tiles?.[0]?.epsg ?? 3006, transform, opacity, sort, createdBy: job.accountId,
+    width: dimensions.width, height: dimensions.height, // Laserrutornas 5845 (SWEREF 99 TM + RH 2000) är 3006 i planet; underlaget sparas med det kartan känner.
+    crs: request.tiles?.[0]?.epsg === 5845 ? 3006 : request.tiles?.[0]?.epsg ?? 3006, transform, opacity, sort, createdBy: job.accountId,
     createdAt: now, requestId }).onConflictDoNothing();
   return id;
 }

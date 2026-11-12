@@ -64,6 +64,8 @@ const adminFiles = [
   "club-affiliation-sv.ts", "club-archive-sv.ts",
   // ADR-0206: inbjudningar med e-post (Personer med behörighet).
   "invitation-sv.ts",
+  // Användartestet 2026-11-12: beskedet när tävlingens sida nekas.
+  "access-sv.ts",
   // Den gemensamma plural(): "1 bana", "3 banor".
   "plural.ts"
 ];

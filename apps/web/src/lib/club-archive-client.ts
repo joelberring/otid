@@ -108,8 +108,9 @@ export async function uploadMapVersion(clubId: string, input: { mapId: string | 
   return { status: response.status, json };
 }
 
-export type ReuseStage = "race" | "group" | "reading" | "drawing" | "map" | "courses";
-export type ReuseOutcome = { kind: "done"; raceId: string; openCourseSetting: boolean }
+export type ReuseStage = "race" | "group" | "reading" | "drawing" | "map" | "courses" | "transfer";
+/** `done.notes`: vad som gjordes utöver träningen (arrangörsklubben, banorna i tidtagningen), för beskedet i banläggningen. */
+export type ReuseOutcome = { kind: "done"; raceId: string; openCourseSetting: boolean; notes: string[] }
   | { kind: "partial"; raceId: string; problem: keyof typeof clubArchiveSv.reuse.failed }
   | { kind: "failed"; problem: string };
 
@@ -119,6 +120,9 @@ export interface ReuseInput {
   readonly eventName: string;
   readonly raceDate: string;
   readonly groupId: string | null;
+  /** Klubbytans klubb i Eventor: blir träningens arrangörsklubb (punkt A, användartestet 2026-11-12). */
+  readonly organisationId: string | null;
+  readonly clubName: string;
   readonly map: { readonly versionId: string; readonly fileName: string } | null;
   /** En redan ritad karta (förhandsvisningen), annars ritas den här. */
   readonly rendered?: MapFileRenderResult | undefined;
@@ -143,6 +147,13 @@ export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseSta
     const attached = await clubRequest(`/api/organizer/races/${raceId}/group`, "PUT", { formatVersion: 1, groupId: input.groupId });
     if (attached.status !== 200) return { kind: "partial", raceId, problem: "group" };
   }
+  const notes: string[] = [];
+  if (input.organisationId) {
+    // Träningen hör till klubben vars arkiv den kommer ur (annars skaparens klubb, eller ingen).
+    const organiser = await clubRequest(`/api/organizer/races/${encodeURIComponent(raceId)}/club-archive`, "PUT",
+      { formatVersion: 1, organisationId: input.organisationId });
+    notes.push(organiser.status === 200 ? text.reuse.notes.organiser(input.clubName) : text.reuse.notes.organiserFailed);
+  }
   let metadata: RaceMapSourceMetadata | undefined;
   if (input.map) {
     const rendered = input.rendered ?? await renderMapVersion(input.clubId, input.map.versionId, input.map.fileName, stage => onStage(stage));
@@ -162,6 +173,8 @@ export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseSta
         const outcome = await importCourseSetting(raceId, { document: input.course.document, expectedVersion: 0, fileName: input.course.fileName,
           ppen: input.course.ppen });
         if (outcome.kind !== "saved") return { kind: "partial", raceId, problem: "courses" };
+        onStage("transfer");
+        notes.push(await transferNote(raceId, outcome.version, text));
       } catch { return { kind: "partial", raceId, problem: "courses" }; }
     } else {
       const response = await fetch(`/api/races/${raceId}/imports`, { method: "POST", credentials: "same-origin",
@@ -170,16 +183,30 @@ export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseSta
       if (!response.ok) return { kind: "partial", raceId, problem: "courses" };
       // Utan .ppen: banfilen blir banläggning på kartan, så att träningen öppnas där och starten och kontrollerna går att flytta.
       if (metadata) {
-        if (!await courseDataToCourseSetting(raceId, input.course.bytes, input.eventName, metadata)) return { kind: "partial", raceId, problem: "courseSetting" };
-        return { kind: "done", raceId, openCourseSetting: true };
+        if (!await courseDataToCourseSetting(raceId, input.course.bytes, input.eventName, metadata, notes)) return { kind: "partial", raceId, problem: "courseSetting" };
+        return { kind: "done", raceId, openCourseSetting: true, notes: [] };
       }
     }
   }
-  return { kind: "done", raceId, openCourseSetting: input.course?.kind === "PPEN" || (input.course === null && input.map !== null) };
+  return { kind: "done", raceId, openCourseSetting: input.course?.kind === "PPEN" || (input.course === null && input.map !== null), notes };
+}
+
+/** Banorna i tidtagningen (samma som Överför till tävlingen) och beskedet om det. */
+async function transferNote(raceId: string, version: number, text: Texts<typeof clubArchiveSv>): Promise<string> {
+  try {
+    const { transferReusedCourses } = await import("./club-archive-reuse-transfer");
+    const transferred = await transferReusedCourses(raceId, version);
+    if (transferred.kind === "done") return text.reuse.notes.transferred(transferred.courses, transferred.classes);
+    return text.reuse.notes.transferFailed;
+  } catch (error) {
+    console.error("Banorna fördes inte över till tävlingen", error);
+    return text.reuse.notes.transferFailed;
+  }
 }
 
 /** Banfilen som träningens första banläggning (version 0, träningen är ny). Beskedet visas när editorn öppnas. */
-async function courseDataToCourseSetting(raceId: string, bytes: ArrayBuffer, title: string, metadata: RaceMapSourceMetadata): Promise<boolean> {
+async function courseDataToCourseSetting(raceId: string, bytes: ArrayBuffer, title: string, metadata: RaceMapSourceMetadata,
+  notes: readonly string[]): Promise<boolean> {
   // Banfilens tolkning laddas först här (bara Använd igen med en banfil behöver den).
   const { courseSettingFromCourseData, rememberCourseSettingNotice } = await import("./course-data-course-setting");
   const converted = courseSettingFromCourseData(new Uint8Array(bytes), { title, mapScale: metadata.scale,
@@ -189,6 +216,6 @@ async function courseDataToCourseSetting(raceId: string, bytes: ArrayBuffer, tit
     const saved = await saveCourseSetting(raceId, converted.document, 0);
     if (saved.kind !== "saved") return false;
   } catch (error) { console.error("Banläggningen sparades inte", error); return false; }
-  rememberCourseSettingNotice(raceId, { text: converted.notices.join(" "), stays: converted.stays });
+  rememberCourseSettingNotice(raceId, { text: [...notes, ...converted.notices].join(" "), stays: converted.stays || notes.length > 0 });
   return true;
 }

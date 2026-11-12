@@ -413,6 +413,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
       [
         "Varje bana behöver start och mål, och kontrollerna koder 1–999 999.",
         "Klasserna i banans fält ”Klasser (som i Purple Pen, t.ex. H21, D21)” skapas med fri start om de inte finns.",
+        "En träning som inte har några klasser än får en klass per bana med banans namn, när ingen bana säger klasser.",
         "Ändrar du banorna efteråt: för över igen och titta på skillnaderna.",
         "Bara administratörer för över."
       ]

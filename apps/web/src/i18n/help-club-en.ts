@@ -137,6 +137,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "”Course file” if the training has several, and ”Map version” (the latest version is preselected).",
         "Press ”Create the training”. Course setting opens with a copy to change."
       ],
+      "The new training belongs to the club: the club becomes the organising club (when the club space is linked to Eventor), and the courses are transferred to timing at once, as with File → ”Transfer to the event”. If the course file names no classes, each course gets a class with the course's name. Course setting says what was done.",
       "If the map is newer than the one the courses were set on, O-Tid moves the courses by the maps' georeference. If it is missing: move the course with the arrows and press ”The courses are in the right place”.",
       "A map file over 75 MB cannot be the training's map yet, but the courses are included."
     ]

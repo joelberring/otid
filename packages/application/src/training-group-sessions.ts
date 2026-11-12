@@ -7,6 +7,7 @@ import { lockRaceForSnapshot } from "./concurrency";
 import { copyRaceContent } from "./race-copy";
 import { purgeRows } from "./purge";
 import { applyLibraryMapToRace, libraryMap, raceMapAgreement } from "./training-group-maps";
+import { groupOrganisation, raceOrganisation, setOrganiserIfMissing } from "./race-organiser";
 import { groupToday, requireGroupLeader, type GroupFailure, type GroupTransaction as Transaction } from "./training-groups";
 import { UUID_PATTERN } from "./serialization";
 import type { UserAccountSessionProof } from "./user-account";
@@ -98,6 +99,8 @@ export async function createGroupSessions(db: Database, input: Proof & { groupId
         weekday: intent.repeat.weekday, startTime: intent.startTime ?? facts?.firstStartTime ?? "18:00", firstDate: dates[0]!,
         lastDate: dates[dates.length - 1]!, createdAt: now, createdBy: accountId, requestId: intent.requestId });
     }
+    // Användartestet 2026-11-12 (A): tillfällena får källans arrangörsklubb, annars gruppens klubb.
+    const organisationId = (source.raceId ? await raceOrganisation(tx, source.raceId) : undefined) ?? await groupOrganisation(tx, input.groupId);
     const raceIds: string[] = [];
     for (const date of dates) {
       const [event] = await tx.insert(schema.events).values({ name: intent.eventName, startsOn: date, timeZone: facts?.timeZone ?? "Europe/Stockholm",
@@ -115,6 +118,7 @@ export async function createGroupSessions(db: Database, input: Proof & { groupId
         await copyRaceContent(tx, { sourceRaceId: source.raceId, raceId: race.id, timeZone: facts.timeZone,
           dayShift: Math.round((Date.parse(date) - Date.parse(facts.raceDate)) / DAY_MS), now, accountId, includePeople: false });
       }
+      await setOrganiserIfMissing(tx, { raceId: race.id, organisationId, accountId, now });
       if (map) await applyLibraryMapToRace(tx, { mapId: map.mapId, groupId: input.groupId, raceId: race.id,
         includeCourseSetting: intent.includeCourseSetting, accountId, now });
       await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "race", entityId: race.id, action: "TRAINING_GROUP_SESSION_CREATED",

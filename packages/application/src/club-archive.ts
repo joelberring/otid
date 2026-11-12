@@ -173,7 +173,8 @@ export async function readClubArchive(db: Database, input: ClubProof & { clubId:
   });
 }
 
-async function entryView(tx: ClubTransaction, clubId: string, entryId: string): Promise<Omit<ClubArchiveEntryView, "clubName" | "viewer" | "groups" | "sourceRace"> | undefined> {
+async function entryView(tx: ClubTransaction, clubId: string, entryId: string)
+  : Promise<Omit<ClubArchiveEntryView, "clubName" | "viewer" | "groups" | "sourceRace" | "organisationId"> | undefined> {
   const [item] = await listItems(tx, clubId, [entryId]);
   const [entry] = await tx.select().from(schema.clubArchiveEntries).where(and(eq(schema.clubArchiveEntries.id, entryId), eq(schema.clubArchiveEntries.clubId, clubId)));
   if (!item || !entry) return undefined;
@@ -214,7 +215,9 @@ export async function readClubArchiveEntry(db: Database, input: ClubProof & { cl
     const [club] = await tx.select({ name: schema.clubs.name }).from(schema.clubs).where(eq(schema.clubs.id, input.clubId));
     const view = await entryView(tx, input.clubId, input.entryId);
     if (!view || !club) return { status: "not-found" } as const;
-    return { status: "ok", view: { ...view, clubName: club.name, viewer: { role: member.role, access: await clubAreaAccess(tx, input.clubId, member.role) },
+    const [setting] = await tx.select({ organisationId: schema.clubSettings.organisationId }).from(schema.clubSettings)
+      .where(eq(schema.clubSettings.clubId, input.clubId));
+    return { status: "ok", view: { ...view, clubName: club.name, organisationId: setting?.organisationId ?? null, viewer: { role: member.role, access: await clubAreaAccess(tx, input.clubId, member.role) },
       sourceRace: await liftedRaceOf(tx, input.clubId, input.entryId), groups: await leaderGroups(tx, member.accountId) } } as const;
   });
 }

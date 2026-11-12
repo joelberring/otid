@@ -270,11 +270,15 @@ export async function previewCourseSettingTransferAsAdmin(db: Database, input: R
     if (row.version !== parsed.data.version) return conflict(row, await actors(tx, [row.updatedBy]));
     const map = await loadMapFile(tx, raceId);
     const [race] = await tx.select({ raceType: schema.races.raceType }).from(schema.races).where(eq(schema.races.id, raceId));
-    return { status: "read" as const, row, georeference: map?.georeference ?? null, rogaining: race?.raceType === "ROGAINING" };
+    const [someClass] = race?.raceType === "TRAINING"
+      ? await tx.select({ id: schema.classes.id }).from(schema.classes).where(eq(schema.classes.raceId, raceId)).limit(1) : [];
+    return { status: "read" as const, row, georeference: map?.georeference ?? null, rogaining: race?.raceType === "ROGAINING",
+      classPerCourse: race?.raceType === "TRAINING" && !someClass };
   });
   if (read.status !== "read") return read;
   const document = read.row.document as unknown as CourseSettingDocument;
-  const built = courseSettingProjection(document, { georeference: read.georeference ?? undefined, rogaining: read.rogaining });
+  const built = courseSettingProjection(document, { georeference: read.georeference ?? undefined, rogaining: read.rogaining,
+    classPerCourse: read.classPerCourse });
   if ("problem" in built) return { status: "problem", problem: { formatVersion: 1, ...built.problem, controls: [...built.problem.controls] } };
   const title = document.event.title.trim();
   return previewCourseFileProjectionAsAdmin(db, input, built.projection, { original: writePpen(document),

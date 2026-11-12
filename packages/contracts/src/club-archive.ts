@@ -215,4 +215,6 @@ export interface ClubArchiveEntryView {
   folderVersionIds: string[];
   /** Träningsgrupper där kontot är ledare ("Använd igen" i en grupp, kartan i gruppens bibliotek). */
   groups: { groupId: string; name: string }[];
+  /** Användartestet 2026-11-12 (A): klubbytans klubb i Eventor, som blir arrangörsklubb för kopian (null = inte kopplad). */
+  organisationId: string | null;
 }

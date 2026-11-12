@@ -128,6 +128,7 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
         "”Banfil” om träningen har flera, och ”Kartversion” (senaste versionen är förvald).",
         "Tryck på ”Skapa träningen”. Banläggningen öppnas med en kopia att ändra."
       ],
+      "Den nya träningen hör till klubben: klubben blir arrangörsklubb (när klubbytan är kopplad till Eventor), och banorna förs över till tidtagningen direkt, som med Fil → ”Överför till tävlingen”. Säger banfilen inga klasser får varje bana en klass med banans namn. Banläggningen säger vad som gjordes.",
       "Är kartan nyare än den banorna gjordes på flyttar O-Tid banorna efter kartornas georeferens. Saknas den: flytta banan med pilarna och tryck på ”Banorna ligger rätt”.",
       "En kartfil över 75 MB kan inte bli träningens karta än, men banorna kommer med."
     ]

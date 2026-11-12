@@ -145,3 +145,24 @@ describe("banläggningen som banfil", () => {
     expect(new Set(fixedFamily.variants!.map(variant => variant.lengthMeters))).toEqual(new Set([4300]));
   });
 });
+
+describe("användartestet 2026-11-12 (A): en klass per bana i en Träning utan klasser", () => {
+  it("ger varje bana en klass med banans namn när ingen bana säger klasser, och bara då", async () => {
+    const ppen = await readFile(new URL("../../../fixtures/course-setting/kartfil.ppen", import.meta.url), "utf8");
+    let document = readPpen(ppen).document;
+    for (const course of document.courses) {
+      document = applyEdit(document, { type: "UPDATE_COURSE", course: course.id, changes: { secondaryTitle: "" } }).document;
+    }
+    const plain = courseSettingProjection(document);
+    if (!("projection" in plain)) throw new Error(plain.problem.error);
+    expect(plain.projection.data.assignments).toEqual([]);
+    const training = courseSettingProjection(document, { classPerCourse: true });
+    if (!("projection" in training)) throw new Error(training.problem.error);
+    expect(training.projection.data.assignments).toEqual(training.projection.data.courses.map(course =>
+      ({ classExternalId: course.name, className: course.name, courseExternalId: course.externalId, startRule: "PUNCH" })));
+    // Med klasser i undertiteln gäller de, som förut.
+    const withClasses = courseSettingProjection(readPpen(ppen).document, { classPerCourse: true });
+    if (!("projection" in withClasses)) throw new Error(withClasses.problem.error);
+    expect(withClasses.projection.data.assignments.map(row => row.className)).toEqual(["H21", "D21"]);
+  });
+});

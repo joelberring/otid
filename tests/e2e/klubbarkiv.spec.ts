@@ -169,6 +169,8 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await dialog.getByRole("button", { name: "Skapa träningen" }).click();
     await reader.waitForURL(/\/admin\/[0-9a-f-]+\/course-setting$/, { timeout: 120_000 });
     const raceId = /admin\/([0-9a-f-]+)\//.exec(reader.url())![1]!;
+    // Användartestet 2026-11-12 (A): banorna är redan i tidtagningen, och banläggningen säger det.
+    await expect(reader.getByText(/är överförda till tidtagningen/)).toBeVisible({ timeout: 60_000 });
     await warmCourseSetting(reader, raceId);
     const state = await (await reader.request.get(`/api/admin/races/${raceId}/administrator/course-setting`)).json() as {
       mapFile: { fileName: string } | null; setting: { document: { courses: unknown[] } } | null };

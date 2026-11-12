@@ -1,4 +1,4 @@
-import { plural } from "./plural";
+import { nameList, plural } from "./plural";
 
 /** ADR-0194: klubben och klubbarkivet. */
 const mb = (bytes: number) => bytes > 0 && bytes < 100 * 1024
@@ -146,7 +146,18 @@ export const clubArchiveSv = {
       reading: "Läser kartfilen …",
       drawing: "Ritar kartan …",
       map: "Sparar kartan …",
-      courses: "Läser in banorna …"
+      courses: "Läser in banorna …",
+      transfer: "För över banorna till tidtagningen …"
+    },
+    /** Beskedet i banläggningen efter Använd igen (användartestet 2026-11-12, punkt A). */
+    notes: {
+      organiser: (club: string) => `Träningen hör till ${club} (Inställningar → Klubben och klubbarkivet).`,
+      organiserFailed: "Arrangörsklubben kunde inte sättas; välj den under Inställningar → Klubben och klubbarkivet.",
+      transferred: (courses: readonly string[], classes: readonly string[]) => courses.length === 0
+        ? "Banorna fanns redan i tidtagningen."
+        : `Banorna ${nameList(courses)} är överförda till tidtagningen${classes.length > 0
+          ? `, med ${classes.length === 1 ? "klassen" : "klasserna"} ${nameList(classes)}` : ""}.`,
+      transferFailed: "Banorna finns i banläggningen men kunde inte föras över till tidtagningen. Välj Fil → Överför till tävlingen."
     },
     done: "Klart! Öppnar banläggningen …",
     failed: {

@@ -8,6 +8,7 @@ import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { alignedDocument, checkAlignment, controlsOutside } from "../../lib/club-archive-align";
 import { fetchCourseFileBytes, reuseTraining, type ReuseStage } from "../../lib/club-archive-client";
 import { planningBase, planRequest, shortDate } from "../../lib/club-planning-client";
+import { rememberCourseSettingNotice } from "../../lib/course-setting-notice";
 import { Button, DateInput, Dialog, Field, Notice } from "../ui";
 import { usePpen } from "./use-ppen";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
@@ -83,7 +84,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         ? { kind: "PPEN" as const, fileName: file.fileName, ppen: ppen.ppen, document }
         : file.kind === "COURSE_DATA" ? { kind: "COURSE_DATA" as const, bytes: await fetchCourseFileBytes(view.clubId, file.courseFileId) } : null;
       const outcome = await reuseTraining({ clubId: view.clubId, requestId, eventName: name.trim(), raceDate: date, groupId: groupId || null,
-        map: chosen ? { versionId: chosen.versionId, fileName: chosen.fileName } : null,
+        organisationId: view.organisationId, clubName: view.clubName, map: chosen ? { versionId: chosen.versionId, fileName: chosen.fileName } : null,
         rendered: target?.state === "ready" ? target.rendered : undefined, course }, next => setStage(next), clubArchiveText);
       if (outcome.kind === "failed") { setStage(undefined); setProblem(outcome.problem); return; }
       if (planSessionId) {
@@ -97,6 +98,7 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         return;
       }
       setStage("done");
+      if (outcome.notes.length > 0) rememberCourseSettingNotice(outcome.raceId, { text: outcome.notes.join(" "), stays: true });
       window.location.assign(outcome.openCourseSetting ? `/admin/${outcome.raceId}/course-setting` : `/admin/${outcome.raceId}/manage`);
     } catch (error) {
       console.error("Använd igen misslyckades", error);

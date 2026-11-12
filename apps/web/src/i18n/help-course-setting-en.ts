@@ -410,6 +410,7 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
       [
         "Each course needs a start and a finish, and the controls codes 1–999 999.",
         "The classes in the course's field ”Classes (as in Purple Pen, e.g. M21, W21)” are created with free start if they do not exist.",
+        "A training that has no classes yet gets one class per course with the course's name, when no course names classes.",
         "If you change the courses afterwards: transfer again and look at the differences.",
         "Only administrators transfer."
       ]

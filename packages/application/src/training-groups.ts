@@ -13,6 +13,7 @@ import { leaderMembership } from "./training-group-access";
 import { acceptGroupInvitations, openGroupInvitations } from "./training-group-invitations";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import { listGroupLibraryMaps } from "./training-group-maps";
+import { groupOrganisation, setOrganiserIfMissing } from "./race-organiser";
 import { publicResults } from "./results";
 import { UUID_PATTERN } from "./serialization";
 import {
@@ -317,6 +318,8 @@ export async function setRaceGroup(db: Database, input: Proof & { raceId: string
     }
     if (groupId && !await leaderMembership(tx, { accountId, groupId }, "update")) return { status: "forbidden" } as const;
     await tx.update(schema.events).set({ trainingGroupId: groupId, trainingGroupSeriesId: null }).where(eq(schema.events.id, race.eventId));
+    // Användartestet 2026-11-12 (A): en tävling utan arrangörsklubb som läggs i en klubbs grupp får klubben.
+    if (groupId) await setOrganiserIfMissing(tx, { raceId: input.raceId, organisationId: await groupOrganisation(tx, groupId), accountId, now });
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "event", entityId: race.eventId,
       action: groupId ? "EVENT_ADDED_TO_TRAINING_GROUP" : "EVENT_REMOVED_FROM_TRAINING_GROUP", actorKind: "USER_ACCOUNT", actorId: accountId,
       before: { groupId: race.groupId }, after: { groupId }, createdAt: now });

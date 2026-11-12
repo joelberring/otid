@@ -74,7 +74,12 @@ export function scoreControlPoints(document: CourseSettingDocument): { code: num
 
 export function courseSettingProjection(document: CourseSettingDocument, options: { readonly georeference?: MapGeoreference | undefined;
   /** Tävlingen är en rogaining: poängen följer med. */
-  readonly rogaining?: boolean | undefined } = {})
+  readonly rogaining?: boolean | undefined;
+  /**
+   * Användartestet 2026-11-12 (A): en Träning utan klasser får en klass per bana med banans namn när ingen bana säger
+   * klasser i undertiteln, så att träningen går att köra direkt.
+   */
+  readonly classPerCourse?: boolean | undefined } = {})
   : { readonly projection: CourseFileProjection } | { readonly problem: CourseSettingTransferProblem } {
   const georeference = usableGeoreference(options.georeference);
   const control = (courseControl: string): ControlPoint | undefined => {
@@ -130,6 +135,13 @@ export function courseSettingProjection(document: CourseSettingDocument, options
       if (assigned.has(className)) continue;
       assigned.add(className);
       assignments.push({ classExternalId: className, className, courseExternalId: externalId, startRule: "PUNCH" });
+    }
+  }
+  if (options.classPerCourse && assignments.length === 0) {
+    for (const course of courses) {
+      if (assigned.has(course.name)) continue;
+      assigned.add(course.name);
+      assignments.push({ classExternalId: course.name, className: course.name, courseExternalId: course.externalId, startRule: "PUNCH" });
     }
   }
   if (invalid.size > 0) return { problem: { error: "INVALID_CODES", controls: [...invalid].slice(0, 200) } };

@@ -1,3 +1,4 @@
+import { nameList } from "./plural";
 import type { Texts } from "../lib/language";
 import type { clubArchiveSv } from "./club-archive-sv";
 
@@ -147,7 +148,17 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
       reading: "Reading the map file …",
       drawing: "Drawing the map …",
       map: "Saving the map …",
-      courses: "Importing the courses …"
+      courses: "Importing the courses …",
+      transfer: "Transferring the courses to timing …"
+    },
+    notes: {
+      organiser: (club: string) => `The training belongs to ${club} (Settings → The club and the club archive).`,
+      organiserFailed: "The organising club could not be set; choose it under Settings → The club and the club archive.",
+      transferred: (courses: readonly string[], classes: readonly string[]) => courses.length === 0
+        ? "The courses were already in timing."
+        : `The courses ${nameList(courses, "and")} have been transferred to timing${classes.length > 0
+          ? `, with the ${classes.length === 1 ? "class" : "classes"} ${nameList(classes, "and")}` : ""}.`,
+      transferFailed: "The courses are in course setting but could not be transferred to timing. Choose File → Transfer to the event."
     },
     done: "Done! Opening course setting …",
     failed: {

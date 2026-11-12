@@ -82,6 +82,7 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /BEBYGGELSE/ },
   // Skogsstyrelsens hyggen efter ålder och deras kant (ägaren 2026-11-11), före reglerna för öppen mark och grönt.
   { words: /^HYGGE_FARSKT$/, area: "403" },
+  { words: /^HYGGE_SLY_MARK$/, area: "403" },
   { words: /^HYGGE_SLY$/, area: "407" },
   { words: /^HYGGE_UNGSKOG$/, area: "406" },
   { words: /^BESTANDSGRANS/, line: "416" },

@@ -5,10 +5,16 @@ import type { SourceFeature } from "@o-tid/map-revision";
  * Ägaren 2026-11-11 («gör beräkningar beroende på hur gamla fotona/underlaget är … om hyggen är helt färska eller hunnit växa
  * upp och blivit sly»): Skogsstyrelsens hyggen delas in efter hur gamla de är i dag.
  *
- * - yngre än `fresh` år: färskt hygge, ris och stubbar (`hygge_farskt`, 403 öppen mark, svårframkomlig)
- * - till `scrub` år: sly och plantor under midjehöjd (`hygge_sly`, 407 undervegetation, lättlöpt)
+ * - yngre än `fresh` år: färskt hygge (`hygge_farskt`, 403 ödemark; ägaren 2026-11-12: «sällan starkt gula utan ljusgul eller
+ *   ljusgul med vita prickar»)
+ * - till `scrub` år: sly och plantor under midjehöjd: ödemark (`hygge_sly_mark`, 403) med undervegetation ovanpå (`hygge_sly`,
+ *   407). Normen räknar hyggen och plantor under cirka 1 m till 403 och låter 407 kombineras med den; rastret ensamt på vitt
+ *   skulle läsas som skog med undervegetation.
  * - till `young` år: tät ungskog (`hygge_ungskog`, 406 löphindrande)
  * - äldre: lasern visar skogen som den är; hygget tas inte med.
+ *
+ * Lasern går före åldern: är skanningen nyare än avverkningen ser lasern hur öppet, glest (404) eller tätt det är i dag, så
+ * hygget får då ingen egen yta, bara gränsen och slyets raster.
  *
  * Hyggets kant blir en tydlig vegetationsgräns (`bestandsgrans`, 416) så länge hygget tas med. Ett hygge som är yngre än
  * laserskanningen syns inte i laserns vegetation (där står skogen kvar), så laserns vegetation inne i det tas bort i
@@ -31,7 +37,11 @@ export function clearCutFeatures(cuts: readonly MapProjectClearCut[], today: str
     const kind = age < ages.fresh ? "fresh" : age < ages.scrub ? "scrub" : "young";
     counts[kind] += 1;
     const layer = kind === "fresh" ? "hygge_farskt" : kind === "scrub" ? "hygge_sly" : "hygge_ungskog";
-    features.push({ layer, geometry: { kind: "area", rings: cut.rings } });
+    const afterLaser = !!scannedAt && cut.date > scannedAt, seen = !!scannedAt && !afterLaser;
+    if (!seen) {
+      if (kind === "scrub") features.push({ layer: "hygge_sly_mark", geometry: { kind: "area", rings: cut.rings } });
+      features.push({ layer, geometry: { kind: "area", rings: cut.rings } });
+    } else if (kind === "scrub") features.push({ layer, geometry: { kind: "area", rings: cut.rings } });
     if (borders) features.push({ layer: "bestandsgrans", geometry: { kind: "line", closed: true, points: cut.rings[0].slice(0, -1) } });
     if (scannedAt && cut.date > scannedAt) afterScan.push(cut.rings[0]);
   }

@@ -84,6 +84,7 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
       MISSING: "map missing",
       NONE: "the file names no map"
     },
+    resolutionFromRace: "the map was the competition's",
     chooseMap: "Choose map",
     noMap: "No map",
     saveMap: "Save the map",
@@ -138,6 +139,8 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     planFailed: "The training was created but could not be linked to the plan. Link it from the week in the planning.",
     group: (name: string) => `In the group ${name}`,
     courseFile: "Course file",
+    courseFileHelp: "The files have different courses. Choose the course setting to use.",
+    courseFileLabel: (fileName: string, courses: readonly string[]) => courses.length > 0 ? `${fileName} (${nameList(courses, "and")})` : fileName,
     mapVersion: "Map version",
     latestDefault: "The latest version is preselected.",
     versionLabel: (fileName: string, date: string | null, latest: boolean) => `${date ?? "no date"} – ${fileName}${latest ? " (latest)" : ""}`,

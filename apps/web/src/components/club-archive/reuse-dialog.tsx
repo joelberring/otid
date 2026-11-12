@@ -7,6 +7,7 @@ import type { ClubArchiveEntryView, ClubPlanResponse, ClubPlanSessionView } from
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { alignedDocument, checkAlignment, controlsOutside } from "../../lib/club-archive-align";
 import { fetchCourseFileBytes, reuseTraining, type ReuseStage } from "../../lib/club-archive-client";
+import { preferredCourseFile } from "../../lib/club-archive-course-files";
 import { planningBase, planRequest, shortDate } from "../../lib/club-planning-client";
 import { rememberCourseSettingNotice } from "../../lib/course-setting-notice";
 import { Button, DateInput, Dialog, Field, Notice } from "../ui";
@@ -15,6 +16,7 @@ import { CoursePreview, useRenderedVersion } from "./course-preview";
 import styles from "./club-archive.module.css";
 
 const today = () => new Date().toLocaleDateString("sv-SE");
+
 
 /**
  * ADR-0194 beslut 4: "Använd igen". En ny träning (eller ett tillfälle i en grupp där kontot är ledare) med kartan och
@@ -47,7 +49,8 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
     setName(row.title); setDate(row.sessionDate);
     setGroupId(row.trainingGroupId && view.groups.some(group => group.groupId === row.trainingGroupId) ? row.trainingGroupId : "");
   };
-  const [fileId, setFileId] = useState(initialFileId ?? view.courseFiles[0]?.courseFileId ?? "");
+  const preferred = preferredCourseFile(view.courseFiles);
+  const [fileId, setFileId] = useState(preferred?.courseFileId ?? initialFileId ?? view.courseFiles[0]?.courseFileId ?? "");
   const file = view.courseFiles.find(candidate => candidate.courseFileId === fileId);
   const mapOfFile = file?.mapVersion ? view.maps.find(map => map.mapId === file.mapVersion!.mapId)
     : view.maps.find(map => map.versions.some(version => view.folderVersionIds.includes(version.versionId)));
@@ -126,9 +129,10 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
           <option value="">{text.own}</option>
           {view.groups.map(group => <option key={group.groupId} value={group.groupId}>{text.group(group.name)}</option>)}
         </select></Field>}
-      {view.courseFiles.length > 1 && <Field label={text.courseFile}>
+      {view.courseFiles.length > 1 && !preferred && <Field label={text.courseFile} help={text.courseFileHelp}>
         <select value={fileId} onChange={event => setFileId(event.target.value)}>
-          {view.courseFiles.map(courseFile => <option key={courseFile.courseFileId} value={courseFile.courseFileId}>{courseFile.fileName}</option>)}
+          {view.courseFiles.map(courseFile => <option key={courseFile.courseFileId} value={courseFile.courseFileId}>
+            {text.courseFileLabel(courseFile.fileName, courseFile.courses.map(course => course.name))}</option>)}
         </select></Field>}
       {versions.length > 0 && <Field label={text.mapVersion} help={text.latestDefault}>
         <select value={versionId} onChange={event => setVersionId(event.target.value)}>

@@ -153,7 +153,7 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
       if (map) maps.set(map.mapId, map);
     }
     return { entryId: entry.id, trainingDate: entry.trainingDate, year: entry.year, place: entry.place, title: entry.title, leader: entry.leader,
-      tags: entry.tags, moments: orderedMoments(entry.moments), levels: orderedLevels(entry.levels), courseNames: own.flatMap(file => file.summary.courses.map(course => course.name)).slice(0, 40), courseFiles: own.length,
+      tags: entry.tags, moments: orderedMoments(entry.moments), levels: orderedLevels(entry.levels), courseNames: [...new Set(own.flatMap(file => file.summary.courses.map(course => course.name)))].slice(0, 40), courseFiles: own.length,
       maps: [...maps.values()], status: statusOf(own, folderMaps.length), thumbnail: thumbnails.get(entry.id) ?? null,
       thumbnailSource: sources.get(entry.id) ?? null };
   });

@@ -82,6 +82,8 @@ export const clubArchiveSv = {
       MISSING: "karta saknas",
       NONE: "filen säger ingen karta"
     } as const,
+    /** Användartestet 2026-11-12 (B): en träning som lagts i arkivet från en tävling har tävlingens karta. */
+    resolutionFromRace: "kartan var tävlingens",
     chooseMap: "Välj karta",
     noMap: "Ingen karta",
     saveMap: "Spara kartan",
@@ -136,6 +138,8 @@ export const clubArchiveSv = {
     planFailed: "Träningen skapades men kunde inte kopplas till planen. Koppla den från veckan i planeringen.",
     group: (name: string) => `I gruppen ${name}`,
     courseFile: "Banfil",
+    courseFileHelp: "Filerna har olika banor. Välj den banläggning som ska användas.",
+    courseFileLabel: (fileName: string, courses: readonly string[]) => courses.length > 0 ? `${fileName} (${nameList(courses)})` : fileName,
     mapVersion: "Kartversion",
     latestDefault: "Senaste versionen är förvald.",
     versionLabel: (fileName: string, date: string | null, latest: boolean) => `${date ?? "utan datum"} – ${fileName}${latest ? " (senaste)" : ""}`,

@@ -134,7 +134,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       [
         "”Name” and ”Date” for the new training.",
         "”Where”: ”New training (My events)” or in a training group.",
-        "”Course file” if the training has several, and ”Map version” (the latest version is preselected).",
+        "”Course file” if the training has several course files with different courses, and ”Map version” (the latest version is preselected). If the files have the same courses, like .ppen and IOF XML from a competition, the .ppen is used without asking.",
         "Press ”Create the training”. Course setting opens with a copy to change."
       ],
       "The new training belongs to the club: the club becomes the organising club (when the club space is linked to Eventor), and the courses are transferred to timing at once, as with File → ”Transfer to the event”. If the course file names no classes, each course gets a class with the course's name. Course setting says what was done.",

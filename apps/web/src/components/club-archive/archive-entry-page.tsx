@@ -189,7 +189,8 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
           {courseFile.problem && <p className={styles.warning}>{text.problem} {courseFile.problem}</p>}
           <p className={styles.small}>{text.madeWith}: {courseFile.mapVersion
             ? `${courseFile.mapVersion.mapName} (${courseFile.mapVersion.versionDate ?? "–"}, ${courseFile.mapVersion.latest ? text.latest : text.olderVersion})`
-            : "–"} · {text.resolution[courseFile.resolution]}</p>
+            : "–"} · {view.sourceRace && courseFile.resolution === "FOLDER"
+            ? text.resolutionFromRace : text.resolution[courseFile.resolution]}</p>
           <div className={styles.actions}>
             <a href={`${clubBase(clubId)}/course-files/${courseFile.courseFileId}`} download>{text.download}</a>
             {admin && <select aria-label={`${text.chooseMap}: ${courseFile.fileName}`} value={courseFile.mapVersion?.versionId ?? ""}

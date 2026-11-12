@@ -100,8 +100,8 @@ type Drag =
 const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
 const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
 const DOUBLE_TAP_MS = 350;
-/** Fingret: så länge (ms) innan något markerat följer med i ett drag. */
-const TOUCH_HOLD_MS = 250;
+/** Fingret: så länge (ms) innan något markerat följer med i ett drag. Kort (ägaren 2026-11-12: «lyckas bara en gång»): efter 550 ms öppnas hjulet, så fönstret var för smalt med 250. */
+const TOUCH_HOLD_MS = 120;
 const recentKey = (projectId: string) => `otid-map-recent:${projectId}`;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
 /** Förslagens ändringar att rita: nya lägen och platserna för borttagningar (ändringens punkt). */
@@ -433,20 +433,21 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       };
       if (!selected) return marquee();
       if (quickTouch && tool === "select") return marquee();
-      const object = selected.object;
+      // Fingret är trubbigt (ägaren 2026-11-12: «för liten tolerans?»): det markerade objektet tas med större träffyta.
+      const object = selected.object, reach = pointerType === "touch" ? tolerance * 1.7 : tolerance;
       if (rotating && (object.kind === "point" || object.kind === "text")) { drag.current = { mode: "rotate", original: object }; setPreview(new Set([selected.key])); return true; }
       if (object.kind !== "point" && object.kind !== "text") {
         // Den aktiva punktens styrpunkter först (de ligger ofta nära punkten).
         const handles = activeVertex ? vertexHandles(object, activeVertex) : undefined;
         for (const which of ["in", "out"] as const) {
           const handle = handles?.[which];
-          if (activeVertex && handle && Math.hypot(handle.x - point.x, handle.y - point.y) <= tolerance) {
+          if (activeVertex && handle && Math.hypot(handle.x - point.x, handle.y - point.y) <= reach) {
             drag.current = { mode: "curveHandle", address: activeVertex, which, original: object };
             setPreview(new Set([selected.key]));
             return true;
           }
         }
-        const vertex = nearestVertex(object, point, tolerance);
+        const vertex = nearestVertex(object, point, reach);
         if (vertex) {
           drag.current = { mode: "vertex", address: { part: vertex.part, index: vertex.index }, original: object };
           setActiveVertex({ part: vertex.part, index: vertex.index });
@@ -455,13 +456,13 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         }
       }
       // En sträcka böjs där man tar tag (en linje dras hel med "Flytta hela"; en yta dras hel inifrån).
-      const segmentHit = moveWhole ? undefined : nearestSegment(object, point, tolerance);
+      const segmentHit = moveWhole ? undefined : nearestSegment(object, point, reach);
       if (segmentHit) {
         drag.current = { mode: "bend", address: segmentHit, t: segmentHit.t, start: segmentHit.at, original: object };
         setPreview(new Set([selected.key]));
         return true;
       }
-      if (hitDistance(object, point, tolerance)) {
+      if (hitDistance(object, point, reach)) {
         drag.current = { mode: "object", start: point, original: object };
         setPreview(new Set([selected.key]));
         return true;

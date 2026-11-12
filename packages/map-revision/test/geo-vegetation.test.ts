@@ -54,10 +54,10 @@ describe("vegetationen ur klassbilderna", () => {
   });
 
   it("ger kapslade ytor för öppen mark, tre gröna och undervegetation, utan små öar", () => {
-    // 200 × 200 m: öppen mark i väster, grönt (nyans 3 → 406) i mitten med en kärna av nyans 6 (410) och en liten fläck
+    // 200 × 200 m: öppen mark i väster, grönt (nyans 2 → 406) i mitten med en kärna av nyans 6 (410) och en liten fläck
     // (nyans 6, 4 m²) som är för liten; undervegetation som glesa streck i öster.
     const vege = image(200, 200, (column, row) => column < 60 ? 1
-      : column < 140 ? (Math.hypot(column - 100, row - 100) < 20 ? 8 : 5) : (column === 170 && row === 20) || (column === 171 && row === 20) ? 8 : 0);
+      : column < 140 ? (Math.hypot(column - 100, row - 100) < 20 ? 8 : 4) : (column === 170 && row === 20) || (column === 171 && row === 20) ? 8 : 0);
     const undergrowth = image(200, 200, (column, row) => column >= 150 && row >= 120 && row < 180 && column % 4 === 0 && row % 4 === 0 ? 2 : 0);
     const result = vegetationFromTiles([{ vege, undergrowth, world: world(675_000, 6_581_000) }], { minAreaM2: 100 });
     expect(result.summary.ha401).toBeCloseTo(1.2, 1);

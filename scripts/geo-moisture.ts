@@ -30,6 +30,31 @@ export const CHANNEL_LINE_HA = 5;
  * halverade den för stora ytan. Andelen skrivs i fuktdjupets gröna kanal, så att webbläsarens reglage kan dra i gränsen.
  */
 export const OPEN_GROUND_SHARE = 0.8;
+/**
+ * Ägaren 2026-11-12 («opasserbara kärr missas som detta öppna precis ute vid havet»): öppen blöt mark intill vatten är
+ * strandkärr och inte utdikad mark. Mätt mot tio rutor ur fem kartor 2026-11-13: undantaget inom 30 m från vatten höjde
+ * träffen (F) i medel från 0,59 till 0,62 och sänkte den inte på någon (Djurgården 0,38 → 0,47).
+ */
+export const SHORE_MARSH_METERS = 30;
+/** Cellerna inom `reach` celler från en markerad cell (rutavstånd, bredden först). */
+export function nearCells(mask: Uint8Array, width: number, height: number, reach: number): Uint8Array {
+  const distance = new Int32Array(width * height).fill(-1), queue = new Int32Array(width * height);
+  let head = 0, tail = 0;
+  for (let i = 0; i < mask.length; i += 1) if (mask[i]) { distance[i] = 0; queue[tail++] = i; }
+  while (head < tail) {
+    const i = queue[head++]!, d = distance[i]!;
+    if (d >= reach) continue;
+    const x = Math.floor(i / height), y = i % height;
+    for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]] as const) {
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const n = nx * height + ny;
+      if (distance[n] === -1) { distance[n] = d + 1; queue[tail++] = n; }
+    }
+  }
+  const out = new Uint8Array(width * height);
+  for (let i = 0; i < out.length; i += 1) if (distance[i]! >= 0) out[i] = 1;
+  return out;
+}
 /** Steget för lutningen i fuktdjupets bild (blå kanal, grader per värde; 255 = okänt). */
 export const SLOPE_STEP_DEGREES = 0.1;
 
@@ -459,11 +484,12 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   const classes = moistureClasses(hand, settings, slope);
   // Markträffarnas andel per cell (255 = okänd); öppen mark blir varken blöt eller fuktig.
   const share = new Uint8Array(grid.width * grid.height).fill(255);
+  const shore = blocked ? nearCells(blocked, grid.width, grid.height, Math.round(SHORE_MARSH_METERS / grid.cell)) : undefined;
   if (groundShare) for (let column = 0; column < grid.width; column += 1) for (let row = 0; row < grid.height; row += 1) {
     const value = groundShare(grid.minX + column * grid.cell, grid.minY + row * grid.cell), i = column * grid.height + row;
     if (value === undefined) continue;
     share[i] = Math.min(254, Math.round(value * 254));
-    if (value >= OPEN_GROUND_SHARE) classes[i] = 0;
+    if (value >= OPEN_GROUND_SHARE && !shore?.[i]) classes[i] = 0;
   }
   const minCells = Math.max(4, Math.round(400 / (grid.cell * grid.cell)));
   const clean = (mask: Uint8Array) => blocked ? cleanMask(dry(cleanMask(dry(mask), grid.width, grid.height, minCells)), grid.width, grid.height, minCells)

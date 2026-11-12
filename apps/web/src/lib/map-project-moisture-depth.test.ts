@@ -37,7 +37,11 @@ describe("fukt med reglage", () => {
     const settings = { wetMeters: 0.5, moistMeters: 1, minAreaM2: 100 };
     const withShare = (share: number) => { const pixels = image(20); for (let i = 0; i < pixels.data.length; i += 4) pixels.data[i + 1] = Math.round(share * 254); return pixels; };
     expect(depthCandidates(withShare(0.4), settings, toSource, 3006).wetHa).toBeGreaterThan(0.025);
+    // Bildens hörn utan data ligger mer än 30 m från sänkan; med vatten (genomskinligt) intill räknas den öppna sänkan som strandkärr.
     expect(depthCandidates(withShare(0.9), settings, toSource, 3006).wetHa).toBe(0);
+    const shore = withShare(0.9);
+    for (let row = 0; row < 30; row += 1) for (let column = 0; column < 9; column += 1) shore.data[(row * 30 + column) * 4 + 3] = 0;
+    expect(depthCandidates(shore, settings, toSource, 3006).wetHa).toBeGreaterThan(0.025);
     expect(depthCandidates(withShare(0.9), { ...settings, openGroundShare: 1 }, toSource, 3006).wetHa).toBeGreaterThan(0.025);
   });
 });

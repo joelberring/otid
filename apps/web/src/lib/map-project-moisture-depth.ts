@@ -19,6 +19,29 @@ export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.3, moistMeters: 0.6, 
  * Lutningen står i blå kanal i steg om 0,1°; 255 (äldre bilder) betyder okänd och ingen gräns.
  */
 const SLOPE_STEP_DEGREES = 0.1;
+/**
+ * Ägaren 2026-11-12 («opasserbara kärr missas … precis ute vid havet»): öppen blöt mark inom 30 m från vatten är strandkärr
+ * och räknas trots regeln om öppen mark (som geo-arbetaren, `SHORE_MARSH_METERS`). Vattnet är bildens genomskinliga celler.
+ */
+const SHORE_MARSH_METERS = 30;
+/** Bildpunkterna (rad för rad) inom `reach` celler från en genomskinlig. */
+function nearTransparent(data: Uint8ClampedArray | Uint8Array, columns: number, rows: number, reach: number): Uint8Array {
+  const distance = new Int32Array(columns * rows).fill(-1), queue = new Int32Array(columns * rows);
+  let head = 0, tail = 0;
+  for (let p = 0; p < columns * rows; p += 1) if (data[p * 4 + 3]! < 128) { distance[p] = 0; queue[tail++] = p; }
+  while (head < tail) {
+    const p = queue[head++]!, d = distance[p]!;
+    if (d >= reach) continue;
+    const column = p % columns, row = (p - column) / columns;
+    if (column > 0 && distance[p - 1] === -1) { distance[p - 1] = d + 1; queue[tail++] = p - 1; }
+    if (column < columns - 1 && distance[p + 1] === -1) { distance[p + 1] = d + 1; queue[tail++] = p + 1; }
+    if (row > 0 && distance[p - columns] === -1) { distance[p - columns] = d + 1; queue[tail++] = p - columns; }
+    if (row < rows - 1 && distance[p + columns] === -1) { distance[p + columns] = d + 1; queue[tail++] = p + columns; }
+  }
+  const out = new Uint8Array(columns * rows);
+  for (let p = 0; p < out.length; p += 1) if (distance[p]! >= 0) out[p] = 1;
+  return out;
+}
 
 /** Ytorna ur bilden; `toSource` räknar en bildpunkt (kolumn, rad, hörn) till källans koordinater och `cellMeters` är cellens sida. */
 export function depthCandidates(pixels: PhotoPixels, settings: DepthSettings, toSource: (column: number, row: number) => [number, number], crs: number,
@@ -32,10 +55,11 @@ export function depthCandidates(pixels: PhotoPixels, settings: DepthSettings, to
   let shares = false;
   for (let i = 0; i < data.length && !shares; i += 4) if (data[i + 3]! >= 128 && data[i + 1] !== data[i]) shares = true;
   const openLimit = shares ? (settings.openGroundShare ?? 0.8) * 254 : Infinity;
+  const shore = Number.isFinite(openLimit) ? nearTransparent(data, columns, rows, Math.round(SHORE_MARSH_METERS / cellMeters)) : undefined;
   for (let column = 0; column < columns; column += 1) for (let row = 0; row < rows; row += 1) {
     const i = (row * columns + column) * 4;
     if (data[i + 3]! < 128) continue;
-    if (data[i + 1]! < 255 && data[i + 1]! >= openLimit) continue;
+    if (data[i + 1]! < 255 && data[i + 1]! >= openLimit && !shore?.[row * columns + column]) continue;
     const step = data[i]!, slope = data[i + 2]!, known = slope < 255;
     if (step <= wetStep && !(known && slope > WET_SLOPE_STEPS)) wet[column * rows + row] = 1;
     if (step <= moistStep && !(known && slope > MOIST_SLOPE_STEPS)) moist[column * rows + row] = 1;

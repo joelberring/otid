@@ -74,6 +74,9 @@ describe("fuktigheten ur höjdrastret", () => {
     // Lärt av Högdalenkartan (2026-11-11): på öppen mark (de flesta laserträffar når marken) blir det inget kärr.
     const open = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1, channelLineHa: 1 }, undefined, () => 0.95);
     expect(open.summary).toMatchObject({ wetAreas: 0, moistAreas: 0 });
+    // Ägaren 2026-11-12 (strandkärr): öppen blöt mark inom 30 m från vatten räknas ändå.
+    const shore = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1, channelLineHa: 1 }, (_x, y) => y < 6_580_020, () => 0.95);
+    expect(shore.summary.moistHa).toBeGreaterThan(0);
     const wooded = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.5, moistMeters: 1, channelLineHa: 1 }, undefined, () => 0.4);
     expect(wooded.summary.wetHa).toBe(result.summary.wetHa);
     // Den branta dalen har stråket men ingen blöt mark.

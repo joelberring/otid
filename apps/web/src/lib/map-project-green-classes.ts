@@ -17,7 +17,7 @@ export interface GreenSettings { readonly slow: number; readonly difficult: numb
 const BORDER_LEVELS: Readonly<Record<Exclude<BorderLevel, "none">, { minAreaM2: number; simplify: number }>> = {
   few: { minAreaM2: 5000, simplify: 2 }, some: { minAreaM2: 2000, simplify: 1.25 }, many: { minAreaM2: 600, simplify: 0.75 } };
 /** Samma steg som geo-arbetarens förval (`GREEN_STEPS` i scripts/geo-vegetation.ts). */
-export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 4, fight: 5, undergrowth: true, minAreaM2: 300, borders: "none" };
+export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 3, fight: 4, undergrowth: true, minAreaM2: 300, borders: "none" };
 
 export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, toSource: (column: number, row: number) => [number, number], crs: number,
   cellMeters = 2): { data: SourceData; hectares: Readonly<Record<string, number>> } {

@@ -17,7 +17,12 @@ import { blockedCells, cleanMask, encodePng, type Grid, maskRings, moistureDxf, 
 export interface VegetationSettings { readonly minAreaM2: number; readonly smoothCells?: number | undefined }
 export const DEFAULT_VEGETATION: VegetationSettings = { minAreaM2: 300 };
 /** Grönt: lägsta nyans (Karttapullautins index, 0 ljusast) för 406, 408 och 410 med grundinställningens `greenshades`. */
-export const GREEN_STEPS = { slow: 2, difficult: 4, fight: 5 } as const;
+/**
+ * Mätt mot tio rutor ur fem kartor 2026-11-13: med 408 från nyans 4 och 410 från nyans 5 blev det tätare gröna en sjundedel
+ * av kartans (träff F 0,16) och 410 en tiondel (F 0,02). Ett steg lägre ger två tredjedelar (F 0,35) och knappt hälften
+ * (F 0,09). Allt grönt (406 och uppåt) är oförändrat.
+ */
+export const GREEN_STEPS = { slow: 2, difficult: 3, fight: 4 } as const;
 /** Cellen som ytorna räknas i (meter); klassbilderna är 1 m och slås ihop med flest röster. */
 export const VEGETATION_CELL = 2;
 /** Gult öppnas bara så här många celler (smala gläntor ska finnas kvar); grönt öppnas med hela utjämningen. */

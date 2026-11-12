@@ -93,9 +93,9 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
       world: readWorldFile(readFileSync(join(dir, "kungshatt-300m/ruta00_vege_bit.pgw"), "utf8")) }];
     const vegetation = vegetationFromTiles(tiles);
     // Efter generaliseringen (2026-11-12: utjämnade ytor, små vita ytor fyllda där färgen dominerar).
-    expect(vegetation.summary).toEqual({ ha401: 0.34, ha404: 0.22, ha406: 1.8, ha408: 0.06, ha410: 0, ha407: 0.04, ha409: 0.04 });
+    expect(vegetation.summary).toEqual({ ha401: 0.34, ha404: 0.22, ha406: 1.8, ha408: 0.75, ha410: 0.06, ha407: 0.04, ha409: 0.04 });
     const data = parseDxf(vegetation.dxf);
-    expect(suggested(data)).toEqual({ oppen_mark: "s401", gron_lattlopt: "s406", gron_svarlopt: "s408", undervegetation_lattlopt: "s407",
+    expect(suggested(data)).toEqual({ oppen_mark: "s401", gron_lattlopt: "s406", gron_svarlopt: "s408", gron_mycket_svarlopt: "s410", undervegetation_lattlopt: "s407",
       undervegetation_svarlopt: "s409" });
     expect(within(data)).toBe(true);
     // Allt blir slutna ytor.

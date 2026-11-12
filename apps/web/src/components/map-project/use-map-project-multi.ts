@@ -1,11 +1,12 @@
 "use client";
 
 import type { MapObject, Point } from "@o-tid/map-file";
-import { withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
+import { simplifyShape, smoothShape, withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { translateObject } from "../../lib/map-project-draw";
 import { unionAreas } from "../../lib/map-project-area-union";
 import { joinLines, reverseLine } from "../../lib/map-project-join";
+import { SIMPLIFY_MM } from "../../lib/map-project-shape-actions";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 import { angleFrom, boundsOf, centerOf, rotateObject } from "../../lib/map-project-transform";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -24,6 +25,12 @@ export const ROTATE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent('<svg
 
 /** Så många träffytor utanför ett hörn räknas som "vrid". */
 const ROTATE_REACH = 3;
+
+/** Formen för ett av flera markerade: förenklad, eller mjuk (förenklas först med 0,15 mm, som generaliseringen). Inget när inget ändras. */
+export function multiShape(object: MapObject, how: "simplify" | "smooth"): MapObject | undefined {
+  if (object.kind !== "line" && object.kind !== "area") return undefined;
+  return how === "simplify" ? simplifyShape(object, SIMPLIFY_MM.little) : smoothShape(simplifyShape(object, SIMPLIFY_MM.more) ?? object);
+}
 
 /** En punkt på objektet: var en borttagning ligger (för delområdena när servern bara har objektet i grundfilen). */
 export function anchorOf(object: MapObject): Point | undefined {
@@ -144,6 +151,20 @@ export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys }: 
       let count = 0;
       setItems(itemsRef.current.map(item => {
         const object = reverseLine(item.object);
+        if (!object || !commit({ key: item.key, ref: item.ref, kind: "RESHAPE", after: { kind: "OBJECT", object }, group })) return item;
+        count += 1;
+        return { ...item, object };
+      }));
+      return count;
+    },
+    /** Hur många av de markerade linjerna och ytorna som formen ändrar. */
+    shapeable: (how: "simplify" | "smooth") => itemsRef.current.filter(item => multiShape(item.object, how)).length,
+    /** Ägaren 2026-11-12: förenkla eller gör alla markerade linjer och ytor mjuka (ett steg att ångra). Antalet som ändrades. */
+    shape: (how: "simplify" | "smooth"): number => {
+      const group = crypto.randomUUID();
+      let count = 0;
+      setItems(itemsRef.current.map(item => {
+        const object = multiShape(item.object, how);
         if (!object || !commit({ key: item.key, ref: item.ref, kind: "RESHAPE", after: { kind: "OBJECT", object }, group })) return item;
         count += 1;
         return { ...item, object };

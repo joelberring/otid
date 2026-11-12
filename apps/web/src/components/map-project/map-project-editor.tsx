@@ -616,7 +616,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); rectCorners.current.length = 0; setTool(next); };
   const wheelTools = wheelToolsOf(keys, keysText.space, quick.tools, tool, notes.canWrite, next => pickTool(next)());
   const wheelActions = wheelActionsOf({ multi: multi.items.length && canEdit ? { count: multi.items.length, switchable: symbol ? multi.switchable(symbol) : 0,
-    joinable: multi.joinable(JOIN_MM), remove: multi.remove } : undefined, single: selected && tool === "select" && canEdit ? { shapes, line: selected.object.kind === "line",
+    joinable: multi.joinable(JOIN_MM), smooth: multi.shapeable("smooth"), simplify: multi.shapeable("simplify"), remove: multi.remove } : undefined, single: selected && tool === "select" && canEdit ? { shapes, line: selected.object.kind === "line",
     switchTo: canSwitch ? symbol.code : undefined, remove: removeSelected, reshape } : undefined, symbolCode: symbol?.code, text: keysText, quick, act: keyAction.current });
   const pending = editor.state?.pending.length ?? 0;
   const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
@@ -628,6 +628,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       else if (command === "join") { const count = multi.join(JOIN_MM); setFlash(count ? keysText.joined(count) : keysText.needLines); }
       else if (command === "reverse") { const count = multi.reverse(); setFlash(count ? keysText.reversed(count) : keysText.needLine); }
       else if (command === "duplicate") duplicate(multi.items);
+      else if (command === "smooth" || command === "simplify") { const count = multi.shape(command); setFlash(count ? keysText[command === "smooth" ? "multiSmoothed" : "multiSimplified"](count) : keysText.needShape); }
       return;
     }
     if (!selected) return;
@@ -650,7 +651,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     hasSelection: tool === "select" && (!!selected || multi.items.length > 0), canSwitch: canSwitch || multiSwitch > 0, canJoin: canEdit && multi.joinable(JOIN_MM),
     canReverse: canEdit && tool === "select" && (selected ? selected.object.kind === "line" : multi.items.some(item => item.object.kind === "line")),
     canPick: tool === "select" && !!selected && selected.object.symbol !== symbolId,
-    canSmooth: shapes.some(action => action.id === "smooth" && action.result), canSimplify: shapes.some(action => action.id === "simplify" && action.result),
+    canSmooth: shapes.some(action => action.id === "smooth" && action.result) || (canEdit && multi.shapeable("smooth") > 0),
+    canSimplify: shapes.some(action => action.id === "simplify" && action.result) || (canEdit && multi.shapeable("simplify") > 0),
     pick: next => { if (next === "select" || next === "addPoint" || next === "removePoint" || next === "cut") { cancelDraft(); setTool(next); }
       else if (next === "note") { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } else pickTool(next)(); },
     act, remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); }, undo: editor.undo, redo: editor.redo,

@@ -270,7 +270,11 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   picked: (code: string) => `Chosen symbol: ${code}.`,
   joined: (n: number) => `${n} objects became one.`,
   switched: (n: number, code: string) => n === 1 ? `1 object got the symbol ${code}.` : `${n} objects got the symbol ${code}.`,
-  multiSwitch: (n: number, code: string) => `Change ${n} to ${code}`
+  multiSwitch: (n: number, code: string) => `Change ${n} to ${code}`,
+  multiSmooth: (n: number) => `Smooth ${n} (simplified first)`,
+  multiSimplify: (n: number) => `Simplify ${n}`,
+  multiSmoothed: (n: number) => `${count(n, "object", "objects")} now run in smooth curves.`,
+  multiSimplified: (n: number) => `${count(n, "object", "objects")} simplified.`
 };
 
 export const mapProjectColorsEn: Texts<typeof mapProjectColorsSv> = {

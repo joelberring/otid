@@ -89,16 +89,18 @@ export function wheelToolsOf(keys: KeyMap, space: string, labels: { readonly sel
 
 /** Hjulets åtgärder för det markerade: flera objekt (byt symbol, slå ihop, ta bort) eller ett (formen, byt symbol, vänd, ta bort). */
 export function wheelActionsOf(input: {
-  multi: { count: number; switchable: number; joinable: boolean; remove: () => void } | undefined;
+  multi: { count: number; switchable: number; joinable: boolean; smooth: number; simplify: number; remove: () => void } | undefined;
   single: { shapes: readonly { id: string; label: string; result: unknown; message: string }[]; line: boolean; switchTo: string | undefined; remove: () => void;
     reshape: (result: never, message: string) => void } | undefined;
   symbolCode: string | undefined; text: Texts<typeof mapProjectKeysSv>; quick: { switchTo: (code: string) => string; remove: string };
-  act: (command: "switchSymbol" | "join" | "reverse") => void;
+  act: (command: "switchSymbol" | "join" | "reverse" | "smooth" | "simplify") => void;
 }): WheelAction[] {
   const { multi, single, text } = input;
   if (multi) return [
     ...(input.symbolCode && multi.switchable ? [{ id: "switch", label: text.multiSwitch(multi.switchable, input.symbolCode), onPick: () => input.act("switchSymbol") }] : []),
     ...(multi.joinable ? [{ id: "join", label: text.commands.join, onPick: () => input.act("join") }] : []),
+    ...(multi.smooth ? [{ id: "smooth", label: text.multiSmooth(multi.smooth), onPick: () => input.act("smooth") }] : []),
+    ...(multi.simplify ? [{ id: "simplify", label: text.multiSimplify(multi.simplify), onPick: () => input.act("simplify") }] : []),
     { id: "remove", label: text.multiRemove(multi.count), onPick: multi.remove }];
   if (!single) return [];
   return [

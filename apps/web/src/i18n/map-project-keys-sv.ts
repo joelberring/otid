@@ -71,5 +71,9 @@ export const mapProjectKeysSv = {
   picked: (code: string) => `Vald symbol: ${code}.`,
   joined: (count: number) => `${count} objekt blev ett.`,
   switched: (count: number, code: string) => count === 1 ? `1 objekt fick symbolen ${code}.` : `${count} objekt fick symbolen ${code}.`,
-  multiSwitch: (count: number, code: string) => `Byt ${count} till ${code}`
+  multiSwitch: (count: number, code: string) => `Byt ${count} till ${code}`,
+  multiSmooth: (count: number) => `Gör ${count} mjuka (förenklas först)`,
+  multiSimplify: (count: number) => `Förenkla ${count}`,
+  multiSmoothed: (count: number) => `${count} objekt går nu i mjuka kurvor.`,
+  multiSimplified: (count: number) => `${count} objekt är förenklade.`
 };

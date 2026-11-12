@@ -42,3 +42,15 @@ describe("vegetationens generalisering", () => {
     expect(fillSmallForest(none, lace, undefined, 40, 40, 75)).toBe(0);
   });
 });
+
+describe("branternas linjer", () => {
+  it("jämnar ut en sicksackande linje och behåller ändarna", async () => {
+    const { evenLine } = await import("../../../scripts/geo-cliffs.ts");
+    const zigzag = Array.from({ length: 21 }, (_, i) => [i * 2, i % 2 === 0 ? 0 : 1.5] as [number, number]);
+    const even = evenLine(zigzag);
+    expect(even[0]).toEqual([0, 0]);
+    expect(even[even.length - 1]).toEqual([40, 0]);
+    expect(even.length).toBeLessThan(8);
+    for (const [, y] of even) expect(Math.abs(y - 0.75)).toBeLessThan(0.8);
+  });
+});

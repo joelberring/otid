@@ -350,6 +350,21 @@ export function slopeLines(ground: GroundGrid, settings: { readonly minDegrees: 
  * alla streck tillsammans och sorten avgörs av det uppmätta fallet; utan det avgör Karttapullautins två filer. Med `tags`
  * heter de passerbara branternas lager «brant_passerbar_taggar», som föreslås som brant med streck (202.1).
  */
+/**
+ * Ägaren 2026-11-12 («branternas taggar ser konstiga ut»): linjen ur rastret går i trappsteg och varje punkt flyttas för sig
+ * till överkanten, så den sicksackar och taggarna pekar åt olika håll. Här jämnas den ut (två varv 1-2-1 på de inre
+ * punkterna; ändarna ligger kvar) och förenklas till 1,5 m.
+ */
+export function evenLine(line: readonly (readonly [number, number])[]): [number, number][] {
+  let points = line.map(([x, y]) => [x, y] as [number, number]);
+  if (points.length < 3) return points;
+  for (let pass = 0; pass < 2; pass += 1) {
+    points = points.map((point, i) => i === 0 || i === points.length - 1 ? point
+      : [(points[i - 1]![0] + 2 * point[0] + points[i + 1]![0]) / 4, (points[i - 1]![1] + 2 * point[1] + points[i + 1]![1]) / 4] as [number, number]);
+  }
+  return simplify(points, 1.5);
+}
+
 export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly Tick[], settings: CliffSettings = DEFAULT_CLIFFS, ground?: GroundGrid,
   rules: CliffRules = DEFAULT_CLIFF_RULES, tags = false) {
   const meters = (lines: [number, number][][]) => Math.round(lines.reduce((sum, line) => sum + line.reduce((part, point, i) =>
@@ -370,7 +385,7 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
       if (!Number.isFinite(drop3)) { low.push(line); continue; }
       if (drop3 < rules.minDrop) { dropped += 1; continue; }
       // Fallet mäts kring Karttapullautins läge (mitt i branten); linjen ritas sedan i överkanten.
-      const top = toTopEdge(line, ground, fromGround.has(line) ? 8.5 : 4.5);
+      const top = evenLine(toTopEdge(line, ground, fromGround.has(line) ? 8.5 : 4.5));
       if (drop3 >= rules.impassableDrop3 && drop6 >= rules.impassableDrop6 && length >= rules.impassableLength) high.push(top); else low.push(top);
     }
   } else {

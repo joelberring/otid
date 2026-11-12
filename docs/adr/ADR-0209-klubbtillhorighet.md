@@ -105,3 +105,15 @@ kopplad till Eventor med klubbens nyckel och jämförs bara med den kopplade klu
 klubbytans eget namn (som vem som helst väljer). (Beslut 5–6) Klubbytans medlemslista (`readClub`) har alla rader bara för ägare
 och administratörer; läsare och ledare får bara sin egen rad, och raderna har inget konto-id (`you` i stället). (Beslut 7)
 Säkerhetskopian av en tävling tar inte med adressen till den som bjöds in "Från klubben" (ADR-0187).
+
+Tillägg 2026-11-12 (ägarens beslut, migration 0113; `docs/plan-ledarflode-2026-11-12.md` G (i)): (beslut 8) "Inget läggs in
+automatiskt" gäller inte längre. Rutan "Lägg i klubbarkivet när träningen är klar" (Inställningar → Klubben och klubbarkivet,
+`race_club_archive_auto`) är förvald för en Träning med arrangörsklubbens klubbyta och kan kryssas ur; andra tävlingstyper har den
+urkryssad. Den syns och ändras (PATCH på `/api/organizer/races/[raceId]/club-archive`) med samma behörighet som Lägg i
+klubbarkivet. Inlyftet görs av samma kod som knappen, med en aktör som hade fått göra det för hand: tävlingens ägare, annars
+planens ansvarige, om hen är administratör både i tävlingen och i klubbytan; finns ingen sparas `NO_ADMIN` och inget skapas.
+Villkoret är det som påminnelsen använder (`raceFinishedForArchive`). Utlöses efter en sparad avläsning och ett beslut (i samma
+transaktion, i en sparpunkt så att ett fel aldrig stoppar avläsningen) och av underhållsvarvet för de senaste 14 dagarnas
+tävlingar (högst 20 per varv). Varje inlyft (också för hand) sätter `archived_at`; därefter görs ingen automatisk arkivering,
+också efter Ta ur. Migrationen ger spärren åt tävlingar som redan har `RACE_ADDED_TO_CLUB_ARCHIVE` i journalen. Inlyftet sparar
+också planens ansvarige och uppgifter (`club_archive_entry_person`, ADR-0221 tillägg samma dag); de visas inte i arkivet.

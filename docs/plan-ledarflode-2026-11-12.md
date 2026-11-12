@@ -1,9 +1,28 @@
-# Ledarflödet 2026-11-12: det som kräver migration (specifikation för ett senare pass)
+# Ledarflödet 2026-11-12: det som kräver migration (specifikation; G, Hämta ur arkivet och Kopiera upplägg byggda)
 
 Användartestet av ledarflödet (klubbyta → klubbarkiv → terminsplan → träning → arkivet) gav punkterna A–G. A–F är byggda på
 grenen `claude/r2-b` utan migration. Det här är det som inte gick att bygga utan ny kolumn eller tabell, skrivet så att det
 kan byggas direkt. Migrationsnumret väljs när det byggs (senaste på `main` när detta skrevs: 0112; en annan tråd arbetar i
 samma repo, så samordna numret). Alla migrationer nedan är bara tillägg (inga borttagningar, ingen omskrivning av data).
+
+## Byggt 2026-11-12 (grenen `claude/r3-a`, migrationerna 0113 och 0114)
+
+G (i), G (ii), Hämta ur arkivet och Kopiera upplägg från termin är byggda enligt ägarens beslut samma dag (ADR-0209 och
+ADR-0221, tilläggen 2026-11-12). Avvikelser från specifikationen nedan:
+
+- `race_club_archive_auto`: `enabled` är nullbar (null = förvalet) och `set_by`/`set_at` är den som valde, så att `explicit`
+  och en rad som bara bär spärren eller ett problem går att skilja åt; `updated_at` är ny. Migrationen ger spärren åt tävlingar
+  som redan har lagts i ett arkiv (journalens `RACE_ADDED_TO_CLUB_ARCHIVE`), så att inget som någon tagit ur läggs tillbaka.
+- Förvalet är på bara för en **Träning** (ägarens ord: "en träning som hör till en klubb"); andra typer kan kryssas i.
+- Varje inlyft (också för hand) sätter `archived_at`, så Ta ur gör aldrig om den automatiska.
+- Rutan syns och ändras med samma behörighet som Lägg i klubbarkivet (administratör i tävlingen och i klubbytan); andra ser
+  ingen ruta (klubbytan röjs inte).
+- Underhållsvarvet tittar bara på de senaste 14 dagarnas tävlingar, så gamla träningar läggs inte in när funktionen kommer.
+- Hämta ur arkivet: servern gör planraden (med moment och ledarna om de är valda); banorna och kartan läggs på med Använd igen
+  (förvald planrad), som skapar träningen och kopplar den. Två steg, inte en transaktion: Använd igen ritar kartan i webbläsaren.
+- Personerna kopieras till planraden också vid Använd igen → Till terminsplanen, före kopplingen.
+- Inte byggt: "Kopiera" på en enskild planrad, ett förval per klubb för rutan, E och C (a) nedan, och e2e i `klubbarkiv.spec.ts`
+  (klubben där är inte kopplad till Eventor).
 
 ## Varför G inte byggdes
 
@@ -110,7 +129,7 @@ dokumentet och en `Course` med `CourseControl` i ordning (start och mål utan l�
 förhandsvisning (`courseDataPoints`) hoppar över banor utan lägen, och Använd igen med en sådan fil får banorna i tidtagningen
 men inte på kartan (`courseSettingFromCourseData` säger redan "kan inte läggas på kartan"). Prova mot MeOS/OLA innan.
 
-## Hämta ur arkivet i terminsplanens vecka (godkänd riktning, inte byggd)
+## Hämta ur arkivet i terminsplanens vecka (byggd 2026-11-12, se ovan)
 
 - Knappen "Hämta ur arkivet" i veckan (bredvid Lägg till träning, för ledare och mer, när arkivet syns för dem).
 - Väljare med ett kort per arkivträning: småbilden (`club_archive_entry_thumbnail`), rubrik, datum, karta, moment och nivåer
@@ -125,7 +144,7 @@ men inte på kartan (`courseSettingFromCourseData` säger redan "kan inte lägga
   kartbank; bilden kan ritas av geo-servern eller i bakgrunden).
 - Tester: integration för planrad + träning + banor i en transaktion där det går; e2e i `terminsplanering.spec.ts`.
 
-## Kopiera upplägg från termin (godkänd riktning, inte byggd)
+## Kopiera upplägg från termin (byggd 2026-11-12, se ovan)
 
 - "Kopiera upplägg från termin" i en tom eller ny termin: välj en tidigare termin; varje planrad kopieras till samma veckodag
   i motsvarande vecka (räknat från terminens första vecka), med rubrik, tid, plats, karta, grupp, moment, nivåer och egna ord.

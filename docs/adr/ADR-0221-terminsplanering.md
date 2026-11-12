@@ -60,3 +60,18 @@ samma spärr; veckorna till terminens slut blir ett mejl; mejlet till en adress 
 till Skapa konto. Uppgifter kan ändras (rubrik och person; läsrätten flyttar med). (3) Koppla en träning visar inga fester och
 först veckan ± två veckor. Ägarens beslut samma dag om automatisk arkivering och om personerna vid kopiering kräver nya
 kolumner och är specificerade i `docs/plan-ledarflode-2026-11-12.md`, liksom att välja en väntande inbjuden som ansvarig.
+
+## Tillägg 2026-11-12 (kväll): personerna vid kopiering, Hämta ur arkivet och Kopiera upplägg från termin
+
+Ägarens beslut, migration 0114 (`docs/plan-ledarflode-2026-11-12.md`). (1) När en träning läggs i klubbarkivet sparas planens
+ansvarige och uppgifter (`club_archive_entry_person`: rubrik och konto, aldrig adresser; tas bort med arkivposten). (2)
+Personregeln vid kopiering (`club-plan-people`): den som när kopian görs är ledare, administratör eller ägare i klubbytan följer
+med som ansvarig och på sina uppgifter; övriga uppgifter kopieras med rubriken men utan person. Inga mejl. (3) Hämta ur arkivet i
+veckan (POST `planning/terms/[termId]/archive`): arkivträningen blir en planerad rad (rubrik, plats, anteckning, karta, och om
+valt moment, nivåer, egna ord och ledarna); banorna och kartan läggs sedan på med Använd igen, som skapar träningen och kopplar
+den till raden. Det är två steg (Använd igen ritar kartan i webbläsaren), så raden står kvar om Använd igen avbryts. (4) Använd
+igen → Till terminsplanen kopierar arkivträningens personer till raden före kopplingen (POST `planning/sessions/[sessionId]/people`;
+den ansvarige bara om raden saknar en, en uppgift med samma rubrik inte två gånger). (5) Kopiera upplägg från termin (POST
+`planning/terms/[termId]/copy`) till en tom termin: samma veckodag i motsvarande vecka räknat från terminernas första veckor,
+rader utanför terminen räknas; gruppen följer med bara när den som kopierar är ledare i den (som när en rad skapas); ingen
+träning skapas. Alla tre vägarna kräver ledare eller mer i klubbytan, som resten av planen.

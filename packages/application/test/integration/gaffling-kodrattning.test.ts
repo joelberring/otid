@@ -118,16 +118,16 @@ describe("gafflad bana: rättad kontrollkod i ett alternativ (användartestet 20
   it("löparna behåller sin variantkod, avlästa räknas om; bara ett borttaget alternativs löpare får ny variant", async () => {
     const proof = await race();
     await importFile(proof, "course-data-forked.xml");
-    await importFile(proof, "entry-list-forked.xml");
-    await importFile(proof, "course-assignment-forked.xml");
     const listed = await listCoursesForEditAsAdmin(db, proof);
     if (listed.status !== "ok") throw new Error("Banlistan saknas");
     const courseId = listed.response.courses.find(row => row.name === "Lång")!.courseId;
 
-    // Banan blir först en vanlig bana (som i användartestet), sedan två enkla gafflingar (sex varianter, A–E); alla i H21
-    // får en variant och sedan en bestämd variant per löpare.
+    // Före anmälan blir banan först en vanlig bana (som i användartestet), sedan två enkla gafflingar (sex varianter, A–E;
+    // ingen är anmäld, så banfilens bokstäver räknas inte som använda). Sedan anmäls H21 och alla får en bestämd variant.
     await edit(proof, courseId, { items: [31, 40, 41, 50, 60, 61, 62, 70, 100].map(control) });
     await edit(proof, courseId, course([[61, 62], [63], [64]]));
+    await importFile(proof, "entry-list-forked.xml");
+    await importFile(proof, "course-assignment-forked.xml");
     const h21 = (await entries(proof.raceId)).find(row => row.given_name === "Ada")!.class_id;
     const distributionId = randomUUID();
     expect((await distributeClassVariantsAsAdmin(db, { ...proof, idempotencyKey: `variant-distribution:${distributionId}`,
@@ -212,5 +212,13 @@ describe("gafflad bana: rättad kontrollkod i ett alternativ (användartestet 20
     expect(addition.response.forking!.entryChanges).toBeUndefined();
     await edit(proof, courseId, added);
     expect(await variants(proof.raceId)).toEqual(after);
+
+    // Tillägg 2026-11-12 (c): banan blir en vanlig bana och gafflas igen. Klassen har anmälda, så bokstäverna som använts
+    // (A–F) delas inte ut igen: den nya gafflingen får G och H.
+    await edit(proof, courseId, { items: [31, 40, 41, 50, 60, 61, 62, 70, 100].map(control) });
+    await edit(proof, courseId, { items: [control(31), control(40), fork([41], [42]), control(50), control(70), control(100)] });
+    const regrown = await listCoursesForEditAsAdmin(db, proof);
+    if (regrown.status !== "ok") throw new Error("Banlistan saknas");
+    expect(regrown.response.courses.find(row => row.courseId === courseId)!.variants.map(variant => variant.code)).toEqual(["G", "H"]);
   }, 180_000);
 });

@@ -82,6 +82,14 @@ export const syncConsequenceSchema = z.object({
   changes: z.array(courseEditChangeSchema).max(10_000),
   /** Löpare som läst ut och får ny bricka: resultatet behålls (löparen sprang med den avlästa brickan). */
   cardsAfterReadout: z.array(z.object({ displayName: z.string().min(1).max(400), cardNumber: z.string().max(16) }).strict()).max(10_000),
+  /**
+   * ADR-0175, tillägg 2026-11-12 (c): löpare med tilldelad variant vars kontroller banfilen ändrar (samma kod, andra
+   * kontroller) eller vars kod inte finns i filen (`afterControls` null). Kräver bekräftelse.
+   */
+  variantChanges: z.array(z.object({ entryId: uuid, displayName: z.string().min(1).max(400), className: z.string().min(1).max(160),
+    leg: z.number().int().min(1).max(100).optional(), code: z.string().min(1).max(32),
+    beforeControls: z.array(z.number().int().positive()).max(1000), afterControls: z.array(z.number().int().positive()).max(1000).nullable() }).strict())
+    .max(10_000).optional(),
   requiresConfirmation: z.boolean()
 }).strict();
 

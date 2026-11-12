@@ -57,9 +57,14 @@ export async function applyCourseDataAfterReadout(tx: DbExecutor, input: { raceI
   if (assessment.consequence.requiresConfirmation) {
     const changes = assessment.consequence.changes.slice(0, 40).map((change) =>
       `${change.displayName} (${change.className}): ${STATUS_TEXT[change.before] ?? change.before} → ${STATUS_TEXT[change.after] ?? change.after}`);
+    // Tillägg 2026-11-12 (c) i ADR-0175: tilldelade löpare vars variant får andra kontroller eller försvinner.
+    const variants = (assessment.consequence.variantChanges ?? []).slice(0, 40).map((change) =>
+      `${change.displayName} (${change.className}): variant ${change.code} ${change.beforeControls.join(" ")} → ` +
+      (change.afterControls ? change.afterControls.join(" ") : "finns inte i filen"));
     throw new CourseFileSyncRequiredError([
-      `Banfilen ändrar resultatet för ${assessment.consequence.changes.length} löpare som redan läst ut. Använd Banor → Läs in ny banfil, ` +
-      "som visar skillnaderna och räknar om resultaten när du bekräftar.", ...changes]);
+      `Banfilen ändrar resultatet för ${assessment.consequence.changes.length} löpare som redan läst ut` +
+      (variants.length > 0 ? ` och varianten för ${assessment.consequence.variantChanges!.length} löpare med karta` : "") +
+      ". Använd Banor → Läs in ny banfil, som visar skillnaderna och räknar om resultaten när du bekräftar.", ...changes, ...variants]);
   }
   return applyCourseFile(transaction, { raceId: input.raceId, actorAccountId: input.actorAccountId ?? "", snapshotVersionAfter: input.snapshotVersionAfter,
     now: input.now, state }, projection, rows, diff.links, assessment);

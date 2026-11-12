@@ -288,6 +288,11 @@ export const sourcesEn: Texts<typeof sourcesSv> = {
     },
     consequenceTitle: "How the results are affected",
     noResults: "None of the changes affect results.",
+    variantChangesTitle: (count: number) => count === 1 ? "1 runner with an assigned variant gets other controls. The map may need to be replaced:"
+      : `${count} runners with an assigned variant get other controls. The maps may need to be replaced:`,
+    variantChange: (name: string, className: string, leg: number | undefined, code: string, before: readonly number[], after: readonly number[] | null) =>
+      `${name} · ${className}${leg === undefined ? "" : ` · leg ${leg}`}: ${code} ${before.join(" ")} → ` +
+      (after === null ? "the code no longer exists (give a new variant)" : after.join(" ")),
     cardsKept: count => count === 1 ? "1 runner has read out and gets a new card. The result is kept." : `${count} runners have read out and get a new card. The results are kept.`,
     apply: count => count === 1 ? "Approve 1 change" : `Approve ${count} changes`,
     applyAndRecalculate: count => count === 1 ? "Approve 1 change and recalculate" : `Approve ${count} changes and recalculate`,

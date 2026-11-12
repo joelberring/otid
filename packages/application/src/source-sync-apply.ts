@@ -10,6 +10,7 @@ import {
 import { storeControlMapPositions, storeControlPositions, storeCourseEnds } from "./course-positions";
 import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
 import { applyEntryDecision } from "./entry-status";
+import { courseFileVariantChanges, type CourseFileVariantChange } from "./course-file-variant-changes";
 import { importLegCourses, importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
 import { loadRelayClassConfigs } from "./relay-model";
 import { planNewRelayTeamVariants } from "./relay-variants";
@@ -50,10 +51,11 @@ export interface Assessment {
   readonly finalClass: ReadonlyMap<string, string>;
 }
 
-function consequence(assessed: readonly AssessedEntry[], cardsAfterReadout: SyncConsequence["cardsAfterReadout"]): SyncConsequence {
+function consequence(assessed: readonly AssessedEntry[], cardsAfterReadout: SyncConsequence["cardsAfterReadout"],
+  variantChanges: readonly CourseFileVariantChange[] = []): SyncConsequence {
   const summary = summarizeAssessment(assessed);
-  return syncConsequenceSchema.parse({ ...summary, cardsAfterReadout,
-    requiresConfirmation: summary.requiresConfirmation || cardsAfterReadout.length > 0 });
+  return syncConsequenceSchema.parse({ ...summary, cardsAfterReadout, ...(variantChanges.length > 0 ? { variantChanges } : {}),
+    requiresConfirmation: summary.requiresConfirmation || cardsAfterReadout.length > 0 || variantChanges.length > 0 });
 }
 
 // ---------------------------------------------------------------- Eventor
@@ -302,7 +304,9 @@ export async function assessCourseFile(tx: Transaction, raceId: string, rows: re
     }
   }
   const readOut = state.entries.some(entry => entry.readOut && affected.has(entry.classId));
-  if (!readOut) return { consequence: consequence([], []), assessed: [], finalClass: new Map(), ids };
+  // Tillägg 2026-11-12 (c): tilldelade löpare vars kod får andra kontroller eller försvinner står med namn i beskedet.
+  const variantChanges = await courseFileVariantChanges(tx, raceId, rows, state);
+  if (!readOut) return { consequence: consequence([], [], variantChanges), assessed: [], finalClass: new Map(), ids };
   const snapshot = await loadRaceSnapshot(tx, raceId);
   let proposed = snapshot;
   for (const { action } of rows) {
@@ -327,7 +331,7 @@ export async function assessCourseFile(tx: Transaction, raceId: string, rows: re
   if (points.size > 0) proposed = withRogainingSettings(proposed, { points });
   const assessed = await assessReadOutEntries(tx, raceId, state.classes.filter(raceClass => affected.has(raceClass.id)), snapshot, proposed);
   if (assessed === "too-large") throw new SourceSyncConflictError("too-large");
-  return { consequence: consequence(assessed, []), assessed, finalClass: new Map(), ids };
+  return { consequence: consequence(assessed, [], variantChanges), assessed, finalClass: new Map(), ids };
 }
 
 /**

@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, max, sql } from "drizzle-orm";
 import {
   courseEditIdempotencyKeySchema, courseEditListResponseSchema, courseEditPreviewRequestSchema,
-  courseEditPreviewResponseSchema, courseEditRequestSchema, courseEditResponseSchema,
+  courseEditPreviewResponseSchema, courseEditRequestSchema, courseEditResponseSchema, courseForkingSchema,
   type CourseEditListResponse, type CourseEditPreviewResponse, type CourseEditResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseForkingFairness, courseVariantForReadout, forkingReadiness, entryCourseVersionId, forkingControlSet, sameControlCodes, unevenCourseVariantLegs,
+  courseForkingFairness, courseVariantForReadout, forkingReadiness, entryCourseVersionId, forkingControlSet, forkingLetters, sameControlCodes,
+  unevenCourseVariantLegs,
   withExplicitForkingLetters, withProposedCourseVersion, withProposedEntryVariants, type CourseForking, type RaceSnapshot
 } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -82,7 +83,9 @@ async function proposedVariants(tx: Transaction, course: LoadedCourse, request: 
   forking?: CourseForking | undefined }): Promise<EditPlan | undefined> {
   // Steg 49: en ny struktur ersätter banans kontroller och varianter. Samma struktur igen är ingen ändring.
   if (request.forking) {
-    const plan = planForkingSave(course.variants, request.forking, course.version.excludedVariants ?? [], course.forking);
+    // Tillägg 2026-11-12 (c): en vanlig bana som gafflas igen får inte bokstäver som löpare kan ha haft (historiken).
+    const history = !course.forking && course.variants.length === 0 ? await usedLettersFromHistory(tx, course) : undefined;
+    const plan = planForkingSave(course.variants, request.forking, course.version.excludedVariants ?? [], course.forking ?? history);
     if (!plan || (course.forking && JSON.stringify(withExplicitForkingLetters(course.forking)) === JSON.stringify(plan.forking))) return undefined;
     if (!plan.forking && sameControlCodes(course.controlCodes, plan.controlCodes) && course.variants.length === 0) return undefined;
     const positions = await loadCoursePositions(tx, course.raceId, course.id, forkingControlSet(request.forking));
@@ -100,6 +103,25 @@ async function proposedVariants(tx: Transaction, course: LoadedCourse, request: 
   return { currentControlCodes: current.controlCodes, controlCodes,
     variants: withPositionLengths(course.variants.map(variant => variant.code === variantCode
       ? { code: variant.code, controlCodes: [...controlCodes], lengthMeters: null } : variant), course.positions) };
+}
+
+/**
+ * ADR-0175, tillägg 2026-11-12 (c): när en gafflad bana blivit en vanlig bana finns bokstäverna bara i banans tidigare
+ * versioner. Så länge banans klasser har anmälda (löpare eller lag) räknas de som använda, så att en ny gaffling inte ger
+ * en bokstav som står på någons tryckta karta. Undefined när ingen tidigare version hade en struktur eller ingen är anmäld.
+ */
+async function usedLettersFromHistory(tx: Transaction, course: LoadedCourse): Promise<CourseForking | undefined> {
+  if (course.classes.length === 0) return undefined;
+  const [entry] = await tx.select({ id: schema.entries.id }).from(schema.entries)
+    .where(and(eq(schema.entries.raceId, course.raceId), inArray(schema.entries.classId, course.classes.map(row => row.id)))).limit(1);
+  if (!entry) return undefined;
+  const [previous] = await tx.select({ forking: schema.courseVersions.forking }).from(schema.courseVersions)
+    .where(and(eq(schema.courseVersions.courseId, course.id), isNotNull(schema.courseVersions.forking)))
+    .orderBy(desc(schema.courseVersions.version)).limit(1);
+  const parsed = previous ? courseForkingSchema.safeParse(previous.forking) : undefined;
+  if (!parsed?.success) return undefined;
+  const used = [...new Set([...forkingLetters(parsed.data).flatMap(letters => letters ?? []), ...(parsed.data.retiredLetters ?? [])])];
+  return used.length > 0 ? { items: [], retiredLetters: used } : undefined;
 }
 
 /** Stafettklasserna bland banans klasser (klasser med sträckor). */

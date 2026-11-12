@@ -67,7 +67,7 @@ export function SourceReviewPanel({ review, busy, sourceName }: { review: Source
     {actionable && <div className={styles.consequence} role="status" aria-live="polite">
       <h4>{text.consequenceTitle}</h4>
       {!consequence ? <p className={styles.summary}>…</p> : <>
-        {consequence.readOutCount === 0 && consequence.cardsAfterReadout.length === 0 && <p>{text.noResults}</p>}
+        {consequence.readOutCount === 0 && consequence.cardsAfterReadout.length === 0 && !consequence.variantChanges && <p>{text.noResults}</p>}
         {consequence.readOutCount > 0 && <p><strong>{adminText.courseEditSummary(consequence.readOutCount, consequence.becomesOkCount,
           consequence.becomesMispunchedCount, consequence.unchangedCount)}</strong></p>}
         {consequence.changes.length > 0 && <ul className={styles.statusChanges}>{consequence.changes.map(change => <li key={change.entryId}>
@@ -75,6 +75,11 @@ export function SourceReviewPanel({ review, busy, sourceName }: { review: Source
         </li>)}</ul>}
         {consequence.notRecalculatedCount > 0 && <Notice tone="attention">{adminText.courseEditNotRecalculated(consequence.notRecalculatedCount)}</Notice>}
         {consequence.cardsAfterReadout.length > 0 && <p>{text.cardsKept(consequence.cardsAfterReadout.length)}</p>}
+        {consequence.variantChanges && <Notice tone="attention">
+          <strong>{text.variantChangesTitle(consequence.variantChanges.length)}</strong>
+          <ul className={styles.statusChanges} data-testid="source-variant-changes">{consequence.variantChanges.map(change => <li key={change.entryId}>
+            {text.variantChange(change.displayName, change.className, change.leg, change.code, change.beforeControls, change.afterControls)}</li>)}</ul>
+        </Notice>}
       </>}
     </div>}
     <div className={styles.actions}>

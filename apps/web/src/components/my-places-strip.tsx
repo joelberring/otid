@@ -23,7 +23,11 @@ import styles from "./my-places-strip.module.css";
  * Ägare och administratörer ser hur många som väntar på bekräftelse. "Ny klubbyta" och "Ny grupp" är små åtgärder i remsan.
  * Ankarna `#mina-klubbar` och `#mina-grupper` nås från kontomenyn på alla sidor.
  */
-export function MyPlacesStrip() {
+export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
+  /** Klubbytorna när de har lästs in (organizer-workspace döljer klubbfrågan för den som redan är med i en). */
+  onClubs?: (clubs: readonly ClubSummary[]) => void;
+  /** Användartest 2026-11-12: "Välj din klubb under Mitt konto" visas inte när klubbfrågan står ovanför. */
+  clubQuestionShown?: boolean } = {}) {
   const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const mapProjectText = useTexts(mapProjectSv, mapProjectEn);
@@ -35,7 +39,9 @@ export function MyPlacesStrip() {
   useEffect(() => {
     let active = true;
     void clubRequest("/api/organizer/clubs").then(result => {
-      if (active) setClubs(result.status === 200 ? (result.json as { clubs: ClubSummary[] }).clubs : []);
+      if (!active) return;
+      const list = result.status === 200 ? (result.json as { clubs: ClubSummary[] }).clubs : [];
+      setClubs(list); onClubs?.(list);
     });
     void groupRequest("/api/organizer/groups").then(result => {
       if (active) setGroups(result.status === 200 ? (result.json as { groups: GroupSummary[] }).groups : []);
@@ -58,7 +64,7 @@ export function MyPlacesStrip() {
   const none = loaded && clubs.length === 0 && groups.length === 0;
   const toggle = (kind: "club" | "group") => setCreating(current => current === kind ? undefined : kind);
   return <div className={styles.strip} aria-label={text.label} role="group" data-testid="my-places">
-    {none && <p className={styles.none}>{text.noneAtAll} <Link href="/konto#konto-klubbar">{text.noneAtAllLink}</Link></p>}
+    {none && !clubQuestionShown && <p className={styles.none}>{text.noneAtAll} <Link href="/konto#konto-klubbar">{text.noneAtAllLink}</Link></p>}
     <section id="mina-klubbar" className={styles.place} aria-labelledby="my-clubs-heading">
       <h2 id="my-clubs-heading">{text.clubs}</h2>
       <NewClubForm open={creating === "club"} onToggle={() => toggle("club")} />

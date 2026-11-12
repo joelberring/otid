@@ -25,7 +25,9 @@ test("träningsgrupp: ledare, upprepning, gruppsidan med förnamn och kartans av
   // Mina tävlingar → Mina grupper → Skapa grupp. Kortnamnet föreslås ur namnet.
   await leader.goto("/organizer");
   const groups = leader.getByRole("region", { name: "Mina grupper" });
-  await expect(leader.getByTestId("my-places")).toContainText("Välj din klubb under Mitt konto");
+  // Användartest 2026-11-12: klubbfrågan står överst; remsan upprepar den inte.
+  await expect(leader.getByTestId("club-step")).toBeVisible();
+  await expect(leader.getByTestId("my-places")).not.toContainText("Välj din klubb under Mitt konto");
   await groups.getByRole("button", { name: "Ny grupp" }).click();
   await groups.getByLabel("Gruppens namn").fill(`Ungdom OK ÄÖ ${suffix}`);
   await expect(groups.getByLabel("Kortnamn i länken")).toHaveValue(`ungdom-ok-ao-${suffix}`);

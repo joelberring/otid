@@ -28,7 +28,11 @@ export function ChosenClubs({ chosen, onRemove }: { chosen: readonly Organisatio
  * besvarat eller överhoppat. Efter sparandet syns läget direkt: "Du är med i …" när adressen finns i klubbens medlemslista i
  * Eventor, annars väntar det, och saknar klubben klubbyta kan man starta den.
  */
-export function ClubStep() {
+export function ClubStep({ skip = false, onShown }: {
+  /** Användartest 2026-11-12: den som redan är med i en klubbyta får inte frågan (undefined-läget väljer föräldern). */
+  skip?: boolean;
+  /** Säger till föräldern om frågan visas, så att remsan inte upprepar den. */
+  onShown?: (shown: boolean) => void } = {}) {
   const text = useTexts<ClubAffiliationAccount>(clubAffiliationSv, clubAffiliationAccountEn);
   const [state, setState] = useState<AccountClubsResponse>();
   const [chosen, setChosen] = useState<OrganisationSummary[]>([]);
@@ -42,6 +46,9 @@ export function ClubStep() {
     void clubRequest("/api/account/clubs").then(response => { if (active && response.status === 200) setState(response.json as AccountClubsResponse); });
     return () => { active = false; };
   }, []);
+
+  const shown = !!state && !state.promptAnswered && !skip && !result;
+  useEffect(() => { onShown?.(shown); }, [shown, onShown]);
 
   async function answer(skip: boolean, event?: FormEvent) {
     event?.preventDefault();
@@ -61,7 +68,7 @@ export function ClubStep() {
     <p className={styles.muted}>{text.step.later}</p>
     <div className={styles.actions}><Button variant="secondary" onClick={() => setResult(undefined)}>OK</Button></div>
   </section>;
-  if (!state || state.promptAnswered) return null;
+  if (!shown) return null;
   return <section className={styles.panel} aria-labelledby="club-step-title" data-testid="club-step">
     <h2 id="club-step-title">{text.step.title}</h2>
     <p className={styles.muted}>{text.step.intro}</p>

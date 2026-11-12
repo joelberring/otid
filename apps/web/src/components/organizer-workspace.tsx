@@ -110,6 +110,10 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const formErrorText = useTexts(formErrorsSv, formErrorsEn);
   const copy = useTexts(organizerSv, organizerEn);
   const [session, setSession] = useState<Session>();
+  /** Antal klubbytor kontot är med i (undefined tills remsan har läst dem) och om klubbfrågan visas. */
+  const [clubSpaces, setClubSpaces] = useState<number>();
+  const [clubQuestionShown, setClubQuestionShown] = useState(false);
+  const onClubs = (clubs: readonly unknown[]) => setClubSpaces(clubs.length);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -478,8 +482,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     </section>}
 
     {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
-    {session && <ClubStep />}
-    {session && <MyPlacesStrip />}
+    {/* Användartest 2026-11-12: klubbfrågan bara för den som inte redan är med i en klubbyta, och remsan upprepar den inte. */}
+    {session && <ClubStep skip={clubSpaces === undefined || clubSpaces > 0} onShown={setClubQuestionShown} />}
+    {session && <MyPlacesStrip onClubs={onClubs} clubQuestionShown={clubQuestionShown} />}
     {session && <MyPlanTasks />}
     {session && <div className={styles.columns}>
       <section className={`${styles.panel} ${styles.events}`}>
@@ -519,7 +524,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
               disabled={busy} onChange={() => createErrors.stageName && setCreateErrors({ ...createErrors, stageName: undefined })} /></Field>
             <Field label={copy.date} error={createErrors.raceDate} className={styles.createDate}><DateInput name="raceDate"
               disabled={busy} onChange={() => createErrors.raceDate && setCreateErrors({ ...createErrors, raceDate: undefined })} /></Field>
-            <RaceTypeChoice name="raceType" defaultValue="STANDARD" disabled={busy} />
+            {/* Användartest 2026-11-12: Träning förvald, det är vad en ny användare oftast gör. */}
+            <RaceTypeChoice name="raceType" defaultValue="TRAINING" disabled={busy} />
             {/* Tidszonen behövs nästan aldrig: förvald Europe/Stockholm och ändras under "Mer". */}
             <details className={styles.more} open={createErrors.timeZone ? true : undefined}>
               <summary>{copy.more}</summary>

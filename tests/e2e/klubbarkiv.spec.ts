@@ -32,8 +32,10 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     // Mina tävlingar → Mina klubbar → Ny klubb.
     await owner.goto("/organizer");
     const clubs = owner.getByRole("region", { name: "Mina klubbar" });
-    // Ägaren 2026-11-04: utan klubbar och grupper en rad i remsan överst.
-    await expect(owner.getByTestId("my-places")).toContainText("Välj din klubb under Mitt konto");
+    // Ägaren 2026-11-04: utan klubbar och grupper en rad i remsan överst, men inte när klubbfrågan redan står ovanför
+    // (användartest 2026-11-12).
+    await expect(owner.getByTestId("club-step")).toBeVisible();
+    await expect(owner.getByTestId("my-places")).not.toContainText("Välj din klubb under Mitt konto");
     await clubs.getByRole("button", { name: "Ny klubbyta" }).click();
     await clubs.getByLabel("Klubbens namn").fill(`OK Älvsjö-Örby ${suffix}`);
     await clubs.getByRole("button", { name: "Skapa klubben" }).click();

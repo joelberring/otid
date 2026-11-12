@@ -128,42 +128,54 @@ describe("steg 49: gafflingsstruktur", () => {
     expect(lang.fairness).toMatchObject({ level: "NONE", shortestMeters: 6200, longestMeters: 6200 });
     expect(lang.variants.map(variant => variant.lengthMeters)).toEqual([6200, 6200, 6200, 6200]);
 
-    // Fjärilen med slingorna i omvänd ordning: samma kontrollföljder under nya koder. Löparna behåller sin kontrollföljd.
+    // Fjärilen med slingorna i omvänd ordning (begäran utan bokstäver): bokstäverna följer slingornas innehåll
+    // (tillägg 2026-11-12 b i ADR-0175), så varje kontrollföljd har kvar sin kod och ingen löpare byter variant.
     const swapped = { items: [control(31), butterfly(50, [[43, 44], [41, 42]]), control(32), butterfly(60, [[61, 62], [63, 64]]), control(33)] };
     const preview = await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1, forking: swapped } });
     expect(preview).toMatchObject({ status: "ok", response: { controlCodes: [], readOutCount: 1, unchangedCount: 1, requiresConfirmation: false,
-      forking: { removedCodes: [], renamedEntryCount: 4, reassignedEntryCount: 0 } } });
+      forking: { removedCodes: [], renamedEntryCount: 0, reassignedEntryCount: 0 } } });
     if (preview.status !== "ok") throw new Error("Beskedet saknas");
-    expect(preview.response.forking!.variants.map(variant => `${variant.previousCode}>${variant.code}`)).toEqual(["BC>AC", "BD>AD", "AC>BC", "AD>BD"]);
+    expect(preview.response.forking!.variants.map(variant => `${variant.previousCode}>${variant.code}`)).toEqual(["BC>BC", "BD>BD", "AC>AC", "AD>AD"]);
+    expect(preview.response.forking!.entryChanges).toBeUndefined();
     const firstId = randomUUID();
     const first = await editCourseAsAdmin(db, { ...proof, idempotencyKey: `course-edit:${firstId}`, request: { formatVersion: 1,
       requestId: firstId, courseId, forking: swapped, confirmResultChanges: false } });
     expect(first.status).toBe("edited");
-    expect(await variants(proof.raceId)).toEqual({ Ada: null, Bo: null, Cia: "BD", Dan: "AC", Eva: "BC", Fia: "AD", Gun: null });
+    expect(await variants(proof.raceId)).toEqual({ Ada: null, Bo: null, Cia: "AD", Dan: "BC", Eva: "AC", Fia: "BD", Gun: null });
     expect((await revisions(ids.Cia!)).map(row => row.cause)).toEqual(["CARD_READOUT", "EXPLICIT_RECALCULATION"]);
     expect(await effective(proof, ids.Cia!)).toMatchObject({ status: "OK", current: true });
     // Samma struktur igen är ingen ändring.
     expect((await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1, forking: swapped } })).status).toBe("invalid-request");
 
-    // Den andra fjärilen blir en enkel gaffling: alla kontrollföljder försvinner och löparna får nya varianter genom
-    // fördelningen. Cias stämplingar passar en av de nya varianterna, så hennes resultat ändras inte.
+    // Den andra fjärilen blir en enkel gaffling: en ny gafflingspunkt med nya bokstäver (E, F; C och D har använts och
+    // delas inte ut igen), så alla får nya varianter genom fördelningen. Cias stämplingar passar en av de nya varianterna,
+    // så hennes resultat ändras inte.
     const forked = { items: [control(31), butterfly(50, [[43, 44], [41, 42]]), control(32), control(60),
       { kind: "FORK" as const, branches: [[61, 62], [63, 64]] }, control(60), control(33)] };
     const second = await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1, forking: forked } });
     expect(second).toMatchObject({ status: "ok", response: { requiresConfirmation: false, unchangedCount: 1,
-      forking: { removedCodes: ["AC", "AD", "BC", "BD"], renamedEntryCount: 0, reassignedEntryCount: 4 } } });
+      forking: { removedCodes: ["BC", "BD", "AC", "AD"], renamedEntryCount: 0, reassignedEntryCount: 4 } } });
+    if (second.status !== "ok") throw new Error("Beskedet saknas");
+    expect(second.response.forking!.variants.map(variant => variant.code)).toEqual(["BE", "BF", "AE", "AF"]);
+    // Löparna som byter variant står med namn, kod före och "ny variant vid sparandet".
+    expect(second.response.forking!.entryChanges!.map(row => [row.displayName.split(" ")[0], row.before, row.after, row.newControls]))
+      .toEqual([["Cia", "AD", null, true], ["Dan", "BC", null, true], ["Eva", "AC", null, true], ["Fia", "BD", null, true]]);
     const secondId = randomUUID();
     expect((await editCourseAsAdmin(db, { ...proof, idempotencyKey: `course-edit:${secondId}`, request: { formatVersion: 1,
       requestId: secondId, courseId, forking: forked, confirmResultChanges: false } })).status).toBe("edited");
     const after = await variants(proof.raceId);
     // Cias stämplingar (63 64 60 61 62 60) passar båda alternativen efter 60; den första som passar väljs.
-    expect(after.Cia).toBe("BC");
-    expect(["AC", "AD", "BC", "BD"]).toEqual(expect.arrayContaining([after.Dan, after.Eva, after.Fia]));
+    expect(after.Cia).toBe("AE");
+    expect(["AE", "AF", "BE", "BF"]).toEqual(expect.arrayContaining([after.Dan, after.Eva, after.Fia]));
     expect([after.Ada, after.Bo, after.Gun]).toEqual([null, null, null]);
     expect(await effective(proof, ids.Cia!)).toMatchObject({ status: "OK", current: true });
     const audit = (await pool.query<{ after: { removedCodes: string[]; reassignedEntryCount: number } }>(
       "select after from audit_event where entity_id = $1 and action = 'COURSE_EDITED_BY_ADMIN' order by created_at desc limit 1", [courseId])).rows[0]!;
-    expect(audit.after).toMatchObject({ removedCodes: ["AC", "AD", "BC", "BD"], reassignedEntryCount: 4 });
+    expect(audit.after).toMatchObject({ removedCodes: ["BC", "BD", "AC", "AD"], reassignedEntryCount: 4 });
+    // Historiken: en post per löpare som bytte variant, med kod före och efter.
+    const ciaAudit = (await pool.query<{ before: { courseVariantCode: string }; after: { courseVariantCode: string } }>(
+      "select before, after from audit_event where entity_id = $1 and action = 'ENTRY_COURSE_VARIANT_CHANGED_BY_COURSE_EDIT'", [ids.Cia!])).rows;
+    expect(ciaAudit.map(row => [row.before.courseVariantCode, row.after.courseVariantCode])).toEqual([["AD", "AE"]]);
 
     // Sparad struktur i listan; en enkel gaffling varnar i en utjämnad bana och är bara en upplysning i en fulgaffling.
     const relisted = await listCoursesForEditAsAdmin(db, proof);
@@ -187,8 +199,8 @@ describe("steg 49: gafflingsstruktur", () => {
     // Publikt: klassens bana med strukturen och varje variants val (steg 52: när banorna är publika, här för arrangören).
     const published = await publicResults(db, proof.raceId, { staff: true });
     const h21 = "classCourses" in published ? published.classCourses?.find(row => row.className === "H21") : undefined;
-    expect(h21?.forking?.items).toEqual(forked.items);
-    expect(h21?.forking?.variants.find(variant => variant.code === "AD")?.choices).toEqual([null, [0, 1], null, null, 1, null, null]);
+    expect(h21?.forking?.items).toMatchObject(forked.items);
+    expect(h21?.forking?.variants.find(variant => variant.code === "BF")?.choices).toEqual([null, [0, 1], null, null, 1, null, null]);
     const cia = published.results.find(row => "publicResultId" in row && row.givenName === "Cia");
     if (!cia || !("publicResultId" in cia)) throw new Error("Cia saknas publikt");
     const detail = await publicResultDetail(db, proof.raceId, cia.publicResultId, { staff: true });

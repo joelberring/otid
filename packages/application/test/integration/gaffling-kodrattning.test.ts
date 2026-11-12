@@ -124,7 +124,9 @@ describe("gafflad bana: rättad kontrollkod i ett alternativ (användartestet 20
     if (listed.status !== "ok") throw new Error("Banlistan saknas");
     const courseId = listed.response.courses.find(row => row.name === "Lång")!.courseId;
 
-    // Banan får två enkla gafflingar (sex varianter), alla i H21 får en variant och sedan en bestämd variant per löpare.
+    // Banan blir först en vanlig bana (som i användartestet), sedan två enkla gafflingar (sex varianter, A–E); alla i H21
+    // får en variant och sedan en bestämd variant per löpare.
+    await edit(proof, courseId, { items: [31, 40, 41, 50, 60, 61, 62, 70, 100].map(control) });
     await edit(proof, courseId, course([[61, 62], [63], [64]]));
     const h21 = (await entries(proof.raceId)).find(row => row.given_name === "Ada")!.class_id;
     const distributionId = randomUUID();
@@ -165,18 +167,50 @@ describe("gafflad bana: rättad kontrollkod i ett alternativ (användartestet 20
       "select after from audit_event where entity_id = $1 and action = 'COURSE_EDITED_BY_ADMIN' order by created_at desc limit 1", [courseId])).rows[0]!;
     expect(audit.after).toMatchObject({ removedCodes: [], changedCodes: ["AE", "BE"], reassignedEntryCount: 0 });
 
-    // Alternativ D (63) tas bort: E blir D. De som hade E följer sin kontrollföljd till den nya koden, de som hade D får en
-    // ny variant genom fördelningen och alla andra behåller sin kod.
+    // Alternativ D (63) tas bort (tillägg 2026-11-12 b i ADR-0175): E står kvar som E (A, C, E med lucka), så Cias karta
+    // "AE" betyder samma sak. Bara de som hade D (Bo, Eva) får en ny variant och står med namn i beskedet.
     const removed = course([[61, 62], [65]]);
     const removal = await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1, forking: removed } });
-    expect(removal).toMatchObject({ status: "ok", response: { forking: { removedCodes: ["AD", "BD"], renamedEntryCount: 2, reassignedEntryCount: 2 } } });
+    expect(removal).toMatchObject({ status: "ok", response: { forking: { removedCodes: ["AD", "BD"], renamedEntryCount: 0, reassignedEntryCount: 2 } } });
     if (removal.status !== "ok") throw new Error("Beskedet saknas");
     expect(removal.response.forking!.changedCodes).toBeUndefined();
-    await edit(proof, courseId, removed);
+    expect(removal.response.forking!.variants.map(variant => variant.code)).toEqual(["AC", "AE", "BC", "BE"]);
+    expect(removal.response.forking!.entryChanges!.map(row => [row.displayName.split(" ")[0], row.className, row.before, row.after, row.newControls]))
+      .toEqual([["Bo", "H21", "AD", null, true], ["Eva", "H21", "BD", null, true]]);
+    const removalId = randomUUID();
+    const saved = await editCourseAsAdmin(db, { ...proof, idempotencyKey: `course-edit:${removalId}`, request: { formatVersion: 1,
+      requestId: removalId, courseId, forking: removed, confirmResultChanges: true } });
+    if (saved.status !== "edited") throw new Error("Ändringen sparades inte");
     const after = await variants(proof.raceId);
-    expect(after).toMatchObject({ Ada: "AC", Cia: "AD", Dan: "BC", Fia: "BD", Gun: null });
-    expect(["AC", "AD", "BC", "BD"]).toEqual(expect.arrayContaining([after.Bo, after.Eva]));
+    expect(after).toMatchObject({ Ada: "AC", Cia: "AE", Dan: "BC", Fia: "BE", Gun: null });
+    expect(["AC", "AE", "BC", "BE"]).toEqual(expect.arrayContaining([after.Bo, after.Eva]));
+    // Kvittot och historiken säger vilka som bytte variant, före och efter.
+    expect(saved.response.variantChanges!.map(row => [row.displayName.split(" ")[0], row.before, row.after]))
+      .toEqual([["Bo", "AD", after.Bo], ["Eva", "BD", after.Eva]]);
+    const history = (await pool.query<{ entity_id: string; before: { courseVariantCode: string }; after: { courseVariantCode: string } }>(
+      "select entity_id, before, after from audit_event where race_id = $1 and action = 'ENTRY_COURSE_VARIANT_CHANGED_BY_COURSE_EDIT' and request_id = $2",
+      [proof.raceId, removalId])).rows;
+    expect(history.map(row => [row.entity_id, row.before.courseVariantCode, row.after.courseVariantCode]).sort())
+      .toEqual([[ids.Bo, "AD", after.Bo], [ids.Eva, "BD", after.Eva]].sort());
     expect(await effective(proof, ids.Cia!)).toMatchObject({ status: "MP", current: true });
     expect(await effective(proof, ids.Dan!)).toMatchObject({ status: "OK", current: true });
+
+    // Ett nytt alternativ (som editorn skickar det: bokstäverna följer med, det nya utan bokstav) får F, inte D, och
+    // ingen byter variant.
+    const stored = await listCoursesForEditAsAdmin(db, proof);
+    if (stored.status !== "ok") throw new Error("Banlistan saknas");
+    const view = stored.response.courses.find(row => row.courseId === courseId)!.forking!;
+    expect(view.retiredLetters).toEqual(["D"]);
+    const second = view.items[5]!;
+    if (second.kind !== "FORK") throw new Error("Gafflingen saknas");
+    expect(second.letters).toEqual(["C", "E"]);
+    const added = { items: view.items.map((item, index) => index === 5 && item.kind === "FORK"
+      ? { ...item, branches: [...item.branches, [66]], letters: [...(item.letters ?? []), null] } : item) };
+    const addition = await previewCourseEditAsAdmin(db, { ...proof, courseId, request: { formatVersion: 1, forking: added } });
+    if (addition.status !== "ok") throw new Error("Beskedet saknas");
+    expect(addition.response.forking!.variants.map(variant => variant.code)).toEqual(["AC", "AE", "AF", "BC", "BE", "BF"]);
+    expect(addition.response.forking!.entryChanges).toBeUndefined();
+    await edit(proof, courseId, added);
+    expect(await variants(proof.raceId)).toEqual(after);
   }, 180_000);
 });

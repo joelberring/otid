@@ -82,6 +82,16 @@ export const courseEditChangeSchema = z.object({
   entryId: uuid, displayName: z.string().min(1).max(400), className: name, before: status, after: status
 }).strict();
 
+/**
+ * Tillägg 2026-11-12 (b) i ADR-0175: en löpare (eller stafettsträcka) vars variantkod byts när strukturen sparas, med namn,
+ * kod före och efter. `after` null = löparens bokstav försvinner och löparen får en ny variant vid sparandet (stafett: blir
+ * utan variant tills den väljs i lagvyn). `newControls` = löparens kontroller ändras, så kartan måste bytas.
+ */
+const courseEditVariantChangeSchema = z.object({
+  entryId: uuid, displayName: z.string().min(1).max(400), className: name, leg: z.number().int().min(1).max(100).optional(),
+  before: courseVariantCodeSchema, after: courseVariantCodeSchema.nullable(), newControls: z.boolean()
+}).strict();
+
 export const courseEditPreviewResponseSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid, courseId: uuid, courseName: name, snapshotVersion: version,
   variantCode: courseVariantCodeSchema.optional(), currentControlCodes: z.array(controlCode).max(1000),
@@ -97,6 +107,8 @@ export const courseEditPreviewResponseSchema = z.object({
     removedCodes: z.array(courseVariantCodeSchema).max(100), renamedEntryCount: count, reassignedEntryCount: count,
     /** Tillägg 2026-11-12 (ADR-0175): koder som finns kvar med ändrade kontroller (rättad kontrollkod); löparna behåller koden. */
     changedCodes: z.array(courseVariantCodeSchema).max(100).optional(),
+    /** Tillägg 2026-11-12 (b): löparna vars kod byts, med namn (bara för den som får redigera banan och se deltagarna). */
+    entryChanges: z.array(courseEditVariantChangeSchema).max(10_000).optional(),
     /** ADR-0198: varianter som strukturen ger men som är bortvalda i banläggningen (sparas inte). */
     excludedCodes: z.array(courseVariantCodeSchema).max(1000).optional(),
     /** ADR-0198: bortval som inte längre stämmer med någon variant; de följer med banversionen men gäller inte. */
@@ -132,6 +144,8 @@ export const courseEditResponseSchema = z.object({
   request: courseEditRequestSchema, previousCourseVersionId: uuid, courseVersionId: uuid,
   classIds: z.array(uuid).max(1000), snapshotVersionBefore: version, snapshotVersionAfter: version,
   recalculated: z.array(z.object({ entryId: uuid, resultRevisionId: uuid, revision: version }).strict()).max(10_000),
+  /** Tillägg 2026-11-12 (b): löparna vars kod byttes, med den variant de fick (null = stafettsträcka utan variant). */
+  variantChanges: z.array(courseEditVariantChangeSchema).max(10_000).optional(),
   editedAt: instant
 }).strict().superRefine((value, context) => {
   if (value.snapshotVersionAfter !== value.snapshotVersionBefore + 1 || value.requestId !== value.request.requestId ||

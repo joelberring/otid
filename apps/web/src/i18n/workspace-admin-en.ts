@@ -133,7 +133,7 @@ export const raceAdministratorEn: AdminTexts = {
   accountLoginHelp: "Sign in with your account. You must have created the event or be invited as an administrator.",
   accountLoginLink: "Go to My events",
   logout: "Sign out",
-  checking: "Checking access…", denied: "Access is missing or has expired. Sign in again.",
+  checking: "Checking access…", denied: "Access is missing.",
   error: "The event could not be loaded. Try again when the connection works.",
   logoutError: "The view is locked, but signing out could not be confirmed. Check the connection.",
   discarded: "A change that was not saved in time has been left. Check the participant's class, start time and card before changing again.",

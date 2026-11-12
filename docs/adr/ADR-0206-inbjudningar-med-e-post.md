@@ -73,3 +73,15 @@ nollställde spärren. Kopierade länkar och "Skicka igen" (tio minuter) räknas
 `race_person_invitation.actor_account_id` har ingen främmande nyckel längre (som gruppens inbjudan i 0087), så att borttagningen
 av avsändarens konto inte tar bort tävlingens öppna inbjudningar och länkarna i skickade mejl. Länksidan visar då inbjudan utan
 avsändarens namn (`inviterName: null`, "Du har bjudits in till …").
+
+Tillägg 2026-11-12 (användartestet, grenen `claude/block2`): beslut 4 prövades igen och står kvar. En inloggad med obekräftad adress
+som öppnade sin inbjudningslänk hamnade på en sida som nekade med "Logga in igen". Att låta en giltig länk bekräfta adressen för den
+inloggade (eller för den som skapar konto från länken) valdes bort igen: (a) en kopierad länk (`delivery = LINK`, enda sättet utan
+e-post på servern) känns av den som bjöd in, som då kan registrera adressen själv och få den bekräftad; (b) med e-post på servern kan
+ett obekräftat konto inte logga in (ADR-0186), så den som är inloggad och obekräftad har en session från före e-posten eller ett
+konto skapat utan e-post – fallen där länken oftast är kopierad; att bara godta mejlade länkar hjälper alltså nästan ingen; (c) ADR-0205
+låter den som bekräftar välja lösenordet och spärrar andra sessioner, så att den som registrerat någon annans adress inte behåller
+kontot. En bekräftelse genom länken i en befintlig session skulle hoppa över det. I stället säger inbjudningssidan att adressen måste
+bekräftas och erbjuder "Skicka bekräftelsemejl" (återställningslänken, som bekräftar adressen och tar inbjudningarna), och tävlingens
+sida skiljer på inte inloggad, inloggad utan behörighet och inloggad med obekräftad adress. Om en inbjudan väntar sägs inte på
+tävlingens sida, så att ett obekräftat konto inte får veta vem som bjudits in. Ingen migration.

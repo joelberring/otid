@@ -22,6 +22,7 @@ import { RogainingPanel } from "./race-administrator/rogaining-panel";
 import { PublishPanel } from "./race-administrator/race-publication-section";
 import { PartyPanel } from "./race-administrator/party-panel";
 import { Notice } from "./ui";
+import { AccessNotice } from "./race-administrator/access-notice";
 import { SiteFooter } from "./about/site-footer";
 
 /**
@@ -68,10 +69,13 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   }, []);
   useDuringRaceEffects(ws);
   const status = <p className={styles.status} role="status" aria-live="polite">{message}</p>;
+  // Användartestet 2026-11-12: nekad (inte ett nätfel) – säg varför i stället för "Logga in igen" till den som är inloggad.
   if (!authenticated) return <div className={`${styles.workspace} ${styles.login}`} data-authenticated="false">
     <p>{text.introduction}</p>
-    {status}
-    <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
+    {message === text.denied ? <AccessNotice /> : <>
+      {status}
+      <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
+    </>}
     <SiteFooter newTab className={styles.footer} />
   </div>;
   return <div className={`${styles.root} ${shell.shell}`} data-print-target={printTarget} data-authenticated="true">

@@ -101,7 +101,7 @@ export const raceAdministratorSv = {
   accountLoginHelp: "Logga in med ditt konto. Du måste ha skapat tävlingen eller vara inbjuden som administratör.",
   accountLoginLink: "Gå till Mina tävlingar",
   logout: "Logga ut",
-  checking: "Kontrollerar behörighet…", denied: "Behörighet saknas eller har gått ut. Logga in igen.",
+  checking: "Kontrollerar behörighet…", denied: "Behörighet saknas.",
   error: "Tävlingen kunde inte läsas in. Försök igen när anslutningen fungerar.",
   logoutError: "Vyn är låst, men utloggningen kunde inte bekräftas. Kontrollera anslutningen.",
   discarded: "En ändring som inte hann sparas har lämnats. Kontrollera deltagarens klass, starttid och bricka innan du ändrar igen.",

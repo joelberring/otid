@@ -12,6 +12,9 @@ import { accountRequest } from "../lib/account-client";
 import { saveInvitationHandoff } from "../lib/invitation-handoff";
 import { parseOrganizerSessionStatus } from "../lib/organizer-client";
 import { Button, Notice, Section } from "./ui";
+import { VerifyEmailOffer } from "./verify-email-offer";
+import { accessSv } from "../i18n/access-sv";
+import { accessEn } from "../i18n/access-en";
 import styles from "./account-pages.module.css";
 
 type Valid = Extract<InvitationLinkView, { status: "valid" }>;
@@ -31,10 +34,12 @@ function takeTokenFromLocation(): string | undefined {
 export function InvitationPage() {
   const en = useLanguage() === "en";
   const text = en ? invitationEn.page : invitationSv.page, back = en ? accountEntryEn.reset.backToLogin : accountSv.reset.backToLogin;
+  const access = en ? accessEn : accessSv;
   const target = en ? invitationTargetPhraseEn : invitationTargetPhrase, roleWord = en ? invitationRoleWordEn : invitationRoleWord;
   const [state, setState] = useState<{ kind: "checking" } | { kind: "no-token" } | { kind: "failed" } | { kind: "invalid" }
     | { kind: "valid"; view: Valid }>({ kind: "checking" });
   const [sessionEmail, setSessionEmail] = useState<string>();
+  const [sessionVerified, setSessionVerified] = useState(true);
 
   useEffect(() => {
     const token = takeTokenFromLocation();
@@ -52,7 +57,9 @@ export function InvitationPage() {
       } catch { setState({ kind: "failed" }); }
       try {
         const session = await fetch("/api/organizer/session", { credentials: "same-origin", cache: "no-store" });
-        if (session.ok) setSessionEmail(parseOrganizerSessionStatus(await session.json() as unknown)?.email);
+        const current = session.ok ? parseOrganizerSessionStatus(await session.json() as unknown) : undefined;
+        setSessionEmail(current?.email);
+        setSessionVerified(current?.emailVerified !== false);
       } catch { /* utan session visas knapparna */ }
     })();
   }, []);
@@ -66,6 +73,7 @@ export function InvitationPage() {
   const until = view ? new Intl.DateTimeFormat(en ? "en-GB" : "sv-SE", { dateStyle: "long", timeZone: "Europe/Stockholm" }).format(new Date(view.expiresAt)) : "";
   const signedInAsInvited = view && sessionEmail && sessionEmail.toLowerCase() === view.email.toLowerCase();
   const signedInAsOther = view && sessionEmail && !signedInAsInvited;
+  const unverifiedEmail = signedInAsInvited && !sessionVerified ? sessionEmail : undefined;
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}><div><p className={styles.kicker}>{text.kicker}</p>
       <h1>{state.kind === "invalid" ? text.invalidTitle : text.title}</h1></div></header>
@@ -79,7 +87,13 @@ export function InvitationPage() {
           roleWord(view.kind, view.role))}</strong></p>
         <p>{text.address(view.email)}</p>
         <p>{text.howItWorks} {text.validUntil(until)}</p>
-        {signedInAsInvited && <div className={styles.actions}><Button onClick={() => window.location.assign(view.next)}>{text.open}</Button></div>}
+        {signedInAsInvited && sessionVerified && <div className={styles.actions}>
+          <Button onClick={() => window.location.assign(view.next)}>{text.open}</Button></div>}
+        {/* Användartestet 2026-11-12: med obekräftad adress gäller inbjudan inte än; erbjud bekräftelsemejlet i stället för
+            en knapp till en sida som nekar. Länken bekräftar inte adressen själv (ADR-0206 beslut 4, tillägget 2026-11-12). */}
+        {unverifiedEmail && <Notice tone="attention" role="status">
+          <strong>{access.confirmHeading}</strong> {access.confirmInvitation(unverifiedEmail)}</Notice>}
+        {unverifiedEmail && <VerifyEmailOffer email={unverifiedEmail} />}
         {signedInAsOther && <Notice tone="info" role="status">{text.otherAccount(sessionEmail)}</Notice>}
         {!sessionEmail && <div className={styles.actions}>
           <Button onClick={() => go(view, "register")}>{text.register}</Button>

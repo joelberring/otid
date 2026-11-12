@@ -1,5 +1,5 @@
 import {
-  addAccountClub, answerAccountClubStep, inviteFromClub, readClubPicker, decideClubAffiliation, eventorConfigurationFromEnvironment, linkClubToEventor, liftRaceToClubArchive,
+  addAccountClub, answerAccountClubStep, inviteFromClub, readClubPicker, decideClubAffiliation, eventorConfigurationFromEnvironment, linkClubToEventor, liftRaceToClubArchive, setRaceClubArchiveAutoAsAdmin,
   readAccountClubs, readClubAffiliation, readRaceClubArchiveAsAdmin, removeAccountClub, removeRaceFromClubArchive, searchOrganisationsForAccount,
   renameClubToEventor, setRaceOrganiserAsAdmin, syncClubEventorMembersAsAdmin, unlinkClubFromEventor
 } from "@o-tid/application";
@@ -140,7 +140,9 @@ export async function raceClubArchiveRoute(db: Database, request: Request, raceI
   return guarded(async () => {
     const result = request.method === "PUT" ? await setRaceOrganiserAsAdmin(db, { ...proof, request: input.body })
       : request.method === "POST" ? await liftRaceToClubArchive(db, { ...proof, request: input.body })
-        : await removeRaceFromClubArchive(db, proof);
+        // Ägaren 2026-11-12: rutan "Lägg i klubbarkivet när träningen är klar" (samma behörighet som Lägg i klubbarkivet).
+        : request.method === "PATCH" ? await setRaceClubArchiveAutoAsAdmin(db, { ...proof, request: input.body })
+          : await removeRaceFromClubArchive(db, proof);
     if (result.status === "ok") return privateJson(result.view);
     if (result.status === "no-space") return problem("NO_CLUB_ARCHIVE");
     if (result.status === "secret") return problem("COURSES_SECRET");

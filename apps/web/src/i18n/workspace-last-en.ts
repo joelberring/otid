@@ -110,6 +110,15 @@ export const clubRaceEn: Texts<typeof clubAffiliationSv.race> = {
   secrecyTitle: "The courses are secret",
   secrecy: "The event has not taken place yet (or not everyone has finished). If you put it in the club archive now, the club's members can see the courses before they run.",
   secrecyConfirm: "I understand that the courses are visible to the club before the event",
+  since: (date: string) => `Added ${date}.`,
+  autoLabel: "Put in the club archive when the training is over",
+  autoHelp: "On by default for trainings. It goes into the archive when everyone has finished or has a decision, otherwise the day after, with the owner's or the responsible leader's permission (an administrator in the club space).",
+  autoSaved: (on: boolean) => on ? "The training goes into the club archive when it is over." : "The training does not go into the club archive automatically.",
+  autoRemoved: "It has been in the club archive and is not put there automatically again. Put it in by hand if it should be there.",
+  autoProblem: {
+    NO_ADMIN: "It could not be put in the club archive automatically: neither the owner nor the responsible leader is an administrator in the club space. Put it in by hand.",
+    FAILED: "It could not be put in the club archive automatically. It is tried again within an hour; you can also put it in by hand."
+  },
   reminder: "The event is over – put the courses in the club archive?",
   reminderOpen: "To The club and the club archive",
   errors: {

@@ -147,6 +147,16 @@ export const clubAffiliationSv = {
     secrecyTitle: "Banorna är hemliga",
     secrecy: "Tävlingen har inte varit än (eller alla har inte gått i mål). Lägger du den i klubbarkivet nu ser klubbens medlemmar banorna innan de springer.",
     secrecyConfirm: "Jag förstår att banorna syns för klubben före tävlingen",
+    /** Ägaren 2026-11-12: den automatiska arkiveringen. */
+    since: (date: string) => `Lagd ${date}.`,
+    autoLabel: "Lägg i klubbarkivet när träningen är klar",
+    autoHelp: "Förvalt för träningar. Den läggs i arkivet när alla har gått i mål eller fått ett beslut, annars dagen efter, med ägarens eller den ansvariges behörighet (en administratör i klubbytan).",
+    autoSaved: (on: boolean) => on ? "Träningen läggs i klubbarkivet när den är klar." : "Träningen läggs inte i klubbarkivet automatiskt.",
+    autoRemoved: "Den har legat i klubbarkivet och läggs inte dit automatiskt igen. Lägg i den för hand om den ska vara där.",
+    autoProblem: {
+      NO_ADMIN: "Den kunde inte läggas i klubbarkivet automatiskt: varken ägaren eller den ansvarige är administratör i klubbytan. Lägg i den för hand.",
+      FAILED: "Det gick inte att lägga den i klubbarkivet automatiskt. Det provas igen inom en timme; du kan också lägga i den för hand."
+    },
     reminder: "Tävlingen är klar – lägga banorna i klubbarkivet?",
     reminderOpen: "Till Klubben och klubbarkivet",
     errors: {

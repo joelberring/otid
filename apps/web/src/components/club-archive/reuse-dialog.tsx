@@ -23,7 +23,9 @@ const today = () => new Date().toLocaleDateString("sv-SE");
  * banorna. Förvalet är kartans senaste version; är den en annan än banornas jämförs versionerna och banorna flyttas
  * ("Flytta banorna till senaste kartversionen") med förhandsvisning och, utan säker georeferens, förskjutning för hand.
  */
-export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiveEntryView; initialFileId: string | undefined; onClose: () => void }) {
+export function ReuseDialog({ view, initialFileId, plan, onClose }: { view: ClubArchiveEntryView; initialFileId: string | undefined;
+  /** Ägaren 2026-11-12: Hämta ur arkivet – raden i planen som träningen ska kopplas till (förvald). */
+  plan?: { termId: string; sessionId: string } | undefined; onClose: () => void }) {
   const locale = useLocale();
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const align = useTexts(clubArchiveSv.align, clubArchiveEn.align);
@@ -36,12 +38,20 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
   const language = useLanguage();
   const [planSessions, setPlanSessions] = useState<readonly ClubPlanSessionView[]>([]);
   const [planSessionId, setPlanSessionId] = useState("");
+  const planTermId = plan?.termId, planSessionChosen = plan?.sessionId;
   useEffect(() => {
-    void planRequest(planningBase(view.clubId)).then(response => {
-      const plan = response.status === 200 ? response.json as ClubPlanResponse : undefined;
-      setPlanSessions(plan?.term?.planSessions.filter(row => !row.raceId && row.sessionDate >= today()) ?? []);
+    const path = planTermId ? `${planningBase(view.clubId)}?term=${encodeURIComponent(planTermId)}` : planningBase(view.clubId);
+    void planRequest(path).then(response => {
+      const loaded = response.status === 200 ? response.json as ClubPlanResponse : undefined;
+      const open = loaded?.term?.planSessions.filter(row => !row.raceId && row.sessionDate >= today()) ?? [];
+      setPlanSessions(open);
+      const row = open.find(candidate => candidate.sessionId === planSessionChosen);
+      if (row) {
+        setPlanSessionId(row.sessionId); setName(row.title); setDate(row.sessionDate);
+        setGroupId(row.trainingGroupId && view.groups.some(group => group.groupId === row.trainingGroupId) ? row.trainingGroupId : "");
+      }
     });
-  }, [view.clubId]);
+  }, [view.clubId, view.groups, planTermId, planSessionChosen]);
   const choosePlan = (id: string) => {
     setPlanSessionId(id);
     const row = planSessions.find(candidate => candidate.sessionId === id);
@@ -91,6 +101,11 @@ export function ReuseDialog({ view, initialFileId, onClose }: { view: ClubArchiv
         rendered: target?.state === "ready" ? target.rendered : undefined, course }, next => setStage(next), clubArchiveText);
       if (outcome.kind === "failed") { setStage(undefined); setProblem(outcome.problem); return; }
       if (planSessionId) {
+        // Ägaren 2026-11-12: arkivträningens ledare följer med till raden (övriga uppgifter utan person), före kopplingen så
+        // att de får behörigheterna när träningen kopplas. Inga mejl. Går det inte står raden kvar som den var.
+        const people = await planRequest(`${planningBase(view.clubId)}/sessions/${planSessionId}/people`, "POST",
+          { formatVersion: 1, entryId: view.entry.entryId });
+        if (people.status !== 200) console.error(`Arkivträningens personer kunde inte kopieras till planen (${people.status})`);
         const linked = await planRequest(`${planningBase(view.clubId)}/sessions/${planSessionId}/race`, "PUT", { formatVersion: 1, raceId: outcome.raceId });
         if (linked.status !== 200) { setStage(undefined); setProblem(text.planFailed); window.setTimeout(() => window.location.assign(`/admin/${outcome.raceId}/manage`), 3000); return; }
       }

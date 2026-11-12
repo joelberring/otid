@@ -1,5 +1,5 @@
 import {
-  changeClubTerm, createClubTerm, createPlannedRace, createPlanSessions, createPlanTask, linkPlannedRace, listMyPlanTasks, readClubPlan, removePlanSession,
+  changeClubTerm, copyArchivePeopleToSession, copyTermPlan, createClubTerm, createPlanSessionFromArchive, createPlannedRace, createPlanSessions, createPlanTask, linkPlannedRace, listMyPlanTasks, readClubPlan, removePlanSession,
   removePlanTask, setPlanTaskDone, updatePlanSession, updatePlanTask, type PlanTaskMail, type PlanTaskMailer
 } from "@o-tid/application";
 import { UUID_PATTERN } from "@o-tid/contracts";
@@ -59,7 +59,12 @@ const ok = (body: object = {}) => privateJson({ formatVersion: 1, ...body });
 const specific = (status: string) => status === "outside" ? problem("OUTSIDE_TERM") : status === "too-many" ? problem("TOO_MANY_SESSIONS")
   : status === "not-empty" ? problem("TERM_NOT_EMPTY") : failure(status);
 
-/** `path` är delarna efter /planning: [], ["terms", id], ["sessions"], ["sessions", id], ["sessions", id, "race" | "tasks"], ["sessions", id, "tasks", id]. */
+/**
+ * `path` är delarna efter /planning: [], ["terms", id], ["terms", id, "archive" | "copy"], ["sessions"], ["sessions", id],
+ * ["sessions", id, "race" | "tasks" | "people"], ["sessions", id, "tasks", id]. Ägaren 2026-11-12: Hämta ur arkivet
+ * (terms/[termId]/archive), Kopiera upplägg från termin (terms/[termId]/copy) och arkivträningens personer till en rad
+ * (sessions/[sessionId]/people) skickar inga mejl.
+ */
 export async function clubPlanningRoute(db: Database, request: Request, clubId: string, path: readonly string[],
   environment: ClubEnvironment = process.env): Promise<Response> {
   if (!UUID_PATTERN.test(clubId) || path.some(part => part.length > 40)) return failure("not-found");
@@ -88,6 +93,18 @@ export async function clubPlanningRoute(db: Database, request: Request, clubId: 
     if (area === "terms" && id && sub === undefined && (method === "PUT" || method === "DELETE")) {
       const result = await changeClubTerm(db, { ...proof, termId: id, request: input.body, remove: method === "DELETE" });
       return result.status === "ok" ? ok() : specific(result.status);
+    }
+    if (area === "terms" && id && sub === "archive" && subId === undefined && method === "POST") {
+      const result = await createPlanSessionFromArchive(db, { ...proof, termId: id, request: input.body });
+      return result.status === "ok" ? ok({ sessionId: result.sessionId }) : specific(result.status);
+    }
+    if (area === "terms" && id && sub === "copy" && subId === undefined && method === "POST") {
+      const result = await copyTermPlan(db, { ...proof, termId: id, request: input.body });
+      return result.status === "ok" ? ok({ copied: result.copied, outside: result.outside }) : specific(result.status);
+    }
+    if (area === "sessions" && id && sub === "people" && subId === undefined && method === "POST") {
+      const result = await copyArchivePeopleToSession(db, { ...proof, sessionId: id, request: input.body });
+      return result.status === "ok" ? ok({ responsible: result.responsible, tasks: result.tasks }) : failure(result.status);
     }
     if (area === "sessions" && id === undefined && method === "POST") {
       const result = await createPlanSessions(db, { ...proof, request: input.body }, new Date(), planTaskMailer(environment, request));

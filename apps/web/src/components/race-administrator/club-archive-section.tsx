@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clubRaceEn } from "../../i18n/workspace-last-en";
-import { useTexts } from "../language-provider";
+import { useLocale, useTexts } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import Link from "next/link";
 import type { OrganisationSummary, RaceClubArchiveView } from "@o-tid/contracts";
@@ -33,16 +33,18 @@ export function useRaceClubArchive(raceId: string) {
 /**
  * ADR-0209 beslut 4: Inställningar → Klubben och klubbarkivet. Arrangörsklubben (förval: din bekräftade klubb), och när det finns
  * en klubbyta där du är administratör: "Lägg i klubbarkivet" (före tävlingen eller medan banorna är hemliga först efter en
- * bekräftelse) och "Ta ur klubbarkivet". Inget läggs in automatiskt.
+ * bekräftelse) och "Ta ur klubbarkivet". Ägaren 2026-11-12: rutan "Lägg i klubbarkivet när träningen är klar" (förval för en
+ * Träning); när den har lagts i arkivet (eller tagits ur) står rutan inte kvar, och ett problem med den automatiska visas.
  */
 export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disabled: boolean }) {
   const text = useTexts(clubAffiliationSv.race, clubRaceEn);
   const { view, setView } = useRaceClubArchive(raceId);
+  const locale = useLocale();
   const [busy, setBusy] = useState(false);
   const [secrecy, setSecrecy] = useState(false);
   const [message, setMessage] = useState<Message>();
 
-  async function send(method: "PUT" | "POST" | "DELETE", body?: unknown, ok?: string) {
+  async function send(method: "PUT" | "POST" | "PATCH" | "DELETE", body?: unknown, ok?: string) {
     setBusy(true); setMessage(undefined);
     const result = await clubRequest(base(raceId), method, body);
     setBusy(false);
@@ -56,6 +58,8 @@ export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disab
   if (!view) return null;
   const locked = busy || disabled;
   const hasContents = !!view.contents.mapFile || view.contents.courseSetting || view.contents.courseFile;
+  const auto = view.auto;
+  const day = (iso: string) => new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
   return <Section id={`settings-${raceId}-club`} title={text.title} help={text.help}>
     <div className={styles.form} data-testid="race-club-archive">
       <p><strong>{text.organiser}:</strong> <span data-testid="race-organiser">{view.organiser?.name ?? text.noOrganiser}</span></p>
@@ -70,12 +74,20 @@ export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disab
       {view.space === "ADMIN" && <>
         <p className={styles.muted}>{text.space(view.spaceName ?? "")}</p>
         {view.lifted ? <>
-          <Notice tone="ok" role="status">{text.lifted}</Notice>
+          <Notice tone="ok" role="status">{text.lifted} {text.since(day(view.lifted.liftedAt))}</Notice>
           <div className={styles.actions}>
             <Link href={`/organizer/clubs/${encodeURIComponent(view.lifted.clubId)}/arkiv/${encodeURIComponent(view.lifted.entryId)}`}>{text.openEntry}</Link>
             <Button variant="secondary" disabled={locked} onClick={() => { if (window.confirm(text.unliftConfirm)) void send("DELETE"); }}>{text.unlift}</Button>
           </div>
         </> : <>
+          {auto && !auto.archivedAt && <div data-testid="race-club-archive-auto">
+            <label><input type="checkbox" checked={auto.enabled} disabled={locked}
+              onChange={event => void send("PATCH", { formatVersion: 1, enabled: event.target.checked }, text.autoSaved(event.target.checked))} />
+              {" "}{text.autoLabel}</label>
+            <p className={styles.muted}>{text.autoHelp}</p>
+            {auto.problem && <p className={styles.warning} data-testid="race-club-archive-auto-problem">{text.autoProblem[auto.problem]}</p>}
+          </div>}
+          {auto?.archivedAt && <p className={styles.muted} data-testid="race-club-archive-auto-removed">{text.autoRemoved}</p>}
           <p className={styles.muted}>{hasContents ? text.contents : text.noContents}</p>
           {view.contents.coursesWithoutMap.length > 0 && <p className={styles.warning} data-testid="race-club-archive-without-map">
             {text.withoutMap(view.contents.coursesWithoutMap)}</p>}
@@ -94,11 +106,15 @@ export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disab
   </Section>;
 }
 
-/** Påminnelsen i arbetsytan efter tävlingen: "Tävlingen är klar – lägga banorna i klubbarkivet?". Inget läggs in automatiskt. */
+/**
+ * Påminnelsen i arbetsytan efter tävlingen: "Tävlingen är klar – lägga banorna i klubbarkivet?". Ägaren 2026-11-12: inte när
+ * rutan "Lägg i klubbarkivet när träningen är klar" är i och den automatiska inte har stött på ett problem.
+ */
 export function ClubArchiveReminder({ raceId, onOpen }: { raceId: string; onOpen: () => void }) {
   const text = useTexts(clubAffiliationSv.race, clubRaceEn);
   const { view } = useRaceClubArchive(raceId);
   if (!view || !view.finished || view.space !== "ADMIN" || view.lifted) return null;
+  if (view.auto?.enabled && !view.auto.archivedAt && !view.auto.problem) return null;
   if (!view.contents.mapFile && !view.contents.courseSetting && !view.contents.courseFile) return null;
   return <div data-testid="club-archive-reminder"><Notice role="status">{text.reminder}{" "}
     <Button variant="quiet" onClick={onOpen}>{text.reminderOpen}</Button></Notice></div>;

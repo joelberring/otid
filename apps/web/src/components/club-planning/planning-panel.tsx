@@ -8,7 +8,11 @@ import { clubPlanningSv } from "../../i18n/club-planning-sv";
 import { planningBase, planFailure, planRequest, shortDate } from "../../lib/club-planning-client";
 import { useLanguage, useTexts } from "../language-provider";
 import { Button, Notice } from "../ui";
+import { PlanArchivePicker } from "./plan-archive-picker";
 import { PlanSessionCard, type PlanChange } from "./plan-session-card";
+import { PlanTermCopy } from "./plan-term-copy";
+import { planCopyEn } from "../../i18n/club-plan-copy-en";
+import { planCopySv } from "../../i18n/club-plan-copy-sv";
 import { PlanSessionForm } from "./plan-session-form";
 import { PlanTermForm } from "./plan-term-form";
 import styles from "./club-planning.module.css";
@@ -21,6 +25,9 @@ type Message = { tone: "ok" | "error"; text: string };
  */
 export function PlanningPanel({ clubId }: { clubId: string }) {
   const text = useTexts(clubPlanningSv, clubPlanningEn);
+  const copyText = useTexts(planCopySv, planCopyEn);
+  /** Ägaren 2026-11-12: Hämta ur arkivet – veckan och dagen att börja med. */
+  const [fetching, setFetching] = useState<{ week: number; date: string }>();
   const language = useLanguage();
   const [plan, setPlan] = useState<ClubPlanResponse>();
   const [termId, setTermId] = useState<string | null>(null);
@@ -93,6 +100,9 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
       } : undefined} />}
     {message && <div className={styles.noPrint}><Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice></div>}
     {!term ? <p>{text.term.none}</p> : <>
+      {term.planSessions.length === 0 && <PlanTermCopy key={term.termId} termId={term.termId} terms={plan.terms} busy={busy} change={change} />}
+      {fetching && <PlanArchivePicker clubId={clubId} termId={term.termId} week={fetching.week} initialDate={fetching.date} minDate={term.startsOn}
+        maxDate={term.endsOn} onDone={shown => { setFetching(undefined); if (shown) setMessage({ tone: "ok", text: shown }); void load(); }} />}
       <h2 className={styles.termTitle}>{term.name} <span>{text.term.dates(shortDate(term.startsOn, language), shortDate(term.endsOn, language))}</span></h2>
       <ol className={styles.weeks}>
         {weeks.map(week => {
@@ -104,8 +114,11 @@ export function PlanningPanel({ clubId }: { clubId: string }) {
           return <li key={week.monday} className={styles.week} data-testid="plan-week" aria-label={text.week.title(week.week)}>
             <div className={styles.weekHead}>
               <h3>{text.week.title(week.week)} <span>{shortDate(first, language)} – {shortDate(week.sunday < term.endsOn ? week.sunday : term.endsOn, language)}</span></h3>
-              <span className={styles.noPrint}><Button variant="quiet" aria-label={text.week.addInWeek(week.week)} disabled={busy}
-                onClick={() => setAdding(suggested)}>{text.week.add}</Button></span>
+              <span className={`${styles.actions} ${styles.noPrint}`}>
+                <Button variant="quiet" aria-label={text.week.addInWeek(week.week)} disabled={busy} onClick={() => setAdding(suggested)}>{text.week.add}</Button>
+                <Button variant="quiet" aria-label={copyText.fromArchiveInWeek(week.week)} disabled={busy}
+                  onClick={() => setFetching({ week: week.week, date: suggested })}>{copyText.fromArchive}</Button>
+              </span>
             </div>
             {adding !== undefined && adding >= week.monday && adding <= week.sunday && <PlanSessionForm key={adding} plan={plan} termId={term.termId}
               initialDate={adding} busy={busy} onCancel={() => setAdding(undefined)} onSave={async body => {

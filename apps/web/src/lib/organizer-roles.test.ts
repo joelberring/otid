@@ -179,6 +179,10 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
     PUT: { allow: CLUB_LEADERS, body: { formatVersion: 1, name: "VT 2027", startsOn: "2027-01-01", endsOn: "2027-06-30" } },
     DELETE: { allow: CLUB_LEADERS }
   },
+  // Ägaren 2026-11-12: Hämta ur arkivet och Kopiera upplägg från termin (ledare och mer, som resten av planen).
+  "organizer/clubs/[clubId]/planning/terms/[termId]/archive": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(),
+    entryId: id(), sessionDate: "2027-01-12", startTime: null, withMoments: true, withPeople: true }) } },
+  "organizer/clubs/[clubId]/planning/terms/[termId]/copy": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, fromTermId: id() }) } },
   "organizer/clubs/[clubId]/planning/sessions": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(), termId: id(),
     sessionDate: "2027-01-12", startTime: "18:00", title: "Träning", place: "", note: "", clubMapId: null, trainingGroupId: null,
     responsibleAccountId: null, weekly: false }) } },
@@ -190,6 +194,7 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   "organizer/clubs/[clubId]/planning/sessions/[sessionId]/race": { POST: { allow: CLUB_LEADERS },
     // Kopplingen har en kropp; utan den svarar routen 400 innan behörigheten prövas (CI var röd sedan 2026-11-10).
     PUT: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, raceId: null }) } },
+  "organizer/clubs/[clubId]/planning/sessions/[sessionId]/people": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, entryId: id() }) } },
   "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks": { POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(),
     title: "Sätta ut kontroller", assignee: { kind: "NONE" } }) } },
   "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks/[taskId]": { DELETE: { allow: CLUB_LEADERS },

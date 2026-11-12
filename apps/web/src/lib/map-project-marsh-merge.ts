@@ -7,7 +7,12 @@ import polygonClipping, { type Polygon } from "polygon-clipping";
  * Här får varje plats en enda sankmark, i ordningen blött, marktäckets våta, fuktigt, marktäckets fasta: det som kommer
  * senare klipps mot det som redan finns. Skärvor under `MIN_PIECE_M2` tas bort.
  */
-const ORDER = ["blott", "sankmark_vat", "fuktigt", "sankmark_fast"] as const;
+const MARSH = ["blott", "sankmark_vat", "fuktigt", "sankmark_fast"] as const;
+/**
+ * Undervegetationens raster (407, 409) läggs ovanpå vit skog och gult, men får enligt normen inte kombineras med grönt
+ * (406, 408): de klipps mot det gröna, och 407 mot 409 så att rastren inte ligger dubbelt. Det gröna självt rörs inte.
+ */
+const UNDERGROWTH = ["gron_lattlopt", "hygge_ungskog", "undervegetation_svarlopt", "undervegetation_lattlopt"] as const;
 const MIN_PIECE_M2 = 40;
 
 type Ring = [number, number][];
@@ -33,10 +38,16 @@ type Box = ReturnType<typeof boxOf>;
 const touches = (a: Box, b: Box) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
 
 /** Grundkartans objekt med sankmarken utan överlapp. Annat än sankmarkens ytor lämnas orört och behåller sin ordning först. */
-export function singleMarsh(features: readonly SourceFeature[]): { features: SourceFeature[]; clipped: number; removed: number } {
-  const rank = (feature: SourceFeature) => ORDER.indexOf(feature.layer.toLowerCase() as typeof ORDER[number]);
+export const singleMarsh = (features: readonly SourceFeature[]) => withoutOverlap(features, MARSH);
+/** Grundkartans objekt med undervegetationen utanför det gröna och utan dubbla raster. */
+export const undergrowthOutsideGreen = (features: readonly SourceFeature[]) => withoutOverlap(features, UNDERGROWTH, 2);
+
+/** Lagren i `order` utan överlapp: ett senare lager klipps mot de tidigare. Lagren före `from` är bara hinder och klipps inte. */
+function withoutOverlap(features: readonly SourceFeature[], order: readonly string[], from = 0): { features: SourceFeature[]; clipped: number; removed: number } {
+  const ORDER = order;
+  const rank = (feature: SourceFeature) => ORDER.indexOf(feature.layer.toLowerCase());
   const marsh = features.map(feature => ({ feature, rank: rank(feature), polygon: rank(feature) >= 0 ? polygonOf(feature) : undefined })).filter(row => row.polygon);
-  if (new Set(marsh.map(row => row.rank)).size < 2) return { features: [...features], clipped: 0, removed: 0 };
+  if (new Set(marsh.map(row => row.rank)).size < 2 || !marsh.some(row => row.rank >= from)) return { features: [...features], clipped: 0, removed: 0 };
   const taken = new Set(marsh.map(row => row.feature));
   const kept: { polygon: Polygon; box: Box }[] = [];
   const out: SourceFeature[] = features.filter(feature => !taken.has(feature));
@@ -46,6 +57,7 @@ export function singleMarsh(features: readonly SourceFeature[]): { features: Sou
     for (const row of marsh) {
       if (row.rank !== level) continue;
       const polygon = row.polygon!, box = boxOf(polygon);
+      if (level < from) { out.push(row.feature); added.push({ polygon, box }); continue; }
       const over = kept.filter(other => touches(box, other.box)).map(other => other.polygon);
       if (over.length === 0) { out.push(row.feature); added.push({ polygon, box }); continue; }
       let pieces: Polygon[];

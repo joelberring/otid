@@ -4,7 +4,7 @@ import { joinSeams, type SourceData, type SourceFeature } from "@o-tid/map-revis
 import { withoutCutVegetation, type clearCutFeatures } from "./map-project-clear-cuts";
 import { smallRingsToPoints } from "./map-project-small-rings";
 import { yardsOf } from "./map-project-yards";
-import { singleMarsh } from "./map-project-marsh-merge";
+import { singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
 
 /**
  * Grundkartan G2 och G8 (ägaren 2026-11-10: «ungefär som en halvfärdig karta», utan grundkartefil: lasern, Lantmäteriets
@@ -89,7 +89,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   const all = [...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
-  const single = singleMarsh(all).features;
+  const single = undergrowthOutsideGreen(singleMarsh(all).features).features;
   return { features: [...single, ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

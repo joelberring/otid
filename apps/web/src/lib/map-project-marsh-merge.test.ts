@@ -1,6 +1,6 @@
 import type { SourceFeature } from "@o-tid/map-revision";
 import { describe, expect, it } from "vitest";
-import { singleMarsh } from "./map-project-marsh-merge";
+import { singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
 
 const square = (layer: string, x: number, y: number, size: number, area = false): SourceFeature => {
   const points: [number, number][] = [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
@@ -29,5 +29,16 @@ describe("grundkartans sankmark utan överlapp", () => {
   it("lämnar allt orört när bara ett slag finns", () => {
     const features = [square("fuktigt", 0, 0, 100), square("fuktigt", 50, 50, 100)];
     expect(singleMarsh(features).features).toEqual(features);
+  });
+});
+
+describe("undervegetationen mot det gröna", () => {
+  it("klipper rastret mot grönt och 407 mot 409, och lämnar det gröna", () => {
+    const green = square("gron_lattlopt", 0, 0, 50);
+    const result = undergrowthOutsideGreen([green, square("undervegetation_lattlopt", 0, 0, 100), square("undervegetation_svarlopt", 50, 50, 50)]);
+    const by = (layer: string) => result.features.filter(feature => feature.layer === layer);
+    expect(by("gron_lattlopt")).toEqual([green]);
+    expect(areaOf(by("undervegetation_svarlopt")[0]!)).toBe(2500);
+    expect(by("undervegetation_lattlopt").reduce((sum, feature) => sum + areaOf(feature), 0)).toBeCloseTo(5000);
   });
 });

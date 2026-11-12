@@ -16,10 +16,12 @@ export function courseClassRequestFrom(input: {
   rogaining?: { timeLimitMinutes: number; penaltyPoints: number } | undefined;
 }): CourseClassRequest {
   const course = input.courseName.trim();
-  const base = { formatVersion: 1 as const, requestId: input.requestId, courseName: course, controlCodes: input.controlCodes };
-  if (!courseGetsClass(input.raceType, input.className)) return base;
+  const head = { formatVersion: 1 as const, requestId: input.requestId, courseName: course };
+  if (!courseGetsClass(input.raceType, input.className)) return { ...head, controlCodes: input.controlCodes };
   const className = input.className.trim() || course;
+  // Nycklarnas ordning är kontraktets (courseName, className, startRule, controlCodes, rogaining): kvittot jämförs som text
+  // mot begäran (`course-preparation.ts`), så en annan ordning läses som att servern inte svarade.
   // ADR-0170: typer utan val av startsätt (Träning, Rogaining) har alltid fri start.
-  return { ...base, className, startRule: input.startRuleChoice ? input.startRule : "PUNCH",
+  return { ...head, className, startRule: input.startRuleChoice ? input.startRule : "PUNCH", controlCodes: input.controlCodes,
     ...(input.rogaining ? { rogaining: input.rogaining } : {}) };
 }

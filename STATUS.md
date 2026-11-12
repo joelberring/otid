@@ -41,6 +41,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   här: Playwright (`startsida.spec.ts` är uppdaterad). Kvar i block 1: okänd bricka (masstart, varning, variant).
 - Underlag och hela listan: projektdokumentet `utvecklingslista-2026-11-12` (användartestet).
 
+### 2026-11-12 – Användartestet 2026-11-12, block 2: fel som stoppar användaren
+- Import (EntryList/StartList) matchar handskapade klasser på namn (`import-class-match.ts`, Eventor-synkens regel);
+  saknade klasser avvisas med 422 `CLASSES_MISSING` i stället för 500. "Kan redan vara sparad" visas bara vid nätfel.
+- Inbjudan med obekräftad adress: sidan säger vad som saknas och erbjuder bekräftelsemejl; inbjudningslänken bekräftar
+  INTE adressen (bedömt osäkert, tillägg 2026-11-12 i ADR-0206). Nekad tävlingssida skiljer inte inloggad, utan behörighet
+  och obekräftad adress.
+- Fest: startfälten är tomma tills starten är sparad. Inloggning: tillbaka till sidan man var på (`safe-return.ts`).
+- Rutter: en GPX som inte täcker någon sträcka ger en upplysning med ruttens och loppets tider.
+- Verifierat: lint, typecheck, enhetstester och berörda integrationstester. Playwright körs i CI.
+
 ### 2026-11-11 – Hyggen från Skogsstyrelsen efter ålder, fyll, parallell och mätning
 - Skogsstyrelsens utförda avverkningar hämtas för grundkartans ruta och delas in efter ålder (färskt 403, sly 407, ungskog
   406, kant 416); laserns grönt tas bort i hyggen som är nyare än skanningen (skanningsdatum ur Lantmäteriets sökning).

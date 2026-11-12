@@ -161,6 +161,16 @@ describe("ADR-0171 karta och vägval", () => {
       .toEqual({ status: "problem", problem: "INVALID_GPX" });
     const saved = await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: anna, bytes: await gpx("anna"), fileName: "anna.gpx" });
     expect(saved).toMatchObject({ status: "ok", response: { entryId: anna, pointCount: 241, coveredLegs: 4, legs: 4 } });
+    // Användartestet 2026-11-12: en rutt från en annan dag täcker ingen sträcka; svaret har tiderna så att webben kan säga varför.
+    // Rutten sparas ändå (och ersätts nedan med den rätta).
+    const dayLater = new TextEncoder().encode(new TextDecoder().decode(await gpx("anna")).replace(/<time>([^<]+)<\/time>/g, (_match, time: string) =>
+      `<time>${new Date(Date.parse(time) + 86_400_000).toISOString()}</time>`));
+    const wrongDay = await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: anna, bytes: dayLater, fileName: "fel-dag.gpx" });
+    expect(wrongDay).toMatchObject({ status: "ok", response: { coveredLegs: 0, legs: 4, runStartsAt: new Date(START).toISOString() } });
+    if (wrongDay.status !== "ok") throw new Error("Rutten sparades inte");
+    expect(Date.parse(wrongDay.response.routeStartsAt!) - Date.parse(wrongDay.response.runStartsAt!)).toBe(86_400_000 - 300_000);
+    expect(Date.parse(wrongDay.response.runEndsAt!)).toBeGreaterThan(START);
+    await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: anna, bytes: await gpx("anna"), fileName: "anna.gpx" });
     await saveParticipantRouteAsAdmin(db, { ...f.proof, entryId: cia, bytes: await gpx("bo"), fileName: "cia.gpx" });
     state = await readRaceMapStateAsAdmin(db, f.proof);
     if (state.status !== "ok") throw new Error("Tillståndet saknas");
@@ -224,7 +234,8 @@ describe("ADR-0171 karta och vägval", () => {
     expect(await readPublicRouteIndex(db, f.raceId)).toEqual({ legs: {} });
     const audit = await pool.query<{ action: string }>("select action from audit_event where race_id = $1 and entity_type = 'race_map' order by created_at",
       [f.raceId]);
+    // Annas rutt sparas tre gånger (rätt, fel dag, rätt igen), Cias en gång.
     expect(audit.rows.map(row => row.action)).toEqual(["RACE_MAP_SAVED", "RACE_MAP_GEOREFERENCED", "PARTICIPANT_ROUTE_SAVED",
-      "PARTICIPANT_ROUTE_SAVED", "PARTICIPANT_ROUTE_REMOVED", "RACE_MAP_SAVED"]);
+      "PARTICIPANT_ROUTE_SAVED", "PARTICIPANT_ROUTE_SAVED", "PARTICIPANT_ROUTE_SAVED", "PARTICIPANT_ROUTE_REMOVED", "RACE_MAP_SAVED"]);
   });
 });

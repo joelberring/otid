@@ -51,7 +51,9 @@ export const adminRaceMapStateSchema = z.object({
 }).strict();
 
 export const participantRouteUploadResponseSchema = z.object({
-  formatVersion: z.literal(1), raceId: uuid, entryId: uuid, pointCount: count, coveredLegs: count, legs: count
+  formatVersion: z.literal(1), raceId: uuid, entryId: uuid, pointCount: count, coveredLegs: count, legs: count,
+  /** Användartestet 2026-11-12: ruttens första och sista tid, och löparens lopp (start till mål) när det finns. */
+  routeStartsAt: instant.optional(), routeEndsAt: instant.optional(), runStartsAt: instant.optional(), runEndsAt: instant.optional()
 }).strict();
 
 /** Begripliga fel vid uppladdning och georeferens (HTTP 422). */

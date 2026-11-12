@@ -208,8 +208,12 @@ export async function saveParticipantRouteAsAdmin(db: Database,
       pointCount: values.pointCount });
     const timing = (await publicResultTimings(tx, input.raceId, { includeRelay: true })).find(row => row.entryId === input.entryId);
     const { coveredLegs, legs } = coverage(points, timing);
+    // Användartestet 2026-11-12: tiderna, så att webben kan säga varför en rutt inte täcker någon sträcka.
+    const run = timing?.startMs != null ? { runStartsAt: iso(new Date(timing.startMs)),
+      ...(timing.elapsedMs != null ? { runEndsAt: iso(new Date(timing.startMs + timing.elapsedMs)) } : {}) } : {};
     return { status: "ok" as const, response: participantRouteUploadResponseSchema.parse({ formatVersion: 1, raceId: input.raceId,
-      entryId: input.entryId, pointCount: points.length, coveredLegs, legs }) };
+      entryId: input.entryId, pointCount: points.length, coveredLegs, legs, routeStartsAt: iso(values.startsAt), routeEndsAt: iso(values.endsAt),
+      ...run }) };
   });
 }
 

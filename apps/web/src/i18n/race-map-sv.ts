@@ -102,6 +102,11 @@ export const raceMapSv = {
     saved: (name: string, covered: number, legs: number) => legs === 0
       ? `Rutten för ${name} är sparad. Den kopplas till sträckorna när löparen har ett resultat.`
       : `Rutten för ${name} är sparad och täcker ${covered} av ${legs} sträckor.`,
+    // Användartestet 2026-11-12: en rutt som inte täcker någon sträcka sparas, men med en tydlig upplysning.
+    coversNothing: (name: string, route: string | undefined, run: string | undefined) =>
+      `Rutten för ${name} är sparad men täcker ingen sträcka. Kontrollera att filen är från rätt dag och att klockans tid stämmer` +
+      (route && run ? `: rutten går ${route}, löparens lopp ${run}.` : route ? `: rutten går ${route}.` : "."),
+    coversNothingMark: "täcker ingen sträcka – fel dag eller klocka?",
     chooseBoth: "Välj löpare och GPX-fil.",
     invalid: "Filen är ingen GPX-rutt som går att läsa.",
     noTimes: "Rutten saknar tider. Ladda upp GPX-filen från klockan eller appen, inte en ritad rutt.",

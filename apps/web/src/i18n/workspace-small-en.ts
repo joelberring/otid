@@ -694,6 +694,10 @@ export const raceMapEn: Texts<typeof raceMapSv> = {
     saved: (name, covered, legs) => legs === 0
       ? `The route for ${name} is saved. It is linked to the legs when the runner has a result.`
       : `The route for ${name} is saved and covers ${covered} of ${legs} legs.`,
+    coversNothing: (name, route, run) =>
+      `The route for ${name} is saved but covers no leg. Check that the file is from the right day and that the watch's time is correct` +
+      (route && run ? `: the route runs ${route}, the runner's race ${run}.` : route ? `: the route runs ${route}.` : "."),
+    coversNothingMark: "covers no leg – wrong day or clock?",
     chooseBoth: "Choose runner and GPX file.",
     invalid: "The file is not a GPX route that can be read.",
     noTimes: "The route has no times. Upload the GPX file from the watch or the app, not a drawn route.",

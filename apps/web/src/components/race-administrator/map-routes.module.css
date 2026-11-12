@@ -33,6 +33,7 @@
 .table thead th { color: var(--muted); font-family: var(--font-dense); font-size: var(--text-xs); font-weight: 600; }
 .table tbody th { color: var(--ink); font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 600; }
 .num { font-family: var(--font-dense); white-space: nowrap; }
+.warning { display: block; font-weight: 600; color: var(--attention); white-space: normal; }
 .hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @media (max-width: 760px) {

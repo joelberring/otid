@@ -14,6 +14,8 @@ import { RaceMapAgreementNotice } from "../training-group/race-map-agreement";
 import type { Message } from "./source-sync-actions";
 import styles from "./map-routes.module.css";
 import type { Workspace } from "./workspace-state";
+import { SWEDISH_TIME_ZONE } from "@o-tid/domain";
+import { routeCoversNothing, timeSpan } from "../../lib/route-coverage";
 
 
 async function problemOf(response: Response): Promise<{ error: RaceMapProblem; quota?: RaceMapQuotaProblem | undefined } | undefined> {
@@ -80,7 +82,7 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
       else next = await done(response);
     } catch { if (current(op)) next = { tone: "error", text: failed }; } finally { finish(op); }
     if (next) setMessage(next);
-    if (next?.tone === "ok") await load(true);
+    if (next && next.tone !== "error") await load(true);
   }
 
   async function uploadMap() {
@@ -127,6 +129,12 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
       const saved = participantRouteUploadResponseSchema.parse(await response.json());
       if (routeFile.current) routeFile.current.value = "";
       setRunner("");
+      // Användartestet 2026-11-12: en rutt som inte täcker någon sträcka sparas, men beskedet säger det och varför.
+      if (routeCoversNothing(saved)) {
+        const timeZone = ws.data?.timeZone ?? SWEDISH_TIME_ZONE;
+        return { tone: "attention", text: text.routes.coversNothing(chosen.name, timeSpan(saved.routeStartsAt, saved.routeEndsAt, timeZone),
+          timeSpan(saved.runStartsAt, saved.runEndsAt, timeZone)) };
+      }
       return { tone: "ok", text: text.routes.saved(chosen.name, saved.coveredLegs, saved.legs) };
     }, { INVALID_GPX: text.routes.invalid, ROUTE_WITHOUT_TIMES: text.routes.noTimes, NOT_INDIVIDUAL: text.routes.notIndividual }, text.routes.failed);
   }
@@ -184,9 +192,11 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
                 <th scope="col"><span className={styles.hidden}>{text.routes.columns.actions}</span></th></tr></thead>
               <tbody>{state.routes.map(route => {
                 const who = names.get(route.entryId);
-                return <tr key={route.entryId}>
+                const nothing = routeCoversNothing(route);
+                return <tr key={route.entryId} data-covers-nothing={nothing ? "true" : undefined}>
                   <th scope="row">{who?.name ?? ""}</th><td>{who?.className ?? ""}</td><td className={styles.wide}>{route.fileName}</td>
-                  <td className={styles.num}>{text.routes.covered(route.coveredLegs, route.legs)}</td>
+                  <td className={styles.num}>{text.routes.covered(route.coveredLegs, route.legs)}
+                    {nothing && <span className={styles.warning}>{" △ "}{text.routes.coversNothingMark}</span>}</td>
                   <td><Button variant="quiet" disabled={busy} aria-label={text.routes.removeLabel(who?.name ?? "")}
                     onClick={() => void write("/routes", { method: "DELETE", headers: { "x-otid-entry-id": route.entryId } },
                       async () => ({ tone: "ok", text: text.routes.removed }), {}, text.routes.failed)}>{text.routes.remove}</Button></td>

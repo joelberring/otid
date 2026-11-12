@@ -88,6 +88,14 @@ export const forkingSv = {
     `Bortval i banläggningen som inte längre stämmer med någon variant: ${codes.join(", ")}. De gäller inte efter ändringen; ` +
     "välj bort på nytt i banläggningen om det behövs.",
   saved: (recalculated: number) => recalculated === 0 ? "Gafflingarna är sparade." : `Gafflingarna är sparade. ${recalculated} resultat räknades om.`,
+  // ADR-0175, tillägg 2026-11-12 (b): bokstäverna står kvar; löparna vars kod byts visas med namn, före och efter.
+  lettersKept: "Bokstäverna står kvar på sina alternativ när ett annat tas bort (t.ex. A, C), så att tryckta kartor stämmer. Ett nytt alternativ får en bokstav som inte har använts.",
+  entryChangesTitle: "Löpare som byter variant",
+  entryChange: (name: string, className: string, leg: number | undefined, before: string, after: string | null, newControls: boolean, saved: boolean) =>
+    `${name} · ${className}${leg === undefined ? "" : ` · sträcka ${leg}`}: ${before} → ` +
+    (after !== null ? after : saved ? "utan variant (välj i lagvyn)" : leg === undefined ? "ny variant vid sparandet" : "utan variant (välj i lagvyn)") +
+    (newControls ? " · ny karta behövs" : " · samma kontroller"),
+  savedChanges: (rows: readonly string[]) => rows.length === 0 ? "" : ` Byter variant (ny karta där det står): ${rows.join("; ")}.`,
   problem: (problem: ForkingProblem) => {
     switch (problem.kind) {
       case "EMPTY_COURSE": return "Banan behöver minst en kontroll.";
@@ -97,6 +105,7 @@ export const forkingSv = {
       case "SAME_BRANCHES": return "Två alternativ har samma kontroller.";
       case "LOOP_CONTAINS_CENTER": return "En slinga får inte innehålla fjärilens mittkontroll.";
       case "TOO_MANY_LETTERS": return "Banan har för många alternativ (högst 26 bokstäver).";
+      case "INVALID_LETTERS": return "Alternativens bokstäver stämmer inte (en bokstav A–Z per alternativ, ingen två gånger).";
       case "TOO_MANY_VARIANTS": return `Banan ger ${problem.count} varianter; högst 100 går.`;
     }
   },

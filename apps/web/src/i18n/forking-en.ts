@@ -84,6 +84,13 @@ export const forkingEn: Texts<typeof forkingSv> = {
     `Choices to leave out in course setting that no longer match any variant: ${codes.join(", ")}. They no longer apply after the change; ` +
     "leave them out again in course setting if needed.",
   saved: (recalculated: number) => recalculated === 0 ? "The forks are saved." : `The forks are saved. ${count(recalculated, "result was", "results were")} recalculated.`,
+  lettersKept: "Letters stay on their options when another one is removed (e.g. A, C), so printed maps still match. A new option gets a letter that has not been used.",
+  entryChangesTitle: "Runners who change variant",
+  entryChange: (name: string, className: string, leg: number | undefined, before: string, after: string | null, newControls: boolean, saved: boolean) =>
+    `${name} · ${className}${leg === undefined ? "" : ` · leg ${leg}`}: ${before} → ` +
+    (after !== null ? after : saved ? "no variant (choose in the team view)" : leg === undefined ? "new variant when saved" : "no variant (choose in the team view)") +
+    (newControls ? " · needs a new map" : " · same controls"),
+  savedChanges: (rows: readonly string[]) => rows.length === 0 ? "" : ` Changing variant (new map where stated): ${rows.join("; ")}.`,
   problem: (problem: ForkingProblem) => {
     switch (problem.kind) {
       case "EMPTY_COURSE": return "The course needs at least one control.";
@@ -93,6 +100,7 @@ export const forkingEn: Texts<typeof forkingSv> = {
       case "SAME_BRANCHES": return "Two options have the same controls.";
       case "LOOP_CONTAINS_CENTER": return "A loop cannot contain the butterfly's centre control.";
       case "TOO_MANY_LETTERS": return "The course has too many options (at most 26 letters).";
+      case "INVALID_LETTERS": return "The option letters do not match (one letter A–Z per option, none used twice).";
       case "TOO_MANY_VARIANTS": return `The course gives ${problem.count} variants; at most 100 are allowed.`;
     }
   },

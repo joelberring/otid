@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
 import type { CourseEditListResponse, CourseForkingItem } from "@o-tid/contracts";
-import { courseForkingFairness, forkingLetters, generateForkingVariants, validateCourseForking } from "@o-tid/domain";
+import { courseForkingFairness, forkingLetters, generateForkingVariants, validateCourseForking, type CourseForking } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import type { DiagramTarget } from "../../lib/forking-diagram";
@@ -34,12 +34,19 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
   const [codeError, setCodeError] = useState("");
   // Fältens text per alternativ ("item.branch"), så att en halvskriven kod står kvar medan man skriver.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const letters = useMemo(() => forkingLetters({ items }), [items]);
-  const problems = useMemo(() => validateCourseForking({ items }), [items]);
-  const generated = useMemo(() => problems.length === 0 ? generateForkingVariants({ items }) : [], [items, problems]);
+  // ADR-0175, tillägg 2026-11-12 (b): bokstäver som tagits bort (förut eller nu) delas inte ut till ett nytt alternativ,
+  // samma regel som servern (`withAssignedForkingLetters`), så att varianterna här blir de som sparas.
+  const draft = useMemo((): CourseForking => {
+    const kept = new Set(items.flatMap(item => item.kind === "CONTROL" ? [] : (item.letters ?? []).filter((letter): letter is string => letter !== null)));
+    const before = course.forking ? forkingLetters({ items: course.forking.items, retiredLetters: course.forking.retiredLetters }).flatMap(own => own ?? []) : [];
+    return { items, retiredLetters: [...new Set([...(course.forking?.retiredLetters ?? []), ...before])].filter(letter => !kept.has(letter)) };
+  }, [items, course.forking]);
+  const letters = useMemo(() => forkingLetters(draft), [draft]);
+  const problems = useMemo(() => validateCourseForking(draft), [draft]);
+  const generated = useMemo(() => problems.length === 0 ? generateForkingVariants(draft) : [], [draft, problems]);
   // Användartestet 2026-11-12: varningen följer gafflingssättet som valts här, också före första sparandet.
   const fairness = useMemo(() => generated.length > 1 ? courseForkingFairness({ mode,
-    variants: generated, forking: { items } }) : undefined, [generated, items, mode]);
+    variants: generated, forking: draft }) : undefined, [generated, draft, mode]);
   const modeId = `forking-edit-mode-${course.courseId}`;
   /** Bara gafflingssättet är ändrat (samma sparade struktur): sparas direkt och redigeringen stängs. */
   const onlyMode = courseEditForkingOriginal !== "" && JSON.stringify(items) === courseEditForkingOriginal && mode !== (course.forkingMode ?? "BALANCED");
@@ -59,8 +66,9 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
     change(next);
   };
   const branchesOf = (item: CourseForkingItem) => item.kind === "FORK" ? item.branches : item.kind === "LOOP" ? item.loops : [];
-  const withBranches = (item: CourseForkingItem, branches: number[][]): CourseForkingItem =>
-    item.kind === "FORK" ? { ...item, branches } : item.kind === "LOOP" ? { ...item, loops: branches } : item;
+  /** Alternativen med sina bokstäver (ett borttaget tar med sig sin bokstav, ett nytt får null = nästa lediga). */
+  const withBranches = (item: CourseForkingItem, branches: number[][], own = item.kind === "CONTROL" ? undefined : item.letters): CourseForkingItem =>
+    item.kind === "FORK" ? { ...item, branches, letters: own } : item.kind === "LOOP" ? { ...item, loops: branches, letters: own } : item;
   const setBranch = (index: number, branch: number, value: string) => {
     const item = items[index]!;
     setDrafts({ ...drafts, [`${index}.${branch}`]: value });
@@ -81,7 +89,7 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
   return <form className={styles.editor} aria-label={forking.editorTitle(course.name)} noValidate
     onSubmit={event => { event.preventDefault(); void submit(); }}>
     <h3>{forking.editorTitle(course.name)}</h3>
-    <p className={styles.workflowHelp}>{forking.editorHelp}</p>
+    <p className={styles.workflowHelp}>{forking.editorHelp} {forking.lettersKept}</p>
     <div className={styles.forkingTools}>
       <label htmlFor={modeId}>{forking.mode}
         <select id={modeId} value={mode} disabled={locked} data-testid="forking-edit-mode"
@@ -140,13 +148,14 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
               <input inputMode="numeric" autoComplete="off" disabled={locked} maxLength={4000} autoFocus={focus}
                 value={drafts[`${index}.${branch}`] ?? codes.join(" ")} onChange={event => setBranch(index, branch, event.target.value)} /></Field>
             {branches.length > 2 && <Button variant="quiet" disabled={locked} aria-label={`${forking.removeBranch(letter)} (${legend})`}
-              onClick={() => replace(index, withBranches(item, branches.filter((_codes, position) => position !== branch).map(list => [...list])))}>
+              onClick={() => replace(index, withBranches(item, branches.filter((_codes, position) => position !== branch).map(list => [...list]),
+                item.letters?.filter((_letter, position) => position !== branch)))}>
               {forking.removeBranch(letter)}</Button>}
           </div>;
         })}</div>
         <div className={styles.actions}>
           {branches.length < 4 && <Button variant="secondary" disabled={locked}
-            onClick={() => replace(index, withBranches(item, [...branches.map(list => [...list]), []]))}>{loop ? forking.addLoopBranch : forking.addBranch}</Button>}
+            onClick={() => replace(index, withBranches(item, [...branches.map(list => [...list]), []], item.letters && [...item.letters, null]))}>{loop ? forking.addLoopBranch : forking.addBranch}</Button>}
           <Button variant="quiet" disabled={locked} onClick={() => replace(index, loop ? { kind: "CONTROL", code: item.center } : null)}>
             {loop ? forking.removeLoop : forking.removeFork}</Button>
         </div>
@@ -167,6 +176,11 @@ export function ForkingEditor({ ws, course }: { ws: Workspace; course: CourseRow
       {preview.forking && <p>{forking.previewForking(preview.forking.variants.length, preview.forking.removedCodes.length,
         preview.forking.renamedEntryCount, preview.forking.reassignedEntryCount)}</p>}
       {preview.forking?.changedCodes && <p data-testid="forking-changed">{forking.previewChanged(preview.forking.changedCodes)}</p>}
+      {preview.forking?.entryChanges && <>
+        <h4>{forking.entryChangesTitle}</h4>
+        <ul className={styles.changeList} data-testid="forking-entry-changes">{preview.forking.entryChanges.map(row => <li key={row.entryId}>
+          {forking.entryChange(row.displayName, row.className, row.leg, row.before, row.after, row.newControls, false)}</li>)}</ul>
+      </>}
       {preview.forking?.excludedCodes && <p data-testid="forking-excluded">{forking.previewExcluded(preview.forking.excludedCodes)}</p>}
       {preview.forking?.staleExcludedCodes && <Notice tone="attention" role="status"><span data-testid="forking-stale-excluded">
         {forking.previewStaleExcluded(preview.forking.staleExcludedCodes)}</span></Notice>}

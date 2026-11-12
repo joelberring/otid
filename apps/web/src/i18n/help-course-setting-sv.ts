@@ -155,6 +155,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "”Varianter” i listan och väljaren överst visar varje variant med antal kontroller och längd."
       ],
       "Varianterna följer med när banorna förs över till tävlingen. En poängbana kan inte gafflas.",
+      "Bokstäverna delas ut i följd som i Purple Pen och flyttar när en gren mitt i tas bort, så efter tryck tar du hellre bort grenen i tävlingens ”Redigera gafflingar” där de står kvar (en ny överföring ger banläggningens bokstäver igen).",
       "Blir det för många varianter, eller vissa för långa? Se [Färre varianter](#varianter)."
     ]
   },

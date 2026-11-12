@@ -76,7 +76,10 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
             : <span className={styles.muted}>–</span>}</td>
           <td className={styles.controlCodes} data-label={text.courseEditControlsColumn}>{forked && variants ? <span className={styles.muted}>{forking.variantsBelow(course.variants.length)}</span>
             : course.controlCodes.join(" ")}</td>
-          <td data-label={text.courseEditClasses}>{course.classes.length === 0 ? <span className={styles.muted}>{text.courseEditNoClasses}</span> : course.classes.map(raceClass =>
+          <td data-label={text.courseEditClasses}>{course.classes.length === 0 ? profile.features.relay ? <span className={styles.muted}>{text.courseEditNoClasses}</span>
+            // Användartest 2026-11-12: en bana utan klass går inte att välja vid anmälan; säg det och erbjud Ny klass.
+            : <span>{text.courseNoClassNotice} <button type="button" className={styles.inlineLink} disabled={workflowLocked}
+              onClick={() => ws.openNewClass(course.courseVersionId)}>{text.courseAddClass}</button></span> : course.classes.map(raceClass =>
             <button key={raceClass.classId} type="button" className={styles.inlineLink} disabled={workflowLocked}
               onClick={() => openAssignedClass(raceClass.classId)}>{raceClass.name}</button>)}</td>
           <td className={numeric} data-label={text.courseEditEntries}>{course.entryCount}</td>

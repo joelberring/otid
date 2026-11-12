@@ -17,6 +17,7 @@ import { Button, Field, Notice } from "../ui";
 import { CourseTable } from "./course-table";
 import { CourseFileSection } from "./course-file-section";
 import type { CourseClassRequest } from "./types";
+import { courseGetsClass } from "./course-class-request";
 import type { Workspace } from "./workspace-state";
 
 /**
@@ -54,18 +55,21 @@ export function CourseClassForm({ ws }: { ws: Workspace }) {
   const locked = !!courseClassAttempt || saving;
   const clear = (field: keyof typeof courseClassErrors) => { if (courseClassErrors[field]) setCourseClassErrors({ ...courseClassErrors, [field]: undefined }); };
   const id = `course-class-${raceId}`;
-  const withClass = courseClassName.trim() !== "";
+  // Träning: banan får alltid en klass; tomt klassnamn ger banans namn (användartest 2026-11-12).
+  const training = ws.data?.raceType === "TRAINING";
+  const withClass = courseGetsClass(ws.data?.raceType, courseClassName);
   return <form ref={courseForm} className={styles.inlineForm} aria-labelledby={`${id}-title`} noValidate onSubmit={saveCourseClass}>
     <div className={styles.inlineFormHead}>
       <h3 id={`${id}-title`}>{rogaining ? rogainingText.newCourseTitle : text.courseClassTitle}</h3>
       <Button variant="quiet" disabled={locked} onClick={() => { setCourseFormOpen(false); setCourseClassErrors({}); }}>
         {text.courseClassClose}</Button>
     </div>
-    <p className={styles.workflowHelp}>{rogaining ? rogainingText.newCourseHelp : text.courseClassHelp}</p>
+    <p className={styles.workflowHelp}>{rogaining ? rogainingText.newCourseHelp : training ? text.courseClassHelpTraining : text.courseClassHelp}</p>
     <div className={`${styles.fieldRow} ${styles.fieldRowTop}`}>
       <Field label={text.courseName} error={courseClassErrors.courseName}><input value={courseName} maxLength={160} disabled={locked}
         autoComplete="off" onChange={event => { setCourseName(event.target.value); clear("courseName"); }} /></Field>
-      <Field label={text.courseClassName} error={courseClassErrors.className}><input value={courseClassName} maxLength={160} disabled={locked}
+      <Field label={training ? text.courseClassNameTraining : text.courseClassName}
+        help={training ? text.courseClassNameTrainingHelp : undefined} error={courseClassErrors.className}><input value={courseClassName} maxLength={160} disabled={locked}
         autoComplete="off" onChange={event => { setCourseClassName(event.target.value); clear("className"); }} /></Field>
       {withClass && profile.features.startRuleChoice && <Field label={text.courseStartRule}
         help={startRule.details[courseStartRule]}><select value={courseStartRule} disabled={locked}

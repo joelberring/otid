@@ -7,6 +7,7 @@ import { isDuplicateName } from "../../lib/duplicate-name";
 import { hasErrors, validateCourseClass, type FieldErrors } from "../../lib/form-validation";
 import { focusFirstError, focusWhenEnabled } from "../ui";
 import { parseControlCodes, type CourseClassAttempt, type CourseClassRequest } from "./types";
+import { courseClassRequestFrom } from "./course-class-request";
 import type { Base } from "./workspace-state";
 import type { RaceDataActions } from "./race-data";
 
@@ -48,17 +49,12 @@ export function createCoursePreparationActions(ws: Base & RaceDataActions) {
       rogaining: rogaining ? { timeLimit: courseTimeLimit, penalty: coursePenalty } : undefined }, ws.formErrorText);
     setCourseClassErrors(errors);
     if (hasErrors(errors)) { focusFirstError(courseForm.current); return; }
-    const course = courseName.trim(), raceClass = courseClassName.trim();
     const codes = parseControlCodes(courseControls)!;
     if (!data) { setCourseClassError(text.courseClassUnavailable); return; }
     const limit = Number(courseTimeLimit.trim()), penalty = Number(coursePenalty.trim());
-    // Steg 55: utan klassnamn sparas bara banan; startsättet och rogainingens regler gäller klassen och skickas inte.
-    const request: CourseClassRequest = raceClass === ""
-      ? { formatVersion: 1, requestId: crypto.randomUUID(), courseName: course, controlCodes: codes }
-      : { formatVersion: 1, requestId: crypto.randomUUID(), courseName: course, className: raceClass,
-        // ADR-0170: typer utan val av startsätt (Träning, Rogaining) har alltid fri start.
-        startRule: ws.profile.features.startRuleChoice ? courseStartRule : "PUNCH", controlCodes: codes,
-        ...(rogaining ? { rogaining: { timeLimitMinutes: limit, penaltyPoints: penalty } } : {}) };
+    const request = courseClassRequestFrom({ requestId: crypto.randomUUID(), raceType: data.raceType, courseName,
+      className: courseClassName, controlCodes: codes, startRuleChoice: ws.profile.features.startRuleChoice, startRule: courseStartRule,
+      rogaining: rogaining ? { timeLimitMinutes: limit, penaltyPoints: penalty } : undefined });
     const value = { kind: "COURSE_CLASS" as const, request };
     setMessage("");
     pending.current = value; sent.current = false; setCourseClassAttempt(value); void submitCourseClass(value);

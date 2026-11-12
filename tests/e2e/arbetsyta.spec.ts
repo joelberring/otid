@@ -54,6 +54,9 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   // Etappen är valfri. "Skapa tävling" leder direkt in i arbetsytan.
   await create.getByLabel("Tävlingens namn").fill(`Arbetsyta ${suffix}`);
   await create.getByLabel("Datum").fill(today());
+  // Användartest 2026-11-12: Träning är förvald; det här flödet gäller Tävling (Banor, Klasser och startsätt).
+  await expect(create.getByRole("radio", { name: "Träning", exact: true })).toBeChecked();
+  await create.getByRole("radio", { name: "Tävling", exact: true }).check();
   await create.getByRole("button", { name: "Skapa tävling" }).click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   const raceId = owner.url().split("/").at(-2)!;

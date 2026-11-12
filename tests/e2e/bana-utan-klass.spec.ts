@@ -59,10 +59,11 @@ test("en bana utan klass sparas och får sedan en klass under Klasser", async ({
   await expect(row).toContainText("31 32 33");
   await expect(form.getByLabel("Bannamn")).toHaveValue("");
 
-  // Klassen läggs till på banan under Klasser.
-  await openStep(owner, "Klasser");
-  await owner.getByRole("button", { name: "Ny klass" }).click();
+  // Användartest 2026-11-12: raden säger att ingen klass springer banan och öppnar Ny klass under Klasser med banan förvald.
+  await expect(row).toContainText("Ingen klass springer banan än.");
+  await row.getByRole("button", { name: "Lägg till en klass" }).click();
   const classForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara klass" }) });
+  await expect(classForm.getByRole("combobox", { name: "Bana", exact: true })).toHaveValue(/.+/);
   await classForm.getByLabel("Nytt klassnamn").fill("Öppen");
   await classForm.getByRole("combobox", { name: "Bana", exact: true }).selectOption({ label: "Sprintslinga" });
   await classForm.getByRole("button", { name: "Spara klass" }).click();

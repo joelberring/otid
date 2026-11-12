@@ -114,6 +114,10 @@ export const raceAdministratorSv = {
   courseClassHelp: "Skriv kontrollerna i ordning. Fyll i ett klassnamn om du vill skapa en klass som springer banan direkt.",
   courseEmptyHelp: "Lägg till den första banan med kontrollerna i ordning, eller läs in en banfil från banläggningsprogrammet.",
   courseName: "Bannamn", courseClassName: "Klassnamn (valfritt)", courseStartRule: rule.label,
+  // Träning: banan får alltid en klass (användartest 2026-11-12).
+  courseClassNameTraining: "Klassnamn", courseClassNameTrainingHelp: "Tomt = klassen får banans namn.",
+  courseClassHelpTraining: "Skriv kontrollerna i ordning. Banan får en klass som löparna väljer när de anmäler sig.",
+  courseNoClassNotice: "Ingen klass springer banan än.", courseAddClass: "Lägg till en klass",
   courseFreeStart: rule.rules.PUNCH, courseFixedStart: rule.rules.FIXED,
   courseControls: "Kontrollföljd", courseControlsHelp: "Skriv koder med komma eller blanksteg, till exempel 31, 32, 33. Ordningen bevaras; dubbletter tillåts.",
   courseClassUnavailable: "Tävlingen är inte inläst. Ladda om sidan och försök igen.",

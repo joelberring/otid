@@ -54,7 +54,7 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
     loadRaceDayAttention, setSelectedClassId, setStep, setQuery, setPage, setRosterClassId, setOlderResultsOnly,
     setRentalCardsOnly, setResultState, setMissingFixedStartOnly, setCapacityClassId,
     setCapacityInput, setMessage, setPrintTarget, setRelayMessage, setNavigationBlocked, setEditingCourseId, setEditingClassId,
-    setCourseEditError, setClassEditError } = ws;
+    setCourseEditError, setClassEditError, setManualClassCourseVersionId, setManualClassOpen, setManualClassErrors, manualClassForm } = ws;
   /**
    * Byter steg. Sidopanelen är aldrig låst; bara när något inte är sparat (ett beslut som väntar, en granskning eller
    * en ändrad rad) stannar man kvar och får beskedet. En öppen rad utan ändring stängs.
@@ -91,11 +91,19 @@ export function createWorkflowNavigation(ws: Base & MobileNavigation & DuringRac
     setMessage("");
     flushSync(() => { setSelectedClassId(classId); setStep(sectionForPanel(profile, "CLASSES")?.id ?? "CLASSES"); });
   }
+  /** Användartest 2026-11-12: "Lägg till en klass" vid en bana utan klass öppnar Ny klass med banan förvald. */
+  function openNewClass(courseVersionId: string) {
+    if (workflowLocked || navigationLocked) return;
+    setManualClassCourseVersionId(courseVersionId); setManualClassErrors({});
+    const target = sectionForPanel(profile, "CLASSES")?.id ?? "CLASSES";
+    flushSync(() => { setManualClassOpen(true); if (target !== ws.step) navigateStep(target); });
+    manualClassForm.current?.querySelector("input")?.focus();
+  }
   function printPrivate(target: "FOREST" | "RENTAL") {
     if (writingRef.current || pending.current || !requireSession() ||
       (target === "FOREST" ? !forestData : !data || rentalEntries.length === 0)) return;
     flushSync(() => setPrintTarget(target));
     window.print();
   }
-  return { navigateStep, mayLeave, openMissingFixedStart, openAssignedClass, printPrivate };
+  return { navigateStep, mayLeave, openMissingFixedStart, openAssignedClass, openNewClass, printPrivate };
 }

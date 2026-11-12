@@ -76,7 +76,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     title: "Courses",
     views: ["COURSES"],
     body: [
-      "Add a course with ”New course”. Write ”Course name” and the controls in order and press ”Save course”. Fill in ”Class name (optional)” if a class should run the course straight away; the button is then called ”Save course and class”. Otherwise add the class under Classes.",
+      "Add a course with ”New course”. Write ”Course name” and the controls in order and press ”Save course”. Fill in ”Class name (optional)” if a class should run the course straight away; the button is then called ”Save course and class”. Otherwise add the class under Classes. In Training the course always gets a class: an empty class name gives the class the course name.",
       [
         "Course file from Purple Pen, OCAD or Condes: export the courses as IOF XML 3.0 and choose ”Import course file”. You see the differences first.",
         "”Edit”: correct a course, even after runners have read out. Press ”Show what happens” and ”Save the change”. Results are recalculated.",

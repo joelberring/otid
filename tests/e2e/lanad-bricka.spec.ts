@@ -3,7 +3,7 @@ import { addCourseAndClass, addEntry, createRace, openStep, registerAccount, rev
 
 /**
  * Steg 31 (B4): samma bricka hos två löpare. Ada läser ut; sedan springer Bo med Adas bricka. Den andra avläsningen skriver
- * inte över Adas resultat utan blir en okänd bricka "redan avläst för Ada Först", och kopplas i kontrollvyn till Bo.
+ * inte över Adas resultat utan blir en okänd bricka som "har redan resultat för Ada Först", och kopplas i kontrollvyn till Bo.
  */
 test("lånad bricka: den andra avläsningen skriver inte över den förstes resultat", async ({ browser }) => {
   test.setTimeout(240_000);
@@ -24,7 +24,9 @@ test("lånad bricka: den andra avläsningen skriver inte över den förstes resu
   const control = owner.getByRole("region", { name: "Tävlingsdagens kontrollvy" });
   const unknownCards = control.getByRole("region", { name: /Okända brickor/ });
   await expect(unknownCards.getByRole("heading")).toContainText("1");
-  await expect(unknownCards.getByTestId("unknown-already-read")).toContainText("Brickan har redan lästs ut för Ada Först");
+  // Användartestet 2026-11-12: raden och beskedet säger att brickan redan har ett resultat, som i avläsningsvyn.
+  await expect(unknownCards.getByLabel("Välj avläsning").locator("option").first()).toContainText("har redan resultat för Ada Först");
+  await expect(unknownCards.getByTestId("unknown-already-read")).toContainText("Brickan har redan ett resultat för Ada Först. Är det samma löpare");
   await unknownCards.getByLabel("Koppla till").selectOption("EXISTING_ENTRY");
   const entry = unknownCards.locator("label", { hasText: /^Deltagare/ }).locator("select");
   await entry.selectOption(await entry.locator("option", { hasText: "Sen, Bo" }).getAttribute("value"));

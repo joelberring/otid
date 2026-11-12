@@ -26,9 +26,14 @@ function serverStatus(item: QueuedReadout | undefined, registration: QueuedRegis
   if (status !== "UNKNOWN_CARD" || !registration || registration.status === "rejected") return status;
   return registration.response?.linkedResult?.status;
 }
-export function Verdict({ current, verdict, item, qr, registration, timeZone, online }: { current: Current | undefined; verdict: LocalVerdict | undefined;
+export function Verdict({ current, verdict, item, qr, registration, timeZone, online, borrowed }: { current: Current | undefined; verdict: LocalVerdict | undefined;
   item: QueuedReadout | undefined; qr: ReturnType<typeof receiptLink> | undefined; registration: QueuedRegistration | undefined;
-  timeZone: string; online: boolean }) {
+  timeZone: string; online: boolean;
+  /**
+   * Användartestet 2026-11-12: avläsningen är en ny löpning på en bricka som redan har ett resultat (lånad bricka?). Beskedet
+   * säger vems resultat och frågar, i stället för "inte kopplad" bredvid den förstes namn; reglerna är oförändrade.
+   */
+  borrowed?: { readonly name: string; readonly className: string } | undefined }) {
   const t = useTexts(readoutText, readoutTextEn);
   if (!current) return <p className="big">{t.waitingForCard}</p>;
   if (current.phase === "reading") return <p className="big">{t.reading(current.cardNumber)}</p>;
@@ -36,8 +41,9 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
   const symbol = !verdict ? "✓" : verdict.status === "OK" ? "✓" : verdict.status === "MP" || verdict.status === "OVERTIME" ? "✗" : "?";
   const server = serverStatus(item, registration);
   return <div className="verdict-layout"><div className="verdict-body">
-    <p className="big">{symbol} {verdict ? t.verdict[verdict.status] : t.verdict.NO_PACKAGE}</p>
-    <p className="card">Bricka {current.cardNumber}{verdict?.name ? ` · ${verdict.name}` : ""}{verdict?.className ? ` · ${verdict.className}` : ""}</p>
+    <p className="big">{symbol} {borrowed ? t.borrowedStatus : verdict ? t.verdict[verdict.status] : t.verdict.NO_PACKAGE}</p>
+    <p className="card">Bricka {current.cardNumber}{!borrowed && verdict?.name ? ` · ${verdict.name}` : ""}{!borrowed && verdict?.className ? ` · ${verdict.className}` : ""}</p>
+    {borrowed ? <p data-testid="verdict-borrowed">{t.borrowedReason(borrowed.name, borrowed.className)}</p> : null}
     {/* Hyrbricka (PLAN.md steg 25): en egen rad med ord och symbol, inte bara färg. */}
     {verdict?.rental ? <p className="rental" data-testid="verdict-rental">▲ {t.rental}</p> : null}
     {registration ? <RegistrationStatus registration={registration} className={verdict?.className ?? ""} /> : null}
@@ -45,12 +51,12 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
     {/* Steg 50: teamsprint – utläsningen gick inte att lägga på någon av löparens sträckor. */}
     {verdict?.teamSprintProblem ? <p role="alert" data-testid="verdict-team-sprint">{verdict.teamSprintProblem.kind === "ALL_READ"
       ? t.teamSprintAllRead : t.teamSprintEarlierFinish(verdict.teamSprintProblem.leg)}</p> : null}
-    {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
+    {verdict?.variant && !borrowed ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
       ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
     {/* Användartestet 2026-11-12: brickan kopplad till en löpare med en annan tilldelad variant. */}
-    {verdict?.variantChange ? <p role="note" className="start-note" data-testid="verdict-variant-change">! {t.variantChange(
+    {verdict?.variantChange && !borrowed ? <p role="note" className="start-note" data-testid="verdict-variant-change">! {t.variantChange(
       verdict.variantChange.assignedCode, verdict.variantChange.fittingCode)}</p> : null}
-    {verdict?.wrongMap ? <p role="note" className="start-note" data-testid="verdict-wrong-map">! {t.wrongMap(verdict.wrongMap.assignedCode,
+    {verdict?.wrongMap && !borrowed ? <p role="note" className="start-note" data-testid="verdict-wrong-map">! {t.wrongMap(verdict.wrongMap.assignedCode,
       verdict.wrongMap.fittingCodes)}</p> : null}
     {verdict?.excludedVariant ? <p role="note" className="start-note" data-testid="verdict-excluded-variant">! {t.excludedVariant(verdict.excludedVariant)}</p> : null}
     {verdict?.rogaining && verdict.elapsedMs !== undefined ? <Rogaining score={verdict.rogaining} elapsedMs={verdict.elapsedMs}
@@ -63,7 +69,7 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
       {verdict.startNote.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(verdict.startNote, timeZone)}</p> : null}
     {verdict?.ignoredPunches && !verdict.punchList ? <p className="start-note" role="note" data-testid="verdict-old-punches">! {t.ignoredPunches(verdict.ignoredPunches)}</p> : null}
     {verdict?.splitsMissing ? <p className="start-note" role="note" data-testid="verdict-no-splits">! {t.noSplits}</p> : null}
-    {verdict && verdict.status !== "OK" ? <p>{t.reason[verdict.reason]}</p> : null}
+    {verdict && verdict.status !== "OK" && !borrowed ? <p>{t.reason[verdict.reason]}</p> : null}
     {verdict && verdict.missingControls.length > 0 ? <p>{t.missing(verdict.missingControls)}</p> : null}
     {verdict?.punchList ? <PunchListView list={verdict.punchList} timeZone={timeZone} /> : null}
     {!verdict ? <p>{t.noPackage}</p> : null}
@@ -108,12 +114,14 @@ export function RecentRow({ item, pkg, local, registration }: { item: QueuedRead
   const verdict = useMemo(() => pkg ? evaluateLocally(item.payload, pkg, local, item.stationReceivedAt) : undefined,
     [item.payload, pkg, local.length, item.stationReceivedAt]);
   const status = serverStatus(item, registration) ?? verdict?.status;
+  // Användartestet 2026-11-12: okänd hos servern men med en löpares resultat på brickan = lånad bricka?, inte namnet bredvid "okänd".
+  const borrowed = status === "UNKNOWN_CARD" && !!verdict?.alreadyReadOutBy && (!registration || registration.status === "rejected");
   const queue = item.status === "pending" ? t.statusPending : item.status === "stored" ? t.statusStored
     : item.status === "duplicate" ? t.statusDuplicate : t.statusRejected;
   return <li data-sequence={item.localSequence}>
     <span className="card">{item.payload.cardNumber}</span>
-    <span>{verdict?.name ?? ""}</span>
-    <span>{status ? t.verdict[status] : ""}</span>
+    <span>{borrowed ? "" : verdict?.name ?? ""}</span>
+    <span>{borrowed ? t.borrowedStatus : status ? t.verdict[status] : ""}</span>
     <span className="queue">{queue}</span>
   </li>;
 }

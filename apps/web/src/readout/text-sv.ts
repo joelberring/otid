@@ -76,9 +76,12 @@ export const readoutText = {
   heldRetry: "Försök igen",
   noSplits: "Godkänd, men inga sträcktider: stämplingarna ligger före start eller efter mål. Kontrollera klockorna och om brickan var tömd.",
   alreadyReadOutTitle: "Brickan är redan avläst",
-  alreadyReadOut: (name: string) => `Brickan har redan lästs ut för ${name} – lånad bricka?`,
   alreadyReadOutPossible: (name: string) => `${name} har redan lästs ut med den här brickan. Är det en lånad bricka? Servern kontrollerar.`,
   alreadyReadOutHelp: (name: string) => `${name}s resultat ändras inte. Anmäl eller koppla den som sprang nedan, eller:`,
+  // Användartestet 2026-11-12: en ny löpning på en bricka som redan har ett resultat. Beskedet säger det, inte "inte kopplad".
+  borrowedStatus: "LÅNAD BRICKA?",
+  borrowedReason: (name: string, className: string) => `Brickan har redan ett resultat för ${name}${className ? ` (${className})` : ""}. ` +
+    "Är det samma löpare som läser av igen, eller har någon lånat brickan? Anmäl den nya löparen nedan, eller välj att det är samma löpare.",
   sameRunner: "Det är samma löpare – använd den nya avläsningen",
   // ADR-0187: väntande avläsningar för en annan tävling (t.ex. tävlingen före en återställning från säkerhetskopia).
   elsewhereTitle: "Avläsningar till en annan tävling har inte skickats",

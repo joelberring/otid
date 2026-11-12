@@ -336,14 +336,16 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     <section className="verdict" aria-live="assertive" data-testid="verdict"
       data-status={current?.phase === "done" ? verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>
       <Verdict current={current} verdict={verdict} item={currentItem} qr={screenQr} registration={currentRegistration}
-        timeZone={pkg?.event.timeZone ?? "Europe/Stockholm"} online={online} />
+        timeZone={pkg?.event.timeZone ?? "Europe/Stockholm"} online={online}
+        borrowed={borrowed && (!currentRegistration || currentRegistration.status === "rejected") ? borrowed : undefined} />
     </section>
 
     {/* Steg 31 (B4): brickan har redan lästs ut för någon annan – lånad bricka? */}
     {current?.phase === "done" && alreadyReadOut && (!currentRegistration || currentRegistration.status === "rejected")
       ? <section className="notice" role="alert" data-testid="already-read-out" aria-label={t.alreadyReadOutTitle}>
-        <p><strong>{borrowed ? t.alreadyReadOut(alreadyReadOut.name) : t.alreadyReadOutPossible(alreadyReadOut.name)}</strong></p>
-        {borrowed ? <><p>{t.alreadyReadOutHelp(alreadyReadOut.name)}</p>
+        {/* Användartestet 2026-11-12: frågan står i beskedet; här vad som händer och valet "samma löpare". */}
+        <p><strong>{borrowed ? t.alreadyReadOutHelp(alreadyReadOut.name) : t.alreadyReadOutPossible(alreadyReadOut.name)}</strong></p>
+        {borrowed ? <>
           <button type="button" onClick={() => { void linkEntry(alreadyReadOut, true); }}>{t.sameRunner}</button></> : null}
       </section> : null}
 

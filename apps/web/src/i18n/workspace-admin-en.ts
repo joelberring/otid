@@ -224,10 +224,10 @@ export const raceAdministratorEn: AdminTexts = {
   unknownReadoutHelp: "Link an unknown readout to an entered runner or to a new direct entry. The readout is saved as it is.",
   unknownReadoutHelpFunctionary: "Enter the runner who read out with the unknown card directly. The readout is saved as it is.",
   unknownReadoutNone: "There are no unresolved unknown readouts in this race.",
-  unknownReadoutAlreadyShort: name => `already read out for ${name}`,
-  unknownReadoutAlready: name => `The card has already been read out for ${name} with other punches – a borrowed card? ` +
-    `${name}'s result does not change. Link the readout to the person who ran, or enter them directly. If it is the same runner: choose ${name}, ` +
-    "then the new readout applies.",
+  unknownReadoutAlreadyShort: name => `already has a result for ${name}`,
+  unknownReadoutAlready: name => `The card already has a result for ${name}. Is it the same runner reading out again, or has someone ` +
+    `borrowed the card? ${name}'s result does not change. Link the readout to the person who ran, or enter them directly. If it is the same ` +
+    `runner: choose ${name}, then the new readout applies.`,
   unknownReadoutSelect: "Choose readout",
   unknownReadoutTarget: "Link to",
   unknownReadoutExisting: "Existing participant",

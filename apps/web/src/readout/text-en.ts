@@ -76,10 +76,12 @@ export const readoutTextEn: Texts<typeof readoutText> = {
   heldRetry: "Try again",
   noSplits: "Approved, but no split times: the punches are before the start or after the finish. Check the clocks and whether the card was cleared.",
   alreadyReadOutTitle: "The card has already been read out",
-  alreadyReadOut: name => `The card has already been read out for ${name} – a borrowed card?`,
   alreadyReadOutPossible: name => `${name} has already read out with this card. Is it a borrowed card? The server checks.`,
   alreadyReadOutHelp: name => `${name}'s result does not change. Enter or link the person who ran below, or:`,
   sameRunner: "It is the same runner – use the new readout",
+  borrowedStatus: "BORROWED CARD?",
+  borrowedReason: (name, className) => `The card already has a result for ${name}${className ? ` (${className})` : ""}. ` +
+    "Is it the same runner reading out again, or has someone borrowed the card? Enter the new runner below, or choose that it is the same runner.",
   elsewhereTitle: "Readouts for another event have not been sent",
   elsewhere: (count, name, date) => `${plural(count, "readout", "readouts")} ` +
     `on this computer belong to ${name ? `${name}${date ? ` (${date})` : ""}` : "another event"} and have not arrived there. ` +

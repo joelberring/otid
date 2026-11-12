@@ -24,6 +24,18 @@ export function validOsmBox(box: Wgs84Box): boolean {
     && box.east - box.west <= OSM_LIMITS.maxSpanDegrees * 2 && boxAreaKm2(box) <= OSM_LIMITS.maxAreaKm2;
 }
 
+/**
+ * Sökningen efter laserrutor får vara större än OpenStreetMap-hämtningen (ägaren 2026-11-12: «kan man höja max-storleken»):
+ * den hämtar bara en lista med rutor. Jobbet tar högst 25 rutor, och kartan i webbläsaren blir tung långt före 100 km².
+ */
+export const LASER_SEARCH_LIMITS = { maxSpanDegrees: 0.25, maxAreaKm2: 100 } as const;
+export function validLaserBox(box: Wgs84Box): boolean {
+  const values = [box.south, box.west, box.north, box.east];
+  return values.every(Number.isFinite) && box.south >= -85 && box.north <= 85 && box.west >= -180 && box.east <= 180
+    && box.north > box.south && box.east > box.west && box.north - box.south <= LASER_SEARCH_LIMITS.maxSpanDegrees
+    && box.east - box.west <= LASER_SEARCH_LIMITS.maxSpanDegrees * 2 && boxAreaKm2(box) <= LASER_SEARCH_LIMITS.maxAreaKm2;
+}
+
 /** Overpass-frågan: det som orienteringskartan har nytta av, med geometrin direkt (`out geom`). */
 export function overpassQuery(box: Wgs84Box): string {
   const b = `(${[box.south, box.west, box.north, box.east].map(value => value.toFixed(7)).join(",")})`;

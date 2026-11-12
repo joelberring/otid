@@ -69,7 +69,7 @@ export const STEPS = {
   knolls(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
     // Alla möjliga kullar med sina mått sparas (för reglagen i webbläsaren); jobbets egna kullar är valet med förvalen.
-    const candidates = knollCandidates(input.ground, input.stones ?? [], water).sort((a, b) => b.rise - a.rise);
+    const candidates = knollCandidates(input.ground, input.stones ?? [], water, undefined, undefined, undefined, lookup(input.ground, input.wet)).sort((a, b) => b.rise - a.rise);
     const all = chooseKnolls(candidates, { minRise: 1, lowerShare: input.knollShare ?? KNOLL_LOWER_SHARE, maxFootM2: 80, spacing: 10 }), cap = pointCap(input.ground);
     return { knolls: all.slice(0, cap), capped: Math.max(0, all.length - cap), candidates: candidates.slice(0, cap * 6) };
   },

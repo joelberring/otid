@@ -5,7 +5,7 @@ import { z } from "zod";
  * med kontots egna uppgifter genom servern) och några av Karttapullautins inställningar. Resultatet blir ett underlag (bilden)
  * och filer med kurvor, branter och formlinjer som kan läsas in som kandidater.
  */
-export const GEO_JOB_MAX_TILES = 16;
+export const GEO_JOB_MAX_TILES = 25;
 /** Karttapullautins inställningar som får ändras (pullauta.ini), med rimliga gränser. */
 export const PULLAUTIN_SETTINGS = {
   contour_interval: [1, 10], formline: [0, 2], formlinesteepness: [0, 2], smoothing: [0.2, 3], curviness: [0, 3], knolls: [0, 3],
@@ -128,7 +128,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 25;
+export const GEO_WORKER_VERSION = 26;
 
 /**
  * Minnet (GB) som geo-servern behöver för ett jobb, efter områdets yta (ägaren 2026-11-12: «vill inte att det ska dö för

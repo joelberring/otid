@@ -131,7 +131,8 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "518", name: "Oöverstigligt staket", kind: "line", color: "black", width: 0.25, mid: { elements: tick("black", 0.14, 0.8), spacing: 1.5 } },
   { code: "519", name: "Passage", kind: "point", rotatable: true, elements: [stroke("black", 0.18, [-0.4, -0.5], [-0.4, 0.5]), stroke("black", 0.18, [0.4, -0.5], [0.4, 0.5])] },
   { code: "520", name: "Område som inte får beträdas", kind: "area", fill: "olive" },
-  { code: "521", name: "Byggnad", kind: "area", fill: "black65" },
+  // Normens 521 är svart (ägaren 2026-11-12: «hus ska väl vara helt svarta på skogskartor»); grått får bara mycket stora hus i tätort.
+  { code: "521", name: "Byggnad", kind: "area", fill: "black" },
   { code: "521.1", name: "Kant, byggnad", kind: "line", color: "black", width: 0.14 },
   { code: "522", name: "Skärmtak", kind: "area", fill: "black20" },
   { code: "523", name: "Ruin", kind: "line", color: "black", width: 0.14, dash: [0.8, 0.3] },

@@ -36,3 +36,12 @@ describe("mängden på skalan 1–10", () => {
     expect(knollLimitsAt(3).minRise).toBe(1.5);
   });
 });
+
+describe("kullar i sankmark", () => {
+  it("tas bara med när de är uppenbara (minst 1,5 m)", () => {
+    const marsh = [{ at: [0, 0] as [number, number], rise: 1.2, share: 0.9, footM2: 40, wet: true }, { at: [50, 0] as [number, number], rise: 1.7, share: 0.9, footM2: 40, wet: true },
+      { at: [100, 0] as [number, number], rise: 1.2, share: 0.9, footM2: 40 }];
+    expect(chooseKnolls(marsh, DEFAULT_KNOLL_LIMITS)).toEqual([[50, 0], [100, 0]]);
+    expect(readKnollCandidates({ features: [{ geometry: { type: "Point", coordinates: [1, 2] }, properties: { rise: 1, share: 1, foot: 30, wet: 1 } }] })[0]!.wet).toBe(true);
+  });
+});

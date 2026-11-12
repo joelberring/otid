@@ -1,6 +1,6 @@
 import { mapProjectOsmRequestSchema as mapProjectLaserSearchRequestSchema, type GeoExtraItem } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { validOsmBox } from "@o-tid/map-revision";
+import { validLaserBox } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubProof } from "./club-access";
 import { requireMapProject } from "./map-project-access";
@@ -129,7 +129,7 @@ export async function searchMapProjectLaser(db: Database, input: ClubProof & { p
     const access = await requireMapProject(tx, input, now, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    if (!validOsmBox(parsed.data.box)) return { status: "too-large" } as const;
+    if (!validLaserBox(parsed.data.box)) return { status: "too-large" } as const;
     if (!await consumeAccountRequestAllowance(tx, { scope: "MAP_SOURCE_ACCOUNT", key: access.accountId, limit: SEARCHES_PER_HOUR, windowMs: 3_600_000 }, now)) {
       return { status: "throttled" } as const;
     }

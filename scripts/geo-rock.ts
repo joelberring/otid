@@ -135,7 +135,15 @@ export function knolls(ground: GroundGrid, stones: readonly { at: readonly [numb
 }
 
 /** En möjlig liten kulle med sina mått: höjden över omgivningen (m), andelen av ringen som ligger lägre och fotens yta (m²). */
-export interface KnollCandidate { readonly at: [number, number]; readonly rise: number; readonly share: number; readonly footM2: number }
+export interface KnollCandidate { readonly at: [number, number]; readonly rise: number; readonly share: number; readonly footM2: number;
+  /** Ligger i blöt eller fuktig mark enligt fuktigheten. */
+  readonly wet?: boolean | undefined }
+/**
+ * Ägaren 2026-11-12 («spökpunkthöjder … som ligger i kärret», «ta bort spökpunkter mitt i kärr om de inte är uppenbara»): en
+ * liten upphöjning i sankmark är oftast låg vegetation som lasern tagit för mark. I blöt eller fuktig mark tas en kulle bara
+ * med om den står minst så här högt över omgivningen.
+ */
+export const KNOLL_OBVIOUS_RISE = 1.5;
 /**
  * De lösa gränserna för `kullar.geojson` (ägaren 2026-11-12: «om man vill få färre punkthöjder … måste väl inte allt köras om»):
  * jobbet sparar alla möjliga kullar med sina mått, och reglagen i webbläsaren väljer bland dem utan ny körning.
@@ -144,7 +152,8 @@ export const KNOLL_LOOSE = { minRise: 0.5, lowerShare: 0.5, maxFootM2: 160 } as 
 
 /** Valet bland kandidaterna: gränserna, och sedan de högsta först med minst `spacing` meter emellan. Samma regel i webbläsaren. */
 export function chooseKnolls(candidates: readonly KnollCandidate[], limits: { minRise: number; lowerShare: number; maxFootM2: number; spacing: number }): [number, number][] {
-  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare && knoll.footM2 <= limits.maxFootM2)
+  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare && knoll.footM2 <= limits.maxFootM2
+    && (!knoll.wet || knoll.rise >= KNOLL_OBVIOUS_RISE))
     .sort((a, b) => b.rise - a.rise);
   const kept: [number, number][] = [], near = nearIndex(limits.spacing);
   for (const knoll of found) if (!near.has(...knoll.at)) { kept.push(knoll.at); near.add(...knoll.at); }
@@ -153,7 +162,8 @@ export function chooseKnolls(candidates: readonly KnollCandidate[], limits: { mi
 
 /** Alla lokala toppar som klarar gränserna, med sina mått (inte utglesade). */
 export function knollCandidates(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], blockedAt?: (x: number, y: number) => boolean,
-  minRise: number = KNOLL_LOOSE.minRise, lowerShare: number = KNOLL_LOOSE.lowerShare, maxFootM2: number = KNOLL_LOOSE.maxFootM2): KnollCandidate[] {
+  minRise: number = KNOLL_LOOSE.minRise, lowerShare: number = KNOLL_LOOSE.lowerShare, maxFootM2: number = KNOLL_LOOSE.maxFootM2,
+  wetAt?: (x: number, y: number) => boolean): KnollCandidate[] {
   const { width, height, cell, z } = ground;
   const at = (x: number, y: number) => x < 0 || y < 0 || x >= width || y >= height ? Number.NaN : z[x * height + y]!;
   const top = Math.max(1, Math.round(3 / cell)), inner = Math.max(top + 1, Math.round(6 / cell)), outer = Math.max(inner + 1, Math.round(8 / cell));
@@ -188,7 +198,7 @@ export function knollCandidates(ground: GroundGrid, stones: readonly { at: reado
     const point: [number, number] = [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell];
     if (blockedAt?.(...point) || stoneNear.has(...point)) continue;
     // Andelen sparas som den minsta gräns kullen klarar (samma jämförelse som ovan), så att valet i efterhand blir lika.
-    found.push({ at: point, rise, share: lower / ring.length, footM2: foot * cell * cell });
+    found.push({ at: point, rise, share: lower / ring.length, footM2: foot * cell * cell, ...(wetAt?.(...point) ? { wet: true } : {}) });
   }
   return found;
 }

@@ -177,6 +177,7 @@ export const mapSourcesSv = {
     vegetation: "Gör också ytor av vegetationen (öppen mark, grönt och undervegetation ur laserns returer)",
     minArea: "Minsta yta",
     minAreaOption: (m2: number) => `${m2} m²`,
+    tooManyTiles: (count: number, most: number) => `${count} rutor är valda; ett jobb tar högst ${most}. Välj en etapp eller bocka ur rutor.`,
     start: (count: number) => count === 1 ? "Kör Karttapullautin på 1 ruta" : `Kör Karttapullautin på ${count} rutor`,
     started: "Jobbet ligger i kön.",
     jobs: "Jobben",

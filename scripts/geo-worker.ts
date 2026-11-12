@@ -32,7 +32,7 @@ import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzip
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { groundShareAt, vegetationSignals, type VegetationSignals, mergePointStats, pointImages, readPointStats } from "./geo-points.ts";
-import { maskOf, runStep, StepSkipped, type StepInput, type StepName } from "./geo-steps.ts";
+import { maskOf, runStep, StepSkipped, STEP_TIMEOUT_MS, type StepInput, type StepName } from "./geo-steps.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
 
@@ -83,7 +83,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 25;
+export const WORKER_VERSION = 26;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -330,7 +330,9 @@ async function runJob(job: Job): Promise<void> {
     const skippedSteps: string[] = [];
     const step = async <K extends StepName>(name: K, label: string, input: StepInput) => {
       await set(label, 0, 1);
-      try { return await runStep(name, input, control.signal); }
+      // Stora områden får längre tid per steg (ägaren 2026-11-12: «låta den köra längre»): 10 minuter upp till 20 km², sedan en halv minut per km².
+      const km2 = input.ground.width * input.ground.height * input.ground.cell ** 2 / 1e6;
+      try { return await runStep(name, input, control.signal, Math.max(STEP_TIMEOUT_MS, km2 * 30_000)); }
       catch (error) {
         if (control.signal.aborted) throw new Stopped();
         if (!(error instanceof StepSkipped)) throw error;
@@ -386,12 +388,13 @@ async function runJob(job: Job): Promise<void> {
       const rockMode = job.settings.rock ?? 1;
       const rock = openAt && rockMode > 0 ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
         forest: forestAt ? maskOf(ground, forestAt) : undefined }))?.rock ?? [] : [];
-      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare })) ?? { knolls: [], capped: 0, candidates: [] };
+      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare,
+        wet: wetAt ? maskOf(ground, wetAt) : undefined })) ?? { knolls: [], capped: 0, candidates: [] };
       // Ägaren 2026-11-12: alla möjliga kullar med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
       if (hills.candidates.length) {
         await writeFile(join(dir, "kullar.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
           features: hills.candidates.map(knoll => ({ type: "Feature", geometry: { type: "Point", coordinates: [Math.round(knoll.at[0] * 10) / 10, Math.round(knoll.at[1] * 10) / 10] },
-            properties: { rise: Math.round(knoll.rise * 100) / 100, share: Math.round(knoll.share * 1000) / 1000, foot: Math.round(knoll.footM2) } })) }));
+            properties: { rise: Math.round(knoll.rise * 100) / 100, share: Math.round(knoll.share * 1000) / 1000, foot: Math.round(knoll.footM2), ...(knoll.wet ? { wet: 1 } : {}) } })) }));
       }
       if (stones.stones.length || rock.length || hills.knolls.length) {
         await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: rockMode >= 2 ? "berg_i_dagen" : "berg_i_dagen_laser", closed: true, parts: rock },

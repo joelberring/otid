@@ -6,7 +6,10 @@ import type { SourceFeature } from "@o-tid/map-revision";
  * (`kullar.geojson`), och valet bland dem görs här med reglage, utan ny körning. Samma regel som geo-arbetarens
  * `chooseKnolls` (scripts/geo-rock.ts): gränserna, och sedan de högsta först med ett minsta avstånd emellan.
  */
-export interface KnollCandidate { readonly at: readonly [number, number]; readonly rise: number; readonly share: number; readonly footM2: number }
+export interface KnollCandidate { readonly at: readonly [number, number]; readonly rise: number; readonly share: number; readonly footM2: number;
+  /** Ligger i blöt eller fuktig mark: tas bara med om den är uppenbar (minst `KNOLL_OBVIOUS_RISE` m). */
+  readonly wet?: boolean | undefined }
+export const KNOLL_OBVIOUS_RISE = 1.5;
 export interface KnollLimits { readonly minRise: number; readonly lowerShare: number; readonly maxFootM2: number; readonly spacing: number }
 /** Geo-arbetarens förval (det som `knollar`-lagret i grundkartan är räknat med). */
 export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 1, lowerShare: 0.8, maxFootM2: 80, spacing: 10 };
@@ -37,12 +40,13 @@ export function readKnollCandidates(json: unknown): KnollCandidate[] {
     const at: unknown[] = geometry?.type === "Point" && Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
     const x = at[0], y = at[1], rise = properties?.rise, share = properties?.share, foot = properties?.foot;
     return typeof x === "number" && typeof y === "number" && typeof rise === "number" && typeof share === "number" && typeof foot === "number"
-      ? [{ at: [x, y], rise, share, footM2: foot }] : [];
+      ? [{ at: [x, y], rise, share, footM2: foot, ...(properties?.wet ? { wet: true } : {}) }] : [];
   });
 }
 
 export function chooseKnolls(candidates: readonly KnollCandidate[], limits: KnollLimits): [number, number][] {
-  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare && knoll.footM2 <= limits.maxFootM2)
+  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare && knoll.footM2 <= limits.maxFootM2
+    && (!knoll.wet || knoll.rise >= KNOLL_OBVIOUS_RISE))
     .sort((a, b) => b.rise - a.rise);
   const reach = limits.spacing, cells = new Map<string, [number, number][]>(), kept: [number, number][] = [];
   for (const { at: [x, y] } of found) {

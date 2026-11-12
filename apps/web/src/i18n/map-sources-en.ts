@@ -116,6 +116,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   vegetation: "Also make areas of the vegetation (open land, green and undergrowth from the laser returns)",
   minArea: "Smallest area",
   minAreaOption: (m2: number) => `${m2} m²`,
+  tooManyTiles: (n: number, most: number) => `${n} tiles are selected; one job takes at most ${most}. Choose a stage or untick tiles.`,
   start: (n: number) => n === 1 ? "Run Karttapullautin on 1 tile" : `Run Karttapullautin on ${n} tiles`,
   started: "The job is in the queue.",
   jobs: "The jobs",

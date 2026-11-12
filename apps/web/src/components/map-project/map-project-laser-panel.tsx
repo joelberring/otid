@@ -4,7 +4,7 @@ import { clipCenter, laserClip, sampleClip } from "../../lib/map-project-clip";
 import { useCallback, useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
-import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_CLIP_MARGIN_M, GEO_JOB_MAX_TILES, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { baseMapOutputs, clipWgs84 } from "../../lib/map-project-base-map";
@@ -305,8 +305,9 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           {[100, 300, 600, 1000].map(value => <option key={value} value={value}>{text.minAreaOption(value)}</option>)}
         </select></label>}
         <span className={styles.actions}>
-          <Button disabled={!!busy || (!rerun && (selected === 0 || selected > 16))} onClick={() => void start()} data-testid="map-project-laser-start">
+          <Button disabled={!!busy || (!rerun && (selected === 0 || selected > GEO_JOB_MAX_TILES))} onClick={() => void start()} data-testid="map-project-laser-start">
             {rerun ? text.rerunStart : text.start(selected)}</Button>
+          {!rerun && selected > GEO_JOB_MAX_TILES && <span role="alert" className={styles.problem}>{text.tooManyTiles(selected, GEO_JOB_MAX_TILES)}</span>}
         </span>
       </fieldset>}
     </>}

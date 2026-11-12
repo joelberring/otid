@@ -89,8 +89,11 @@ describe("valet bland de möjliga kullarna är lika i geo-arbetaren och i webbl�
   it("ger samma punkter för samma gränser", async () => {
     const { chooseKnolls } = await import("../../../scripts/geo-rock.ts");
     const browser = await import("../../../apps/web/src/lib/map-project-knoll-choice");
+    // Var femte ligger i sankmark: de tas bara med när de är uppenbara (ägaren 2026-11-12).
     const candidates = Array.from({ length: 400 }, (_, i) => ({ at: [(i * 37) % 500, (i * 91) % 500] as [number, number],
-      rise: 0.5 + ((i * 13) % 30) / 10, share: 0.5 + ((i * 7) % 50) / 100, footM2: 20 + (i * 11) % 140 }));
+      rise: 0.5 + ((i * 13) % 30) / 10, share: 0.5 + ((i * 7) % 50) / 100, footM2: 20 + (i * 11) % 140, ...(i % 5 === 0 ? { wet: true } : {}) }));
+    expect(chooseKnolls([{ at: [0, 0], rise: 1.2, share: 0.9, footM2: 40, wet: true }, { at: [50, 0], rise: 1.7, share: 0.9, footM2: 40, wet: true }],
+      { minRise: 1, lowerShare: 0.8, maxFootM2: 80, spacing: 10 })).toEqual([[50, 0]]);
     for (const limits of [{ minRise: 1, lowerShare: 0.8, maxFootM2: 80, spacing: 10 }, { minRise: 0.6, lowerShare: 0.6, maxFootM2: 150, spacing: 25 }]) {
       expect(browser.chooseKnolls(candidates, limits)).toEqual(chooseKnolls(candidates, limits));
     }

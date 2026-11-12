@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { cliffLines, cliffsFromTicks, hillshade, measureCliff, shadeValue, mergeGroundGrids, readGroundGrid, readTicks, thin, type GroundGrid, type Tick } from "../../../scripts/geo-cliffs";
+import { cliffLines, cliffsFromTicks, hillshade, measureCliff, slopeLines, type GroundGrid, shadeValue, mergeGroundGrids, readGroundGrid, readTicks, thin, type GroundGrid, type Tick } from "../../../scripts/geo-cliffs";
 import { moistureFromHeightMaps, readHeightMap } from "../../../scripts/geo-moisture";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles } from "../../../scripts/geo-vegetation";
 import { mergeWaterGrids, polygonsOf, readWaterGrid, waterFromGrids, waterMask, type WaterGrid } from "../../../scripts/geo-water";
@@ -166,13 +166,15 @@ describe("branterna som linjer", () => {
     const ground = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(readFileSync(join(dir, "kungshatt-300m/mark.bin.gz")))))]);
     expect(ground).toMatchObject({ minX: 664_780, minY: 6_576_500, cell: 1, width: 300, height: 300 });
     const cliffs = cliffsFromTicks(readTicks(raw("stup")), readTicks(raw("branter")), undefined, ground);
-    expect(cliffs.summary).toMatchObject({ cliffs201: 9, cliffs202: 10, cliffsDropped: 0 });
-    // Den långa stranden i söder faller över tio meter; alla opasserbara är minst 10 m långa med minst 2,4 m fall. Linjerna
+    // Sedan 2026-11-12 kommer linjerna främst ur markrastret (brantare än 38°), och opasserbart kräver 4,5 m fall och 20 m.
+    expect(cliffs.summary).toMatchObject({ cliffs201: 7, cliffs202: 24 });
+    // Den långa stranden i söder faller över tio meter; alla opasserbara är minst 20 m långa med minst 4,5 m fall. Linjerna
     // ligger i överkanten, så fallet mäts nu från den: mer av det ligger nedför än uppför.
     const measured = cliffs.lines.impassable.map(line => measureCliff(line, ground));
     expect(Math.max(...measured.map(row => row.drop6))).toBeGreaterThan(10);
     // Flyttningen till överkanten kan korta en linje något.
-    expect(measured.every(row => row.drop6 >= 2.4 && row.length >= 9)).toBe(true);
+    // Fallet mäts här kring överkanten, dit linjen har flyttats upp till 7 m: det är lägre än kring brantens mitt.
+    expect(measured.every(row => row.drop6 >= 1.5 && row.length >= 18)).toBe(true);
     // Överkanten: marken strax uppför linjen är plattare än strax nedför (medianen över alla opasserbara).
     const edge = cliffs.lines.impassable.flatMap(line => line.slice(1).map((point, i) => {
       const [ax, ay] = line[i]!, [bx, by] = point, length = Math.hypot(bx - ax, by - ay) || 1, rx = (by - ay) / length, ry = -(bx - ax) / length;
@@ -322,4 +324,30 @@ describe.skipIf(!tools.lasclip || !tools.pullauta || !tools.ini || !existsSync(t
       expect(water.at(664_950, 6_576_650)).toBe(false);
     } finally { rmSync(work, { recursive: true, force: true }); }
   }, 120_000);
+});
+
+describe("brantlinjer ur markrastret", () => {
+  /** En kant tvärs hela rutan som faller `drop` m över 4 m, på i övrigt plan mark; nedför är österut. */
+  const scarp = (drop: number): GroundGrid => {
+    const width = 80, height = 80, z = new Float32Array(width * height);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      z[x * height + y] = 50 - Math.max(0, Math.min(1, (x - 38) / 4)) * drop;
+    }
+    return { minX: 1000, minY: 2000, cell: 1, width, height, z };
+  };
+  it("hittar en brant kant, riktar den med nedför till höger och lämnar flack mark", () => {
+    const lines = slopeLines(scarp(6));
+    expect(lines).toHaveLength(1);
+    const line = lines[0]!, [ax, ay] = line[0]!, [bx, by] = line.at(-1)!;
+    expect(Math.hypot(bx - ax, by - ay)).toBeGreaterThan(60);
+    expect(line.every(([x]) => x > 1036 && x < 1044)).toBe(true);
+    // Nedför är österut: linjen går norrut, så att öster är till höger.
+    expect(by).toBeGreaterThan(ay);
+    // 2 m över 4 m är 27°: ingen brant.
+    expect(slopeLines(scarp(2))).toEqual([]);
+  });
+  it("gör den till opasserbar eller passerbar efter fallet, utan Karttapullautins streck", () => {
+    expect(cliffsFromTicks([], [], undefined, scarp(6)).summary).toMatchObject({ cliffs201: 1, cliffs202: 0 });
+    expect(cliffsFromTicks([], [], undefined, scarp(4)).summary).toMatchObject({ cliffs201: 0, cliffs202: 1 });
+  });
 });

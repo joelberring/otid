@@ -232,8 +232,12 @@ export interface CliffRules {
   /** Opasserbar: minst så stort fall över ±3 m och över ±6 m, och minst så lång (m). */
   readonly impassableDrop3: number; readonly impassableDrop6: number; readonly impassableLength: number;
 }
-/** Trösklarna ur Kungshatt-kedjans brantkontroll (`s3c_brantkontroll.py`). */
-export const DEFAULT_CLIFF_RULES: CliffRules = { minDrop: 1.3, impassableDrop3: 2.4, impassableDrop6: 3, impassableLength: 10 };
+/**
+ * Minsta fallet är Kungshatt-kedjans (`s3c_brantkontroll.py`). Gränsen för opasserbar är lärd av Högdalenkartan 2026-11-12:
+ * med Kungshatts 2,4 m blev tre till åtta gånger för mycket opasserbart när linjerna kommer ur markrastret; 4,5 m fall
+ * över ±3 m och minst 20 m längd ger bäst träff (F 0,47–0,62), fortfarande med 1,6–3 gånger kartans längd.
+ */
+export const DEFAULT_CLIFF_RULES: CliffRules = { minDrop: 1.3, impassableDrop3: 4.5, impassableDrop6: 4.5, impassableLength: 20 };
 
 /**
  * Brantens fall mätt i markrastret (ägaren 2026-11-10, som i Kungshatt-kedjan): varje meter längs linjen jämförs marken
@@ -263,8 +267,9 @@ export function measureCliff(line: readonly (readonly [number, number])[], groun
  * Brantlinjen flyttas till överkanten (ISOM: linjen ritas i brantens överkant, taggarna nedför). För varje punkt läses
  * markens profil tvärs linjen, 4 m uppför till 2 m nedför i halvmetersteg, och överkanten är där profilen bryter nedåt mest
  * (minsta andraderivatan). Förflyttningen jämnas ut längs linjen (median av tre) och är högst 3 m; utan mark lämnas punkten.
+ * Linjer ur markrastret ligger mitt i branten, som kan vara bred: för dem söks överkanten längre uppför (`up` 8,5 m, högst 7 m).
  */
-export function toTopEdge(line: readonly (readonly [number, number])[], ground: GroundGrid): [number, number][] {
+export function toTopEdge(line: readonly (readonly [number, number])[], ground: GroundGrid, up = 4.5): [number, number][] {
   const normals = line.map((_, i) => {
     const [ax, ay] = line[Math.max(0, i - 1)]!, [bx, by] = line[Math.min(line.length - 1, i + 1)]!, length = Math.hypot(bx - ax, by - ay) || 1;
     // Nedför till höger om färdriktningen.
@@ -273,21 +278,71 @@ export function toTopEdge(line: readonly (readonly [number, number])[], ground: 
   const shifts = line.map(([x, y], i) => {
     const [rx, ry] = normals[i]!;
     const profile: number[] = [];
-    for (let t = -4.5; t <= 2.5; t += 0.5) profile.push(heightAt(ground, x + rx * t, y + ry * t));
+    for (let t = -up; t <= 2.5; t += 0.5) profile.push(heightAt(ground, x + rx * t, y + ry * t));
     let best = 0, bestCurve = Infinity;
     for (let k = 1; k < profile.length - 1; k += 1) {
-      const t = -4.5 + k * 0.5;
+      const t = -up + k * 0.5;
       if (t > 2) break;
       const curve = profile[k - 1]! - 2 * profile[k]! + profile[k + 1]!;
       if (Number.isFinite(curve) && curve < bestCurve) { bestCurve = curve; best = t; }
     }
-    return Number.isFinite(bestCurve) && bestCurve < -0.1 ? Math.max(-3, Math.min(3, best)) : 0;
+    return Number.isFinite(bestCurve) && bestCurve < -0.1 ? Math.max(1.5 - up, Math.min(3, best)) : 0;
   });
   return line.map(([x, y], i) => {
     const near = [shifts[Math.max(0, i - 1)]!, shifts[i]!, shifts[Math.min(line.length - 1, i + 1)]!].sort((a, b) => a - b);
     const [rx, ry] = normals[i]!;
     return [x + rx * near[1]!, y + ry * near[1]!];
   });
+}
+
+/**
+ * Lutningen som krävs för en brantlinje ur markrastret, och minsta längd. Lärt av Högdalenkartan 2026-11-12: Karttapullautins
+ * streck gav en fjärdedel av kartans brantlinje (träff F 0,25–0,39); alla sammanhängande stråk brantare än 38° ger F 0,56–0,66
+ * med 1,2–2,3 gånger kartans längd. Vid 35° blir det dubbelt så mycket linje, vid 40° tappas var femte brant.
+ */
+export const SLOPE_CLIFFS = { minDegrees: 38, minLengthM: 6 };
+
+/**
+ * Brantlinjer ur markrastret: celler brantare än `minDegrees` (på lätt utjämnad mark) tunnas till mittlinjer, riktade så att
+ * nedför är till höger. Fallet och sorten avgörs sedan som för strecken (measureCliff).
+ */
+export function slopeLines(ground: GroundGrid, settings: { readonly minDegrees: number; readonly minLengthM: number } = SLOPE_CLIFFS): [number, number][][] {
+  const { width, height, cell, z } = ground;
+  // Utjämning 1-2-1 åt båda håll (ungefär en halv cells spridning), så att enstaka punkter inte ger branter.
+  const smooth = new Float32Array(z.length).fill(NaN);
+  for (let x = 1; x < width - 1; x += 1) for (let y = 1; y < height - 1; y += 1) {
+    let sum = 0, weight = 0;
+    for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
+      const value = z[(x + ax) * height + y + ay]!;
+      if (!Number.isFinite(value)) continue;
+      const w = (ax ? 1 : 2) * (ay ? 1 : 2);
+      sum += value * w; weight += w;
+    }
+    if (weight > 0 && Number.isFinite(z[x * height + y]!)) smooth[x * height + y] = sum / weight;
+  }
+  const limit = Math.tan(settings.minDegrees * Math.PI / 180), mask = new Uint8Array(z.length);
+  const gx = new Float32Array(z.length), gy = new Float32Array(z.length);
+  for (let x = 1; x < width - 1; x += 1) for (let y = 1; y < height - 1; y += 1) {
+    const i = x * height + y, dx = (smooth[i + height]! - smooth[i - height]!) / (2 * cell), dy = (smooth[i + 1]! - smooth[i - 1]!) / (2 * cell);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) continue;
+    gx[i] = dx; gy[i] = dy;
+    if (Math.hypot(dx, dy) >= limit) mask[i] = 1;
+  }
+  const skeleton = thin(close(mask, width, height), width, height), lines: [number, number][][] = [];
+  for (const path of paths(skeleton, width, height, Math.max(3, Math.round(settings.minLengthM / cell / Math.SQRT2)), 50_000)) {
+    const points = path.map((i): [number, number] => { const x = Math.floor(i / height), y = i - x * height; return [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell]; });
+    let length = 0, right = 0;
+    for (let k = 1; k < points.length; k += 1) {
+      const tx = points[k]![0] - points[k - 1]![0], ty = points[k]![1] - points[k - 1]![1];
+      length += Math.hypot(tx, ty);
+      // Nedför (mot lutningen) ska ligga till höger om färdriktningen: högernormalen är (ty, −tx).
+      right += ty * -gx[path[k]!]! + -tx * -gy[path[k]!]!;
+    }
+    if (length < settings.minLengthM) continue;
+    const line = simplify(right < 0 ? points.reverse() : points, 1.1);
+    if (line.length >= 2) lines.push(line);
+  }
+  return lines;
 }
 
 /**
@@ -301,12 +356,20 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
   let high: [number, number][][], low: [number, number][][], dropped = 0;
   if (ground) {
     high = []; low = [];
-    for (const line of cliffLines([...impassable, ...passable], settings)) {
+    // Branterna ur markrastret först; Karttapullautins streck fyller bara på där rastret inte gav någon linje inom 6 m.
+    const own = slopeLines(ground), taken = new Set<string>();
+    for (const line of own) for (const [x, y] of line) {
+      for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) taken.add(`${Math.floor(x / 6) + ax},${Math.floor(y / 6) + ay}`);
+    }
+    const extra = cliffLines([...impassable, ...passable], settings)
+      .filter(line => line.filter(([x, y]) => taken.has(`${Math.floor(x / 6)},${Math.floor(y / 6)}`)).length * 2 < line.length);
+    const fromGround = new Set(own);
+    for (const line of [...own, ...extra]) {
       const { drop3, drop6, length } = measureCliff(line, ground);
       if (!Number.isFinite(drop3)) { low.push(line); continue; }
       if (drop3 < rules.minDrop) { dropped += 1; continue; }
       // Fallet mäts kring Karttapullautins läge (mitt i branten); linjen ritas sedan i överkanten.
-      const top = toTopEdge(line, ground);
+      const top = toTopEdge(line, ground, fromGround.has(line) ? 8.5 : 4.5);
       if (drop3 >= rules.impassableDrop3 && drop6 >= rules.impassableDrop6 && length >= rules.impassableLength) high.push(top); else low.push(top);
     }
   } else {

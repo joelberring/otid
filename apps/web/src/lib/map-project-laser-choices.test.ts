@@ -6,8 +6,8 @@ describe("enkla val för Karttapullautin", () => {
     expect(choiceSettings(DEFAULT_CHOICES)).toEqual({ settings: {}, cliffs: undefined });
     const chosen = choiceSettings({ ...DEFAULT_CHOICES, cliffs: "more", contours: "less", green: "less" });
     expect(chosen.settings).toEqual({ cliff1: 0.95, cliff2: 1.7, smoothing: 1.2, curviness: 0.9, greenscale: 1.5 });
-    expect(chosen.cliffs).toEqual({ minDrop: 1, impassableDrop: 2 });
-    expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "less" }).cliffs).toEqual({ minDrop: 1.8, impassableDrop: 3.2 });
+    expect(chosen.cliffs).toEqual({ minDrop: 1, impassableDrop: 3.5 });
+    expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "less" }).cliffs).toEqual({ minDrop: 1.8, impassableDrop: 5.5 });
   });
 
   it("handskrivna värden går före valen, och ett jobb ger tillbaka sina val och sina handskrivna värden", () => {

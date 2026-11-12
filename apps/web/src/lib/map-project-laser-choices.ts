@@ -23,7 +23,7 @@ const PRESETS: Readonly<Record<LaserChoice, Readonly<Record<"less" | "more", Rea
   green: { less: { greenscale: 1.5 }, more: { greenscale: 0.65 } },
   undergrowth: { less: { undergrowth: 0.5 }, more: { undergrowth: 0.25 } }
 };
-const CLIFF_RULES = { less: { minDrop: 1.8, impassableDrop: 3.2 }, more: { minDrop: 1, impassableDrop: 2 } } as const;
+const CLIFF_RULES = { less: { minDrop: 1.8, impassableDrop: 5.5 }, more: { minDrop: 1, impassableDrop: 3.5 } } as const;
 
 /** Valen som värden för jobbet: inställningarna (de handskrivna går före) och branternas trösklar. */
 export function choiceSettings(choices: LaserChoices, typed: Readonly<Record<string, number>> = {}) {

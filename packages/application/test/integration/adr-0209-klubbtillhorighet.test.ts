@@ -94,7 +94,7 @@ async function linkedSpace(members: { emails: string[] }) {
   const s = await space();
   const fetch = fakeEventor(members);
   const linked = await linkClubToEventor(db, { ...s.owner.proof, clubId: s.clubId, apiKey: CLUB_KEY, configuration, fetch }, NOW);
-  expect(linked).toEqual({ status: "linked", organisationName: "OK Älvsjö-Örby" });
+  expect(linked).toEqual({ status: "linked", organisationName: "OK Älvsjö-Örby", renamed: false });
   return { ...s, fetch, unlink: () => unlinkClubFromEventor(db, { ...s.owner.proof, clubId: s.clubId }, NOW) };
 }
 

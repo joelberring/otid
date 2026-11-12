@@ -146,6 +146,8 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /^STEN$|^BOULDER$/, point: "204" },
   { words: /DOTKNOLL/, point: "109" },
   { words: /UDEPRESSION|PUNKTGROP/, point: "111" },
+  // Grundkartans lutningsstreck på sänkornas kurvor (ägaren 2026-11-12: «negativ kurvbild … ser inga såna»).
+  { words: /LUTNINGSSTRECK/, point: "101.1" },
   { words: /HOJDKURVA|KURVA|CONTOUR|DEPRESSION/, line: "101" },
   { words: /TRAD|TREE/, point: "417" }
 ];
@@ -307,7 +309,9 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     if (target.kind === "area" && converted.kind === "line") { openAreas.set(target.symbol, [...(openAreas.get(target.symbol) ?? []), converted.points]); continue; }
     if (converted.kind === "point") {
       if (bounds && !within(bounds, converted.at)) { outside += 1; continue; }
-      objects.push({ kind: "point", symbol: target.symbol, at: converted.at, angle: 0 });
+      // Symbolens streck går mot (0, −1) i sin egen ruta; vinkeln vrider det mot punkten det ska peka på.
+      const toward = converted.toward, angle = toward ? Math.atan2(toward.x - converted.at.x, -(toward.y - converted.at.y)) * 180 / Math.PI : 0;
+      objects.push({ kind: "point", symbol: target.symbol, at: converted.at, angle: (angle + 360) % 360 });
     } else if (converted.kind === "area") {
       const rings = bounds ? converted.rings.map(ring => clipRing(ring, bounds)) : converted.rings;
       if ((rings[0]?.length ?? 0) < 3) { outside += 1; continue; }
@@ -374,9 +378,9 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     duplicates: objects.length - unique.length, short, joined, mismatched, closedAreas, stairs, steps };
 }
 
-type Converted = { kind: "point"; at: Point } | { kind: "line"; points: Point[]; closed: boolean } | { kind: "area"; rings: Point[][] };
+type Converted = { kind: "point"; at: Point; toward?: Point } | { kind: "line"; points: Point[]; closed: boolean } | { kind: "area"; rings: Point[][] };
 function convert(geometry: SourceGeometry, kind: TargetKind, map: (points: readonly (readonly [number, number])[]) => Point[]): Converted | undefined {
-  if (kind === "point") return geometry.kind === "point" ? { kind: "point", at: map([geometry.at])[0]! } : undefined;
+  if (kind === "point") return geometry.kind === "point" ? { kind: "point", at: map([geometry.at])[0]!, ...(geometry.toward ? { toward: map([geometry.toward])[0]! } : {}) } : undefined;
   if (geometry.kind === "point") return undefined;
   if (kind === "line") {
     if (geometry.kind === "line") return { kind: "line", points: map(geometry.points), closed: geometry.closed };

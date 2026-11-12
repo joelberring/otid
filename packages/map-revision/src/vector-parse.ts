@@ -3,7 +3,8 @@
  * ritas här; lagren mappas till symboler och räknas om till kartans mm i `vector-import.ts`. DWG läses senare i geo-arbetaren.
  */
 export type SourceGeometry =
-  | { readonly kind: "point"; readonly at: readonly [number, number] }
+  /** `toward`: en punkt som symbolen ska peka mot (t.ex. lutningsstreckets nedförsriktning). */
+  | { readonly kind: "point"; readonly at: readonly [number, number]; readonly toward?: readonly [number, number] | undefined }
   | { readonly kind: "line"; readonly points: readonly (readonly [number, number])[]; readonly closed: boolean }
   | { readonly kind: "area"; readonly rings: readonly (readonly (readonly [number, number])[])[] };
 /** `elevation`: höjden i meter när filen anger den (DXF:s kod 38 eller z i första punkten), t.ex. för höjdkurvor. */

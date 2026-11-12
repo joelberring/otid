@@ -61,3 +61,13 @@ describe("grundkartan", () => {
     expect(box.north).toBeGreaterThan(box.south);
   });
 });
+
+describe("lutningsstreck på sänkor", () => {
+  it("sätter ett streck mitt på den längsta sträckan, mot sänkans mitt", async () => {
+    const { depressionTick } = await import("./map-project-base-map");
+    const [tick] = depressionTick({ layer: "depression", geometry: { kind: "line", closed: true, points: [[0, 0], [40, 0], [40, 10], [0, 10]] } });
+    expect(tick?.layer).toBe("lutningsstreck");
+    expect(tick?.geometry).toEqual({ kind: "point", at: [20, 0], toward: [20, 5] });
+    expect(depressionTick({ layer: "contour", geometry: { kind: "line", closed: true, points: [[0, 0], [40, 0], [40, 10], [0, 10]] } })).toEqual([]);
+  });
+});

@@ -71,6 +71,22 @@ export const twoTagMeters = (scale: number) => 1.5 * scale / 1000;
 const lineLength = (points: readonly (readonly [number, number])[]) => points.reduce((sum, point, i) =>
   i === 0 ? 0 : sum + Math.hypot(point[0] - points[i - 1]![0], point[1] - points[i - 1]![1]), 0);
 
+/** Lutningsstrecket för en sluten sänkkurva: mitt på den längsta sträckan, pekande mot kurvans mitt. */
+export function depressionTick(feature: SourceFeature): SourceFeature[] {
+  const geometry = feature.geometry;
+  if (geometry.kind !== "line" || !/^depression(_index)?$/i.test(feature.layer) || geometry.points.length < 4) return [];
+  const points = geometry.points, first = points[0]!, last = points[points.length - 1]!;
+  if (!geometry.closed && Math.hypot(first[0] - last[0], first[1] - last[1]) > 1) return [];
+  const center: [number, number] = [points.reduce((sum, point) => sum + point[0], 0) / points.length, points.reduce((sum, point) => sum + point[1], 0) / points.length];
+  let best = 0, longest = -1;
+  for (let i = 0; i < points.length; i += 1) {
+    const next = points[(i + 1) % points.length]!, span = Math.hypot(next[0] - points[i]![0], next[1] - points[i]![1]);
+    if (span > longest) { longest = span; best = i; }
+  }
+  const a = points[best]!, b = points[(best + 1) % points.length]!;
+  return [{ layer: "lutningsstreck", geometry: { kind: "point", at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], toward: center } }];
+}
+
 /** Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala. */
 export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], osm?: SourceData, scale?: number,
   cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">): SourceData {
@@ -85,6 +101,8 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     for (const feature of list) contours.add(feature);
     return { ...part, data: { ...part.data, features: list } };
   });
+  // Sänkornas kurvor (Karttapullautins lager «depression») får ett lutningsstreck inåt, annars läses de som höjder.
+  const ticks = joined.flatMap(part => part.data.features).flatMap(depressionTick);
   const dry = linesOutsideWater(joined.flatMap(part => part.data.features), feature => contours.has(feature)).features;
   const partOf = new Map(joined.flatMap(part => part.data.features.map(feature => [feature, part.name] as const)));
   const features = dry.map(feature => {
@@ -99,7 +117,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   const laserKnolls = features.some(feature => feature.layer === "dotknoll_laser");
   const knolls = laserKnolls ? features.filter(feature => !(feature.layer === "dotknoll" && feature.geometry.kind === "point")) : features;
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
-  const all = [...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
+  const all = [...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   const single = undergrowthOutsideGreen(singleMarsh(all).features).features;
   return { features: [...single, ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),

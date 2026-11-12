@@ -105,7 +105,8 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       [
         "You need to be an administrator both in the event and in the club space.",
         "Before the day of the event, or while the courses are secret, O-Tid first asks about course secrecy.",
-        "”Take out of the club archive” removes the training from the archive. The event is not changed."
+        "”Take out of the club archive” removes the training from the archive. The event is not changed.",
+        "Courses that only exist in timing (written as control codes, not drawn in course setting) have no positions on the map and are not included in the course files. O-Tid says which before ”Put in the club archive”, and the archive entry says so too."
       ]
     ]
   },

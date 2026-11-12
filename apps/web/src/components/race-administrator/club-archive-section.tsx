@@ -77,6 +77,8 @@ export function ClubArchiveSection({ raceId, disabled }: { raceId: string; disab
           </div>
         </> : <>
           <p className={styles.muted}>{hasContents ? text.contents : text.noContents}</p>
+          {view.contents.coursesWithoutMap.length > 0 && <p className={styles.warning} data-testid="race-club-archive-without-map">
+            {text.withoutMap(view.contents.coursesWithoutMap)}</p>}
           {!view.finished && <div className={styles.warning} data-testid="race-club-archive-secrecy">
             <p><strong>{text.secrecyTitle}</strong> {text.secrecy}</p>
             <label><input type="checkbox" checked={secrecy} disabled={locked} onChange={event => setSecrecy(event.target.checked)} /> {text.secrecyConfirm}</label>

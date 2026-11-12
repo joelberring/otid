@@ -1,4 +1,4 @@
-import { plural } from "./plural";
+import { nameList, plural } from "./plural";
 
 /**
  * Var klubbens API-nyckel finns i Eventor (Eventors guide "Get data via API": Club → Club settings; svenska Eventor: Klubb →
@@ -127,6 +127,9 @@ export const clubAffiliationSv = {
     space: (club: string) => `Klubbytan: ${club}`,
     contents: "Det som läggs i klubbarkivet: kartfilen (som kartversion), banläggningen (.ppen) och banorna (IOF XML), och en länk hit. Inga startlistor, resultat eller deltagare.",
     noContents: "Tävlingen har ingen kartfil eller banor att lägga i arkivet än.",
+    /** Användartestet 2026-11-12 (C): tidtagningens banor som inte finns i banläggningen. */
+    withoutMap: (names: readonly string[]) => `${nameList(names)} har bara kontrollkoder och kan inte visas på kartan. ${names.length === 1
+      ? "Banan finns i tävlingen men kommer inte med i arkivets banfiler" : "Banorna finns i tävlingen men kommer inte med i arkivets banfiler"}; arkivposten säger det. Rita ${names.length === 1 ? "banan" : "banorna"} i banläggningen först om ${names.length === 1 ? "den" : "de"} ska följa med.`,
     lift: "Lägg i klubbarkivet",
     lifting: "Lägger i arkivet …",
     lifted: "Tävlingen ligger i klubbarkivet.",

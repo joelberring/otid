@@ -105,7 +105,8 @@ export const clubHelpArticles: readonly HelpArticle[] = [
       [
         "Du behöver vara administratör både i tävlingen och i klubbytan.",
         "Före tävlingsdagen, eller medan banorna är hemliga, frågar O-Tid först om banhemligheten.",
-        "”Ta ur klubbarkivet” tar bort träningen ur arkivet. Tävlingen ändras inte."
+        "”Ta ur klubbarkivet” tar bort träningen ur arkivet. Tävlingen ändras inte.",
+        "Banor som bara finns i tidtagningen (skrivna som kontrollkoder, inte ritade i banläggningen) har inga lägen på kartan och kommer inte med i banfilerna. O-Tid säger vilka före ”Lägg i klubbarkivet”, och arkivposten säger det också."
       ]
     ]
   },

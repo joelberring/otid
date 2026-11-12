@@ -130,7 +130,12 @@ export interface RaceClubArchiveView {
   coursesPublic: boolean;
   lifted: { clubId: string; entryId: string; liftedAt: string } | null;
   /** Vad som skulle läggas i arkivet. */
-  contents: { mapFile: string | null; courseSetting: boolean; courseFile: boolean };
+  contents: { mapFile: string | null; courseSetting: boolean; courseFile: boolean;
+    /**
+     * Användartestet 2026-11-12 (C): tidtagningens banor som inte finns i banläggningen (bara kontrollkoder, inga lägen på
+     * kartan). De följer inte med i arkivets banfiler.
+     */
+    coursesWithoutMap: string[] };
 }
 
 export const raceOrganiserRequestSchema = z.object({ formatVersion: z.literal(1), organisationId: uuidSchema.nullable() }).strict();

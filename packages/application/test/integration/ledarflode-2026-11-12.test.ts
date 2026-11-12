@@ -7,6 +7,10 @@ import { createClubTerm, createPlanSessions } from "../../src/club-planning";
 import { createTrainingGroup, setRaceGroup } from "../../src/training-groups";
 import { createGroupSessions } from "../../src/training-group-sessions";
 import { insertEventWithRace } from "../../src/organizer-events";
+import { liftRaceToClubArchive, readRaceClubArchiveAsAdmin } from "../../src/race-club-archive";
+import { readClubArchiveEntry } from "../../src/club-archive";
+import { readFile } from "node:fs/promises";
+import { readPpen } from "@o-tid/course-setting";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -89,5 +93,28 @@ describe("A: träningen hör till klubben", () => {
     expect(await setRaceGroup(db, { ...leader.proof, raceId: own.race.id, request: { formatVersion: 1, groupId } }, NOW))
       .toEqual({ status: "ok", groupId });
     expect(await organiserOf(own.race.id)).toBe(organisationId);
+  });
+});
+
+describe("C: banor utan lägen på kartan", () => {
+  it("dialogen och arkivposten säger vilka av tidtagningens banor som inte finns i banläggningen", async () => {
+    const { owner, clubId, organisationId } = await linkedClub("OK Banor");
+    const created = await db.transaction(tx => insertEventWithRace(tx, { eventName: "Torsdagsträning", raceName: "", raceDate: "2026-11-05",
+      timeZone: "Europe/Stockholm", raceType: "TRAINING", firstStartTime: null, trainingGroupId: null, ownerAccountId: owner.accountId, now: NOW }));
+    const raceId = created.race.id;
+    await db.insert(schema.raceOrganisers).values({ raceId, organisationId, setBy: owner.accountId, setAt: NOW });
+    const document = readPpen(await readFile(new URL("../../../../fixtures/course-setting/kartfil.ppen", import.meta.url), "utf8")).document;
+    await db.insert(schema.courseSettings).values({ raceId, document: document as never, version: 1, updatedAt: NOW, updatedBy: owner.accountId });
+    // Lång är ritad i banläggningen; Kort och Kvart finns bara i tidtagningen (kontrollkoder i arbetsytan).
+    for (const name of ["Lång", "Kort", "Kvart"]) await db.insert(schema.courses).values({ raceId, name });
+    const view = await readRaceClubArchiveAsAdmin(db, { ...owner.proof, raceId }, NOW);
+    if (view.status !== "ok") throw new Error(view.status);
+    expect(view.view.contents.coursesWithoutMap).toEqual(["Kort", "Kvart"]);
+    const lifted = await liftRaceToClubArchive(db, { ...owner.proof, raceId, request: { formatVersion: 1, confirmSecrecy: false } }, NOW);
+    if (lifted.status !== "ok") throw new Error(lifted.status);
+    const entry = await readClubArchiveEntry(db, { ...owner.proof, clubId, entryId: lifted.view.lifted!.entryId }, NOW);
+    if (entry.status !== "ok") throw new Error(entry.status);
+    expect(entry.view.entry.notes).toContain("Kort och Kvart har bara kontrollkoder och kan inte visas på kartan.");
+    expect(entry.view.entry.courseNames).not.toContain("Kort");
   });
 });

@@ -1,3 +1,4 @@
+import { nameList } from "./plural";
 import type { InvitationKind, InvitationMailOutcome, InvitationRole } from "@o-tid/contracts";
 import type { Texts } from "../lib/language";
 import type { publicRaceSv } from "./public-race-sv";
@@ -98,6 +99,8 @@ export const clubRaceEn: Texts<typeof clubAffiliationSv.race> = {
   space: (club: string) => `Club space: ${club}`,
   contents: "What goes into the club archive: the map file (as a map version), the course setting (.ppen) and the courses (IOF XML), and a link here. No start lists, results or participants.",
   noContents: "The event has no map file or courses to put in the archive yet.",
+  withoutMap: (names: readonly string[]) => `${nameList(names, "and")} only have control codes and cannot be shown on the map. ${names.length === 1
+    ? "The course is in the event but is not included" : "The courses are in the event but are not included"} in the archive's course files; the archive entry says so. Draw ${names.length === 1 ? "it" : "them"} in course setting first if ${names.length === 1 ? "it" : "they"} should be included.`,
   lift: "Put in the club archive",
   lifting: "Putting in the archive …",
   lifted: "The event is in the club archive.",

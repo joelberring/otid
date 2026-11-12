@@ -83,13 +83,33 @@ async function view(tx: DbExecutor, raceId: string, accountId: string, now: Date
   const lift = space ? await liftOf(tx, raceId, space.clubId) : undefined;
   const [map] = await tx.select({ fileName: schema.raceMapSources.fileName, sha: schema.raceMapSources.contentSha256 }).from(schema.raceMapSources)
     .where(eq(schema.raceMapSources.raceId, raceId));
-  const [setting] = await tx.select({ raceId: schema.courseSettings.raceId }).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
+  const [setting] = await tx.select({ document: schema.courseSettings.document }).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
   const courseFile = await latestCourseFile(tx, raceId);
+  const withoutMap = setting ? await coursesWithoutMap(tx, raceId, setting.document as unknown as CourseSettingDocument) : [];
   return { formatVersion: 1, raceId, raceDate: facts.race.raceDate, organiser: organisation ? organisationSummary(organisation) : null,
     suggestion: suggested ? organisationSummary(suggested) : null, space: space ? "ADMIN" : "NONE", spaceName: space?.name ?? null,
     finished: raceFinishedForArchive({ raceDate: facts.race.raceDate, today: localRaceDate(now, facts.event.timeZone), coursesPublic }),
     coursesPublic, lifted: lift?.entryId ? { clubId: lift.lift.clubId, entryId: lift.entryId, liftedAt: lift.lift.liftedAt.toISOString() } : null,
-    contents: { mapFile: map?.sha ? map.fileName : null, courseSetting: !!setting, courseFile: !!courseFile } };
+    contents: { mapFile: map?.sha ? map.fileName : null, courseSetting: !!setting, courseFile: !!courseFile, coursesWithoutMap: withoutMap } };
+}
+
+/**
+ * Användartestet 2026-11-12 (C): tidtagningens banor som banläggningen inte har (t.ex. skrivna som kontrollkoder i
+ * arbetsytan). De har inga lägen på kartan och kommer inte med i .ppen eller i banläggningens IOF XML. Namnen jämförs som
+ * Överför till tävlingen döper banorna (en gafflad bana heter som familjen).
+ */
+async function coursesWithoutMap(tx: DbExecutor, raceId: string, document: CourseSettingDocument): Promise<string[]> {
+  const drawn = new Set(document.courses.map(course => course.name.trim().toLocaleLowerCase("sv-SE")));
+  const rows = await tx.select({ name: schema.courses.name }).from(schema.courses).where(eq(schema.courses.raceId, raceId));
+  return [...new Set(rows.map(row => row.name.trim()).filter(name => name && !drawn.has(name.toLocaleLowerCase("sv-SE"))))]
+    .sort((a, b) => a.localeCompare(b, "sv-SE")).slice(0, 50);
+}
+
+/** Arkivpostens anteckning om banorna utan lägen (arkivet är på svenska, som träningarnas övriga text). */
+function withoutMapNote(names: readonly string[]): string | null {
+  if (names.length === 0) return null;
+  const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} och ${names[names.length - 1]}`;
+  return `${list} har bara kontrollkoder och kan inte visas på kartan. ${names.length === 1 ? "Banan" : "Banorna"} finns i tävlingen men inte i banfilerna här.`;
 }
 
 export async function readRaceClubArchiveAsAdmin(db: Database, input: ReadProof, now = new Date())
@@ -213,6 +233,7 @@ export async function liftRaceToClubArchive(db: Database, input: RaceSessionProo
     const files: { kind: "PPEN" | "COURSE_DATA"; fileName: string; bytes: Buffer }[] = [];
     const [courseSetting] = await tx.select({ document: schema.courseSettings.document }).from(schema.courseSettings)
       .where(eq(schema.courseSettings.raceId, raceId));
+    const note = courseSetting ? withoutMapNote(await coursesWithoutMap(tx, raceId, courseSetting.document as unknown as CourseSettingDocument)) : null;
     if (courseSetting) {
       const document = courseSetting.document as unknown as CourseSettingDocument;
       files.push({ kind: "PPEN", fileName: `${safeName(title)}.ppen`, bytes: Buffer.from(writePpen(document), "utf8") });
@@ -230,7 +251,7 @@ export async function liftRaceToClubArchive(db: Database, input: RaceSessionProo
     const entryId = randomUUID();
     await tx.insert(schema.clubArchiveEntries).values({ id: entryId, clubId, trainingDate: facts.race.raceDate, year: Number(facts.race.raceDate.slice(0, 4)),
       place: mapName, title, leader: null, tags: [...new Set([facts.race.raceType === "TRAINING" ? "Träning" : "Tävling", ...planned?.tags ?? []])].slice(0, 30),
-      moments: planned?.moments ?? [], levels: planned?.levels ?? [], notes: null, sourcePath: null,
+      moments: planned?.moments ?? [], levels: planned?.levels ?? [], notes: note, sourcePath: null,
       importKey: `race:${raceId}:${entryId}`, createdAt: now, createdBy: accountId, updatedAt: now });
     if (versionId) await tx.insert(schema.clubArchiveEntryMaps).values({ entryId, versionId });
     const seen = new Set<string>();

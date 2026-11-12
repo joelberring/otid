@@ -58,6 +58,24 @@ export const clubPlanTaskUpdateSchema = z.object({
 
 export const clubPlanTaskDoneSchema = z.object({ formatVersion: z.literal(1), done: z.boolean() }).strict();
 
+/**
+ * Ägaren 2026-11-12: "Hämta ur arkivet" i en vecka. Arkivträningen blir en planerad träning i terminen (rubrik, plats,
+ * anteckningar, kartan och, med `withMoments`, moment, nivåer och egna ord; med `withPeople` ledarna enligt personregeln).
+ * Banorna och kartan läggs på träningen med Använd igen efteråt.
+ */
+export const clubPlanFromArchiveSchema = z.object({
+  formatVersion: z.literal(1), requestId: uuidSchema, entryId: uuidSchema, sessionDate: isoDate, startTime: clock.nullable(),
+  withMoments: z.boolean(), withPeople: z.boolean()
+}).strict();
+
+/** Ägaren 2026-11-12: "Kopiera upplägg från termin" till en tom termin. */
+export const clubTermCopySchema = z.object({ formatVersion: z.literal(1), fromTermId: uuidSchema }).strict();
+
+/** Ägaren 2026-11-12: arkivträningens personer till en planerad träning (Använd igen → Till terminsplanen). */
+export const clubPlanPeopleCopySchema = z.object({ formatVersion: z.literal(1), entryId: uuidSchema }).strict();
+
+export interface ClubTermCopyResponse { readonly formatVersion: 1; readonly copied: number; readonly outside: number }
+
 export interface ClubTermView { readonly termId: string; readonly name: string; readonly startsOn: string; readonly endsOn: string; readonly sessions: number }
 
 export interface ClubPlanTaskView {

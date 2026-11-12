@@ -21,7 +21,7 @@ const sessions = schema.clubPlanSessions;
 const tasks = schema.clubPlanTasks;
 const DAY_MS = 86_400_000;
 /** Högst så här många planerade träningar i en termin (en om dagen räcker gott). */
-const MAX_TERM_SESSIONS = 400;
+export const MAX_TERM_SESSIONS = 400;
 
 type Input = ClubProof & { clubId: string };
 const termDays = (startsOn: string, endsOn: string) => (Date.parse(endsOn) - Date.parse(startsOn)) / DAY_MS;

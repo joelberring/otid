@@ -43,7 +43,7 @@ export async function planPeople(tx: Transaction, clubId: string): Promise<ClubP
 const RECENT_DAYS = 14;
 
 /** Läsrätt i banläggningen för kontot på träningen, om det inte redan har en behörighet där. */
-async function grantCourseRead(tx: DbExecutor, input: { raceId: string; accountId: string; taskId: string; actorId: string; now: Date }) {
+export async function grantCourseRead(tx: DbExecutor, input: { raceId: string; accountId: string; taskId: string; actorId: string; now: Date }) {
   const [race] = await tx.select({ eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, input.raceId));
   if (!race) return;
   if (await activeEventAdministrationGrant(tx, { accountId: input.accountId, eventId: race.eventId, roles: ["OWNER", "ADMIN"] }, "none")) return;

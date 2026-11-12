@@ -49,3 +49,14 @@ banläggningen. Ska hen ta fram tryckfilerna ger den ansvarige hen administratö
    sparat, eller en egen uppladdad PDF (högst 40 MB, 30 per träning). Läses av alla som ser banläggningen (COMMENT, också
    uppgifternas personer); sparas och tas bort av den som ändrar (EDIT). Syns i banläggningens utskrift, på veckan i planen
    och under Mina uppgifter. Följer med i säkerhetskopian.
+
+## Tillägg 2026-11-12: användartestet av ledarflödet
+
+Ingen migration. (1) En träning som skapas ur klubbens arkiv (Använd igen), ur planen eller i en grupp som hör till klubben
+(gruppen står i klubbens plan, eller är gruppens `club_id` satt) får klubbens organisation i Eventor som arrangörsklubb; Använd
+igen för över banorna till tidtagningen med Överför till tävlingens förhandsvisning och godkännande, och en Träning utan klasser
+får en klass per bana. (2) Beslut 4: medlemmar och den ansvarige får också mejlet (inte den som ger sig själv uppgiften), genom
+samma spärr; veckorna till terminens slut blir ett mejl; mejlet till en adress utan konto säger att kontot ska skapas och länkar
+till Skapa konto. Uppgifter kan ändras (rubrik och person; läsrätten flyttar med). (3) Koppla en träning visar inga fester och
+först veckan ± två veckor. Ägarens beslut samma dag om automatisk arkivering och om personerna vid kopiering kräver nya
+kolumner och är specificerade i `docs/plan-ledarflode-2026-11-12.md`, liksom att välja en väntande inbjuden som ansvarig.

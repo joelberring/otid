@@ -5,7 +5,7 @@ import { createDatabase, migrate, schema } from "@o-tid/database";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { performSuperadminAction, setSuperadmin } from "../../src/superadmin";
 import { isRacePubliclyVisible, publicRaceAccess } from "../../src/public-race-visibility";
-import { listPublicRaces, raceIdForShortCode, readPublicRaceHub } from "../../src/public-races";
+import { listPublicRaces, publicStartListPublished, raceIdForShortCode, readPublicRaceHub } from "../../src/public-races";
 import { setRacePublicationAsAdmin } from "../../src/race-publication";
 import { listEntryTransfersAsAdmin } from "../../src/entry-transfer";
 import { grantRacePerson, registerTestAccount, setRacePublished, accountOnRace } from "./accounts";
@@ -172,5 +172,12 @@ describe("ADR-0172 publicerad tävling", () => {
       raceType: "STANDARD", timeZone: "Europe/Stockholm", startListPublished: false, hasResults: false });
     expect(hub?.lastUpdate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(await readPublicRaceHub(db, randomUUID())).toBeUndefined();
+
+    // Användartest 2026-11-12: resultatsidans "Till startlistan" följer samma villkor som tävlingssidan.
+    expect(await publicStartListPublished(db, races.older)).toBe(false);
+    await db.update(schema.races).set({ startListLive: true }).where(eq(schema.races.id, races.older));
+    expect(await publicStartListPublished(db, races.older)).toBe(true);
+    expect((await readPublicRaceHub(db, races.older))?.startListPublished).toBe(true);
+    expect(await publicStartListPublished(db, randomUUID())).toBe(false);
   });
 });

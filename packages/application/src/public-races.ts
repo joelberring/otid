@@ -28,6 +28,15 @@ const startListPublished = sql<boolean>`coalesce((select ${schema.startListPubli
   from ${schema.startListPublications} where ${schema.startListPublications.raceId} = ${schema.races.id}
   order by ${schema.startListPublications.revision} desc limit 1), false) or ${schema.races.startListLive}`;
 
+/**
+ * Användartest 2026-11-12: om loppet har en publicerad startlista, med samma villkor som tävlingssidan använder för att
+ * visa Startlista. Resultatsidan länkar dit bara då.
+ */
+export async function publicStartListPublished(db: Database, raceId: string): Promise<boolean> {
+  const [race] = await db.select({ published: startListPublished }).from(schema.races).where(eq(schema.races.id, raceId)).limit(1);
+  return race?.published === true;
+}
+
 /** Tävlingens datum jämfört med dagens datum i tävlingens tidszon. */
 const localToday = (now: Date) => sql`(${now.toISOString()}::timestamptz at time zone ${schema.events.timeZone})::date`;
 

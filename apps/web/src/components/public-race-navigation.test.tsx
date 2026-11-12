@@ -17,6 +17,13 @@ describe("publik tävlingsnavigering", () => {
     expect(html).not.toContain(`href="/results/${raceId}"`);
   });
 
+  it("länkar inte till startlistan när ingen startlista är publicerad", () => {
+    const html = renderToStaticMarkup(<PublicRaceNavigation raceId={raceId} shortCode="k7m2qx" currentPage="results" startList={false} />);
+    expect(html).toContain('href="/t/k7m2qx"');
+    expect(html).not.toContain("Till startlistan");
+    expect(html).not.toContain(`href="/starts/${raceId}"`);
+  });
+
   it("länkar från startlistan till tävlingssidan och samma lopps resultat utan självlänk", () => {
     const html = renderToStaticMarkup(<PublicRaceNavigation raceId={raceId} shortCode="k7m2qx" currentPage="starts" />);
     expect(html).toContain('href="/t/k7m2qx"');

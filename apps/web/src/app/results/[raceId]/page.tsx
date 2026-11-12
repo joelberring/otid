@@ -1,4 +1,4 @@
-import { publicRaceSummary, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
+import { publicRaceSummary, publicStartListPublished, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
 import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, cachedStaffResults, PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../lib/public-race-data";
 import { db } from "../../../lib/db";
 import { PublicResultLists } from "../../../components/public-result-lists";
@@ -28,10 +28,11 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
   // resultatlistan utan cache och ser gafflingsbilden även när banorna är hemliga publikt.
   const staff = await raceStaff(raceId);
   const language = await currentLanguage(), en = language === "en";
-  const [summary, results, relay, finalization, radio] = await Promise.all([publicRaceSummary(db, raceId),
+  const [summary, results, relay, finalization, radio, startList] = await Promise.all([publicRaceSummary(db, raceId),
     (staff ? cachedStaffResults(raceId, { exact: true }) : cachedPublicResults(raceId, { exact: true })).then(entry => entry.value),
     cachedPublicRelayResults(raceId, { exact: true }).then(entry => entry.value),
-    readLatestPublicFrozenRaceFinalization(db, raceId), cachedPublicRadio(raceId, { exact: true }).then(entry => entry.value)]);
+    readLatestPublicFrozenRaceFinalization(db, raceId), cachedPublicRadio(raceId, { exact: true }).then(entry => entry.value),
+    publicStartListPublished(db, raceId)]);
   // Sträcktidsanalysen (PLAN.md steg 16) finns när någon individuell klass har sträcktider.
   let analysis = analysisByResults.get(results);
   if (analysis === undefined) {
@@ -41,7 +42,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ raceId
   // Steg 51: en stor lista skickas inte med sidan (flera MB HTML per besök); sidan hämtar den cachade listan direkt.
   const inline = publicPageRows(results, relay) <= PUBLIC_PAGE_INLINE_ROWS;
   return <main className="stack public-list-page">
-    <PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="results" language={language} />
+    <PublicRaceNavigation raceId={raceId} shortCode={summary.shortCode} currentPage="results" language={language} startList={startList} />
     <PreviewBanner access={access} language={language} />
     <section className="public-list-heading"><h1>{summary.eventName}</h1><p>{raceDetails(summary.eventName, summary.name, [summary.raceDate])}</p>
       <p className="public-list-links">

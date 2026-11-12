@@ -7,10 +7,11 @@ const data = (...layers: string[]): SourceData => ({ skipped: 0, features: layer
 describe("grundkartan", () => {
   it("en opasserbar brant som är för kort för två taggar blir en brant", () => {
     const cliff = (length: number) => ({ layer: "brant_opasserbar", geometry: { kind: "line" as const, closed: false, points: [[0, 0], [length, 0]] as [number, number][] } });
-    const merged = mergeBaseMap([{ name: "brantlinjer.dxf", data: { skipped: 0, features: [cliff(14), cliff(16)] } }], undefined, 10_000);
+    // 1:10 000: två taggar kräver 7,5 m, och normens kortaste brant är 6 m (kortare tas inte med alls).
+    const merged = mergeBaseMap([{ name: "brantlinjer.dxf", data: { skipped: 0, features: [cliff(5), cliff(7), cliff(8)] } }], undefined, 10_000);
     expect(merged.features.map(feature => feature.layer)).toEqual(["brant_passerbar", "brant_opasserbar"]);
-    // I 1:15 000 behövs 22,5 m.
-    expect(mergeBaseMap([{ name: "brantlinjer.dxf", data: { skipped: 0, features: [cliff(20)] } }], undefined, 15_000).features[0]!.layer).toBe("brant_passerbar");
+    // I 1:15 000 behövs 11,25 m för två taggar och 9 m för att alls tas med.
+    expect(mergeBaseMap([{ name: "brantlinjer.dxf", data: { skipped: 0, features: [cliff(8), cliff(10)] } }], undefined, 15_000).features.map(feature => feature.layer)).toEqual(["brant_passerbar"]);
   });
 
   it("laserns små kullar ersätter Karttapullautins knollar, groparna finns kvar (ägaren 2026-11-11)", () => {

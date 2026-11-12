@@ -63,11 +63,13 @@ export function osmForBaseMap(osm: SourceData, hasBuildings: boolean): SourceFea
       : geometry.kind === "line" ? { kind: "line" as const, points: geometry.points.map(at), closed: geometry.closed } : { kind: "area" as const, rings: geometry.rings.map(ring => ring.map(at)) } }));
 }
 
+/** Normens kortaste brant (201, 202) i mm på kartan. */
+export const MIN_CLIFF_MM = 0.6;
 /**
- * Kortaste opasserbara brant (meter i terrängen) som får två taggar: med taggarna 1 mm isär och en halv i varje ände
- * (normens 201 och `spacedDistances` i ritningen) behövs 1,5 mm på kartan.
+ * Kortaste opasserbara brant (meter i terrängen) som får två taggar: med taggarna 0,5 mm isär och en halv i varje ände
+ * (mallens 201 och `spacedDistances` i ritningen) behövs 0,75 mm på kartan.
  */
-export const twoTagMeters = (scale: number) => 1.5 * scale / 1000;
+export const twoTagMeters = (scale: number) => 0.75 * scale / 1000;
 const lineLength = (points: readonly (readonly [number, number])[]) => points.reduce((sum, point, i) =>
   i === 0 ? 0 : sum + Math.hypot(point[0] - points[i - 1]![0], point[1] - points[i - 1]![1]), 0);
 
@@ -92,6 +94,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">): SourceData {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const shortest = scale ? twoTagMeters(scale) : 0;
+  const minCliff = scale ? MIN_CLIFF_MM * scale / 1000 : 0;
   // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
   // Ägaren 2026-11-12: kurvorna och formlinjerna klipps mot vattnet (lasern har ingen mark där och drar dem rakt över).
   const contours = new Set<SourceFeature>();
@@ -109,9 +112,12 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     const part = { name: partOf.get(feature) ?? "kurvor.dxf" };
     if (part.name === "vegetation.dxf" && landCover && feature.layer === "oppen_mark") return { ...feature, layer: "oppen_mark_laser" };
     if (feature.layer === "bebyggelse_lag") return { ...feature, layer: "tomtmark_marktacke" };
+    // Ägaren 2026-11-12 («konstig brant i ingenting»): normens kortaste brant är 0,6 mm på kartan (9 m i 1:15 000). Av laserns
+    // branter under 9 m ligger 40 % vid en ritad brant på lärkartorna, mot 65–80 % av de längre; de kortaste tas inte med.
+    if (/^brant_/.test(feature.layer) && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < minCliff) return undefined;
     if (feature.layer === "brant_opasserbar" && feature.geometry.kind === "line" && lineLength(feature.geometry.points) < shortest) return { ...feature, layer: "brant_passerbar" };
     return feature;
-  });
+  }).filter((feature): feature is SourceFeature => !!feature);
   // Ägaren 2026-11-11 (Högdalen som facit: 282 punkthöjder mot kartritarens 153, många i sluttningar): finns laserns egna
   // små kullar (berg.dxf, prövade mot markmodellen) ersätter de Karttapullautins knollar; groparna behålls.
   const laserKnolls = features.some(feature => feature.layer === "dotknoll_laser");

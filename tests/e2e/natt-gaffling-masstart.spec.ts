@@ -171,6 +171,37 @@ test("natt med gaffling och masstart, före start: publik startlista utan varian
   await expect(owner.getByTestId("speaker-awaiting-start")).toHaveText("Inte startat: 12", { timeout: 30_000 });
   await expect(owner.getByRole("region", { name: "Kvar i skogen" })).toContainText("Ingen är kvar i skogen.");
   await expect(owner.getByRole("region", { name: "Senast i mål" })).toContainText("Ingen har gått i mål ännu.");
+
+  // 9. Alternativ D tas bort efter tryck (ADR-0175, tillägg 2026-11-12 b): C och E står kvar med sina bokstäver, så kartorna
+  // med E stämmer. Bara D-löparna byter variant och står med namn, före och efter, och att de behöver ny karta.
+  const onD = [...after].filter(([, code]) => code.endsWith("D")).map(([name]) => name).sort((left, right) => left.localeCompare(right, "sv"));
+  expect(onD.length).toBeGreaterThan(0);
+  await owner.goto(`/admin/${raceId}/manage`);
+  await openStep(owner, "Banor");
+  await owner.getByRole("button", { name: `Redigera gafflingar på ${COURSE}` }).click();
+  const editor = owner.getByRole("form", { name: `Gafflingar på ${COURSE}` });
+  await editor.getByRole("button", { name: "Ta bort D (Gaffling 2 (C, D, E))" }).click();
+  await expect(editor.getByRole("group", { name: "Gaffling 2 (C, E)" })).toBeVisible();
+  await expect(editor.getByRole("textbox", { name: "Alternativ E" })).toHaveValue("64");
+  await expect(editor.getByRole("textbox", { name: "Alternativ D" })).toHaveCount(0);
+  const generated = editor.getByRole("region", { name: "Varianterna som banan ger" });
+  await expect(generated).toContainText("4 varianter");
+  await expect(generated).toContainText("AE 31 40 41 50 60 64 70 100");
+  await expect(generated).not.toContainText("AD");
+  await editor.getByRole("button", { name: "Visa vad som händer" }).click();
+  const changes = editor.getByTestId("forking-entry-changes");
+  await expect(changes.getByRole("listitem")).toHaveCount(onD.length);
+  for (const name of onD) {
+    await expect(changes).toContainText(`${name} · ${CLASS}: ${after.get(name)} → ny variant vid sparandet · ny karta behövs`);
+  }
+  await editor.getByRole("button", { name: "Spara ändringen" }).click();
+  await expect(owner.getByText("Gafflingarna är sparade.", { exact: false })).toContainText(`${onD[0]} · ${CLASS}: ${after.get(onD[0]!)} → `,
+    { timeout: 30_000 });
+  const removed = await startListVariants(owner, [...after.keys()], clock);
+  for (const [name, code] of after) {
+    if (onD.includes(name)) expect(["AC", "AE", "BC", "BE"], name).toContain(removed.get(name));
+    else expect(removed.get(name), name).toBe(code);
+  }
 });
 
 test("natt med gaffling och masstart, tävlingskvällen: avläsning, rättad kod, okänd bricka, utan nät och speakern", async ({ browser }) => {

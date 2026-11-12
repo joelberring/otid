@@ -22,6 +22,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Stafettsträckor oförändrade (följer bara kontrollföljden; samma fel finns där, inte rättat).
 - Verifierat: lint, typecheck, enhetstester, integrationstester för gafflingar och banredigering (se slutrapporten).
 
+### 2026-11-12 – Användartestet 2026-11-12, block 1: speaker, startsätt, kvar i skogen; veckans målning
+- Speakerns "Senast i mål" ordnas och visas på ankomsttiden (som Live), inte på senaste revisionen; en omräkning flyttar ingen.
+- Deltagarkortet visar klassens verkliga startsätt (`classStartMethod`), t.ex. Masstart i stället för Minutstart.
+- Kvar i skogen: lottad starttid framåt i tiden ger "Inte startat" (`remainsInForest`/`awaitingScheduledStart` i domänen);
+  avläsning, radiostämpling (`radioPunched` i rapporten) och registrerad start räknas alltid. Speakern, kontrollvyn och listan.
+- Startsidan: veckans målning av Emm Berring (sju liggande, byte natten mot måndag svensk tid, `weekly-painting.ts`,
+  bilder i `apps/web/public/malningar/`), texten och länken till portfolion i startsidans sidfot. Bara startsidan.
+- Verifierat: lint, typecheck, knip, alla enhetstester och berörda integrationstester på den sammanslagna koden. Inte körd
+  här: Playwright (`startsida.spec.ts` är uppdaterad). Kvar i block 1: okänd bricka (masstart, varning, variant).
+- Underlag och hela listan: projektdokumentet `utvecklingslista-2026-11-12` (användartestet).
+
 ### 2026-11-11 – Hyggen från Skogsstyrelsen efter ålder, fyll, parallell och mätning
 - Skogsstyrelsens utförda avverkningar hämtas för grundkartans ruta och delas in efter ålder (färskt 403, sly 407, ungskog
   406, kant 416); laserns grönt tas bort i hyggen som är nyare än skanningen (skanningsdatum ur Lantmäteriets sökning).

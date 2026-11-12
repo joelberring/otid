@@ -127,6 +127,8 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   // Diken ur terrängformen (scripts/geo-ditches.ts) är diken (306), inte bäckar (ägaren 2026-11-11, Högdalen som facit).
   { words: /^DIKE$|DITCH/, line: "306" },
   { words: /DIKE|BACK|STREAM/, line: "305" },
+  // Grundkartans strandlinje (ägaren 2026-11-12: «sjöar och vatten begränsas av heldragen linje»): normens 301 har en svart kantlinje.
+  { words: /STRANDLINJE/, line: "301.1" },
   { words: /VATTEN|SJO|LAKE|WATER/, area: "301" },
   // Karttapullautins lager (K5), före de vanliga kurvorna. «_intermed» är varje kurva på halva ekvidistansen, inte
   // stödkurvorna (de ligger i formline): lagret hoppas över, annars blir hela kartan streckad.

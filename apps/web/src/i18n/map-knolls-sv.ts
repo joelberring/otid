@@ -41,8 +41,9 @@ export const mapKnollsSv = {
   },
   cliffs: {
     heading: "Branter med reglage (201, 202)",
-    help: "Laserjobbet sparar alla branter från 0,8 m fall med sina mått. Dra i gränserna: kandidaterna räknas om direkt. Branter kortare än normens 0,6 mm på kartan tas inte med.",
+    help: "Laserjobbet sparar alla branter från 0,8 m fall med sina mått. Dra i gränserna: kandidaterna räknas om direkt. Förvalet tar inte med branter kortare än normens 0,6 mm på kartan.",
     minDrop: (meters: string) => `Minsta fall för en brant: ${meters} m`,
+    minLength: (meters: string) => `Kortaste brant: ${meters} m`,
     impassableDrop: (meters: string) => `Opasserbar från: ${meters} m fall`,
     impassableLength: (meters: number) => `Opasserbar från: ${meters} m längd`,
     tags: "Passerbara branter med taggar (202.1)",

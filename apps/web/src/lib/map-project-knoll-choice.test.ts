@@ -30,13 +30,9 @@ describe("punkthöjder med reglage", () => {
 describe("mängden på skalan 1–10", () => {
   it("ger förvalen på 5, bara de tydligaste på 1 och allt på 10", async () => {
     const { knollLimitsAt } = await import("./map-project-knoll-choice");
-    const { cliffLimitsAt, DEFAULT_CLIFF_LIMITS } = await import("./map-project-cliff-choice");
     expect(knollLimitsAt(5)).toEqual(DEFAULT_KNOLL_LIMITS);
     expect(knollLimitsAt(1)).toEqual({ minRise: 2, lowerShare: 0.95, maxFootM2: 80, spacing: 40 });
     expect(knollLimitsAt(10)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 });
     expect(knollLimitsAt(3).minRise).toBe(1.5);
-    expect(cliffLimitsAt(5)).toEqual(DEFAULT_CLIFF_LIMITS);
-    expect(cliffLimitsAt(1).minDrop).toBe(3);
-    expect(cliffLimitsAt(10, { ...DEFAULT_CLIFF_LIMITS, tags: true })).toEqual({ minDrop: 0.8, impassableDrop: 4.5, impassableLength: 20, tags: true });
   });
 });

@@ -7,7 +7,7 @@ import { mapKnollsEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapKnollsSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase } from "../../lib/map-project-client";
-import { cliffFeatures, cliffLimitsAt, DEFAULT_CLIFF_LIMITS, readCliffCandidates, type CliffLimits } from "../../lib/map-project-cliff-choice";
+import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates, type CliffLimits } from "../../lib/map-project-cliff-choice";
 import { chooseKnolls, DEFAULT_KNOLL_LIMITS, knollFeatures, knollLimitsAt, readKnollCandidates, type KnollLimits } from "../../lib/map-project-knoll-choice";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
@@ -122,10 +122,11 @@ export function MapProjectCliffPanel({ view, importer, scale }: { view: MapProje
   const text = useTexts(mapKnollsSv, mapKnollsEn).cliffs;
   const meters = (value: number) => value.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
   return <SavedChoicePanel<Parameters<typeof cliffFeatures>[0][number], CliffLimits> view={view} importer={importer} file="brantlinjer.geojson" own={/^brant_/}
-    initial={DEFAULT_CLIFF_LIMITS} atLevel={cliffLimitsAt} read={readCliffCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-cliffs"
-    choose={(candidates, limits) => { const result = cliffFeatures(candidates, limits, 0.6 * scale / 1000); return { features: result.features, message: text.done(result.impassable, result.passable, candidates.length) }; }}
+    initial={defaultCliffLimits(scale)} atLevel={(level, current) => cliffLimitsAt(level, current, scale)} read={readCliffCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-cliffs"
+    choose={(candidates, limits) => { const result = cliffFeatures(candidates, limits); return { features: result.features, message: text.done(result.impassable, result.passable, candidates.length) }; }}
     controls={(limits, slider, change) => <>
-      {slider("minDrop", text.minDrop(meters(limits.minDrop)), 0.8, 3, 0.1)}
+      {slider("minDrop", text.minDrop(meters(limits.minDrop)), 0.8, 6, 0.1)}
+      {slider("minLength", text.minLength(meters(limits.minLength)), 0, 40, 1)}
       {slider("impassableDrop", text.impassableDrop(meters(limits.impassableDrop)), 2, 8, 0.5)}
       {slider("impassableLength", text.impassableLength(limits.impassableLength), 6, 40, 2)}
       <label className={styles.check}><input type="checkbox" checked={limits.tags} data-testid="map-project-cliffs-tags"

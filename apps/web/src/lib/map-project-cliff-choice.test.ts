@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { cliffFeatures, DEFAULT_CLIFF_LIMITS, readCliffCandidates } from "./map-project-cliff-choice";
+import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./map-project-cliff-choice";
+
+const DEFAULT_CLIFF_LIMITS = { ...defaultCliffLimits(10_000), minLength: 0 };
 
 const feature = (drop3: number, drop6: number, length: number) => ({ type: "Feature", geometry: { type: "LineString", coordinates: [[0, 0], [length, 0]] },
   properties: { drop3, drop6, length } });
@@ -14,8 +16,19 @@ describe("branter med reglage", () => {
     expect(result.features.map(row => row.layer)).toEqual(["brant_passerbar", "brant_opasserbar", "brant_passerbar", "brant_passerbar"]);
   });
   it("tar bort de för korta och ger taggar när det är valt", () => {
-    const result = cliffFeatures(candidates, { ...DEFAULT_CLIFF_LIMITS, minDrop: 0.8, impassableLength: 10, tags: true }, 9);
+    const result = cliffFeatures(candidates, { ...DEFAULT_CLIFF_LIMITS, minDrop: 0.8, impassableLength: 10, tags: true, minLength: 9 });
     expect([result.impassable, result.passable]).toEqual([2, 2]);
     expect(new Set(result.features.map(row => row.layer))).toEqual(new Set(["brant_opasserbar", "brant_passerbar_taggar"]));
+  });
+});
+
+describe("mängden branter på skalan 1–10", () => {
+  it("går över både fallet och längden, med förvalen på 5", () => {
+    const usual = defaultCliffLimits(15_000);
+    expect(usual.minLength).toBe(9);
+    expect(cliffLimitsAt(5, usual, 15_000)).toEqual(usual);
+    expect(cliffLimitsAt(1, usual, 15_000)).toMatchObject({ minDrop: 5.5, minLength: 30, impassableDrop: 4.5 });
+    expect(cliffLimitsAt(10, { ...usual, tags: true }, 15_000)).toMatchObject({ minDrop: 0.8, minLength: 0, tags: true });
+    expect(cliffLimitsAt(3, usual, 15_000)).toMatchObject({ minDrop: 3.4, minLength: 19.5 });
   });
 });

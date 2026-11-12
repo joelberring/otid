@@ -40,8 +40,9 @@ export const mapKnollsEn: Texts<typeof mapKnollsSv> = {
   },
   cliffs: {
     heading: "Cliffs with sliders (201, 202)",
-    help: "The laser job saves every cliff from 0.8 m drop with its measurements. Drag the limits: the candidates are recalculated at once. Cliffs shorter than the standard's 0.6 mm on the map are left out.",
+    help: "The laser job saves every cliff from 0.8 m drop with its measurements. Drag the limits: the candidates are recalculated at once. By default, cliffs shorter than the standard's 0.6 mm on the map are left out.",
     minDrop: (meters: string) => `Minimum drop for a cliff: ${meters} m`,
+    minLength: (meters: string) => `Shortest cliff: ${meters} m`,
     impassableDrop: (meters: string) => `Impassable from: ${meters} m drop`,
     impassableLength: (meters: number) => `Impassable from: ${meters} m length`,
     tags: "Passable cliffs with tags (202.1)",

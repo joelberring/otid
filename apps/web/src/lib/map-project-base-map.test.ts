@@ -72,3 +72,13 @@ describe("lutningsstreck på sänkor", () => {
     expect(depressionTick({ layer: "contour", geometry: { kind: "line", closed: true, points: [[0, 0], [40, 0], [40, 10], [0, 10]] } })).toEqual([]);
   });
 });
+
+describe("strandlinjen", () => {
+  it("ger en sluten linje för stranden och en för varje ö", async () => {
+    const { shoreLines } = await import("./map-project-base-map");
+    const lake = { layer: "vatten", geometry: { kind: "area" as const, rings: [[[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]], [[40, 40], [60, 40], [60, 60], [40, 40]]] as [number, number][][] } };
+    const lines = shoreLines([lake, { layer: "aker", geometry: lake.geometry }]);
+    expect(lines.map(line => line.layer)).toEqual(["strandlinje", "strandlinje"]);
+    expect(lines[0]!.geometry.kind === "line" && lines[0]!.geometry.closed).toBe(true);
+  });
+});

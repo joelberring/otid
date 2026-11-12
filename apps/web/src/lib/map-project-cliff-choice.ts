@@ -5,16 +5,27 @@ import { blend } from "./map-project-knoll-choice";
  * Ägaren 2026-11-12 (ändra utan ny körning): laserjobbet sparar alla branter från 0,8 m fall med sina mått
  * (`brantlinjer.geojson`), och valet görs här med reglage. Samma regel som geo-arbetarens `classifyCliff`
  * (scripts/geo-cliffs.ts): under `minDrop` ingen brant; opasserbar när fallet inom 3 och 6 m når `impassableDrop` och
- * längden `impassableLength`, annars passerbar. Branter kortare än `minLength` (normens 0,6 mm på kartan) tas inte med.
+ * längden `impassableLength`, annars passerbar. Branter kortare än `minLength` tas inte med.
  */
 export interface CliffCandidate { readonly line: readonly (readonly [number, number])[]; readonly drop3: number; readonly drop6: number; readonly length: number }
-export interface CliffLimits { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength: number; readonly tags: boolean }
-/** Geo-arbetarens förval («Bara höga stup», lärt av Högdalen). */
-export const DEFAULT_CLIFF_LIMITS: CliffLimits = { minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20, tags: false };
+export interface CliffLimits { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength: number; readonly tags: boolean;
+  /** Kortaste brant som tas med (m); normens 0,6 mm på kartan är förvalet (`normCliffLength`). */
+  readonly minLength: number }
+/** Normens kortaste brant (0,6 mm på kartan) i meter för kartans skala. */
+export const normCliffLength = (scale: number) => 0.6 * scale / 1000;
+/** Geo-arbetarens förval («Bara höga stup», lärt av Högdalen), med normens kortaste brant för skalan. */
+export const defaultCliffLimits = (scale: number): CliffLimits => ({ minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20, tags: false, minLength: normCliffLength(scale) });
 
-/** Mängden på skalan 1–10 (5 = förvalen): 1 bara branter från 3 m fall, 10 allt från 0,8 m. Gränsen för opasserbar ändras inte. */
-export const cliffLimitsAt = (level: number, current: CliffLimits = DEFAULT_CLIFF_LIMITS): CliffLimits => ({ ...current,
-  minDrop: blend({ minDrop: DEFAULT_CLIFF_LIMITS.minDrop }, { minDrop: level < 5 ? 3 : 0.8 }, level < 5 ? (5 - level) / 4 : (level - 5) / 5).minDrop });
+/**
+ * Mängden på skalan 1–10 (5 = förvalen). Ägaren 2026-11-12 («punkthöjderna ändras med reglage men inte branterna»): laserns
+ * branter har nästan alltid minst 2,3 m fall (hälften över 3,9 m) och hälften är kortare än 12 m, så skalan måste gå över
+ * både fallet och längden för att märkas. 1 = bara de högsta och längsta (5,5 m fall, minst 30 m), 10 = alla, också de som
+ * är kortare än normens 0,6 mm. Gränsen för opasserbar och taggarna ändras inte.
+ */
+export function cliffLimitsAt(level: number, current: CliffLimits, scale: number): CliffLimits {
+  const usual = { minDrop: 1.3, minLength: normCliffLength(scale) };
+  return { ...current, ...blend(usual, level < 5 ? { minDrop: 5.5, minLength: 30 } : { minDrop: 0.8, minLength: 0 }, level < 5 ? (5 - level) / 4 : (level - 5) / 5) };
+}
 
 export function readCliffCandidates(json: unknown): CliffCandidate[] {
   const features = (json as { features?: unknown } | null)?.features;
@@ -37,11 +48,11 @@ export function classifyCliff(cliff: { drop3: number; drop6: number; length: num
 }
 
 /** Valet som kandidater i grundkartans brantlager, med antalen. */
-export function cliffFeatures(candidates: readonly CliffCandidate[], limits: CliffLimits, minLength = 0): { features: SourceFeature[]; impassable: number; passable: number } {
+export function cliffFeatures(candidates: readonly CliffCandidate[], limits: CliffLimits): { features: SourceFeature[]; impassable: number; passable: number } {
   const features: SourceFeature[] = [];
   let impassable = 0, passable = 0;
   for (const cliff of candidates) {
-    if (cliff.length < minLength) continue;
+    if (cliff.length < limits.minLength) continue;
     const kind = classifyCliff(cliff, limits);
     if (!kind) continue;
     if (kind === "impassable") impassable += 1; else passable += 1;

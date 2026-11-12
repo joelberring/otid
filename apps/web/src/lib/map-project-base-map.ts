@@ -73,6 +73,18 @@ export const twoTagMeters = (scale: number) => 0.75 * scale / 1000;
 const lineLength = (points: readonly (readonly [number, number])[]) => points.reduce((sum, point, i) =>
   i === 0 ? 0 : sum + Math.hypot(point[0] - points[i - 1]![0], point[1] - points[i - 1]![1]), 0);
 
+/**
+ * Strandlinjen runt vattnet: normens 301 är blå med en svart kantlinje (0,18 mm) som säger att vattnet inte går att korsa.
+ * Varje ring i en vattenyta (stranden och öarna) blir en sluten linje i lagret `strandlinje` (301.1).
+ */
+export function shoreLines(features: readonly SourceFeature[]): SourceFeature[] {
+  return features.flatMap(feature => {
+    if (feature.layer !== "vatten") return [];
+    const rings = feature.geometry.kind === "area" ? feature.geometry.rings : feature.geometry.kind === "line" && feature.geometry.closed ? [feature.geometry.points] : [];
+    return rings.filter(ring => ring.length >= 3).map((ring): SourceFeature => ({ layer: "strandlinje", geometry: { kind: "line", closed: true, points: ring.map(([x, y]) => [x, y]) } }));
+  });
+}
+
 /** Lutningsstrecket för en sluten sänkkurva: mitt på den längsta sträckan, pekande mot kurvans mitt. */
 export function depressionTick(feature: SourceFeature): SourceFeature[] {
   const geometry = feature.geometry;
@@ -126,6 +138,6 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   const all = [...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   const single = undergrowthOutsideGreen(singleMarsh(all).features).features;
-  return { features: [...single, ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
+  return { features: [...single, ...shoreLines(single), ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

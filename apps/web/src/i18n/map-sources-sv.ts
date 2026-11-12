@@ -192,6 +192,13 @@ export const mapSourcesSv = {
       "fukt.dxf": "Våtmarker och fuktstråk", "diken.dxf": "Diken ur terrängformen", "berg.dxf": "Stenar och berg i dagen", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
     loadBaseMap: "Läs in grundkartan",
+    /** Statusraden medan kandidater läses in (ägaren 2026-11-12: «nu vet man inte om datorn hängt sig»). */
+    steps: {
+      fetching: (done: number, total: number) => `Hämtar filer ${done} av ${total} …`,
+      reading: (done: number, total: number) => `Läser filer ${done} av ${total} …`,
+      merging: "Sätter ihop grundkartan …",
+      candidates: "Räknar kandidater …"
+    },
     osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Importera vektorer.",
     clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen har inga hyggen under 15 år i rutan."
       : `Hyggen från Skogsstyrelsen: ${fresh} färska, ${scrub} med sly och ${young} med ungskog${scanned ? ` (lasern skannades ${scanned}; laserns grönt tas bort i hyggen som är nyare)` : ""}.`,

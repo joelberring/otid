@@ -48,6 +48,7 @@ export const mapProjectImportSv = {
   barBuilt: "Inget i tomtmark, asfalt och hus",
   barBuiltDone: (removed: number, clipped: number) => `${removed} borta, ${clipped} klippta`,
   barNormed: "Generalisera efter normen",
+  barComputing: "räknar …",
   barNormedDone: (removed: number, simplified: number) => `${removed} för små borta, ${simplified} förenklade`,
   barSymbols: "Byt symboler",
   hideOnMap: "Dölj på kartan",

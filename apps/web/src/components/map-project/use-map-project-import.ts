@@ -1,25 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
 import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  applyFit, fitClassOf, generalizeCandidates, guessCrs, importLayers, importObjects, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
-  clipObjectsToPolygon, type FitPoint, type ImportLayer, type SourceData, type TargetKind, type VectorFit
+  fitClassOf, guessCrs, importLayers, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
-import { maskBuilt } from "../../lib/map-project-built-mask";
+import type { BaseMapStep, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
+import { CandidateSession } from "../../lib/map-project-candidates-client";
+import { controlledWorker } from "../../lib/course-setting-worker";
 import { mergeCandidates } from "../../lib/map-project-candidate-merge";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 
+const createCandidateWorker = () => controlledWorker(() => new Worker(new URL("../../lib/map-project-candidates-worker.ts", import.meta.url), { type: "module" }));
 /** Ett förslag hålls under synkens gränser (antal och storlek). */
 const MAX_PROPOSAL_BYTES = 3 * 1024 * 1024;
 /** "unsupported", "crs", ett meddelande från läsningen eller en HTTP-status. */
@@ -161,35 +164,32 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     } finally { setFetching(false); }
   }, [georeference, bounds, base, show]);
 
-  const result = useMemo(() => {
-    if (!file || !georeference || crs === undefined || !(crs === WGS84_EPSG || isSupportedEpsg(crs))) return undefined;
-    const targets = new Map<string, { symbol: string; kind: TargetKind }>();
-    for (const [layer, id] of mapping) {
-      if (skipped.has(layer)) continue;
-      const kind = symbols.get(id)?.kind;
-      if (kind === "point" || kind === "line" || kind === "area") targets.set(layer, { symbol: id, kind });
-    }
-    try {
-      // Trappan (532) byggs av baskartornas steglinjer.
-      const stairSymbols = new Set([...symbols.values()].filter(symbol => symbol.code.replace(/\.0+$/, "") === "532").map(symbol => symbol.id));
-      const fitted = fit && fit !== "running" ? fit : undefined;
-      const toMap = (x: number, y: number) => {
-        const at = sourcePointToMap(georeference, crs, x, y);
-        return fitted ? applyFit(fitted, at) : at;
-      };
-      const whole = importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols,
-        // Kartans område (polygonen) klipper också, utom när en etapp valts (den har sin ruta).
-        polygon: clip ? undefined : view.area ?? undefined });
-      const imported = stage?.[0] && stage[0].length >= 3 ? { ...whole, objects: clipObjectsToPolygon(whole.objects, stage).objects } : whole;
-      // Ägaren 2026-11-12: inget av markens detaljer eller vegetationen i det som redan är ritat som tomtmark, asfalt eller hus.
-      const masked = maskBuiltOn && built.length ? maskBuilt(imported.objects, built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }) : undefined;
-      const kept = masked?.objects ?? imported.objects, builtMask = masked && masked.removed + masked.clipped > 0 ? { removed: masked.removed, clipped: masked.clipped } : undefined;
-      if (!normed) return { ...imported, objects: kept, generalized: undefined, builtMask };
-      // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).
-      const general = generalizeCandidates(kept, symbol => symbols.get(symbol)?.code, georeference.scale);
-      return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask };
-    } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds, clip, stage, fit, skipped, normed, view.area, built, maskBuiltOn]);
+  /**
+   * Ägaren 2026-11-12 («sidan svarar inte» på ett helt kartblad): kandidaterna räknas i en egen Worker
+   * (`map-project-candidates-worker.ts`). Medan en ny uträkning pågår står den förra kvar (samma fil) och `computing` är sann.
+   */
+  const workerRef = useRef<CandidateSession | undefined>(undefined);
+  const worker = useCallback(() => workerRef.current ??= new CandidateSession(createCandidateWorker), []);
+  useEffect(() => () => { workerRef.current?.close(); workerRef.current = undefined; }, []);
+  const fitted = fit && fit !== "running" ? fit : undefined;
+  const input = useMemo((): CandidateInput | undefined => {
+    if (!georeference || crs === undefined || !(crs === WGS84_EPSG || isSupportedEpsg(crs))) return undefined;
+    return { georeference, crs, mapping: [...mapping], skipped: [...skipped], bounds, clip, area: view.area ?? undefined, stage, fit: fitted, normed,
+      built, maskBuilt: maskBuiltOn, symbols: [...symbols.values()].map(symbol => [symbol.id, symbol.code, symbol.kind] as const) };
+  }, [georeference, crs, mapping, symbols, bounds, clip, stage, fitted, skipped, normed, view.area, built, maskBuiltOn]);
+  const [computed, setComputed] = useState<{ name: string; features: readonly SourceFeature[]; input: CandidateInput; result: CandidateResult | undefined }>();
+  useEffect(() => {
+    if (!file || !input) return;
+    const { name, data: { features } } = file;
+    worker().compute(features, input, result => setComputed({ name, features, input, result }));
+  }, [file, input, worker]);
+  const computing = !!file && !!input && (computed?.features !== file.data.features || computed.input !== input);
+  // Den förra uträkningen visas medan den nya räknas, men bara för samma fil (en annan fil visar inget förrän den är klar).
+  const result = file && input && computed?.name === file.name ? computed.result : undefined;
+
+  /** Grundkartans filer (text) tolkas och sätts ihop i samma Worker; `onStep` får var den är. */
+  const readBaseMap = useCallback((request: Parameters<CandidateSession["baseMap"]>[0], onStep: (step: BaseMapStep) => void) =>
+    worker().baseMap(request, onStep), [worker]);
 
   // Ytorna hämtas på nytt för varje fil, så att det som ritats sedan sist är med.
   useEffect(() => { if (file && session) session.built(setBuilt); }, [file, session]);
@@ -219,7 +219,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   }, [file, georeference, session, crs, mapping, symbols]);
 
   const propose = useCallback(async () => {
-    if (!file || !result || result.objects.length === 0) return;
+    if (!file || !result || result.objects.length === 0 || computing) return;
     setProblem(undefined);
     const at = new Date().toISOString();
     const edits = result.objects.map((object: MapObject) => ({ editId: crypto.randomUUID(), key: newKey(crypto.randomUUID()), ref: null, base: null,
@@ -242,19 +242,19 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     }
     setProgress(undefined); setSent(parts.length); setFile(undefined); setLayers([]); setMapping(new Map());
     onSent();
-  }, [file, result, base, onSent]);
+  }, [file, result, computing, base, onSent]);
 
   /**
    * Ägaren 2026-11-10 («godkännas i ett svep»): alla kandidater läggs i kartan som egna ändringar i ett steg (Ångra tar bort
    * alla igen). Den som bara får föreslå får dem som förslag, som med allt annat den ritar.
    */
   const accept = useCallback(() => {
-    if (!file || !result || result.objects.length === 0 || !commitMany) return;
+    if (!file || !result || result.objects.length === 0 || !commitMany || computing) return;
     setProblem(undefined); setSent(undefined);
     const count = commitMany(result.objects.map((object: MapObject) => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD" as const,
       after: { kind: "OBJECT" as const, object } })));
     setAccepted(count); setFile(undefined); setLayers([]); setMapping(new Map());
-  }, [file, result, commitMany]);
+  }, [file, result, computing, commitMany]);
 
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);
@@ -281,7 +281,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setMapping(current => new Map([...found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; }),
       ...[...current].filter(([layer]) => found.some(row => row.name === layer))]));
   }, [file, openData, symbols]);
-  return { file, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result,
+  return { file, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result, computing, readBaseMap,
     fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
     /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
     metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, refine, fetchOsm, fetching, propose, cancel,

@@ -6,8 +6,8 @@ import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
 import { GEO_CLIP_MARGIN_M, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { parseDxf, parseGeoJson, VectorParseError, type SourceData } from "@o-tid/map-revision";
-import { baseMapOutputs, clipWgs84, mergeBaseMap } from "../../lib/map-project-base-map";
+import { VectorParseError, type SourceData } from "@o-tid/map-revision";
+import { baseMapOutputs, clipWgs84 } from "../../lib/map-project-base-map";
 import { clearCutFeatures } from "../../lib/map-project-clear-cuts";
 import { choiceSettings, choicesOf, cliffChoicesOf, CLIFF_STYLES, DEFAULT_CHOICES, LASER_CHOICES, typedOf, type ChoiceLevel, type CliffStyle, type LaserChoices } from "../../lib/map-project-laser-choices";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
@@ -169,28 +169,35 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     await load();
   }
 
-  /** En resultatfil läst som vektordata, eller statusen när den inte gick att hämta. */
-  async function read(job: GeoJobView, output: string): Promise<SourceData | number> {
+  /** En resultatfil som text, eller statusen när den inte gick att hämta. */
+  async function read(job: GeoJobView, output: string): Promise<string | number> {
     const response = await fetch(`${base}/geo-jobs/${job.jobId}/outputs/${output}`, { credentials: "same-origin" }).catch(() => undefined);
     if (!response?.ok) return response?.status ?? 0;
-    const body = await response.text();
-    return output.endsWith(".geojson") ? parseGeoJson(body) : parseDxf(body);
+    return response.text();
   }
 
-  /** En fil, eller hela grundkartan (jobbets delar och OpenStreetMap för samma ruta), som kandidater i importen. */
+  /**
+   * En fil, eller hela grundkartan (jobbets delar och OpenStreetMap för samma ruta), som kandidater i importen. Ägaren
+   * 2026-11-12 («nu vet man inte om datorn hängt sig»): filerna tolkas och sätts ihop i kandidaternas Worker, och
+   * statusraden säger vilket steg som pågår.
+   */
   async function candidates(job: GeoJobView, outputs: readonly string[], label: string, baseMap = false) {
-    setBusy(label); setMessage(undefined);
+    setMessage(undefined);
+    const box = baseMap && job.clip ? clipWgs84(job.clip) : undefined;
+    const total = outputs.length + (box ? 2 : 0);
+    setBusy(text.steps.fetching(1, total));
     try {
-      const parts: { name: string; data: SourceData }[] = [];
+      const parts: { name: string; body: string }[] = [];
       for (const output of outputs) {
-        const data = await read(job, output);
-        if (typeof data === "number") { say(data); return; }
-        parts.push({ name: output, data });
+        setBusy(text.steps.fetching(parts.length + 1, total));
+        const body = await read(job, output);
+        if (typeof body === "number") { say(body); return; }
+        parts.push({ name: output, body });
       }
       // G8: OpenStreetMap (stigar, vägar, hus, ledningar) för jobbets ruta följer med i grundkartan; går det inte sägs det.
       let osm: SourceData | undefined, osmMissing = false;
-      const box = baseMap && job.clip ? clipWgs84(job.clip) : undefined;
       if (box) {
+        setBusy(text.steps.fetching(outputs.length + 1, total));
         const response = await clubRequest(`${base}/sources/osm`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
         osm = response.status === 200 ? (response.json as { data?: SourceData } | undefined)?.data : undefined;
         osmMissing = !osm;
@@ -198,11 +205,14 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       // Skogsstyrelsens hyggen (ägaren 2026-11-11) efter ålder i dag och jämfört med laserskanningen.
       let cuts: ReturnType<typeof clearCutFeatures> | undefined;
       if (box) {
+        setBusy(text.steps.fetching(total, total));
         const response = await clubRequest(`${base}/sources/avverkningar`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
         const list = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
         if (list) cuts = clearCutFeatures(list.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
       }
-      const data: SourceData = baseMap ? mergeBaseMap(parts, osm, georeference?.scale, cuts) : { ...parts[0]!.data };
+      const data = await importer.readBaseMap({ parts, merge: baseMap, osm, scale: georeference?.scale,
+        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan } },
+        step => setBusy(step.step === "read" ? text.steps.reading(step.done, step.total) : text.steps.merging));
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
         // Ägaren 2026-11-12: en etapps resultat klipps mot etappens gräns, så att grannetapperna inte får dubbla linjer.
@@ -300,7 +310,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         </span>
       </fieldset>}
     </>}
-    {busy && <p role="status" className={styles.muted}>{busy}</p>}
+    {(busy || importer.computing) && <p role="status" className={styles.muted} data-testid="map-project-laser-status">{busy ?? text.steps.candidates}</p>}
     {message && <p role={message.tone === "ok" ? "status" : "alert"} className={message.tone === "ok" ? styles.muted : styles.problem}
       data-testid="map-project-laser-message">{message.text}</p>}
     {list && list.jobs.length > 0 && <div data-testid="map-project-laser-jobs">

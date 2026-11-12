@@ -131,6 +131,12 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     "fukt.dxf": "Marshes and wet channels", "diken.dxf": "Ditches from the terrain shape", "berg.dxf": "Boulders and bare rock", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "marktacke.geojson": "Land cover from Lantmäteriet", "byggnader.geojson": "Buildings from Lantmäteriet", "ritning.geojson": "The drawing"
   },
   loadBaseMap: "Load the base map",
+  steps: {
+    fetching: (done: number, total: number) => `Fetching files ${done} of ${total} …`,
+    reading: (done: number, total: number) => `Reading files ${done} of ${total} …`,
+    merging: "Putting the base map together …",
+    candidates: "Calculating candidates …"
+  },
     osmMissing: "OpenStreetMap could not be fetched now, so paths, roads and houses are missing. Fetch them under Import vectors.",
     clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen has no clear-cuts under 15 years in the area."
       : `Clear-cuts from Skogsstyrelsen: ${fresh} fresh, ${scrub} with scrub and ${young} with young forest${scanned ? ` (laser scanned ${scanned}; laser green is removed in newer clear-cuts)` : ""}.`,

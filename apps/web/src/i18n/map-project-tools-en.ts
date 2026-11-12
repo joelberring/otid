@@ -90,6 +90,7 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   barBuilt: "Nothing in private land, paving and buildings",
   barBuiltDone: (removed: number, clipped: number) => `${removed} removed, ${clipped} clipped`,
   barNormed: "Generalise to the standard",
+  barComputing: "calculating …",
   barNormedDone: (removed: number, simplified: number) => `${removed} too small removed, ${simplified} simplified`,
   barSymbols: "Change symbols",
   hideOnMap: "Hide on the map",

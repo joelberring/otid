@@ -22,6 +22,8 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
   const rows = importer.layers.filter(layer => importer.mapping.has(layer.name));
   return <section className={styles.bar} aria-label={text.barLabel} data-testid="map-project-candidate-bar">
     <strong className={styles.title}>{text.barTitle(importer.file.name)}</strong>
+    {/* Medan kandidaterna räknas om står den förra bilden kvar (ägaren 2026-11-12: fliken hängde på ett helt kartblad). */}
+    {importer.computing && <small role="status" className={styles.muted} data-testid="map-project-candidate-computing">{text.barComputing}</small>}
     <span className={styles.layers}>
       {rows.map(layer => {
         const symbol = symbols.get(importer.mapping.get(layer.name)!);
@@ -42,9 +44,9 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
       {text.barBuilt}{importer.result?.builtMask && <small> ({text.barBuiltDone(importer.result.builtMask.removed, importer.result.builtMask.clipped)})</small>}
     </label>
     <span className={styles.actions}>
-      {importer.canAccept && <Button disabled={count === 0 || !!importer.progress} onClick={importer.accept} data-testid="map-project-candidate-accept">
+      {importer.canAccept && <Button disabled={count === 0 || !!importer.progress || importer.computing} onClick={importer.accept} data-testid="map-project-candidate-accept">
         {text.accept(count)}</Button>}
-      <Button variant={importer.canAccept ? "secondary" : "primary"} disabled={count === 0 || !!importer.progress} onClick={() => void importer.propose()}
+      <Button variant={importer.canAccept ? "secondary" : "primary"} disabled={count === 0 || !!importer.progress || importer.computing} onClick={() => void importer.propose()}
         data-testid="map-project-candidate-propose">{importer.progress ? text.sending(importer.progress.done, importer.progress.total) : text.propose(count)}</Button>
       <Button variant="quiet" aria-pressed={importer.hideOnMap} onClick={() => importer.setHideOnMap(!importer.hideOnMap)}>
         {importer.hideOnMap ? text.showOnMap : text.hideOnMap}</Button>

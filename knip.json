@@ -5,7 +5,7 @@
   "workspaces": {
     ".": {
       // playwright.config.ts läses inte (Playwright-pluginen kräver databasen); webbläsartesternas filer är ingångar.
-      "entry": ["scripts/*.ts", "scripts/lasttest/*.ts", "tests/e2e/*.ts"],
+      "entry": ["scripts/*.ts", "scripts/lasttest/*.ts", "scripts/learn/*.ts", "tests/e2e/*.ts"],
       "project": ["scripts/**/*.ts", "tests/e2e/**/*.ts"]
     },
     "apps/web": {

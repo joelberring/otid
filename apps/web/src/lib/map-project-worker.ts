@@ -5,6 +5,7 @@ import {
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
+import { builtPolygons } from "./map-project-built-mask";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
 
 /**
@@ -239,6 +240,11 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     // Kartans hus, vägar och vatten (med ändringarna) mot underlagets; tar ett par sekunder, därför här och inte i sidan.
     const fit = current ? fitToMap(request.source, mapFitPoints(current.map.objects, current.map.symbols)) ?? null : null;
     post({ type: "fit", id: request.id, fit });
+    return;
+  }
+  if (request.type === "built") {
+    const map = current?.map;
+    post({ type: "built", id: request.id, polygons: map ? builtPolygons(map.objects, symbol => map.symbols.get(symbol)?.code.main) : [] });
     return;
   }
   if (request.type === "warp") {

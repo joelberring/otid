@@ -60,7 +60,9 @@ export type MapProjectRequest =
   /** K6b: kartan rättad med passpunkter (likformig, affin eller gummiduk). */
   | { readonly type: "warp"; readonly id: number; readonly options: WarpOptions }
   /** Ägaren 2026-11-10: "Passa in mot kartan" för ett vektorunderlag (punkterna i kartans mm, per sort). */
-  | { readonly type: "fit"; readonly id: number; readonly source: readonly FitPoint[] };
+  | { readonly type: "fit"; readonly id: number; readonly source: readonly FitPoint[] }
+  /** Ägaren 2026-11-12: kartans bebyggda ytor (tomtmark, hårdgjort, byggnader), som kandidater inte läses in i. */
+  | { readonly type: "built"; readonly id: number };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -77,6 +79,7 @@ export type MapProjectResponse =
   | { readonly type: "bySymbol"; readonly id: number; readonly objects: readonly SymbolObject[] }
   | { readonly type: "warp"; readonly id: number; readonly changes: readonly WarpChange<ObjectKey>[]; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "fit"; readonly id: number; readonly fit: VectorFit | null }
+  | { readonly type: "built"; readonly id: number; readonly polygons: readonly [number, number][][][] }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Ett objekt med sin nyckel och (för grundfilens objekt) sin referens. */
@@ -106,6 +109,8 @@ export class MapProjectSession {
   private onBySymbol: ((objects: readonly SymbolObject[]) => void) | undefined;
   private latestWarp = 0;
   private latestFit = 0;
+  private latestBuilt = 0;
+  private onBuilt: ((polygons: readonly [number, number][][][]) => void) | undefined;
   private onFit: ((fit: VectorFit | null) => void) | undefined;
   private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
@@ -125,6 +130,7 @@ export class MapProjectSession {
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
       else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
       else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
+      else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -195,6 +201,13 @@ export class MapProjectSession {
     const id = ++this.latestWarp;
     this.onWarp = onWarp;
     this.post({ type: "warp", id, options });
+  }
+
+  /** Kartans bebyggda ytor som polygoner i kartans mm (med ändringarna i arbetet). */
+  built(onBuilt: (polygons: readonly [number, number][][][]) => void) {
+    const id = ++this.latestBuilt;
+    this.onBuilt = onBuilt;
+    this.post({ type: "built", id });
   }
 
   fit(source: readonly FitPoint[], onFit: (fit: VectorFit | null) => void) {

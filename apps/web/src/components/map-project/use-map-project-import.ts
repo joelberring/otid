@@ -13,6 +13,7 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
+import { maskBuilt } from "../../lib/map-project-built-mask";
 import { mergeCandidates } from "../../lib/map-project-candidate-merge";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
@@ -44,6 +45,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [layers, setLayers] = useState<readonly ImportLayer[]>([]);
   const [mapping, setMapping] = useState<ReadonlyMap<string, string>>(new Map());
   const [crs, setCrs] = useState<number>();
+  /** Kartans bebyggda ytor (hämtas ur Workern när en fil öppnas) och om kandidaterna ska hållas utanför dem. */
+  const [built, setBuilt] = useState<readonly [number, number][][][]>([]);
+  const [maskBuiltOn, setMaskBuiltOn] = useState(true);
   /** Ägaren 2026-11-10: inpassningen mot kartan (efter koordinatsystemet), "running" medan den räknas, null om den inte gick. */
   const [fit, setFit] = useState<VectorFit | "running" | null>();
   const [problem, setProblem] = useState<Problem>();
@@ -174,12 +178,18 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       const imported = importObjects(file.data.features, { mapping: targets, toMap, bounds: clip ?? bounds, stairSymbols,
         // Kartans område (polygonen) klipper också, utom när en etapp valts (den har sin ruta).
         polygon: clip ? undefined : view.area ?? undefined });
-      if (!normed) return { ...imported, generalized: undefined };
+      // Ägaren 2026-11-12: inget av markens detaljer eller vegetationen i det som redan är ritat som tomtmark, asfalt eller hus.
+      const masked = maskBuiltOn && built.length ? maskBuilt(imported.objects, built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }) : undefined;
+      const kept = masked?.objects ?? imported.objects, builtMask = masked && masked.removed + masked.clipped > 0 ? { removed: masked.removed, clipped: masked.clipped } : undefined;
+      if (!normed) return { ...imported, objects: kept, generalized: undefined, builtMask };
       // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).
-      const general = generalizeCandidates(imported.objects, symbol => symbols.get(symbol)?.code, georeference.scale);
-      return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified } };
+      const general = generalizeCandidates(kept, symbol => symbols.get(symbol)?.code, georeference.scale);
+      return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask };
     } catch { return undefined; }
-  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped, normed, view.area]);
+  }, [file, georeference, crs, mapping, symbols, bounds, clip, fit, skipped, normed, view.area, built, maskBuiltOn]);
+
+  // Ytorna hämtas på nytt för varje fil, så att det som ritats sedan sist är med.
+  useEffect(() => { if (file && session) session.built(setBuilt); }, [file, session]);
 
   /**
    * "Passa in mot kartan": lagren som fått hus, vägar, vatten, murar eller järnväg som punkter i kartans mm, inpassade mot
@@ -274,5 +284,5 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     profile, saveProfile, canShareProfile: !!view.club,
     hideOnMap, setHideOnMap, skipped,
     toggleLayer: (layer: string) => setSkipped(current => { const next = new Set(current); if (next.has(layer)) next.delete(layer); else next.add(layer); return next; }),
-    normed, setNormed, candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose };
+    normed, setNormed, maskBuiltOn, setMaskBuiltOn, candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose };
 }

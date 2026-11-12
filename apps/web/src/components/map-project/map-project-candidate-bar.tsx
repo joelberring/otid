@@ -37,6 +37,10 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
       <input type="checkbox" checked={importer.normed} onChange={() => importer.setNormed(!importer.normed)} data-testid="map-project-candidate-normed" />
       {text.barNormed}{importer.result?.generalized && <small> ({text.barNormedDone(importer.result.generalized.removed, importer.result.generalized.simplified)})</small>}
     </label>
+    <label className={styles.layer} data-on={importer.maskBuiltOn || undefined}>
+      <input type="checkbox" checked={importer.maskBuiltOn} onChange={() => importer.setMaskBuiltOn(!importer.maskBuiltOn)} data-testid="map-project-candidate-built" />
+      {text.barBuilt}{importer.result?.builtMask && <small> ({text.barBuiltDone(importer.result.builtMask.removed, importer.result.builtMask.clipped)})</small>}
+    </label>
     <span className={styles.actions}>
       {importer.canAccept && <Button disabled={count === 0 || !!importer.progress} onClick={importer.accept} data-testid="map-project-candidate-accept">
         {text.accept(count)}</Button>}

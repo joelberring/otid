@@ -27,7 +27,8 @@ export const superadminEn: Texts<typeof superadminSv> = {
   },
   never: "never",
   noOwner: "none",
-  status: { active: "Active", blocked: "Blocked", superadmin: "Superadmin", visible: "Visible", hidden: "Hidden" },
+  status: { active: "Active", blocked: "Blocked", superadmin: "Superadmin", visible: "Visible", hidden: "Hidden",
+    unverified: "Unconfirmed address" },
   action: {
     HIDE_RACE: "Hide", UNHIDE_RACE: "Show", DELETE_EVENT: "Delete", BLOCK_ACCOUNT: "Block", UNBLOCK_ACCOUNT: "Unblock",
     DELETE_ACCOUNT: "Delete", CREATE_RESET_LINK: "Reset link", GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"

@@ -25,7 +25,8 @@ export const superadminSv = {
   },
   never: "aldrig",
   noOwner: "ingen",
-  status: { active: "Aktivt", blocked: "Spärrat", superadmin: "Superadmin", visible: "Synlig", hidden: "Dold" },
+  status: { active: "Aktivt", blocked: "Spärrat", superadmin: "Superadmin", visible: "Synlig", hidden: "Dold",
+    unverified: "Obekräftad adress" },
   action: {
     HIDE_RACE: "Dölj", UNHIDE_RACE: "Visa", DELETE_EVENT: "Ta bort", BLOCK_ACCOUNT: "Spärra", UNBLOCK_ACCOUNT: "Släpp spärr",
     DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"

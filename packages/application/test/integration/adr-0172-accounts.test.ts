@@ -144,6 +144,12 @@ describe("ADR-0172 konton", () => {
     const overview = await readSuperadminOverview(db, boss.proof, { accounts: ordinary.email.slice(0, 12).toUpperCase() });
     if (overview.status !== "ok") throw new Error("Översikten saknas");
     expect(overview.response.accounts.map((row) => row.email)).toEqual([ordinary.email]);
+    // Användartest 2026-11-12: listan visar om adressen är obekräftad.
+    expect(overview.response.accounts[0]?.emailVerified).toBe(true);
+    await db.update(schema.userAccounts).set({ emailVerifiedAt: null }).where(eq(schema.userAccounts.id, ordinary.accountId));
+    const unverified = await readSuperadminOverview(db, boss.proof, { accounts: ordinary.email });
+    if (unverified.status !== "ok") throw new Error("Översikten saknas");
+    expect(unverified.response.accounts[0]?.emailVerified).toBe(false);
     expect(overview.response.log[0]).toMatchObject({ action: "GRANT_SUPERADMIN", actorLabel: "Serverkommando", targetLabel: boss.email });
     expect(await setSuperadmin(db, { email: boss.email, superadmin: true })).toMatchObject({ status: "unchanged" });
   });

@@ -140,7 +140,8 @@ export function SuperadminPage() {
             <td className={styles.nowrap}>{account.lastLoginAt ? dateTime(account.lastLoginAt) : <span className={styles.muted}>{text.never}</span>}</td>
             <td className={numeric}>{account.eventCount}</td>
             <td>{account.blocked ? <span className={styles.badge} data-tone="attention">{text.status.blocked}</span> : text.status.active}
-              {account.superadmin && <> <span className={styles.badge}>{text.status.superadmin}</span></>}</td>
+              {account.superadmin && <> <span className={styles.badge}>{text.status.superadmin}</span></>}
+              {!account.emailVerified && <> <span className={styles.badge}>{text.status.unverified}</span></>}</td>
             <td><div className={styles.rowActions}>
               <Button variant="secondary" disabled={busy} aria-label={`${account.blocked ? text.action.UNBLOCK_ACCOUNT : text.action.BLOCK_ACCOUNT} ${account.email}`}
                 onClick={() => start({ kind: account.blocked ? "UNBLOCK_ACCOUNT" : "BLOCK_ACCOUNT", accountId: account.accountId, label: account.email })}>

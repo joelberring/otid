@@ -93,7 +93,8 @@ export async function readSuperadminOverview(
       accounts: accounts.map(({ account, eventCount: count }) => ({
         accountId: account.id, email: account.email, displayName: account.displayName,
         createdAt: account.createdAt.toISOString(), lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
-        eventCount: count, blocked: account.blockedAt !== null, superadmin: account.isSuperadmin
+        eventCount: count, blocked: account.blockedAt !== null, superadmin: account.isSuperadmin,
+        emailVerified: account.emailVerifiedAt !== null
       })),
       accountTotal: accountTotal?.count ?? 0,
       races: races.map(({ race, eventName, ownerEmail: owner }) => ({

@@ -23,7 +23,9 @@ export const superadminAccountSchema = z.object({
   lastLoginAt: instant.nullable(),
   eventCount: z.number().int().min(0),
   blocked: z.boolean(),
-  superadmin: z.boolean()
+  superadmin: z.boolean(),
+  /** Användartest 2026-11-12: om adressen är bekräftad (ADR-0186 beslut 9). */
+  emailVerified: z.boolean()
 }).strict();
 
 export const superadminRaceSchema = z.object({

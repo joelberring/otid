@@ -136,12 +136,15 @@ export const readoutText = {
     // PLAN.md steg 29: förslag ur löpardatabasen, klass efter banan och anmälda utan bricka.
     found: (card: string, name: string, club: string | undefined) =>
       `Bricka ${card} finns i löpardatabasen: ${name}${club ? `, ${club}` : ""}`,
-    fits: (classes: readonly string[]) => classes.length === 1 ? `Passar ${classes[0]}, alla kontroller stämplade`
+    fits: (classes: readonly string[]) => classes.length === 1 ? `Passar ${classes[0]} – alla kontroller stämplade`
       : `Passar ${classes.slice(0, -1).join(", ")} och ${classes.at(-1)} – alla kontroller stämplade`,
     closest: (className: string, missing: readonly number[]) =>
       `Ingen bana passar helt. Närmast: ${className}, saknar ${missing.length === 1 ? "kontroll" : "kontrollerna"} ${missing.join(", ")}`,
     classFits: (name: string) => `${name} – passar`,
     classWithCourse: (className: string, courseName: string) => courseName ? `${className} (${courseName})` : className,
+    // Användartestet 2026-11-12 (fel D): gafflad bana – varianten som stämplingarna passar, och anmäldas tilldelade variant.
+    withVariant: (label: string, code: string | undefined) => code ? `${label}, variant ${code}` : label,
+    linkVariant: (code: string, same: boolean) => same ? `tilldelad ${code}` : `tilldelad ${code} – annan variant`,
     entriesTitle: "Är det någon som redan är anmäld?",
     link: (name: string) => `Koppla brickan till ${name}`,
     linkDetail: (className: string, card: string | undefined) => card

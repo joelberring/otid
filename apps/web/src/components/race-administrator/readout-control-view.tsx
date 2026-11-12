@@ -13,7 +13,7 @@ import { formatClockTime } from "../../lib/clock-time";
 import { raceDayStarted } from "@o-tid/domain";
 import { awaitingStart, inForest, mispunchedEntries } from "../../lib/section-status";
 import { resultDuration } from "./types";
-import { hasResult, linkReview, orderUnknownReadoutEntries, type EntryResult } from "./unknown-readout-choice";
+import { entryVariant, fittingVariant, hasResult, linkReview, orderUnknownReadoutEntries, type EntryResult } from "./unknown-readout-choice";
 import type { Workspace } from "./workspace-state";
 import { RelayControl } from "./relay-panels";
 import { Button, Notice } from "../ui";
@@ -164,6 +164,15 @@ function UnknownCards({ ws }: { ws: Workspace }) {
           </option>)}
         </select></label>
         {(() => {
+          // Fel D: klassen och varianten som stämplingarna passar, som i avläsningsvyn.
+          const fits = (unknownReadoutCandidate.readouts.find(readout => readout.id === unknownReadoutId)?.fits ?? []).filter(fit => fit.ok);
+          return fits.length > 0 ? <p data-testid="unknown-readout-fits">{text.unknownReadoutFits(fits.slice(0, 4).map(fit => {
+            const name = unknownReadoutCandidate.classes.find(raceClass => raceClass.id === fit.classId)?.name ?? "";
+            const code = fittingVariant(unknownReadoutCandidate, unknownReadoutId, fit.classId);
+            return code ? text.unknownReadoutFitVariant(name, code) : name;
+          }))}</p> : null;
+        })()}
+        {(() => {
           const already = unknownReadoutCandidate.readouts.find(readout => readout.id === unknownReadoutId)?.alreadyReadOutBy;
           return already ? <p className={workspaceStyles.warning} role="note" data-testid="unknown-already-read">
             {text.unknownReadoutAlready(already.name)}</p> : null;
@@ -175,10 +184,14 @@ function UnknownCards({ ws }: { ws: Workspace }) {
         {unknownReadoutTarget === "EXISTING_ENTRY" && !functionary ? <label>{text.unknownReadoutEntry}<select value={unknownReadoutEntryId} disabled={busy}
           onChange={event => setUnknownReadoutEntryId(event.target.value)}>
           <option value="">{text.chooseParticipant}</option>
-          {orderUnknownReadoutEntries(unknownReadoutCandidate.entries).map(entry => <option key={entry.id} value={entry.id}>
-            {entry.familyName}, {entry.givenName} · {unknownReadoutCandidate.classes.find(raceClass => raceClass.id === entry.classId)?.name ?? ""}{entry.activeAssignment ? ` · ${text.rosterCard} ${entry.activeAssignment.cardNumber}` : ""}
-            {hasResult(entry) ? ` · ${text.unknownReadoutHasResult(entry.latestResult ? resultLabel(entry.latestResult) : "")}` : ""}
-          </option>)}
+          {orderUnknownReadoutEntries(unknownReadoutCandidate, unknownReadoutId).map(entry => {
+            const variant = entryVariant(unknownReadoutCandidate, unknownReadoutId, entry);
+            return <option key={entry.id} value={entry.id}>
+              {entry.familyName}, {entry.givenName} · {unknownReadoutCandidate.classes.find(raceClass => raceClass.id === entry.classId)?.name ?? ""}{entry.activeAssignment ? ` · ${text.rosterCard} ${entry.activeAssignment.cardNumber}` : ""}
+              {variant ? ` · ${text.unknownReadoutVariant(variant.code, variant.same)}` : ""}
+              {hasResult(entry) ? ` · ${text.unknownReadoutHasResult(entry.latestResult ? resultLabel(entry.latestResult) : "")}` : ""}
+            </option>;
+          })}
         </select></label> : <>
           <label>{text.unknownReadoutNewClass}<select value={unknownReadoutClassId} disabled={busy}
             onChange={event => setUnknownReadoutClassId(event.target.value)}><option value="">{text.chooseClass}</option>

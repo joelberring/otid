@@ -113,6 +113,9 @@ bricknummer, valfri start- och målstämpling och stämplingar.
    bästa-passning som gafflingar (godkänd först, sedan färst saknade kontroller; struken kontroll krävs inte; gafflad
    bana: bästa varianten) och vid lika den bana som förklarar flest stämplingar, sedan klassnamnet. Rogainingklasser och
    banor utan kontroller ingår inte. Det är bara ett förslag; ingen koppling eller anmälan görs utan arrangörens val.
+   Gafflad bana (användartestet 2026-11-12): förslaget säger varianten, och bland anmälda står de vars tilldelade variant är
+   just den först (`variantMatch`), sedan de utan variant och sist de med en annan variant, märkta, i avläsningsvyn (även
+   utan nät) och kontrollvyn. Namnet ur löpardatabasen går före; i kontrollvyn går de som saknar avläsning före.
 
 11. Rättningar för hela tävlingen (PLAN.md steg 31, motor 0.5.0) läggs på brickans tider på ett ställe,
    `prepareReadoutForEvaluation`, innan bedömningen: en tidsjustering per station (start, mål eller kontrollkod) ändrar

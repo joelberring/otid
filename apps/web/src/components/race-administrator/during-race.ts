@@ -241,7 +241,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     const value = unknownReadoutResolutionCandidateResponseSchema.parse(await json(response, op));
     if (value.raceId !== raceId) throw new Error("Unknown readout candidate scope mismatch");
     setUnknownReadoutCandidate(value); setUnknownReadoutId(value.readouts[0]?.id ?? "");
-    setUnknownReadoutEntryId(orderUnknownReadoutEntries(value.entries)[0]?.id ?? ""); setUnknownReadoutClassId(value.classes[0]?.id ?? "");
+    setUnknownReadoutEntryId(orderUnknownReadoutEntries(value, value.readouts[0]?.id)[0]?.id ?? ""); setUnknownReadoutClassId(value.classes[0]?.id ?? "");
     setUnknownReadoutFetchedAt(new Date().toISOString()); setUnknownReadoutAttentionStale(false);
   }
   /** Senaste resultaten (de 25 senast registrerade resultatuppdateringarna) till kontrollvyn. */

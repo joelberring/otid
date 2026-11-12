@@ -141,7 +141,8 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
   </div>;
   const described = (key: keyof Fields) => errors[key] ? { "aria-invalid": true as const, "aria-describedby": `register-${key}-error` } : {};
   if (classes.length === 0) return <section className="register" aria-label={t.register.title(cardNumber)}><p>{t.register.noClasses}</p></section>;
-  const fitsText = fitting.length > 0 ? t.register.fits(fitting.slice(0, 4).map((row) => t.register.classWithCourse(row.className, row.courseName)))
+  const fitsText = fitting.length > 0 ? t.register.fits(fitting.slice(0, 4).map((row) =>
+    t.register.withVariant(t.register.classWithCourse(row.className, row.courseName), row.fit.variantCode)))
     : fits[0] && fits[0].fit.missingControls.length > 0 && payload.punches.length > 0
       ? t.register.closest(t.register.classWithCourse(fits[0].className, fits[0].courseName), fits[0].fit.missingControls) : undefined;
   const okClasses = new Set(fitting.map((row) => row.fit.classId));
@@ -153,6 +154,8 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
       <ul>{suggestionsForEntries.map((entry) => <li key={entry.entryId}>
         <button type="button" disabled={saving} onClick={() => { void link(entry); }}>{t.register.link(entry.name)}</button>
         <span>{t.register.linkDetail(entry.className, entry.cardNumber)}</span>
+        {entry.variant ? <span className="register-variant" data-testid="register-entry-variant" data-same={entry.variant.same ? "yes" : "no"}>
+          {entry.variant.same ? "✓ " : "! "}{t.register.linkVariant(entry.variant.code, entry.variant.same)}</span> : null}
       </li>)}</ul>
       <p className="help">{t.register.newRunner}</p>
     </section> : null}

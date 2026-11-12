@@ -1,5 +1,5 @@
 import type { ReadoutPackage, RunnerClub, RunnerSuggestion, SportidentReadoutPayload } from "@o-tid/contracts";
-import { foldForSearch, rankClassesByCourseFit, type ClassCourseFit, type RaceSnapshot } from "@o-tid/domain";
+import { foldForSearch, rankClassesByCourseFit, variantMatch, variantMatchRank, type ClassCourseFit, type RaceSnapshot } from "@o-tid/domain";
 import type { QueuedReadout, QueuedRegistration } from "./store";
 
 /**
@@ -106,11 +106,17 @@ export interface EntrySuggestion {
   readonly cardNumber?: string;
   /** Namnet stämmer med löparen som löpardatabasen har för brickan. */
   readonly sameName: boolean;
+  /**
+   * Användartestet 2026-11-12 (fel D): löparens tilldelade variant och om det är just den som stämplingarna passar.
+   * Saknas utan gafflad bana eller tilldelad variant.
+   */
+  readonly variant?: { readonly code: string; readonly same: boolean };
 }
 
 /**
  * Anmälda i de klasser vars bana passar (alla godkända, annars den närmaste) som saknar bricka eller inte har läst ut:
- * först den som heter som löpardatabasens löpare för brickan, sedan de utan bricka, sedan de med bricka. Deltagare som
+ * först den som heter som löpardatabasens löpare för brickan, sedan (gafflad bana, fel D) de vars tilldelade variant är just
+ * den som stämplingarna passar, de utan variant och sist de med en annan variant; inom det de utan bricka före de med. Deltagare som
  * har ett resultat från en avläsning (enligt paketet eller den här webbläsarens kö) föreslås inte; stafettklasser ingår
  * aldrig i `classes`.
  */
@@ -128,15 +134,18 @@ export function entrySuggestions(pkg: ReadoutPackage, classes: readonly ClassSug
   for (const row of registrations) if (row.status !== "rejected" && "target" in row.request) readOut.add(row.request.entryId);
   const order = new Map(fitting.map((row, index) => [row.fit.classId, index]));
   const wanted = runner ? foldForSearch(`${runner.givenName} ${runner.familyName}`) : undefined;
-  const rows = snapshot.entries.flatMap((entry): { suggestion: EntrySuggestion; rank: number }[] => {
+  const rows = snapshot.entries.flatMap((entry): { suggestion: EntrySuggestion; rank: readonly number[] }[] => {
     const position = order.get(entry.classId);
     if (position === undefined || readOut.has(entry.id)) return [];
     const name = `${entry.givenName} ${entry.familyName}`.trim();
     const cardNumber = cards.get(entry.id);
     const sameName = wanted !== undefined && foldForSearch(name) === wanted;
-    return [{ rank: (sameName ? 0 : cardNumber ? 2 : 1) * 1_000 + position, suggestion: { entryId: entry.id, classId: entry.classId, name,
-      className: fitting[position]!.className, ...(cardNumber ? { cardNumber } : {}), sameName } }];
+    const match = variantMatch(entry.courseVariantCode, fitting[position]!.fit.variantCode);
+    return [{ rank: [sameName ? 0 : 1, variantMatchRank(match), cardNumber ? 1 : 0, position], suggestion: { entryId: entry.id,
+      classId: entry.classId, name, className: fitting[position]!.className, ...(cardNumber ? { cardNumber } : {}), sameName,
+      ...(entry.courseVariantCode && match !== "NONE" ? { variant: { code: entry.courseVariantCode, same: match === "SAME" } } : {}) } }];
   });
-  return rows.sort((left, right) => left.rank - right.rank || left.suggestion.name.localeCompare(right.suggestion.name, "sv"))
+  const byRank = (left: readonly number[], right: readonly number[]) => left.reduce((found, value, index) => found || value - right[index]!, 0);
+  return rows.sort((left, right) => byRank(left.rank, right.rank) || left.suggestion.name.localeCompare(right.suggestion.name, "sv"))
     .slice(0, limit).map((row) => row.suggestion);
 }

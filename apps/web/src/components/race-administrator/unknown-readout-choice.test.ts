@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest } from "@o-tid/contracts";
-import { linkReview, orderUnknownReadoutEntries, resolutionRequest } from "./unknown-readout-choice";
+import { entryVariant, linkReview, orderUnknownReadoutEntries, resolutionRequest } from "./unknown-readout-choice";
 
 const id = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const entry = (n: number, name: string, extra: Partial<UnknownReadoutResolutionCandidateResponse["entries"][number]> = {}) =>
@@ -20,7 +20,16 @@ const request = (entryId: string): UnknownReadoutResolutionRequest => ({ formatV
 
 describe("kontrollvyns koppling av en okänd bricka (användartestet 2026-11-12)", () => {
   it("deltagare som saknar avläsning står först", () => {
-    expect(orderUnknownReadoutEntries(candidate.entries).map((row) => row.givenName)).toEqual(["Cia", "Dan", "Eva", "Bo"]);
+    expect(orderUnknownReadoutEntries(candidate, undefined).map((row) => row.givenName)).toEqual(["Cia", "Dan", "Eva", "Bo"]);
+  });
+
+  it("gafflad bana: tilldelad variant som stämplingarna passar först och märkt, annan variant sist (fel D)", () => {
+    const forked = { ...candidate, entries: [...candidate.entries, entry(5, "Fia", { courseVariantCode: "BE" })] };
+    // Dan har AD (annan variant), Fia BE (just den), Cia och Eva saknar variant; Bo har läst ut och står sist.
+    expect(orderUnknownReadoutEntries(forked, id(80)).map((row) => row.givenName)).toEqual(["Fia", "Cia", "Eva", "Dan", "Bo"]);
+    expect(entryVariant(forked, id(80), forked.entries[4]!)).toEqual({ code: "BE", same: true });
+    expect(entryVariant(forked, id(80), forked.entries[2]!)).toEqual({ code: "AD", same: false });
+    expect(entryVariant(forked, id(80), forked.entries[1]!)).toBeUndefined();
   });
 
   it("granskningen säger vem, nuvarande bricka och resultat och att resultatet ersätts", () => {

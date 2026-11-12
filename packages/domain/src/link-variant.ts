@@ -30,3 +30,19 @@ export function linkVariantChange(readout: EvaluationReadout, snapshot: RaceSnap
   const fittingCode = fittingVariantForEntry(readout, snapshot, entryId);
   return fittingCode && fittingCode !== assignedCode ? { assignedCode, fittingCode } : undefined;
 }
+
+/**
+ * Fel D: en anmäld löpares tilldelade variant mot varianten som den okända brickans stämplingar passar. `SAME` = just den
+ * varianten (troligast löparen), `OTHER` = en annan variant, `NONE` = inget att jämföra (ogafflad bana eller ingen variant).
+ */
+export type VariantMatch = "SAME" | "OTHER" | "NONE";
+
+export function variantMatch(assignedCode: string | null | undefined, fittingCode: string | undefined): VariantMatch {
+  if (!assignedCode || !fittingCode) return "NONE";
+  return assignedCode === fittingCode ? "SAME" : "OTHER";
+}
+
+/** Ordningen i förslagen: samma variant först, sedan de utan variant att jämföra, sist en annan variant. */
+export function variantMatchRank(match: VariantMatch): number {
+  return match === "SAME" ? 0 : match === "NONE" ? 1 : 2;
+}

@@ -4,7 +4,7 @@ import { evaluateLocally, withLocalRegistrations } from "./evaluate";
 import { classSuggestions, clubByName, entrySuggestions, runnerForCard, runnerLabel, searchRunners } from "./runner-lookup";
 import { syncPending } from "./sync";
 import type { QueuedRegistration } from "./store";
-import { ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
+import { forkedTestPackage, ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
 
 /**
  * PLAN.md steg 29: förslag vid okänd bricka på avläsningssidan, offline mot paketet. Lång har 31 32 33; Kort (ny klass
@@ -128,5 +128,18 @@ describe("löpardatabasen i avläsningspaketet (offline)", () => {
     expect((calls[0]!.init.headers as Record<string, string>)["idempotency-key"]).toBe(`readout-registration:${REQUEST}`);
     expect(JSON.parse(calls[0]!.init.body as string)).toEqual(link.request);
     expect(store.registrations[0]).toMatchObject({ status: "stored", response: { outcome: "LINKED" } });
+  });
+
+  it("gafflad bana: varianten som stämplingarna passar, och anmälda med just den varianten först och märkta (fel D)", () => {
+    const base = forkedTestPackage(); // Anna har BA och bricka
+    const person = (n: number, givenName: string, code?: string) => ({ id: `10000000-0000-4000-8000-0000000004${String(n).padStart(2, "0")}`,
+      raceId: ids.race, classId: ids.class, givenName, familyName: "Ek", ...(code ? { courseVariantCode: code } : {}) });
+    const value = readoutPackageSchema.parse({ ...base, raceSnapshot: { ...base.raceSnapshot, entries: [...base.raceSnapshot.entries,
+      person(1, "Bo", "AB"), person(2, "Cia", "BA"), person(3, "Dan")].sort((left, right) => left.id.localeCompare(right.id)) } });
+    const classes = classSuggestions(value, payload("7999002", [31, 32, 34, 33]), new Set([ids.class]));
+    expect(classes.map((row) => [row.className, row.fit.variantCode, row.fit.ok])).toEqual([["Lång", "AB", true]]);
+    // Alla saknar avläsning: Bo (AB) först, Dan utan variant, sedan de med annan variant (utan bricka före med bricka).
+    expect(entrySuggestions(value, classes, [], []).map((row) => [row.name, row.variant ?? null])).toEqual([
+      ["Bo Ek", { code: "AB", same: true }], ["Dan Ek", null], ["Cia Ek", { code: "BA", same: false }], ["Anna Berg", { code: "BA", same: false }]]);
   });
 });

@@ -220,6 +220,10 @@ export const raceAdministratorSv = {
   unknownReadoutConflict: "Kopplingen gick inte: brickan eller deltagaren har ändrats under tiden. Läs in igen och försök på nytt.",
   /** Användartestet 2026-11-12: kopplingen till en löpare som redan har resultat eller en annan bricka. */
   unknownReadoutHasResult: (result: string) => `har resultat ${result}`,
+  // Fel D: varianten som stämplingarna passar och deltagarnas tilldelade variant.
+  unknownReadoutFits: (classes: readonly string[]) => `Passar ${classes.join(", ")}`,
+  unknownReadoutFitVariant: (className: string, code: string) => `${className}, variant ${code}`,
+  unknownReadoutVariant: (code: string, same: boolean) => same ? `tilldelad ${code}` : `tilldelad ${code} – annan variant`,
   unknownReadoutCurrentCard: "Nuvarande bricka",
   unknownReadoutCurrentResult: "Nuvarande resultat",
   unknownReadoutNoCard: "ingen",

@@ -1,4 +1,5 @@
 import type { UnknownReadoutResolutionCandidateResponse, UnknownReadoutResolutionRequest } from "@o-tid/contracts";
+import { variantMatch, variantMatchRank } from "@o-tid/domain";
 
 /**
  * Kontrollvyns koppling av en okänd bricka (användartestet 2026-11-12): vilka deltagare som står först och vad kopplingen
@@ -13,11 +14,23 @@ export const hasResult = (entry: Pick<CandidateEntry, "latestResultRevision">): 
 /** Har deltagaren ett resultat från en avläsning, som kopplingen ersätter? (Ett beslut utan avläsning står kvar, steg 45.) */
 const readOut = (entry: Pick<CandidateEntry, "readOut">): boolean => entry.readOut === true;
 
-/** Deltagare som saknar avläsning först, sedan de som redan läst ut; i övrigt listans ordning (efternamn, förnamn). */
-export function orderUnknownReadoutEntries(entries: readonly CandidateEntry[]): CandidateEntry[] {
-  return entries.map((entry, index) => ({ entry, index }))
-    .sort((left, right) => Number(readOut(left.entry)) - Number(readOut(right.entry)) || left.index - right.index)
+/**
+ * Deltagare som saknar avläsning först, sedan de som redan läst ut. Inom det (gafflad bana, fel D) de vars tilldelade
+ * variant är just den som avläsningens stämplingar passar, sedan de utan variant och sist de med en annan variant; i övrigt
+ * listans ordning (efternamn, förnamn).
+ */
+export function orderUnknownReadoutEntries(candidate: Candidate, readoutId: string | undefined): CandidateEntry[] {
+  const rank = (entry: CandidateEntry) => variantMatchRank(variantMatch(entry.courseVariantCode,
+    readoutId ? fittingVariant(candidate, readoutId, entry.classId) : undefined));
+  return candidate.entries.map((entry, index) => ({ entry, index, rank: rank(entry) }))
+    .sort((left, right) => Number(readOut(left.entry)) - Number(readOut(right.entry)) || left.rank - right.rank || left.index - right.index)
     .map((row) => row.entry);
+}
+
+/** Deltagarens tilldelade variant och om det är just den som stämplingarna passar; saknas när det inte går att jämföra. */
+export function entryVariant(candidate: Candidate, readoutId: string, entry: CandidateEntry): { code: string; same: boolean } | undefined {
+  const match = variantMatch(entry.courseVariantCode, fittingVariant(candidate, readoutId, entry.classId));
+  return entry.courseVariantCode && match !== "NONE" ? { code: entry.courseVariantCode, same: match === "SAME" } : undefined;
 }
 
 /** Granskningen före "Bekräfta": vem, nuvarande bricka och resultat, och vad som ersätts. */

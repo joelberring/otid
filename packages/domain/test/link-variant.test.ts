@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fittingVariantForEntry, linkVariantChange, type EvaluationReadout, type RaceSnapshot } from "../src";
+import { fittingVariantForEntry, linkVariantChange, variantMatch, variantMatchRank, type EvaluationReadout, type RaceSnapshot } from "../src";
 
 const ids = { race: "r", class: "c", course: "k", version: "v", hugo: "hugo", ida: "ida" };
 // Två fjärilar: centrum 50 med slingorna A (41 42) och B (43 44), centrum 60 med C (61 62) och D (63 64).
@@ -47,5 +47,13 @@ describe("okänd bricka och gafflad bana (användartestet 2026-11-12)", () => {
     expect(linkVariantChange(unknownCard("AD"), snapshot(), ids.hugo)).toBeUndefined();
     // Utan tilldelad variant finns inget byte att visa.
     expect(linkVariantChange(unknownCard("BD"), snapshot(), ids.ida)).toBeUndefined();
+  });
+
+  it("förslagen: tilldelad variant som stämplingarna passar först, annan variant sist", () => {
+    expect([variantMatch("BE", "BE"), variantMatch("AD", "BE"), variantMatch(null, "BE"), variantMatch("AD", undefined)])
+      .toEqual(["SAME", "OTHER", "NONE", "NONE"]);
+    const rows = [{ name: "AD", code: "AD" }, { name: "BE", code: "BE" }, { name: "utan", code: null }, { name: "BE2", code: "BE" }];
+    expect([...rows].sort((left, right) => variantMatchRank(variantMatch(left.code, "BE")) - variantMatchRank(variantMatch(right.code, "BE")))
+      .map((row) => row.name)).toEqual(["BE", "BE2", "utan", "AD"]);
   });
 });

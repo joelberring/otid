@@ -21,6 +21,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Beskedet räknar bara koder som försvinner och säger vilka varianter som får ändrade kontroller (`changedCodes`, sv/en).
 - Stafettsträckor oförändrade (följer bara kontrollföljden; samma fel finns där, inte rättat).
 - Verifierat: lint, typecheck, enhetstester, integrationstester för gafflingar och banredigering (se slutrapporten).
+- A: direktanmäld i en masstartsklass får masstartens tid (`massStartForNewEntry`) i avläsningsvyn med/utan nät (paketets
+  `massStarts`) och kontrollvyn; utan nät sparas varianten när avläsningen kommer efter anmälan. Minutstart oförändrad.
+- B: kontrollvyns granskning visar löpare, klass, bricka och resultat, varnar och kräver kryss; servern kräver
+  `replaceExistingResult` (annars RESULT_EXISTS); historiken säger bricka före/efter och ersatt resultat (auditpost).
+- C: koppling i båda vyerna bedöms mot varianten stämplingarna passar (kontrollvyn bytte inte förut); bytet syns i besked,
+  granskning, deltagarkort, historik och deltagarlistan. Känd bricka byter aldrig variant (fel karta som förut).
+- D: förslaget säger varianten; anmälda med just den varianten först och märkta, i avläsningsvyn och kontrollvyn.
+- Verifierat: lint, typecheck, enhetstester, knip, integrationstester (`anvandartest-*`). Playwright inte kört (ingen Docker).
 
 ### 2026-11-12 – Användartestet 2026-11-12, block 1: speaker, startsätt, kvar i skogen; veckans målning
 - Speakerns "Senast i mål" ordnas och visas på ankomsttiden (som Live), inte på senaste revisionen; en omräkning flyttar ingen.

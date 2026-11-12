@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { speakerBoardResponseSchema, speakerBoardRowSchema, type SpeakerBoardResponse, type SpeakerBoardRow } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
@@ -41,7 +41,21 @@ export async function listSpeakerBoardAsAdmin(
         isNull(schema.entries.struckAt)
       )).orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision),
       desc(schema.resultRevisions.id)).as("speaker_latest_published");
-    const heads = await tx.select().from(latest).orderBy(desc(latest.createdAt), desc(latest.id)).limit(25);
+    // "Senast i mål" ordnas på när löparen kom in, samma källa som publika Live (`readArrivals` i public-live.ts): den
+    // första publicerade revisionen från en avläsning. En omräkning, en rättelse eller ett statusbyte skapar nya
+    // revisioner men flyttar alltså inte löparen. Utan avläsning (manuellt beslut) gäller den första publicerade
+    // revisionen; Live tar där den senaste, men speakern ska inte heller låta ett senare beslut flytta raden.
+    const arrival = tx.select({ entryId: schema.resultRevisions.entryId,
+      arrivedAtMs: sql<string>`extract(epoch from coalesce(
+        min(${schema.resultRevisions.createdAt}) filter (where ${schema.resultRevisions.readoutId} is not null),
+        min(${schema.resultRevisions.createdAt}))) * 1000`.as("arrived_at_ms") })
+      .from(schema.resultRevisions)
+      .where(and(eq(schema.resultRevisions.raceId, race.id), eq(schema.resultRevisions.published, true)))
+      .groupBy(schema.resultRevisions.entryId).as("speaker_arrival");
+    const ordered = await tx.select().from(latest).innerJoin(arrival, eq(arrival.entryId, latest.entryId))
+      .orderBy(desc(arrival.arrivedAtMs), desc(latest.id)).limit(25);
+    const heads = ordered.map((row) => row.speaker_latest_published);
+    const arrivedAt = new Map(ordered.map((row) => [row.speaker_arrival.entryId, new Date(Number(row.speaker_arrival.arrivedAtMs))]));
     const entryIds = heads.map((head) => head.entryId);
     if (new Set(entryIds).size !== heads.length) throw new Error("Speakerunderlaget har dubbla deltagare");
     const states = await resolveStoredResultHeadStates(tx, race.id, heads);
@@ -73,13 +87,18 @@ export async function listSpeakerBoardAsAdmin(
       [leg.entry.id, { teamNumber: view.team.number, teamName: view.team.name, leg: leg.entry.leg,
         variantCode: leg.entry.courseVariantCode, restarted: leg.restarted }] as const))));
     const classById = new Map(classes.map((raceClass) => [raceClass.id, raceClass.name]));
+    const arrivedAtOf = (entryId: string) => {
+      const at = arrivedAt.get(entryId);
+      if (!at || !Number.isFinite(at.getTime())) throw new Error("Speakerunderlagets ankomsttid saknas");
+      return at.toISOString();
+    };
     const rows: SpeakerBoardRow[] = parsed.map(({ state, outcome }, index) => {
       const entry = entryById.get(state.selectedHead.entryId);
       const className = classById.get(outcome.classId);
       if (!entry || !className) throw new Error("Speakerunderlagets visningsuppgifter saknas");
       const common = { slot: index + 1, givenName: entry.givenName, familyName: entry.familyName,
         organisationName: entry.organisationName, className, selectedRevision: state.selectedHead.revision,
-        registeredAt: state.selectedHead.createdAt.toISOString(), ...(relayOf.has(entry.id) ? { relay: relayOf.get(entry.id)! } : {}) };
+        registeredAt: arrivedAtOf(state.selectedHead.entryId), ...(relayOf.has(entry.id) ? { relay: relayOf.get(entry.id)! } : {}) };
       if (state.state === "NO_ACTIVE_RESULT") return { ...common, state: "NO_ACTIVE_RESULT" };
       return speakerBoardRowSchema.parse({ ...common, state: "ACTIVE_RESULT", result: {
         revision: state.head.revision, status: outcome.status, reason: outcome.reason,

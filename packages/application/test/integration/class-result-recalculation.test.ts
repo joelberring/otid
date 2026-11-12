@@ -8,6 +8,7 @@ import {
 } from "../../src/class-result-recalculation";
 import { contentHash } from "../../src/serialization";
 import { ingestDeviceBatch } from "../../src/ingest";
+import { listSpeakerBoardAsAdmin } from "../../src/speaker-board";
 import { raceLogin } from "./accounts";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -100,6 +101,31 @@ describe("TASK091 atomic class result recalculation", () => {
     expect((await pool.query("SELECT * FROM class_result_recalculation WHERE race_id=$1", [f.raceId])).rowCount).toBe(1);
     expect((await pool.query("SELECT * FROM class_result_recalculation_item WHERE race_id=$1", [f.raceId])).rowCount).toBe(2);
     await expect(pool.query("UPDATE class_result_recalculation SET recalculated_at=recalculated_at WHERE race_id=$1", [f.raceId])).rejects.toThrow();
+  });
+
+  it("låter speakerns \"Senast i mål\" behålla måltid och ordning efter en omräkning (användartest 2026-11-12)", async () => {
+    const f = await fixture();
+    // Omräkningen görs efter avläsningarna (som registrerades med verklig klocka), som i användartestet.
+    const later = new Date(Date.now() + 60_000);
+    const login = await raceLogin(db, f.raceId, "ADMIN", later);
+    const admin = { raceId: f.raceId, sessionToken: login.sessionToken, csrfCookie: login.csrfToken, csrfHeader: login.csrfToken };
+    const board = async () => {
+      const result = await listSpeakerBoardAsAdmin(db, { raceId: f.raceId, sessionToken: login.sessionToken }, later);
+      if (result.status !== "ok") throw new Error(`Speakerunderlag saknas: ${result.status}`);
+      return result.response.rows.map((row) => ({ givenName: row.givenName, registeredAt: row.registeredAt,
+        slot: row.slot, selectedRevision: row.selectedRevision }));
+    };
+    const before = await board();
+    // Ada1 läste ut sist och står överst.
+    expect(before.map((row) => [row.givenName, row.selectedRevision])).toEqual([["Ada1", 1], ["Ada0", 1]]);
+    const listed = await listClassResultRecalculationCandidatesAsAdmin(db, { ...admin, classId: f.classId }, later);
+    if (listed.status !== "ok") throw new Error("Class candidates unavailable");
+    const saved = await recalculateClassResultsAsAdmin(db, { ...admin, idempotencyKey: `class-result-recalculation:${randomUUID()}`,
+      request: { formatVersion: 1, classId: f.classId, engineVersion: listed.response.engineVersion,
+        manifestHash: listed.response.manifestHash, entryIds: f.entryIds } }, later);
+    expect(saved.status).toBe("recalculated");
+    const after = await board();
+    expect(after).toEqual(before.map((row) => ({ ...row, selectedRevision: 2 })));
   });
 
   it("rejects a stale reviewed manifest after a new selected-entry ingest without a partial group write", async () => {
